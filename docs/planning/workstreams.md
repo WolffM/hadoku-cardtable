@@ -45,7 +45,7 @@ Status: `todo` · `wave-N` · `blocked` · `done` · `watch`
 | --- | --- | --- | --- |
 | Import Forge's cube lists | wave-2 | — | `forge-gui/res/cube/` = 96 `.dck`; `res/draft/` = 96 `.draft` |
 | Pure draft engine (no transport) | wave-2 | — | — |
-| Pack generation rules | wave-2 | — | `gamemodes/limited/` = 6,781 lines to learn from (O2: reimplement) |
+| Pack generation rules | wave-2 | — | `gamemodes/limited/` = 6,781 lines (O2 deferred to spike verdict) |
 | Draft UI in the canvas slot | wave-2 | — | pattern: `GameModule.tsx`, 1,344 lines |
 | `.dck` export | wave-2 | — | — |
 
