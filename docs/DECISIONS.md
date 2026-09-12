@@ -99,7 +99,7 @@ Consequences:
 **Rules out:** a React re-implementation of Forge's deck editor / draft / match
 screens as the primary plan.
 
-## D7 — gdx-teavm spike decides P4 · provisional · 2026-09-11
+## D7 — gdx-teavm spike decides P4 · settled **NO-GO** · 2026-09-12
 
 `forge-gui-mobile` is libGDX, and [gdx-teavm](https://github.com/xpenatan/gdx-teavm)
 (maintained, last release Aug 2026) emits WASM. If it compiles, **P4 is deleted**
@@ -113,7 +113,8 @@ The two usual killers are absent:
   between the JS and WASM GC backends.
 - **Reflective class loading** — TeaVM can't see `Class.forName("…" + name)`.
   Forge doesn't do that: dispatch is an enum of **class literals**
-  (`ApiType { Abandon(AbandonEffect.class), … }` × 206), all statically visible.
+  (`ApiType { Abandon(AbandonEffect.class), … }` × 202), all statically visible.
+  *(202, not 206 — recounted in lane B. `WASM_AND_PORTING.md` still says 206.)*
 
 Assets aren't the obstacle either: `res/cardsfolder` is 132 MB of text that
 `gzip -9`s to **5.6 MB**.
@@ -121,8 +122,59 @@ Assets aren't the obstacle either: `res/cardsfolder` is 132 MB of text that
 Honest headwind: TeaVM's own docs say it is *"not suited for taking your large
 existing codebase in Java and producing JavaScript"*.
 
-**Provisional until** the go/no-go spike lands (Wave 1 lane B). If it fails, P4
-proceeds as React — ~14 prompt components over a board renderer.
+### Outcome — NO-GO · 2026-09-12 · Wave 1 lane B
+
+Evidence: `docs/spikes/teavm-go-no-go.md`, `scripts/spike/`. Reproduced by the
+wave manager independently of the lane that wrote it.
+
+`forge-core` + `forge-game` do not link against TeaVM 0.15.0's class library:
+**30 distinct missing APIs**, and TeaVM writes *no artifact at all* when there
+are link errors (`Output file built with errors`). `scripts/spike/run.sh wasm`
+exits 1.
+
+**Both of the two "usual killers" above actually passed.** The spike died on
+plumbing, not on anything architecturally interesting:
+
+- **Coroutines — PASS.** `Object.wait()` suspended, `main()` returned to the host
+  in 1 ms, the worker notified, main resumed after 52 ms. Forge's blocking game
+  thread is *not* the blocker. This is the assumption everyone expected to fail.
+- **Enum-of-class-literals reflection — PASS.** DCE follows the class literals.
+  What was missing was reflection *metadata*, fixed by a 40-line
+  `ReflectionPolicy` overlay; WASM output byte-identical to the JVM.
+
+What kills it: `Game.java:97` constructs a Guava `EventBus`; Guava's
+`LocalCache$Segment` **extends `java.util.concurrent.locks.ReentrantLock`**; and
+`teavm-classlib-0.15.0.jar` ships **zero** classes in
+`java.util.concurrent.locks` (14 types in all of `java.util.concurrent`). It
+fires on every game event:
+
+```
+[ERROR] Class com.google.common.cache.LocalCache$Segment extends
+        java.util.concurrent.locks.ReentrantLock, which is missing in the classpath
+```
+
+This is a **classlib** gap, not a WASM-backend gap — the JS backend reports 29 of
+the same 30.
+
+**Consequences, binding:**
+
+- **P4 proceeds as React** — ~14 prompt components over a board renderer.
+- **D6's iframe payload does not already exist.** It has to be built.
+- Revisit only if TeaVM ships `java.util.concurrent.locks`. The fork surface
+  looks small (3 of 961 files touch Guava `EventBus`, 9 touch `j.u.c.`) — but
+  fixing all 30 only reaches the *next* link error, because the spike program
+  exercises one static ability on two cards. Treat 30 as a floor, not a cost.
+
+**Not measured, and not measurable while it fails:** full-engine artifact size
+and cold start — the 712,640 B / 42.9 ms figures are the **reflection probe
+only** — and whether `java.io.File` works under WASM GC at all, so browser
+card-script loading is untested and open.
+
+**Bonus finding, verified, and it matters for PR-4:** `forge-core` +
+`forge-game` alone are a complete runnable rules engine on the JVM. 33,752 card
+scripts and 95,746 printings load in 1.6 s, and Glorious Anthem buffs Grizzly
+Bears to 3/3 through the real layer system — with no `forge-gui` and no
+`forge-ai`.
 
 ## D8 — CheerpJ ruled out · settled · 2026-09-11
 
@@ -187,10 +239,26 @@ Accepted without argument — each corrects something we couldn't see from outsi
 - **Service participant is a `role`, not a second mechanism.**
 - **Auth is an injected hook**; hadoku's tier ladder stays out of the package.
 
-Also flagged by them, for us: `safeEmit`'s backpressure priority list hardcodes
-watchparty event names, so our state deltas would be dropped as low-priority
-under load until P2 makes it injected config. And **our CI must use
-`HADOKU_NPM_READ_TOKEN`, not `GITHUB_TOKEN`** — a warm pnpm store hides the 403.
+Also flagged by them, for us: **our CI must use `HADOKU_NPM_READ_TOKEN`, not
+`GITHUB_TOKEN`** — a warm pnpm store hides the 403. Done in Wave 1 lane A
+(`.github/workflows/ci.yml`).
+
+### Correction · 2026-09-12 · Wave 1 lane D, re-verified by the manager
+
+They also told us `safeEmit`'s backpressure priority list hardcodes watchparty
+event names, "so our state deltas would get dropped as low-priority under load".
+**That is wrong.** Reading `apps/server/src/util/safeEmit.ts:32-48` in their
+tree: the drop only happens when `LOW_PRIORITY_ORDER.indexOf(event) !== -1`. An
+event in neither `HIGH_PRIORITY` (line 15) nor `LOW_PRIORITY_ORDER` (line 16)
+takes `idx === -1`, skips the inner block entirely, and reaches `socket.emit` at
+line 48. **Unlisted events are never shed — they are always sent.**
+
+The error is in our favour, but it changes what we ask for. Our real hazard is
+the inverse: unbounded buffering behind a slow socket, with no shedding and no
+ceiling. So the P3 ask is not "let us register our events as high priority" but
+*a bound on the queue*. `docs/requests/P3_PER_RECIPIENT_EMIT.md` §2.2 carries the
+corrected version. Tell them when these are delivered — this is their bug in
+their own document, not ours.
 
 ## D12 — Clean-room firewall on P4 · settled · non-negotiable · watchparty
 
@@ -237,7 +305,23 @@ Forge needs Maven; hokon has none and upstream ships no `mvnw` (only
 requires a password, and `dlcdn.apache.org` returns 200. So Maven goes in as a
 user-local tarball — **no sudo, no fleet mutation, no operator action needed**.
 
-Java 21 is already present; Forge targets 17.
+Forge targets 17.
+
+### Amended · 2026-09-12 · Wave 1 lane B — a JRE is not enough
+
+"Java 21 is already present" was true and **misleading**: hokon ships
+`openjdk-21-jre`, which has **no `javac` and no `lib/ct.sym`**. The stock Forge
+build fails with `error: release version 17 not supported`, which reads like a
+Forge/toolchain version mismatch and is in fact a missing compiler. That cost
+lane B its first attempt.
+
+**This decision now covers the JDK as well as Maven.** Temurin 21 installs to
+`~/.local/opt/jdk-21…` by the same no-sudo tarball mechanism; `scripts/spike/run.sh
+bootstrap` installs both. Posture is unchanged: no sudo, no fleet mutation, no
+operator action needed.
+
+With both present, stock `mvn install -pl forge-core,forge-game -am -DskipTests`
+passes in **13.2 s warm / 27 s cold `~/.m2`**.
 
 ---
 
@@ -246,6 +330,6 @@ Java 21 is already present; Forge targets 17.
 | # | Question | Recommendation |
 | --- | --- | --- |
 | O1 | Create `WolffM/hadoku-cardtable` and fork `Card-Forge/forge`? Both are outward-facing. | Yes to both; the fork is needed before `forge/` can become a submodule |
-| O2 | P1: reimplement draft in TS, or reuse Forge's 6,781-line `limited/` engine? | Reimplement — staying JVM-free *is* the point of draft-first. Take the 96 cube lists verbatim. |
+| O2 | P1: reimplement draft in TS, or reuse Forge's 6,781-line `limited/` engine? | Reimplement — staying JVM-free *is* the point of draft-first. Take the 95 cube lists verbatim (95, not 96 — imported in Wave 1 lane C). |
 | O3 | One JVM per match, or one hosting many? | Defer to P3; decide before building the service-participant lifecycle |
-| O4 | Does the WASM spike block Wave 2, or run beside it? | Run beside — Wave 2's card/draft work is needed in both branches |
+| ~~O4~~ | ~~Does the WASM spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1 (NO-GO, D7). Wave 2 is unblocked and its card/draft work was needed in either branch anyway. |
