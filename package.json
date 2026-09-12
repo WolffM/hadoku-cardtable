@@ -1,0 +1,32 @@
+{
+  "name": "hadoku-cardtable",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "packageManager": "pnpm@11.5.0+sha512.dbfcc4f81cf48597afd4bc391ffdf12c11f1a9fb83a395bfa6b0a2d9cc2fd8ffebafdb1ccbd529632153f793904c2615b7f09fe1a345473fd1c35845172a8eb1",
+  "engines": {
+    "node": ">=24.0.0 <25.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run test",
+    "typecheck": "tsc --noEmit --strict --noImplicitAny --target es2023 --module nodenext --moduleResolution nodenext --resolveJsonModule --skipLibCheck vitest.config.ts && pnpm -r --if-present run typecheck",
+    "lint": "eslint . --no-error-on-unmatched-pattern",
+    "lint:fix": "eslint . --no-error-on-unmatched-pattern --fix",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "build": "pnpm -r --if-present run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.10.1",
+    "@typescript-eslint/eslint-plugin": "^8.67.0",
+    "@typescript-eslint/parser": "^8.67.0",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.9.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

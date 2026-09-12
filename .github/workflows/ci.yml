@@ -1,0 +1,67 @@
+name: CI
+
+# DELIBERATELY UNFILTERED on pull_request — the PR-gate invariant. A required
+# check that never runs never reports, and auto-merge waits only on required
+# checks, so a `paths:` filter is a gate that is ABSENT on some PRs (they merge
+# with nothing verified) and FATAL on others (they wait forever).
+#
+# `push: main` is covered too, because this repo's normal path is landing
+# straight on main rather than opening a PR. A PR-only gate would leave that
+# path with no CI at all.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      # setup-node BEFORE corepack — the order is load-bearing. `corepack
+      # enable` symlinks its shims next to the active node, and without
+      # setup-node that is the host's /usr/bin, which the runner user cannot
+      # write.
+      #
+      # No `cache: 'pnpm'`: that option makes setup-node shell out to pnpm to
+      # locate the store, and pnpm does not exist yet at this point in the job.
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@wolffm'
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.5.0 --activate
+
+      # NODE_AUTH_TOKEN must be HADOKU_NPM_READ_TOKEN, never GITHUB_TOKEN:
+      # GITHUB_TOKEN is scoped to this repository and cannot fetch @wolffm/*
+      # tarballs from GitHub Packages. A warm pnpm store hides the resulting
+      # 403 entirely, so the failure only ever shows up on a cold runner.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Test
+        run: pnpm run test
