@@ -1,0 +1,34 @@
+# deps / build
+node_modules/
+dist/
+*.tsbuildinfo
+.venv/
+
+# forge — currently a plain shallow clone of upstream, used for analysis.
+# Untracked until WolffM/forge exists and this becomes a submodule.
+# See README.md "Getting forge/".
+/forge/
+
+# local state
+.env
+.env.*
+*.log
+logs/
+data/
+state/
+
+# editor / OS
+.DS_Store
+.idea/
+*.swp
+
+# claude worktrees
+.claude/worktrees/
+
+# card images — never commit these (see docs/LICENSING.md)
+cards/
+card-images/
+*.jpg
+*.jpeg
+*.png
+!docs/**/*.png
