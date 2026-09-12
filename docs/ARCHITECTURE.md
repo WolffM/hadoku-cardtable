@@ -141,6 +141,38 @@ Two processes on purpose. The Node side never needs to understand Magic; the JVM
 never needs to understand rooms or auth. It also keeps the licence boundary a
 process boundary (see `LICENSING.md`).
 
+### Where the Forge UI goes (D6)
+
+The room chrome — chat, roster, presence, lobby — is React and surrounds a
+**central canvas slot**. Forge's UI occupies that slot as an **isolated iframe**,
+bridged to the room by `postMessage`:
+
+```
+┌─ hadoku chrome (React) ─────────────────────────────┐
+│  header · theme · settings                          │
+│ ┌───────────────────────────────┐ ┌───────────────┐ │
+│ │                               │ │  chat         │ │
+│ │   ◀ THE CANVAS SLOT ▶         │ │  roster       │ │
+│ │   iframe: Forge UI            │ │  presence     │ │
+│ │   (deck editor, draft,        │ │  ready-check  │ │
+│ │    lobby, match board)        │ │               │ │
+│ └───────────────────────────────┘ └───────────────┘ │
+│        ▲ postMessage ▼                              │
+│        room socket  ──────────────────────────────► │
+└─────────────────────────────────────────────────────┘
+```
+
+This is **not new** — it is the pattern watchparty already ships for its
+waiting-room game: `apps/ui/src/components/GameModule.tsx` (1,344 lines) mounts
+an isolated iframe where the video player sits and bridges `postMessage` to
+socket events. We copy the shape and change the payload.
+
+The consequence that matters: **we do not rebuild Forge's deck editor, draft
+screens or match board in React.** The payload we want in that iframe is
+`forge-gui-mobile` — 103,038 lines of libGDX that already is all of those —
+compiled to WASM. That is what the spike in `WASM_AND_PORTING.md` is really
+testing, and why D7 gates P4 rather than merely optimising it.
+
 ## Phases
 
 Ordered so each one is independently useful and the risky part is last.
