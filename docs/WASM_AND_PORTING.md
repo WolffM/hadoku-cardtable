@@ -24,8 +24,9 @@ Measured on the clone, 2026-09-11:
 | `forge-gui-ios` | 3,155 | 53 | thin launcher |
 | **Total (no android/ios)** | **516,450** | | |
 
-Plus **33,755 card script files** (`res/cardsfolder`) driving **206 ability
-effect classes**.
+Plus **33,755 files** under `res/cardsfolder` (the spike's loader counts
+**33,752** actual card scripts) driving **206 ability effect classes**, of which
+**202** are wired into `ApiType`.
 
 **"Engine + all the UI"** — the thing we'd have to port — is
 `core + game + ai + gui + gui-mobile` = **392,151 lines**, plus the card scripts.
@@ -114,7 +115,7 @@ public enum ApiType {
     Abandon           (AbandonEffect.class),
     ActivateAbility   (ActivateAbilityEffect.class),
     AddOrRemoveCounter(CountersPutOrRemoveEffect.class),
-    ...  // 206 of them
+    ...  // 202 constants, over 206 effect classes on disk
 }
 ```
 
