@@ -114,7 +114,9 @@ The two usual killers are absent:
 - **Reflective class loading** — TeaVM can't see `Class.forName("…" + name)`.
   Forge doesn't do that: dispatch is an enum of **class literals**
   (`ApiType { Abandon(AbandonEffect.class), … }` × 202), all statically visible.
-  *(202, not 206 — recounted in lane B. `WASM_AND_PORTING.md` still says 206.)*
+  *(202 constants, over **206** effect classes on disk — both figures are real
+  and measure different things; the original note conflated them. Recounted in
+  lane B, refined in `c8a0aac`.)*
 
 Assets aren't the obstacle either: `res/cardsfolder` is 132 MB of text that
 `gzip -9`s to **5.6 MB**.
