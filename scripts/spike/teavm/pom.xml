@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Wave 1, lane B: TeaVM WASM GC go/no-go spike.
+
+  This is an OVERLAY. It never modifies forge/. It consumes forge-core and
+  forge-game as ordinary Maven artifacts from the local repository (install
+  them first with scripts/spike/run.sh), excludes io.sentry:sentry, and
+  shadows the two Sentry classes forge-game touches with local stubs.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>me.hadoku.cardtable.spike</groupId>
+    <artifactId>teavm-spike</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+    <name>cardtable TeaVM spike</name>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.release>17</maven.compiler.release>
+        <teavm.version>0.15.0</teavm.version>
+        <forge.version>2.0.15-SNAPSHOT</forge.version>
+        <spike.mainClass>spike.SpikeMain</spike.mainClass>
+        <!-- -Dspike.stopOnErrors=false emits an artifact anyway, with a throwing
+             stub at each unresolved call site. Used to find out which of TeaVM's
+             classlib gaps are actually executed rather than merely reachable. -->
+        <spike.stopOnErrors>true</spike.stopOnErrors>
+        <!-- WEBASSEMBLY_GC or JAVASCRIPT: both share teavm-classlib, which is
+             where the gaps are. -Dspike.targetType=JAVASCRIPT to compare. -->
+        <spike.targetType>WEBASSEMBLY_GC</spike.targetType>
+        <!-- Build output is kept OUT of the repo: four other lanes share this
+             worktree and a target/ tree would show up in everyone's git status.
+             Override with -Dspike.buildDir=... -->
+        <spike.buildDir>${user.home}/.cache/w1-spike/teavm-spike-target</spike.buildDir>
+    </properties>
+
+    <dependencies>
+        <!-- TeaVM's JDK emulation and extension SPI. Compile-time only: the
+             ReflectionPolicy below is read by the TeaVM compiler, never linked
+             into the artifact, and harmless on the JVM baseline classpath. -->
+        <dependency>
+            <groupId>org.teavm</groupId>
+            <artifactId>teavm-classlib</artifactId>
+            <version>${teavm.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.teavm</groupId>
+            <artifactId>teavm-extension-spi</artifactId>
+            <version>${teavm.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>forge</groupId>
+            <artifactId>forge-core</artifactId>
+            <version>${forge.version}</version>
+            <exclusions>
+                <!-- tinylog-impl registers its writers through ServiceLoader, so
+                     TeaVM's reachability analysis links every one of them,
+                     including JdbcWriter -> java.sql / javax.sql / javax.naming.
+                     Dropping the impl leaves the tinylog-api facade Forge calls
+                     and a no-op provider. -->
+                <exclusion>
+                    <groupId>org.tinylog</groupId>
+                    <artifactId>tinylog-impl</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>forge</groupId>
+            <artifactId>forge-game</artifactId>
+            <version>${forge.version}</version>
+            <exclusions>
+                <!-- replaced by the stubs in src/main/java/io/sentry -->
+                <exclusion>
+                    <groupId>io.sentry</groupId>
+                    <artifactId>sentry</artifactId>
+                </exclusion>
+                <!-- forge-game declares testng at compile scope; not wanted here -->
+                <exclusion>
+                    <groupId>org.testng</groupId>
+                    <artifactId>testng</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <directory>${spike.buildDir}</directory>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <mainClass>${spike.mainClass}</mainClass>
+                </configuration>
+            </plugin>
+
+            <!--
+              Only active with -Pteavm so the JVM baseline run (step 4a) does not
+              pay for a WASM compile it does not need.
+            -->
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>teavm</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.teavm</groupId>
+                        <artifactId>teavm-maven-plugin</artifactId>
+                        <version>${teavm.version}</version>
+                        <executions>
+                            <execution>
+                                <id>wasm-gc-runtime</id>
+                                <phase>process-classes</phase>
+                                <goals>
+                                    <goal>copy-webassembly-gc-runtime</goal>
+                                </goals>
+                                <configuration>
+                                    <targetDirectory>${project.build.directory}/wasm</targetDirectory>
+                                    <modular>true</modular>
+                                    <minified>false</minified>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>web-client</id>
+                                <phase>process-classes</phase>
+                                <goals>
+                                    <goal>compile</goal>
+                                </goals>
+                                <configuration>
+                                    <targetType>${spike.targetType}</targetType>
+                                    <mainClass>${spike.mainClass}</mainClass>
+                                    <targetDirectory>${project.build.directory}/wasm</targetDirectory>
+                                    <targetFileName>spike.wasm</targetFileName>
+                                    <optimizationLevel>ADVANCED</optimizationLevel>
+                                    <debugInformationGenerated>false</debugInformationGenerated>
+                                    <sourceMapsGenerated>false</sourceMapsGenerated>
+                                    <stopOnErrors>${spike.stopOnErrors}</stopOnErrors>
+                                    <processMemory>4096</processMemory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>
