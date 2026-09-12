@@ -32,3 +32,6 @@ card-images/
 *.jpeg
 *.png
 !docs/**/*.png
+
+# wave handoffs (per-wave, not tracked)
+docs/handoff/
