@@ -111,7 +111,7 @@ them. Bomberman rides on it today.
 Magic the authority must be the Forge JVM — a browser client cannot be trusted
 with a hidden library, and "host migrates" is not a thing you can do to a game of
 Magic in progress. So the relay's *shape* ports; its *host election* does not.
-See `PORTING_WATCHPARTY.md` for the file-by-file call.
+See `requests/WATCHPARTY_ROOM_MODULE.md` for the file-by-file call.
 
 ## Target topology
 
