@@ -1,0 +1,17 @@
+{
+  "name": "@hadoku/carddata",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "Scryfall bulk-data ingest and Forge .dck/cube parsing. No images, ever.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "sync": "node src/cli/sync-cards.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

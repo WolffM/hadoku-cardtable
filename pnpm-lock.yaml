@@ -36,6 +36,8 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@24.13.3)
 
+  packages/carddata: {}
+
 packages:
 
   '@cacheable/memory@2.2.0':
