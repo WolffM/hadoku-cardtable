@@ -4,8 +4,8 @@ Cube drafting + Magic play for a private friend group. Forge (GPL-3) supplies th
 rules engine; the hadoku-watchparty room layer replaces Forge's online infra.
 Behind `hadoku.me/cardtable/` at friend tier.
 
-**Read `docs/ARCHITECTURE.md` and `docs/FORGE_ANALYSIS.md` before touching
-anything.** They're short, and they're the result of reading the actual Forge
+**Read `docs/ARCHITECTURE.md`, `docs/FORGE_ANALYSIS.md` and
+`docs/WASM_AND_PORTING.md` before touching anything.** They're short, and they're the result of reading the actual Forge
 source rather than its reputation.
 
 ## Critical rules
@@ -52,6 +52,8 @@ Paths under `forge/`, all verified:
 | Bundled cubes | `forge-gui/res/cube/`, `forge-gui/res/draft/` |
 | Headless entry points | `forge-gui-desktop/src/main/java/forge/view/Main.java` |
 | Scryfall ingest | `forge-gui/src/main/java/forge/gui/download/Scryfall*.java` |
+| Ability dispatch (enum of 206 class literals) | `forge-game/src/main/java/forge/game/ability/ApiType.java` |
+| The whole product UI (libGDX, 103k lines) | `forge-gui-mobile/src/forge/screens/`, `FDeckEditor.java` |
 
 ## Build prerequisites
 

@@ -40,10 +40,17 @@ drew, and let the watchparty room layer own everything above a match.
 | **P1** | Browser cube draft on the watchparty room layer → exports `.dck` | next |
 | **P2** | Play the drafted decks in Forge desktop over Forge's netplay | — |
 | **P3** | WS/JSON bridge at `IToClient`; headless Forge on hokon | — |
-| **P4** | Browser play client; drop the desktop dependency | — |
+| **P4** | Browser play client; drop the desktop dependency | **may be deleted** — see below |
 
 Draft-first is deliberate: drafting is the social bottleneck, it's a small
 protocol, and it's playable long before the bridge exists.
+
+**Open: can Forge's UI just run in the browser?** `forge-gui-mobile` is 103,038
+lines of libGDX — deck editor, draft, lobby, match — and libGDX has a maintained
+TeaVM backend emitting WASM. If it compiles, P4 is deleted and we get desktop +
+Android + iOS + web from one UI. A time-boxed spike and the full argument
+(including why *not* Rust/Bevy) are in
+[`docs/WASM_AND_PORTING.md`](docs/WASM_AND_PORTING.md).
 
 ## Layout
 
