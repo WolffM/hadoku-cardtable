@@ -4,7 +4,8 @@
 records. Every row carries the evidence it was checked against, not the doc that
 claimed it.
 
-Last swept: 2026-09-11.
+Last swept: 2026-09-11. **Wave 1 scaffolded** — branch `w1`, worktree
+`.claude/worktrees/w1-manager`, handoff `docs/handoff/w1.md` (gitignored).
 
 ## What this project is for
 
@@ -76,8 +77,8 @@ Status: `todo` · `wave-N` · `blocked` · `done` · `watch`
 
 | # | Item | Why it's theirs |
 | --- | --- | --- |
-| O1 | Create `WolffM/hadoku-cardtable`; fork `Card-Forge/forge` | outward-facing; `forge/` can't become a submodule until the fork exists |
-| O2 | P1 draft: reimplement in TS vs. reuse Forge's `limited/` | scope call. Rec: reimplement |
+| ~~O1~~ | ~~fork `Card-Forge/forge`~~ — **resolved 2026-09-11: deferred.** A plain clone already syncs upstream (`origin` *is* upstream); a fork only buys somewhere to push our Forge commits, a submodule URL, and the ability to PR `case "server"` back. None needed until the first line of Java, and lane B explicitly writes none. Repo creation still pending operator. | |
+| O2 | P1 draft: reimplement in TS vs. reuse Forge's `limited/` | **Rec revised → decide after the spike.** The only benefit of reimplementing was a JVM-free P1, and lane B installs Maven anyway. Operator correctly flagged it as inconsistent with D4: pack collation/rarity/foil rules are accumulated correctness with no oracle but Forge. If lane B is GO, Forge's draft engine *and* UI arrive free in the iframe. |
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle |
 | O4 | Does the spike block Wave 2? | Rec: no — Wave 2 is needed in both branches |
 
