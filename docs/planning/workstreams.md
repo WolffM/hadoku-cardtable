@@ -103,7 +103,7 @@ Status: `todo` · `wave-N` · `blocked` · `done` · `watch`
 | # | Item | Why it's theirs |
 | --- | --- | --- |
 | ~~O1~~ | ~~fork `Card-Forge/forge`~~ — **resolved 2026-09-11: deferred.** A plain clone already syncs upstream (`origin` *is* upstream); a fork only buys somewhere to push our Forge commits, a submodule URL, and the ability to PR `case "server"` back. None needed until the first line of Java, and lane B explicitly writes none. **Repo creation DONE 2026-09-14** — `WolffM/hadoku-cardtable` exists, private, created 07:26, `main` pushed, CI green. Only the *fork* half remains deferred. | |
-| **P1** | **Refresh the GitHub Packages token in `~/.npmrc`** — verified dead: `npm view @wolffm/rooms-server` → `E401 "User cannot be authenticated with the token provided"`, while `gh auth token` resolves `0.38.109`. **Blocks Wave 2 lane B.** | Credential |
+| **P1** | **Export `NODE_AUTH_TOKEN`** — `~/.npmrc` reads `_authToken=${NODE_AUTH_TOKEN}` and the variable is unset, so npm sends the literal placeholder and gets `E401`. Not a rotation: `NODE_AUTH_TOKEN=$(gh auth token) npm view @wolffm/rooms-protocol version` → `0.38.109`. **Blocks Wave 2 lane B.** | Shell env |
 | **P2** | **Set `HADOKU_NPM_READ_TOKEN` on the repo** — `gh secret list` is empty; CI's green runs are vacuous until something depends on `@wolffm/*`. | Repo secret |
 | ~~O2~~ | ~~P1 draft: reimplement in TS vs. reuse Forge's `limited/`~~ — **RESOLVED 2026-09-14: reimplement in TS.** | **Live and now decidable — the spike is in, and it changed the terms.** The "free draft engine *and* UI in the iframe" branch is **dead** (D7 NO-GO). But lane B proved the other half: `forge-core`+`forge-game` run headless on the JVM in 1.6 s and resolve real card interactions, so reusing `limited/` **server-side** is viable in a way nobody had evidence for before. So the trade is now: TS reimplementation (JVM-free P1, but pack collation/rarity/foil is accumulated correctness with no oracle but Forge — the D4 objection stands) vs. a JVM draft service (correct by construction, but P1 now carries a JVM and O3 arrives early). **Resolved.** The JVM branch lost on evidence gathered at planning time: `BoosterDraft.java` lives in **`forge-gui`** — precisely the module Wave 1's headless proof excluded — and carries 17 `SGuiChoose`/`SOptionPane` call sites plus the `FModel` singleton. Meanwhile the "accumulated correctness, no oracle" objection turned out to be about **set-booster collation**, which a cube never opens: 92 of 94 recipes are `Booster: 15 Any`, 93/94 singleton, exactly 1 uses rarity slots. Reuse would cost `forge-gui` + a JVM to buy a pick/pass loop. **Revisit only for set/block draft or sealed**, where `BoosterGenerator` genuinely earns its keep. |
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
@@ -154,9 +154,13 @@ report. Four of them contradict the board as it stood.
   all at **`0.38.109`**, read from the tarballs. **`@wolffm/rooms` was renamed
   `@wolffm/rooms-protocol`** — the old name is still E404, which is why the
   watch read as blocked.
-- **The `~/.npmrc` token is dead.** `E401 "User cannot be authenticated with the
-  token provided"`; `gh auth token` (scopes include `read:packages`) works. The
-  distinction matters: **E401 ≠ E404** — a 401 means the package exists.
+- **The E401 is an unsubstituted env var, not a dead token.** `~/.npmrc` line 1
+  is `//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}` and the variable is
+  **unset**, so npm sends the placeholder string as the credential. pnpm warns
+  `Failed to replace env in config: ${NODE_AUTH_TOKEN}` on every install.
+  `NODE_AUTH_TOKEN=$(gh auth token) npm view @wolffm/rooms-protocol version`
+  → **`0.38.109`**. Also worth keeping: **E401 ≠ E404** — a 401 means the
+  package exists, which is what disproved the "still blocked" reading.
 - **`SKIP` is exported without `emitPerRecipient`.** `rooms-server@0.38.109`
   `emit.d.ts:34` declares the sentinel and points at a function that is in
   neither `emit.d.ts` nor `index.d.ts`. → W1.
