@@ -180,6 +180,12 @@ run.
 pnpm --filter @hadoku/carddata sync
 ```
 
+**For card resolution (§5) you want `--type=default_cards`.** The default
+`oracle_cards` file has one entry per Oracle ID and carries no per-printing
+`set`/`collector_number`, so it cannot answer a `name`+`set` lookup at all.
+`resolve-cubes` refuses to run against it rather than reporting a corpus-wide
+failure that is really a wrong cache.
+
 Options (pass after `--`):
 
 | Flag | Meaning |
@@ -210,8 +216,7 @@ success, so an interrupted run cannot leave a truncated cache that looks whole.
 Why `oracle_cards` by default: one object per Oracle ID is exactly the
 granularity a rules engine and a cube list need, at roughly a third the size of
 `default_cards`. Switch to `default_cards` when you need every printing — which
-is what resolving a cube line's `Name|SET|artIndex` to a specific card will
-eventually want.
+is exactly what §5's resolver needs, and what it insists on.
 
 ### 2.3 How "no images" is enforced
 
@@ -288,8 +293,10 @@ spaces, apostrophes and all — so each still lines up with its counterpart in
 `forge/forge-gui/res/draft/*.draft`.
 
 **The tracker says 96 cubes; there are 95.** `res/cube/` contains 95 `.dck`
-files and `res/draft/` contains 96 `.draft` files, so the 96 is the *draft*
-count. Corrected here rather than propagated.
+files. The 96 came from `res/draft/`, which holds 96 *entries* — and those are
+**94 `.draft` files, a `rankings/` directory, and `rankings_cubecobra.txt`**,
+not 96 recipes. (Wave 1 wrote "96 `.draft` files" here; re-counted in Wave 2
+against the same tree, it is 94. See §4.1.)
 
 Totals across all 95: **49,345** distinct card lines in the `main` sections.
 
@@ -331,7 +338,8 @@ ASCII (`Dandân`, `El-Hajjâj`).
 pnpm vitest run packages/carddata
 ```
 
-29 tests, exit **0**. It parses five real cube files and asserts both the
+Exit **0** (74 tests in this package as of Wave 2; 29 of them are Wave 1's
+`.dck` and projection tests). It parses five real cube files and asserts both the
 distinct-line count and the summed card count:
 
 | File | entries | cards |
@@ -358,13 +366,281 @@ total.
 
 ---
 
-## 4. What is not done
+## 4. Draft recipes and the `.draft` format
 
-- **No card-name → card-data resolution yet.** The `.dck` parser produces
-  `Name|SET|artIndex` requests and the ingest produces Oracle records; nothing
-  joins them. That needs `default_cards` (per-printing) rather than
-  `oracle_cards`, and belongs with the draft engine in PR-2.
+A `.dck` says which cards are in a cube. A `.draft` says how packs are made out
+of them. Both halves are needed before anyone can sit down at a pod, and Wave 1
+imported only the first.
+
+### 4.1 The files
+
+`drafts/` holds **94** `.draft` files copied byte-identically from
+`forge/forge-gui/res/draft/` (verified with `cmp` per file, all 94 clean).
+
+`res/draft/` has **96 entries, not 96 recipes**: these 94, a `rankings/`
+*directory*, and `rankings_cubecobra.txt`. Neither of the last two is a recipe
+and neither is imported — this repo's draft bots are a heuristic, not a
+rankings table (Wave 2, settled).
+
+**95 cubes, 94 recipes.** `ArabianExtended.dck` has no recipe.
+
+### 4.2 The format, as Forge actually reads it
+
+`src/draft.ts`, again a reimplementation with each rule cited:
+
+| Rule | Source |
+| --- | --- |
+| The whole recipe: seven keys read, one more defaulted | `CustomLimited.java:104` |
+| `key:value`, split on the **first** colon, both halves trimmed, keys case-insensitive | `FileSection.java:85,42` |
+| `Booster` split on `,` then each slot on the first space → count, type | `CustomLimited.java:110-114` |
+| That split drops empty segments, which is what makes `", 1 Mythic"` parse | `TextUtil.java:110` |
+| `NumPacks`/`NumPlayers` are `getInt`, **defaulting to 0** on absent or unparseable | `FileSection.java:151` |
+| `Singleton` is `getBoolean`, so absent or non-`"true"` is **false** | `FileSection.java:162` |
+| No `Booster` line at all falls back to the generic 10/3/1/1 draft booster | `CustomLimited.java:116` |
+| The only caller: `FileUtil.readFile` + `CustomLimited.parse`, per `.draft` file | `BoosterDraft.java:537` |
+
+**Eight keys, not seven.** The wave brief names `Name`, `DeckFile`,
+`Singleton`, `Booster`, `NumPacks`, `NumPlayers`, `LandSetCode`. Forge's parser
+also reads `CustomRankings`, defaulting to `rankings_cubecobra.txt`
+(`CustomLimited.java:123`). No vendored recipe sets it, but it is part of the
+format and is parsed rather than silently dropped.
+
+### 4.3 The corpus, re-counted
+
+Measured off the committed files, cross-checked with an independent shell count:
+
+| Booster | Recipes |
+| --- | --- |
+| `15 Any` | **91** |
+| `16 Any` | 1 |
+| `9 Any` | 1 |
+| `5 Rare, 1 Mythic, 5 Common, 5 Uncommon` | 1 |
+
+- 93/94 `Singleton:True` — the exception is `cube_juzamjedi.draft`, which has
+  no `Singleton` key at all, so Forge reads it as **false**.
+- 93/94 are 3 packs × 8 players. The exception is
+  `The Original Recipe Twobert.draft`: 5 packs × 4 players.
+- 4 recipes set `LandSetCode` (`BFZ`, `M11` ×2, `RTR`).
+- 0 set `CustomRankings`.
+
+**The board and the Wave 2 plan both say 92 `15 Any`; it is 91.** 91 + 1 + 1 + 1
+= 94, which 92 cannot be made to add up to. The tracker owns that row.
+
+The one rarity recipe is **not** special-cased. It parses into four slots like
+any other; deciding what `Rare` *means* against a cube pool belongs to whoever
+builds packs.
+
+### 4.4 Three things that will bite anyone who assumes
+
+- **`Name` ≠ `DeckFile` ≠ filename.** `Frontier.draft` is named "Frontier
+  Draft" and points at the cube named "Frontier Cube", in a file called
+  `Frontier Cube.dck`. All three differ.
+- **`DeckFile` is matched against the cube's `[metadata] Name=`, not its
+  filename.** Forge looks it up as `cubes.get(DeckFile)` against a store keyed
+  by `DeckBase::getName` (`DeckStorage.java:50`), and that name comes from the
+  `.dck` header (`DeckFileHeader.java:84`).
+- **Two of Forge's own recipes therefore find no cube**, and this is an
+  upstream defect, not a parser bug:
+
+  | Recipe | Its `DeckFile` | The cube's actual `Name=` |
+  | --- | --- | --- |
+  | `The Pauper Cube 2026-02.draft` | `The Pauper Cube 2026-02` | `The Pauper Deck 2026-02` |
+  | `The Peasant Cube 2023 (June).draft` | `The Peasant Cube 2023 (June)` | `The Peasant Cube 2023` |
+
+  In Forge a missing cube falls through to
+  `FModel.getMagicDb().getCommonCards().getUniqueCards()`
+  (`CustomLimited.java:126`) — i.e. it drafts the **entire card database**
+  instead of the cube. `cubeForRecipe` returns `null` rather than inheriting
+  that, so the condition is visible instead of catastrophic.
+
+---
+
+## 5. Card resolution
+
+`src/resolve.ts` turns a cube line's `1 Stoneforge Mystic|PRM` into a real card.
+
+### 5.1 The contract
+
+`(CardRequest, CardIndex) -> ResolvedCard | UnresolvedCard`. **Failures are
+returned, never thrown, and never a `null` that becomes a blank card on a draft
+table.** A cube that is 97% resolvable is not draftable, and the only way
+anyone finds that out before eight people sit down is if the 3% comes back as
+data.
+
+Three tiers, each strictly more specific than the next:
+
+| Tier | Match | Picks |
+| --- | --- | --- |
+| 1 | `name` + `set` + `collector_number` | that exact printing |
+| 2 | `name` + `set` | earliest printing in that set |
+| 3 | `name` | earliest **non-digital** printing |
+
+Tiers 1 and 2 honour whatever set the cube asked for, **digital sets
+included** — `VMA` (Vintage Masters, MTGO-only) is the single most-referenced
+set in the corpus at 1,687 lines, and refusing digital printings there would
+fail all of them. Tier 3 prefers paper because there the choice of printing is
+ours rather than the cube's.
+
+Tier 3 is reached both by bare-name references and by any reference whose set
+did not resolve. Those look identical in the returned card and completely
+different in a bug report, so a resolution carries `requestedSet`,
+`scryfallSet` and a `setFellBack` flag, and the report counts them separately.
+
+### 5.2 Forge set codes are not Scryfall set codes
+
+`src/set-codes.ts` plus the generated `src/set-codes.generated.ts`.
+
+The table is **not ours**. Forge declares the mapping itself, one
+`ScryfallCode=` line per edition file, and the generated module is that
+declaration extracted verbatim from `forge-gui/res/editions/*.txt`:
+
+- 679 edition files → **760 lookup keys** (`Code`, `Code2` and `Alias` all
+  resolve), 668 identity and 92 genuinely different.
+- 6 editions declare no `ScryfallCode` and fall back to their own `Code`
+  (AKH, DS0, IKO, PLS, TMC, PZA). Recorded in the generated file's header so
+  the fallback is visible rather than assumed.
+- **1 collision**, resolved `Code` > `Code2` > `Alias`: `ARC` is Archenemy's
+  `Code` and also another edition's `Alias` (→ `OARC`). Forge looks up by
+  `Code` first, so Archenemy wins and we match.
+
+Across the 95 cubes: **388 distinct Forge set codes**, of which 360 are
+identity, **26 genuinely need translating** (covering **679 card lines**), and
+2 are unknown to Forge's own edition data. Without the table those 679 lines
+would each silently degrade to a tier-3 name match on some other printing.
+
+Regenerate after a Forge bump and `git diff` the result:
+
+```sh
+pnpm --filter @hadoku/carddata gen:set-codes -- --editions=<forge-gui/res/editions>
+```
+
+It is not run at build time and `forge/` may be absent; the table is committed
+precisely so a Forge set-code rename shows up as a diff rather than as a
+resolution failure.
+
+### 5.3 Name variants, and why there are four
+
+Within every tier a name is matched through four spellings, best first. Which
+one hit is reported as `matchedBy`, because "resolved" and "resolved via an
+accent-folded front-face name" are not the same claim and the weaker one
+should have to say so.
+
+| Variant | Corpus matches | Why it exists |
+| --- | --- | --- |
+| `name` | 48,394 | Scryfall's top-level `name`, exact. |
+| `front-face` | **942** | Forge writes `Delver of Secrets`; Scryfall's name for it is `Delver of Secrets // Insectile Aberration`. Spans `transform`, `modal_dfc`, `adventure` and `flip`. |
+| `folded-name` | 1 | `Jim Davis's Cube.dck` writes `Lim-Dul's Vault`; the card is `Lim-Dûl's Vault`. |
+| `folded-front-face` | 0 | Completeness. |
+
+The front-face variant is the whole difference between a usable corpus and an
+unusable one: without it 951 references fail and only 12 of 95 cubes resolve
+cleanly.
+
+The fold is safe here and that was **measured, not assumed**: across all 36,308
+distinct English card and front-face names in the cache, no two fold to the
+same key, so the fold cannot introduce an ambiguity. It is still ranked last
+and still reported, because that guarantee is about today's card pool.
+
+Two things the index deliberately excludes, because both would return an object
+with no mana cost or type line — a blank card by another route:
+
+- **Non-gameplay layouts** (`token`, `double_faced_token`, `emblem`,
+  `art_series`). `art_series` is the one that actually bites: 36 of the
+  corpus's front-face names have an art-series printing.
+- **Non-English printings.** Scryfall gives every printing the English `name`
+  regardless of language (the localised string is `printed_name`, which the
+  allowlist does not keep), so indexing them would make "earliest printing"
+  depend on which translation Scryfall happened to list first.
+
+### 5.4 The report
+
+```sh
+pnpm --filter @hadoku/carddata resolve
+```
+
+Writes `packages/carddata/reports/cube-resolution.json` — **deliberately not
+under any directory called `data/`**, which `.gitignore` refuses repo-wide. A
+report that silently fails to commit is worse than no report.
+
+Run 2026-09-14 against `default_cards` (source `2026-09-14T09:05:27.256+00:00`,
+117,941 cards; 109,434 printings indexed over 772 sets):
+
+| | |
+| --- | --- |
+| cubes | 95 |
+| card lines (`main`) | **49,345** |
+| resolved | **49,337** (99.984%) |
+| — tier 1 `name+set+collector` | 989 |
+| — tier 2 `name+set` | 48,274 |
+| — tier 3 `name` | 74 (only **2** of which asked for a set) |
+| unresolved | **8** |
+| cubes resolving 100% | **93 / 95** |
+
+**The two that do not:**
+
+| Cube | Unresolved | Rate |
+| --- | --- | --- |
+| `MTGO Vintage Cube 2025-12.dck` | 6 / 540 | 98.89% |
+| `MTG Arena Chromatic Cube June 24.dck` | 2 / 558 | 99.64% |
+
+**All eight unresolved references, individually** — every one a gap in
+Scryfall's data, none a resolver failure:
+
+- `Ademi of the Silkchutes`, `Cam and Farrik, Havoc Duo`,
+  `Desecrex, Gift of Servitude`, `Goben, Gene-Splice Savant`,
+  `Makdee and Itla, Skysnarers`, `The Scouring Stormsoul` — all `|OM1`. The
+  set exists in the cache (189 printings); these six cards do not. A partially
+  spoiled set. **They will resolve on a later Scryfall sync**, and until then
+  `MTGO Vintage Cube 2025-12` is not fully draftable.
+- `A-Alrund's Epiphany|KHM`, `A-Omnath, Locus of Creation|ZNR` — Arena
+  *rebalanced* cards. Scryfall carries no printing under either name.
+  Resolving `A-X` to `X` would be a guess and a wrong one: a rebalanced card
+  has different rules text. Refused on purpose.
+
+**The two set codes Forge's own edition data does not know** — both resolved to
+a real card at a different printing, and both flagged rather than hidden:
+
+| Forge code | Line |
+| --- | --- |
+| `PTDM` | `LSVCube.dck:237` `1 Cori-Steel Cutter\|PTDM` |
+| `PWOE` | `LSVCube.dck:331` `1 Agatha's Soul Cauldron\|PWOE` |
+
+### 5.5 The regression gate
+
+`resolve-cubes` is **not** the gate — it needs the 180 MB card cache, which is
+gitignored and absent in CI. The gate is `src/resolve.test.ts`, which asserts
+the committed report's numbers and so runs everywhere `pnpm check` does,
+alongside unit tests built on a hand-made index. Re-run the CLI after a Forge
+or Scryfall bump and the test tells you exactly what moved.
+
+`pnpm check` → exit **0** (137 tests).
+
+### 5.6 D13 still bites
+
+```sh
+grep -rniE "\.jpg|\.png|image_uris|scryfall\.io" packages/carddata/src; echo $?
+```
+
+prints nothing, exit **1** — unchanged by any of the above. A second,
+independent check lives in `resolve.test.ts`: the resolution path's sources are
+read and asserted to name no image field, and every `ALLOWED_CARD_FIELDS` entry
+is asserted not to match `image|art_crop|png|jpg|uri`. The resolver reads a
+cache that was already projected onto the gameplay allowlist, so there is
+nothing image-shaped for it to reach.
+
+---
+
+## 6. What is not done
+
+- **No `.dck` writer.** The parser exists; export does not.
 - **No scheduler.** The command is schedule-*able*; nothing schedules it. Wire
   it up when there is a deployment to wire it into.
-- **`res/draft/*.draft`** (the 96 draft-pack definitions that pair with these
-  cubes) are **not** imported. Pack collation is PR-2 / O2 territory.
+- **Pack building is not here.** `drafts/` carries the recipes and `resolve.ts`
+  carries the cards; turning `15 Any` into eight shuffled packs is the draft
+  engine's job (PR-2 lane B), not this package's.
+- **`artIndex` is parsed but never used for selection.** It is a Forge-internal
+  art-variant ordinal with no Scryfall equivalent; `collector_number` is what
+  pins a printing here.
+- **Basic lands are not resolved from `LandSetCode`.** Four recipes set it;
+  nothing consumes it yet.
+

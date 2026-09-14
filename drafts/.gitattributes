@@ -1,0 +1,13 @@
+# These are Forge's files, imported byte-identically, and the point of that is
+# that anyone can re-verify them against upstream with `cmp`. The repo root's
+# `* text=auto eol=lf` would silently rewrite the two CRLF recipes
+# (`Pioneer Cube.draft`, `The Arena Cube.draft`) to LF on commit, so a
+# round-trip through git would no longer match `forge-gui/res/draft/`.
+#
+# `-text` disables all end-of-line conversion here without marking the files
+# binary, so they still diff as text.
+#
+# Nothing reads these bytes literally — `parseDraftRecipe` splits on /\r?\n/ and
+# trims, and there is a test asserting the two CRLF files parse identically to
+# the LF ones. This is purely about keeping the import verifiable.
+*.draft -text

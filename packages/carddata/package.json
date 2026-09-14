@@ -1,16 +1,18 @@
 {
   "name": "@hadoku/carddata",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "Scryfall bulk-data ingest and Forge .dck/cube parsing. No images, ever.",
+  "description": "Scryfall bulk-data ingest, Forge .dck/.draft parsing, and cube card resolution. No images, ever.",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
     "sync": "node src/cli/sync-cards.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "resolve": "node --max-old-space-size=6144 src/cli/resolve-cubes.ts",
+    "gen:set-codes": "node src/cli/gen-set-codes.ts"
   },
   "dependencies": {},
   "devDependencies": {}
