@@ -142,9 +142,58 @@ anything in PR-4, because the wire schema is what `IToClient` will carry.
 | **P1** | **Export `NODE_AUTH_TOKEN`** — `~/.npmrc` reads `_authToken=${NODE_AUTH_TOKEN}` and the variable is unset, so npm sends the literal placeholder and gets `E401`. Not a rotation: `NODE_AUTH_TOKEN=$(gh auth token) npm view @wolffm/rooms-protocol version` → a version. **STILL OPEN — re-checked 2026-09-14 after Wave 2: the variable is unset and the bare `npm view` still returns E401.** ⚠️ **This already cost a lane.** Wave 2 shipped four lanes of five; lane B — the pure draft engine *and* the Zod wire schema, i.e. the middle of PR-2 — was never dispatched because of it. **Blocks Wave 3's first lane.** Put it in the shell profile. | Shell env |
 | **P2** | **Set `HADOKU_NPM_READ_TOKEN` on the repo** — `gh secret list` re-checked 2026-09-14: **still empty**. CI's green runs are still vacuous: Wave 2 added no `@wolffm/*` dependency (because B never ran), so the token path has **still** never executed. The first lane that depends on `@wolffm/rooms-protocol` is where a cold runner surfaces the 403. | Repo secret |
 | **P3** | **Decide what to do with `cardtable-w2-requests` in `hadoku-watchparty`** — our P3–P6 delivery is committed there on a branch with **no upstream**, and it is already stale: they shipped `0.38.110` mid-wave and answered W1 and W2 in `e58e3005`. Either push/PR it after a rebase + re-read, or drop it and re-derive against `0.38.110`. **Nothing reaches them until someone pushes.** | Their repo; ours to send |
-| ~~O2~~ | ~~P1 draft: reimplement in TS vs. reuse Forge's `limited/`~~ — **RESOLVED 2026-09-14: reimplement in TS.** | **Live and now decidable — the spike is in, and it changed the terms.** The "free draft engine *and* UI in the iframe" branch is **dead** (D7 NO-GO). But lane B proved the other half: `forge-core`+`forge-game` run headless on the JVM in 1.6 s and resolve real card interactions, so reusing `limited/` **server-side** is viable in a way nobody had evidence for before. So the trade is now: TS reimplementation (JVM-free P1, but pack collation/rarity/foil is accumulated correctness with no oracle but Forge — the D4 objection stands) vs. a JVM draft service (correct by construction, but P1 now carries a JVM and O3 arrives early). **Resolved.** The JVM branch lost on evidence gathered at planning time: `BoosterDraft.java` lives in **`forge-gui`** — precisely the module Wave 1's headless proof excluded — and carries 17 `SGuiChoose`/`SOptionPane` call sites plus the `FModel` singleton. Meanwhile the "accumulated correctness, no oracle" objection turned out to be about **set-booster collation**, which a cube never opens: 92 of 94 recipes are `Booster: 15 Any`, 93/94 singleton, exactly 1 uses rarity slots. Reuse would cost `forge-gui` + a JVM to buy a pick/pass loop. **Revisit only for set/block draft or sealed**, where `BoosterGenerator` genuinely earns its keep. |
+| ~~O2~~ | ~~P1 draft: reimplement in TS vs. reuse Forge's `limited/`~~ — **RESOLVED 2026-09-14: reimplement in TS.** | **Live and now decidable — the spike is in, and it changed the terms.** The "free draft engine *and* UI in the iframe" branch is **dead** (D7 NO-GO). But lane B proved the other half: `forge-core`+`forge-game` run headless on the JVM in 1.6 s and resolve real card interactions, so reusing `limited/` **server-side** is viable in a way nobody had evidence for before. So the trade is now: TS reimplementation (JVM-free P1, but pack collation/rarity/foil is accumulated correctness with no oracle but Forge — the D4 objection stands) vs. a JVM draft service (correct by construction, but P1 now carries a JVM and O3 arrives early). **Resolved.** The JVM branch lost on evidence gathered at planning time: `BoosterDraft.java` lives in **`forge-gui`** — precisely the module Wave 1's headless proof excluded — and carries 17 `SGuiChoose`/`SOptionPane` call sites plus the `FModel` singleton. Meanwhile the "accumulated correctness, no oracle" objection turned out to be about **set-booster collation**, which a cube never opens: **91** of 94 recipes are `Booster: 15 Any` (the planner said 92; lane A's count is the right one), 93/94 singleton, exactly 1 uses rarity slots. Reuse would cost `forge-gui` + a JVM to buy a pick/pass loop. **Revisit only for set/block draft or sealed**, where `BoosterGenerator` genuinely earns its keep. |
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
+
+## Verified this pass (2026-09-14 — tracker, closing Wave 2)
+
+Re-derived rather than read. **Every one of the manager's five corrections to
+the board is right, including the two I initially failed to reproduce.**
+
+- **Four lane commits are ancestors of `origin/main`** (`df716ef` D, `169cb9c`
+  E, `ae5a076` A, `1a7a2f4` C; lane E is three commits, not one). Worktree
+  removed, tree clean, `pnpm install --frozen-lockfile` **0**, `pnpm check` **0**.
+- **`forge/` pristine** — HEAD still `2cd497c`, **0** dirty lines, after a wave
+  that built `forge-gui-desktop`.
+- **`Booster: 15 Any` is 91.** My 92 was an addition error over my own
+  `uniq -c` buckets, which trailing whitespace had split three ways.
+- **The corpus is 49,345 / 388, and my 47,315 / 375 was wrong twice over.**
+  Reproduced the whole chain: `^[0-9]+\s+` silently drops **1,958** card lines
+  that carry no leading count, across exactly three cubes — `Old School 93-94
+  Magic Full Set 878 Card Cube` (878, the entire cube), and both Grixis cubes
+  (540 each). 47,315 + 1,958 + 72 bare names = **49,345**. Set codes by field
+  `[1]` = **388**; by last field = **720**, which is the wrong answer the
+  manager reports getting first, reproduced exactly.
+- **`ProtocolMethod` is 60.** 61 lines mention `Mode.SERVER`/`Mode.CLIENT`, but
+  line **136** is inside a method body (`if (mode == Mode.SERVER && ...)`), not
+  a constant. So **45 SERVER / 15 CLIENT**. `CLAUDE.md`'s "62-method enum" is
+  wrong and is still uncorrected.
+- **`ApiType` is 206 / 202 / 200 — all three confirmed.** I first read 204 and
+  doubted the 206: it is **204 `*Effect.java` plus `AnimateEffectBase.java` and
+  `TokenEffectBase.java`**, i.e. 206 `.java` files in `effects/`. 202 constants,
+  200 distinct, `CharmEffect.class` named **4×**, and **every** class ApiType
+  names has a file on disk.
+- **`rankings` is a directory**, beside `rankings_cubecobra.txt`.
+- **Mutation-tested the hidden-info control myself, with counts.** Injected one
+  card-shaped object at `seats[0].lastPick` in `spectator-pack2-pick5.json`:
+  **4 failed / 134 passed, exit 1**, the failure naming the exact path
+  `$.seats[0].lastPick`. Restored: **138 passed, exit 0**, tree clean. The
+  control is positional, not nominal — it walks the whole payload — and it bites.
+- **W1 and W2 are genuinely shipped at `0.38.110`**, read from the published
+  tarballs, not their source: `emit.d.ts:63 emitPerRecipient`, `:71 emitToRole`,
+  `:43 SKIP`; `rooms-protocol/dist/resync.d.ts` exporting `SeqCursor`,
+  `classifySeq`, `missedCount`, `needsResync`, `resolveIdentityReassert`.
+- **W3 is real and still open.** `rooms-server@0.38.110` `state.d.ts:11` is
+  `socketId: string`. Singular, as lane E found.
+- **Lane B genuinely did not run.** `packages/draft` does not exist;
+  `packages/shared/src` holds only `.gitkeep`. The manager obeyed the wave
+  plan's own "do not dispatch B on E401" instruction rather than routing around
+  a credential — the right call.
+- **P1, P2, P3 all still open**, each re-checked: `NODE_AUTH_TOKEN` unset and
+  bare `npm view` → **E401**; `gh secret list` **empty**;
+  `cardtable-w2-requests` at `fd584664` with `upstream=[]` and **2 behind**
+  their `main`.
 
 ## Watches the tracker holds
 
