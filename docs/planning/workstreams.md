@@ -119,7 +119,20 @@ Status: `todo` · `wave-N` · `blocked` · `done` · `watch`
 | `FSerializableFunction` on the wire | **answered: real but narrow** | D `df716ef` | `one` never crosses the wire (it resolves locally to `getChoices`). `getChoices` serializes the lambda as a `SerializedLambda` no JS client can reconstitute — **but the server holds both the choices and the lambda**, so rendering labels server-side and sending strings loses nothing. That is the fix `WireClassFilter.java:45` already names |
 | **Strip upstream's Sentry DSN in the fork** | **todo — do not skip** | us | **new row.** `Main.java:65` calls `Sentry.init` with upstream's **hardcoded DSN** before it reads the mode argument, and *refills* an empty DSN, so no external config disables it. A dedicated server would report **our** crashes to the Forge project. Must be stripped when the fork exists |
 
-## Wave 3 — the shape, not yet scaffolded
+## Wave 3 — PLANNED and scaffolded · `docs/planning/wave3-2026-09-14.md`
+
+Five lanes, finishing PR-2. **A** draft engine + Zod schema (gated on P1) ·
+**B** deck build + `.dck` export · **C** the stale facts in `CLAUDE.md` and
+three docs · **D** deliver P3–P6 + the W3 seat answer, in their repo ·
+**E** wire the UI to a live engine (after A).
+
+Two operator decisions settled 2026-09-14 and written into the wave:
+**W3 → we want reservation-with-TTL**, not the socket Set (it is the only one
+of the two that survives a network blip or a server restart, which is what P6
+actually requires); and **`cardtable-w2-requests` → rebase, re-read against
+`0.38.110`, push**.
+
+### Superseded — the shape before it was planned
 
 Not planned in detail and **not scaffolded** (that needs approval). What Wave 2
 left determines it:
