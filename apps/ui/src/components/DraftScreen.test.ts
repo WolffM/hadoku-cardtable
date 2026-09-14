@@ -21,8 +21,20 @@ import { App } from '../App.tsx';
 
 afterEach(cleanup);
 
+/**
+ * Mount `App` and switch it to the fixture source.
+ *
+ * The app now boots into a LIVE draft — the real engine over the real bundled
+ * cube — because that is what someone opening it wants. These tests are the
+ * fixture regression net, so they select the fixture source explicitly rather
+ * than relying on which source happens to be the default. That coupling is why
+ * they all failed the moment the default changed, and selecting here is the fix
+ * that survives the default changing again.
+ */
 function mount() {
-  return render(createElement(App));
+  const result = render(createElement(App));
+  fireEvent.click(screen.getByText('Fixtures — five committed payloads'));
+  return result;
 }
 
 const packCards = () => within(screen.getByTestId('pack')).queryAllByTestId('card');

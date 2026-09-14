@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // No build step: Node 24 strips TypeScript natively, so the `.ts` files in
+    // src/ are what run and what consumers import. That is why relative imports
+    // carry an explicit `.ts` extension and why nothing is emitted.
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

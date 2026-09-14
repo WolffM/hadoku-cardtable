@@ -43,6 +43,15 @@ export interface DraftScreenProps {
   onChange: (next: TableState) => void;
   /** The next authoritative payload, when the fixture stream has one. */
   nextPayload?: DraftView | null;
+  /**
+   * Told that the local player took a card, after the optimistic update.
+   *
+   * The screen still applies the pick to its own state first, so the pool
+   * updates the instant it is clicked whatever the source is doing. This is
+   * what a live source uses to send the pick on — in-process today, over a
+   * socket later. Absent for a fixture source, where nothing can be sent.
+   */
+  onPick?: (cardId: string) => void;
   onAdvance?: () => void;
   layout?: PackLayout;
   onLayoutChange?: (layout: PackLayout) => void;
@@ -52,6 +61,7 @@ export function DraftScreen({
   state,
   onChange,
   nextPayload = null,
+  onPick,
   onAdvance,
   layout: layoutProp,
   onLayoutChange,
@@ -74,6 +84,7 @@ export function DraftScreen({
     }
     setMessage(null);
     onChange(result.state);
+    onPick?.(cardId);
   };
 
   const emptyNote = spectating

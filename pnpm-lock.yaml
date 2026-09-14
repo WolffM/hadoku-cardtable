@@ -41,6 +41,12 @@ importers:
 
   apps/ui:
     dependencies:
+      '@hadoku/draft':
+        specifier: workspace:*
+        version: link:../../packages/draft
+      '@hadoku/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -74,6 +80,27 @@ importers:
       '@hadoku/carddata':
         specifier: workspace:*
         version: link:../carddata
+
+  packages/draft:
+    dependencies:
+      '@hadoku/carddata':
+        specifier: workspace:*
+        version: link:../carddata
+      '@hadoku/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@wolffm/rooms-protocol':
+        specifier: 0.38.111
+        version: 0.38.111
+
+  packages/shared:
+    dependencies:
+      '@wolffm/rooms-protocol':
+        specifier: 0.38.111
+        version: 0.38.111
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
 
 packages:
 
@@ -777,6 +804,9 @@ packages:
 
   '@vitest/utils@3.2.7':
     resolution: {integrity: sha512-x6BDOd7dyo3PFLY3I9/HJ25X/6OurhGXk2/B9gOZNPF7XDVjeBK4k01lQE5uvDpbuheErh91qYuE1E2OEjK3Rw==}
+
+  '@wolffm/rooms-protocol@0.38.111':
+    resolution: {integrity: sha512-nllSbDWwcPwgjAfwbgKHcPDVg5OhO6mq3XNWnjIAmjaS8cn58PygKLFxuXx+EaTDsgzzoMPziuv7+5TmL65e+g==, tarball: https://npm.pkg.github.com/download/@wolffm/rooms-protocol/0.38.111/0f51874534969afa2dabc967167d82b499880aed}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -1515,6 +1545,9 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
+  zod@4.5.4:
+    resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
+
 snapshots:
 
   '@asamuzakjp/css-color@6.0.7':
@@ -2034,6 +2067,8 @@ snapshots:
       '@vitest/pretty-format': 3.2.7
       loupe: 3.2.1
       tinyrainbow: 2.0.0
+
+  '@wolffm/rooms-protocol@0.38.111': {}
 
   acorn-jsx@5.3.2(acorn@8.18.0):
     dependencies:
@@ -2737,3 +2772,5 @@ snapshots:
   xmlchars@2.2.0: {}
 
   yocto-queue@0.1.0: {}
+
+  zod@4.5.4: {}

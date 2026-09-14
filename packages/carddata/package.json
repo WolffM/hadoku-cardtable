@@ -12,7 +12,8 @@
     "sync": "node src/cli/sync-cards.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "resolve": "node --max-old-space-size=6144 src/cli/resolve-cubes.ts",
-    "gen:set-codes": "node src/cli/gen-set-codes.ts"
+    "gen:set-codes": "node src/cli/gen-set-codes.ts",
+    "build-pool": "node --max-old-space-size=6144 src/cli/build-pool.ts"
   },
   "dependencies": {},
   "devDependencies": {}
