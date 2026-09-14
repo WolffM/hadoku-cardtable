@@ -1,28 +1,47 @@
-# P3 — per-recipient emit: proposed surface
+# P3 — per-recipient emit: what we still need
 
 **From:** hadoku-cardtable
 **To:** hadoku-watchparty
 **Re:** `ROOM_MODULE_RESPONSE.md` §3.5, phase P3
-**Status:** proposal — awaiting ratification of the public surface
-**Date:** 2026-09-11
+**Status:** request — revised against shipped code
+**Date:** 2026-09-14 (first written 2026-09-11)
+**Read against:** `@wolffm/rooms-protocol@0.38.109`, `@wolffm/rooms-server@0.38.109`,
+read from source in your repo. Every `file:line` below is yours.
 
-You fixed the shape in §3.5 and asked us to bring the requirements rather than
-the signatures. This starts from your three methods verbatim and asks for three
-refinements, each of which comes from a property a card game has and a watch
-party does not.
+---
 
-The signature we start from, quoted from your §3.5:
+## 0. This is a third of the document it was
 
-```ts
-room.emit.perParticipant(event, (p: Participant) => Payload | typeof SKIP)
-room.emit.toRole(role, event, payload)
-room.emit.all(event, payload)
-```
+It was written on 2026-09-11 against your response, before there was code. You
+shipped `0.38.109` on 2026-09-14 and **a good part of what it asked for is
+already in it**. Delivering the original would have asked you to build things
+you had built, which is the fastest way to teach someone to stop reading our
+requests.
 
-with, also yours: *"Every envelope carries `seq`. The client detects gaps and
-requests `resync`."*
+So, deleted rather than delivered:
 
-We accept all of that. Everything below is refinement inside it.
+| Old ask | Why it's gone |
+| --- | --- |
+| "don't hardcode the priority lists" | `EmitPolicy.highPriority` / `.lowPriorityOrder` are host-supplied — `emit.ts:18,20` |
+| "unlisted events must never be shed" | shipped, and documented in the same words — `emit.ts:19`, implemented `emit.ts:53-57` |
+| "bound the queue so a slow socket can't consume the server" | `EmitPolicy.thresholdBytes` **is** that bound — `emit.ts:16` |
+| `export const SKIP: unique symbol` | shipped — `emit.ts:72` |
+| a §6 fallback asking for "our events addable to the never-drop tier" | that tier is now the default for anything we don't classify |
+
+The one line that did it, verbatim:
+
+> `packages/rooms-server/src/emit.ts:19`
+> ```ts
+>   /** Droppable, EARLIEST FIRST. An event in neither list is never dropped. */
+> ```
+
+That is our D11 correction, in your code, as a documented guarantee. Thank you —
+and see §7, which is the only reason D11 gets a mention at all.
+
+**What is left is three things**, and none of them exists in `0.38.109`:
+a per-participant sequence (§2.1), a rule about what a *shed* envelope does to
+it (§2.2), and fail-closed projections (§2.3). Plus §6 — the thing that has to
+be true before any of it can be built.
 
 ---
 
@@ -61,43 +80,35 @@ picked so far is yours alone until the draft ends.
 
 You have the same class of requirement already and solved it the same way — the
 `opaqueVoterId` helper you cite in §3.3, whose test (`never puts the friend key
-on the wire`, both names greppable in your tree) asserts against
-`JSON.stringify` of the whole payload rather than against a named field. §4's
-headline test is that test, generalised.
+on the wire`) asserts against `JSON.stringify` of the whole payload rather than
+against a named field. §4's headline test is that test, generalised.
 
-## 2. What we are asking for on top of §3.5
+---
 
-### 2.1 `seq` must be per participant, not room-global
+## 2. What we still need
 
-This is the one that matters and the only place we are asking you to change
-something already written down.
+### 2.1 The number a client gap-detects on must be per participant
 
-Your core `RoomState` carries `seq: number` — *"monotonic; stamped on every
-outbound envelope"* — and the client detects gaps in it and asks for a resync.
-With a room-global counter and `SKIP`, that produces a resync on nearly every
-event: in a pod, a hand update is `SKIP` for three of four players, so three
-clients see the counter jump and three clients ask for a full resync. Hidden
-information is the common case for us, not the exception, so this is not a rare
-storm — it is the steady state.
+Your §3.5 said *"Every envelope carries `seq`. The client detects gaps and
+requests `resync`."* In `0.38.109` there is no envelope and nothing stamps a
+seq: `CoreRoomState.lastEventSeq` exists (`state.ts:59`, initialised at
+`state.ts:101`) and neither `safeEmit` nor `broadcastToRoom` reads or advances
+it. So this is still a design question, not a change to working code.
+
+With a room-global counter and `SKIP`, gap detection produces a resync on nearly
+every event: in a pod a hand update is `SKIP` for three of four players, so
+three clients see the counter jump and three clients ask for a full resync.
+Hidden information is the common case for us, not the exception — this is the
+steady state, not a storm.
 
 So we ask that the number the **client** gap-detects on is a per-participant
-outbound counter:
-
-```ts
-interface Participant {
-  // ...as in your §3.2
-  outboundSeq: number;      // incremented once per envelope actually sent to
-                            // THIS participant, across every emit method
-}
-```
-
-and the envelope carries both:
+outbound counter, and that the envelope carries both:
 
 ```ts
 interface Envelope<P> {
   event: string;
-  seq: number;              // this participant's outboundSeq — what gaps mean
-  stateSeq: number;         // RoomState.seq — how current the room state is
+  seq: number;              // THIS participant's outbound counter — what gaps mean
+  stateSeq: number;         // CoreRoomState.lastEventSeq — how current the room is
   payload: P;
 }
 ```
@@ -113,38 +124,44 @@ a four-player pod, on the events that fire most often. We prefer the
 per-participant counter, but we care much more that one of the two exists than
 which.
 
-`seq` is per **participant**, not per socket — a participant holding two sockets
-during a refresh (your §3.2) gets the same envelope with the same `seq` on both,
-so the surviving tab does not see a phantom gap.
+**Where the counter lives is now an open question, not an assumption.** The
+original text said "per participant, not per socket — a participant holding two
+sockets during a refresh (your §3.2) gets the same envelope with the same `seq`
+on both". §3.2's `sockets: Set<string>` **did not ship** — `ClientMeta.socketId`
+is a single string (`state.ts:16`) and `clients` is keyed by the ephemeral id
+(`state.ts:62-63`). See §6; the answer there decides the answer here.
 
 ### 2.2 A dropped envelope must break `seq` on purpose
 
-Backpressure and gap detection have to agree, and today they cannot, because
-`broadcastToRoom` does not go through `safeEmit` unless asked
-(`apps/server/src/util/safeEmit.ts:60`, `useSafeEmit` defaults to `false`).
+This is the half of the original §2.2 that survives, and `thresholdBytes` is
+what makes it matter rather than what makes it moot: now that shedding is real
+and bounded, the question is what a shed envelope *tells the client*.
 
-A correction to your §4 while we are here, because it changes what we need. You
-wrote that our state deltas *"get dropped as low-priority under load"*. Reading
-`safeEmit.ts:32-48`: an event that is in neither `HIGH_PRIORITY` (line 15) nor
-`LOW_PRIORITY_ORDER` (line 16) takes `idx === -1`, skips the inner block, falls
-past both `if`s and reaches `socket.emit` at line 48. Unlisted events are
-**never** shed — they are always sent. So the hazard for us is the opposite one:
-under pressure our deltas would buffer without bound rather than drop.
-
-Both behaviours are wrong for us, and for the same underlying reason: a delta
-stream has no self-healing. Silently dropping one desynchronises that client
-forever; never dropping one lets a slow socket consume the server. What we need
-is neither policy but a rule about visibility:
+A delta stream has no self-healing. Silently dropping one desynchronises that
+client until something else resyncs them — and nothing else will, because no
+one knows it happened. What we need is not a drop policy (yours is right) but a
+visibility rule on top of it:
 
 > If the room decides not to send an envelope to a participant for any reason
 > other than a projection returning `SKIP`, it MUST still consume that
-> participant's `outboundSeq`, so the gap is real and the client's existing gap
-> detector requests a resync.
+> participant's outbound `seq`, so the gap is real and the client's gap detector
+> requests a resync.
 
-Then a shed envelope costs a resync instead of a silent divergence, the drop
-policy stays yours and stays tunable, and we do not need our events added to any
-hardcoded priority list. `SKIP` is the only thing that does not consume a `seq`,
-because `SKIP` means the participant missed nothing.
+Then a shed envelope costs a resync instead of a silent divergence, and the drop
+policy stays yours and stays tunable. `SKIP` is the only thing that does not
+consume a `seq`, because `SKIP` means the participant missed nothing.
+
+You already have the hook: `EmitPolicy.onDrop` (`emit.ts:22`) fires with
+`{ event, bufferedBytes, socketId }` at exactly the moment the envelope is
+dropped (`emit.ts:55`). The rule is "burn the seq there too".
+
+**One thing we noticed while checking this.** `broadcastToRoom`'s `policy` is
+optional (`emit.ts:86`), and without one it calls `socket.emit` directly
+(`emit.ts:95`), bypassing backpressure entirely. That is the same hazard as the
+old `useSafeEmit = false` default, carried through the carve in a new shape. For
+the game channel we would want the room's emitter to always carry a policy —
+not a request to change `broadcastToRoom`, which has other callers, but a
+constraint on whatever P3 adds.
 
 ### 2.3 A projection that throws is fail-closed
 
@@ -158,8 +175,14 @@ one.
 > substitutes another participant's payload, an unprojected payload, or a
 > partial one.
 
-A throw consumes B's `outboundSeq` (per §2.2 — B genuinely missed something),
-so B resyncs and recovers if the failure was transient.
+A throw consumes B's `seq` (per §2.2 — B genuinely missed something), so B
+resyncs and recovers if the failure was transient.
+
+`safeEmit` already has the shape of this instinct: its outer `catch`
+(`emit.ts:60-68`) retries rather than swallowing, on the stated grounds that *"a
+failed measurement must not cost delivery"*. We are asking for the same
+discipline one level up, with the opposite default — because a failed
+*projection* must cost delivery, every time.
 
 ### 2.4 A participant with no live socket
 
@@ -174,44 +197,67 @@ because it blocks the engine and must be answered eventually. A state delta must
 This is the same boundary P5 draws for a service that goes away and comes back:
 never apply a delta across a gap, always re-establish with a snapshot.
 
-## 3. Full proposed surface
+---
+
+## 3. Surface
+
+Shaped to what you actually shipped, which is free functions over a plain
+`CoreRoomState` interface, not a room object with methods. We have no opinion on
+which of those two it becomes — `room.emit.perParticipant(...)` from your §3.5
+and `emitPerParticipant(io, room, ...)` are the same request. What follows names
+the shipped types.
 
 ```ts
-/** Sentinel: this participant receives nothing, and misses nothing.
- *  A symbol because `null` is a legal payload — your point, taken. */
-export const SKIP: unique symbol;
+import type { ClientMeta, CoreRoomState, EmitPolicy } from '@wolffm/rooms-server';
+import { SKIP } from '@wolffm/rooms-server';            // emit.ts:72, already exported
+import type { SeatRole, SeatId } from '@wolffm/rooms-protocol';
 
-type Projection<P> = (p: Participant) => P | typeof SKIP;
+type Projection<TClient, P> = (c: ClientMeta<TClient>) => P | typeof SKIP;
 
-interface RoomEmitter {
-  /** One payload per participant, computed by the host. */
-  perParticipant<P>(event: string, project: Projection<P>): EmitReport;
+/** One payload per recipient, computed by the host. */
+function emitPerParticipant<TApp, TClient, P>(
+  io: SocketIOServer,
+  room: CoreRoomState<TApp, TClient>,
+  event: string,
+  project: Projection<TClient, P>,
+  policy: EmitPolicy,                                    // NOT optional — see §2.2
+): EmitReport;
 
-  /** Same payload to every participant holding this role. */
-  toRole<P>(role: Role, event: string, payload: P): EmitReport;
-
-  /** Same payload to every participant in the room. */
-  all<P>(event: string, payload: P): EmitReport;
-}
+/** Same payload to everyone holding this seat role. */
+function emitToRole<TApp, TClient, P>(
+  io: SocketIOServer,
+  room: CoreRoomState<TApp, TClient>,
+  role: SeatRole,                                        // seats.ts:54
+  event: string,
+  payload: P,
+  policy: EmitPolicy,
+): EmitReport;
 
 interface EmitReport {
-  sent: number;             // participants that received an envelope
+  sent: number;             // recipients that received an envelope
   skipped: number;          // projection returned SKIP
   gapped: number;           // no live socket, or shed, or projection threw
   failed: number;           // projection threw (subset of gapped)
 }
-
-// on the room:
-room.emit: RoomEmitter;
 ```
+
+`emit.all` from your §3.5 is `broadcastToRoom` and already exists; we are not
+asking for a third name for it.
 
 `EmitReport` is not decoration. It is what makes §4's tests assertions rather
 than inspections, and it is how we detect "the projection is throwing for
 everyone" in production without reading logs.
 
-Nothing here needs the socket.io handle threaded through the caller — your
-objection to our original `emitPerRecipient(io, room, ...)` was right and this
-keeps the room owning its emitter.
+Two notes on the types:
+
+- **`SeatRole` is `'player' | 'spectator'`** (`seats.ts:54`), derived from the
+  table, never stored — which is right and which we are not asking you to
+  change. It means `emitToRole` cannot currently address a service participant;
+  that is P5's problem, raised there, not here.
+- **The projection receives `ClientMeta<TClient>`**, because that is what the
+  room has. If §6 changes the membership model, this signature changes with it.
+
+---
 
 ## 4. The tests that prove it
 
@@ -226,8 +272,8 @@ it('never puts a hidden zone on another participant\'s socket', () => {
   seedHand(room, A, [secretCard]);
 
   const received: Record<ParticipantId, unknown[]> = captureEnvelopes(room);
-  room.emit.perParticipant('state_delta', (p) =>
-    p.id === A ? deltaWithHand(A) : deltaWithoutHand(A));
+  emitPerParticipant(io, room, 'state_delta', (c) =>
+    c.participantId === A ? deltaWithHand(A) : deltaWithoutHand(A), policy);
 
   for (const who of [B, S]) {
     const wire = JSON.stringify(received[who]);   // whole envelopes, not a field
@@ -242,31 +288,37 @@ unambiguous. Serialising the whole array of envelopes, not a named field, is the
 point: it catches the payload that carries the secret in a field nobody thought
 to look at.
 
-The draft-flavoured twin of the same test: with four drafters mid-pack, no
-drafter's envelopes contain a card id from another drafter's current pack or
-pool.
+The draft-flavoured twin: with four drafters mid-pack, no drafter's envelopes
+contain a card id from another drafter's current pack or pool.
 
 ### 4.2 `SKIP` produces no envelope and no gap
 
+`SKIP` is already exported, so this test can be written today against a stub
+emitter — it is the one part of §3 with no new symbol in it.
+
 ```ts
-room.emit.perParticipant('e', (p) => p.id === A ? {} : SKIP);
+emitPerParticipant(io, room, 'e', (c) => c.participantId === A ? {} : SKIP, policy);
 expect(envelopes[B]).toHaveLength(0);
-expect(participant(B).outboundSeq).toBe(seqBefore);   // unchanged
+expect(outboundSeq(B)).toBe(seqBefore);   // unchanged
 ```
-Then a further `emit.all` reaches B with `seq === seqBefore + 1` and B's gap
-detector does not fire.
+Then a further `broadcastToRoom` reaches B with `seq === seqBefore + 1` and B's
+gap detector does not fire.
 
 ### 4.3 A shed envelope does produce a gap
 
-Force the drop path for B, then assert `participant(B).outboundSeq` advanced and
-B's next delivered envelope is non-contiguous with its last received one — i.e.
-B's client requests a resync. This is the test that would have caught the
-`useSafeEmit = false` default.
+Drive B's buffer past `policy.thresholdBytes` and classify the event into
+`lowPriorityOrder`, which is now the supported way to force the drop path
+(`emit.ts:53-57`). Assert B's outbound `seq` advanced, that `onDrop` fired once,
+and that B's next delivered envelope is non-contiguous with its last received
+one — i.e. B's client requests a resync.
 
 ### 4.4 A throwing projection is contained
 
 ```ts
-room.emit.perParticipant('e', (p) => { if (p.id === B) throw new Error('boom'); return {ok:p.id}; });
+emitPerParticipant(io, room, 'e', (c) => {
+  if (c.participantId === B) throw new Error('boom');
+  return { ok: c.participantId };
+}, policy);
 expect(envelopes[B]).toHaveLength(0);
 expect(envelopes[A]).toHaveLength(1);
 expect(JSON.stringify(envelopes[A])).not.toContain('boom');
@@ -275,20 +327,18 @@ expect(report.failed).toBe(1);
 
 ### 4.5 Role scoping
 
-`emit.toRole('spectator', ...)` reaches every spectator and no player; the
-reverse for `'player'`; neither reaches an attached service participant unless
-the service's role is named (P5).
+`emitToRole('spectator', ...)` reaches every spectator and no player; the
+reverse for `'player'`. With `SeatTable.capacity === null` every participant is
+a player and there are no spectators (`seats.ts:194-203`) — the draft case sets
+a real capacity, so this test has to set one too or it asserts nothing.
 
-### 4.6 Two sockets, one seq
-
-A participant mid-refresh with two live sockets receives the envelope on both
-with the same `seq`, and `outboundSeq` advances by exactly one.
-
-### 4.7 No socket, no queue
+### 4.6 No socket, no queue
 
 A participant with zero sockets receives nothing during 100 emits, is flagged
 for snapshot, and on attach receives exactly one snapshot and zero replayed
 deltas.
+
+---
 
 ## 5. Acceptance criterion
 
@@ -298,19 +348,146 @@ deltas.
 > envelope rather than any named field; and across that same turn neither B nor
 > S observes a gap in its own `seq` that was caused only by a `SKIP`.
 
-Both halves fail today: the first because there is only `broadcastToRoom`, the
-second because `seq` is room-global.
+Both halves fail against `0.38.109`: the first because `broadcastToRoom` is the
+only fan-out and it sends one payload to everyone (`emit.ts:81-99`), the second
+because there is no per-envelope `seq` at all.
 
-## 6. If you say no
+---
+
+## 6. The thing that has to be settled first
+
+**`ClientMeta` has one `socketId`, not a set of sockets.**
+
+Your §3.2 was explicit, and we built three documents on it:
+
+> *"A participant has a SET of sockets, not a socket id… Plural because the
+> single-socket model is the direct cause of our worst reconnect bug… With a
+> Set, takeover is a state transition instead of a race. This matters more to
+> you than it looks: a mid-draft refresh must not vacate a seat for even one
+> tick."*
+
+In `0.38.109`, `ClientMeta.socketId` is a single `string` (`state.ts:16`),
+`clients` is a `Map` keyed by the ephemeral `clientId` (`state.ts:62-63`), and
+`clientByParticipant` returns the **first** match by iteration order
+(`state.ts:199-207`). There is no `Participant` type and no `sockets` field
+anywhere in either package.
+
+We are not complaining about a missing feature — P2 shipped as core and you said
+so. We are flagging it because a reachable consequence lands squarely on our P6
+requirement, and because three of our documents cite §3.2 as settled.
+
+**The sequence, on a browser refresh:**
+
+1. The new socket's join is processed first — the common case, because engine.io
+   has not yet timed out the old transport. `joinRoom` (`state.ts:146`) inserts a
+   second `ClientMeta` under a new `clientId` and calls `seatParticipant`, which
+   is idempotent and returns the seat they already hold (`seats.ts:142-143`).
+2. The old socket's disconnect is then processed. `leaveRoom` (`state.ts:170`)
+   looks up the **old** `clientId`, finds a live-looking meta, and runs
+   `releaseAvatar` (`state.ts:176`) and `unseatParticipant` (`state.ts:186`).
+
+The participant is now **unseated while holding a live socket**, and their
+avatar is back in the pool. Nothing re-seats them, because `seatParticipant` is
+only called from `joinRoom` and they have already joined. `roleOf` reports
+`'spectator'`; `humanSeats` no longer lists them; your own
+`buildPlayerRoster` skips them on the documented grounds that *"a human seat
+with no live client cannot normally happen — leaveRoom unseats"*
+(`apps/server/src/ws/game.ts:150-153`). The seat stays in `remembered`, so they
+get it back — on their next join, which never comes.
+
+We ran it against your source rather than reasoning about it. Importing
+`seats.ts` directly, replaying the exact call order `state.ts` makes:
+
+```
+alice seat 0 · bob seat 1
+rejoin seat            -> 0      (idempotent, same seat)
+stale disconnect unseats -> 0
+alice role now  : spectator
+humanSeats now  : [{"id":1,"participantId":"fk:bbb"}]
+remembered      : {"fk:aaa":0,"fk:bbb":1}
+```
+
+For watchparty this is close to harmless: `capacity` is `null`, everyone is a
+player, and a re-derived roster costs a flicker. For an eight-person pod
+45 minutes into a draft it is the failure we care most about, and it is the
+literal text of the test you added to our list in §5 of your response — *"a seat
+that survives a browser refresh."*
+
+**We are not proposing the fix.** It is your membership model and you told us
+the takeover ordering is the part you are not having re-derived by someone
+reading the files cold. We only need to know **which** of these you intend, in
+writing, because §2.1's per-participant counter and P4's replay-on-attach both
+hang off it:
+
+- **(a)** `ClientMeta` grows the socket set §3.2 described, and `leaveRoom`
+  becomes "drop this socket; unseat only when the set empties"; or
+- **(b)** the single-socket model stays and `leaveRoom` gains a guard — don't
+  unseat if another live `clientId` carries the same `participantId`; or
+- **(c)** it is the hosting app's job to guard the call, in which case please
+  say so on `leaveRoom`'s doc comment, because nothing there says it today and
+  the obvious reading is that the package handles it.
+
+(b) is the smallest, and `clientByParticipant` is already the lookup it needs.
+
+---
+
+## 7. Two things about your own tree, stated factually
+
+Neither is a request, and neither is the point of this document. They are here
+because we found them while reading, and not saying so would be worse.
+
+**7.1 `SKIP` is exported with nothing to pass it to.**
+`emit.ts:71-72`:
+
+```ts
+/** Skip sentinel for `emitPerRecipient`. See that function. */
+export const SKIP: unique symbol = Symbol('rooms.skip');
+```
+
+`emitPerRecipient` does not exist. `emit.ts` declares `safeEmit` and
+`broadcastToRoom` and nothing else; `index.ts` re-exports `state`, `emit`, `gc`
+and `rateLimiter` and adds nothing; a repo-wide grep for `emitPerRecipient`
+returns exactly two hits, this comment and line 206 of
+`docs/requests/ROOM_MODULE_RESPONSE.md`. **A consumer can import `SKIP` today and
+has nothing to pass it to.**
+
+Two readings and we can't tell which from outside: it was dropped in the carve,
+or the sentinel shipped ahead of P3 and P3 is ours to land (which is what D10
+and your §2 say). Worth confirming which, because if it's the second then
+`0.38.109` has a public symbol whose contract is a document we haven't written
+yet — and if it's the first, something else went with it.
+
+While we were there: the doc comment at `emit.ts:27-34` explaining the
+never-drop default is attached to `function bufferedBytes`, one declaration
+below where it reads. Cosmetic, one line to move.
+
+**7.2 The D11 correction — ours was wrong, and that is why this document
+shrank.**
+Your §4 said our state deltas *"get dropped as low-priority under load"*. We
+wrote D11 agreeing. Reading `util/safeEmit.ts:32-48` at the time: an event in
+neither list took `idx === -1`, skipped the inner block and reached
+`socket.emit` at line 48. Unlisted events were **never** shed. Both your §4 and
+our D11 were wrong about the same code, in the same direction.
+
+It matters only because it changed our ask — the hazard was unbounded
+buffering, not silent shedding — and `thresholdBytes` plus a host-supplied
+`lowPriorityOrder` now answers the real one. The old §2.2, its matching §6
+fallback and three paragraphs of §3 came out of this document as a result.
+That's the whole significance; we mention it so you know why P3 is a third of
+its former length and not because the correction is interesting on its own.
+
+---
+
+## 8. If you say no
 
 **If per-recipient emit does not land at all:** we cannot put the game channel
-on `@wolffm/rooms`. We would run a second socket namespace beside the room for
-game traffic and keep the room for chat, presence and roster only. That costs
-us your reconnect handling, your backpressure, seats and `seq` on the half of
-the traffic that needs them most, and it puts two identity systems in one page —
-which is the failure mode P0 exists to delete. We would rather not, and we think
-you would rather we did not either, since a second consumer that only uses half
-the package proves half a boundary.
+on `@wolffm/rooms-server`. We would run a second socket namespace beside the
+room for game traffic and keep the room for chat, presence and roster only. That
+costs us your reconnect handling, your backpressure, seats and `seq` on the half
+of the traffic that needs them most, and it puts two identity systems in one
+page — which is the failure mode P0 exists to delete. We would rather not, and
+we think you would rather we did not either, since a second consumer that only
+uses half the package proves half a boundary.
 
 **If only the per-participant `seq` is refused:** we take the explicit no-op
 tick described in §2.1. Cost is three extra envelopes per hidden-zone event in a
@@ -322,8 +499,15 @@ stall rather than a counted failure. Acceptable, but it means the safety
 property lives in the consumer instead of the package, and the next consumer has
 to remember it.
 
-**If the shed-envelope rule is refused:** we ask instead that our event names be
-addable to the never-drop tier through the injected config you already plan for
-P2, and we take unbounded buffering on a slow socket as the failure mode. We
-consider this the worst of the three fallbacks — a desynchronised card game is
+**If the shed-envelope `seq` rule is refused:** we classify every game event as
+high-priority via `EmitPolicy.highPriority` and take unbounded buffering on a
+slow socket as the failure mode — which the package now lets us do without
+asking you for anything, so this fallback is cheap in effort and expensive in
+consequence. It is still the worst of the four: a desynchronised card game is
 not recoverable by the player, and they will not know it happened.
+
+**If §6 is answered with (c) — the app guards it:** we will guard it, and we
+would ask only that `leaveRoom`'s doc comment say so. A package whose seat
+invariant depends on every caller getting the disconnect order right will
+eventually meet one that doesn't. That is your own argument, from
+`seats.ts:132-134`, about bots and capacity clamping.

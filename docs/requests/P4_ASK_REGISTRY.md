@@ -1,12 +1,53 @@
 # P4 — Ask registry: a durable, seat-scoped request/response over the room
 
-**Status:** proposal to upstream (watchparty room module).
+**From:** hadoku-cardtable
+**To:** hadoku-watchparty
+**Re:** `ROOM_MODULE_RESPONSE.md` §3.4, phase P4
+**Status:** request — revised against shipped code
+**Date:** 2026-09-14 (first written 2026-09-11)
+**Read against:** `@wolffm/rooms-protocol@0.38.109`, `@wolffm/rooms-server@0.38.109`,
+read from source in your repo.
 **Licence posture:** this document, and the packages it specifies, are MIT. It was
 written clean-room from the requirement and from upstream's own §3.4 text. See D12.
 **Scope:** design only. No implementation, no package layout, no code beyond the type
 signatures below.
 
 ---
+
+## 0. What `0.38.109` changed here
+
+Least of the four documents — P4 was specified from requirements rather than
+from your code, which is what D12's firewall demanded, and requirements don't
+go stale. Three notes anyway:
+
+**What P4 can now lean on rather than assume.** `ParticipantId` and `SeatId`
+are real and exported (`participantId.ts:52`, `seats.ts:51`), `seatOf` gives us
+the seat lookup §3.1 needs (`seats.ts:95`), and `isDurableParticipantId`
+(`participantId.ts:118`) is the exact predicate for "may have a pending request
+replayed" — its own doc comment says so. Requirement 3 should therefore read
+**replay applies to durable tiers only**: an `eph:` id is the socket id, so
+there is no later socket that could be "the same participant", and a queued ask
+for one can only ever time out.
+
+**One correction to make, and it is ours.** §3.1 used to say *"The raw
+`ParticipantId` never goes on the wire (D11)"*. That was true of your §3.3 and
+is no longer true of your design — your own "Two places the design moved after
+§3" says there is **no separate opaque wire handle**, because the `fk:`/`dev:`
+bodies are domain-separated SHA-256 digests computed at derivation and so are
+safe on the wire by construction (`participantId.ts:36-45`). Corrected in place
+below. The property we cared about — a friend key never reaching a client —
+holds either way.
+
+**What still does not exist.** Nothing in `0.38.109` does correlation,
+asks, replies or replay; `rooms-server` is `state`, `emit`, `gc` and
+`rateLimiter`. P4 is entirely ahead of us, as your §3b says.
+
+One dependency worth naming: requirements 2, 3 and 7 are all about a
+participant whose sockets come and go, and the shipped `ClientMeta` carries a
+single `socketId` rather than the socket set your §3.2 described. The state
+machine below says "the target's socket set becomes empty"; against
+`0.38.109` that phrase has no referent. See **P3 §6**, which raises it once for
+all four documents.
 
 ## 1. The requirement, in our words
 
@@ -152,8 +193,16 @@ Unchanged from upstream. Committed semantics on top of it:
 - **`timeoutMs` is wall-clock from issue** and does not pause while `queued`. See §5 for
   the trade and the alternative.
 - **`kind` is opaque to the room.** It is echoed on the wire so the client can route.
-- **The raw `ParticipantId` never goes on the wire** (D11). The envelope carries no
-  target field — it is delivered to that participant's sockets, which is the addressing.
+- **The envelope carries no target field.** It is delivered to that participant's
+  sockets, and that delivery *is* the addressing — a target field would be redundant
+  and would tell every recipient who else is being asked what.
+  *(This clause used to read "the raw `ParticipantId` never goes on the wire". That
+  was §3.3's original design and upstream has since moved: ids are domain-separated
+  digests, safe on the wire by construction, `participantId.ts:36-45`. Putting one in
+  an envelope is no longer a leak — we just still don't need to.)*
+- **Replay is for durable ids.** `isDurableParticipantId` (`participantId.ts:118`) is
+  the gate. An `eph:` participant's id *is* their socket id, so "the same participant
+  re-attaches" is not a thing that can happen to them; their queued asks time out.
 
 ### 3.2 Wire envelopes
 
@@ -343,10 +392,10 @@ cannot.
 | --- | --- | --- | --- | --- |
 | 1 | **`room.asks.stats().droppedUnknownReplies`** | The only evidence that a client is replaying stale ids. Requirement 8 says "counted"; without a counter the requirement is untestable and A-4 cannot be written. | Wrap `ask` in our own registry that shadows every id and counts drops before handing off. | Ugly and racy — we would be counting on the outside of the thing that decides. **This is the one we would push hardest on.** |
 | 2 | **`room.asks.submitReply` as a public seam** | The ability to test requirement 8 without a live socket. | Drive a stub socket in tests. | Tolerable. Slower, noisier tests; the drop path becomes harder to exercise exhaustively. |
-| 3 | **`AskNotSeatedError` at issue** | A loud failure when we ask a ghost. | Check `seatOf(target)` ourselves before every `ask`. | Tolerable, but it is a check every caller must remember, which means one caller eventually will not. |
+| 3 | **`AskNotSeatedError` at issue** | A loud failure when we ask a ghost. | Check `seatOf(room.seats, target)` ourselves before every `ask` — it is exported today (`seats.ts:95`), so this fallback costs nothing to build. | Tolerable, but it is a check every caller must remember, which means one caller eventually will not. |
 | 4 | **Wall-clock deadline from issue** (upstream may prefer the timer to *pause* while queued) | Predictable pick timers. A paused timer means a participant who never returns holds a pending ask until seat-exit. | Accept the paused-timer semantics and add our own outer deadline per ask. | Acceptable. Both are defensible; we just need to know **which**, in writing, because A-7 asserts one of them. If upstream picks pausing, A-7 inverts: "advance past the deadline while queued → still pending". |
 | 5 | **FIFO replay order** (A-13) | Deterministic replay for a queue of picks. | Sort on our side by embedding a sequence number in `payload`. | Annoying but survivable. |
-| 6 | **`SeatId` as a target** | The convenience of asking "whoever is in seat 3". | Resolve the seat to a `ParticipantId` ourselves at call time. | Cheap. Same semantics, one extra line. |
+| 6 | **`SeatId` as a target** | The convenience of asking "whoever is in seat 3". | Resolve the seat ourselves at call time — `occupantOf(room.seats, id)` (`seats.ts:101`) returns the occupant, including whether it is a `bot`. | Cheap. Same semantics, one extra line. |
 | 7 | **`pending()` with `emitCount` / `deadlineAt`** | Observability, and A-14's assertion that a replay does not re-arm the deadline. | Assert the re-arm behaviour indirectly via the fake clock. | Cheap for tests, real loss for debugging a live draft. |
 
 **Non-negotiable from our side** — if any of these are refused, the room module does not
@@ -385,3 +434,34 @@ meet our need and we hold the asks ourselves on top of a raw send/receive:
    real question — a client that never replies accumulates asks until seat-exit — but the
    requirement does not state a bound and we would rather ask upstream what they intend
    than invent a limit that surprises a caller. **Open question for upstream.**
+
+8. **A `SeatId` that resolves to a bot.** New since this was written: the shipped
+   `SeatOccupant` is `{ kind: 'human' } | { kind: 'bot' }` (`seats.ts:56-58`), and
+   `padWithBots` puts bots in real seats with positional `bot:<n>` ids
+   (`seats.ts:249-263`). So `ask(seatId, ...)` can name a seat with no participant
+   behind it at all. Our proposal: that is `AskNotSeatedError`'s sibling, not a queue —
+   a bot has no socket and never will, so queueing an ask for one is a guaranteed
+   timeout dressed up as a pending request. We would reject at issue with the same
+   error. **Flagging rather than deciding**, because bots are yours and a draft's bot
+   drafters are answered by our engine, not by the room. **Open question for upstream.**
+
+---
+
+## 7. One interaction that would defeat requirement 7
+
+Requirement 7 — *"An ask is cancelled when the participant leaves the **seat** — not
+when a socket drops. A mid-draft refresh must not settle anything."* — is the whole
+reason T8 names `seat-exit` rather than `disconnect`. It assumes seat-exit is a rare,
+deliberate event.
+
+Against `0.38.109` it is neither. `leaveRoom` calls `unseatParticipant` on **every**
+disconnect (`state.ts:186`), including the stale one a browser refresh leaves behind
+while the participant is already back on a new socket. If P4 binds cancellation to
+`unseatParticipant`, then a refresh mid-draft cancels every pending ask for that
+drafter — which is precisely the outcome requirement 7 was written to forbid, arriving
+through the door we thought we had closed.
+
+This is the same finding as **P3 §6** and we are not restating the evidence here. We
+raise it in P4 only to record the consequence: **requirement 7 is not implementable
+until P3 §6 is answered**, because "leaves the seat" has to mean something a refresh
+does not do.

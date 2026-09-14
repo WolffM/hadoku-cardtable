@@ -1,10 +1,12 @@
-# P5 — the service participant: proposed lifecycle and surface
+# P5 — the service participant: what we need
 
 **From:** hadoku-cardtable
 **To:** hadoku-watchparty
 **Re:** `ROOM_MODULE_RESPONSE.md` §3.6, phase P5
-**Status:** proposal — awaiting ratification of the public surface
-**Date:** 2026-09-11
+**Status:** request — revised against shipped code
+**Date:** 2026-09-14 (first written 2026-09-11)
+**Read against:** `@wolffm/rooms-protocol@0.38.109`, `@wolffm/rooms-server@0.38.109`,
+read from source in your repo.
 
 Your §3.6, quoted in full because it is the whole starting point:
 
@@ -19,6 +21,44 @@ Your §3.6, quoted in full because it is the whole starting point:
 Agreed on every clause, including the last one. This document supplies the
 crash semantics we need, states the lifecycle as a state machine so "crash" has
 a definition rather than a vibe, and proposes the surface that follows.
+
+---
+
+## 0. What `0.38.109` changed here
+
+Nothing in the shipped packages does any part of P5, so there is nothing to
+trim. Four things did change what the document has to *say*:
+
+**`'service'` has no home in the shipped type system.** Your §3.6's "a role, not
+a second mechanism" needs a role enum with three members. What shipped is
+`SeatRole = 'player' | 'spectator'` (`seats.ts:54`), **derived** from the seat
+table and never stored (`roleOf`, `seats.ts:201`), and `SeatOccupant =
+{ kind: 'human' } | { kind: 'bot' }` (`seats.ts:56-58`). A service is not a
+human, not a bot, and must not hold a seat — so on the shipped model it is not
+representable as a role at all. §6 below is re-shaped around that; it is the
+biggest change to this document.
+
+**The reaper hazard is real and it moved into the package.** §10.1 predicted
+`room.clients.size === 0` would reap a live game. That line is now
+`packages/rooms-server/src/gc.ts:28`, in the published package, still exactly
+`const empty = room.clients.size === 0;`. Citations updated throughout.
+
+**`deriveParticipantId` did not ship.** `rooms-protocol` exports the *format*
+half — `participantIdTier`, `isParticipantId`, `formatParticipantId`,
+`participantIdBody` and the predicates — but derivation lives in
+`apps/server/src/rooms/participantId.ts`, in your app, because it needs a
+synchronous crypto primitive the zero-dep package won't assume
+(`participantId.ts:38-40`). This bites §7 directly: we cannot mint an id for a
+service peer with what is published.
+
+**`O2` is settled and one branch of §1 is gone.** Our draft engine is
+TypeScript in the room server's process (resolved 2026-09-14 on the evidence
+that `BoosterDraft.java` lives in `forge-gui` with 17 GUI call sites). So the
+**draft** has no service participant — P5 applies to **matches**, where the
+authority is a JVM holding the shuffled libraries. That makes P5 later than
+P3/P4/P6 for us and it makes §9's acceptance criterion a match, not a draft.
+`O3` — one process per match or one hosting many — is still open, and the
+surface below still says nothing about it.
 
 ---
 
@@ -39,24 +79,29 @@ its place, and the room must still be there when it arrives.**
 
 The concrete bar:
 
-> A cube draft in progress must survive the backend process vanishing. Nobody
-> loses their seat, nobody loses their picks, nobody has to rejoin, and when a
+> A game in progress must survive the backend process vanishing. Nobody loses
+> their seat, nobody loses their board state, nobody has to rejoin, and when a
 > replacement process attaches, every participant is put back on a correct view
 > without reloading the page.
 
 A draft runs 45+ minutes across eight people; a match runs longer. Over that
 window a deploy, an OOM kill or a bad card script is not an edge case, it is
-Tuesday. The same requirement holds a fortiori for a match in progress, but the
-draft is the one we will hit first, so it is the one we specify against.
+Tuesday.
+
+*(The original said "a cube draft", and specified against the draft because it
+is the thing we ship first. `O2` settling moved the draft engine in-process, so
+the draft's version of this requirement is now **P6's** — a server restart, not
+a peer crash. P5 is the match case, which is the harder one and was always the
+one this document's machinery was really for.)*
 
 Two things are still open on our side and the design must not assume either
 (they are `O2` and `O3` in our `docs/planning/workstreams.md`):
 
-- **`O2`** — whether the draft engine is TypeScript in the room server's own
-  process, or the same engine that runs matches. In the first branch the draft
-  has no service participant at all and this document does not apply to it; in
-  the second it does. We are specifying for the second and taking the first as
-  a strictly easier case.
+- ~~**`O2`**~~ — **settled 2026-09-14: the draft engine is TypeScript, in the
+  room server's own process.** So the draft has no service participant and this
+  document does not apply to it. It applies to **matches**, where the authority
+  is a JVM. That is strictly the harder case and nothing below weakens; it does
+  mean P5 lands after P3, P4 and P6 in our order.
 - **`O3`** — one process per match, or one process hosting many rooms. The
   surface below deliberately says nothing about how many rooms a peer serves,
   because we do not know yet. It only says a room has at most one.
@@ -134,9 +179,16 @@ These are the clauses we would be asking you to commit to.
 
 **5.1 The room survives.** A service transition to `lost` does not evict
 participants, does not vacate seats, does not close sockets and does not delete
-room state. `apps/server/src/rooms/gc.ts:16` reaps on
-`room.clients.size === 0`; a service loss must not be able to reach that
-condition, and a room in `lost` must be exempt from reaping regardless.
+room state.
+
+This is now a statement about published code rather than about your app.
+`packages/rooms-server/src/gc.ts:28` is `const empty = room.clients.size === 0;`,
+and `evaluateRoom` destroys on `empty` plus `emptyGraceMs` (`gc.ts:30-35`). A
+service loss must not be able to reach that condition, and a room in `lost` must
+be exempt from reaping regardless of it. `GCTimings` is two numbers
+(`gc.ts:15-20`) and `evaluateRoom` is pure, so the exemption has to arrive as a
+third input or as a predicate — we have no preference which, only that the
+decision is not "the room looked empty for a moment".
 
 **5.2 Clients are told exactly once, with a distinct state.** Not an error
 toast, not a generic disconnect: a room-level status the UI can render as "the
@@ -179,9 +231,19 @@ have to keep coherent.
 Transport-agnostic, per your constraint: you define the lifecycle and the
 routing, we bring the socket.
 
-```ts
-type Role = 'player' | 'spectator' | 'service';       // yours, §3.2 / §3.6
+**First, the type that isn't there.** The original draft opened with
+`type Role = 'player' | 'spectator' | 'service'` and attributed it to your §3.2
+/ §3.6. No such type shipped: `SeatRole` has two members, is derived from the
+seat table by `roleOf` and is never stored (`seats.ts:54,201`), and
+`SeatOccupant` admits `human` and `bot` (`seats.ts:56-58`). Widening either
+would be wrong — a service must **not** hold a seat (it would take a draft slot,
+appear in `humanSeats`, and count against `capacity`), and `roleOf` reading the
+table is a property worth keeping.
 
+So we are **not** asking for a third `SeatRole`. We are asking for the lifecycle
+to hang off the room beside the seat table rather than inside it:
+
+```ts
 /** The transport seam. We implement this; the package never sees a socket. */
 interface ServicePeer {
   readonly id: string;                  // stable across restarts of the peer
@@ -198,12 +260,14 @@ interface ServiceLifecycle {
   status(): ServiceStatus;
 }
 
-interface ServiceSession {
-  participantId: ParticipantId;         // see the open question in §7
-  roster: ReadonlyArray<Participant>;   // §5.6
-  seats: SeatTable;
-  /** Push a full state; the room fans it out via emit.perParticipant. */
-  publishSnapshot<P>(project: (p: Participant) => P | typeof SKIP): void;
+interface ServiceSession<TClient> {
+  serviceId: ParticipantId;                       // see the open question in §7
+  roster: ReadonlyArray<ClientMeta<TClient>>;     // §5.6 — the shipped membership type
+  seats: SeatTable;                               // seats.ts:66, shipped as-is
+  /** Push a full state; the room fans it out via P3's per-recipient emit. */
+  publishSnapshot<P>(
+    project: (c: ClientMeta<TClient>) => P | typeof SKIP,   // SKIP: emit.ts:72
+  ): void;
 }
 
 // configured per room / per server:
@@ -216,45 +280,116 @@ createRoomServer({
   } | undefined,              // undefined ⇒ no service role in this room at all
 });
 
-// on the room:
-room.service: ServiceLifecycle;
+// alongside the room — a field on CoreRoomState, or a registry-level lookup
+// keyed by roomId. We have no preference; `CoreRoomState` is a plain interface
+// of data today (state.ts:52-75) with the behaviour in free functions, and we
+// would rather match whatever you decide than argue for a shape.
+room.service?: ServiceLifecycle;
 ```
 
-Defaults matter for you specifically: with `service` undefined the role does
-not exist, no heartbeat clock runs, and nothing in your rooms changes.
+Defaults matter for you specifically: with `service` undefined nothing exists —
+no lifecycle field, no heartbeat clock, no GC exemption, no change to any room
+you run. Watchparty's 461 server tests should not move by a line.
 
 Our numbers, for calibration rather than as a proposal for yours:
 `heartbeatMs` 5 s, `lossAfterMs` 15 s, `holdMs` at least one draft round —
 call it 10 minutes — because a redeploy plus a cold JVM start is comfortably
 inside that and a drafter staring at a pack is not going anywhere.
 
-## 7. One open question we cannot answer alone
+## 7. Two open questions we cannot answer alone
 
-**What is a service's `ParticipantId`?** Your §3.3 fixes three tiers, `fk:`,
-`dev:` and `eph:`, and encodes durability in the prefix so code can assert on
-it. None of the three describes a process. `fk:` is defined as an authenticated
-person's credential and a service is not a person; `dev:` is a browser; `eph:`
-dies with the transport, which is the opposite of what a service is.
+### 7.1 What is a service's `ParticipantId`?
 
-Two options and we do not have a strong preference:
+Your §3.3 fixes three tiers and encodes durability in the prefix so code can
+assert on it. **None of the three describes a process.** `account` is defined as
+an authenticated person's credential and a service is not a person; `device` is
+a browser; `ephemeral` dies with the transport, which is the opposite of what a
+service is.
 
-- **(a)** add a fourth tier `svc:<serviceId>`, durable, never seated, never
-  counted in roster size
-- **(b)** reuse `fk:` with a service key and let policy handle the rest
+Reading `0.38.109` sharpens this from a preference into a blocker, because the
+tier set is genuinely closed, not merely conventional:
+
+```ts
+// participantId.ts:102-107
+export function participantIdTier(id: string): ParticipantIdTier | null {
+  const m = PARSE_RE.exec(id);
+  if (!m) return null;
+  return TIER_BY_SCHEME[m[1]] ?? null;
+}
+```
+
+A `svc:` id returns `null`, so `isParticipantId` rejects it
+(`participantId.ts:109-111`), `isDurableParticipantId` is false
+(`participantId.ts:118-121`), and `participantTierAtLeast` is false for every
+`minTier` (`participantId.ts:133-137`). A service id invented outside the
+package is not a `ParticipantId` by the package's own predicates — and
+`participantIdTier`'s doc comment says returning `null` rather than defaulting is
+deliberate, so there is no accidental back door either. Good design; it just
+means we cannot solve this on our side.
+
+Two options and we still do not have a strong preference:
+
+- **(a)** add a fourth tier `svc:<digest>`, durable, never seated, never counted
+  in roster size
+- **(b)** reuse `account` with a service key and let policy handle the rest
 
 We lean to (a) because the tier prefix's stated purpose is that code can assert
 on durability class rather than hope, and "is this a person" is exactly the
-assertion our seat allocation and our roster rendering both need to make. But
-D11 settled the tiering on your side and we are not reopening it — this is a
-question, not a counter-proposal.
+assertion our seat allocation and our roster rendering both need to make. Under
+(b) `isAuthenticatedTier` becomes true for a process, and that predicate is the
+gate for *"anything that grants power — leadership, ownership, a moderation
+action"* (`participantId.ts:25-34`); a service legitimately has more power than
+any person in the room, but conflating the two means nothing can ever tell them
+apart again.
+
+This is a question, not a counter-proposal. The tiering is yours.
+
+### 7.2 How does a second consumer mint an id at all?
+
+New, and it applies beyond P5. `rooms-protocol` ships the **format** half —
+`participantIdTier`, `isParticipantId`, `formatParticipantId`,
+`participantIdBody`, the predicates and the length floors. It does not ship
+`deriveParticipantId`; that lives in `apps/server/src/rooms/participantId.ts`,
+in your application, because it needs a synchronous crypto primitive the zero-dep
+package will not assume (`participantId.ts:38-40`).
+
+That is a defensible split and we are not asking you to add a crypto dependency
+to a package whose header makes a point of having none. But it leaves the
+second consumer — the one whose existence proves the boundary — reimplementing
+the hashing, and *"domain-separated SHA-256 digests"* is exactly the kind of
+detail where two implementations silently disagree on a separator and produce
+different ids for the same person.
+
+Options, in our order of preference:
+
+- **(a)** `@wolffm/rooms-server` exports `deriveParticipantId` — it is already a
+  Node-only package in practice (`emit.ts:44` calls `Buffer.byteLength`, and it
+  peer-depends on `socket.io`), so `node:crypto` costs it nothing, and
+  `rooms-protocol` stays dependency-free
+- **(b)** `rooms-protocol` exports the **domain-separation scheme** as data (the
+  prefix strings and separator) plus a `deriveWith(hash, input)` that takes the
+  hash function, so the algorithm has one definition and the primitive stays
+  injected
+- **(c)** it is documented as the host's job, precisely enough that two
+  implementations provably agree — in which case the doc needs the exact byte
+  sequence being hashed, not a description of it
+
+Any of the three works for us. What does not work is the current state, where
+the only correct implementation is in a file we cannot import.
 
 ## 8. The tests that prove it
 
-**8.1 The room survives the peer vanishing.** Four seated drafters, three packs
-done. Kill the peer process. Assert: the room still exists, all four
-participants still hold their seats, `status() === 'lost'` within `lossAfterMs`,
-each of the four clients received exactly one service-lost notice, and the GC
-pass run at that moment does not mark the room for destruction.
+*(Restated for a **match** rather than a draft — `O2` settled the draft engine
+as in-process TypeScript, so a draft has no service peer to kill. The shape of
+every test is unchanged.)*
+
+**8.1 The room survives the peer vanishing.** Four seated players, several turns
+in. Kill the peer process. Assert: the room still exists, all four participants
+still hold their seats, `status() === 'lost'` within `lossAfterMs`, each of the
+four clients received exactly one service-lost notice, and
+`evaluateRoom(room, timings)` run at that moment returns
+`shouldDestroy === false` — the direct assertion against `gc.ts:22-37`, which is
+pure and therefore testable without a registry, as its own header points out.
 
 **8.2 Re-attach restores every client without a reload.** Start a replacement
 peer, attach, publish a snapshot. Assert: each client's state equals its
@@ -287,11 +422,11 @@ transitions to `detached` and is reaped on the normal rules.
 
 ## 9. Acceptance criterion
 
-> With four participants seated in a draft and three packs completed, killing
-> the attached service peer's process and starting a replacement that attaches
-> within `holdMs` leaves every participant on the same `SeatId` with an
-> identical pick list, with no participant having reloaded the page, no seat
-> reallocated, and each participant's client having received exactly one
+> With four participants seated in a **match** and several turns played,
+> killing the attached service peer's process and starting a replacement that
+> attaches within `holdMs` leaves every participant on the same `SeatId` with an
+> identical board and hand, with no participant having reloaded the page, no
+> seat reallocated, and each participant's client having received exactly one
 > service-lost notice followed by exactly one snapshot before any further
 > delta.
 
@@ -304,13 +439,15 @@ envelope ordering per participant.
 participant with a role flag of our own and rebuild the lifecycle above the
 room, in our repo. The concrete costs, in order of how much they hurt:
 
-1. **The reaper will delete live games.** `gc.ts:16` computes
-   `empty = room.clients.size === 0`. A service that is not a participant is
-   not a client, so a room whose humans have all briefly dropped — a
-   redeploy of our own UI, say — is empty by that definition while a 45-minute
-   draft is still running inside it. Our workaround would be to hold a fake
-   browser participant open purely to keep the reaper away, which is a lie in
-   the roster that everything downstream then has to special-case.
+1. **The reaper will delete live games.** `packages/rooms-server/src/gc.ts:28`
+   computes `const empty = room.clients.size === 0;`. A service that is not a
+   participant is not a client, so a room whose humans have all briefly dropped
+   — a redeploy of our own UI, say — is empty by that definition while a
+   45-minute match is still running inside it. Our workaround would be to hold a
+   fake browser participant open purely to keep the reaper away, which is a lie
+   in the roster that everything downstream then has to special-case. Note this
+   is now a published package's behaviour rather than an application's, so the
+   workaround would also be the *next* consumer's workaround.
 2. **Crash detection lands in the wrong place.** The heartbeat clock has to run
    somewhere; above the room it cannot exempt the room from GC, cannot pause
    routing, and cannot tell clients in the same channel as everything else, so
