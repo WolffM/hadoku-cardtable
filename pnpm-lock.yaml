@@ -69,6 +69,12 @@ importers:
 
   packages/carddata: {}
 
+  packages/deck:
+    dependencies:
+      '@hadoku/carddata':
+        specifier: workspace:*
+        version: link:../carddata
+
 packages:
 
   '@asamuzakjp/css-color@6.0.7':
