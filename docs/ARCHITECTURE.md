@@ -184,8 +184,9 @@ packs, pass, pick, timebox, chat. No rules engine involved at all — a pick is 
 card id moving between two lists.
 
 - Port the watchparty room/chat/presence layer (`requests/WATCHPARTY_ROOM_MODULE.md`).
-- Cube list ingest — **import Forge's 96 bundled cubes verbatim** from
-  `forge/forge-gui/res/cube/*.dck`; card data from Scryfall bulk
+- Cube list ingest — **import Forge's 95 bundled cubes verbatim** from
+  `forge/forge-gui/res/cube/*.dck` (and its 94 `.draft` recipes from
+  `res/draft/`); card data from Scryfall bulk
   (`LICENSING.md` governs images — do **not** mirror them).
 - Draft protocol + pack generation.
 - Output: a `.dck` per player.
@@ -229,13 +230,15 @@ read is the go/no-go for this phase.
 ### P4 — Browser play client
 
 Render `GameView`/`CardView` deltas; send back choices. Still the biggest phase,
-but now an enumerable one. Of the 47 server→client protocol methods: ~25 are
-fire-and-forget view updates, ~8 are chrome, and **~14 are blocking prompts** —
-`showConfirmDialog`, `getChoices`, `order`, `confirm`,
-`chooseSingleEntityForEffect`, `assignCombatDamage`, `sideboard`, … *Those 14 are
-the UI.* Client→server is only 15 small methods.
+but now an enumerable one. Of the 45 server→client protocol methods, **30 return
+`void`** (24 view updates, 6 chrome) and **15 return a value** and therefore
+block the game thread — `showConfirmDialog`, `getChoices`, `order`, `confirm`,
+`chooseSingleEntityForEffect`, `assignCombatDamage`, `sideboard`, … *Fourteen of
+those 15 are player prompts, and they are the UI.* Client→server is 15 small
+methods. `FORGE_ANALYSIS.md` names all of them and carries the commands that
+count them.
 
-So: a board renderer over `CardView` plus ~14 prompt components. Ship them one at
+So: a board renderer over `CardView` plus 14 prompt components. Ship them one at
 a time — each unlocks a class of cards, and an unimplemented prompt degrades to
 "finish this game in Forge desktop" rather than breaking.
 
@@ -253,9 +256,9 @@ a time — each unlocks a class of cards, and an unimplemented prompt degrades t
 
 **Answered by `FORGE_ANALYSIS.md`:** `TrackableProperty` is a closed 214-constant
 enum (go). `FServerManager` is GUI-free and headless is regression-tested (go).
-Cube draft is first-class with 96 bundled cubes. Maven: **no `mvnw` upstream** —
-only `.mvn/maven.config` — and hokon has no `mvn`, so that's a real prerequisite
-to install.
+Cube draft is first-class with 95 bundled cubes and 94 draft recipes. Maven:
+**no `mvnw` upstream** — only `.mvn/maven.config` — and hokon has no `mvn`, so
+that's a real prerequisite to install.
 
 Still open:
 

@@ -31,21 +31,68 @@ Plus **33,755 files** under `res/cardsfolder` (the spike's loader counts
 There are **three** counts there, all real, all measuring different things.
 `c8a0aac` corrected the first conflation and introduced a milder one — "206
 classes, of which 202 are wired" reads as a 202-of-206 subset, and it isn't
-one. Re-counted 2026-09-14 against `2cd497cf`:
+one. Re-counted 2026-09-14, with the commands, from the repo root
+(`forge/` is gitignored until the fork exists):
 
-| Count | What it is |
-| ---: | --- |
-| **206** | `.java` files in `game/ability/effects/` |
-| **202** | constants in `ApiType` |
-| **200** | *distinct* effect classes those 202 constants name |
+| Count | What it is | Command |
+| ---: | --- | --- |
+| **206** | `.java` files in `game/ability/effects/` | `find $E -maxdepth 1 -type f -name '*.java' -printf '.' \| wc -c` |
+| **202** | constants in `ApiType` | `grep -cE '^ *[A-Za-z][A-Za-z0-9_]* *\([A-Za-z][A-Za-z0-9_]*\.class' $A` |
+| **199** | *distinct* effect classes those 202 constants name | the `sort -u` below |
 
-**202 > 200** because `CharmEffect.class` is named by four constants — `Charm`,
+```sh
+A=forge/forge-game/src/main/java/forge/game/ability/ApiType.java
+E=forge/forge-game/src/main/java/forge/game/ability/effects
+
+grep -oE '^ *[A-Za-z][A-Za-z0-9_]* *\(([A-Za-z][A-Za-z0-9_]*)\.class' $A \
+  | sed -E 's/.*\(([A-Za-z0-9_]*)\.class/\1/' | sort -u | wc -l   # 199
+```
+
+**202 > 199** because `CharmEffect.class` is named by four constants — `Charm`,
 `CompanionChoose`, `InternalLegendaryRule`, `InternalIgnoreEffect`
-(`ApiType.java:47,216,217,218`). **206 > 200** because six files are never
-named by `ApiType` at all: the four abstract bases `AnimateEffectBase`,
-`DamageBaseEffect`, `ManifestBaseEffect` and `TokenEffectBase`, plus
-`PermanentEffect` and `DetachedCardEffect` — the last of which extends `Card`,
-not `SpellAbilityEffect`, so it was never a candidate.
+(`ApiType.java:47,216,217,218`) — and it is the only class named more than once,
+so 202 − 3 = 199:
+
+```sh
+grep -oE '^ *[A-Za-z][A-Za-z0-9_]* *\(([A-Za-z][A-Za-z0-9_]*)\.class' $A \
+  | sed -E 's/.*\(([A-Za-z0-9_]*)\.class/\1/' | sort | uniq -c | awk '$1>1'
+#       4 CharmEffect
+```
+
+**206 > 199** because **seven** files are never named by `ApiType`. Taking the
+set difference rather than trusting the subtraction:
+
+```sh
+comm -13 <(grep -oE '^ *[A-Za-z][A-Za-z0-9_]* *\(([A-Za-z][A-Za-z0-9_]*)\.class' $A \
+            | sed -E 's/.*\(([A-Za-z0-9_]*)\.class/\1/' | sort -u) \
+         <(find $E -maxdepth 1 -type f -name '*.java' -printf '%f\n' | sed 's/\.java$//' | sort)
+#   AnimateEffectBase
+#   CountersNoteEffect
+#   DamageBaseEffect
+#   DetachedCardEffect
+#   ManifestBaseEffect
+#   PermanentEffect
+#   TokenEffectBase
+```
+
+Four are abstract bases (`AnimateEffectBase`, `DamageBaseEffect`,
+`ManifestBaseEffect`, `TokenEffectBase`); `PermanentEffect` and
+`DetachedCardEffect` are unwired, the latter extending `Card` rather than
+`SpellAbilityEffect` so it was never a candidate.
+
+**The seventh, `CountersNoteEffect`, is why this document previously said 200
+and six.** Its constant exists but is **commented out**:
+
+```java
+//NoteCounters (CountersNoteEffect.class),   // ApiType.java:137
+```
+
+A `.class` grep that is not anchored to the start of the line counts that
+comment, which yields exactly the old pair — 200 distinct, six unnamed. It is
+the only commented-out constant in the file (`grep -nE '^ *//.*\.class' $A`
+returns line 137 alone). A commented-out constant is not in the dispatch table,
+so it does not count, and the file on disk is dead code until someone
+uncomments it.
 
 The number that matters to the argument below is **202**: it is the size of the
 statically-visible dispatch table, and none of the three counts changes the
@@ -85,7 +132,7 @@ Java, debug Java, and hit a compiler that restricts the language. If the goal is
 "I don't want to touch Java", WASM is the wrong lever.
 
 **The architecture already solves that.** Per `FORGE_ANALYSIS.md`, the seam is a
-3-method interface and a closed 62-method protocol. Java stays on hokon; you
+3-method interface and a closed 60-method protocol. Java stays on hokon; you
 write TypeScript and React; the only Java you ever touch is:
 
 - one class implementing `IToClient` over WebSocket/JSON
@@ -138,7 +185,7 @@ public enum ApiType {
     Abandon           (AbandonEffect.class),
     ActivateAbility   (ActivateAbilityEffect.class),
     AddOrRemoveCounter(CountersPutOrRemoveEffect.class),
-    ...  // 202 constants naming 200 distinct classes; 206 files on disk
+    ...  // 202 constants naming 199 distinct classes; 206 files on disk
 }
 ```
 

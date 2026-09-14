@@ -7,20 +7,50 @@ not check something, it says so.
 ## Headline
 
 **Forge's network layer is far more separable than its reputation suggests.**
-The entire client↔server protocol is one closed enum of 62 methods, and the
+The entire client↔server protocol is one closed enum of 60 methods, and the
 entire transport seam is a 3-method interface. The game logic never learns that
 a player is remote.
 
 | Question | Answer | Evidence |
 | --- | --- | --- |
-| Is the protocol a closed set? | **Yes — 62 methods**, 47 server→client, 15 client→server | `net/ProtocolMethod.java` |
+| Is the protocol a closed set? | **Yes — 60 methods**, 45 server→client, 15 client→server | `net/ProtocolMethod.java` |
 | How wide is the transport seam? | **3 methods** | `net/IRemote.java` |
 | Is the view layer a closed type space? | **Yes — 214 typed properties** | `trackable/TrackableProperty.java` |
 | Does the net stack need a GUI toolkit? | **No.** `FServerManager` imports zero Swing/AWT/libGDX | `net/server/FServerManager.java` |
 | Can Forge run headless? | **Yes, and it's regression-tested** | `HeadlessStartupTest.java` |
 | Is hidden information handled per-client? | **Yes, already** | `DeltaSyncManager`, `TrackableObject.hasConsumer` |
-| Is cube draft supported? | **Yes, first-class** — 96 bundled cube lists | `res/cube/`, `res/draft/` |
+| Is cube draft supported? | **Yes, first-class** — 95 cube lists, 94 draft recipes | `res/cube/`, `res/draft/` |
 | Is there a dedicated-server mode? | **Stubbed, not implemented** | `Main.java:111` |
+
+### How the protocol counts were derived — verified 2026-09-14
+
+These numbers were wrong in this document for two waves because they were copied
+rather than counted, so the commands are here beside them. Run from the repo
+root; `forge/` is gitignored until the fork exists.
+
+```sh
+P=forge/forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java
+grep -cE '^ *[A-Za-z][A-Za-z0-9_]* *\(Mode\.SERVER' $P   # 45
+grep -cE '^ *[A-Za-z][A-Za-z0-9_]* *\(Mode\.CLIENT' $P   # 15
+```
+
+45 + 15 = **60**, and the enum body (lines 35–101) has one constant per line, so
+matching lines and enum constants are the same thing *for this anchored regex*.
+
+**The old "62" was an unanchored grep.** `grep -c 'Mode\.'` on the same file
+returns **61**: the extra hit is `if (mode == Mode.SERVER …)` inside `getMethod()`
+at `ProtocolMethod.java:136`, which is a use, not a declaration. Where 62 rather
+than 61 came from is no longer recoverable; 60 is what the file contains.
+
+Splitting the 45 server→client methods by whether they return a value — which is
+what forces `sendAndWait` — uses the second constructor argument:
+
+```sh
+grep -E '^ *[A-Za-z][A-Za-z0-9_]* *\(Mode\.SERVER' $P \
+  | grep -cE '\(Mode\.SERVER, *Void\.TYPE'    # 30 fire-and-forget
+grep -E '^ *[A-Za-z][A-Za-z0-9_]* *\(Mode\.SERVER' $P \
+  | grep -cvE '\(Mode\.SERVER, *Void\.TYPE'   # 15 blocking
+```
 
 ## The transport seam is three methods
 
@@ -45,7 +75,8 @@ player.
 
 ### `sendAndWait` is the constraint that shapes everything
 
-47 of the 62 protocol methods are server→client and **many return a value**:
+45 of the 60 protocol methods are server→client, and **15 of those return a
+value**:
 
 ```java
 showConfirmDialog          (Mode.SERVER, Boolean.TYPE, ...)
@@ -57,12 +88,24 @@ assignCombatDamage         (Mode.SERVER, Map.class, ...)
 
 These are **blocking RPCs**. A Forge game thread calls `sendAndWait`, parks on a
 `FutureTask` in `ReplyPool` keyed by event id, and the rules engine is stopped
-until that specific player answers. Client→server methods are deliberately all
-`void` — the enum carries a comment saying why:
+until that specific player answers. Client→server methods are **almost** all
+`void` — 14 of the 15 are; the enum carries a comment saying why:
 
 > *"these should all return void, to avoid awkward situations in which client and
 > server wait for one another's response and block the threads that're supposed
 > to give that response"*
+
+Note the comment says *should*, and one constant does not comply —
+`getActivateDescription (Mode.CLIENT, String.class, CardView.class)`. It is the
+single client→server method that returns a value, and it is the reason
+`getMethod()` skips the return-type check for `Mode.CLIENT`
+(`ProtocolMethod.java:134-137`). Our JSON path must not assume client→server is
+fire-and-forget:
+
+```sh
+grep -E '^ *[A-Za-z][A-Za-z0-9_]* *\(Mode\.CLIENT' $P \
+  | grep -vE '\(Mode\.CLIENT, *Void\.TYPE'   # 1 hit: getActivateDescription
+```
 
 **Consequence for us:** a broadcast-relay room server is not sufficient. The room
 layer needs first-class **ask/reply with correlation ids, timeouts and
@@ -137,9 +180,26 @@ We're behind cloudflared and must disable that path, not merely leave it unused.
 
 ## Cube draft is first-class, and it changes the plan
 
-- `forge-gui/res/cube/` — 96 bundled cube decklists (`.dck`).
-- `forge-gui/res/draft/` — 96 `.draft` definitions (Arena Powered Cube, various
-  Pauper/Peasant cubes, Cube Tutor 360/720, …).
+- `forge-gui/res/cube/` — **95** bundled cube decklists (`.dck`), and nothing
+  else in the directory.
+- `forge-gui/res/draft/` — **94** `.draft` definitions (Arena Powered Cube,
+  various Pauper/Peasant cubes, Cube Tutor 360/720, …). The directory holds 96
+  *entries*: those 94, a `rankings/` **directory**, and `rankings_cubecobra.txt`.
+  Neither of the last two is a recipe.
+
+  **95 cubes, 94 recipes** — `ArabianExtended.dck` has no recipe. Verified
+  2026-09-14, from the repo root:
+
+  ```sh
+  find forge/forge-gui/res/cube  -maxdepth 1 -type f -name '*.dck'   -printf '.' | wc -c  # 95
+  find forge/forge-gui/res/draft -maxdepth 1 -type f -name '*.draft' -printf '.' | wc -c  # 94
+  find forge/forge-gui/res/draft -maxdepth 1 -mindepth 1 ! -name '*.draft' -printf '%y %f\n'
+  #   d rankings
+  #   f rankings_cubecobra.txt
+  ```
+
+  `-type f` is load-bearing: the earlier "96 cubes" counted directory entries in
+  `res/draft/` and so counted `rankings/` — a directory — as a draft recipe.
 - `forge-gui/src/main/java/forge/gamemodes/limited/` — 6,781 lines:
   `BoosterDraft` (925), `LimitedPlayer` (835), `CustomLimited` (252),
   `CubeImporter` (130), `WinstonDraft` (191), `ThemedChaosDraft` (202),
@@ -153,7 +213,7 @@ reimplement pack generation in TypeScript with no Forge dependency. That
 assumption was wrong and I'm flagging it rather than quietly keeping it: Forge
 already has cube import, pack generation, bot drafters, and a networked draft
 host. Reimplementing it buys a Forge-free P1; reusing it buys correctness and
-96 ready cubes.
+95 ready cubes.
 
 The call is now a real trade-off rather than an obvious one — see "Open
 decisions" below. It does not change the *ordering* (draft still first), only
@@ -168,26 +228,37 @@ separate matter — see `LICENSING.md`.)
 
 ## What the browser UI actually has to implement
 
-`IGuiGame` is ~80 methods, but that is not the UI's obligation. Only the **47
+`IGuiGame` is ~80 methods, but that is not the UI's obligation. Only the **45
 server→client `ProtocolMethod` entries cross the wire**; the rest are served
-locally by `NetworkGuiGame` (651 lines) from delta state. Of the 47:
+locally by `NetworkGuiGame` (651 lines) from delta state.
 
-- **~25 are fire-and-forget view updates** — `setGameView`, `applyDelta`,
-  `showCombat`, `setCard`, `showManaPool`, `setHighlighted`, `updateButtons`,
-  `message`, … Mostly "re-render this".
-- **~14 are blocking prompts** — `showConfirmDialog`, `getChoices`, `order`,
-  `confirm`, `chooseSingleEntityForEffect`, `chooseEntitiesForEffect`,
-  `manipulateCardList`, `sideboard`, `assignCombatDamage`,
-  `assignGenericAmount`, `showOptionDialog`, `showInputDialog`, `openZones`,
-  `getAbilityToPlay`. **These are the UI.** Ship them one at a time; each one
-  unlocks a class of cards.
-- **~8 are chrome** — overlays, timers, flashes, alerts.
+The 45 split **30 / 15** on return type, and that split is the one that matters,
+because a non-`void` return is exactly what forces a blocking `sendAndWait`. It
+is mechanical, not a judgement — the second constructor argument decides it, and
+the two commands in "How the protocol counts were derived" above print 30 and 15.
+
+- **30 return `Void.TYPE`** — fire-and-forget. 24 are view updates
+  (`setGameView`, `applyDelta`, `showCombat`, `setCard`, `showManaPool`,
+  `setHighlighted`, `updateButtons`, `message`, … mostly "re-render this"), and
+  6 are chrome: `flashIncorrectAction`, `alertUser`, `enableOverlay`,
+  `disableOverlay`, `showWaitingTimer`, `showErrorDialog`. That 24/6 line is the
+  only judgement call here; the 30 is not.
+- **15 return a value** — every one is a blocking RPC. Fourteen are player
+  prompts: `getAbilityToPlay`, `assignCombatDamage`, `assignGenericAmount`,
+  `showConfirmDialog`, `showOptionDialog`, `showInputDialog`, `confirm`,
+  `getChoices`, `order`, `sideboard`, `chooseSingleEntityForEffect`,
+  `chooseEntitiesForEffect`, `manipulateCardList`, `openZones`. **These are the
+  UI.** Ship them one at a time; each one unlocks a class of cards. The
+  fifteenth is `tempShowZones`, which returns the zone list it opened — it asks
+  the client nothing, but it still blocks the game thread, so the JSON path owes
+  it a reply like any other.
 
 Client→server is only 15 methods and they're all small: `selectCard`,
 `selectPlayer`, `selectAbility`, `selectButtonOk/Cancel`, `useMana`,
 `undoLastAction`, `concede`, `alphaStrike`, `reorderHand`, `requestResync`, …
+Fourteen are `void`; `getActivateDescription` is not (see above).
 
-So the realistic UI statement: **a playable browser client is ~14 prompt
+So the realistic UI statement: **a playable browser client is 14 prompt
 components plus a board renderer over `CardView`.** That is a real project but a
 finite, enumerable one — and it degrades gracefully, because an unimplemented
 prompt can fall back to "open this game in Forge desktop".
@@ -219,7 +290,7 @@ prompt can fall back to "open this game in Forge desktop".
    was designed to defer. Writing our own means ~1–2k lines of TS and reimporting
    the `.dck` cube format (which is simple), with no JVM until P2.
    *Leaning: our own for P1, because the whole value of draft-first is being
-   able to ship before the bridge exists — but import Forge's 96 cube lists
+   able to ship before the bridge exists — but import Forge's 95 cube lists
    verbatim, and steal its pack-generation rules rather than inventing them.*
 2. **One JVM per match, or one JVM hosting many?** `FServerManager` is written as
    a single lobby+server. Per-match JVMs bound the blast radius of a rules-engine
