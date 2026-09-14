@@ -25,8 +25,31 @@ Measured on the clone, 2026-09-11:
 | **Total (no android/ios)** | **516,450** | | |
 
 Plus **33,755 files** under `res/cardsfolder` (the spike's loader counts
-**33,752** actual card scripts) driving **206 ability effect classes**, of which
-**202** are wired into `ApiType`.
+**33,752** actual card scripts) driving the ability effect classes in
+`forge-game/src/main/java/forge/game/ability/`.
+
+There are **three** counts there, all real, all measuring different things.
+`c8a0aac` corrected the first conflation and introduced a milder one — "206
+classes, of which 202 are wired" reads as a 202-of-206 subset, and it isn't
+one. Re-counted 2026-09-14 against `2cd497cf`:
+
+| Count | What it is |
+| ---: | --- |
+| **206** | `.java` files in `game/ability/effects/` |
+| **202** | constants in `ApiType` |
+| **200** | *distinct* effect classes those 202 constants name |
+
+**202 > 200** because `CharmEffect.class` is named by four constants — `Charm`,
+`CompanionChoose`, `InternalLegendaryRule`, `InternalIgnoreEffect`
+(`ApiType.java:47,216,217,218`). **206 > 200** because six files are never
+named by `ApiType` at all: the four abstract bases `AnimateEffectBase`,
+`DamageBaseEffect`, `ManifestBaseEffect` and `TokenEffectBase`, plus
+`PermanentEffect` and `DetachedCardEffect` — the last of which extends `Card`,
+not `SpellAbilityEffect`, so it was never a candidate.
+
+The number that matters to the argument below is **202**: it is the size of the
+statically-visible dispatch table, and none of the three counts changes the
+conclusion.
 
 **"Engine + all the UI"** — the thing we'd have to port — is
 `core + game + ai + gui + gui-mobile` = **392,151 lines**, plus the card scripts.
@@ -115,7 +138,7 @@ public enum ApiType {
     Abandon           (AbandonEffect.class),
     ActivateAbility   (ActivateAbilityEffect.class),
     AddOrRemoveCounter(CountersPutOrRemoveEffect.class),
-    ...  // 202 constants, over 206 effect classes on disk
+    ...  // 202 constants naming 200 distinct classes; 206 files on disk
 }
 ```
 
