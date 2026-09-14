@@ -85,7 +85,11 @@ Status: `todo` · `wave-N` · `blocked` · `done` · `watch`
 | Draft UI in the canvas slot | **done** | C `1a7a2f4` | `@hadoku/ui` renders a pack fanned for picking, the pool grouped by mana value, pack/pick counters, `seq`, and a seat bar — from **5 committed fixtures**, 63 tests. No socket, no room chrome, no `@wolffm/watchparty-ui` (greppped in the **diff**, exit 1). Cards drawn by us: zero `<img>`, zero `url()`, pips are our own circles, `{T}` renders as the word TAP |
 | **Hidden-information split holds** | **done** | C `1a7a2f4` | **new row.** The spectator payload is **1,077 bytes**, `viewer:{"kind":"spectator"}`, no pack and no pool. Tracker diffed it against the seat-3 payload's 30 card names: **0 leaked**. Mutation-tested — injecting seat 3's 19-card pool fails the suite (exit 1) |
 | **B↔C integration check** | **outstanding** | tracker | **new row.** §C's done-when is half-open: "`apps/ui`'s fixtures parse under lane B's Zod schema" cannot run while B does not exist. When B lands, run its schema over `apps/ui/src/draft/fixtures/*.json`. **Per the wave plan a failure there is a lane C bug, not a B bug** |
-| `.dck` export | todo | — | not in Wave 2; the parser exists, the writer does not |
+| `.dck` export | **done** | B `a766665` | `@hadoku/deck` — pool→deck model + a Forge `.dck` **writer**, 1,408 lines, round-tripped over **all 95 cubes**: 79 byte-identical once header casing is restored, 92 identical modulo the losses `parseDck` itself imposes, and the 3 that differ each mix `Name\|SET` and `Name\|SET\|1` in one file — which **Forge's own `CardRequest` cannot represent either**. Zero external deps |
+| **Pure draft engine (no transport)** | **BLOCKED — 2nd wave** | — | **Lane A never dispatched, again.** Same gate, same E401, same unset `NODE_AUTH_TOKEN`. The manager obeyed the wave's own "do not dispatch on E401" instruction both times, which is correct and is why the hole is clean rather than papered over |
+| **Wire schema (Zod, `packages/shared`)** | **BLOCKED — 2nd wave** | — | `packages/shared/src` is still `.gitkeep`. It was lane A's other half |
+| **Envelope needs an `epoch` (W4)** | **BLOCKED with lane A** | us | Tracker-found. Lane A's step 7 carries it; A did not run, so the five fixtures still have `seq` and no `epoch` |
+| Wire the UI to a live engine | **BLOCKED on A** | — | Wave 3 lane E. Nothing to wire to |
 
 ### PR-3 Room module
 
@@ -104,7 +108,8 @@ Status: `todo` · `wave-N` · `blocked` · `done` · `watch`
 | ~~**`emitPerRecipient` missing (W1)**~~ | **CLOSED — they fixed it** | watchparty | **Closed 2026-09-14.** Their `e58e3005` *"give SKIP its function, and ship the reconnect contract (W1, W2)"*. Verified in their source: `emit.ts:121 export function emitPerRecipient`, plus `emitToRole:148`, at **`0.38.110`**. The sentinel now has something to pass it to. Lane E reported the defect; they had already fixed it by the time the wave closed |
 | ~~**`@wolffm/rooms-client` (W2)**~~ | **CLOSED — they shipped the contract we asked for** | watchparty | **Closed 2026-09-14.** We agreed with the deferral and asked instead for the reconnect/resync/identity-reassert **contract** in the zero-dep `rooms-protocol`. It exists: `rooms-protocol/src/resync.ts` exports `SeqCursor`, `classifySeq`, `missedCount`, `needsResync`, `RosterIdentity`, `IdentityReassert`, `resolveIdentityReassert`, re-exported from `index.ts:15`. **This is what P6's "survive a restart and a refresh" binds to** |
 | **Envelope needs an `epoch` (W4)** | **wave-3 lane A** | us | **new row, ours not theirs.** Found reading `rooms-protocol@0.38.110` as its first consumer. `SeqCursor` is `{epoch, seq}`; all five committed fixtures carry `seq` and **no `epoch`**, so they cannot use `classifySeq`. The epoch separates "missed events" from "server restarted and recounted" — opposite responses, and the second **is** P6's restart case. Their `resync.d.ts` header says `lastEventSeq` is stamped only on watchparty's control events and an app wanting gap detection stamps its own cursor |
-| **`SKIP` arm doesn't constrain (W5)** | **watch** | watchparty | **new row.** `emitPerRecipient`'s `build` returns `unknown \| typeof SKIP`, and `unknown` absorbs the union — tsc 5.9.3 resolves it to plain `unknown`, so the SKIP arm type-checks nothing. Cosmetic today. Raised with the seat answer |
+| **`SKIP` arm doesn't constrain (W5)** | **watch — possibly moving** | watchparty | **2026-09-14:** an untracked `apps/server/test/emit-payload-types.test-d.ts` sits beside a modified `emit.ts` in their `rooms-resv` worktree. Uncommitted; not shipped. |
+| ~~superseded W5 row~~ | — | — | **new row.** `emitPerRecipient`'s `build` returns `unknown \| typeof SKIP`, and `unknown` absorbs the union — tsc 5.9.3 resolves it to plain `unknown`, so the SKIP arm type-checks nothing. Cosmetic today. Raised with the seat answer |
 | **`ClientMeta.socketId` is one string (W3)** | **watch** | watchparty | **new row, found by lane E reading their source rather than their docs.** P3 §3.2 asked for `sockets: Set<string>`; what shipped is `state.ts:16 socketId: string`. On a refresh, `leaveRoom` can unseat a participant who is already back on a live socket. E reproduced it against their real `seats.ts` — the participant ends `spectator` with their seat empty. Closes when they confirm the ordering or take one of the three fixes |
 | CI must use `HADOKU_NPM_READ_TOKEN` | **done but VACUOUS** | A `5b41cc1` | `.github/workflows/ci.yml:58` is correct, and CI has now run **4× green**. But `gh secret list` is **EMPTY** and nothing depends on `@wolffm/*`, so the token path has never executed. Lane B makes it load-bearing → operator item **P2** |
 
@@ -156,12 +161,51 @@ anything in PR-4, because the wire schema is what `IToClient` will carry.
 | ~~O1~~ | ~~fork `Card-Forge/forge`~~ — **resolved 2026-09-11: deferred.** A plain clone already syncs upstream (`origin` *is* upstream); a fork only buys somewhere to push our Forge commits, a submodule URL, and the ability to PR `case "server"` back. None needed until the first line of Java, and lane B explicitly writes none. **Repo creation DONE 2026-09-14** — `WolffM/hadoku-cardtable` exists, private, created 07:26, `main` pushed, CI green. Only the *fork* half remains deferred. | |
 | **P1** | **Export `NODE_AUTH_TOKEN`** — `~/.npmrc` reads `_authToken=${NODE_AUTH_TOKEN}` and the variable is unset, so npm sends the literal placeholder and gets `E401`. Not a rotation: `NODE_AUTH_TOKEN=$(gh auth token) npm view @wolffm/rooms-protocol version` → a version. **STILL OPEN — re-checked 2026-09-14 after Wave 2: the variable is unset and the bare `npm view` still returns E401.** ⚠️ **This already cost a lane.** Wave 2 shipped four lanes of five; lane B — the pure draft engine *and* the Zod wire schema, i.e. the middle of PR-2 — was never dispatched because of it. **Blocks Wave 3's first lane.** Put it in the shell profile. | Shell env |
 | **P2** | **Set `HADOKU_NPM_READ_TOKEN` on the repo** — `gh secret list` re-checked 2026-09-14: **still empty**. CI's green runs are still vacuous: Wave 2 added no `@wolffm/*` dependency (because B never ran), so the token path has **still** never executed. The first lane that depends on `@wolffm/rooms-protocol` is where a cold runner surfaces the 403. | Repo secret |
-| **P3** | **Decide what to do with `cardtable-w2-requests` in `hadoku-watchparty`** — our P3–P6 delivery is committed there on a branch with **no upstream**, and it is already stale: they shipped `0.38.110` mid-wave and answered W1 and W2 in `e58e3005`. Either push/PR it after a rebase + re-read, or drop it and re-derive against `0.38.110`. **Nothing reaches them until someone pushes.** | Their repo; ours to send |
+| ~~**P3**~~ | **CLOSED 2026-09-14 — delivered.** `origin/cardtable-w2-requests` at `ccfeab46`, upstream set, rebased to 0 behind their `main`, re-read against `0.38.110`, carrying the seat answer. ~~Decide what to do with `cardtable-w2-requests` in `hadoku-watchparty`~~ — our P3–P6 delivery is committed there on a branch with **no upstream**, and it is already stale: they shipped `0.38.110` mid-wave and answered W1 and W2 in `e58e3005`. Either push/PR it after a rebase + re-read, or drop it and re-derive against `0.38.110`. **Nothing reaches them until someone pushes.** | Their repo; ours to send |
 | ~~O2~~ | ~~P1 draft: reimplement in TS vs. reuse Forge's `limited/`~~ — **RESOLVED 2026-09-14: reimplement in TS.** | **Live and now decidable — the spike is in, and it changed the terms.** The "free draft engine *and* UI in the iframe" branch is **dead** (D7 NO-GO). But lane B proved the other half: `forge-core`+`forge-game` run headless on the JVM in 1.6 s and resolve real card interactions, so reusing `limited/` **server-side** is viable in a way nobody had evidence for before. So the trade is now: TS reimplementation (JVM-free P1, but pack collation/rarity/foil is accumulated correctness with no oracle but Forge — the D4 objection stands) vs. a JVM draft service (correct by construction, but P1 now carries a JVM and O3 arrives early). **Resolved.** The JVM branch lost on evidence gathered at planning time: `BoosterDraft.java` lives in **`forge-gui`** — precisely the module Wave 1's headless proof excluded — and carries 17 `SGuiChoose`/`SOptionPane` call sites plus the `FModel` singleton. Meanwhile the "accumulated correctness, no oracle" objection turned out to be about **set-booster collation**, which a cube never opens: **91** of 94 recipes are `Booster: 15 Any` (the planner said 92; lane A's count is the right one), 93/94 singleton, exactly 1 uses rarity slots. Reuse would cost `forge-gui` + a JVM to buy a pick/pass loop. **Revisit only for set/block draft or sealed**, where `BoosterGenerator` genuinely earns its keep. |
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-14 — tracker, closing Wave 2)
+## Verified this pass (2026-09-14 evening — tracker, closing Wave 3)
+
+- **`ApiType` is 199 distinct, 7 unnamed — and my 200 was wrong.** Re-derived:
+  `ApiType.java:137` is `//NoteCounters (CountersNoteEffect.class),`, commented
+  out; my unanchored grep matched inside it. Anchored → **199**. The 7 unnamed,
+  listed: `AnimateEffectBase`, `CountersNoteEffect`, `DamageBaseEffect`,
+  `DetachedCardEffect`, `ManifestBaseEffect`, `PermanentEffect`,
+  `TokenEffectBase`. And 202 − 3 `CharmEffect` duplicates = 199 on its own.
+- **Lane C's docs document the trap rather than just the number.** `CLAUDE.md`
+  now carries the derivation commands inline and names both of my grep failures
+  — the `Mode.` off-by-one at `ProtocolMethod.java:136` and the unanchored
+  `.class` at `ApiType.java:137`. `WASM_AND_PORTING.md:91` explicitly says the
+  unanchored form "yields exactly the old pair — 200 distinct, six unnamed".
+- **P2 is untested, not passed** — the manager is right. Lane B's lockfile delta
+  is **6 lines and one workspace link** (`@hadoku/carddata: link:../carddata`);
+  `grep -rn '@wolffm' pnpm-lock.yaml packages/*/package.json` returns **nothing**
+  repo-wide. `gh secret list` still empty. CI green proves nothing about it: no
+  cold runner has tried to resolve an `@wolffm/*` tarball yet. Lane A was that
+  first dependency, and lane A did not run.
+- **P1 still open, third wave.** `NODE_AUTH_TOKEN` unset; bare `npm view` → E401.
+- **Lane D delivered.** `origin/cardtable-w2-requests` at `ccfeab46`, upstream
+  set, **0 behind** their `main`, 5 files, commit *"re-read P3-P6 against
+  0.38.110, and answer the seat question"*. Committed is now pushed.
+- **W3 is genuinely moving, and shaped to our asks.** Their worktree
+  `.claude/worktrees/rooms-resv` on `rooms/seat-reservations` is **0 commits
+  ahead of main with 7 dirty files** — in progress, uncommitted, so nothing is
+  verifiable as shipped. Read-only, their `seats.ts` already carries
+  `SeatReservation`, an opt-in **`reservationTtlMs`** (our ask: configurable,
+  not a constant), the note that a reservation *"survives the case nothing else
+  can"* when a server restarts (our restart argument), that it is **data** so it
+  persists with the table (P6), and that it **blocks other humans, not bots** so
+  `padWithBots` fills the held seat — which is the botted-and-reclaimable
+  behaviour our ask #2 wanted. **Do not record any of this as shipped.**
+- **W5 may be moving too** — a new untracked `apps/server/test/emit-payload-types.test-d.ts`
+  sits beside a modified `emit.ts` in that same worktree. A *type* test is what
+  fixing the `unknown | typeof SKIP` collapse would need.
+- **Gate on `main`:** install **0**, check **0**, **187 passed / 11 files**, up
+  from Wave 2's 138 / 9.
+
+## Verified in the previous pass (2026-09-14 morning — tracker, closing Wave 2)
 
 Re-derived rather than read. **Every one of the manager's five corrections to
 the board is right, including the two I initially failed to reproduce.**
@@ -189,6 +233,16 @@ the board is right, including the two I initially failed to reproduce.**
   `TokenEffectBase.java`**, i.e. 206 `.java` files in `effects/`. 202 constants,
   200 distinct, `CharmEffect.class` named **4×**, and **every** class ApiType
   names has a file on disk.
+  > **SUPERSEDED 2026-09-14 by Wave 3 lane C — the tracker was wrong here.**
+  > The distinct count is **199**, not 200, and **7** files are unnamed, not 6.
+  > `ApiType.java:137` is `//NoteCounters (CountersNoteEffect.class),` — a
+  > **commented-out** constant, and the tracker's unanchored
+  > `grep -oE '[A-Za-z0-9_]+\.class'` matched inside the comment. Anchoring on
+  > the line start gives 199. **The old pair was self-refuting on its face:**
+  > 202 constants with `CharmEffect` named 4× removes 3 duplicates, so
+  > 202 − 3 = **199**, never 200 — and the tracker asserted both facts in the
+  > same sentence. Same failure class as the `^[0-9]+\s+` regex that dropped
+  > 1,958 card lines: a pattern that silently matched the wrong thing.
 - **`rankings` is a directory**, beside `rankings_cubecobra.txt`.
 - **Mutation-tested the hidden-info control myself, with counts.** Injected one
   card-shaped object at `seats[0].lastPick` in `spectator-pack2-pick5.json`:
@@ -239,7 +293,7 @@ the board is right, including the two I initially failed to reproduce.**
   has no `mvn`" — Maven **3.9.16 is installed** at `~/.local/bin/mvn` and lane D
   built Forge with it; **(2)** "the 62-method enum" — `ProtocolMethod` has
   **60** constants; **(3)** "Ability dispatch (enum of **206** class literals)" —
-  **202** constants naming **200** distinct classes. Closes when a wave owns
+  **202** constants naming **199** distinct classes. Closes when a wave owns
   `CLAUDE.md` and corrects all three.
 - ~~**`docs/LICENSING.md` §3.**~~ **Closed 2026-09-14 by Wave 2 lane E**
   (`62b1e64`). §3 is rewritten from a live `200` fetch, not a relayed claim, and
@@ -260,7 +314,46 @@ the board is right, including the two I initially failed to reproduce.**
   proper isn't engaged, but we offer neither. Write the tension down.
 - ~~**D7 / the spike.**~~ **Closed 2026-09-12: NO-GO.**
 
-## Verified this pass (2026-09-14 — tracker, closing Wave 2)
+## Verified this pass (2026-09-14 evening — tracker, closing Wave 3)
+
+- **`ApiType` is 199 distinct, 7 unnamed — and my 200 was wrong.** Re-derived:
+  `ApiType.java:137` is `//NoteCounters (CountersNoteEffect.class),`, commented
+  out; my unanchored grep matched inside it. Anchored → **199**. The 7 unnamed,
+  listed: `AnimateEffectBase`, `CountersNoteEffect`, `DamageBaseEffect`,
+  `DetachedCardEffect`, `ManifestBaseEffect`, `PermanentEffect`,
+  `TokenEffectBase`. And 202 − 3 `CharmEffect` duplicates = 199 on its own.
+- **Lane C's docs document the trap rather than just the number.** `CLAUDE.md`
+  now carries the derivation commands inline and names both of my grep failures
+  — the `Mode.` off-by-one at `ProtocolMethod.java:136` and the unanchored
+  `.class` at `ApiType.java:137`. `WASM_AND_PORTING.md:91` explicitly says the
+  unanchored form "yields exactly the old pair — 200 distinct, six unnamed".
+- **P2 is untested, not passed** — the manager is right. Lane B's lockfile delta
+  is **6 lines and one workspace link** (`@hadoku/carddata: link:../carddata`);
+  `grep -rn '@wolffm' pnpm-lock.yaml packages/*/package.json` returns **nothing**
+  repo-wide. `gh secret list` still empty. CI green proves nothing about it: no
+  cold runner has tried to resolve an `@wolffm/*` tarball yet. Lane A was that
+  first dependency, and lane A did not run.
+- **P1 still open, third wave.** `NODE_AUTH_TOKEN` unset; bare `npm view` → E401.
+- **Lane D delivered.** `origin/cardtable-w2-requests` at `ccfeab46`, upstream
+  set, **0 behind** their `main`, 5 files, commit *"re-read P3-P6 against
+  0.38.110, and answer the seat question"*. Committed is now pushed.
+- **W3 is genuinely moving, and shaped to our asks.** Their worktree
+  `.claude/worktrees/rooms-resv` on `rooms/seat-reservations` is **0 commits
+  ahead of main with 7 dirty files** — in progress, uncommitted, so nothing is
+  verifiable as shipped. Read-only, their `seats.ts` already carries
+  `SeatReservation`, an opt-in **`reservationTtlMs`** (our ask: configurable,
+  not a constant), the note that a reservation *"survives the case nothing else
+  can"* when a server restarts (our restart argument), that it is **data** so it
+  persists with the table (P6), and that it **blocks other humans, not bots** so
+  `padWithBots` fills the held seat — which is the botted-and-reclaimable
+  behaviour our ask #2 wanted. **Do not record any of this as shipped.**
+- **W5 may be moving too** — a new untracked `apps/server/test/emit-payload-types.test-d.ts`
+  sits beside a modified `emit.ts` in that same worktree. A *type* test is what
+  fixing the `unknown | typeof SKIP` collapse would need.
+- **Gate on `main`:** install **0**, check **0**, **187 passed / 11 files**, up
+  from Wave 2's 138 / 9.
+
+## Verified in the previous pass (2026-09-14 morning — tracker, closing Wave 2)
 
 Every line was re-run by the tracker against live state, not taken from the
 manager's note. **Five of them correct the board's own prior numbers.**
@@ -298,7 +391,9 @@ manager's note. **Five of them correct the board's own prior numbers.**
 - **`ApiType` is three counts, not two** (lane E's refinement, re-counted here):
   **206** `.java` files in `effects/`, **202** `ApiType` constants, **200**
   *distinct* classes. 202 > 200 because `CharmEffect.class` is named **4×**
-  (lines 47, 216, 217, 218); 206 > 200 because six files are never named. The
+  (lines 47, 216, 217, 218); 206 > 199 because **seven** files are never named
+  — the seventh being `CountersNoteEffect`, whose constant is commented out at
+  `ApiType.java:137`. *(Corrected 2026-09-14: this line said 200/six.)* The
   board previously said "202, not 206", which reads as a 202-of-206 subset and
   is not one.
 - **W1 and W2 are both closed by watchparty's own `e58e3005`, landed mid-wave.**
@@ -390,7 +485,7 @@ Every one of these was re-run by the manager, not taken from a lane's report.
 - **`ApiType` is 202 constants**, not 206. `docs/WASM_AND_PORTING.md` still says
   206 and was owned by nobody this wave — ~~**stale, needs fixing.**~~ **Fixed
   2026-09-14 by Wave 2 lane E (`e5102de`)**, and refined: it is **three** counts
-  (206 files / 202 constants / 200 distinct), not two. `CLAUDE.md` still carries
+  (206 files / 202 constants / **199** distinct), not two. `CLAUDE.md` still carries
   the old 206 — see the watch.
 - **`res/cube/` = 95 `.dck`**, not 96; `res/draft/` = 96 entries (94 `.draft`).
 - **Scryfall:** no UA/Accept → 400 with Scryfall's own error text; honest UA +
