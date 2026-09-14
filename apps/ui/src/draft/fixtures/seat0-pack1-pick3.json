@@ -1,0 +1,361 @@
+{
+  "draftId": "draft:fx-open",
+  "seq": 3,
+  "packNumber": 1,
+  "pickNumber": 3,
+  "packCount": 3,
+  "packSize": 15,
+  "passDirection": "left",
+  "capacity": 8,
+  "seats": [
+    {
+      "id": 0,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:8e2a1c6b"
+      },
+      "displayName": "hadoku",
+      "pickedCount": 2
+    },
+    {
+      "id": 1,
+      "occupant": {
+        "kind": "human",
+        "participantId": "dev:41f0a9d3"
+      },
+      "displayName": "mox",
+      "pickedCount": 2
+    },
+    {
+      "id": 2,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:c07b5512"
+      },
+      "displayName": "rin",
+      "pickedCount": 2
+    },
+    {
+      "id": 3,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:2db9e4af"
+      },
+      "displayName": "vance",
+      "pickedCount": 2
+    },
+    {
+      "id": 4,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:4"
+      },
+      "displayName": "Bot 4",
+      "pickedCount": 2
+    },
+    {
+      "id": 5,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:5"
+      },
+      "displayName": "Bot 5",
+      "pickedCount": 2
+    },
+    {
+      "id": 6,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:6"
+      },
+      "displayName": "Bot 6",
+      "pickedCount": 2
+    },
+    {
+      "id": 7,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:7"
+      },
+      "displayName": "Bot 7",
+      "pickedCount": 2
+    }
+  ],
+  "waitingOn": [
+    0,
+    2,
+    5
+  ],
+  "viewer": {
+    "kind": "seat",
+    "seatId": 0,
+    "pack": [
+      {
+        "cardId": "draft:fx-open/c029",
+        "name": "Kird Ape",
+        "manaCost": [
+          "R"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "R"
+        ],
+        "typeLine": "Creature — Ape",
+        "oracleText": "Kird Ape gets +1/+2 as long as you control a Forest.",
+        "power": "1",
+        "toughness": "1",
+        "setCode": "ARN",
+        "collectorNumber": "49",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c030",
+        "name": "Eternal Witness",
+        "manaCost": [
+          "1",
+          "G",
+          "G"
+        ],
+        "manaValue": 3,
+        "colors": [
+          "G"
+        ],
+        "typeLine": "Creature — Human Shaman",
+        "oracleText": "When Eternal Witness enters, return target card from your graveyard to your hand.",
+        "power": "2",
+        "toughness": "1",
+        "setCode": "5DN",
+        "collectorNumber": "78",
+        "rarity": "uncommon"
+      },
+      {
+        "cardId": "draft:fx-open/c031",
+        "name": "Hero's Downfall",
+        "manaCost": [
+          "1",
+          "B",
+          "B"
+        ],
+        "manaValue": 3,
+        "colors": [
+          "B"
+        ],
+        "typeLine": "Instant",
+        "oracleText": "Destroy target creature or planeswalker.",
+        "setCode": "THS",
+        "collectorNumber": "90",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c032",
+        "name": "Restoration Angel",
+        "manaCost": [
+          "3",
+          "W"
+        ],
+        "manaValue": 4,
+        "colors": [
+          "W"
+        ],
+        "typeLine": "Creature — Angel",
+        "oracleText": "Flash\nFlying\nWhen Restoration Angel enters, you may exile target non-Angel creature you control, then return that card to the battlefield under your control.",
+        "power": "3",
+        "toughness": "4",
+        "setCode": "AVR",
+        "collectorNumber": "28",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c033",
+        "name": "Fact or Fiction",
+        "manaCost": [
+          "3",
+          "U"
+        ],
+        "manaValue": 4,
+        "colors": [
+          "U"
+        ],
+        "typeLine": "Instant",
+        "oracleText": "Reveal the top five cards of your library. An opponent separates those cards into two piles. Put one pile into your hand and the rest into your graveyard.",
+        "setCode": "INV",
+        "collectorNumber": "60",
+        "rarity": "uncommon"
+      },
+      {
+        "cardId": "draft:fx-open/c034",
+        "name": "Wasteland",
+        "manaCost": [],
+        "manaValue": 0,
+        "colors": [],
+        "typeLine": "Land",
+        "oracleText": "{T}: Add {C}.\n{T}, Sacrifice Wasteland: Destroy target nonbasic land.",
+        "setCode": "TMP",
+        "collectorNumber": "333",
+        "rarity": "uncommon"
+      },
+      {
+        "cardId": "draft:fx-open/c035",
+        "name": "Gideon Jura",
+        "manaCost": [
+          "3",
+          "W",
+          "W"
+        ],
+        "manaValue": 5,
+        "colors": [
+          "W"
+        ],
+        "typeLine": "Legendary Planeswalker — Gideon",
+        "oracleText": "+2: During target opponent's next turn, creatures that player controls attack Gideon Jura if able.\n-2: Destroy target tapped creature.\n0: Until end of turn, Gideon Jura becomes a 6/6 Human Soldier creature that's still a planeswalker.",
+        "loyalty": "6",
+        "setCode": "ROE",
+        "collectorNumber": "21",
+        "rarity": "mythic"
+      },
+      {
+        "cardId": "draft:fx-open/c036",
+        "name": "Jace, the Mind Sculptor",
+        "manaCost": [
+          "2",
+          "U",
+          "U"
+        ],
+        "manaValue": 4,
+        "colors": [
+          "U"
+        ],
+        "typeLine": "Legendary Planeswalker — Jace",
+        "oracleText": "+2: Look at the top card of target player's library. You may put that card on the bottom of that player's library.\n0: Draw three cards, then put two cards from your hand on top of your library in any order.\n-1: Return target creature to its owner's hand.\n-12: Exile all cards from target player's library, then that player shuffles their hand into their library.",
+        "loyalty": "3",
+        "setCode": "WWK",
+        "collectorNumber": "31",
+        "rarity": "mythic"
+      },
+      {
+        "cardId": "draft:fx-open/c037",
+        "name": "Fireblast",
+        "manaCost": [
+          "4",
+          "R",
+          "R"
+        ],
+        "manaValue": 6,
+        "colors": [
+          "R"
+        ],
+        "typeLine": "Instant",
+        "oracleText": "You may sacrifice two Mountains rather than pay this spell's mana cost.\nFireblast deals 4 damage to any target.",
+        "setCode": "VIS",
+        "collectorNumber": "76",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c038",
+        "name": "Umezawa's Jitte",
+        "manaCost": [
+          "2"
+        ],
+        "manaValue": 2,
+        "colors": [],
+        "typeLine": "Legendary Artifact — Equipment",
+        "oracleText": "Whenever equipped creature deals combat damage, put two charge counters on Umezawa's Jitte.\nRemove a charge counter from Umezawa's Jitte: Choose one — equipped creature gets +2/+2 until end of turn; or target creature gets -1/-1 until end of turn; or you gain 2 life.\nEquip {2}",
+        "setCode": "BOK",
+        "collectorNumber": "163",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c039",
+        "name": "Craterhoof Behemoth",
+        "manaCost": [
+          "5",
+          "G",
+          "G",
+          "G"
+        ],
+        "manaValue": 8,
+        "colors": [
+          "G"
+        ],
+        "typeLine": "Creature — Beast",
+        "oracleText": "Haste\nWhen Craterhoof Behemoth enters, creatures you control gain trample and get +X/+X until end of turn, where X is the number of creatures you control.",
+        "power": "5",
+        "toughness": "5",
+        "setCode": "AVR",
+        "collectorNumber": "172",
+        "rarity": "mythic"
+      },
+      {
+        "cardId": "draft:fx-open/c040",
+        "name": "Dismember",
+        "manaCost": [
+          "1",
+          "B/P",
+          "B/P"
+        ],
+        "manaValue": 3,
+        "colors": [
+          "B"
+        ],
+        "typeLine": "Instant",
+        "oracleText": "Target creature gets -5/-5 until end of turn.",
+        "setCode": "NPH",
+        "collectorNumber": "29",
+        "rarity": "uncommon"
+      },
+      {
+        "cardId": "draft:fx-open/c041",
+        "name": "Fireball",
+        "manaCost": [
+          "X",
+          "R"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "R"
+        ],
+        "typeLine": "Sorcery",
+        "oracleText": "Fireball deals X damage divided as you choose among any number of targets. This spell costs {1} more to cast for each target beyond the first.",
+        "setCode": "LEA",
+        "collectorNumber": "151",
+        "rarity": "uncommon"
+      }
+    ],
+    "pool": [
+      {
+        "cardId": "draft:fx-open/c005",
+        "name": "Wrath of God",
+        "manaCost": [
+          "2",
+          "W",
+          "W"
+        ],
+        "manaValue": 4,
+        "colors": [
+          "W"
+        ],
+        "typeLine": "Sorcery",
+        "oracleText": "Destroy all creatures. They can't be regenerated.",
+        "setCode": "LEA",
+        "collectorNumber": "39",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c017",
+        "name": "Thoughtseize",
+        "manaCost": [
+          "B"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "B"
+        ],
+        "typeLine": "Sorcery",
+        "oracleText": "Target player reveals their hand. You choose a nonland card from it. Exile that card. You lose 2 life.",
+        "setCode": "LRW",
+        "collectorNumber": "145",
+        "rarity": "rare"
+      }
+    ]
+  }
+}

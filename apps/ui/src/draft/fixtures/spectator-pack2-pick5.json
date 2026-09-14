@@ -1,0 +1,90 @@
+{
+  "draftId": "draft:fx-mid",
+  "seq": 20,
+  "packNumber": 2,
+  "pickNumber": 5,
+  "packCount": 3,
+  "packSize": 15,
+  "passDirection": "right",
+  "capacity": 8,
+  "seats": [
+    {
+      "id": 0,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:8e2a1c6b"
+      },
+      "displayName": "hadoku",
+      "pickedCount": 19
+    },
+    {
+      "id": 1,
+      "occupant": {
+        "kind": "human",
+        "participantId": "dev:41f0a9d3"
+      },
+      "displayName": "mox",
+      "pickedCount": 19
+    },
+    {
+      "id": 2,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:c07b5512"
+      },
+      "displayName": "rin",
+      "pickedCount": 19
+    },
+    {
+      "id": 3,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:2db9e4af"
+      },
+      "displayName": "vance",
+      "pickedCount": 19
+    },
+    {
+      "id": 4,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:4"
+      },
+      "displayName": "Bot 4",
+      "pickedCount": 19
+    },
+    {
+      "id": 5,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:5"
+      },
+      "displayName": "Bot 5",
+      "pickedCount": 19
+    },
+    {
+      "id": 6,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:6"
+      },
+      "displayName": "Bot 6",
+      "pickedCount": 19
+    },
+    {
+      "id": 7,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:7"
+      },
+      "displayName": "Bot 7",
+      "pickedCount": 19
+    }
+  ],
+  "waitingOn": [
+    3
+  ],
+  "viewer": {
+    "kind": "spectator"
+  }
+}

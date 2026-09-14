@@ -1,0 +1,773 @@
+/*
+ * Draft table styling.
+ *
+ * Two rules drive everything here, and both are legal rather than aesthetic:
+ *
+ *   1. No card images and no card art. There is not a single `url()` in this
+ *      file and there must never be one pointing at a card.
+ *   2. No WotC trade dress. A card is a flat panel with a colour stripe, not a
+ *      frame; mana pips are circles with letters, not the printed symbols; the
+ *      tap symbol is the word TAP. Rarity is a letter, not a gem.
+ *
+ * The palette is dark because a draft is read for forty-five minutes at a
+ * stretch, and the colour-pie hues are desaturated well away from the printed
+ * ones so a pip reads as ours at a glance.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --bg: #14161a;
+  --bg-raised: #1c1f25;
+  --bg-card: #23272f;
+  --line: #333943;
+  --line-soft: #2a2f37;
+  --ink: #e6e9ee;
+  --ink-dim: #99a1ae;
+  --ink-faint: #6a7280;
+  --accent: #7bb0ff;
+  --warn: #ffb057;
+
+  /* Our colour-pie hues. Deliberately not the printed ones. */
+  --c-white: #d8cfae;
+  --c-blue: #5f9ede;
+  --c-black: #6d6a85;
+  --c-red: #d4715f;
+  --c-green: #6da879;
+  --c-generic: #565d68;
+
+  --radius: 8px;
+  --card-w: 190px;
+  --card-h: 268px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* ── app shell ─────────────────────────────────────────────────────── */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.fixtures {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.fixtures__label {
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+}
+
+.fixtures__list {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.fixtures__list button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.fixtures__list button:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.fixtures__list .fixtures__on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #10131a;
+  font-weight: 600;
+}
+
+.app__foot {
+  margin-top: auto;
+  padding: 10px 16px 18px;
+  color: var(--ink-faint);
+  font-size: 11px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.app__foot p {
+  margin: 0;
+}
+
+/* ── draft header ──────────────────────────────────────────────────── */
+
+.draft__bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.draft__ident {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.draft__title {
+  font-size: 16px;
+  letter-spacing: 0.02em;
+}
+
+.draft__id {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.counters {
+  display: flex;
+  gap: 20px;
+}
+
+.counter {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.counter__label {
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.counter__value {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.counter__of {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.counter--quiet .counter__value {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-dim);
+}
+
+.draft__controls {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segmented button {
+  background: transparent;
+  border: 0;
+  padding: 4px 12px;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.segmented .segmented__on {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.button {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.draft__status {
+  margin: 0;
+  padding: 8px 16px;
+  color: var(--ink-dim);
+  font-size: 12px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.draft__error {
+  color: var(--warn);
+}
+
+/* ── layout ────────────────────────────────────────────────────────── */
+
+.draft__body {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px;
+}
+
+.draft__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.draft__aside {
+  flex: 0 0 236px;
+  /* Its own stacking context, above the fan: a rotated card must never end up
+     drawn across the seat list. */
+  position: relative;
+  z-index: 2;
+}
+
+@media (max-width: 900px) {
+  .draft__body {
+    flex-direction: column-reverse;
+  }
+
+  .draft__aside {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
+
+/* ── the pack ──────────────────────────────────────────────────────── */
+
+.pack {
+  min-height: calc(var(--card-h) + 40px);
+  margin-bottom: 20px;
+}
+
+.pack--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+  gap: 12px;
+}
+
+/*
+ * The fan. Each slot is absolutely placed on the container's centre line and
+ * rotated about a pivot below itself, so the arc comes out of the rotation and
+ * the row stays centred whatever the card count.
+ *
+ * The container reserves its own height (card + the arc's drop + room for the
+ * hover lift). Without that the outer cards sit on top of the pool, which is
+ * what the first version did.
+ */
+.pack--fan {
+  position: relative;
+  height: calc(var(--card-h) + 104px);
+  margin-bottom: 8px;
+}
+
+.pack--fan .pack__slot {
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  width: var(--card-w);
+  margin-left: calc(var(--card-w) / -2);
+  transform-origin: 50% 165%;
+  transform: translateX(var(--fan-x, 0)) rotate(var(--fan-a, 0deg));
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+/*
+ * Lift clear of the neighbours so the whole card can be read and clicked.
+ *
+ * The rotation is KEPT. Un-rotating it looked better and was unusable: the
+ * pivot is below the card, so straightening a card at the end of the arc slides
+ * it ~70px sideways — out from under the cursor that is hovering it, which
+ * drops the hover, which drops it back down. It flickers, and only the narrow
+ * sliver ever stays clickable. Fourteen degrees of tilt is a much smaller price.
+ */
+.pack--fan .pack__slot:hover,
+.pack--fan .pack__slot:focus-within {
+  transform: translateX(var(--fan-x, 0)) translateY(-26px) scale(1.06)
+    rotate(var(--fan-a, 0deg));
+  z-index: 999 !important;
+  filter: drop-shadow(0 14px 26px rgb(0 0 0 / 60%));
+}
+
+/*
+ * Below this width the fan cannot show a readable sliver of every card, so it
+ * becomes the grid. The control still says "fan"; what it cannot do is make a
+ * 15-card arc fit on a phone.
+ */
+@media (max-width: 1180px) {
+  .pack--fan {
+    position: static;
+    height: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+    gap: 12px;
+  }
+
+  .pack--fan .pack__slot {
+    position: static;
+    width: auto;
+    margin-left: 0;
+    transform: none !important;
+  }
+}
+
+.pack--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  min-height: 160px;
+}
+
+.pack__note {
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+/* ── a card, our layout ────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  height: var(--card-h);
+  padding: 9px 10px 9px 14px;
+  text-align: left;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.card--pickable {
+  font: inherit;
+  color: inherit;
+}
+
+.card--pickable:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.card--pickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card--pickable:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Colour identity as a stripe down the leading edge — ours, not a frame. */
+.card__stripe {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--c-generic);
+}
+
+.card__stripe[data-identity='w'] { background: var(--c-white); }
+.card__stripe[data-identity='u'] { background: var(--c-blue); }
+.card__stripe[data-identity='b'] { background: var(--c-black); }
+.card__stripe[data-identity='r'] { background: var(--c-red); }
+.card__stripe[data-identity='g'] { background: var(--c-green); }
+.card__stripe[data-identity='colorless'] { background: var(--c-generic); }
+
+/* Two or more colours: a band of each, in WUBRG order. */
+.card__stripe[data-identity='wu'] { background: linear-gradient(var(--c-white) 50%, var(--c-blue) 50%); }
+.card__stripe[data-identity='wb'] { background: linear-gradient(var(--c-white) 50%, var(--c-black) 50%); }
+.card__stripe[data-identity='wr'] { background: linear-gradient(var(--c-white) 50%, var(--c-red) 50%); }
+.card__stripe[data-identity='wg'] { background: linear-gradient(var(--c-white) 50%, var(--c-green) 50%); }
+.card__stripe[data-identity='ub'] { background: linear-gradient(var(--c-blue) 50%, var(--c-black) 50%); }
+.card__stripe[data-identity='ur'] { background: linear-gradient(var(--c-blue) 50%, var(--c-red) 50%); }
+.card__stripe[data-identity='ug'] { background: linear-gradient(var(--c-blue) 50%, var(--c-green) 50%); }
+.card__stripe[data-identity='br'] { background: linear-gradient(var(--c-black) 50%, var(--c-red) 50%); }
+.card__stripe[data-identity='bg'] { background: linear-gradient(var(--c-black) 50%, var(--c-green) 50%); }
+.card__stripe[data-identity='rg'] { background: linear-gradient(var(--c-red) 50%, var(--c-green) 50%); }
+
+.card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.card__name {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.card__type {
+  color: var(--ink-dim);
+  font-size: 11px;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 5px;
+}
+
+.card__rules {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-y: auto;
+  flex: 1 1 auto;
+  /* Long planeswalkers scroll rather than push the stat line off the panel. */
+  scrollbar-width: thin;
+}
+
+.card__rules-line {
+  display: block;
+}
+
+.card__foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.card__print {
+  color: var(--ink-faint);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.card__rarity {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.card__stat {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── pips ──────────────────────────────────────────────────────────── */
+
+.cost {
+  display: inline-flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.pip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--c-generic);
+  color: #14161a;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: -3px;
+  flex-shrink: 0;
+}
+
+.pip--wide {
+  width: auto;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  letter-spacing: 0.04em;
+}
+
+.pip--white { background: var(--c-white); }
+.pip--blue { background: var(--c-blue); }
+.pip--black { background: var(--c-black); color: #e6e9ee; }
+.pip--red { background: var(--c-red); }
+.pip--green { background: var(--c-green); }
+.pip--generic { background: var(--c-generic); color: #e6e9ee; }
+
+/* Hybrid: the two halves, split diagonally. Our own treatment. */
+.pip--split {
+  width: auto;
+  min-width: 22px;
+  padding: 0 3px;
+  border-radius: 8px;
+}
+
+.pip--split-white { background-image: linear-gradient(135deg, transparent 50%, var(--c-white) 50%); }
+.pip--split-blue { background-image: linear-gradient(135deg, transparent 50%, var(--c-blue) 50%); }
+.pip--split-black { background-image: linear-gradient(135deg, transparent 50%, var(--c-black) 50%); }
+.pip--split-red { background-image: linear-gradient(135deg, transparent 50%, var(--c-red) 50%); }
+.pip--split-green { background-image: linear-gradient(135deg, transparent 50%, var(--c-green) 50%); }
+.pip--split-generic { background-image: linear-gradient(135deg, transparent 50%, var(--c-generic) 50%); }
+
+/* Phyrexian: a dashed ring. NOT the printed glyph. */
+.pip--phyrexian {
+  box-shadow: 0 0 0 1px var(--bg-card), 0 0 0 2px currentColor;
+  outline: 1px dashed var(--ink-dim);
+  outline-offset: 1px;
+}
+
+/* ── pool ──────────────────────────────────────────────────────────── */
+
+.pool {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.pool__head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.pool__title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+
+.pool__title span {
+  color: var(--ink);
+  font-size: 16px;
+  margin-left: 4px;
+}
+
+.pool__colors {
+  display: flex;
+  gap: 10px;
+}
+
+.pool__color {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.pool__color--none {
+  opacity: 0.35;
+}
+
+.pool__note {
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+.pool__curve {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.pool__bucket {
+  flex: 0 0 auto;
+}
+
+.pool__bucket-title {
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.pool__bucket-n {
+  color: var(--ink-faint);
+}
+
+.pool__bucket-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 168px;
+}
+
+.pool__bucket-cards .card {
+  height: auto;
+  min-height: 0;
+  --card-h: auto;
+  padding: 6px 8px 6px 12px;
+}
+
+/* A pool card is a reference, not a decision: name, cost and stat only. */
+.pool__bucket-cards .card__rules,
+.pool__bucket-cards .card__print {
+  display: none;
+}
+
+.pool__bucket-cards .card__type {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* ── seats ─────────────────────────────────────────────────────────── */
+
+.seats {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.seats__head {
+  margin-bottom: 10px;
+}
+
+.seats__title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+
+.seats__capacity {
+  color: var(--ink);
+  margin-left: 4px;
+}
+
+.seats__pass {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.seats__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.seat {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  grid-template-areas: 'id name meta' '. clock clock';
+  gap: 2px 8px;
+  align-items: center;
+  padding: 5px 6px;
+  border-radius: 5px;
+  border-left: 3px solid transparent;
+  font-size: 12px;
+}
+
+.seat--waiting {
+  background: rgb(123 176 255 / 8%);
+  border-left-color: var(--accent);
+}
+
+.seat--you {
+  outline: 1px solid var(--line);
+}
+
+.seat__id {
+  grid-area: id;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.seat__name {
+  grid-area: name;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat__you {
+  color: var(--accent);
+  font-size: 10px;
+}
+
+.seat__meta {
+  grid-area: meta;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.seat__bot {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.seat__picked {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.seat__clock {
+  grid-area: clock;
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+
+.seat--waiting .seat__clock {
+  color: var(--accent);
+}

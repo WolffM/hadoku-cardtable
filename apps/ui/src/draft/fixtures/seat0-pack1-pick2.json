@@ -1,0 +1,370 @@
+{
+  "draftId": "draft:fx-open",
+  "seq": 2,
+  "packNumber": 1,
+  "pickNumber": 2,
+  "packCount": 3,
+  "packSize": 15,
+  "passDirection": "left",
+  "capacity": 8,
+  "seats": [
+    {
+      "id": 0,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:8e2a1c6b"
+      },
+      "displayName": "hadoku",
+      "pickedCount": 1
+    },
+    {
+      "id": 1,
+      "occupant": {
+        "kind": "human",
+        "participantId": "dev:41f0a9d3"
+      },
+      "displayName": "mox",
+      "pickedCount": 1
+    },
+    {
+      "id": 2,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:c07b5512"
+      },
+      "displayName": "rin",
+      "pickedCount": 1
+    },
+    {
+      "id": 3,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:2db9e4af"
+      },
+      "displayName": "vance",
+      "pickedCount": 1
+    },
+    {
+      "id": 4,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:4"
+      },
+      "displayName": "Bot 4",
+      "pickedCount": 1
+    },
+    {
+      "id": 5,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:5"
+      },
+      "displayName": "Bot 5",
+      "pickedCount": 1
+    },
+    {
+      "id": 6,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:6"
+      },
+      "displayName": "Bot 6",
+      "pickedCount": 1
+    },
+    {
+      "id": 7,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:7"
+      },
+      "displayName": "Bot 7",
+      "pickedCount": 1
+    }
+  ],
+  "waitingOn": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "viewer": {
+    "kind": "seat",
+    "seatId": 0,
+    "pack": [
+      {
+        "cardId": "draft:fx-open/c015",
+        "name": "Force of Will",
+        "manaCost": [
+          "3",
+          "U",
+          "U"
+        ],
+        "manaValue": 5,
+        "colors": [
+          "U"
+        ],
+        "typeLine": "Instant",
+        "oracleText": "You may pay 1 life and exile a blue card from your hand rather than pay this spell's mana cost.\nCounter target spell.",
+        "setCode": "ALL",
+        "collectorNumber": "28",
+        "rarity": "uncommon"
+      },
+      {
+        "cardId": "draft:fx-open/c016",
+        "name": "Snapcaster Mage",
+        "manaCost": [
+          "1",
+          "U"
+        ],
+        "manaValue": 2,
+        "colors": [
+          "U"
+        ],
+        "typeLine": "Creature — Human Wizard",
+        "oracleText": "Flash\nWhen Snapcaster Mage enters, target instant or sorcery card in your graveyard gains flashback until end of turn.",
+        "power": "2",
+        "toughness": "1",
+        "setCode": "ISD",
+        "collectorNumber": "78",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c017",
+        "name": "Thoughtseize",
+        "manaCost": [
+          "B"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "B"
+        ],
+        "typeLine": "Sorcery",
+        "oracleText": "Target player reveals their hand. You choose a nonland card from it. Exile that card. You lose 2 life.",
+        "setCode": "LRW",
+        "collectorNumber": "145",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c018",
+        "name": "Tarmogoyf",
+        "manaCost": [
+          "1",
+          "G"
+        ],
+        "manaValue": 2,
+        "colors": [
+          "G"
+        ],
+        "typeLine": "Creature — Lhurgoyf",
+        "oracleText": "Tarmogoyf's power is equal to the number of card types among cards in all graveyards and its toughness is equal to that number plus 1.",
+        "power": "*",
+        "toughness": "1+*",
+        "setCode": "FUT",
+        "collectorNumber": "153",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c019",
+        "name": "Sword of Fire and Ice",
+        "manaCost": [
+          "3"
+        ],
+        "manaValue": 3,
+        "colors": [],
+        "typeLine": "Artifact — Equipment",
+        "oracleText": "Equipped creature gets +2/+2 and has protection from red and from blue.\nWhenever equipped creature deals combat damage to a player, it deals 2 damage to any target and you draw a card.\nEquip {2}",
+        "setCode": "DST",
+        "collectorNumber": "148",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c020",
+        "name": "Bloodbraid Elf",
+        "manaCost": [
+          "2",
+          "R",
+          "G"
+        ],
+        "manaValue": 4,
+        "colors": [
+          "R",
+          "G"
+        ],
+        "typeLine": "Creature — Elf Berserker",
+        "oracleText": "Haste\nCascade",
+        "power": "3",
+        "toughness": "2",
+        "setCode": "ARB",
+        "collectorNumber": "50",
+        "rarity": "uncommon"
+      },
+      {
+        "cardId": "draft:fx-open/c021",
+        "name": "Lingering Souls",
+        "manaCost": [
+          "2",
+          "W"
+        ],
+        "manaValue": 3,
+        "colors": [
+          "W"
+        ],
+        "typeLine": "Sorcery",
+        "oracleText": "Create two 1/1 white Spirit creature tokens with flying.\nFlashback {1}{B}",
+        "setCode": "DKA",
+        "collectorNumber": "6",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c022",
+        "name": "Ponder",
+        "manaCost": [
+          "U"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "U"
+        ],
+        "typeLine": "Sorcery",
+        "oracleText": "Look at the top three cards of your library, then put them back in any order. You may shuffle.\nDraw a card.",
+        "setCode": "LRW",
+        "collectorNumber": "79",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c023",
+        "name": "Grim Lavamancer",
+        "manaCost": [
+          "R"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "R"
+        ],
+        "typeLine": "Creature — Human Wizard",
+        "oracleText": "{R}, {T}, Exile two cards from your graveyard: Grim Lavamancer deals 2 damage to any target.",
+        "power": "1",
+        "toughness": "1",
+        "setCode": "TMP",
+        "collectorNumber": "182",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c024",
+        "name": "Reclamation Sage",
+        "manaCost": [
+          "2",
+          "G"
+        ],
+        "manaValue": 3,
+        "colors": [
+          "G"
+        ],
+        "typeLine": "Creature — Elf Shaman",
+        "oracleText": "When Reclamation Sage enters, you may destroy target artifact or enchantment.",
+        "power": "2",
+        "toughness": "1",
+        "setCode": "M15",
+        "collectorNumber": "197",
+        "rarity": "uncommon"
+      },
+      {
+        "cardId": "draft:fx-open/c025",
+        "name": "Vindicate",
+        "manaCost": [
+          "1",
+          "W",
+          "B"
+        ],
+        "manaValue": 3,
+        "colors": [
+          "W",
+          "B"
+        ],
+        "typeLine": "Sorcery",
+        "oracleText": "Destroy target permanent. Its controller may search their library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+        "setCode": "APC",
+        "collectorNumber": "108",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c026",
+        "name": "Mana Leak",
+        "manaCost": [
+          "1",
+          "U"
+        ],
+        "manaValue": 2,
+        "colors": [
+          "U"
+        ],
+        "typeLine": "Instant",
+        "oracleText": "Counter target spell unless its controller pays {3}.",
+        "setCode": "STH",
+        "collectorNumber": "33",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c027",
+        "name": "Phyrexian Arena",
+        "manaCost": [
+          "1",
+          "B",
+          "B"
+        ],
+        "manaValue": 3,
+        "colors": [
+          "B"
+        ],
+        "typeLine": "Enchantment",
+        "oracleText": "At the beginning of your upkeep, you draw a card and you lose 1 life.",
+        "setCode": "APC",
+        "collectorNumber": "76",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c028",
+        "name": "Wall of Omens",
+        "manaCost": [
+          "1",
+          "W"
+        ],
+        "manaValue": 2,
+        "colors": [
+          "W"
+        ],
+        "typeLine": "Creature — Wall",
+        "oracleText": "Defender\nWhen Wall of Omens enters, draw a card.",
+        "power": "0",
+        "toughness": "4",
+        "setCode": "ROE",
+        "collectorNumber": "40",
+        "rarity": "uncommon"
+      }
+    ],
+    "pool": [
+      {
+        "cardId": "draft:fx-open/c005",
+        "name": "Wrath of God",
+        "manaCost": [
+          "2",
+          "W",
+          "W"
+        ],
+        "manaValue": 4,
+        "colors": [
+          "W"
+        ],
+        "typeLine": "Sorcery",
+        "oracleText": "Destroy all creatures. They can't be regenerated.",
+        "setCode": "LEA",
+        "collectorNumber": "39",
+        "rarity": "rare"
+      }
+    ]
+  }
+}

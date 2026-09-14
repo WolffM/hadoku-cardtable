@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>cardtable — draft</title>
+    <!--
+      Our own mark, inline: three fanned cards. A data URI rather than a file
+      because `*.png`/`*.jpg` are refused repo-wide (the no-card-images control)
+      and because it saves the browser's automatic /favicon.ico request, which
+      is otherwise a 404 on every page load.
+    -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314161a'/%3E%3Cg stroke='%23565d68' stroke-width='1.5' fill='%2323272f'%3E%3Crect x='6' y='11' width='11' height='15' rx='2' transform='rotate(-16 11.5 18.5)'/%3E%3Crect x='10.5' y='9' width='11' height='15' rx='2'/%3E%3Crect x='15' y='11' width='11' height='15' rx='2' transform='rotate(16 20.5 18.5)'/%3E%3C/g%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

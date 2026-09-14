@@ -1,0 +1,361 @@
+{
+  "draftId": "draft:fx-open",
+  "seq": 1,
+  "packNumber": 1,
+  "pickNumber": 1,
+  "packCount": 3,
+  "packSize": 15,
+  "passDirection": "left",
+  "capacity": 8,
+  "seats": [
+    {
+      "id": 0,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:8e2a1c6b"
+      },
+      "displayName": "hadoku",
+      "pickedCount": 0
+    },
+    {
+      "id": 1,
+      "occupant": {
+        "kind": "human",
+        "participantId": "dev:41f0a9d3"
+      },
+      "displayName": "mox",
+      "pickedCount": 0
+    },
+    {
+      "id": 2,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:c07b5512"
+      },
+      "displayName": "rin",
+      "pickedCount": 0
+    },
+    {
+      "id": 3,
+      "occupant": {
+        "kind": "human",
+        "participantId": "fk:2db9e4af"
+      },
+      "displayName": "vance",
+      "pickedCount": 0
+    },
+    {
+      "id": 4,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:4"
+      },
+      "displayName": "Bot 4",
+      "pickedCount": 0
+    },
+    {
+      "id": 5,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:5"
+      },
+      "displayName": "Bot 5",
+      "pickedCount": 0
+    },
+    {
+      "id": 6,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:6"
+      },
+      "displayName": "Bot 6",
+      "pickedCount": 0
+    },
+    {
+      "id": 7,
+      "occupant": {
+        "kind": "bot",
+        "botId": "bot:7"
+      },
+      "displayName": "Bot 7",
+      "pickedCount": 0
+    }
+  ],
+  "waitingOn": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "viewer": {
+    "kind": "seat",
+    "seatId": 0,
+    "pack": [
+      {
+        "cardId": "draft:fx-open/c000",
+        "name": "Lightning Bolt",
+        "manaCost": [
+          "R"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "R"
+        ],
+        "typeLine": "Instant",
+        "oracleText": "Lightning Bolt deals 3 damage to any target.",
+        "setCode": "LEA",
+        "collectorNumber": "161",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c001",
+        "name": "Serra Angel",
+        "manaCost": [
+          "3",
+          "W",
+          "W"
+        ],
+        "manaValue": 5,
+        "colors": [
+          "W"
+        ],
+        "typeLine": "Creature — Angel",
+        "oracleText": "Flying, vigilance",
+        "power": "4",
+        "toughness": "4",
+        "setCode": "LEA",
+        "collectorNumber": "40",
+        "rarity": "uncommon"
+      },
+      {
+        "cardId": "draft:fx-open/c002",
+        "name": "Counterspell",
+        "manaCost": [
+          "U",
+          "U"
+        ],
+        "manaValue": 2,
+        "colors": [
+          "U"
+        ],
+        "typeLine": "Instant",
+        "oracleText": "Counter target spell.",
+        "setCode": "LEA",
+        "collectorNumber": "54",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c003",
+        "name": "Dark Ritual",
+        "manaCost": [
+          "B"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "B"
+        ],
+        "typeLine": "Instant",
+        "oracleText": "Add {B}{B}{B}.",
+        "setCode": "LEA",
+        "collectorNumber": "98",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c004",
+        "name": "Llanowar Elves",
+        "manaCost": [
+          "G"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "G"
+        ],
+        "typeLine": "Creature — Elf Druid",
+        "oracleText": "{T}: Add {G}.",
+        "power": "1",
+        "toughness": "1",
+        "setCode": "LEA",
+        "collectorNumber": "220",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c005",
+        "name": "Wrath of God",
+        "manaCost": [
+          "2",
+          "W",
+          "W"
+        ],
+        "manaValue": 4,
+        "colors": [
+          "W"
+        ],
+        "typeLine": "Sorcery",
+        "oracleText": "Destroy all creatures. They can't be regenerated.",
+        "setCode": "LEA",
+        "collectorNumber": "39",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c006",
+        "name": "Sol Ring",
+        "manaCost": [
+          "1"
+        ],
+        "manaValue": 1,
+        "colors": [],
+        "typeLine": "Artifact",
+        "oracleText": "{T}: Add {C}{C}.",
+        "setCode": "LEA",
+        "collectorNumber": "270",
+        "rarity": "uncommon"
+      },
+      {
+        "cardId": "draft:fx-open/c007",
+        "name": "Birds of Paradise",
+        "manaCost": [
+          "G"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "G"
+        ],
+        "typeLine": "Creature — Bird",
+        "oracleText": "Flying\n{T}: Add one mana of any color.",
+        "power": "0",
+        "toughness": "1",
+        "setCode": "LEA",
+        "collectorNumber": "186",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c008",
+        "name": "Shivan Dragon",
+        "manaCost": [
+          "4",
+          "R",
+          "R"
+        ],
+        "manaValue": 6,
+        "colors": [
+          "R"
+        ],
+        "typeLine": "Creature — Dragon",
+        "oracleText": "Flying\n{R}: Shivan Dragon gets +1/+0 until end of turn.",
+        "power": "5",
+        "toughness": "5",
+        "setCode": "LEA",
+        "collectorNumber": "175",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c009",
+        "name": "Swords to Plowshares",
+        "manaCost": [
+          "W"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "W"
+        ],
+        "typeLine": "Instant",
+        "oracleText": "Exile target creature. Its controller gains life equal to its power.",
+        "setCode": "LEA",
+        "collectorNumber": "35",
+        "rarity": "uncommon"
+      },
+      {
+        "cardId": "draft:fx-open/c010",
+        "name": "Brainstorm",
+        "manaCost": [
+          "U"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "U"
+        ],
+        "typeLine": "Instant",
+        "oracleText": "Draw three cards, then put two cards from your hand on top of your library in any order.",
+        "setCode": "ICE",
+        "collectorNumber": "61",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c011",
+        "name": "Hymn to Tourach",
+        "manaCost": [
+          "B",
+          "B"
+        ],
+        "manaValue": 2,
+        "colors": [
+          "B"
+        ],
+        "typeLine": "Sorcery",
+        "oracleText": "Target player discards two cards at random.",
+        "setCode": "FEM",
+        "collectorNumber": "32",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c012",
+        "name": "Sakura-Tribe Elder",
+        "manaCost": [
+          "1",
+          "G"
+        ],
+        "manaValue": 2,
+        "colors": [
+          "G"
+        ],
+        "typeLine": "Creature — Snake Shaman",
+        "oracleText": "Sacrifice Sakura-Tribe Elder: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+        "power": "1",
+        "toughness": "1",
+        "setCode": "CHK",
+        "collectorNumber": "244",
+        "rarity": "common"
+      },
+      {
+        "cardId": "draft:fx-open/c013",
+        "name": "Goblin Guide",
+        "manaCost": [
+          "R"
+        ],
+        "manaValue": 1,
+        "colors": [
+          "R"
+        ],
+        "typeLine": "Creature — Goblin Scout",
+        "oracleText": "Haste\nWhenever Goblin Guide attacks, defending player reveals the top card of their library. If it is a land card, that player puts it into their hand.",
+        "power": "2",
+        "toughness": "2",
+        "setCode": "ZEN",
+        "collectorNumber": "125",
+        "rarity": "rare"
+      },
+      {
+        "cardId": "draft:fx-open/c014",
+        "name": "Balance",
+        "manaCost": [
+          "1",
+          "W"
+        ],
+        "manaValue": 2,
+        "colors": [
+          "W"
+        ],
+        "typeLine": "Sorcery",
+        "oracleText": "Each player chooses a number of lands they control equal to the number of lands controlled by the player who controls the fewest, then sacrifices the rest. Players discard and sacrifice creatures the same way.",
+        "setCode": "LEA",
+        "collectorNumber": "16",
+        "rarity": "rare"
+      }
+    ],
+    "pool": []
+  }
+}

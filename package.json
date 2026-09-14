@@ -26,6 +26,7 @@
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.9.0",
+    "jsdom": "30.0.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }
