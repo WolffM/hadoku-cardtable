@@ -30,28 +30,40 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # setup-node BEFORE corepack — the order is load-bearing. `corepack
-      # enable` symlinks its shims next to the active node, and without
-      # setup-node that is the host's /usr/bin, which the runner user cannot
-      # write.
+      # The fleet's composite action, not a hand-rolled setup-node block. It
+      # does setup-node (registry-url + scope) then corepack in that order —
+      # load-bearing, because `corepack enable` symlinks its shims next to the
+      # active node, and without setup-node first that is the host's /usr/bin.
       #
-      # No `cache: 'pnpm'`: that option makes setup-node shell out to pnpm to
-      # locate the store, and pnpm does not exist yet at this point in the job.
-      - uses: actions/setup-node@v6
+      # What it buys over the block that was here: it ASSERTS the registry
+      # credential is non-empty and fails the job with a real message. An unset
+      # secret reads as an EMPTY STRING, not an error, so the failure mode is a
+      # bare 401 at the first `@wolffm/*` fetch — or, on a warm store, a green
+      # run that authenticated with nothing. This repo hit the 401 version on
+      # `2658ddf`, the commit that added its first `@wolffm/*` dependency.
+      #
+      # `node-version` MUST be passed: the action defaults to 22 and does not
+      # read .nvmrc, which pins 24.
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
         with:
-          node-version-file: .nvmrc
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@wolffm'
+          node-version: '24'
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.5.0 --activate
-
-      # NODE_AUTH_TOKEN must be HADOKU_NPM_READ_TOKEN, never GITHUB_TOKEN:
-      # GITHUB_TOKEN is scoped to this repository and cannot fetch @wolffm/*
-      # tarballs from GitHub Packages. A warm pnpm store hides the resulting
-      # 403 entirely, so the failure only ever shows up on a cold runner.
+      # NODE_AUTH_TOKEN must be HADOKU_NPM_READ_TOKEN — never GITHUB_TOKEN and
+      # never HADOKU_SITE_TOKEN:
+      #
+      #   GITHUB_TOKEN is scoped to this repository. `@wolffm/rooms-protocol` is
+      #   a PRIVATE package owned by hadoku-watchparty, so it 403s unless this
+      #   repo is added to that package's "Manage Actions access" list. The
+      #   `packages: read` permission above does NOT substitute for that — it
+      #   shapes the minted token, it does not grant package access.
+      #
+      #   HADOKU_SITE_TOKEN had its read:packages stripped in the 2026-08-19
+      #   rotation, so it authenticates and then 403s on every fetch, which is
+      #   harder to diagnose than an empty variable.
+      #
+      # The token goes on THIS step's env: only. setup-pnpm deliberately does
+      # not export it, because that would make it ambient for every later step.
       - name: Install
         run: pnpm install --frozen-lockfile
         env:
