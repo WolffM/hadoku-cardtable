@@ -6,7 +6,8 @@
   "license": "GPL-3.0-or-later",
   "description": "Scryfall bulk-data ingest, Forge .dck/.draft parsing, and cube card resolution. No images, ever.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./art": "./src/art/index.ts"
   },
   "scripts": {
     "sync": "node src/cli/sync-cards.ts",
@@ -15,6 +16,8 @@
     "gen:set-codes": "node src/cli/gen-set-codes.ts",
     "build-pool": "node --max-old-space-size=6144 src/cli/build-pool.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@wolffm/cdn-client": "1.0.5"
+  },
   "devDependencies": {}
 }
