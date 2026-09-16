@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Same no-build posture as @hadoku/draft: Node 24 strips TypeScript
+    // natively, so the `.ts` files in src/ are what run and what consumers
+    // import. Relative imports therefore carry an explicit `.ts` extension.
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

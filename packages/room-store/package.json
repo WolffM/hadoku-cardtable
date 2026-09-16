@@ -1,0 +1,22 @@
+{
+  "name": "@hadoku/room-store",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "Room persistence (P6) and the service-participant lifecycle (P5). Transport-free: no sockets, no socket.io, no filesystem unless you ask for the file tier.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wolffm/rooms-protocol": "0.38.111",
+    "@wolffm/rooms-server": "0.38.111"
+  },
+  "devDependencies": {
+    "@hadoku/draft": "workspace:*",
+    "@hadoku/shared": "workspace:*"
+  }
+}
