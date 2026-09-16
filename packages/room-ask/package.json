@@ -1,0 +1,17 @@
+{
+  "name": "@hadoku/room-ask",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Durable, seat-scoped request/response over a room. Transport-free: no sockets, no server, no timers you cannot drive. MIT — the one carve-out in this GPL repo.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wolffm/rooms-protocol": "0.38.111"
+  }
+}
