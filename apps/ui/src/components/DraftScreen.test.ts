@@ -22,7 +22,7 @@ import { App } from '../App.tsx';
 afterEach(cleanup);
 
 /**
- * Mount `App` and switch it to the fixture source.
+ * Mount `App` at the debug route and switch it to the fixture source.
  *
  * The app now boots into a LIVE draft — the real engine over the real bundled
  * cube — because that is what someone opening it wants. These tests are the
@@ -30,8 +30,21 @@ afterEach(cleanup);
  * than relying on which source happens to be the default. That coupling is why
  * they all failed the moment the default changed, and selecting here is the fix
  * that survives the default changing again.
+ *
+ * ## The hash, which is new this wave
+ *
+ * `App` is a router now: `#/` is the lobby, `#/draft/<id>` the pod, `#/deck/<id>`
+ * the deck, `#/debug` the harness. The Source switcher, the seed box and the
+ * fixture picker moved to `#/debug` verbatim, labels and testids intact — the
+ * harness was the front door and is now the back one, but it is not deleted,
+ * because its fixtures are what three waves of UI tests assert against.
+ *
+ * So the hash is set BEFORE `render`. `useRoute` reads `location.hash` on mount
+ * and a default-route render would put the lobby on screen and every query
+ * below would fail on an element that is simply not on that page.
  */
 function mount() {
+  window.location.hash = '#/debug';
   const result = render(createElement(App));
   fireEvent.click(screen.getByText('Fixtures — five committed payloads'));
   return result;

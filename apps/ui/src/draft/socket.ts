@@ -65,6 +65,8 @@ import {
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
 import { io } from 'socket.io-client';
 
+import type { ConnectionFacts } from './connection.ts';
+
 /**
  * The transport seam.
  *
@@ -120,6 +122,17 @@ export interface SocketDraft {
   resyncPending: boolean;
   onChange: ((draft: SocketDraft) => void) | null;
   everConnected: boolean;
+  /**
+   * `stats.applied` as it stood when the most recent RE-join went out.
+   *
+   * The one piece of state added for the connection banner, and it is a
+   * sample rather than a new fact: `stats.applied - appliedAtLastJoin` is
+   * "has anything arrived since we came back", which no single existing
+   * counter answers and which is the difference between telling a player
+   * "reconnected, waiting" and "reconnected, you are back". See
+   * `connection.ts`. Zero until a reconnect happens.
+   */
+  appliedAtLastJoin: number;
 }
 
 export interface SocketDraftOptions {
@@ -236,6 +249,7 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
     resyncPending: false,
     onChange: options.onChange ?? null,
     everConnected: false,
+    appliedAtLastJoin: 0,
   };
 
   draft.transport.on(DRAFT_CHANNEL.serverToClient, (payload) => {
@@ -252,6 +266,9 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
       // cursor without a resync request.
       draft.resyncPending = false;
       draft.stats.joins += 1;
+      // Sampled BEFORE the join goes out, so the snapshot that answers it is
+      // counted as "arrived since we came back".
+      draft.appliedAtLastJoin = draft.stats.applied;
       send(draft, joinDraft(draft.draftId));
     }
     notify(draft);
@@ -318,6 +335,26 @@ export function mySeat(draft: SocketDraft): number | null {
   const view = draft.view;
   if (view === null || view.viewer.kind !== 'seat') return null;
   return view.viewer.seatId;
+}
+
+/**
+ * The driver's own account of what its connection is doing.
+ *
+ * Every field is read straight off the handle — this adds no state, it only
+ * puts the ones `connection.ts` needs in one place so a component never has to
+ * reach into `stats` itself.
+ */
+export function connectionFacts(draft: SocketDraft): ConnectionFacts {
+  return {
+    connected: draft.connected,
+    everConnected: draft.everConnected,
+    joins: draft.stats.joins,
+    applied: draft.stats.applied,
+    appliedAtLastJoin: draft.appliedAtLastJoin,
+    resyncPending: draft.resyncPending,
+    seatId: mySeat(draft),
+    lastVerdict: draft.lastVerdict,
+  };
 }
 
 /** Leave the draft and hang up. The seat reservation TTL decides the rest. */

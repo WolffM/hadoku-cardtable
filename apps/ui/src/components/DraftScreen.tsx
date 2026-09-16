@@ -23,20 +23,25 @@
 
 import { useState, useCallback, useRef } from 'react';
 
+import type { ConnectionState } from '../draft/connection.ts';
 import type { DraftView } from '../draft/types.ts';
 import {
   explainRejection,
   isAwaitingConfirmation,
+  isDraftComplete,
   pick,
   pickBlockedBy,
   visiblePack,
   visiblePool,
   type TableState,
 } from '../draft/table.ts';
+import { ConnectionBanner } from './ConnectionBanner.tsx';
+import { DeckView } from './DeckView.tsx';
 import { DraftCounters } from './DraftCounters.tsx';
 import { PackView, type PackLayout } from './PackView.tsx';
 import { PoolView } from './PoolView.tsx';
 import { SeatBar } from './SeatBar.tsx';
+import { SpectatorNotice } from './SpectatorNotice.tsx';
 
 export interface DraftScreenProps {
   state: TableState;
@@ -55,6 +60,20 @@ export interface DraftScreenProps {
   onAdvance?: () => void;
   layout?: PackLayout;
   onLayoutChange?: (layout: PackLayout) => void;
+  /**
+   * What the connection is doing, for the banner above the table.
+   *
+   * Optional, and absent means "do not render one" rather than "assume
+   * healthy" — the in-process and fixture sources have no connection to report
+   * on and should not claim one. Compute it with `connectionState()` over
+   * `connectionFacts(draft)`; see `draft/connection.ts`.
+   */
+  connection?: ConnectionState | null;
+  /**
+   * Where the finished deck's `.dck` goes. Absent means the browser downloads
+   * it, which is what production wants; a test passes one to read the bytes.
+   */
+  onDownloadDeck?: (filename: string, text: string) => void;
 }
 
 export function DraftScreen({
@@ -65,6 +84,8 @@ export function DraftScreen({
   onAdvance,
   layout: layoutProp,
   onLayoutChange,
+  connection = null,
+  onDownloadDeck,
 }: DraftScreenProps) {
   const [localLayout, setLocalLayout] = useState<PackLayout>('fan');
   const layout = layoutProp ?? localLayout;
@@ -75,6 +96,11 @@ export function DraftScreen({
   const spectating = view.viewer.kind === 'spectator';
   const blocked = pickBlockedBy(state);
   const awaiting = isAwaitingConfirmation(state);
+  const complete = isDraftComplete(state);
+  // A pick made while the socket is down would be emitted into nothing and
+  // then look, to the player, like it was taken. The connection says whether
+  // the table is stalled; when it is, the cards do not respond.
+  const stalled = connection?.stalled ?? false;
 
   // Referentially stable, because `CardTile` is memoised and this is the prop
   // it compares. A fresh closure per render would make every tile re-render on
@@ -103,12 +129,20 @@ export function DraftScreen({
 
   const emptyNote = spectating
     ? 'Spectating — a spectator payload carries no pack.'
-    : awaiting
-      ? 'Picked. The pack has moved on; waiting for the next one.'
-      : 'This pack is empty.';
+    : stalled
+      ? 'The table is waiting on the connection. Your seat and your picks are held.'
+      : awaiting
+        ? 'Picked. The pack has moved on; waiting for the next one.'
+        : 'This pack is empty.';
 
   return (
-    <div className="draft" data-testid="draft-screen" data-draft-id={view.draftId}>
+    <div
+      className="draft"
+      data-testid="draft-screen"
+      data-draft-id={view.draftId}
+      data-viewer={view.viewer.kind}
+      data-complete={complete ? 'true' : 'false'}
+    >
       <header className="draft__bar">
         <div className="draft__ident">
           <h1 className="draft__title">Draft</h1>
@@ -143,6 +177,9 @@ export function DraftScreen({
         </div>
       </header>
 
+      {connection && <ConnectionBanner state={connection} />}
+      {spectating && <SpectatorNotice seatCount={view.seats.length} />}
+
       <p className="draft__status" data-testid="status" role="status">
         {spectating
           ? 'You are spectating. No pack, no pool — by construction.'
@@ -156,14 +193,24 @@ export function DraftScreen({
 
       <div className="draft__body">
         <main className="draft__main">
-          <PackView
-            cards={visiblePack(state)}
-            layout={layout}
-            onPick={handlePick}
-            disabled={blocked !== null}
-            emptyNote={emptyNote}
-          />
-          {!spectating && <PoolView cards={visiblePool(state)} />}
+          {complete ? (
+            <DeckView
+              draftId={view.draftId}
+              pool={visiblePool(state)}
+              {...(onDownloadDeck ? { onDownload: onDownloadDeck } : {})}
+            />
+          ) : (
+            <>
+              <PackView
+                cards={visiblePack(state)}
+                layout={layout}
+                onPick={handlePick}
+                disabled={blocked !== null || stalled}
+                emptyNote={emptyNote}
+              />
+              {!spectating && <PoolView cards={visiblePool(state)} />}
+            </>
+          )}
         </main>
         <aside className="draft__aside">
           <SeatBar view={view} />

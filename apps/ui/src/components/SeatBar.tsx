@@ -13,14 +13,26 @@
  * A name, whether it is a bot, and how many cards it has taken. Never *which*
  * cards — the payload does not carry them, and this component could not leak
  * them if it tried. See `draft/types.ts`.
+ *
+ * ## HELD, which is the fourth thing a seat can be
+ *
+ * A seat whose player dropped is released with `{ hold: true }` and reserved
+ * against everyone else for a TTL, so they come back to the same chair
+ * (`apps/server/src/room/draftRooms.ts`). Until this wave the bar drew that
+ * seat as `empty` — identical to a chair nobody had ever sat in — and the other
+ * seven drafters had no way to tell "Sam dropped, the table is waiting" from
+ * "this pod was never full". `draft/seatStatus.ts` derives the difference and
+ * says plainly what it is derived FROM, because the envelope carries no
+ * reservation field.
  */
 
+import { seatStatus, SEAT_HELD_NOTE } from '../draft/seatStatus.ts';
 import type { DraftSeatView, DraftView } from '../draft/types.ts';
 import { isWaiting } from '../draft/types.ts';
+import './spectate.css';
 
 function occupantKind(seat: DraftSeatView): string {
-  if (seat.occupant === null) return 'empty';
-  return seat.occupant.kind;
+  return seatStatus(seat);
 }
 
 export function SeatBar({ view }: { view: DraftView }) {
@@ -42,6 +54,8 @@ export function SeatBar({ view }: { view: DraftView }) {
         {view.seats.map((seat) => {
           const waiting = isWaiting(view, seat.id);
           const isYou = seat.id === viewerSeatId;
+          const status = seatStatus(seat);
+          const held = status === 'held';
           return (
             <li
               key={seat.id}
@@ -49,6 +63,7 @@ export function SeatBar({ view }: { view: DraftView }) {
                 'seat',
                 waiting ? 'seat--waiting' : 'seat--done',
                 isYou ? 'seat--you' : '',
+                held ? 'seat--held' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -58,16 +73,23 @@ export function SeatBar({ view }: { view: DraftView }) {
             >
               <span className="seat__id">{seat.id}</span>
               <span className="seat__name">
-                {seat.occupant === null ? <em>empty</em> : seat.displayName}
+                {status === 'empty' ? <em>empty</em> : seat.displayName}
                 {isYou && <span className="seat__you"> (you)</span>}
               </span>
               <span className="seat__meta">
-                {occupantKind(seat) === 'bot' && <span className="seat__bot">bot</span>}
+                {status === 'bot' && <span className="seat__bot">bot</span>}
+                {held && (
+                  <span className="seat__held" data-testid={`seat-${seat.id}-held`} title={SEAT_HELD_NOTE}>
+                    held
+                  </span>
+                )}
                 <span className="seat__picked" data-testid={`seat-${seat.id}-picked`}>
                   {seat.pickedCount}
                 </span>
               </span>
-              <span className="seat__clock">{waiting ? 'picking…' : 'picked'}</span>
+              <span className="seat__clock">
+                {held ? 'away — seat held' : waiting ? 'picking…' : 'picked'}
+              </span>
             </li>
           );
         })}
