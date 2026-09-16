@@ -78,6 +78,9 @@ importers:
       '@hadoku/carddata':
         specifier: workspace:*
         version: link:../../packages/carddata
+      '@hadoku/deck':
+        specifier: workspace:*
+        version: link:../../packages/deck
       '@hadoku/draft':
         specifier: workspace:*
         version: link:../../packages/draft
