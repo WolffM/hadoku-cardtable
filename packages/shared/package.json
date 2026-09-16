@@ -1,10 +1,10 @@
 {
   "name": "@hadoku/shared",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "Zod wire schemas for the draft envelope. The contract both the engine and the UI bind to.",
+  "description": "Zod wire schemas for the draft envelope and its socket transport. The contract both the engine and the UI bind to.",
   "exports": {
     ".": "./src/index.ts"
   },

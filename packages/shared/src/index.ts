@@ -8,6 +8,12 @@
  * Seat vocabulary is NOT defined here — it is re-exported from
  * `@wolffm/rooms-protocol`, which owns it. See `draft.ts`'s header for why the
  * envelope carries an `epoch` alongside its `seq`.
+ *
+ * Two layers, kept separable: `draft.ts` is the PAYLOAD (what a draft looks
+ * like) and `wire.ts` is the TRANSPORT (how one crosses a socket — join, pick,
+ * resync, errors). The in-process source in `apps/ui/src/draft/live.ts` uses
+ * the first and none of the second, which is what keeps a draft playable with
+ * no server at all.
  */
 
 export {
@@ -42,3 +48,54 @@ export {
 } from './draft.ts';
 
 export { semanticIssues, formatPath } from './semantics.ts';
+
+export {
+  SeqCursorSchema,
+  DRAFT_CHANNEL,
+  JoinDraftSchema,
+  LeaveDraftSchema,
+  PickActionSchema,
+  ResyncRequestSchema,
+  ClientMessageSchema,
+  PICK_REJECTION_CODES,
+  TRANSPORT_ERROR_CODES,
+  WireErrorCodeSchema,
+  WireErrorSchema,
+  CubeMetaSchema,
+  DraftStateMessageSchema,
+  DraftUpdateMessageSchema,
+  DraftErrorMessageSchema,
+  ServerMessageSchema,
+  asSeqCursor,
+  cursorOf,
+  carriesView,
+  isPickRejection,
+  joinDraft,
+  leaveDraft,
+  pickCard,
+  resyncRequest,
+  stateMessage,
+  updateMessage,
+  errorMessage,
+  clientMessageIssues,
+  serverMessageIssues,
+  parseClientMessage,
+  safeParseClientMessage,
+  parseServerMessage,
+  safeParseServerMessage,
+  type WireCursor,
+  type JoinDraft,
+  type LeaveDraft,
+  type PickAction,
+  type ResyncRequest,
+  type ClientMessage,
+  type PickRejectionCode,
+  type TransportErrorCode,
+  type WireErrorCode,
+  type WireError,
+  type CubeMeta,
+  type DraftStateMessage,
+  type DraftUpdateMessage,
+  type DraftErrorMessage,
+  type ServerMessage,
+} from './wire.ts';
