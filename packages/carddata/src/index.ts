@@ -1,12 +1,14 @@
 /*
  * @hadoku/carddata — card data for cardtable.
  *
- * Two things live here, both needed in either branch of D7 (the gdx-teavm
- * spike), which is why this is not blocked on it:
+ * The card-data half of the app lives here — all of it needed in either branch
+ * of D7 (the gdx-teavm spike), which is why none of it was blocked on it:
  *
  *   1. A scheduled Scryfall bulk-data ingest that caches gameplay fields
- *      locally. Never a per-request call to their API, and with no image code
- *      path at all — see `scryfall/project.ts` for how that is enforced.
+ *      locally. Never a per-request call to their API, and the projection it
+ *      writes has no image field — `ALLOWED_CARD_FIELDS` in
+ *      `scryfall/project.ts` names every field that survives, and none of them
+ *      is an image. That is still true and still enforced.
  *   2. A parser for Forge's `.dck` format, plus Forge's 95 bundled cube lists
  *      copied into `cubes/` at the repo root.
  *   3. A parser for Forge's `.draft` recipe format, plus Forge's 94 bundled
@@ -14,6 +16,29 @@
  *      says how packs are made out of them.
  *   4. The resolver that turns `1 Stoneforge Mystic|PRM` into a real card, and
  *      returns its failures instead of throwing them.
+ *   5. **Card art**, which is a separate pipeline on purpose: `src/art/` (the
+ *      manifest types and `resolveArtUrl`, exported as `@hadoku/carddata/art`)
+ *      and `src/cli/upload-art.ts` (fetch from Scryfall, upload to
+ *      `cdn.hadoku.me`, record the key).
+ *
+ * ## Where the image code path is, and where it is not
+ *
+ * This package used to claim it had "no image code path at all". Since D15
+ * (2026-09-15, `docs/DECISIONS.md`) it does, in exactly one place — item 5 —
+ * and the claim now has to be made at the right granularity rather than
+ * dropped, because the narrow version is load-bearing and still true:
+ *
+ * - **The ingest, the projection, the resolver and the pool writer carry no
+ *   image data.** `ALLOWED_CARD_FIELDS` names no image field, `resolve.ts`
+ *   emits none, and `build-pool.ts` refuses at runtime to write a pool
+ *   containing an image field or a URL that looks like one.
+ * - **Art is an indirection keyed by `scryfallId`**, held in
+ *   `apps/ui/src/draft/art-manifest.json` and resolved by `src/art/`. It is
+ *   deliberately NOT in `pool.json`, because `build-pool` regenerates the pool
+ *   wholesale and would discard it.
+ * - **Image bytes never enter this repo.** They go from Scryfall to the CDN
+ *   through `upload-art`, in memory; `.gitignore` refuses `*.jpg`/`*.png` and
+ *   the CI gate fails on an image in the bundle.
  *
  * Operational notes are in `docs/CARD_DATA.md`, including the verified Scryfall
  * terms this package is built against.

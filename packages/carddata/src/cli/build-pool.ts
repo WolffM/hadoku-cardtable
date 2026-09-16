@@ -9,11 +9,28 @@
  * written as JSON the app imports — which is also the shape it will arrive in
  * over a wire later, so nothing about the UI changes when a server appears.
  *
- * **Gameplay text only, never images (D13).** The projection this reads from
- * has no image code path, and the writer below names every field it emits, so a
- * field cannot arrive by accident. Card names and Oracle text are the same
- * class of data the cube lists in `cubes/` already carry; card *images* are the
- * thing this project never touches.
+ * **A pool is gameplay text only — and that is now a separation, not a ban.**
+ * The projection this reads from has no image field, and the writer below names
+ * every field it emits, so one cannot arrive by accident. The control at the
+ * bottom of this file enforces it at runtime on every build.
+ *
+ * What changed is why. D13 said this project never touches card images at all;
+ * D15 (2026-09-15, `docs/DECISIONS.md`) repealed that clause, and we now host
+ * card art on `cdn.hadoku.me` — see `../cli/upload-art.ts` and `../art/`.
+ * A pool still carries none of it, deliberately:
+ *
+ *   pool.json          gameplay text + scryfallId, regenerated wholesale HERE
+ *   art-manifest.json  scryfallId -> { source, key }, hand-curated, never
+ *                      written by this CLI
+ *
+ * That split exists precisely because this file rewrites its output from
+ * scratch. Art assignments are curated one card at a time and may be repointed
+ * at a non-WotC source later; if they lived in the pool, the next `build-pool`
+ * would silently discard them. So if you are here to add art to a pool: don't.
+ * Add a row to the manifest, or run `upload-art`, which writes one for you.
+ *
+ * The `scryfallId` this emits is the join key between the two files, and it is
+ * an id — never a URL. That distinction is what the control below checks.
  *
  * Requires a synced cache: `pnpm --filter @hadoku/carddata sync` first.
  */
@@ -168,10 +185,12 @@ async function main(): Promise<void> {
   // is a substring of a real card name. A control that cries wolf on legitimate
   // gameplay data gets switched off, which is worse than not having one.
   // The pool is data we COMMIT, so it must carry no image URL and no image
-  // field — only the id. Card images reach a browser by being constructed
-  // client-side at render time, which is what keeps this repo a link and not a
-  // host (docs/LICENSING.md §Concrete rules 3). A URL in this file would be the
-  // first step toward caching one.
+  // field — only the id. An art URL is composed at render time from the id plus
+  // the manifest (`../art/`), which is what makes repointing a card a one-line
+  // data edit instead of a pool rebuild (D15, docs/DECISIONS.md). A URL baked in
+  // here would freeze every card to whatever source was current on the day the
+  // pool was built — which, now that the art source is expected to move, is a
+  // sharper reason for this control than the one it was written with.
   const IMAGE_FIELD = /image|img|artcrop|thumbnail|picture/i;
   const IMAGE_URL = /https?:\/\/[^"]*(\.(jpe?g|png|webp|gif)|scryfall\.io)/i;
   for (const card of pool) {

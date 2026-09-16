@@ -6,9 +6,22 @@
  * records the exact requests made and the exact responses. Do not "tidy" these
  * constants without re-reading https://scryfall.com/docs/api/rate-limits.
  *
- * There is deliberately no image code path anywhere in this package. Card art
- * is fetched by the browser, direct from upstream; our server never touches it
- * (D13, docs/LICENSING.md §2 rule 3).
+ * **This client never fetches an image, and that part has not changed.** It
+ * speaks to `api.scryfall.com` only, for JSON: the bulk-data listing and the
+ * cached gameplay fields behind it. `getJson` is its whole surface.
+ *
+ * What DID change is the package around it. `src/cli/upload-art.ts` fetches
+ * card art from `cards.scryfall.io` and uploads it to `cdn.hadoku.me`, and
+ * `src/art/index.ts` resolves a card to an art URL — so "no image code path
+ * anywhere in this package", which this header used to claim, is false as of
+ * D15 (2026-09-15, `docs/DECISIONS.md`), which repealed D13's image clause. The
+ * narrower claim survives intact: the ingest path this file serves carries no
+ * image field and makes no image request. Art is a separate pipeline with a
+ * separate host, deliberately.
+ *
+ * The pacing here still governs `upload-art`'s fetches by example rather than
+ * by import: the image origins have no documented rate limit, but that CLI
+ * runs its own gate at the same 100 ms floor for the same reason.
  */
 
 /** Scryfall's API origin. Everything else they serve is out of scope for us. */
