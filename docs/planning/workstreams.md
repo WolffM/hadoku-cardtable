@@ -236,6 +236,8 @@ anything in PR-4, because the wire schema is what `IToClient` will carry.
 
 | # | Item | Why it's theirs |
 | --- | --- | --- |
+| **O5** | **D2 says "rules out: an MIT room layer living in this repo" — and `packages/room-ask` is now exactly that.** The code side is careful (SPDX, own `LICENSE`, clean-room so it is not a Forge derivative) and the licences are coherent: MIT so P4 can go upstream to watchparty's MIT packages, GPL for `room-store` which is ours. But `docs/DECISIONS.md` mentions `room-ask` **zero** times. Either amend D2 with the carve-out, or move the package to watchparty. A rule contradicted without a record is one that flips back. | Decision log |
+| **O6** | **The CDN upload has never run** — `art-manifest.json` has 0 entries and all art still comes from Scryfall via fallback. `pnpm --filter @hadoku/carddata upload-art` needs a **friend-tier credential** that is not on this host. Lane B refused to invent an auth path, correctly. One credential turns a working pipeline into live art. | Credential |
 | ~~O1~~ | ~~fork `Card-Forge/forge`~~ — **resolved 2026-09-11: deferred.** A plain clone already syncs upstream (`origin` *is* upstream); a fork only buys somewhere to push our Forge commits, a submodule URL, and the ability to PR `case "server"` back. None needed until the first line of Java, and lane B explicitly writes none. **Repo creation DONE 2026-09-14** — `WolffM/hadoku-cardtable` exists, private, created 07:26, `main` pushed, CI green. Only the *fork* half remains deferred. | |
 | ~~**P1**~~ | **CLOSED 2026-09-16 — it is in the profile.** `~/.bashrc:166` exports `NODE_AUTH_TOKEN` (and again at `:167` — a duplicate export, harmless, worth tidying). `npm view @wolffm/rooms-protocol version` → **`0.38.115`**, exit 0. The bare-env control still 401s (`env -u NODE_AUTH_TOKEN npm view` → exit 1), which is what makes the export load-bearing rather than cosmetic. Note it is a **static `gho_` token in a dotfile**, not `$(gh auth token)`, so it will expire on its own schedule. ~~Export `NODE_AUTH_TOKEN`~~ — `~/.npmrc` reads `_authToken=${NODE_AUTH_TOKEN}` and the variable is unset, so npm sends the literal placeholder and gets `E401`. Not a rotation: `NODE_AUTH_TOKEN=$(gh auth token) npm view @wolffm/rooms-protocol version` → a version. **STILL OPEN — re-checked 2026-09-14 after Wave 2: the variable is unset and the bare `npm view` still returns E401.** ⚠️ **This already cost a lane.** Wave 2 shipped four lanes of five; lane B — the pure draft engine *and* the Zod wire schema, i.e. the middle of PR-2 — was never dispatched because of it. **Blocks Wave 3's first lane.** Put it in the shell profile. | Shell env |
 | ~~**P2**~~ | **CLOSED — and it was already closed before Wave 5 started.** `gh secret list -R WolffM/hadoku-cardtable` on 2026-09-16 returns `HADOKU_NPM_READ_TOKEN` and `HADOKU_SITE_TOKEN`; the former was already dated 2026-09-15 when the Wave 5 manager first looked, and was re-seeded 2026-09-16T08:01Z. **The board carried "still empty" for two passes after it stopped being true.** ~~Set `HADOKU_NPM_READ_TOKEN` on the repo~~ — ~~`gh secret list` re-checked 2026-09-14: **still empty**.~~ CI's green runs are still vacuous: Wave 2 added no `@wolffm/*` dependency (because B never ran), so the token path has **still** never executed. The first lane that depends on `@wolffm/rooms-protocol` is where a cold runner surfaces the 403. | Repo secret |
@@ -246,7 +248,60 @@ anything in PR-4, because the wire schema is what `IToClient` will carry.
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-16 — tracker, closing Wave 5)
+## Verified this pass (2026-09-16 — tracker, closing Waves 4 and 5)
+
+Re-derived from artifacts, not from closing notes. **Both waves landed; all
+eight lanes are on `main`; both worktrees are gone.** Gate: install 0, check 0,
+**473 tests / 28 files** (was 242 / 15). CI and `Redeploy on hadoku_site` both
+green on `fca12a9`. Production answers **401 to anonymous** on `/`, `/health`
+and `/api/whoami` — the friend gate holds.
+
+- **The hidden-information control bites, and I proved it rather than read it.**
+  Injected a leak into `apps/server/src/room/emit.ts` — every recipient built
+  from seat 0's view instead of their own — and `two sockets in one room > each
+  receive ONLY their own seat's cards` failed by name, catching **45 cards** of
+  another seat's pool arriving at the wrong socket. Restored: **16/16 pass**.
+  `broadcastToRoom` is not reachable from that file.
+- **The P4 clean-room firewall held.** `grep -rniE 'forge|replypool'` over
+  `packages/room-ask/` returns **nothing**. Lane F's note: *"Written clean room
+  from `docs/requests/P4_ASK_REGISTRY.md` and nothing else."*
+- **The art swap requirement is asserted, not asserted-to.** Three tests in
+  `packages/carddata/src/art/index.test.ts`: repointing one card, rolling a card
+  back from `cdn` to `scryfall`, and adding a row for an unlisted card — each
+  checking every *other* id is byte-identical, with the compared count pinned so
+  deleting a fixture cannot shrink the test to nothing.
+- **The D13 gate's new arms are correct.** Mutation-tested all three: a
+  same-origin `/cardtable/assets/leak.jpg` **fires**; a `cdn.hadoku.me` URL is
+  **allowed**; the clean bundle ships **0** image files and **0** disallowed-host
+  URLs.
+- **D15 supersedes D13's image clause properly** — D13's text left intact as the
+  record, the repeal dated and attributed, and the placeholder constraint
+  written down as the load-bearing part.
+- **The CDN upload has NOT run.** `art-manifest.json` holds **0 entries**, so
+  every card still renders from Scryfall through the fallback. Lane B said so in
+  bold rather than implying otherwise — *"It has not been run against the real
+  CDN. There is no friend-tier credential on this host and none was invented."*
+  That is the right call and it is the wave's one open item.
+
+### Found — a settled decision was contradicted and not recorded
+
+**`packages/room-ask` declares `"license": "MIT"`, and D2's "rules out" line
+still reads: *"an MIT room layer living in this repo (see D11)"*.**
+
+Lane F handled the code side carefully — SPDX header, its own `LICENSE`, and a
+module comment calling itself *"the single carve-out in a repo that is otherwise
+GPL-3.0-or-later"*, written clean-room so it is not a derivative of Forge. The
+licences are also internally coherent: `room-ask` is MIT because D12 clean-roomed
+P4 precisely so it *could* go upstream to watchparty's MIT packages, while
+`room-store` is GPL-3.0-or-later because it is ours and merely consumes their
+primitives.
+
+What is missing is the record. `grep -c 'room-ask' docs/DECISIONS.md` returns
+**0**. A decision log that says a thing is ruled out, beside a package that does
+it, is how the question gets re-litigated in three months — and this repo has
+already watched a rule flip back for exactly that reason. **Operator item O5.**
+
+## Previously verified (2026-09-16 — tracker, closing Wave 5)
 
 Nothing below is taken from a closing note. Each line names the command that
 produced it, and every mutation test reports **reverted fails N / restored
