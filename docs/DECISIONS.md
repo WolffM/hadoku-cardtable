@@ -442,6 +442,101 @@ also wants the unaffiliated/unendorsed disclaimer in that footer and it is not
 there. That file belongs to another workstream; this is recorded so the gap is
 owned rather than forgotten.
 
+
+## D16 — `@hadoku/room-ask` is MIT inside a GPL repo · settled · 2026-09-16 · operator
+
+**Amends D2.** D2's "rules out" line reads *"an MIT room layer living in this
+repo (see D11)"*. `packages/room-ask` is exactly that, and it stays. D2's
+mechanism — Forge vendored, whole repo GPL-3.0-or-later — is unchanged;
+what is amended is the blanket exclusion.
+
+### Why the exclusion existed, and why it does not apply here
+
+D2 ruled it out to avoid a licence question nobody wanted: GPL code and MIT code
+in one tree, with no clean story about which is which. The story is clean here,
+for one specific reason.
+
+**`room-ask` is not a derivative of Forge.** It was written under D12's
+clean-room firewall by a fresh agent that read
+`docs/requests/P4_ASK_REGISTRY.md` and nothing else — the read-list is in its
+own commit message, and `grep -rniE 'forge|replypool' packages/room-ask/`
+returns nothing. Copyleft attaches to derivative works. A file that never saw
+the GPL work is ours to licence, and the repo being GPL elsewhere does not
+change that.
+
+### Why it must be MIT rather than simply GPL
+
+This is the load-bearing half. **P4 is destined for `@wolffm/rooms-server`,
+which is MIT** (D10 assigned P3–P6 to us; D12 required the clean room precisely
+so the result *could* go upstream). MIT → GPL consumption is fine; GPL → MIT is
+not. Licensing `room-ask` GPL would make it unusable by the package it was
+written for, which would waste the entire clean-room exercise.
+
+The sibling package is the contrast that proves the rule:
+**`packages/room-store` is GPL-3.0-or-later**, because P5/P6 are ours, consume
+watchparty's primitives rather than being contributed into them, and are not
+going upstream. Two packages, two licences, each matching where it is going.
+
+### Mechanics, so this is checkable
+
+- `packages/room-ask/LICENSE` carries the MIT text.
+- `packages/room-ask/src/index.ts` opens with `SPDX-License-Identifier: MIT`.
+- Every other package, and the repo root, stays GPL-3.0-or-later.
+- **If a future change makes `room-ask` read Forge, or copy from it, this
+  decision is void** and the file must be relicensed or discarded. The firewall
+  is the whole justification.
+
+**Rules out:** a second MIT carve-out added casually. This one is justified by a
+documented clean room and an MIT destination. Anything else comes back here
+first.
+
+## D17 — Cardtable is its own app and imports room UI · settled · 2026-09-16 · operator
+
+**Supersedes D6's mechanism; keeps its layout intent.**
+
+D6 said the Forge UI renders *inside* a watchparty room's central canvas slot,
+as an iframe payload, modelled on `GameModule.tsx`. That was written on
+2026-09-11, when the payload was expected to be `forge-gui-mobile` compiled to
+WASM (D7), and before hadoku_site existed as a consumer of ours.
+
+Two things happened since, and neither was reconciled until now:
+
+1. **D7 came back NO-GO.** There is no WASM payload to put in an iframe. P4 is a
+   React client we write.
+2. **hadoku_site onboarded cardtable as a standalone loopback-UI tunnel app** at
+   `hadoku.me/cardtable/`, port 9008, friend tier — the shape *their* agent
+   chose, which is live and working. That is not "inside a watchparty room".
+
+For three waves D6 and production quietly contradicted each other, and the
+tracker never put a row on the board for it. The operator settled it:
+
+> *"cardtable is its own app. my expectation is that we import a package from
+> watchparty for the ui."*
+
+**The shape, settled:**
+
+- Cardtable is **its own application**, its own route, its own server. It is not
+  embedded in watchparty and does not move there.
+- It **imports** watchparty's room chrome — chat, roster, presence — as a
+  package, and renders its own draft/play surface in the middle. D6's *layout*
+  intent survives exactly: their chrome around, our table in the centre.
+- The iframe + `postMessage` mechanism is **dropped**. Both apps are ours and
+  same-origin concerns do not apply the way they did for a cross-origin Bevy
+  bundle.
+
+**Known blocker, recorded so nobody plans around it:**
+`@wolffm/watchparty-ui@0.38.115` cannot be composed with. Read from the
+published tarball, it exports exactly `createWatchpartyRouter`, `mount` and
+`unmount` — a whole-app mount, with no room shell, roster, chat or slot
+component — and ships **zero `.d.ts` files** despite declaring
+`types: "./dist/index.d.ts"`. Wave 6 lane E asked them for composable exports
+(`docs/requests/WATCHPARTY_UI_COMPOSABLE.md`). Until that lands, cardtable
+builds its own shell behind a seam, which is what Wave 6 lane A did.
+
+**Rules out:** planning any wave on the assumption that watchparty's UI package
+can be imported piecemeal today; and re-opening "should cardtable live inside
+watchparty", which is now answered.
+
 ---
 
 ## Still open — each needs an operator decision

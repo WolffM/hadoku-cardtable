@@ -176,7 +176,7 @@ async function main(): Promise<number> {
   if (editionsDir === null) {
     console.error(
       'Missing --editions=<dir>. Point it at forge-gui/res/editions.\n' +
-        'forge/ is gitignored and may be absent; the generated table is committed, so\n' +
+        'forge/ is a submodule and may be uninitialised; the generated table is committed, so\n' +
         'this only needs running when Forge is updated.',
     );
     return 2;

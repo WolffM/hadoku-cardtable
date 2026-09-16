@@ -98,8 +98,16 @@ does not anchor on the line start counts the commented-out constant at
 
 ## Build prerequisites
 
-Java 21 ✓. **Maven ✗** — hokon has no `mvn` and upstream ships no `mvnw`
-(only `.mvn/maven.config`). Install Maven before attempting a Forge build.
+Java 21 ✓ and Maven ✓ — **both are installed, and both are deliberately off
+`PATH`.** Wave 1 put them under `~/.local/opt` per D14 (no sudo, no host
+mutation): Temurin **JDK 21** and Maven **3.9.16**. `scripts/spike/run.sh`
+resolves them; a bare `which mvn` or `which javac` finds nothing and has now
+misled two separate sessions into reporting a missing toolchain.
+
+**Before concluding the toolchain is absent, look in `~/.local/opt`.** The JRE
+that *is* on `PATH` has no `javac` and no `lib/ct.sym`, so a stock Forge build
+fails with `error: release version 17 not supported` — which reads like a
+version mismatch and is in fact a missing compiler (D14's amendment).
 
 ## Working agreements
 

@@ -1,0 +1,4 @@
+[submodule "forge"]
+	path = forge
+	url = https://github.com/WolffM/forge.git
+	branch = master

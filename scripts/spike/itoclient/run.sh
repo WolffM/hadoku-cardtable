@@ -59,13 +59,41 @@ need_forge_dir() {
     echo "let Maven write target/ dirs into — NOT the repo's vendored forge/." >&2
     exit 2
   fi
-  FORGE_DIR="$(cd "$FORGE_DIR" && pwd)"
+  # `pwd -P`, not `pwd`. The logical form keeps symlinks, and this guard is a
+  # STRING comparison — so from a git worktree, where `forge/` is a symlink to
+  # the main checkout, `<worktree>/forge` never equalled `<main>/forge` and the
+  # guard waved a Maven build straight into the vendored tree. That happened on
+  # 2026-09-16: six `target/` dirs, in the one tree D2 requires stay pristine.
+  FORGE_DIR="$(cd "$FORGE_DIR" && pwd -P)"
   local vendored
-  vendored="$(cd "$SPIKE_DIR/../../.." && pwd)/forge"
-  if [[ -e "$vendored" ]] && [[ "$FORGE_DIR" == "$(cd "$vendored" && pwd)" ]]; then
-    echo "FORGE_DIR is the vendored forge/ tree. Refusing: it must stay pristine." >&2
+  vendored="$(cd "$SPIKE_DIR/../../.." && pwd -P)/forge"
+  if [[ -e "$vendored" ]] && [[ "$FORGE_DIR" == "$(cd "$vendored" && pwd -P)" ]]; then
+    echo "FORGE_DIR is the vendored forge/ tree (resolved: $FORGE_DIR)." >&2
+    echo "Refusing: it must stay pristine." >&2
     exit 2
   fi
+}
+
+# Is the vendored tree actually untouched?
+#
+# `git status --porcelain` is NOT enough and reported "pristine" through the
+# whole incident above: Forge's own .gitignore line 33 covers `target`, so git
+# cannot see build output in the tree it is being asked about. A check that
+# cannot fail for the thing you are checking is not a check.
+#
+# So: ask git AND look for build output directly.
+assert_forge_pristine() {
+  local vendored dirty targets
+  vendored="$(cd "$SPIKE_DIR/../../.." && pwd -P)/forge"
+  [[ -d "$vendored" ]] || { echo "no vendored forge/ to check"; return 0; }
+  dirty="$(git -C "$vendored" status --porcelain | wc -l)"
+  targets="$(find "$vendored" -maxdepth 3 -name target -type d 2>/dev/null | wc -l)"
+  if [[ "$dirty" -ne 0 || "$targets" -ne 0 ]]; then
+    echo "forge/ is NOT pristine: $dirty tracked changes, $targets target/ dirs." >&2
+    find "$vendored" -maxdepth 3 -name target -type d 2>/dev/null >&2
+    return 1
+  fi
+  echo "forge/ pristine: 0 tracked changes, 0 target/ dirs (both checked)."
 }
 
 FATJAR_GLOB_SUFFIX='forge-gui-desktop/target/forge-gui-desktop-*-jar-with-dependencies.jar'

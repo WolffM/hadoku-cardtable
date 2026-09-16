@@ -56,9 +56,18 @@ const CARD_FIELDS = new Set([
 /**
  * What an image reference looks like, however it is spelled.
  *
- * D13 is absolute — this project never commits, hosts, mirrors, caches or
- * proxies a card image — and the rule is enforced by shape rather than by an
- * exact field name, because the next leak will not be called `image_uris`.
+ * **D13's image clause was repealed by D15 on 2026-09-15** — card art is now
+ * hosted on `cdn.hadoku.me`. This control did NOT go away with it, because what
+ * it guards changed rather than ended: the *payload* must stay a reference.
+ *
+ * A card carries `scryfallId`, and a URL is built in the browser at render time
+ * (`apps/ui/src/draft/cardImage.ts`). A URL or an `image_uris` blob appearing on
+ * a payload would mean we had started copying image metadata into the thing that
+ * gets persisted, snapshotted and sent over a wire — which is the step before
+ * caching bytes, and the step D15 did not license.
+ *
+ * Matched by shape rather than by an exact field name, because the next leak
+ * will not be called `image_uris`.
  */
 const IMAGE_FIELD_HINT = /image|imgur|img_|artcrop|picture|thumbnail/i;
 /** A URL pointing at a picture, whatever the field is called. */

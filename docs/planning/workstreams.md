@@ -289,7 +289,56 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-16 — tracker, closing Waves 4 and 5)
+## Verified this pass (2026-09-16 — tracker, closing Wave 6 + PR-4 unblock)
+
+**Wave 6 landed: all six lanes on `main`, worktree gone.** Gate **635 tests / 37
+files** (was 473 / 28). The manager's three self-corrections and four handoffs
+were re-derived here, not taken from the note.
+
+- **`forge/` is genuinely clean after the incident.** The manager ran a Maven
+  build inside the vendored tree, created 6 `target/` dirs, and removed them:
+  **0 target dirs, 0 tracked changes, HEAD still `2cd497c`.** Confirmed.
+- **The fifth vacuous gate is real, and is now fixed.** `git status --porcelain`
+  on `forge/` cannot see build output — Forge's own `.gitignore` covers
+  `target` — so §F.3's pristine check reported clean throughout. Proved it:
+  with a `target/` dir present, **git reports 0 changes** while the new check
+  fails. `scripts/spike/itoclient/run.sh` now uses `pwd -P` (the guard compared
+  logical paths, so a worktree symlink never matched and waved the build
+  through — reproduced: the fixed guard exits **2** through a symlink) and
+  `assert_forge_pristine` checks for `target/` dirs as well as asking git.
+- **The repealed-D13 survivor was ONE, not two.** `packages/shared/src/semantics.ts:59`
+  carried it live and is fixed — the control stays, because what it guards
+  changed rather than ended: the *payload* must carry an id, not a URL.
+  `CLAUDE.md:17`'s mention is correctly **historical** ("until then this rule
+  read…") and was not a survivor.
+- **`CLAUDE.md`'s "Maven ✗" was stale and actively misleading** — Maven 3.9.16
+  and Temurin JDK 21 have been under `~/.local/opt` since Wave 1 (D14),
+  deliberately off `PATH`. It has now cost two sessions. Rewritten to say where
+  to look before concluding the toolchain is absent.
+- **Corpus is 118,026**, not the board's 117,941. Recounted.
+- **"6 cards absent from Scryfall, all OM1" is WRONG and is now corrected.** OM1
+  is in the corpus: **189 printings, all 189 `digital: true`.** They are not
+  absent — they are digital-only, which the resolver refuses. That is the *same
+  root cause* as the original 47, one layer down: `default_cards` fixed the
+  cards whose representative printing was digital, and cannot fix a set whose
+  every printing is.
+- **`@hadoku/room-ask` MIT / D6 contradiction: both closed.** D16 amends D2 with
+  the carve-out (clean-room, MIT destination, `room-store` GPL as the contrast);
+  D17 supersedes D6's mechanism and keeps its layout intent.
+- **PR-4 is unblocked.** `WolffM/forge` forked (1038 MB, master `994c5d9`);
+  `forge/` is now a **submodule pinned at `2cd497c`** — the commit every
+  verified number in `docs/` was measured against. CI does **not** fetch it
+  (`actions/checkout` defaults to `submodules: false`, and no workflow overrides
+  it), so the 1 GB costs CI nothing.
+
+### Numbering collision, flagged
+
+`docs/DECISIONS.md` has its own **O5** (how much card art to host) which is a
+*different item* from this board's O5 (the MIT carve-out, now closed as D16).
+The two documents number their open questions independently. Worth reconciling
+before a third one appears.
+
+## Previously verified (2026-09-16 — tracker, closing Waves 4 and 5)
 
 Re-derived from artifacts, not from closing notes. **Both waves landed; all
 eight lanes are on `main`; both worktrees are gone.** Gate: install 0, check 0,

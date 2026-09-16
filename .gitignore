@@ -7,7 +7,14 @@ dist/
 # forge — currently a plain shallow clone of upstream, used for analysis.
 # Untracked until WolffM/forge exists and this becomes a submodule.
 # See README.md "Getting forge/".
-/forge/
+# forge/ is a SUBMODULE as of 2026-09-16 (D2's stated mechanism), pinned to the
+# fork WolffM/forge at 2cd497c — the commit every verified number in docs/ was
+# measured against. It used to be listed here as a gitignored plain clone,
+# because there was nothing to fork from until PR-4 needed to commit Java.
+#
+# Build output inside it is covered by Forge's OWN .gitignore, which is why
+# `git status` there cannot see a stray Maven build — see
+# scripts/spike/itoclient/run.sh's assert_forge_pristine.
 
 # local state
 .env
