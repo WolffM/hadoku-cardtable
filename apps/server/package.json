@@ -1,22 +1,29 @@
 {
   "name": "@hadoku/server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "Loopback tunnel server — serves the built @hadoku/ui SPA and the room/draft API at hadoku.me/cardtable/, friend tier.",
+  "description": "Loopback tunnel server — serves the built @hadoku/ui SPA and the room/draft socket at hadoku.me/cardtable/, friend tier.",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc --noEmit -p tsconfig.json && esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/index.js --external:express --external:socket.io --external:@wolffm/rooms-protocol --external:@wolffm/rooms-server",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "@hadoku/draft": "workspace:*",
+    "@hadoku/shared": "workspace:*",
+    "@wolffm/rooms-protocol": "0.38.111",
+    "@wolffm/rooms-server": "0.38.111",
+    "express": "^5.1.0",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "esbuild": "0.28.2",
+    "socket.io-client": "^4.8.3",
     "tsx": "^4.19.2"
   }
 }

@@ -3,11 +3,25 @@
   "compilerOptions": {
     // nodenext (inherited): this package IS run by Node, unlike apps/ui which
     // Vite serves. That is why the relative imports here carry a `.js`
-    // extension — nodenext ESM requires it, and tsc does not add it.
-    "outDir": "dist",
-    "rootDir": "src",
+    // extension — nodenext ESM requires one, and tsc does not add it.
+    //
+    // `noEmit` because tsc does not produce this package's output any more:
+    // `@hadoku/draft` and `@hadoku/shared` export TypeScript SOURCE whose own
+    // imports carry `.ts` extensions, and tsc refuses to EMIT a program
+    // containing those — `allowImportingTsExtensions` below is only legal
+    // alongside `noEmit` (TS5096), and without it the program does not compile
+    // at all (TS5097). So `tsc` typechecks and esbuild bundles; see
+    // `package.json`'s `build` and `src/index.ts`'s header. `dist/index.js` is
+    // still what runs in production.
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "declaration": false,
-    "lib": ["ES2023"]
+    "sourceMap": false,
+    "lib": ["ES2023"],
+    "types": ["node"]
   },
+  // Tests are included so they are TYPECHECKED. They cannot reach `dist/`:
+  // esbuild bundles from `src/index.ts` alone, so nothing a test imports is
+  // reachable from the entry point and nothing a test defines is emitted.
   "include": ["src/**/*.ts"]
 }
