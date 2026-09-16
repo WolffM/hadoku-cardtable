@@ -36,7 +36,12 @@
  * reimplementation of its behaviour, and the citations above are the point.
  */
 
-import { DEFAULT_ART_INDEX, type CardRequest, type DeckEntry, type DeckFile } from '@hadoku/carddata';
+import {
+  DEFAULT_ART_INDEX,
+  type CardRequest,
+  type DeckEntry,
+  type DeckFile,
+} from '@hadoku/carddata/dck';
 
 /** Forge: `CardDb.NameSetSeparator` (CardDb.java:44). */
 const NAME_SET_SEPARATOR = '|';

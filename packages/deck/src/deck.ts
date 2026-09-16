@@ -9,15 +9,17 @@
  * There is deliberately NO format legality engine here. Forge has one
  * (`DeckFormat`, forge-core/src/main/java/forge/deck/DeckFormat.java) with
  * colour identity, singleton rules, banned lists and a max-four-copies check,
- * and every one of those is the wrong question for a cube deck. Forge's own
- * answer for limited play is one line:
+ * and every one of those is the wrong question for a cube deck. Constructed
+ * play asks them, and `format.ts` answers them — against a card pool handed in
+ * as an argument, so this file stays the pool→deck model and nothing more.
+ * Forge's own answer for limited play is one line:
  *
  *   Limited ( Range.of(40, Integer.MAX_VALUE), null, Integer.MAX_VALUE )
  *     -- DeckFormat.java:47
  *
  * Read left to right: the maindeck must be at least 40 cards, the sideboard is
  * unrestricted (`null` where the other formats carry a 0–15 range), and there
- * is no cap on distinct non-basic cards. `deckProblems` below implements
+ * is no cap on distinct non-basic cards. `deckIssues` below implements
  * exactly that and nothing else. The real constraint — that you may only play
  * what you drafted — is structural: `newDeck` puts the whole pool in the
  * sideboard and the move functions only ever shuffle cards between the two
@@ -29,7 +31,7 @@ import {
   type CardRequest,
   type DeckEntry,
   type DeckFile,
-} from '@hadoku/carddata';
+} from '@hadoku/carddata/dck';
 
 /**
  * Forge: `MagicColor.Constant.BASIC_LANDS` (MagicColor.java:138). Five names,
@@ -175,8 +177,55 @@ export function setBasicLand(deck: Deck, card: CardRequest, count: number): Deck
 }
 
 /**
- * Everything wrong with this deck, as human-readable strings. Empty means
- * playable.
+ * A single thing wrong with a deck, modelled rather than stringified.
+ *
+ * Forge's own answer here is `DeckFormat.getDeckConformanceProblem`
+ * (DeckFormat.java:255), which returns **one** `String` and stops at the first
+ * failure. That is enough to grey out a "Play" button and useless to anyone
+ * holding a 60-card list that does not pass: it names neither every offending
+ * card nor, in the copy-limit case, what the limit was. So we report all of
+ * them, and each one carries the card and the numbers a UI needs to render it.
+ *
+ * `message` is the human-readable line, and `deckProblems` is exactly
+ * `deckIssues(...).map(i => i.message)` — the string API is the same strings,
+ * not a parallel implementation.
+ */
+export type DeckIssueKind =
+  /** Fewer maindeck cards than the format's floor. */
+  | 'under-minimum-size'
+  /** More maindeck cards than the format's ceiling, where it has one. */
+  | 'over-maximum-size'
+  /** A sideboard that is neither empty nor within the format's range. */
+  | 'sideboard-out-of-range'
+  /** A card that is not in the pool the deck is being validated against. */
+  | 'not-in-pool'
+  /** More copies of a card than the format allows. */
+  | 'over-the-copy-limit'
+  /** A card on the format's banned list. */
+  | 'banned'
+  /** More than one copy of a card on the format's restricted list. */
+  | 'restricted'
+  /** Something in the basics pile that is not one of Forge's five basic lands. */
+  | 'not-a-basic-land'
+  /** More copies played than the drafted pool actually contained. */
+  | 'more-copies-than-drafted';
+
+export interface DeckIssue {
+  readonly kind: DeckIssueKind;
+  /** One line, suitable for a list item. */
+  readonly message: string;
+  /** The card at fault, or `null` for whole-deck issues like deck size. */
+  readonly card: CardRequest | null;
+  /** The card's name, or `null` when `card` is. Grouping key for a UI. */
+  readonly cardName: string | null;
+  /** How many the deck has: copies of the card, or cards in the section. */
+  readonly count: number | null;
+  /** What was allowed or required: a copy limit, a floor, a ceiling. */
+  readonly limit: number | null;
+}
+
+/**
+ * Everything wrong with this deck as a **drafted** deck, one issue per fault.
  *
  * The whole list, so there is no doubt about what is NOT checked: deck size
  * against `DeckFormat.Limited`'s floor, that the basics bucket holds only basic
@@ -184,18 +233,37 @@ export function setBasicLand(deck: Deck, card: CardRequest, count: number): Deck
  * card played was actually in it. No colours, no singleton rule, no four-copy
  * limit, no banned list. Forge's `DeckFormat.Limited` imposes none of those
  * either (DeckFormat.java:47).
+ *
+ * Constructed play is the other half and lives in `format.ts`, because it needs
+ * something this function does not have: a legal card pool. It takes one as an
+ * argument rather than reaching for a format table, which is what lets the pool
+ * and the deck library be built independently of each other.
  */
-export function deckProblems(deck: Deck, pool?: readonly DeckEntry[]): string[] {
-  const problems: string[] = [];
+export function deckIssues(deck: Deck, pool?: readonly DeckEntry[]): DeckIssue[] {
+  const issues: DeckIssue[] = [];
 
   const size = mainDeckSize(deck);
   if (size < LIMITED_MIN_MAIN_DECK_SIZE) {
-    problems.push(`maindeck has ${size} cards, needs at least ${LIMITED_MIN_MAIN_DECK_SIZE}`);
+    issues.push({
+      kind: 'under-minimum-size',
+      message: `maindeck has ${size} cards, needs at least ${LIMITED_MIN_MAIN_DECK_SIZE}`,
+      card: null,
+      cardName: null,
+      count: size,
+      limit: LIMITED_MIN_MAIN_DECK_SIZE,
+    });
   }
 
   for (const entry of deck.basics) {
     if (!isBasicLand(entry.card)) {
-      problems.push(`${entry.card.name} is in the basics pile but is not a basic land`);
+      issues.push({
+        kind: 'not-a-basic-land',
+        message: `${entry.card.name} is in the basics pile but is not a basic land`,
+        card: entry.card,
+        cardName: entry.card.name,
+        count: entry.count,
+        limit: null,
+      });
     }
   }
 
@@ -205,12 +273,48 @@ export function deckProblems(deck: Deck, pool?: readonly DeckEntry[]): string[] 
     for (const entry of poolOf(deck)) {
       const have = available.get(cardKey(entry.card)) ?? 0;
       if (entry.count > have) {
-        problems.push(`plays ${entry.count}x ${entry.card.name} but drafted ${have}`);
+        issues.push({
+          kind: 'more-copies-than-drafted',
+          message: `plays ${entry.count}x ${entry.card.name} but drafted ${have}`,
+          card: entry.card,
+          cardName: entry.card.name,
+          count: entry.count,
+          limit: have,
+        });
       }
     }
   }
 
-  return problems;
+  return issues;
+}
+
+/**
+ * Everything wrong with this deck, as human-readable strings. Empty means
+ * playable. The string face of `deckIssues`, kept because it is the shape the
+ * rest of the repo already consumes.
+ */
+export function deckProblems(deck: Deck, pool?: readonly DeckEntry[]): string[] {
+  return deckIssues(deck, pool).map((issue) => issue.message);
+}
+
+/**
+ * Read a parsed `.dck` as a **built** deck rather than as a pool.
+ *
+ * The inverse of `toDeckFile`, and the opposite of `newDeck`: `newDeck` opens a
+ * draft with the whole pool sideboarded, while this reads a deck someone has
+ * already built — a prebuilt constructed list, or a draft deck saved and
+ * reloaded. Basic lands stay where the file put them, in `main`, because a
+ * `.dck` does not distinguish them: `toDeckFile` merges the basics bucket into
+ * the main section (and `DeckSerializer` has no separate section for them
+ * either, DeckSection.java:11), so there is nothing to split back out.
+ */
+export function deckFromDeckFile(file: DeckFile, name?: string): Deck {
+  return {
+    name: name ?? file.name ?? '',
+    main: mergeEntries([...(file.sections.get('main') ?? [])]),
+    sideboard: mergeEntries([...(file.sections.get('sideboard') ?? [])]),
+    basics: [],
+  };
 }
 
 /**
