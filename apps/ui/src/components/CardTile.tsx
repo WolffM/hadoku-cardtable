@@ -4,15 +4,21 @@ import { memo, useMemo } from 'react';
  *
  * ## What this deliberately is not
  *
- * It is not a Magic card frame. There is no art box, no beveled border, no set
- * symbol, no rarity gem, no type icon, and no image of any kind — D13 and the
- * repo's trademark rule both point the same way, and the cheapest way to stay
- * on the right side of them is to build a layout that could not be mistaken for
- * the printed object: a flat panel, name and cost on one row, type line, rules
- * text, and a stat badge. Colour identity shows as a stripe down the leading
- * edge, which is ours.
+ * The chrome we draw is not a Magic card frame. No beveled border, no set
+ * symbol, no rarity gem, no type icon — the trademark rule is untouched and
+ * absolute, and the cheapest way to stay on the right side of it is a layout
+ * that could not be mistaken for the printed object: a flat panel, name and cost
+ * on one row, type line, rules text, and a stat badge. Colour identity shows as
+ * a stripe down the leading edge, which is ours.
  *
  * Rarity is a letter, not a gem: `C U R M S`.
+ *
+ * ## The text tile is the card; the art covers it
+ *
+ * Card art is a real `<img>` now, laid over the panel above. It does not replace
+ * the tile — the tile stays underneath as the fallback, so a card is readable
+ * whether or not an image ever arrives. Everything above still describes the
+ * chrome, which is what the trademark rule governs; the art is the card itself.
  *
  * ## Oracle text keeps its newlines
  *
@@ -85,23 +91,30 @@ function CardTileImpl({ card, onPick, disabled = false }: CardTileProps) {
         ? `${card.power}/${card.toughness}`
         : null;
 
-  // The image URL is built HERE, in the browser, from an id the payload
-  // carries. It is never stored, never serialised, and never touches our
-  // server — D13's "a link, not a host". See ../draft/cardImage.ts.
+  // The image URL is built HERE, in the browser, from an id the payload carries
+  // plus the committed art manifest. It is never stored and never serialised —
+  // the payload moves ids, not URLs. It may point at our own CDN, and it never
+  // points at the app's origin: we serve the app, not the bytes. Which source a
+  // card uses is a manifest entry, not a decision made in this component. See
+  // ../draft/cardImage.ts.
   const imageUrl = cardImageUrl(card.scryfallId);
 
   const body = (
     <>
       {imageUrl !== null && (
         // The whole unmodified card face, which carries its own copyright and
-        // artist credit — so Scryfall's presentation rules are satisfied by
-        // construction rather than by remembering to add a caption.
+        // artist credit — so a source with presentation rules is satisfied by
+        // construction rather than by remembering to add a caption. The art is
+        // a placeholder and may be re-sourced, so that property is kept even
+        // where it is not currently required.
         //
         // `loading="lazy"` because a pack is 15 cards and a pool reaches 45;
         // `decoding="async"` so decode never blocks a pick. On error the img
-        // removes itself and the text tile underneath is what you see, which
-        // is a complete card on its own — the 47 cards in this cube with no
-        // Scryfall mapping take that path every time.
+        // removes itself and the text tile underneath is what you see, which is
+        // a complete card on its own. Every card in this cube resolves to a URL
+        // now — all 534 carry a scryfallId — so the path that matters here is a
+        // fetch that fails: a CDN key that was never uploaded 404s, and only
+        // this handler turns that into a readable card instead of a broken one.
         <img
           className="card__art"
           src={imageUrl}
