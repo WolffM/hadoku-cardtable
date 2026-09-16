@@ -1,0 +1,269 @@
+/*
+ * The product shell: lobby, pod bar, invite, deck stub.
+ *
+ * Co-located with the screens it styles and imported by `App.tsx`, NOT added to
+ * `apps/ui/src/styles.css`. That file is the draft table's styling and is owned
+ * by nobody this wave; a second lane editing it in the same tree is how a wave
+ * ends up with a merge conflict in a file neither of them owns.
+ *
+ * It does inherit `styles.css`'s custom properties — `--bg`, `--ink`, `--accent`
+ * and the rest are defined on `:root` there, and `main.tsx` imports it first, so
+ * the palette is shared rather than forked. Nothing here redefines a token.
+ *
+ * Same two legal rules as the table: no `url()` anywhere, and no WotC trade
+ * dress. There is nothing to draw here but text, boxes and one status dot.
+ */
+
+/* ── shell ─────────────────────────────────────────────────────────── */
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.shell__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shell__title {
+  font-size: 28px;
+  letter-spacing: -0.01em;
+}
+
+.shell__sub {
+  margin: 0;
+  color: var(--ink-dim);
+}
+
+.shell__foot {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-faint);
+  font-size: 12px;
+  max-width: 70ch;
+}
+
+.shell__foot p {
+  margin: 0 0 6px;
+}
+
+.shell__link {
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.shell__link:hover,
+.shell__link:focus-visible {
+  text-decoration: underline;
+}
+
+/* ── lobby ─────────────────────────────────────────────────────────── */
+
+.lobby {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  align-items: start;
+}
+
+.lobby__card {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lobby__card h2 {
+  font-size: 17px;
+}
+
+.lobby__note {
+  margin: 0;
+  color: var(--ink-dim);
+  max-width: 52ch;
+}
+
+.lobby__go {
+  align-self: flex-start;
+  background: var(--accent);
+  color: #10131a;
+  border: 0;
+  border-radius: var(--radius);
+  padding: 10px 18px;
+  font-weight: 600;
+}
+
+.lobby__go:hover,
+.lobby__go:focus-visible {
+  filter: brightness(1.08);
+}
+
+.lobby__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lobby__form label {
+  flex-basis: 100%;
+  color: var(--ink-faint);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.lobby__form input {
+  flex: 1 1 220px;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  font: inherit;
+}
+
+.lobby__form button {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 9px 16px;
+}
+
+.lobby__error {
+  margin: 0;
+  color: var(--warn);
+}
+
+/* ── pod ───────────────────────────────────────────────────────────── */
+
+.pod__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+}
+
+.pod__who {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pod__id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.pod__cube,
+.pod__conn,
+.pod__tally {
+  color: var(--ink-dim);
+  font-size: 13px;
+}
+
+.pod__seats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pod__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  flex: none;
+}
+
+.pod__dot--on {
+  background: var(--c-green);
+}
+
+.pod__invite {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 340px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.pod__invite-label {
+  color: var(--ink-faint);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.pod__invite-url {
+  flex: 1 1 200px;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 7px 9px;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.pod__invite button {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 7px 14px;
+}
+
+.pod__invite-said {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.pod__error {
+  margin: 0;
+  color: var(--warn);
+}
+
+.pod__waiting,
+.pod__done {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.pod__waiting p,
+.pod__done p {
+  margin: 0;
+  color: var(--ink-dim);
+  max-width: 60ch;
+}
+
+.pod__pool {
+  margin: 0;
+  padding-left: 22px;
+  columns: 3;
+  column-gap: 32px;
+  color: var(--ink-dim);
+}
