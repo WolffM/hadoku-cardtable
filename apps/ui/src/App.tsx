@@ -1,21 +1,36 @@
 /**
  * The harness around `DraftScreen`.
  *
- * Two sources, one screen. **Live** runs the real engine in-process and is what
- * a draft actually looks like; **Fixtures** replays the five committed payloads
- * and is the regression net — it is how a rendering bug gets pinned to a known
- * input, and it is what the hidden-information control walks.
+ * Three sources, one screen. **Live** runs the real engine in-process and is
+ * what a draft actually looks like without a server; **Fixtures** replays the
+ * five committed payloads and is the regression net — it is how a rendering bug
+ * gets pinned to a known input, and it is what the hidden-information control
+ * walks; **Server** connects a socket to a real draft and renders only what it
+ * is sent.
  *
  * `DraftScreen` has no idea which is driving it. That was the point of building
  * the UI against fixtures first: swapping the source is a change in this file
- * and nowhere else, and it will be the same change again when the engine moves
- * behind a socket.
+ * and nowhere else, and the socket source is that promise being collected —
+ * `DraftScreen`'s props did not move to add it.
+ *
+ * **The first two sources stay.** A source that cannot have a network bug is
+ * how a rendering regression gets bisected, and the local engine is the only
+ * one that works with no server at all.
+ *
+ * ## Where the async goes
+ *
+ * `live.ts` is synchronous: `applyPick` returns the next view. `socket.ts`
+ * cannot be — the next view arrives later, or never. That difference is
+ * absorbed HERE, in the harness: the socket source holds a `TableState | null`
+ * and renders a connection panel until the first snapshot lands. Pushing it
+ * down into `DraftScreen` would have made every other source pay for it.
  *
  * Fixtures are validated at boot rather than trusted, and so is every payload
- * the live engine produces — see `live.ts`.
+ * the live engine produces (`live.ts`) and every envelope the server sends
+ * (`socket.ts`).
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useReducer, useState } from 'react';
 
 import { FIXTURES, loadFixtures } from './draft/fixtures.ts';
 import { applyPayload, initialState, type TableState } from './draft/table.ts';
@@ -28,12 +43,24 @@ import {
   startDraft,
   type LiveDraft,
 } from './draft/live.ts';
+import {
+  applyPick as socketPick,
+  closeDraft as socketClose,
+  cubeName as socketCubeName,
+  cubeSize as socketCubeSize,
+  isComplete as socketComplete,
+  myPool as socketPool,
+  mySeat as socketSeat,
+  startDraft as socketStart,
+  type SocketDraft,
+} from './draft/socket.ts';
 import { DraftScreen } from './components/DraftScreen.tsx';
 import type { PackLayout } from './components/PackView.tsx';
 
-type Source = 'live' | 'fixtures';
+type Source = 'live' | 'fixtures' | 'socket';
 
 const DEFAULT_SEED = 'friday-cube';
+const DEFAULT_DRAFT_ID = 'friday-cube';
 
 export function App() {
   const [source, setSource] = useState<Source>('live');
@@ -80,9 +107,67 @@ export function App() {
       (v) => v.draftId === fixtureState.view.draftId && v.seq > fixtureState.view.seq,
     ) ?? null;
 
+  // --- socket -------------------------------------------------------------
+  const [draftIdInput, setDraftIdInput] = useState(DEFAULT_DRAFT_ID);
+  const [socketDraft, setSocketDraft] = useState<SocketDraft | null>(null);
+  const [socketState, setSocketState] = useState<TableState | null>(null);
+  /**
+   * The driver is a mutable handle — a socket's state changes under you. This
+   * is what tells React something happened; the handle itself keeps its
+   * identity so `applyPick(draft, …)` reads the same as it does for `live`.
+   */
+  const [, socketChanged] = useReducer((n: number) => n + 1, 0);
+
+  const connect = (draftId: string): void => {
+    // The previous connection is closed by the effect below, which is the only
+    // place that hangs up — two paths for one socket is how a leak starts.
+    let shown = '';
+    setSocketState(null);
+    setSocketDraft(
+      socketStart({
+        draftId,
+        onChange: (d) => {
+          socketChanged();
+          if (d.view === null) {
+            shown = '';
+            setSocketState(null);
+            return;
+          }
+          // Rebuild the table only when the PAYLOAD changed. A rejection or a
+          // reconnect notifies too, and rebuilding on those would throw away
+          // the pending pick the screen is showing.
+          const stamp = `${d.view.epoch}:${d.view.seq}`;
+          if (stamp === shown) return;
+          shown = stamp;
+          setSocketState(initialState(d.view));
+        },
+      }),
+    );
+  };
+
+  useEffect(() => {
+    if (socketDraft === null) return;
+    return () => {
+      socketClose(socketDraft);
+    };
+  }, [socketDraft]);
+
+  const onSocketPick = (cardId: string): void => {
+    if (socketDraft !== null) socketPick(socketDraft, cardId);
+  };
+
   const live = source === 'live';
+  const fixtures = source === 'fixtures';
+  const onSocket = source === 'socket';
   const done = isComplete(draft);
   const picked = myPool(draft).length;
+
+  const socketSeatId = socketDraft === null ? null : socketSeat(socketDraft);
+  const socketDone = socketDraft !== null && socketComplete(socketDraft);
+  const socketPicked = socketDraft === null ? 0 : socketPool(socketDraft).length;
+
+  /** Which state the screen is rendering. Null only while a socket is waiting. */
+  const screenState = live ? liveState : fixtures ? fixtureState : socketState;
 
   return (
     <div className="app">
@@ -102,16 +187,26 @@ export function App() {
           <li>
             <button
               type="button"
-              className={!live ? 'fixtures__on' : ''}
-              aria-current={!live}
+              className={fixtures ? 'fixtures__on' : ''}
+              aria-current={fixtures}
               onClick={() => setSource('fixtures')}
             >
               Fixtures — five committed payloads
             </button>
           </li>
+          <li>
+            <button
+              type="button"
+              className={onSocket ? 'fixtures__on' : ''}
+              aria-current={onSocket}
+              onClick={() => setSource('socket')}
+            >
+              Server — a real draft over a socket
+            </button>
+          </li>
         </ul>
 
-        {live ? (
+        {live && (
           <>
             <span className="fixtures__label">Seed</span>
             <form
@@ -140,7 +235,9 @@ export function App() {
               seed <code>{seed}</code> · picked {picked}/45
             </p>
           </>
-        ) : (
+        )}
+
+        {fixtures && (
           <ul className="fixtures__list">
             {FIXTURES.map((fixture, i) => (
               <li key={fixture.file}>
@@ -156,6 +253,52 @@ export function App() {
               </li>
             ))}
           </ul>
+        )}
+
+        {onSocket && (
+          <>
+            <span className="fixtures__label">Draft</span>
+            <form
+              className="fixtures__seed"
+              onSubmit={(e) => {
+                e.preventDefault();
+                connect(draftIdInput.trim() === '' ? DEFAULT_DRAFT_ID : draftIdInput.trim());
+              }}
+            >
+              <label htmlFor="draftId">
+                The id of the draft to join. Which seat you get is the server&rsquo;s
+                answer, not this browser&rsquo;s request.
+              </label>
+              <input
+                id="draftId"
+                value={draftIdInput}
+                onChange={(e) => setDraftIdInput(e.target.value)}
+                spellCheck={false}
+              />
+              <button type="submit">{socketDraft === null ? 'Connect' : 'Reconnect'}</button>
+            </form>
+            <p className="fixtures__note">
+              {socketDraft === null ? (
+                'Not connected.'
+              ) : (
+                <>
+                  <strong>{socketCubeName(socketDraft) ?? socketDraft.draftId}</strong>
+                  <br />
+                  {socketCubeSize(socketDraft) === null ? null : `${socketCubeSize(socketDraft)} cards · `}
+                  {socketDraft.connected ? 'connected' : 'offline'}
+                  {socketSeatId === null ? ' · no seat yet' : ` · you are seat ${socketSeatId}`}
+                  <br />
+                  picked {socketPicked}
+                  {socketDraft.lastError === null ? null : (
+                    <>
+                      {' · '}
+                      <strong>{socketDraft.lastError.code}</strong>
+                    </>
+                  )}
+                </>
+              )}
+            </p>
+          </>
         )}
       </nav>
 
@@ -175,14 +318,33 @@ export function App() {
             Draft it again
           </button>
         </div>
+      ) : onSocket && socketDraft !== null && socketDone ? (
+        <div className="app__done">
+          <h1>Draft complete</h1>
+          <p>Every pick is in. The pool below is what the server says you took.</p>
+          <ol className="app__pool">
+            {socketPool(socketDraft).map((card) => (
+              <li key={card.cardId}>{card.name}</li>
+            ))}
+          </ol>
+        </div>
+      ) : screenState === null ? (
+        <div className="app__done">
+          <h1>{socketDraft === null ? 'No connection' : 'Waiting for the table'}</h1>
+          <p>
+            {socketDraft === null
+              ? 'Pick a draft id and connect. Nothing is drafted in this tab on this source — the engine runs on the server and this browser renders what it is sent.'
+              : 'Joined; waiting for the first payload. If the server restarts mid-draft the client discards what it has and refetches, rather than trying to patch state from a different incarnation.'}
+          </p>
+        </div>
       ) : (
         <DraftScreen
-          state={live ? liveState : fixtureState}
-          onChange={live ? setLiveState : setFixtureState}
-          onPick={live ? onLivePick : undefined}
-          nextPayload={live ? null : nextPayload}
+          state={screenState}
+          onChange={live ? setLiveState : onSocket ? setSocketState : setFixtureState}
+          onPick={live ? onLivePick : onSocket ? onSocketPick : undefined}
+          nextPayload={fixtures ? nextPayload : null}
           onAdvance={
-            !live && nextPayload
+            fixtures && nextPayload
               ? () => setFixtureState((prev) => applyPayload(prev, nextPayload))
               : undefined
           }
@@ -194,8 +356,13 @@ export function App() {
       <footer className="app__foot">
         <p>
           {live
-            ? 'The engine runs in this tab — no server, no socket, no room. Cards are rendered from text; this project never loads, caches or proxies a card image.'
-            : 'Fixtures only — no server, no socket, no room. Cards are rendered from text; this project never loads, caches or proxies a card image.'}
+            ? 'The engine runs in this tab — no server, no socket, no room.'
+            : fixtures
+              ? 'Fixtures only — no server, no socket, no room.'
+              : 'The engine runs on the server; this tab renders only what it is sent.'}{' '}
+          Card text is drawn by us. Card art is fetched by your browser straight from
+          Scryfall — a link, not a host: this project never commits, hosts, mirrors,
+          caches or proxies a card image, and our server never touches one.
         </p>
       </footer>
     </div>
