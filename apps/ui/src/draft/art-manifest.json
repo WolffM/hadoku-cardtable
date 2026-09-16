@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "note": "Per-card art assignments, scryfallId to {source, key}. Hand-curated and kept OUT of pool.json on purpose: build-pool regenerates the pool wholesale and never writes this file, so repointing a card survives the next regeneration. Resolved by packages/carddata/src/art/index.ts; an id with no row here falls back to Scryfall, which is why shipping it empty is exactly today's behaviour. Empty until the upload CLI has run.",
+  "entries": {}
+}
