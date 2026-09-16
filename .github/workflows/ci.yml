@@ -25,11 +25,18 @@ permissions:
 jobs:
   check:
     name: check
-    # The fleet form: CI_RUNNER is normally unset, which means the self-hosted
-    # claws. mgmt-api sets it to a hosted runner only while every claw is
-    # offline. Hardcoding ubuntu-latest pinned this repo onto billed minutes
-    # for no benefit.
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
+    # The fleet form. `vars.CI_RUNNER` holds the label set to schedule on:
+    # normally the self-hosted claws, and mgmt-api flips it to a hosted runner
+    # only while every claw is offline. Hardcoding `ubuntu-latest` pinned this
+    # repo onto billed minutes for no benefit.
+    #
+    # No `||` fallback: this repo is in hadoku_site's fleet-runner-coverage.json,
+    # so the variable is always set (verified 2026-09-16: it reads
+    # ["self-hosted","hadoku-builder"]). A literal default is a second copy of
+    # the label set that nothing keeps in step with the first, and it only ever
+    # takes effect in the one case where the fleet has deliberately said
+    # otherwise.
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
