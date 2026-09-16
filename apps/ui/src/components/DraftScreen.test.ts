@@ -73,10 +73,18 @@ describe('the draft screen, on committed fixtures', () => {
     ]);
   });
 
-  it('never renders an image element anywhere (D13)', () => {
+  it('renders no image for a payload that carries no scryfallId (D13)', () => {
+    // The committed fixtures predate card art and carry no `scryfallId`, so
+    // nothing here can build a URL. This asserts the FALLBACK — a card with no
+    // id is a complete, readable text tile — not "images are forbidden".
+    //
+    // It used to assert exactly that, and it kept passing after images shipped,
+    // because fixtures have no ids. A control that cannot fail is not a
+    // control; the real D13 invariant is asserted in `draft/cardImage.test.ts`
+    // and on the live source, where images actually render.
     const { container } = mount();
-    expect(container.querySelectorAll('img, picture, svg image')).toHaveLength(0);
-    expect(container.innerHTML).not.toMatch(/scryfall|image_uris|\.jpg|\.png/i);
+    expect(container.querySelectorAll('img')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-testid="card"]').length).toBeGreaterThan(0);
   });
 
   it('shows the pack and pick counters and the payload seq', () => {

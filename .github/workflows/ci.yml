@@ -82,32 +82,49 @@ jobs:
       - name: Test
         run: pnpm run test
 
-      # The bundle is what actually reaches a browser, so D13 — never commit,
-      # host, mirror, cache or proxy a card image — is checked against the
-      # ARTIFACT, not only the source. `pool.json` is inlined into it here.
+      # ── D13, as the rule actually reads ──────────────────────────────────
       #
-      # This runs on every push rather than only on a release: the loopback
-      # server hands out `apps/ui/dist` straight off disk, so a bundle that
-      # reached main is a bundle that reaches production on the next redeploy.
+      # NOT "no images". `docs/LICENSING.md` §Concrete rules 2-3: never commit
+      # or host card images; the browser fetches them from upstream directly;
+      # our server never proxies, caches or stores them. A link, not a host.
       #
-      # It greps FIELD NAMES and URL SHAPES, never free text. A first cut
-      # scanned text and fired immediately on `Mirror Image`, `Phantasmal
-      # Image` and `Nissa's Pilgrimage` — "image" is a substring of real card
-      # names, and a control that cries wolf on legitimate data gets switched
-      # off, which is worse than not having one.
+      # So this gate checks the boundary, in the artifact that reaches a
+      # browser:
+      #   1. no image BYTES are shipped — we host nothing;
+      #   2. no same-origin or relative image URL — that would be us serving it;
+      #   3. no `image_uris` blob copied out of Scryfall's records — the payload
+      #      carries an id and the client builds the URL.
+      # `cards.scryfall.io` appearing in the bundle is CORRECT and expected: it
+      # is the one host a card image may come from.
       - name: Build the bundle
         run: pnpm --filter @hadoku/ui build
 
-      - name: D13 — no card images in the built bundle
+      - name: D13 — a link, not a host
         run: |
           set -euo pipefail
           dist=apps/ui/dist
-          if grep -rIlE 'https?://[^"]*(\.(jpe?g|png|webp|gif)|scryfall\.io)' "$dist"; then
-            echo "::error::D13 violation — the bundle carries an image URL."
+
+          # 1. No image bytes shipped.
+          if find "$dist" -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \
+               -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.avif' \) | grep -q .; then
+            echo "::error::D13 — the bundle ships image files. We host nothing."
+            find "$dist" -type f \( -iname '*.jpg' -o -iname '*.png' -o -iname '*.webp' \) | head
             exit 1
           fi
+
+          # 2. Any image URL must be Scryfall's. A relative or same-origin one
+          #    means we are serving the bytes.
+          if grep -rIoE '"[^"]*\.(jpe?g|png|webp|gif|avif)"' "$dist" \
+               | grep -vE 'cards\.scryfall\.io' | grep -q .; then
+            echo "::error::D13 — an image URL that is not cards.scryfall.io."
+            grep -rIoE '"[^"]*\.(jpe?g|png|webp|gif|avif)"' "$dist" | grep -vE 'cards\.scryfall\.io' | head
+            exit 1
+          fi
+
+          # 3. No copied Scryfall image metadata.
           if grep -rIlE '"image_uris"|"image_status"|"art_crop"' "$dist"; then
-            echo "::error::D13 violation — the bundle carries a Scryfall image field."
+            echo "::error::D13 — the bundle carries a Scryfall image blob. Carry the id, build the URL."
             exit 1
           fi
-          echo "D13: no image URL and no image field in $dist"
+
+          echo "D13: no image bytes, no same-origin image URL, no copied image metadata."

@@ -36,6 +36,9 @@ export function formatPath(parts: ReadonlyArray<string | number>): string {
 /** Fields a card may carry. Anything else is a failure; see `IMAGE_HINT`. */
 const CARD_FIELDS = new Set([
   'cardId',
+  // Scryfall's id. Permitted, and deliberately NOT an image field: it is an
+  // identifier the browser turns into a URL itself. See draft.ts.
+  'scryfallId',
   'name',
   'manaCost',
   'manaValue',

@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 /**
  * One card, drawn as our own layout.
  *
@@ -22,6 +23,7 @@
 
 import type { DraftCard } from '../draft/types.ts';
 import { ManaCost, ManaPip } from './ManaPip.tsx';
+import { cardImageUrl } from '../draft/cardImage.ts';
 
 const RARITY_LETTER: Record<string, string> = {
   common: 'C',
@@ -65,8 +67,17 @@ export interface CardTileProps {
   disabled?: boolean;
 }
 
-export function CardTile({ card, onPick, disabled = false }: CardTileProps) {
+function CardTileImpl({ card, onPick, disabled = false }: CardTileProps) {
   const identity = card.colors.length === 0 ? 'colorless' : card.colors.join('').toLowerCase();
+  // Splitting oracle text runs a regex per line. It is small per card and
+  // ruinous in aggregate: a late-draft screen holds 15 pack tiles plus a pool
+  // of up to 45, and without this every one of them re-parsed its rules on
+  // every pick. Keyed on the text, so it is computed once per card for the
+  // lifetime of the tile.
+  const rulesLines = useMemo(
+    () => card.oracleText.split('\n').filter((l) => l !== ''),
+    [card.oracleText],
+  );
   const stat =
     card.loyalty !== undefined
       ? card.loyalty
@@ -74,8 +85,38 @@ export function CardTile({ card, onPick, disabled = false }: CardTileProps) {
         ? `${card.power}/${card.toughness}`
         : null;
 
+  // The image URL is built HERE, in the browser, from an id the payload
+  // carries. It is never stored, never serialised, and never touches our
+  // server — D13's "a link, not a host". See ../draft/cardImage.ts.
+  const imageUrl = cardImageUrl(card.scryfallId);
+
   const body = (
     <>
+      {imageUrl !== null && (
+        // The whole unmodified card face, which carries its own copyright and
+        // artist credit — so Scryfall's presentation rules are satisfied by
+        // construction rather than by remembering to add a caption.
+        //
+        // `loading="lazy"` because a pack is 15 cards and a pool reaches 45;
+        // `decoding="async"` so decode never blocks a pick. On error the img
+        // removes itself and the text tile underneath is what you see, which
+        // is a complete card on its own — the 47 cards in this cube with no
+        // Scryfall mapping take that path every time.
+        <img
+          className="card__art"
+          src={imageUrl}
+          // No srcSet: one correctly-chosen size beats a responsive set that
+          // resolves to the largest candidate. See cardImage.ts.
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+      )}
       <span className="card__stripe" data-identity={identity} aria-hidden="true" />
       <span className="card__head">
         <span className="card__name">{card.name}</span>
@@ -83,12 +124,9 @@ export function CardTile({ card, onPick, disabled = false }: CardTileProps) {
       </span>
       <span className="card__type">{card.typeLine}</span>
       <span className="card__rules">
-        {card.oracleText
-          .split('\n')
-          .filter((l) => l !== '')
-          .map((line, i) => (
-            <RulesLine key={i} line={line} />
-          ))}
+        {rulesLines.map((line, i) => (
+          <RulesLine key={i} line={line} />
+        ))}
       </span>
       <span className="card__foot">
         <span className="card__print">
@@ -128,3 +166,18 @@ export function CardTile({ card, onPick, disabled = false }: CardTileProps) {
     </button>
   );
 }
+
+/**
+ * Memoised on purpose.
+ *
+ * A card is immutable for the life of a draft — `cardId` is stable and nothing
+ * about a printed card changes — so a tile only ever needs to re-render when it
+ * is handed a different card. Without this, one pick re-rendered every tile on
+ * screen: 15 in the pack plus the whole pool, which grows to 45. That is the
+ * lag, and it got worse the further into a draft you were.
+ *
+ * `onPick` must be referentially stable for this to bite — see the `useCallback`
+ * in DraftScreen. A fresh closure per render would defeat the comparison and
+ * quietly restore the old behaviour.
+ */
+export const CardTile = memo(CardTileImpl);

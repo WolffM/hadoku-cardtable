@@ -82,6 +82,10 @@ function toDraftCard(card: GameplayCard, cardId: string): Record<string, unknown
 
   const out: Record<string, unknown> = {
     cardId,
+    // Scryfall's id, so the BROWSER can derive an image URL. Not a URL, and not
+    // their `image_uris` blob — see the D13 note in the header, and
+    // apps/ui/src/draft/cardImage.ts for the only place it becomes a URL.
+    ...(typeof raw.id === 'string' ? { scryfallId: raw.id } : {}),
     name: String(raw.name ?? front?.name ?? 'Unknown'),
     manaCost,
     manaValue: typeof raw.cmc === 'number' ? raw.cmc : 0,
@@ -163,6 +167,11 @@ async function main(): Promise<void> {
   // `Phantasmal Image`, `Imagecrafter`, and `Nissa's Pilgrimage`, where "image"
   // is a substring of a real card name. A control that cries wolf on legitimate
   // gameplay data gets switched off, which is worse than not having one.
+  // The pool is data we COMMIT, so it must carry no image URL and no image
+  // field — only the id. Card images reach a browser by being constructed
+  // client-side at render time, which is what keeps this repo a link and not a
+  // host (docs/LICENSING.md §Concrete rules 3). A URL in this file would be the
+  // first step toward caching one.
   const IMAGE_FIELD = /image|img|artcrop|thumbnail|picture/i;
   const IMAGE_URL = /https?:\/\/[^"]*(\.(jpe?g|png|webp|gif)|scryfall\.io)/i;
   for (const card of pool) {

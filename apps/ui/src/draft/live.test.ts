@@ -45,12 +45,26 @@ describe('the bundled pool is a real cube', () => {
     expect(seat.pack.some((c) => c.oracleText.length > 0)).toBe(true);
   });
 
-  it('never carries an image field — the pool ships in the bundle (D13)', () => {
+  it('the PAYLOAD carries ids, never image URLs (D13)', () => {
+    // The payload is the thing that would be cached, persisted or sent over a
+    // wire, so it must stay a reference. A URL only ever exists in the browser
+    // at render time — see cardImage.ts and cardImage.test.ts.
     const draft = startDraft('d13-check');
     const json = JSON.stringify(draft.view);
-    expect(json).not.toMatch(/"image[^"]*":/i);
-    expect(json).not.toMatch(/https?:\/\/\S*\.(jpe?g|png|webp)/i);
     expect(json).not.toContain('scryfall.io');
+    expect(json).not.toMatch(/https?:\/\//);
+    expect(json).not.toContain('image_uris');
+    expect(json).not.toMatch(/"image[^"]*":/i);
+  });
+
+  it('carries a scryfallId, so the browser can build an image URL', () => {
+    const draft = startDraft('id-check');
+    const seat = viewerSeat(draft.view);
+    expect(seat).not.toBeNull();
+    if (!seat) return;
+    const withIds = seat.pack.filter((c) => typeof c.scryfallId === 'string');
+    // Most of this cube resolves; 47 of 540 do not and legitimately have none.
+    expect(withIds.length).toBeGreaterThan(seat.pack.length / 2);
   });
 });
 

@@ -21,7 +21,7 @@
  * complete until the server says it is.
  */
 
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 import type { DraftView } from '../draft/types.ts';
 import {
@@ -76,16 +76,30 @@ export function DraftScreen({
   const blocked = pickBlockedBy(state);
   const awaiting = isAwaitingConfirmation(state);
 
-  const handlePick = (cardId: string): void => {
-    const result = pick(state, cardId);
-    if (!result.ok) {
-      setMessage(explainRejection(result.rejection));
-      return;
-    }
-    setMessage(null);
-    onChange(result.state);
-    onPick?.(cardId);
-  };
+  // Referentially stable, because `CardTile` is memoised and this is the prop
+  // it compares. A fresh closure per render would make every tile re-render on
+  // every pick and quietly undo the memo — the failure would be invisible in
+  // tests and visible only as lag late in a draft.
+  // The callback must not close over `state`, which changes on every pick —
+  // that was the first attempt and it did nothing, because the new closure
+  // identity defeated the memo just as surely as no memo at all. A ref gives
+  // the handler the current state without making the handler itself change.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const handlePick = useCallback(
+    (cardId: string): void => {
+      const result = pick(stateRef.current, cardId);
+      if (!result.ok) {
+        setMessage(explainRejection(result.rejection));
+        return;
+      }
+      setMessage(null);
+      onChange(result.state);
+      onPick?.(cardId);
+    },
+    [onChange, onPick],
+  );
 
   const emptyNote = spectating
     ? 'Spectating — a spectator payload carries no pack.'

@@ -76,6 +76,20 @@ export const RaritySchema = z.enum(['common', 'uncommon', 'rare', 'mythic', 'spe
 export const DraftCardSchema = z.object({
   /** Stable within one draft. Distinguishes two copies of the same card. */
   cardId: z.string().min(1),
+  /**
+   * Scryfall's own card id, carried ONLY so the browser can derive an image
+   * URL for itself — see `apps/ui/src/draft/cardImage.ts`.
+   *
+   * The id, not a URL and not Scryfall's `image_uris` blob. Carrying the id
+   * keeps the payload a *reference*: we never copy their image metadata, and
+   * our server never learns an image URL, let alone fetches one. D13's rule is
+   * "a link, not a host" (`docs/LICENSING.md` §Concrete rules 3), and an id is
+   * the smallest thing that can be a link.
+   *
+   * Optional because the engine does not need it — a draft is playable from
+   * text alone, and a card that failed to resolve has no id to carry.
+   */
+  scryfallId: z.string().uuid().optional(),
   name: z.string().min(1),
   manaCost: z.array(z.string()),
   manaValue: z.number().nonnegative(),

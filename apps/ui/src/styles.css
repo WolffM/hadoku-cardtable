@@ -316,7 +316,22 @@ button {
   margin-left: calc(var(--card-w) / -2);
   transform-origin: 50% 165%;
   transform: translateX(var(--fan-x, 0)) rotate(var(--fan-a, 0deg));
-  transition: transform 120ms ease, filter 120ms ease;
+  /*
+   * Transition ONLY transform. The hover lift used to transition `filter` too,
+   * and `filter: drop-shadow()` is not a cheap property: it forces the browser
+   * to rasterize the element and re-derive a shadow from its alpha channel,
+   * every frame of the 120ms, for a tile that holds ~22 nodes. Fifteen of those
+   * in an arc under a moving cursor is the lag you could feel.
+   *
+   * `transform` alone is compositor-driven, so the lift costs no repaint.
+   */
+  transition: transform 120ms ease;
+  /*
+   * Promote to its own layer so the lift never repaints the cards behind it.
+   * Scoped to the slot rather than the card, so the promoted layer is the thing
+   * that actually moves.
+   */
+  will-change: transform;
 }
 
 /*
@@ -333,7 +348,13 @@ button {
   transform: translateX(var(--fan-x, 0)) translateY(-26px) scale(1.06)
     rotate(var(--fan-a, 0deg));
   z-index: 999 !important;
-  filter: drop-shadow(0 14px 26px rgb(0 0 0 / 60%));
+  /*
+   * `box-shadow`, not `filter: drop-shadow()`. A card is a rectangle, so the
+   * two are visually equivalent here — and box-shadow is drawn directly rather
+   * than rasterize-then-reshadow. drop-shadow only earns its cost on a shape
+   * with a real alpha silhouette, which this is not.
+   */
+  box-shadow: 0 14px 26px rgb(0 0 0 / 60%);
 }
 
 /*
@@ -770,4 +791,58 @@ button {
 
 .seat--waiting .seat__clock {
   color: var(--accent);
+}
+
+/*
+ * Card art — the upstream image, covering the text tile beneath it.
+ *
+ * The text tile is NOT replaced. It stays in the DOM underneath as the
+ * fallback: the 47 cards in this cube with no Scryfall mapping never get an
+ * image, and a failed fetch removes the img and reveals the text. A card is
+ * always readable, image or not.
+ *
+ * `object-fit: cover` with the card's own aspect ratio means the image is never
+ * distorted, skewed or stretched — which is one of Scryfall's presentation
+ * rules, so it is load-bearing rather than cosmetic. No filter, no blur, no
+ * desaturation, no overlay that could clip the copyright line.
+ */
+.card__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  /* Above the text tile, below nothing else. */
+  z-index: 1;
+  pointer-events: none;
+  /* No filter of any kind here. See the note above: altering the image is a
+     presentation-rule violation, not a style choice. */
+}
+
+/* The tile becomes the positioning context for the art that covers it. */
+.card {
+  position: relative;
+}
+
+/*
+ * A tile carrying art takes the CARD's aspect ratio, not the text layout's.
+ *
+ * This is a licensing rule wearing a stylesheet's clothes. The text tile is
+ * sized by its content — measured at 241x268, a ratio of 0.90 — while a Magic
+ * card is 488x680, or 0.72. Painting one into the other with `object-fit:
+ * cover` crops the difference off the top and bottom, and the bottom of a card
+ * is where the copyright line and the artist credit are printed.
+ *
+ * Scryfall's image guidelines are explicit that you may not cover, crop or clip
+ * off the copyright or artist name. So the box is made card-shaped and the
+ * image fills it exactly: nothing is cropped, nothing is distorted, and the
+ * credit stays legible.
+ *
+ * Scoped with :has() so text-only tiles — the 47 cards in this cube with no
+ * Scryfall mapping, and any failed fetch — keep their content-sized layout.
+ */
+.card:has(.card__art) {
+  aspect-ratio: 488 / 680;
+  height: auto;
 }
