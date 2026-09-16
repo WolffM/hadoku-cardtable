@@ -41,7 +41,8 @@ concurrency:
 jobs:
   dispatch-redeploy:
     name: dispatch redeploy
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
+    # See ci.yml for why there is no `||` fallback here.
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 10
     steps:
       - name: Mark the start, so the reported duration is real
