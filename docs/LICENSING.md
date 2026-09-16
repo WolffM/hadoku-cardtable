@@ -106,7 +106,7 @@ Roughly in order of how much attention each attracts:
 | --- | --- |
 | **Money** — sales, subs, ads, donations, Patreon | **None. Ever.** Not even "buy me a coffee". This is the single brightest line. |
 | **Public availability** — open signup, SEO, app stores | Friend-tier edge gate, no public signup, no indexing |
-| **Card images at scale** — hosting/mirroring scans | **Never mirror.** See below. |
+| **Card images at scale** — hosting/mirroring scans | **We host art on `cdn.hadoku.me`** as of 2026-09-15 (D15) — one cube, ~53 MB, treated as a replaceable placeholder. This moved us *up* this row on purpose; §3.1 records the trade and its price. Before that date this row read *"Never mirror."* |
 | **Looking official** — WotC logos, mana symbols, set symbols, the Magic wordmark, card frames | Our own visual language. No WotC marks anywhere in the UI. |
 | **Scale / visibility** — big playerbase, streams, press | A handful of friends |
 | Card names + Oracle text | Unavoidable for any engine; functional; lowest-attention item on this list |
@@ -114,12 +114,31 @@ Roughly in order of how much attention each attracts:
 ### Concrete rules for this repo
 
 1. **No money, in any form, ever.**
-2. **Never commit or host card images.** `.gitignore` already refuses `*.jpg`,
-   `*.png`, `cards/`, `card-images/`. Card art belongs to WotC and the artists —
-   *nobody* can license it to us, Scryfall included.
-3. **Client-side image fetching only.** The browser fetches images from an
-   upstream source directly; our server never proxies, caches or stores them.
-   This keeps us a link, not a host.
+2. **Card art lives on `cdn.hadoku.me`, and image bytes never enter this repo.**
+   Changed on **2026-09-15** by the operator (**D15**, superseding D13's image
+   clause). Until then this rule read *"Never commit or host card images"* —
+   §3.1 keeps that argument in full and records why it was overruled, because a
+   rule that changes without a recorded reason is one that flips back.
+   - **Still absolute:** no image file is ever committed. `.gitignore` refuses
+     `cards/`, `card-images/`, `*.jpg` and `*.png` (its one exception,
+     `!docs/**/*.png`, is for documentation screenshots, not card art), and
+     `scripts/d13-gate.sh` — run by CI — fails the build if an image file
+     reaches the built bundle.
+   - **The art is a placeholder.** The operator expects to re-source it. A
+     card's art is a lookup, not a URL: `apps/ui/src/draft/art-manifest.json`
+     maps `scryfallId → { source, key }` and
+     `packages/carddata/src/art/index.ts` resolves it. Repointing one card is a
+     one-line data edit. Keep it that way — a component that hardcodes an image
+     host has broken this rule even if every URL it emits is legal.
+3. **Our own origin never serves an image.** Every art URL is absolute and its
+   origin is one of `https://cdn.hadoku.me` or `https://cards.scryfall.io`
+   (`ALLOWED_ART_HOSTS` in `packages/carddata/src/art/index.ts`). A relative
+   URL, a `/cardtable/...` URL, or anything else same-origin is **forbidden**:
+   that would make the app server the image host, which is the one thing this
+   arrangement has always been built to avoid and the thing D15 did *not*
+   change. `scripts/d13-gate.sh`'s URL classification (arms 2-4) is that
+   assertion, and it is the reason the gate exists at all. Run
+   `bash scripts/d13-gate.sh --self-test` to watch it bite.
 4. **No WotC trademarks in the UI.** No mana symbols, set symbols, tap symbol,
    card frames, or the Magic logo. Draw our own.
 5. **Keep the friend gate.** The `/cardtable/` prefix is friend-tier at the edge.
@@ -174,13 +193,33 @@ watermarks; don't present a card as though someone other than Wizards made it;
 and when using `art_crop`, surface the artist and copyright somewhere in the
 same interface.
 
+**We satisfy all of them by construction**, and each one has a specific rule
+holding it true. Naming the pairs, so that deleting one of these rules is
+visibly deleting a promise and not just a line of CSS:
+
+| Their guideline | The rule that enforces it |
+| --- | --- |
+| Don't cover, crop or clip the copyright line or the artist name | We serve the **whole unmodified card face**, never `art_crop`. The `.card:has(.card__art) { aspect-ratio: 488 / 680 }` rule in `apps/ui/src/styles.css` pins the tile to the image's own ratio, so the `object-fit: cover` on `.card__art` has nothing left to crop. The copyright and artist lines sit at the bottom of a card — exactly where a mismatched box crops — which is why that one CSS rule is the whole of this promise. |
+| Don't distort, skew, stretch, blur, sharpen, desaturate or recolour | Same rule: `object-fit: cover` at the image's true ratio cannot distort. And no `filter` declaration exists on `.card__art`, which the ruleset states in a comment so that adding one reads as the violation it is. |
+| Don't add your own watermark | We add nothing to the image. The CDN is content-addressed by SHA-256, so the bytes we serve are provably the bytes we fetched: a modified image would be a different key. |
+| Using `art_crop` obliges you to surface artist + copyright in the same interface | Not engaged — we don't use `art_crop`. The whole card face carries both, printed on it. |
+| Don't present a card as though someone other than Wizards made it | `NOTICE.md` carries the unaffiliated/unendorsed disclaimer, and no WotC marks appear in our own chrome (§2 rule 4). **Gap, verified 2026-09-15:** the UI footer (`apps/ui/src/App.tsx`) does **not** yet carry that disclaimer — it carries a since-falsified line saying the project "never loads, caches or proxies a card image". §2 rule 6 requires the footer text and it is outstanding. |
+
+Note that these survived the change of posture below untouched — **hosting the
+bytes ourselves does not loosen a single one of them.** If anything it tightens
+the first row: we now control what is stored, so a cropped or re-encoded upload
+would be our doing rather than upstream's.
+
 **There is no blanket prohibition on caching, storing or serving the image
 bytes.** We looked for one; it is not there. The nearest thing is a *data*
 rule — *"You may not simply repackage, republish, or proxy Scryfall data. Your
 software must create additional value for end-users."*
 
-So state this plainly, because the inference in the other direction is the
-dangerous one:
+#### What this section used to conclude, and who overruled it
+
+Until **2026-09-15** this section ended on a stronger rule. It is kept here
+verbatim rather than deleted, because the argument was carefully built, it was
+never *refuted*, and a reader is entitled to see what was traded away:
 
 > **Our no-images rule (D13, and rule 2 in §2) is stricter than Scryfall
 > requires, and it stays.** It is not derived from Scryfall's terms and does not
@@ -188,10 +227,61 @@ dangerous one:
 > art belongs to Wizards and to the artists, *nobody* can license it to us —
 > Scryfall included — and "hosting card images at scale" is the second-loudest
 > item on §2's risk table.
+>
+> Anyone who later finds this section and concludes "Scryfall didn't forbid
+> caching, so we can mirror images" has read the right sentence and drawn the
+> wrong conclusion. The permission we lack is not Scryfall's to give.
 
-Anyone who later finds this section and concludes "Scryfall didn't forbid
-caching, so we can mirror images" has read the right sentence and drawn the
-wrong conclusion. The permission we lack is not Scryfall's to give.
+**The operator overruled that rule** — explicitly, three separate times — and
+card art now lives on `cdn.hadoku.me`. That is **D15** in `DECISIONS.md`, which
+supersedes D13's image clause. The grounds, recorded so nobody has to
+reconstruct them:
+
+- **No money, in any form, ever.** §2 rule 1 is untouched and is still the
+  brightest line in the project.
+- **Private and access-gated.** `/cardtable/*` is friend-tier at the edge and
+  answers 401 to anonymous. There is still no public tier and there will not be
+  one.
+- **The art is a replaceable placeholder.** The operator expects to source art
+  elsewhere: *"there's a good chance i source the art from somewhere else in the
+  future… just make sure that it's easy to simply hook up a link to a new image
+  in the cdn whenever that happens."* So it is held behind an indirection —
+  `apps/ui/src/draft/art-manifest.json` (`scryfallId → { source, key }`) resolved
+  by `packages/carddata/src/art/index.ts`. **Replacing WotC's art with something
+  we commissioned is a data edit, not a refactor.** That is the difference
+  between a placeholder and a dependency, and it is why this was affordable.
+- **The CDN's public-read posture was seen and accepted.** `cdn.hadoku.me` is
+  *"upload friend+, read public"* by design, so every uploaded image is fetchable
+  by anyone who has its SHA-256 URL. The operator was shown this and accepted it
+  knowingly. Do not "fix" it by putting a gate on the CDN — that is somebody
+  else's service and this is not a bug in it.
+
+**Write this down as what it is: a judgement, not a compliance argument.** §3.2
+is the model — this document's value is that it refuses to pretend tensions
+cancel out, and this one does not cancel either. Honestly stated:
+
+- It **moves us up §2's risk table.** "Card images at scale" goes from *we don't
+  do that at all* to *we do some of that*. Hosting is a louder act than linking,
+  because we become the party serving the bytes rather than the party pointing
+  at someone else's.
+- **The permission we lacked was never Scryfall's to give, and still isn't.**
+  This is a call about the card publisher's IP — Wizards' and the artists' — and
+  no reading of Scryfall's terms grants or withholds it. Nothing below licenses
+  anything; it records that a person weighed it.
+- **Every other mitigation stays exactly where it was**, which is the whole
+  reason the trade was payable: no money, no public tier, no WotC marks, the
+  friend gate, and the app's own origin still serving zero image bytes.
+
+Do not read this section as cover. Read it as a recorded decision with its price
+named.
+
+**Scale is the part to watch, and it is not settled.** One cube is 534 cards at
+roughly 100 KB of art each — about **53 MB**. All 95 bundled cubes is a
+different conversation and **nobody has had it yet**; the project tracker holds
+that as an open watch. "Some of that" stops being true somewhere between one
+cube and ninety-five, and the honest answer is that we do not know where. Bring
+it back to the operator before crossing it, rather than discovering the line by
+having crossed it.
 
 ### 3.2 The anti-paywall clause, and the tension we are not resolving
 
@@ -247,13 +337,33 @@ not cover our use of it. That doesn't change what we do; it does mean §2, not
 
 ### 3.3 What we do
 
-Design intent, unchanged by any of the above: **pull bulk data on a schedule,
-cache the JSON locally, never hammer the API per-request, and never touch
-images.** The ingest projects a named subset of fields rather than passing bulk
-records through — which is also what keeps us clear of *"simply repackage,
-republish, or proxy"*. See `docs/CARD_DATA.md` and the D13 control, which
-fails the build if `image_uris` reaches the projection.
+**Data** — design intent unchanged by any of the above: **pull bulk data on a
+schedule, cache the JSON locally, and never hammer the API per-request.** The
+ingest projects a named subset of fields rather than passing bulk records
+through — which is also what keeps us clear of *"simply repackage, republish, or
+proxy"*. It carries **no `image_uris`, no `image_status` and no `art_crop`**: the
+payload carries a `scryfallId` and the client builds the URL. See
+`docs/CARD_DATA.md` and the D13 gate (`scripts/d13-gate.sh`, run by CI), which
+fails the build if any of those blobs reaches the bundle.
 
-There is **no prescribed attribution string** on that page. The only
+**Images** — this is the part that changed on 2026-09-15 (§3.1, D15). The old
+text here read *"never touch images"*; it no longer describes what we do. What
+we do now:
+
+- Art is fetched from Scryfall **once**, offline, by
+  `packages/carddata/src/cli/upload-art.ts`, rate-limited per their guidance,
+  and uploaded to `cdn.hadoku.me`. Browsers then fetch from the CDN. That is
+  strictly **fewer** requests at Scryfall than hotlinking every tile was, not
+  more.
+- Bytes are never modified in transit, never committed to git, and never served
+  by the app's own origin.
+- The manifest keeps the source swappable per card, so "touching images" here
+  means holding a key, not owning an asset pipeline.
+
+There is **no prescribed attribution string** on Scryfall's pages. The only
 attribution-shaped obligations are the image ones in §3.1 (artist + copyright
-visible) and "don't imply Scryfall endorsed you". We carry a credit anyway.
+visible, satisfied by serving the whole card face) and "don't imply Scryfall
+endorsed you". We carry a credit anyway, in `NOTICE.md`. (It is **not** in the
+UI footer — checked 2026-09-15. §2 rule 6 asks for footer text and that is still
+outstanding; the footer currently says the project "never loads, caches or
+proxies a card image", which D15 made false.)

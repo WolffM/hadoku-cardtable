@@ -12,9 +12,21 @@ source rather than its reputation.
 
 - **No money, ever.** No sales, subs, ads, donations, sponsorship, "buy me a
   coffee". This is the single brightest legal line — see `docs/LICENSING.md`.
-- **Never commit, host, mirror, cache or proxy card images.** `.gitignore`
-  refuses `*.jpg`/`*.png`/`cards/`. Browsers fetch images upstream directly; our
-  server never touches them.
+- **Card art lives on `cdn.hadoku.me`; image bytes never enter this repo.**
+  Changed 2026-09-15 by the operator (**D15**, superseding D13's image clause).
+  Until then this rule read *"never commit, host, mirror, cache or proxy card
+  images"* — `docs/LICENSING.md` §3.1 keeps that argument and records why it was
+  overruled. Do not restore the old rule from a stale comment.
+  `.gitignore` still refuses `*.jpg`/`*.png`/`cards/`, and that half is absolute.
+- **Our own origin never serves an image.** Every art URL is absolute, at
+  `cdn.hadoku.me` or `cards.scryfall.io` — never relative, never `/cardtable/…`.
+  That would make the app server the image host, which is the thing D15 did
+  *not* change. `scripts/d13-gate.sh` fails CI on it.
+- **A card's art is a lookup, not a URL.** `apps/ui/src/draft/art-manifest.json`
+  maps `scryfallId → {source, key}`; `packages/carddata/src/art/index.ts`
+  resolves it. The art is a **placeholder** the operator expects to re-source, so
+  repointing a card must stay a one-line data edit. A component that hardcodes an
+  image host has broken this even if every URL it emits is legal.
 - **No WotC trademarks in the UI** — no mana symbols, set symbols, tap symbol,
   card frames, Magic wordmark. Draw our own.
 - **Keep the friend gate.** `/cardtable/*` is friend-tier at the edge. Never add
@@ -100,7 +112,7 @@ Java 21 ✓. **Maven ✗** — hokon has no `mvn` and upstream ships no `mvnw`
 
 ## Does NOT
 
-- Does NOT ship card images or card art
+- Does NOT commit image bytes, and does NOT serve images from its own origin
 - Does NOT accept money in any form
 - Does NOT expose a public or anonymous tier
 - Does NOT use `.env` files

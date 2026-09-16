@@ -110,14 +110,14 @@ From the "Use of Scryfall Data and Images" section of
 | **No paywalling Scryfall data.** No payments, surveys, subscriptions, ratings, chat-server joins or channel follows in exchange for access | No money, ever (D13). But see §1.6 — the second half of this clause deserves a straight look. |
 | Not to create **new games**, or imply the data is from another game | We play Magic, and say so. |
 | **"You may not simply repackage, republish, or proxy Scryfall data. Your software must create additional value for end-users."** | We are a drafting and play client, not a card search site. We do not expose a card-data endpoint to anyone. |
-| Image rules: do not cover/crop the copyright or artist name, do not distort, recolour, watermark, or imply non-WotC authorship | We hold **no images at all**, so all of these are satisfied by construction. |
-| When using `art_crop`, the artist and copyright must be identifiable in the same interface | Relevant to the UI, not this package. We keep the `artist` field locally so the UI *can* satisfy it. |
+| Image rules: do not cover/crop the copyright or artist name, do not distort, recolour, watermark, or imply non-WotC authorship | Satisfied by **mechanism**, not by absence. This cell used to read *"we hold no images at all"*; since D15 we host card art on `cdn.hadoku.me`. What holds the rules now: we serve the **whole unmodified card face**, never `art_crop`; the `.card:has(.card__art) { aspect-ratio: 488 / 680 }` rule in `apps/ui/src/styles.css` means `object-fit: cover` crops nothing, so the artist and © lines printed at the card's foot stay legible; no `filter` touches `.card__art`; and the CDN is content-addressed by SHA-256, so the bytes served are provably the bytes fetched. Same table as `LICENSING.md` §3.1 — keep the two in step. |
+| When using `art_crop`, the artist and copyright must be identifiable in the same interface | **Not engaged** — we do not use `art_crop`; the whole card face carries both. Relevant to the UI, not this package. We keep the `artist` field locally so the UI *can* satisfy it if that ever changes. |
 
 They close with: "Repeated mishandling or misrepresentation of data or images
 in your project may result in Scryfall restricting or blocking your API
 access."
 
-### 1.5 Image redistribution — verified, and it matches our posture
+### 1.5 Image redistribution — verified, and our posture changed around it
 
 The expectation recorded in `LICENSING.md` §3 was that Scryfall's stance would
 be "we don't own these, don't mirror them". **What they actually publish is
@@ -127,10 +127,30 @@ don't imply someone else made the card) and their footer states the images are
 "copyright Wizards of the Coast, LLC". They do not, on these pages, publish a
 blanket "never cache our images" prohibition.
 
-So: **our no-images rule is stricter than Scryfall requires, and it stays.** It
-is driven by `LICENSING.md` §2 — WotC's IP, not Scryfall's terms — and by the
-plain fact that nobody, Scryfall included, is in a position to license card art
-to us. Do not relax D13 on the grounds that Scryfall did not forbid it.
+The finding above is about **Scryfall** and it has not changed. What changed is
+what we do with it. Until 2026-09-15 this paragraph read:
+
+> **Our no-images rule is stricter than Scryfall requires, and it stays.** It is
+> driven by `LICENSING.md` §2 — WotC's IP, not Scryfall's terms — and by the
+> plain fact that nobody, Scryfall included, is in a position to license card art
+> to us. Do not relax D13 on the grounds that Scryfall did not forbid it.
+
+**The operator repealed that rule** on 2026-09-15 — `DECISIONS.md` **D15**, which
+supersedes D13's image clause. Card art is hosted on `cdn.hadoku.me`, as a
+replaceable placeholder behind a per-card manifest.
+
+The warning in the quoted paragraph is still worth heeding on its own terms, and
+the two facts sit together without contradiction:
+
+- **The permission we lacked was never Scryfall's to give.** D15 is a judgement
+  about WotC's and the artists' IP, weighed by the operator against no money, a
+  private friend gate, and art held as a placeholder. It is **not** derived from
+  the "no blanket prohibition" finding above, and nobody should cite that finding
+  as authority for anything. See `LICENSING.md` §3.1 for the full register,
+  including what it costs on §2's risk table.
+- **The narrower claim in this document is still true.** The card-*data*
+  ingest and `pool.json` carry no image field and no image URL — see §2.3, which
+  is a live control and not a historical note.
 
 Two related facts, both verified, that support the client-side-only design:
 
@@ -218,7 +238,36 @@ granularity a rules engine and a cube list need, at roughly a third the size of
 `default_cards`. Switch to `default_cards` when you need every printing — which
 is exactly what §5's resolver needs, and what it insists on.
 
-### 2.3 How "no images" is enforced
+### 2.3 How "the ingest holds no image data" is enforced
+
+**Read the scope of this section first, because it narrowed on 2026-09-15.** It
+used to be headed *"How 'no images' is enforced"* and it stood for a
+project-wide claim. That wider claim is gone: D15 repealed it and card art is
+hosted on `cdn.hadoku.me`.
+
+What is **still true, still enforced, and must not be softened** is the narrow
+claim about this package:
+
+- **The card-data projection has no image field.** `ALLOWED_CARD_FIELDS` names
+  none, `resolve.ts` emits none, and `pool.json` carries ids and no URLs.
+  `build-pool.ts` prints its runtime control on every run —
+  `D13 control: N cards, no image field and no image URL.` —
+  and `project.test.ts` and `resolve.test.ts` both still bite on it.
+- **Art lives in a separate file that `build-pool` never writes.**
+  `apps/ui/src/draft/art-manifest.json` maps `scryfallId → { source, key }`.
+  That separation is deliberate and load-bearing: the pool is regenerated
+  wholesale, so art assignments kept inside it would be silently discarded by
+  the next regeneration. Do not "simplify" by merging them.
+- **Enforcement is now two controls, not one:** the projection allowlist below,
+  and `scripts/d13-gate.sh` (run by CI against `apps/ui/dist`), which fails the
+  build on shipped image bytes, on image bytes inlined as a `data:image/…` URI,
+  on a relative or same-origin image URL **in any JS quoting or bare in CSS
+  `url(...)`**, and on a copied `image_uris` / `image_status` / `art_crop` blob.
+  The first keeps images out of the **data**; the second keeps the app's own
+  origin from **serving** them. `bash scripts/d13-gate.sh --self-test` proves
+  the second bites, in both directions, without touching a real bundle.
+
+The allowlist itself, unchanged:
 
 Not by stripping image fields. By an **allowlist** of the fields we keep
 (`src/scryfall/project.ts`), which is the only version of this that stays true:
@@ -242,21 +291,35 @@ Two independent checks back this up:
    field is dropped, which is stronger than proving one named field is. A
    further test rejects any allowlist entry whose name matches
    `img|image|art_crop|picture|thumb|illustration|uri|url|price|purchase`.
-2. The repo's gate over the source:
+2. A gate over the projection source:
 
    ```sh
-   grep -rniE "\.jpg|\.png|image_uris|scryfall\.io" packages/carddata/src; echo $?
+   grep -rniE "\.jpg|\.png|image_uris|scryfall\.io" \
+     packages/carddata/src/scryfall/project.ts packages/carddata/src/resolve.ts
+   echo $?
    ```
 
-   must print nothing and exit **1**. It does.
+   must print nothing and exit **1**. Verified 2026-09-15: it does.
+
+   **This grep used to be scoped to all of `packages/carddata/src` and it no
+   longer can be.** That wider form now exits **0** — legitimately — because
+   `src/art/index.ts` names `cards.scryfall.io` and `cdn.hadoku.me` as the two
+   allowed art origins, and `src/cli/upload-art.ts` exists to fetch and upload
+   art. Both are D15 working as designed. Left un-narrowed, the gate would be a
+   red build for doing the right thing; left un-narrowed *and* then deleted for
+   being noisy, the projection invariant would lose its cheap check. So it is
+   scoped to the two files the invariant is actually about. A grep is only ever
+   a proxy here — check 1 above, the allowlist-subset test, is the real control.
 
 The 55 MB cache produced by a real full run was scanned as well: 44 distinct
 top-level keys across 38,740 cards, none image-, URI- or price-bearing, and
 zero raw occurrences of the gated tokens anywhere in the file.
 
-The download URL is **taken from Scryfall's listing response**, not hardcoded,
-so no file-origin hostname appears in our source at all. It is required to be
-HTTPS.
+The bulk-download URL is **taken from Scryfall's listing response**, not
+hardcoded, so no bulk-file hostname appears in our source at all. It is required
+to be HTTPS. (The two *image* hostnames do appear, deliberately and in exactly
+one place each — `SCRYFALL_IMAGE_BASE` and `CDN_BASE` in
+`packages/carddata/src/art/index.ts`. That is D15's art path, not this ingest.)
 
 ### 2.4 Verified end-to-end
 

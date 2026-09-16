@@ -87,5 +87,6 @@ upstream ships no `mvnw` wrapper (only `.mvn/maven.config`). Java 21 is present.
 that does and doesn't require, plus the separate and more important question of
 Wizards of the Coast's IP.
 
-Short version: no money ever, no public access, never host card images, no WotC
-trademarks in the UI.
+Short version: no money ever, no public access, no WotC trademarks in the UI.
+Card art is hosted on `cdn.hadoku.me` as a replaceable placeholder (D15) — never
+committed to this repo, and never served by the app's own origin.

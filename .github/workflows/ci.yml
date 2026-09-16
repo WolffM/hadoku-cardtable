@@ -82,49 +82,45 @@ jobs:
       - name: Test
         run: pnpm run test
 
-      # ── D13, as the rule actually reads ──────────────────────────────────
+      # ── The image boundary: D13 as amended by D15 ────────────────────────
       #
-      # NOT "no images". `docs/LICENSING.md` §Concrete rules 2-3: never commit
-      # or host card images; the browser fetches them from upstream directly;
-      # our server never proxies, caches or stores them. A link, not a host.
+      # NOT "no images". D13's "never host card images" clause was repealed by
+      # the operator on 2026-09-15 (`docs/DECISIONS.md` D15): card art is hosted
+      # on `cdn.hadoku.me`. What survived — and what this gate asserts — is that
+      # **the app's own origin serves no image bytes.** We serve the app;
+      # something else serves the pictures.
       #
-      # So this gate checks the boundary, in the artifact that reaches a
-      # browser:
-      #   1. no image BYTES are shipped — we host nothing;
-      #   2. no same-origin or relative image URL — that would be us serving it;
-      #   3. no `image_uris` blob copied out of Scryfall's records — the payload
-      #      carries an id and the client builds the URL.
-      # `cards.scryfall.io` appearing in the bundle is CORRECT and expected: it
-      # is the one host a card image may come from.
+      # The body lives in `scripts/d13-gate.sh` rather than inline here, on
+      # purpose, and the reason is not theoretical. The inline version could
+      # only be exercised by running the workflow, and it was wrong in TWO ways
+      # that both survived review:
+      #
+      #   1. it treated a bare content-addressed CDN key as a forbidden
+      #      relative URL, so it would have red-failed every build once a key
+      #      landed in the art manifest;
+      #   2. it anchored on DOUBLE QUOTES, and Vite's minifier emits these
+      #      strings as template literals — `key:`<sha>.jpg`` — so it was blind
+      #      to the artifact it guarded. A same-origin URL in backticks passed.
+      #
+      # Extraction is now delimiter-agnostic and every fixture is generated in
+      # five spellings (double, single, backtick, bare CSS `url(...)`, bare
+      # HTML attribute), because a fixture set that shares an assumption with
+      # the extractor proves nothing about that assumption.
+      #
+      # `cards.scryfall.io` and `cdn.hadoku.me` appearing in the bundle are
+      # CORRECT and expected: they are the two origins a card image may come
+      # from. The script has the full arm-by-arm rationale.
       - name: Build the bundle
         run: pnpm --filter @hadoku/ui build
 
-      - name: D13 — a link, not a host
-        run: |
-          set -euo pipefail
-          dist=apps/ui/dist
+      # Runs FIRST, and deliberately. A green gate is a claim; this is the
+      # demonstration. 65 throwaway fixtures under `mktemp -d`, each arm
+      # asserted in both directions and every reference case in all five
+      # spellings, so "the check passed" cannot mean "the check did nothing".
+      # Three separate controls in this repo have passed while doing nothing,
+      # including two versions of this very check.
+      - name: Image boundary — prove the gate bites
+        run: bash scripts/d13-gate.sh --self-test
 
-          # 1. No image bytes shipped.
-          if find "$dist" -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \
-               -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.avif' \) | grep -q .; then
-            echo "::error::D13 — the bundle ships image files. We host nothing."
-            find "$dist" -type f \( -iname '*.jpg' -o -iname '*.png' -o -iname '*.webp' \) | head
-            exit 1
-          fi
-
-          # 2. Any image URL must be Scryfall's. A relative or same-origin one
-          #    means we are serving the bytes.
-          if grep -rIoE '"[^"]*\.(jpe?g|png|webp|gif|avif)"' "$dist" \
-               | grep -vE 'cards\.scryfall\.io' | grep -q .; then
-            echo "::error::D13 — an image URL that is not cards.scryfall.io."
-            grep -rIoE '"[^"]*\.(jpe?g|png|webp|gif|avif)"' "$dist" | grep -vE 'cards\.scryfall\.io' | head
-            exit 1
-          fi
-
-          # 3. No copied Scryfall image metadata.
-          if grep -rIlE '"image_uris"|"image_status"|"art_crop"' "$dist"; then
-            echo "::error::D13 — the bundle carries a Scryfall image blob. Carry the id, build the URL."
-            exit 1
-          fi
-
-          echo "D13: no image bytes, no same-origin image URL, no copied image metadata."
+      - name: Image boundary (D13/D15) — the CDN hosts, we do not
+        run: bash scripts/d13-gate.sh apps/ui/dist

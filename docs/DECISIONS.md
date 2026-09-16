@@ -283,6 +283,15 @@ Operational consequence, binding on every future session:
 
 ## D13 — Licensing posture · settled · 2026-09-11
 
+> ⚠️ *Pointer added 2026-09-15, Wave 4 lane D. The text below is **unedited** and
+> is the record of what was decided on 2026-09-11. Two parts of it are no longer
+> current: the **image clause** in "Hard rules" is **superseded by D15**, and the
+> **"Open: Scryfall's terms … unverified"** paragraph is closed — see the
+> `### Amended` block at the end of this decision. Everything else in D13 stands.
+> This pointer sits here rather than at the foot because a reader who greps for
+> "never commit, host, mirror, cache or proxy card images" lands in the middle of
+> this section, and would otherwise never reach the amendment.*
+
 GPL-3.0-or-later confirmed from source (491 files carry the "or (at your option)
 any later version" header). Obligations trigger on **conveying binaries**, not on
 running a server — so hosting for friends owes nothing, but **P2 must ship the
@@ -299,6 +308,38 @@ commit, host, mirror, cache or proxy card images · no WotC marks in the UI.
 Open: Scryfall's terms — `scryfall.com/docs/api` returned 403 twice. Rate limits,
 attribution and their image-redistribution stance are **unverified** and must be
 checked before any ingest ships.
+
+### Amended · 2026-09-15 · Wave 4 lane D — the "403 / unverified" paragraph is closed
+
+The paragraph immediately above is **stale**, and separately from the image
+reversal in D15. It is left in place because this log is append-only, but it no
+longer describes reality:
+
+- **The 403 was a Cloudflare artefact, not Scryfall's policy.** It was
+  bot-filtering the *fetching tool's* egress. With an honest `User-Agent` and an
+  `Accept` header the page returns **200**; with neither it returns **400** plus
+  Scryfall's own error text saying both headers are required.
+- **The terms have since been read three times** — Wave 1 lane C (`7db43ca`),
+  re-run by the Wave 2 manager, and re-fetched on 2026-09-14. Rate limits,
+  attribution and the image guidelines are written up in `docs/LICENSING.md` §3,
+  §3.1 and §3.2, quoted rather than paraphrased.
+- **Their image-redistribution stance is now known**: the guidelines govern
+  *presentation*, not redistribution, and there is no blanket prohibition on
+  caching or serving the bytes. That is a finding about Scryfall and it is
+  logically independent of D15 — D15 turns on **WotC's** IP, which was never
+  Scryfall's to license either way.
+
+So: nothing in this paragraph is still open. It is kept verbatim as the record of
+what was believed on 2026-09-11.
+
+**Why an amendment and not an edit:** this correction is about *Scryfall's terms
+being verified*, which is a different question from *whether we host art*.
+Folding it into D15's body would have made D15 read as though the Scryfall
+finding were part of the grounds for hosting — it is not, and that
+misattribution is exactly the kind of thing this log exists to prevent
+(cf. §3.1's warning against inferring permission from Scryfall's silence). D14
+already establishes the `### Amended` form for correcting a decision without
+rewriting it.
 
 ## D14 — Maven installs to `~/.local`, no host mutation · settled · 2026-09-11
 
@@ -325,6 +366,82 @@ operator action needed.
 With both present, stock `mvn install -pl forge-core,forge-game -am -DskipTests`
 passes in **13.2 s warm / 27 s cold `~/.m2`**.
 
+## D15 — Card art is hosted on `cdn.hadoku.me` · settled · 2026-09-15 · operator
+
+**Supersedes D13's image clause.** D13 reads *"never commit, host, mirror, cache
+or proxy card images"*; that clause is repealed, and D13's text above is left
+untouched as the record of what was decided on 2026-09-11. Everything else in
+D13 — GPL-3, conveying vs. running, the Fan Content Policy not covering us, no
+money, no public tier, no WotC marks — stands unchanged.
+
+The operator decided this explicitly, three separate times. What it means, in
+full:
+
+- **Art is uploaded to `cdn.hadoku.me`** by `packages/carddata/src/cli/upload-art.ts`,
+  fetched once from Scryfall at their rate-limit guidance rather than hotlinked
+  per tile. The CDN is content-addressed by SHA-256, so the upload is idempotent
+  and a modified image would be a different object.
+- **The CDN is world-readable, and that was accepted knowingly.** Its own
+  documentation is *"uploading is friend+; reading is public"*. Every uploaded
+  card image is therefore fetchable by anyone holding its SHA-256 URL. The
+  operator was shown this and accepted it. **Do not add a gate to the CDN** —
+  it is a shared service, this is its designed posture, and re-litigating it is
+  out of scope.
+- **The art is a PLACEHOLDER, and that is the load-bearing part.** *"There's a
+  good chance i source the art from somewhere else in the future… just make sure
+  that it's easy to simply hook up a link to a new image in the cdn whenever that
+  happens."* So a card's art is an indirection, never a URL in a component:
+  `apps/ui/src/draft/art-manifest.json` maps `scryfallId → { source, key }` and
+  `packages/carddata/src/art/index.ts` resolves it, with an absent or unusable row
+  falling back to Scryfall and then to the text tile. Repointing one card is a
+  **one-line data edit reviewable in a diff**. The manifest is kept out of
+  `pool.json` on purpose, because `build-pool` regenerates the pool wholesale and
+  would silently discard hand-curated art.
+- **Image bytes still never enter this repo.** `.gitignore` refuses `*.jpg`,
+  `*.png`, `cards/`, `card-images/`, and `scripts/d13-gate.sh` fails CI if an
+  image file reaches the built bundle.
+- **The app's own origin still never serves an image.** Every art URL is
+  absolute and its origin is `https://cdn.hadoku.me` or
+  `https://cards.scryfall.io` (`ALLOWED_ART_HOSTS`). A relative, root-relative or
+  `hadoku.me/cardtable/` image URL remains **forbidden**, and
+  `scripts/d13-gate.sh` arm 2 is that assertion. This is the half of D13 that
+  survives, and it is the half the gate exists for.
+
+**Grounds**, so the rule does not flip back for want of a reason: no money in any
+form; private and friend-gated (401 to anonymous); every other §2 mitigation
+untouched; and the art held as a replaceable placeholder rather than a
+dependency. This was weighed as a **judgement**, not argued as compliance — it
+moves us up `docs/LICENSING.md` §2's risk table, hosting is a louder act than
+linking, and the permission that would settle it was never Scryfall's to give.
+§3.1 carries the full register, including the superseded argument quoted in full.
+
+**Rules out:**
+
+- reinstating "never host card images" without a new operator decision, and
+  citing D13, `LICENSING.md`'s old rule 2, or any pre-2026-09-15 wave plan as
+  authority for doing so;
+- serving image bytes from the app's own origin, or any relative/same-origin
+  image URL — that was never what changed;
+- committing image bytes to git;
+- hardcoding an image host in a component, or any design where re-sourcing a
+  card's art is more than a manifest edit;
+- putting art assignments into `pool.json`;
+- adding an access gate to `cdn.hadoku.me`, or treating its public-read posture
+  as an unresolved problem;
+- scaling past the one cube that has been decided — see **O5**.
+
+**Not decided, and deliberately so:** how much art we host. One cube is 534 cards
+at roughly 100 KB each, about **53 MB**. All 95 bundled cubes is a different
+conversation and nobody has had it yet. See **O5**.
+
+**Known gap, verified 2026-09-15 and not closed by this wave:** the UI footer
+(`apps/ui/src/App.tsx`) still tells the user *"this project never loads, caches
+or proxies a card image"*. D15 makes that **false on screen**, and it is the one
+place the claim is user-visible rather than internal. `LICENSING.md` §2 rule 6
+also wants the unaffiliated/unendorsed disclaimer in that footer and it is not
+there. That file belongs to another workstream; this is recorded so the gap is
+owned rather than forgotten.
+
 ---
 
 ## Still open — each needs an operator decision
@@ -335,3 +452,4 @@ passes in **13.2 s warm / 27 s cold `~/.m2`**.
 | O2 | P1: reimplement draft in TS, or reuse Forge's 6,781-line `limited/` engine? | Reimplement — staying JVM-free *is* the point of draft-first. Take the 95 cube lists verbatim (95, not 96 — imported in Wave 1 lane C). |
 | O3 | One JVM per match, or one hosting many? | Defer to P3; decide before building the service-participant lifecycle |
 | ~~O4~~ | ~~Does the WASM spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1 (NO-GO, D7). Wave 2 is unblocked and its card/draft work was needed in either branch anyway. |
+| O5 | How much card art do we host? D15 settled *that* we host it; one cube is ~53 MB, all 95 is ~5 GB and a materially different posture. | Stay at the cubes actually being drafted. Bring it back to the operator **before** uploading a second cube's worth, not after — "we are tiny" is the mitigation D15 was priced against. Raised 2026-09-15 by Wave 4 lane D; the tracker holds the matching watch. |
