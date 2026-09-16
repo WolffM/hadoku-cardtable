@@ -7,7 +7,8 @@
   "description": "Scryfall bulk-data ingest, Forge .dck/.draft parsing, cube card resolution, and the card-art manifest — resolved for the browser and uploaded to cdn.hadoku.me by the upload-art CLI.",
   "exports": {
     ".": "./src/index.ts",
-    "./art": "./src/art/index.ts"
+    "./art": "./src/art/index.ts",
+    "./dck": "./src/dck.ts"
   },
   "scripts": {
     "sync": "node src/cli/sync-cards.ts",
