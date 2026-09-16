@@ -73,8 +73,15 @@ central canvas slot** (D6).
 
 ## Programmes, in dependency order
 
+**The product goal, in the operator's words (2026-09-16):** *"i also want to
+allow playing constructed with prebuilt decks — the goal here is to recreate
+standard formats from years past."* That reframes the roadmap: **PR-4, the rules
+engine, is now critical path**, because constructed play is not possible without
+it. PR-5 is new and exists to serve it.
+
 | # | Programme | State |
 | --- | --- | --- |
+| **PR-5** | **Constructed** — historical Standard pools, prebuilt decks, format validation. The operator's stated goal. | **Wave 6 lanes C/D** lay the data track; play needs PR-4 |
 | **PR-1** | **Ground truth** — toolchain, card data, and the WASM go/no-go that decides the UI strategy | **done** (Wave 1) |
 | **PR-2** | **Draft** — pure draft engine, cube import, draft UI. Playable with friends. | **built end to end, unproven with two people.** Engine (W3), card art (W4) and a live socket (W5) all land; `DraftScreen` renders from fixtures, the in-process engine, or a server. **"Playable with friends" is not ticked** until two browsers draft one pod — see the queue |
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
@@ -232,10 +239,44 @@ left determines it:
 The ordering that matters: **B before the integration check**, and B before
 anything in PR-4, because the wire schema is what `IToClient` will carry.
 
+### Found 2026-09-16 — the watchparty UI package cannot be composed with
+
+The operator's expectation is reasonable and does not work today: *"my
+expectation is that we import a package from watchparty for the ui."*
+
+`@wolffm/watchparty-ui@0.38.115`, read from the published tarball, exports
+**exactly three things** — `createWatchpartyRouter`, `mount`, `unmount`. It is a
+**whole-app mount**: `mount(el)` puts the entire watchparty application into a
+DOM node. There is no room shell, roster, chat or canvas-slot component to
+compose with, and **0 `.d.ts` files ship** despite `types: "./dist/index.d.ts"`
+being declared, so a TypeScript consumer gets nothing.
+
+It is built for hadoku_site to mount watchparty at `/watchparty/`, not for a
+second app to borrow its chrome. Wave 6 lane E asks them for composable exports
+and reports the types defect; lane A builds our own shell behind a seam meanwhile
+so nothing blocks. **Do not plan any wave on the assumption that this import
+works.**
+
+### Found 2026-09-16 — D6 and the deployed shape have been contradicting each other
+
+**D6** says the draft UI renders inside the room's central canvas slot with
+watchparty's chrome around it. **What is deployed** is a standalone loopback-UI
+tunnel app at `/cardtable/` with its own server and its own chrome — the shape
+hadoku_site's own agent chose when it onboarded us, and which is live and
+working. Nobody reconciled the two; the tracker never put a row on the board for
+either, which is why three waves went by without it surfacing.
+
+The operator has now settled it: **cardtable is its own app and imports room UI
+as a package.** That is neither of the two readings above and is compatible with
+the deployed shape. D6's canvas-slot framing survives as the *layout* intent;
+its "iframe payload inside watchparty" mechanism does not. **Needs a decision
+entry — see O7.**
+
 ## Operator's list — only they can do these
 
 | # | Item | Why it's theirs |
 | --- | --- | --- |
+| **O7** | **D6 needs superseding.** It specifies the UI as an iframe payload inside a watchparty room; production is a standalone app and the operator has now settled on "our own app, importing their room UI as a package". The layout intent survives, the mechanism does not. Nothing in `DECISIONS.md` records the new shape. | Decision log |
 | **O5** | **D2 says "rules out: an MIT room layer living in this repo" — and `packages/room-ask` is now exactly that.** The code side is careful (SPDX, own `LICENSE`, clean-room so it is not a Forge derivative) and the licences are coherent: MIT so P4 can go upstream to watchparty's MIT packages, GPL for `room-store` which is ours. But `docs/DECISIONS.md` mentions `room-ask` **zero** times. Either amend D2 with the carve-out, or move the package to watchparty. A rule contradicted without a record is one that flips back. | Decision log |
 | **O6** | **The CDN upload has never run** — `art-manifest.json` has 0 entries and all art still comes from Scryfall via fallback. `pnpm --filter @hadoku/carddata upload-art` needs a **friend-tier credential** that is not on this host. Lane B refused to invent an auth path, correctly. One credential turns a working pipeline into live art. | Credential |
 | ~~O1~~ | ~~fork `Card-Forge/forge`~~ — **resolved 2026-09-11: deferred.** A plain clone already syncs upstream (`origin` *is* upstream); a fork only buys somewhere to push our Forge commits, a submodule URL, and the ability to PR `case "server"` back. None needed until the first line of Java, and lane B explicitly writes none. **Repo creation DONE 2026-09-14** — `WolffM/hadoku-cardtable` exists, private, created 07:26, `main` pushed, CI green. Only the *fork* half remains deferred. | |
