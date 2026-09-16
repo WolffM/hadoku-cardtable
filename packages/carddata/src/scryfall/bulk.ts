@@ -136,7 +136,18 @@ export interface SyncResult {
  * interrupted run cannot leave a half-written cache that looks complete.
  */
 export async function sync(options: SyncOptions): Promise<SyncResult> {
-  const bulkType = options.bulkType ?? 'oracle_cards';
+  // `default_cards`, not `oracle_cards`. oracle_cards carries ONE printing per
+  // card — Scryfall's chosen representative — and for 41 cards in our own cube
+  // that representative is a digital-only (MTGO/Arena) printing. The resolver
+  // correctly refuses digital-only printings, so those cards resolved to
+  // nothing: Lion's Eye Diamond, Mox Diamond, Bazaar of Baghdad, Cabal Ritual
+  // and 37 others, all of them ordinary paper cards.
+  //
+  // It read as a set-code mapping gap and it was not one — every failing card
+  // had a known Forge code that translated fine. default_cards carries every
+  // printing, so a paper one is there to find. 78 MB compressed rather than 24,
+  // for a cache that is gitignored and pulled on a schedule.
+  const bulkType = options.bulkType ?? 'default_cards';
   const { outDir } = options;
   const limit = options.limit ?? null;
   const report = options.onProgress ?? ((): void => {});

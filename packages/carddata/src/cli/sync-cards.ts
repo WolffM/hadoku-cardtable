@@ -35,7 +35,7 @@ function usage(): string {
   return [
     'Usage: sync-cards [options]',
     '',
-    `  --type=<name>   bulk file to ingest (default: oracle_cards)`,
+    `  --type=<name>   bulk file to ingest (default: default_cards)`,
     `                  known: ${BULK_TYPES.join(', ')}`,
     '  --out=<dir>     cache directory (default: packages/carddata/data)',
     '  --force         re-download even if the cache is already current',
@@ -45,7 +45,7 @@ function usage(): string {
 }
 
 export function parseArgs(argv: readonly string[]): Args {
-  let bulkType = 'oracle_cards';
+  let bulkType = 'default_cards';
   let outDir = defaultOutDir();
   let force = false;
   let limit: number | null = null;
