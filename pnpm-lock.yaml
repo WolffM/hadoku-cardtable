@@ -143,6 +143,15 @@ importers:
         specifier: 0.38.111
         version: 0.38.111
 
+  packages/forge-wire:
+    dependencies:
+      '@hadoku/deck':
+        specifier: workspace:*
+        version: link:../deck
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
+
   packages/room-ask:
     dependencies:
       '@wolffm/rooms-protocol':
