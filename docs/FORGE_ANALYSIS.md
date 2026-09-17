@@ -87,8 +87,9 @@ assignCombatDamage         (Mode.SERVER, Map.class, ...)
 ```
 
 These are **blocking RPCs**. A Forge game thread calls `sendAndWait`, parks on a
-`FutureTask` in `ReplyPool` keyed by event id, and the rules engine is stopped
-until that specific player answers. Client→server methods are **almost** all
+future in `ReplyPool` keyed by event id, and the rules engine is stopped
+until that specific player answers. (On what kind of future, see the
+`ReplyPool` entry in "Facts from the spikes" below — the answer is a trap.) Client→server methods are **almost** all
 `void` — 14 of the 15 are; the enum carries a comment saying why:
 
 > *"these should all return void, to avoid awkward situations in which client and
@@ -298,3 +299,120 @@ prompt can fall back to "open this game in Forge desktop".
    "backend attachment" lifecycle (requirement #3).
 3. **Do we implement `case "server"` upstream-style and contribute it back?**
    Probably yes — it's a clean contribution and keeps our fork thinner.
+
+---
+
+## Facts from the spikes — Waves 6 and 7
+
+Everything above was read. Everything below was **run**, or read to settle a
+question a run raised, and each line names the file it came from. Two spikes
+produced these: `docs/spikes/itoclient.md` (Wave 6 lane F, one real `IToClient`
+call across a real socket) and Wave 7 lanes B and C
+(`docs/spikes/forge-server.md`, `packages/forge-wire/`).
+
+Wave 6 lane F ended with a list headed *"Lines owed to `docs/FORGE_ANALYSIS.md`"*
+and did not own this file. **They were never placed** — this section is that
+debt paid, plus what Wave 7 added. Facts are attributed to whoever verified
+them, and re-derivations by the Wave 7 manager are marked.
+
+### The transport seam
+
+- **VERIFIED (W6)** — `IToClient` has **zero consumers**. `grep -rn 'IToClient'`
+  over `forge-gui/src/main/java/forge/gamemodes/net/` returns exactly two lines:
+  `server/IToClient.java:5` (the declaration) and `server/RemoteClient.java:16`
+  (the only implementation). **The substitutable seam D9 assumes does not exist
+  yet** — it is a seam in name only.
+- **VERIFIED (W6)** — `RemoteClientGuiGame` depends on four `RemoteClient`
+  methods that are **not** on `IRemote`: `setGui` (:78), `isLibgdx` (:87),
+  `getIndex` (:205), `setCodecTracker` (:301). The last reaches straight into the
+  Netty pipeline (`RemoteClient.java:210-215`).
+- **VERIFIED (W6)** — `FServerManager` keys its client registry on the Netty
+  type: `Map<Channel, RemoteClient> clients` (`FServerManager.java:80`); 45
+  `RemoteClient` and 25 `Channel` references in that one file. So "implement
+  `IToClient` over a WebSocket and slot it in" is a three-method job that does
+  not work.
+- **VERIFIED (W6)** — the client dispatches protocol methods on the **Swing
+  EDT**: `GameClientHandler` passes `super(true)` (:38) to
+  `GameProtocolHandler`'s `runInEdt` (:19). Observed live as `AWT-EventQueue-0`
+  under `-Djava.awt.headless=true`. A browser has no EDT;
+  `shouldDispatchToGuiThread` is `protected` and overridable
+  (`GameProtocolHandler.java:30`), which is reasoned, not run.
+
+### `ReplyPool`'s future is neither of the two things it looks like
+
+- **VERIFIED (W7 manager, correcting both spikes)** — `ReplyPool`'s pool is
+  `Map<Integer, CompletableFuture>`, but that `CompletableFuture` is **not**
+  `java.util.concurrent.CompletableFuture`. It is a private nested class in the
+  same file — `private static final class CompletableFuture extends
+  FutureTask<Object>` (`ReplyPool.java:54`) — which shadows the JDK name. The
+  file imports `java.util.concurrent.FutureTask` and never imports the JDK
+  `CompletableFuture` at all.
+
+  Both spikes got half of this. Wave 6 lane F wrote "`FutureTask`", which is the
+  right mechanism and the wrong type name. Wave 7 lane C read the declaration and
+  filed a correction to "`CompletableFuture`", which is the right type name and
+  invites exactly the wrong semantics — the JDK class completes with
+  `complete()` and composes without blocking, whereas this one is
+  `FutureTask.set()` behind an override and blocks.
+
+  **The part that matters is unchanged and is verified:** `get(index)` is an
+  **untimed** `future.get()` (`ReplyPool.java:29-37`). A blocking ask to a
+  browser that closes its tab parks a Forge game thread **forever**. The only
+  unblock is `cancelAll()`, called from exactly two places, both in
+  `FServerManager` (`:463` on the AFK timeout, `:1231` on convert-to-AI). A
+  WebSocket bridge must arm one of those, or its own timeout, on every one of
+  the **15** blocking methods.
+
+### The state channel
+
+- **VERIFIED (W6)** — `DeltaPacket` is an id-keyed property diff, not an object
+  graph: `Map<Integer, Map<TrackableProperty, Object>>` for both `objectDeltas`
+  and `newObjects` (`DeltaPacket.java:28-29`), with `(typeTag, id)` packed into
+  one int by `makeDeltaKey` (`DeltaPacket.java:61-70`). **The shape of the state
+  channel is already JSON-shaped**; what is unsolved is the value encoding.
+- **VERIFIED (W6)** — `TrackableProperty` is **214** constants over **27**
+  distinct `TrackableTypes`. 121 are Boolean/Integer/String and need no encoder;
+  54 are entity refs; 19 are scalar collections; 7 are enum names; **13 over 9
+  types need a hand-written encoder each**. A whole-file anchored grep returns
+  **218** — the four extras are `:270`, `:271`, `:274`, `:294`.
+- **UNRESOLVED** — whether a real delta stream survives a JSON round trip. That
+  is Wave 7 lane A, and its verdict lands in `docs/spikes/tier-c.md`.
+  `packages/forge-wire/src/tier-c.ts` refuses to model these three methods until
+  it does, on purpose.
+
+### Method-shape facts the wire contract turned up (Wave 7 lane C)
+
+Each re-derived by the Wave 7 manager against the vendored tree at the pin.
+
+- **VERIFIED** — `openZones`' `Map<PlayerView, Object>` argument
+  (`ProtocolMethod.java:74`) is a **player set, not a map**. Every `.put(` site
+  passes `null` — e.g. `TargetSelection.java:180`,
+  `playersWithValidTargets.put(PlayerView.get(card.getController()), null)`. So
+  the wire carries a list of player refs and no value.
+- **VERIFIED** — `sideboard`'s reply is the **new maindeck**, and `null` is
+  meaningful: `newMain = Objects.requireNonNullElse(resp, main.toFlatList())`
+  (`PlayerControllerHuman.java:276`). A non-nullable reply would force a bridge
+  to fabricate the current maindeck just to say "no change".
+- **VERIFIED** — **`selectCard` cannot be an ask.** `IGameController.java:36`
+  declares `boolean selectCard(...)`, but `ProtocolMethod.java:90` declares it
+  `(Mode.CLIENT, Void.TYPE, …)` and CLIENT return values are unchecked
+  (`ProtocolMethod.java:134-136`). A bridge that waited for that boolean would
+  wait forever.
+
+### The fork (Wave 7 lane B)
+
+- **VERIFIED** — upstream `Main.java` called `Sentry.init` with the Forge
+  project's **hardcoded DSN** before reading the mode argument, and re-filled
+  that DSN whenever external configuration left it empty. Compiled proof: the
+  stock `Main.class` at `2cd497c` carries
+  `https://…@sentry.asgardsrealm.net/3` as a class constant. Removed on the fork
+  at `1f19a230`; our `Main.class` carries no occurrence of either string.
+- **VERIFIED** — `case "server":` is implemented on the fork (`2ad70eb4`) and
+  **hosts a lobby headless**: a real `NioServerSocketChannel` bound, a real
+  `FGameClient` seated, clean shutdown. It does **not** start a match: seat 0 of
+  a `ServerGameLobby` is `LOCAL`, and `FServerManager.getGui(0)` answers a LOCAL
+  seat with `GuiBase.getInterface().getNewGuiGame()` — a Swing GUI a headless
+  process cannot supply.
+- This answers open decision 3 below (*"Do we implement `case "server"`
+  upstream-style?"*) in the affirmative for the shape, and leaves the
+  contribute-back half open.
