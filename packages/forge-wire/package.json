@@ -1,0 +1,19 @@
+{
+  "name": "@hadoku/forge-wire",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "Zod schemas for the Forge bridge envelope — the 38 ProtocolMethod calls a browser client actually needs, tiered as Wave 6 lane F mapped them.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hadoku/deck": "workspace:*",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {}
+}

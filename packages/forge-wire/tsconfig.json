@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Same no-build posture as @hadoku/deck and @hadoku/shared: Node 24 strips
+    // TypeScript natively, so the `.ts` files under src/ are what run and what
+    // consumers import. Hence explicit `.ts` extensions on relative imports and
+    // no emit.
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}
