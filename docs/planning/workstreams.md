@@ -276,6 +276,7 @@ entry — see O7.**
 
 | # | Item | Why it's theirs |
 | --- | --- | --- |
+| **O8** | **The deploy tree's submodule drifts on every pin move.** `deploy-config.json`'s cardtable entry runs `pnpm install && pnpm build` and mgmt-api's `git pull` does not touch submodules, so `forge/` goes ` M` each time the pin moves and a future pull can refuse outright. Harmless today (nothing builds or serves `forge/`). Durable fix is a `git submodule update --init` in hadoku_site's deploy step; the stopgap is `git -C /home/hadoku/repos/hadoku-cardtable submodule update --init forge`. | hadoku_site |
 | **O7** | **D6 needs superseding.** It specifies the UI as an iframe payload inside a watchparty room; production is a standalone app and the operator has now settled on "our own app, importing their room UI as a package". The layout intent survives, the mechanism does not. Nothing in `DECISIONS.md` records the new shape. | Decision log |
 | **O5** | **D2 says "rules out: an MIT room layer living in this repo" — and `packages/room-ask` is now exactly that.** The code side is careful (SPDX, own `LICENSE`, clean-room so it is not a Forge derivative) and the licences are coherent: MIT so P4 can go upstream to watchparty's MIT packages, GPL for `room-store` which is ours. But `docs/DECISIONS.md` mentions `room-ask` **zero** times. Either amend D2 with the carve-out, or move the package to watchparty. A rule contradicted without a record is one that flips back. | Decision log |
 | **O6** | **The CDN upload has never run** — `art-manifest.json` has 0 entries and all art still comes from Scryfall via fallback. `pnpm --filter @hadoku/carddata upload-art` needs a **friend-tier credential** that is not on this host. Lane B refused to invent an auth path, correctly. One credential turns a working pipeline into live art. | Credential |
@@ -289,7 +290,61 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-16 — tracker, closing Wave 6 + PR-4 unblock)
+## Verified this pass (2026-09-16 — tracker, closing Wave 7)
+
+**All four lanes landed; worktree gone.** Gate **1,143 tests / exit 0** (was
+635). CI and redeploy green on `40060fa`; production 401 to anonymous.
+
+- **Tier C is settled, and it is good news.** 48 delta packets from the stock
+  harness, **658 over 12 captured games**, and **73,549 of 73,549 values
+  round-trip through JSON — zero failures, zero unrepresentable.** The `mutate`
+  target requires all three mutations to exit non-zero, so the control can fail.
+  Lane F's week/month/quarter question resolves to **the state channel is days**.
+- **The pin moved to `2ad70eb4`, and no count drifted — because lane B branched
+  from `2cd497c` rather than upstream tip.** Verified the parent chain
+  (`2ad70eb4 → 1f19a230 → 2cd497cfbeb`) and re-derived every documented figure at
+  the new pin myself: **ProtocolMethod 45 SERVER / 15 CLIENT = 60**, **ApiType
+  202 constants / 199 distinct / 206 files**. All unchanged. That was the wave's
+  condition on moving the pin and it was met properly.
+- **The Sentry DSN is genuinely gone.** `grep -cE '^\s*Sentry\.init'` → **0**,
+  no DSN string anywhere in `Main.java`, and the removal is explained in a
+  comment rather than silently blanked. `case "server":` now calls
+  `DedicatedServer.start(args)` where it used to print "Not implemented."
+- **The `ReplyPool` correction is right, and I read the source rather than the
+  note.** `ReplyPool.java:54` is `private static final class CompletableFuture
+  extends FutureTask<Object>` and `java.util.concurrent.CompletableFuture` is
+  **never imported** — a nested class shadowing the JDK name. Wave 6 had the
+  right mechanism and the wrong name; the correction had the right name and
+  invites the wrong semantics. Both are now recorded with the trap named.
+- **The events arm is the new long pole, and the finding is subtler than a
+  count.** 32,604 event items survived base64 with 0 byte differences — and lane
+  A says plainly that **a clean byte count is not "events round-trip"**: the
+  payload is a Java object stream, so a browser that decodes it holds bytes it
+  cannot read. It needs **36 per-event JSON schemas** (36 distinct `GameEvent`
+  classes fired across 12 games, of 58 declared). Sized 1–2 days.
+
+### The deploy tree's submodule — closed by accident, and it WILL recur
+
+The manager reported ` M forge` on the deploy tree and correctly refused to
+write to production. **That tree is this checkout** — `deploy-config.json:143`
+is `"localPath": "hadoku-cardtable"` — and it is **clean now**, because syncing
+the submodule earlier in this pass was the same one-liner.
+
+**It is not durably fixed.** `buildCommand` is `pnpm install && pnpm build` with
+**no submodule step**, and mgmt-api's `git pull` does not update submodules — so
+every future pin move re-dirties the deploy tree, and eventually a `git pull`
+refuses with *"local changes would be overwritten"*. **Operator item O8**; the
+durable fix is in hadoku_site, not here.
+
+### D12 note, recorded rather than actioned
+
+The Wave 7 manager read `ReplyPool.java`, and `docs/FORGE_ANALYSIS.md` now
+documents its mechanism. That is fine — P4 (`room-ask`) was already built clean
+in Wave 5, and D12 already forbids a P4 clean-room agent from reading
+`FORGE_ANALYSIS.md`. But **that manager, and this session, are contaminated for
+any future P4 work.** A fresh agent is required if P4 is ever reopened.
+
+## Previously verified (2026-09-16 — tracker, closing Wave 6 + PR-4 unblock)
 
 **Wave 6 landed: all six lanes on `main`, worktree gone.** Gate **635 tests / 37
 files** (was 473 / 28). The manager's three self-corrections and four handoffs
