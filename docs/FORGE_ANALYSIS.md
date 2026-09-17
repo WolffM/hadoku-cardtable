@@ -416,3 +416,66 @@ Each re-derived by the Wave 7 manager against the vendored tree at the pin.
 - This answers open decision 3 below (*"Do we implement `case "server"`
   upstream-style?"*) in the affirmative for the shape, and leaves the
   contribute-back half open.
+
+### The state channel, measured — Wave 7 lane A
+
+`docs/spikes/tier-c.md` is the full report: two AI players, real matches over a
+real socket, every `DeltaPacket` round-tripped through JSON inside `applyDelta`.
+These are the lines it owed this file. The manager re-derived the source
+citations against the vendored tree; the measurements are the lane's committed
+transcripts under `scripts/spike/tierc/out/`.
+
+- **VERIFIED — the delta stream round-trips.** 73,549 of 73,549 property values
+  over 658 packets and 12 complete games: 0 unrepresentable, 0 undecodable, 0
+  value mismatches, 0 UNSUPPORTED. Reproduced independently by the manager on a
+  fresh run (5,864 / 5,864 values, 64 / 64 packets, exit 0). **The week does not
+  become a month.**
+- **VERIFIED — not one `TrackableObject` reference crosses the wire.**
+  `DeltaSyncManager.toNetworkValue` (`DeltaSyncManager.java:356-401`) has already
+  flattened every `CardView`/`PlayerView`/`StackItemView`/`CardStateView`/
+  `CombatView` to an `Integer`, a `List<Integer>`, an `int[]{typeMarker,id}` or a
+  `DeltaPacket.CombatData` before the packet is sent. The value census has zero
+  ref rows. **Lane F's "54 entity-ref properties need the id emitted" need no
+  encoder at all** — Forge already emitted the id.
+- **CORRECTION to lane F's sizing — `forge.card.ColorSet` is an enum**
+  (`ColorSet.java:38`, `public enum ColorSet implements Iterable<Color>,
+  Serializable`). So `ColorSetType`'s 4 properties are enum names, not bespoke
+  encoders, and lane F's "13 bespoke over 9 types" **over-counts by 4**. The live
+  surface measured 128 PLAIN / 5 DERIVED (`ManaCost` ×2,
+  `KeywordCollectionView`, a `CounterType` multiset, `PaperCard`) / 0
+  UNSUPPORTED over 133 (property, class) pairs — 21 Java classes plus `null`.
+- **VERIFIED — `CardType.toString()` is not accepted by `CardType.parse()`.**
+  `toString` emits `" - "` as the subtype separator (`CardType.java:589-612`) and
+  `parse` re-splits on it (`:806-826`), so `"Creature - Wurm"` re-parses to
+  `"Creature - - Wurm"`. It broke roughly three quarters of every creature's
+  `Type` value until the encoder carried the three token sets explicitly. A trap
+  for anything that treats a Forge `toString()` as a wire format.
+- **VERIFIED — `useDeltaSync=false` does not stop `applyDelta`, and a packet
+  count cannot detect it.** With the flag off the server still sends
+  `applyDelta` carrying `DeltaPacket.eventsOnly(...)`
+  (`RemoteClientGuiGame.java:607`, `:640`) and falls back to a full
+  `setGameView` per update. The packet count barely moves; the *state* arm is
+  what went away. This is why the spike asserts "at least one packet carried
+  STATE" rather than "packets > 0" — the first version of that mutation did not
+  bite, and the non-biting run is committed at
+  `scripts/spike/tierc/out/mutation-a-does-not-bite.txt`.
+- **VERIFIED — `GameResult.deltaPacketCount` is always 0 on the remote path.**
+  `UnifiedNetworkHarness` never collects server-side byte metrics there. Observed
+  by the manager in a fresh run: `deltaPacketsReceived = 50` client-side,
+  `deltaPacketCount = 0` server-side, same match. **Do not read that zero as "no
+  traffic"** — it is a metric that was never wired up.
+- **VERIFIED — the events arm is the new long pole, and it is days not
+  quarters.** `DeltaPacket.events` carries `record WrappedEvent(byte[] data)`
+  (`TrackableSerializer.java:171`) — `GameEvent`s that are *already*
+  Java-serialized. Base64 carries the bytes through JSON intact (measured, 0
+  failures), but a browser that decodes them holds bytes it cannot read. **36 of
+  Forge's 58 `GameEvent` classes fire in a real match**; re-expressing those as
+  record schemas is the work lane F did not name. Verified byte-exact, not
+  semantically.
+- **NOT OBSERVED — 103 of 214 `TrackableProperty` constants** never appeared: a
+  match exercises only the cards that turned up. 24 of the 27 declared
+  `TrackableTypes` were exercised; **`GenericMapType`, `IntegerMapType` and
+  `ObjectType` were not**. `ObjectType` is untyped by construction and is the one
+  structural risk left — one property of 214. Settle with
+  `run.sh capture -Dtierc.games=40`, or a Commander or planar game.
+  `scripts/spike/tierc/out/coverage.tsv` lists all 214.
