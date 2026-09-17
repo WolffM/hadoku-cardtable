@@ -1,0 +1,324 @@
+(mutation artifacts go to /tmp/claude-1000/tierc-mut2/mutate-out, not the committed out/ dir)
+############################################################
+# mutation A — remove the remote client, so no delta can flow.
+#   -Dtierc.remoteClients=0 sends UnifiedNetworkHarness down its
+#   local-AI path: nobody connects, so deltaPacketsReceived is 0
+#   and clientOpenViewCalled is false. Phase 1 must FAIL.
+############################################################
+==> compile: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
+=== Wave 7 lane A / phase 1: a real 2-player match over a real socket ===
+forge.deltasync=(unset -> on)
+tierc.remoteClients=0   (mutation: 0)
+gameTimeoutMs=240000
+[TestDeckLoader] Selected random precon: Dangerous Knowledge
+[TestDeckLoader] Selected random precon: Swoop
+
+-- stock UnifiedNetworkHarness.GameResult --
+  description             = 2-player local AI
+  port                    = 50000
+  decks                   = [Dangerous Knowledge, Swoop]
+  gameStarted             = true
+  gameCompleted           = true
+  turnCount               = 19
+  winner                  = Alice (Host AI)
+  gameDurationMs          = 79095
+  errorMessage            = null
+  clientOpenViewCalled    = false
+  clientSetGameViewCount  = 0
+  deltaPacketsReceived    = 0   <- client side
+  fullStateSyncsReceived  = 0
+  totalDeltaBytes         = 0
+  deltaPacketCount        = 0   <- server side
+  deltaBytesSent          = 0
+  fullStateBytesSent      = 0
+  sendErrors              = 0
+  eventStateMismatches    = 0
+
+  [PASS] a game actually started (gameStarted=true)
+  [FAIL] the client counted a NON-ZERO number of delta packets (0)
+  [FAIL] the state channel opened (openView=false, setGameView x0)
+
+phase 1: 2 failed / 1 passed
+mutation A (no remote client): exit=1   [expected: non-zero]
+
+############################################################
+# mutation B — suppress the STATE arm of the delta stream.
+#   -Dforge.deltasync=false is read by TestUtils, which sets
+#   RemoteClientGuiGame.useDeltaSync=false. The server then stops
+#   building state deltas but KEEPS sending applyDelta carrying
+#   DeltaPacket.eventsOnly(...), so a packet COUNT does not move.
+#   Phase 2's 'at least one packet carried STATE' must FAIL.
+#   (This mutation was first aimed at phase 1 and did not bite:
+#    49 packets arrived anyway. That is why the assertion exists.)
+############################################################
+==> compile: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
+=== Wave 7 lane A / phase 2: does a real delta survive a JSON round trip? ===
+tierc.mutate=(none)
+tierc.games=1
+forge.deltasync=false
+  [PASS] CardType.toString() is not CardType.parse()-able, as documented: "Creature - Wurm" -> "Creature - - Wurm"
+  [PASS] the encoder refuses a value with no JSON form: no JSON form for java.util.Random
+
+-- codec self-test on fixtures: 0 failed / 22 passed --
+
+################ game 1 of 1 ################
+[TestDeckLoader] Selected random precon: Rebels Unite
+[TestDeckLoader] Selected random precon: Eldrazi Assault
+server on port 50000; decks: host=Rebels Unite remote=Eldrazi Assault
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+[HeadlessGuiDesktop] Input: Personalize Forge Gameplay: By default, Forge will refer to you as the "Human" during gameplay.
+If you would prefer a different name please enter it now.
+  converted slot 1 to server-side AI
+
+game: turns=22 over=true
+
+################ verdict ################
+  game turns=22  over=true  decks=[Rebels Unite vs Eldrazi Assault] deltasSoFar=79
+
+-- delta stream --
+  applyDelta calls        = 79
+  setGameView calls       = 82
+  full state syncs        = 1
+  openView calls          = 1
+  packets analysed        = 79
+  packets with events     = 79
+  packets carrying STATE  = 0
+  [PASS] the client counted a NON-ZERO number of delta packets (79)
+  [FAIL] at least one packet carried object STATE, not just events (0)
+  [PASS] our analysis threw nothing (0 errors)
+
+-- JSON round trip over every value in every captured packet --
+  values seen             = 0
+  round-tripped           = 0
+  failed: no JSON form    = 0
+  failed: cannot rebuild  = 0
+  failed: value differed  = 0
+  packet skeleton ok      = 79/79   (seq, checksum, sampled ordinals, composite delta keys)
+
+-- by fidelity, over distinct (property, value class) pairs --
+  PLAIN       (any client can rebuild from the JSON)     = 0
+  DERIVED     (needs a Forge parser or the card DB)      = 0
+  UNSUPPORTED (no JSON form without inventing a schema)  = 0
+
+-- events arm (carried as opaque Java-serialized bytes, NOT as state) --
+  event items             = 3907
+  bytes survived base64   = 3907
+  failed: no JSON form    = 0
+  failed: cannot rebuild  = 0
+  failed: bytes differed  = 0
+  JSON text for events    = 3445432 chars
+    3907 x forge.gamemodes.net.TrackableSerializer$WrappedEvent
+
+  GameEvent classes this match actually fired: 29 distinct, 3907 deliveries
+  (forge-game/src/main/java/forge/game/event/ declares 58 GameEvent types)
+        59 x GameEventAddLog
+        22 x GameEventAttackersDeclared
+         7 x GameEventBlockersDeclared
+         1 x GameEventCardAttachment
+        97 x GameEventCardChangeZone
+         3 x GameEventCardDestroyed
+         3 x GameEventCardSacrificed
+       799 x GameEventCardStatsChanged
+       126 x GameEventCardTapped
+        29 x GameEventCombatChanged
+        21 x GameEventCombatEnded
+         1 x GameEventFlipCoin
+         1 x GameEventGameFinished
+         1 x GameEventGameOutcome
+         1 x GameEventGameStarted
+        18 x GameEventLandPlayed
+       110 x GameEventManaPool
+         2 x GameEventPlayerControl
+         8 x GameEventPlayerDamaged
+         8 x GameEventPlayerLivesChanged
+       427 x GameEventPlayerPriority
+         3 x GameEventShuffle
+        28 x GameEventSpellAbilityCast
+        28 x GameEventSpellRemovedFromStack
+        28 x GameEventSpellResolved
+        22 x GameEventTurnBegan
+        21 x GameEventTurnEnded
+       282 x GameEventTurnPhase
+      1751 x GameEventZone
+  NOTE: a clean byte count is NOT 'events round-trip'. The payload is a
+        Java object stream; a browser that base64-decodes it holds bytes
+        it cannot read. Tier C's events need a per-event JSON schema.
+  [PASS] every event item's bytes survived the JSON trip
+
+-- (property, class) pairs that did NOT round-trip --
+  (none)
+
+  [FAIL] every captured value round-tripped through JSON
+
+-- coverage: 0/214 TrackableProperty constants observed --
+  declared types exercised   : []
+  declared types NEVER seen, with the properties that carry them:
+    BooleanType                  53: IsEmblem IsBoon CanSpecialize Flipped Facedown Foretold Modal Secondary DoubleFaced PaperFoil Cloned FlipCard SplitCard Attacking Blocking PhasedOut Sickness Tapped Token TokenCard IsCommander IsRingBearer WasDestroyed NeedsTransformAnimation NeedsUntapAnimation NeedsTapAnimation Room ExertedThisTurn Detained HasChangedColors HasPrintedPT OrigProduceAnyMana HasAnnihilator HasWard BlockAny HasDivideDamage IsAI HasUnlimitedHandSize HasUnlimitedLandPlay ControlVotes IsExtraTurn HasPriority HasLost HasAvailableActions CanPlay PromptIfOnlyPossibleAbility SA_IsSpell HasBackSide Ability OptionalTrigger MatchOver Mulligan GameOver
+    CardStateViewType            4: CurrentState AlternateState LeftSplitState RightSplitState
+    CardTypeViewType             1: Type
+    CardViewCollectionType       27: AttachedCards MergedCardsCollection RevealedCardsCollection ChosenCards EncodedCards UntilLeavesBattlefield GainControlTargets ImprintedCards ExiledCards HauntedBy MustBlockCards Commander Ante Battlefield Command Exile Flashback Graveyard Hand Library Sideboard PlanarDeck SchemeDeck AttractionDeck ContraptionDeck Junkyard TargetCards
+    CardViewType                 7: CloneOrigin ExiledWith PreparedSpell Haunting PairedWith HostCard SourceCard
+    ColorSetType                 4: MarkedColors Colors OriginalColors OrigProduceMana
+    CombatViewType               1: CombatView
+    CounterMapType               1: Counters
+    EnumType                     7: Zone GamePieceType ChosenDirection ChosenEvenOdd Rarity GameType Phase
+    GameEntityViewType           1: EntityAttachedTo
+    GenericMapType               6: AttackersWithDefenders AttackersWithBlockers BandsWithDefenders BandsWithBlockers AttackersWithPlannedBlockers BandsWithPlannedBlockers
+    IPaperCardType               1: PaperCardBackup
+    IntegerMapType               2: CommanderCast CommanderDamage
+    IntegerSetType               1: AttractionLights
+    IntegerType                  35: PreventNextDamage Damage AssignedDamage LethalDamage ShieldCount Sprocket ClassLevel RingLevel Intensity HiddenId Power Toughness BlockAdditional FoilIndex AvatarIndex SleeveIndex SleeveArtOffset Life MaxHandSize MaxLandPlay NumLandThisTurn NumManaShards NumDrawnThisTurn AdditionalVote OptionalAdditionalVote AdditionalVillainousChoices ExtraTurnCount AvatarLifeDifference SourceTrigger Turn WinningTeam NumGamesInMatch NumPlayedGamesInMatch StormCount PoisonCountersToLose
+    KeywordCollectionViewType    1: Keywords
+    ManaCostType                 2: ManaCost OriginalManaCost
+    ManaMapType                  1: Mana
+    ObjectType                   1: Object
+    PlayerViewCollectionType     4: PlayerMayLook Opponents TargetPlayers Players
+    PlayerViewType               9: PlanarPlayer Owner Controller ChosenPlayer PromisedGift ProtectingPlayer MindSlaveMaster ActivatingPlayer PlayerTurn
+    StackItemViewListType        1: Stack
+    StackItemViewType            1: SubInstance
+    StringListType               6: NotedTypes ChosenColors StoredRolls DraftAction MarkerText NamedCard
+    StringMapType                3: ChangedColorWords ChangedTypes DraftNotes
+    StringSetType                1: CantHaveKeyword
+    StringType                   33: CurrentPlane FacedownImageKey Cloner MergedCards CommanderAltType ChosenType ChosenType2 ChosenNumber ChosenMode Sector CurrentRoom OverlayText Remembered Name ImageKey SetCode FunctionalVariant OracleText RulesText OracleName Loyalty Defense AbilityText NonAbilityText LobbyPlayerName AvatarCardImageKey SleeveArtKey Description Key OptionalCosts Title WinningPlayerName Dependencies
+
+wrote census.tsv, coverage.tsv, sample-newobjects.json and sample-delta.json into /tmp/claude-1000/tierc-mut2/mutate-out
+
+phase 2: 2 failed / 6 passed  (deltas=79)
+mutation B (state arm off): exit=1   [expected: non-zero]
+
+############################################################
+# mutation C — corrupt one decoded value in the JSON round trip.
+#   -Dtierc.mutate=corrupt-value perturbs the FIRST decoded value
+#   in JsonDelta's decode path. The comparator must then report a
+#   mismatch and phase 2 must FAIL.
+############################################################
+==> compile: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
+=== Wave 7 lane A / phase 2: does a real delta survive a JSON round trip? ===
+tierc.mutate=corrupt-value
+tierc.games=1
+forge.deltasync=(unset -> on)
+  [PASS] CardType.toString() is not CardType.parse()-able, as documented: "Creature - Wurm" -> "Creature - - Wurm"
+  [PASS] the encoder refuses a value with no JSON form: no JSON form for java.util.Random
+
+-- codec self-test on fixtures: 0 failed / 22 passed --
+
+################ game 1 of 1 ################
+[TestDeckLoader] Selected random precon: Blazing Beasts of Myth
+[TestDeckLoader] Selected random precon: Pantheon's Power
+server on port 50000; decks: host=Blazing Beasts of Myth remote=Pantheon's Power
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+[HeadlessGuiDesktop] Input: Personalize Forge Gameplay: By default, Forge will refer to you as the "Human" during gameplay.
+If you would prefer a different name please enter it now.
+  converted slot 1 to server-side AI
+  [mutate] corrupting decoded value #1 (ArrayList)
+
+game: turns=18 over=true
+
+################ verdict ################
+  game turns=18  over=true  decks=[Blazing Beasts of Myth vs Pantheon's Power] deltasSoFar=47
+
+-- delta stream --
+  applyDelta calls        = 47
+  setGameView calls       = 3
+  full state syncs        = 1
+  openView calls          = 1
+  packets analysed        = 47
+  packets with events     = 47
+  packets carrying STATE  = 47
+  [PASS] the client counted a NON-ZERO number of delta packets (47)
+  [PASS] at least one packet carried object STATE, not just events (47)
+  [PASS] our analysis threw nothing (0 errors)
+
+-- JSON round trip over every value in every captured packet --
+  values seen             = 4962
+  round-tripped           = 4961
+  failed: no JSON form    = 0
+  failed: cannot rebuild  = 0
+  failed: value differed  = 1
+  packet skeleton ok      = 47/47   (seq, checksum, sampled ordinals, composite delta keys)
+
+-- by fidelity, over distinct (property, value class) pairs --
+  PLAIN       (any client can rebuild from the JSON)     = 106
+  DERIVED     (needs a Forge parser or the card DB)      = 4
+  UNSUPPORTED (no JSON form without inventing a schema)  = 0
+
+-- events arm (carried as opaque Java-serialized bytes, NOT as state) --
+  event items             = 2320
+  bytes survived base64   = 2320
+  failed: no JSON form    = 0
+  failed: cannot rebuild  = 0
+  failed: bytes differed  = 0
+  JSON text for events    = 989113 chars
+    2320 x forge.gamemodes.net.TrackableSerializer$WrappedEvent
+
+  GameEvent classes this match actually fired: 31 distinct, 2320 deliveries
+  (forge-game/src/main/java/forge/game/event/ declares 58 GameEvent types)
+        51 x GameEventAddLog
+        18 x GameEventAttackersDeclared
+         5 x GameEventBlockersDeclared
+         2 x GameEventCardAttachment
+        76 x GameEventCardChangeZone
+         1 x GameEventCardCounters
+         4 x GameEventCardDamaged
+         3 x GameEventCardDestroyed
+       329 x GameEventCardStatsChanged
+       106 x GameEventCardTapped
+        23 x GameEventCombatChanged
+        17 x GameEventCombatEnded
+         1 x GameEventFlipCoin
+         1 x GameEventGameFinished
+         1 x GameEventGameOutcome
+         1 x GameEventGameStarted
+        13 x GameEventLandPlayed
+        96 x GameEventManaPool
+         2 x GameEventPlayerControl
+         9 x GameEventPlayerDamaged
+         5 x GameEventPlayerLivesChanged
+       327 x GameEventPlayerPriority
+         2 x GameEventScry
+         2 x GameEventShuffle
+        14 x GameEventSpellAbilityCast
+        14 x GameEventSpellRemovedFromStack
+        14 x GameEventSpellResolved
+        18 x GameEventTurnBegan
+        17 x GameEventTurnEnded
+       230 x GameEventTurnPhase
+       918 x GameEventZone
+  NOTE: a clean byte count is NOT 'events round-trip'. The payload is a
+        Java object stream; a browser that base64-decodes it holds bytes
+        it cannot read. Tier C's events need a per-event JSON schema.
+  [PASS] every event item's bytes survived the JSON trip
+
+-- (property, class) pairs that did NOT round-trip --
+  Players                      java.util.ArrayList                                        seen=1 enc=0 dec=0 cmp=1
+    COMPARE: sent=[ArrayList] [0, 1] got=null
+
+  [FAIL] every captured value round-tripped through JSON
+
+-- coverage: 99/214 TrackableProperty constants observed --
+  declared types exercised   : [BooleanType, CardStateViewType, CardTypeViewType, CardViewCollectionType, CardViewType, ColorSetType, CombatViewType, CounterMapType, EnumType, GameEntityViewType, IntegerSetType, IntegerType, KeywordCollectionViewType, ManaCostType, ManaMapType, PlayerViewCollectionType, PlayerViewType, StackItemViewListType, StackItemViewType, StringListType, StringMapType, StringSetType, StringType]
+  declared types NEVER seen, with the properties that carry them:
+    BooleanType                  36: IsEmblem IsBoon CanSpecialize Flipped Facedown Foretold Modal Secondary DoubleFaced Cloned FlipCard SplitCard PhasedOut Token TokenCard IsCommander IsRingBearer NeedsTransformAnimation Room ExertedThisTurn Detained HasChangedColors HasPrintedPT BlockAny HasUnlimitedHandSize HasUnlimitedLandPlay ControlVotes IsExtraTurn HasAvailableActions CanPlay PromptIfOnlyPossibleAbility SA_IsSpell HasBackSide OptionalTrigger MatchOver Mulligan
+    CardStateViewType            3: AlternateState LeftSplitState RightSplitState
+    CardViewCollectionType       16: RevealedCardsCollection ChosenCards EncodedCards GainControlTargets ImprintedCards HauntedBy MustBlockCards Commander Ante Command Sideboard PlanarDeck SchemeDeck AttractionDeck ContraptionDeck Junkyard
+    CardViewType                 5: CloneOrigin PreparedSpell Haunting PairedWith HostCard
+    ColorSetType                 1: MarkedColors
+    EnumType                     2: ChosenDirection ChosenEvenOdd
+    GenericMapType               6: AttackersWithDefenders AttackersWithBlockers BandsWithDefenders BandsWithBlockers AttackersWithPlannedBlockers BandsWithPlannedBlockers
+    IPaperCardType               1: PaperCardBackup
+    IntegerMapType               2: CommanderCast CommanderDamage
+    IntegerType                  14: PreventNextDamage ShieldCount Sprocket RingLevel Intensity HiddenId BlockAdditional NumManaShards AdditionalVote OptionalAdditionalVote AdditionalVillainousChoices ExtraTurnCount AvatarLifeDifference NumPlayedGamesInMatch
+    ObjectType                   1: Object
+    PlayerViewCollectionType     1: PlayerMayLook
+    PlayerViewType               5: PlanarPlayer ChosenPlayer PromisedGift ProtectingPlayer MindSlaveMaster
+    StringListType               5: NotedTypes ChosenColors StoredRolls MarkerText NamedCard
+    StringType                   17: CurrentPlane Cloner MergedCards CommanderAltType ChosenType ChosenType2 ChosenNumber ChosenMode Sector CurrentRoom OverlayText Remembered FunctionalVariant RulesText AvatarCardImageKey SleeveArtKey OptionalCosts
+
+wrote census.tsv, coverage.tsv, sample-newobjects.json and sample-delta.json into /tmp/claude-1000/tierc-mut2/mutate-out
+
+phase 2: 1 failed / 7 passed  (deltas=47)
+mutation C (corrupt-value): exit=1   [expected: non-zero]
+
+All three mutations bit. Re-run './scripts/spike/tierc/run.sh match' and './scripts/spike/tierc/run.sh capture' unmutated to restore.

@@ -1,0 +1,258 @@
+==> compile: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
+=== Wave 7 lane A / phase 2: does a real delta survive a JSON round trip? ===
+tierc.mutate=(none)
+tierc.games=12
+forge.deltasync=(unset -> on)
+  [PASS] CardType.toString() is not CardType.parse()-able, as documented: "Creature - Wurm" -> "Creature - - Wurm"
+  [PASS] the encoder refuses a value with no JSON form: no JSON form for java.util.Random
+
+-- codec self-test on fixtures: 0 failed / 22 passed --
+
+################ game 1 of 12 ################
+[TestDeckLoader] Selected random precon: Battle Blitz
+[TestDeckLoader] Selected random precon: Dimir Dementia
+server on port 50000; decks: host=Battle Blitz remote=Dimir Dementia
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+[HeadlessGuiDesktop] Input: Personalize Forge Gameplay: By default, Forge will refer to you as the "Human" during gameplay.
+If you would prefer a different name please enter it now.
+  converted slot 1 to server-side AI
+
+game: turns=17 over=true
+
+################ game 2 of 12 ################
+[TestDeckLoader] Deck 'Arcanis's Guile' has 40 cards (need 60), trying another...
+[TestDeckLoader] Selected random precon: Rivals
+[TestDeckLoader] Selected random precon: Draconic Rage
+server on port 50010; decks: host=Quick Start Set: Rivals remote=Draconic Rage
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+  converted slot 1 to server-side AI
+
+game: turns=14 over=true
+
+################ game 3 of 12 ################
+[TestDeckLoader] Deck 'Grixis Shambling Army' has 41 cards (need 60), trying another...
+[TestDeckLoader] Selected random precon: Pantheon's Power
+[TestDeckLoader] Selected random precon: Blades of Victory
+server on port 50020; decks: host=Pantheon's Power remote=Blades of Victory
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+  converted slot 1 to server-side AI
+
+game: turns=13 over=true
+
+################ game 4 of 12 ################
+[TestDeckLoader] Selected random precon: Doom Inevitable
+[TestDeckLoader] Selected random precon: Sworn to Darkness
+server on port 50030; decks: host=Doom Inevitable remote=Sworn to Darkness
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+  converted slot 1 to server-side AI
+• Counter target artifact spell.
+• Return target artifact to its owner's hand.
+
+ Return target artifact to its owner's hand.
+
+game: turns=13 over=true
+
+################ game 5 of 12 ################
+[TestDeckLoader] Selected random precon: Wild-Eyed Frenzy
+[TestDeckLoader] Selected random precon: Deathly Dominion
+server on port 50040; decks: host=Wild-Eyed Frenzy remote=Deathly Dominion
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+  converted slot 1 to server-side AI
+Draw two cards.
+
+game: turns=24 over=true
+
+################ game 6 of 12 ################
+[TestDeckLoader] Selected random precon: Entropic Uprising
+[TestDeckLoader] Selected random precon: Sliver Evolution
+server on port 50050; decks: host=Entropic Uprising remote=Sliver Evolution
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+  converted slot 1 to server-side AI
+
+game: turns=19 over=true
+
+################ game 7 of 12 ################
+[TestDeckLoader] Selected random precon: Dungeons of Death
+[TestDeckLoader] Selected random precon: Core Set 2019 Welcome Deck RG
+server on port 50060; decks: host=Dungeons of Death remote=Core Set 2019 Welcome Deck (RG)
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+  converted slot 1 to server-side AI
+
+game: turns=13 over=true
+
+################ game 8 of 12 ################
+[TestDeckLoader] Selected random precon: Cruel Plots
+[TestDeckLoader] Selected random precon: Draconic Rage
+server on port 50070; decks: host=Cruel Plots remote=Draconic Rage
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+  converted slot 1 to server-side AI
+
+game: turns=32 over=true
+
+################ game 9 of 12 ################
+[TestDeckLoader] Selected random precon: Beyond the Grave
+[TestDeckLoader] Deck 'Wu Kingdom' has 40 cards (need 60), trying another...
+[TestDeckLoader] Selected random precon: Superabundance
+server on port 50080; decks: host=Beyond the Grave remote=Superabundance
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+  converted slot 1 to server-side AI
+
+game: turns=21 over=true
+
+################ game 10 of 12 ################
+[TestDeckLoader] Selected random precon: Painflow
+[TestDeckLoader] Selected random precon: Wicked Big
+server on port 50090; decks: host=Painflow remote=Wicked Big
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+  converted slot 1 to server-side AI
+
+game: turns=14 over=true
+
+################ game 11 of 12 ################
+[TestDeckLoader] Selected random precon: Spirit Squadron
+[TestDeckLoader] Selected random precon: Blazing Beasts of Myth
+server on port 50100; decks: host=Spirit Squadron remote=Blazing Beasts of Myth
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+  converted slot 1 to server-side AI
+Correcting zone for Ghostly Pilferer (142)
+
+game: turns=14 over=true
+
+################ game 12 of 12 ################
+[TestDeckLoader] Selected random precon: Forged in Battle
+[TestDeckLoader] Selected random precon: Hit The Ground Running
+server on port 50110; decks: host=Forged in Battle remote=Hit The Ground Running
+  [PASS] client reached a lobby slot (slot=1)
+  [PASS] lobby.startGame() returned a runnable
+  converted slot 1 to server-side AI
+
+game: turns=19 over=true
+
+################ verdict ################
+  game turns=17  over=true  decks=[Battle Blitz vs Dimir Dementia] deltasSoFar=64
+  game turns=14  over=true  decks=[Quick Start Set: Rivals vs Draconic Rage] deltasSoFar=114
+  game turns=13  over=true  decks=[Pantheon's Power vs Blades of Victory] deltasSoFar=149
+  game turns=13  over=true  decks=[Doom Inevitable vs Sworn to Darkness] deltasSoFar=191
+  game turns=24  over=true  decks=[Wild-Eyed Frenzy vs Deathly Dominion] deltasSoFar=234
+  game turns=19  over=true  decks=[Entropic Uprising vs Sliver Evolution] deltasSoFar=313
+  game turns=13  over=true  decks=[Dungeons of Death vs Core Set 2019 Welcome Deck (RG)] deltasSoFar=347
+  game turns=32  over=true  decks=[Cruel Plots vs Draconic Rage] deltasSoFar=466
+  game turns=21  over=true  decks=[Beyond the Grave vs Superabundance] deltasSoFar=529
+  game turns=14  over=true  decks=[Painflow vs Wicked Big] deltasSoFar=563
+  game turns=14  over=true  decks=[Spirit Squadron vs Blazing Beasts of Myth] deltasSoFar=605
+  game turns=19  over=true  decks=[Forged in Battle vs Hit The Ground Running] deltasSoFar=658
+
+-- delta stream --
+  applyDelta calls        = 658
+  setGameView calls       = 36
+  full state syncs        = 12
+  openView calls          = 12
+  packets analysed        = 658
+  packets with events     = 658
+  packets carrying STATE  = 658
+  [PASS] the client counted a NON-ZERO number of delta packets (658)
+  [PASS] at least one packet carried object STATE, not just events (658)
+  [PASS] our analysis threw nothing (0 errors)
+
+-- JSON round trip over every value in every captured packet --
+  values seen             = 73549
+  round-tripped           = 73549
+  failed: no JSON form    = 0
+  failed: cannot rebuild  = 0
+  failed: value differed  = 0
+  packet skeleton ok      = 658/658   (seq, checksum, sampled ordinals, composite delta keys)
+
+-- by fidelity, over distinct (property, value class) pairs --
+  PLAIN       (any client can rebuild from the JSON)     = 128
+  DERIVED     (needs a Forge parser or the card DB)      = 5
+  UNSUPPORTED (no JSON form without inventing a schema)  = 0
+
+-- events arm (carried as opaque Java-serialized bytes, NOT as state) --
+  event items             = 32604
+  bytes survived base64   = 32604
+  failed: no JSON form    = 0
+  failed: cannot rebuild  = 0
+  failed: bytes differed  = 0
+  JSON text for events    = 14490485 chars
+    32604 x forge.gamemodes.net.TrackableSerializer$WrappedEvent
+
+  GameEvent classes this match actually fired: 36 distinct, 32604 deliveries
+  (forge-game/src/main/java/forge/game/event/ declares 58 GameEvent types)
+       566 x GameEventAddLog
+       211 x GameEventAttackersDeclared
+        87 x GameEventBlockersDeclared
+         9 x GameEventCardAttachment
+      1045 x GameEventCardChangeZone
+        17 x GameEventCardCounters
+        60 x GameEventCardDamaged
+        31 x GameEventCardDestroyed
+         7 x GameEventCardSacrificed
+      5300 x GameEventCardStatsChanged
+      1182 x GameEventCardTapped
+       298 x GameEventCombatChanged
+       201 x GameEventCombatEnded
+        12 x GameEventFlipCoin
+        12 x GameEventGameFinished
+        12 x GameEventGameOutcome
+        12 x GameEventGameStarted
+       158 x GameEventLandPlayed
+      1024 x GameEventManaPool
+         5 x GameEventMulligan
+        24 x GameEventPlayerControl
+       122 x GameEventPlayerDamaged
+        97 x GameEventPlayerLivesChanged
+      4162 x GameEventPlayerPriority
+       196 x GameEventPlayerStatsChanged
+         2 x GameEventRollDie
+         1 x GameEventScry
+        35 x GameEventShuffle
+       254 x GameEventSpellAbilityCast
+       254 x GameEventSpellRemovedFromStack
+       253 x GameEventSpellResolved
+        11 x GameEventTokenCreated
+       213 x GameEventTurnBegan
+       201 x GameEventTurnEnded
+      2709 x GameEventTurnPhase
+     13821 x GameEventZone
+  NOTE: a clean byte count is NOT 'events round-trip'. The payload is a
+        Java object stream; a browser that base64-decodes it holds bytes
+        it cannot read. Tier C's events need a per-event JSON schema.
+  [PASS] every event item's bytes survived the JSON trip
+
+-- (property, class) pairs that did NOT round-trip --
+  (none)
+
+  [PASS] every captured value round-tripped through JSON
+
+-- coverage: 111/214 TrackableProperty constants observed --
+  declared types exercised   : [BooleanType, CardStateViewType, CardTypeViewType, CardViewCollectionType, CardViewType, ColorSetType, CombatViewType, CounterMapType, EnumType, GameEntityViewType, IPaperCardType, IntegerSetType, IntegerType, KeywordCollectionViewType, ManaCostType, ManaMapType, PlayerViewCollectionType, PlayerViewType, StackItemViewListType, StackItemViewType, StringListType, StringMapType, StringSetType, StringType]
+  declared types NEVER seen, with the properties that carry them:
+    BooleanType                  33: IsEmblem IsBoon CanSpecialize Flipped Facedown Foretold Modal Secondary DoubleFaced FlipCard SplitCard PhasedOut TokenCard IsCommander IsRingBearer WasDestroyed NeedsTransformAnimation Room ExertedThisTurn Detained HasPrintedPT BlockAny HasUnlimitedHandSize HasUnlimitedLandPlay ControlVotes IsExtraTurn HasAvailableActions CanPlay PromptIfOnlyPossibleAbility SA_IsSpell HasBackSide MatchOver Mulligan
+    CardStateViewType            3: AlternateState LeftSplitState RightSplitState
+    CardViewCollectionType       13: RevealedCardsCollection ChosenCards UntilLeavesBattlefield HauntedBy MustBlockCards Commander Ante Sideboard PlanarDeck SchemeDeck AttractionDeck ContraptionDeck Junkyard
+    CardViewType                 5: CloneOrigin PreparedSpell Haunting PairedWith HostCard
+    ColorSetType                 1: MarkedColors
+    EnumType                     2: ChosenDirection ChosenEvenOdd
+    GenericMapType               6: AttackersWithDefenders AttackersWithBlockers BandsWithDefenders BandsWithBlockers AttackersWithPlannedBlockers BandsWithPlannedBlockers
+    IntegerMapType               2: CommanderCast CommanderDamage
+    IntegerType                  13: ShieldCount Sprocket RingLevel Intensity HiddenId BlockAdditional NumManaShards AdditionalVote OptionalAdditionalVote AdditionalVillainousChoices ExtraTurnCount AvatarLifeDifference NumPlayedGamesInMatch
+    ObjectType                   1: Object
+    PlayerViewCollectionType     1: PlayerMayLook
+    PlayerViewType               5: PlanarPlayer ChosenPlayer PromisedGift ProtectingPlayer MindSlaveMaster
+    StringListType               3: NotedTypes StoredRolls MarkerText
+    StringType                   15: CurrentPlane MergedCards CommanderAltType ChosenType ChosenType2 ChosenNumber ChosenMode Sector CurrentRoom OverlayText FunctionalVariant RulesText AvatarCardImageKey SleeveArtKey OptionalCosts
+
+wrote census.tsv, coverage.tsv, sample-newobjects.json and sample-delta.json into /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/out
+
+phase 2: 0 failed / 30 passed  (deltas=658)

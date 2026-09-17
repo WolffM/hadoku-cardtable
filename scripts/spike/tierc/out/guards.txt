@@ -1,0 +1,15 @@
+$ FORGE_DIR=./forge ./scripts/spike/tierc/run.sh capture
+FORGE_DIR is the vendored forge/ tree (resolved: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/forge).
+Refusing: it must stay pristine.
+exit=2
+
+$ env -u FORGE_DIR ./scripts/spike/tierc/run.sh capture
+FORGE_DIR is not set. Point it at a Forge checkout you are willing to
+let Maven write target/ dirs into — NOT the repo's vendored forge/.
+exit=2
+
+$ ./scripts/spike/tierc/run.sh verify-pristine
+==> verify-pristine
+forge/ pristine: 0 tracked changes, 0 target/ dirs (both checked).
+forge/ HEAD 2ad70eb447a22efe5b80904c07188311da034a42
+exit=0

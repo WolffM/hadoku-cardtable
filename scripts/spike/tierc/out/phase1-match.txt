@@ -1,0 +1,36 @@
+==> compile: /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w7-manager/scripts/spike/tierc/src/*.java
+=== Wave 7 lane A / phase 1: a real 2-player match over a real socket ===
+forge.deltasync=(unset -> on)
+tierc.remoteClients=1   (mutation: 0)
+gameTimeoutMs=240000
+[TestDeckLoader] Selected random precon: Elvish Predation
+[TestDeckLoader] Selected random precon: Sunburst
+[HeadlessGuiDesktop] Input: Personalize Forge Gameplay: By default, Forge will refer to you as the "Human" during gameplay.
+If you would prefer a different name please enter it now.
+
+-- stock UnifiedNetworkHarness.GameResult --
+  description             = 2-player network
+  port                    = 50000
+  decks                   = [Elvish Predation, Sunburst]
+  gameStarted             = true
+  gameCompleted           = true
+  turnCount               = 14
+  winner                  = Alice (Host AI)
+  gameDurationMs          = 16228
+  errorMessage            = null
+  clientOpenViewCalled    = true
+  clientSetGameViewCount  = 3
+  deltaPacketsReceived    = 48   <- client side
+  fullStateSyncsReceived  = 1
+  totalDeltaBytes         = 239020
+  deltaPacketCount        = 0   <- server side
+  deltaBytesSent          = 0
+  fullStateBytesSent      = 0
+  sendErrors              = 0
+  eventStateMismatches    = 0
+
+  [PASS] a game actually started (gameStarted=true)
+  [PASS] the client counted a NON-ZERO number of delta packets (48)
+  [PASS] the state channel opened (openView=true, setGameView x3)
+
+phase 1: 0 failed / 3 passed

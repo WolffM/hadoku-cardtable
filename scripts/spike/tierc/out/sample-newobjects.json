@@ -1,0 +1,1315 @@
+// DeltaPacket[seq=1, newObjects=243, deltas=0, size~162334 bytes]
+{
+  "seq": 1,
+  "checksum": 0,
+  "checksumProperties": [],
+  "_truncatedTo": "3 objects per map",
+  "newObjects": {
+    "805306369": {
+      "_type": 3,
+      "_id": 1,
+      "Players": {
+        "t": "list",
+        "v": [
+          {
+            "t": "int",
+            "v": 0
+          },
+          {
+            "t": "int",
+            "v": 1
+          }
+        ]
+      },
+      "GameType": {
+        "t": "enum",
+        "c": "forge.game.GameType",
+        "v": "Constructed"
+      },
+      "Title": {
+        "t": "str",
+        "v": "Bob (Capturing) vs Alice (Host AI) (0-0)"
+      },
+      "WinningTeam": {
+        "t": "int",
+        "v": -1
+      },
+      "NumGamesInMatch": {
+        "t": "int",
+        "v": 3
+      },
+      "PoisonCountersToLose": {
+        "t": "int",
+        "v": 10
+      }
+    },
+    "268435456": {
+      "_type": 1,
+      "_id": 0,
+      "Name": {
+        "t": "str",
+        "v": "Bob (Capturing)"
+      },
+      "IsAI": {
+        "t": "bool",
+        "v": true
+      },
+      "LobbyPlayerName": {
+        "t": "str",
+        "v": "Bob (Capturing)"
+      },
+      "AvatarIndex": {
+        "t": "int",
+        "v": -1
+      },
+      "SleeveIndex": {
+        "t": "int",
+        "v": -1
+      },
+      "SleeveArtOffset": {
+        "t": "int",
+        "v": 500
+      },
+      "Opponents": {
+        "t": "list",
+        "v": [
+          {
+            "t": "int",
+            "v": 1
+          }
+        ]
+      },
+      "Life": {
+        "t": "int",
+        "v": 20
+      },
+      "MaxHandSize": {
+        "t": "int",
+        "v": 7
+      },
+      "MaxLandPlay": {
+        "t": "int",
+        "v": 1
+      },
+      "DraftNotes": {
+        "t": "map",
+        "v": []
+      },
+      "Flashback": {
+        "t": "list",
+        "v": []
+      },
+      "Hand": {
+        "t": "list",
+        "v": [
+          {
+            "t": "int",
+            "v": 25
+          },
+          {
+            "t": "int",
+            "v": 16
+          },
+          {
+            "t": "int",
+            "v": 3
+          },
+          {
+            "t": "int",
+            "v": 12
+          },
+          {
+            "t": "int",
+            "v": 46
+          },
+          {
+            "t": "int",
+            "v": 35
+          },
+          {
+            "t": "int",
+            "v": 56
+          }
+        ]
+      },
+      "Library": {
+        "t": "list",
+        "v": [
+          {
+            "t": "int",
+            "v": 50
+          },
+          {
+            "t": "int",
+            "v": 31
+          },
+          {
+            "t": "int",
+            "v": 18
+          },
+          {
+            "t": "int",
+            "v": 59
+          },
+          {
+            "t": "int",
+            "v": 49
+          },
+          {
+            "t": "int",
+            "v": 55
+          },
+          {
+            "t": "int",
+            "v": 29
+          },
+          {
+            "t": "int",
+            "v": 26
+          },
+          {
+            "t": "int",
+            "v": 41
+          },
+          {
+            "t": "int",
+            "v": 15
+          },
+          {
+            "t": "int",
+            "v": 58
+          },
+          {
+            "t": "int",
+            "v": 47
+          },
+          {
+            "t": "int",
+            "v": 53
+          },
+          {
+            "t": "int",
+            "v": 22
+          },
+          {
+            "t": "int",
+            "v": 23
+          },
+          {
+            "t": "int",
+            "v": 39
+          },
+          {
+            "t": "int",
+            "v": 33
+          },
+          {
+            "t": "int",
+            "v": 60
+          },
+          {
+            "t": "int",
+            "v": 57
+          },
+          {
+            "t": "int",
+            "v": 17
+          },
+          {
+            "t": "int",
+            "v": 10
+          },
+          {
+            "t": "int",
+            "v": 7
+          },
+          {
+            "t": "int",
+            "v": 45
+          },
+          {
+            "t": "int",
+            "v": 24
+          },
+          {
+            "t": "int",
+            "v": 13
+          },
+          {
+            "t": "int",
+            "v": 37
+          },
+          {
+            "t": "int",
+            "v": 43
+          },
+          {
+            "t": "int",
+            "v": 6
+          },
+          {
+            "t": "int",
+            "v": 38
+          },
+          {
+            "t": "int",
+            "v": 40
+          },
+          {
+            "t": "int",
+            "v": 51
+          },
+          {
+            "t": "int",
+            "v": 34
+          },
+          {
+            "t": "int",
+            "v": 28
+          },
+          {
+            "t": "int",
+            "v": 5
+          },
+          {
+            "t": "int",
+            "v": 2
+          },
+          {
+            "t": "int",
+            "v": 1
+          },
+          {
+            "t": "int",
+            "v": 30
+          },
+          {
+            "t": "int",
+            "v": 9
+          },
+          {
+            "t": "int",
+            "v": 21
+          },
+          {
+            "t": "int",
+            "v": 27
+          },
+          {
+            "t": "int",
+            "v": 32
+          },
+          {
+            "t": "int",
+            "v": 11
+          },
+          {
+            "t": "int",
+            "v": 44
+          },
+          {
+            "t": "int",
+            "v": 42
+          },
+          {
+            "t": "int",
+            "v": 14
+          },
+          {
+            "t": "int",
+            "v": 19
+          },
+          {
+            "t": "int",
+            "v": 52
+          },
+          {
+            "t": "int",
+            "v": 54
+          },
+          {
+            "t": "int",
+            "v": 20
+          },
+          {
+            "t": "int",
+            "v": 4
+          },
+          {
+            "t": "int",
+            "v": 36
+          },
+          {
+            "t": "int",
+            "v": 48
+          },
+          {
+            "t": "int",
+            "v": 8
+          }
+        ]
+      },
+      "Mana": {
+        "t": "map",
+        "v": []
+      }
+    },
+    "268435457": {
+      "_type": 1,
+      "_id": 1,
+      "Name": {
+        "t": "str",
+        "v": "Alice (Host AI)"
+      },
+      "IsAI": {
+        "t": "bool",
+        "v": true
+      },
+      "LobbyPlayerName": {
+        "t": "str",
+        "v": "Alice (Host AI)"
+      },
+      "SleeveArtOffset": {
+        "t": "int",
+        "v": 500
+      },
+      "Opponents": {
+        "t": "list",
+        "v": [
+          {
+            "t": "int",
+            "v": 0
+          }
+        ]
+      },
+      "Life": {
+        "t": "int",
+        "v": 20
+      },
+      "MaxHandSize": {
+        "t": "int",
+        "v": 7
+      },
+      "MaxLandPlay": {
+        "t": "int",
+        "v": 1
+      },
+      "DraftNotes": {
+        "t": "map",
+        "v": []
+      },
+      "Flashback": {
+        "t": "list",
+        "v": []
+      },
+      "Hand": {
+        "t": "list",
+        "v": [
+          {
+            "t": "int",
+            "v": 105
+          },
+          {
+            "t": "int",
+            "v": 81
+          }
+        ]
+      },
+      "Library": {
+        "t": "list",
+        "v": [
+          {
+            "t": "int",
+            "v": 71
+          },
+          {
+            "t": "int",
+            "v": 100
+          },
+          {
+            "t": "int",
+            "v": 77
+          },
+          {
+            "t": "int",
+            "v": 116
+          },
+          {
+            "t": "int",
+            "v": 101
+          },
+          {
+            "t": "int",
+            "v": 120
+          },
+          {
+            "t": "int",
+            "v": 66
+          },
+          {
+            "t": "int",
+            "v": 98
+          },
+          {
+            "t": "int",
+            "v": 104
+          },
+          {
+            "t": "int",
+            "v": 65
+          },
+          {
+            "t": "int",
+            "v": 92
+          },
+          {
+            "t": "int",
+            "v": 107
+          },
+          {
+            "t": "int",
+            "v": 62
+          },
+          {
+            "t": "int",
+            "v": 63
+          },
+          {
+            "t": "int",
+            "v": 110
+          },
+          {
+            "t": "int",
+            "v": 88
+          },
+          {
+            "t": "int",
+            "v": 70
+          },
+          {
+            "t": "int",
+            "v": 79
+          },
+          {
+            "t": "int",
+            "v": 83
+          },
+          {
+            "t": "int",
+            "v": 80
+          },
+          {
+            "t": "int",
+            "v": 75
+          },
+          {
+            "t": "int",
+            "v": 109
+          },
+          {
+            "t": "int",
+            "v": 76
+          },
+          {
+            "t": "int",
+            "v": 67
+          },
+          {
+            "t": "int",
+            "v": 99
+          },
+          {
+            "t": "int",
+            "v": 119
+          },
+          {
+            "t": "int",
+            "v": 103
+          },
+          {
+            "t": "int",
+            "v": 94
+          },
+          {
+            "t": "int",
+            "v": 93
+          },
+          {
+            "t": "int",
+            "v": 82
+          },
+          {
+            "t": "int",
+            "v": 102
+          },
+          {
+            "t": "int",
+            "v": 68
+          },
+          {
+            "t": "int",
+            "v": 84
+          },
+          {
+            "t": "int",
+            "v": 72
+          },
+          {
+            "t": "int",
+            "v": 89
+          },
+          {
+            "t": "int",
+            "v": 118
+          },
+          {
+            "t": "int",
+            "v": 91
+          },
+          {
+            "t": "int",
+            "v": 69
+          },
+          {
+            "t": "int",
+            "v": 64
+          },
+          {
+            "t": "int",
+            "v": 117
+          },
+          {
+            "t": "int",
+            "v": 87
+          },
+          {
+            "t": "int",
+            "v": 115
+          },
+          {
+            "t": "int",
+            "v": 111
+          },
+          {
+            "t": "int",
+            "v": 78
+          },
+          {
+            "t": "int",
+            "v": 108
+          },
+          {
+            "t": "int",
+            "v": 95
+          },
+          {
+            "t": "int",
+            "v": 90
+          },
+          {
+            "t": "int",
+            "v": 74
+          },
+          {
+            "t": "int",
+            "v": 106
+          },
+          {
+            "t": "int",
+            "v": 97
+          },
+          {
+            "t": "int",
+            "v": 113
+          },
+          {
+            "t": "int",
+            "v": 86
+          },
+          {
+            "t": "int",
+            "v": 96
+          },
+          {
+            "t": "int",
+            "v": 73
+          },
+          {
+            "t": "int",
+            "v": 61
+          },
+          {
+            "t": "int",
+            "v": 114
+          },
+          {
+            "t": "int",
+            "v": 112
+          },
+          {
+            "t": "int",
+            "v": 85
+          }
+        ]
+      },
+      "Mana": {
+        "t": "map",
+        "v": []
+      }
+    },
+    "_omitted": 240
+  },
+  "objectDeltas": {},
+  "events": [
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBwfnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAANQ29tcGxleFVwZGF0ZXNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AA3QAB0xpYnJhcnk\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBwfnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAANQ29tcGxleFVwZGF0ZXNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AA3QAB0xpYnJhcnk\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAhZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRTaHVmZmxleHBzcgEALWZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRJZFJlZnhwAAAAAAE\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBwfnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAANQ29tcGxleFVwZGF0ZXNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAABAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AA3QAB0xpYnJhcnk\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBwfnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAANQ29tcGxleFVwZGF0ZXNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAABAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AA3QAB0xpYnJhcnk\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAhZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRTaHVmZmxleHBzcgEALWZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRJZFJlZnhwAAAAAQE\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAiZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRGbGlwQ29pbnhw"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAlZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRHYW1lU3RhcnRlZHhwc3IBAC1mb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkSWRSZWZ4cAAAAAEBfnIBABNmb3JnZS5nYW1lLkdhbWVUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAALQ29uc3RydWN0ZWRzcgEAI2ZvcmdlLnRyYWNrYWJsZS5UcmFja2FibGVDb2xsZWN0aW9ueHIBAB5mb3JnZS51dGlsLmNvbGxlY3QuRkNvbGxlY3Rpb254cHNyAQATamF2YS51dGlsLkFycmF5TGlzdHhwAAAAAncEAAAAAnNxAH4AAgAAAAABcQB+AAN4"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAABkAdAAaYzpWZWRhbGtlbiBFbnRyYW5jZXJ8TTEzfDF0ABJWZWRhbGtlbiBFbnRyYW5jZXJ+cgEAJWZvcmdlLmdhbWUuZXZlbnQuRXZlbnRWYWx1ZUNoYW5nZVR5cGV4cgEADmphdmEubGFuZy5FbnVteHB0AAdSZW1vdmVkc3IBAC1mb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkSWRSZWZ4cAAAAAABcH5yAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVUeXBleHEAfgAHdAAHTGlicmFyeQ\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAABkBdAAaYzpWZWRhbGtlbiBFbnRyYW5jZXJ8TTEzfDF0ABJWZWRhbGtlbiBFbnRyYW5jZXJ+cgEAJWZvcmdlLmdhbWUuZXZlbnQuRXZlbnRWYWx1ZUNoYW5nZVR5cGV4cgEADmphdmEubGFuZy5FbnVteHB0AAVBZGRlZHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AB3QABEhhbmQ\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAoZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkQ2hhbmdlWm9uZXhwc3IBADRmb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkRXZlbnRDYXJkUmVmeHAAAAAZAHQAGmM6VmVkYWxrZW4gRW50cmFuY2VyfE0xM3wxdAASVmVkYWxrZW4gRW50cmFuY2Vyc3IBABhmb3JnZS5nYW1lLnpvbmUuWm9uZVZpZXd4cHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAX5yAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAHTGlicmFyeXNxAH4ABnEAfgAJfnEAfgAKdAAESGFuZA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAABAAdAAWYzpNb3J0dXMgU3RyaWRlcnxHVEN8MXQADk1vcnR1cyBTdHJpZGVyfnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAHUmVtb3ZlZHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AB3QAB0xpYnJhcnk\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAABABdAAWYzpNb3J0dXMgU3RyaWRlcnxHVEN8MXQADk1vcnR1cyBTdHJpZGVyfnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAFQWRkZWRzcgEALWZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRJZFJlZnhwAAAAAAFwfnIBABhmb3JnZS5nYW1lLnpvbmUuWm9uZVR5cGV4cQB+AAd0AARIYW5k"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAoZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkQ2hhbmdlWm9uZXhwc3IBADRmb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkRXZlbnRDYXJkUmVmeHAAAAAQAHQAFmM6TW9ydHVzIFN0cmlkZXJ8R1RDfDF0AA5Nb3J0dXMgU3RyaWRlcnNyAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVWaWV3eHBzcgEALWZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRJZFJlZnhwAAAAAAF+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhyAQAOamF2YS5sYW5nLkVudW14cHQAB0xpYnJhcnlzcQB+AAZxAH4ACX5xAH4ACnQABEhhbmQ\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAAAMAdAAOYzpJc2xhbmR8UlRSfDF0AAZJc2xhbmR+cgEAJWZvcmdlLmdhbWUuZXZlbnQuRXZlbnRWYWx1ZUNoYW5nZVR5cGV4cgEADmphdmEubGFuZy5FbnVteHB0AAdSZW1vdmVkc3IBAC1mb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkSWRSZWZ4cAAAAAABcH5yAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVUeXBleHEAfgAHdAAHTGlicmFyeQ\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAAAMBdAAOYzpJc2xhbmR8UlRSfDF0AAZJc2xhbmR+cgEAJWZvcmdlLmdhbWUuZXZlbnQuRXZlbnRWYWx1ZUNoYW5nZVR5cGV4cgEADmphdmEubGFuZy5FbnVteHB0AAVBZGRlZHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AB3QABEhhbmQ\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAoZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkQ2hhbmdlWm9uZXhwc3IBADRmb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkRXZlbnRDYXJkUmVmeHAAAAADAHQADmM6SXNsYW5kfFJUUnwxdAAGSXNsYW5kc3IBABhmb3JnZS5nYW1lLnpvbmUuWm9uZVZpZXd4cHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAX5yAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAHTGlicmFyeXNxAH4ABnEAfgAJfnEAfgAKdAAESGFuZA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAAAwAdAAOYzpJc2xhbmR8UlRSfDF0AAZJc2xhbmR+cgEAJWZvcmdlLmdhbWUuZXZlbnQuRXZlbnRWYWx1ZUNoYW5nZVR5cGV4cgEADmphdmEubGFuZy5FbnVteHB0AAdSZW1vdmVkc3IBAC1mb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkSWRSZWZ4cAAAAAABcH5yAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVUeXBleHEAfgAHdAAHTGlicmFyeQ\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAAAwBdAAOYzpJc2xhbmR8UlRSfDF0AAZJc2xhbmR+cgEAJWZvcmdlLmdhbWUuZXZlbnQuRXZlbnRWYWx1ZUNoYW5nZVR5cGV4cgEADmphdmEubGFuZy5FbnVteHB0AAVBZGRlZHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AB3QABEhhbmQ\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAoZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkQ2hhbmdlWm9uZXhwc3IBADRmb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkRXZlbnRDYXJkUmVmeHAAAAAMAHQADmM6SXNsYW5kfFJUUnwxdAAGSXNsYW5kc3IBABhmb3JnZS5nYW1lLnpvbmUuWm9uZVZpZXd4cHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAX5yAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAHTGlicmFyeXNxAH4ABnEAfgAJfnEAfgAKdAAESGFuZA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAAC4AdAANYzpTd2FtcHxSVFJ8MXQABVN3YW1wfnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAHUmVtb3ZlZHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AB3QAB0xpYnJhcnk\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAAC4BdAANYzpTd2FtcHxSVFJ8MXQABVN3YW1wfnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAFQWRkZWRzcgEALWZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRJZFJlZnhwAAAAAAFwfnIBABhmb3JnZS5nYW1lLnpvbmUuWm9uZVR5cGV4cQB+AAd0AARIYW5k"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAoZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkQ2hhbmdlWm9uZXhwc3IBADRmb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkRXZlbnRDYXJkUmVmeHAAAAAuAHQADWM6U3dhbXB8UlRSfDF0AAVTd2FtcHNyAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVWaWV3eHBzcgEALWZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRJZFJlZnhwAAAAAAF+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhyAQAOamF2YS5sYW5nLkVudW14cHQAB0xpYnJhcnlzcQB+AAZxAH4ACX5xAH4ACnQABEhhbmQ\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACMAdAAaYzpQYXJhbm9pZCBEZWx1c2lvbnN8R1RDfDF0ABJQYXJhbm9pZCBEZWx1c2lvbnN+cgEAJWZvcmdlLmdhbWUuZXZlbnQuRXZlbnRWYWx1ZUNoYW5nZVR5cGV4cgEADmphdmEubGFuZy5FbnVteHB0AAdSZW1vdmVkc3IBAC1mb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkSWRSZWZ4cAAAAAABcH5yAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVUeXBleHEAfgAHdAAHTGlicmFyeQ\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACMBdAAaYzpQYXJhbm9pZCBEZWx1c2lvbnN8R1RDfDF0ABJQYXJhbm9pZCBEZWx1c2lvbnN+cgEAJWZvcmdlLmdhbWUuZXZlbnQuRXZlbnRWYWx1ZUNoYW5nZVR5cGV4cgEADmphdmEubGFuZy5FbnVteHB0AAVBZGRlZHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AB3QABEhhbmQ\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAoZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkQ2hhbmdlWm9uZXhwc3IBADRmb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkRXZlbnRDYXJkUmVmeHAAAAAjAHQAGmM6UGFyYW5vaWQgRGVsdXNpb25zfEdUQ3wxdAASUGFyYW5vaWQgRGVsdXNpb25zc3IBABhmb3JnZS5nYW1lLnpvbmUuWm9uZVZpZXd4cHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAX5yAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAHTGlicmFyeXNxAH4ABnEAfgAJfnEAfgAKdAAESGFuZA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAADgAdAANYzpTd2FtcHxSVFJ8MXQABVN3YW1wfnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAHUmVtb3ZlZHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAAAAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AB3QAB0xpYnJhcnk\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAADgBdAANYzpTd2FtcHxSVFJ8MXQABVN3YW1wfnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAFQWRkZWRzcgEALWZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRJZFJlZnhwAAAAAAFwfnIBABhmb3JnZS5nYW1lLnpvbmUuWm9uZVR5cGV4cQB+AAd0AARIYW5k"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAoZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkQ2hhbmdlWm9uZXhwc3IBADRmb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkRXZlbnRDYXJkUmVmeHAAAAA4AHQADWM6U3dhbXB8UlRSfDF0AAVTd2FtcHNyAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVWaWV3eHBzcgEALWZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRJZFJlZnhwAAAAAAF+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhyAQAOamF2YS5sYW5nLkVudW14cHQAB0xpYnJhcnlzcQB+AAZxAH4ACX5xAH4ACnQABEhhbmQ\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAAGkAdAAcYzpEdWVyZ2FyIE1pbmUtQ2FwdGFpbnxFVkV8MXQAFER1ZXJnYXIgTWluZS1DYXB0YWlufnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAHUmVtb3ZlZHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAABAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AB3QAB0xpYnJhcnk\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAAGkBdAAcYzpEdWVyZ2FyIE1pbmUtQ2FwdGFpbnxFVkV8MXQAFER1ZXJnYXIgTWluZS1DYXB0YWlufnIBACVmb3JnZS5nYW1lLmV2ZW50LkV2ZW50VmFsdWVDaGFuZ2VUeXBleHIBAA5qYXZhLmxhbmcuRW51bXhwdAAFQWRkZWRzcgEALWZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRJZFJlZnhwAAAAAQFwfnIBABhmb3JnZS5nYW1lLnpvbmUuWm9uZVR5cGV4cQB+AAd0AARIYW5k"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAqZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkU3RhdHNDaGFuZ2VkeHAAc3IBACNmb3JnZS50cmFja2FibGUuVHJhY2thYmxlQ29sbGVjdGlvbnhyAQAeZm9yZ2UudXRpbC5jb2xsZWN0LkZDb2xsZWN0aW9ueHBzcgEAE2phdmEudXRpbC5BcnJheUxpc3R4cAAAAAF3BAAAAAFzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAACQAdAAcYzpDb25zdW1pbmcgQWJlcnJhdGlvbnxHVEN8MXQAFENvbnN1bWluZyBBYmVycmF0aW9ueA\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAoZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRDYXJkQ2hhbmdlWm9uZXhwc3IBADRmb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkRXZlbnRDYXJkUmVmeHAAAABpAHQAHGM6RHVlcmdhciBNaW5lLUNhcHRhaW58RVZFfDF0ABREdWVyZ2FyIE1pbmUtQ2FwdGFpbnNyAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVWaWV3eHBzcgEALWZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRJZFJlZnhwAAAAAQF+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhyAQAOamF2YS5sYW5nLkVudW14cHQAB0xpYnJhcnlzcQB+AAZxAH4ACX5xAH4ACnQABEhhbmQ\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAAFEAdAAOYzpQbGFpbnN8U0hNfDF0AAZQbGFpbnN+cgEAJWZvcmdlLmdhbWUuZXZlbnQuRXZlbnRWYWx1ZUNoYW5nZVR5cGV4cgEADmphdmEubGFuZy5FbnVteHB0AAdSZW1vdmVkc3IBAC1mb3JnZS5nYW1lbW9kZXMubmV0LlRyYWNrYWJsZVNlcmlhbGl6ZXIkSWRSZWZ4cAAAAAEBcH5yAQAYZm9yZ2UuZ2FtZS56b25lLlpvbmVUeXBleHEAfgAHdAAHTGlicmFyeQ\u003d\u003d"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "record",
+      "c": "forge.gamemodes.net.TrackableSerializer$WrappedEvent",
+      "v": [
+        [
+          "data",
+          {
+            "t": "bytes",
+            "v": "rO0ABXNyAQAeZm9yZ2UuZ2FtZS5ldmVudC5HYW1lRXZlbnRab25leHBzcgEANGZvcmdlLmdhbWVtb2Rlcy5uZXQuVHJhY2thYmxlU2VyaWFsaXplciRFdmVudENhcmRSZWZ4cAAAAFEBdAAOYzpQbGFpbnN8U0hNfDF0AAZQbGFpbnN+cgEAJWZvcmdlLmdhbWUuZXZlbnQuRXZlbnRWYWx1ZUNoYW5nZVR5cGV4cgEADmphdmEubGFuZy5FbnVteHB0AAVBZGRlZHNyAQAtZm9yZ2UuZ2FtZW1vZGVzLm5ldC5UcmFja2FibGVTZXJpYWxpemVyJElkUmVmeHAAAAABAXB+cgEAGGZvcmdlLmdhbWUuem9uZS5ab25lVHlwZXhxAH4AB3QABEhhbmQ\u003d"
+          }
+        ]
+      ]
+    }
+  ]
+}
