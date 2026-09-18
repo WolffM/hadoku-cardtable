@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // Typecheck only. Node 24 runs harness.ts / edge.ts / isolation.test.ts by
+    // stripping types, and Playwright transpiles the spec itself; so nothing
+    // here is emitted, and `erasableSyntaxOnly` keeps every file strippable.
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "declaration": false,
+    "sourceMap": false,
+    // DOM for the callbacks the spec runs inside the page.
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"]
+  },
+  "include": ["*.ts"]
+}
