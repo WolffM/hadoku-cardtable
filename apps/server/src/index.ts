@@ -58,7 +58,7 @@
  */
 
 import express from 'express';
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
@@ -66,8 +66,9 @@ import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
 import { CONFIG, INDEX_HTML } from './config.js';
 import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
-import { checkBasePath, diagnosticPage } from './base-path.js';
+import { checkBundle, diagnosticPage, sendIndex } from './base-path.js';
 import { createDraftRooms } from './room/draftRooms.js';
+import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory } from './play/index.js';
@@ -85,7 +86,13 @@ app.disable('x-powered-by');
 // Evaluated once. The bundle does not change under a running process — a rebuild
 // is a redeploy, which restarts us — so re-reading per request would buy nothing
 // and would put a synchronous file read on the hot path.
-const basePath = checkBasePath(INDEX_HTML, CONFIG.basePrefix);
+//
+// Awaited before a single route exists, because the verdict decides which
+// routes are registered. `checkBundle` is "built right AND servable": it ends by
+// fetching index.html through `sendIndex` itself, which is what makes a server
+// started under a dot-directory report `unservable` instead of a green probe
+// over a 404 on every page. See base-path.ts.
+const basePath = await checkBundle(INDEX_HTML, CONFIG.basePrefix);
 
 // ── Provenance + access log ──────────────────────────────────────────────────
 app.use(edgeProvenance);
@@ -166,11 +173,11 @@ if (basePath.ok) {
 // Every client-routed path serves the same index.html. Scoped to GET/HEAD: a
 // POST to a path that does not exist is a bug in the caller, and answering it
 // with an HTML page hides that.
-app.get(/.*/, (_req: Request, res: Response) => {
+app.get(/.*/, (_req: Request, res: Response, next: NextFunction) => {
 	if (!basePath.ok) {
 		return res.status(503).type('html').send(diagnosticPage(basePath, CONFIG.basePrefix));
 	}
-	res.set('Cache-Control', 'no-store').type('html').sendFile(INDEX_HTML);
+	sendIndex(res, INDEX_HTML, (err) => err && next(err));
 });
 
 // ── The draft room ───────────────────────────────────────────────────────────
@@ -196,7 +203,27 @@ const io = new SocketIOServer(httpServer, {
 	serveClient: false,
 });
 
-const draftRooms = poolLoad.ok ? createDraftRooms({ pool: poolLoad.pool.cards, cube: poolLoad.pool.meta }) : null;
+// A disconnected drafter keeps their seat for DISCONNECT_GRACE_MS before it is
+// vacated and held, so a browser refresh — whose old socket closes BEFORE the
+// new one joins — is invisible to the rest of the pod instead of a seat that
+// blinks `held` and back. Wave 10 measured that close-to-join gap at ~36 ms on
+// loopback; five seconds covers a reload through the edge and a slow bundle
+// fetch with room to spare, and delays announcing a genuine drop by an amount
+// nobody waiting on a pick will notice. See draftRooms.ts's header.
+const DISCONNECT_GRACE_MS = 5_000;
+const draftPolicy = draftEmitPolicy((line) =>
+	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-draft', ...line }))
+);
+const draftRooms = poolLoad.ok
+	? createDraftRooms({
+			pool: poolLoad.pool.cards,
+			cube: poolLoad.pool.meta,
+			params: { disconnectGraceMs: DISCONNECT_GRACE_MS },
+			// The grace ran out: the seat was vacated on a timer, with no socket
+			// event to answer, so the broadcast is made here.
+			onDeferredChange: (room) => emitDraftUpdate(io, room, draftPolicy),
+		})
+	: null;
 attachDraftSocket(io, { rooms: draftRooms, minTier: CONFIG.minTier });
 
 // ── Constructed ──────────────────────────────────────────────────────────────

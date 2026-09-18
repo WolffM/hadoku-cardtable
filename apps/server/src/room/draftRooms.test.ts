@@ -12,7 +12,7 @@
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
 	humanSeats,
 	occupantOf,
@@ -30,6 +30,7 @@ import {
 	releaseSeat,
 	stateOf,
 	viewForParticipant,
+	type DraftRoom,
 	type DraftRooms,
 } from './draftRooms.js';
 import { loadPool, type CubePool } from './pool.js';
@@ -53,12 +54,22 @@ beforeAll(() => {
 	pool = load.pool;
 });
 
-function rooms(overrides: { reservationTtlMs?: number } = {}): DraftRooms {
+function rooms(
+	overrides: {
+		reservationTtlMs?: number;
+		disconnectGraceMs?: number;
+		onDeferredChange?: (room: DraftRoom) => void;
+	} = {},
+): DraftRooms {
 	return createDraftRooms({
 		pool: pool.cards,
 		cube: pool.meta,
-		params: { reservationTtlMs: overrides.reservationTtlMs ?? 120_000 },
+		params: {
+			reservationTtlMs: overrides.reservationTtlMs ?? 120_000,
+			disconnectGraceMs: overrides.disconnectGraceMs ?? 0,
+		},
 		now: () => 1_700_000_000_000,
+		onDeferredChange: overrides.onDeferredChange,
 	});
 }
 
@@ -232,9 +243,12 @@ describe('a genuine disconnect', () => {
 
 describe('the refresh hazard in leaveRoom', () => {
 	/*
-	 * A browser refresh: the new socket connects and joins BEFORE the old
-	 * socket's close lands. `leaveRoom` then unseats a participant who is
-	 * sitting right there on a live connection.
+	 * A stale close that lands AFTER its replacement joined — a second tab, or
+	 * a dead connection socket.io only reaps at its ping timeout. `leaveRoom`
+	 * then unseats a participant who is sitting right there on a live
+	 * connection. This was first written as "a browser refresh"; a real
+	 * refresh arrives the other way round (the next block), and this ordering
+	 * is what the guard is for.
 	 *
 	 * Every step below is sampled. The seat at the end is the headline, but the
 	 * `guarded` flag and the intermediate role are what distinguish "the guard
@@ -307,6 +321,134 @@ describe('the refresh hazard in leaveRoom', () => {
 		const { room } = refresh();
 		expect(room.clients.has('sock-a')).toBe(false);
 		expect(room.clients.get('sock-a2')?.participantId).toBe(ALICE);
+	});
+});
+
+describe('a browser refresh, in the order it actually arrives', () => {
+	/*
+	 * Wave 10 measured a real refresh on loopback: the OLD socket's close lands
+	 * ~36 ms BEFORE the new socket joins. So at the stale close there is no
+	 * other live client and the guard above has nothing to do — this block is
+	 * that ordering, close then join, and the one above is the other.
+	 *
+	 * What the rest of the pod SEES is modelled exactly as `socket.ts` decides
+	 * it: a leave or join outcome with `changed` is broadcast, and so is every
+	 * `onDeferredChange`. Each broadcast is recorded as the occupant of seat 0
+	 * it carried, which is the flicker, measured.
+	 */
+	const GRACE_MS = 5_000;
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	function pod(disconnectGraceMs: number) {
+		const seen: Array<string | null> = [];
+		const occupantOfSeat0 = (room: DraftRoom): string | null => {
+			const occupant = viewForParticipant(room, BOB).seats[0]?.occupant ?? null;
+			return occupant === null ? null : occupant.kind === 'human' ? occupant.participantId : occupant.kind;
+		};
+		const r = rooms({ disconnectGraceMs, onDeferredChange: (room) => seen.push(occupantOfSeat0(room)) });
+		const room = r.open('pod-1');
+		joinDraftRoom(room, 'sock-a', ALICE, 'friend');
+		joinDraftRoom(room, 'sock-b', BOB, 'friend');
+		const broadcast = (changed: boolean) => {
+			if (changed) seen.push(occupantOfSeat0(room));
+		};
+		return { room, seen, broadcast };
+	}
+
+	it('never reaches the guard: the reservation is what returns them with no grace', () => {
+		const { room, seen, broadcast } = pod(0);
+		const seq = stateOf(room).seq;
+
+		// Close first. Nobody else carries ALICE, so this is a plain departure.
+		const closed = leaveDraftRoom(room, 'sock-a');
+		broadcast(closed.changed);
+		expect(closed.guarded).toBe(false);
+		expect(closed.held).toBe(false);
+		expect(seatOf(room.seats, ALICE)).toBeNull();
+		expect(reservationFor(room.seats, 0)?.participantId).toBe(ALICE);
+
+		// Join second — the hold is what puts them back in seat 0.
+		const back = joinDraftRoom(room, 'sock-a2', ALICE, 'friend');
+		broadcast(back.changed);
+		expect(back.seat).toBe(0);
+		expect(reservationFor(room.seats, 0)).toBeNull();
+
+		// And the pod watched it: two broadcasts, the first with seat 0 empty.
+		expect(seen).toEqual([null, ALICE]);
+		expect(stateOf(room).seq).toBe(seq + 2);
+	});
+
+	it('with a grace, keeps them seated through the gap — the pod sees nothing at all', () => {
+		vi.useFakeTimers();
+		const { room, seen, broadcast } = pod(GRACE_MS);
+		const seq = stateOf(room).seq;
+
+		const closed = leaveDraftRoom(room, 'sock-a');
+		broadcast(closed.changed);
+		expect(closed.guarded).toBe(false);
+		expect(closed.held).toBe(true);
+		expect(closed.changed).toBe(false);
+		// Still in the chair, no hold standing, during the gap.
+		expect(seatOf(room.seats, ALICE)).toBe(0);
+		expect(occupantOf(room.seats, 0)).toEqual({ kind: 'human', participantId: ALICE });
+		expect(reservationFor(room.seats, 0)).toBeNull();
+
+		// The measured gap, then the new socket.
+		vi.advanceTimersByTime(36);
+		const back = joinDraftRoom(room, 'sock-a2', ALICE, 'friend');
+		broadcast(back.changed);
+		expect(back.seat).toBe(0);
+		expect(back.changed).toBe(false);
+
+		// Well past the grace: the vacate was cancelled, not merely late.
+		vi.advanceTimersByTime(GRACE_MS * 2);
+		expect(seatOf(room.seats, ALICE)).toBe(0);
+		expect(room.clients.get('sock-a2')?.participantId).toBe(ALICE);
+
+		expect(seen).toEqual([]);
+		expect(stateOf(room).seq).toBe(seq);
+	});
+
+	it('with a grace, still vacates and holds for a drafter who does not come back', () => {
+		vi.useFakeTimers();
+		const { room, seen, broadcast } = pod(GRACE_MS);
+		const seq = stateOf(room).seq;
+
+		broadcast(leaveDraftRoom(room, 'sock-a').changed);
+		vi.advanceTimersByTime(GRACE_MS - 1);
+		expect(seatOf(room.seats, ALICE)).toBe(0);
+		expect(seen).toEqual([]);
+
+		vi.advanceTimersByTime(1);
+		expect(seatOf(room.seats, ALICE)).toBeNull();
+		expect(reservationFor(room.seats, 0)?.participantId).toBe(ALICE);
+		// Announced once, by the hook, with the seat empty.
+		expect(seen).toEqual([null]);
+		expect(stateOf(room).seq).toBe(seq + 1);
+
+		// And the hold still does its job when they do come back.
+		const back = joinDraftRoom(room, 'sock-a2', ALICE, 'friend');
+		expect(back.seat).toBe(0);
+		expect(back.changed).toBe(true);
+	});
+
+	it('leaves the guard to the other ordering — join, then the stale close', () => {
+		vi.useFakeTimers();
+		const { room, seen, broadcast } = pod(GRACE_MS);
+
+		broadcast(joinDraftRoom(room, 'sock-a2', ALICE, 'friend').changed);
+		const closed = leaveDraftRoom(room, 'sock-a');
+		broadcast(closed.changed);
+		expect(closed.guarded).toBe(true);
+		expect(closed.held).toBe(false);
+		expect(room.app.vacating.size).toBe(0);
+
+		vi.advanceTimersByTime(GRACE_MS * 2);
+		expect(seatOf(room.seats, ALICE)).toBe(0);
+		expect(seen).toEqual([]);
 	});
 });
 

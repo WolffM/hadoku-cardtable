@@ -4,7 +4,7 @@
  * `@wolffm/rooms-server` is a box of primitives, not a framework — there is no
  * `createRoomServer` and no `authenticate` hook, so the wiring is ours. This
  * file is the half of that wiring that has no transport in it: the registry,
- * the seat transitions, and the one guard that makes a browser refresh
+ * the seat transitions, and the guard and grace that make a dropped socket
  * survivable. `emit.ts` and `socket.ts` are the half that needs `io`, and
  * keeping them apart is what lets the refresh hazard below be tested by calling
  * functions rather than by racing two sockets.
@@ -23,10 +23,11 @@
  * ## `leaveRoom` unseats a participant who is still here
  *
  * `leaveRoom` (rooms-server 0.38.111, `state.js`) calls `unseatParticipant` on
- * EVERY disconnect. A browser refresh produces exactly one disconnect the room
- * layer cannot distinguish: the new socket has already joined and re-seated the
- * participant when the stale socket's close finally lands, and that close then
- * unseats a drafter who is sitting right there with a live connection. Replayed
+ * EVERY disconnect, including one the room layer cannot tell apart from a
+ * departure: a stale socket whose close lands AFTER its replacement has joined
+ * and re-seated the participant. That close unseats a drafter who is sitting
+ * right there with a live connection. (This was written as the refresh case;
+ * a refresh turned out to arrive in the other order — next section.) Replayed
  * against the real package the result is a `spectator` with an empty seat and a
  * reservation held for themselves — for an eight-person pod forty-five minutes
  * in, that is the pod.
@@ -36,6 +37,33 @@
  * carries their id. `seatParticipant` prefers the remembered seat and a
  * participant is never blocked by their own reservation, so they land back in
  * the seat they were in rather than appended after everyone who stayed.
+ *
+ * ## …but that is not the order a refresh actually arrives in
+ *
+ * Wave 10 measured a real browser refresh on loopback: the old socket's close
+ * lands ~36 ms BEFORE the new socket joins. By the time the stale close is
+ * processed there is no other live client, so the guard above has nothing to
+ * guard — the seat is vacated with a hold, and the RESERVATION is what brings
+ * the drafter back to it. The guard still earns its place, for the ordering
+ * that does put a live socket beside a dying one: a second tab, or an old
+ * connection the server only notices is dead at socket.io's ping timeout, long
+ * after its replacement joined. It is just not the refresh mechanism.
+ *
+ * What the reservation alone costs is visible: vacate, broadcast, re-seat,
+ * broadcast — the rest of the pod watched the seat go `held` and come back
+ * inside ~80 ms. So a disconnect with nobody else carrying the id gets the
+ * same treatment the guard gives a live duplicate, for a short grace
+ * (`disconnectGraceMs`): the participant is put straight back, nothing is
+ * broadcast, and the vacate-with-hold is DEFERRED. A rejoin inside the grace
+ * cancels it and is a no-op to everyone else (`joinDraftRoom` reports
+ * `changed: false`, so only the joiner is answered). A drafter who does not
+ * come back is vacated when the grace runs out, exactly as before, and the
+ * room's `onDeferredChange` hook broadcasts it — the reservation TTL starts
+ * then. One rule now covers both orderings: a seat is not given up while its
+ * participant is plausibly still here.
+ *
+ * `disconnectGraceMs` defaults to 0, which is the old behaviour to the letter
+ * (vacate on the close, hook never called); production sets it in `index.ts`.
  *
  * ## Why a seat change bumps `seq`
  *
@@ -94,6 +122,12 @@ export interface DraftApp {
 	 * else — not the room id — so the draft cannot be built there.
 	 */
 	state: DraftState | null;
+	/** How long a disconnected participant keeps their seat before it is vacated. */
+	disconnectGraceMs: number;
+	/** Called after a deferred vacate changed the table, so it can be broadcast. */
+	onDeferredChange: (room: DraftRoom) => void;
+	/** Pending deferred vacates, by participant. */
+	vacating: Map<ParticipantId, ReturnType<typeof setTimeout>>;
 }
 
 /** The hosting app's per-connection state. */
@@ -110,6 +144,11 @@ export interface DraftParams {
 	packSize: number;
 	/** How long a dropped drafter's seat is held against other people. */
 	reservationTtlMs: number;
+	/**
+	 * How long a disconnected drafter stays SEATED before the seat is vacated
+	 * and the hold starts. 0 vacates on the close. See the module header.
+	 */
+	disconnectGraceMs: number;
 }
 
 /** A standard pod: eight seats, three fifteen-card packs, a two-minute hold. */
@@ -118,6 +157,7 @@ export const DEFAULT_PARAMS: DraftParams = {
 	packCount: 3,
 	packSize: 15,
 	reservationTtlMs: 120_000,
+	disconnectGraceMs: 0,
 };
 
 export interface DraftRoomsOptions {
@@ -126,6 +166,12 @@ export interface DraftRoomsOptions {
 	params?: Partial<DraftParams>;
 	/** Injectable so a test can pin the epoch. */
 	now?: () => number;
+	/**
+	 * Told when a deferred vacate (see `disconnectGraceMs`) changed a room's
+	 * table, which happens on a timer with no socket event to answer. Without
+	 * it the change still advances `seq` and rides the room's next broadcast.
+	 */
+	onDeferredChange?: (room: DraftRoom) => void;
 }
 
 export interface DraftRooms {
@@ -141,7 +187,13 @@ export interface DraftRooms {
 export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	const params: DraftParams = { ...DEFAULT_PARAMS, ...options.params };
 	const now = options.now ?? Date.now;
-	const registry = new RoomRegistry<DraftApp, DraftClient>(() => ({ state: null }));
+	const onDeferredChange = options.onDeferredChange ?? (() => undefined);
+	const registry = new RoomRegistry<DraftApp, DraftClient>(() => ({
+		state: null,
+		disconnectGraceMs: params.disconnectGraceMs,
+		onDeferredChange,
+		vacating: new Map(),
+	}));
 
 	const build = (draftId: string): DraftState =>
 		createDraft({
@@ -249,6 +301,9 @@ export function joinDraftRoom(
 	tier: string,
 ): JoinOutcome {
 	const state = stateOf(room);
+	// Back inside the grace: they never left the seat, so there is nothing to
+	// vacate and — because the seat is still theirs — nothing changes below.
+	cancelVacate(room, participantId);
 	const before = seatOf(room.seats, participantId);
 	const client = joinRoom<DraftApp, DraftClient>(room, clientId, clientId, participantId, () => ({
 		tier,
@@ -271,6 +326,7 @@ export function joinDraftRoom(
  */
 export function releaseSeat(room: DraftRoom, participantId: ParticipantId): boolean {
 	const state = stateOf(room);
+	cancelVacate(room, participantId);
 	const vacated = unseatParticipant(room.seats, participantId, { hold: true });
 	if (vacated === null) return false;
 	bumpSeq(state);
@@ -282,20 +338,30 @@ export interface LeaveOutcome {
 	participantId: ParticipantId | null;
 	/** True when the guard had to put a still-connected participant back. */
 	guarded: boolean;
+	/** True when nobody else carried the id and the vacate was deferred by the grace. */
+	held: boolean;
 	/** Whether the seat table changed. */
 	changed: boolean;
 }
 
 /**
- * Drop a connection, and undo the unseat when it was the stale half of a
- * refresh.
+ * Drop a connection, and undo the unseat while the participant is plausibly
+ * still here.
  *
- * The guard is three lines and it is the reason this function exists: after
- * `leaveRoom`, if another live client still carries this participant id, they
- * are still here and `leaveRoom` has just taken their seat away. `seatParticipant`
- * puts them back — into the REMEMBERED seat, which `unseatParticipant` recorded
- * on the way out and which is still reserved for them, so they return to the
- * seat they were in rather than being appended.
+ * `leaveRoom` unseats on every close. Two cases put them straight back into
+ * the REMEMBERED seat — which `unseatParticipant` recorded on the way out and
+ * which is reserved for them, so they return to the seat they were in rather
+ * than being appended:
+ *
+ * - **guarded**: another live client still carries this participant id (a
+ *   second tab, or a stale socket reaped after its replacement joined). They
+ *   are here; nothing is deferred.
+ * - **held**: nobody else carries it, and the room has a disconnect grace. The
+ *   vacate is deferred to `vacateAfterGrace`; a rejoin inside the grace cancels
+ *   it. This is the real order of a browser refresh — close first, join second.
+ *
+ * Only someone who was seated is put back: a spectator closing one of two tabs
+ * must not be seated by the other one's existence.
  */
 export function leaveDraftRoom(room: DraftRoom, clientId: string): LeaveOutcome {
 	const state = stateOf(room);
@@ -306,15 +372,46 @@ export function leaveDraftRoom(room: DraftRoom, clientId: string): LeaveOutcome 
 	leaveRoom<DraftApp, DraftClient>(room, clientId);
 
 	let guarded = false;
-	if (participantId !== null && clientByParticipant(room, participantId) !== undefined) {
-		seatParticipant(room.seats, participantId);
-		guarded = true;
+	let held = false;
+	if (participantId !== null && before !== null) {
+		if (clientByParticipant(room, participantId) !== undefined) {
+			seatParticipant(room.seats, participantId);
+			guarded = true;
+		} else if (room.app.disconnectGraceMs > 0) {
+			seatParticipant(room.seats, participantId);
+			vacateAfterGrace(room, participantId);
+			held = true;
+		}
 	}
 
 	const after = participantId === null ? null : seatOf(room.seats, participantId);
 	const changed = before !== after;
 	if (changed) bumpSeq(state);
-	return { participantId, guarded, changed };
+	return { participantId, guarded, held, changed };
+}
+
+/** Schedule the vacate a disconnect deferred. At most one per participant. */
+function vacateAfterGrace(room: DraftRoom, participantId: ParticipantId): void {
+	cancelVacate(room, participantId);
+	const timer = setTimeout(() => {
+		room.app.vacating.delete(participantId);
+		// No "are they back?" check: a rejoin cancels this timer synchronously
+		// (`joinDraftRoom`), so reaching here means they did not come back.
+		// Exactly what `leaveRoom` would have done on the close, only later.
+		if (unseatParticipant(room.seats, participantId, { hold: true }) === null) return;
+		bumpSeq(stateOf(room));
+		room.app.onDeferredChange(room);
+	}, room.app.disconnectGraceMs);
+	// A pending vacate is not a reason for the process to stay alive.
+	timer.unref();
+	room.app.vacating.set(participantId, timer);
+}
+
+function cancelVacate(room: DraftRoom, participantId: ParticipantId): void {
+	const timer = room.app.vacating.get(participantId);
+	if (timer === undefined) return;
+	clearTimeout(timer);
+	room.app.vacating.delete(participantId);
 }
 
 /** Whether this participant currently holds a seat. Derived, never stored. */
