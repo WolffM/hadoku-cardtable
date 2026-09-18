@@ -1,0 +1,15 @@
+--- a/scripts/spike/tierc/src/CapturePhase.java
++++ b/scripts/spike/tierc/src/CapturePhase.java
+@@ -100,6 +100,12 @@
+                 try {
+                     synchronized (report) {
+                         JsonDelta.roundTripPacket(packet, report);
++                        try {
++                            final java.nio.file.Path dump = java.nio.file.Paths.get(System.getProperty("lanec.dumpDir"));
++                            java.nio.file.Files.createDirectories(dump);
++                            java.nio.file.Files.writeString(dump.resolve(String.format("packet-%05d.json", deltaPackets.get())),
++                                    "// " + packet + "\n" + JsonDelta.packetToJson(packet) + "\n");
++                        } catch (final java.io.IOException io) { throw new java.io.UncheckedIOException(io); }
+                         // Two worked examples for the doc: the first packet that
+                         // creates objects (truncated — the opening sync has 124 of
+                         // them), and the first small mid-game packet that only

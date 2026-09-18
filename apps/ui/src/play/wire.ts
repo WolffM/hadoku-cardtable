@@ -1,0 +1,159 @@
+/*
+ * Tier C state, as it crosses the wire — declared locally, on purpose.
+ *
+ * This is the JSON encoding of Forge's `DeltaPacket` that Wave 7's spike
+ * produced and measured (`scripts/spike/tierc/src/JsonDelta.java`,
+ * `docs/spikes/tier-c.md`). The Zod schema for the same shape is being written
+ * in `packages/forge-wire/src/tier-c.ts`; the UI does not depend on that
+ * package, and these types are the smallest statement of what THIS renderer
+ * reads. When the UI takes the dependency, this file is a delete, not a
+ * migration: the fixtures in `./fixtures/` are the shared contract, and the
+ * manager validates them against that schema.
+ *
+ * ## The shape, in one paragraph
+ *
+ * A packet carries two maps, `newObjects` and `objectDeltas`, each keyed by a
+ * **delta key** — `(typeTag << 28) | id` as a decimal string
+ * (`DeltaPacket.makeDeltaKey`). Each value is one object's property bag: the
+ * `_type`/`_id` pair, then `TrackableProperty` names mapped to **tagged
+ * values** `{t, v}`. Every entity reference has already been flattened to an
+ * int id by the server (`DeltaSyncManager.toNetworkValue`); there are no
+ * object references in the value position, only ids.
+ *
+ * A property whose value is JSON `null` was set to null on the server, which in
+ * Forge means "back to the default" (`TrackableObject.set` removes the key when
+ * the value is null or equals the default). The fold in `./fold.ts` honours
+ * that; it is not an absent value and it is not an error.
+ */
+
+/** `DeltaPacket.TYPE_*`, `DeltaPacket.java:34-38`. */
+export const WireType = {
+  Card: 0,
+  Player: 1,
+  StackItem: 2,
+  Game: 3,
+  /** A `CardStateView` — one face/state of a card. */
+  CardState: 4,
+} as const;
+export type WireTypeTag = (typeof WireType)[keyof typeof WireType];
+
+/**
+ * A value in the property position. The tags are exactly the ones
+ * `JsonDelta.encode` emits and the fixtures contain; anything else is kept as
+ * `UnknownTagged` and read as absent rather than guessed at.
+ */
+export type Tagged =
+  | { t: 'str'; v: string }
+  | { t: 'int'; v: number }
+  | { t: 'long'; v: number }
+  | { t: 'byte'; v: number }
+  | { t: 'bool'; v: boolean }
+  | { t: 'enum'; c: string; v: string }
+  | { t: 'list'; v: Tagged[] }
+  | { t: 'set'; v: Tagged[] }
+  | { t: 'map'; v: [Tagged, Tagged][] }
+  /** `ManaCost.serialize`: generic amount, then `ManaCostShard` names, `\u0006`-delimited. */
+  | { t: 'manacost'; v: string }
+  | { t: 'cardtype'; sup: string[]; core: string[]; sub: string[]; all: boolean; exc: string[] }
+  | { t: 'keywords'; v: string[] }
+  /** A counter multiset: `[counterName, count]` pairs. */
+  | { t: 'multiset'; v: [string, number][] }
+  | { t: 'ints'; v: number[] }
+  | { t: 'combat'; atk: number[][]; def: number[][]; blk: number[][]; pblk: number[][] }
+  | { t: 'papercard'; n: string; e: string; a: number; f: boolean }
+  | UnknownTagged;
+
+export interface UnknownTagged {
+  t: string;
+  [field: string]: unknown;
+}
+
+/** One object's property bag. `_type`/`_id` are the only non-property keys. */
+export interface WireObject {
+  _type: number;
+  _id: number;
+  [property: string]: Tagged | null | number;
+}
+
+/** One `DeltaPacket` in the spike's JSON encoding. */
+export interface WirePacket {
+  seq: number;
+  checksum: number;
+  checksumProperties: number[];
+  /** The spike's own annotation of what a committed sample leaves out. */
+  _truncatedTo?: string;
+  /** Keyed by delta key. A truncated sample may also carry `_omitted: n`. */
+  newObjects: Record<string, WireObject>;
+  objectDeltas: Record<string, WireObject>;
+  /** The events arm. Opaque to this lane — lane B owns it. */
+  events: unknown[];
+}
+
+/** `DeltaPacket.makeDeltaKey(type, id)`, as the string JSON object keys are. */
+export function deltaKey(type: number, id: number): string {
+  return String(((type << 28) | (id & 0x0fffffff)) >>> 0);
+}
+
+/**
+ * The delta key of one card's state view. A `CardStateView`'s id on the wire is
+ * `cardId * 16 + CardStateName.ordinal()` (`DeltaPacket.makeDeltaKey`,
+ * `DeltaPacket.java:61-67`), which is how a card's `CurrentState` ordinal finds
+ * the face to draw.
+ */
+export function cardStateKey(cardId: number, stateOrdinal: number): string {
+  return deltaKey(WireType.CardState, cardId * 16 + stateOrdinal);
+}
+
+/**
+ * The spike's committed samples are truncated, and say so inside the map:
+ * `"_omitted": 240` is how many objects `packetToJson(packet, limit)` left out
+ * (`JsonDelta.objMapToJson`). A delta key is always digits, so an underscore
+ * key is never an object; the fold skips it.
+ */
+export function isAnnotationKey(key: string): boolean {
+  return key.startsWith('_');
+}
+
+/**
+ * Structural check at the boundary, so a JSON import is never simply asserted
+ * to be a `WirePacket[]`. It checks what the fold and adapter rely on — the
+ * packet skeleton, and that every object's `_type`/`_id` agree with its delta
+ * key — and names the path of the first thing wrong. It is not the Tier C
+ * schema (that is lane A's `tier-c.ts`); it is this renderer refusing input it
+ * would misread.
+ */
+export function expectWirePackets(raw: unknown, source: string): WirePacket[] {
+  const fail = (path: string, why: string): never => {
+    throw new Error(`${source}${path}: ${why}`);
+  };
+  if (!Array.isArray(raw)) return fail('', 'expected an array of packets');
+  raw.forEach((packet: unknown, i) => {
+    const at = `[${i}]`;
+    if (typeof packet !== 'object' || packet === null) return fail(at, 'expected a packet object');
+    const p = packet as Record<string, unknown>;
+    if (typeof p.seq !== 'number') fail(`${at}.seq`, 'expected a number');
+    if (!Array.isArray(p.events)) fail(`${at}.events`, 'expected an array');
+    for (const arm of ['newObjects', 'objectDeltas'] as const) {
+      const map = p[arm];
+      if (typeof map !== 'object' || map === null || Array.isArray(map)) {
+        fail(`${at}.${arm}`, 'expected an object keyed by delta key');
+      }
+      for (const [key, obj] of Object.entries(map as Record<string, unknown>)) {
+        const where = `${at}.${arm}["${key}"]`;
+        if (isAnnotationKey(key)) {
+          if (typeof obj !== 'number') fail(where, 'expected a count');
+          continue;
+        }
+        if (typeof obj !== 'object' || obj === null) fail(where, 'expected an object');
+        const o = obj as Record<string, unknown>;
+        if (typeof o._type !== 'number' || typeof o._id !== 'number') {
+          fail(where, 'expected numeric _type and _id');
+        }
+        if (deltaKey(o._type as number, o._id as number) !== key) {
+          fail(where, `_type ${String(o._type)} / _id ${String(o._id)} do not encode to this delta key`);
+        }
+      }
+    }
+  });
+  return raw as WirePacket[];
+}
