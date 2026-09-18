@@ -70,6 +70,7 @@ import { checkBasePath, diagnosticPage } from './base-path.js';
 import { createDraftRooms } from './room/draftRooms.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
+import { attachPlay, jvmHostConfig, jvmHostFactory } from './play/index.js';
 
 mkdirSync(CONFIG.logDir, { recursive: true });
 
@@ -199,6 +200,19 @@ attachDraftSocket(io, {
 		? createDraftRooms({ pool: poolLoad.pool.cards, cube: poolLoad.pool.meta })
 		: null,
 	minTier: CONFIG.minTier,
+});
+
+// ── Matches ──────────────────────────────────────────────────────────────────
+// One child JVM per match; see src/play/README.md. Without a configured Forge
+// build the route answers 503 and nothing else changes.
+const forge = jvmHostConfig();
+if (!forge.ok) console.warn(`[cardtable] play: no Forge (${forge.reason}) — POST /api/play/matches answers 503`);
+attachPlay(io, api, {
+	minTier: CONFIG.minTier,
+	host: forge.ok ? jvmHostFactory(forge.config) : null,
+	// Diagnostics for a live check only. Never set in production (see play/socket.ts).
+	probe: process.env.CARDTABLE_PLAY_PROBE === '1',
+	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
 });
 
 // ── Listen ───────────────────────────────────────────────────────────────────
