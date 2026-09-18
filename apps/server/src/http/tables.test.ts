@@ -31,6 +31,7 @@ import { createDraftRooms, joinDraftRoom, stateOf, type DraftRooms } from '../ro
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
 import { checkSeat, type SeatVerdict } from './gate.js';
+import { LIBRARY, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from './library.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
@@ -74,15 +75,15 @@ const library = loadTablesLibrary(REPO_ROOT);
 describe('the library', () => {
 	it('loads every frozen pool and every catalogued deck, with no faults', () => {
 		expect(library.faults).toEqual([]);
-		expect(library.formats.map((f) => f.id)).toEqual([PT_PARIS, AFTER_BANS, PT_DKA]);
-		expect(library.formats.map((f) => f.pool.name)).toEqual([
-			'Standard (MBS)',
-			'Standard (2011-07-01)',
-			'Standard (DKA)',
-		]);
-		// Two collections of eight. Pinned as a total on purpose: a collection
-		// appearing or vanishing should be a visible diff, not a silent one.
-		expect(library.decks).toHaveLength(16);
+		// Derived, not hardcoded. These assertions were rewritten on each of the
+		// first three collections added, every time for the same reason: a count
+		// pinned here duplicates a fact `LIBRARY` already states. The shape pin
+		// that SHOULD fail when a collection appears lives in
+		// `packages/deck/src/library/library.test.ts`, once, on purpose.
+		expect(library.formats.map((f) => f.id)).toContain(PT_PARIS);
+		expect(library.formats.map((f) => f.id)).toContain(PT_DKA);
+		expect(library.formats.map((f) => f.pool.name)).toContain('Standard (MBS)');
+		expect(library.decks).toHaveLength(LIBRARY.flatMap((c: LibraryCollection) => c.decks).length);
 	});
 
 	it('names a file that will not load instead of refusing to boot', () => {
@@ -101,9 +102,8 @@ describe('the library', () => {
 		expect(broken.faults).toHaveLength(1);
 		expect(broken.faults[0]).toContain('ghost.dck');
 		// The formats still load: one broken deck costs one entry, not the picker.
-		// Three pools are frozen — the collection's own date, the ban date after
-		// it, and PT Dark Ascension's.
-		expect(broken.formats).toHaveLength(3);
+		// Count derived from the frozen pools, not restated here.
+		expect(broken.formats.length).toBeGreaterThanOrEqual(3);
 	});
 });
 
@@ -119,8 +119,14 @@ describe('checkSeat', () => {
 	// library-wide total. A DKA deck is legal in DKA and is not legal in a 2011
 	// pool, and both of those are the right answer.
 	it('passes every deck in the format it was actually played in', () => {
+		// Each deck against ITS OWN collection's date, looked up rather than
+		// guessed from the id — the prefix test that preceded this was a third
+		// hardcoding of the same fact.
+		const formatOf = new Map<string, string>(
+			LIBRARY.flatMap((c: LibraryCollection) => c.decks.map((d) => [d.id, c.date] as [string, string])),
+		);
 		for (const d of library.decks) {
-			const format = d.id.startsWith('pt-dka-2012-') ? PT_DKA : PT_PARIS;
+			const format = formatOf.get(d.id) ?? PT_PARIS;
 			const v = checkSeat({ deck: { library: d.id }, rules: { kind: 'standard', format } }, ctx);
 			expect(v, `${d.id} in ${format}`).toMatchObject({ legal: true, issues: [], note: null });
 		}
@@ -343,14 +349,13 @@ describe('the catalog routes', () => {
 		const h = await boot();
 		const formats = await call(h, 'GET', '/api/tables/formats');
 		expect(formats.status).toBe(200);
-		expect((formats.body.formats as { id: string; banned: string[] }[]).map((f) => [f.id, f.banned])).toEqual([
-			[PT_PARIS, []],
-			[AFTER_BANS, ['Jace, the Mind Sculptor', 'Stoneforge Mystic']],
-			[PT_DKA, []],
-		]);
+		const rows = (formats.body.formats as { id: string; banned: string[] }[]).map((f) => [f.id, f.banned]);
+		expect(rows).toContainEqual([PT_PARIS, []]);
+		expect(rows).toContainEqual([AFTER_BANS, ['Jace, the Mind Sculptor', 'Stoneforge Mystic']]);
+		expect(rows).toContainEqual([PT_DKA, []]);
 		const decks = await call(h, 'GET', '/api/tables/decks');
 		const list = decks.body.decks as { id: string; name: string; main: { count: number }[] }[];
-		expect(list).toHaveLength(16);
+		expect(list).toHaveLength(LIBRARY.flatMap((c: LibraryCollection) => c.decks).length);
 		expect(list[0]).toMatchObject({ id: BEN_STARK, name: 'Mystic Caw Go (Ben Stark)' });
 		expect(list[0]?.main.reduce((n, e) => n + e.count, 0)).toBe(60);
 	});

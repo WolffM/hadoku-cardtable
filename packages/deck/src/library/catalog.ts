@@ -126,9 +126,56 @@ export const PT_DARK_ASCENSION_2012_STANDARD: LibraryCollection = {
   ],
 };
 
-/** Every collection in the library. */
+
+/**
+ * Worlds 2011, San Francisco, the Standard portion — the complete Top 8.
+ *
+ * The Innistrad-era format (`Standard (ISD)`: SOM, MBS, NPH, M12, ISD), which
+ * is the window between the New Phyrexia bans and Dark Ascension. Added for the
+ * operator's request for roughly five decks per era across the New
+ * Phyrexia-to-Return to Ravnica span.
+ *
+ * ## Two things about this Top 8 that are real, and are not transcription slips
+ *
+ * **Four of the eight are byte-identical.** Woods, Damo da Rosa, Scott-Vargas
+ * and Utter-Leyton all played the same 75-card Tempered Steel list. That is the
+ * Channel Fireball team deck, and the duplication is the historical fact rather
+ * than a copy-paste: the files are kept separate because the collection is "the
+ * Top 8", whose membership test is unambiguous, and dropping three would make a
+ * reader wonder what was cut.
+ *
+ * **There is no black deck.** Basics across all eight are Plains, Island,
+ * Mountain and Forest — no Swamp anywhere. Black is represented in the library
+ * by the Dark Ascension collection (Nagai's Black Kessig, and two UWb Delver
+ * lists), but *this era* has no black entry, and an era-level colour sweep
+ * should expect that rather than treat it as missing data.
+ *
+ * Every card was resolved against the real corpus restricted to the five legal
+ * sets before the files were written; zero failed.
+ */
+export const WORLDS_2011_STANDARD: LibraryCollection = {
+  id: 'worlds-2011-standard',
+  directory: `${DECKS_ROOT}/standard-2011-11-20-worlds`,
+  event: 'Worlds 2011 (San Francisco), Standard portion, Top 8',
+  format: 'Standard (ISD)',
+  date: '2011-11-20',
+  source: 'https://www.mtgtop8.com/event?e=2245&f=ST',
+  decks: [
+    { id: 'worlds-2011-1-junya-iyanaga', file: '1-junya-iyanaga-kessig-titan.dck' },
+    { id: 'worlds-2011-2-richard-bland', file: '2-richard-bland-gw-aggro.dck' },
+    { id: 'worlds-2011-3-david-caplan', file: '3-david-caplan-red-deck-wins.dck' },
+    { id: 'worlds-2011-4-conley-woods', file: '4-conley-woods-tempered-steel.dck' },
+    { id: 'worlds-2011-5-craig-wescoe', file: '5-craig-wescoe-saint-ww-with-leaks.dck' },
+    { id: 'worlds-2011-6-paulo-vitor-damo-da-rosa', file: '6-paulo-vitor-damo-da-rosa-tempered-steel.dck' },
+    { id: 'worlds-2011-7-luis-scott-vargas', file: '7-luis-scott-vargas-tempered-steel.dck' },
+    { id: 'worlds-2011-8-josh-utter-leyton', file: '8-josh-utter-leyton-tempered-steel.dck' },
+  ],
+};
+
+/** Every collection in the library, oldest format first. */
 export const LIBRARY: readonly LibraryCollection[] = [
   PT_PARIS_2011_STANDARD,
+  WORLDS_2011_STANDARD,
   PT_DARK_ASCENSION_2012_STANDARD,
 ];
 

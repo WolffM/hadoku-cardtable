@@ -332,10 +332,14 @@ describe('the library as a whole', () => {
   // deliberate act with a visible diff rather than something that drifts in.
   // It caught the 2026-09-18 addition of PT Dark Ascension, which is what it is
   // for — the failure was the test doing its job, not a regression.
-  it('is two collections, sixteen decks, one per format', () => {
-    expect(LIBRARY).toHaveLength(2);
-    expect(LIBRARY.flatMap((c) => c.decks)).toHaveLength(16);
-    expect(LIBRARY.map((c) => c.format)).toEqual(['Standard (MBS)', 'Standard (DKA)']);
+  it('is three collections, twenty-four decks, one format each', () => {
+    expect(LIBRARY).toHaveLength(3);
+    expect(LIBRARY.flatMap((c) => c.decks)).toHaveLength(24);
+    expect(LIBRARY.map((c) => c.format)).toEqual([
+      'Standard (MBS)',
+      'Standard (ISD)',
+      'Standard (DKA)',
+    ]);
   });
 
   it('every collection is a complete Top 8', () => {
