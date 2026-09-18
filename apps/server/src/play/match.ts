@@ -39,10 +39,33 @@
  * second, so asks are held by `callId` and each is answered or aborted on its
  * own; aborting one never touches another. Each is answered by the seat's
  * reply, or aborted — by the browser (`abort`), by the seat's last socket
- * going away (`disconnected`, the manager's clarification of the contract), or
- * by the timeout armed on every ask (`timeout`). An abort gets Forge's own answer to
- * a null reply (the bridge's `ABORTED` path), exactly what `FServerManager`'s
- * `cancelAll` would produce.
+ * going away and staying gone for `disconnectGraceMs` (`disconnected`, the
+ * manager's clarification of the contract), or by the timeout armed on every
+ * ask (`timeout`). An abort gets Forge's own answer to a null reply (the
+ * bridge's `ABORTED` path), exactly what `FServerManager`'s `cancelAll` would
+ * produce.
+ *
+ * ## Reconnect: a refresh is not a departure (Wave 10)
+ *
+ * A browser refresh closes the old socket BEFORE the new page connects. Wave 9
+ * aborted the seat's asks on that close, so a refresh during a prompt handed
+ * Forge a null answer — Forge acted for the player. Now the close only arms a
+ * timer; a join for the same seat within `disconnectGraceMs` (`seatConnected`)
+ * disarms it, and the open ask, still parked in Forge, is re-sent after the
+ * snapshot with its original `callId`. The rest was already the draft's
+ * machinery: the seat is bound to the participant permanently (the
+ * reservation, never released), and the snapshot's cursor is on the same
+ * epoch, so the client's `classifySeq` continues from it rather than seeing a
+ * new match.
+ *
+ * ## Crash: the seats are told, on the stream they already read (Wave 10)
+ *
+ * When the JVM dies (or the bridge sends `fatal`) mid-match, `fail` sends every
+ * seat that has a board a `showErrorDialog` notify — a frame forge-wire already
+ * defines, on the seat's next cursor — and keeps it, so a seat that resyncs or
+ * refreshes afterwards gets the board it had plus the same notice. The room,
+ * the socket server and every other match are untouched: only this match's
+ * status moves to `failed`, and `GET /play/matches/:id` says why.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -89,6 +112,10 @@ export interface SeatState {
 	prompt: ServerFrame | null;
 	buttons: ServerFrame | null;
 	deck: string | null;
+	/** The notice sent when the match failed; re-sent after every later snapshot. */
+	ended: ServerFrame | null;
+	/** Armed when the seat's last connection went; aborts its asks when it fires. */
+	departure: NodeJS.Timeout | null;
 }
 
 export interface MatchDeps {
@@ -100,8 +127,17 @@ export interface MatchDeps {
 	askTimeoutMs: number;
 	/** How long a finished match keeps its JVM (and answers resyncs) before stopping. */
 	overGraceMs: number;
+	/**
+	 * How long a seat with no connection keeps its open asks before they are
+	 * aborted as `disconnected`. 0 (the default) aborts at once — Wave 9's
+	 * behaviour; `attachPlay` passes 30 s so a refresh survives.
+	 */
+	disconnectGraceMs?: number;
 	now?: () => number;
 }
+
+/** What a seat is shown when its match fails. Title and wording are ours; the frame is forge-wire's. */
+export const MATCH_ENDED_TITLE = 'Match ended';
 
 export type ClaimOutcome = { ok: true; seat: number; fresh: boolean } | { ok: false; error: string };
 export type ClientOutcome = { ok: true } | { ok: false; error: string };
@@ -153,6 +189,8 @@ export class Match {
 			prompt: null,
 			buttons: null,
 			deck: null,
+			ended: null,
+			departure: null,
 		}));
 	}
 
@@ -220,7 +258,7 @@ export class Match {
 	snapshot(seat: number): MatchSnapshot | { error: string } {
 		const s = this.seats[seat];
 		if (s === undefined || s.ai) return { error: 'no-such-seat' };
-		if (s.playerId === null) return { error: 'match-starting' };
+		if (s.playerId === null) return { error: this.status === 'failed' ? (this.failure ?? 'failed') : 'match-starting' };
 		return {
 			matchId: this.id,
 			seat,
@@ -253,6 +291,7 @@ export class Match {
 		if (s.prompt !== null) this.send(s, s.prompt);
 		if (s.buttons !== null) this.send(s, s.buttons);
 		for (const ask of s.asks.values()) this.send(s, ask.frame);
+		if (s.ended !== null) this.send(s, s.ended);
 	}
 
 	/* ── Browser → Forge ────────────────────────────────────────────── */
@@ -291,10 +330,36 @@ export class Match {
 		}
 	}
 
-	/** The seat's last connection is gone: nobody is left to answer its ask. */
+	/**
+	 * The seat's last connection is gone. Its asks are aborted as `disconnected`
+	 * once it has stayed gone for `disconnectGraceMs` — at once when that is 0.
+	 */
 	seatDisconnected(seat: number): void {
 		const s = this.seats[seat];
-		if (s === undefined) return;
+		if (s === undefined || s.departure !== null) return;
+		const grace = this.deps.disconnectGraceMs ?? 0;
+		if (grace <= 0) {
+			this.abortAllAsks(s);
+			return;
+		}
+		this.deps.log({ evt: 'seat-departing', matchId: this.id, seat, graceMs: grace, openAsks: s.asks.size });
+		s.departure = setTimeout(() => {
+			s.departure = null;
+			this.abortAllAsks(s);
+		}, grace);
+		s.departure.unref();
+	}
+
+	/** A connection for this seat is back: whatever `seatDisconnected` armed is off. */
+	seatConnected(seat: number): void {
+		const s = this.seats[seat];
+		if (s === undefined || s.departure === null) return;
+		clearTimeout(s.departure);
+		s.departure = null;
+		this.deps.log({ evt: 'seat-returned', matchId: this.id, seat, openAsks: s.asks.size });
+	}
+
+	private abortAllAsks(s: SeatState): void {
 		for (const callId of [...s.asks.keys()]) this.abortAsk(s, callId, 'disconnected');
 	}
 
@@ -457,7 +522,11 @@ export class Match {
 	}
 
 	private closeAllAsks(): void {
-		for (const s of this.seats) for (const callId of [...s.asks.keys()]) this.closeAsk(s, callId);
+		for (const s of this.seats) {
+			for (const callId of [...s.asks.keys()]) this.closeAsk(s, callId);
+			if (s.departure !== null) clearTimeout(s.departure);
+			s.departure = null;
+		}
 	}
 
 	private abortAsk(
@@ -479,7 +548,28 @@ export class Match {
 		this.deps.log({ evt: 'match-failed', matchId: this.id, reason });
 		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: reason });
 		this.closeAllAsks();
+		this.tellSeatsItEnded(reason);
 		this.host?.stop();
+	}
+
+	/**
+	 * Every seat with a board is told, on its own stream, that this match is
+	 * over and why — so a dead JVM reads as an ending, not as a game that went
+	 * quiet. The reason's server path (`see …/bridge.stderr.txt`) stays in the
+	 * log and the status route; the seat gets the cause.
+	 */
+	private tellSeatsItEnded(reason: string): void {
+		const cause = reason.split('; see ')[0] ?? reason;
+		for (const s of this.seats) {
+			if (s.ai || s.playerId === null || s.ended !== null) continue;
+			s.ended = {
+				kind: 'notify',
+				method: 'showErrorDialog',
+				title: MATCH_ENDED_TITLE,
+				message: `Forge stopped, and this match cannot continue: ${cause}.`,
+			} as ServerFrame;
+			this.send(s, s.ended);
+		}
 	}
 
 	private onExit(reason: string): void {

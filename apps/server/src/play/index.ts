@@ -5,4 +5,12 @@
  */
 
 export { attachPlay, type PlayDeps, type PlayHandle, type PlayLog } from './socket.js';
-export { jvmHostConfig, jvmHostFactory, liveJvmCount, type MatchHostFactory } from './host.js';
+export {
+	MAX_CONCURRENT_MATCHES,
+	jvmHostConfig,
+	jvmHostFactory,
+	liveJvmCount,
+	type JvmHostFactory,
+	type JvmPoolOptions,
+	type MatchHostFactory,
+} from './host.js';

@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientFrameSchema, safeParseServerFrame, type ClientFrame } from '@hadoku/forge-wire';
 
 import type { BridgeLine } from './host.js';
-import { createMatchRegistry, type Match } from './match.js';
+import { MATCH_ENDED_TITLE, createMatchRegistry, type Match } from './match.js';
 import { MatchSnapshotSchema, ServerEnvelopeSchema, type ServerEnvelope } from './transport.js';
 import {
 	FLYING_FILE,
@@ -31,7 +31,7 @@ import {
 	secretsFor,
 	type ReplayHost,
 } from './fixtures/transcript.js';
-import { TYPE, csvCardId } from './visibility.js';
+import { TYPE, csvCardId, foldFrames, type StateFrame } from './visibility.js';
 
 const ALICE = 'fk:aaaaaaaaaaaaaaaa';
 const BOB = 'fk:bbbbbbbbbbbbbbbb';
@@ -52,7 +52,7 @@ interface Harness {
 	logs: Record<string, unknown>[];
 }
 
-function harness(askTimeoutMs = 60_000): Harness {
+function harness(askTimeoutMs = 60_000, disconnectGraceMs?: number): Harness {
 	const { factory, hosts } = replayFactory();
 	const sent: Harness['sent'] = [];
 	const logs: Record<string, unknown>[] = [];
@@ -61,6 +61,7 @@ function harness(askTimeoutMs = 60_000): Harness {
 		log: (e) => logs.push(e),
 		askTimeoutMs,
 		overGraceMs: 60_000,
+		disconnectGraceMs,
 		emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
 	});
 	const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
@@ -437,5 +438,140 @@ describe('failure', () => {
 		h.host.push(...OPENING);
 		h.host.exit('the JVM exited (code 1, signal null)');
 		expect(h.match.status).toBe('failed');
+	});
+});
+
+/* ── Wave 10: crash and reconnect ────────────────────────────────────── */
+
+const KILLED = 'the JVM exited (code null, signal SIGKILL); see /tmp/cardtable-play/m-x/bridge.stderr.txt';
+
+function isEndedNotice(e: ServerEnvelope | undefined): boolean {
+	const f = e?.frame as { method?: string; title?: string } | undefined;
+	return f?.method === 'showErrorDialog' && f.title === MATCH_ENDED_TITLE;
+}
+
+describe('crash: the JVM dies mid-match', () => {
+	it('tells BOTH seats, each on its own stream at its next cursor, with a frame a browser accepts', () => {
+		const h = harness();
+		h.host.push(...OPENING, PROBE_ASK);
+		const lastSeq = [0, 1].map((seat) => envelopesFor(h, seat).at(-1)?.cursor.seq ?? 0);
+		h.host.exit(KILLED);
+		expect(h.match.status).toBe('failed');
+		for (const seat of [0, 1]) {
+			const last = envelopesFor(h, seat).at(-1);
+			expect(isEndedNotice(last)).toBe(true);
+			expect(last?.cursor).toEqual({ epoch: h.match.epoch, seq: (lastSeq[seat] as number) + 1 });
+			expect(ServerEnvelopeSchema.safeParse(last).success).toBe(true);
+			// The cause reaches the seat; the server's filesystem does not.
+			expect(JSON.stringify(last)).toContain('signal SIGKILL');
+			expect(JSON.stringify(last)).not.toContain('/tmp/');
+		}
+	});
+
+	it('closes the open ask, so a late answer is refused rather than sent to a dead JVM', () => {
+		const h = harness();
+		h.host.push(...OPENING, PROBE_ASK);
+		const callId = (PROBE_ASK.frame as { callId: string }).callId;
+		h.host.exit(KILLED);
+		expect(h.match.fromClient(0, reply(callId, true))).toEqual({ ok: false, error: 'match is failed' });
+		expect(h.host.commands).toEqual([]);
+	});
+
+	it('a seat that resyncs or refreshes afterwards gets the board it had, then the same notice', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		const before = h.match.snapshot(0);
+		h.host.exit(KILLED);
+		const after = h.match.snapshot(0);
+		if (!('frames' in before) || !('frames' in after)) throw new Error('expected snapshots');
+		expect(after.frames).toEqual(before.frames);
+		const mark = h.sent.length;
+		h.match.resendAfterSnapshot(0);
+		expect(isEndedNotice(h.sent.slice(mark).at(-1)?.envelope)).toBe(true);
+	});
+
+	it('tells each seat once, however the failure arrives (fatal, then the exit it causes)', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'fatal', message: 'Forge failed while starting the match' });
+		h.host.exit(KILLED);
+		for (const seat of [0, 1]) expect(envelopesFor(h, seat).filter(isEndedNotice)).toHaveLength(1);
+		expect(h.match.failure).toBe('Forge failed while starting the match');
+	});
+
+	it('a deliberate stop is not a crash: nobody is sent the notice', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.match.stop();
+		h.host.exit('stopped');
+		expect(h.sent.some((s) => isEndedNotice(s.envelope))).toBe(false);
+	});
+
+	it('a seat that never opened is answered with the failure, not "match-starting"', () => {
+		const h = harness();
+		h.host.exit(KILLED);
+		expect(h.match.snapshot(0)).toEqual({ error: KILLED });
+	});
+});
+
+describe('reconnect: a refresh closes the old socket before the new page joins', () => {
+	const GRACE = 30_000;
+
+	function refreshing(): Harness & { callId: string } {
+		vi.useFakeTimers();
+		const h = harness(10 * 60_000, GRACE);
+		h.host.push(...OPENING, PROBE_ASK);
+		return { ...h, callId: (PROBE_ASK.frame as { callId: string }).callId };
+	}
+
+	it('does not abort the open ask while the seat is gone for less than the grace', () => {
+		const h = refreshing();
+		h.match.seatDisconnected(0);
+		vi.advanceTimersByTime(GRACE - 1);
+		h.match.seatConnected(0);
+		vi.advanceTimersByTime(10 * GRACE);
+		expect(h.host.commands).toEqual([]);
+	});
+
+	it('returns the same seat to the same board, and re-sends the SAME ask, which it can then answer', () => {
+		const h = refreshing();
+		const heldBefore = foldFrames(
+			envelopesFor(h, 0).filter((e) => e.frame.kind === 'notify' && ['setGameView', 'openView', 'applyDelta'].includes(e.frame.method)).map((e) => e.frame as unknown as StateFrame),
+		);
+		expect(heldBefore.size).toBeGreaterThan(50);
+		h.match.claim(ALICE);
+		h.match.seatDisconnected(0);
+		vi.advanceTimersByTime(2000);
+		// The new page: same participant, so the same seat.
+		expect(h.match.claim(ALICE)).toEqual({ ok: true, seat: 0, fresh: false });
+		h.match.seatConnected(0);
+		const snap = h.match.snapshot(0);
+		if (!('frames' in snap)) throw new Error('expected a snapshot');
+		expect(foldFrames(snap.frames as unknown as StateFrame[])).toEqual(heldBefore);
+		expect(snap.cursor?.epoch).toBe(h.match.epoch);
+		const mark = h.sent.length;
+		h.match.resendAfterSnapshot(0);
+		const resentAsk = h.sent.slice(mark).find((s) => s.envelope.frame.kind === 'ask');
+		expect(resentAsk?.envelope.frame).toEqual(PROBE_ASK.frame);
+		expect(h.match.fromClient(0, reply(h.callId, true))).toEqual({ ok: true });
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: h.callId, result: true }]);
+	});
+
+	it("aborts as 'disconnected' once the seat has stayed gone for the whole grace", () => {
+		const h = refreshing();
+		h.match.seatDisconnected(0);
+		vi.advanceTimersByTime(GRACE - 1);
+		expect(h.host.commands).toEqual([]);
+		vi.advanceTimersByTime(1);
+		expect(h.host.commands).toEqual([{ t: 'abort', seat: 0, callId: h.callId, reason: 'disconnected' }]);
+	});
+
+	it('a second disconnect does not restart the clock', () => {
+		const h = refreshing();
+		h.match.seatDisconnected(0);
+		vi.advanceTimersByTime(GRACE - 10);
+		h.match.seatDisconnected(0);
+		vi.advanceTimersByTime(10);
+		expect(h.host.commands).toEqual([{ t: 'abort', seat: 0, callId: h.callId, reason: 'disconnected' }]);
 	});
 });

@@ -14,14 +14,15 @@ browser ──forge:join / forge:c2s──►  socket.ts ──► match.ts ─�
 
 | file | what |
 | --- | --- |
-| `index.ts` | the exports `src/index.ts` needs: `attachPlay`, `jvmHostConfig`, `jvmHostFactory` |
+| `index.ts` | the exports `src/index.ts` needs: `attachPlay`, `jvmHostConfig`, `jvmHostFactory` (plus `MAX_CONCURRENT_MATCHES`) |
 | `socket.ts` | `attachPlay(io, api, deps)`: the HTTP routes and socket handlers, the gate, identity, per-recipient emit |
 | `match.ts` | one match, socket-free: seat binding, per-seat projector/cursor/history, asks, lifecycle |
 | `visibility.ts` | the hidden-information projection (Forge's `canBeShownTo`, server side) |
 | `transport.ts` | the A↔B wrapper schemas (lane B mirrors them at `apps/ui/src/play/live/transport.ts`) |
-| `host.ts` | the `MatchHost` seam and the one-JVM-per-match implementation |
+| `host.ts` | the `MatchHost` seam, the one-JVM-per-match implementation, its warm spare and the concurrency ceiling |
 | `bridge/PlayBridge.java` | the Java side: runs as a single-file source program, no build step |
 | `dev/seat.ts` | a command-line seat, for local testing (see "Two seats locally") |
+| `dev/spare-bench.ts` | cold start vs warm spare, measured (see "The warm spare, measured") |
 | `fixtures/` | a recorded real bridge transcript, its replay host, and the leak oracle |
 
 ## The `src/index.ts` edit
@@ -79,10 +80,9 @@ in ~3.4 s, ~650–730 MB RSS per JVM, and killing one leaves the others running.
 Aligned with lane D's asks: **`matchId` on every line** in both directions (the
 bridge stamps its own and refuses a command without it; `host.ts` checks and
 strips it), **exit = match over** (an exit while starting or running fails that
-match only), **close = `stop` → SIGTERM → SIGKILL**. **Not built: the warm
-spare.** The bridge reads its seats and decks at launch, so a spare needs them
-to arrive over stdin after boot. The `MatchHost` interface does not change for
-that, or for a shared host later.
+match only), **close = `stop` → SIGTERM → SIGKILL**. **The warm spare is built
+(Wave 10)** — see "Match lifecycle" below. The `MatchHost` interface did not
+change for it, and would not for a shared host later.
 
 ## HTTP
 
@@ -145,10 +145,11 @@ manager mid-wave; the third is this lane's decision:
 1. **`MatchSnapshot.cursor` is the seat's latest cursor of any kind**, not the
    last state frame's. Otherwise an ask re-sent after the snapshot lands as a
    `gap` and the client resyncs forever.
-2. **A disconnect is an abort.** When a seat's **last** connection goes, each
-   open ask is aborted with `disconnected` (Forge gets its own answer to a null
-   reply). A refresh — new tab joins before the old one closes — aborts nothing;
-   tested.
+2. **A disconnect is an abort — after a grace (Wave 10).** When a seat's
+   **last** connection goes and **stays gone for `disconnectGraceMs`** (default
+   30 s), each open ask is aborted with `disconnected` (Forge gets its own
+   answer to a null reply). A refresh aborts nothing, in either order — new tab
+   first, or (what a browser actually does) old tab closed first; both tested.
 3. After every snapshot the server re-sends, as ordinary frames on the next
    cursors: the seat's latest `showPromptMessage`, latest `updateButtons`, and
    every open ask. (The contract only required the ask; the prompt and buttons
@@ -215,9 +216,10 @@ was answered in 3 ms, and a probe ran alongside it in 4.4 ms.
 | suite | what | real data |
 | --- | --- | --- |
 | `visibility.test.ts` (21) | both seats projected from Wave 8's 27-packet fixture; whole-payload leak check; own hand fully visible after draws; public cards untouched; events dropped (real `GameEventCardChangeZone`); `setGameView`; a face-down permanent | `apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`, `packages/forge-wire/src/events/fixtures/` |
-| `match.test.ts` (34) | identity binding and its failure modes, per-seat emission and the leak check, cursor, snapshot, asks (reply by callId, other seat cannot answer, disconnect/timeout/browser abort, re-send), invalid frames, lifecycle; the 'Flying' regression | `fixtures/bridge-two-seats.ndjson`, `fixtures/bridge-flying-seat1.ndjson` |
-| `socket.test.ts` (12) | real express + socket.io + clients with edge headers: POST, joins, match-full, whole-transcript leak check, contiguous cursors from the snapshot, reply routing, disconnect vs refresh, tier gate, dev identity refused without the hatch | same transcript |
-| `jvm.test.ts` (2) | two real matches in real JVMs — fixed decks + seed, and seeded variety; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
+| `match.test.ts` (44) | identity binding and its failure modes, per-seat emission and the leak check, cursor, snapshot, asks (reply by callId, other seat cannot answer, disconnect/timeout/browser abort, re-send), invalid frames, lifecycle; the 'Flying' regression; **crash** (both seats told, once, at the next cursor; kept across a resync) and **reconnect** (the grace, the same board and ask after a refresh) | `fixtures/bridge-two-seats.ndjson`, `fixtures/bridge-flying-seat1.ndjson` |
+| `socket.test.ts` (14) | real express + socket.io + clients with edge headers: POST, joins, match-full, whole-transcript leak check, contiguous cursors from the snapshot, reply routing, disconnect vs refresh, tier gate, dev identity refused without the hatch; a refresh in browser order (old socket closed first) outliving the grace; a crash leaving the server up | same transcript |
+| `host.test.ts` (8) | the JVM pool against `fixtures/fake-bridge.mjs` (a child process speaking the bridge's line protocol, no Forge): spare adoption and re-addressing, a still-booting spare, spare off, `close()`, the ceiling counting the spare, the heap cap, a spare that keeps dying, a match's JVM SIGKILLed | fake bridge — runs in CI |
+| `jvm.test.ts` (3) | real matches in real JVMs — fixed decks + seed (cold), and seeded variety **through the warm spare**; then a refresh with a real ask parked in Forge, and a SIGKILL; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
 
 The leak oracle (`fixtures/transcript.ts`, `secretsFor`) is defined from zones
 — opponent's hand and every library, minus anything the viewer legitimately
@@ -280,6 +282,36 @@ Without the variables: `↓ apps/server/src/play/jvm.test.ts (2 tests | 2 skippe
 suite's name carries the reason (`… — SKIPPED: CARDTABLE_FORGE_JAR is not set`).
 After the run, `liveJvmCount()` is 0 (asserted) and `ps` shows no bridge JVM.
 
+### Wave 10's gated run
+
+```console
+$ CARDTABLE_FORGE_JAR=/home/hadoku/.cache/w7b-forge/forge-gui-desktop/target/forge-gui-desktop-2.0.15-SNAPSHOT-jar-with-dependencies.jar \
+  CARDTABLE_FORGE_RES=/home/hadoku/.cache/w7b-forge/forge-gui/res \
+  pnpm vitest run apps/server/src/play/jvm.test.ts ; echo $?
+[jvm] fixed: Spirit Flames v Decay, seed 20260918, cold: running after 4679 ms (JVM up 4533 ms, match start 3924 ms); decks: Spirit Flames v Decay
+[jvm] seat 0: 14 envelopes, 144 secrets, 144 in Forge's raw stream, 0 in what was emitted
+[jvm] seat 1: 15 envelopes, 142 secrets, 142 in Forge's raw stream, 0 in what was emitted
+[jvm] variety: random precons, seed 754322428, through the warm spare: running after 464 ms (JVM up 4714 ms, match start 313 ms); decks: Gruul Wilding v Morph Mayhem
+[jvm] seat 0: 17 envelopes, 173 secrets, 173 in Forge's raw stream, 0 in what was emitted
+[jvm] seat 1: 16 envelopes, 180 secrets, 180 in Forge's raw stream, 0 in what was emitted
+[jvm] refresh: seat 0 away 1500 ms with the ask open; board 103 objects, equal; Forge got {"answer":true,"ms":1555.235264}
+[jvm] crash: SIGKILL pid 568767 → match failed, both seats told in 101 ms; failure: the JVM exited (code null, signal SIGKILL); see /tmp/cardtable-play/m-f86a32eae7ea/bridge.stderr.txt
+      Tests  3 passed (3)
+0
+```
+
+The ready line's `bootMs` is now from the JVM's own start (for a spare, including
+its idle wait) and `startMs` from the moment the match was handed over.
+
+Mutations, each reverted → failing, restored (`cmp`-identical) → passing, over
+`match.test.ts`, `socket.test.ts` and `jvm.test.ts` with the JVM configured:
+
+| mutation | failed | restored |
+| --- | --- | --- |
+| `fail()` no longer calls `tellSeatsItEnded` | 5 (3 match, 1 socket, 1 live JVM) | 8/8 of `-t crash` |
+| `seatDisconnected` ignores the grace (Wave 9: abort at once) | 5 (3 match, 1 socket, 1 live JVM — the ask was aborted, never re-sent) | 8/8 of `-t refresh` |
+| `forge:join` no longer calls `seatConnected` | 1 (socket: the 1 s grace outlived after the rejoin) | 14/14 socket |
+
 ### Mutation: remove the guard, watch it fail
 
 The guard is applied in exactly one place, `Match.sendState`. Mutation: emit
@@ -309,6 +341,124 @@ $ <restored, cmp-identical> pnpm exec vitest run apps/server/src/play ; echo $?
 A second mutation one level down — `redactCard` and `faceAllowed` made to pass
 everything — fails 6 of `visibility.test.ts`'s 21 (both seats' byte check,
 both seats' hidden-card shape check, `setGameView`, face-down).
+
+## Match lifecycle: warm spare, crash, reconnect (Wave 10)
+
+### The warm spare
+
+`jvmHostFactory` keeps one bridge JVM booted and matchless (`PlayBridge
+--spare <spareId>`): Forge's model, card database and network server are up, and
+it is blocked on stdin. `bootForge()` in the bridge is everything that does not
+depend on the match, so a spare and a cold start run the same code in a
+different order. A new match adopts the spare with one line:
+
+```
+Node → spare   {"t":"start","match":"spare-…","config":{"matchId":"m-…","seed":…,"seats":[…]}}
+spare → Node   {"t":"ready",…,"match":"m-…"}            every line from here carries the match's id
+```
+
+Before `start` the spare's only line is `{"t":"warm","bootMs":…,"match":"spare-…"}`.
+A replacement spare is spawned as soon as one is adopted — subject to the ceiling
+below. A spare still booting is adopted anyway (never behind a fresh spawn). One
+that dies idle is replaced after 5 s, and after 3 such deaths in a row the pool
+gives up and starts matches cold (`spare-disabled` in the log). It is still one
+JVM per match: a spare becomes exactly one match's JVM. Turn it off with
+`CARDTABLE_PLAY_WARM_SPARE=0`. `attachPlay`'s `close()` stops the idle spare.
+
+### The warm spare, measured
+
+`dev/spare-bench.ts`, 5 rounds alternating cold and warm, same decks (Spirit
+Flames v Decay) and seed, through `Match` exactly as the socket server uses it;
+time from `registry.create()`. Host load average 3.1 → 6.3 during the run (other
+lanes were active); `-Xmx1g`.
+
+```console
+$ CARDTABLE_FORGE_JAR=/home/hadoku/.cache/w7b-forge/forge-gui-desktop/target/forge-gui-desktop-2.0.15-SNAPSHOT-jar-with-dependencies.jar \
+  CARDTABLE_FORGE_RES=/home/hadoku/.cache/w7b-forge/forge-gui/res \
+  pnpm --filter @hadoku/server exec tsx src/play/dev/spare-bench.ts --runs 5 ; echo $?
+run 1 cold: first event 4649 ms, running 4651 ms, RSS at running 853 MB
+run 1 warm: first event 461 ms, running 462 ms, RSS at running 750 MB, idle spare RSS 633 MB
+run 2 cold: first event 4654 ms, running 4654 ms, RSS at running 751 MB
+run 2 warm: first event 497 ms, running 499 ms, RSS at running 851 MB, idle spare RSS 637 MB
+run 3 cold: first event 4754 ms, running 4755 ms, RSS at running 764 MB
+run 3 warm: first event 479 ms, running 485 ms, RSS at running 738 MB, idle spare RSS 603 MB
+run 4 cold: first event 4681 ms, running 4681 ms, RSS at running 745 MB
+run 4 warm: first event 447 ms, running 447 ms, RSS at running 762 MB, idle spare RSS 637 MB
+run 5 cold: first event 5302 ms, running 5303 ms, RSS at running 757 MB
+run 5 warm: first event 438 ms, running 442 ms, RSS at running 764 MB, idle spare RSS 627 MB
+cold: n=5, first event median 4681 ms (min 4649, max 5302), running median 4681 ms, RSS median 757 MB
+warm: n=5, first event median 461 ms (min 438, max 497), running median 462 ms, RSS median 762 MB
+0
+```
+
+**The spare saves ~4.2 s per match: 4,681 ms → 461 ms median to the first
+event, n = 5 each.** "First event" is the first envelope any seat is sent (its
+`openView`); "running" is both seats opened, which is when `POST
+/api/play/matches` answers. What is left warm (~0.45 s) is deck parsing, two
+loopback Netty clients joining the lobby, and Forge dealing the opening hands.
+A warm run is measured the way production meets it: adopting the spare spawns
+its replacement at once, so the match starts beside a booting JVM. An idle spare
+holds ~600–640 MB of RSS; that is the price.
+
+`jvm.test.ts` shows the same from the other side on every gated run: the cold
+fixed run reaches running in 4,737 ms, the warm variety run in 484 ms.
+
+### The ceiling: 2 concurrent matches, spare included
+
+`MAX_CONCURRENT_MATCHES = 2` in `host.ts`, whose header has the whole argument.
+In short: G1 does not hand committed heap back, so a JVM's RSS only ratchets up
+while it lives and is budgeted at its peak; every JVM now gets **`-Xmx1g`**
+(unless `CARDTABLE_PLAY_JVM_OPTS` names its own `-Xmx`) so that peak has a bound;
+and the spare only exists while fewer than 2 matches do, so the JVM count — and
+the memory bound — is 2 with or without it: ~1.5 GB expected (measured
+745–853 MB per JVM at running, above), ~2.6 GB worst case. Two simultaneous
+games is the friend group's real peak, and the host has ~25 GB free, so the
+number is a deliberate choice rather than a memory limit: raising it should be a
+decision, and a runaway match cannot take the box. `POST /api/play/matches`
+refuses a third with 503 before any JVM is spent (`PlayDeps.maxMatches`), and
+the pool applies the same number to its spare (`JvmPoolOptions.maxJvms`); both
+default to the constant. Lane D's "revisit" line is ~8 concurrent matches.
+
+### Crash
+
+When the JVM dies mid-match (or the bridge sends `fatal`), `Match.fail`:
+
+- moves this match — only this one — to `failed`, and `GET /api/play/matches/:id`
+  says why (`failure`, with the stderr path);
+- releases anything waiting on it and closes every open ask, so a late answer is
+  refused rather than written to a dead pipe;
+- sends **every seat that has a board** a `showErrorDialog` notify on its own
+  stream at its next cursor, title `Match ended`, message `Forge stopped, and
+  this match cannot continue: <cause>.` The server's paths stay out of it. It is
+  a frame forge-wire already defines, so no contract changes.
+- keeps it: a seat that resyncs or refreshes afterwards gets the board it had,
+  then the same notice.
+
+The socket server, the room and every other match carry on; the next `POST`
+starts a new match (tested). Live: a SIGKILLed Forge JVM had both seats told
+within 51–101 ms (the test polls every 50 ms).
+
+**For lane A / the UI:** `LiveBoard` does not render `showErrorDialog` today.
+The frame arrives, parses and is counted; showing it is a UI change.
+
+### Reconnect
+
+A browser refresh closes the old socket **before** the new page connects. Wave
+9 aborted the seat's open asks on that close, so a refresh during a prompt gave
+Forge a null answer and Forge acted for the player. Now the close arms a timer
+(`disconnectGraceMs`, default 30 s in `attachPlay`, 0 in bare `Match` for
+Wave 9's behaviour); the new page's `forge:join` (`Match.seatConnected`) disarms
+it, gets a snapshot of the same board on the same epoch, and then the open ask
+re-sent with its original `callId`, which it can answer. The rest was already
+the draft's machinery: the seat is bound to the participant permanently (the
+reservation never lapses — a Forge seat has a hand), and the client's
+`classifySeq` continues from the snapshot's cursor. A seat gone longer than the
+grace has its asks aborted as `disconnected`, as before.
+
+Live: with a real `showConfirmDialog` parked in Forge's `sendAndWait` (default
+NO), seat 0 went away for 1.5 s and came back; its 103-object board was equal
+before and after, the same ask was re-sent, and Forge's call returned `true` —
+the answer given after the refresh.
 
 ## Running a real match locally
 
@@ -409,14 +559,25 @@ counted (`Match.invalidFrames`) and logged. No refused `GameEvent` was needed
 - **The `faceOnly` whitelist in a real game.** Tested on a real battlefield
   card flipped face down in a fixture; no real morph was captured.
 - **Card ids through a shuffle** (see "Hidden information").
-- **Memory and startup of this bridge specifically** — lane D measured its own
-  harness, not this one. Boot here was 3.6–4.1 s across runs.
+- ~~Memory and startup of this bridge specifically~~ — measured in Wave 10
+  ("The warm spare, measured"): 745–853 MB RSS at running with `-Xmx1g`, cold
+  start 4.6–5.3 s to the first event.
+- **RSS late in a real 20–40-minute match.** Measured at `running` only. The
+  heap cap bounds it; nobody has watched one grow.
+- **A hung (alive, silent) JVM.** A crash is detected by the process exiting.
+  A JVM that stops talking without exiting is caught only by the per-ask
+  timeout (10 min), and only while an ask is open.
+- **The crash notice in a browser.** It reaches the socket and parses; the UI
+  does not render `showErrorDialog` yet (lane A's side).
+- **A refresh through lane B's browser client.** Tested with socket.io clients
+  in browser order; not with the real `LiveBoard` in a real tab.
 
 ## Follow-ups owed
 
 - Add `zod` to `@hadoku/server` (and `@hadoku/ui`) and move the A↔B schemas
   into one shared package; both mirrors are built from borrowed instances today.
-- Warm-spare JVM (lane D): config over stdin after boot.
 - A per-event visibility rule, so the events arm can be forwarded.
 - Lane B: pass `devUser` on the handshake in the harness (two local browsers).
 - `sideboard` and `applyYieldUpdate` when multi-game matches exist.
+- UI: render `showErrorDialog` (the crash notice) in `LiveBoard`.
+- A liveness check for a JVM that hangs without exiting (see "Not verified").

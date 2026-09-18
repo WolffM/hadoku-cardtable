@@ -138,9 +138,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <p><b>Protocol.</b> Stdout carries JSON lines and nothing else — {@code System.out} is
  * pointed at stderr before Forge is touched, so Forge's own logging cannot interleave.
- * Lines out: {@code ready}, {@code frame} (a {@code @hadoku/forge-wire} ServerFrame for
- * one seat), {@code probe}, {@code gameover}, {@code fatal}. Lines in: {@code reply},
- * {@code abort}, {@code act}, {@code probe}, {@code stop}.
+ * Lines out: {@code warm} (a spare only), {@code ready}, {@code frame} (a
+ * {@code @hadoku/forge-wire} ServerFrame for one seat), {@code probe}, {@code gameover},
+ * {@code fatal}. Lines in: {@code start} (a spare's first line only), {@code reply},
+ * {@code abort}, {@code act}, {@code probe}, {@code stop}. See {@link #main} for the
+ * warm spare.
  *
  * <p><b>What is not forwarded.</b> The events arm of every {@code applyDelta} is left out:
  * events carry card names, including the card an opponent just drew, and the Node side
@@ -207,7 +209,11 @@ public final class PlayBridge {
     record SeatConfig(String name, boolean ai, String deck) { }
 
     static List<SeatConfig> readConfig(final Path file) throws IOException {
-        final JsonObject root = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
+        return configFrom(JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject());
+    }
+
+    /** The config object itself — from the file (cold) or a spare's {@code start} command. Sets {@link #matchId}. */
+    static List<SeatConfig> configFrom(final JsonObject root) {
         matchId = root.get("matchId").getAsString();
         seed = root.has("seed") && !root.get("seed").isJsonNull() ? root.get("seed").getAsLong() : null;
         final List<SeatConfig> seats = new ArrayList<>();
@@ -1265,18 +1271,71 @@ public final class PlayBridge {
         }
     }
 
+    /** Stdin, shared: a spare reads its {@code start} line from it, then {@link #readCommands} the rest. */
+    static final BufferedReader IN = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
+
+    /**
+     * Two ways in. {@code PlayBridge <config.json>} is a cold start: read the match, boot
+     * Forge, play. {@code PlayBridge --spare <spareId>} is the warm spare
+     * ({@code host.ts}): boot Forge and its server with no match, say {@code warm}, then
+     * block on stdin for ONE {@code start} line carrying the same config object the file
+     * would have held. Everything {@link #bootForge} does is independent of the match, so
+     * a spare and a cold start run the same code in a different order.
+     *
+     * <p>Until {@code start} the spare's lines carry {@code spareId} as their
+     * {@code match}; from then on, the match's id. The {@code start} command itself is
+     * addressed to {@code spareId} and names the match in its config.
+     */
     public static void main(final String[] args) throws Exception {
         protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
         System.setOut(System.err);
-        if (args.length != 1) {
-            fatal("usage: PlayBridge <config.json>", null);
+        final List<SeatConfig> seats;
+        final Booted booted;
+        final long startAt;
+        if (args.length == 2 && "--spare".equals(args[0])) {
+            matchId = args[1];
+            final long bootStart = System.currentTimeMillis();
+            booted = bootForge();
+            final JsonObject warm = line("warm");
+            warm.addProperty("bootMs", System.currentTimeMillis() - bootStart);
+            emit(warm);
+            final String first = IN.readLine();
+            if (first == null) {
+                // Node went away before this spare was needed. Nothing to clean up but Netty.
+                Runtime.getRuntime().halt(0);
+            }
+            final JsonObject cmd = JsonParser.parseString(first).getAsJsonObject();
+            if (!cmd.has("match") || !matchId.equals(cmd.get("match").getAsString())) {
+                fatal("the spare's first command is not addressed to spare " + matchId, null);
+            }
+            final String t = cmd.get("t").getAsString();
+            if ("stop".equals(t)) {
+                Runtime.getRuntime().halt(0);
+            }
+            if (!"start".equals(t)) {
+                fatal("a spare's first command is start or stop, got " + t, null);
+            }
+            startAt = System.currentTimeMillis();
+            seats = configFrom(cmd.getAsJsonObject("config"));
+        } else if (args.length == 1) {
+            seats = readConfig(Path.of(args[0]));
+            startAt = System.currentTimeMillis();
+            booted = bootForge();
+        } else {
+            fatal("usage: PlayBridge <config.json> | PlayBridge --spare <spareId>", null);
+            return;
         }
-        final List<SeatConfig> seats = readConfig(Path.of(args[0]));
         if (seats.size() != 2) {
             fatal("a match has exactly two seats, got " + seats.size(), null);
         }
+        startMatch(seats, booted, startAt);
+    }
 
-        final long bootStart = System.currentTimeMillis();
+    /** What {@link #bootForge} leaves running: Forge's server on its port, with an empty lobby. */
+    record Booted(int port, FServerManager server, ServerGameLobby lobby) { }
+
+    /** Everything that does not depend on the match: Forge's model, preferences, server, lobby. */
+    static Booted bootForge() throws IOException {
         GuiBase.setInterface(new BridgeGui());
         FModel.initialize(null, prefs -> {
             prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, false);
@@ -1296,15 +1355,6 @@ public final class PlayBridge {
         FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.NET_AFK_TIMEOUT, "0");
         RemoteClientGuiGame.useDeltaSync = true;
 
-        final Random random = seed == null ? new Random() : new Random(seed);
-        if (seed != null) {
-            forge.util.MyRandom.setRandom(new Random(seed));
-        }
-        final List<Deck> decks = new ArrayList<>();
-        for (final SeatConfig s : seats) {
-            decks.add(s.deck() != null ? parseDeck(s.deck()) : randomPrecon(random));
-        }
-
         final int port = freePort();
         final FServerManager server = FServerManager.getInstance();
         server.startServer(port);
@@ -1317,6 +1367,27 @@ public final class PlayBridge {
             @Override public void update(final boolean fullUpdate) { server.updateLobbyState(); }
             @Override public void update(final int slot, final LobbySlotType type) { }
         });
+        return new Booted(port, server, lobby);
+    }
+
+    /**
+     * The match: decks, seats, clients, go. {@code startAt} is when the match was
+     * handed to this JVM (the config file read, or the spare's {@code start}); the
+     * {@code ready} line's {@code startMs} is measured from it, and its {@code bootMs}
+     * from the JVM's own start — which for a spare includes however long it sat idle.
+     */
+    static void startMatch(final List<SeatConfig> seats, final Booted booted, final long startAt) throws Exception {
+        final int port = booted.port();
+        final FServerManager server = booted.server();
+        final ServerGameLobby lobby = booted.lobby();
+        final Random random = seed == null ? new Random() : new Random(seed);
+        if (seed != null) {
+            forge.util.MyRandom.setRandom(new Random(seed));
+        }
+        final List<Deck> decks = new ArrayList<>();
+        for (final SeatConfig s : seats) {
+            decks.add(s.deck() != null ? parseDeck(s.deck()) : randomPrecon(random));
+        }
 
         for (int i = 0; i < seats.size(); i++) {
             final SeatConfig s = seats.get(i);
@@ -1382,7 +1453,9 @@ public final class PlayBridge {
 
         final JsonObject ready = line("ready");
         ready.addProperty("forgePort", port);
-        ready.addProperty("bootMs", System.currentTimeMillis() - bootStart);
+        final long now = System.currentTimeMillis();
+        ready.addProperty("bootMs", now - java.lang.management.ManagementFactory.getRuntimeMXBean().getStartTime());
+        ready.addProperty("startMs", now - startAt);
         final JsonArray seatInfo = new JsonArray();
         for (int i = 0; i < seats.size(); i++) {
             final JsonObject s = new JsonObject();
@@ -1440,10 +1513,9 @@ public final class PlayBridge {
     }
 
     static void readCommands() {
-        final BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
         try {
             String raw;
-            while ((raw = in.readLine()) != null) {
+            while ((raw = IN.readLine()) != null) {
                 if (raw.isBlank()) { continue; }
                 try {
                     handle(JsonParser.parseString(raw).getAsJsonObject());

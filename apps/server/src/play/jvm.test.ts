@@ -21,7 +21,15 @@
  * - **Fixed:** "Spirit Flames" v "Decay" — the two precons of the red run the
  *   manager hit (`fixtures/bridge-flying-seat1.ndjson`) — with a fixed seed.
  * - **Variety:** random precons from a seed printed in the log; rerun a red one
- *   with `CARDTABLE_PLAY_SEED=<that seed>`.
+ *   with `CARDTABLE_PLAY_SEED=<that seed>`. This one is started **through the
+ *   warm spare** (Wave 10), so the leak check covers both ways a match reaches
+ *   its JVM.
+ *
+ * A third test (Wave 10) runs a refresh and a crash against a real JVM: the
+ * seat's socket goes and comes back inside the grace while a real
+ * `showConfirmDialog` is parked in Forge, and the answer given after the
+ * refresh is the one Forge's `sendAndWait` returns; then the JVM is SIGKILLed
+ * and both seats must be told.
  *
  * The seed fixes Forge's shuffles, the coin toss and the precon pick
  * (`PlayBridge.seed`). The AI and thread timing are not seeded, so a seed
@@ -34,8 +42,9 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type MatchSpec } from './host.js';
-import { createMatchRegistry, type Match } from './match.js';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type JvmHostFactory, type MatchSpec } from './host.js';
+import { MATCH_ENDED_TITLE, createMatchRegistry, type Match } from './match.js';
+import { foldFrames, type StateFrame } from './visibility.js';
 import type { ServerEnvelope } from './transport.js';
 import { leaked, rawStatesOf, secretsFor } from './fixtures/transcript.js';
 
@@ -57,17 +66,19 @@ function precon(name: string): string {
 
 describe.skipIf(!available.ok)(title, () => {
 	const matches: Match[] = [];
+	const pools: JvmHostFactory[] = [];
 
 	afterAll(async () => {
 		for (const m of matches) m.stop();
+		for (const p of pools) p.close();
 		await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 15_000);
 		expect(liveJvmCount()).toBe(0);
 	});
 
 	const variety = Number(process.env.CARDTABLE_PLAY_SEED ?? Date.now() % 1_000_000_007);
-	const runs: [string, () => MatchSpec][] = [
+	const runs: [string, () => MatchSpec, boolean][] = [
 		[
-			'fixed: Spirit Flames v Decay, seed 20260918',
+			'fixed: Spirit Flames v Decay, seed 20260918, cold',
 			() => ({
 				seed: 20260918,
 				seats: [
@@ -75,9 +86,10 @@ describe.skipIf(!available.ok)(title, () => {
 					{ name: 'Seat 2', ai: false, deck: precon('Decay') },
 				],
 			}),
+			false,
 		],
 		[
-			`variety: random precons, seed ${variety}`,
+			`variety: random precons, seed ${variety}, through the warm spare`,
 			() => ({
 				seed: variety,
 				seats: [
@@ -85,17 +97,20 @@ describe.skipIf(!available.ok)(title, () => {
 					{ name: 'Seat 2', ai: false, deck: null },
 				],
 			}),
+			true,
 		],
 	];
 
 	it.each(runs)(
 		'%s — starts, opens both seats, projects per seat, answers a real ask, moves on an act',
-		async (label, spec) => {
+		async (label, spec, spare) => {
 			if (!available.ok) return;
 			const raw: BridgeLine[] = [];
 			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
 			const logs: Record<string, unknown>[] = [];
-			const jvm = jvmHostFactory(available.config);
+			const jvm = jvmHostFactory(available.config, { spare, log: (e) => logs.push(e) });
+			pools.push(jvm);
+			if (spare) await waitUntil(() => jvm.spare() === 'warm', 'the spare to boot', 120_000);
 			const registry = createMatchRegistry({
 				host: (id, spec, events) =>
 					jvm(id, spec, {
@@ -117,8 +132,9 @@ describe.skipIf(!available.ok)(title, () => {
 			expect(running).toEqual({ ok: true });
 			const ready = raw.find((l) => l.t === 'ready') as Extract<BridgeLine, { t: 'ready' }>;
 			console.log(
-				`[jvm] ${label}: running after ${Date.now() - started} ms (Forge boot ${ready.bootMs} ms); decks: ${ready.seats.map((s) => s.deck).join(' v ')}`,
+				`[jvm] ${label}: running after ${Date.now() - started} ms (JVM up ${ready.bootMs} ms, match start ${ready.startMs} ms); decks: ${ready.seats.map((s) => s.deck).join(' v ')}`,
 			);
+			expect(logs.some((l) => l.evt === 'spare-adopted')).toBe(spare);
 			expect(match.seats.map((s) => s.playerId).sort()).toEqual([0, 1]);
 
 			// Forge opens with the coin toss: one seat is asked play-or-draw.
@@ -171,8 +187,79 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(leaked(secrets, emitted)).toEqual([]);
 			}
 			match.stop();
-			await waitUntil(() => liveJvmCount() === 0, 'this match\'s JVM to exit', 15_000);
+			jvm.close();
+			await waitUntil(() => liveJvmCount() === 0, 'this match\'s JVM (and any spare) to exit', 15_000);
 		},
 		240_000,
 	);
+
+	it('refresh, then crash: an ask parked in Forge survives the seat going and coming back; a SIGKILLed JVM tells both seats', async () => {
+		if (!available.ok) return;
+		const sent: { seat: number; envelope: ServerEnvelope }[] = [];
+		const logs: Record<string, unknown>[] = [];
+		const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+		pools.push(jvm);
+		const registry = createMatchRegistry({
+			host: jvm,
+			log: (e) => logs.push(e),
+			askTimeoutMs: 60_000,
+			overGraceMs: 60_000,
+			disconnectGraceMs: 30_000,
+			emit: (_m, seat, envelope) => sent.push({ seat, envelope }),
+		});
+		const match = registry.create({
+			seed: 20260918,
+			seats: [
+				{ name: 'Seat 1', ai: false, deck: precon('Spirit Flames') },
+				{ name: 'Seat 2', ai: false, deck: precon('Decay') },
+			],
+		});
+		matches.push(match);
+		expect(await match.whenRunning(120_000)).toEqual({ ok: true });
+		// Let the opening land — hands dealt, the coin toss asked — so the board compared below is a real one.
+		await waitUntil(
+			() => [0, 1].every((seat) => sent.some((s) => s.seat === seat && s.envelope.frame.method === 'updateButtons')),
+			'a prompt for each seat',
+			30_000,
+		);
+
+		// Refresh. A real showConfirmDialog is parked in Forge's sendAndWait; its
+		// default is NO, so a `true` can only be the answer given after the refresh.
+		const probe = match.probe(0, 'jvm.test: answer after the refresh', 60_000);
+		const isAsk = (s: { seat: number; envelope: ServerEnvelope }): boolean => s.seat === 0 && s.envelope.frame.kind === 'ask';
+		await waitUntil(() => sent.some(isAsk), 'the ask', 30_000);
+		const callId = (sent.find(isAsk)?.envelope.frame as { callId: string }).callId;
+		const stateOf = (frames: readonly unknown[]): Map<string, unknown> =>
+			foldFrames(
+				(frames as ServerEnvelope['frame'][]).filter((f) => ['setGameView', 'openView', 'applyDelta'].includes(f.method)) as unknown as StateFrame[],
+			);
+		const boardBefore = stateOf(sent.filter((s) => s.seat === 0).map((s) => s.envelope.frame));
+		expect(boardBefore.size).toBeGreaterThan(20);
+		match.seatDisconnected(0);
+		await new Promise((r) => setTimeout(r, 1500));
+		match.seatConnected(0);
+		const snap = match.snapshot(0);
+		if (!('frames' in snap)) throw new Error(`expected a snapshot, got ${JSON.stringify(snap)}`);
+		expect(stateOf(snap.frames)).toEqual(boardBefore);
+		const mark = sent.length;
+		match.resendAfterSnapshot(0);
+		expect(sent.slice(mark).some((s) => isAsk(s) && (s.envelope.frame as { callId: string }).callId === callId)).toBe(true);
+		expect(match.fromClient(0, ClientFrameSchema.parse({ kind: 'reply', callId, method: 'showConfirmDialog', result: true }))).toEqual({ ok: true });
+		const answered = await probe;
+		console.log(`[jvm] refresh: seat 0 away 1500 ms with the ask open; board ${stateOf(snap.frames).size} objects, equal; Forge got ${JSON.stringify(answered)}`);
+		expect(answered.answer).toBe(true);
+
+		// Crash.
+		const pid = logs.find((l) => l.evt === 'jvm-spawned')?.pid as number;
+		const killedAt = Date.now();
+		process.kill(pid, 'SIGKILL');
+		const told = (seat: number): boolean =>
+			sent.some((s) => s.seat === seat && s.envelope.frame.method === 'showErrorDialog' && (s.envelope.frame as { title: string }).title === MATCH_ENDED_TITLE);
+		await waitUntil(() => told(0) && told(1), 'both seats to be told', 10_000);
+		console.log(`[jvm] crash: SIGKILL pid ${pid} → match ${match.status}, both seats told in ${Date.now() - killedAt} ms; failure: ${match.failure}`);
+		expect(match.status).toBe('failed');
+		expect(match.failure).toMatch(/signal SIGKILL/);
+		expect(liveJvmCount()).toBe(0);
+		jvm.close();
+	}, 240_000);
 });

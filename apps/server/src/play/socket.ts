@@ -56,7 +56,7 @@ import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { CONFIG } from '../config.js';
 import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
 import { identityFromHeaders, participantHandle } from '../room/identity.js';
-import type { MatchHostFactory, MatchSpec } from './host.js';
+import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec } from './host.js';
 import { createMatchRegistry, type Match, type MatchRegistry } from './match.js';
 import { MATCH_EVENTS, parseClientEnvelope, parseMatchRequest, type MatchError, type MatchSnapshot } from './transport.js';
 
@@ -76,8 +76,17 @@ export interface PlayDeps {
 	startTimeoutMs?: number;
 	/** How long a join waits for a starting match. Default 8 s — under the client's 10 s ack timeout. */
 	joinWaitMs?: number;
-	/** Concurrent matches (each is a JVM). Default 2. */
+	/**
+	 * Concurrent matches (each is a JVM). Default `MAX_CONCURRENT_MATCHES` (2) —
+	 * a deliberate ceiling; `host.ts`'s header, "The ceiling", has the argument.
+	 */
 	maxMatches?: number;
+	/**
+	 * How long a seat with no connection keeps its open asks before they are
+	 * aborted as `disconnected`. Default 30 s: a browser refresh closes the old
+	 * socket before the new page joins, and must not hand Forge a null answer.
+	 */
+	disconnectGraceMs?: number;
 	/**
 	 * `POST /play/matches/:id/probe` and `GET /play/matches/:id/seats/:seat/state`
 	 * exist. Diagnostics for a live check — the second returns a seat's hand to
@@ -90,7 +99,7 @@ export interface PlayDeps {
 
 export interface PlayHandle {
 	matches: MatchRegistry;
-	/** Stop every match (each stops its JVM). */
+	/** Stop every match (each stops its JVM), and release the host's spare. */
 	close(): void;
 }
 
@@ -183,6 +192,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		log,
 		askTimeoutMs: deps.askTimeoutMs ?? 10 * 60_000,
 		overGraceMs: deps.overGraceMs ?? 10 * 60_000,
+		disconnectGraceMs: deps.disconnectGraceMs ?? 30_000,
 		emit: (match, seat, envelope) => {
 			emitPerRecipient<PlayApp, PlayClient, typeof envelope>(
 				io,
@@ -209,7 +219,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			res.status(503).json({ error: 'Forge is not configured on this server (CARDTABLE_FORGE_JAR / CARDTABLE_FORGE_RES)' });
 			return;
 		}
-		const max = deps.maxMatches ?? 2;
+		const max = deps.maxMatches ?? MAX_CONCURRENT_MATCHES;
 		if (matches.active().length >= max) {
 			res.status(503).json({ error: `already running ${max} matches` });
 			return;
@@ -331,6 +341,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				await socket.join(room.roomId);
 				joined.set(match.id, seat);
 				log({ evt: 'joined', matchId: match.id, seat, participantId, fresh: claim.fresh });
+				// A refresh: the old socket's close armed an abort of this seat's asks.
+				match.seatConnected(seat);
 			}
 			if (match.status === 'starting') {
 				const running = await match.whenRunning(joinWaitMs);
@@ -394,6 +406,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		matches,
 		close(): void {
 			matches.stopAll();
+			deps.host?.close?.();
 		},
 	};
 }

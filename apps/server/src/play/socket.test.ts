@@ -19,6 +19,7 @@ import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import type { BridgeLine } from './host.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, secretsFor, type ReplayHost } from './fixtures/transcript.js';
+import { foldFrames, type StateFrame } from './visibility.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 
@@ -61,7 +62,7 @@ afterEach(async () => {
 	harness = null;
 });
 
-async function boot(options: { devIdentity?: boolean } = {}): Promise<Harness> {
+async function boot(options: { devIdentity?: boolean; disconnectGraceMs?: number } = {}): Promise<Harness> {
 	const { factory, hosts } = replayFactory();
 	const logs: Record<string, unknown>[] = [];
 	const app = express();
@@ -79,6 +80,7 @@ async function boot(options: { devIdentity?: boolean } = {}): Promise<Harness> {
 		startTimeoutMs: 5000,
 		joinWaitMs: 1000,
 		devIdentity: options.devIdentity,
+		disconnectGraceMs: options.disconnectGraceMs,
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
@@ -155,12 +157,13 @@ async function waitUntil(predicate: () => boolean, label: string, timeoutMs = 50
 
 /** POST a match and feed the recorded opening to its host, so the route can answer. */
 async function startMatch(h: Harness, user = 'alice'): Promise<{ status: number; body: Record<string, unknown> }> {
+	const hostsBefore = h.hosts.length;
 	const response = fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
 		method: 'POST',
 		headers: { ...edgeHeaders(user), 'content-type': 'application/json' },
 		body: JSON.stringify({ opponent: 'human' }),
 	});
-	await waitUntil(() => h.hosts.length > 0, 'the match host to be created');
+	await waitUntil(() => h.hosts.length > hostsBefore, 'the match host to be created');
 	(h.hosts.at(-1) as ReplayHost).push(...OPENING);
 	const res = await response;
 	return { status: res.status, body: (await res.json()) as Record<string, unknown> };
@@ -217,8 +220,10 @@ describe('POST /api/play/matches', () => {
 });
 
 describe('two seats over the socket', () => {
-	async function twoSeats(): Promise<{ h: Harness; matchId: string; alice: Peer; bob: Peer; host: ReplayHost }> {
-		const h = await boot();
+	async function twoSeats(
+		options: { disconnectGraceMs?: number } = {},
+	): Promise<{ h: Harness; matchId: string; alice: Peer; bob: Peer; host: ReplayHost }> {
+		const h = await boot(options);
 		const { body } = await startMatch(h);
 		const matchId = body.matchId as string;
 		const alice = await connect(h.port, edgeHeaders('alice'));
@@ -308,7 +313,8 @@ describe('two seats over the socket', () => {
 	});
 
 	it("aborts the open ask as 'disconnected' when the seat's last connection drops — but not on a refresh", async () => {
-		const { h, matchId, alice, bob, host } = await twoSeats();
+		// A short grace, so the abort this test waits for comes quickly.
+		const { h, matchId, alice, bob, host } = await twoSeats({ disconnectGraceMs: 200 });
 		await alice.request('forge:join', { matchId });
 		await bob.request('forge:join', { matchId });
 		host.push(PROBE_ASK);
@@ -326,6 +332,89 @@ describe('two seats over the socket', () => {
 		await waitUntil(() => host.commands.length > 0, 'the abort');
 		const callId = (PROBE_ASK.frame as { callId: string }).callId;
 		expect(host.commands).toEqual([{ t: 'abort', seat: 0, callId, reason: 'disconnected' }]);
+	});
+});
+
+/* ── Wave 10: crash and reconnect, over the real socket ─────────────── */
+
+type Envelope = { cursor: { seq: number; epoch: string }; frame: { kind: string; method: string; callId?: string; title?: string } };
+const STATE_METHODS = new Set(['setGameView', 'openView', 'applyDelta']);
+
+/** What a browser holds: the snapshot's frames, then every state frame after it, folded. */
+function boardOf(snapshot: { frames: unknown[] }, frames: unknown[]): Map<string, unknown> {
+	const after = (frames as Envelope[]).filter((e) => STATE_METHODS.has(e.frame.method)).map((e) => e.frame);
+	return foldFrames([...snapshot.frames, ...after] as unknown as StateFrame[]);
+}
+
+function isEndedNotice(payload: unknown): boolean {
+	const f = (payload as Envelope).frame;
+	return f.method === 'showErrorDialog' && f.title === 'Match ended';
+}
+
+describe('reconnect: a browser refresh mid-match', () => {
+	it('closes the old socket FIRST, then rejoins: same seat, same board, the same open ask — and Forge never hears "disconnected"', async () => {
+		// A 1 s grace, outlived below after the rejoin: the rejoin must DISARM the abort, not merely beat it.
+		const h = await boot({ disconnectGraceMs: 1000 });
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		const first = (await alice.request('forge:join', { matchId })) as { seat: number; frames: unknown[] };
+		await bob.request('forge:join', { matchId });
+		const host = h.hosts[0] as ReplayHost;
+		host.push(PROBE_ASK);
+		await waitUntil(() => alice.frames.some((f) => (f as Envelope).frame.kind === 'ask'), 'the ask');
+		const boardBefore = boardOf(first, alice.frames);
+		expect(boardBefore.size).toBeGreaterThan(50);
+
+		// The refresh, in the order a browser does it.
+		alice.socket.disconnect();
+		await waitUntil(() => h.logs.some((l) => l.evt === 'left' && l.seat === 0 && l.stillHere === false), 'the old page to go');
+		const aliceAgain = await connect(h.port, edgeHeaders('alice'));
+		const again = (await aliceAgain.request('forge:join', { matchId })) as { seat: number; frames: unknown[]; cursor: { epoch: string } };
+		expect(again.seat).toBe(0);
+		expect(again.cursor.epoch).toBe((alice.frames[0] as Envelope).cursor.epoch);
+		expect(boardOf(again, [])).toEqual(boardBefore);
+
+		const callId = (PROBE_ASK.frame as { callId: string }).callId;
+		await waitUntil(() => aliceAgain.frames.some((f) => (f as Envelope).frame.callId === callId), 'the same ask, re-sent');
+		await new Promise((r) => setTimeout(r, 1500));
+		expect(host.commands).toEqual([]);
+		aliceAgain.send({ matchId, frame: { kind: 'reply', callId, method: 'showConfirmDialog', result: true } });
+		await waitUntil(() => host.commands.length > 0, 'the answer to reach Forge');
+		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
+	});
+});
+
+describe('crash: the JVM dies mid-match', () => {
+	it('leaves the server and its sockets up, tells both seats, and keeps telling a seat that resyncs', async () => {
+		const h = await boot();
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		(h.hosts[0] as ReplayHost).exit('the JVM exited (code null, signal SIGKILL); see /tmp/x/bridge.stderr.txt');
+
+		await waitUntil(() => [alice, bob].every((p) => p.frames.some(isEndedNotice)), 'both seats to be told');
+		for (const p of [alice, bob]) expect(transportMod.ServerEnvelopeSchema.safeParse(p.frames.find(isEndedNotice)).success).toBe(true);
+		expect(alice.socket.connected && bob.socket.connected).toBe(true);
+
+		const status = await fetch(`http://127.0.0.1:${h.port}/api/play/matches/${matchId}`, { headers: edgeHeaders('alice') });
+		expect(((await status.json()) as { status: string }).status).toBe('failed');
+
+		// A resync after the crash: the board it had, then the notice again.
+		const seen = alice.frames.length;
+		const snap = (await alice.request('forge:resync', { matchId })) as { frames: unknown[] };
+		expect(snap.frames.length).toBeGreaterThan(0);
+		await waitUntil(() => alice.frames.slice(seen).some(isEndedNotice), 'the notice after the resync');
+
+		// The server survived: the next match starts and seats people.
+		const next = await startMatch(h, 'carol');
+		expect(next.status).toBe(201);
+		const carol = await connect(h.port, edgeHeaders('carol'));
+		expect(((await carol.request('forge:join', { matchId: next.body.matchId })) as { seat: number }).seat).toBe(0);
 	});
 });
 
