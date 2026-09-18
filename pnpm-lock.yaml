@@ -44,6 +44,9 @@ importers:
       '@hadoku/draft':
         specifier: workspace:*
         version: link:../../packages/draft
+      '@hadoku/forge-wire':
+        specifier: workspace:*
+        version: link:../../packages/forge-wire
       '@hadoku/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -84,6 +87,9 @@ importers:
       '@hadoku/draft':
         specifier: workspace:*
         version: link:../../packages/draft
+      '@hadoku/forge-wire':
+        specifier: workspace:*
+        version: link:../../packages/forge-wire
       '@hadoku/shared':
         specifier: workspace:*
         version: link:../../packages/shared

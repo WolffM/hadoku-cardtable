@@ -18,6 +18,7 @@
     "@hadoku/draft": "workspace:*",
     "@hadoku/carddata": "workspace:*",
     "@hadoku/deck": "workspace:*",
+    "@hadoku/forge-wire": "workspace:*",
     "@wolffm/rooms-protocol": "0.38.111",
     "socket.io-client": "^4.8.3"
   },
