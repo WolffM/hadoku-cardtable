@@ -1,0 +1,422 @@
+# `apps/server/src/play` — the match server
+
+Wave 9, lane A. Starts a real Forge match behind the existing socket server,
+maps our participants to Forge's players, and streams each seat **its own**
+projection of the game over the A↔B transport contract.
+
+```
+browser ──forge:join / forge:c2s──►  socket.ts ──► match.ts ──► host.ts ──stdin──► bridge/PlayBridge.java (child JVM)
+        ◄──────forge:s2c──────────   (per seat)    (per seat:     (one JVM                  Forge server + one stock
+                                                    projector,     per match)                FGameClient per human seat
+                                                    cursor,                                  over loopback Netty
+                                                    history, asks) ◄──stdout JSON lines──
+```
+
+| file | what |
+| --- | --- |
+| `index.ts` | the exports `src/index.ts` needs: `attachPlay`, `jvmHostConfig`, `jvmHostFactory` |
+| `socket.ts` | `attachPlay(io, api, deps)`: the HTTP routes and socket handlers, the gate, identity, per-recipient emit |
+| `match.ts` | one match, socket-free: seat binding, per-seat projector/cursor/history, asks, lifecycle |
+| `visibility.ts` | the hidden-information projection (Forge's `canBeShownTo`, server side) |
+| `transport.ts` | the A↔B wrapper schemas (lane B mirrors them at `apps/ui/src/play/live/transport.ts`) |
+| `host.ts` | the `MatchHost` seam and the one-JVM-per-match implementation |
+| `bridge/PlayBridge.java` | the Java side: runs as a single-file source program, no build step |
+| `dev/seat.ts` | a command-line seat, for local testing (see "Two seats locally") |
+| `fixtures/` | a recorded real bridge transcript, its replay host, and the leak oracle |
+
+## The `src/index.ts` edit
+
+`attachPlay` is the one call. It hangs its routes off the existing `api` router
+(which `index.ts` mounts behind `requireMinTier`) and its handlers off the same
+`io`. Exact edit:
+
+```diff
+--- a/apps/server/src/index.ts
++++ b/apps/server/src/index.ts
+@@ -70,6 +70,7 @@
+ import { createDraftRooms } from './room/draftRooms.js';
+ import { loadPool } from './room/pool.js';
+ import { attachDraftSocket } from './room/socket.js';
++import { attachPlay, jvmHostConfig, jvmHostFactory } from './play/index.js';
+ 
+ mkdirSync(CONFIG.logDir, { recursive: true });
+ 
+@@ -201,4 +202,17 @@ attachDraftSocket(io, {
+ 	minTier: CONFIG.minTier,
+ });
+ 
++// ── Matches ──────────────────────────────────────────────────────────────────
++// One child JVM per match; see src/play/README.md. Without a configured Forge
++// build the route answers 503 and nothing else changes.
++const forge = jvmHostConfig();
++if (!forge.ok) console.warn(`[cardtable] play: no Forge (${forge.reason}) — POST /api/play/matches answers 503`);
++attachPlay(io, api, {
++	minTier: CONFIG.minTier,
++	host: forge.ok ? jvmHostFactory(forge.config) : null,
++	// Diagnostics for a live check only. Never set in production (see socket.ts).
++	probe: process.env.CARDTABLE_PLAY_PROBE === '1',
++	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
++});
++
+ // ── Listen ───────────────────────────────────────────────────────────────────
+```
+
+Verified without touching `index.ts`: a scratch server wired exactly this way
+ran a two-seat match end to end (below), and `esbuild src/play/index.ts` with
+the `build` script's flags bundles (814.8 kB, exit 0). From `dist/`, the bridge
+source is found at `dist/../src/play/bridge/PlayBridge.java`.
+
+## In-process or child process: one child JVM per match
+
+Node cannot host a JVM, so the real choice was one JVM per match or one hosting
+many. **One per match**, because Forge's network server is a per-JVM singleton
+holding one lobby (`FServerManager.getInstance()`, `FServerManager.java:212`)
+and the bridge drives the match through it. Lane D measured the same wall
+(`docs/spikes/jvm-per-match.md`: a second match fails with `Hook previously
+registered` at `FServerManager.java:276`) and recommends the same shape: ready
+in ~3.4 s, ~650–730 MB RSS per JVM, and killing one leaves the others running.
+
+Aligned with lane D's asks: **`matchId` on every line** in both directions (the
+bridge stamps its own and refuses a command without it; `host.ts` checks and
+strips it), **exit = match over** (an exit while starting or running fails that
+match only), **close = `stop` → SIGTERM → SIGKILL**. **Not built: the warm
+spare.** The bridge reads its seats and decks at launch, so a spare needs them
+to arrive over stdin after boot. The `MatchHost` interface does not change for
+that, or for a shared host later.
+
+## HTTP
+
+All under `/api/play`, behind the same tier floor as every API route.
+
+**`POST /api/play/matches`** — body (all optional):
+
+```json
+{ "opponent": "human" | "ai", "decks": [".dck text" | null, ".dck text" | null] }
+```
+
+`null` deck = a random Forge quest precon with ≥ 40 cards. The response comes
+**after** Forge has opened the game for every human seat (~4–5 s), so a join
+right after it is served at once:
+
+| status | body |
+| --- | --- |
+| 201 | `{ matchId, epoch, seats: [{ seat, kind: "human"\|"ai", deck }] }` |
+| 400 | `{ error }` — body not understood; no JVM is started |
+| 404 | below the tier floor (same as every route) |
+| 500 | `{ matchId, error }` — Forge could not start it (the bridge's `fatal`) |
+| 503 | `{ error }` — Forge not configured, or `maxMatches` (default 2) already running |
+
+**`GET /api/play/matches/:id`** → `{ matchId, status, failure, winner, seats: [{ seat, kind, deck, claimedBy }] }`.
+`claimedBy` is the participant's 6-character digest handle, never the id.
+
+**Only with `CARDTABLE_PLAY_PROBE=1`** (a dev diagnostic; never in production):
+
+- `POST /api/play/matches/:id/probe` `{ seat, message? }` — Forge's **server
+  side** sends that seat a real `showConfirmDialog` through the stock
+  `RemoteClientGuiGame.sendAndWait` → Netty → the seat's `FGameClient` → the
+  bridge → the socket → the browser, and blocks until the answer comes back.
+  Answers `{ answer, ms }` (`ms` is measured inside Forge, around
+  `sendAndWait`). The default is **No**, so a `true` can only have come from the
+  seat.
+- `GET /api/play/matches/:id/seats/:seat/state` → `{ cursor, objects }`: that
+  seat's projected history folded — exactly what its browser should hold at
+  `cursor`. It is that seat's hand, hence the flag.
+
+## The socket contract, as implemented
+
+Same `io`, same default path, same edge gate as the draft (re-installed here —
+see `socket.ts`). Identity is `identityFromHeaders` over the sanitized
+handshake, never a payload.
+
+- `forge:join { matchId }` → ack `MatchSnapshot` or `{ error }`. The first join
+  by a participant **claims** a seat: first free human seat, in order.
+  Errors: `unknown-match`, `match-full`, `match-starting` (still booting after
+  8 s), `a seat needs a durable identity …` (an `eph:` id).
+- `forge:resync { matchId }` → ack `MatchSnapshot` or `{ error }` (`not-joined`
+  if this connection never joined).
+- `forge:c2s { matchId, frame }` — `frame` parsed with `safeParseClientFrame`.
+  A reply must match an open ask of **this seat** by `callId` and `method`.
+- `forge:s2c { matchId, cursor, frame }` — per seat. `seq` counts every frame
+  to that seat from 1, by exactly 1; `epoch` is `<matchId>:<start ms>`.
+
+Three clarifications of the contract. The first two were agreed with the
+manager mid-wave; the third is this lane's decision:
+
+1. **`MatchSnapshot.cursor` is the seat's latest cursor of any kind**, not the
+   last state frame's. Otherwise an ask re-sent after the snapshot lands as a
+   `gap` and the client resyncs forever.
+2. **A disconnect is an abort.** When a seat's **last** connection goes, each
+   open ask is aborted with `disconnected` (Forge gets its own answer to a null
+   reply). A refresh — new tab joins before the old one closes — aborts nothing;
+   tested.
+3. After every snapshot the server re-sends, as ordinary frames on the next
+   cursors: the seat's latest `showPromptMessage`, latest `updateButtons`, and
+   every open ask. (The contract only required the ask; the prompt and buttons
+   are what a player needs to know what to do, and the state channel does not
+   carry them. A client that ignores them loses nothing.)
+
+Also: a seat's `openView` is always its first state frame (state that arrives
+before it is held, then projected once the viewer is known). Spectators are not
+supported — a third person is refused, not given a view.
+
+## Participants → seats → Forge players
+
+`match.ts`'s header has the argument. In short: a participant binds to a seat
+on first join **permanently** — a disconnect never unseats, a seat is never
+transferred (that seat has a hand), and an ephemeral id cannot claim one. Seat
+*i* is Forge lobby slot *i* (the bridge connects clients in seat order and
+asserts it). The seat's Forge `PlayerView` id is learned from **that seat's
+own** `openView`, and a seat reopened as a different player fails the match
+rather than re-projecting for the wrong person.
+
+## Hidden information
+
+**Forge's per-client stream is not per-player safe. Verified, not assumed.**
+`DeltaSyncManager.collectDeltas` walks the whole shared `GameView` for every
+client and `toNetworkValue` never drops a property; there is no `canBeShownTo`
+anywhere in `forge/.../gamemodes/net/`. Forge's client hides cards at render
+time. In real streams — Wave 8's fixture and this lane's own captures — each
+client receives **both hands and both libraries, named, in order**, and the
+events arm names every drawn card.
+
+So `visibility.ts` projects each seat's stream on the server, transcribing
+`CardView.canBeShownTo` / `canFaceDownBeShownTo`: an opponent's hand, every
+library and face-down exile arrive as `Owner`/`Controller`/`Zone`/`HiddenId`
+only, with no face; a face-down permanent shows only its face-down face; a
+card's visibility is recomputed after every packet and re-sent whole when it
+changes (a draw), or wiped when it is lost. **The events arm is dropped
+entirely** (it names cards; no per-event rule exists yet) and **the checksum
+is zeroed** (it is computed over the unredacted state).
+
+**Not fixed, recorded:** card ids are stable in Forge. A card the viewer once
+saw and that is shuffled back into a library can be followed by id through the
+ordered `Library` list. Forge's own client has the same property; `HiddenId`
+is passed through for that reason.
+
+## Finding: the one-JVM deadlock, and the fix
+
+In the first live two-seat run the game froze at turn 2's cleanup discard. A
+thread dump showed `AWT-EventQueue-0` parked in `ReplyPool.get` under
+`InputSelectEntitiesFromList`. Forge's **server** side runs `tempShowZones`
+inside `FThreads.invokeInEdtNowOrLater` (`InputSelectEntitiesFromList.java:65-68`)
+and blocks the EDT waiting for the reply; the **client** dispatches every call
+on the EDT (`GameClientHandler.java:38`, `runInEdt = true`). Stock Forge never
+puts the two in one process. The bridge does, so the ask queued behind the wait
+for it. Waves 6 and 7 never met it: their remote seat was handed to the AI.
+
+Fix, inside the bridge: each seat's client gets its own serial "EDT"
+(`SeatGui.ui`), and `BridgeGui` routes work submitted from a seat client's
+Netty thread there, leaving the real EDT to the server. Per-seat order is
+kept. Verified live: the same discard's `tempShowZones` reached its seat and
+was answered in 3 ms, and a probe ran alongside it in 4.4 ms.
+
+## Tests
+
+| suite | what | real data |
+| --- | --- | --- |
+| `visibility.test.ts` (21) | both seats projected from Wave 8's 27-packet fixture; whole-payload leak check; own hand fully visible after draws; public cards untouched; events dropped (real `GameEventCardChangeZone`); `setGameView`; a face-down permanent | `apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`, `packages/forge-wire/src/events/fixtures/` |
+| `match.test.ts` (34) | identity binding and its failure modes, per-seat emission and the leak check, cursor, snapshot, asks (reply by callId, other seat cannot answer, disconnect/timeout/browser abort, re-send), invalid frames, lifecycle; the 'Flying' regression | `fixtures/bridge-two-seats.ndjson`, `fixtures/bridge-flying-seat1.ndjson` |
+| `socket.test.ts` (12) | real express + socket.io + clients with edge headers: POST, joins, match-full, whole-transcript leak check, contiguous cursors from the snapshot, reply routing, disconnect vs refresh, tier gate, dev identity refused without the hatch | same transcript |
+| `jvm.test.ts` (2) | two real matches in real JVMs — fixed decks + seed, and seeded variety; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
+
+The leak oracle (`fixtures/transcript.ts`, `secretsFor`) is defined from zones
+— opponent's hand and every library, minus anything the viewer legitimately
+saw — independently of `visibility.ts`. Each leak test also asserts the raw
+stream contains every secret, so it cannot pass vacuously.
+
+### The red JVM run the manager hit: an oracle false positive, not a leak
+
+`jvm.test.ts` failed once in two manager runs with `expected [ 'Flying' ] to
+deeply equal []`. The run was captured with the test's `CARDTABLE_PLAY_DUMP`
+hook (red on the 4th of a loop; decks "Spirit Flames" v "Decay") and diagnosed
+from the frames:
+
+- The emitted "Flying" was `Keywords.v[0]` (a `keywords` value) on the faces of
+  cards 96 **Abyssal Specter** and 100 **Foul Imp** — both in **seat 1's own
+  hand**, correctly shown to seat 1.
+- The "secret" came from card 99 **Bog Imp**, in **seat 1's own library**
+  (hidden, correctly: its name was not emitted), whose face's `AbilityText` is
+  the bare string `"Flying"`.
+- `allowed` was built from `str` values only, so the visible flyers' keyword
+  lists never counted as legitimately seen.
+
+Fix, in the oracle only: `allowed` is now every string on a legitimately-seen
+card at any depth (`everyString`); the secrets are unchanged. `visibility.ts`
+did not change. The captured seat-1 frames are committed as
+`fixtures/bridge-flying-seat1.ndjson`, and `match.test.ts` holds the exact case.
+With the old oracle line restored, 2 of those tests fail; with the fix, they
+pass. The guard mutation (below) still fails them.
+
+The JVM runs are now repeatable. The fixed run uses the red run's decks and seed
+20260918. The variety run prints its seed; rerun it with `CARDTABLE_PLAY_SEED`.
+The seed drives Forge's `MyRandom` (shuffles, the coin toss) and the precon
+pick. The AI and thread timing are not seeded, so a seed narrows a failure down
+but does not replay it exactly.
+
+### The JVM test, run for real on this host
+
+```console
+$ CARDTABLE_FORGE_JAR=~/.cache/cardtable-w8/forge-build/forge-gui-desktop/target/forge-gui-desktop-2.0.15-SNAPSHOT-jar-with-dependencies.jar \
+  CARDTABLE_FORGE_RES=~/.cache/cardtable-w8/forge-build/forge-gui/res \
+  pnpm exec vitest run apps/server/src/play ; echo $?
+[jvm] fixed: Spirit Flames v Decay, seed 20260918: running after 4480 ms (Forge boot 3673 ms); decks: Spirit Flames v Decay
+[jvm] probe: {"answer":true,"ms":53.098452}
+[jvm] seat 0: 14 envelopes, 142 secrets, 142 in Forge's raw stream, 0 in what was emitted
+[jvm] seat 1: 15 envelopes, 148 secrets, 148 in Forge's raw stream, 0 in what was emitted
+[jvm] variety: random precons, seed 715966380: running after 4344 ms (Forge boot 3650 ms); decks: Built from Scratch v Core Set 2019 Welcome Deck (RW)
+[jvm] probe: {"answer":true,"ms":52.420301}
+[jvm] seat 0: 14 envelopes, 332 secrets, 332 in Forge's raw stream, 0 in what was emitted
+[jvm] seat 1: 15 envelopes, 333 secrets, 333 in Forge's raw stream, 0 in what was emitted
+      Tests  69 passed (69)
+0
+```
+
+Five times in a row, each exit read directly: `0 0 0 0 0`, 69/69 each, which is
+ten real matches (the fixed pair five times, plus five variety seeds: 715852730,
+715881046, 715909616, 715937879, 715966380). There were no leak dumps and no JVM
+left afterwards.
+
+Without the variables: `↓ apps/server/src/play/jvm.test.ts (2 tests | 2 skipped)`, and the
+suite's name carries the reason (`… — SKIPPED: CARDTABLE_FORGE_JAR is not set`).
+After the run, `liveJvmCount()` is 0 (asserted) and `ps` shows no bridge JVM.
+
+### Mutation: remove the guard, watch it fail
+
+The guard is applied in exactly one place, `Match.sendState`. Mutation: emit
+Forge's raw frame instead of the projection.
+
+```diff
+-		const projected = s.projector.project(raw) as unknown as ServerFrame;
++		const projected = raw as unknown as ServerFrame; // MUTATION: the guard removed
+```
+
+```console
+$ <JVM env as above> pnpm exec vitest run apps/server/src/play ; echo $?     # mutated
+   × per-recipient emission, over whole serialised payloads > seat 0's envelopes carry none of the other seat's hidden cards
+   × per-recipient emission, over whole serialised payloads > seat 1's envelopes carry none of the other seat's hidden cards
+   × regression: the red jvm.test.ts run ('Flying'), from its captured frames > puts none of seat 1's secrets in what seat 1 is sent …
+   × the cursor > folds the seat's own history into the state that seat should hold
+   × two seats over the socket > never puts one byte of the other seat's hidden cards in what either peer received
+   × a real Forge match in a child JVM > fixed: Spirit Flames v Decay, seed 20260918 — …
+   × a real Forge match in a child JVM > variety: random precons, seed 716003498 — …
+      Tests  7 failed | 62 passed (69)
+1
+$ <restored, cmp-identical> pnpm exec vitest run apps/server/src/play ; echo $?
+      Tests  69 passed (69)
+0
+```
+
+A second mutation one level down — `redactCard` and `faceAllowed` made to pass
+everything — fails 6 of `visibility.test.ts`'s 21 (both seats' byte check,
+both seats' hidden-card shape check, `setGameView`, face-down).
+
+## Running a real match locally
+
+Prerequisites: the prebuilt jar and Forge's `res/` (read-only), and the
+user-local JDK 21 (found automatically under `~/.local/opt/jdk-21*`; the JRE on
+`PATH` cannot run a source-file program).
+
+```sh
+# 1. The server (after the index.ts edit above), bare-local, with diagnostics on.
+export CARDTABLE_FORGE_JAR=~/.cache/cardtable-w8/forge-build/forge-gui-desktop/target/forge-gui-desktop-2.0.15-SNAPSHOT-jar-with-dependencies.jar
+export CARDTABLE_FORGE_RES=~/.cache/cardtable-w8/forge-build/forge-gui/res
+export CARDTABLE_INSECURE_NO_EDGE_AUTH=1 CARDTABLE_PLAY_PROBE=1
+pnpm --filter @hadoku/server dev                    # listens on 127.0.0.1:9008
+
+# 2. A match (returns once Forge has opened it, ~5 s).
+curl -s -X POST -H 'content-type: application/json' -d '{"opponent":"human"}' \
+  http://127.0.0.1:9008/api/play/matches
+# → {"matchId":"m-…","epoch":"…","seats":[…]}
+
+# 3. Seat 0: the browser (lane B's harness; join order decides the seat).
+#    http://localhost:<vite port>/cardtable/src/play/live/harness.html?match=m-…&server=http://127.0.0.1:9008
+
+# 4. Seat 1: the command-line seat, pressing OK so the game moves.
+pnpm --filter @hadoku/server exec tsx src/play/dev/seat.ts --match m-… --user bob --ok
+
+# 5. The question: a real showConfirmDialog to seat 0, answered in the browser.
+curl -s -X POST -H 'content-type: application/json' -d '{"seat":0,"message":"Answer me"}' \
+  http://127.0.0.1:9008/api/play/matches/m-…/probe
+# → {"answer":true,"ms":…}   (blocks until the browser answers; default is No)
+
+# 6. Compare the browser's board with the server's view of that seat.
+curl -s http://127.0.0.1:9008/api/play/matches/m-…/seats/0/state
+```
+
+### Two seats locally, and why a browser tab alone is not enough
+
+With the bare-local hatch open, every header-less caller is the same
+`local-dev` participant, and a browser cannot set `x-user-id` on a websocket
+handshake — so two browser tabs are ONE participant and both land on seat 0.
+Two supported ways to get two people:
+
+- **Browser + CLI seat** (no code change anywhere): steps 3 and 4 above. The
+  CLI is a real socket.io client on the same contract; it sets its own
+  `x-user-id` (`cli-seat-<user>`), which the hatch believes. `--answer yes`
+  also answers `showConfirmDialog` and acknowledges `tempShowZones`.
+- **Two browsers, dev identity:** the server accepts `auth: { devUser }` or
+  `?devUser=` on the handshake, **only** when the hatch is open (checked
+  against `CONFIG`, and tested refused otherwise). Lane B's
+  `socketIoMatchTransport` sends neither today; the one-line change is to pass
+  `auth: { devUser: params.get('devUser') }` (or `query`) into `io(...)` in its
+  harness. That file is lane B's.
+
+Note: lane B's UI renders `showConfirmDialog` only. The browser seat therefore
+cannot press Play/Keep/OK, so the game waits on it at the coin toss or the
+mulligan — that is the game waiting on a human, not a hang. The probe is
+independent of the game thread and works at any point; it is the reliable way
+to put a `showConfirmDialog` in front of the browser. The engine's own
+`showConfirmDialog` is rare — its one in-game caller is the "mana floating,
+pass priority anyway?" check (`InputPassPriority.java:318`), which needs a land
+tapped first.
+
+### What was run end to end here
+
+Scratch server wired as in the diff (deleted afterwards), bare-local hatch,
+two CLI seats (`alice` `--ok --answer yes`, `bob` `--ok --answer yes`):
+`POST` → 201 in 4.4 s; seat 0 → `dev:3a100b28a4561b2b`, seat 1 →
+`dev:6662f2f6da7a4596`; both seats played through turn 1 into turn 2; the
+cleanup discard's `tempShowZones` reached seat 0 and was answered (3 ms); the
+probe to seat 0 answered `{"answer":true,"ms":4.42}`; `GET` showed
+`running`, both seats claimed. Every process stopped afterwards.
+
+## The 15 asks and the 29 frames
+
+The bridge encodes **every** Tier A/B frame a browser needs except
+`applyYieldUpdate` (not forwarded) and answers `sideboard` with `null` (keep the
+deck) — a one-game match never asks it. Exercised live: `showConfirmDialog`
+(probe) and `tempShowZones` (the discard); the notifies `setGameView`,
+`openView`, `applyDelta`, `showPromptMessage`, `updateButtons`,
+`setSelectables`; the act `selectButtonOk`. **Encoded but never exercised
+live:** `showOptionDialog`, `showInputDialog`, `confirm`, `getChoices`, `order`,
+`chooseSingleEntityForEffect`, `chooseEntitiesForEffect`, `manipulateCardList`,
+`getAbilityToPlay`, `assignCombatDamage`, `assignGenericAmount`, `openZones`,
+and the acts `selectCard`, `selectPlayer`, `selectAbility`, `useMana`,
+`concede`, `nextGameDecision`, `requestResync`. Every frame is parsed with
+forge-wire on the Node side before it is forwarded; one that fails is dropped,
+counted (`Match.invalidFrames`) and logged. No refused `GameEvent` was needed
+(events are not forwarded at all). No sixteenth method.
+
+## Not verified
+
+- **A browser on the live path.** Everything live here used the CLI seat; lane
+  B's UI against this server is the manager's integration check.
+- **Most asks, live** (list above). Their encoders are exercised only by what
+  the two live runs hit.
+- **Reconnect across a Node restart.** A restart kills the JVM (by design: the
+  exit hook SIGKILLs children), so the match is gone; clients see a new epoch
+  only on a new match.
+- **The `faceOnly` whitelist in a real game.** Tested on a real battlefield
+  card flipped face down in a fixture; no real morph was captured.
+- **Card ids through a shuffle** (see "Hidden information").
+- **Memory and startup of this bridge specifically** — lane D measured its own
+  harness, not this one. Boot here was 3.6–4.1 s across runs.
+
+## Follow-ups owed
+
+- Add `zod` to `@hadoku/server` (and `@hadoku/ui`) and move the A↔B schemas
+  into one shared package; both mirrors are built from borrowed instances today.
+- Warm-spare JVM (lane D): config over stdin after boot.
+- A per-event visibility rule, so the events arm can be forwarded.
+- Lane B: pass `devUser` on the handshake in the harness (two local browsers).
+- `sideboard` and `applyYieldUpdate` when multi-game matches exist.
