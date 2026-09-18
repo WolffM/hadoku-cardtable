@@ -252,9 +252,34 @@ describe('§5.1 / §6 — a cube draft survives a cold restart', () => {
       createApp: () => createDraft(draftConfig('seed-omega')),
     });
     const restored = await second.loadOrCreate('pod-1', 'k');
-    const text = JSON.stringify(spectatorView(restored.app));
+    const view = spectatorView(restored.app);
+
+    /*
+     * Structural first: the spectator arm has no card fields at all, which is
+     * the guarantee. Everything after this is belt-and-braces.
+     */
+    expect(view.viewer).toEqual({ kind: 'spectator' });
+
+    /*
+     * Then the payload, by JSON VALUE rather than by bare substring.
+     *
+     * This assertion used to be `expect(text).not.toContain(card.cardId)`, and
+     * it failed in CI on 2026-09-18 having passed locally eight times running.
+     * Card ids are `c0`…`c7` — two characters — and the payload carries a random
+     * base36 `epoch`. CI's was `emu7g33tv…`. A 12-character base36 string
+     * contains any given two-character pair about 0.7% of the time, and the
+     * loop runs once per card, so the flake was frequent.
+     *
+     * A false positive in a leak test is worse than no leak test: it teaches
+     * whoever meets it to re-run CI, and the next failure — a real one — gets
+     * the same treatment. Matching `"c7"` with its quotes is what a leaked id
+     * would actually look like, and cannot collide with an id fragment.
+     */
+    const text = JSON.stringify(view);
     for (const card of restored.app.pools.flat()) {
-      expect(text).not.toContain(card.cardId);
+      expect(text, `card ${card.cardId} leaked into the spectator view`).not.toContain(
+        JSON.stringify(card.cardId),
+      );
     }
   });
 
