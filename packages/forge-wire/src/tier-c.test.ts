@@ -1,32 +1,44 @@
 /*
- * Tier C — the state channel, and the tests that keep it honest.
+ * Tier C — the state channel, checked against what a real match put on it.
  *
- * This file's job is unusual: it asserts that three schemas DO NOT WORK. Tier C
- * is unexercised (Wave 6 lane F), Wave 7 lane A is running the experiment that
- * settles it, and the failure mode this package is guarding against is a future
- * session finding a `z.unknown()` here, reading it as "done", and building a
- * browser on top of a shape nobody has ever seen cross a socket.
+ * Every positive case below parses a packet Wave 7 lane A captured from a live
+ * Forge match (`scripts/spike/tierc/out/`), not a hand-built one. Every
+ * negative case is one of those packets with ONE thing changed, and asserts
+ * the exact path the failure is reported at — a schema that rejects a mutation
+ * for the wrong reason is not checking what the test says it is.
  *
- * So: the three methods are present in the envelope (a Tier C frame is
- * recognised, not "unknown method"), nothing parses as one, and the refusal
- * names the document that will contain the answer.
- *
- * When lane A lands, THIS FILE is what has to change first — and it will fail
- * loudly rather than let a real schema slip in beside a stale refusal.
+ * The census and coverage tables are held against `tier-c.ts` in both
+ * directions: every property the spike saw, at the tag it saw, is accepted, and
+ * the 214-property table is the spike's table, constant for constant.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 
 import {
   ApplyDeltaSchema,
+  DECLARED_TYPE_SCHEMAS,
+  DELTA_OBJECT_TYPES,
+  DeltaPacketSchema,
+  GameStateSchema,
   OpenViewSchema,
+  STATE_PROPERTIES,
+  STATE_PROPERTY_COUNT,
   SetGameViewSchema,
   TIER_C_METHODS,
   TIER_C_REPLIES,
   TIER_C_SPIKE,
-  TIER_C_UNRESOLVED,
-  tierCRefusal,
-  type TierCMethod,
+  TaggedValueSchema,
+  TrackedObjectSchema,
+  UNOBSERVED_DECLARED_TYPES,
+  deltaKeyId,
+  deltaKeyOf,
+  deltaKeyType,
+  type StateProperty,
 } from './tier-c.ts';
 import {
   BLOCKING_METHODS,
@@ -34,103 +46,96 @@ import {
   REQUIRED_METHODS,
   isTierC,
   safeParseServerFrame,
-  unresolvedReason,
 } from './envelope.ts';
-import { SERVER_FRAME_EXAMPLES } from './examples.ts';
 
-const SCHEMAS = {
-  setGameView: SetGameViewSchema,
-  openView: OpenViewSchema,
-  applyDelta: ApplyDeltaSchema,
-} as const;
+const SRC_DIR = dirname(fileURLToPath(import.meta.url));
+const CAPTURES = join(SRC_DIR, '..', '..', '..', 'scripts', 'spike', 'tierc', 'out');
 
-/**
- * Inputs a future session would plausibly reach for, including a delta packet
- * shaped the way `DeltaPacket.java:28-29` describes. Every one must be refused:
- * the shape being plausible is exactly what makes accepting it dangerous.
- */
-function plausiblePayloads(method: TierCMethod): unknown[] {
-  return [
-    undefined,
-    null,
-    {},
-    { anything: true },
-    // The id-keyed property diff DeltaPacket actually carries.
-    {
-      objectDeltas: { '7': { Name: 'Lightning Bolt', Zone: 'Battlefield' } },
-      newObjects: { '8': { Name: 'Mountain' } },
-    },
-    // A GameView-ish baseline with a sequence number, for setGameView.
-    { gameView: { turn: 3, players: [] }, sequenceNumber: 42 },
-    // A TrackableCollection<PlayerView>-ish list, for openView.
-    [{ kind: 'player', id: 1 }],
-    `a ${method} payload`,
-  ];
+/* ── Loading the captures ────────────────────────────────────────────── */
+
+type Json = Record<string, unknown>;
+
+interface Capture {
+  /** Java's `DeltaPacket.toString()`, e.g. `DeltaPacket[seq=8, newObjects=0, deltas=4, …]`. */
+  readonly header: string;
+  readonly packet: Json;
+  /** Objects the harness dropped from each map to keep the committed sample small. */
+  readonly omitted: { readonly newObjects: number; readonly objectDeltas: number };
 }
 
-describe('Tier C — present, named, and refusing', () => {
+/**
+ * Read a committed sample and remove the harness's own annotations, which are
+ * not wire: the `// DeltaPacket[…]` first line, `_truncatedTo`, and each map's
+ * `_omitted` count (`JsonDelta.packetToJson(p, limit)`, `JsonDelta.java:877-924`).
+ * Each is asserted present before it is removed, so a change to the harness's
+ * format fails here instead of silently feeding the schema something new.
+ */
+function loadCapture(name: string): Capture {
+  const text = readFileSync(join(CAPTURES, name), 'utf8');
+  const newline = text.indexOf('\n');
+  const header = text.slice(0, newline);
+  expect(header).toMatch(/^\/\/ DeltaPacket\[/);
+  const packet = JSON.parse(text.slice(newline + 1)) as Json;
+  expect(packet).toHaveProperty('_truncatedTo');
+  delete packet._truncatedTo;
+  const omitted = { newObjects: 0, objectDeltas: 0 };
+  for (const map of ['newObjects', 'objectDeltas'] as const) {
+    const table = packet[map] as Json;
+    if ('_omitted' in table) {
+      omitted[map] = table._omitted as number;
+      delete table._omitted;
+    }
+  }
+  return { header: header.slice(3), packet, omitted };
+}
+
+function readTsv(name: string): Record<string, string>[] {
+  const [head, ...rows] = readFileSync(join(CAPTURES, name), 'utf8').trimEnd().split('\n');
+  const columns = head!.split('\t');
+  return rows.map((row) => {
+    const cells = row.split('\t');
+    return Object.fromEntries(columns.map((c, i) => [c, cells[i] ?? '']));
+  });
+}
+
+const clone = <T>(value: T): T => structuredClone(value);
+
+/** The committed mid-game delta: seq 8, four objects changed, none created. */
+const DELTA = loadCapture('sample-delta.json');
+/** The committed opening full sync: seq 1, 243 new objects (3 kept, 240 omitted). */
+const FULL_SYNC = loadCapture('sample-newobjects.json');
+
+const CENSUS = readTsv('census.tsv');
+const COVERAGE = readTsv('coverage.tsv');
+
+// Delta keys the committed samples use: player 0, player 1, the GameView, card 3.
+const PLAYER_0 = String(deltaKeyOf(1, 0));
+const GAME = String(deltaKeyOf(3, 1));
+const CARD_3 = String(deltaKeyOf(0, 3));
+
+function issuesOf(schema: z.ZodType, value: unknown) {
+  const result = schema.safeParse(value);
+  expect(result.success).toBe(false);
+  return result.error!.issues;
+}
+
+/** The single issue a one-change mutation must produce, and its path. */
+function onlyIssue(schema: z.ZodType, value: unknown) {
+  const issues = issuesOf(schema, value);
+  expect(issues).toHaveLength(1);
+  return issues[0]!;
+}
+
+/* ── The methods ─────────────────────────────────────────────────────── */
+
+describe('Tier C — three methods, all server→client, none blocking', () => {
   it('is exactly three methods, all of them in the required 38', () => {
     expect(TIER_C_METHODS).toEqual(['setGameView', 'openView', 'applyDelta']);
     for (const method of TIER_C_METHODS) {
       expect(REQUIRED_METHODS).toContain(method);
+      expect(isTierC(method)).toBe(true);
     }
-  });
-
-  it('declares itself unresolved rather than leaving a consumer to guess', () => {
-    expect(TIER_C_UNRESOLVED).toBe(true);
     expect(TIER_C_SPIKE).toBe('docs/spikes/tier-c.md');
-  });
-
-  it.each(TIER_C_METHODS)('%s refuses every plausible payload', (method) => {
-    const schema = SCHEMAS[method];
-    for (const payload of plausiblePayloads(method)) {
-      expect([payload, schema.safeParse({ kind: 'unresolved', method, payload }).success]).toEqual([
-        payload,
-        false,
-      ]);
-    }
-  });
-
-  it.each(TIER_C_METHODS)('%s refuses even a well-formed-looking frame', (method) => {
-    expect(safeParseServerFrame({ kind: 'notify', method }).ok).toBe(false);
-    expect(safeParseServerFrame({ kind: 'unresolved', method, payload: {} }).ok).toBe(false);
-  });
-
-  it('refuses a frame with no payload key at all — an omitted field is not a pass', () => {
-    // `z.never()` would be trivially satisfiable if a missing key skipped it,
-    // which is how an "unresolved" arm quietly becomes an accepting one.
-    for (const method of TIER_C_METHODS) {
-      expect(SCHEMAS[method].safeParse({ kind: 'unresolved', method }).success).toBe(false);
-    }
-  });
-
-  it('the refusal names the spike, the lane and the method', () => {
-    for (const method of TIER_C_METHODS) {
-      const reason = tierCRefusal(method);
-      expect(reason).toContain(method);
-      expect(reason).toContain('docs/spikes/tier-c.md');
-      expect(reason).toContain('lane A');
-      expect(reason).toContain('UNRESOLVED');
-    }
-  });
-
-  it('a parse failure surfaces the refusal, not a bare type error', () => {
-    const result = safeParseServerFrame({
-      kind: 'unresolved',
-      method: 'applyDelta',
-      payload: { objectDeltas: {}, newObjects: {} },
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.errors.map((e) => e.message).join('\n')).toContain('docs/spikes/tier-c.md');
-  });
-
-  it('unresolvedReason answers for Tier C and only for Tier C', () => {
-    for (const method of REQUIRED_METHODS) {
-      const expected = TIER_C_METHODS.includes(method as TierCMethod);
-      expect([method, unresolvedReason(method) !== null]).toEqual([method, expected]);
-      expect([method, isTierC(method)]).toEqual([method, expected]);
-    }
   });
 
   it('has no reply schemas, because none of the three blocks', () => {
@@ -140,10 +145,319 @@ describe('Tier C — present, named, and refusing', () => {
       expect(Object.keys(REPLY_SCHEMAS)).not.toContain(method);
     }
   });
+});
 
-  it('has no example frame — there is nothing valid to be an example of', () => {
-    for (const method of TIER_C_METHODS) {
-      expect(Object.keys(SERVER_FRAME_EXAMPLES)).not.toContain(method);
+/* ── Positive: the captured packets validate ─────────────────────────── */
+
+describe('Tier C — the captured packets validate', () => {
+  it('the samples are the packets their Java headers describe', () => {
+    // `DeltaPacket.toString()` counts the WHOLE packet; the sample kept a few.
+    const count = (c: Capture, map: 'newObjects' | 'objectDeltas') =>
+      Object.keys(c.packet[map] as Json).length + c.omitted[map];
+    for (const c of [DELTA, FULL_SYNC]) {
+      const [, seq, created, changed] = /seq=(-?\d+), newObjects=(\d+), deltas=(\d+)/.exec(
+        c.header,
+      )!;
+      expect(c.packet.seq).toBe(Number(seq));
+      expect(count(c, 'newObjects')).toBe(Number(created));
+      expect(count(c, 'objectDeltas')).toBe(Number(changed));
     }
+    expect(FULL_SYNC.omitted.newObjects).toBe(240);
+  });
+
+  it('applyDelta: the mid-game delta parses as a DeltaPacket', () => {
+    const result = DeltaPacketSchema.safeParse(DELTA.packet);
+    expect(result.error?.issues).toBeUndefined();
+    // Integer-like keys enumerate in numeric order in JS, not in the packet's order.
+    expect(Object.keys(result.data!.objectDeltas).sort()).toEqual(
+      [PLAYER_0, GAME, String(deltaKeyOf(1, 1)), CARD_3].sort(),
+    );
+  });
+
+  it('applyDelta: the opening full sync parses as a DeltaPacket', () => {
+    const result = DeltaPacketSchema.safeParse(FULL_SYNC.packet);
+    expect(result.error?.issues).toBeUndefined();
+  });
+
+  it('applyDelta: both travel the envelope as notify frames', () => {
+    for (const c of [DELTA, FULL_SYNC]) {
+      const frame = { kind: 'notify', method: 'applyDelta', payload: { packet: c.packet } };
+      expect(ApplyDeltaSchema.safeParse(frame).success).toBe(true);
+      const outcome = safeParseServerFrame(frame);
+      expect(outcome.ok ? [] : outcome.errors).toEqual([]);
+    }
+  });
+
+  it('setGameView: the full sync’s object table is a whole game state', () => {
+    const gameView = FULL_SYNC.packet.newObjects;
+    expect(GameStateSchema.safeParse(gameView).error?.issues).toBeUndefined();
+    const frame = {
+      kind: 'notify',
+      method: 'setGameView',
+      payload: { gameView, sequenceNumber: FULL_SYNC.packet.seq },
+    };
+    expect(SetGameViewSchema.safeParse(frame).success).toBe(true);
+    expect(safeParseServerFrame(frame).ok).toBe(true);
+  });
+
+  it('openView: the captured GameView’s players are a valid seat list', () => {
+    const game = (FULL_SYNC.packet.newObjects as Record<string, Json>)[GAME]!;
+    const players = (game.Players as { v: { v: number }[] }).v.map((p) => p.v);
+    expect(players).toEqual([0, 1]);
+    const frame = { kind: 'notify', method: 'openView', payload: { myPlayers: players } };
+    expect(OpenViewSchema.safeParse(frame).success).toBe(true);
+    expect(safeParseServerFrame(frame).ok).toBe(true);
+  });
+
+  it('null is a value, not an absent key — the captured clears parse', () => {
+    const objects = DELTA.packet.objectDeltas as Record<string, Json>;
+    expect(objects[CARD_3]).toEqual({ _type: 0, _id: 3, Sickness: null });
+    expect(objects[GAME]!.CombatView).toBeNull();
+    expect(TrackedObjectSchema.safeParse(objects[CARD_3]).success).toBe(true);
+  });
+
+  it('delta keys decode the way DeltaPacket.java packs them', () => {
+    expect(deltaKeyOf(1, 0)).toBe(268435456);
+    expect(deltaKeyOf(3, 1)).toBe(805306369);
+    expect([deltaKeyType(805306369), deltaKeyId(805306369)]).toEqual([3, 1]);
+    // A CardStateView id is cardId * 16 + state ordinal.
+    expect(deltaKeyId(deltaKeyOf(4, 7 * 16 + 1))).toBe(113);
+    expect(DELTA_OBJECT_TYPES[deltaKeyType(Number(GAME))]).toBe('game');
+  });
+});
+
+/* ── The tables: the spike's census and coverage, both directions ───── */
+
+/** The `t` literal a property's schema accepts, or `'*'` for the generic fallback. */
+function tagOf(property: StateProperty): string {
+  const optional = TrackedObjectSchema.shape[property] as z.ZodOptional<z.ZodNullable<z.ZodType>>;
+  const inner = optional.unwrap().unwrap();
+  if (inner === TaggedValueSchema) return '*';
+  return ((inner as z.ZodObject).shape.t as z.ZodLiteral<string>).value;
+}
+
+describe('Tier C — the property table is the spike’s table', () => {
+  it('is the 214 TrackableProperty constants, in coverage.tsv’s declaration order', () => {
+    expect(STATE_PROPERTY_COUNT).toBe(214);
+    expect(COVERAGE).toHaveLength(214);
+    expect(Object.keys(STATE_PROPERTIES)).toEqual(COVERAGE.map((r) => r.property));
+  });
+
+  it('gives every property the declared type coverage.tsv records', () => {
+    const declared = Object.fromEntries(COVERAGE.map((r) => [r.property, r.declaredType]));
+    expect(STATE_PROPERTIES).toEqual(declared);
+    for (const type of Object.values(STATE_PROPERTIES)) {
+      expect(Object.keys(DECLARED_TYPE_SCHEMAS)).toContain(type);
+    }
+  });
+
+  it('falls back to the generic value ONLY for the declared types no run observed', () => {
+    const observed = new Set(
+      COVERAGE.filter((r) => r.observed === 'yes').map((r) => r.declaredType),
+    );
+    const never = [...new Set(COVERAGE.map((r) => r.declaredType))].filter((t) => !observed.has(t));
+    expect(never.sort()).toEqual([...UNOBSERVED_DECLARED_TYPES].sort());
+    for (const [property, type] of Object.entries(STATE_PROPERTIES)) {
+      const generic = (UNOBSERVED_DECLARED_TYPES as readonly string[]).includes(type);
+      expect([property, tagOf(property as StateProperty) === '*']).toEqual([property, generic]);
+    }
+  });
+
+  it('the census is clean: 133 pairs, every one round-tripped, none a reference', () => {
+    expect(CENSUS).toHaveLength(133);
+    for (const row of CENSUS) {
+      expect([row.property, row.outcome, row.failEncode, row.failDecode, row.failCompare]).toEqual([
+        row.property,
+        'OK',
+        '0',
+        '0',
+        '0',
+      ]);
+      expect(['ref', 'refs', 'record', 'bytes']).not.toContain(row.jsonTag);
+    }
+  });
+
+  it('accepts every (property, tag) pair the census saw, at exactly that tag', () => {
+    for (const row of CENSUS) {
+      const property = row.property as StateProperty;
+      expect(STATE_PROPERTIES).toHaveProperty(property);
+      const schema = TrackedObjectSchema.shape[property] as z.ZodType;
+      if (row.jsonTag === 'null') {
+        expect([property, schema.safeParse(null).success]).toEqual([property, true]);
+      } else {
+        expect([property, tagOf(property)]).toEqual([property, row.jsonTag]);
+      }
+    }
+  });
+});
+
+/* ── Negative: one change to a captured packet, and the path it fails at ─ */
+
+describe('Tier C — a mutated capture fails, naming the path', () => {
+  it('a GameView Turn retagged as a Java long fails at …Turn.t', () => {
+    const packet = clone(DELTA.packet);
+    ((packet.objectDeltas as Record<string, Json>)[GAME]!.Turn as Json).t = 'long';
+    const issue = onlyIssue(DeltaPacketSchema, packet);
+    expect(issue.path).toEqual(['objectDeltas', GAME, 'Turn', 't']);
+  });
+
+  it('an object REFERENCE in a zone list fails at the element — ids only cross this wire', () => {
+    const packet = clone(DELTA.packet);
+    const library = (packet.objectDeltas as Record<string, Json>)[PLAYER_0]!.Library as {
+      v: unknown[];
+    };
+    library.v[0] = { t: 'ref', k: 0, id: 18 };
+    // JsonDelta's ref shape differs from an int in three places — tag, the
+    // missing `v`, the extra `k`/`id` — and each is reported, all at element 0.
+    const element = ['objectDeltas', PLAYER_0, 'Library', 'v', 0];
+    const paths = issuesOf(DeltaPacketSchema, packet).map((i) => i.path);
+    expect(paths).toEqual([
+      [...element, 't'],
+      [...element, 'v'],
+      element,
+    ]);
+  });
+
+  it('a phase that does not exist fails at …Phase.v', () => {
+    const packet = clone(DELTA.packet);
+    ((packet.objectDeltas as Record<string, Json>)[GAME]!.Phase as Json).v = 'MAIN3';
+    const issue = onlyIssue(DeltaPacketSchema, packet);
+    expect(issue.path).toEqual(['objectDeltas', GAME, 'Phase', 'v']);
+  });
+
+  it('a property outside the 214 fails on its object, and names itself', () => {
+    const packet = clone(DELTA.packet);
+    (packet.objectDeltas as Record<string, Json>)[PLAYER_0]!.Lifee = { t: 'int', v: 20 };
+    const issue = onlyIssue(DeltaPacketSchema, packet);
+    expect(issue.path).toEqual(['objectDeltas', PLAYER_0]);
+    expect(issue).toMatchObject({ code: 'unrecognized_keys', keys: ['Lifee'] });
+  });
+
+  it('an object whose _type disagrees with its delta key fails at …_type', () => {
+    const packet = clone(DELTA.packet);
+    (packet.objectDeltas as Record<string, Json>)[CARD_3]!._type = 1;
+    const issue = onlyIssue(DeltaPacketSchema, packet);
+    expect(issue.path).toEqual(['objectDeltas', CARD_3, '_type']);
+  });
+
+  it('an object whose _id disagrees with its delta key fails at …_id', () => {
+    const packet = clone(DELTA.packet);
+    (packet.objectDeltas as Record<string, Json>)[CARD_3]!._id = 4;
+    const issue = onlyIssue(DeltaPacketSchema, packet);
+    expect(issue.path).toEqual(['objectDeltas', CARD_3, '_id']);
+  });
+
+  it('a delta key that is not a Java int fails at the key', () => {
+    const packet = clone(DELTA.packet);
+    const table = packet.objectDeltas as Record<string, Json>;
+    table['-3'] = table[CARD_3]!;
+    delete table[CARD_3];
+    const issue = onlyIssue(DeltaPacketSchema, packet);
+    expect(issue.path).toEqual(['objectDeltas', '-3']);
+  });
+
+  it('an object with no properties fails — Forge never sends one', () => {
+    const packet = clone(DELTA.packet);
+    delete (packet.objectDeltas as Record<string, Json>)[CARD_3]!.Sickness;
+    const issue = onlyIssue(DeltaPacketSchema, packet);
+    expect(issue.path).toEqual(['objectDeltas', CARD_3]);
+  });
+
+  it('a sequence number sent as a string fails at seq', () => {
+    const packet = clone(DELTA.packet);
+    packet.seq = '8';
+    expect(onlyIssue(DeltaPacketSchema, packet).path).toEqual(['seq']);
+  });
+
+  it('a checksum ordinal past the 214th property fails at its index', () => {
+    const packet = clone(DELTA.packet);
+    packet.checksumProperties = [0, 214];
+    expect(onlyIssue(DeltaPacketSchema, packet).path).toEqual(['checksumProperties', 1]);
+  });
+
+  it('a packet with no events arm fails at events', () => {
+    const packet = clone(DELTA.packet);
+    delete packet.events;
+    expect(onlyIssue(DeltaPacketSchema, packet).path).toEqual(['events']);
+  });
+
+  it('the envelope reports the full path, frame to field', () => {
+    const packet = clone(DELTA.packet);
+    ((packet.objectDeltas as Record<string, Json>)[GAME]!.Turn as Json).t = 'long';
+    const frame = { kind: 'notify', method: 'applyDelta', payload: { packet } };
+    const outcome = safeParseServerFrame(frame);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.errors.map((e) => e.path)).toEqual([
+      `$.payload.packet.objectDeltas.${GAME}.Turn.t`,
+    ]);
+  });
+
+  it('a game state without its GameView is not a game state', () => {
+    const gameView = clone(FULL_SYNC.packet.newObjects) as Record<string, Json>;
+    delete gameView[GAME];
+    const issue = onlyIssue(SetGameViewSchema, {
+      kind: 'notify',
+      method: 'setGameView',
+      payload: { gameView, sequenceNumber: 1 },
+    });
+    expect(issue.path).toEqual(['payload', 'gameView']);
+    expect(issue.message).toContain('exactly one GameView');
+  });
+
+  it('a player’s Hand carrying a string id fails at the element', () => {
+    const packet = clone(FULL_SYNC.packet);
+    const hand = (packet.newObjects as Record<string, Json>)[PLAYER_0]!.Hand as { v: Json[] };
+    hand.v[2] = { t: 'int', v: '3' };
+    const issue = onlyIssue(DeltaPacketSchema, packet);
+    expect(issue.path).toEqual(['newObjects', PLAYER_0, 'Hand', 'v', 2, 'v']);
+  });
+
+  it('openView refuses an empty or repeated seat list', () => {
+    const frame = (myPlayers: unknown) => ({
+      kind: 'notify',
+      method: 'openView',
+      payload: { myPlayers },
+    });
+    expect(onlyIssue(OpenViewSchema, frame([])).path).toEqual(['payload', 'myPlayers']);
+    expect(onlyIssue(OpenViewSchema, frame([0, 0])).path).toEqual(['payload', 'myPlayers']);
+  });
+});
+
+/* ── CombatData: the one value with a cross-field rule ───────────────── */
+
+describe('Tier C — CombatData', () => {
+  // Copied from a live combat packet in a full-stream re-run of the Wave 7
+  // harness, which is not committed. The committed samples were taken outside
+  // combat, so this one value is hand-carried — and says so.
+  const CAPTURED = {
+    t: 'combat',
+    atk: [[65], [114]],
+    def: [
+      [1, 0],
+      [1, 0],
+    ],
+    blk: [[], []],
+    pblk: [[], []],
+  };
+
+  function withCombat(combat: unknown): Json {
+    const packet = clone(DELTA.packet);
+    (packet.objectDeltas as Record<string, Json>)[GAME]!.CombatView = combat;
+    return packet;
+  }
+
+  it('accepts the captured shape', () => {
+    expect(DeltaPacketSchema.safeParse(withCombat(CAPTURED)).error?.issues).toBeUndefined();
+  });
+
+  it('fails a band count mismatch at the list that is short', () => {
+    const issue = onlyIssue(DeltaPacketSchema, withCombat({ ...CAPTURED, blk: [[]] }));
+    expect(issue.path).toEqual(['objectDeltas', GAME, 'CombatView', 'blk']);
+  });
+
+  it('fails a defender marker that is neither card nor player', () => {
+    const issue = onlyIssue(DeltaPacketSchema, withCombat({ ...CAPTURED, def: [[2, 0], [1, 0]] }));
+    expect(issue.path).toEqual(['objectDeltas', GAME, 'CombatView', 'def', 0, 0]);
   });
 });
