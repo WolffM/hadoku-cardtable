@@ -7,9 +7,11 @@
  * nobody arriving at the site is asking. This screen answers theirs: start a
  * pod, send the link, draft.
  *
- * ## Two controls, because there are two things to do
+ * ## Three controls, because there are three things to do
  *
- * Start one, or join one you were sent. Everything else a lobby could offer —
+ * Start a pod, start a constructed match (`#/play`), or join either one you
+ * were sent — the join box takes a pod link and a match link alike, so there
+ * is one lobby for both. Everything else a lobby could offer —
  * pick a cube, choose a pod size — would be a control that lies: the server
  * loads ONE cube pool at boot (`rooms.cube`) and hardcodes the pod at eight
  * seats (`apps/server/src/room/draftRooms.ts` `DEFAULT_PARAMS`), and there is
@@ -27,7 +29,7 @@
 
 import { useState } from 'react';
 
-import { draftIdFromInput, mintDraftId, navigate } from './route.ts';
+import { joinRouteFromInput, mintDraftId, navigate } from './route.ts';
 
 export function LobbyScreen() {
   const [joinInput, setJoinInput] = useState('');
@@ -38,13 +40,13 @@ export function LobbyScreen() {
   };
 
   const join = (): void => {
-    const draftId = draftIdFromInput(joinInput);
-    if (draftId === null) {
-      setJoinError('That does not look like a pod link or a pod id.');
+    const route = joinRouteFromInput(joinInput);
+    if (route === null) {
+      setJoinError('That does not look like a pod link, a match link, or a pod id.');
       return;
     }
     setJoinError(null);
-    navigate({ kind: 'draft', draftId });
+    navigate(route);
   };
 
   return (
@@ -68,7 +70,24 @@ export function LobbyScreen() {
         </section>
 
         <section className="lobby__card">
-          <h2>Join a pod</h2>
+          <h2>Play constructed</h2>
+          <p className="lobby__note">
+            Pick a Standard format from years past and a deck that was played in it,
+            then play a friend or Forge&rsquo;s AI. A deck that is not legal in the
+            format is refused, and you are told which card.
+          </p>
+          <button
+            type="button"
+            className="lobby__go"
+            data-testid="play-constructed"
+            onClick={() => navigate({ kind: 'play' })}
+          >
+            Choose a deck
+          </button>
+        </section>
+
+        <section className="lobby__card">
+          <h2>Join a pod or a match</h2>
           <p className="lobby__note">
             Paste the link you were sent, or just the pod id out of it.
           </p>
@@ -79,7 +98,7 @@ export function LobbyScreen() {
               join();
             }}
           >
-            <label htmlFor="join-id">Pod link or id</label>
+            <label htmlFor="join-id">Link or pod id</label>
             <input
               id="join-id"
               data-testid="join-id"

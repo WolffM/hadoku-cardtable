@@ -267,3 +267,60 @@
   column-gap: 32px;
   color: var(--ink-dim);
 }
+
+/* ── constructed (`#/play`) and a match (`#/match/<id>`) ─────────────── */
+
+.tables__seat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.tables__seat select,
+.lobby__card select {
+  padding: 0.45rem 0.6rem;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+  max-width: 100%;
+}
+
+.tables__opponent {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.tables__legal {
+  color: var(--c-green);
+}
+
+.tables__illegal {
+  color: var(--warn);
+}
+
+.tables__issues {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.tables__card {
+  color: var(--ink);
+}
+
+.tables__invite {
+  width: min(32rem, 100%);
+  padding: 0.3rem 0.5rem;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+}

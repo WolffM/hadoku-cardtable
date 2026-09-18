@@ -15,6 +15,8 @@
  *   `#/`                 the lobby — start a pod, or join one
  *   `#/draft/<draftId>`  a pod: the invite link, who is seated, and the draft
  *   `#/deck/<draftId>`   the deck built out of that draft's pool
+ *   `#/play`             constructed: pick a format and a deck, start a match
+ *   `#/match/<matchId>`  a match: the invite link for the other seat, and the board
  *   `#/debug`            the developer harness that used to be the front door
  *
  * An unrecognised hash is the lobby. That is deliberate: a mistyped invite link
@@ -37,6 +39,8 @@ export type Route =
   | { kind: 'lobby' }
   | { kind: 'draft'; draftId: string }
   | { kind: 'deck'; draftId: string }
+  | { kind: 'play' }
+  | { kind: 'match'; matchId: string }
   | { kind: 'debug' };
 
 /**
@@ -51,15 +55,23 @@ export function parseRoute(hash: string): Route {
   const path = hash.replace(/^#/, '').replace(/^\/+/, '').replace(/\/+$/, '');
   if (path === '') return { kind: 'lobby' };
   if (path === 'debug') return { kind: 'debug' };
+  if (path === 'play') return { kind: 'play' };
 
   const parts = path.split('/');
   if (parts.length !== 2) return { kind: 'lobby' };
   const [head, raw] = parts;
-  if (head !== 'draft' && head !== 'deck') return { kind: 'lobby' };
-
-  const draftId = decodeSegment(raw);
-  if (draftId === '') return { kind: 'lobby' };
-  return head === 'draft' ? { kind: 'draft', draftId } : { kind: 'deck', draftId };
+  const id = decodeSegment(raw);
+  if (id === '') return { kind: 'lobby' };
+  switch (head) {
+    case 'draft':
+      return { kind: 'draft', draftId: id };
+    case 'deck':
+      return { kind: 'deck', draftId: id };
+    case 'match':
+      return { kind: 'match', matchId: id };
+    default:
+      return { kind: 'lobby' };
+  }
 }
 
 /**
@@ -86,6 +98,10 @@ export function routeHash(route: Route): string {
       return `#/draft/${encodeURIComponent(route.draftId)}`;
     case 'deck':
       return `#/deck/${encodeURIComponent(route.draftId)}`;
+    case 'play':
+      return '#/play';
+    case 'match':
+      return `#/match/${encodeURIComponent(route.matchId)}`;
   }
 }
 
@@ -98,7 +114,12 @@ export function routeHash(route: Route): string {
  * `/cardtable/` prefix case is a test and not a deployment surprise.
  */
 export function inviteUrl(draftId: string, location: { origin: string; pathname: string }): string {
-  return `${location.origin}${location.pathname}${routeHash({ kind: 'draft', draftId })}`;
+  return routeUrl({ kind: 'draft', draftId }, location);
+}
+
+/** The same, for any route — a match's invite link is `routeUrl({ kind: 'match', … })`. */
+export function routeUrl(route: Route, location: { origin: string; pathname: string }): string {
+  return `${location.origin}${location.pathname}${routeHash(route)}`;
 }
 
 /**
@@ -123,6 +144,32 @@ export function draftIdFromInput(input: string): string | null {
   // an id, and joining it would silently open an empty pod nobody else is in.
   if (/[\s/?#]/.test(text)) return null;
   return decodeSegment(text) || null;
+}
+
+/**
+ * The shape the match server mints (`apps/server/src/play/match.ts`,
+ * `newMatchId`): `m-` and twelve hex digits. Only consulted for a BARE id; a
+ * pasted link says what it is by its path. No pod id can take this shape —
+ * `mintDraftId` writes adjective-noun-suffix.
+ */
+const BARE_MATCH_ID = /^m-[0-9a-f]{12}$/;
+
+/**
+ * What someone pasted into the lobby's join box, as the place to go: a pod or
+ * a match. The same box joins both, because a person with a link should not
+ * have to know which kind it is.
+ */
+export function joinRouteFromInput(input: string): Route | null {
+  const text = input.trim();
+  const hashAt = text.indexOf('#');
+  if (hashAt !== -1) {
+    const route = parseRoute(text.slice(hashAt));
+    if (route.kind === 'match') return route;
+  } else if (BARE_MATCH_ID.test(text)) {
+    return { kind: 'match', matchId: text };
+  }
+  const draftId = draftIdFromInput(text);
+  return draftId === null ? null : { kind: 'draft', draftId };
 }
 
 /* ── minting a pod id ────────────────────────────────────────────────── */

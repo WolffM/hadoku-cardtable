@@ -16,8 +16,10 @@ import { describe, expect, it } from 'vitest';
 import {
   draftIdFromInput,
   inviteUrl,
+  joinRouteFromInput,
   mintDraftId,
   parseRoute,
+  routeUrl,
   routeHash,
   type Route,
 } from './route.ts';
@@ -61,6 +63,8 @@ describe('parseRoute', () => {
       { kind: 'debug' },
       { kind: 'draft', draftId: 'amber-lantern-k7q4' },
       { kind: 'deck', draftId: 'amber-lantern-k7q4' },
+      { kind: 'play' },
+      { kind: 'match', matchId: 'm-0123456789ab' },
       // The id that needs encoding on the way out and decoding on the way back.
       { kind: 'draft', draftId: 'friday cube/2' },
     ];
@@ -148,6 +152,43 @@ describe('mintDraftId', () => {
     const id = mintDraftId(pinned([0.3, 0.7, 0.1, 0.9, 0.4, 0.6]));
     const url = inviteUrl(id, { origin: 'https://hadoku.me', pathname: '/cardtable/' });
     expect(draftIdFromInput(url)).toBe(id);
+  });
+});
+
+describe('constructed routes', () => {
+  it('reads #/play and #/match/<id>', () => {
+    expect(parseRoute('#/play')).toEqual({ kind: 'play' });
+    expect(parseRoute('#/match/m-0123456789ab')).toEqual({ kind: 'match', matchId: 'm-0123456789ab' });
+    for (const hash of ['#/match', '#/match/', '#/play/x', '#/match/a/b']) {
+      expect(parseRoute(hash), hash).toEqual({ kind: 'lobby' });
+    }
+  });
+
+  it('makes a match link under the /cardtable/ prefix', () => {
+    expect(routeUrl({ kind: 'match', matchId: 'm-0123456789ab' }, { origin: 'https://hadoku.me', pathname: '/cardtable/' })).toBe(
+      'https://hadoku.me/cardtable/#/match/m-0123456789ab',
+    );
+  });
+});
+
+describe('joinRouteFromInput', () => {
+  it('takes a pod link, a match link, a pod id or a match id', () => {
+    expect(joinRouteFromInput('https://hadoku.me/cardtable/#/draft/amber-lantern-k7q4')).toEqual({
+      kind: 'draft',
+      draftId: 'amber-lantern-k7q4',
+    });
+    expect(joinRouteFromInput('https://hadoku.me/cardtable/#/match/m-0123456789ab')).toEqual({
+      kind: 'match',
+      matchId: 'm-0123456789ab',
+    });
+    expect(joinRouteFromInput('amber-lantern-k7q4')).toEqual({ kind: 'draft', draftId: 'amber-lantern-k7q4' });
+    expect(joinRouteFromInput(' m-0123456789ab ')).toEqual({ kind: 'match', matchId: 'm-0123456789ab' });
+  });
+
+  it('refuses what is neither', () => {
+    for (const input of ['', '   ', 'two words', 'https://hadoku.me/cardtable/#/play', 'a/b']) {
+      expect(joinRouteFromInput(input), input).toBeNull();
+    }
   });
 });
 
