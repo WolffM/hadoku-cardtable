@@ -171,7 +171,9 @@ Status: `todo` · `wave-N` · `blocked` · `done` · `watch`
 | ~~gdx-teavm embed payload~~ **or** React client | **decided: React** | us | D7 NO-GO. ~14 prompt components over a board renderer. D6's iframe payload does **not** already exist |
 | Disable jUPnP | **answered: config, not code** | D `df716ef` | `FServerManager.java:230-274` — `mapNatPort()` runs only when the `UPnP` pref is `ALWAYS`, so `UPnP=NEVER` in `server.preferences` means jUPnP is never constructed. **No fork change needed.** The trap is the shipped `ASK` default: it calls `SOptionPane.showOptionDialog`, a blocking modal a headless server cannot answer |
 | `FSerializableFunction` on the wire | **answered: real but narrow** | D `df716ef` | `one` never crosses the wire (it resolves locally to `getChoices`). `getChoices` serializes the lambda as a `SerializedLambda` no JS client can reconstitute — **but the server holds both the choices and the lambda**, so rendering labels server-side and sending strings loses nothing. That is the fix `WireClassFilter.java:45` already names |
-| **Strip upstream's Sentry DSN in the fork** | **todo — do not skip** | us | **new row.** `Main.java:65` calls `Sentry.init` with upstream's **hardcoded DSN** before it reads the mode argument, and *refills* an empty DSN, so no external config disables it. A dedicated server would report **our** crashes to the Forge project. Must be stripped when the fork exists |
+| ~~**Strip upstream's Sentry DSN in the fork**~~ | **done** | us `1f19a230` | **Stale row, corrected 2026-09-18 — this landed with the fork and the board never caught up.** Verified in the *compiled artifact*, not the checkout: no `sentry` string in `forge/view/Main.class` inside the installed jar. Checking the source would not have been enough, since a stale incremental build can carry the old class |
+| **Forge jar built and installed in production** | **done** | tracker | `~/.local/share/cardtable/forge.jar`, sha256 `4935b266bce3f098…`, clean-built from pin `2ad70eb4` off-tree in `~/.cache/w7b-forge`. `java -jar … server --help` prints our `DedicatedServer` usage. After an mgmt-api restart: `jvm-spawned` + `spare-warm bootMs:3828`, and `index.ts:239`'s `play: no Forge` warning is **absent** — so `POST /api/play/matches` no longer 503s. Rebuild procedure (required on every pin move, `clean` mandatory): `docs/FORGE_JAR.md` |
+| Match run dirs are never cleaned up | **todo — low** | us | **new row 2026-09-18.** `host.ts:274` `rmSync`s a run dir before creating it, never after the match ends; each match gets a fresh id, so `/tmp/cardtable-play/` grows without bound (78 dirs / 16 MB in one day, ~205 KB per match). `/tmp` is tmpfs, so it is RAM — 13 G free and a reboot clears it, hence low. Fix belongs on the existing `stop()`/`overGrace` path |
 
 ## Waves 3, 4, 5 — all LANDED
 
@@ -276,7 +278,7 @@ entry — see O7.**
 
 | # | Item | Why it's theirs |
 | --- | --- | --- |
-| **O8** | **The deploy tree's submodule drifts on every pin move.** `deploy-config.json`'s cardtable entry runs `pnpm install && pnpm build` and mgmt-api's `git pull` does not touch submodules, so `forge/` goes ` M` each time the pin moves and a future pull can refuse outright. Harmless today (nothing builds or serves `forge/`). Durable fix is a `git submodule update --init` in hadoku_site's deploy step; the stopgap is `git -C /home/hadoku/repos/hadoku-cardtable submodule update --init forge`. | hadoku_site |
+| ~~**O8**~~ | **CLOSED 2026-09-18 — hadoku_site landed it.** `services/mgmt-api/src/deploy/deploy-executor.ts` now runs `syncSubmodules` after `git reset --hard origin/<branch>` and before `stopService`, only when `.gitmodules` exists (`git submodule sync --recursive && git submodule update --init --recursive --depth 1`, 10-min timeout, no `--force`). Test at `src/tests/deploy-submodules.test.ts`, 4 cases, mutation-tested (removing `update` fails 2 of 4). **Still unverified live:** nobody has fetched a non-tip sha at `--depth 1` for `forge` yet, so the first deploy after the *next* pin move is the real test. Settle it with `git -C ~/repos/hadoku-cardtable status --porcelain` printing nothing, and the deploy log showing `Synced submodules to the recorded pins`. ~~The deploy tree's submodule drifts on every pin move.~~ `deploy-config.json`'s cardtable entry runs `pnpm install && pnpm build` and mgmt-api's `git pull` does not touch submodules, so `forge/` goes ` M` each time the pin moves and a future pull can refuse outright. Harmless today (nothing builds or serves `forge/`). Durable fix is a `git submodule update --init` in hadoku_site's deploy step; the stopgap is `git -C /home/hadoku/repos/hadoku-cardtable submodule update --init forge`. | hadoku_site |
 | **O7** | **D6 needs superseding.** It specifies the UI as an iframe payload inside a watchparty room; production is a standalone app and the operator has now settled on "our own app, importing their room UI as a package". The layout intent survives, the mechanism does not. Nothing in `DECISIONS.md` records the new shape. | Decision log |
 | **O5** | **D2 says "rules out: an MIT room layer living in this repo" — and `packages/room-ask` is now exactly that.** The code side is careful (SPDX, own `LICENSE`, clean-room so it is not a Forge derivative) and the licences are coherent: MIT so P4 can go upstream to watchparty's MIT packages, GPL for `room-store` which is ours. But `docs/DECISIONS.md` mentions `room-ask` **zero** times. Either amend D2 with the carve-out, or move the package to watchparty. A rule contradicted without a record is one that flips back. | Decision log |
 | **O6** | **The CDN upload has never run** — `art-manifest.json` has 0 entries and all art still comes from Scryfall via fallback. `pnpm --filter @hadoku/carddata upload-art` needs a **friend-tier credential** that is not on this host. Lane B refused to invent an auth path, correctly. One credential turns a working pipeline into live art. | Credential |
@@ -290,7 +292,74 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-18 — tracker, closing Wave 10)
+## Verified this pass (2026-09-18 — tracker, Forge jar install)
+
+**Play is live in production.** The half hadoku_site assigned to us is done, and
+the 503 on `POST /api/play/matches` is gone.
+
+### The jar
+
+Built from the submodule pin `2ad70eb4` in the scratch clone `~/.cache/w7b-forge`,
+which `git status --porcelain` confirmed clean at that sha. Installed to
+`~/.local/share/cardtable/forge.jar` (hadoku_site's chosen path: outside every
+checkout, so no deploy's reset can touch it; no version in the name, so the path
+never changes). sha256 `4935b266bce3f098…`, 39,686,151 bytes.
+
+**The vendored `forge/` tree was never built in and is still pristine** — D2
+holds: `git submodule status forge` unchanged, no `target/` dirs.
+
+### The clean build was not a formality
+
+The first build I ran was incremental (`mvn package`, no `clean`) and produced a
+jar byte-identical to lane B's 2026-09-16 scratch build. The clean rebuild from
+the same sha produced a **different** sha256. So an incremental build across a
+checkout change does not reproduce, and `clean` is now a documented requirement
+in `docs/FORGE_JAR.md` rather than caution. The clean artifact is what is
+installed.
+
+### What proves it works
+
+| claim | evidence |
+| --- | --- |
+| the jar carries `2ad70eb4` (`forge server`) | `unzip -p … forge/view/Main.class \| strings \| grep -x server` hits; `java -jar … server --help` prints our own `DedicatedServer` usage and exits |
+| the jar carries `1f19a230` (Sentry DSN stripped) | no `sentry` string in the compiled `Main.class` — so **our crashes do not report to the upstream Forge project** |
+| the 503 is gone | `index.ts:239`'s `play: no Forge` warning is **absent** from `cardtable-error.log` after the restart. The route 503s iff `deps.host === null` (`play/socket.ts:218`), and `host` is `forge.ok ? jvmHostFactory(…) : null` — no warning means `forge.ok`, so that branch is unreachable |
+| Forge actually launches | `{"evt":"jvm-spawned","pid":2240909,"spare":true}` then `{"evt":"spare-warm","bootMs":3828}`. `pgrep` shows the JVM running `-cp /home/hadoku/.local/share/cardtable/forge.jar`, headless, `-Xmx1g`. A config that resolved but could not launch would have died here |
+
+Restarted through **mgmt-api** (`POST http://127.0.0.1:4000/api/cardtable/restart`
+→ 200), never raw `pm2`, per `services/mgmt-api/CLAUDE.md`.
+
+Gate re-run after the doc change: **1,645 passing / 5 skipped**, typecheck and
+lint clean — unchanged from `8940bcf`.
+
+### hadoku_site's ask-1 landed, and the error message proved it
+
+Before the jar existed the warning read `CARDTABLE_FORGE_JAR is not set`; after
+their wrapper change it read `does not exist: /home/hadoku/.local/share/cardtable/forge.jar`.
+That flip is the proof their `tunnel.pathEnv` wiring is live — the var is being
+passed, the file simply was not there yet. The generated wrapper
+(`~/srv/hadoku_site/services/pm2/cardtable-wrapper.mjs:42-43`) carries both vars
+in the child's `env:` block.
+
+### Correction to my own ask-3 premise
+
+I told hadoku_site there was no service-tier upload path. There is. Tiers rank
+`public < friend < service < wife < admin` and `requireUploader` is
+`tierAtLeast(auth,'friend')`, so a **service** key clears a friend floor. I read
+that as friend-only. cardtable lacks an *identity*, not a path — which is why O6
+stays open as a credential item and not a code one.
+
+### Found: match run dirs are never cleaned up (new, low)
+
+`stageRunDir` (`apps/server/src/play/host.ts:274`) `rmSync`s a run dir *before*
+creating it, and nothing removes it afterwards. Every match gets a fresh random
+id, so `/tmp/cardtable-play/` grows without bound — 78 dirs / 16 MB from one
+day's testing, ~205 KB per match. `/tmp` is **tmpfs**, so this is RAM, though
+13 G is free and a reboot clears it. Not urgent at friend-group volume; it is a
+leak with no ceiling, so it gets a row rather than a shrug. Fix belongs wherever
+the match's `stop()`/`overGrace` path already runs.
+
+## Previously verified (2026-09-18 — tracker, closing Wave 10)
 
 **All four lanes landed.** Gate **1,596 passed / 64 files**; CI and redeploy
 green on `edf1847`; production 401; submodule intact; worktree and branch gone.
