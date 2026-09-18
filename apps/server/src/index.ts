@@ -71,6 +71,7 @@ import { createDraftRooms } from './room/draftRooms.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory } from './play/index.js';
+import { attachTables } from './http/index.js';
 
 mkdirSync(CONFIG.logDir, { recursive: true });
 
@@ -195,12 +196,14 @@ const io = new SocketIOServer(httpServer, {
 	serveClient: false,
 });
 
-attachDraftSocket(io, {
-	rooms: poolLoad.ok
-		? createDraftRooms({ pool: poolLoad.pool.cards, cube: poolLoad.pool.meta })
-		: null,
-	minTier: CONFIG.minTier,
-});
+const draftRooms = poolLoad.ok ? createDraftRooms({ pool: poolLoad.pool.cards, cube: poolLoad.pool.meta }) : null;
+attachDraftSocket(io, { rooms: draftRooms, minTier: CONFIG.minTier });
+
+// ── Constructed ──────────────────────────────────────────────────────────────
+// Formats, the deck library, and the deck gate on POST /api/play/matches. MUST
+// come before attachPlay: the gate is a handler on play's own path and runs
+// only if it is registered first. See src/http/README.md.
+attachTables(api, { repoRoot: resolve(PKG_ROOT, '../..'), draftRooms });
 
 // ── Matches ──────────────────────────────────────────────────────────────────
 // One child JVM per match; see src/play/README.md. Without a configured Forge

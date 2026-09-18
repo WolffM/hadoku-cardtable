@@ -1,6 +1,6 @@
 {
   "name": "@hadoku/server",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
@@ -13,6 +13,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@hadoku/carddata": "workspace:*",
+    "@hadoku/deck": "workspace:*",
     "@hadoku/draft": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
     "@hadoku/shared": "workspace:*",

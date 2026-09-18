@@ -120,6 +120,18 @@ jobs:
       - name: Build the bundle
         run: pnpm --filter @hadoku/ui build
 
+      # Two browser contexts draft one pod against the built server (e2e/).
+      # Idempotent browser install: on the self-hosted runner Chromium is cached
+      # in ~/.cache/ms-playwright and this is a no-op. No --with-deps (D14).
+      - name: Build the server
+        run: pnpm --filter @hadoku/server build
+
+      - name: E2E — browser
+        run: pnpm --filter @hadoku/e2e exec playwright install chromium
+
+      - name: E2E — two friends draft one pod
+        run: pnpm --filter @hadoku/e2e test
+
       # Runs FIRST, and deliberately. A green gate is a claim; this is the
       # demonstration. 65 throwaway fixtures under `mktemp -d`, each arm
       # asserted in both directions and every reference case in all five

@@ -116,6 +116,7 @@ export default [
       '**/__tests__/**/*.{ts,tsx}',
       '**/test/**/*.{ts,tsx}',
       'scripts/**/*.{ts,js,mjs,cjs}',
+      'e2e/**/*.ts',
     ],
     languageOptions: {
       parser: tsParser,

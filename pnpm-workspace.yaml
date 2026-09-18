@@ -1,6 +1,7 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  - 'e2e'
 
 # `forge/` is a vendored Java tree (gitignored until WolffM/forge exists) and is
 # NOT a JS workspace member. The globs above deliberately do not reach it.

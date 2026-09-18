@@ -16,7 +16,8 @@
     "lint:fix": "eslint . --no-error-on-unmatched-pattern --fix",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "build": "pnpm -r --if-present run build"
+    "build": "pnpm -r --if-present run build",
+    "e2e": "pnpm --filter @hadoku/ui build && pnpm --filter @hadoku/server build && pnpm --filter @hadoku/e2e test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
