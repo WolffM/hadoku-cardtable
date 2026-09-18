@@ -290,7 +290,55 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-17 — tracker, closing Wave 8)
+## Verified this pass (2026-09-18 — tracker, closing Wave 9)
+
+**All four lanes plus the integration check landed.** Gate **1,523 passed / 61
+files**, CI and redeploy green on `e795cfc`, production 401, submodule intact.
+
+**The big unknown is closed, positively.** A browser answers Forge's
+`showConfirmDialog` mid-match — **5.8 ms median**, board state after the answer
+matching the server. That loop had never run inside a live game before this
+wave, and it was the single largest risk left in PR-4.
+
+### I ran the two skipped tests rather than accepting the skip
+
+`pnpm check` reported **2 skipped**, gated on `CARDTABLE_FORGE_JAR`. The gate is
+honest — the test title carries its own skip reason — but a test that never runs
+is not evidence. Wave 7 lane B's scratch build is still on disk, so I pointed
+the env at it and ran them. **Both pass**, and the output is the strongest
+evidence this project has produced:
+
+- a real Forge match in a child JVM, **Forge boot 3.8 s**, two seats opened
+- **seat 0: 142 secrets in Forge's raw stream, 0 in what was emitted**;
+  seat 1: 148 → 0. Then 170 → 0 and 162 → 0 on a second pairing.
+  **That is the hidden-information control measured against live game data**, not
+  a fixture — the strongest form of it in the repo.
+- a real ask answered in ~52 ms, across a fixed seed and random precons
+
+**They still do not run in CI**, and that is the right trade (a 1 GB Maven build
+does not belong in CI) — but it means the per-seat leak control is only ever
+proven by someone running them deliberately. Recorded as a watch, not a defect.
+
+### O3 is answered, and the answer is forced rather than chosen
+
+**One JVM per match** — not a preference. `FServerManager` is a per-JVM
+singleton holding one lobby; a second match dies with
+`IllegalArgumentException: Hook previously registered` at
+`FServerManager.java:276`, and **upstream's own test suite spawns one JVM per
+networked game "to avoid the FServerManager singleton limitation"**
+(`MultiProcessGameExecutor.java`). Both architectures were measured anyway —
+shared would have been ~10 MB of live heap per match against **~730 MB of RSS**
+for a separate JVM — so the cheaper option is the one that does not exist. The
+spike still recommends putting a `matchId` on every Node↔JVM message, so the
+architecture does not foreclose sharing if the singleton is ever fixed. Open
+since Wave 1, deferred twice; closed with measurements.
+
+### The remaining shape of PR-4
+
+Fourteen prompt components exist **on fixtures** (lane C); one is wired live
+(lane B). The gap between those two states is Wave 10.
+
+## Previously verified (2026-09-17 — tracker, closing Wave 8)
 
 **All four lanes landed; worktree and branch gone.** Gate **1,298 tests / 46
 files** (was 1,143 / 37). CI and redeploy green on `c757a98`; production 401.
