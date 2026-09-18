@@ -485,6 +485,54 @@ describe('an out-of-turn pick', () => {
 	});
 });
 
+/* ── The pick step says it is complete ───────────────────────────────── */
+
+describe('the step after a pick', () => {
+	it('jumps seq by the bot picks behind it, in ONE envelope per recipient marked full-state', async () => {
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		const bob = await connect(live().port, edgeHeaders('bob'));
+		await joinAndSettle(alice);
+		await joinAndSettle(bob);
+		await waitUntil(() => alice.received.length >= 2, 'alice to see bob arrive');
+
+		// A join's step is +1 and stays unmarked: nothing about it is a jump.
+		const arrival = alice.received.at(-1);
+		expect(arrival?.type).toBe('update');
+		expect(arrival?.type === 'update' ? arrival.carries : 'not-an-update').toBeUndefined();
+
+		const opening = lastView(alice);
+		if (opening?.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		const taken = opening.viewer.pack[0];
+		if (taken === undefined) throw new Error('an opening pack should not be empty');
+		const aliceBefore = alice.received.length;
+		const bobBefore = bob.received.length;
+		const bobSeqBefore = lastView(bob)?.seq ?? 0;
+
+		alice.send(pickCard(DRAFT_ID, taken.cardId));
+		await waitUntil(
+			() => alice.received.length > aliceBefore && bob.received.length > bobBefore,
+			'the pick step to reach both seats',
+		);
+
+		for (const [peer, before] of [
+			[alice, aliceBefore],
+			[bob, bobBefore],
+		] as const) {
+			const step = peer.received.slice(before);
+			// One envelope, not one per bot pick.
+			expect(step).toHaveLength(1);
+			const msg = step[0];
+			expect(msg?.type).toBe('update');
+			if (msg?.type !== 'update') return;
+			expect(msg.carries).toBe('full-state');
+			expect(msg.cursor.seq).toBe(roomsSeq());
+		}
+		// The bots really did move seq by more than one — the case this marker
+		// exists for. Without the jump the test would prove nothing.
+		expect(roomsSeq() - bobSeqBefore).toBeGreaterThan(1);
+	});
+});
+
 function roomsSeq(): number {
 	return roomsMod.stateOf(room()).seq;
 }

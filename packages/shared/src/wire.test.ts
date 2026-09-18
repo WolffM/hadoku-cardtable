@@ -275,3 +275,29 @@ describe('the cursor is rooms-protocol’s, not a lookalike', () => {
     expect(safeParseServerMessage({ ...updateMessage(view()), cursor: { epoch: 'e1', seq: 0 } }).ok).toBe(false);
   });
 });
+
+describe('an update says whether it is self-contained', () => {
+  it('carries the marker only when the builder is told, and it survives a parse', () => {
+    expect(updateMessage(view())).not.toHaveProperty('carries');
+    const full = parseServerMessage(updateMessage(view(), 'full-state'));
+    expect(full.type === 'update' && full.carries).toBe('full-state');
+    const delta = parseServerMessage(updateMessage(view(), 'delta'));
+    expect(delta.type === 'update' && delta.carries).toBe('delta');
+    const unmarked = parseServerMessage(updateMessage(view()));
+    expect(unmarked.type === 'update' && unmarked.carries).toBeUndefined();
+  });
+
+  it('refuses a marker that is neither', () => {
+    expect(safeParseServerMessage({ ...updateMessage(view()), carries: 'partial' }).ok).toBe(false);
+  });
+
+  it('does not relax the one-cursor rule — a full-state envelope still agrees with its view', () => {
+    const bad = { ...updateMessage(view(), 'full-state'), cursor: { epoch: 'e1', seq: 9 } };
+    expect(safeParseServerMessage(bad).ok).toBe(false);
+  });
+
+  it('leaves the cursor exactly as classifySeq sees it — a jump is still a gap', () => {
+    const next = updateMessage(view({ seq: 14 }), 'full-state');
+    expect(classifySeq({ epoch: 'e1', seq: 7 }, asSeqCursor(next.cursor))).toBe('gap');
+  });
+});

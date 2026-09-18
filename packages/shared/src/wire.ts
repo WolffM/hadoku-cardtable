@@ -262,10 +262,43 @@ export const DraftStateMessageSchema = z.object({
   cube: CubeMetaSchema.optional(),
 });
 
-/** One step of the stream. `classifySeq` decides whether it applies. */
+/**
+ * What an update envelope's payload is, said by the envelope.
+ *
+ * `classifySeq` models a DELTA stream: each step is only meaningful on top of
+ * the one before it, so a skipped seq is lost information and the only safe
+ * answer is a resync. A `DraftView` is not that. It is the whole state for its
+ * recipient, so a step that arrives after a skipped seq still describes the
+ * table completely — the skipped steps are superseded, not missing. Wave 10
+ * measured what treating one as the other costs: the room takes a human pick
+ * and every bot pick behind it in one call, `seq` moves by ~7, one envelope
+ * goes out, and every browser answered every round with a resync (90 picks,
+ * 90 resyncs).
+ *
+ * - `'full-state'` — self-contained. Applied whatever its seq jump, EXCEPT
+ *   across an epoch: a different room incarnation still discards local state
+ *   and refetches, because a restart is the one thing a complete payload does
+ *   not make safe to adopt as a step.
+ * - `'delta'`, or absent — a step. `classifySeq` governs it exactly as before,
+ *   gap included. Absent means delta on purpose: an envelope that does not say
+ *   it is complete is not assumed to be.
+ *
+ * This is a statement about the envelope, not a loosening of `classifySeq`:
+ * the verdict is still computed and still reported as `gap`; what changes is
+ * that a self-contained payload does not need the recovery path to recover.
+ */
+const UpdateCarriesSchema = z.enum(['full-state', 'delta']);
+
+type UpdateCarries = z.infer<typeof UpdateCarriesSchema>;
+
+/**
+ * One step of the stream. `classifySeq` decides whether it applies, and
+ * `carries` decides what a `gap` verdict means for it — see `UpdateCarriesSchema`.
+ */
 export const DraftUpdateMessageSchema = z.object({
   type: z.literal('update'),
   cursor: SeqCursorSchema,
+  carries: UpdateCarriesSchema.optional(),
   view: DraftViewSchema,
 });
 
@@ -330,8 +363,14 @@ export function stateMessage(view: DraftView, cube?: CubeMeta): DraftStateMessag
     : { type: 'state', cursor: cursorOf(view), view, cube };
 }
 
-export function updateMessage(view: DraftView): DraftUpdateMessage {
-  return { type: 'update', cursor: cursorOf(view), view };
+/**
+ * A step. Unmarked unless `carries` is given, and unmarked reads as `delta` —
+ * the caller that knows its payload is complete is the one that says so.
+ */
+export function updateMessage(view: DraftView, carries?: UpdateCarries): DraftUpdateMessage {
+  return carries === undefined
+    ? { type: 'update', cursor: cursorOf(view), view }
+    : { type: 'update', cursor: cursorOf(view), carries, view };
 }
 
 export function errorMessage(

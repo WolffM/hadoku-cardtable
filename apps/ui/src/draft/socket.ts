@@ -41,6 +41,21 @@
  * retransmitting. `needsResync(verdict)` is the helper that gets this right;
  * `verdict !== 'ok'` is the bug it exists to prevent, and it is never spelled
  * that way in this file.
+ *
+ * ## A gap is only a loss in a delta stream
+ *
+ * `classifySeq` models a delta stream, where a skipped seq is missing
+ * information. An update marked `carries: 'full-state'` is not a delta: it is
+ * the whole table, and the seqs it skipped are superseded by it. So a `gap`
+ * verdict on one is still counted — `classifySeq` is not overruled about what
+ * happened — but the envelope is applied rather than dropped for a resync.
+ * The room sends exactly that after every pick, because the bots behind a
+ * human pick move `seq` by several in one step; before this the recovery path
+ * was the normal path, one resync per round.
+ *
+ * `epoch-change` is NOT bridged, whatever the envelope says: a different room
+ * incarnation still discards everything local and refetches. And an unmarked
+ * (or `delta`) update with a gap still resyncs exactly as before.
  */
 
 import {
@@ -87,7 +102,10 @@ export interface SocketStats {
   applied: number;
   /** Dropped as already-seen. These must NEVER produce a resync. */
   duplicatesDropped: number;
+  /** `gap` verdicts, whether or not they cost a resync. */
   gaps: number;
+  /** Of those, the ones a full-state envelope carried across with no request. */
+  gapsBridged: number;
   epochChanges: number;
   /** Resync requests actually put on the wire. The number the tests assert. */
   resyncsRequested: number;
@@ -207,6 +225,7 @@ function emptyStats(): SocketStats {
     applied: 0,
     duplicatesDropped: 0,
     gaps: 0,
+    gapsBridged: 0,
     epochChanges: 0,
     resyncsRequested: 0,
     rejected: 0,
@@ -455,6 +474,16 @@ export function ingest(draft: SocketDraft, raw: unknown): void {
     // `resync.d.ts`: a client that has missed everything is established by its
     // snapshot, not by another request. Answering a snapshot with a resync is
     // how a loop starts.
+    adopt(draft, msg);
+    notify(draft);
+    return;
+  }
+
+  if (verdict === 'gap' && msg.carries === 'full-state') {
+    // The whole table, so the skipped seqs are superseded, not lost. Only a
+    // gap is bridged this way — an epoch change fell through to the resync
+    // below, because a restarted room is not made safe by a complete payload.
+    draft.stats.gapsBridged += 1;
     adopt(draft, msg);
     notify(draft);
     return;

@@ -41,12 +41,23 @@
  * throws at a client, and nothing answers a bad message by closing the socket:
  * a draft is driven by whatever arrives over a wire, and a wire delivers
  * nonsense routinely.
+ *
+ * ## A pick is one envelope, and it says it is complete
+ *
+ * A human pick is followed by every bot pick the round owes, in one `runBots`
+ * call, and the engine bumps `seq` once per change — so the envelope that goes
+ * out has jumped by several. That is still ONE envelope per pick, on purpose:
+ * one per bot pick would trade one round trip for seven, each a full payload.
+ * Instead the envelope is marked `carries: 'full-state'`, because a
+ * `DraftView` is the recipient's whole table and the skipped seqs are
+ * superseded rather than missing. Unmarked, the client read every round as a
+ * gap and resynced (Wave 10: 90 picks, 90 resyncs).
  */
 
 import type { Request } from 'express';
 import type { IncomingHttpHeaders } from 'node:http';
 import type { Server as SocketIOServer } from 'socket.io';
-import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
+import { MultiRateLimiter, emitPerRecipient, type EmitPolicy, type RateLimitConfig } from '@wolffm/rooms-server';
 import { seatOf, type ParticipantId } from '@wolffm/rooms-protocol';
 import { pick as enginePick, runBots } from '@hadoku/draft';
 import {
@@ -54,7 +65,9 @@ import {
 	errorMessage,
 	safeParseClientMessage,
 	stateMessage,
+	updateMessage,
 	type ClientMessage,
+	type ServerMessage,
 	type WireCursor,
 	type WireErrorCode,
 } from '@hadoku/shared';
@@ -67,6 +80,8 @@ import {
 	releaseSeat,
 	stateOf,
 	viewForParticipant,
+	type DraftApp,
+	type DraftClient,
 	type DraftRoom,
 	type DraftRooms,
 } from './draftRooms.js';
@@ -132,6 +147,25 @@ function handshakeTier(headers: IncomingHttpHeaders): string {
 	// disagree about who is allowed in, which is the bug `edge-auth.ts`'s header
 	// is written about.
 	return tierOf({ headers } as unknown as Request);
+}
+
+/**
+ * The step after a pick, to everyone in the room, one payload per recipient.
+ *
+ * `emitDraftUpdate`'s shape exactly — built per recipient by
+ * `viewForParticipant`, never one payload for the room — with the one
+ * difference that this envelope declares itself self-contained. See the module
+ * header for why a pick's step, and not a join's or a leave's, is where a seq
+ * jump is routine.
+ */
+function emitPickStep(io: SocketIOServer, room: DraftRoom, policy: EmitPolicy): number {
+	return emitPerRecipient<DraftApp, DraftClient, ServerMessage>(
+		io,
+		room,
+		DRAFT_CHANNEL.serverToClient,
+		(client) => updateMessage(viewForParticipant(room, client.participantId), 'full-state'),
+		policy,
+	);
 }
 
 export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): DraftSocketHandle {
@@ -312,7 +346,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 						botPicks: advanced.picks,
 						seq: advanced.state.seq,
 					});
-					emitDraftUpdate(io, room, policy);
+					emitPickStep(io, room, policy);
 					return;
 				}
 			}

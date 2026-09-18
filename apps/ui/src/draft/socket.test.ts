@@ -289,6 +289,97 @@ describe('classifySeq dispatch', () => {
   });
 });
 
+/* ── What the envelope says it carries ───────────────────────────────── */
+
+describe('a full-state update is not a delta', () => {
+  let stub: Stub;
+  let draft: SocketDraft;
+  beforeEach(() => {
+    stub = makeStub();
+    draft = connect(stub);
+    ingest(draft, stateMessage(at(1)));
+  });
+
+  it('applies across a seq jump with NO resync — a pick and the bots behind it', () => {
+    // One human pick plus six bot picks is seven engine bumps and one envelope.
+    ingest(draft, updateMessage(at(8), 'full-state'));
+
+    // classifySeq is not overruled about what happened…
+    expect(draft.lastVerdict).toBe('gap');
+    expect(draft.stats.gaps).toBe(1);
+    // …but nothing was lost, so nothing is asked for.
+    expect(draft.stats.gapsBridged).toBe(1);
+    expect(countOf(stub, 'resync')).toBe(0);
+    expect(draft.resyncPending).toBe(false);
+    expect(draft.cursor).toEqual({ epoch: 'e1', seq: 8 });
+    expect(draft.view?.seq).toBe(8);
+    expect(draft.stats.applied).toBe(2);
+  });
+
+  it('a whole draft of jumping rounds costs zero resyncs, not one per round', () => {
+    for (let round = 1; round <= 45; round++) {
+      ingest(draft, updateMessage(at(1 + round * 7), 'full-state'));
+    }
+    expect(draft.stats.gapsBridged).toBe(45);
+    expect(countOf(stub, 'resync')).toBe(0);
+    expect(draft.cursor).toEqual({ epoch: 'e1', seq: 1 + 45 * 7 });
+  });
+
+  it('is still dropped when it is OLD — full state does not clobber newer state', () => {
+    ingest(draft, updateMessage(at(8), 'full-state'));
+    ingest(draft, updateMessage(at(5), 'full-state'));
+    expect(draft.cursor).toEqual({ epoch: 'e1', seq: 8 });
+    expect(draft.stats.duplicatesDropped).toBe(1);
+    expect(countOf(stub, 'resync')).toBe(0);
+  });
+
+  it('epoch-change — still discards local state and refetches, whatever it carries', () => {
+    ingest(draft, updateMessage(at(8), 'full-state'));
+    expect(draft.view).not.toBeNull();
+
+    ingest(draft, updateMessage(at(3, 'e2'), 'full-state'));
+
+    expect(draft.lastVerdict).toBe('epoch-change');
+    expect(draft.stats.epochChanges).toBe(1);
+    expect(draft.stats.gapsBridged).toBe(1);
+    // Discarded, not adopted: a restart is the one thing a complete payload
+    // does not make safe to take as a step.
+    expect(draft.view).toBeNull();
+    expect(draft.cursor).toBeNull();
+    expect(countOf(stub, 'resync')).toBe(1);
+    expect(outbound(stub).find((m) => m.type === 'resync')).toEqual({
+      type: 'resync',
+      draftId: 'draft:test',
+      have: null,
+    });
+  });
+
+  it('an explicit delta with a gap still resyncs', () => {
+    ingest(draft, updateMessage(at(8), 'delta'));
+    expect(draft.stats.gaps).toBe(1);
+    expect(draft.stats.gapsBridged).toBe(0);
+    expect(countOf(stub, 'resync')).toBe(1);
+    expect(draft.cursor).toEqual({ epoch: 'e1', seq: 1 });
+  });
+
+  it('an UNMARKED update with a gap still resyncs — absent means delta', () => {
+    ingest(draft, updateMessage(at(8)));
+    expect(draft.stats.gapsBridged).toBe(0);
+    expect(countOf(stub, 'resync')).toBe(1);
+    expect(draft.cursor).toEqual({ epoch: 'e1', seq: 1 });
+  });
+
+  it('answers an outstanding resync, and the late snapshot then drops as a duplicate', () => {
+    ingest(draft, updateMessage(at(8)));
+    expect(draft.resyncPending).toBe(true);
+    ingest(draft, updateMessage(at(15), 'full-state'));
+    expect(draft.resyncPending).toBe(false);
+    ingest(draft, stateMessage(at(8)));
+    expect(draft.cursor).toEqual({ epoch: 'e1', seq: 15 });
+    expect(countOf(stub, 'resync')).toBe(1);
+  });
+});
+
 /* ── Errors and junk ─────────────────────────────────────────────────── */
 
 describe('rejections', () => {
