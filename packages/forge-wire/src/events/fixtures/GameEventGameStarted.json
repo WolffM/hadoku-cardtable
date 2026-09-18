@@ -1,0 +1,20 @@
+[
+  {
+    "event": "GameEventGameStarted",
+    "gameType": "Constructed",
+    "firstTurn": {
+      "kind": "player",
+      "id": 1
+    },
+    "players": [
+      {
+        "kind": "player",
+        "id": 0
+      },
+      {
+        "kind": "player",
+        "id": 1
+      }
+    ]
+  }
+]

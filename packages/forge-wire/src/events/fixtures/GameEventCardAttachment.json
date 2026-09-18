@@ -1,0 +1,46 @@
+[
+  {
+    "event": "GameEventCardAttachment",
+    "equipment": {
+      "ref": {
+        "kind": "card",
+        "id": 29
+      },
+      "name": "Quicksilver Dagger",
+      "imageKey": "c:Quicksilver Dagger|APC|1",
+      "preserveSnapshot": true
+    },
+    "oldEntity": null,
+    "newTarget": {
+      "ref": {
+        "kind": "card",
+        "id": 17
+      },
+      "name": "Whirlpool Drake",
+      "imageKey": "c:Whirlpool Drake|APC|1",
+      "preserveSnapshot": true
+    }
+  },
+  {
+    "event": "GameEventCardAttachment",
+    "equipment": {
+      "ref": {
+        "kind": "card",
+        "id": 29
+      },
+      "name": "Quicksilver Dagger",
+      "imageKey": "c:Quicksilver Dagger|APC|1",
+      "preserveSnapshot": true
+    },
+    "oldEntity": {
+      "ref": {
+        "kind": "card",
+        "id": 17
+      },
+      "name": "Whirlpool Drake",
+      "imageKey": "c:Whirlpool Drake|APC|1",
+      "preserveSnapshot": true
+    },
+    "newTarget": null
+  }
+]

@@ -1,0 +1,11 @@
+[
+  {
+    "event": "GameEventPlayerControl",
+    "player": {
+      "kind": "player",
+      "id": 0
+    },
+    "newLobbyPlayerName": null,
+    "newControllerIsHuman": false
+  }
+]

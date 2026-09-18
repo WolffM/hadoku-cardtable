@@ -1,0 +1,21 @@
+[
+  {
+    "event": "GameEventPlayerDamaged",
+    "target": {
+      "kind": "player",
+      "id": 0
+    },
+    "source": {
+      "ref": {
+        "kind": "card",
+        "id": 105
+      },
+      "name": "Riftwing Cloudskate",
+      "imageKey": "c:Riftwing Cloudskate|TSP|1",
+      "preserveSnapshot": true
+    },
+    "amount": 2,
+    "combat": true,
+    "infect": false
+  }
+]

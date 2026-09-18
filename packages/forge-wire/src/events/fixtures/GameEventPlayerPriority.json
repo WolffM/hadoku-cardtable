@@ -1,0 +1,14 @@
+[
+  {
+    "event": "GameEventPlayerPriority",
+    "turn": {
+      "kind": "player",
+      "id": 1
+    },
+    "phase": "UPKEEP",
+    "priority": {
+      "kind": "player",
+      "id": 1
+    }
+  }
+]

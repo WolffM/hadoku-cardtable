@@ -1,0 +1,9 @@
+[
+  {
+    "event": "GameEventCardForetold",
+    "activatingPlayer": {
+      "kind": "player",
+      "id": 1
+    }
+  }
+]

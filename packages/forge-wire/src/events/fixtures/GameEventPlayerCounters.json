@@ -1,0 +1,12 @@
+[
+  {
+    "event": "GameEventPlayerCounters",
+    "receiver": {
+      "kind": "player",
+      "id": 0
+    },
+    "type": "Poison",
+    "oldValue": 0,
+    "amount": 1
+  }
+]

@@ -1,0 +1,17 @@
+[
+  {
+    "event": "GameEventCardCounters",
+    "card": {
+      "ref": {
+        "kind": "card",
+        "id": 105
+      },
+      "name": "Riftwing Cloudskate",
+      "imageKey": "c:Riftwing Cloudskate|TSP|1",
+      "preserveSnapshot": true
+    },
+    "type": "Time",
+    "oldValue": 0,
+    "newValue": 3
+  }
+]

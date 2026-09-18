@@ -1,0 +1,11 @@
+[
+  {
+    "event": "GameEventTurnPhase",
+    "playerTurn": {
+      "kind": "player",
+      "id": 1
+    },
+    "phase": "UNTAP",
+    "phaseDesc": ""
+  }
+]

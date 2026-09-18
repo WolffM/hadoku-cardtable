@@ -1,0 +1,18 @@
+[
+  {
+    "event": "GameEventLandPlayed",
+    "player": {
+      "kind": "player",
+      "id": 1
+    },
+    "land": {
+      "ref": {
+        "kind": "card",
+        "id": 113
+      },
+      "name": "Island",
+      "imageKey": "c:Island|TSP|1",
+      "preserveSnapshot": true
+    }
+  }
+]

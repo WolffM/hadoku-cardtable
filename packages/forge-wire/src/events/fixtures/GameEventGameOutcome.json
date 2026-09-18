@@ -1,0 +1,12 @@
+[
+  {
+    "event": "GameEventGameOutcome",
+    "lastTurnNumber": 19,
+    "outcomeStrings": [
+      "Bob (Capturing) has lost because life total reached 0",
+      "Alice (Host AI) has won because all opponents have lost"
+    ],
+    "winningPlayerName": "Alice (Host AI)",
+    "matchSummary": "Bob (Capturing): 0 Alice (Host AI): 1 "
+  }
+]

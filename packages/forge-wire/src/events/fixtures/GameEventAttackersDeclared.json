@@ -1,0 +1,85 @@
+[
+  {
+    "event": "GameEventAttackersDeclared",
+    "player": {
+      "kind": "player",
+      "id": 1
+    },
+    "attackersMap": []
+  },
+  {
+    "event": "GameEventAttackersDeclared",
+    "player": {
+      "kind": "player",
+      "id": 1
+    },
+    "attackersMap": [
+      {
+        "key": {
+          "kind": "player",
+          "id": 0
+        },
+        "values": [
+          {
+            "ref": {
+              "kind": "card",
+              "id": 105
+            },
+            "name": "Riftwing Cloudskate",
+            "imageKey": "c:Riftwing Cloudskate|TSP|1",
+            "preserveSnapshot": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "event": "GameEventAttackersDeclared",
+    "player": {
+      "kind": "player",
+      "id": 0
+    },
+    "attackersMap": [
+      {
+        "key": {
+          "ref": {
+            "kind": "card",
+            "id": 108
+          },
+          "name": "Jaya Ballard",
+          "imageKey": "c:Jaya Ballard|C21|1",
+          "preserveSnapshot": true
+        },
+        "values": [
+          {
+            "ref": {
+              "kind": "card",
+              "id": 52
+            },
+            "name": "Volcanic Dragon",
+            "imageKey": "c:Volcanic Dragon|M19|1",
+            "preserveSnapshot": true
+          },
+          {
+            "ref": {
+              "kind": "card",
+              "id": 51
+            },
+            "name": "Kargan Dragonrider",
+            "imageKey": "c:Kargan Dragonrider|M19|1",
+            "preserveSnapshot": true
+          },
+          {
+            "ref": {
+              "kind": "card",
+              "id": 50
+            },
+            "name": "Kargan Dragonrider",
+            "imageKey": "c:Kargan Dragonrider|M19|1",
+            "preserveSnapshot": true
+          }
+        ]
+      }
+    ]
+  }
+]

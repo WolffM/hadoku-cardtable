@@ -1,0 +1,13 @@
+[
+  {
+    "event": "GameEventCardModeChosen",
+    "player": {
+      "kind": "player",
+      "id": 1
+    },
+    "cardName": "Outpost Siege",
+    "mode": "Khans",
+    "log": true,
+    "random": false
+  }
+]

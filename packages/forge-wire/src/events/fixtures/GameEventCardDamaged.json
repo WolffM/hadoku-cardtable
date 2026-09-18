@@ -1,0 +1,25 @@
+[
+  {
+    "event": "GameEventCardDamaged",
+    "card": {
+      "ref": {
+        "kind": "card",
+        "id": 17
+      },
+      "name": "Whirlpool Drake",
+      "imageKey": "c:Whirlpool Drake|APC|1",
+      "preserveSnapshot": true
+    },
+    "source": {
+      "ref": {
+        "kind": "card",
+        "id": 84
+      },
+      "name": "Grapeshot",
+      "imageKey": "c:Grapeshot|TSP|1",
+      "preserveSnapshot": true
+    },
+    "amount": 1,
+    "type": "Normal"
+  }
+]

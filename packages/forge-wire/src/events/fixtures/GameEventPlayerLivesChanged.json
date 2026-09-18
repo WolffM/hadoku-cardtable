@@ -1,0 +1,11 @@
+[
+  {
+    "event": "GameEventPlayerLivesChanged",
+    "player": {
+      "kind": "player",
+      "id": 0
+    },
+    "oldLives": 20,
+    "newLives": 18
+  }
+]

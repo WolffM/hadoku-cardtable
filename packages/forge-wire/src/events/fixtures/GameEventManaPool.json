@@ -1,0 +1,22 @@
+[
+  {
+    "event": "GameEventManaPool",
+    "player": {
+      "kind": "player",
+      "id": 1
+    },
+    "mode": "Added",
+    "colors": [
+      "BLUE"
+    ]
+  },
+  {
+    "event": "GameEventManaPool",
+    "player": {
+      "kind": "player",
+      "id": 0
+    },
+    "mode": "Cleared",
+    "colors": null
+  }
+]

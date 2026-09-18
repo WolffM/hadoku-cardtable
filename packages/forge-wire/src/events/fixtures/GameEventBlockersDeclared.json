@@ -1,0 +1,136 @@
+[
+  {
+    "event": "GameEventBlockersDeclared",
+    "defendingPlayer": {
+      "kind": "player",
+      "id": 0
+    },
+    "blockers": [
+      {
+        "key": {
+          "kind": "player",
+          "id": 0
+        },
+        "value": [
+          {
+            "key": {
+              "ref": {
+                "kind": "card",
+                "id": 105
+              },
+              "name": "Riftwing Cloudskate",
+              "imageKey": "c:Riftwing Cloudskate|TSP|1",
+              "preserveSnapshot": true
+            },
+            "values": [
+              {
+                "ref": {
+                  "kind": "card",
+                  "id": 105
+                },
+                "name": "Riftwing Cloudskate",
+                "imageKey": "c:Riftwing Cloudskate|TSP|1",
+                "preserveSnapshot": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "event": "GameEventBlockersDeclared",
+    "defendingPlayer": {
+      "kind": "player",
+      "id": 1
+    },
+    "blockers": [
+      {
+        "key": {
+          "kind": "player",
+          "id": 1
+        },
+        "value": []
+      },
+      {
+        "key": {
+          "ref": {
+            "kind": "card",
+            "id": 108
+          },
+          "name": "Jaya Ballard",
+          "imageKey": "c:Jaya Ballard|C21|1",
+          "preserveSnapshot": true
+        },
+        "value": [
+          {
+            "key": {
+              "ref": {
+                "kind": "card",
+                "id": 52
+              },
+              "name": "Volcanic Dragon",
+              "imageKey": "c:Volcanic Dragon|M19|1",
+              "preserveSnapshot": true
+            },
+            "values": [
+              {
+                "ref": {
+                  "kind": "card",
+                  "id": 52
+                },
+                "name": "Volcanic Dragon",
+                "imageKey": "c:Volcanic Dragon|M19|1",
+                "preserveSnapshot": true
+              }
+            ]
+          },
+          {
+            "key": {
+              "ref": {
+                "kind": "card",
+                "id": 51
+              },
+              "name": "Kargan Dragonrider",
+              "imageKey": "c:Kargan Dragonrider|M19|1",
+              "preserveSnapshot": true
+            },
+            "values": [
+              {
+                "ref": {
+                  "kind": "card",
+                  "id": 51
+                },
+                "name": "Kargan Dragonrider",
+                "imageKey": "c:Kargan Dragonrider|M19|1",
+                "preserveSnapshot": true
+              }
+            ]
+          },
+          {
+            "key": {
+              "ref": {
+                "kind": "card",
+                "id": 50
+              },
+              "name": "Kargan Dragonrider",
+              "imageKey": "c:Kargan Dragonrider|M19|1",
+              "preserveSnapshot": true
+            },
+            "values": [
+              {
+                "ref": {
+                  "kind": "card",
+                  "id": 50
+                },
+                "name": "Kargan Dragonrider",
+                "imageKey": "c:Kargan Dragonrider|M19|1",
+                "preserveSnapshot": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

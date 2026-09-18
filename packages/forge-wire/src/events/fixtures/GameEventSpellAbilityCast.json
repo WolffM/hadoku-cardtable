@@ -1,0 +1,1133 @@
+[
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 467
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 105
+          },
+          "name": "Riftwing Cloudskate",
+          "imageKey": "c:Riftwing Cloudskate|TSP|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Riftwing Cloudskate (105): At the beginning of your upkeep, if this card is suspended, remove a time counter from it [Phase: Alice (Host AI)]"
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 4
+      },
+      "props": {
+        "Description": "At the beginning of your upkeep, if this card is suspended, remove a time counter from it [Phase: Alice (Host AI)]",
+        "Key": "Riftwing Cloudskate (105): At the beginning of your upkeep, if this card is suspended, remove a time counter from it",
+        "SourceTrigger": 50073,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 105
+          },
+          "name": "Riftwing Cloudskate",
+          "imageKey": "c:Riftwing Cloudskate|TSP|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 1
+        },
+        "TargetCards": [],
+        "TargetPlayers": [],
+        "Ability": true
+      }
+    },
+    "stackIndex": 0,
+    "targetDescription": null
+  },
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 472
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 77
+          },
+          "name": "Whispers of the Muse",
+          "imageKey": "c:Whispers of the Muse|TSB|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Draw a card.",
+        "SA_IsSpell": true
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 9
+      },
+      "props": {
+        "Description": "Whispers of the Muse (77) - Alice (Host AI) draws a card.",
+        "Key": "Whispers of the Muse (77): Draw a card.",
+        "SourceTrigger": -1,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 77
+          },
+          "name": "Whispers of the Muse",
+          "imageKey": "c:Whispers of the Muse|TSB|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 1
+        },
+        "TargetCards": [],
+        "TargetPlayers": []
+      }
+    },
+    "stackIndex": 0,
+    "targetDescription": null
+  },
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 554
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 96
+          },
+          "name": "Pardic Dragon",
+          "imageKey": "c:Pardic Dragon|TSP|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Whenever an opponent casts a spell, if Pardic Dragon is suspended, that player may put a time counter on Pardic Dragon. [Card: Whirlpool Drake (17), Activator: Bob (Capturing), SpellAbility: Whirlpool Drake - Creature 2 / 2]"
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 19
+      },
+      "props": {
+        "Description": "Whenever an opponent casts a spell, if Pardic Dragon is suspended, that player may put a time counter on Pardic Dragon. [Card: Whirlpool Drake (17), Activator: Bob (Capturing), SpellAbility: Whirlpool Drake - Creature 2 / 2]",
+        "Key": "Pardic Dragon (96): Whenever an opponent casts a spell, if Pardic Dragon is suspended, that player may put a time counter on Pardic Dragon.",
+        "SourceTrigger": 50075,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 96
+          },
+          "name": "Pardic Dragon",
+          "imageKey": "c:Pardic Dragon|TSP|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 1
+        },
+        "TargetCards": [],
+        "TargetPlayers": [],
+        "Ability": true,
+        "OptionalTrigger": true
+      }
+    },
+    "stackIndex": 1,
+    "targetDescription": null
+  },
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 560
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 17
+          },
+          "name": "Whirlpool Drake",
+          "imageKey": "c:Whirlpool Drake|APC|1",
+          "preserveSnapshot": true
+        },
+        "Description": "When Whirlpool Drake enters, shuffle the cards from your hand into your library, then draw that many cards. [Zone Changer: Whirlpool Drake (17)]"
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 20
+      },
+      "props": {
+        "Description": "When Whirlpool Drake enters, shuffle the cards from your hand into your library, then draw that many cards. [Zone Changer: Whirlpool Drake (17)]",
+        "Key": "Whirlpool Drake (17): When Whirlpool Drake enters, shuffle the cards from your hand into your library, then draw that many cards.",
+        "SourceTrigger": 50082,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 17
+          },
+          "name": "Whirlpool Drake",
+          "imageKey": "c:Whirlpool Drake|APC|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 0
+        },
+        "TargetCards": [],
+        "TargetPlayers": [],
+        "SubInstance": {
+          "ref": {
+            "kind": "stackItem",
+            "id": 21
+          },
+          "props": {
+            "Description": " Bob (Capturing) draws zero cards. ",
+            "Key": "Whirlpool Drake (17):  ",
+            "SourceTrigger": 50082,
+            "SourceCard": {
+              "ref": {
+                "kind": "card",
+                "id": 17
+              },
+              "name": "Whirlpool Drake",
+              "imageKey": "c:Whirlpool Drake|APC|1",
+              "preserveSnapshot": true
+            },
+            "ActivatingPlayer": {
+              "kind": "player",
+              "id": 0
+            },
+            "TargetCards": [],
+            "TargetPlayers": [],
+            "SubInstance": {
+              "ref": {
+                "kind": "stackItem",
+                "id": 22
+              },
+              "props": {
+                "Description": " ",
+                "Key": "Whirlpool Drake (17): ",
+                "SourceTrigger": 50082,
+                "SourceCard": {
+                  "ref": {
+                    "kind": "card",
+                    "id": 17
+                  },
+                  "name": "Whirlpool Drake",
+                  "imageKey": "c:Whirlpool Drake|APC|1",
+                  "preserveSnapshot": true
+                },
+                "ActivatingPlayer": {
+                  "kind": "player",
+                  "id": 0
+                },
+                "TargetCards": [],
+                "TargetPlayers": [],
+                "Ability": true
+              }
+            },
+            "Ability": true
+          }
+        },
+        "Ability": true
+      }
+    },
+    "stackIndex": 0,
+    "targetDescription": null
+  },
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 647
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 105
+          },
+          "name": "Riftwing Cloudskate",
+          "imageKey": "c:Riftwing Cloudskate|TSP|1",
+          "preserveSnapshot": true
+        },
+        "Description": "When Riftwing Cloudskate enters, return target permanent to its owner\u0027s hand. [Zone Changer: Riftwing Cloudskate (105)]"
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 30
+      },
+      "props": {
+        "Description": "When Riftwing Cloudskate enters, return target permanent to its owner\u0027s hand. (Targeting: [[Whirlpool Drake (17)]]) [Zone Changer: Riftwing Cloudskate (105)]",
+        "Key": "Riftwing Cloudskate (105): When Riftwing Cloudskate enters, return target permanent to its owner\u0027s hand.",
+        "SourceTrigger": 50086,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 105
+          },
+          "name": "Riftwing Cloudskate",
+          "imageKey": "c:Riftwing Cloudskate|TSP|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 1
+        },
+        "TargetCards": [
+          {
+            "ref": {
+              "kind": "card",
+              "id": 17
+            },
+            "name": "Whirlpool Drake",
+            "imageKey": "c:Whirlpool Drake|APC|1",
+            "preserveSnapshot": true
+          }
+        ],
+        "TargetPlayers": [],
+        "Ability": true
+      }
+    },
+    "stackIndex": 0,
+    "targetDescription": "[Whirlpool Drake (17)]"
+  },
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 356
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 65
+          },
+          "name": "Ignite Memories",
+          "imageKey": "c:Ignite Memories|TSP|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Target player reveals a card at random from their hand. Ignite Memories deals damage to that player equal to that card\u0027s mana value.  ",
+        "SA_IsSpell": true
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 60
+      },
+      "props": {
+        "Description": "Ignite Memories (65) - Bob (Capturing) reveals a card at random from their hand. Ignite Memories (65) deals 0 damage to Bob (Capturing). ",
+        "Key": "Ignite Memories (65): Target player reveals a card at random from their hand. Ignite Memories deals damage to that player equal to that card\u0027s mana value.  ",
+        "SourceTrigger": -1,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 65
+          },
+          "name": "Ignite Memories",
+          "imageKey": "c:Ignite Memories|TSP|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 1
+        },
+        "TargetCards": [],
+        "TargetPlayers": [
+          {
+            "kind": "player",
+            "id": 0
+          }
+        ],
+        "SubInstance": {
+          "ref": {
+            "kind": "stackItem",
+            "id": 61
+          },
+          "props": {
+            "Description": " Ignite Memories (65) deals 0 damage to Bob (Capturing). ",
+            "Key": "Ignite Memories (65):  ",
+            "SourceTrigger": -1,
+            "SourceCard": {
+              "ref": {
+                "kind": "card",
+                "id": 65
+              },
+              "name": "Ignite Memories",
+              "imageKey": "c:Ignite Memories|TSP|1",
+              "preserveSnapshot": true
+            },
+            "ActivatingPlayer": {
+              "kind": "player",
+              "id": 1
+            },
+            "TargetCards": [],
+            "TargetPlayers": [],
+            "SubInstance": {
+              "ref": {
+                "kind": "stackItem",
+                "id": 62
+              },
+              "props": {
+                "Description": " ",
+                "Key": "Ignite Memories (65): ",
+                "SourceTrigger": -1,
+                "SourceCard": {
+                  "ref": {
+                    "kind": "card",
+                    "id": 65
+                  },
+                  "name": "Ignite Memories",
+                  "imageKey": "c:Ignite Memories|TSP|1",
+                  "preserveSnapshot": true
+                },
+                "ActivatingPlayer": {
+                  "kind": "player",
+                  "id": 1
+                },
+                "TargetCards": [],
+                "TargetPlayers": [],
+                "Ability": true
+              }
+            },
+            "Ability": true
+          }
+        }
+      }
+    },
+    "stackIndex": 0,
+    "targetDescription": "[Bob (Capturing)]"
+  },
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 1211
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 60
+          },
+          "name": "Scorching Lava",
+          "imageKey": "c:Scorching Lava|INV|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Scorching Lava deals 2 damage to any target. If this spell was kicked, that creature can\u0027t be regenerated this turn and if it would die this turn, exile it instead. ",
+        "SA_IsSpell": true
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 100
+      },
+      "props": {
+        "Description": "Scorching Lava (60) - Scorching Lava (60) deals 2 damage to Keldon Halberdier (70).  If this spell was kicked, that creature can\u0027t be regenerated this turn and if it would die this turn, exile it instead ",
+        "Key": "Scorching Lava (60): Scorching Lava deals 2 damage to any target. If this spell was kicked, that creature can\u0027t be regenerated this turn and if it would die this turn, exile it instead. ",
+        "SourceTrigger": -1,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 60
+          },
+          "name": "Scorching Lava",
+          "imageKey": "c:Scorching Lava|INV|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 0
+        },
+        "TargetCards": [
+          {
+            "ref": {
+              "kind": "card",
+              "id": 70
+            },
+            "name": "Keldon Halberdier",
+            "imageKey": "c:Keldon Halberdier|TSP|1",
+            "preserveSnapshot": true
+          }
+        ],
+        "TargetPlayers": [],
+        "SubInstance": {
+          "ref": {
+            "kind": "stackItem",
+            "id": 101
+          },
+          "props": {
+            "Description": " ",
+            "Key": "Scorching Lava (60): ",
+            "SourceTrigger": -1,
+            "SourceCard": {
+              "ref": {
+                "kind": "card",
+                "id": 60
+              },
+              "name": "Scorching Lava",
+              "imageKey": "c:Scorching Lava|INV|1",
+              "preserveSnapshot": true
+            },
+            "ActivatingPlayer": {
+              "kind": "player",
+              "id": 0
+            },
+            "TargetCards": [],
+            "TargetPlayers": [],
+            "Ability": true
+          }
+        },
+        "OptionalCosts": "Kicked"
+      }
+    },
+    "stackIndex": 0,
+    "targetDescription": "[Keldon Halberdier (70)]"
+  },
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 2351
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 57
+          },
+          "name": "Arcane Denial",
+          "imageKey": "c:Arcane Denial|C16|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Counter target spell. Its controller may draw up to two cards at the beginning of the next turn\u0027s upkeep. You draw a card at the beginning of the next turn\u0027s upkeep.   ",
+        "SA_IsSpell": true
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 168
+      },
+      "props": {
+        "Description": "Arcane Denial (57) - Counter Fatal Frenzy (106). Draw a card. Draw up to two cards. ",
+        "Key": "Arcane Denial (57): Counter target spell. Its controller may draw up to two cards at the beginning of the next turn\u0027s upkeep. You draw a card at the beginning of the next turn\u0027s upkeep.   ",
+        "SourceTrigger": -1,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 57
+          },
+          "name": "Arcane Denial",
+          "imageKey": "c:Arcane Denial|C16|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 0
+        },
+        "TargetCards": [],
+        "TargetPlayers": [],
+        "SubInstance": {
+          "ref": {
+            "kind": "stackItem",
+            "id": 169
+          },
+          "props": {
+            "Description": " Draw a card. Draw up to two cards. ",
+            "Key": "Arcane Denial (57):   ",
+            "SourceTrigger": -1,
+            "SourceCard": {
+              "ref": {
+                "kind": "card",
+                "id": 57
+              },
+              "name": "Arcane Denial",
+              "imageKey": "c:Arcane Denial|C16|1",
+              "preserveSnapshot": true
+            },
+            "ActivatingPlayer": {
+              "kind": "player",
+              "id": 0
+            },
+            "TargetCards": [],
+            "TargetPlayers": [],
+            "SubInstance": {
+              "ref": {
+                "kind": "stackItem",
+                "id": 170
+              },
+              "props": {
+                "Description": " Draw up to two cards. ",
+                "Key": "Arcane Denial (57):  ",
+                "SourceTrigger": -1,
+                "SourceCard": {
+                  "ref": {
+                    "kind": "card",
+                    "id": 57
+                  },
+                  "name": "Arcane Denial",
+                  "imageKey": "c:Arcane Denial|C16|1",
+                  "preserveSnapshot": true
+                },
+                "ActivatingPlayer": {
+                  "kind": "player",
+                  "id": 0
+                },
+                "TargetCards": [],
+                "TargetPlayers": [],
+                "SubInstance": {
+                  "ref": {
+                    "kind": "stackItem",
+                    "id": 171
+                  },
+                  "props": {
+                    "Description": " ",
+                    "Key": "Arcane Denial (57): ",
+                    "SourceTrigger": -1,
+                    "SourceCard": {
+                      "ref": {
+                        "kind": "card",
+                        "id": 57
+                      },
+                      "name": "Arcane Denial",
+                      "imageKey": "c:Arcane Denial|C16|1",
+                      "preserveSnapshot": true
+                    },
+                    "ActivatingPlayer": {
+                      "kind": "player",
+                      "id": 0
+                    },
+                    "TargetCards": [],
+                    "TargetPlayers": [],
+                    "Ability": true
+                  }
+                },
+                "Ability": true
+              }
+            },
+            "Ability": true
+          }
+        }
+      }
+    },
+    "stackIndex": 1,
+    "targetDescription": "[Until end of turn, target creature you control gains trample and gets +X/+0, where X is its power. Sacrifice it at the beginning of the next end step.]"
+  },
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 2404
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 139
+          },
+          "name": "Dawn Charm",
+          "imageKey": "c:Dawn Charm|PLC|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Choose one —\r\n• Prevent all combat damage that would be dealt this turn.\r\n• Regenerate target creature.\r\n• Counter target spell that targets you.\r\n\r\n Regenerate target creature.",
+        "SA_IsSpell": true
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 175
+      },
+      "props": {
+        "Description": "Dawn Charm (139) -  Regenerate target creature. (Targeting: Spirit Token (165))",
+        "Key": "Dawn Charm (139): Choose one —\r\n• Prevent all combat damage that would be dealt this turn.\r\n• Regenerate target creature.\r\n• Counter target spell that targets you.\r\n\r\n Regenerate target creature.",
+        "SourceTrigger": -1,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 139
+          },
+          "name": "Dawn Charm",
+          "imageKey": "c:Dawn Charm|PLC|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 1
+        },
+        "TargetCards": [],
+        "TargetPlayers": [],
+        "SubInstance": {
+          "ref": {
+            "kind": "stackItem",
+            "id": 176
+          },
+          "props": {
+            "Description": " Regenerate target creature. (Targeting: Spirit Token (165))",
+            "Key": "Dawn Charm (139): Regenerate target creature.",
+            "SourceTrigger": -1,
+            "SourceCard": {
+              "ref": {
+                "kind": "card",
+                "id": 139
+              },
+              "name": "Dawn Charm",
+              "imageKey": "c:Dawn Charm|PLC|1",
+              "preserveSnapshot": true
+            },
+            "ActivatingPlayer": {
+              "kind": "player",
+              "id": 1
+            },
+            "TargetCards": [
+              {
+                "ref": {
+                  "kind": "card",
+                  "id": 165
+                },
+                "name": "Spirit Token",
+                "imageKey": "t:c_1_1_spirit|C16|1|1",
+                "preserveSnapshot": true
+              }
+            ],
+            "TargetPlayers": [],
+            "Ability": true
+          }
+        }
+      }
+    },
+    "stackIndex": 0,
+    "targetDescription": null
+  },
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 8238
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 69
+          },
+          "name": "Addle",
+          "imageKey": "c:Addle|INV|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Choose a color. Target player reveals their hand and you choose a card of that color from it. That player discards that card. ",
+        "SA_IsSpell": true
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 870
+      },
+      "props": {
+        "Description": "Addle (69) - Alice (Host AI) chooses a color. Bob (Capturing) reveals their hand. Alice (Host AI) chooses a card of that color card from it. Bob (Capturing) discards that card.",
+        "Key": "Addle (69): Choose a color. Target player reveals their hand and you choose a card of that color from it. That player discards that card. ",
+        "SourceTrigger": -1,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 69
+          },
+          "name": "Addle",
+          "imageKey": "c:Addle|INV|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 1
+        },
+        "TargetCards": [],
+        "TargetPlayers": [],
+        "SubInstance": {
+          "ref": {
+            "kind": "stackItem",
+            "id": 871
+          },
+          "props": {
+            "Description": " Bob (Capturing) reveals their hand. Alice (Host AI) chooses a card of that color card from it. Bob (Capturing) discards that card.",
+            "Key": "Addle (69): ",
+            "SourceTrigger": -1,
+            "SourceCard": {
+              "ref": {
+                "kind": "card",
+                "id": 69
+              },
+              "name": "Addle",
+              "imageKey": "c:Addle|INV|1",
+              "preserveSnapshot": true
+            },
+            "ActivatingPlayer": {
+              "kind": "player",
+              "id": 1
+            },
+            "TargetCards": [],
+            "TargetPlayers": [
+              {
+                "kind": "player",
+                "id": 0
+              }
+            ],
+            "Ability": true
+          }
+        }
+      }
+    },
+    "stackIndex": 0,
+    "targetDescription": null
+  },
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 25119
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 96
+          },
+          "name": "Cone of Flame",
+          "imageKey": "c:Cone of Flame|WTH|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Cone of Flame deals 1 damage to any target, 2 damage to another target, and 3 damage to a third target.   ",
+        "SA_IsSpell": true
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 2228
+      },
+      "props": {
+        "Description": "Cone of Flame (96) - Cone of Flame (96) deals 1 damage to Unruly Mob (60). Cone of Flame (96) deals 2 damage to Benalish Veteran (4). Cone of Flame (96) deals 3 damage to Hamlet Captain (38). ",
+        "Key": "Cone of Flame (96): Cone of Flame deals 1 damage to any target, 2 damage to another target, and 3 damage to a third target.   ",
+        "SourceTrigger": -1,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 96
+          },
+          "name": "Cone of Flame",
+          "imageKey": "c:Cone of Flame|WTH|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 1
+        },
+        "TargetCards": [
+          {
+            "ref": {
+              "kind": "card",
+              "id": 60
+            },
+            "name": "Unruly Mob",
+            "imageKey": "c:Unruly Mob|ISD|1",
+            "preserveSnapshot": true
+          }
+        ],
+        "TargetPlayers": [],
+        "SubInstance": {
+          "ref": {
+            "kind": "stackItem",
+            "id": 2229
+          },
+          "props": {
+            "Description": " Cone of Flame (96) deals 2 damage to Benalish Veteran (4). Cone of Flame (96) deals 3 damage to Hamlet Captain (38). ",
+            "Key": "Cone of Flame (96):   ",
+            "SourceTrigger": -1,
+            "SourceCard": {
+              "ref": {
+                "kind": "card",
+                "id": 96
+              },
+              "name": "Cone of Flame",
+              "imageKey": "c:Cone of Flame|WTH|1",
+              "preserveSnapshot": true
+            },
+            "ActivatingPlayer": {
+              "kind": "player",
+              "id": 1
+            },
+            "TargetCards": [
+              {
+                "ref": {
+                  "kind": "card",
+                  "id": 4
+                },
+                "name": "Benalish Veteran",
+                "imageKey": "c:Benalish Veteran|M12|1",
+                "preserveSnapshot": true
+              }
+            ],
+            "TargetPlayers": [],
+            "SubInstance": {
+              "ref": {
+                "kind": "stackItem",
+                "id": 2230
+              },
+              "props": {
+                "Description": " Cone of Flame (96) deals 3 damage to Hamlet Captain (38). ",
+                "Key": "Cone of Flame (96):  ",
+                "SourceTrigger": -1,
+                "SourceCard": {
+                  "ref": {
+                    "kind": "card",
+                    "id": 96
+                  },
+                  "name": "Cone of Flame",
+                  "imageKey": "c:Cone of Flame|WTH|1",
+                  "preserveSnapshot": true
+                },
+                "ActivatingPlayer": {
+                  "kind": "player",
+                  "id": 1
+                },
+                "TargetCards": [
+                  {
+                    "ref": {
+                      "kind": "card",
+                      "id": 38
+                    },
+                    "name": "Hamlet Captain",
+                    "imageKey": "c:Hamlet Captain|ISD|1",
+                    "preserveSnapshot": true
+                  }
+                ],
+                "TargetPlayers": [],
+                "SubInstance": {
+                  "ref": {
+                    "kind": "stackItem",
+                    "id": 2231
+                  },
+                  "props": {
+                    "Description": " ",
+                    "Key": "Cone of Flame (96): ",
+                    "SourceTrigger": -1,
+                    "SourceCard": {
+                      "ref": {
+                        "kind": "card",
+                        "id": 96
+                      },
+                      "name": "Cone of Flame",
+                      "imageKey": "c:Cone of Flame|WTH|1",
+                      "preserveSnapshot": true
+                    },
+                    "ActivatingPlayer": {
+                      "kind": "player",
+                      "id": 1
+                    },
+                    "TargetCards": [],
+                    "TargetPlayers": [],
+                    "Ability": true
+                  }
+                },
+                "Ability": true
+              }
+            },
+            "Ability": true
+          }
+        }
+      }
+    },
+    "stackIndex": 0,
+    "targetDescription": "[Unruly Mob (60)] [Benalish Veteran (4)] [Hamlet Captain (38)]"
+  },
+  {
+    "event": "GameEventSpellAbilityCast",
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 29654
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 62
+          },
+          "name": "Bounty of the Luxa",
+          "imageKey": "c:Bounty of the Luxa|C19|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Bounty of the Luxa (62): At the beginning of your first main phase, remove all flood counters from Bounty of the Luxa. If no counters were removed this way, put a flood counter on Bounty of the Luxa and draw a card. Otherwise, add {C}{G}{U}. [Phase: Bob (Capturing)]"
+      }
+    },
+    "si": {
+      "ref": {
+        "kind": "stackItem",
+        "id": 2540
+      },
+      "props": {
+        "Description": "At the beginning of your first main phase, remove all flood counters from Bounty of the Luxa. If no counters were removed this way, put a flood counter on Bounty of the Luxa and draw a card. Otherwise, add {C}{G}{U}. [Phase: Bob (Capturing)]",
+        "Key": "Bounty of the Luxa (62): At the beginning of your first main phase, remove all flood counters from Bounty of the Luxa. If no counters were removed this way, put a flood counter on Bounty of the Luxa and draw a card. Otherwise, add {C}{G}{U}.",
+        "SourceTrigger": 50083,
+        "SourceCard": {
+          "ref": {
+            "kind": "card",
+            "id": 62
+          },
+          "name": "Bounty of the Luxa",
+          "imageKey": "c:Bounty of the Luxa|C19|1",
+          "preserveSnapshot": true
+        },
+        "ActivatingPlayer": {
+          "kind": "player",
+          "id": 0
+        },
+        "TargetCards": [],
+        "TargetPlayers": [],
+        "SubInstance": {
+          "ref": {
+            "kind": "stackItem",
+            "id": 2541
+          },
+          "props": {
+            "Description": " Bob (Capturing) puts a flood counter on Bounty of the Luxa (62). Bob (Capturing) draws a card. Bob (Capturing) adds {0}. ",
+            "Key": "Bounty of the Luxa (62):    ",
+            "SourceTrigger": 50083,
+            "SourceCard": {
+              "ref": {
+                "kind": "card",
+                "id": 62
+              },
+              "name": "Bounty of the Luxa",
+              "imageKey": "c:Bounty of the Luxa|C19|1",
+              "preserveSnapshot": true
+            },
+            "ActivatingPlayer": {
+              "kind": "player",
+              "id": 0
+            },
+            "TargetCards": [],
+            "TargetPlayers": [],
+            "SubInstance": {
+              "ref": {
+                "kind": "stackItem",
+                "id": 2542
+              },
+              "props": {
+                "Description": " Bob (Capturing) draws a card. Bob (Capturing) adds {0}. ",
+                "Key": "Bounty of the Luxa (62):   ",
+                "SourceTrigger": 50083,
+                "SourceCard": {
+                  "ref": {
+                    "kind": "card",
+                    "id": 62
+                  },
+                  "name": "Bounty of the Luxa",
+                  "imageKey": "c:Bounty of the Luxa|C19|1",
+                  "preserveSnapshot": true
+                },
+                "ActivatingPlayer": {
+                  "kind": "player",
+                  "id": 0
+                },
+                "TargetCards": [],
+                "TargetPlayers": [],
+                "SubInstance": {
+                  "ref": {
+                    "kind": "stackItem",
+                    "id": 2543
+                  },
+                  "props": {
+                    "Description": " Bob (Capturing) adds {0}. ",
+                    "Key": "Bounty of the Luxa (62):  ",
+                    "SourceTrigger": 50083,
+                    "SourceCard": {
+                      "ref": {
+                        "kind": "card",
+                        "id": 62
+                      },
+                      "name": "Bounty of the Luxa",
+                      "imageKey": "c:Bounty of the Luxa|C19|1",
+                      "preserveSnapshot": true
+                    },
+                    "ActivatingPlayer": {
+                      "kind": "player",
+                      "id": 0
+                    },
+                    "TargetCards": [],
+                    "TargetPlayers": [],
+                    "SubInstance": {
+                      "ref": {
+                        "kind": "stackItem",
+                        "id": 2544
+                      },
+                      "props": {
+                        "Description": " ",
+                        "Key": "Bounty of the Luxa (62): ",
+                        "SourceTrigger": 50083,
+                        "SourceCard": {
+                          "ref": {
+                            "kind": "card",
+                            "id": 62
+                          },
+                          "name": "Bounty of the Luxa",
+                          "imageKey": "c:Bounty of the Luxa|C19|1",
+                          "preserveSnapshot": true
+                        },
+                        "ActivatingPlayer": {
+                          "kind": "player",
+                          "id": 0
+                        },
+                        "TargetCards": [],
+                        "TargetPlayers": [],
+                        "Ability": true
+                      }
+                    },
+                    "Ability": true
+                  }
+                },
+                "Ability": true
+              }
+            },
+            "Ability": true
+          }
+        },
+        "Ability": true
+      }
+    },
+    "stackIndex": 0,
+    "targetDescription": null
+  }
+]

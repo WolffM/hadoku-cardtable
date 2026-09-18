@@ -1,0 +1,11 @@
+[
+  {
+    "event": "GameEventScry",
+    "player": {
+      "kind": "player",
+      "id": 0
+    },
+    "toTop": 3,
+    "toBottom": 0
+  }
+]

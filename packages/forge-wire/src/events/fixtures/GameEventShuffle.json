@@ -1,0 +1,9 @@
+[
+  {
+    "event": "GameEventShuffle",
+    "player": {
+      "kind": "player",
+      "id": 0
+    }
+  }
+]

@@ -1,0 +1,37 @@
+[
+  {
+    "event": "GameEventCombatEnded",
+    "attackers": [],
+    "blockers": []
+  },
+  {
+    "event": "GameEventCombatEnded",
+    "attackers": [
+      {
+        "ref": {
+          "kind": "card",
+          "id": 105
+        },
+        "name": "Riftwing Cloudskate",
+        "imageKey": "c:Riftwing Cloudskate|TSP|1",
+        "preserveSnapshot": true
+      }
+    ],
+    "blockers": []
+  },
+  {
+    "event": "GameEventCombatEnded",
+    "attackers": [],
+    "blockers": [
+      {
+        "ref": {
+          "kind": "card",
+          "id": 49
+        },
+        "name": "Gwafa Hazid, Profiteer",
+        "imageKey": "c:Gwafa Hazid, Profiteer|C16|1",
+        "preserveSnapshot": true
+      }
+    ]
+  }
+]

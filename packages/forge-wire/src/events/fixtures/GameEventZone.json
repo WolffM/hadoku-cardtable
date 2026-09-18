@@ -1,0 +1,113 @@
+[
+  {
+    "event": "GameEventZone",
+    "zoneType": "Library",
+    "player": {
+      "kind": "player",
+      "id": 0
+    },
+    "mode": "ComplexUpdate",
+    "card": null,
+    "sa": null
+  },
+  {
+    "event": "GameEventZone",
+    "zoneType": "Library",
+    "player": {
+      "kind": "player",
+      "id": 0
+    },
+    "mode": "Removed",
+    "card": {
+      "ref": {
+        "kind": "card",
+        "id": 47
+      },
+      "name": "Mountain",
+      "imageKey": "c:Mountain|INV|3",
+      "preserveSnapshot": false
+    },
+    "sa": null
+  },
+  {
+    "event": "GameEventZone",
+    "zoneType": "Battlefield",
+    "player": null,
+    "mode": "ComplexUpdate",
+    "card": null,
+    "sa": null
+  },
+  {
+    "event": "GameEventZone",
+    "zoneType": "Stack",
+    "player": {
+      "kind": "player",
+      "id": 1
+    },
+    "mode": "Added",
+    "card": {
+      "ref": {
+        "kind": "card",
+        "id": 105
+      },
+      "name": "Riftwing Cloudskate",
+      "imageKey": "c:Riftwing Cloudskate|TSP|1",
+      "preserveSnapshot": true
+    },
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 467
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 105
+          },
+          "name": "Riftwing Cloudskate",
+          "imageKey": "c:Riftwing Cloudskate|TSP|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Riftwing Cloudskate (105): At the beginning of your upkeep, if this card is suspended, remove a time counter from it [Phase: Alice (Host AI)]"
+      }
+    }
+  },
+  {
+    "event": "GameEventZone",
+    "zoneType": "Stack",
+    "player": {
+      "kind": "player",
+      "id": 1
+    },
+    "mode": "Added",
+    "card": {
+      "ref": {
+        "kind": "card",
+        "id": 77
+      },
+      "name": "Whispers of the Muse",
+      "imageKey": "c:Whispers of the Muse|TSB|1",
+      "preserveSnapshot": true
+    },
+    "sa": {
+      "ref": {
+        "kind": "spellAbility",
+        "id": 472
+      },
+      "props": {
+        "HostCard": {
+          "ref": {
+            "kind": "card",
+            "id": 77
+          },
+          "name": "Whispers of the Muse",
+          "imageKey": "c:Whispers of the Muse|TSB|1",
+          "preserveSnapshot": true
+        },
+        "Description": "Draw a card.",
+        "SA_IsSpell": true
+      }
+    }
+  }
+]

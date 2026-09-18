@@ -1,0 +1,16 @@
+[
+  {
+    "event": "GameEventCardRegenerated",
+    "cards": [
+      {
+        "ref": {
+          "kind": "card",
+          "id": 165
+        },
+        "name": "Spirit Token",
+        "imageKey": "t:c_1_1_spirit|C16|1|1",
+        "preserveSnapshot": true
+      }
+    ]
+  }
+]

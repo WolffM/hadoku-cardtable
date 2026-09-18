@@ -1,0 +1,94 @@
+[
+  {
+    "event": "GameEventCardChangeZone",
+    "card": {
+      "ref": {
+        "kind": "card",
+        "id": 47
+      },
+      "name": "Mountain",
+      "imageKey": "c:Mountain|INV|3",
+      "preserveSnapshot": false
+    },
+    "from": {
+      "player": {
+        "kind": "player",
+        "id": 0
+      },
+      "zoneType": "Library"
+    },
+    "to": {
+      "player": {
+        "kind": "player",
+        "id": 0
+      },
+      "zoneType": "Hand"
+    }
+  },
+  {
+    "event": "GameEventCardChangeZone",
+    "card": {
+      "ref": {
+        "kind": "card",
+        "id": 77
+      },
+      "name": "Whispers of the Muse",
+      "imageKey": "c:Whispers of the Muse|TSB|1",
+      "preserveSnapshot": true
+    },
+    "from": {
+      "player": {
+        "kind": "player",
+        "id": 1
+      },
+      "zoneType": "Hand"
+    },
+    "to": {
+      "player": null,
+      "zoneType": "Stack"
+    }
+  },
+  {
+    "event": "GameEventCardChangeZone",
+    "card": {
+      "ref": {
+        "kind": "card",
+        "id": 77
+      },
+      "name": "Whispers of the Muse",
+      "imageKey": "c:Whispers of the Muse|TSB|1",
+      "preserveSnapshot": true
+    },
+    "from": {
+      "player": null,
+      "zoneType": "Stack"
+    },
+    "to": {
+      "player": {
+        "kind": "player",
+        "id": 1
+      },
+      "zoneType": "Graveyard"
+    }
+  },
+  {
+    "event": "GameEventCardChangeZone",
+    "card": {
+      "ref": {
+        "kind": "card",
+        "id": 139
+      },
+      "name": "Scorching Lava\u0027s Effect",
+      "imageKey": "c:Scorching Lava|INV|1",
+      "preserveSnapshot": false
+    },
+    "from": null,
+    "to": {
+      "player": {
+        "kind": "player",
+        "id": 0
+      },
+      "zoneType": "Command"
+    }
+  }
+]

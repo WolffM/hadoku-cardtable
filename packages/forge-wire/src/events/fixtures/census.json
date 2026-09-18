@@ -1,0 +1,437 @@
+{
+  "games": 100,
+  "events": 330942,
+  "runs": [
+    {
+      "games": 40,
+      "events": 154659
+    },
+    {
+      "games": 60,
+      "events": 176283
+    }
+  ],
+  "classes": {
+    "GameEventAddLog": {
+      "count": 5662,
+      "rules": [
+        "NULL",
+        "STRING",
+        "ENUM",
+        "EVENT_CARD"
+      ],
+      "javaSideHelp": false,
+      "samples": 2,
+      "fixturesCoverRun": true
+    },
+    "GameEventAttackersDeclared": {
+      "count": 1916,
+      "rules": [
+        "PLAYER_REF",
+        "EVENT_CARD",
+        "MULTIMAP"
+      ],
+      "javaSideHelp": true,
+      "samples": 3,
+      "fixturesCoverRun": true
+    },
+    "GameEventBlockersDeclared": {
+      "count": 760,
+      "rules": [
+        "MAP",
+        "PLAYER_REF",
+        "EVENT_CARD",
+        "MULTIMAP"
+      ],
+      "javaSideHelp": true,
+      "samples": 2,
+      "fixturesCoverRun": true
+    },
+    "GameEventCardAttachment": {
+      "count": 139,
+      "rules": [
+        "NULL",
+        "EVENT_CARD"
+      ],
+      "javaSideHelp": false,
+      "samples": 2,
+      "fixturesCoverRun": true
+    },
+    "GameEventCardChangeZone": {
+      "count": 9776,
+      "rules": [
+        "NULL",
+        "ENUM",
+        "RECORD",
+        "PLAYER_REF",
+        "EVENT_CARD"
+      ],
+      "javaSideHelp": false,
+      "samples": 4,
+      "fixturesCoverRun": true
+    },
+    "GameEventCardCounters": {
+      "count": 319,
+      "rules": [
+        "INT",
+        "EVENT_CARD",
+        "COUNTER_TYPE"
+      ],
+      "javaSideHelp": true,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventCardDamaged": {
+      "count": 581,
+      "rules": [
+        "INT",
+        "ENUM",
+        "EVENT_CARD"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventCardDestroyed": {
+      "count": 364,
+      "rules": [],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventCardForetold": {
+      "count": 1,
+      "rules": [
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventCardModeChosen": {
+      "count": 1,
+      "rules": [
+        "BOOL",
+        "STRING",
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventCardRegenerated": {
+      "count": 7,
+      "rules": [
+        "COLLECTION",
+        "EVENT_CARD"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventCardSacrificed": {
+      "count": 98,
+      "rules": [
+        "EVENT_CARD"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventCardStatsChanged": {
+      "count": 49736,
+      "rules": [
+        "BOOL",
+        "COLLECTION",
+        "EVENT_CARD"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventCardTapped": {
+      "count": 12522,
+      "rules": [
+        "BOOL",
+        "EVENT_CARD"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventCombatChanged": {
+      "count": 2679,
+      "rules": [],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventCombatEnded": {
+      "count": 1828,
+      "rules": [
+        "COLLECTION",
+        "EVENT_CARD"
+      ],
+      "javaSideHelp": false,
+      "samples": 3,
+      "fixturesCoverRun": true
+    },
+    "GameEventFlipCoin": {
+      "count": 105,
+      "rules": [],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventGameFinished": {
+      "count": 100,
+      "rules": [],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventGameOutcome": {
+      "count": 100,
+      "rules": [
+        "INT",
+        "STRING",
+        "COLLECTION"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventGameStarted": {
+      "count": 100,
+      "rules": [
+        "ENUM",
+        "COLLECTION",
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventLandPlayed": {
+      "count": 1379,
+      "rules": [
+        "PLAYER_REF",
+        "EVENT_CARD"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventManaPool": {
+      "count": 10266,
+      "rules": [
+        "NULL",
+        "ENUM",
+        "COLLECTION",
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 2,
+      "fixturesCoverRun": true
+    },
+    "GameEventMulligan": {
+      "count": 32,
+      "rules": [
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventPlayerControl": {
+      "count": 200,
+      "rules": [
+        "NULL",
+        "BOOL",
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventPlayerCounters": {
+      "count": 7,
+      "rules": [
+        "INT",
+        "PLAYER_REF",
+        "COUNTER_TYPE"
+      ],
+      "javaSideHelp": true,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventPlayerDamaged": {
+      "count": 1239,
+      "rules": [
+        "BOOL",
+        "INT",
+        "PLAYER_REF",
+        "EVENT_CARD"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventPlayerLivesChanged": {
+      "count": 995,
+      "rules": [
+        "INT",
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventPlayerPoisoned": {
+      "count": 7,
+      "rules": [
+        "INT",
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventPlayerPriority": {
+      "count": 38653,
+      "rules": [
+        "ENUM",
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventPlayerStatsChanged": {
+      "count": 24150,
+      "rules": [
+        "COLLECTION",
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventRollDie": {
+      "count": 4,
+      "rules": [],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventScry": {
+      "count": 22,
+      "rules": [
+        "INT",
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventShuffle": {
+      "count": 310,
+      "rules": [
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventSpellAbilityCast": {
+      "count": 2770,
+      "rules": [
+        "NULL",
+        "BOOL",
+        "INT",
+        "STRING",
+        "COLLECTION",
+        "PLAYER_REF",
+        "EVENT_CARD",
+        "TRACKABLE_INLINE"
+      ],
+      "javaSideHelp": true,
+      "samples": 12,
+      "fixturesCoverRun": true
+    },
+    "GameEventSpellRemovedFromStack": {
+      "count": 2787,
+      "rules": [
+        "BOOL",
+        "STRING",
+        "EVENT_CARD",
+        "TRACKABLE_INLINE"
+      ],
+      "javaSideHelp": true,
+      "samples": 2,
+      "fixturesCoverRun": true
+    },
+    "GameEventSpellResolved": {
+      "count": 2761,
+      "rules": [
+        "BOOL",
+        "STRING",
+        "EVENT_CARD",
+        "TRACKABLE_INLINE"
+      ],
+      "javaSideHelp": true,
+      "samples": 2,
+      "fixturesCoverRun": true
+    },
+    "GameEventTokenCreated": {
+      "count": 110,
+      "rules": [],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventTurnBegan": {
+      "count": 1924,
+      "rules": [
+        "INT",
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventTurnEnded": {
+      "count": 1824,
+      "rules": [],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventTurnPhase": {
+      "count": 24567,
+      "rules": [
+        "STRING",
+        "ENUM",
+        "PLAYER_REF"
+      ],
+      "javaSideHelp": false,
+      "samples": 1,
+      "fixturesCoverRun": true
+    },
+    "GameEventZone": {
+      "count": 130141,
+      "rules": [
+        "NULL",
+        "BOOL",
+        "STRING",
+        "ENUM",
+        "PLAYER_REF",
+        "EVENT_CARD",
+        "TRACKABLE_INLINE"
+      ],
+      "javaSideHelp": true,
+      "samples": 5,
+      "fixturesCoverRun": true
+    }
+  }
+}

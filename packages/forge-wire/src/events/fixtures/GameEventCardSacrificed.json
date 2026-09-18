@@ -1,0 +1,14 @@
+[
+  {
+    "event": "GameEventCardSacrificed",
+    "card": {
+      "ref": {
+        "kind": "card",
+        "id": 153
+      },
+      "name": "Lavacore Elemental",
+      "imageKey": "c:Lavacore Elemental|PLC|1",
+      "preserveSnapshot": true
+    }
+  }
+]

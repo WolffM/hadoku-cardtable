@@ -1,0 +1,15 @@
+[
+  {
+    "event": "GameEventPlayerPoisoned",
+    "receiver": {
+      "kind": "player",
+      "id": 0
+    },
+    "source": {
+      "kind": "player",
+      "id": 1
+    },
+    "oldValue": 0,
+    "amount": 1
+  }
+]

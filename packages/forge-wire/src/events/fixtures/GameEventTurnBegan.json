@@ -1,0 +1,10 @@
+[
+  {
+    "event": "GameEventTurnBegan",
+    "turnOwner": {
+      "kind": "player",
+      "id": 1
+    },
+    "turnNumber": 1
+  }
+]

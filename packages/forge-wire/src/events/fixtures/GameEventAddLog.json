@@ -1,0 +1,22 @@
+[
+  {
+    "event": "GameEventAddLog",
+    "type": "MULLIGAN",
+    "message": "Alice (Host AI) has kept a hand of 7 cards",
+    "sourceCard": null
+  },
+  {
+    "event": "GameEventAddLog",
+    "type": "DISCARD",
+    "message": "Bob (Capturing) discards Plains (39).",
+    "sourceCard": {
+      "ref": {
+        "kind": "card",
+        "id": 39
+      },
+      "name": "Plains",
+      "imageKey": "c:Plains|USG|2",
+      "preserveSnapshot": true
+    }
+  }
+]
