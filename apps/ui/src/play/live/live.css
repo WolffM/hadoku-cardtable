@@ -1,0 +1,66 @@
+/*
+ * The live board's own chrome: a status line, an error line, and the confirm
+ * dialog. Palette tokens from `styles.css` only; no colours of its own.
+ *
+ * The dialog is a bottom sheet, not a centred modal: on a 360px phone the
+ * board it asks about stays visible above it, and the buttons sit where a
+ * thumb is. It never covers the whole page and never scrolls sideways.
+ */
+
+.live__status,
+.live__error,
+.live__waiting {
+  margin: 0;
+  padding: 6px 16px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.live__error {
+  color: var(--warn);
+}
+
+.confirm {
+  position: fixed;
+  z-index: 2;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 45%);
+}
+
+.confirm__title {
+  font-size: 14px;
+}
+
+.confirm__message {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirm__button {
+  min-width: 88px;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.confirm__button[data-default] {
+  border-color: var(--accent);
+}

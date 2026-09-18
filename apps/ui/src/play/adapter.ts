@@ -5,7 +5,9 @@
  * property bags. This module is the only place that knows which of those
  * properties mean "battlefield" or "life", and it is the seam the fixture
  * discipline buys: the components under `./Board.tsx` render a `BoardView` and
- * cannot tell whether it came from a committed fixture or, later, a socket.
+ * cannot tell whether it came from a committed fixture (`./fixtures.ts`) or a
+ * live match over a socket (`./live/match.ts`). Both call `toBoardView` the
+ * same way, and `./live/parity.test.ts` holds them to identical markup.
  *
  * ## Where each zone comes from
  *
@@ -46,7 +48,13 @@
  *   not have). Nothing here builds an image URL.
  * - **No collector number.** Left empty.
  * - **Which player is "me".** That is `openView(myPlayers)`, not a delta, so
- *   the caller passes `viewerPlayerId`.
+ *   the caller passes `viewerPlayerId`. The fixture records it beside the
+ *   capture; a live match takes it from the server's `MatchSnapshot.playerId`
+ *   and never infers it from the state.
+ *
+ * An id that names no player in the game makes NO seat the viewer, so every
+ * hand is a count. That is the safe failure: a wrong or missing viewer hides a
+ * hand rather than showing one.
  */
 
 import type { DraftCard, ManaColor, Rarity } from '@hadoku/shared';
