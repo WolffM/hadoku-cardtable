@@ -292,6 +292,72 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
+## Verified this pass (2026-09-18 — tracker, closing Wave 11 from artifacts)
+
+**The w11 worktree, branch and directory are all gone, and the closing notes
+were never pasted.** That cost nothing. The protocol's own rule is that the
+commits, the gates and the deployed tree *are* the report and the prose never
+was — so this close is built entirely from artifacts I re-ran myself.
+
+All four lanes landed on `main`, and **every lane stayed inside its declared
+files** (checked with `git show --name-only` per commit):
+
+| lane | commit | done-when | verdict |
+| --- | --- | --- | --- |
+| A | `fe17cfd` | resyncs proportional to genuine gaps, before/after both quoted | **met — and better than the target.** See below |
+| B | `0100177` | two contexts play a real match, prompts answered from both seats | **met.** `play.spec.ts` passes in 35.6 s |
+| C | `ce9fe9c` | the guard's status settled and stated; flicker fixed or explained | **met**, and honestly — see below |
+| D | `debd2c2` | a constructed match starts from the UI with a validated deck | **met**, narrower than its row |
+
+### Lane A — measured, not accepted
+
+The done-when needed live data, so the tracker ran `pnpm e2e` and read
+`e2e/.run/summary.json` directly rather than taking a number on trust:
+
+```
+serverPicks: 90, serverResyncs: 0
+```
+
+Before was **90/90** — every round a gap, a dropped update and a snapshot
+request. It is now **90/0**. Not "proportional to genuine gaps" but zero of
+them, because with `carries: 'full-state'` on the envelope there are no genuine
+gaps in a draft. `passDirections` still alternates (`alice→bob, bob→alice,
+alice→bob`), so the wheel and the pass order survived the change.
+
+### Lane D fixed a sharper bug than its title
+
+"The deck the gate checks is the deck Forge plays" is a **format-gate bypass**.
+`parseDck` and Forge's own reader disagree about where a section ends on certain
+characters (tab, LF and friends), so a crafted `.dck` could be validated as one
+deck and played as another. The fix refuses the text wherever the two readers
+would split it differently, rather than patching either parser to match.
+
+Its row also allocated `apps/ui/src/screens/**` and the lane touched none of it.
+**Not a miss** — the constructed screens landed in Wave 10 (`0a92f13`), so only
+the server half was outstanding. The wave file over-allocated; the lane was
+right to leave it alone.
+
+### Lane C said what it could not prove
+
+Wave 10's finding 3 was that the refresh guard is never exercised in a real
+browser — the seat reservation does the work, and on loopback the old socket's
+close lands *before* the new join. C did not manufacture a test to hide that. It
+documented that the guard still earns its place for the ordering it protects
+against, fixed the flicker via the reservation path, and left the guard covered
+by its unit test. That is the correct outcome for a "settled and stated"
+done-when.
+
+### The suite, re-run by the tracker
+
+`pnpm e2e` — **4 passed (1.8m)**, plus `isolation.test.ts` 8/8 with all six
+mutations failing as designed. The play run used **real Standard decks**: Ben
+Stark's Mystic Caw-Go v Naoki Nakada's Mystic Caw-Go, PT Paris 2011, format
+`2011-02-13`. It reached turn 5, cast `Mana Leak` and `Spreading Seas`, answered
+a real coin-toss prompt from Forge, took 39 and 40 acts from the two seats, and
+finished with `serverRefused: []` and **`jvmsLeft: []`**.
+
+CI green on `367f963`; the local gate is 1,645 passing / 5 skipped.
+
 ## Verified this pass (2026-09-18 — tracker, Forge jar install)
 
 **Play is live in production.** The half hadoku_site assigned to us is done, and
