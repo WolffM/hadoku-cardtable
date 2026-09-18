@@ -84,8 +84,53 @@ export const PT_PARIS_2011_STANDARD: LibraryCollection = {
   ],
 };
 
+
+/**
+ * Pro Tour Dark Ascension 2012, the Standard portion — the complete Top 8.
+ *
+ * The second collection, and chosen for a reason the first cannot serve: the
+ * operator's first real test is **playing a Standard game against someone**, in
+ * the window between New Phyrexia and Return to Ravnica. Paris 2011 is a
+ * different format (Scars/Zendikar, pre-New Phyrexia) and four of its eight
+ * decks are illegal after the 2011-07-01 bans, which makes it a fine ban-path
+ * regression test and a poor thing to actually play.
+ *
+ * The snapshot in force is `Standard (DKA)` — **SOM, MBS, NPH, M12, ISD, DKA,
+ * no bans** — which is the Innistrad-era format at its most recognisable:
+ * Kessig Wolf Run ramp, three flavours of Delver, and Birthing Pod.
+ *
+ * Five archetypes across eight decks, so two people can pick genuinely
+ * different decks. As with Paris, this is a complete Top 8 rather than a
+ * hand-picked eight: membership has an unambiguous test.
+ *
+ * Every card was resolved against the real corpus restricted to those six sets
+ * before the files were written — **zero cards failed**, which is why the set
+ * code on every line is derived rather than guessed.
+ */
+export const PT_DARK_ASCENSION_2012_STANDARD: LibraryCollection = {
+  id: 'pt-dark-ascension-2012-standard',
+  directory: `${DECKS_ROOT}/standard-2012-02-12-pt-dark-ascension`,
+  event: 'Pro Tour Dark Ascension 2012, Standard portion, Top 8',
+  format: 'Standard (DKA)',
+  date: '2012-02-12',
+  source: 'https://www.mtgtop8.com/event?e=2518&f=ST',
+  decks: [
+    { id: 'pt-dka-2012-1-brian-kibler', file: '1-brian-kibler-kessig-titan.dck' },
+    { id: 'pt-dka-2012-2-paulo-vitor-damo-da-rosa', file: '2-paulo-vitor-damo-da-rosa-kessig-titan.dck' },
+    { id: 'pt-dka-2012-3-mamoru-nagai', file: '3-mamoru-nagai-black-kessig.dck' },
+    { id: 'pt-dka-2012-4-jon-finkel', file: '4-jon-finkel-uwb-delver.dck' },
+    { id: 'pt-dka-2012-5-lukas-blohon', file: '5-lukas-blohon-naya-pod.dck' },
+    { id: 'pt-dka-2012-6-matthew-costa', file: '6-matthew-costa-uw-delver.dck' },
+    { id: 'pt-dka-2012-7-denniz-rachid', file: '7-denniz-rachid-uw-human-delver.dck' },
+    { id: 'pt-dka-2012-8-jelger-wiegersma', file: '8-jelger-wiegersma-uwb-delver.dck' },
+  ],
+};
+
 /** Every collection in the library. */
-export const LIBRARY: readonly LibraryCollection[] = [PT_PARIS_2011_STANDARD];
+export const LIBRARY: readonly LibraryCollection[] = [
+  PT_PARIS_2011_STANDARD,
+  PT_DARK_ASCENSION_2012_STANDARD,
+];
 
 /**
  * Where a deck's file is, relative to the repo root.

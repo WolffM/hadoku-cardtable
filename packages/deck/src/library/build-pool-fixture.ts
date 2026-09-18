@@ -72,7 +72,7 @@ type IndexedCard =
   Parameters<typeof buildPrintingIndex>[0] extends Iterable<infer T> ? T : never;
 
 /** The dates frozen. See the header for why each one is here. */
-export const FIXTURE_DATES: readonly string[] = ['2011-02-13', '2011-07-01'];
+export const FIXTURE_DATES: readonly string[] = ['2011-02-13', '2011-07-01', '2012-02-12'];
 
 function arg(name: string): string | null {
   const prefix = `--${name}=`;

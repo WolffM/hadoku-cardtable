@@ -75,7 +75,11 @@ describe('the catalog and the files agree', () => {
   it('is the complete Top 8 and nothing else', () => {
     expect(PT_PARIS.decks).toHaveLength(8);
     expect(new Set(PT_PARIS.decks.map((d) => d.id)).size).toBe(8);
-    expect(libraryDeckPaths()).toHaveLength(8);
+    // `libraryDeckPaths()` spans the WHOLE library, not this collection — so it
+    // is 8 per collection. Asserting the collection's own count against a
+    // library-wide total held only while there was one collection, and broke
+    // the moment a second landed (PT Dark Ascension, 2026-09-18).
+    expect(libraryDeckPaths()).toHaveLength(LIBRARY.reduce((n, c) => n + c.decks.length, 0));
   });
 
   it('files every deck under the format and date the collection claims', () => {
@@ -323,9 +327,22 @@ describe('a deck that cannot be traced does not load', () => {
 });
 
 describe('the library as a whole', () => {
-  it('is one collection, eight decks, all of them Standard (MBS)', () => {
-    expect(LIBRARY).toHaveLength(1);
-    expect(LIBRARY.flatMap((c) => c.decks)).toHaveLength(8);
-    expect(LIBRARY.map((c) => c.format)).toEqual(['Standard (MBS)']);
+  // Pins the library's exact shape on purpose, so adding a collection is a
+  // deliberate act with a visible diff rather than something that drifts in.
+  // It caught the 2026-09-18 addition of PT Dark Ascension, which is what it is
+  // for — the failure was the test doing its job, not a regression.
+  it('is two collections, sixteen decks, one per format', () => {
+    expect(LIBRARY).toHaveLength(2);
+    expect(LIBRARY.flatMap((c) => c.decks)).toHaveLength(16);
+    expect(LIBRARY.map((c) => c.format)).toEqual(['Standard (MBS)', 'Standard (DKA)']);
+  });
+
+  it('every collection is a complete Top 8', () => {
+    for (const c of LIBRARY) expect(c.decks, c.id).toHaveLength(8);
+  });
+
+  it('every deck id is unique across collections', () => {
+    const ids = LIBRARY.flatMap((c) => c.decks.map((d) => d.id));
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
