@@ -1,0 +1,18 @@
+Language 'en-US' loaded successfully.
+(ThreadUtil first call): Running with priority 5
+Read cards: 33752 files in 0 ms (25 parts) using thread pool
+Read cards: 848 files in 0 ms (8 parts) using thread pool
+STARTED round 0: 8 match(es) at uptime 3521 ms
+Correcting zone for Ivorytusk Fortress (25)
+Vodalian Illusionist Did not have activator set in SpellAbilityRestriction.canPlay()
+MATCH r0/0 win@t21/28215ms
+MATCH r0/1 win@t17/2581ms
+MATCH r0/2 win@t21/27527ms
+MATCH r0/3 win@t22/12531ms
+Vodalian Illusionist Did not have activator set in SpellAbilityRestriction.canPlay()
+Vodalian Illusionist Did not have activator set in SpellAbilityRestriction.canPlay()
+MATCH r0/4 win@t24/56343ms
+MATCH r0/5 win@t17/10029ms
+MATCH r0/6 win@t13/3109ms
+MATCH r0/7 win@t17/2811ms
+RESULT	matches=8	xmx_mb=256	gc=G1_Young_Generation+G1_Concurrent_GC+G1_Old_Generation	jvm_to_main_ms=34	lazy_card_scripts=false	init_ms=3301	ready_uptime_ms=3340	decks=Abzan Siege|Air Forces	heap_idle_mb=170	heap_idle_committed_mb=256	rss_idle_mb=388	pss_idle_mb=385	play_wall_ms=56422	match_ms_median=12531	match_ms_max=56343	heap_peak_used_mb=250	heap_peak_committed_mb=256	rss_hwm_mb=549	heap_held_mb=242	heap_held_committed_mb=256	rss_held_mb=538	pss_held_mb=535	games_held=8	heap_released_mb=184	rss_released_mb=538	rounds=1	heap_released_by_round_mb=184	rss_released_by_round_mb=538	rss_hwm_final_mb=549	gc_count=2353	gc_ms=51318	ok=8	failed=0	outcomes=win@t21/28215ms,win@t17/2581ms,win@t21/27527ms,win@t22/12531ms,win@t24/56343ms,win@t17/10029ms,win@t13/3109ms,win@t17/2811ms	total_uptime_ms=60130

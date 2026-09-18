@@ -1,0 +1,25 @@
+[0.001s][info][gc] Using G1
+[0.233s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 29M->9M(512M) 3.880ms
+[0.309s][info][gc] GC(1) Pause Young (Normal) (G1 Evacuation Pause) 38M->17M(512M) 3.907ms
+[0.395s][info][gc] GC(2) Pause Young (Normal) (G1 Evacuation Pause) 63M->31M(512M) 9.692ms
+[0.596s][info][gc] GC(3) Pause Young (Normal) (G1 Evacuation Pause) 86M->43M(512M) 13.713ms
+[0.637s][info][gc] GC(4) Pause Young (Normal) (G1 Evacuation Pause) 120M->51M(512M) 10.230ms
+[0.769s][info][gc] GC(5) Pause Young (Normal) (G1 Evacuation Pause) 351M->75M(512M) 44.120ms
+[0.879s][info][gc] GC(6) Pause Young (Normal) (G1 Evacuation Pause) 351M->98M(512M) 41.103ms
+[0.971s][info][gc] GC(7) Pause Young (Normal) (G1 Evacuation Pause) 381M->122M(512M) 13.275ms
+[1.780s][info][gc] GC(8) Pause Young (Normal) (G1 Evacuation Pause) 405M->158M(512M) 11.702ms
+[3.684s][info][gc] GC(9) Pause Young (Normal) (G1 Evacuation Pause) 442M->200M(512M) 17.298ms
+[3.950s][info][gc] GC(10) Pause Full (System.gc()) 221M->170M(512M) 70.473ms
+[4.016s][info][gc] GC(11) Pause Full (System.gc()) 170M->170M(512M) 65.581ms
+[4.353s][info][gc] GC(12) Pause Young (Concurrent Start) (Metadata GC Threshold) 214M->178M(512M) 1.870ms
+[4.353s][info][gc] GC(13) Concurrent Mark Cycle
+[4.408s][info][gc] GC(13) Pause Remark 191M->191M(512M) 0.923ms
+[4.427s][info][gc] GC(13) Pause Cleanup 198M->198M(512M) 0.090ms
+[4.428s][info][gc] GC(13) Concurrent Mark Cycle 74.445ms
+[4.900s][info][gc] GC(14) Pause Young (Prepare Mixed) (G1 Evacuation Pause) 447M->177M(512M) 3.706ms
+[5.222s][info][gc] GC(15) Pause Young (Mixed) (G1 Evacuation Pause) 455M->179M(512M) 5.618ms
+[5.666s][info][gc] GC(16) Pause Full (System.gc()) 460M->178M(512M) 115.189ms
+[5.781s][info][gc] GC(17) Pause Full (System.gc()) 180M->178M(512M) 109.037ms
+[5.901s][info][gc] GC(18) Pause Full (System.gc()) 178M->178M(512M) 120.105ms
+[6.019s][info][gc] GC(19) Pause Full (System.gc()) 179M->172M(512M) 110.552ms
+[6.080s][info][gc] GC(20) Pause Full (System.gc()) 172M->172M(512M) 60.178ms

@@ -1,0 +1,19 @@
+experiment	victim	jvm	exit	matches_reported	matches_finished	per_match	oom
+kill-shared-n4	the-jvm	kill-shared-n4-r1	137	0	0	-	
+kill-shared-n4	the-jvm	kill-shared-n4-r2	137	0	0	-	
+kill-shared-n4	the-jvm	kill-shared-n4-r3	137	0	0	-	
+kill-many-n4	j0	kill-many-n4-r1-j0	137	0	0	-	
+kill-many-n4	j0	kill-many-n4-r1-j1	0	1	1	r0/0 win@t12/1985ms	
+kill-many-n4	j0	kill-many-n4-r1-j2	0	1	1	r0/0 win@t18/3172ms	
+kill-many-n4	j0	kill-many-n4-r1-j3	0	1	1	r0/0 win@t26/3880ms	
+kill-many-n4	j0	kill-many-n4-r2-j0	137	0	0	-	
+kill-many-n4	j0	kill-many-n4-r2-j1	0	1	1	r0/0 win@t16/2975ms	
+kill-many-n4	j0	kill-many-n4-r2-j2	0	1	1	r0/0 win@t16/3754ms	
+kill-many-n4	j0	kill-many-n4-r2-j3	0	1	1	r0/0 win@t20/3270ms	
+kill-many-n4	j0	kill-many-n4-r3-j0	137	0	0	-	
+kill-many-n4	j0	kill-many-n4-r3-j1	0	1	1	r0/0 win@t23/3974ms	
+kill-many-n4	j0	kill-many-n4-r3-j2	0	1	1	r0/0 win@t13/2050ms	
+kill-many-n4	j0	kill-many-n4-r3-j3	0	1	1	r0/0 win@t17/3001ms	
+oom-shared-n8-256m	-	oom-shared-n8-256m-r1	0	8	8	r0/0 win@t21/28215ms;r0/1 win@t17/2581ms;r0/2 win@t21/27527ms;r0/3 win@t22/12531ms;r0/4 win@t24/56343ms;r0/5 win@t17/10029ms;r0/6 win@t13/3109ms;r0/7 win@t17/2811ms	
+oom-shared-n8-256m	-	oom-shared-n8-256m-r2	1	8	6	r0/0 win@t18/22314ms;r0/1 THREW:OutOfMemoryError;r0/2 THREW:OutOfMemoryError;r0/3 win@t21/87566ms;r0/4 win@t21/54772ms;r0/5 win@t18/4497ms;r0/6 win@t16/2580ms;r0/7 win@t17/4846ms	java.lang.OutOfMemoryError: Java heap space
+oom-shared-n8-256m	-	oom-shared-n8-256m-r3	1	8	3	r0/0 THREW:OutOfMemoryError;r0/1 win@t12/2308ms;r0/2 THREW:OutOfMemoryError;r0/3 THREW:OutOfMemoryError;r0/4 THREW:OutOfMemoryError;r0/5 win@t16/9009ms;r0/6 THREW:OutOfMemoryError;r0/7 win@t16/12172ms	java.lang.OutOfMemoryError: Java heap space

@@ -1,0 +1,12 @@
+FORGE_DIR=/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w9-manager/forge stage -> exit=2 refused-by-guard=yes   [expected exit=2, yes]
+FORGE_DIR=/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w9-manager/forge shared -> exit=2 refused-by-guard=yes   [expected exit=2, yes]
+FORGE_DIR=/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w9-manager/forge stage -> exit=2 refused-by-guard=yes   [expected exit=2, yes]
+FORGE_DIR=/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w9-manager/forge shared -> exit=2 refused-by-guard=yes   [expected exit=2, yes]
+FORGE_DIR=/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w9-manager/forge/../forge stage -> exit=2 refused-by-guard=yes   [expected exit=2, yes]
+FORGE_DIR=/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w9-manager/forge/../forge shared -> exit=2 refused-by-guard=yes   [expected exit=2, yes]
+FORGE_DIR=/home/hadoku/.cache/cardtable-w9-d/work/forge-symlink-to-vendored stage -> exit=2 refused-by-guard=yes   [expected exit=2, yes]
+FORGE_DIR=/home/hadoku/.cache/cardtable-w9-d/work/forge-symlink-to-vendored shared -> exit=2 refused-by-guard=yes   [expected exit=2, yes]
+target/ dirs in vendored forge/: before=0 after=0
+forge/ pristine: 0 tracked changes, 0 target/ dirs (both checked).
+forge/ HEAD 2ad70eb447a22efe5b80904c07188311da034a42
+guard-test exit=0

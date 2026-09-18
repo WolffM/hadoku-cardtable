@@ -1,0 +1,966 @@
+Language 'en-US' loaded successfully.
+(ThreadUtil first call): Running with priority 5
+Read cards: 33752 files in 0 ms (25 parts) using thread pool
+Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.
+The card A-Alrund's Epiphany was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Baba Lysaga, Night Witch was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Divide by Zero was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Esika's Chariot was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Faceless Haven was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Fires of Invention was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Goldspan Dragon was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Hullbreaker Horror was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Kumano Faces Kakkazan was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Luminarch Aspirant was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Monster Manual was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Omnath, Locus of Creation was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-The Meathook Massacre was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Unholy Heat was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Blinding Radiance was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Goblin Bruiser was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Ogre Painbringer was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Titanic Pelagosaur was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Treetop Recluse was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.
+Read cards: 848 files in 0 ms (8 parts) using thread pool
+23:51:05 [INFO ] TestUtils: [TestConfig] checksum=stable, deltasync=on
+[A] starting a 2-player, 1-remote-client match
+23:51:05 [INFO ] TestUtils: [TestConfig] checksum=stable, deltasync=on
+23:51:05 [INFO ] UnifiedNetworkHarness: Starting 2-player game with 1 remote clients on port 50000
+23:51:05 [INFO ] FServerManager: Starting Multiplayer Server
+23:51:05 [INFO ] UnifiedNetworkHarness: ================================================================================
+23:51:05 [INFO ] UnifiedNetworkHarness: SERVER INSTANCE STARTED
+23:51:05 [INFO ] UnifiedNetworkHarness:   Scenario: RemoteNetwork
+23:51:05 [INFO ] UnifiedNetworkHarness:   Players:  2 (remote clients: 1)
+23:51:05 [INFO ] UnifiedNetworkHarness:   Port:     50000
+23:51:05 [INFO ] UnifiedNetworkHarness:   Time:     2026-09-17 23:51:05
+23:51:05 [INFO ] UnifiedNetworkHarness: ================================================================================
+[TestDeckLoader] Selected random precon: MTGA Wrath of Mages
+[TestDeckLoader] Selected random precon: Weapons and Wards
+23:51:05 [INFO ] UnifiedNetworkHarness: Slot 0: Alice (Host AI) (AI host) with MTGA Wrath of Mages
+23:51:05 [INFO ] UnifiedNetworkHarness: Slot 1: OPEN for remote client (deck: Weapons and Wards)
+23:51:07 [INFO ] HeadlessNetworkClient: Connecting to localhost:50000 as 'Bob (Remote)'
+23:51:07 [INFO ] FServerManager$RegisterClientHandler: Client connected to server at /127.0.0.1:34062
+23:51:07 [INFO ] UnifiedNetworkHarness: Lobby message from null: Bob (Remote) joined the lobby.
+23:51:07 [INFO ] HeadlessNetworkClient$ClientLobbyListener: Chat: null: Bob (Remote) joined the lobby.
+23:51:07 [INFO ] GameProtocolHandler: Received: Bob (Remote) joined the lobby.
+23:51:07 [INFO ] HeadlessNetworkClient$ClientLobbyListener: Chat: null: AFK timeout: 5:00
+23:51:07 [INFO ] GameProtocolHandler: Received: AFK timeout: 5:00
+23:51:07 [INFO ] GameProtocolHandler: Received: forge.gamemodes.net.event.LoginEvent@24d2a8b8
+23:51:07 [INFO ] GameProtocolHandler: Received: forge.gamemodes.net.event.LoginEvent@d3ad3bf
+23:51:07 [INFO ] HeadlessNetworkClient$ClientLobbyListener: Lobby update: assigned to slot 1 (previous=-1)
+23:51:07 [INFO ] GameProtocolHandler: Received: forge.gamemodes.net.event.LobbyUpdateEvent@3a5f1937
+23:51:07 [INFO ] HeadlessNetworkClient: Connected successfully, assigned slot 1
+23:51:07 [INFO ] UnifiedNetworkHarness: Client 0 (Bob (Remote)) connected to slot 1
+[B] starting a 2-player, 1-remote-client match
+23:51:07 [INFO ] TestUtils: [TestConfig] checksum=stable, deltasync=on
+23:51:07 [INFO ] UnifiedNetworkHarness: Starting 2-player game with 1 remote clients on port 50010
+23:51:07 [INFO ] FServerManager: Starting Multiplayer Server
+23:51:07 [ERROR] UnifiedNetworkHarness: Remote game failed: Hook previously registered
+java.lang.IllegalArgumentException: Hook previously registered
+	at java.base/java.lang.ApplicationShutdownHooks.add(ApplicationShutdownHooks.java:73)
+	at java.base/java.lang.Runtime.addShutdownHook(Runtime.java:250)
+	at forge.gamemodes.net.server.FServerManager.startServer(FServerManager.java:276)
+	at forge.net.UnifiedNetworkHarness.executeRemoteGame(UnifiedNetworkHarness.java:270)
+	at forge.net.UnifiedNetworkHarness.execute(UnifiedNetworkHarness.java:158)
+	at spike.jvm.TwoNetMatches.run(TwoNetMatches.java:63)
+	at spike.jvm.TwoNetMatches.lambda$main$1(TwoNetMatches.java:40)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+23:51:07 [INFO ] UnifiedNetworkHarness: Cleaning up...
+23:51:07 [INFO ] UnifiedNetworkHarness: Cleanup complete
+23:51:07 [INFO ] UnifiedNetworkHarness: Remote game result: GameResult[2-player network, format=Constructed, success=false, started=false, completed=false, players=2, remoteClients=1, turns=0, winner=null, deltas=0, bytes=0, error=Hook previously registered]
+23:51:07 [INFO ] HeadlessNetworkClient: Sending ready status
+23:51:07 [INFO ] HeadlessNetworkClient: Applied ready status to local lobby slot 1
+23:51:07 [INFO ] FGameClient: Client sent forge.gamemodes.net.event.UpdateLobbyPlayerEvent@5d20f64a
+23:51:07 [INFO ] UnifiedNetworkHarness: Client 0 (Bob (Remote)) marked ready
+23:51:07 [INFO ] UnifiedNetworkHarness: Lobby message from null: Bob (Remote) is ready (1/1 players ready)
+23:51:07 [INFO ] HeadlessNetworkClient$ClientLobbyListener: Chat: null: Bob (Remote) is ready (1/1 players ready)
+23:51:07 [INFO ] GameProtocolHandler: Received: Bob (Remote) is ready (1/1 players ready)
+23:51:08 [INFO ] UnifiedNetworkHarness: Client 0 ready (1/1 connected)
+23:51:08 [INFO ] UnifiedNetworkHarness: Connection attempts: 1/1 connected successfully
+23:51:09 [INFO ] UnifiedNetworkHarness: Lobby state before game start:
+23:51:09 [INFO ] UnifiedNetworkHarness:   Slot 0: type=AI, name=Alice (Host AI), deck=MTGA Wrath of Mages, ready=true
+23:51:09 [INFO ] UnifiedNetworkHarness:   Slot 1: type=REMOTE, name=Bob (Remote), deck=Weapons and Wards, ready=true
+23:51:09 [INFO ] HeadlessGuiDesktop: ================================================================================
+23:51:09 [INFO ] HeadlessGuiDesktop: TESTING ENVIRONMENT - HeadlessGuiDesktop Active
+23:51:09 [INFO ] HeadlessGuiDesktop: This log was created from automated test infrastructure.
+23:51:09 [INFO ] HeadlessGuiDesktop: ================================================================================
+Unable to load music file: res/music/match/Failing Defense.mp3
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Network game event listener initialized
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Client 1: Fallback to full state - useDeltaSync=true, initialSyncSent=false
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 0: setGameView (2 args)
+[HeadlessGuiDesktop] Input: Personalize Forge Gameplay: By default, Forge will refer to you as the "Human" during gameplay.
+If you would prefer a different name please enter it now.
+23:51:09 [INFO ] UnifiedNetworkHarness: Game started successfully!
+23:51:09 [INFO ] UnifiedNetworkHarness: Converting remote players to AI via FServerManager.convertToAI...
+23:51:09 [INFO ] FServerManager: [Reconnect] Converted slot 1 (Bob (Remote)) to AI controller
+23:51:09 [INFO ] FServerManager: [Reconnect] Cleared input queue for slot 1
+23:51:09 [INFO ] UnifiedNetworkHarness:   Slot 1 (Bob (Remote)): converted to AI via server.convertToAI
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 1: openView (1 args)
+23:51:09 [INFO ] HeadlessNetworkClient$DeltaLoggingGuiGame: Original game controller set for player: Bob (Remote)
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 2: setGameView (2 args)
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 3: setGameView (2 args)
+23:51:09 [INFO ] HeadlessNetworkClient: Full state sync: seq=0
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventShuffle, GameEventZone, GameEventZone, GameEventShuffle, GameEventFlipCoin, GameEventGameStarted, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 243, Deltas: 0
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #1: Delta=18420 bytes, FullState=18622 bytes, Savings=1%, StateOnlyDelta=17606 bytes, StateOnlyFull=17769 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=18420, FullState=18622, Savings=1%
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 4: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=1 (Turn 0, ?, Active=?) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=1
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 243 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=1 (5ms, 243 new, 0 deltas, 0 skipped) ===
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #1: deltas=0, new=243, estimatedBytes=161284
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 20, Deltas: 2
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 5: applyDelta (1 args)
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #2: Delta=5718 bytes, FullState=18562 bytes, Savings=69%, StateOnlyDelta=4736 bytes, StateOnlyFull=17805 bytes
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=2 (Turn 0, ?, Active=?) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=24138, FullState=37184, Savings=35%
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=2
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 20 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=2 (1ms, 20 new, 2 deltas, 0 skipped) ===
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #2: deltas=2, new=20, estimatedBytes=13850
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventShuffle, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 18, Deltas: 1
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #3: Delta=4481 bytes, FullState=18693 bytes, Savings=76%, StateOnlyDelta=3513 bytes, StateOnlyFull=17931 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=28619, FullState=55877, Savings=48%
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 6: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=3 (Turn 0, ?, Active=?) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=3
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 18 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=3 (0ms, 18 new, 1 deltas, 0 skipped) ===
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #3: deltas=1, new=18, estimatedBytes=11438
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 1 began - Alice (Host AI)'s turn
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Untap step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Upkeep step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Draw step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, precombat phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) played Highland Lake (79)
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Beginning of Combat Step phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventMulligan, GameEventAddLog, GameEventAddLog, GameEventCardStatsChanged, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventAddLog, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 5
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 7: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=4 (Turn 0, ?, Active=?) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=4
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=4 (1ms, 2 new, 5 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #4: Delta=2883 bytes, FullState=19307 bytes, Savings=85%, StateOnlyDelta=1691 bytes, StateOnlyFull=18118 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=31502, FullState=75184, Savings=58%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #4: deltas=5, new=2, estimatedBytes=1890
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Attackers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Blockers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, First Strike Damage Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Combat Damage Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End of Combat Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, postcombat phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End step phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone]
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 8: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=5 (Turn 1, COMBAT_BEGIN, Active=Alice (Host AI)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=5
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=5 (0ms, 0 new, 3 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #5: Delta=1381 bytes, FullState=19078 bytes, Savings=92%, StateOnlyDelta=406 bytes, StateOnlyFull=18121 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=32883, FullState=94262, Savings=65%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #5: deltas=3, new=0, estimatedBytes=224
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Cleanup step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 2 began - Bob (Remote)'s turn
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Untap step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Upkeep step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Draw step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, precombat phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) played Plains (31)
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 5
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 9: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=6 (Turn 1, END_OF_TURN, Active=Alice (Host AI)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=6
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=6 (1ms, 2 new, 5 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #6: Delta=2650 bytes, FullState=19057 bytes, Savings=86%, StateOnlyDelta=1656 bytes, StateOnlyFull=18069 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=35533, FullState=113319, Savings=68%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #6: deltas=5, new=2, estimatedBytes=1890
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Beginning of Combat Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Attackers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Blockers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, First Strike Damage Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Combat Damage Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End of Combat Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, postcombat phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End step phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged]
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 10: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=7 (Turn 2, MAIN1, Active=Bob (Remote)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=7
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=7 (0ms, 0 new, 3 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #7: Delta=1399 bytes, FullState=19030 bytes, Savings=92%, StateOnlyDelta=406 bytes, StateOnlyFull=18069 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=36932, FullState=132349, Savings=72%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #7: deltas=3, new=0, estimatedBytes=224
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Cleanup step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 3 began - Alice (Host AI)'s turn
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Untap step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Upkeep step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Draw step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, precombat phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardTapped, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 6
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 11: applyDelta (1 args)
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #8: Delta=3007 bytes, FullState=19252 bytes, Savings=84%, StateOnlyDelta=1982 bytes, StateOnlyFull=18240 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=39939, FullState=151601, Savings=73%
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=8 (Turn 2, END_OF_TURN, Active=Bob (Remote)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=8
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=8 (0ms, 2 new, 6 deltas, 0 skipped) ===
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) played Island (93)
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #8: deltas=6, new=2, estimatedBytes=2394
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Beginning of Combat Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Attackers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Blockers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, First Strike Damage Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Combat Damage Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End of Combat Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, postcombat phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone]
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 12: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=9 (Turn 3, MAIN1, Active=Alice (Host AI)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=9
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #9: Delta=1496 bytes, FullState=19217 bytes, Savings=92%, StateOnlyDelta=421 bytes, StateOnlyFull=18177 bytes
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=9 (0ms, 0 new, 3 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=41435, FullState=170818, Savings=75%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #9: deltas=3, new=0, estimatedBytes=274
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Cleanup step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 4 began - Bob (Remote)'s turn
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Untap step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Upkeep step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Draw step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, precombat phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 4
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 13: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=10 (Turn 3, MAIN2, Active=Alice (Host AI)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=10
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=10 (0ms, 2 new, 4 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #10: Delta=2731 bytes, FullState=19050 bytes, Savings=85%, StateOnlyDelta=1799 bytes, StateOnlyFull=18105 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=44166, FullState=189868, Savings=76%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #10: deltas=4, new=2, estimatedBytes=2086
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) played Forest (20)
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Beginning of Combat Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Attackers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Blockers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, First Strike Damage Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Combat Damage Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End of Combat Step phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone]
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 14: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=11 (Turn 4, MAIN1, Active=Bob (Remote)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=11
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=11 (0ms, 0 new, 5 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #11: Delta=1757 bytes, FullState=19499 bytes, Savings=90%, StateOnlyDelta=644 bytes, StateOnlyFull=18424 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=45923, FullState=209367, Savings=78%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #11: deltas=5, new=0, estimatedBytes=532
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, postcombat phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) cast Steadfast Cathar - Creature 2 / 1
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Steadfast Cathar
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 5
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 15: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=12 (Turn 4, COMBAT_END, Active=Bob (Remote)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=12
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=12 (0ms, 2 new, 5 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #12: Delta=3325 bytes, FullState=19828 bytes, Savings=83%, StateOnlyDelta=1723 bytes, StateOnlyFull=18185 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=49248, FullState=229195, Savings=78%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #12: deltas=5, new=2, estimatedBytes=2290
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Cleanup step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 5 began - Alice (Host AI)'s turn
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Untap step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Upkeep step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Draw step phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 4
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 16: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=13 (Turn 4, MAIN2, Active=Bob (Remote)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=13
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=13 (0ms, 2 new, 4 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #13: Delta=2758 bytes, FullState=19245 bytes, Savings=85%, StateOnlyDelta=1848 bytes, StateOnlyFull=18284 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=52006, FullState=248440, Savings=79%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #13: deltas=4, new=2, estimatedBytes=2136
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, precombat phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) played Mountain (114)
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Beginning of Combat Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Attackers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Blockers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, First Strike Damage Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Combat Damage Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End of Combat Step phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase]
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 17: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=14 (Turn 5, DRAW, Active=Alice (Host AI)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=14
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=14 (0ms, 0 new, 5 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #14: Delta=1771 bytes, FullState=19675 bytes, Savings=90%, StateOnlyDelta=642 bytes, StateOnlyFull=18559 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=53777, FullState=268115, Savings=79%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #14: deltas=5, new=0, estimatedBytes=532
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, postcombat phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) cast Guttersnipe - Creature 2 / 2
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 3, Deltas: 6
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 18: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=15 (Turn 5, COMBAT_END, Active=Alice (Host AI)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=15
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 3 new objects (phase 1a)
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #15: Delta=3365 bytes, FullState=20158 bytes, Savings=83%, StateOnlyDelta=1829 bytes, StateOnlyFull=18542 bytes
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=15 (1ms, 3 new, 6 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=57142, FullState=288273, Savings=80%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #15: deltas=6, new=3, estimatedBytes=2548
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Guttersnipe
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Cleanup step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 6 began - Bob (Remote)'s turn
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Untap step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Upkeep step phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardTapped, GameEventCardTapped, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone]
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 19: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=16 (Turn 5, MAIN2, Active=Alice (Host AI)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=16
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=16 (0ms, 0 new, 8 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #16: Delta=1896 bytes, FullState=19464 bytes, Savings=90%, StateOnlyDelta=713 bytes, StateOnlyFull=18263 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=59038, FullState=307737, Savings=80%
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Draw step phase
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #16: deltas=8, new=0, estimatedBytes=994
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, precombat phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) played Plains (30)
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 6
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 20: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=17 (Turn 6, UPKEEP, Active=Bob (Remote)) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #17: Delta=3184 bytes, FullState=19636 bytes, Savings=83%, StateOnlyDelta=1964 bytes, StateOnlyFull=18418 bytes
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=17
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=62222, FullState=327373, Savings=80%
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=17 (0ms, 2 new, 6 deltas, 0 skipped) ===
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #17: deltas=6, new=2, estimatedBytes=2294
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) cast Slayer's Cleaver
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Slayer's Cleaver
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Beginning of Combat Step phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 4
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 21: applyDelta (1 args)
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #18: Delta=3292 bytes, FullState=20009 bytes, Savings=83%, StateOnlyDelta=1870 bytes, StateOnlyFull=18468 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=65514, FullState=347382, Savings=81%
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=18 (Turn 6, MAIN1, Active=Bob (Remote)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=18
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=18 (1ms, 2 new, 4 deltas, 0 skipped) ===
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #18: deltas=4, new=2, estimatedBytes=1836
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Attackers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) declared attackers: {Alice (Host AI)=[Steadfast Cathar (50)]}
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) triggered Whenever Steadfast Cathar attacks, it gets +0/+2 until end of turn. [Attacker: Steadfast Cathar (50)]
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Steadfast Cathar
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Blockers Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) declared blockers: {Alice (Host AI)={Steadfast Cathar (50)=[Steadfast Cathar (50)]}}
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardTapped, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventSpellAbilityCast, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventBlockersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged]
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 22: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=19 (Turn 6, COMBAT_BEGIN, Active=Bob (Remote)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=19
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=19 (0ms, 0 new, 5 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #19: Delta=2269 bytes, FullState=20513 bytes, Savings=88%, StateOnlyDelta=642 bytes, StateOnlyFull=18923 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=67783, FullState=367895, Savings=81%
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, First Strike Damage Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Combat Damage Step phase
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #19: deltas=5, new=0, estimatedBytes=532
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) life: 20 -> 18
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End of Combat Step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, postcombat phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End step phase
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerDamaged, GameEventPlayerLivesChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] Sampled checksum for seq=20: hash=-1268287860, props=[TokenCard, CommanderAltType, ClassLevel, ImprintedCards, Toughness, Defense, Keywords, IsAI, SleeveArtOffset, NumDrawnThisTurn, Hand, BandsWithBlockers, Turn, StormCount, Phase]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync]   Turn: 6 (snapshot), Phase: END_OF_TURN (snapshot, current=END_OF_TURN)
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync]   Player 0 (Bob (Remote)): Life=20, Hand=4, GY=0, BF=5
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync]   Player 1 (Alice (Host AI)): Life=18, Hand=5, GY=0, BF=4
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 23: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=20 (Turn 6, COMBAT_DECLARE_BLOCKERS, Active=Bob (Remote)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=20
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=20 (0ms, 0 new, 4 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #20: Delta=1427 bytes, FullState=19301 bytes, Savings=92%, StateOnlyDelta=519 bytes, StateOnlyFull=18416 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=69210, FullState=387196, Savings=82%
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Cleanup step phase
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Checksum OK (seq=20, checksum=-1268287860)
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #20: deltas=4, new=0, estimatedBytes=392
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 7 began - Alice (Host AI)'s turn
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Untap step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Upkeep step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Draw step phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, precombat phase
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) played Mountain (109)
+23:51:09 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone]
+23:51:09 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 11
+23:51:09 [INFO ] GameProtocolHandler: Received: GuiGameEvent 24: applyDelta (1 args)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=21 (Turn 6, END_OF_TURN, Active=Bob (Remote)) ===
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=21
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:09 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=21 (0ms, 2 new, 11 deltas, 0 skipped) ===
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #21: Delta=3218 bytes, FullState=19478 bytes, Savings=83%, StateOnlyDelta=2076 bytes, StateOnlyFull=18454 bytes
+23:51:09 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=72428, FullState=406674, Savings=82%
+23:51:09 [INFO ] HeadlessNetworkClient: Delta packet #21: deltas=11, new=2, estimatedBytes=2814
+23:51:09 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) cast Ghitu Lavarunner - Creature 1 / 2
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Ghitu Lavarunner
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 4
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 25: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=22 (Turn 7, MAIN1, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=22
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #22: Delta=3226 bytes, FullState=19973 bytes, Savings=83%, StateOnlyDelta=1678 bytes, StateOnlyFull=18415 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=75654, FullState=426647, Savings=82%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=22 (0ms, 2 new, 4 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #22: deltas=4, new=2, estimatedBytes=2036
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Beginning of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Attackers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) declared attackers: {Bob (Remote)=[Guttersnipe (76)]}
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Blockers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) declared blockers: {Bob (Remote)={Guttersnipe (76)=[Guttersnipe (76)]}}
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, First Strike Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Combat Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) life: 20 -> 18
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardTapped, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventBlockersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerDamaged, GameEventPlayerLivesChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 26: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=23 (Turn 7, MAIN1, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=23
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=23 (0ms, 0 new, 4 deltas, 0 skipped) ===
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #23: Delta=1683 bytes, FullState=20107 bytes, Savings=91%, StateOnlyDelta=572 bytes, StateOnlyFull=18995 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=77337, FullState=446754, Savings=82%
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #23: deltas=4, new=0, estimatedBytes=428
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, postcombat phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Cleanup step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 8 began - Bob (Remote)'s turn
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Untap step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Upkeep step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 27: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=24 (Turn 7, COMBAT_DAMAGE, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=24
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=24 (0ms, 0 new, 9 deltas, 0 skipped) ===
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #24: Delta=1606 bytes, FullState=19267 bytes, Savings=91%, StateOnlyDelta=616 bytes, StateOnlyFull=18405 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=78943, FullState=466021, Savings=83%
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #24: deltas=9, new=0, estimatedBytes=948
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Draw step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, precombat phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) played Forest (12)
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 7
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 28: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=25 (Turn 8, UPKEEP, Active=Bob (Remote)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=25
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=25 (1ms, 2 new, 7 deltas, 0 skipped) ===
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #25: Delta=2849 bytes, FullState=19667 bytes, Savings=85%, StateOnlyDelta=1729 bytes, StateOnlyFull=18451 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=81792, FullState=485688, Savings=83%
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #25: deltas=7, new=2, estimatedBytes=1898
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) activated Equip {4} ({4}: Attach to target creature you control. Equip only as a sorcery.)
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Slayer's Cleaver
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Beginning of Combat Step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardAttachment, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 29: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=26 (Turn 8, MAIN1, Active=Bob (Remote)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=26
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=26 (0ms, 0 new, 8 deltas, 0 skipped) ===
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #26: Delta=2768 bytes, FullState=20090 bytes, Savings=86%, StateOnlyDelta=1092 bytes, StateOnlyFull=18406 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=84560, FullState=505778, Savings=83%
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #26: deltas=8, new=0, estimatedBytes=794
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Attackers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) declared attackers: {Alice (Host AI)=[Steadfast Cathar (50)]}
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) triggered Whenever Steadfast Cathar attacks, it gets +0/+2 until end of turn. [Attacker: Steadfast Cathar (50)]
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Steadfast Cathar
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Blockers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) declared blockers: {Alice (Host AI)={Steadfast Cathar (50)=[Steadfast Cathar (50)]}}
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, First Strike Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Combat Damage Step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardTapped, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventSpellAbilityCast, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventBlockersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 30: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=27 (Turn 8, COMBAT_BEGIN, Active=Bob (Remote)) ===
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #27: Delta=2261 bytes, FullState=21009 bytes, Savings=89%, StateOnlyDelta=604 bytes, StateOnlyFull=19418 bytes
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=27
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=86821, FullState=526787, Savings=83%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=27 (0ms, 0 new, 5 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #27: deltas=5, new=0, estimatedBytes=482
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) life: 18 -> 13
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, postcombat phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Cleanup step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerDamaged, GameEventPlayerLivesChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventTurnEnded]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 31: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=28 (Turn 8, COMBAT_DAMAGE, Active=Bob (Remote)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=28
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #28: Delta=1479 bytes, FullState=19465 bytes, Savings=92%, StateOnlyDelta=547 bytes, StateOnlyFull=18551 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=88300, FullState=546252, Savings=83%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=28 (0ms, 0 new, 5 deltas, 0 skipped) ===
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 9 began - Alice (Host AI)'s turn
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Untap step phase
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #28: deltas=5, new=0, estimatedBytes=582
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Upkeep step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Draw step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) cast Shivan Fire deals 2 damage to target creature. If Shivan Fire was kicked, it deals 4 damage instead.
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) triggered Whenever you cast an instant or sorcery spell, Guttersnipe deals 2 damage to each opponent. [Card: Shivan Fire (69), Activator: Alice (Host AI), SpellAbility: Shivan Fire deals 2 damage to target creature. If Shivan Fire was kicked, it deals 4 damage instead.]
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardTapped, GameEventCardTapped, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventSpellAbilityCast, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 4, Deltas: 7
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #29: Delta=4387 bytes, FullState=21292 bytes, Savings=79%, StateOnlyDelta=2621 bytes, StateOnlyFull=19309 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=92687, FullState=567544, Savings=83%
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 32: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=29 (Turn 8, CLEANUP, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=29
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 4 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=29 (0ms, 4 new, 7 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #29: deltas=7, new=4, estimatedBytes=2956
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) life: 18 -> 16
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Guttersnipe
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Shivan Fire
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventZone, GameEventPlayerDamaged, GameEventPlayerLivesChanged, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardDamaged, GameEventSpellResolved, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardDestroyed, GameEventZone, GameEventZone, GameEventCardAttachment, GameEventCardChangeZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 4, Deltas: 7
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #30: Delta=3791 bytes, FullState=19949 bytes, Savings=80%, StateOnlyDelta=2306 bytes, StateOnlyFull=18403 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=96478, FullState=587493, Savings=83%
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 33: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=30 (Turn 9, DRAW, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=30
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 4 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=30 (0ms, 4 new, 7 deltas, 0 skipped) ===
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, precombat phase
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #30: deltas=7, new=4, estimatedBytes=3506
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) played Island (89)
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) cast Draw three cards, then discard a card. 
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 4, Deltas: 8
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #31: Delta=3526 bytes, FullState=20799 bytes, Savings=83%, StateOnlyDelta=1962 bytes, StateOnlyFull=18994 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=100004, FullState=608292, Savings=83%
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 34: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=31 (Turn 9, DRAW, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=31
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 4 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=31 (0ms, 4 new, 8 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #31: deltas=8, new=4, estimatedBytes=3060
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) triggered Whenever you cast an instant or sorcery spell, Guttersnipe deals 2 damage to each opponent. [Card: Sift (74), Activator: Alice (Host AI), SpellAbility: Draw three cards, then discard a card. ]
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) life: 16 -> 14
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Guttersnipe
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventZone, GameEventSpellAbilityCast, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerDamaged, GameEventPlayerLivesChanged, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 6, Deltas: 9
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #32: Delta=4083 bytes, FullState=20588 bytes, Savings=80%, StateOnlyDelta=2582 bytes, StateOnlyFull=19068 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=104087, FullState=628880, Savings=83%
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 35: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=32 (Turn 9, MAIN1, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=32
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 6 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=32 (1ms, 6 new, 9 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #32: deltas=9, new=6, estimatedBytes=5122
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Sift
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Beginning of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Attackers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) declared attackers: {Bob (Remote)=[Guttersnipe (76), Ghitu Lavarunner (66)]}
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventAddLog, GameEventSpellResolved, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardTapped, GameEventCardTapped, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 4, Deltas: 9
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #33: Delta=4143 bytes, FullState=20981 bytes, Savings=80%, StateOnlyDelta=2598 bytes, StateOnlyFull=19385 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=108230, FullState=649861, Savings=83%
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 36: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=33 (Turn 9, MAIN1, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=33
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 4 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=33 (0ms, 4 new, 9 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #33: deltas=9, new=4, estimatedBytes=3864
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Blockers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) declared blockers: {Bob (Remote)={Guttersnipe (76)=[Guttersnipe (76)], Ghitu Lavarunner (66)=[Ghitu Lavarunner (66)]}}
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, First Strike Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Combat Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) life: 14 -> 10
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, postcombat phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventBlockersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerDamaged, GameEventPlayerDamaged, GameEventPlayerLivesChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 37: applyDelta (1 args)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #34: Delta=1666 bytes, FullState=19631 bytes, Savings=91%, StateOnlyDelta=451 bytes, StateOnlyFull=18504 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=109896, FullState=669492, Savings=83%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=34 (Turn 9, COMBAT_DECLARE_ATTACKERS, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=34
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=34 (0ms, 0 new, 5 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #34: deltas=5, new=0, estimatedBytes=382
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Cleanup step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 10 began - Bob (Remote)'s turn
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Untap step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Upkeep step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Draw step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, precombat phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 7
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #35: Delta=2630 bytes, FullState=19468 bytes, Savings=86%, StateOnlyDelta=1646 bytes, StateOnlyFull=18516 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=112526, FullState=688960, Savings=83%
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 38: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=35 (Turn 9, MAIN2, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=35
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=35 (0ms, 2 new, 7 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #35: deltas=7, new=2, estimatedBytes=2048
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) played Forest (13)
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Beginning of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Attackers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Blockers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, First Strike Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Combat Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End of Combat Step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 39: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=36 (Turn 10, MAIN1, Active=Bob (Remote)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=36
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #36: Delta=1769 bytes, FullState=20077 bytes, Savings=91%, StateOnlyDelta=651 bytes, StateOnlyFull=18942 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=114295, FullState=709037, Savings=83%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=36 (1ms, 0 new, 5 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #36: deltas=5, new=0, estimatedBytes=532
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, postcombat phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) cast Ironclad Slayer - Creature 3 / 2
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 3, Deltas: 6
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #37: Delta=3268 bytes, FullState=20554 bytes, Savings=84%, StateOnlyDelta=1795 bytes, StateOnlyFull=18948 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=117563, FullState=729591, Savings=83%
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 40: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=37 (Turn 10, COMBAT_END, Active=Bob (Remote)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=37
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 3 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=37 (0ms, 3 new, 6 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #37: deltas=6, new=3, estimatedBytes=2398
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Ironclad Slayer
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Cleanup step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 11 began - Alice (Host AI)'s turn
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Untap step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Upkeep step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 41: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=38 (Turn 10, MAIN2, Active=Bob (Remote)) ===
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #38: Delta=2080 bytes, FullState=19783 bytes, Savings=89%, StateOnlyDelta=767 bytes, StateOnlyFull=18568 bytes
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=38
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=119643, FullState=749374, Savings=84%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=38 (0ms, 0 new, 12 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #38: deltas=12, new=0, estimatedBytes=1260
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Draw step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, precombat phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) played Mountain (106)
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 6
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #39: Delta=3524 bytes, FullState=19788 bytes, Savings=82%, StateOnlyDelta=2279 bytes, StateOnlyFull=18538 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=123167, FullState=769162, Savings=83%
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 42: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=39 (Turn 11, UPKEEP, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=39
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=39 (0ms, 2 new, 6 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #39: deltas=6, new=2, estimatedBytes=2094
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) cast Repeating Barrage deals 3 damage to any target.
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) triggered Whenever you cast an instant or sorcery spell, Guttersnipe deals 2 damage to each opponent. [Card: Repeating Barrage (71), Activator: Alice (Host AI), SpellAbility: Repeating Barrage deals 3 damage to any target.]
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) life: 10 -> 8
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Guttersnipe
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventSpellAbilityCast, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerDamaged, GameEventPlayerLivesChanged, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 3, Deltas: 5
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] Sampled checksum for seq=40: hash=-1528696413, props=[PreventNextDamage, Zone, ChosenMode, NeedsUntapAnimation, Power, Toughness, Loyalty, AbilityText, AvatarIndex, SleeveIndex, SleeveArtKey, Commander, Library, BandsWithPlannedBlockers, PlayerTurn]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync]   Turn: 11 (snapshot), Phase: MAIN1 (snapshot, current=MAIN1)
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync]   Player 0 (Bob (Remote)): Life=8, Hand=3, GY=1, BF=7
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync]   Player 1 (Alice (Host AI)): Life=13, Hand=3, GY=3, BF=8
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #40: Delta=3618 bytes, FullState=20939 bytes, Savings=82%, StateOnlyDelta=1807 bytes, StateOnlyFull=19070 bytes
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 43: applyDelta (1 args)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=126785, FullState=790101, Savings=83%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=40 (Turn 11, MAIN1, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=40
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 3 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=40 (0ms, 3 new, 5 deltas, 0 skipped) ===
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Repeating Barrage
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Checksum OK (seq=40, checksum=-1528696413)
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #40: deltas=5, new=3, estimatedBytes=2208
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Beginning of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Attackers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) declared attackers: {Bob (Remote)=[Guttersnipe (76), Ghitu Lavarunner (66)]}
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Blockers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) declared blockers: {Bob (Remote)={Guttersnipe (76)=[Guttersnipe (76)], Ghitu Lavarunner (66)=[Ghitu Lavarunner (66)]}}
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCardDamaged, GameEventSpellResolved, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardDestroyed, GameEventZone, GameEventZone, GameEventCardChangeZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardTapped, GameEventCardTapped, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventBlockersDeclared, GameEventCombatChanged]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 4, Deltas: 8
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #41: Delta=3860 bytes, FullState=20669 bytes, Savings=81%, StateOnlyDelta=2295 bytes, StateOnlyFull=19129 bytes
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 44: applyDelta (1 args)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=130645, FullState=810770, Savings=83%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=41 (Turn 11, MAIN1, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=41
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 4 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=41 (1ms, 4 new, 8 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #41: deltas=8, new=4, estimatedBytes=3710
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, First Strike Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Combat Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) life: 8 -> 4
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, postcombat phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerDamaged, GameEventPlayerDamaged, GameEventPlayerLivesChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardTapped]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 45: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=42 (Turn 11, COMBAT_DECLARE_BLOCKERS, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=42
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=42 (0ms, 0 new, 6 deltas, 0 skipped) ===
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #42: Delta=1687 bytes, FullState=19609 bytes, Savings=91%, StateOnlyDelta=510 bytes, StateOnlyFull=18570 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=132332, FullState=830379, Savings=84%
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #42: deltas=6, new=0, estimatedBytes=486
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) cast Vodalian Arcanist - Creature 1 / 3
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Vodalian Arcanist
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 4
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 46: applyDelta (1 args)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #43: Delta=3106 bytes, FullState=20320 bytes, Savings=84%, StateOnlyDelta=1648 bytes, StateOnlyFull=18789 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=135438, FullState=850699, Savings=84%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=43 (Turn 11, MAIN2, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=43
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=43 (0ms, 2 new, 4 deltas, 0 skipped) ===
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End step phase
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #43: deltas=4, new=2, estimatedBytes=2036
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Cleanup step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 12 began - Bob (Remote)'s turn
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Untap step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Upkeep step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Draw step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, precombat phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 7
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 47: applyDelta (1 args)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #44: Delta=2635 bytes, FullState=19584 bytes, Savings=86%, StateOnlyDelta=1612 bytes, StateOnlyFull=18589 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=138073, FullState=870283, Savings=84%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=44 (Turn 11, MAIN2, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=44
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=44 (0ms, 2 new, 7 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #44: deltas=7, new=2, estimatedBytes=1948
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) played Plains (32)
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Beginning of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Attackers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Blockers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, First Strike Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Combat Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End of Combat Step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 48: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=45 (Turn 12, MAIN1, Active=Bob (Remote)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=45
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=45 (0ms, 0 new, 5 deltas, 0 skipped) ===
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #45: Delta=1790 bytes, FullState=19739 bytes, Savings=90%, StateOnlyDelta=615 bytes, StateOnlyFull=18606 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=139863, FullState=890022, Savings=84%
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, postcombat phase
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #45: deltas=5, new=0, estimatedBytes=532
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) cast Ulvenwald Observer - Creature 6 / 6
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 3, Deltas: 9
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 49: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=46 (Turn 12, COMBAT_END, Active=Bob (Remote)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=46
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 3 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=46 (0ms, 3 new, 9 deltas, 0 skipped) ===
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #46: Delta=3208 bytes, FullState=20537 bytes, Savings=84%, StateOnlyDelta=1818 bytes, StateOnlyFull=18983 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=143071, FullState=910559, Savings=84%
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #46: deltas=9, new=3, estimatedBytes=2610
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Ulvenwald Observer
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Cleanup step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 13 began - Alice (Host AI)'s turn
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Untap step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 50: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=47 (Turn 12, MAIN2, Active=Bob (Remote)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=47
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=47 (0ms, 0 new, 11 deltas, 0 skipped) ===
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #47: Delta=1913 bytes, FullState=19842 bytes, Savings=90%, StateOnlyDelta=709 bytes, StateOnlyFull=18646 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=144984, FullState=930401, Savings=84%
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Upkeep step phase
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #47: deltas=11, new=0, estimatedBytes=1006
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Draw step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, precombat phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Beginning of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Attackers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) declared attackers: {Bob (Remote)=[Guttersnipe (76), Ghitu Lavarunner (66), Vodalian Arcanist (115)]}
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventAttackersDeclared, GameEventCombatChanged]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 8
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 51: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=48 (Turn 13, UNTAP, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=48
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #48: Delta=2882 bytes, FullState=20300 bytes, Savings=85%, StateOnlyDelta=1759 bytes, StateOnlyFull=19262 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=147866, FullState=950701, Savings=84%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=48 (1ms, 2 new, 8 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #48: deltas=8, new=2, estimatedBytes=2052
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Blockers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) declared blockers: {Bob (Remote)={Guttersnipe (76)=[Ulvenwald Observer (51)], Ghitu Lavarunner (66)=[Ghitu Lavarunner (66)], Vodalian Arcanist (115)=[Vodalian Arcanist (115)]}}
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, First Strike Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Combat Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) life: 4 -> 1
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End of Combat Step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventBlockersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardDamaged, GameEventPlayerDamaged, GameEventPlayerDamaged, GameEventCardDamaged, GameEventPlayerLivesChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardDestroyed, GameEventZone, GameEventZone, GameEventCardChangeZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 4
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 52: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=49 (Turn 13, COMBAT_DECLARE_ATTACKERS, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=49
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #49: Delta=3148 bytes, FullState=20326 bytes, Savings=84%, StateOnlyDelta=1785 bytes, StateOnlyFull=19052 bytes
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=151014, FullState=971027, Savings=84%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=49 (0ms, 2 new, 4 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #49: deltas=4, new=2, estimatedBytes=2086
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, postcombat phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) played Mountain (113)
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 53: applyDelta (1 args)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #50: Delta=2971 bytes, FullState=19695 bytes, Savings=84%, StateOnlyDelta=1581 bytes, StateOnlyFull=18422 bytes
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=50 (Turn 13, COMBAT_END, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=50
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=153985, FullState=990722, Savings=84%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=50 (0ms, 0 new, 19 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #50: deltas=19, new=0, estimatedBytes=2188
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) cast Rowdy Crew - Creature 3 / 3
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Rowdy Crew
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) triggered When Rowdy Crew enters, draw three cards, then discard two cards at random. If two cards that share a card type are discarded this way, put two +1/+1 counters on Rowdy Crew. [Zone Changer: Rowdy Crew (85)]
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventSpellAbilityCast, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 6, Deltas: 3
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 54: applyDelta (1 args)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #51: Delta=4096 bytes, FullState=20999 bytes, Savings=80%, StateOnlyDelta=2410 bytes, StateOnlyFull=19098 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=158081, FullState=1011721, Savings=84%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=51 (Turn 13, MAIN2, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=51
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 6 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=51 (0ms, 6 new, 3 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #51: deltas=3, new=6, estimatedBytes=3748
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Rowdy Crew
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, End step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventAddLog, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventAddLog, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 6, Deltas: 7
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 55: applyDelta (1 args)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #52: Delta=4177 bytes, FullState=20108 bytes, Savings=79%, StateOnlyDelta=2718 bytes, StateOnlyFull=18661 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=162258, FullState=1031829, Savings=84%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=52 (Turn 13, MAIN2, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=52
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 6 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=52 (0ms, 6 new, 7 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #52: deltas=7, new=6, estimatedBytes=4564
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Cleanup step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 14 began - Bob (Remote)'s turn
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Untap step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Upkeep step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Draw step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, precombat phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 10
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #53: Delta=2788 bytes, FullState=19433 bytes, Savings=85%, StateOnlyDelta=1682 bytes, StateOnlyFull=18458 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=165046, FullState=1051262, Savings=84%
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 56: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=53 (Turn 13, END_OF_TURN, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=53
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=53 (1ms, 2 new, 10 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #53: deltas=10, new=2, estimatedBytes=2360
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) played Plains (35)
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) activated Equip {4} ({4}: Attach to target creature you control. Equip only as a sorcery.)
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventLandPlayed, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventCardTapped, GameEventCardStatsChanged, GameEventManaPool, GameEventAddLog, GameEventManaPool, GameEventSpellAbilityCast, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 1, Deltas: 9
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 57: applyDelta (1 args)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #54: Delta=2530 bytes, FullState=20637 bytes, Savings=87%, StateOnlyDelta=980 bytes, StateOnlyFull=18942 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=167576, FullState=1071899, Savings=84%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=54 (Turn 14, MAIN1, Active=Bob (Remote)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=54
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 1 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=54 (0ms, 1 new, 9 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #54: deltas=9, new=1, estimatedBytes=1152
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Resolved: Slayer's Cleaver
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Beginning of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Attackers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Declare Blockers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, First Strike Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Combat Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End of Combat Step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventZone, GameEventZone, GameEventCardAttachment, GameEventSpellResolved, GameEventCardStatsChanged, GameEventSpellRemovedFromStack, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 58: applyDelta (1 args)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #55: Delta=2311 bytes, FullState=20246 bytes, Savings=88%, StateOnlyDelta=1033 bytes, StateOnlyFull=18873 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=169887, FullState=1092145, Savings=84%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=55 (Turn 14, MAIN1, Active=Bob (Remote)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=55
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=55 (0ms, 0 new, 6 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #55: deltas=6, new=0, estimatedBytes=636
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Main phase, postcombat phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, End step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote)'s turn, Cleanup step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Turn 15 began - Alice (Host AI)'s turn
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Untap step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Upkeep step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Draw step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventCombatEnded, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardStatsChanged, GameEventTurnEnded, GameEventTurnBegan, GameEventTurnPhase, GameEventCardStatsChanged, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventZone, GameEventZone, GameEventCardStatsChanged, GameEventCardStatsChanged, GameEventCardChangeZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone]
+23:51:10 [INFO ] DeltaSyncManager: [DeltaSync] New objects: 2, Deltas: 11
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #56: Delta=2695 bytes, FullState=19807 bytes, Savings=86%, StateOnlyDelta=1627 bytes, StateOnlyFull=18836 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=172582, FullState=1111952, Savings=84%
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 59: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=56 (Turn 14, COMBAT_END, Active=Bob (Remote)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=56
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] Created 2 new objects (phase 1a)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=56 (0ms, 2 new, 11 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #56: deltas=11, new=2, estimatedBytes=2214
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Main phase, precombat phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Beginning of Combat Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Attackers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI) declared attackers: {Bob (Remote)=[Rowdy Crew (85), Ghitu Lavarunner (66), Vodalian Arcanist (115)]}
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Declare Blockers Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) declared blockers: {Bob (Remote)={Rowdy Crew (85)=[Ulvenwald Observer (51)], Ghitu Lavarunner (66)=[Ghitu Lavarunner (66)], Vodalian Arcanist (115)=[Vodalian Arcanist (115)]}}
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, First Strike Damage Step phase
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Alice (Host AI)'s turn, Combat Damage Step phase
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 50: [GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventCardTapped, GameEventCardTapped, GameEventCardTapped, GameEventAttackersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventBlockersDeclared, GameEventCombatChanged, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventCardStatsChanged, GameEventZone, GameEventZone, GameEventTurnPhase, GameEventTurnPhase]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 60: applyDelta (1 args)
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=57 (Turn 15, DRAW, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 50 events received with delta seq=57
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=57 (0ms, 0 new, 7 deltas, 0 skipped) ===
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #57: Delta=1835 bytes, FullState=20263 bytes, Savings=90%, StateOnlyDelta=658 bytes, StateOnlyFull=19212 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=174417, FullState=1132215, Savings=84%
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #57: deltas=7, new=0, estimatedBytes=640
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Bob (Remote) life: 1 -> -2
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Game outcome: winner = Alice (Host AI)
+23:51:10 [INFO ] NetworkGameEventListener: [GAME EVENT] Game finished
+23:51:10 [INFO ] RemoteClientGuiGame: Sending batch of 18: [GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventCardDamaged, GameEventPlayerDamaged, GameEventPlayerDamaged, GameEventCardDamaged, GameEventPlayerLivesChanged, GameEventZone, GameEventZone, GameEventZone, GameEventZone, GameEventPlayerPriority, GameEventPlayerControl, GameEventPlayerControl, GameEventGameOutcome, GameEventGameFinished]
+23:51:10 [INFO ] GameProtocolHandler: Received: GuiGameEvent 61: applyDelta (1 args)
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync] Packet #58: Delta=1370 bytes, FullState=20133 bytes, Savings=93%, StateOnlyDelta=522 bytes, StateOnlyFull=19368 bytes
+23:51:10 [INFO ] RemoteClientGuiGame: [DeltaSync]   Cumulative: Delta=175787, FullState=1152348, Savings=84%
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === START applyDelta seq=58 (Turn 15, COMBAT_DAMAGE, Active=Alice (Host AI)) ===
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] 18 events received with delta seq=58
+23:51:10 [INFO ] NetworkGuiGame: [DeltaSync] === END seq=58 (0ms, 0 new, 5 deltas, 0 skipped) ===
+23:51:10 [INFO ] HeadlessNetworkClient: Delta packet #58: deltas=5, new=0, estimatedBytes=632
+23:51:21 [INFO ] UnifiedNetworkHarness: Client metrics: deltas=58, fullSyncs=1, bytes=283652
+23:51:21 [INFO ] UnifiedNetworkHarness: Cleaning up...
+23:51:21 [INFO ] HeadlessNetworkClient: Disconnecting
+23:51:21 [INFO ] UnifiedNetworkHarness: Client 0 finished: HeadlessClient[Bob (Remote)]: deltas=58, fullSyncs=1, bytes=283652, eventMismatches=0, connected=false, gameInProgress=true
+23:51:21 [INFO ] HeadlessNetworkClient: Disconnecting
+23:51:21 [INFO ] FGameClient$LobbyUpdateHandler: [Disconnect] Channel became inactive, notifying 1 listeners
+23:51:21 [INFO ] FGameClient$LobbyUpdateHandler: [Disconnect] Remote address was: localhost/127.0.0.1:50000
+23:51:21 [INFO ] HeadlessNetworkClient$ClientLobbyListener: Connection closed by server
+23:51:21 [INFO ] HeadlessNetworkClient: Game ended. Deltas=58, FullSyncs=1, TotalBytes=283652
+23:51:25 [INFO ] UnifiedNetworkHarness: Cleanup complete
+23:51:25 [INFO ] UnifiedNetworkHarness: Remote game result: GameResult[2-player network, format=Constructed, success=true, started=true, completed=true, players=2, remoteClients=1, turns=15, winner=Alice (Host AI), deltas=58, bytes=283652, error=null]
+
+FServerManager.getInstance() is one object for the whole JVM: true
+-- match A --
+  port                 = 50000
+  gameStarted          = true
+  gameCompleted        = true
+  turnCount            = 15
+  winner               = Alice (Host AI)
+  deltaPacketsReceived = 58
+  errorMessage         = null
+-- match B --
+  port                 = 50010
+  gameStarted          = false
+  gameCompleted        = false
+  turnCount            = 0
+  winner               = null
+  deltaPacketsReceived = 0
+  errorMessage         = Hook previously registered
+
+both networked matches completed in one JVM: false
+TwoNetMatches exit=3

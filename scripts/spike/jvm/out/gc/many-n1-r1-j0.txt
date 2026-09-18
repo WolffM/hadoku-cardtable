@@ -1,0 +1,30 @@
+[0.001s][info][gc] Using G1
+[0.210s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 29M->9M(512M) 1.881ms
+[0.267s][info][gc] GC(1) Pause Young (Normal) (G1 Evacuation Pause) 38M->17M(512M) 2.178ms
+[0.336s][info][gc] GC(2) Pause Young (Normal) (G1 Evacuation Pause) 63M->31M(512M) 3.693ms
+[0.476s][info][gc] GC(3) Pause Young (Normal) (G1 Evacuation Pause) 87M->43M(512M) 3.394ms
+[0.508s][info][gc] GC(4) Pause Young (Normal) (G1 Evacuation Pause) 121M->51M(512M) 3.135ms
+[0.566s][info][gc] GC(5) Pause Young (Normal) (G1 Evacuation Pause) 310M->72M(512M) 9.134ms
+[0.616s][info][gc] GC(6) Pause Young (Normal) (G1 Evacuation Pause) 351M->95M(512M) 9.053ms
+[0.758s][info][gc] GC(7) Pause Young (Normal) (G1 Evacuation Pause) 377M->119M(512M) 7.660ms
+[1.326s][info][gc] GC(8) Pause Young (Normal) (G1 Evacuation Pause) 402M->152M(512M) 8.343ms
+[2.951s][info][gc] GC(9) Pause Young (Normal) (G1 Evacuation Pause) 438M->194M(512M) 11.622ms
+[3.502s][info][gc] GC(10) Pause Full (System.gc()) 251M->170M(512M) 57.508ms
+[3.562s][info][gc] GC(11) Pause Full (System.gc()) 170M->170M(512M) 60.277ms
+[3.951s][info][gc] GC(12) Pause Young (Concurrent Start) (Metadata GC Threshold) 223M->178M(512M) 1.829ms
+[3.951s][info][gc] GC(13) Concurrent Mark Cycle
+[4.004s][info][gc] GC(13) Pause Remark 192M->192M(512M) 0.894ms
+[4.019s][info][gc] GC(13) Pause Cleanup 198M->198M(512M) 0.051ms
+[4.019s][info][gc] GC(13) Concurrent Mark Cycle 67.765ms
+[4.310s][info][gc] GC(14) Pause Young (Prepare Mixed) (G1 Evacuation Pause) 447M->178M(512M) 1.224ms
+[4.563s][info][gc] GC(15) Pause Young (Mixed) (G1 Evacuation Pause) 456M->180M(512M) 4.034ms
+[4.746s][info][gc] GC(16) Pause Young (Normal) (G1 Evacuation Pause) 464M->182M(512M) 2.280ms
+[4.945s][info][gc] GC(17) Pause Young (Normal) (G1 Evacuation Pause) 472M->182M(512M) 2.042ms
+[5.136s][info][gc] GC(18) Pause Young (Normal) (G1 Evacuation Pause) 476M->184M(512M) 2.131ms
+[5.329s][info][gc] GC(19) Pause Young (Normal) (G1 Evacuation Pause) 477M->184M(512M) 2.326ms
+[5.521s][info][gc] GC(20) Pause Young (Normal) (G1 Evacuation Pause) 477M->187M(512M) 2.451ms
+[5.734s][info][gc] GC(21) Pause Full (System.gc()) 385M->186M(512M) 88.622ms
+[5.821s][info][gc] GC(22) Pause Full (System.gc()) 187M->187M(512M) 81.401ms
+[5.868s][info][gc] GC(23) Pause Full (System.gc()) 187M->187M(512M) 46.525ms
+[5.958s][info][gc] GC(24) Pause Full (System.gc()) 187M->187M(512M) 83.687ms
+[6.039s][info][gc] GC(25) Pause Full (System.gc()) 187M->187M(512M) 80.353ms

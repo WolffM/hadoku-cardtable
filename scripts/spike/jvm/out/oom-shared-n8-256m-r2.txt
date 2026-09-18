@@ -1,0 +1,85 @@
+Language 'en-US' loaded successfully.
+(ThreadUtil first call): Running with priority 5
+Read cards: 33752 files in 0 ms (25 parts) using thread pool
+Read cards: 848 files in 0 ms (8 parts) using thread pool
+STARTED round 0: 8 match(es) at uptime 3700 ms
+Correcting zone for Mer-Ek Nightblade (60)
+Island Did not have activator set in SpellAbilityRestriction.canPlay()
+Correcting zone for Salt Road Patrol (35)
+Island Did not have activator set in SpellAbilityRestriction.canPlay()
+Island Did not have activator set in SpellAbilityRestriction.canPlay()
+Island Did not have activator set in SpellAbilityRestriction.canPlay()
+Correcting zone for Ivorytusk Fortress (25)
+MATCH r0/0 win@t18/22314ms
+round 0 match 1 threw:
+java.lang.OutOfMemoryError: Java heap space
+	at forge.util.collect.FCollection.<init>(FCollection.java:51)
+	at forge.game.card.CardState.getStaticAbilities(CardState.java:718)
+	at forge.game.card.Card.getStaticAbilities(Card.java:6928)
+	at forge.game.staticability.StaticAbilityCastWithFlash.anyWithFlash(StaticAbilityCastWithFlash.java:34)
+	at forge.game.spellability.SpellAbility.withFlash(SpellAbility.java:2631)
+	at forge.game.spellability.SpellAbility.canCastTiming(SpellAbility.java:2607)
+	at forge.game.spellability.SpellAbilityRestriction.canPlay(SpellAbilityRestriction.java:560)
+	at forge.game.spellability.Spell.canPlayFromHost(Spell.java:109)
+	at forge.game.spellability.Spell.canPlay(Spell.java:73)
+	at forge.game.spellability.SpellAbility.isPossible(SpellAbility.java:494)
+	at forge.game.card.Card.getAllPossibleAbilities(Card.java:7440)
+	at forge.ai.ComputerUtilAbility.getSpellAbilities(ComputerUtilAbility.java:86)
+	at forge.ai.AiController.getSpellAbilityToPlay(AiController.java:1562)
+	at forge.ai.AiController.chooseSpellAbilityToPlay(AiController.java:1397)
+	at forge.ai.PlayerControllerAi.chooseSpellAbilityToPlay(PlayerControllerAi.java:832)
+	at forge.game.phase.PhaseHandler.mainLoopStep(PhaseHandler.java:1056)
+	at forge.game.phase.PhaseHandler.mainGameLoop(PhaseHandler.java:1035)
+	at forge.game.phase.PhaseHandler.startFirstTurn(PhaseHandler.java:1029)
+	at forge.game.GameAction.startGame(GameAction.java:2373)
+	at forge.game.Match.startGame(Match.java:92)
+	at forge.game.Match.startGame(Match.java:77)
+	at spike.jvm.MatchLoad.lambda$playRound$3(MatchLoad.java:217)
+	at spike.jvm.MatchLoad$$Lambda/0x00007fb76817d860.call(Unknown Source)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.runWith(Thread.java:1596)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+MATCH r0/1 THREW:OutOfMemoryError
+round 0 match 2 threw:
+java.lang.OutOfMemoryError: Java heap space
+	at forge.util.collect.FCollection.<init>(FCollection.java:51)
+	at forge.game.card.CardState.getStaticAbilities(CardState.java:718)
+	at forge.game.card.Card.getStaticAbilities(Card.java:6928)
+	at forge.game.GameAction.lambda$checkStaticAbilities$0(GameAction.java:1101)
+	at forge.game.GameAction$$Lambda/0x00007fb7682a9310.visit(Unknown Source)
+	at forge.util.Visitor.visitAll(Visitor.java:16)
+	at forge.game.Game.forEachCardInGame(Game.java:758)
+	at forge.game.GameAction.checkStaticAbilities(GameAction.java:1098)
+	at forge.game.replacement.ReplacementHandler.getReplacementList(ReplacementHandler.java:96)
+	at forge.game.replacement.ReplacementHandler.run(ReplacementHandler.java:211)
+	at forge.game.replacement.ReplacementHandler.run(ReplacementHandler.java:201)
+	at forge.game.GameAction.changeZone(GameAction.java:334)
+	at forge.game.GameAction.moveTo(GameAction.java:788)
+	at forge.game.GameAction.moveTo(GameAction.java:742)
+	at forge.game.GameAction.moveToPlay(GameAction.java:866)
+	at forge.game.GameAction.moveTo(GameAction.java:755)
+	at forge.game.ability.effects.ChangeZoneAllEffect.resolve(ChangeZoneAllEffect.java:159)
+	at forge.game.spellability.AbilitySub.resolve(AbilitySub.java:99)
+	at forge.game.ability.AbilityUtils.resolveApiAbility(AbilityUtils.java:1394)
+	at forge.game.ability.AbilityUtils.resolveSubAbilities(AbilityUtils.java:1374)
+	at forge.game.ability.AbilityUtils.resolveApiAbility(AbilityUtils.java:1400)
+	at forge.game.ability.AbilityUtils.resolve(AbilityUtils.java:1330)
+	at forge.ai.ComputerUtil.playNoStack(ComputerUtil.java:267)
+	at forge.ai.PlayerControllerAi.playSpellAbilityNoStack(PlayerControllerAi.java:682)
+	at forge.game.trigger.WrappedAbility.resolve(WrappedAbility.java:440)
+	at forge.game.ability.AbilityUtils.resolveApiAbility(AbilityUtils.java:1394)
+	at forge.game.ability.AbilityUtils.resolve(AbilityUtils.java:1330)
+	at forge.game.zone.MagicStack.resolveStack(MagicStack.java:617)
+	at forge.game.phase.PhaseHandler.mainLoopStep(PhaseHandler.java:1143)
+	at forge.game.phase.PhaseHandler.mainGameLoop(PhaseHandler.java:1035)
+	at forge.game.phase.PhaseHandler.startFirstTurn(PhaseHandler.java:1029)
+	at forge.game.GameAction.startGame(GameAction.java:2373)
+MATCH r0/2 THREW:OutOfMemoryError
+MATCH r0/3 win@t21/87566ms
+MATCH r0/4 win@t21/54772ms
+MATCH r0/5 win@t18/4497ms
+MATCH r0/6 win@t16/2580ms
+MATCH r0/7 win@t17/4846ms
+RESULT	matches=8	xmx_mb=256	gc=G1_Young_Generation+G1_Concurrent_GC+G1_Old_Generation	jvm_to_main_ms=34	lazy_card_scripts=false	init_ms=3450	ready_uptime_ms=3491	decks=Abzan Siege|Air Forces	heap_idle_mb=170	heap_idle_committed_mb=256	rss_idle_mb=396	pss_idle_mb=393	play_wall_ms=87645	match_ms_median=22314	match_ms_max=87566	heap_peak_used_mb=252	heap_peak_committed_mb=256	rss_hwm_mb=544	heap_held_mb=248	heap_held_committed_mb=256	rss_held_mb=543	pss_held_mb=540	games_held=8	heap_released_mb=183	rss_released_mb=543	rounds=1	heap_released_by_round_mb=183	rss_released_by_round_mb=543	rss_hwm_final_mb=544	gc_count=3193	gc_ms=82567	ok=6	failed=2	outcomes=win@t18/22314ms,THREW:OutOfMemoryError,THREW:OutOfMemoryError,win@t21/87566ms,win@t21/54772ms,win@t18/4497ms,win@t16/2580ms,win@t17/4846ms	total_uptime_ms=91566

@@ -1,0 +1,4 @@
+rep	xmx	listen_ms	rss_mb	pss_mb	hwm_mb	heap_used_after_gc_kb	heap_committed_kb	exit	nproc	mem_avail_mb	swap_used_mb	load1
+1	512m	3472	670	667	670	176307	524288	143	12	27218	30970	8.75
+2	512m	3363	643	640	643	176460	524288	143	12	27289	30970	7.41
+3	512m	3371	642	639	642	176748	524288	143	12	27245	30969	5.97

@@ -1,0 +1,25 @@
+[0.002s][info][gc] Using G1
+[0.255s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 53M->16M(994M) 2.868ms
+[0.311s][info][gc] GC(1) Pause Young (Normal) (G1 Evacuation Pause) 58M->29M(994M) 3.459ms
+[0.453s][info][gc] GC(2) Pause Young (Normal) (G1 Evacuation Pause) 71M->42M(994M) 3.245ms
+[0.487s][info][gc] GC(3) Pause Young (Normal) (G1 Evacuation Pause) 109M->49M(994M) 2.909ms
+[0.560s][info][gc] GC(4) Pause Young (Normal) (G1 Evacuation Pause) 317M->71M(994M) 4.970ms
+[0.606s][info][gc] GC(5) Pause Young (Normal) (G1 Evacuation Pause) 346M->93M(994M) 9.380ms
+[0.655s][info][gc] GC(6) Pause Young (Normal) (G1 Evacuation Pause) 395M->118M(994M) 9.535ms
+[1.791s][info][gc] GC(7) Pause Young (Normal) (G1 Evacuation Pause) 547M->165M(994M) 16.672ms
+[3.468s][info][gc] GC(8) Pause Full (System.gc()) 371M->170M(587M) 67.397ms
+[3.536s][info][gc] GC(9) Pause Full (System.gc()) 170M->170M(584M) 59.959ms
+[3.814s][info][gc] GC(10) Pause Young (Concurrent Start) (Metadata GC Threshold) 214M->178M(758M) 2.000ms
+[3.814s][info][gc] GC(11) Concurrent Mark Cycle
+[3.859s][info][gc] GC(11) Pause Remark 190M->190M(614M) 0.985ms
+[3.872s][info][gc] GC(11) Pause Cleanup 192M->192M(614M) 0.060ms
+[3.873s][info][gc] GC(11) Concurrent Mark Cycle 58.307ms
+[4.372s][info][gc] GC(12) Pause Young (Prepare Mixed) (G1 Evacuation Pause) 537M->178M(614M) 1.533ms
+[4.714s][info][gc] GC(13) Pause Young (Mixed) (G1 Evacuation Pause) 537M->183M(614M) 3.388ms
+[4.994s][info][gc] GC(14) Pause Young (Normal) (G1 Evacuation Pause) 538M->182M(614M) 1.742ms
+[5.247s][info][gc] GC(15) Pause Young (Normal) (G1 Evacuation Pause) 537M->184M(614M) 1.985ms
+[5.462s][info][gc] GC(16) Pause Full (System.gc()) 410M->182M(614M) 85.546ms
+[5.548s][info][gc] GC(17) Pause Full (System.gc()) 183M->182M(614M) 81.098ms
+[5.627s][info][gc] GC(18) Pause Full (System.gc()) 182M->182M(614M) 79.253ms
+[5.716s][info][gc] GC(19) Pause Full (System.gc()) 183M->182M(614M) 81.401ms
+[5.814s][info][gc] GC(20) Pause Full (System.gc()) 182M->182M(614M) 98.523ms

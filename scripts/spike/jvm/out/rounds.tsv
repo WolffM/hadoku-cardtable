@@ -1,0 +1,2 @@
+exit	matches_per_round	rounds	ok	failed	heap_idle_mb	heap_released_by_round_mb	rss_released_by_round_mb	rss_hwm_final_mb	nproc	mem_avail_mb	swap_used_mb	load1
+0	4	8	32	0	170	172,191,187,188,184,186,172,172	817,1021,995,946,958,971,996,893	1090	12	27021	30971	10.62

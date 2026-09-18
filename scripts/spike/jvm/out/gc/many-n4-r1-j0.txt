@@ -1,0 +1,46 @@
+[0.002s][info][gc] Using G1
+[0.408s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 29M->9M(512M) 16.115ms
+[0.610s][info][gc] GC(1) Pause Young (Normal) (G1 Evacuation Pause) 37M->17M(512M) 7.867ms
+[0.915s][info][gc] GC(2) Pause Young (Normal) (G1 Evacuation Pause) 63M->31M(512M) 29.489ms
+[1.313s][info][gc] GC(3) Pause Young (Normal) (G1 Evacuation Pause) 88M->44M(512M) 18.881ms
+[1.403s][info][gc] GC(4) Pause Young (Normal) (G1 Evacuation Pause) 119M->51M(512M) 36.322ms
+[1.528s][info][gc] GC(5) Pause Young (Normal) (G1 Evacuation Pause) 252M->67M(512M) 26.764ms
+[1.679s][info][gc] GC(6) Pause Young (Normal) (G1 Evacuation Pause) 350M->89M(512M) 18.018ms
+[1.878s][info][gc] GC(7) Pause Young (Normal) (G1 Evacuation Pause) 357M->112M(512M) 40.376ms
+[2.903s][info][gc] GC(8) Pause Young (Normal) (G1 Evacuation Pause) 395M->143M(512M) 21.673ms
+[4.771s][info][gc] GC(9) Pause Young (Normal) (G1 Evacuation Pause) 432M->188M(512M) 13.997ms
+[6.253s][info][gc] GC(10) Pause Full (System.gc()) 311M->170M(512M) 235.904ms
+[6.373s][info][gc] GC(11) Pause Full (System.gc()) 170M->170M(512M) 119.148ms
+[7.068s][info][gc] GC(12) Pause Young (Concurrent Start) (Metadata GC Threshold) 212M->176M(512M) 5.931ms
+[7.071s][info][gc] GC(13) Concurrent Mark Cycle
+[7.309s][info][gc] GC(13) Pause Remark 191M->191M(512M) 6.659ms
+[7.357s][info][gc] GC(13) Pause Cleanup 193M->193M(512M) 0.112ms
+[7.359s][info][gc] GC(13) Concurrent Mark Cycle 287.592ms
+[8.795s][info][gc] GC(14) Pause Young (Prepare Mixed) (G1 Evacuation Pause) 448M->177M(512M) 11.924ms
+[9.766s][info][gc] GC(15) Pause Young (Mixed) (G1 Evacuation Pause) 457M->178M(512M) 8.302ms
+[10.629s][info][gc] GC(16) Pause Young (Normal) (G1 Evacuation Pause) 465M->178M(512M) 17.884ms
+[11.335s][info][gc] GC(17) Pause Young (Normal) (G1 Evacuation Pause) 474M->180M(512M) 16.965ms
+[11.664s][info][gc] GC(18) Pause Young (Normal) (G1 Evacuation Pause) 477M->181M(512M) 3.731ms
+[11.946s][info][gc] GC(19) Pause Young (Normal) (G1 Evacuation Pause) 477M->182M(512M) 2.266ms
+[12.125s][info][gc] GC(20) Pause Young (Normal) (G1 Evacuation Pause) 477M->182M(512M) 2.353ms
+[12.304s][info][gc] GC(21) Pause Young (Normal) (G1 Evacuation Pause) 476M->184M(512M) 3.976ms
+[12.444s][info][gc] GC(22) Pause Young (Normal) (G1 Evacuation Pause) 476M->184M(512M) 2.416ms
+[12.573s][info][gc] GC(23) Pause Young (Normal) (G1 Evacuation Pause) 477M->184M(512M) 2.283ms
+[12.734s][info][gc] GC(24) Pause Young (Normal) (G1 Evacuation Pause) 477M->184M(512M) 4.410ms
+[12.883s][info][gc] GC(25) Pause Young (Normal) (G1 Evacuation Pause) 476M->185M(512M) 3.747ms
+[13.007s][info][gc] GC(26) Pause Young (Normal) (G1 Evacuation Pause) 477M->185M(512M) 2.460ms
+[13.143s][info][gc] GC(27) Pause Young (Normal) (G1 Evacuation Pause) 477M->185M(512M) 2.676ms
+[13.245s][info][gc] GC(28) Pause Young (Normal) (G1 Evacuation Pause) 477M->185M(512M) 2.946ms
+[13.355s][info][gc] GC(29) Pause Young (Normal) (G1 Evacuation Pause) 481M->185M(512M) 1.498ms
+[13.480s][info][gc] GC(30) Pause Young (Normal) (G1 Evacuation Pause) 481M->186M(512M) 1.439ms
+[13.606s][info][gc] GC(31) Pause Young (Normal) (G1 Evacuation Pause) 482M->187M(512M) 1.427ms
+[13.736s][info][gc] GC(32) Pause Young (Normal) (G1 Evacuation Pause) 482M->187M(512M) 1.964ms
+[13.860s][info][gc] GC(33) Pause Young (Normal) (G1 Evacuation Pause) 483M->187M(512M) 1.099ms
+[13.966s][info][gc] GC(34) Pause Young (Normal) (G1 Evacuation Pause) 482M->187M(512M) 1.055ms
+[14.090s][info][gc] GC(35) Pause Young (Normal) (G1 Evacuation Pause) 482M->189M(512M) 1.395ms
+[14.214s][info][gc] GC(36) Pause Young (Normal) (G1 Evacuation Pause) 482M->189M(512M) 1.066ms
+[14.432s][info][gc] GC(37) Pause Full (System.gc()) 452M->188M(512M) 89.241ms
+[14.518s][info][gc] GC(38) Pause Full (System.gc()) 189M->188M(512M) 81.687ms
+[14.606s][info][gc] GC(39) Pause Full (System.gc()) 188M->188M(512M) 87.782ms
+[14.699s][info][gc] GC(40) Pause Full (System.gc()) 188M->188M(512M) 86.558ms
+[14.785s][info][gc] GC(41) Pause Full (System.gc()) 188M->188M(512M) 85.642ms
