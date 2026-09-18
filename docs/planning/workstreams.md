@@ -290,7 +290,57 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-18 — tracker, closing Wave 9)
+## Verified this pass (2026-09-18 — tracker, closing Wave 10)
+
+**All four lanes landed.** Gate **1,596 passed / 64 files**; CI and redeploy
+green on `edf1847`; production 401; submodule intact; worktree and branch gone.
+
+**PR-2's four-wave gap is closed. Two humans drafted a whole pod.** Lane D's e2e
+drives two independent browser contexts — separate cookie jars — through join,
+pick, pass, wheel, refresh and finish, 45 picks each, and **isolation holds over
+every envelope received**. Ran it myself: **2 passed in 1.2 minutes**. Final
+pools are reproducible across runs (digests `2a2131959181e76f` /
+`2efa3f8728daeed8`).
+
+**I ran every gated test rather than trusting the skip count.**
+
+- `apps/server/src/play/` with the JVM gate on: **90 passed**, and the live leak
+  control holds again — **144→0, 142→0, 140→0, 145→0** secrets per seat.
+- `prompts.jvm.test.ts`: **2 passed**, twelve prompt types answered against a
+  real Forge match with real counts (`getAbilityToPlay×19`, `getChoices×3`, …)
+  — and the line that matters: **"0 state frames arrived while an ask was
+  open"**. That is the desync failure mode the wave asked for, measured.
+- **The 3 fixture-only prompts have checkable reasons, and I checked the
+  sharpest.** `showOptionDialog` has **0 callers** in `forge-game`/`forge-ai` —
+  it lives on `AutoUpdater` and `FServerManager`, lobby paths, not game code.
+  `chooseEntitiesForEffect` is not reached (Forge prefers a card-pointing
+  input); `sideboard` is answered by the bridge itself
+  (`PlayBridge.java:150`). Those are findings, not gaps.
+
+### Lane D found three real problems and correctly fixed none of them
+
+It was a measurement lane and said so. All three are now owned by Wave 11.
+
+1. **Every round is a gap followed by a resync — the recovery path is the
+   normal path.** Root-caused and confirmed here in the code: the engine bumps
+   `seq` on *every* state change, `runBots` takes six bot picks in one call, and
+   the room emits **one** update — so the client sees `seq` jump by ~7,
+   classifies a `gap`, drops the update and asks for a snapshot. Measured:
+   **serverPicks 90, serverResyncs 90**, 45 resync requests per browser. The
+   draft completes and costs an extra round trip every round. The deeper issue
+   is conceptual: **`classifySeq` is built for a delta stream and the room emits
+   full state**, where a gap is irrelevant.
+2. **A real refresh does not exercise the `leaveRoom` guard.** On loopback the
+   old socket closes 36 ms *before* the new one joins, so the seat is held by
+   the **reservation**, not the guard. The guard is covered only by its unit
+   test, and for ~80 ms the other player sees the seat empty.
+3. **Dev-only: `/health` is green while every page 404s** when the server runs
+   from a path containing a dot-directory — which is every agent worktree.
+   express's `send` uses `dotfiles: 'ignore'`; `checkBasePath` uses
+   `readFileSync` and does not care. Production is unaffected (no dot segment),
+   but it will waste an agent's afternoon.
+
+## Previously verified (2026-09-18 — tracker, closing Wave 9)
 
 **All four lanes plus the integration check landed.** Gate **1,523 passed / 61
 files**, CI and redeploy green on `e795cfc`, production 401, submodule intact.
