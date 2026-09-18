@@ -332,18 +332,47 @@ describe('the library as a whole', () => {
   // deliberate act with a visible diff rather than something that drifts in.
   // It caught the 2026-09-18 addition of PT Dark Ascension, which is what it is
   // for — the failure was the test doing its job, not a regression.
-  it('is three collections, twenty-four decks, one format each', () => {
-    expect(LIBRARY).toHaveLength(3);
-    expect(LIBRARY.flatMap((c) => c.decks)).toHaveLength(24);
-    expect(LIBRARY.map((c) => c.format)).toEqual([
-      'Standard (MBS)',
-      'Standard (ISD)',
-      'Standard (DKA)',
+  it('is four collections and twenty-five decks, oldest format first', () => {
+    expect(LIBRARY.map((c) => [c.id, c.format, c.decks.length])).toEqual([
+      ['pt-paris-2011-standard', 'Standard (MBS)', 8],
+      ['gp-hiroshima-2011-standard', 'Standard (ISD)', 1],
+      ['worlds-2011-standard', 'Standard (ISD)', 8],
+      ['pt-dark-ascension-2012-standard', 'Standard (DKA)', 8],
     ]);
   });
 
-  it('every collection is a complete Top 8', () => {
-    for (const c of LIBRARY) expect(c.decks, c.id).toHaveLength(8);
+  /*
+   * Every collection is a complete Top 8 — except one, deliberately.
+   *
+   * The convention exists because "the Top 8 of one event" has an unambiguous
+   * membership test. `gp-hiroshima-2011-standard` is one deck, and its rule is
+   * stated instead: the black deck the ISD era was otherwise missing, because
+   * Worlds 2011's Top 8 plays no Swamp across all eight.
+   *
+   * Listed by id rather than by size so adding a second partial collection is a
+   * decision someone has to write down here, not something that slips in.
+   */
+  const PARTIAL_BY_DESIGN = new Set(['gp-hiroshima-2011-standard']);
+
+  it('every collection is a complete Top 8, or is a documented exception', () => {
+    for (const c of LIBRARY) {
+      if (PARTIAL_BY_DESIGN.has(c.id)) expect(c.decks.length, c.id).toBeLessThan(8);
+      else expect(c.decks, c.id).toHaveLength(8);
+    }
+  });
+
+  it('the ISD era can field every colour, which is why the exception exists', () => {
+    const isd = LIBRARY.filter((c) => c.format === 'Standard (ISD)');
+    const basics = new Set<string>();
+    for (const c of isd) {
+      for (const d of c.decks) {
+        for (const line of read(deckPath(c, d)).split('\n')) {
+          const m = /^\d+ (Plains|Island|Swamp|Mountain|Forest)\|/.exec(line);
+          if (m) basics.add(m[1] as string);
+        }
+      }
+    }
+    expect([...basics].sort()).toEqual(['Forest', 'Island', 'Mountain', 'Plains', 'Swamp']);
   });
 
   it('every deck id is unique across collections', () => {

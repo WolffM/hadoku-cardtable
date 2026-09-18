@@ -172,9 +172,56 @@ export const WORLDS_2011_STANDARD: LibraryCollection = {
   ],
 };
 
+
+/**
+ * Grand Prix Hiroshima 2011 — one deck, and the only collection here that is
+ * NOT a complete Top 8.
+ *
+ * ## Why one deck, and what its membership rule is
+ *
+ * The other collections are "the Top 8 of one event", whose membership has an
+ * unambiguous test. This one's rule is different and is stated so it is equally
+ * unambiguous: **the black deck the ISD era was otherwise missing.**
+ *
+ * Worlds 2011's Top 8 — the era's other collection — plays no Swamp at all
+ * across eight decks. That is a true fact about that tournament rather than a
+ * gap in transcription, but it left the library unable to offer a black deck in
+ * `Standard (ISD)`. Asahara's Solar Flare, 3rd-4th at GP Hiroshima three weeks
+ * earlier and in the same format, fills it: three Swamps, Liliana of the Veil,
+ * Doom Blade and Unburial Rites.
+ *
+ * It is WUB rather than two colours. Searched for a strictly two-colour or
+ * mono-black deck in the era and did not find one at a comparable finish —
+ * ISD-era Standard's black deck *was* Solar Flare. Recorded rather than left
+ * implied, so nobody re-runs that search.
+ *
+ * ## The maindeck is 61 cards, and that is correct
+ *
+ * Asahara registered 61. It is legal (60 is a minimum, not a target) and it is
+ * what mtgtop8 holds. A validator that rounds it to 60 is wrong, not the deck.
+ *
+ * ## Its pool file duplicates Worlds 2011's
+ *
+ * Both dates resolve to the same snapshot — `Standard (ISD)`, effective
+ * 2011-09-30 — so `standard-2011-10-30` and `standard-2011-11-20` have
+ * identical card lists. Kept separate because a collection is validated against
+ * its own date, and giving this one Worlds' date to save a file would put an
+ * October event under a November heading.
+ */
+export const GP_HIROSHIMA_2011_STANDARD: LibraryCollection = {
+  id: 'gp-hiroshima-2011-standard',
+  directory: `${DECKS_ROOT}/standard-2011-10-30-gp-hiroshima`,
+  event: "Grand Prix Hiroshima 2011, Standard — the era's black deck",
+  format: 'Standard (ISD)',
+  date: '2011-10-30',
+  source: 'https://www.mtgtop8.com/event?e=2171&f=ST',
+  decks: [{ id: 'gp-hiroshima-2011-3-akira-asahara', file: '3-akira-asahara-solar-flare.dck' }],
+};
+
 /** Every collection in the library, oldest format first. */
 export const LIBRARY: readonly LibraryCollection[] = [
   PT_PARIS_2011_STANDARD,
+  GP_HIROSHIMA_2011_STANDARD,
   WORLDS_2011_STANDARD,
   PT_DARK_ASCENSION_2012_STANDARD,
 ];
