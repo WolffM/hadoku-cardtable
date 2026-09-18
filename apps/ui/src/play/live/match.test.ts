@@ -15,8 +15,11 @@ import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
 
 import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import {
+  abortAsk,
+  answerAsk,
   answerConfirm,
   closeMatch,
+  currentAsk,
   ingest,
   MAX_RESYNCS_WITHOUT_PROGRESS,
   socketIoMatchTransport,
@@ -39,7 +42,7 @@ function sentinel(): ServerFrame {
   });
 }
 
-/** A blocking ask this client does not render. */
+/** A blocking ask other than showConfirmDialog — drawn by `../prompts/`. */
 function optionAsk(callId: string): ServerFrame {
   return parseServerFrame({
     kind: 'ask',
@@ -209,8 +212,8 @@ describe('showConfirmDialog, end to end', () => {
   it('the ask arrives, and the answer — the opposite of the default — reaches the server', async () => {
     const { s, m } = await fullGame();
     s.send(confirmAsk('c-1', true));
-    await until('the ask', () => m.pendingAsk !== null);
-    expect(m.pendingAsk).toMatchObject({ callId: 'c-1', title: 'Mulligan', defaultYes: true });
+    await until('the ask', () => currentAsk(m) !== null);
+    expect(currentAsk(m)).toMatchObject({ callId: 'c-1', title: 'Mulligan', defaultYes: true });
 
     expect(answerConfirm(m, 'c-1', false)).toBe(true);
     await until('the reply at the server', () => s.clientFrames().length === 1);
@@ -220,13 +223,13 @@ describe('showConfirmDialog, end to end', () => {
       value: { kind: 'reply', callId: 'c-1', method: 'showConfirmDialog', result: false },
     });
     expect(s.received.at(-1)?.payload).toMatchObject({ matchId: s.matchId });
-    expect(m.pendingAsk).toBeNull();
+    expect(currentAsk(m)).toBeNull();
   });
 
   it('one ask gets one answer: a second click sends nothing', async () => {
     const { s, m } = await fullGame();
     s.send(confirmAsk('c-2', false));
-    await until('the ask', () => m.pendingAsk !== null);
+    await until('the ask', () => currentAsk(m) !== null);
     expect(answerConfirm(m, 'c-2', true)).toBe(true);
     expect(answerConfirm(m, 'c-2', false)).toBe(false);
     expect(answerConfirm(m, 'c-other', true)).toBe(false);
@@ -240,11 +243,11 @@ describe('showConfirmDialog, end to end', () => {
     const m = await connect(s);
     await sendAndApply(s, m, FRAMES.slice(0, 5));
     s.send(confirmAsk('c-3'));
-    await until('the ask', () => m.pendingAsk?.callId === 'c-3');
+    await until('the ask', () => currentAsk(m)?.callId === 'c-3');
 
     s.lose(FRAMES[5]!);
     s.send(FRAMES[6]!);
-    await until('the resync, and the ask again', () => m.stats.snapshots === 2 && m.pendingAsk?.callId === 'c-3');
+    await until('the resync, and the ask again', () => m.stats.snapshots === 2 && currentAsk(m)?.callId === 'c-3');
     expect(m.stats.resyncsRequested).toBe(1);
 
     expect(answerConfirm(m, 'c-3', true)).toBe(true);
@@ -253,17 +256,35 @@ describe('showConfirmDialog, end to end', () => {
   });
 });
 
-describe('every other ask is aborted, never left waiting', () => {
-  it('an ask this client does not render is answered with an unsupported abort', async () => {
+describe('the other fourteen asks: held open for their prompt, answered through the same seam', () => {
+  it('an ask other than showConfirmDialog is held open, not aborted, and its answer reaches the server', async () => {
     const { s, m } = await fullGame();
     s.send(optionAsk('c-9'));
-    await until('the abort at the server', () => s.clientFrames().length === 1);
-    expect(s.clientFrames()[0]).toMatchObject({
+    await until('the ask', () => currentAsk(m)?.callId === 'c-9');
+    await sendAndApply(s, m, [sentinel()]);
+    expect(s.clientFrames()).toHaveLength(0);
+    expect(m.stats.aborts).toBe(0);
+
+    expect(answerAsk(m, 'c-9', 'showOptionDialog', 1)).toBe(true);
+    await until('the reply at the server', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()[0]).toEqual({
       ok: true,
-      value: { kind: 'abort', callId: 'c-9', reason: 'unsupported' },
+      value: { kind: 'reply', callId: 'c-9', method: 'showOptionDialog', result: 1 },
     });
-    expect(m.pendingAsk).toBeNull();
-    expect(m.stats.aborts).toBe(1);
+    expect(currentAsk(m)).toBeNull();
+  });
+
+  it('refuses an answer for the wrong method, or one its wire schema rejects, and sends nothing', async () => {
+    const { s, m } = await fullGame();
+    s.send(optionAsk('c-10'));
+    await until('the ask', () => currentAsk(m) !== null);
+    expect(answerAsk(m, 'c-10', 'showConfirmDialog', true)).toBe(false);
+    expect(answerConfirm(m, 'c-10', true)).toBe(false);
+    expect(answerAsk(m, 'c-10', 'showOptionDialog', 'the first one')).toBe(false);
+    expect(m.lastError).toMatch(/fails its wire schema/);
+    await sendAndApply(s, m, [sentinel()]);
+    expect(s.clientFrames()).toHaveLength(0);
+    expect(currentAsk(m)?.callId).toBe('c-10');
   });
 
   it('an ask that does not parse is still aborted, and the client resyncs', async () => {
@@ -279,14 +300,112 @@ describe('every other ask is aborted, never left waiting', () => {
     expect(m.view).toEqual(FIXTURE_VIEW);
   });
 
+  it('abortAsk gives up one open ask and never answers a closed one', async () => {
+    const { s, m } = await fullGame();
+    s.send(optionAsk('c-11'));
+    await until('the ask', () => currentAsk(m) !== null);
+    expect(abortAsk(m, 'c-11', 'unsupported', 'the prompt failed to draw')).toBe(true);
+    expect(abortAsk(m, 'c-11', 'unsupported', 'again')).toBe(false);
+    await until('the abort at the server', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'abort', callId: 'c-11', reason: 'unsupported' } });
+    expect(answerAsk(m, 'c-11', 'showOptionDialog', 0)).toBe(false);
+  });
+
   it('closing the board with a question open cancels it', async () => {
     const { s, m } = await fullGame();
     s.send(confirmAsk('c-4'));
-    await until('the ask', () => m.pendingAsk !== null);
+    await until('the ask', () => currentAsk(m) !== null);
     closeMatch(m);
     match = null;
     await until('the abort at the server', () => s.clientFrames().length === 1);
     expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'abort', callId: 'c-4', reason: 'cancelled' } });
+  });
+});
+
+describe('an open prompt never desyncs the board', () => {
+  it('a second ask QUEUES behind the first: neither is dropped, and each gets exactly its own answer', async () => {
+    // The server holds a seat's asks by callId (a probe can open one beside
+    // the game's). An ask that replaced another would park Forge on the first.
+    const { s, m } = await fullGame();
+    s.send(optionAsk('c-first'));
+    s.send(confirmAsk('c-second'));
+    await until('both asks', () => m.asks.length === 2);
+    expect(m.asks.map((a) => a.callId)).toEqual(['c-first', 'c-second']);
+    expect(currentAsk(m)?.callId).toBe('c-first');
+
+    expect(answerAsk(m, 'c-first', 'showOptionDialog', 0)).toBe(true);
+    expect(currentAsk(m)?.callId).toBe('c-second');
+    expect(answerConfirm(m, 'c-second', false)).toBe(true);
+    await until('both replies', () => s.clientFrames().length === 2);
+    expect(s.clientFrames().map((f) => (f.ok && f.value.kind !== 'act' ? [f.value.callId, f.value.kind] : null))).toEqual([
+      ['c-first', 'reply'],
+      ['c-second', 'reply'],
+    ]);
+    expect(m.stats.aborts).toBe(0);
+  });
+
+  it('a resync with two questions open gets BOTH back, in order, and neither is answered twice', async () => {
+    const s = (server = await startReplayServer());
+    const m = await connect(s);
+    await sendAndApply(s, m, FRAMES.slice(0, 5));
+    s.send(optionAsk('c-x'));
+    s.send(confirmAsk('c-y'));
+    await until('both asks', () => m.asks.length === 2);
+
+    s.lose(FRAMES[5]!);
+    s.send(FRAMES[6]!);
+    await until('the resync, and both asks again', () => m.stats.snapshots === 2 && m.asks.length === 2);
+    expect(m.asks.map((a) => a.callId)).toEqual(['c-x', 'c-y']);
+    await sendAndApply(s, m, FRAMES.slice(7));
+    expect(m.view).toEqual(FIXTURE_VIEW);
+    expect(answerAsk(m, 'c-x', 'showOptionDialog', 0)).toBe(true);
+    expect(answerAsk(m, 'c-x', 'showOptionDialog', 0)).toBe(false);
+    expect(answerConfirm(m, 'c-y', true)).toBe(true);
+    await until('two replies', () => s.clientFrames().length === 2);
+  });
+
+  it('closing with two questions open cancels BOTH', async () => {
+    const { s, m } = await fullGame();
+    s.send(optionAsk('c-a'));
+    s.send(confirmAsk('c-b'));
+    await until('both asks', () => m.asks.length === 2);
+    closeMatch(m);
+    match = null;
+    await until('two aborts at the server', () => s.clientFrames().length === 2);
+    expect(s.clientFrames().map((f) => (f.ok && f.value.kind === 'abort' ? f.value.callId : null)).sort()).toEqual(['c-a', 'c-b']);
+  });
+
+  it('state that arrives while a prompt is open is folded as if none were: same board, same cursor', async () => {
+    const s = (server = await startReplayServer());
+    const m = await connect(s);
+    await sendAndApply(s, m, FRAMES.slice(0, 8));
+    s.send(optionAsk('c-mid'));
+    await until('the ask', () => currentAsk(m) !== null);
+
+    // The rest of the game streams in with the question still unanswered.
+    await sendAndApply(s, m, FRAMES.slice(8));
+    expect(m.view).toEqual(FIXTURE_VIEW);
+    expect(m.cursor).toEqual({ epoch: 'epoch-a', seq: FRAMES.length + 1 });
+    expect(m.stats).toMatchObject({ gaps: 0, resyncsRequested: 0, invalid: 0 });
+    expect(currentAsk(m)?.callId).toBe('c-mid');
+
+    // And the answer, given after all of it, is still the one Forge asked for.
+    expect(answerAsk(m, 'c-mid', 'showOptionDialog', 1)).toBe(true);
+    await until('the reply', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { callId: 'c-mid', result: 1 } });
+  });
+
+  it('an epoch change drops the open prompt, and an answer to it afterwards sends nothing', async () => {
+    const { s, m } = await fullGame();
+    s.send(optionAsk('c-old'));
+    await until('the ask', () => currentAsk(m) !== null);
+    s.restart('epoch-b');
+    for (const f of FRAMES) s.send(f);
+    await until('the new epoch at seq 27', () => m.cursor?.epoch === 'epoch-b' && m.cursor.seq === 27);
+    expect(currentAsk(m)).toBeNull();
+    expect(answerAsk(m, 'c-old', 'showOptionDialog', 0)).toBe(false);
+    expect(s.clientFrames()).toHaveLength(0);
+    expect(m.view).toEqual(FIXTURE_VIEW);
   });
 });
 

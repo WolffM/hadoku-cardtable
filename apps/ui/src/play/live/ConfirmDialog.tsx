@@ -1,5 +1,7 @@
 /*
- * `showConfirmDialog`, drawn — the one Forge prompt this wave wires end to end.
+ * `showConfirmDialog`, drawn. Wave 9 wired it first, to prove the seam; the
+ * other fourteen prompts live in `../prompts/` and reach the same seam through
+ * `LiveBoard`.
  *
  * `boolean showConfirmDialog(message, title, yesButtonText, noButtonText,
  * defaultYes)` (IGuiGame.java; `@hadoku/forge-wire`'s `tier-a.ts`). Two

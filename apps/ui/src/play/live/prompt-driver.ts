@@ -1,0 +1,117 @@
+/*
+ * TEST SUPPORT — a player's hands on the live board's prompt. Never imported by
+ * the app.
+ *
+ * Given the container a `LiveBoard` is rendered into, `answerOpenPrompt` does
+ * what a person would do with the prompt that is showing: tick, place, press
+ * Auto, then press the button. It touches the DOM only — never `answerAsk`
+ * directly — so what reaches the server is whatever the COMPONENT built and
+ * checked, through the one seam.
+ *
+ * The choices are deliberately plain (the first option, Forge's default, the
+ * component's own Auto): the point is that the answer round-trips, not that it
+ * is good play.
+ */
+
+import { fireEvent } from '@testing-library/react';
+
+function click(el: Element | null | undefined, what: string): void {
+  if (el === null || el === undefined) throw new Error(`no ${what} to click`);
+  fireEvent.click(el);
+}
+
+function all(root: Element, selector: string): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(selector)];
+}
+
+export interface PromptPreferences {
+  /** Press the button Forge did NOT make the default — so a result can only have come from the click. */
+  confirmAgainstDefault?: boolean;
+  /** Pick this `getChoices` option first, by its label, when one matches. */
+  choice?: (label: string) => boolean;
+  /** What to type into a `showInputDialog`. Default "1". */
+  input?: string;
+}
+
+/**
+ * Answer the prompt `LiveBoard` is showing in `root`. Returns the method it
+ * answered, or null when nothing is showing (or the showing prompt answers
+ * itself, like the zone prompts).
+ */
+export function answerOpenPrompt(root: Element, prefs: PromptPreferences = {}): string | null {
+  const sheet = root.querySelector<HTMLElement>('[data-testid="live-prompt"]');
+  if (sheet === null) return null;
+  const method = sheet.dataset.method ?? '';
+  const submit = () => click(sheet.querySelector('[data-testid="prompt-submit"]'), `${method} submit`);
+
+  switch (method) {
+    case 'showConfirmDialog':
+      click(
+        sheet.querySelector(prefs.confirmAgainstDefault === true ? '.confirm__button:not([data-default])' : '.confirm__button[data-default]'),
+        'confirm button',
+      );
+      return method;
+    case 'confirm':
+    case 'showOptionDialog': {
+      const options = all(sheet, '[data-testid="prompt-option"]');
+      click(options.find((o) => o.dataset.default !== undefined) ?? options[0], `${method} option`);
+      return method;
+    }
+    case 'showInputDialog': {
+      const input = sheet.querySelector<HTMLInputElement | HTMLSelectElement>('[data-testid="prompt-input"]');
+      if (input instanceof HTMLInputElement) fireEvent.change(input, { target: { value: prefs.input ?? '1' } });
+      submit();
+      return method;
+    }
+    case 'getAbilityToPlay':
+      // Forge can offer an empty list; "None" is then the only answer.
+      click(sheet.querySelector('[data-testid="prompt-choice"]') ?? sheet.querySelector('[data-testid="prompt-cancel"]'), 'ability or None');
+      return method;
+    case 'getChoices':
+    case 'chooseSingleEntityForEffect':
+    case 'chooseEntitiesForEffect': {
+      const submitButton = sheet.querySelector<HTMLButtonElement>('[data-testid="prompt-submit"]');
+      const choices = all(sheet, 'input[data-testid="prompt-choice"]');
+      const preferred = prefs.choice === undefined ? undefined : choices.find((c) => prefs.choice!(c.parentElement?.textContent ?? ''));
+      if (preferred !== undefined) fireEvent.click(preferred);
+      // Tick options in order until the answer is sendable.
+      for (const choice of choices) {
+        if (submitButton !== null && !submitButton.disabled) break;
+        if (!(choice as HTMLInputElement).checked) fireEvent.click(choice);
+      }
+      submit();
+      return method;
+    }
+    case 'assignCombatDamage':
+      click(sheet.querySelector('[data-testid="prompt-auto"]'), 'Auto');
+      submit();
+      return method;
+    case 'assignGenericAmount': {
+      // No Auto here: press "+" on the first row that takes more, until the
+      // whole amount is placed and the answer is sendable.
+      const submitButton = sheet.querySelector<HTMLButtonElement>('[data-testid="prompt-submit"]');
+      for (let guard = 0; guard < 100 && submitButton?.disabled === true; guard += 1) {
+        const more = all(sheet, 'button[aria-label^="more to"]').find((b) => !(b as HTMLButtonElement).disabled);
+        if (more === undefined) break;
+        fireEvent.click(more);
+      }
+      submit();
+      return method;
+    }
+    case 'order': {
+      const submitButton = sheet.querySelector<HTMLButtonElement>('[data-testid="prompt-submit"]');
+      for (const place of all(sheet, '[data-testid="order-source"] button')) {
+        if (submitButton !== null && !submitButton.disabled) break;
+        fireEvent.click(place);
+      }
+      submit();
+      return method;
+    }
+    case 'manipulateCardList':
+    case 'sideboard':
+      submit();
+      return method;
+    default:
+      return null;
+  }
+}

@@ -30,6 +30,15 @@
  *   `forge-gui/res/adventure/Shandalar Old Border/decks/standard/wc00_jon_finkel.dck`
  *   (60 main, 15 sideboard).
  *
+ * **Since Wave 10 these shapes are also met live.** `../live/prompts.jvm.test.ts`
+ * drives two real Forge matches until the engine has asked eleven of the
+ * fourteen methods here, each answered by these components; that suite's
+ * header says which cards make Forge ask what. Not met live: `showOptionDialog`
+ * (no production caller), `chooseEntitiesForEffect` (Forge uses a card Input
+ * instead unless an option sits outside the pointable zones) and `sideboard`
+ * (the bridge answers it itself). The frames here are still the synthetic
+ * ones — the live asks are not committed as fixtures.
+ *
  * Every frame must parse under `@hadoku/forge-wire`'s `ServerFrameSchema`;
  * `fixtures.test.ts` holds that, and holds that all fourteen methods have one.
  */

@@ -19,7 +19,9 @@
  *   kind it was. That second half is this lane's reading of the contract, and
  *   the report explains why: if it were the last STATE frame's cursor, a
  *   pending ask re-sent after the snapshot would always arrive as a gap.
- * - A pending ask is re-sent after the snapshot as an ordinary frame.
+ * - Every open ask is re-sent after the snapshot as an ordinary frame. Asks
+ *   are held by `callId`, as the real server holds them
+ *   (`apps/server/src/play/match.ts`), so two can be open at once.
  *
  * ## Why `socket.io` is loaded through `createRequire`
  *
@@ -105,7 +107,7 @@ export interface ReplayServer {
   sendRaw(payload: unknown): void;
   /** The envelope `send` produced for a given seq, for replaying it. */
   sent(seq: number): ServerEnvelope;
-  /** A new process: new epoch, cursor from 0, no history, no pending ask. */
+  /** A new process: new epoch, cursor from 0, no history, no open asks. */
   restart(epoch: string): void;
   /** Answer joins/resyncs with `{ error }` instead of a snapshot. */
   refuseWith: string | null;
@@ -121,7 +123,7 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
 
   let seq = 0;
   let history: ServerFrame[] = [];
-  let pendingAsk: ServerFrame | null = null;
+  const openAsks = new Map<string, ServerFrame>();
   const sentLog = new Map<string, ServerEnvelope>();
 
   const server: ReplayServer = {
@@ -150,7 +152,7 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       server.epoch = epoch;
       seq = 0;
       history = [];
-      pendingAsk = null;
+      openAsks.clear();
     },
     close: () =>
       new Promise<void>((done) => {
@@ -165,7 +167,7 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     const envelope: ServerEnvelope = { matchId, cursor, frame };
     sentLog.set(`${server.epoch}:${seq}`, envelope);
     if (isTierC(frame.method)) history.push(frame);
-    if (frame.kind === 'ask') pendingAsk = frame;
+    if (frame.kind === 'ask') openAsks.set(frame.callId, frame);
     if (deliver) server.sendRaw(envelope);
     return cursor;
   }
@@ -191,8 +193,8 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       }
       joined.add(socket);
       ack?.(snapshot());
-      // The contract: a pending ask is re-sent after the snapshot, as a frame.
-      if (pendingAsk !== null) stamp(pendingAsk, true);
+      // The contract: every open ask is re-sent after the snapshot, as a frame.
+      for (const ask of [...openAsks.values()]) stamp(ask, true);
     };
     socket.on(MATCH_EVENTS.join, answer(MATCH_EVENTS.join));
     socket.on(MATCH_EVENTS.resync, answer(MATCH_EVENTS.resync));
@@ -200,7 +202,7 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       server.received.push({ event: MATCH_EVENTS.clientToServer, payload });
       const parsed = safeParseClientFrame((payload as { frame?: unknown }).frame);
       if (!parsed.ok || (parsed.value.kind !== 'reply' && parsed.value.kind !== 'abort')) return;
-      if (pendingAsk?.kind === 'ask' && pendingAsk.callId === parsed.value.callId) pendingAsk = null;
+      openAsks.delete(parsed.value.callId);
     });
   });
 

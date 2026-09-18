@@ -34,14 +34,36 @@
  * same rules, so a frame the snapshot already covers comes out `duplicate` and
  * is dropped, and one that follows it comes out `ok`.
  *
- * ## One prompt, and an abort for every other
+ * ## Every ask is rendered, and every ask is answered exactly once
  *
- * Exactly one blocking method is rendered: `showConfirmDialog`. Every other
- * `ask` is answered IMMEDIATELY with a `ClientAbort` of reason `unsupported`.
- * That is not politeness: Forge's `ReplyPool.get` is an untimed wait
- * (`@hadoku/forge-wire`'s `envelope.ts` header), so an ask this client
- * silently ignored would park a Forge game thread forever. Closing the match
- * with a question still open sends `cancelled` for the same reason.
+ * All fifteen blocking methods have a component — `showConfirmDialog` here in
+ * `./ConfirmDialog.tsx`, the other fourteen in `../prompts/` — so an ask is
+ * never refused for its method. Two rules keep Forge's thread from parking,
+ * because `ReplyPool.get` is an untimed wait (`@hadoku/forge-wire`'s
+ * `envelope.ts` header):
+ *
+ *  - **Open asks are a queue, keyed by `callId`, never a single slot.** The
+ *    server holds a seat's asks by `callId` (`apps/server/src/play/match.ts`)
+ *    because a diagnostic probe can open one beside the game's. A second ask
+ *    that REPLACED the first would leave the first waiting on an answer
+ *    nobody can give any more. `LiveBoard` draws the oldest; the rest wait
+ *    their turn, still open.
+ *  - **An ask that cannot be read is aborted** (`unsupported`), and so is one
+ *    whose component fails to draw (`LiveBoard`'s boundary calls `abortAsk`).
+ *    Closing the match with questions still open sends `cancelled` for each.
+ *
+ * Every answer leaves by ONE path: `answerAsk` → `replyFrame` → `forge:c2s`,
+ * the seam Wave 9 proved with `showConfirmDialog`. `answerConfirm` is that
+ * call with the method filled in.
+ *
+ * ## An open prompt never holds the board back
+ *
+ * A prompt arrives mid-priority, with the state channel still moving (the
+ * opponent's triggers, a zone change the ask itself caused). Asks do not stop
+ * or buffer anything: a state frame that lands while a prompt is open is
+ * folded exactly as it would be with none, and the cursor advances. The
+ * prompt reads names from the CURRENT state (`lookupFromState`), and is keyed
+ * by `callId` so a redraw under it never resets a half-made choice.
  *
  * ## Which player is "me"
  *
@@ -51,7 +73,13 @@
  */
 
 import { asSeqCursor } from '@hadoku/shared';
-import { safeParseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
+import {
+  REPLY_SCHEMAS,
+  safeParseServerFrame,
+  type BlockingMethod,
+  type ClientAbort,
+  type ServerFrame,
+} from '@hadoku/forge-wire';
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
 import { io } from 'socket.io-client';
 
@@ -71,8 +99,11 @@ import {
   type WireCursor,
 } from './transport.ts';
 
-/** The one ask this client renders. */
-export type ConfirmAsk = Extract<ServerFrame, { method: 'showConfirmDialog' }>;
+/** Any blocking ask, as parsed. */
+export type LiveAsk = Extract<ServerFrame, { kind: 'ask' }>;
+
+/** The ask `./ConfirmDialog.tsx` draws. */
+export type ConfirmAsk = Extract<LiveAsk, { method: 'showConfirmDialog' }>;
 
 /* ── The transport seam ──────────────────────────────────────────────── */
 
@@ -202,8 +233,11 @@ export interface LiveMatch {
   skippedDeltas: number;
   /** What `Board` draws. Null until there is a state AND a viewer. */
   view: BoardView | null;
-  /** The confirm dialog waiting on this player, if any. */
-  pendingAsk: ConfirmAsk | null;
+  /**
+   * Every question open for this player, oldest first. See the module header:
+   * a queue, because the server may hold more than one.
+   */
+  asks: LiveAsk[];
   /** The most recent failure worth showing. Cleared when a snapshot lands. */
   lastError: string | null;
   /** Why the most recent malformed envelope or frame was refused. */
@@ -282,7 +316,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     forgeSeq: 0,
     skippedDeltas: 0,
     view: null,
-    pendingAsk: null,
+    asks: [],
     lastError: null,
     lastInvalid: null,
     lastVerdict: null,
@@ -318,38 +352,76 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
   return match;
 }
 
+/** The ask to draw now: the oldest one open. */
+export function currentAsk(match: LiveMatch): LiveAsk | null {
+  return match.asks[0] ?? null;
+}
+
+/** Take `callId` off the open list. False when it was not on it. */
+function closeAsk(match: LiveMatch, callId: string): boolean {
+  const i = match.asks.findIndex((a) => a.callId === callId);
+  if (i < 0) return false;
+  match.asks.splice(i, 1);
+  return true;
+}
+
 /**
- * Answer the pending `showConfirmDialog`.
+ * Answer an open ask — the ONE way an answer leaves this client.
  *
- * Returns false, and sends nothing, when `callId` is not the question
- * currently asked — a double click, or a click on a dialog a snapshot has
- * since replaced. One ask gets one answer.
+ * Returns false, and sends nothing, when `callId` is not open (a double click,
+ * or a click on a prompt that a snapshot or an epoch change has since
+ * replaced), when `method` is not the method it was asked with, or when
+ * `result` fails `REPLY_SCHEMAS[method]`. The components already parse their
+ * answer through that schema (`../prompts/types.ts` `checkedReply`); checking
+ * again here keeps the seam honest for any caller that is not a component.
+ * One ask gets one answer.
  */
-export function answerConfirm(match: LiveMatch, callId: string, yes: boolean): boolean {
-  const ask = match.pendingAsk;
-  if (ask === null || ask.callId !== callId) return false;
-  send(match, replyFrame(callId, 'showConfirmDialog', yes));
-  match.pendingAsk = null;
+export function answerAsk(match: LiveMatch, callId: string, method: BlockingMethod, result: unknown): boolean {
+  const ask = match.asks.find((a) => a.callId === callId);
+  if (ask === undefined || ask.method !== method) return false;
+  const parsed = REPLY_SCHEMAS[method].safeParse(result);
+  if (!parsed.success) {
+    match.lastError = `refused to send an answer to ${method} that fails its wire schema`;
+    notify(match);
+    return false;
+  }
+  closeAsk(match, callId);
+  send(match, replyFrame(callId, method, parsed.data));
   match.stats.replies += 1;
   notify(match);
   return true;
 }
 
+/** `showConfirmDialog`'s answer: `answerAsk` with the method filled in. */
+export function answerConfirm(match: LiveMatch, callId: string, yes: boolean): boolean {
+  return answerAsk(match, callId, 'showConfirmDialog', yes);
+}
+
 /**
- * Leave. An open question is ABORTED first (`cancelled`), so Forge's reply pool
- * is not left waiting on a tab that has gone.
+ * Give up on an open ask: Forge gets its own answer to a null reply. For a
+ * prompt that cannot be drawn (`LiveBoard`'s boundary) — never a way to
+ * answer. False when `callId` is not open.
+ */
+export function abortAsk(match: LiveMatch, callId: string, reason: ClientAbort['reason'], detail: string): boolean {
+  if (!closeAsk(match, callId)) return false;
+  sendAbort(match, callId, reason, detail);
+  notify(match);
+  return true;
+}
+
+/**
+ * Leave. Every open question is ABORTED first (`cancelled`), so Forge's reply
+ * pool is not left waiting on a tab that has gone.
  */
 export function closeMatch(match: LiveMatch): void {
-  if (match.pendingAsk !== null) {
-    sendAbort(match, match.pendingAsk.callId, 'cancelled', 'the player closed the board');
-    match.pendingAsk = null;
-  }
+  for (const ask of match.asks) sendAbort(match, ask.callId, 'cancelled', 'the player closed the board');
+  match.asks = [];
   match.transport.disconnect();
   match.connected = false;
   notify(match);
 }
 
-function sendAbort(match: LiveMatch, callId: string, reason: 'unsupported' | 'cancelled', detail: string): void {
+function sendAbort(match: LiveMatch, callId: string, reason: ClientAbort['reason'], detail: string): void {
   send(match, abortFrame(callId, reason, detail));
   match.stats.aborts += 1;
 }
@@ -434,8 +506,8 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.state = new Map();
   match.forgeSeq = 0;
   match.skippedDeltas = 0;
-  // The server re-sends a pending ask after the snapshot, as a normal frame.
-  match.pendingAsk = null;
+  // The server re-sends every open ask after the snapshot, as normal frames.
+  match.asks = [];
   match.lastError = null;
   match.lastInvalid = null;
   foldFrames(match, snapshot.frames);
@@ -601,13 +673,11 @@ export function ingest(match: LiveMatch, raw: unknown): void {
 
 function applyFrame(match: LiveMatch, frame: ServerFrame): void {
   if (frame.kind === 'ask') {
-    if (frame.method === 'showConfirmDialog') {
-      // Forge asks one player one question at a time; a new ask supersedes
-      // one the server has evidently stopped waiting on.
-      match.pendingAsk = frame;
-    } else {
-      sendAbort(match, frame.callId, 'unsupported', `this client renders showConfirmDialog only, not ${frame.method}`);
-    }
+    // Queued, never replacing another: see the module header. The same callId
+    // twice (a re-send) updates its entry in place rather than queueing twice.
+    const i = match.asks.findIndex((a) => a.callId === frame.callId);
+    if (i < 0) match.asks.push(frame);
+    else match.asks[i] = frame;
     return;
   }
   foldFrames(match, [frame]);
@@ -619,5 +689,5 @@ function discardLocal(match: LiveMatch): void {
   match.forgeSeq = 0;
   match.skippedDeltas = 0;
   match.view = null;
-  match.pendingAsk = null;
+  match.asks = [];
 }

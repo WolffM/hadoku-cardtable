@@ -9,11 +9,15 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { createElement } from 'react';
+import { createElement, type ComponentType } from 'react';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { parseServerFrame } from '@hadoku/forge-wire';
+
+import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
+import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
 import { LiveBoard } from './LiveBoard.tsx';
-import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
+import { closeMatch, currentAsk, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, type ReplayServer } from './replay-server.ts';
 
 let server: ReplayServer | null = null;
@@ -115,6 +119,117 @@ describe('hidden information, on the live path', () => {
     expect(container.textContent).toContain('Talon of Pain');
     for (const name of ['Leapfrog', 'Fearless Halberdier', "Ral's Dispersal", 'Hellkite Whelp']) {
       expect(container.textContent).not.toContain(name);
+    }
+  });
+});
+
+describe('the other fourteen prompts, on the live board', () => {
+  // The two zone asks answer on mount and are gone before a wait could see
+  // them — they have their own case below.
+  const drawn = PROMPT_METHODS.filter((m) => m !== 'tempShowZones' && m !== 'openZones');
+
+  it('draws twelve and answers two by itself: the fourteen, all accounted for', () => {
+    expect(drawn).toHaveLength(12);
+    expect(PROMPT_METHODS).toHaveLength(14);
+  });
+
+  it.each(drawn)('%s: an ask from the stream draws its own component', async (method) => {
+    const { s, container, getByTestId } = await liveBoard();
+    const fixture = PROMPT_FIXTURES.find((f) => f.method === method)!;
+    s.send(parseServerFrame(fixture.raw));
+    const sheet = await waitFor(() => getByTestId('live-prompt'));
+    expect(sheet.dataset.method).toBe(method);
+    expect(container.querySelector(`[data-prompt="${method}"]`)).not.toBeNull();
+    expect(container.querySelector('[data-testid="live-error"]')).toBeNull();
+  });
+
+  it.each(['tempShowZones', 'openZones'] as const)(
+    '%s answers itself on mount, once, through the seam',
+    async (method) => {
+      const { s, m, queryByTestId } = await liveBoard();
+      s.send(askFor(method));
+      await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+      expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'reply', callId: `fx-${method}`, method } });
+      await waitFor(() => expect(queryByTestId('live-prompt')).toBeNull());
+      expect(m.stats.replies).toBe(1);
+    },
+  );
+
+  it('a choice half-made survives the board moving under it, and the answer is the one Forge asked for', async () => {
+    const s = (server = await startReplayServer());
+    const m = (match = startMatch({
+      matchId: s.matchId,
+      transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
+    }));
+    const { getByTestId, container } = render(createElement(LiveBoard, { match: m }));
+    await waitFor(() => expect(m.stats.snapshots).toBe(1));
+    const frames = fixtureFrames();
+    for (const f of frames.slice(0, 8)) s.send(f);
+    await waitFor(() => expect(getByTestId('turn')).toBeTruthy());
+    const turnBefore = getByTestId('turn').textContent;
+
+    s.send(askFor('getChoices'));
+    await waitFor(() => getByTestId('live-prompt'));
+    const red = () => container.querySelector<HTMLInputElement>('[data-testid="prompt-choice"][data-key="red"]')!;
+    fireEvent.click(red());
+    expect(red().checked).toBe(true);
+
+    // The rest of the game arrives with the question open.
+    for (const f of frames.slice(8)) s.send(f);
+    await waitFor(() => expect(getByTestId('turn').textContent).toBe('Turn 14'));
+    expect(turnBefore).not.toBe('Turn 14');
+    expect(red().checked).toBe(true);
+    expect(getByTestId('live-prompt').dataset.callId).toBe('fx-getChoices');
+
+    fireEvent.click(getByTestId('prompt-submit'));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(s.clientFrames()[0]).toEqual({
+      ok: true,
+      value: { kind: 'reply', callId: 'fx-getChoices', method: 'getChoices', result: ['red'] },
+    });
+    expect(currentAsk(m)).toBeNull();
+    expect(m.stats).toMatchObject({ gaps: 0, resyncsRequested: 0, invalid: 0 });
+  });
+
+  it('two asks open: the oldest is drawn, and the next is drawn once it is answered', async () => {
+    const { s, getByTestId } = await liveBoard();
+    s.send(askFor('getChoices'));
+    s.send(confirmAsk('c-next'));
+    await waitFor(() => expect(getByTestId('live-prompt').dataset.callId).toBe('fx-getChoices'));
+    fireEvent.click(document.querySelector('[data-testid="prompt-choice"][data-key="blue"]')!);
+    fireEvent.click(getByTestId('prompt-submit'));
+    const dialog = await waitFor(() => getByTestId('confirm-dialog'));
+    expect(dialog.dataset.callId).toBe('c-next');
+    fireEvent.click(dialog.querySelector('[data-answer="yes"]')!);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(s.clientFrames().map((f) => (f.ok && f.value.kind === 'reply' ? [f.value.callId, f.value.result] : null))).toEqual([
+      ['fx-getChoices', ['blue']],
+      ['c-next', true],
+    ]);
+  });
+
+  it('a prompt that throws is aborted, so Forge is not left waiting on it', async () => {
+    const table = PROMPT_COMPONENTS as unknown as Record<string, ComponentType<unknown>>;
+    const original = table.showOptionDialog!;
+    table.showOptionDialog = () => {
+      throw new Error('boom');
+    };
+    const quiet = console.error;
+    console.error = () => {};
+    try {
+      const { s, m, getByTestId, queryByTestId } = await liveBoard();
+      s.send(askFor('showOptionDialog'));
+      await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+      expect(s.clientFrames()[0]).toMatchObject({
+        ok: true,
+        value: { kind: 'abort', callId: 'fx-showOptionDialog', reason: 'unsupported' },
+      });
+      await waitFor(() => expect(queryByTestId('live-prompt')).toBeNull());
+      expect(getByTestId('live-error').textContent).toMatch(/could not show showOptionDialog/);
+      expect(m.stats.aborts).toBe(1);
+    } finally {
+      table.showOptionDialog = original;
+      console.error = quiet;
     }
   });
 });

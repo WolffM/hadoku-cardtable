@@ -1,6 +1,6 @@
 /*
- * The live board's own chrome: a status line, an error line, and the confirm
- * dialog. Palette tokens from `styles.css` only; no colours of its own.
+ * The live board's own chrome: a status line, an error line, and the sheet a
+ * prompt sits in. Palette tokens from `styles.css` only; no colours of its own.
  *
  * The dialog is a bottom sheet, not a centred modal: on a 360px phone the
  * board it asks about stays visible above it, and the buttons sit where a
@@ -63,4 +63,21 @@
 
 .confirm__button[data-default] {
   border-color: var(--accent);
+}
+
+/*
+ * The other fourteen prompts sit in the same bottom sheet as the confirm
+ * dialog, but scroll inside it: a card list can be long, and the board above
+ * must stay in view while the player reads the question.
+ */
+.live__prompt > .prompt {
+  position: fixed;
+  z-index: 2;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+  border-color: var(--accent);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 45%);
 }
