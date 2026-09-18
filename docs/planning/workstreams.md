@@ -290,7 +290,47 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-16 — tracker, closing Wave 7)
+## Verified this pass (2026-09-17 — tracker, closing Wave 8)
+
+**All four lanes landed; worktree and branch gone.** Gate **1,298 tests / 46
+files** (was 1,143 / 37). CI and redeploy green on `c757a98`; production 401.
+
+- **The submodule survived the close-out slip.** The manager reported git
+  refusing to remove the worktree. Checked the failure mode a `submodule deinit`
+  would have caused — **the deploy tree IS this checkout** — and it is intact:
+  registered in `.git/config`, populated (19 entries), pinned at `2ad70eb4`,
+  tree clean. The fix held.
+- **Tier C's refusal is gone** — `grep -c 'z.never|tierCRefusal'` on `tier-c.ts`
+  → **0** — and replaced with a schema validated against real captures.
+- **The events arm is 41 modelled + 17 refused = 58**, not the 36/22 the wave
+  predicted. More events fired than the 12-game sample had shown, which is the
+  right direction to be wrong in. The 17 refuse **by name**, as instructed.
+- **The cross-lane check exists and bites.** `tier-c.fixture.test.ts` parses all
+  27 packets of the UI's board fixture under `DeltaPacketSchema`. Mutation-tested
+  here: corrupting one numeric value in the real fixture **fails** it; restored,
+  3/3 pass. That is the A↔C integration the wave asked the manager to run, and
+  it is a committed test rather than a one-off.
+- **The board renders from a real game's packet stream** and imports no socket —
+  the fixture discipline held.
+
+### Correcting my own framing, prompted by the operator
+
+I wrote "~14 prompt components" without saying what a prompt component *is*, and
+the operator rightly asked whether Forge doesn't run on discrete rules. It does,
+and that is the reason the number is small: **the client decides nothing.** The
+count is the SERVER→client methods that **return a value** — re-derived from
+`ProtocolMethod.java`, it is **15**:
+
+`showConfirmDialog` · `confirm` · `showOptionDialog` · `showInputDialog` ·
+`getChoices` · `chooseSingleEntityForEffect` · `chooseEntitiesForEffect` ·
+`getAbilityToPlay` · `assignCombatDamage` · `assignGenericAmount` · `order` ·
+`manipulateCardList` · `sideboard` · `openZones` · `tempShowZones`
+
+They are **UI affordances, not rules**. The rules stay Forge's, and the set is
+closed because the enum is closed — which is the only reason the work was
+sizeable at all.
+
+## Previously verified (2026-09-16 — tracker, closing Wave 7)
 
 **All four lanes landed; worktree gone.** Gate **1,143 tests / exit 0** (was
 635). CI and redeploy green on `40060fa`; production 401 to anonymous.
