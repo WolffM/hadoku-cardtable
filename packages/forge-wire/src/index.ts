@@ -8,8 +8,9 @@
  *   Tier A — 14 methods, scalars only. Transcription. `tier-a.ts`
  *   Tier B — 21 methods, entity references. `refs.ts` is the id scheme,
  *            `sideboard.ts` is the one method that is not a reference.
- *   Tier C —  3 methods, the state channel. UNRESOLVED — `tier-c.ts` refuses
- *            to parse and says why.
+ *   Tier C —  3 methods, the state channel. `tier-c.ts`, modelled from and
+ *            tested against Wave 7's captured packets. Its events arm is
+ *            opaque until lane B's `events/` lands.
  *
  * `envelope.ts` is the transport: channel names, `notify` / `ask` / `act`, the
  * correlation id, the `abort` frame that answers Forge's untimed `ReplyPool`,
@@ -158,14 +159,37 @@ export {
 export {
   TIER_C_METHODS,
   TIER_C_SPIKE,
-  TIER_C_UNRESOLVED,
   TIER_C_SERVER_FRAMES,
   TIER_C_REPLIES,
   SetGameViewSchema,
   OpenViewSchema,
   ApplyDeltaSchema,
-  tierCRefusal,
+  GameStateSchema,
+  DeltaPacketSchema,
+  ObjectTableSchema,
+  TrackedObjectSchema,
+  TaggedValueSchema,
+  DeltaEventsArmSchema,
+  DeltaKeySchema,
+  DECLARED_TYPE_SCHEMAS,
+  ENUM_PROPERTY_SCHEMAS,
+  STATE_PROPERTIES,
+  STATE_PROPERTY_COUNT,
+  UNOBSERVED_DECLARED_TYPES,
+  DELTA_OBJECT_TYPES,
+  GAME_VIEW_TYPE_TAG,
+  deltaKeyOf,
+  deltaKeyType,
+  deltaKeyId,
   type TierCMethod,
+  type GameState,
+  type DeltaPacket,
+  type ObjectTable,
+  type TrackedObject,
+  type TaggedValue,
+  type StateProperty,
+  type DeclaredType,
+  type DeltaObjectType,
 } from './tier-c.ts';
 
 export {
@@ -183,7 +207,6 @@ export {
   ClientFrameSchema,
   isBlocking,
   isTierC,
-  unresolvedReason,
   parseClientFrame,
   parseServerFrame,
   safeParseClientFrame,

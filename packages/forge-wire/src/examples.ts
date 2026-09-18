@@ -20,7 +20,9 @@
  * tautological: "a value the type system already accepted parses". Parsing
  * these is a real assertion.
  *
- * There is deliberately no Tier C example. See `tier-c.ts`.
+ * There is no Tier C example here. `tier-c.test.ts` parses real packets
+ * captured from a Forge match instead, which a hand-built example could only
+ * approximate.
  */
 
 import { TIER_A_METHODS } from './tier-a.ts';

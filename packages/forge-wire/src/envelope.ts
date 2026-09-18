@@ -54,8 +54,8 @@
  * - It does not model the 20 `ProtocolMethod`s outside the required 38, nor the
  *   2 dead ones (`setRememberedActions`, `nextRememberedAction`, resolved to
  *   nothing by Wave 3's reflection dump).
- * - It does not model Tier C. See `tier-c.ts`, which refuses rather than
- *   pretends.
+ * - It does not give `applyDelta`'s events arm a shape. `tier-c.ts` carries
+ *   it opaque until Wave 8 lane B's `events/` schema replaces it.
  */
 
 import { z } from 'zod';
@@ -72,7 +72,7 @@ import {
   TIER_B_REPLIES,
   TIER_B_SERVER_FRAMES,
 } from './tier-b.ts';
-import { TIER_C_METHODS, TIER_C_SERVER_FRAMES, tierCRefusal, type TierCMethod } from './tier-c.ts';
+import { TIER_C_METHODS, TIER_C_SERVER_FRAMES, type TierCMethod } from './tier-c.ts';
 
 /* ── Channel ─────────────────────────────────────────────────────────── */
 
@@ -145,7 +145,8 @@ export const REPLY_SCHEMAS = {
 
 /**
  * Every frame the bridge may send a browser: 29 arms, discriminated on
- * `method`. Three of them (Tier C) are present and refuse to parse.
+ * `method`. Three of them (Tier C) are the state channel, modelled from the
+ * Wave 7 captures in `tier-c.ts`.
  */
 export const ServerFrameSchema = z.discriminatedUnion('method', [
   ...TIER_A_SERVER_FRAMES,
@@ -188,8 +189,7 @@ export const AbortReasonSchema = z.enum(ABORT_REASONS);
  *
  * Not a `ProtocolMethod` — this envelope's own frame, for the `ReplyPool`
  * hazard in the module header. `unsupported` is the one a client sends when it
- * is asked something it cannot render, which today includes anything that
- * depends on Tier C.
+ * is asked something it cannot render.
  */
 export const ClientAbortSchema = z.strictObject({
   kind: z.literal('abort'),
@@ -238,11 +238,9 @@ function issuesOf(error: z.ZodError): WireIssue[] {
 }
 
 /**
- * Validate a frame the bridge sent. Non-throwing; reports every failure.
- *
- * A Tier C method fails here with `tierCRefusal`'s sentence rather than with a
- * bare type error, which is the difference between a consumer that knows what
- * to do next and one that files a bug against Zod.
+ * Validate a frame the bridge sent. Non-throwing; reports every failure, each
+ * with its path — for a Tier C packet that path runs down to the property,
+ * e.g. `$.payload.packet.objectDeltas.805306369.Turn.t`.
  */
 export function safeParseServerFrame(raw: unknown): ParseOutcome<ServerFrame> {
   const result = ServerFrameSchema.safeParse(raw);
@@ -304,18 +302,7 @@ export function isBlocking(method: string): method is BlockingMethod {
   return BLOCKING_SET.has(method);
 }
 
-/** Whether this method is in the unresolved state channel. */
+/** Whether this method is one of the three state-channel methods (`tier-c.ts`). */
 export function isTierC(method: string): method is TierCMethod {
   return TIER_C_SET.has(method);
-}
-
-/**
- * The refusal for an unresolved method, or null when the method is modelled.
- *
- * A bridge calls this before it tries to send, so "we do not do state yet"
- * surfaces as a sentence at the seam rather than as a parse failure in the
- * browser.
- */
-export function unresolvedReason(method: string): string | null {
-  return isTierC(method) ? tierCRefusal(method) : null;
 }

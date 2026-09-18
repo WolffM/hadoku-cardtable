@@ -56,7 +56,7 @@ describe('the census — 14 + 21 + 3 = 38', () => {
     expect(new Set(REQUIRED_METHODS).size).toBe(38);
   });
 
-  it('has exactly one example per modelled method, and none for Tier C', () => {
+  it('has exactly one example per Tier A/B method; Tier C is tested against captures', () => {
     const examples = [
       ...Object.keys(SERVER_FRAME_EXAMPLES),
       ...Object.keys(CLIENT_FRAME_EXAMPLES),
