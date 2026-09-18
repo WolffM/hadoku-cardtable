@@ -1,0 +1,10 @@
+{
+  "kind": "ask",
+  "callId": "fx-showOptionDialog",
+  "method": "showOptionDialog",
+  "message": "Which game should this match continue with?",
+  "title": "Next game",
+  "icon": "ICO_QUESTION",
+  "options": ["Play first", "Draw first", "Let the loser choose"],
+  "defaultOption": 0
+}

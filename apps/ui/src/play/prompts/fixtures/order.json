@@ -1,0 +1,39 @@
+{
+  "kind": "ask",
+  "callId": "fx-order",
+  "method": "order",
+  "title": "Select order for simultaneous abilities",
+  "top": "Resolve first",
+  "remainingObjectsMin": 0,
+  "remainingObjectsMax": 0,
+  "sourceChoices": [
+    {
+      "key": "sa-9101",
+      "label": "Fire Urchin (21): Whenever you cast an instant or sorcery spell, Fire Urchin gets +1/+0 until end of turn.",
+      "ref": {
+        "kind": "spellAbility",
+        "id": 9101
+      }
+    },
+    {
+      "key": "sa-9102",
+      "label": "Ral's Staticaster (2): Whenever Ral's Staticaster attacks, if you control a Ral planeswalker, Ral's Staticaster gets +1/+0 for each card in your hand until end of turn.",
+      "ref": {
+        "kind": "spellAbility",
+        "id": 9102
+      }
+    },
+    {
+      "key": "sa-9103",
+      "label": "Hellkite Whelp (60): Whenever Hellkite Whelp attacks, it deals 1 damage to target creature defending player controls.",
+      "ref": {
+        "kind": "spellAbility",
+        "id": 9103
+      }
+    }
+  ],
+  "destChoices": [],
+  "referenceCard": null,
+  "sideboardingMode": false,
+  "showRememberCheckbox": true
+}

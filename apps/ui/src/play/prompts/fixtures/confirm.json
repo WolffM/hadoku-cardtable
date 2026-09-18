@@ -1,0 +1,15 @@
+{
+  "kind": "ask",
+  "callId": "fx-confirm",
+  "method": "confirm",
+  "card": {
+    "kind": "card",
+    "id": 21
+  },
+  "question": "Use triggered ability of Fire Urchin (21)? (Whenever you cast an instant or sorcery spell, Fire Urchin gets +1/+0 until end of turn.)",
+  "defaultIsYes": true,
+  "options": [
+    "Yes",
+    "No"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "ask",
+  "callId": "fx-showInputDialog",
+  "method": "showInputDialog",
+  "message": "How many additional times should the recorded action sequence be repeated?",
+  "title": "Repeat Action Sequence",
+  "icon": null,
+  "initialInput": "1",
+  "inputOptions": [],
+  "isNumeric": true
+}

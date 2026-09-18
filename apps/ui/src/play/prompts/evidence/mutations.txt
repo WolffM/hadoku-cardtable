@@ -1,0 +1,47 @@
+# Mutation tests — the hard three's answer rules (Wave 9 lane C, 2026-09-17)
+#
+# Each mutation edits ONE line of apps/ui/src/play/prompts/rules.ts, runs
+#   flock <build.lock> pnpm exec vitest run apps/ui/src/play/prompts
+# records the exit code and the failing tests, then copies the original back
+# (cmp against a saved copy: identical). Baseline and restored: 132 passed, exit 0.
+
+## combat-sum
+# combatDamageProblems: 'if (total !== rules.damage)' -> 'if (false && total !== rules.damage)'
+exit 1
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+Tests  2 failed | 130 passed (132)
+× assignCombatDamage > refuses damage that does not sum to the damage dealt
+× assignCombatDamage > cannot send damage that sums wrong
+
+## combat-order
+# combatDamageProblems: 'aliveBefore ||= amount < b.lethal' -> 'aliveBefore ||= false && amount < b.lethal'
+exit 1
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+Tests  4 failed | 128 passed (132)
+× assignCombatDamage > refuses damage to a later blocker before the earlier one has lethal
+× assignCombatDamage > refuses trample-over before every blocker has lethal
+× assignCombatDamage > lets blockers take damage in any order under overrideOrder, but still gates the defender
+× assignCombatDamage > cannot send damage past a blocker that lacks lethal
+
+## order-remaining
+# orderProblems: 'if (ask.remainingObjectsMax >= 0)' -> 'if (false && ask.remainingObjectsMax >= 0)'
+exit 1
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+Tests  4 failed | 128 passed (132)
+× order > needs every item placed when nothing may remain
+× order > holds a bounded split to its range
+× order > starts with everything unplaced and OK disabled
+× order > cannot send an order with an item left unplaced
+
+## sideboard-pool
+# sideboardProblems: 'if (reply === null) return []' -> 'if (reply === null || true) return []'
+exit 1
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+Tests  2 failed | 130 passed (132)
+× sideboard > refuses a card from outside both pools, and more copies than the pools hold
+× sideboard > the answer rule refuses a card from outside both pools
+
+## restored
+Test Files  9 passed (9)
+Tests  132 passed (132)
+exit 0

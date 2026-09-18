@@ -1,0 +1,19 @@
+{
+  "kind": "ask",
+  "callId": "fx-chooseEntitiesForEffect",
+  "method": "chooseEntitiesForEffect",
+  "title": "Choose up to two cards to return to hand",
+  "optionList": [
+    { "kind": "card", "id": 20 },
+    { "kind": "card", "id": 11 },
+    { "kind": "card", "id": 2 }
+  ],
+  "min": 0,
+  "max": 2,
+  "delayedReveal": {
+    "cards": [{ "kind": "card", "id": 20 }, { "kind": "card", "id": 11 }, { "kind": "card", "id": 2 }],
+    "zones": ["Graveyard"],
+    "owner": { "kind": "player", "id": 0 },
+    "messagePrefix": "Looking at:"
+  }
+}

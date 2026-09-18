@@ -1,0 +1,16 @@
+{
+  "kind": "ask",
+  "callId": "fx-getChoices",
+  "method": "getChoices",
+  "message": "Choose a color",
+  "min": 1,
+  "max": 1,
+  "choices": [
+    { "key": "white", "label": "white", "ref": null },
+    { "key": "blue", "label": "blue", "ref": null },
+    { "key": "black", "label": "black", "ref": null },
+    { "key": "red", "label": "red", "ref": null },
+    { "key": "green", "label": "green", "ref": null }
+  ],
+  "selected": []
+}

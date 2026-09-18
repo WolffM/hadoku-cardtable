@@ -1,0 +1,262 @@
+{
+  "kind": "ask",
+  "callId": "fx-sideboard",
+  "method": "sideboard",
+  "sideboard": [
+    {
+      "count": 4,
+      "card": {
+        "name": "Annul",
+        "set": "USG",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Chill",
+        "set": "TMP",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Miscalculation",
+        "set": "ULG",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 1,
+      "card": {
+        "name": "Mishra's Helix",
+        "set": "USG",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 2,
+      "card": {
+        "name": "Rising Waters",
+        "set": "NMS",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    }
+  ],
+  "main": [
+    {
+      "count": 4,
+      "card": {
+        "name": "Masticore",
+        "set": "UDS",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Metalworker",
+        "set": "UDS",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 1,
+      "card": {
+        "name": "Phyrexian Colossus",
+        "set": "USG",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 1,
+      "card": {
+        "name": "Crumbling Sanctuary",
+        "set": "MMQ",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Grim Monolith",
+        "set": "ULG",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 1,
+      "card": {
+        "name": "Mishra's Helix",
+        "set": "USG",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Phyrexian Processor",
+        "set": "USG",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Tangle Wire",
+        "set": "NMS",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Thran Dynamo",
+        "set": "UDS",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Voltaic Key",
+        "set": "USG",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Tinker",
+        "set": "ULG",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Brainstorm",
+        "set": "ICE",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Crystal Vein",
+        "set": "MIR",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 9,
+      "card": {
+        "name": "Island",
+        "set": "MMQ",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Rishadan Port",
+        "set": "MMQ",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    },
+    {
+      "count": 4,
+      "card": {
+        "name": "Saprazzan Skerry",
+        "set": "MMQ",
+        "artIndex": 1,
+        "collectorNumber": null,
+        "foil": false,
+        "backFace": false,
+        "flags": null
+      }
+    }
+  ],
+  "message": "Bob (Capturing)"
+}

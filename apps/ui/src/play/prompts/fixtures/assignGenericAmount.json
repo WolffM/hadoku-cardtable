@@ -1,0 +1,14 @@
+{
+  "kind": "ask",
+  "callId": "fx-assignGenericAmount",
+  "method": "assignGenericAmount",
+  "effectSource": { "kind": "card", "id": 17 },
+  "target": [
+    { "key": { "target": "entity", "ref": { "kind": "player", "id": 1 } }, "amount": 3 },
+    { "key": { "target": "entity", "ref": { "kind": "card", "id": 67 } }, "amount": 3 },
+    { "key": { "target": "entity", "ref": { "kind": "card", "id": 99 } }, "amount": 3 }
+  ],
+  "amount": 3,
+  "atLeastOne": true,
+  "amountLabel": "damage"
+}

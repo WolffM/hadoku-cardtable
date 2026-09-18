@@ -1,0 +1,26 @@
+{
+  "kind": "ask",
+  "callId": "fx-assignCombatDamage",
+  "method": "assignCombatDamage",
+  "attacker": {
+    "kind": "card",
+    "id": 21
+  },
+  "blockers": [
+    {
+      "kind": "card",
+      "id": 67
+    },
+    {
+      "kind": "card",
+      "id": 99
+    }
+  ],
+  "damage": 5,
+  "defender": {
+    "kind": "player",
+    "id": 1
+  },
+  "overrideOrder": false,
+  "maySkip": false
+}

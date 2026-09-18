@@ -1,0 +1,20 @@
+{
+  "kind": "ask",
+  "callId": "fx-manipulateCardList",
+  "method": "manipulateCardList",
+  "title": "Move cards to top or bottom of library",
+  "cards": [
+    { "kind": "card", "id": 54 },
+    { "kind": "card", "id": 47 },
+    { "kind": "card", "id": 17 },
+    { "kind": "card", "id": 46 },
+    { "kind": "card", "id": 60 }
+  ],
+  "manipulable": [
+    { "kind": "card", "id": 54 },
+    { "kind": "card", "id": 47 }
+  ],
+  "toTop": true,
+  "toBottom": true,
+  "toAnywhere": false
+}

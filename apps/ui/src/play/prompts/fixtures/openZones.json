@@ -1,0 +1,9 @@
+{
+  "kind": "ask",
+  "callId": "fx-openZones",
+  "method": "openZones",
+  "controller": { "kind": "player", "id": 0 },
+  "zones": ["Graveyard", "Battlefield", "Stack"],
+  "players": [{ "kind": "player", "id": 0 }, { "kind": "player", "id": 1 }],
+  "backupLastZones": true
+}

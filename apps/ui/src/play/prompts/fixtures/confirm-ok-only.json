@@ -1,0 +1,9 @@
+{
+  "kind": "ask",
+  "callId": "fx-confirm-ok-only",
+  "method": "confirm",
+  "card": { "kind": "card", "id": 67 },
+  "question": "Goblin Replica is revealed.",
+  "defaultIsYes": true,
+  "options": ["OK"]
+}

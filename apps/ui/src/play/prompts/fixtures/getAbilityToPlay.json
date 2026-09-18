@@ -1,0 +1,24 @@
+{
+  "kind": "ask",
+  "callId": "fx-getAbilityToPlay",
+  "method": "getAbilityToPlay",
+  "hostCard": {
+    "kind": "card",
+    "id": 108
+  },
+  "abilities": [
+    {
+      "kind": "spellAbility",
+      "id": 9001
+    },
+    {
+      "kind": "spellAbility",
+      "id": 9002
+    }
+  ],
+  "triggerEvent": {
+    "button": 1,
+    "x": 212,
+    "y": 480
+  }
+}

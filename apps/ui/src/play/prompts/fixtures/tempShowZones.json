@@ -1,0 +1,11 @@
+{
+  "kind": "ask",
+  "callId": "fx-tempShowZones",
+  "method": "tempShowZones",
+  "controller": { "kind": "player", "id": 0 },
+  "zonesToUpdate": [
+    { "player": { "kind": "player", "id": 1 }, "zones": ["Graveyard", "Battlefield"] },
+    { "player": { "kind": "player", "id": 1 }, "zones": ["Hand"] },
+    { "player": { "kind": "player", "id": 0 }, "zones": ["Hand", "Exile"] }
+  ]
+}

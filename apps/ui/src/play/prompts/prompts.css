@@ -1,0 +1,144 @@
+/*
+ * The prompts' layout. Consumes the palette on `:root` in `styles.css`, like
+ * `board.css`, and defines no colours of its own. Phone first: every list
+ * wraps, the dual lists stack below 560px, and nothing here references an image.
+ */
+
+.prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  min-width: 0;
+}
+
+.prompt__title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.prompt__message,
+.prompt__hint,
+.prompt__reveal {
+  margin: 0;
+  color: var(--ink-dim);
+  overflow-wrap: anywhere;
+}
+
+.prompt__list,
+.prompt__amounts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prompt__list > li,
+.prompt__amount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+}
+
+.prompt__list > li[draggable] {
+  cursor: grab;
+}
+
+.prompt__list > li[data-dragging] {
+  opacity: 0.5;
+}
+
+.prompt__list > li[data-movable] {
+  border-color: var(--accent);
+}
+
+.prompt__item,
+.prompt__amount-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.prompt__count {
+  min-width: 2ch;
+  text-align: right;
+  color: var(--ink-dim);
+}
+
+.prompt__tag {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.prompt__stepper,
+.prompt__row-actions {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.prompt__stepper input {
+  width: 4em;
+}
+
+.prompt__dual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 560px) {
+  .prompt__dual {
+    grid-template-columns: 1fr;
+  }
+}
+
+.prompt__col-head {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.prompt__problems {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--warn);
+}
+
+.prompt__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.prompt__choice {
+  width: 100%;
+  text-align: left;
+}
+
+.prompt__link {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+  cursor: pointer;
+}
+
+.prompt__input {
+  max-width: 100%;
+}

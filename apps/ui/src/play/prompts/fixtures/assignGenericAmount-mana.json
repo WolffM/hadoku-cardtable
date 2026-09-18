@@ -1,0 +1,13 @@
+{
+  "kind": "ask",
+  "callId": "fx-assignGenericAmount-mana",
+  "method": "assignGenericAmount",
+  "effectSource": { "kind": "card", "id": 8 },
+  "target": [
+    { "key": { "target": "manaColor", "color": 2 }, "amount": 2 },
+    { "key": { "target": "manaColor", "color": 8 }, "amount": 2 }
+  ],
+  "amount": 2,
+  "atLeastOne": false,
+  "amountLabel": "mana"
+}
