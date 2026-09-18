@@ -221,3 +221,43 @@ export {
   type ParseOutcome,
   type WireIssue,
 } from './envelope.ts';
+
+/*
+ * Tier C's events arm — the JSON form of `DeltaPacket.events`. 41 GameEvent
+ * classes modelled from captured instances, the other 17 of Forge's 58 refused
+ * by name. `events/index.ts` has the whole story.
+ */
+export {
+  GameEventSchema,
+  GameEventListSchema,
+  MODELLED_EVENTS,
+  MODELLED_EVENT_NAMES,
+  REFUSED_EVENTS,
+  REFUSED_EVENT_NAMES,
+  EVENTS_CAPTURE,
+  EVENTS_NEEDING_JAVA_HELP,
+  eventRefusal,
+  EventCardSchema,
+  EventEntitySchema,
+  ZoneViewSchema,
+  InlineSpellAbilitySchema,
+  InlineStackItemSchema,
+  CounterNameSchema,
+  GAME_LOG_ENTRY_TYPES,
+  GameLogEntryTypeSchema,
+  EVENT_VALUE_CHANGE_TYPES,
+  EventValueChangeTypeSchema,
+  MAGIC_COLORS,
+  MagicColorSchema,
+  DAMAGE_TYPES,
+  DamageTypeSchema,
+  GAME_TYPES,
+  GameTypeSchema,
+  type GameEvent,
+  type ModelledEventName,
+  type RefusedEventName,
+  type EventCard,
+  type EventEntity,
+  type InlineSpellAbility,
+  type InlineStackItem,
+} from './events/index.ts';
