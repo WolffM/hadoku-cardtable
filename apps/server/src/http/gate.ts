@@ -21,6 +21,12 @@
  * in the same place: the text, byte for byte, as a seat's `deck` in play's own
  * `POST /api/play/matches` body. What is validated is what is sent.
  *
+ * "What is sent" is the whole file, and Forge reads more of a `.dck` than
+ * `main` and `sideboard`, with a slightly different reader. So both arms also
+ * refuse the TEXT wherever the two readers would see two different decks
+ * (`dckShapeIssues`) — Wave 11 found three such files that a real Forge
+ * launched as a different deck from the one this gate had passed.
+ *
  * ## Why the draft arm checks only your own pool
  *
  * A drafted pool is hidden information until the draft is over, and a verdict
@@ -63,9 +69,15 @@ export interface StartRequest {
 	seats: [SeatRequest, SeatRequest];
 }
 
+/**
+ * What is wrong with the `.dck` TEXT, as opposed to the deck it describes: the
+ * places where our reader and Forge's would read one file as two decks.
+ */
+export type ShapeIssueKind = 'no-metadata' | 'unchecked-section' | 'ambiguous-character';
+
 /** A `DeckIssue` without the parsed card object: what the browser needs. */
 export interface WireIssue {
-	kind: DeckIssue['kind'];
+	kind: DeckIssue['kind'] | ShapeIssueKind;
 	message: string;
 	cardName: string | null;
 	count: number | null;
@@ -186,6 +198,111 @@ function wireIssue(issue: DeckIssue): WireIssue {
 	return { kind: issue.kind, message: issue.message, cardName: issue.cardName, count: issue.count, limit: issue.limit };
 }
 
+/** The sections a deck is checked in. Everything else is refused if it holds a card. */
+const CHECKED_SECTIONS: ReadonlySet<string> = new Set(['metadata', 'main', 'sideboard']);
+
+/** The Unicode spaces and the BOM: JS's `trim` strips them, Java's does not. */
+const JS_ONLY_BLANKS: ReadonlySet<number> = new Set([
+	0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029,
+	0x202f, 0x205f, 0x3000, 0xfeff,
+]);
+
+/**
+ * Characters on which `parseDck` and Forge's reader disagree about where a line
+ * or a section starts. Java's `String.trim` (FileSection.java:108,
+ * DeckSection.java:79) strips every char <= U+0020 and nothing else; JS's
+ * `trim` strips the ASCII blanks plus the Unicode spaces and the BOM. So
+ * `[main\u0001]` is Forge's Main and our unknown section, and a line
+ * `\u00A0[junk]` is our section header and Forge's card line — either way the
+ * cards after it are checked by one reader and played by the other. Tab, LF,
+ * CR and space are trimmed identically by both, and are all a `.dck` needs.
+ *
+ * Returns the first such character in a line, or null.
+ */
+function ambiguousCharacter(line: string): string | null {
+	for (const ch of line) {
+		const c = ch.codePointAt(0) ?? 0;
+		// Java trims every C0 control; JS only tab, LF, VT, FF and CR — and VT/FF are not something a .dck needs.
+		if ((c < 0x20 && c !== 0x09 && c !== 0x0d) || JS_ONLY_BLANKS.has(c)) return ch;
+	}
+	return null;
+}
+
+function codepoint(ch: string): string {
+	return `U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}`;
+}
+
+/**
+ * Everything about the TEXT that would make Forge play a different deck from
+ * the one `formatIssues`/`deckIssues` checked, or not load it at all.
+ *
+ * `checkSeat` validates `main` and `sideboard`, but it forwards the whole file,
+ * and Forge reads more of it than that:
+ *
+ *   - Any other section Forge recognises — `[Planes]`, `[Avatar]`,
+ *     `[Schemes]`, `[Conspiracy]`, … — is read, and `Deck.normalizeDeferredSections`
+ *     (Deck.java:341-378) MOVES every card that does not belong there into
+ *     `Main` (`DeckSection.matchingSection`, DeckSection.java:58-74). A legal
+ *     60 plus `[Planes]\n4 Jace, the Mind Sculptor` is a 64-card deck with
+ *     four Jaces in Forge and a legal one to us. `[Commander]` is read too.
+ *     Forge matches section names with `compareToIgnoreCase`
+ *     (DeckSection.java:81), which folds `\u0130`→`i` and `\u017F`→`s` where JS's
+ *     `toLowerCase` does not, so the whitelist is on OUR key and anything
+ *     outside it that holds a card is refused rather than guessed at.
+ *   - `DeckSerializer.readDeckMetadata` (DeckSerializer.java:28) looks up
+ *     `metadata` case-SENSITIVELY. Without an exact `[metadata]` line Forge's
+ *     deck is null, and the bridge fails the match after the JVM is committed
+ *     (`PlayBridge.parseDeck`).
+ *   - the characters `ambiguousCharacter` finds, above.
+ */
+export function dckShapeIssues(text: string, file: ReturnType<typeof parseDck>): WireIssue[] {
+	const issues: WireIssue[] = [];
+
+	const lines = text.split(/\r?\n/);
+	for (const [i, line] of lines.entries()) {
+		const ch = ambiguousCharacter(line);
+		if (ch === null) continue;
+		const shown = JSON.stringify(line.length > 60 ? `${line.slice(0, 60)}…` : line);
+		issues.push({
+			kind: 'ambiguous-character',
+			message: `line ${i + 1} (${shown}) contains ${codepoint(ch)}, which Forge's reader and ours would read differently`,
+			cardName: null,
+			count: null,
+			limit: null,
+		});
+		break;
+	}
+
+	if (!lines.some((l) => l.trim() === '[metadata]')) {
+		issues.push({
+			kind: 'no-metadata',
+			message: 'the file has no [metadata] section (lowercase, as Forge requires), so Forge would not load it',
+			cardName: null,
+			count: null,
+			limit: null,
+		});
+	}
+
+	for (const [section, entries] of file.sections) {
+		if (CHECKED_SECTIONS.has(section)) continue;
+		const first = entries[0];
+		if (first === undefined) continue;
+		const total = entries.reduce((n, e) => n + e.count, 0);
+		issues.push({
+			kind: 'unchecked-section',
+			message:
+				`plays ${first.count}x ${first.card.name} in [${section}]` +
+				`${entries.length > 1 ? ` (${total} cards in all)` : ''}, which is not the main deck or sideboard — ` +
+				'Forge would read it, and move ordinary cards from it into the main deck',
+			cardName: first.card.name,
+			count: total,
+			limit: 0,
+		});
+	}
+
+	return issues;
+}
+
 /**
  * The one check. A seat in, a verdict or an unresolved reference out.
  *
@@ -204,13 +321,15 @@ export function checkSeat(seat: SeatRequest, ctx: GateContext): SeatVerdict | Se
 	} else {
 		text = seat.deck.dck;
 	}
-	const deck = deckFromDeckFile(parseDck(text));
+	const file = parseDck(text);
+	const shape = dckShapeIssues(text, file);
+	const deck = deckFromDeckFile(file);
 	const deckName = deck.name === '' ? 'Unnamed deck' : deck.name;
 
 	if (seat.rules.kind === 'standard') {
 		const format = ctx.library.format(seat.rules.format);
 		if (format === undefined) return { error: `no format ${JSON.stringify(seat.rules.format)}` };
-		const issues = formatIssues(deck, format.pool).map(wireIssue);
+		const issues = [...shape, ...formatIssues(deck, format.pool).map(wireIssue)];
 		return {
 			deckName,
 			rulesName: format.pool.name,
@@ -224,7 +343,7 @@ export function checkSeat(seat: SeatRequest, ctx: GateContext): SeatVerdict | Se
 	if (ctx.draftPool === null) return { error: 'this server has no draft rooms' };
 	const pool = ctx.draftPool(seat.rules.draftId);
 	if (!pool.ok) return { error: pool.error };
-	const issues = deckIssues(deck, draftPoolEntries(pool.pool)).map(wireIssue);
+	const issues = [...shape, ...deckIssues(deck, draftPoolEntries(pool.pool)).map(wireIssue)];
 	return {
 		deckName,
 		rulesName: `your pool from ${seat.rules.draftId}`,
@@ -235,9 +354,13 @@ export function checkSeat(seat: SeatRequest, ctx: GateContext): SeatVerdict | Se
 	};
 }
 
-/** The sentence a refusal leads with: which seat, which deck, which card first. */
+/**
+ * The sentence a refusal leads with: which seat, which deck, which card first.
+ * An issue that names a card leads over one that does not (a character on
+ * line 39 is the cause; the card it smuggled is what the player recognises).
+ */
 export function refusalLine(seat: number, verdict: SeatVerdict): string {
-	const first = verdict.issues[0];
+	const first = verdict.issues.find((i) => i.cardName !== null) ?? verdict.issues[0];
 	const why = first === undefined ? 'no issues' : first.message;
 	const more = verdict.issues.length > 1 ? ` (and ${verdict.issues.length - 1} more)` : '';
 	return `Seat ${seat + 1}'s deck ${JSON.stringify(verdict.deckName)} is not legal in ${verdict.rulesName}: ${why}${more}`;

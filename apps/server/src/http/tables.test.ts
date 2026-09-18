@@ -211,10 +211,11 @@ async function call(
 	path: string,
 	body?: unknown,
 	headers: Record<string, string> = edgeHeaders('alice'),
+	contentType = 'application/json',
 ): Promise<{ status: number; body: Record<string, unknown> }> {
 	const res = await fetch(`http://127.0.0.1:${h.port}${path}`, {
 		method,
-		headers: { ...headers, 'content-type': 'application/json' },
+		headers: { ...headers, 'content-type': contentType },
 		body: body === undefined ? undefined : JSON.stringify(body),
 	});
 	const text = await res.text();
@@ -225,8 +226,13 @@ async function call(
  * POST a match that should START: feed the host Forge's recorded opening once
  * it exists, as `play/socket.test.ts` does, so play's route can answer.
  */
-async function start(h: Harness, body: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
-	const pending = call(h, 'POST', '/api/play/matches', body);
+async function start(
+	h: Harness,
+	body: unknown,
+	path = '/api/play/matches',
+	contentType = 'application/json',
+): Promise<{ status: number; body: Record<string, unknown> }> {
+	const pending = call(h, 'POST', path, body, edgeHeaders('alice'), contentType);
 	const deadline = Date.now() + 3000;
 	while (h.hosts.length === 0) {
 		if (Date.now() > deadline) return pending;
@@ -379,7 +385,11 @@ describe('a drafted deck', () => {
 			],
 		});
 		expect(res.status).toBe(201);
-		expect(h.specs[0]?.seats[0]?.deck).toBe(text);
+		// The convergence, asserted: one request, a drafted 40-of-45 in seat 1 and a
+		// prebuilt 60 in seat 2, and both arrive in the SAME field of the SAME spec
+		// Forge is launched with — each exactly the text its own rule checked.
+		expect(h.specs).toHaveLength(1);
+		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([text, library.deck(PAUL_RIETZL)?.text]);
 	});
 
 	it('refuses a card the caller did not draft, by name', async () => {
@@ -409,5 +419,180 @@ describe('a drafted deck', () => {
 			edgeHeaders('bob'),
 		);
 		expect(res).toMatchObject({ status: 400, body: { error: 'you have no seat in draft "amber-lantern-k7q4"' } });
+	});
+});
+
+/* ── every way a client might get a deck past the gate ───────────────── */
+
+/**
+ * Each case here posts a deck that must NOT reach Forge, by a different door,
+ * and asserts three things: the answer is a refusal, it names the card, and
+ * `specs` — what the host factory was handed — is empty. The smuggled card is
+ * Black Lotus, which is in no Standard pool and in no cube pool we deal, so any
+ * route that lets it through has let an unchecked card reach Forge.
+ *
+ * The `.dck`-shape cases were each run against a real Forge before the check
+ * existed (Wave 11 lane D): `[Planes]` and a `\u00A0[junk]` header each gave
+ * seat 1 a 64-card library with the Lotuses in it; `[main\u0001]` REPLACED the
+ * main deck with the four Lotuses (library 4). All three were 201s.
+ */
+describe('bypass routes, each refused with the card named', () => {
+	const LOTUS = '4 Black Lotus|LEA';
+	const legalText = (): string => library.deck(PAUL_RIETZL)?.text ?? '';
+	const seatsFor = (dck: string) => ({
+		opponent: 'ai',
+		seats: [{ deck: { dck }, rules: { kind: 'standard', format: PT_PARIS } }, standard(BEN_STARK, PT_PARIS)],
+	});
+	/** Put `insert` just before the sideboard, so the lines after it are the sideboard in both readers. */
+	const beforeSideboard = (insert: string): string => {
+		const text = legalText();
+		const at = text.indexOf('[Sideboard]');
+		return `${text.slice(0, at)}${insert}\n${text.slice(at)}`;
+	};
+
+	function expectRefusedNamingLotus(res: { status: number; body: Record<string, unknown> }, h: Harness): void {
+		expect(res.status).toBe(422);
+		const seats = res.body.seats as { legal: boolean; issues: { cardName: string | null }[] }[];
+		expect(seats[0]?.legal).toBe(false);
+		expect(seats[0]?.issues.map((i) => i.cardName)).toContain('Black Lotus');
+		expect(h.specs).toEqual([]);
+	}
+
+	it('the legal base deck itself starts, so every refusal below is the smuggled part', async () => {
+		const h = await boot();
+		const res = await start(h, seatsFor(legalText()));
+		expect(res.status).toBe(201);
+		expect(h.specs[0]?.seats[0]?.deck).toBe(legalText());
+	});
+
+	/* ── the door: play's own body, and the path it is reached by ─────── */
+
+	it("play's raw body with the unchecked deck in seat 2", async () => {
+		const h = await boot();
+		const res = await call(h, 'POST', '/api/play/matches', { opponent: 'ai', decks: [null, legalText() + `\n[Main]\n${LOTUS}\n`] });
+		expect(res.status).toBe(422);
+		expect(res.body.error).toContain('a deck must be checked');
+		expect(h.specs).toEqual([]);
+	});
+
+	it("play's raw body with a one-element decks array", async () => {
+		const h = await boot();
+		const res = await call(h, 'POST', '/api/play/matches', { decks: [`[metadata]\nName=x\n[Main]\n${LOTUS}\n`] });
+		expect(res.status).toBe(422);
+		expect(h.specs).toEqual([]);
+	});
+
+	it('seats and a raw decks array in the same body', async () => {
+		const h = await boot();
+		const res = await call(h, 'POST', '/api/play/matches', { ...seatsFor(legalText()), decks: [`[Main]\n${LOTUS}`, null] });
+		expect(res).toMatchObject({ status: 400, body: { error: 'body: unknown field decks' } });
+		expect(h.specs).toEqual([]);
+	});
+
+	for (const path of ['/api/PLAY/Matches', '/api/play/matches/', '/api/Play/MATCHES/']) {
+		it(`the same route spelled ${path}`, async () => {
+			const h = await boot();
+			const raw = await call(h, 'POST', path, { opponent: 'ai', decks: [`[metadata]\nName=x\n[Main]\n${LOTUS}\n`, null] });
+			expect(raw.status).toBe(422);
+			const seats = await call(h, 'POST', path, seatsFor(beforeSideboard(`[Planes]\n${LOTUS}`)));
+			expectRefusedNamingLotus(seats, h);
+		});
+	}
+
+	it('the route under a charset-qualified JSON content type', async () => {
+		const h = await boot();
+		const res = await call(
+			h,
+			'POST',
+			'/api/play/matches',
+			{ opponent: 'ai', decks: [`[metadata]\nName=x\n[Main]\n${LOTUS}\n`, null] },
+			edgeHeaders('alice'),
+			'application/json; charset=utf-8',
+		);
+		expect(res.status).toBe(422);
+		expect(h.specs).toEqual([]);
+	});
+
+	it('a body that is not JSON to the gate is not JSON to play either: no deck reaches Forge', async () => {
+		const h = await boot();
+		const res = await start(
+			h,
+			{ opponent: 'ai', decks: [`[metadata]\nName=x\n[Main]\n${LOTUS}\n`, null] },
+			'/api/play/matches',
+			'text/plain',
+		);
+		// Neither parser reads text/plain, so play sees an empty body: Forge's random
+		// precons, human v human. The Lotus text never reaches the host.
+		expect(res.status).toBe(201);
+		expect(h.specs.map((s) => s.seats.map((seat) => seat.deck))).toEqual([[null, null]]);
+	});
+
+	/* ── the deck: text our reader and Forge's read as two decks ──────── */
+
+	const shapes: [string, () => string, string][] = [
+		['a card in [Planes], which Forge moves into the main deck', () => beforeSideboard(`[Planes]\n${LOTUS}`), 'unchecked-section'],
+		['a card in [Commander]', () => beforeSideboard(`[Commander]\n${LOTUS}`), 'unchecked-section'],
+		['a card in [Avatar], at the end of the file', () => `${legalText()}\n[Avatar]\n${LOTUS}\n`, 'unchecked-section'],
+		['a section Forge case-folds to Main and JS does not ([ma\u0130n])', () => `${legalText()}\n[ma\u0130n]\n${LOTUS}\n`, 'unchecked-section'],
+		['a section Forge case-folds to Sideboard and JS does not ([\u017Fideboard])', () => `${legalText()}\n[\u017Fideboard]\n${LOTUS}\n`, 'unchecked-section'],
+		['a control character Java trims and JS does not ([main\\u0001])', () => `${legalText()}\n[main\u0001]\n${LOTUS}\n`, 'ambiguous-character'],
+		['a no-break space JS trims and Java does not (\\u00A0[junk])', () => beforeSideboard(`\u00A0[junk]\n${LOTUS}`), 'ambiguous-character'],
+		['a byte-order mark before a header (\\uFEFF[junk])', () => beforeSideboard(`\uFEFF[junk]\n${LOTUS}`), 'ambiguous-character'],
+	];
+
+	for (const [what, text, kind] of shapes) {
+		it(`${what}: refused by the start route and by /check`, async () => {
+			const h = await boot();
+			const res = await call(h, 'POST', '/api/play/matches', seatsFor(text()));
+			expectRefusedNamingLotus(res, h);
+			const seats = res.body.seats as { issues: { kind: string }[] }[];
+			expect(seats[0]?.issues[0]?.kind).toBe(kind);
+			expect(res.body.error).toMatch(/^Seat 1's deck "Boros Landfall \(Paul Rietzl\)" is not legal in Standard \(MBS\): plays 4x Black Lotus /);
+
+			const check = await call(h, 'POST', '/api/tables/check', seatsFor(text()).seats[0]);
+			expect(check.status).toBe(200);
+			expect(check.body.legal).toBe(false);
+			expect(h.specs).toEqual([]);
+		});
+	}
+
+	it('the unchecked-section refusal says which card, where, and why', async () => {
+		const h = await boot();
+		const res = await call(h, 'POST', '/api/play/matches', seatsFor(beforeSideboard(`[Planes]\n${LOTUS}`)));
+		expect(res.body.error).toBe(
+			'Seat 1\'s deck "Boros Landfall (Paul Rietzl)" is not legal in Standard (MBS): plays 4x Black Lotus in [planes], ' +
+				'which is not the main deck or sideboard — Forge would read it, and move ordinary cards from it into the main deck',
+		);
+	});
+
+	it('a file without an exact [metadata] header, which Forge would not load at all', async () => {
+		const h = await boot();
+		const res = await call(h, 'POST', '/api/play/matches', seatsFor(legalText().replace('[metadata]', '[Metadata]')));
+		expect(res.status).toBe(422);
+		const seats = res.body.seats as { issues: { kind: string }[] }[];
+		expect(seats[0]?.issues.map((i) => i.kind)).toEqual(['no-metadata']);
+		expect(h.specs).toEqual([]);
+	});
+
+	it('the draft arm refuses the same smuggling', async () => {
+		const h = await boot();
+		const room = h.rooms.open('amber-lantern-k7q4');
+		const alice = identityFromHeaders(edgeHeaders('alice'), 'sock-a');
+		const seat = joinDraftRoom(room, 'sock-a', alice, 'friend').seat;
+		if (seat === null) throw new Error('alice was not seated');
+		const state = stateOf(room);
+		const pool = state.packs.flat().slice(0, 45);
+		state.pools[seat] = pool;
+		let deck = deckFromPool('amber-lantern-k7q4', pool);
+		for (const card of pool.slice(0, 40)) {
+			const entry = deck.sideboard.find((e) => e.card.name === card.name && e.card.set === (card.setCode || null));
+			if (entry !== undefined) deck = moveToMain(deck, entry.card, 1);
+		}
+		const text = `${dckTextOf(deck)}\n[Planes]\n${LOTUS}\n`;
+		const res = await call(h, 'POST', '/api/play/matches', {
+			opponent: 'ai',
+			seats: [{ deck: { dck: text }, rules: { kind: 'draft', draftId: 'amber-lantern-k7q4' } }, standard(BEN_STARK, PT_PARIS)],
+		});
+		expectRefusedNamingLotus(res, h);
 	});
 });

@@ -32,10 +32,48 @@ as that seat's `deck`. The draft arm finds the pool by the caller's derived
 identity (never a seat number in the body), because a verdict like "plays 1x X
 but drafted 0" says what someone drafted.
 
+Where they converge, by line: `checkSeat` sets `text` from the library
+(`gate.ts`, `text = found.text`) or the body (`text = seat.deck.dck`), both
+arms parse that one string (`const file = parseDck(text)`), and `routes.ts`
+forwards it (`req.body = { opponent, decks: verdicts.map((v) => v.text) }`) to
+play's `parseStartBody` (`play/socket.ts`, `deck: decks[0]`/`decks[1]`), which
+becomes the bridge config and `PlayBridge.parseDeck(s.deck())`. One request can
+carry one of each; `tables.test.ts` ("starts a match through the same gate")
+asserts both land in the same spec.
+
+## The file, not just the deck (Wave 11)
+
+The rules check `main` and `sideboard`; the gate forwards the whole file; and
+Forge reads more than that, with a reader that differs from `parseDck` in two
+places. Three files the Wave 10 gate passed were launched by a real Forge as a
+different deck (library counts read off the live board):
+
+| appended to a legal 60 | Forge's seat 1 library |
+| --- | --- |
+| `[Planes]` + `4 Black Lotus\|LEA` | 64 — `Deck.normalizeDeferredSections` moves ordinary cards into Main |
+| `\u00A0[junk]` + the same line, before `[Sideboard]` | 64 — JS trims the no-break space (a header), Java does not (a card line) |
+| `[main\u0001]` + the same line | **4** — Java's `trim` makes it Main and it REPLACED the real main deck |
+
+`dckShapeIssues` now refuses, as issues on the verdict: any section other than
+`metadata`/`main`/`sideboard` that holds a card (named, with its section);
+any character the two `trim`s disagree on (C0 controls other than tab/CR/LF,
+the Unicode spaces, the BOM — named by line); and a file with no exact
+`[metadata]` line, which Forge's `readDeckMetadata` needs verbatim or the
+bridge fails the match after the JVM is committed. Every door is tested in
+`tables.test.ts` ("bypass routes"), and the socket carries no deck at all
+(`sideboard` is answered `null` by the bridge).
+
 What is NOT the same yet: nothing in the UI builds a deck out of a drafted pool
 (`#/deck/<id>` is still the reserved stub), so the draft arm is reachable from
 the API and proven by `tables.test.ts` (a deck written by the UI's own
 `deckFromPool` + `dckTextOf`, checked and started), but not from a screen.
+The draft's `DeckView` can already download that `.dck`; what is missing is a
+"play this deck" step that hands `{ dck, rules: { kind: 'draft', draftId } }`
+to `#/play` (a button in `components/DeckView.tsx` plus a seat source in
+`screens/ConstructedScreen.tsx` — no server change). The hard limit is Forge's,
+not ours: the bridge reads both decks at launch and the draft arm checks only
+the caller's own pool, so a friend's drafted deck cannot be seated until decks
+can arrive after launch. Drafted-vs-AI and drafted-vs-library work today.
 
 ## HTTP
 
