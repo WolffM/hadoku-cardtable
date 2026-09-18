@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest';
 
 import { standardFormatAt } from '@hadoku/carddata/formats';
 
+import { poolNameKeys } from '../format.ts';
 import { writePrebuiltDeck } from '../prebuilt.ts';
 import {
   LIBRARY,
@@ -344,5 +345,38 @@ describe('the library as a whole', () => {
   it('every deck id is unique across collections', () => {
     const ids = LIBRARY.flatMap((c) => c.decks.map((d) => d.id));
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+/*
+ * The double-faced-card trap.
+ *
+ * Scryfall names a DFC `Front // Back`; Forge's `.dck` and every human-written
+ * decklist name the front face alone. A pool frozen from Scryfall therefore
+ * holds `Huntmaster of the Fells // Ravager of the Fells` while the deck that
+ * plays it says `Huntmaster of the Fells`.
+ *
+ * Before `poolNameKeys`, a straight set-membership test on the full name made
+ * EVERY Innistrad-era deck illegal — Delver of Secrets, Huntmaster, Garruk
+ * Relentless. It was found by adding the first real decks from that block and
+ * watching a Pro Tour winner's list get refused in the format it won.
+ */
+describe('double-faced cards are named by their front face', () => {
+  it('splits a Scryfall DFC name into both keys, and leaves a single name alone', () => {
+    expect(poolNameKeys('Huntmaster of the Fells // Ravager of the Fells')).toEqual([
+      'Huntmaster of the Fells // Ravager of the Fells',
+      'Huntmaster of the Fells',
+    ]);
+    expect(poolNameKeys('Ponder')).toEqual(['Ponder']);
+  });
+
+  it('a frozen pool accepts the front-face spelling a decklist actually uses', () => {
+    const pool = poolFromFixture(parsePoolFixture(JSON.parse(read(poolFixturePath('2012-02-12')))));
+    expect(pool.legal.has('Huntmaster of the Fells // Ravager of the Fells')).toBe(true);
+    expect(pool.legal.has('Huntmaster of the Fells')).toBe(true);
+    expect(pool.legal.has('Delver of Secrets')).toBe(true);
+    // A card that is genuinely not in the format stays out, so the widening
+    // above is a front-face rule and not a hole.
+    expect(pool.legal.has('Jace, the Mind Sculptor')).toBe(false);
   });
 });

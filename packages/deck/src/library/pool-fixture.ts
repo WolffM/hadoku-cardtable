@@ -39,7 +39,7 @@
  * out.
  */
 
-import type { FormatPool } from '../format.ts';
+import { poolNameKeys, type FormatPool } from '../format.ts';
 
 /** A `standardPoolAt` result, reduced to what a legality check needs. */
 export interface PoolFixture {
@@ -211,7 +211,10 @@ export function parsePoolFixture(json: unknown): PoolFixture {
 export function poolFromFixture(fixture: PoolFixture): FormatPool {
   return {
     name: fixture.name,
-    legal: new Set(fixture.cards),
+    // Front faces included: a decklist names `Huntmaster of the Fells`, the
+    // frozen pool holds `Huntmaster of the Fells // Ravager of the Fells`.
+    // See `poolNameKeys`.
+    legal: new Set(fixture.cards.flatMap(poolNameKeys)),
     banned: new Set(fixture.banned),
   };
 }

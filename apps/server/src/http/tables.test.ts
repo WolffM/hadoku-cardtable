@@ -42,6 +42,7 @@ const BEN_STARK = 'pt-paris-2011-1-ben-stark';
 const PAUL_RIETZL = 'pt-paris-2011-2-paul-rietzl';
 const PT_PARIS = '2011-02-13';
 const AFTER_BANS = '2011-07-01';
+const PT_DKA = '2012-02-12';
 
 let routesMod: typeof import('./routes.ts');
 let playMod: typeof import('../play/socket.ts');
@@ -73,9 +74,15 @@ const library = loadTablesLibrary(REPO_ROOT);
 describe('the library', () => {
 	it('loads every frozen pool and every catalogued deck, with no faults', () => {
 		expect(library.faults).toEqual([]);
-		expect(library.formats.map((f) => f.id)).toEqual([PT_PARIS, AFTER_BANS]);
-		expect(library.formats.map((f) => f.pool.name)).toEqual(['Standard (MBS)', 'Standard (2011-07-01)']);
-		expect(library.decks).toHaveLength(8);
+		expect(library.formats.map((f) => f.id)).toEqual([PT_PARIS, AFTER_BANS, PT_DKA]);
+		expect(library.formats.map((f) => f.pool.name)).toEqual([
+			'Standard (MBS)',
+			'Standard (2011-07-01)',
+			'Standard (DKA)',
+		]);
+		// Two collections of eight. Pinned as a total on purpose: a collection
+		// appearing or vanishing should be a visible diff, not a silent one.
+		expect(library.decks).toHaveLength(16);
 	});
 
 	it('names a file that will not load instead of refusing to boot', () => {
@@ -94,7 +101,9 @@ describe('the library', () => {
 		expect(broken.faults).toHaveLength(1);
 		expect(broken.faults[0]).toContain('ghost.dck');
 		// The formats still load: one broken deck costs one entry, not the picker.
-		expect(broken.formats).toHaveLength(2);
+		// Three pools are frozen — the collection's own date, the ban date after
+		// it, and PT Dark Ascension's.
+		expect(broken.formats).toHaveLength(3);
 	});
 });
 
@@ -103,10 +112,17 @@ describe('the library', () => {
 describe('checkSeat', () => {
 	const ctx = { library, draftPool: null };
 
-	it('passes every PT Paris deck in the format it was played in', () => {
+	// Every deck, checked against ITS OWN collection's format rather than one
+	// hardcoded date. The previous version iterated the whole library against
+	// PT_PARIS, which was correct only while the library held one collection —
+	// the same shape of bug as asserting a collection's size against a
+	// library-wide total. A DKA deck is legal in DKA and is not legal in a 2011
+	// pool, and both of those are the right answer.
+	it('passes every deck in the format it was actually played in', () => {
 		for (const d of library.decks) {
-			const v = checkSeat({ deck: { library: d.id }, rules: { kind: 'standard', format: PT_PARIS } }, ctx);
-			expect(v, d.id).toMatchObject({ legal: true, issues: [], note: null });
+			const format = d.id.startsWith('pt-dka-2012-') ? PT_DKA : PT_PARIS;
+			const v = checkSeat({ deck: { library: d.id }, rules: { kind: 'standard', format } }, ctx);
+			expect(v, `${d.id} in ${format}`).toMatchObject({ legal: true, issues: [], note: null });
 		}
 	});
 
@@ -330,10 +346,11 @@ describe('the catalog routes', () => {
 		expect((formats.body.formats as { id: string; banned: string[] }[]).map((f) => [f.id, f.banned])).toEqual([
 			[PT_PARIS, []],
 			[AFTER_BANS, ['Jace, the Mind Sculptor', 'Stoneforge Mystic']],
+			[PT_DKA, []],
 		]);
 		const decks = await call(h, 'GET', '/api/tables/decks');
 		const list = decks.body.decks as { id: string; name: string; main: { count: number }[] }[];
-		expect(list).toHaveLength(8);
+		expect(list).toHaveLength(16);
 		expect(list[0]).toMatchObject({ id: BEN_STARK, name: 'Mystic Caw Go (Ben Stark)' });
 		expect(list[0]?.main.reduce((n, e) => n + e.count, 0)).toBe(60);
 	});

@@ -283,13 +283,38 @@ export function isLegalIn(deck: Deck, format: FormatPool): boolean {
  * reads as one pool. Counts are ignored: a pool says which cards exist, not how
  * many.
  */
+/**
+ * Every name a pool entry answers to — the full name, and the front face.
+ *
+ * Scryfall names a double-faced card `Front // Back`. **Forge's `.dck` format,
+ * and every decklist a human ever wrote, names the front face alone.** So a
+ * pool frozen from Scryfall holds `Huntmaster of the Fells // Ravager of the
+ * Fells` while the deck that plays it says `Huntmaster of the Fells`, and a
+ * set-membership test on the full name alone calls it `not-in-pool`.
+ *
+ * That is not a hypothetical: it made **every** Innistrad-era deck illegal —
+ * Delver of Secrets, Huntmaster, Garruk Relentless — and was found when the
+ * first real Standard decks for that block were added (2026-09-18, PT Dark
+ * Ascension). `packages/carddata`'s resolver has handled front faces since
+ * Wave 2 (`nameKeysFor`, "951 references across the corpus"); the loss happens
+ * when a pool is FROZEN into a fixture, which keeps `card.name` and nothing
+ * else.
+ *
+ * Fixed here rather than in the fixture so the pool file stays a plain list of
+ * canonical names and the card count keeps meaning what it says.
+ */
+export function poolNameKeys(name: string): string[] {
+  const cut = name.indexOf(' // ');
+  return cut === -1 ? [name] : [name, name.slice(0, cut)];
+}
+
 export function formatPoolFromEntries(
   name: string,
   entries: readonly DeckEntry[],
   rest: Omit<FormatPool, 'name' | 'legal'> = {},
 ): FormatPool {
   const legal = new Set<string>();
-  for (const entry of entries) legal.add(entry.card.name);
+  for (const entry of entries) for (const k of poolNameKeys(entry.card.name)) legal.add(k);
   return { ...rest, name, legal };
 }
 
