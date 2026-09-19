@@ -81,7 +81,7 @@ function Screen({ transport }: AppProps) {
     case 'match':
       return <MatchScreen matchId={route.matchId} />;
     case 'room':
-      return <ConstructedScreen />;
+      return <ConstructedScreen roomId={route.roomId} />;
     case 'lobby':
       return <LobbyScreen />;
   }

@@ -26,8 +26,10 @@
  * ## The other seat
  *
  * Forge reads both seats' decks when the match launches, and the gate's draft
- * arm checks only the caller's own pool — so the other seat is a library deck,
- * played by Forge's AI or by a friend you send the link to. Said on screen.
+ * arm checks only the caller's own pool — so the other seat is a library deck
+ * played by Forge's AI. Playing a FRIEND happens in a room, where each of you
+ * loads your own deck (Wave 13 §C): a body naming two decks against a person is
+ * refused by the gate, and this screen no longer offers it.
  *
  * ## No trademarks, no images
  *
@@ -79,7 +81,6 @@ export function DeckBuilder({ draftId, pool, client, checkDelayMs = 300 }: DeckB
   const [library, setLibrary] = useState<Library | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
   const [opponentDeck, setOpponentDeck] = useState('');
-  const [opponent, setOpponent] = useState<'human' | 'ai'>('ai');
 
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [checkError, setCheckError] = useState<string | null>(null);
@@ -139,7 +140,7 @@ export function DeckBuilder({ draftId, pool, client, checkDelayMs = 300 }: DeckB
     setStarting(true);
     setRefusal(null);
     client
-      .start(opponent, [seat, librarySeat(opponentChoice, library.formats)])
+      .start('ai', [seat, librarySeat(opponentChoice, library.formats)])
       .then((outcome) => {
         if (outcome.ok) {
           navigate({ kind: 'match', matchId: outcome.matchId });
@@ -249,31 +250,8 @@ export function DeckBuilder({ draftId, pool, client, checkDelayMs = 300 }: DeckB
         {library === null && libraryError === null && <p className="lobby__note">Loading the deck library…</p>}
         {library !== null && (
           <>
-            <fieldset className="tables__opponent">
-              <legend>Against</legend>
-              <label>
-                <input
-                  type="radio"
-                  name="deck-opponent"
-                  data-testid="opponent-ai"
-                  checked={opponent === 'ai'}
-                  onChange={() => setOpponent('ai')}
-                />{' '}
-                Forge&rsquo;s AI
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="deck-opponent"
-                  data-testid="opponent-human"
-                  checked={opponent === 'human'}
-                  onChange={() => setOpponent('human')}
-                />{' '}
-                a friend — you send them the link
-              </label>
-            </fieldset>
             <div className="tables__seat">
-              <label htmlFor="opponent-deck">{opponent === 'ai' ? 'The AI plays' : 'Your friend plays'}</label>
+              <label htmlFor="opponent-deck">The AI plays</label>
               <select
                 id="opponent-deck"
                 data-testid="opponent-deck"
@@ -293,7 +271,8 @@ export function DeckBuilder({ draftId, pool, client, checkDelayMs = 300 }: DeckB
             </div>
             <p className="lobby__note">
               Forge reads both decks when the match starts, and your pool is checked only for you — so the other
-              seat plays a deck from the library, not somebody else&rsquo;s draft.
+              seat plays a deck from the library, not somebody else&rsquo;s draft. To play a friend, make a room on
+              the front page: there you each load your own deck.
             </p>
           </>
         )}

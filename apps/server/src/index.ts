@@ -71,8 +71,10 @@ import { createDraftRooms } from './room/draftRooms.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
-import { attachPlay, jvmHostConfig, jvmHostFactory } from './play/index.js';
+import { attachPlay, jvmHostConfig, jvmHostFactory, type PlayHandle } from './play/index.js';
 import { attachTables } from './http/index.js';
+import { attachRooms } from './http/rooms.js';
+import { openLobby } from './room/lobby.js';
 
 mkdirSync(CONFIG.logDir, { recursive: true });
 
@@ -226,18 +228,39 @@ const draftRooms = poolLoad.ok
 	: null;
 attachDraftSocket(io, { rooms: draftRooms, minTier: CONFIG.minTier });
 
+// ── Rooms ───────────────────────────────────────────────────────────────────
+// The room list the front page shows, and the per-player state a table reads.
+// Persisted, because this repo redeploys several times a day and an in-memory
+// room would take its members and its password with it every time. `data/` is
+// gitignored, so a `git pull` deploy leaves it alone; e2e sets CARDTABLE_LOG_DIR
+// and therefore gets its own directory rather than production's.
+const lobby = await openLobby({
+	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
+	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
+});
+attachRooms(api, { lobby });
+
 // ── Constructed ──────────────────────────────────────────────────────────────
 // Formats, the deck library, and the deck gate on POST /api/play/matches. MUST
 // come before attachPlay: the gate is a handler on play's own path and runs
 // only if it is registered first. See src/http/README.md.
-attachTables(api, { repoRoot: resolve(PKG_ROOT, '../..'), draftRooms });
+// `matches` is read lazily: the gate binds each player to the seat their own
+// deck is in, and play's registry does not exist until attachPlay below — which
+// must stay after this call for the gate to answer first at all.
+let play: PlayHandle | null = null;
+attachTables(api, {
+	repoRoot: resolve(PKG_ROOT, '../..'),
+	draftRooms,
+	rooms: lobby,
+	matches: () => play?.matches ?? null,
+});
 
 // ── Matches ──────────────────────────────────────────────────────────────────
 // One child JVM per match; see src/play/README.md. Without a configured Forge
 // build the route answers 503 and nothing else changes.
 const forge = jvmHostConfig();
 if (!forge.ok) console.warn(`[cardtable] play: no Forge (${forge.reason}) — POST /api/play/matches answers 503`);
-attachPlay(io, api, {
+play = attachPlay(io, api, {
 	minTier: CONFIG.minTier,
 	host: forge.ok ? jvmHostFactory(forge.config) : null,
 	// Diagnostics for a live check only. Never set in production (see play/socket.ts).
