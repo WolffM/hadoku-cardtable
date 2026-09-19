@@ -295,7 +295,45 @@ test(LIVE_TITLE, async ({ browser }) => {
     summary.uiAloneAtStart = gap;
     console.log(`[play] the board alone, at the start: ${JSON.stringify(gap)}`);
 
-    // ── play: hands press the buttons the board lacks; the board answers every ask.
+    // ── The coin toss, through the BOARD. Not through the scaffolding.
+    //
+    // This is the assertion whose absence let the suite go green while every
+    // production match sat at Turn 0. Forge opens with showPromptMessage +
+    // updateButtons, which is not a blocking ask, and the board drew only
+    // asks — so `gap` above used to read controlsOnPage 0, promptOnPage 0,
+    // turnOnPage "Turn 0", and the spec shrugged and let `hands` press it.
+    //
+    // Whoever holds the enabled bar must be able to answer it by clicking
+    // their own page. If this fails, a human is stuck exactly where the
+    // operator was on 2026-09-19.
+    const withBar = await Promise.all(
+      [alice, bob].map(async (f) => ({ f, n: await f.page.getByTestId('live-buttons').count() })),
+    );
+    const decider = withBar.find((w) => w.n > 0);
+    expect(decider, 'neither board drew Forge\'s button bar — the match cannot be started by a human').toBeTruthy();
+
+    const boardButton = decider!.f.page.getByTestId('live-button-ok');
+    await expect(boardButton).toBeEnabled();
+    const saysBefore = await decider!.f.page.getByTestId('live-says').textContent();
+    await boardButton.click();
+    summary.coinTossThroughBoard = { who: decider!.f.name, says: saysBefore };
+    console.log(`[play] ${decider!.f.name} answered the opening prompt on their own board: ${JSON.stringify(saysBefore)}`);
+
+    // The click must MOVE THE GAME: Forge deals opening hands once the toss is
+    // answered, so a library that never leaves 60 means nothing happened.
+    await expect
+      .poll(
+        async () => {
+          const txt = await decider!.f.page.textContent('body');
+          const m = /library (\d+)/.exec(txt ?? '');
+          return m === null ? 60 : Number(m[1]);
+        },
+        { timeout: 30_000, message: 'the opening hand was never dealt after the board answered the coin toss' },
+      )
+      .toBeLessThan(60);
+
+    // ── play: hands click CARDS, which the board still cannot do (a known gap).
+    //    Buttons are no longer among them — those go through the board, above.
     for (const f of [alice, bob]) hands.push(await connectHands(origin, f.name, matchId));
     expect(hands.map((h) => h.seat)).toEqual([0, 1]);
 
