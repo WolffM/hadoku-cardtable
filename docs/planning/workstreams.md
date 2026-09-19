@@ -151,7 +151,7 @@ Status: `todo` · `wave-N` · `blocked` · `done` · `watch`
 | **P5 service participant + P6 persistence** | **done** | G `0465c08` | `packages/room-store/**`, 69 tests over 6 files, in-memory by default. Five-state service lifecycle (`lost` entered by the room's clock, not the peer); `RoomStore` with snapshot/restore, quarantine, and a **real** `SIGTERM` test that forks a child process rather than mocking the signal |
 | **Client socket driver** | **done** | H `2e88af1` | `apps/ui/src/draft/socket.ts`, 28 tests. `classifySeq` on every inbound envelope; `duplicate` drops and **never** resyncs. `live` and `fixtures` untouched and still selectable — socket is a **third** source, not a replacement |
 | **Wire envelope** | **done** | H `20346e1` | `packages/shared/src/wire.ts`, 20 tests. One socket.io event name per **direction** carrying a tagged union, so there is one handler per direction and no unvalidated entry point. Client→server schemas are `z.strictObject`: a browser supplying `participantId` is a parse **error**, not a stripped field |
-| **`@hadoku/room-ask` has no consumer** | **watch** | us | Built because the operator asked for the full P3–P6 set, and because PR-4 play will need it. **A draft pick is an event, not an ask** — the wave file says so. Nothing imports it today |
+| **`@hadoku/room-ask` — declined by watchparty** | **needs an operator decision** | us | Built because the operator asked for the full P3–P6 set, and because PR-4 play will need it. **A draft pick is an event, not an ask** — the wave file says so. Nothing imports it today |
 | ~~**`emitPerRecipient` missing (W1)**~~ | **CLOSED — they fixed it** | watchparty | **Closed 2026-09-14.** Their `e58e3005` *"give SKIP its function, and ship the reconnect contract (W1, W2)"*. Verified in their source: `emit.ts:121 export function emitPerRecipient`, plus `emitToRole:148`, at **`0.38.110`**. The sentinel now has something to pass it to. Lane E reported the defect; they had already fixed it by the time the wave closed |
 | ~~**`@wolffm/rooms-client` (W2)**~~ | **CLOSED — they shipped the contract we asked for** | watchparty | **Closed 2026-09-14.** We agreed with the deferral and asked instead for the reconnect/resync/identity-reassert **contract** in the zero-dep `rooms-protocol`. It exists: `rooms-protocol/src/resync.ts` exports `SeqCursor`, `classifySeq`, `missedCount`, `needsResync`, `RosterIdentity`, `IdentityReassert`, `resolveIdentityReassert`, re-exported from `index.ts:15`. **This is what P6's "survive a restart and a refresh" binds to** |
 | ~~**Envelope needs an `epoch` (W4)**~~ | **CLOSED — see the PR-2 row** | us | **new row, ours not theirs.** Found reading `rooms-protocol@0.38.110` as its first consumer. `SeqCursor` is `{epoch, seq}`; all five committed fixtures carry `seq` and **no `epoch`**, so they cannot use `classifySeq`. The epoch separates "missed events" from "server restarted and recounted" — opposite responses, and the second **is** P6's restart case. Their `resync.d.ts` header says `lastEventSeq` is stamped only on watchparty's control events and an app wanting gap detection stamps its own cursor |
@@ -172,7 +172,7 @@ Status: `todo` · `wave-N` · `blocked` · `done` · `watch`
 | Disable jUPnP | **answered: config, not code** | D `df716ef` | `FServerManager.java:230-274` — `mapNatPort()` runs only when the `UPnP` pref is `ALWAYS`, so `UPnP=NEVER` in `server.preferences` means jUPnP is never constructed. **No fork change needed.** The trap is the shipped `ASK` default: it calls `SOptionPane.showOptionDialog`, a blocking modal a headless server cannot answer |
 | `FSerializableFunction` on the wire | **answered: real but narrow** | D `df716ef` | `one` never crosses the wire (it resolves locally to `getChoices`). `getChoices` serializes the lambda as a `SerializedLambda` no JS client can reconstitute — **but the server holds both the choices and the lambda**, so rendering labels server-side and sending strings loses nothing. That is the fix `WireClassFilter.java:45` already names |
 | ~~**Strip upstream's Sentry DSN in the fork**~~ | **done** | us `1f19a230` | **Stale row, corrected 2026-09-18 — this landed with the fork and the board never caught up.** Verified in the *compiled artifact*, not the checkout: no `sentry` string in `forge/view/Main.class` inside the installed jar. Checking the source would not have been enough, since a stale incremental build can carry the old class |
-| **A drafted deck with basic lands cannot be played** | **todo — TOP of Wave 13** | us | **new row 2026-09-19, found by Wave 12 lane B.** `deckFromDeckFile` returns `basics: []` and leaves basics in `main` (`deck.ts:311`); `poolOf` is main+sideboard (`deck.ts:138`); the draft arm (`gate.ts:346`) counts every `Island` against the drafted pool → *"plays 17x Island but drafted 0"*. `deckIssues` has no basic-land exemption on the pool arm. Confirmed by execution, not reading. **The fix is already in-repo**: `isBasicLand`/`BASIC_LAND_NAMES` (`deck.ts:119`,`:40`) — split basics out of main before `deckIssues`. Lane B correctly declined it: `apps/server/src/http/**` was owned by nobody |
+| ~~**A drafted deck with basic lands cannot be played**~~ | **done** | D `8cda565` | **Closed 2026-09-19.** `splitBasicLands` moves basics out of `main` before the pool check, using `isBasicLand` (Forge's own five) and no second list. Tracker mutation-tested: neutering the split fails **5** tests, restored 77 pass — including *"exempts only Forge's five: an undrafted land outside them is pool-checked"*, which is what stops a Celestial Colonnade riding in. ~~Cannot be played~~ | **new row 2026-09-19, found by Wave 12 lane B.** `deckFromDeckFile` returns `basics: []` and leaves basics in `main` (`deck.ts:311`); `poolOf` is main+sideboard (`deck.ts:138`); the draft arm (`gate.ts:346`) counts every `Island` against the drafted pool → *"plays 17x Island but drafted 0"*. `deckIssues` has no basic-land exemption on the pool arm. Confirmed by execution, not reading. **The fix is already in-repo**: `isBasicLand`/`BASIC_LAND_NAMES` (`deck.ts:119`,`:40`) — split basics out of main before `deckIssues`. Lane B correctly declined it: `apps/server/src/http/**` was owned by nobody |
 | **Forge jar built and installed in production** | **done** | tracker | `~/.local/share/cardtable/forge.jar`, sha256 `4935b266bce3f098…`, clean-built from pin `2ad70eb4` off-tree in `~/.cache/w7b-forge`. `java -jar … server --help` prints our `DedicatedServer` usage. After an mgmt-api restart: `jvm-spawned` + `spare-warm bootMs:3828`, and `index.ts:239`'s `play: no Forge` warning is **absent** — so `POST /api/play/matches` no longer 503s. Rebuild procedure (required on every pin move, `clean` mandatory): `docs/FORGE_JAR.md` |
 | ~~Match run dirs are never cleaned up~~ | **done** | C `0f19af4` | **Closed 2026-09-19.** A finished match's dir is removed, a crash keeps `bridge.stderr.txt` + `config.json` + `crash.json` (newest 20, none older than 7 days), and boot sweeps what earlier servers left. Tracker mutation-tested: disabling the clean-end `rmSync` fails 2 of 14, restored 14/14. Live: production holds **1** dir, down from 174. ~~Never cleaned up~~ | **new row 2026-09-18.** `host.ts:274` `rmSync`s a run dir before creating it, never after the match ends; each match gets a fresh id, so `/tmp/cardtable-play/` grows without bound (78 dirs / 16 MB in one day, ~205 KB per match). `/tmp` is tmpfs, so it is RAM — 13 G free and a reboot clears it, hence low. Fix belongs on the existing `stop()`/`overGrace` path |
 
@@ -295,7 +295,103 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-19 — tracker, the match-hang bug)
+## Verified this pass (2026-09-19 — tracker, closing Wave 13)
+
+Landed in one push, `e08bb68..06006f4`. Gate re-run by the tracker: **1,836
+passed / 6 skipped**, exit 0 — up from 1,775. Deploy tree at `06006f4`, PM2
+restarted **after** the install (21:57:36.675Z start, 21:57:36.803Z complete),
+warm JVM at 6.5 s, `/health` healthy. `/api/rooms` answers **404 to anon**, so
+the friend gate bites on the new surface.
+
+| lane | commit | verdict |
+| --- | --- | --- |
+| A | `9577740` | rooms, list, passwords — **mutation-tested by the tracker** |
+| B | `2c4a253` | front page is the room list |
+| C | `d6396de` + `d0d07d8` | in-room 1v1 — **the old two-deck path is closed, verified** |
+| D | `8cda565` + `9a784f8` | basics exempt — **mutation-tested by the tracker** |
+| E | `06006f4` | **unplanned lane**, see below |
+| wave | `509b086`, `8c089bc` | the files no lane owned |
+
+### Lane D — the bug that made the draft half unplayable
+
+Mutation-tested here, not accepted: neutering `splitBasicLands` in `gate.ts`
+fails **5** tests, restored 77 pass. The five names show the edges were
+actually thought about, not just the happy path:
+
+- *is legal with 17 Islands, and the text checked is the text sent*
+- *still refuses a non-basic the caller did not draft, by name*
+- **exempts only Forge's five: an undrafted land outside them is pool-checked**
+- *does not let the lands count twice or vanish: 23 + 17 Islands is 40*
+- *still refuses a non-basic in the basics pile*
+
+The third is the one that matters. A blanket "lands are fine" would have let a
+Celestial Colonnade ride in as a land; the exemption is `isBasicLand` —
+Forge's own five from `MagicColor.java:138` — and no second list.
+
+### Lane A — the password is built as privacy, as specified
+
+scrypt with a per-room random salt, `timingSafeEqual`, and the salt and hash in
+a **private map off the room record**, so a room cannot be serialised with its
+secret by accident.
+
+Mutation-tested: changing the wrong-password response from 404 to 403 fails
+**4** tests, including *"answers a wrong password and a missing room with the
+SAME bytes"* — the anti-enumeration property. There is also a test that greps
+the captured **log**, not just the body, for the password, its hash and its
+salt.
+
+### Lane C — the shape the operator rejected is actually closed
+
+`routes.ts:622`: a body naming two decks with `opponent: 'human'` gets **422**
+with *"a match against a person starts from a room"*, and `h.specs` is empty so
+Forge never launches. The AI arm stays, correctly — the AI's deck is nobody
+else's choice. The test notes the default opponent is `'human'`, so the shape
+is closed even when the field is omitted.
+
+The manager removed the deck builder's "against a friend" radio in the wave
+commit, out of lane, and was right to: C's gate now refuses exactly that body,
+so leaving the control would have shipped a button that returns 422.
+
+### Protocol deviations, both disclosed, both acceptable
+
+1. **Sub-agents did not commit.** The manager committed every lane itself via a
+   per-lane temp `GIT_INDEX_FILE`, because the tracker's handoff prompt told it
+   to commit each lane. That contradicts the wave file, which says implementers
+   commit. **The handoff prompt was the tracker's error, not the manager's.**
+   It verified each lane's commit in isolation in a throwaway worktree, which
+   is a stronger check than the shared tree gives.
+2. **One red intermediate commit.** `2c4a253` (B) alone reds a `constructed.test.ts`
+   case that is lane C's file, fixed by C's next commit. Disclosed **in B's own
+   commit message**, which is where a bisector meets it. Cost is a bisect
+   landing on one red commit; the alternative was ordering B after C for a test
+   neither wholly owns.
+
+### Lane E was not in the wave file
+
+`06006f4` rewrites `e2e/play.spec.ts` (+444) and `harness.ts` so the play e2e
+starts **from a room**, each friend loading their own deck. `e2e/**` was listed
+as owned by NOBODY, so this is an unowned-file edit rather than a lane
+collision, and it is the right work — without it the browser suite would still
+drive the flow the wave deleted. **Recorded because the tracker did not plan
+it**, and an unplanned fifth lane is the kind of thing that is fine once and a
+process problem if it becomes normal.
+
+### Found: room persistence lives INSIDE the clone (new, low, latent)
+
+`index.ts:238` resolves the store to `apps/server/data/rooms`. It survives a
+deploy today — `data/` is gitignored (`.gitignore:24`) and the deploy runs
+`git reset --hard` but **no `git clean -fdx`**, and reset leaves gitignored
+files alone. Verified in hadoku_site's `deploy-executor.ts`.
+
+It is still fragile, and it contradicts the pattern this fleet already settled:
+the Forge jar was deliberately put at `~/.local/share/cardtable/` because, in
+hadoku_site's words, *"it sits outside the clone, so no deploy's stash or reset
+can touch it."* Rooms and their passwords now depend on nobody ever adding a
+`git clean` to a deploy step — a completely ordinary thing to add. Moving it
+under `~/.local/share/cardtable/rooms` is a one-line change to the same
+`CARDTABLE_ROOMS_DIR` default that already exists.
+
+## Previously verified (2026-09-19 — tracker, the match-hang bug)
 
 **Every production match hung at Turn 0, and the browser suite was green
 throughout.** The operator found it by trying to play: both seats claimed, an
