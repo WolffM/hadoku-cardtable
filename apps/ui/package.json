@@ -1,6 +1,6 @@
 {
   "name": "@hadoku/ui",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
@@ -19,7 +19,7 @@
     "@hadoku/carddata": "workspace:*",
     "@hadoku/deck": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
-    "@wolffm/rooms-protocol": "0.38.111",
+    "@wolffm/rooms-protocol": "0.38.115",
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
