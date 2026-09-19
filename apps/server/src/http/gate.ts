@@ -46,7 +46,7 @@
  */
 
 import { parseDck } from '@hadoku/carddata/dck';
-import { deckFromDeckFile, deckIssues, formatIssues, type DeckIssue } from '@hadoku/deck';
+import { deckFromDeckFile, deckIssues, formatIssues, isBasicLand, type Deck, type DeckIssue } from '@hadoku/deck';
 import { libraryPoolMismatch, type LibraryDeck } from '@hadoku/deck/library';
 import type { DraftCard } from '@hadoku/shared';
 
@@ -304,6 +304,33 @@ export function dckShapeIssues(text: string, file: ReturnType<typeof parseDck>):
 }
 
 /**
+ * A deck read from a `.dck`, with its basic lands moved from `main` into the
+ * basics pile — the shape `@hadoku/deck`'s draft model gives a deck built in the
+ * browser, where basics come from the table rather than the pool.
+ *
+ * A `.dck` has no basics section: `toDeckFile` merges the pile into `main` on
+ * export, so `deckFromDeckFile` reads a drafted deck's 17 Islands back as
+ * `main` cards (and says so, "nothing to split back out"). `deckIssues` then
+ * counts them against the drafted pool — `plays 17x Island but drafted 0` —
+ * and no drafted deck with lands could ever be played.
+ *
+ * The split is by `isBasicLand`, Forge's own five names and no second list, so
+ * only what `setBasicLand` would have accepted leaves `main`. Everything else
+ * stays pool-checked: a non-basic land, `Wastes`, anything the caller did not
+ * draft. It moves entries between two piles of the CHECKED deck and never
+ * touches the text, so the maindeck size is unchanged and the file Forge plays
+ * is still the file checked. Sideboard basics stay in the sideboard, and so in
+ * pool accounting: the browser never writes one there.
+ */
+export function splitBasicLands(deck: Deck): Deck {
+	return {
+		...deck,
+		main: deck.main.filter((e) => !isBasicLand(e.card)),
+		basics: [...deck.basics, ...deck.main.filter((e) => isBasicLand(e.card))],
+	};
+}
+
+/**
  * The one check. A seat in, a verdict or an unresolved reference out.
  *
  * The deck is always rebuilt from the text that will be sent — for a library
@@ -343,7 +370,9 @@ export function checkSeat(seat: SeatRequest, ctx: GateContext): SeatVerdict | Se
 	if (ctx.draftPool === null) return { error: 'this server has no draft rooms' };
 	const pool = ctx.draftPool(seat.rules.draftId);
 	if (!pool.ok) return { error: pool.error };
-	const issues = [...shape, ...deckIssues(deck, draftPoolEntries(pool.pool)).map(wireIssue)];
+	// Basics are exempt from the POOL check only. The Standard arm above keeps
+	// checking every land against the format pool.
+	const issues = [...shape, ...deckIssues(splitBasicLands(deck), draftPoolEntries(pool.pool)).map(wireIssue)];
 	return {
 		deckName,
 		rulesName: `your pool from ${seat.rules.draftId}`,
