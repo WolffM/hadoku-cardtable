@@ -18,10 +18,15 @@ source rather than its reputation.
   images"* — `docs/LICENSING.md` §3.1 keeps that argument and records why it was
   overruled. Do not restore the old rule from a stale comment.
   `.gitignore` still refuses `*.jpg`/`*.png`/`cards/`, and that half is absolute.
-- **Our own origin never serves an image.** Every art URL is absolute, at
-  `cdn.hadoku.me` or `cards.scryfall.io` — never relative, never `/cardtable/…`.
-  That would make the app server the image host, which is the thing D15 did
-  *not* change. `scripts/d13-gate.sh` fails CI on it.
+- ~~**Our own origin never serves an image.**~~ **Repealed 2026-09-19 (D18)**
+  by the operator: *"i dont care to follow this strictness regarding the WOTC
+  ip"*. Image URLs are no longer restricted by host, and `scripts/d13-gate.sh`
+  no longer checks them. `docs/LICENSING.md` §3.1 keeps the original argument.
+  What still holds the licensing posture up is unchanged: **no money**, the
+  **friend gate**, a handful of players, and the disclaimer in `NOTICE.md`.
+  Still enforced, for reasons that are not about copyright: **no image bytes in
+  the bundle** (a 5.85 MB inlined PNG is a performance bug) and **no copied
+  Scryfall `image_uris` blob** (that is what keeps art swappable).
 - **A card's art is a lookup, not a URL.** `apps/ui/src/draft/art-manifest.json`
   maps `scryfallId → {source, key}`; `packages/carddata/src/art/index.ts`
   resolves it. The art is a **placeholder** the operator expects to re-source, so

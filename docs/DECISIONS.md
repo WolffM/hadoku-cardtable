@@ -548,3 +548,47 @@ watchparty", which is now answered.
 | O3 | One JVM per match, or one hosting many? | Defer to P3; decide before building the service-participant lifecycle |
 | ~~O4~~ | ~~Does the WASM spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1 (NO-GO, D7). Wave 2 is unblocked and its card/draft work was needed in either branch anyway. |
 | O5 | How much card art do we host? D15 settled *that* we host it; one cube is ~53 MB, all 95 is ~5 GB and a materially different posture. | Stay at the cubes actually being drafted. Bring it back to the operator **before** uploading a second cube's worth, not after — "we are tiny" is the mitigation D15 was priced against. Raised 2026-09-15 by Wave 4 lane D; the tracker holds the matching watch. |
+
+---
+
+## D18 — "our own origin never serves an image" is repealed
+
+**2026-09-19, operator.** Supersedes the origin clause of D15 and of
+`docs/LICENSING.md` rule 3. In their words: *"this seems unnecessary. i dont
+care to follow this strictness regarding the WOTC ip. from what i know it's
+actually fine to save and serve the files if they are unaltered."*
+
+**Recorded accurately, because the reason matters more than the rule:** the
+"unaltered is fine" reading is not the legal position — copying an unaltered
+image is still reproduction, and WotC's Fan Content Policy is permission that
+can be withdrawn, not a licence. The decision is still a reasonable one,
+because the exposure was never carried by that rule. It is carried by **no
+money** and **scale**, and both mitigations are untouched: no revenue in any
+form, `/cardtable/*` behind a friend gate, a handful of players, and the
+disclaimer in `NOTICE.md`. The repealed rule was belt-and-braces stacked on top
+of those.
+
+**What changed.** `scripts/d13-gate.sh` loses arms 2-4 — the host allowlist and
+the relative/same-origin refusal — and the 50 reference fixtures that proved
+they bit. The gate is 316 lines, down from 367, and its self-test is 9
+fixtures, 9 as expected.
+
+**What did NOT change, and these are not negotiable by the same argument:**
+
+- **No image bytes in the bundle** (arm 1). A 5.85 MB PNG inlined into a JS
+  chunk is a performance bug whoever owns the picture. `.gitignore` still
+  refuses `*.jpg`/`*.png`.
+- **No copied Scryfall `image_uris` / `image_status` / `art_crop` blob**
+  (arm 5). This is an architecture rule the operator asked for — *"just make
+  sure that it's easy to simply hook up a link to a new image in the cdn"* — so
+  a card's art stays a lookup, not a URL.
+- **No money, ever.**
+- **The friend gate**, which is now doing more of the work than it was.
+
+**Rules out:** re-adding a host allowlist to the image gate without a new
+operator decision; and citing D13 or D15's origin clause as live.
+
+**Immediate consequence:** watchparty's sprites, served from
+`hadoku.me/watchparty/…`, no longer fail our gate. That was O10, and it was the
+thing that would have made the O9 room-chrome request worthless even if
+watchparty shipped it.

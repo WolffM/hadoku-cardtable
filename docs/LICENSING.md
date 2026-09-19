@@ -130,15 +130,30 @@ Roughly in order of how much attention each attracts:
      `packages/carddata/src/art/index.ts` resolves it. Repointing one card is a
      one-line data edit. Keep it that way — a component that hardcodes an image
      host has broken this rule even if every URL it emits is legal.
-3. **Our own origin never serves an image.** Every art URL is absolute and its
-   origin is one of `https://cdn.hadoku.me` or `https://cards.scryfall.io`
-   (`ALLOWED_ART_HOSTS` in `packages/carddata/src/art/index.ts`). A relative
-   URL, a `/cardtable/...` URL, or anything else same-origin is **forbidden**:
-   that would make the app server the image host, which is the one thing this
-   arrangement has always been built to avoid and the thing D15 did *not*
-   change. `scripts/d13-gate.sh`'s URL classification (arms 2-4) is that
-   assertion, and it is the reason the gate exists at all. Run
-   `bash scripts/d13-gate.sh --self-test` to watch it bite.
+3. ~~**Our own origin never serves an image.**~~ **REPEALED 2026-09-19 — D18.**
+   The rule required every art URL to be absolute on `cdn.hadoku.me` or
+   `cards.scryfall.io`, and `scripts/d13-gate.sh` failed a relative or
+   same-origin one. The operator repealed it: *"this seems unnecessary. i dont
+   care to follow this strictness regarding the WOTC ip."*
+
+   **The counter-argument, kept because it is what the rule was for:** a policy
+   is not a licence. Copying an unaltered image is still reproduction, and
+   WotC's Fan Content Policy is permission that can be withdrawn rather than a
+   grant. Serving art from our own origin makes this app the image host, which
+   is a different posture from linking to one.
+
+   **Why it was nonetheless a reasonable call.** Nothing in the row table above
+   moved. The exposure was always carried by *scale* and *money*, and both
+   mitigations are untouched: no revenue in any form, a friend-tier gate, a
+   handful of players, and the `NOTICE.md` disclaimer. The repealed rule was
+   belt-and-braces on top of those, not one of them.
+
+   **What survived, and why.** The gate still fails image BYTES in the bundle
+   and a copied Scryfall `image_uris`/`image_status`/`art_crop` blob. Neither
+   is a copyright control: the first is a bundle-size rule, the second is what
+   keeps a card's art a lookup rather than a URL, so re-sourcing the art stays
+   a one-line data edit.
+
 4. **No WotC trademarks in the UI.** No mana symbols, set symbols, tap symbol,
    card frames, or the Magic logo. Draw our own.
 5. **Keep the friend gate.** The `/cardtable/` prefix is friend-tier at the edge.
