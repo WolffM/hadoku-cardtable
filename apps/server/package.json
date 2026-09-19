@@ -1,6 +1,6 @@
 {
   "name": "@hadoku/server",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
@@ -17,6 +17,7 @@
     "@hadoku/deck": "workspace:*",
     "@hadoku/draft": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
+    "@hadoku/room-store": "workspace:*",
     "@hadoku/shared": "workspace:*",
     "@wolffm/rooms-protocol": "0.38.115",
     "@wolffm/rooms-server": "0.38.115",

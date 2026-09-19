@@ -53,6 +53,9 @@ importers:
       '@hadoku/forge-wire':
         specifier: workspace:*
         version: link:../../packages/forge-wire
+      '@hadoku/room-store':
+        specifier: workspace:*
+        version: link:../../packages/room-store
       '@hadoku/shared':
         specifier: workspace:*
         version: link:../../packages/shared
