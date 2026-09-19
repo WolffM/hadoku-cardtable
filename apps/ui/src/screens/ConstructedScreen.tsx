@@ -1,42 +1,46 @@
 /*
- * `#/play` — constructed: pick a format, pick the decks, start a match.
+ * The constructed table, inside a room: YOUR deck, their state, and the match
+ * the server starts once both of you are ready.
  *
- * The operator's goal, in their words: *"playing constructed with prebuilt
- * decks, to recreate standard formats from years past."* A format here is a
- * dated Standard (Wave 6's `standardPoolAt`, frozen per date under
- * `decks/pools/`), and a deck is one from the Wave 7 library. Both lists come
- * from the server, so a new frozen pool or a new collection shows up here with
- * no change to this file.
+ * The operator's flow (`docs/handoff/w13.md`): a room list, a room, a game
+ * type, then *"once both players have a valid deck loaded the game can be
+ * started"*. What this screen used to be — one person choosing BOTH decks and
+ * sending a link — is the shape they rejected in exactly those words: *"this is
+ * not how any of this should work"*. So there is no picker here for anybody's
+ * deck but your own, and no call this file can make that names another member.
  *
- * ## The server says whether a deck is legal, twice
+ * ## The server is the authority, and it is asked once per deck
  *
- * Once as you choose (`POST /api/tables/check`), so the offending cards are on
- * screen before you press anything, and once when you press Start — the gate
- * on `POST /api/play/matches` — which is the check that actually refuses. The
- * Start button is NOT disabled by the first answer: the second is the one that
- * counts, and a button that only a client-side opinion can grey out is a
- * control that can disagree with the server.
+ * Loading a deck is `PUT /api/tables/rooms/:roomId/deck`, which checks it with
+ * the gate and stores the verdict; that stored verdict is what the match starts
+ * from. The Ready toggle is disabled while your deck is illegal, and the server
+ * refuses the same thing with the same sentence — the disabled button is a
+ * courtesy, the refusal is the control.
  *
- * ## Why you choose your opponent's deck too
+ * ## Waiting for the other person is the job
  *
- * Forge reads both seats' decks when the match launches (the bridge takes them
- * as launch arguments — `apps/server/src/play/README.md`). So the person
- * starting the match picks both, and the friend they send the link to sits
- * down at a deck that is already chosen. Said on the screen, not discovered.
+ * Both players' state — chosen, legal, ready — is polled from the room
+ * (`pollMs`, 1.5 s). No second socket: `RoomChrome` already holds one for the
+ * room's chat and roster, and a second one would share and then tear down its
+ * connection. When both are ready either browser asks the server to start; the
+ * server answers one match to both, and `matchId` appearing on the table is
+ * what sends each player to `#/match/<id>` — including a player who never
+ * pressed anything.
  *
- * ## The lobby is the draft's lobby
+ * ## Without a room
  *
- * This screen is reached from the same front door as a pod, and the match it
- * starts is joined the same way: a link, `#/match/<id>`, that the same join box
- * accepts. There is no second lobby.
+ * `#/play` has nothing left to do: a match against a person starts in a room.
+ * It points back at the room list rather than rendering a table with no room.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { navigate } from './route.ts';
 import {
   deckSize,
   tablesClient,
+  type RoomPlayer,
+  type RoomTable,
   type SeatChoice,
   type TableDeck,
   type TableFormat,
@@ -47,6 +51,10 @@ import {
 export interface ConstructedScreenProps {
   /** Tests pass a client over a stub fetch. Production passes nothing. */
   client?: TablesClient;
+  /** The room whose table this is. `App` threads it from `#/room/<id>`. */
+  roomId?: string;
+  /** How often the room's table is re-read. Tests pass something small. */
+  pollMs?: number;
 }
 
 type Loaded = { formats: TableFormat[]; decks: TableDeck[] };
@@ -55,17 +63,26 @@ function seatChoice(deckId: string, formatId: string): SeatChoice {
   return { deck: { library: deckId }, rules: { kind: 'standard', format: formatId } };
 }
 
-export function ConstructedScreen({ client: given }: ConstructedScreenProps) {
+export function ConstructedScreen({ client: given, roomId, pollMs = 1500 }: ConstructedScreenProps) {
   const client = useMemo(() => given ?? tablesClient(), [given]);
+  return roomId === undefined ? <NoRoom /> : <RoomTableScreen client={client} roomId={roomId} pollMs={pollMs} />;
+}
+
+function RoomTableScreen({ client, roomId, pollMs }: { client: TablesClient; roomId: string; pollMs: number }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [table, setTable] = useState<RoomTable | null>(null);
+  const [tableError, setTableError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [formatId, setFormatId] = useState('');
-  const [deckIds, setDeckIds] = useState<[string, string]>(['', '']);
-  const [opponent, setOpponent] = useState<'human' | 'ai'>('human');
-  const [verdicts, setVerdicts] = useState<[Verdict | null, Verdict | null]>([null, null]);
-  const [checkError, setCheckError] = useState<string | null>(null);
+  const [deckId, setDeckId] = useState('');
+  const [busy, setBusy] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [refusal, setRefusal] = useState<{ error: string; seats: Verdict[] | null } | null>(null);
+  const [startRefusal, setStartRefusal] = useState<string | null>(null);
+  /** A start is in flight, or has been refused: not asked again on every poll. */
+  const asked = useRef(false);
+  /** The picker is set from the server's copy of your choice exactly once. */
+  const restored = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -73,8 +90,8 @@ export function ConstructedScreen({ client: given }: ConstructedScreenProps) {
       .then(([formats, decks]) => {
         if (!live) return;
         setLoaded({ formats, decks });
-        setFormatId(formats[0]?.id ?? '');
-        setDeckIds([decks[0]?.id ?? '', decks[1]?.id ?? decks[0]?.id ?? '']);
+        setFormatId((prev) => (prev === '' ? (formats[0]?.id ?? '') : prev));
+        setDeckId((prev) => (prev === '' ? (decks[0]?.id ?? '') : prev));
       })
       .catch((err: unknown) => {
         if (live) setLoadError(err instanceof Error ? err.message : String(err));
@@ -84,153 +101,228 @@ export function ConstructedScreen({ client: given }: ConstructedScreenProps) {
     };
   }, [client]);
 
-  // The server's verdict for the current choice, re-asked whenever it changes.
+  // The room's table, polled. One read now, then one every `pollMs`.
   useEffect(() => {
-    if (formatId === '' || deckIds[0] === '' || deckIds[1] === '') return;
     let live = true;
-    setVerdicts([null, null]);
-    setCheckError(null);
-    Promise.all(deckIds.map((id) => client.check(seatChoice(id, formatId))))
-      .then(([a, b]) => {
-        if (live) setVerdicts([a ?? null, b ?? null]);
-      })
-      .catch((err: unknown) => {
-        if (live) setCheckError(err instanceof Error ? err.message : String(err));
+    const read = (): void => {
+      void client.table(roomId).then((outcome) => {
+        if (!live) return;
+        if (outcome.ok) {
+          setTable(outcome.table);
+          setTableError(null);
+        } else {
+          setTableError(outcome.error);
+        }
       });
+    };
+    read();
+    const timer = setInterval(read, pollMs);
     return () => {
       live = false;
+      clearInterval(timer);
     };
-  }, [client, formatId, deckIds]);
+  }, [client, roomId, pollMs]);
 
-  const start = (): void => {
+  const players = table?.players ?? [];
+  const mine = players.find((p) => p.you) ?? null;
+  const matchId = table?.room.matchId ?? null;
+  const full = players.length >= (table?.room.seats ?? 2);
+  const spectating = table !== null && !table.you.player && full;
+  const bothReady = players.length === 2 && players.every((p) => p.ready && p.legal);
+
+  // The match the server started — for whoever pressed nothing, too.
+  useEffect(() => {
+    if (matchId !== null) navigate({ kind: 'match', matchId });
+  }, [matchId]);
+
+  // Both ready: either browser may ask, and the server answers one match to both.
+  useEffect(() => {
+    if (!bothReady || matchId !== null || mine === null || asked.current) return;
+    asked.current = true;
     setStarting(true);
-    setRefusal(null);
     client
-      .start(opponent, [seatChoice(deckIds[0], formatId), seatChoice(deckIds[1], formatId)])
+      .startRoom(roomId)
       .then((outcome) => {
         if (outcome.ok) {
           navigate({ kind: 'match', matchId: outcome.matchId });
           return;
         }
-        setRefusal({ error: outcome.error, seats: outcome.seats });
+        setStartRefusal(outcome.error);
         setStarting(false);
       })
       .catch((err: unknown) => {
-        setRefusal({ error: err instanceof Error ? err.message : String(err), seats: null });
+        setStartRefusal(err instanceof Error ? err.message : String(err));
         setStarting(false);
       });
+  }, [bothReady, matchId, mine, client, roomId]);
+
+  // Your own choice, as the server holds it: the picker opens where you left it.
+  useEffect(() => {
+    if (restored.current || mine === null || mine.choice === null) return;
+    const { deck, rules } = mine.choice;
+    restored.current = true;
+    if ('library' in deck) setDeckId(deck.library);
+    if (rules.kind === 'standard') setFormatId(rules.format);
+  }, [mine]);
+
+  const apply = (outcome: Awaited<ReturnType<TablesClient['table']>>): void => {
+    if (outcome.ok) {
+      setTable(outcome.table);
+      setActionError(null);
+      return;
+    }
+    setActionError(outcome.error);
+  };
+
+  const loadDeck = (): void => {
+    setBusy(true);
+    setActionError(null);
+    client
+      .loadDeck(roomId, seatChoice(deckId, formatId))
+      .then(apply)
+      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setBusy(false));
+  };
+
+  const setReady = (ready: boolean): void => {
+    setBusy(true);
+    setActionError(null);
+    client
+      .ready(roomId, ready)
+      .then(apply)
+      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setBusy(false));
   };
 
   const format = loaded?.formats.find((f) => f.id === formatId);
-  const setDeck = (seat: 0 | 1, id: string): void => {
-    setRefusal(null);
-    setDeckIds((prev) => (seat === 0 ? [id, prev[1]] : [prev[0], id]));
-  };
 
   return (
     <div className="shell" data-testid="constructed">
       <header className="shell__head">
-        <h1 className="shell__title">Constructed</h1>
-        <p className="shell__sub">A Standard format from years past, and a deck that was played in it.</p>
+        <h1 className="shell__title" data-testid="room-name">
+          {table?.room.name ?? roomId}
+        </h1>
+        <p className="shell__sub">Constructed 1v1 — each of you loads your own deck.</p>
       </header>
 
       <main className="lobby">
+        {tableError !== null && table === null && (
+          <p className="lobby__error" role="alert" data-testid="room-missing">
+            This room is not there, or you are not in it: {tableError}
+          </p>
+        )}
         {loadError !== null && (
           <p className="lobby__error" role="alert" data-testid="tables-load-error">
             Could not load the formats and decks: {loadError}
           </p>
         )}
-        {loaded === null && loadError === null && <p className="lobby__note">Loading formats and decks…</p>}
 
-        {loaded !== null && (
+        {table !== null && (
           <>
             <section className="lobby__card">
-              <h2>Format</h2>
-              <label htmlFor="format">Standard, as it stood on</label>
-              <select
-                id="format"
-                data-testid="format"
-                value={formatId}
-                onChange={(e) => {
-                  setRefusal(null);
-                  setFormatId(e.target.value);
-                }}
-              >
-                {loaded.formats.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.id} — {f.name}
-                  </option>
-                ))}
-              </select>
-              {format !== undefined && (
-                <p className="lobby__note" data-testid="format-detail">
-                  {format.sets.length} sets ({format.sets.join(', ')}), {format.cardCount} cards.{' '}
-                  {format.banned.length === 0 ? 'Nothing banned.' : `Banned: ${format.banned.join(', ')}.`}
-                </p>
+              <h2>At the table</h2>
+              <ul className="tables__players" data-testid="room-players">
+                {[0, 1].map((seat) => {
+                  const player = players[seat];
+                  return player === undefined ? (
+                    <li key={seat} className="tables__seat" data-testid={`room-seat-${seat}-empty`}>
+                      Waiting for someone to load a deck.
+                    </li>
+                  ) : (
+                    <PlayerRow key={seat} seat={seat} player={player} />
+                  );
+                })}
+              </ul>
+              <p className="lobby__note" data-testid="start-state">
+                {startStateText(players, bothReady, starting, matchId)}
+              </p>
+              {startRefusal !== null && (
+                <div className="lobby__error" role="alert" data-testid="start-refused">
+                  <p>{startRefusal}</p>
+                  <button
+                    type="button"
+                    data-testid="start-retry"
+                    onClick={() => {
+                      asked.current = false;
+                      setStartRefusal(null);
+                    }}
+                  >
+                    Try again
+                  </button>
+                </div>
               )}
             </section>
 
-            <section className="lobby__card">
-              <h2>Decks</h2>
-              <SeatPicker
-                seat={0}
-                label="Your deck"
-                decks={loaded.decks}
-                value={deckIds[0]}
-                onChange={(id) => setDeck(0, id)}
-                verdict={verdicts[0]}
-              />
-              <fieldset className="tables__opponent">
-                <legend>Against</legend>
-                <label>
-                  <input
-                    type="radio"
-                    name="opponent"
-                    data-testid="opponent-human"
-                    checked={opponent === 'human'}
-                    onChange={() => setOpponent('human')}
-                  />{' '}
-                  a friend — you send them the link
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="opponent"
-                    data-testid="opponent-ai"
-                    checked={opponent === 'ai'}
-                    onChange={() => setOpponent('ai')}
-                  />{' '}
-                  Forge&rsquo;s AI
-                </label>
-              </fieldset>
-              <SeatPicker
-                seat={1}
-                label={opponent === 'ai' ? 'The AI plays' : 'Your friend plays'}
-                decks={loaded.decks}
-                value={deckIds[1]}
-                onChange={(id) => setDeck(1, id)}
-                verdict={verdicts[1]}
-              />
-              <p className="lobby__note">
-                Forge reads both decks when the match starts, so you choose your
-                opponent&rsquo;s too.
-              </p>
-              {checkError !== null && (
-                <p className="lobby__error" role="alert">
-                  Could not check the decks: {checkError}
+            {spectating ? (
+              <section className="lobby__card">
+                <p className="lobby__note" data-testid="room-spectator">
+                  This table already has two players. You can watch the room, but there is no third seat.
                 </p>
-              )}
-              <button
-                type="button"
-                className="lobby__go"
-                data-testid="start-match"
-                disabled={starting || formatId === '' || deckIds[0] === '' || deckIds[1] === ''}
-                onClick={start}
-              >
-                {starting ? 'Starting Forge…' : 'Start the match'}
-              </button>
-              {refusal !== null && <Refusal error={refusal.error} seats={refusal.seats} />}
-            </section>
+              </section>
+            ) : (
+              loaded !== null && (
+                <section className="lobby__card">
+                  <h2>Your deck</h2>
+                  <label htmlFor="format">Standard, as it stood on</label>
+                  <select id="format" data-testid="format" value={formatId} onChange={(e) => setFormatId(e.target.value)}>
+                    {loaded.formats.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.id} — {f.name}
+                      </option>
+                    ))}
+                  </select>
+                  {format !== undefined && (
+                    <p className="lobby__note" data-testid="format-detail">
+                      {format.sets.length} sets ({format.sets.join(', ')}), {format.cardCount} cards.{' '}
+                      {format.banned.length === 0 ? 'Nothing banned.' : `Banned: ${format.banned.join(', ')}.`}
+                    </p>
+                  )}
+
+                  <label htmlFor="deck-mine">You play</label>
+                  <select id="deck-mine" data-testid="deck-mine" value={deckId} onChange={(e) => setDeckId(e.target.value)}>
+                    {loaded.decks.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                  <DeckNote deck={loaded.decks.find((d) => d.id === deckId)} />
+
+                  <button
+                    type="button"
+                    className="lobby__go"
+                    data-testid="load-deck"
+                    disabled={busy || formatId === '' || deckId === '' || matchId !== null}
+                    onClick={loadDeck}
+                  >
+                    {mine === null ? 'Load this deck' : 'Load this deck instead'}
+                  </button>
+
+                  {mine?.verdict != null && <VerdictView verdict={mine.verdict} testId="verdict-mine" />}
+
+                  <button
+                    type="button"
+                    className="lobby__go"
+                    data-testid="ready-toggle"
+                    aria-pressed={mine?.ready === true}
+                    disabled={busy || mine === null || !mine.legal || matchId !== null}
+                    onClick={() => setReady(!(mine?.ready === true))}
+                  >
+                    {mine?.ready === true ? 'I’m ready — stand down' : 'I’m ready'}
+                  </button>
+                  {mine !== null && !mine.legal && (
+                    <p className="lobby__note" data-testid="ready-blocked">
+                      Your deck is not legal in {mine.rulesName} yet, so you cannot ready up.
+                    </p>
+                  )}
+                  {actionError !== null && (
+                    <p className="lobby__error" role="alert" data-testid="table-error">
+                      {actionError}
+                    </p>
+                  )}
+                </section>
+              )
+            )}
           </>
         )}
       </main>
@@ -245,7 +337,7 @@ export function ConstructedScreen({ client: given }: ConstructedScreenProps) {
               navigate({ kind: 'lobby' });
             }}
           >
-            Back to the lobby
+            Back to the rooms
           </a>
         </p>
       </footer>
@@ -253,42 +345,67 @@ export function ConstructedScreen({ client: given }: ConstructedScreenProps) {
   );
 }
 
-function SeatPicker(props: {
-  seat: 0 | 1;
-  label: string;
-  decks: TableDeck[];
-  value: string;
-  onChange: (id: string) => void;
-  verdict: Verdict | null;
-}) {
-  const { seat, label, decks, value, onChange, verdict } = props;
-  const deck = decks.find((d) => d.id === value);
-  const size = deck === undefined ? null : deckSize(deck);
-  const id = `deck-${seat}`;
+/** The sentence under the two players: who is being waited on, in one line. */
+function startStateText(players: RoomPlayer[], bothReady: boolean, starting: boolean, matchId: string | null): string {
+  if (matchId !== null) return 'The match is running — taking you to it.';
+  if (starting) return 'Starting Forge…';
+  if (players.length < 2) return 'Waiting for a second player to load a deck.';
+  if (bothReady) return 'Both ready.';
+  const waiting = players.filter((p) => !p.ready).map((p) => (p.you ? 'you' : p.name));
+  return `Waiting for ${waiting.join(' and ')}.`;
+}
+
+function PlayerRow({ seat, player }: { seat: number; player: RoomPlayer }) {
   return (
-    <div className="tables__seat" data-testid={`seat-${seat}`}>
-      <label htmlFor={id}>{label}</label>
-      <select id={id} data-testid={id} value={value} onChange={(e) => onChange(e.target.value)}>
-        {decks.map((d) => (
-          <option key={d.id} value={d.id}>
-            {d.name}
-          </option>
-        ))}
-      </select>
-      {deck !== undefined && size !== null && (
-        <p className="lobby__note">
-          {deck.provenance}{' '}
-          <a className="shell__link" href={deck.citation} target="_blank" rel="noreferrer">
-            source
-          </a>
-          . {size.main} cards{size.sideboard > 0 ? `, ${size.sideboard} in the sideboard` : ''}.
-        </p>
-      )}
-      {verdict === null ? (
-        <p className="lobby__note">Checking…</p>
-      ) : (
-        <VerdictView verdict={verdict} testId={`verdict-${seat}`} />
-      )}
+    <li className="tables__seat" data-testid={`room-seat-${seat}`}>
+      <strong>{player.you ? `${player.name} (you)` : player.name}</strong> — {player.deckName}{' '}
+      <span data-testid={`room-seat-${seat}-legal`}>
+        {player.legal ? `legal in ${player.rulesName}` : `not legal in ${player.rulesName} (${player.issueCount} problems)`}
+      </span>
+      {' · '}
+      <span data-testid={`room-seat-${seat}-ready`}>{player.ready ? 'ready' : 'not ready'}</span>
+    </li>
+  );
+}
+
+function DeckNote({ deck }: { deck: TableDeck | undefined }) {
+  if (deck === undefined) return null;
+  const size = deckSize(deck);
+  return (
+    <p className="lobby__note">
+      {deck.provenance}{' '}
+      <a className="shell__link" href={deck.citation} target="_blank" rel="noreferrer">
+        source
+      </a>
+      . {size.main} cards{size.sideboard > 0 ? `, ${size.sideboard} in the sideboard` : ''}.
+    </p>
+  );
+}
+
+/** `#/play` with no room: the room list is where a match starts now. */
+function NoRoom() {
+  return (
+    <div className="shell" data-testid="constructed">
+      <header className="shell__head">
+        <h1 className="shell__title">Constructed</h1>
+        <p className="shell__sub">A Standard format from years past, and a deck that was played in it.</p>
+      </header>
+      <main className="lobby">
+        <section className="lobby__card">
+          <p data-testid="constructed-pointer">
+            A constructed game is played in a room: open a room from the front page (or make one), and each of you loads
+            your own deck there. Nobody picks anybody else’s deck any more.
+          </p>
+          <button
+            type="button"
+            className="lobby__go"
+            data-testid="to-rooms"
+            onClick={() => navigate({ kind: 'lobby' })}
+          >
+            See the rooms
+          </button>
+        </section>
+      </main>
     </div>
   );
 }
@@ -313,25 +430,6 @@ function VerdictView({ verdict, testId }: { verdict: Verdict; testId: string }) 
         </ul>
       )}
       {verdict.note !== null && <p className="lobby__note">{verdict.note}</p>}
-    </div>
-  );
-}
-
-function Refusal({ error, seats }: { error: string; seats: Verdict[] | null }) {
-  return (
-    <div className="lobby__error" role="alert" data-testid="start-refused">
-      <p>{error}</p>
-      {seats !== null &&
-        seats.map((v, i) =>
-          v.legal ? null : (
-            <div key={i}>
-              <p>
-                Seat {i + 1}: {v.deckName}
-              </p>
-              <VerdictView verdict={v} testId={`refused-${i}`} />
-            </div>
-          ),
-        )}
     </div>
   );
 }

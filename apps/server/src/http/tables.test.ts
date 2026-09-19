@@ -26,11 +26,13 @@ import { moveToMain } from '@hadoku/deck';
 
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import type { MatchSpec } from '../play/host.js';
+import type { MatchRegistry } from '../play/match.js';
 import { loadTranscript, replayFactory, type ReplayHost } from '../play/fixtures/transcript.js';
 import { createDraftRooms, joinDraftRoom, stateOf, type DraftRooms } from '../room/draftRooms.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
 import { checkSeat, type SeatVerdict } from './gate.js';
+import type { TablesRooms } from './routes.js';
 import { LIBRARY, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from './library.js';
 
@@ -168,11 +170,72 @@ describe('checkSeat', () => {
 const TRANSCRIPT = loadTranscript();
 const OPENING = TRANSCRIPT.slice(0, TRANSCRIPT.findIndex((l) => l.t === 'frame' && (l.frame as { kind: string }).kind === 'ask'));
 
+/* ── a stand-in for lane A's lobby ───────────────────────────────────── */
+
+/**
+ * The A↔C room contract as an in-memory fake. `apps/server/src/room/lobby.ts`
+ * is lane A's file and was not on the branch when this was written, so the
+ * routes take the subset they need (`TablesRooms`) as a structural type and
+ * this implements it. When A lands, `index.ts` passes the real `Lobby`.
+ */
+interface FakeRoom {
+	id: string;
+	name: string;
+	gameType: string;
+	members: { id: string; name: string }[];
+	matchId: string | null;
+	state: Map<string, unknown>;
+}
+
+interface FakeLobby extends TablesRooms {
+	open(id: string, members: { id: string; name: string }[], gameType?: string): FakeRoom;
+	room(id: string): FakeRoom | undefined;
+}
+
+function fakeLobby(): FakeLobby {
+	const held = new Map<string, FakeRoom>();
+	const member = (roomId: string, memberId: string): FakeRoom | undefined => {
+		const room = held.get(roomId);
+		return room !== undefined && room.members.some((m) => m.id === memberId) ? room : undefined;
+	};
+	return {
+		open(id, members, gameType = 'constructed-1v1') {
+			const room: FakeRoom = { id, name: `room ${id}`, gameType, members, matchId: null, state: new Map() };
+			held.set(id, room);
+			return room;
+		},
+		room: (id) => held.get(id),
+		get: (id) => held.get(id),
+		playerState: (roomId, memberId) => member(roomId, memberId)?.state.get(memberId),
+		setPlayerState(roomId, memberId, state) {
+			const room = member(roomId, memberId);
+			if (room === undefined) return false;
+			// Through JSON, as a persisted lobby would: a state this route cannot
+			// read back after a restart is a state it must not depend on.
+			room.state.set(memberId, JSON.parse(JSON.stringify(state)) as unknown);
+			return true;
+		},
+		setMatch(roomId, matchId) {
+			const room = held.get(roomId);
+			if (room === undefined) return false;
+			room.matchId = matchId;
+			return true;
+		},
+	};
+}
+
+const idOf = (user: string): string => identityFromHeaders(edgeHeaders(user), `http-${user}`);
+const ALICE = idOf('alice');
+const BOB = idOf('bob');
+const CAROL = idOf('carol');
+
 interface Harness {
 	port: number;
 	specs: MatchSpec[];
 	hosts: ReplayHost[];
 	rooms: DraftRooms;
+	lobby: FakeLobby;
+	matches: MatchRegistry;
 	close: () => Promise<void>;
 }
 
@@ -190,6 +253,7 @@ async function boot(): Promise<Harness> {
 
 	const { factory, hosts } = replayFactory();
 	const specs: MatchSpec[] = [];
+	const lobby = fakeLobby();
 	const app = express();
 	app.use(edgeMod.edgeProvenance);
 	app.use(edgeMod.requireMinTier);
@@ -199,8 +263,17 @@ async function boot(): Promise<Harness> {
 	const http: HttpServer = createServer(app);
 	const io = new SocketIOServer(http, { serveClient: false });
 
-	// The order index.ts uses, and the order that matters: the gate first.
-	routesMod.attachTables(api, { repoRoot: REPO_ROOT, draftRooms: rooms, log: () => {} });
+	// The order index.ts uses, and the order that matters: the gate first. Play
+	// is attached after, so the gate reads its registry lazily — the same wiring
+	// index.ts will have.
+	let attached: ReturnType<typeof playMod.attachPlay> | null = null;
+	routesMod.attachTables(api, {
+		repoRoot: REPO_ROOT,
+		draftRooms: rooms,
+		log: () => {},
+		rooms: lobby,
+		matches: () => attached?.matches ?? null,
+	});
 	const play = playMod.attachPlay(io, api, {
 		minTier: 'friend',
 		host: (id, spec, events) => {
@@ -210,6 +283,7 @@ async function boot(): Promise<Harness> {
 		log: () => {},
 		startTimeoutMs: 5000,
 	});
+	attached = play;
 
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
@@ -218,6 +292,8 @@ async function boot(): Promise<Harness> {
 		specs,
 		hosts,
 		rooms,
+		lobby,
+		matches: play.matches,
 		close: async () => {
 			play.close();
 			io.close();
@@ -229,7 +305,7 @@ async function boot(): Promise<Harness> {
 
 async function call(
 	h: Harness,
-	method: 'GET' | 'POST',
+	method: 'GET' | 'POST' | 'PUT',
 	path: string,
 	body?: unknown,
 	headers: Record<string, string> = edgeHeaders('alice'),
@@ -253,8 +329,9 @@ async function start(
 	body: unknown,
 	path = '/api/play/matches',
 	contentType = 'application/json',
+	headers: Record<string, string> = edgeHeaders('alice'),
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-	const pending = call(h, 'POST', path, body, edgeHeaders('alice'), contentType);
+	const pending = call(h, 'POST', path, body, headers, contentType);
 	const deadline = Date.now() + 3000;
 	while (h.hosts.length === 0) {
 		if (Date.now() > deadline) return pending;
@@ -267,10 +344,10 @@ async function start(
 const standard = (deck: string, format: string) => ({ deck: { library: deck }, rules: { kind: 'standard', format } });
 
 describe('POST /api/play/matches, gated', () => {
-	it('starts a match with two legal library decks, handing Forge the files byte for byte', async () => {
+	it('starts a match against the AI with two legal library decks, handing Forge the files byte for byte', async () => {
 		const h = await boot();
 		const res = await start(h, {
-			opponent: 'human',
+			opponent: 'ai',
 			seats: [standard(BEN_STARK, PT_PARIS), standard(PAUL_RIETZL, PT_PARIS)],
 		});
 		expect(res.status).toBe(201);
@@ -323,6 +400,7 @@ describe('POST /api/play/matches, gated', () => {
 		const bad = await call(h, 'POST', '/api/play/matches', { seats: [standard(BEN_STARK, PT_PARIS)] });
 		expect(bad).toMatchObject({ status: 400, body: { error: 'seats is a two-element array' } });
 		const unknown = await call(h, 'POST', '/api/play/matches', {
+			opponent: 'ai',
 			seats: [standard(BEN_STARK, PT_PARIS), standard('nope', PT_PARIS)],
 		});
 		expect(unknown).toMatchObject({ status: 400, body: { error: 'seat 2: no library deck "nope"', seat: 1 } });
@@ -400,7 +478,7 @@ describe('a drafted deck', () => {
 		const pool = draftedPool(h, 'amber-lantern-k7q4');
 		const text = builtDeck('amber-lantern-k7q4', pool);
 		const res = await start(h, {
-			opponent: 'human',
+			opponent: 'ai',
 			seats: [
 				{ deck: { dck: text }, rules: { kind: 'draft', draftId: 'amber-lantern-k7q4' } },
 				standard(PAUL_RIETZL, PT_PARIS),
@@ -616,5 +694,324 @@ describe('bypass routes, each refused with the card named', () => {
 			seats: [{ deck: { dck: text }, rules: { kind: 'draft', draftId: 'amber-lantern-k7q4' } }, standard(BEN_STARK, PT_PARIS)],
 		});
 		expectRefusedNamingLotus(res, h);
+	});
+});
+
+/* ── the room's table: each player loads their own deck ──────────────── */
+
+/**
+ * Wave 13 §C, end to end through the same real play route: two members of one
+ * room each load THEIR OWN deck, each readies up, and the server assembles the
+ * two decks. The old shape — one body carrying two decks against a person — is
+ * closed, and closed with a test rather than only removed from the screen.
+ *
+ * The lobby here is the in-memory `fakeLobby` above: lane A owns the real one,
+ * and the routes take only the four methods they need as a structural type.
+ */
+describe('a room table', () => {
+	const MEMBERS = [
+		{ id: ALICE, name: 'user-alice' },
+		{ id: BOB, name: 'user-bob' },
+	];
+	const ROOM = 'r-table';
+
+	const openRoom = (h: Harness, gameType?: string) => h.lobby.open(ROOM, [...MEMBERS], gameType);
+	const putDeck = (h: Harness, user: string, seat: unknown, roomId = ROOM) =>
+		call(h, 'PUT', `/api/tables/rooms/${roomId}/deck`, seat, edgeHeaders(user));
+	const setReady = (h: Harness, user: string, ready = true, roomId = ROOM) =>
+		call(h, 'POST', `/api/tables/rooms/${roomId}/ready`, { ready }, edgeHeaders(user));
+	const view = (h: Harness, user: string, roomId = ROOM) =>
+		call(h, 'GET', `/api/tables/rooms/${roomId}`, undefined, edgeHeaders(user));
+	const startRoom = (h: Harness, user: string, roomId = ROOM) =>
+		start(h, { room: roomId }, '/api/play/matches', 'application/json', edgeHeaders(user));
+
+	interface PlayerRow {
+		seat: number;
+		name: string;
+		you: boolean;
+		deckName: string;
+		legal: boolean;
+		ready: boolean;
+		issueCount: number;
+		verdict: { issues: { cardName: string | null }[] } | null;
+	}
+	const players = (body: Record<string, unknown>): PlayerRow[] => body.players as PlayerRow[];
+
+	/** Both members seated with a legal deck, each choosing only their own. */
+	async function bothLoaded(h: Harness): Promise<void> {
+		expect((await putDeck(h, 'alice', standard(BEN_STARK, PT_PARIS))).status).toBe(200);
+		expect((await putDeck(h, 'bob', standard(PAUL_RIETZL, PT_PARIS))).status).toBe(200);
+	}
+
+	it('starts the match from the room, each player in the seat their own deck is in', async () => {
+		const h = await boot();
+		openRoom(h);
+		await bothLoaded(h);
+		expect((await setReady(h, 'alice')).status).toBe(200);
+		const second = await setReady(h, 'bob');
+		expect(second.status).toBe(200);
+		expect(players(second.body).map((p) => [p.deckName, p.ready])).toEqual([
+			['Mystic Caw Go (Ben Stark)', true],
+			['Boros Landfall (Paul Rietzl)', true],
+		]);
+
+		const res = await startRoom(h, 'alice');
+		expect(res.status).toBe(201);
+		const matchId = res.body.matchId as string;
+
+		// The decks Forge is launched with, in the order the two players loaded
+		// them — each the text that player's own rule checked, byte for byte.
+		expect(h.specs).toHaveLength(1);
+		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([library.deck(BEN_STARK)?.text, library.deck(PAUL_RIETZL)?.text]);
+
+		// And the seats are BOUND, so neither browser can arrive into the other
+		// player's deck: `Match.claim` is otherwise first-come-first-served.
+		const match = h.matches.get(matchId);
+		expect(match?.seatOf(ALICE)).toBe(0);
+		expect(match?.seatOf(BOB)).toBe(1);
+		expect(h.lobby.room(ROOM)?.matchId).toBe(matchId);
+	});
+
+	it('answers the same match to whoever presses start second, without a second JVM', async () => {
+		const h = await boot();
+		openRoom(h);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		const first = await startRoom(h, 'alice');
+		expect(first.status).toBe(201);
+		const again = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
+		expect(again).toMatchObject({ status: 200, body: { matchId: first.body.matchId } });
+		expect(h.specs).toHaveLength(1);
+	});
+
+	it('launches one JVM when both players press start at the same moment', async () => {
+		const h = await boot();
+		openRoom(h);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		const both = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
+		const race = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
+		const deadline = Date.now() + 3000;
+		while (h.hosts.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+		(h.hosts.at(-1) as ReplayHost).push(...OPENING);
+		const answers = (await Promise.all([both, race])).map((r) => r.status).sort();
+		// One start, one refusal — and one JVM, which is the claim that matters.
+		expect(answers).toEqual([201, 409]);
+		expect(h.specs).toHaveLength(1);
+	});
+
+	it('refuses a body that names two decks against a person, and says where a match starts', async () => {
+		const h = await boot();
+		const res = await call(h, 'POST', '/api/play/matches', {
+			opponent: 'human',
+			seats: [standard(BEN_STARK, PT_PARIS), standard(PAUL_RIETZL, PT_PARIS)],
+		});
+		expect(res.status).toBe(422);
+		expect(res.body.error).toContain('starts from a room');
+		expect(h.specs).toEqual([]);
+		// The default opponent is 'human', so the shape is closed without one too.
+		const bare = await call(h, 'POST', '/api/play/matches', {
+			seats: [standard(BEN_STARK, PT_PARIS), standard(PAUL_RIETZL, PT_PARIS)],
+		});
+		expect(bare.status).toBe(422);
+		expect(h.specs).toEqual([]);
+	});
+
+	it('answers a room that does not exist and a room you are not in the same way', async () => {
+		const h = await boot();
+		openRoom(h);
+		const missing = await view(h, 'alice', 'r-nope');
+		const outsider = await view(h, 'carol');
+		expect(missing).toEqual({ status: 404, body: { error: 'no such room' } });
+		expect(outsider).toEqual(missing);
+		expect(await call(h, 'PUT', '/api/tables/rooms/r-nope/deck', standard(BEN_STARK, PT_PARIS), edgeHeaders('alice'))).toEqual(
+			missing,
+		);
+		expect(await putDeck(h, 'carol', standard(BEN_STARK, PT_PARIS))).toEqual(missing);
+		expect(await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('carol'))).toEqual(missing);
+		expect(await call(h, 'POST', '/api/play/matches', { room: 'r-nope' }, edgeHeaders('alice'))).toEqual(missing);
+		expect(h.specs).toEqual([]);
+		expect(CAROL).not.toBe(ALICE);
+	});
+
+	it('blocks only the player whose deck is illegal, naming the card', async () => {
+		const h = await boot();
+		openRoom(h);
+		const loaded = await putDeck(h, 'alice', standard(BEN_STARK, AFTER_BANS));
+		expect(loaded.status).toBe(200);
+		expect(players(loaded.body)[0]).toMatchObject({ legal: false, issueCount: 2 });
+		expect(players(loaded.body)[0]?.verdict?.issues.map((i) => i.cardName)).toEqual([
+			'Jace, the Mind Sculptor',
+			'Stoneforge Mystic',
+		]);
+
+		const refused = await setReady(h, 'alice');
+		expect(refused.status).toBe(422);
+		expect(refused.body.error).toContain('Jace, the Mind Sculptor');
+
+		// The other player is untouched by it: they load, they ready.
+		expect((await putDeck(h, 'bob', standard(PAUL_RIETZL, PT_PARIS))).status).toBe(200);
+		expect((await setReady(h, 'bob')).status).toBe(200);
+
+		const blocked = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
+		expect(blocked.status).toBe(409);
+		expect(blocked.body.error).toContain('user-alice');
+		expect(h.specs).toEqual([]);
+
+		// And a legal deck unblocks it: same player, same room, no restart.
+		expect((await putDeck(h, 'alice', standard(BEN_STARK, PT_PARIS))).status).toBe(200);
+		expect((await setReady(h, 'alice')).status).toBe(200);
+		expect((await startRoom(h, 'bob')).status).toBe(201);
+	});
+
+	it('un-readies a player who loads a different deck', async () => {
+		const h = await boot();
+		openRoom(h);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		const reloaded = await putDeck(h, 'alice', standard(PAUL_RIETZL, PT_PARIS));
+		expect(players(reloaded.body).map((p) => p.ready)).toEqual([false, true]);
+		const res = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
+		expect(res).toMatchObject({ status: 409, body: { error: 'user-alice is not ready yet' } });
+		expect(h.specs).toEqual([]);
+	});
+
+	it('will not seat a third member, and will not let anyone name another member’s deck', async () => {
+		const h = await boot();
+		h.lobby.open(ROOM, [...MEMBERS, { id: CAROL, name: 'user-carol' }]);
+		await bothLoaded(h);
+		const third = await putDeck(h, 'carol', standard(BEN_STARK, PT_PARIS));
+		expect(third).toMatchObject({ status: 409, body: { error: 'this table already has two players' } });
+		// There is no field that names a member — a body that invents one is refused.
+		const named = await putDeck(h, 'carol', { ...standard(BEN_STARK, PT_PARIS), member: ALICE });
+		expect(named).toMatchObject({ status: 400, body: { error: 'body: unknown field member' } });
+		// Carol sees the table, as a member of the room who is not playing.
+		const seen = await view(h, 'carol');
+		expect(seen.body.you).toEqual({ player: false });
+		expect(players(seen.body).map((p) => p.you)).toEqual([false, false]);
+	});
+
+	it('shows the other player’s state without their issues or their .dck', async () => {
+		const h = await boot();
+		openRoom(h);
+		await putDeck(h, 'alice', standard(BEN_STARK, AFTER_BANS));
+		await putDeck(h, 'bob', standard(PAUL_RIETZL, PT_PARIS));
+		const seen = await view(h, 'bob');
+		const [mine, theirs] = [players(seen.body)[1], players(seen.body)[0]];
+		expect(mine).toMatchObject({ you: true, legal: true });
+		expect(mine?.verdict).not.toBeNull();
+		// Alice's faults reach Bob as a count and a name, never as a card list:
+		// a draft verdict would say what she drafted.
+		expect(theirs).toMatchObject({ you: false, legal: false, issueCount: 2, deckName: 'Mystic Caw Go (Ben Stark)' });
+		expect(theirs?.verdict).toBeNull();
+		expect(JSON.stringify(seen.body)).not.toContain('[metadata]');
+	});
+
+	it('refuses a table in a room that is not constructed 1v1', async () => {
+		const h = await boot();
+		h.lobby.open(ROOM, [...MEMBERS], 'draft');
+		const res = await putDeck(h, 'alice', standard(BEN_STARK, PT_PARIS));
+		expect(res.status).toBe(409);
+		expect(res.body.error).toContain('constructed-1v1');
+		expect(await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'))).toMatchObject({ status: 409 });
+		expect(h.specs).toEqual([]);
+	});
+
+	it('forgets a match id the registry no longer has, so a restart does not strand the room', async () => {
+		const h = await boot();
+		const room = openRoom(h);
+		room.matchId = 'm-deadbeef0000';
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		const seen = await view(h, 'alice');
+		expect((seen.body.room as { matchId: string | null }).matchId).toBeNull();
+		expect((await startRoom(h, 'alice')).status).toBe(201);
+	});
+
+	/**
+	 * The hazard the stored verdict exists for: a `draft` rule resolves the pool
+	 * of whoever is making the request. Alice's drafted deck is checked against
+	 * ALICE's pool when she loads it, and BOB presses start — so if the gate
+	 * re-checked at start time, Alice's deck would be checked against Bob's
+	 * (empty) pool and the match would never launch.
+	 */
+	it('starts a drafted deck the other player pressed start on', async () => {
+		const h = await boot();
+		openRoom(h);
+		const draftId = 'amber-lantern-k7q4';
+		const draftRoom = h.rooms.open(draftId);
+		const seat = joinDraftRoom(draftRoom, 'sock-a', ALICE, 'friend').seat;
+		if (seat === null) throw new Error('alice was not seated');
+		const state = stateOf(draftRoom);
+		const pool = state.packs.flat().slice(0, 45);
+		state.pools[seat] = pool;
+		let built = deckFromPool(draftId, pool);
+		for (const card of pool.slice(0, 40)) {
+			const entry = built.sideboard.find((e) => e.card.name === card.name && e.card.set === (card.setCode || null));
+			if (entry !== undefined) built = moveToMain(built, entry.card, 1);
+		}
+		const text = dckTextOf(built);
+
+		expect((await putDeck(h, 'alice', { deck: { dck: text }, rules: { kind: 'draft', draftId } })).status).toBe(200);
+		expect((await putDeck(h, 'bob', standard(PAUL_RIETZL, PT_PARIS))).status).toBe(200);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+
+		// Bob cannot check Alice's deck himself — that is the hazard, stated.
+		const asBob = await call(
+			h,
+			'POST',
+			'/api/tables/check',
+			{ deck: { dck: text }, rules: { kind: 'draft', draftId } },
+			edgeHeaders('bob'),
+		);
+		expect(asBob).toMatchObject({ status: 400, body: { error: `you have no seat in draft "${draftId}"` } });
+
+		const res = await startRoom(h, 'bob');
+		expect(res.status).toBe(201);
+		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([text, library.deck(PAUL_RIETZL)?.text]);
+		expect(h.matches.get(res.body.matchId as string)?.seatOf(ALICE)).toBe(0);
+	});
+
+	it('refuses a start before both players have loaded a deck', async () => {
+		const h = await boot();
+		openRoom(h);
+		const empty = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
+		expect(empty).toMatchObject({ status: 409, body: { error: 'both players have to load a deck first' } });
+		await putDeck(h, 'alice', standard(BEN_STARK, PT_PARIS));
+		await setReady(h, 'alice');
+		const alone = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
+		expect(alone.status).toBe(409);
+		expect(h.specs).toEqual([]);
+	});
+
+	it('answers a malformed room body with 400 rather than a room', async () => {
+		const h = await boot();
+		openRoom(h);
+		expect(await call(h, 'POST', '/api/play/matches', { room: ROOM, decks: [null, null] }, edgeHeaders('alice'))).toMatchObject(
+			{ status: 400, body: { error: 'body: unknown field decks' } },
+		);
+		expect(await call(h, 'POST', '/api/play/matches', { room: 42 }, edgeHeaders('alice'))).toMatchObject({ status: 400 });
+		expect(await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, {}, edgeHeaders('alice'))).toMatchObject({
+			status: 400,
+			body: { error: 'body is { ready: boolean }' },
+		});
+		expect(await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: 'yes' }, edgeHeaders('alice'))).toMatchObject({
+			status: 400,
+		});
+		expect(h.specs).toEqual([]);
+	});
+
+	it('is behind the friend floor like every other route', async () => {
+		const h = await boot();
+		openRoom(h);
+		expect((await view(h, 'alice')).status).toBe(200);
+		const res = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice', 'public'));
+		expect(res.status).toBe(404);
+		expect(res.body.error).not.toBe('no such room');
 	});
 });
