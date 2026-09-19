@@ -290,11 +290,66 @@ describe('a room’s table', () => {
     expect(lastCall(server.calls, '/play/matches')).toBeUndefined();
   });
 
-  it('says so when the room is not there, or you are not in it', async () => {
+  /*
+   * Entering a room joins it — and a refusal stops, it does not spam.
+   *
+   * Found in production 2026-09-19 on `r-8eb2a7cd614c`. The room list's Join
+   * button was the ONLY caller of `join()`, so reaching a room any other way —
+   * the invite link, a refresh, a bookmark, a second browser — left you a
+   * non-member. The server answers a non-member exactly as it answers a
+   * missing room (deliberately: a different answer tells an outsider which
+   * rooms exist), so the screen said "this room is not there" about a room
+   * that was, and re-asked on a 1.5 s timer forever. The operator's console
+   * was a wall of 404s and the room file on disk held exactly one member.
+   */
+  function stubRooms(outcome: 'ok' | 'refused' | 'rate-limited') {
+    const joins: string[] = [];
+    return {
+      joins,
+      client: {
+        list: async () => [],
+        create: async () => ({ ok: false as const, message: 'not used' }),
+        join: async (roomId: string) => {
+          joins.push(roomId);
+          return outcome === 'ok'
+            ? { ok: true as const, room: { id: roomId, name: roomId, gameType: 'constructed-1v1' as const, locked: false, members: [] } }
+            : { ok: false as const, reason: outcome };
+        },
+      },
+    };
+  }
+
+  it('joins the room it was opened on, so an invite link works without the room list', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
-    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10 }));
-    expect((await screen.findByTestId('room-missing')).textContent).toContain('no such room');
-    expect(screen.queryByTestId('deck-mine')).toBeNull();
+    const rooms = stubRooms('ok');
+    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    await waitFor(() => expect(rooms.joins).toEqual([ROOM]));
+    // The read that followed the join is the one that matters: the screen
+    // recovers rather than sitting on the refusal it started with.
+    server.table.missing = false;
+    await screen.findByTestId('room-players');
+  });
+
+  it('stops after ONE refused join instead of re-asking on the timer', async () => {
+    const server = stubServer({ players: [], matchId: null, missing: true });
+    const rooms = stubRooms('refused');
+    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    expect((await screen.findByTestId('room-missing')).textContent).toContain('locked');
+
+    const readsWhenRefused = server.calls.length;
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 120)); // twelve poll intervals
+    });
+    expect(rooms.joins).toEqual([ROOM]);
+    expect(server.calls.length).toBe(readsWhenRefused);
+  });
+
+  it('says to wait rather than retrying when the join is rate-limited', async () => {
+    const server = stubServer({ players: [], matchId: null, missing: true });
+    const rooms = stubRooms('rate-limited');
+    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    expect((await screen.findByTestId('room-missing')).textContent).toContain('Too many attempts');
+    expect(rooms.joins).toEqual([ROOM]);
   });
 
   it('tells a third person there is no seat, rather than a picker that cannot work', async () => {

@@ -36,6 +36,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { navigate } from './route.ts';
+import { roomsClient, type RoomsClient } from '../rooms/api.ts';
 import {
   deckSize,
   tablesClient,
@@ -55,6 +56,8 @@ export interface ConstructedScreenProps {
   roomId?: string;
   /** How often the room's table is re-read. Tests pass something small. */
   pollMs?: number;
+  /** Tests pass a rooms client so the join-on-entry can be driven. Production passes nothing. */
+  rooms?: RoomsClient;
 }
 
 type Loaded = { formats: TableFormat[]; decks: TableDeck[] };
@@ -63,12 +66,23 @@ function seatChoice(deckId: string, formatId: string): SeatChoice {
   return { deck: { library: deckId }, rules: { kind: 'standard', format: formatId } };
 }
 
-export function ConstructedScreen({ client: given, roomId, pollMs = 1500 }: ConstructedScreenProps) {
+export function ConstructedScreen({ client: given, roomId, pollMs = 1500, rooms }: ConstructedScreenProps) {
   const client = useMemo(() => given ?? tablesClient(), [given]);
-  return roomId === undefined ? <NoRoom /> : <RoomTableScreen client={client} roomId={roomId} pollMs={pollMs} />;
+  return roomId === undefined ? <NoRoom /> : <RoomTableScreen client={client} roomId={roomId} pollMs={pollMs} rooms={rooms} />;
 }
 
-function RoomTableScreen({ client, roomId, pollMs }: { client: TablesClient; roomId: string; pollMs: number }) {
+function RoomTableScreen({
+  client,
+  roomId,
+  pollMs,
+  rooms: givenRooms,
+}: {
+  client: TablesClient;
+  roomId: string;
+  pollMs: number;
+  rooms?: RoomsClient;
+}) {
+  const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [table, setTable] = useState<RoomTable | null>(null);
@@ -102,17 +116,59 @@ function RoomTableScreen({ client, roomId, pollMs }: { client: TablesClient; roo
   }, [client]);
 
   // The room's table, polled. One read now, then one every `pollMs`.
+  //
+  // ## Entering a room joins it
+  //
+  // Reaching a room by any route other than the list's Join button — an invite
+  // link, a refresh, a bookmark, a second browser — used to leave you a
+  // non-member. The server answers a non-member exactly as it answers a
+  // missing room (`routes.ts` `tableFor`, deliberately: a different answer
+  // would tell an outsider which rooms exist), so the screen said "this room
+  // is not there" about a room that was, and polled that 404 forever.
+  //
+  // Observed live 2026-09-19 on `r-8eb2a7cd614c`: the leader read it fine, the
+  // second person got 404 on every poll, and the room file on disk held
+  // exactly one member. So a read that is refused tries to JOIN once, then
+  // reads again.
+  //
+  // Only once, and only for a refusal. A locked room refuses the join too, and
+  // retrying that on a 1.5 s timer is a rate-limit trip and a password
+  // guessing loop nobody asked for.
   useEffect(() => {
     let live = true;
+    let joined = false;
+    let stop = false;
     const read = (): void => {
-      void client.table(roomId).then((outcome) => {
+      if (stop) return;
+      void client.table(roomId).then(async (outcome) => {
         if (!live) return;
         if (outcome.ok) {
           setTable(outcome.table);
           setTableError(null);
-        } else {
-          setTableError(outcome.error);
+          return;
         }
+        if (joined) {
+          // The join went through, so this refusal is something else — a room
+          // that has since gone, or a read that raced the write. Keep polling:
+          // stopping here would strand a member who is genuinely in the room.
+          setTableError(outcome.error);
+          return;
+        }
+        joined = true;
+        const join = await rooms.join(roomId);
+        if (!live) return;
+        if (join.ok) {
+          read();
+          return;
+        }
+        stop = true;
+        setTableError(
+          join.reason === 'refused'
+            ? 'This room is locked, or it is not there. Go back and join it from the room list.'
+            : join.reason === 'rate-limited'
+              ? 'Too many attempts. Wait a moment, then try from the room list.'
+              : (join.message ?? outcome.error),
+        );
       });
     };
     read();
@@ -121,7 +177,7 @@ function RoomTableScreen({ client, roomId, pollMs }: { client: TablesClient; roo
       live = false;
       clearInterval(timer);
     };
-  }, [client, roomId, pollMs]);
+  }, [client, rooms, roomId, pollMs]);
 
   const players = table?.players ?? [];
   const mine = players.find((p) => p.you) ?? null;
