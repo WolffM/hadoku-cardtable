@@ -35,8 +35,18 @@ import '@wolffm/watchparty-ui/room-chrome.css';
 
 import { apiBase } from '../screens/tables.ts';
 
-/** Watchparty's own origin. Absolute on purpose: their chrome talks to their server. */
-const WATCHPARTY_ORIGIN = 'https://hadoku.me/watchparty';
+/**
+ * Watchparty's server, on whatever origin serves this page. In production that
+ * is `https://hadoku.me/watchparty` — both apps sit behind the same edge — and
+ * their chrome talks to their server. It is derived rather than hardcoded so a
+ * page served from anywhere else never reaches production: the draft e2e runs
+ * against a local server, and the hardcoded origin sent its browsers to
+ * hadoku.me for sprites, whoami and client-log (8d71303, caught by that spec's
+ * off-host guard).
+ */
+function watchpartyOrigin(): string {
+  return `${window.location.origin}/watchparty`;
+}
 
 /** Their contract: `cardtable-<[a-z0-9-]{1,40}>` needs no provisioning. */
 const ROOM_ID = /^[a-z0-9-]{1,40}$/;
@@ -94,7 +104,7 @@ export function RoomShell({ roomId, children }: { roomId: string | null; childre
   if (key === null || who === 'pending' || who === null) return <>{children}</>;
 
   return (
-    <RoomChrome roomKey={key} serverOrigin={WATCHPARTY_ORIGIN} userType={who.tier} userId={who.userId}>
+    <RoomChrome roomKey={key} serverOrigin={watchpartyOrigin()} userType={who.tier} userId={who.userId}>
       {children}
     </RoomChrome>
   );

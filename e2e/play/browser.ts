@@ -12,6 +12,8 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 
 import type { RawCapture } from '../frames.ts';
 import { SESSION_COOKIE } from '../identities.ts';
+import { keepPrefsLocal } from '../prefsLocal.ts';
+import { PLAY_EDGE_ORIGIN } from './harness.ts';
 import { playMessagesOf, type PlayMessage } from './frames.ts';
 
 export interface Friend {
@@ -34,6 +36,7 @@ export async function openFriend(browser: Browser, name: string): Promise<Friend
   await context.addCookies([
     { name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' },
   ]);
+  await keepPrefsLocal(context, PLAY_EDGE_ORIGIN);
   const page = await context.newPage();
   const friend: Friend = { name, context, page, captures: [], pending: [], captureErrors: [], blocked: [] };
 

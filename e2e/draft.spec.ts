@@ -28,6 +28,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 
 import { envelopesOf, type RawCapture } from './frames.ts';
 import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './identities.ts';
+import { keepPrefsLocal } from './prefsLocal.ts';
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 
 test.describe.configure({ mode: 'serial' });
@@ -94,6 +95,7 @@ async function join(browser: Browser, name: string): Promise<Player> {
   await context.addCookies([
     { name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' },
   ]);
+  await keepPrefsLocal(context, EDGE_ORIGIN);
   const page = await context.newPage();
   const player: Player = {
     name,
