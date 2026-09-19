@@ -496,3 +496,46 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* The locked-room prompt. A direct link to a room you have the password for
+   is a valid way in — the screen asks rather than sending you to the list. */
+.lobby__locked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #3a3f4b;
+  border-radius: 8px;
+  background: #1b1e25;
+}
+
+.lobby__locked p {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.lobby__locked input {
+  padding: 7px 10px;
+  border: 1px solid #4a5163;
+  border-radius: 6px;
+  background: #12151b;
+  color: #e7e9ee;
+  font: inherit;
+}
+
+.lobby__locked button {
+  padding: 7px 16px;
+  border: 1px solid #4a5163;
+  border-radius: 6px;
+  background: #2a2f3a;
+  color: #e7e9ee;
+  font: inherit;
+  cursor: pointer;
+}
+
+.lobby__locked button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

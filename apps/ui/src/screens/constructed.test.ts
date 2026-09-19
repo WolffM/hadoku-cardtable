@@ -304,14 +304,26 @@ describe('a room’s table', () => {
    */
   function stubRooms(outcome: 'ok' | 'refused' | 'rate-limited') {
     const joins: string[] = [];
-    return {
+    const passwords: (string | undefined)[] = [];
+    let secret: string | null = null;
+    let reveal: (() => void) | null = null;
+    const api = {
       joins,
+      passwords,
+      /** From here on, this password works — and joining reveals the room. */
+      accept: (p: string, onJoin?: () => void) => {
+        secret = p;
+        reveal = onJoin ?? null;
+      },
       client: {
         list: async () => [],
         create: async () => ({ ok: false as const, message: 'not used' }),
-        join: async (roomId: string) => {
+        join: async (roomId: string, password?: string) => {
           joins.push(roomId);
-          return outcome === 'ok'
+          passwords.push(password);
+          const ok = outcome === 'ok' || (secret !== null && password === secret);
+          if (ok && reveal !== null) reveal();
+          return ok
             ? {
                 ok: true as const,
                 room: {
@@ -330,6 +342,7 @@ describe('a room’s table', () => {
         },
       },
     };
+    return api;
   }
 
   it('joins the room it was opened on, so an invite link works without the room list', async () => {
@@ -343,11 +356,52 @@ describe('a room’s table', () => {
     await screen.findByTestId('room-players');
   });
 
+  it('asks for the password instead of sending an invite link back to the list', async () => {
+    // The operator's 2026-09-19 report: following a direct link to a room they
+    // had a password for dead-ended on "go back and join it from the room
+    // list". The link IS the way in; the screen has to ask.
+    const server = stubServer({ players: [], matchId: null, missing: true });
+    const rooms = stubRooms('refused');
+    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    expect((await screen.findByTestId('room-locked')).textContent).toContain('needs a password');
+    expect(screen.queryByTestId('room-missing')).toBeNull();
+  });
+
+  it('retries with the password typed in, and gets in', async () => {
+    const server = stubServer({ players: [], matchId: null, missing: true });
+    const rooms = stubRooms('refused');
+    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    await screen.findByTestId('room-locked');
+
+    // The room becomes readable BECAUSE the join succeeded — setting it
+    // readable up front would let the first read through and prove nothing.
+    rooms.accept('hunter2', () => {
+      server.table.missing = false;
+    });
+    fireEvent.change(screen.getByTestId('room-password'), { target: { value: 'hunter2' } });
+    fireEvent.submit(screen.getByTestId('room-password-submit').closest('form') as HTMLFormElement);
+
+    await screen.findByTestId('room-players');
+    expect(rooms.passwords).toEqual([undefined, 'hunter2']);
+  });
+
+  it('says the password was wrong rather than repeating "needs a password"', async () => {
+    const server = stubServer({ players: [], matchId: null, missing: true });
+    const rooms = stubRooms('refused');
+    render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
+    await screen.findByTestId('room-locked');
+
+    fireEvent.change(screen.getByTestId('room-password'), { target: { value: 'wrong' } });
+    fireEvent.submit(screen.getByTestId('room-password-submit').closest('form') as HTMLFormElement);
+
+    await waitFor(() => expect(screen.getByTestId('room-locked').textContent).toContain('did not work'));
+  });
+
   it('stops after ONE refused join instead of re-asking on the timer', async () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('refused');
     render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
-    expect((await screen.findByTestId('room-missing')).textContent).toContain('locked');
+    await screen.findByTestId('room-locked');
 
     const readsWhenRefused = server.calls.length;
     await act(async () => {
@@ -361,7 +415,7 @@ describe('a room’s table', () => {
     const server = stubServer({ players: [], matchId: null, missing: true });
     const rooms = stubRooms('rate-limited');
     render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10, rooms: rooms.client }));
-    expect((await screen.findByTestId('room-missing')).textContent).toContain('Too many attempts');
+    expect((await screen.findByTestId('room-locked')).textContent).toContain('Too many attempts');
     expect(rooms.joins).toEqual([ROOM]);
   });
 

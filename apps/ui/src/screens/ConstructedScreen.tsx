@@ -97,6 +97,17 @@ function RoomTableScreen({
   const asked = useRef(false);
   /** The picker is set from the server's copy of your choice exactly once. */
   const restored = useRef(false);
+  /**
+   * The join was refused. `need` is the first refusal, sent without a
+   * password; `wrong` is a refusal for one we sent. The two are different
+   * sentences to a person and the same response from the server, which cannot
+   * tell us which it was without telling an outsider that the room exists.
+   */
+  const [locked, setLocked] = useState<null | 'need' | 'wrong' | 'rate-limited'>(null);
+  const [password, setPassword] = useState('');
+  /** Bumped to re-run the join with whatever `passwordRef` now holds. */
+  const [attempt, setAttempt] = useState(0);
+  const passwordRef = useRef('');
 
   useEffect(() => {
     let live = true;
@@ -155,20 +166,26 @@ function RoomTableScreen({
           return;
         }
         joined = true;
-        const join = await rooms.join(roomId);
+        const join = await rooms.join(roomId, passwordRef.current === '' ? undefined : passwordRef.current);
         if (!live) return;
         if (join.ok) {
           read();
           return;
         }
         stop = true;
-        setTableError(
-          join.reason === 'refused'
-            ? 'This room is locked, or it is not there. Go back and join it from the room list.'
-            : join.reason === 'rate-limited'
-              ? 'Too many attempts. Wait a moment, then try from the room list.'
-              : (join.message ?? outcome.error),
-        );
+        if (join.reason === 'refused') {
+          // Locked, or genuinely not there — the server will not say which,
+          // and should not. Ask for the password rather than sending someone
+          // who followed a valid invite link back to the list, which was the
+          // dead end the operator hit on 2026-09-19.
+          setLocked(passwordRef.current === '' ? 'need' : 'wrong');
+          return;
+        }
+        if (join.reason === 'rate-limited') {
+          setLocked('rate-limited');
+          return;
+        }
+        setTableError(join.message ?? outcome.error);
       });
     };
     read();
@@ -177,7 +194,7 @@ function RoomTableScreen({
       live = false;
       clearInterval(timer);
     };
-  }, [client, rooms, roomId, pollMs]);
+  }, [client, rooms, roomId, pollMs, attempt]);
 
   const players = table?.players ?? [];
   const mine = players.find((p) => p.you) ?? null;
@@ -262,9 +279,42 @@ function RoomTableScreen({
       </header>
 
       <main className="lobby">
-        {tableError !== null && table === null && (
+        {locked !== null && (
+          <form
+            className="lobby__locked"
+            data-testid="room-locked"
+            onSubmit={(e) => {
+              e.preventDefault();
+              passwordRef.current = password;
+              setLocked(null);
+              setTableError(null);
+              setAttempt((n) => n + 1);
+            }}
+          >
+            <p role="alert">
+              {locked === 'need'
+                ? 'This room needs a password.'
+                : locked === 'wrong'
+                  ? 'That password did not work. It may also be that the room is no longer there.'
+                  : 'Too many attempts. Wait a moment before trying again.'}
+            </p>
+            <label htmlFor="room-password">Password</label>
+            <input
+              id="room-password"
+              data-testid="room-password"
+              type="password"
+              autoComplete="off"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button type="submit" data-testid="room-password-submit" disabled={locked === 'rate-limited'}>
+              Join
+            </button>
+          </form>
+        )}
+        {locked === null && tableError !== null && table === null && (
           <p className="lobby__error" role="alert" data-testid="room-missing">
-            This room is not there, or you are not in it: {tableError}
+            {tableError}
           </p>
         )}
         {loadError !== null && (
