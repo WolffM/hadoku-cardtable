@@ -172,8 +172,9 @@ Status: `todo` · `wave-N` · `blocked` · `done` · `watch`
 | Disable jUPnP | **answered: config, not code** | D `df716ef` | `FServerManager.java:230-274` — `mapNatPort()` runs only when the `UPnP` pref is `ALWAYS`, so `UPnP=NEVER` in `server.preferences` means jUPnP is never constructed. **No fork change needed.** The trap is the shipped `ASK` default: it calls `SOptionPane.showOptionDialog`, a blocking modal a headless server cannot answer |
 | `FSerializableFunction` on the wire | **answered: real but narrow** | D `df716ef` | `one` never crosses the wire (it resolves locally to `getChoices`). `getChoices` serializes the lambda as a `SerializedLambda` no JS client can reconstitute — **but the server holds both the choices and the lambda**, so rendering labels server-side and sending strings loses nothing. That is the fix `WireClassFilter.java:45` already names |
 | ~~**Strip upstream's Sentry DSN in the fork**~~ | **done** | us `1f19a230` | **Stale row, corrected 2026-09-18 — this landed with the fork and the board never caught up.** Verified in the *compiled artifact*, not the checkout: no `sentry` string in `forge/view/Main.class` inside the installed jar. Checking the source would not have been enough, since a stale incremental build can carry the old class |
+| **A drafted deck with basic lands cannot be played** | **todo — TOP of Wave 13** | us | **new row 2026-09-19, found by Wave 12 lane B.** `deckFromDeckFile` returns `basics: []` and leaves basics in `main` (`deck.ts:311`); `poolOf` is main+sideboard (`deck.ts:138`); the draft arm (`gate.ts:346`) counts every `Island` against the drafted pool → *"plays 17x Island but drafted 0"*. `deckIssues` has no basic-land exemption on the pool arm. Confirmed by execution, not reading. **The fix is already in-repo**: `isBasicLand`/`BASIC_LAND_NAMES` (`deck.ts:119`,`:40`) — split basics out of main before `deckIssues`. Lane B correctly declined it: `apps/server/src/http/**` was owned by nobody |
 | **Forge jar built and installed in production** | **done** | tracker | `~/.local/share/cardtable/forge.jar`, sha256 `4935b266bce3f098…`, clean-built from pin `2ad70eb4` off-tree in `~/.cache/w7b-forge`. `java -jar … server --help` prints our `DedicatedServer` usage. After an mgmt-api restart: `jvm-spawned` + `spare-warm bootMs:3828`, and `index.ts:239`'s `play: no Forge` warning is **absent** — so `POST /api/play/matches` no longer 503s. Rebuild procedure (required on every pin move, `clean` mandatory): `docs/FORGE_JAR.md` |
-| Match run dirs are never cleaned up | **todo — low** | us | **new row 2026-09-18.** `host.ts:274` `rmSync`s a run dir before creating it, never after the match ends; each match gets a fresh id, so `/tmp/cardtable-play/` grows without bound (78 dirs / 16 MB in one day, ~205 KB per match). `/tmp` is tmpfs, so it is RAM — 13 G free and a reboot clears it, hence low. Fix belongs on the existing `stop()`/`overGrace` path |
+| ~~Match run dirs are never cleaned up~~ | **done** | C `0f19af4` | **Closed 2026-09-19.** A finished match's dir is removed, a crash keeps `bridge.stderr.txt` + `config.json` + `crash.json` (newest 20, none older than 7 days), and boot sweeps what earlier servers left. Tracker mutation-tested: disabling the clean-end `rmSync` fails 2 of 14, restored 14/14. Live: production holds **1** dir, down from 174. ~~Never cleaned up~~ | **new row 2026-09-18.** `host.ts:274` `rmSync`s a run dir before creating it, never after the match ends; each match gets a fresh id, so `/tmp/cardtable-play/` grows without bound (78 dirs / 16 MB in one day, ~205 KB per match). `/tmp` is tmpfs, so it is RAM — 13 G free and a reboot clears it, hence low. Fix belongs on the existing `stop()`/`overGrace` path |
 
 ## Waves 3, 4, 5 — all LANDED
 
@@ -279,6 +280,8 @@ entry — see O7.**
 | # | Item | Why it's theirs |
 | --- | --- | --- |
 | ~~**O8**~~ | **CLOSED 2026-09-18 — hadoku_site landed it.** `services/mgmt-api/src/deploy/deploy-executor.ts` now runs `syncSubmodules` after `git reset --hard origin/<branch>` and before `stopService`, only when `.gitmodules` exists (`git submodule sync --recursive && git submodule update --init --recursive --depth 1`, 10-min timeout, no `--force`). Test at `src/tests/deploy-submodules.test.ts`, 4 cases, mutation-tested (removing `update` fails 2 of 4). **Still unverified live:** nobody has fetched a non-tip sha at `--depth 1` for `forge` yet, so the first deploy after the *next* pin move is the real test. Settle it with `git -C ~/repos/hadoku-cardtable status --porcelain` printing nothing, and the deploy log showing `Synced submodules to the recorded pins`. ~~The deploy tree's submodule drifts on every pin move.~~ `deploy-config.json`'s cardtable entry runs `pnpm install && pnpm build` and mgmt-api's `git pull` does not touch submodules, so `forge/` goes ` M` each time the pin moves and a future pull can refuse outright. Harmless today (nothing builds or serves `forge/`). Durable fix is a `git submodule update --init` in hadoku_site's deploy step; the stopgap is `git -C /home/hadoku/repos/hadoku-cardtable submodule update --init forge`. | hadoku_site |
+| **O9** | **Send the room-chrome request, or decide we are not asking.** `docs/requests/WATCHPARTY_ROOM_CHROME.md` is written and unsent. It asks watchparty for `RoomChrome` at 0.39.0, which commits cardtable to their release schedule for its room UI. Sending it is cheap; depending on it is not. Related: `packages/room-ask` has **no consumer** and this wave gave it none — hand it to watchparty (offered in §6 of the request) or delete it here. A package with no consumer and no owner is a liability. | Decision |
+| **O10** | **D15 needs one more sentence: does "our own origin" mean the cardtable app server, or all of `hadoku.me`?** Lane D found watchparty's sprites load from `hadoku.me/watchparty/…`. Under the narrow reading we are fine and always were; under the broad reading, importing their room chrome would breach D15 on their assets, not ours. `scripts/d13-gate.sh` currently enforces the narrow reading. The rule should say which it means before a lane has to guess. | Decision |
 | **O7** | **D6 needs superseding.** It specifies the UI as an iframe payload inside a watchparty room; production is a standalone app and the operator has now settled on "our own app, importing their room UI as a package". The layout intent survives, the mechanism does not. Nothing in `DECISIONS.md` records the new shape. | Decision log |
 | **O5** | **D2 says "rules out: an MIT room layer living in this repo" — and `packages/room-ask` is now exactly that.** The code side is careful (SPDX, own `LICENSE`, clean-room so it is not a Forge derivative) and the licences are coherent: MIT so P4 can go upstream to watchparty's MIT packages, GPL for `room-store` which is ours. But `docs/DECISIONS.md` mentions `room-ask` **zero** times. Either amend D2 with the carve-out, or move the package to watchparty. A rule contradicted without a record is one that flips back. | Decision log |
 | **O6** | **The CDN upload has never run** — `art-manifest.json` has 0 entries and all art still comes from Scryfall via fallback. `pnpm --filter @hadoku/carddata upload-art` needs a **friend-tier credential** that is not on this host. Lane B refused to invent an auth path, correctly. One credential turns a working pipeline into live art. | Credential |
@@ -292,7 +295,110 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-18 — tracker, closing Wave 11 from artifacts)
+## Verified this pass (2026-09-19 — tracker, closing Wave 12)
+
+Landed in one push, `8ec31f6..481875e`. Deployed tree carries it, PM2 restarted
+**after** the install (`Starting PM2 service: cardtable` 00:16:33.839Z, deploy
+complete 00:16:33.917Z), friend gate still 401 anonymous, play healthy
+(`spare-warm bootMs:3537`). Gate re-run by the tracker: **1,773 passed / 5
+skipped**, exit 0 — matching the manager's number exactly.
+
+| lane | commit | verdict |
+| --- | --- | --- |
+| Step 0 | `bc54f99` | rooms 0.38.111 → **0.38.115** in all six `package.json`, re-checked by grep |
+| A | `12fefad` | four eras, 6 decks each — **verified, mutation-tested by the tracker** |
+| B | `481875e` | builder works; drafted decks with basics blocked by a **server bug** — confirmed in code and at runtime |
+| C | `0f19af4` | run dirs bounded — **verified live and mutation-tested by the tracker** |
+| D | `d40f92a` | settled "cannot" — **central claim re-derived from the tarball independently** |
+
+### The window now has a collection in all six eras
+
+49 decks across 8 collections. New: SCG Orlando 2011-05-14 (NPH), SCG Richmond
+2011-08-14 (M12), SCG Indianapolis 2012-06-16 (AVR), SCG Kansas City 2012-08-11
+(M13) — 6 decks each, five colours per era, one deck per archetype label rather
+than a Top 8 full of Caw-Blade and Delver mirrors. SCG Opens over GPs because
+the GP Top 8s failed the five-colour rule.
+
+**Mutation-tested by the tracker, not accepted:** swapped `Augur of Bolas|M13`
+for `Sphinx's Revelation|RTR` (a set *after* that era) in Prokop's UW Delver →
+**1 failed / 229 passed**, naming
+`scg-kansas-city-2012-1-mike-prokop is legal in its own era's frozen pool`.
+Restored → **230 passed**. The pool genuinely bites.
+
+### Lane B found a real bug and correctly refused to fix it
+
+**A drafted deck with basic lands cannot be played.** The builder works, a
+drafted deck reaches Forge, and a match was created (`m-f90d2b408dad`, 201) —
+but only with **zero basics**. Add 17 Islands and the server refuses with
+*"plays 17x Island but drafted 0"*.
+
+The tracker confirmed the mechanism by execution, not by reading:
+`deckFromDeckFile` returns `basics: []` and leaves the Islands in `main`
+(printed directly), `poolOf` is `main + sideboard`, and the draft arm
+(`gate.ts:346`) compares that whole thing against the drafted pool.
+`deckIssues` has **no** basic-land exemption on the pool arm — it only checks
+`deck.basics` for *"is in the basics pile but is not a basic land"*, and that
+pile is always empty on this path.
+
+**The fix is already in the repo**: `isBasicLand` / `BASIC_LAND_NAMES`
+(`deck.ts:119`, `:40`). Split basics out of `main` before `deckIssues` in the
+draft arm. It sits in `apps/server/src/http/**`, which **no lane owned this
+wave**, so declining it was right — a lane that reached outside its files would
+have been the worse outcome. **First item of Wave 13.**
+
+### Incident: a test server swept production's run directory
+
+Lane C's new boot sweep is correct. Lane B started a test server **without**
+`CARDTABLE_PLAY_WORK_DIR`, so it defaulted to production's
+`/tmp/cardtable-play` and removed **173 dead directories**. The live-process
+guard held and production's running JVM was untouched, which is the part that
+matters — but **old crash diagnostics among those 173 are gone**.
+
+The cause is a default that points at production, not a bug in the sweep. The
+manager had B restart with the var set and saved
+`dev-servers-need-play-work-dir` to memory so future waves brief it. Worth a
+stronger fix than a memory: a dev server that boot-sweeps a directory it did
+not create is a footgun with one safe configuration and no warning.
+
+### Lane C, mutation-tested by the tracker
+
+Disabled the clean-end `rmSync` (`host.ts:619`) → **2 failed / 12 passed**;
+restored → **14/14**. One of the two names its own hazard:
+*"a finished match's directory is gone — and Forge's res behind its symlink is
+untouched"*. A recursive delete that followed that symlink would have eaten the
+vendored Forge resources.
+
+Live: production's `/tmp/cardtable-play` holds **1** directory (its own spare),
+down from 174, and the boot sweep logged
+`run-dirs-swept … removed:2 crashRecordsRemoved:0`.
+
+### Lane D — re-derived independently, and it is worse than "no types"
+
+The tracker re-packed `@wolffm/watchparty-ui@0.38.115` and checked the tarball
+without reading the lane's numbers first: **0 `.d.ts`**, no `exports` map, no
+`peerDependencies` — and `types` is set to `./dist/index.d.ts`, **a file the
+tarball does not contain**. The package advertises types it does not ship,
+which is a packaging bug on their side, not a preference of ours.
+
+The 34 `data:image/png` URIs are confirmed and the tracker's own first count of
+68 was the sloppy one — 34 in the `.js` that ships, 34 more in sourcemaps. The
+three chunks named (`cover`, `GameModule`, `MapEditor`) are right.
+
+`docs/requests/WATCHPARTY_ROOM_CHROME.md` asks for `RoomChrome` on
+`@wolffm/watchparty-ui/room-chrome`, contracts C1–C10, target **0.39.0**. It is
+written and **not sent** — sending is the tracker's call, and it is an operator
+decision because it commits us to a dependency. **See O9.**
+
+### Corrections the tracker owes
+
+**The AI-attribution trailers were mine and they were wrong.** `AGENTS.md`
+forbids them, the harness reminder that supplies them explicitly yields to the
+user's own instructions, and `git-identity-and-attribution` was already in
+memory saying so. Three pushed commits carry them — `367f963`, `41878d6`,
+`8ec31f6` — and the manager was right to rebuild the unpushed `cfa4e76` as
+`ccf6aef` without them. Not rewriting pushed history unasked; stopping.
+
+## Previously verified (2026-09-18 — tracker, closing Wave 11 from artifacts)
 
 **The w11 worktree, branch and directory are all gone, and the closing notes
 were never pasted.** That cost nothing. The protocol's own rule is that the
