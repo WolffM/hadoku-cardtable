@@ -312,7 +312,20 @@ describe('a room’s table', () => {
         join: async (roomId: string) => {
           joins.push(roomId);
           return outcome === 'ok'
-            ? { ok: true as const, room: { id: roomId, name: roomId, gameType: 'constructed-1v1' as const, locked: false, members: [] } }
+            ? {
+                ok: true as const,
+                room: {
+                  id: roomId,
+                  name: roomId,
+                  creator: 'user-alice',
+                  leader: 'user-alice',
+                  gameType: 'constructed-1v1',
+                  locked: false,
+                  members: [],
+                  matchId: null,
+                  createdAt: '2026-09-19T00:00:00.000Z',
+                },
+              }
             : { ok: false as const, reason: outcome };
         },
       },
