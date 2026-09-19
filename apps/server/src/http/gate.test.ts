@@ -222,12 +222,19 @@ describe.skipIf(!available.ok)(title, () => {
 		expect(ready.seats.map((s) => s.deck)).toEqual([mine.deckName, theirs.deckName]);
 		// The proof that Forge plays the deck the gate checked: Forge's own view
 		// of the opening libraries is 40 cards (23 drafted + 17 Islands) and 60.
-		const deadline = Date.now() + 60_000;
+		//
+		// Wait for BOTH, not for the first one to arrive: the two players' zones
+		// reach us in separate frames and in no guaranteed order, so a loop that
+		// stops at 40 asserts 60 on whatever has landed by then. Under a full
+		// `pnpm check` — three JVM suites at once — that raced and failed
+		// ("expected [ 40 ] to include 60"). The deadline is generous for the
+		// same reason: it is a wait for a frame, not a measurement of anything.
+		const wanted = [40, 60];
+		const deadline = Date.now() + 120_000;
 		const sizes = (): number[] => raw.flatMap((l) => (l.t === 'frame' ? librarySizes(l.frame) : []));
-		while (!sizes().includes(40) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
-		expect(sizes()).toContain(40);
-		expect(sizes()).toContain(60);
+		while (!wanted.every((n) => sizes().includes(n)) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
+		for (const n of wanted) expect(sizes()).toContain(n);
 		match.stop();
 		jvm.close();
-	}, 180_000);
+	}, 300_000);
 });
