@@ -63,6 +63,41 @@
  * A pooled or shared host implements the same two types; the `MatchSpec` it
  * receives and the lines it hands back do not change.
  *
+ * ## The run directory, and what is left of it (Wave 12)
+ *
+ * Every JVM gets `<workDir>/<id>` (see `stageRunDir`): Forge's profile, a `res`
+ * symlink, empty user and cache dirs, the match's `config.json`, and
+ * `bridge.stderr.txt` — ~200 KB a match, nearly all of it stderr. `workDir` is
+ * on tmpfs by default, so a directory nobody removes is RAM nobody gets back.
+ * What happens to it is decided when the JVM is gone (its stderr closed):
+ *
+ * - **A clean end is removed whole.** Clean means *we* asked it to stop (the
+ *   match's `stop()`, the over-grace, `close()` on the spare) and it exited 0
+ *   — the bridge's own `halt(0)`. The match is over and the directory says
+ *   nothing its logs did not.
+ * - **Anything else is a crash record.** A JVM that exited on its own, by a
+ *   signal, non-zero (the bridge's `fatal` is `halt(1)`), one that needed
+ *   SIGTERM/SIGKILL to go, or one that never started: `bridge.stderr.txt` is
+ *   the only record of *why*, and the exit reason names its path. The
+ *   directory is kept at that same path, pruned to `CRASH_RECORD_FILES`
+ *   (stderr, `config.json` — the decks, so it can be replayed — and a
+ *   `crash.json` saying how it ended). The `res` symlink and Forge's empty dirs
+ *   go.
+ * - **Crash records are bounded.** The newest `CRASH_RECORDS_KEPT`, none older
+ *   than `CRASH_RECORD_MAX_AGE_MS`; the rest are removed each time a new one
+ *   is written and at boot. Enough to diagnose last week; not a second leak.
+ * - **Boot sweeps what an earlier process left** (`sweepRunDirs`, run when the
+ *   factory is made — once, at server start): a server killed mid-match, or
+ *   any version before this one, leaves directories nothing will remove. It
+ *   touches only `m-…`/`spare-…` directories directly under `workDir`, and
+ *   spares a directory some process is standing in (a JVM's cwd is its run
+ *   dir; `/proc/<pid>/cwd` — so another server's live match survives even if
+ *   it predates this code), one changed in the last `RUN_DIR_FRESH_MS` (being
+ *   staged right now by another process), and crash records within the bound.
+ *   Where `/proc` cannot be read the sweep does nothing and says so: a live
+ *   directory cannot be told from a dead one, and guessing wrong deletes a
+ *   running match's files.
+ *
  * ## The line protocol
  *
  * `bridge/PlayBridge.java` writes one JSON object per line on stdout and reads
@@ -88,9 +123,21 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { createWriteStream, existsSync, mkdirSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+	createWriteStream,
+	existsSync,
+	lstatSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	readlinkSync,
+	realpathSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import type { AbortReasonSchema, ClientAction } from '@hadoku/forge-wire';
@@ -289,6 +336,141 @@ function stageRunDir(config: JvmHostConfig, name: string): string {
 	return run;
 }
 
+/* ── What is left of a run directory ─────────────────────────────────── */
+
+/** Crash records kept at most, newest first. See "The run directory". */
+export const CRASH_RECORDS_KEPT = 20;
+/** A crash record older than this is removed. */
+export const CRASH_RECORD_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+/** The boot sweep leaves a directory changed this recently: another process may be staging it. */
+export const RUN_DIR_FRESH_MS = 60_000;
+/** What a crashed JVM's directory is pruned to. `crash.json` marks it as a record. */
+export const CRASH_RECORD_FILES = ['bridge.stderr.txt', 'config.json', 'crash.json'] as const;
+const CRASH_MARKER = 'crash.json';
+
+/** Match (`newMatchId`) and spare ids. Nothing else under `workDir` is ours to remove. */
+const RUN_DIR_NAME = /^(m|spare)-[0-9a-f]{12}$/;
+
+/** Why a JVM that did not end cleanly ended — written as `crash.json`. */
+export interface CrashRecord {
+	id: string;
+	reason: string;
+	code: number | null;
+	signal: string | null;
+	at: string;
+}
+
+/** Keep the diagnostics, drop Forge's scaffolding (the `res` symlink is unlinked, never followed). */
+function keepCrashRecord(run: string, record: CrashRecord): void {
+	const keep = new Set<string>(CRASH_RECORD_FILES);
+	for (const entry of readdirSync(run)) {
+		if (!keep.has(entry)) rmSync(join(run, entry), { recursive: true, force: true });
+	}
+	writeFileSync(join(run, CRASH_MARKER), `${JSON.stringify(record, null, 2)}\n`);
+}
+
+/** Our run directories directly under `workDir`, as real paths. */
+function runDirs(workDir: string): { name: string; dir: string; mtimeMs: number }[] {
+	if (!existsSync(workDir)) return [];
+	const root = realpathSync(workDir);
+	const dirs: { name: string; dir: string; mtimeMs: number }[] = [];
+	for (const name of readdirSync(root)) {
+		if (!RUN_DIR_NAME.test(name)) continue;
+		const dir = join(root, name);
+		const stat = lstatSync(dir);
+		if (stat.isDirectory()) dirs.push({ name, dir, mtimeMs: stat.mtimeMs });
+	}
+	return dirs;
+}
+
+/** When a crash record was written: its own `at`, else the directory's mtime. */
+function crashTime(dir: string, mtimeMs: number): number {
+	const at = Date.parse((JSON.parse(readFileSync(join(dir, CRASH_MARKER), 'utf8')) as { at?: string }).at ?? '');
+	return Number.isNaN(at) ? mtimeMs : at;
+}
+
+/**
+ * Enforce the crash-record bound: the newest `CRASH_RECORDS_KEPT` within
+ * `CRASH_RECORD_MAX_AGE_MS` stay, the rest go. Returns what it removed.
+ */
+export function pruneCrashRecords(workDir: string, now = Date.now()): { kept: string[]; removed: string[] } {
+	const records = runDirs(workDir)
+		.filter((d) => existsSync(join(d.dir, CRASH_MARKER)))
+		.map((d) => ({ ...d, at: crashTime(d.dir, d.mtimeMs) }))
+		.sort((a, b) => b.at - a.at);
+	const kept: string[] = [];
+	const removed: string[] = [];
+	for (const r of records) {
+		if (kept.length < CRASH_RECORDS_KEPT && now - r.at <= CRASH_RECORD_MAX_AGE_MS) {
+			kept.push(r.name);
+		} else {
+			rmSync(r.dir, { recursive: true, force: true });
+			removed.push(r.name);
+		}
+	}
+	return { kept, removed };
+}
+
+/**
+ * The working directory of every process on this host that we can see, or
+ * null when `/proc` cannot say (not Linux). A process that exits between the
+ * listing and the readlink, or belongs to another user, is not standing in one
+ * of our directories.
+ */
+function processCwds(): string[] | null {
+	let pids: string[];
+	try {
+		pids = readdirSync('/proc').filter((p) => /^\d+$/.test(p));
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+		throw err;
+	}
+	const cwds: string[] = [];
+	for (const pid of pids) {
+		try {
+			cwds.push(readlinkSync(`/proc/${pid}/cwd`));
+		} catch (err) {
+			const code = (err as NodeJS.ErrnoException).code;
+			if (code !== 'ENOENT' && code !== 'EACCES' && code !== 'ESRCH' && code !== 'EPERM') throw err;
+		}
+	}
+	return cwds;
+}
+
+export interface SweepResult {
+	/** Directories removed: dead, not fresh, not a crash record within the bound. */
+	removed: string[];
+	/** Spared: some process is standing in it — a running JVM, ours or another server's. */
+	live: string[];
+	/** Spared: changed within `RUN_DIR_FRESH_MS`. */
+	fresh: string[];
+	/** Crash records kept, and those the bound removed. */
+	crashes: { kept: string[]; removed: string[] };
+	/** Set when the sweep did nothing, and why. */
+	skipped?: string;
+}
+
+/**
+ * Remove the run directories an earlier process left behind. See "The run
+ * directory" in the module header for what it spares and why.
+ */
+export function sweepRunDirs(workDir: string, now = Date.now()): SweepResult {
+	const result: SweepResult = { removed: [], live: [], fresh: [], crashes: { kept: [], removed: [] } };
+	const cwds = processCwds();
+	if (cwds === null) return { ...result, skipped: '/proc is not readable, so a live run directory cannot be told from a dead one' };
+	for (const { name, dir, mtimeMs } of runDirs(workDir)) {
+		if (cwds.some((cwd) => cwd === dir || cwd.startsWith(dir + sep))) result.live.push(name);
+		else if (existsSync(join(dir, CRASH_MARKER))) continue; // the bound decides, below
+		else if (now - mtimeMs < RUN_DIR_FRESH_MS) result.fresh.push(name);
+		else {
+			rmSync(dir, { recursive: true, force: true });
+			result.removed.push(name);
+		}
+	}
+	result.crashes = pruneCrashRecords(workDir, now);
+	return result;
+}
+
 /** The config object the bridge reads — from `config.json` cold, or in a spare's `start` line. */
 function bridgeConfig(matchId: string, spec: MatchSpec): Record<string, unknown> {
 	return { matchId, ...spec };
@@ -340,6 +522,8 @@ class BridgeJvm {
 	warm = false;
 	exited = false;
 	private stopping = false;
+	/** How it ended, set on exit and consumed when the run dir is settled. */
+	private ending: 'clean' | { reason: string; code: number | null; signal: NodeJS.Signals | null } | null = null;
 	private readonly killTimers: NodeJS.Timeout[] = [];
 
 	constructor(
@@ -354,6 +538,7 @@ class BridgeJvm {
 		this.id = id;
 		this.run = run;
 		const stderr = createWriteStream(join(run, 'bridge.stderr.txt'));
+		stderr.on('error', (err) => this.log({ evt: 'bridge-stderr-error', id: this.id, error: err.message }));
 		const child = spawn(
 			config.java,
 			['-Djava.awt.headless=true', ...config.jvmOpts, '-cp', config.jar, config.bridgeSource, ...args],
@@ -364,10 +549,18 @@ class BridgeJvm {
 		log({ evt: 'jvm-spawned', id, pid: child.pid, run, spare: args[0] === '--spare' });
 		child.stderr?.pipe(stderr);
 		createInterface({ input: child.stdout as NodeJS.ReadableStream }).on('line', (text) => this.onText(text));
-		child.on('error', (err) => this.onGone(`the JVM could not be started: ${err.message}`));
+		child.on('error', (err) => this.onGone(`the JVM could not be started: ${err.message}`, { code: null, signal: null }));
 		child.on('exit', (code, signal) => {
 			log({ evt: 'jvm-exited', id: this.id, pid: child.pid, code, signal });
-			this.onGone(this.stopping ? 'stopped' : `the JVM exited (code ${code}, signal ${signal}); see ${run}/bridge.stderr.txt`);
+			this.onGone(this.stopping ? 'stopped' : `the JVM exited (code ${code}, signal ${signal}); see ${run}/bridge.stderr.txt`, { code, signal });
+		});
+		// `close` comes after `exit` (or `error`) and after the child's stdio has
+		// closed. A child that never started never ends its stderr, so end the
+		// file here; the directory is settled once every byte is in it.
+		child.on('close', () => {
+			if (!stderr.writableEnded) stderr.end();
+			if (stderr.closed) this.settleRunDir();
+			else stderr.once('close', () => this.settleRunDir());
 		});
 		// A write after the JVM died is an EPIPE on a stream nobody is reading;
 		// the exit handler above already reported why.
@@ -401,13 +594,38 @@ class BridgeJvm {
 		this.events.line(line as BridgeLine);
 	}
 
-	private onGone(reason: string): void {
+	private onGone(reason: string, how: { code: number | null; signal: NodeJS.Signals | null }): void {
 		if (this.exited) return;
 		this.exited = true;
+		// Clean is only a stop we asked for that the bridge finished itself (`halt(0)`).
+		// One that took our SIGTERM/SIGKILL hung, and is kept like any crash.
+		this.ending = this.stopping && how.code === 0 && how.signal === null ? 'clean' : { reason, ...how };
 		live.delete(this.child);
 		for (const t of this.killTimers) clearTimeout(t);
 		if (this.events !== null) this.events.exit(reason);
 		this.hooks.exit(this, reason);
+	}
+
+	/**
+	 * The JVM is gone and its stderr is flushed: remove a clean end's
+	 * directory, keep a crash's diagnostics. See "The run directory".
+	 */
+	private settleRunDir(): void {
+		const ending = this.ending;
+		if (ending === null) return;
+		this.ending = null;
+		try {
+			if (ending === 'clean') {
+				rmSync(this.run, { recursive: true, force: true });
+				this.log({ evt: 'run-dir-removed', id: this.id, run: this.run });
+				return;
+			}
+			keepCrashRecord(this.run, { id: this.id, ...ending, at: new Date().toISOString() });
+			const pruned = pruneCrashRecords(this.config.workDir);
+			this.log({ evt: 'run-dir-kept', id: this.id, run: this.run, files: [...CRASH_RECORD_FILES], pruned: pruned.removed });
+		} catch (err) {
+			this.log({ evt: 'run-dir-settle-failed', id: this.id, run: this.run, error: (err as Error).message });
+		}
 	}
 
 	/** Raw write, addressed to whatever id this JVM holds right now. */
@@ -460,6 +678,8 @@ export interface JvmPoolOptions {
 	maxJvms?: number;
 	/** Wait before replacing a spare that died idle. Default `SPARE_RETRY_MS`. */
 	spareRetryMs?: number;
+	/** Sweep `workDir` of what an earlier process left (`sweepRunDirs`) before the first JVM. Default true. */
+	sweep?: boolean;
 	log?: (entry: Record<string, unknown>) => void;
 }
 
@@ -552,6 +772,24 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	};
 	factory.spare = () => (spare === null ? 'none' : spare.warm ? 'warm' : 'booting');
 
+	if (options.sweep ?? true) {
+		try {
+			const swept = sweepRunDirs(config.workDir);
+			poolLog({
+				evt: 'run-dirs-swept',
+				workDir: config.workDir,
+				removed: swept.removed.length,
+				live: swept.live,
+				fresh: swept.fresh,
+				crashRecords: swept.crashes.kept.length,
+				crashRecordsRemoved: swept.crashes.removed.length,
+				...(swept.skipped === undefined ? {} : { skipped: swept.skipped }),
+			});
+		} catch (err) {
+			// A sweep that fails leaves directories behind; it must not stop play from starting.
+			poolLog({ evt: 'run-dir-sweep-failed', workDir: config.workDir, error: (err as Error).message });
+		}
+	}
 	replenish();
 	return factory;
 }

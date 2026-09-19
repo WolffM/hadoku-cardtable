@@ -5,16 +5,21 @@
  * `jvm.test.ts` (the warm-spare run) and measured by `dev/spare-bench.ts`.
  */
 
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
 import {
+	CRASH_RECORDS_KEPT,
+	CRASH_RECORD_FILES,
+	CRASH_RECORD_MAX_AGE_MS,
 	SPARE_MAX_FAILURES,
 	jvmHostFactory,
 	liveJvmCount,
+	sweepRunDirs,
 	withHeapCap,
 	type BridgeLine,
 	type HostEvents,
@@ -29,20 +34,30 @@ const scratch = mkdtempSync(join(tmpdir(), 'cardtable-host-test-'));
 
 // The pool runs `<java> <jvm flags> -cp <jar> <bridge source> <args>`; this
 // "java" drops everything up to the source and runs the fake with the rest.
+// It says so on stderr first, so a crash record has something of its own to keep.
 const java = join(scratch, 'java');
-writeFileSync(java, `#!/bin/sh\nwhile [ "$1" != "BRIDGE" ]; do shift; done\nshift\nexec "${process.execPath}" "${FAKE}" "$@"\n`);
+writeFileSync(
+	java,
+	`#!/bin/sh\nwhile [ "$1" != "BRIDGE" ]; do shift; done\nshift\necho "fake-bridge stderr: $*" >&2\nexec "${process.execPath}" "${FAKE}" "$@"\n`,
+);
 chmodSync(java, 0o755);
 
 const config: JvmHostConfig = {
 	java,
 	jar: 'unused.jar',
-	res: scratch,
+	// Forge's res/, symlinked into every run dir. It holds the marker below, so
+	// a cleanup that followed the symlink instead of unlinking it is caught.
+	res: join(scratch, 'res'),
 	workDir: join(scratch, 'runs'),
 	jvmOpts: [],
 	bridgeSource: 'BRIDGE',
 	stopGraceMs: 1000,
 	warmSpare: true,
 };
+
+mkdirSync(config.res);
+const RES_MARKER = join(config.res, 'cardsfolder.marker');
+writeFileSync(RES_MARKER, 'Forge res — never deleted through a run dir');
 
 const SPEC: MatchSpec = { seats: [{ name: 'Seat 1', ai: false, deck: null }, { name: 'Seat 2', ai: false, deck: null }] };
 
@@ -123,7 +138,7 @@ describe('the warm spare', () => {
 	});
 
 	it('is off when asked: the match starts cold and no spare is kept', async () => {
-		const pool = jvmHostFactory(config, { spare: false });
+		const pool = jvmHostFactory(config, { spare: false, log: () => undefined });
 		pools.push(pool);
 		expect(pool.spare()).toBe('none');
 		const events = recorder();
@@ -197,5 +212,128 @@ describe('a spare that dies before it is used', () => {
 		await waitUntil(() => events.exits.length > 0, 'the exit');
 		expect(events.exits[0]).toMatch(/^the JVM exited \(code null, signal SIGKILL\)/);
 		expect(poolLog.some((l) => l.evt === 'spare-died')).toBe(false);
+	});
+});
+
+describe('the run directory', () => {
+	const runOf = (logs: Record<string, unknown>[]): string => logs.find((l) => l.evt === 'jvm-spawned')?.run as string;
+
+	it("a finished match's directory is gone — and Forge's res behind its symlink is untouched", async () => {
+		const pool = jvmHostFactory(config, { spare: false, log: () => undefined });
+		pools.push(pool);
+		const events = recorder();
+		const host = track(pool('m-000000000007', SPEC, events));
+		await waitUntil(() => events.lines.some((l) => l.t === 'ready'), 'ready');
+		const run = runOf(events.logs);
+		expect(existsSync(join(run, 'bridge.stderr.txt'))).toBe(true);
+
+		host.stop();
+		await waitUntil(() => events.logs.some((l) => l.evt === 'run-dir-removed'), 'the run dir to be settled');
+		expect(events.exits).toEqual(['stopped']);
+		expect(existsSync(run)).toBe(false);
+		expect(existsSync(RES_MARKER)).toBe(true);
+	});
+
+	it("a spare stopped by close() leaves nothing behind", async () => {
+		const poolLog: Record<string, unknown>[] = [];
+		const pool = jvmHostFactory(config, { log: (e) => poolLog.push(e) });
+		await waitUntil(() => pool.spare() === 'warm', 'the spare');
+		const run = runOf(poolLog);
+		pool.close();
+		await waitUntil(() => poolLog.some((l) => l.evt === 'run-dir-removed'), 'the spare dir to be settled');
+		expect(existsSync(run)).toBe(false);
+	});
+
+	it("a crashed match's diagnostics are still reachable at the path its exit names — pruned to the record", async () => {
+		const pool = jvmHostFactory(config, { spare: false, log: () => undefined });
+		pools.push(pool);
+		const events = recorder();
+		track(pool('m-000000000008', SPEC, events));
+		await waitUntil(() => events.lines.some((l) => l.t === 'ready'), 'ready');
+		const pid = events.logs.find((l) => l.evt === 'jvm-spawned')?.pid as number;
+		process.kill(pid, 'SIGKILL');
+		await waitUntil(() => events.logs.some((l) => l.evt === 'run-dir-kept'), 'the crash record');
+
+		// The reason a seat's status shows names the file; that file is there and holds the bridge's stderr.
+		const named = /; see (.+)$/.exec(events.exits[0] ?? '')?.[1];
+		expect(named).toBe(join(runOf(events.logs), 'bridge.stderr.txt'));
+		expect(readFileSync(named as string, 'utf8')).toMatch(/^fake-bridge stderr: /);
+		const run = dirname(named as string);
+		expect(readdirSync(run).sort()).toEqual([...CRASH_RECORD_FILES].sort());
+		expect(JSON.parse(readFileSync(join(run, 'config.json'), 'utf8'))).toMatchObject({ matchId: 'm-000000000008' });
+		expect(JSON.parse(readFileSync(join(run, 'crash.json'), 'utf8'))).toMatchObject({ id: 'm-000000000008', code: null, signal: 'SIGKILL' });
+		expect(existsSync(RES_MARKER)).toBe(true);
+	});
+});
+
+describe('the boot sweep — against a fixture work dir, never the real one', () => {
+	const DAY = 24 * 60 * 60 * 1000;
+
+	/** A run dir as `stageRunDir` leaves one, dated `ageMs` ago. */
+	function staged(root: string, name: string, ageMs: number, crashAt?: number): string {
+		const dir = join(root, name);
+		mkdirSync(join(dir, 'user', 'decks'), { recursive: true });
+		symlinkSync(config.res, join(dir, 'res'));
+		writeFileSync(join(dir, 'bridge.stderr.txt'), `stderr of ${name}\n`);
+		if (crashAt !== undefined) writeFileSync(join(dir, 'crash.json'), JSON.stringify({ id: name, at: new Date(crashAt).toISOString() }));
+		const t = new Date(Date.now() - ageMs);
+		utimesSync(dir, t, t);
+		return dir;
+	}
+
+	it('removes dead run dirs, and spares a live one, a fresh one, crash records within the bound, and anything not ours', async () => {
+		const root = mkdtempSync(join(scratch, 'sweep-'));
+		const now = Date.now();
+		const dead = staged(root, 'm-aaaaaaaaaaaa', DAY);
+		const deadSpare = staged(root, 'spare-bbbbbbbbbbbb', DAY);
+		const live = staged(root, 'm-cccccccccccc', DAY);
+		const fresh = staged(root, 'm-dddddddddddd', 0);
+		const crash = staged(root, 'm-eeeeeeeeeeee', DAY, now - DAY);
+		const stale = staged(root, 'm-ffffffffffff', 8 * DAY, now - 8 * DAY);
+		const notOurs = join(root, 'keep-me');
+		mkdirSync(notOurs);
+		utimesSync(notOurs, new Date(now - DAY), new Date(now - DAY));
+		const notADir = join(root, 'm-0123456789ab');
+		writeFileSync(notADir, 'a file with a run-dir name');
+
+		// A real process standing in the live dir, as a JVM stands in its run dir.
+		const squatter = spawn('sleep', ['30'], { cwd: live, stdio: 'ignore' });
+		await waitUntil(() => squatter.pid !== undefined, 'the squatter');
+		try {
+			const swept = sweepRunDirs(root, now);
+			expect(swept.skipped).toBeUndefined();
+			expect(swept.removed.sort()).toEqual(['m-aaaaaaaaaaaa', 'spare-bbbbbbbbbbbb']);
+			expect(swept.live).toEqual(['m-cccccccccccc']);
+			expect(swept.fresh).toEqual(['m-dddddddddddd']);
+			expect(swept.crashes).toEqual({ kept: ['m-eeeeeeeeeeee'], removed: ['m-ffffffffffff'] });
+		} finally {
+			squatter.kill('SIGKILL');
+		}
+		expect([dead, deadSpare, stale].map(existsSync)).toEqual([false, false, false]);
+		expect([live, fresh, crash, notOurs, notADir].map(existsSync)).toEqual([true, true, true, true, true]);
+		expect(readFileSync(join(crash, 'bridge.stderr.txt'), 'utf8')).toBe('stderr of m-eeeeeeeeeeee\n');
+		expect(existsSync(RES_MARKER)).toBe(true);
+	});
+
+	it(`keeps the newest ${CRASH_RECORDS_KEPT} crash records and removes the rest`, () => {
+		const root = mkdtempSync(join(scratch, 'sweep-'));
+		const now = Date.now();
+		const names = Array.from({ length: CRASH_RECORDS_KEPT + 2 }, (_, i) => `m-${i.toString(16).padStart(12, '0')}`);
+		// m-…00 is the newest; the last two are the oldest, still inside the age bound.
+		names.forEach((n, i) => staged(root, n, DAY, now - (i + 1) * (CRASH_RECORD_MAX_AGE_MS / 100)));
+		const swept = sweepRunDirs(root, now);
+		expect(swept.crashes.kept).toEqual(names.slice(0, CRASH_RECORDS_KEPT));
+		expect(swept.crashes.removed).toEqual(names.slice(CRASH_RECORDS_KEPT));
+		expect(readdirSync(root).sort()).toEqual(names.slice(0, CRASH_RECORDS_KEPT));
+	});
+
+	it('runs when the pool is made, and logs what it did', () => {
+		const root = mkdtempSync(join(scratch, 'sweep-'));
+		const dead = staged(root, 'm-aaaaaaaaaaaa', DAY);
+		const poolLog: Record<string, unknown>[] = [];
+		const pool = jvmHostFactory({ ...config, workDir: root }, { spare: false, log: (e) => poolLog.push(e) });
+		pools.push(pool);
+		expect(existsSync(dead)).toBe(false);
+		expect(poolLog.find((l) => l.evt === 'run-dirs-swept')).toMatchObject({ workDir: root, removed: 1, live: [], fresh: [] });
 	});
 });
