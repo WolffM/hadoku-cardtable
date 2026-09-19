@@ -102,6 +102,9 @@ importers:
       '@wolffm/rooms-protocol':
         specifier: 0.38.115
         version: 0.38.115
+      '@wolffm/watchparty-ui':
+        specifier: 0.39.0
+        version: 0.39.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -956,13 +959,41 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
+  '@wolffm/prefs-client@1.0.12':
+    resolution: {integrity: sha512-2sVdB85SqFtxHdzoYKoht4ZtLxMg6mq9DBz+A2H8qznvZQyJ3/0xJjG1d4T155GiE47QODzZL7n6uNynhorbow==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.0.12/7c9acfba91928038408cbfddb9ffb017753d811d}
+    engines: {node: '>=18'}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      zod: ^4.0.0
+
   '@wolffm/rooms-protocol@0.38.115':
     resolution: {integrity: sha512-n29gQNY6HlkMzM2fJgCoS5xcW0l4GetdBHtLdXu2/xYQ8PX+uqmrazkFQg9wpsmAkd7BpTw4IxpfrWHM0e2D3g==, tarball: https://npm.pkg.github.com/download/@wolffm/rooms-protocol/0.38.115/a94493f9a1c91c99a9efb1fed08866a45cb65feb}
+
+  '@wolffm/rooms-protocol@0.39.0':
+    resolution: {integrity: sha512-JqjHZIdzpxxe2+C3mVOp0AINAp6m62JFJTvG4cFroFjEVMQcyuBQAepH6oEesRBVp1K2wf6zjNTuequxUHsn3g==, tarball: https://npm.pkg.github.com/download/@wolffm/rooms-protocol/0.39.0/318e2cf1eb57383be82133e6316d16290ca52eb2}
 
   '@wolffm/rooms-server@0.38.115':
     resolution: {integrity: sha512-xhy+ZQxLFKvtOkVYiAW6TedXvBaKom0/FMB7OwHa2JT13Jnt3YXE/whQKEkv00QoyJ5LThgf/LcK0B9iJ438QA==, tarball: https://npm.pkg.github.com/download/@wolffm/rooms-server/0.38.115/b9ab7eda80fdc04cf6c92da0f2dc819c35f02b68}
     peerDependencies:
       socket.io: ^4.8.3
+
+  '@wolffm/task-ui-components@4.8.3':
+    resolution: {integrity: sha512-EhO/dcHdYJsuXU7JP7SqXvcj9Jx8UW6d1HW2LirHR/yrHSAJZZImNA38Xw+/jJgZBxtqtpvkKKcRL1r8LTEW0A==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/4.8.3/f49140e45064b759a8b018a22f6bf51e19fa63a1}
+    peerDependencies:
+      '@wolffm/themes': '*'
+      react: ^18.0.0 || ^19.0.0
+
+  '@wolffm/themes@5.8.5':
+    resolution: {integrity: sha512-IPZnokdJQPqGr691/n5p7RRPl2eoxv99AtgkAD7sTFjOesih9ype/6sGv6DJ9SSc6MKE50LV5FtWL6o+7WmqSQ==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/5.8.5/db36f50fc8a9e7dbc321eba5bd20737351fa510a}
+    hasBin: true
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+
+  '@wolffm/watchparty-ui@0.39.0':
+    resolution: {integrity: sha512-btzR3+I08P7LrrnGlOOhR3TuzULDO3Cu1S2WuT/R7AX3iItvlIsYuaU7PBqrt5CaRIQOJAtQAJYdqCo4SRXPbw==, tarball: https://npm.pkg.github.com/download/@wolffm/watchparty-ui/0.39.0/6eb3bd213a451c8bed59f899522f09029f1aae9a}
+    peerDependencies:
+      react: ^19.2.0
+      react-dom: ^19.2.0
 
   accepts@1.3.8:
     resolution: {integrity: sha512-PYAthTa2m2VKxuvSD3DPC/Gy+U+sOA1LAuT8mkmRuvw+NACSaeXEQ+NHcVF7rONl6qcaxV3Uuemwawk+7+SJLw==}
@@ -1065,6 +1096,10 @@ packages:
   cookie@0.7.2:
     resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
     engines: {node: '>= 0.6'}
+
+  cookie@1.1.1:
+    resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
+    engines: {node: '>=18'}
 
   cors@2.8.6:
     resolution: {integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==}
@@ -1664,6 +1699,23 @@ packages:
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
 
+  react-router-dom@7.18.3:
+    resolution: {integrity: sha512-ytVbyBBM7vMfRCam25r0WMhSVSom909A8p+8m0/f1w853dz/xfFu6etAT2SEbVoSnI+ZoPRDqIsQXVT89gp7kg==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+
+  react-router@7.18.3:
+    resolution: {integrity: sha512-gyXgtdr5uACJ5b1Q4udzjVV+tb/rlHIMJKuJ0e89R4Kzgz47z/rgP0dIKxktqIEUhDHluGTPJJH/wRha7CyqsA==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+    peerDependenciesMeta:
+      react-dom:
+        optional: true
+
   react@19.2.8:
     resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==}
     engines: {node: '>=0.10.0'}
@@ -1708,6 +1760,9 @@ packages:
   serve-static@2.2.1:
     resolution: {integrity: sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==}
     engines: {node: '>= 18'}
+
+  set-cookie-parser@2.7.2:
+    resolution: {integrity: sha512-oeM1lpU/UvhTxw+g3cIfxXHyJRc/uidd3yK1P242gzHds0udQBYzs3y8j4gCCW+ZJ7ad0yctld8RYO+bdurlvw==}
 
   setprototypeof@1.2.0:
     resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==}
@@ -2039,6 +2094,24 @@ packages:
 
   zod@4.5.4:
     resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
+
+  zustand@5.0.15:
+    resolution: {integrity: sha512-MpSEjRiBkA9crSYeOUH32rJC7SVqAbm0Fqcqge/bUi2PPoLcBWKOsG+C8mevmpr8TwXHBVkChbbJiyvkE+i/3A==}
+    engines: {node: '>=12.20.0'}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      immer: '>=9.0.6'
+      react: '>=18.0.0'
+      use-sync-external-store: '>=1.2.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      immer:
+        optional: true
+      react:
+        optional: true
+      use-sync-external-store:
+        optional: true
 
 snapshots:
 
@@ -2615,12 +2688,51 @@ snapshots:
     dependencies:
       react: 19.2.8
 
+  '@wolffm/prefs-client@1.0.12(react@19.2.8)(zod@4.5.4)':
+    dependencies:
+      react: 19.2.8
+      zod: 4.5.4
+
   '@wolffm/rooms-protocol@0.38.115': {}
+
+  '@wolffm/rooms-protocol@0.39.0': {}
 
   '@wolffm/rooms-server@0.38.115(socket.io@4.8.3)':
     dependencies:
       '@wolffm/rooms-protocol': 0.38.115
       socket.io: 4.8.3
+
+  '@wolffm/task-ui-components@4.8.3(@wolffm/themes@5.8.5(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@wolffm/themes': 5.8.5(react@19.2.8)
+      react: 19.2.8
+
+  '@wolffm/themes@5.8.5(react@19.2.8)':
+    dependencies:
+      '@wolffm/prefs-client': 1.0.12(react@19.2.8)(zod@4.5.4)
+      react: 19.2.8
+      zod: 4.5.4
+
+  '@wolffm/watchparty-ui@0.39.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@wolffm/cdn-client': 1.0.5(react@19.2.8)
+      '@wolffm/prefs-client': 1.0.12(react@19.2.8)(zod@4.5.4)
+      '@wolffm/rooms-protocol': 0.39.0
+      '@wolffm/task-ui-components': 4.8.3(@wolffm/themes@5.8.5(react@19.2.8))(react@19.2.8)
+      '@wolffm/themes': 5.8.5(react@19.2.8)
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+      react-router-dom: 7.18.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      socket.io-client: 4.8.3
+      zod: 4.5.4
+      zustand: 5.0.15(@types/react@19.2.18)(react@19.2.8)
+    transitivePeerDependencies:
+      - '@types/react'
+      - bufferutil
+      - immer
+      - supports-color
+      - use-sync-external-store
+      - utf-8-validate
 
   accepts@1.3.8:
     dependencies:
@@ -2722,6 +2834,8 @@ snapshots:
   cookie-signature@1.2.2: {}
 
   cookie@0.7.2: {}
+
+  cookie@1.1.1: {}
 
   cors@2.8.6:
     dependencies:
@@ -3335,6 +3449,20 @@ snapshots:
 
   react-is@17.0.2: {}
 
+  react-router-dom@7.18.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+    dependencies:
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+      react-router: 7.18.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+
+  react-router@7.18.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+    dependencies:
+      cookie: 1.1.1
+      react: 19.2.8
+      set-cookie-parser: 2.7.2
+    optionalDependencies:
+      react-dom: 19.2.8(react@19.2.8)
+
   react@19.2.8: {}
 
   require-from-string@2.0.2: {}
@@ -3436,6 +3564,8 @@ snapshots:
       send: 1.2.1
     transitivePeerDependencies:
       - supports-color
+
+  set-cookie-parser@2.7.2: {}
 
   setprototypeof@1.2.0: {}
 
@@ -3733,3 +3863,8 @@ snapshots:
   yocto-queue@0.1.0: {}
 
   zod@4.5.4: {}
+
+  zustand@5.0.15(@types/react@19.2.18)(react@19.2.8):
+    optionalDependencies:
+      '@types/react': 19.2.18
+      react: 19.2.8

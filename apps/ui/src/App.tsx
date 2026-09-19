@@ -34,6 +34,7 @@ import { LobbyScreen } from './screens/LobbyScreen.tsx';
 import { MatchScreen } from './screens/MatchScreen.tsx';
 import { PodScreen } from './screens/PodScreen.tsx';
 import { useRoute } from './screens/route.ts';
+import { RoomShell } from './room/RoomShell.tsx';
 import type { DraftTransport } from './draft/socket.ts';
 import './screens/screens.css';
 
@@ -42,7 +43,27 @@ export interface AppProps {
   transport?: () => DraftTransport;
 }
 
-export function App({ transport }: AppProps) {
+/**
+ * The watchparty room this route belongs in, or null for the routes that are
+ * not a shared place: the lobby, the format picker and the debug harness.
+ *
+ * A pod and its deck screen share one room on purpose — it is the same people
+ * either side of the draft finishing, and making them rejoin a new room to
+ * build a deck would drop the conversation they were having about it.
+ */
+function roomIdFor(route: ReturnType<typeof useRoute>): string | null {
+  switch (route.kind) {
+    case 'draft':
+    case 'deck':
+      return route.draftId;
+    case 'match':
+      return route.matchId;
+    default:
+      return null;
+  }
+}
+
+function Screen({ transport }: AppProps) {
   const route = useRoute();
 
   switch (route.kind) {
@@ -59,4 +80,17 @@ export function App({ transport }: AppProps) {
     case 'lobby':
       return <LobbyScreen />;
   }
+}
+
+export function App({ transport }: AppProps) {
+  const route = useRoute();
+
+  // ONE chrome for the page. Their store and socket are module singletons, so
+  // a second RoomChrome would share and then tear down the first's connection
+  // — which is why this wraps the switch rather than living in a screen.
+  return (
+    <RoomShell roomId={roomIdFor(route)}>
+      <Screen transport={transport} />
+    </RoomShell>
+  );
 }
