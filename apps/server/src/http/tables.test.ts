@@ -791,15 +791,33 @@ describe('a room table', () => {
 		await bothLoaded(h);
 		await setReady(h, 'alice');
 		await setReady(h, 'bob');
+		// Both in flight before either is answered — no awaiting one first.
 		const both = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
 		const race = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
 		const deadline = Date.now() + 3000;
 		while (h.hosts.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
 		(h.hosts.at(-1) as ReplayHost).push(...OPENING);
-		const answers = (await Promise.all([both, race])).map((r) => r.status).sort();
-		// One start, one refusal — and one JVM, which is the claim that matters.
-		expect(answers).toEqual([201, 409]);
+		const answers = await Promise.all([both, race]);
+
+		// ONE JVM. That is the claim; which of the two interleavings happened is
+		// not, and pinning it is what made an earlier version of this flake: the
+		// second request is refused as in-flight (409) if it arrives while the
+		// first is still starting, and answered the same match (200) if it
+		// arrives after — both correct, and the race decides which.
 		expect(h.specs).toHaveLength(1);
+		const statuses = answers.map((r) => r.status);
+		expect(statuses.filter((s) => s === 201)).toHaveLength(1);
+		expect(statuses.filter((s) => s === 200 || s === 409)).toHaveLength(1);
+		// Whoever was told a match id was told the SAME one, and it is the match
+		// that was started.
+		const started = answers.find((r) => r.status === 201)?.body.matchId;
+		expect(typeof started).toBe('string');
+		for (const answer of answers) {
+			if ('matchId' in answer.body) expect(answer.body.matchId).toBe(started);
+		}
+		expect(h.lobby.room(ROOM)?.matchId).toBe(started);
+		expect(h.matches.get(started as string)?.seatOf(ALICE)).toBe(0);
+		expect(h.matches.get(started as string)?.seatOf(BOB)).toBe(1);
 	});
 
 	it('refuses a body that names two decks against a person, and says where a match starts', async () => {
