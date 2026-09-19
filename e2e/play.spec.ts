@@ -3,10 +3,65 @@
  *
  * The play analogue of `draft.spec.ts`. Two independent browser contexts —
  * separate cookie jars, identities and sockets — start a constructed match
- * from the product UI (lobby → `#/play` → `#/match/<id>`), seat both friends
- * by the invite link, and play a real Forge game against the REAL built
- * server, with a real Forge in a child JVM. Every byte of each browser's match
- * socket is captured (`play/browser.ts`) and checked by `play/isolation.ts`.
+ * from the product UI (room list → `#/room/<id>` → `#/match/<id>`) and play a
+ * real Forge game against the REAL built server, with a real Forge in a child
+ * JVM. Every byte of each browser's match socket is captured
+ * (`play/browser.ts`) and checked by `play/isolation.ts`.
+ *
+ * ## The start, rewritten for Wave 13
+ *
+ * It used to be: alice opens `#/play`, picks a format and BOTH decks, presses
+ * Start, and sends bob the invite link. The operator rejected that shape in
+ * those words — *"this is not how any of this should work"* — and lanes A–C
+ * replaced it. `play-constructed`, `deck-0`, `deck-1` and `opponent-human` are
+ * gone from the product, so the old opening of this spec addressed a screen
+ * that no longer exists.
+ *
+ * What it drives now is the product:
+ *
+ *   1. alice opens `/`, sees the room list, and creates a `constructed-1v1`
+ *      room with a name and no password;
+ *   2. bob opens `/` and sees ALICE's room in his own list — the operator's
+ *      *"every friend sees every room"* — and enters it;
+ *   3. each of them loads their OWN deck and readies up. Neither page has a
+ *      control that names the other player's deck, and the spec asserts that
+ *      the removed ones are absent rather than merely unused;
+ *   4. the server starts the match once both are ready, and BOTH browsers land
+ *      on `#/match/<id>` — including bob, who pressed nothing after Ready.
+ *
+ * ## Seat 1 plays alice's deck and seat 2 plays bob's
+ *
+ * That is the whole point of the inversion, so it is proved three ways, from
+ * three different authorities:
+ *
+ *   - the ROOM says so before the match exists: `GET /api/tables/rooms/:id`
+ *     read from each browser's own context names a different `you` seat, and
+ *     a different `deckName`, for each of them;
+ *   - FORGE says so after it opens the game: `GET /api/play/matches/:id`
+ *     reports `seats[i].deck`, which is `Deck.getName()` of the deck Forge
+ *     actually loaded into that seat (`play/bridge/PlayBridge.java`), not our
+ *     own bookkeeping read back;
+ *   - the CARDS say so: each seat's opening hand, folded from the server's own
+ *     projection of that seat, holds only cards from the deck that player
+ *     loaded, and none of the cards that are in the other deck alone.
+ *
+ * The two decks are chosen so that each holds a card the other does not, and
+ * the run fails rather than picks a pair that could not tell the two apart.
+ *
+ * **The card check is corroboration, not the proof.** Two decks of the same
+ * archetype overlap heavily, so a seven-card opening hand can land entirely
+ * inside the intersection — `onlyThisDeckCouldDeal` in the summary says, per
+ * run, whether it actually discriminated. It is asserted as a SUBSET (which
+ * never flakes and does bite on most deals) and reported as evidence; the claim
+ * that does not depend on the shuffle is Forge's own seat→deck mapping.
+ *
+ * ## The removed shape is proved closed, through the real edge
+ *
+ * `POST /api/play/matches` with `{ opponent: 'human', seats: [a, b] }` — one
+ * person naming both people's decks — is refused 422 by the deployed bundle
+ * behind the edge, not only by a unit test. The `{ opponent: 'ai', seats }`
+ * arm is deliberately NOT exercised here: it would boot a second JVM for a
+ * claim `apps/server/src/http/tables.test.ts` already makes.
  *
  * Needs a Forge build: `CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`, exactly
  * as the server's `jvm.test.ts`. Without them the live test SKIPS, and its
@@ -29,8 +84,13 @@
  *
  * ## What is asserted
  *
- * - **Seats.** Alice starts the match from `#/play`; Bob opens her invite link.
- *   Seat 1 and seat 2, distinct players, each told so by its own snapshot.
+ * - **A locked room needs its password, through the UI.** bob sees the room in
+ *   his list, is asked for the password when he tries to enter, is refused with
+ *   a wrong one (and is still on the room list, and still cannot read the
+ *   room's table), and gets in with the right one.
+ * - **Seats.** Both players reach the match from the room they were both in.
+ *   Seat 1 and seat 2, distinct players, each told so by its own snapshot, each
+ *   playing the deck they loaded themselves.
  * - **Prompts, from both sides.** Each browser answers at least one ask the
  *   GAME raised, through its board (`LiveBoard` → prompt component →
  *   `answerAsk` → `forge:c2s`), and the server accepted every reply. Then each
@@ -58,7 +118,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Locator } from '@playwright/test';
 
 import { toBoardView } from '../apps/ui/src/play/adapter.ts';
 import type { WireObject } from '../apps/ui/src/play/wire.ts';
@@ -160,15 +220,58 @@ async function quiet(friends: Friend[], ms: number, budget = 60_000): Promise<vo
 
 /* ── choosing a legal pair of decks, the way the screen would ────────── */
 
-interface Choice {
-  format: string;
-  decks: [string, string];
+/** One library deck a player can load, with the card names it is made of. */
+interface DeckPick {
+  id: string;
+  /** The name `GET /api/tables/decks` gives it. Not necessarily the `.dck`'s own. */
+  name: string;
+  /** Every card name in the list, normalised by `cardKey`. */
+  cards: Set<string>;
 }
 
+interface Choice {
+  format: string;
+  decks: [DeckPick, DeckPick];
+  /** Cards the first deck holds and the second does not, and the other way round. */
+  onlyFirst: string[];
+  onlySecond: string[];
+}
+
+interface DeckLine {
+  count: number;
+  name: string;
+}
+
+/**
+ * A card name as both sides spell it.
+ *
+ * Forge's view names a double-faced card by its FRONT face (`Delver of
+ * Secrets`) while other sources write both (`Delver of Secrets // Insectile
+ * Aberration`), and neither side is wrong — so the comparison is made on the
+ * front face, lower-cased. This is the same front-face rule the cube resolver
+ * needed (`packages/carddata`), for the same reason.
+ */
+function cardKey(name: string): string {
+  return name.split('//')[0].trim().toLowerCase();
+}
+
+/**
+ * A format and two decks that are legal in it AND tellable apart.
+ *
+ * "Tellable apart" is load-bearing, not tidiness: the opening-hand check below
+ * proves each player is dealt their own deck, and it can only prove that if
+ * each deck holds a card the other does not. A pair that fails the test is
+ * skipped rather than used, and a run with no such pair FAILS — a check that
+ * could not have distinguished the two decks must not report that it did.
+ */
 async function legalChoice(api: APIRequestContext, origin: string): Promise<Choice> {
   const base = `${origin}${PREFIX}/api/tables`;
   const formats = ((await (await api.get(`${base}/formats`)).json()) as { formats: { id: string }[] }).formats;
-  const decks = ((await (await api.get(`${base}/decks`)).json()) as { decks: { id: string; name: string; date: string }[] }).decks;
+  const decks = (
+    (await (await api.get(`${base}/decks`)).json()) as {
+      decks: { id: string; name: string; date: string; main: DeckLine[]; sideboard: DeckLine[] }[];
+    }
+  ).decks;
   // Draw-go decks first: Preordain scries, Squadron Hawk and Stoneforge Mystic
   // search — questions Forge ASKS, which is what this test needs to reach.
   decks.sort((a, b) => Number(/Caw/.test(b.name)) - Number(/Caw/.test(a.name)));
@@ -176,16 +279,112 @@ async function legalChoice(api: APIRequestContext, origin: string): Promise<Choi
     const res = await api.post(`${base}/check`, { data: { deck: { library: deck }, rules: { kind: 'standard', format } } });
     return res.status() === 200 && ((await res.json()) as { legal: boolean }).legal;
   };
+  const pickOf = (d: (typeof decks)[number]): DeckPick => ({
+    id: d.id,
+    name: d.name,
+    cards: new Set([...d.main, ...d.sideboard].map((l) => cardKey(l.name))),
+  });
   for (const f of formats) {
     // A deck is dated by the event it was played at; a format is dated by its pool.
     const candidates = [...decks.filter((d) => d.date === f.id), ...decks.filter((d) => d.date !== f.id)];
-    const ok: string[] = [];
+    let first: DeckPick | null = null;
     for (const d of candidates) {
-      if (await legal(d.id, f.id)) ok.push(d.id);
-      if (ok.length === 2) return { format: f.id, decks: [ok[0], ok[1]] };
+      if (!(await legal(d.id, f.id))) continue;
+      const pick = pickOf(d);
+      if (first === null) {
+        first = pick;
+        continue;
+      }
+      const held = first;
+      const onlyFirst = [...held.cards].filter((c) => !pick.cards.has(c));
+      const onlySecond = [...pick.cards].filter((c) => !held.cards.has(c));
+      if (onlyFirst.length === 0 || onlySecond.length === 0) continue;
+      return { format: f.id, decks: [held, pick], onlyFirst, onlySecond };
     }
   }
-  throw new Error(`no format has two legal library decks (${formats.length} formats, ${decks.length} decks)`);
+  throw new Error(
+    `no format has two legal library decks that hold different cards (${formats.length} formats, ${decks.length} decks)`,
+  );
+}
+
+/**
+ * The card names in this seat's own hand, as the SERVER holds them.
+ *
+ * Read through the probe route and folded by the UI's own adapter, so it is
+ * the hand the board would draw, not a second reading of the wire.
+ */
+async function ownHand(
+  api: APIRequestContext,
+  origin: string,
+  matchId: string,
+  seat: number,
+  playerId: number,
+): Promise<string[]> {
+  const res = await api.get(`${origin}${PREFIX}/api/play/matches/${matchId}/seats/${seat}/state`);
+  expect(res.status(), `seat ${seat} state`).toBe(200);
+  const { objects } = (await res.json()) as { objects: Record<string, WireObject> };
+  const view = toBoardView(new Map(Object.entries(objects)), 0, { viewerPlayerId: playerId });
+  const me = view.players.find((p) => p.id === playerId);
+  if (me === undefined) throw new Error(`seat ${seat}: the server's own state names no player ${playerId}`);
+  if (me.hand === null) throw new Error(`seat ${seat}: the server's own state hid this seat's hand from itself`);
+  return me.hand.map((c) => cardKey(c.card.name));
+}
+
+/* ── what may legitimately leave 127.0.0.1 ───────────────────────────── */
+
+/**
+ * The off-origin requests this page is ALLOWED to make: card art, and nothing
+ * else. Everything else that tries to leave `127.0.0.1` is a failure
+ * (`play/browser.ts` aborts them all either way; this is what decides whether
+ * that is news). `cdn.hadoku.me` and `cards.scryfall.io` are D15 and D18 — the
+ * art is a lookup, the bytes are not ours, and they never come from our origin.
+ *
+ * **This list does not grow to accommodate a page that talks to production.**
+ * A bare `hadoku.me` here would have masked exactly that, and it nearly did:
+ * `RoomShell` used to hardcode `https://hadoku.me/watchparty` as watchparty's
+ * origin and `@wolffm/themes` fetched its prefs from there, so both specs saw
+ * four off-host calls. The answer was to fix the PAGE — `e08bb68` derives the
+ * chrome's origin from the one that served it, and `../prefsLocal.ts` keeps the
+ * prefs client local, which `play/browser.ts` already applies to every context
+ * this spec opens. A widened allowlist would have left the real defect in the
+ * product and called the test green.
+ */
+function isExpectedOffOrigin(url: string): boolean {
+  const { hostname } = new URL(url);
+  return hostname === 'cdn.hadoku.me' || hostname === 'cards.scryfall.io';
+}
+
+/* ── driving the product's room screens ──────────────────────────────── */
+
+/** `#/room/<id>` ids, as `lobby.ts` mints them: `r-` and 12 hex characters. */
+const ROOM_URL = /#\/room\/(r-[0-9a-f]{12})$/;
+
+/**
+ * Create a room from the front page's form, the way a person does, and return
+ * the id the browser was navigated to. A password makes a locked room.
+ */
+async function createRoom(f: Friend, name: string, password?: string): Promise<string> {
+  await f.page.getByTestId('room-create-name').fill(name);
+  await f.page.getByTestId('room-create-type').selectOption('constructed-1v1');
+  if (password !== undefined) await f.page.getByTestId('room-create-password').fill(password);
+  await f.page.getByTestId('room-create-submit').click();
+  await f.page.waitForURL(ROOM_URL, { timeout: 30_000 });
+  const id = ROOM_URL.exec(f.page.url())?.[1];
+  if (id === undefined) throw new Error(`${f.name}: created a room but landed on ${f.page.url()}`);
+  return id;
+}
+
+/** One row of this browser's room list, found by the id the row carries. */
+function roomRow(f: Friend, roomId: string): Locator {
+  return f.page.locator(`[data-testid="room-row"][data-room-id="${roomId}"]`);
+}
+
+/** Choose a format and a deck in the room's own picker, and load it. Yours only. */
+async function loadOwnDeck(f: Friend, format: string, deckId: string): Promise<void> {
+  await f.page.getByTestId('format').selectOption(format);
+  await f.page.getByTestId('deck-mine').selectOption(deckId);
+  await f.page.getByTestId('load-deck').click();
+  await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');
 }
 
 /* ── the checker, biting — no Forge needed ───────────────────────────── */
@@ -226,29 +425,135 @@ test(LIVE_TITLE, async ({ browser }) => {
     bob = await openFriend(browser, 'bob');
     const origin = stack.origin;
 
-    // ── start: alice, from the lobby, through #/play.
     const choice = await legalChoice(alice.context.request, origin);
-    summary.choice = choice;
-    await alice.page.goto(`${origin}${PREFIX}/`);
-    await alice.page.getByTestId('play-constructed').click();
-    await alice.page.getByTestId('format').selectOption(choice.format);
-    await alice.page.getByTestId('deck-0').selectOption(choice.decks[0]);
-    await alice.page.getByTestId('opponent-human').check();
-    await alice.page.getByTestId('deck-1').selectOption(choice.decks[1]);
-    await expect(alice.page.getByTestId('verdict-0')).toContainText('Legal in');
-    await expect(alice.page.getByTestId('verdict-1')).toContainText('Legal in');
-    const t0 = Date.now();
-    await alice.page.getByTestId('start-match').click();
-    await alice.page.waitForURL(/#\/match\/m-[0-9a-f]{12}$/, { timeout: 90_000 });
-    summary.startMs = Date.now() - t0;
-    const invite = await alice.page.getByTestId('match-invite').inputValue();
-    const matchId = /#\/match\/(m-[0-9a-f]{12})$/.exec(invite)?.[1];
-    if (matchId === undefined) throw new Error(`no match id in the invite ${invite}`);
-    expect(invite).toBe(`${origin}${PREFIX}/#/match/${matchId}`);
-    summary.matchId = matchId;
+    summary.choice = {
+      format: choice.format,
+      decks: choice.decks.map((d) => ({ id: d.id, name: d.name, cards: d.cards.size })),
+      onlyFirst: choice.onlyFirst.length,
+      onlySecond: choice.onlySecond.length,
+    };
+    summary.dirs = { rooms: stack.roomsDir, work: stack.workDir, serverLog: stack.serverLogFile };
+    const onlyAlice = new Set(choice.onlyFirst);
+    const onlyBob = new Set(choice.onlySecond);
 
-    // ── seat: bob opens the invite link.
-    await bob.page.goto(invite);
+    // ── the removed shape, refused through the REAL edge.
+    //
+    // One person naming both people's decks is what Wave 13 took out. A unit
+    // test says the gate refuses it; this says the DEPLOYED bundle does, behind
+    // the edge, with a friend's own identity stamped on the request.
+    const twoDeckStart = await alice.context.request.post(`${origin}${PREFIX}/api/play/matches`, {
+      data: {
+        opponent: 'human',
+        seats: choice.decks.map((d) => ({ deck: { library: d.id }, rules: { kind: 'standard', format: choice.format } })),
+      },
+    });
+    const twoDeckBody = (await twoDeckStart.json()) as { error?: string };
+    expect(twoDeckStart.status(), 'a match against a person cannot be started by naming both decks').toBe(422);
+    expect(twoDeckBody.error ?? '').toContain('starts from a room');
+    summary.twoDeckStartRefused = { status: twoDeckStart.status(), error: twoDeckBody.error };
+
+    /* ── a locked room needs its password, through the UI ─────────────── */
+
+    await alice.page.goto(`${origin}${PREFIX}/`);
+    await expect(alice.page.getByTestId('rooms')).toBeVisible();
+    const lockedId = await createRoom(alice, `e2e locked ${Date.now()}`, 'hunter2');
+    await bob.page.goto(`${origin}${PREFIX}/`);
+    const lockedRow = roomRow(bob, lockedId);
+    await expect(lockedRow, 'bob sees a room he is not in').toBeVisible({ timeout: 20_000 });
+    await expect(lockedRow.getByTestId('room-locked')).toHaveText('password');
+    // Not a member, so the room's TABLE is not readable either — the lock is
+    // not only a button that is hard to press.
+    const lockedTable = await bob.context.request.get(`${origin}${PREFIX}/api/tables/rooms/${lockedId}`);
+    expect(lockedTable.status(), 'a locked room a friend is not in has no readable table').toBe(404);
+    await lockedRow.getByTestId('room-enter').click();
+    await lockedRow.getByTestId('room-password').fill('not the password');
+    await lockedRow.getByTestId('room-password-submit').click();
+    await expect(lockedRow.getByTestId('room-join-error')).toContainText('No room with that name and password');
+    expect(new URL(bob.page.url()).hash, 'a refused password leaves bob on the room list').not.toContain('/room/');
+    // And the right one lets him in, so the refusal above was the password.
+    await lockedRow.getByTestId('room-password').fill('hunter2');
+    await lockedRow.getByTestId('room-password-submit').click();
+    await bob.page.waitForURL(new RegExp(`#/room/${lockedId}$`), { timeout: 20_000 });
+    summary.lockedRoom = { roomId: lockedId, tableWithoutMembership: lockedTable.status() };
+
+    /* ── the match room: alice creates it, bob sees it and enters ─────── */
+
+    await alice.page.goto(`${origin}${PREFIX}/`);
+    const roomName = `e2e match ${Date.now()}`;
+    const roomId = await createRoom(alice, roomName);
+    summary.roomId = roomId;
+    await expect(alice.page.getByTestId('constructed')).toBeVisible();
+    await expect(alice.page.getByTestId('room-name')).toHaveText(roomName);
+
+    await bob.page.goto(`${origin}${PREFIX}/`);
+    const row = roomRow(bob, roomId);
+    await expect(row, "bob's own list holds the room alice just made").toBeVisible({ timeout: 20_000 });
+    await expect(row.getByTestId('room-name')).toHaveText(roomName);
+    await expect(row.getByTestId('room-type')).toHaveText('Constructed 1v1');
+    await expect(row.getByTestId('room-members')).toContainText('e2e-alice');
+    expect(await row.getByTestId('room-locked').count(), 'an open room shows no lock').toBe(0);
+    await row.getByTestId('room-enter').click();
+    await bob.page.waitForURL(new RegExp(`#/room/${roomId}$`), { timeout: 20_000 });
+    await expect(bob.page.getByTestId('constructed')).toBeVisible();
+
+    /* ── each loads their OWN deck ────────────────────────────────────── */
+
+    // Alice first: the table seats players in the order they load a deck
+    // (`routes.ts` `playersOf`, by `seatedAt`), so this is what puts her deck
+    // in seat 1 and makes the seat/deck mapping below a claim and not a flip.
+    await loadOwnDeck(alice, choice.format, choice.decks[0].id);
+    await expect(alice.page.getByTestId('room-seat-0')).toContainText('e2e-alice (you)');
+    await loadOwnDeck(bob, choice.format, choice.decks[1].id);
+    await expect(bob.page.getByTestId('room-seat-1')).toContainText('e2e-bob (you)');
+    // Each sees the other at the other seat, and each page says who is waited on.
+    await expect(alice.page.getByTestId('room-seat-1')).toContainText('e2e-bob');
+    await expect(alice.page.getByTestId('room-seat-1')).not.toContainText('(you)');
+    await expect(bob.page.getByTestId('room-seat-0')).toContainText('e2e-alice');
+
+    // Nobody can pick anybody else's deck. The controls that used to let them
+    // are asserted ABSENT, so this fails if the old screen comes back rather
+    // than merely going unused.
+    for (const f of [alice, bob]) {
+      for (const gone of ['deck-0', 'deck-1', 'opponent-human', 'start-match', 'play-constructed']) {
+        expect(await f.page.getByTestId(gone).count(), `${f.name}: ${gone} must not exist any more`).toBe(0);
+      }
+      expect(await f.page.getByTestId('deck-mine').count(), `${f.name}: one deck picker, their own`).toBe(1);
+    }
+
+    // The ROOM's own account of who plays what, read from each browser's own
+    // context: the same two seats, and a different `you` in each.
+    const tableFor = async (f: Friend) =>
+      (await (await f.context.request.get(`${origin}${PREFIX}/api/tables/rooms/${roomId}`)).json()) as {
+        players: { seat: number; name: string; you: boolean; deckName: string }[];
+      };
+    const aliceTable = await tableFor(alice);
+    const bobTable = await tableFor(bob);
+    const deckNames = aliceTable.players.map((p) => p.deckName);
+    expect(aliceTable.players.map((p) => p.you), 'alice is seat 1 and bob is not').toEqual([true, false]);
+    expect(bobTable.players.map((p) => p.you), 'bob is seat 2 and alice is not').toEqual([false, true]);
+    expect(bobTable.players.map((p) => p.deckName), 'both browsers are told the same two decks').toEqual(deckNames);
+    expect(deckNames[0], 'the two decks must be tellable apart by name').not.toBe(deckNames[1]);
+    summary.roomTable = { deckNames, names: aliceTable.players.map((p) => p.name) };
+
+    /* ── both ready; the SERVER starts the match; both land on it ─────── */
+
+    await alice.page.getByTestId('ready-toggle').click();
+    await expect(alice.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
+    const t0 = Date.now();
+    await bob.page.getByTestId('ready-toggle').click();
+    // Bob pressed Ready and nothing else; alice pressed nothing at all since.
+    // Both pages must arrive at the match the server started.
+    const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
+    await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
+    await bob.page.waitForURL(matchUrl, { timeout: 120_000 });
+    summary.startMs = Date.now() - t0;
+    const matchId = matchUrl.exec(alice.page.url())?.[1];
+    if (matchId === undefined) throw new Error(`no match id in ${alice.page.url()}`);
+    expect(matchUrl.exec(bob.page.url())?.[1], 'both players are in the SAME match').toBe(matchId);
+    summary.matchId = matchId;
+    const invite = await alice.page.getByTestId('match-invite').inputValue();
+    expect(invite).toBe(`${origin}${PREFIX}/#/match/${matchId}`);
+
     await expect(alice.page.getByTestId('live-status')).toHaveText('Seat 1, live.', { timeout: 30_000 });
     await expect(bob.page.getByTestId('live-status')).toHaveText('Seat 2, live.', { timeout: 30_000 });
     await expect(alice.page.locator('[aria-label="Game board"]')).toBeVisible();
@@ -266,10 +571,17 @@ test(LIVE_TITLE, async ({ browser }) => {
     expect(aSnap.playerId).not.toBe(bSnap.playerId);
     const status = (await (await alice.context.request.get(`${origin}${PREFIX}/api/play/matches/${matchId}`)).json()) as {
       status: string;
-      seats: { claimedBy: string | null }[];
+      seats: { deck: string | null; claimedBy: string | null }[];
     };
     expect(status.status).toBe('running');
     expect(status.seats.every((s) => s.claimedBy !== null)).toBe(true);
+    expect(new Set(status.seats.map((s) => s.claimedBy)).size, 'two different people hold the two seats').toBe(2);
+
+    // FORGE's own account of the seat→deck mapping: `seats[i].deck` is
+    // `Deck.getName()` of what it loaded into seat i (`PlayBridge.java`), so
+    // this is the engine agreeing with the room, not our record read back.
+    expect(status.seats.map((s) => s.deck), 'Forge loaded each player’s own deck into their own seat').toEqual(deckNames);
+    summary.seatDecks = status.seats.map((s, i) => ({ seat: i, deck: s.deck }));
 
     // ── the gap: what the product UI alone can do at this point.
     await quiet([alice, bob], 2_000);
@@ -331,6 +643,37 @@ test(LIVE_TITLE, async ({ browser }) => {
         { timeout: 30_000, message: 'the opening hand was never dealt after the board answered the coin toss' },
       )
       .toBeLessThan(60);
+
+    // ── the cards prove it too: each seat's opening hand is their OWN deck.
+    //
+    // The room said so and Forge said so; this is the third authority, and the
+    // only one that reads actual game objects. Opening hands come off each
+    // player's own library, so a hand holding a card that is in the OTHER deck
+    // alone would mean the decks were dealt to the wrong seats — which is
+    // exactly the bug `seatPlayers` exists to prevent (`routes.ts`), and which
+    // a first-come-first-served `claim` would have produced silently.
+    const handEvidence: Record<string, unknown> = {};
+    for (const [f, seat, playerId, mine, theirs, theirsOnly] of [
+      [alice, 0, aSnap.playerId, choice.decks[0], choice.decks[1], onlyBob],
+      [bob, 1, bSnap.playerId, choice.decks[1], choice.decks[0], onlyAlice],
+    ] as const) {
+      const hand = await ownHand(alice.context.request, origin, matchId, seat, playerId);
+      expect(hand.length, `${f.name}: an opening hand to check`).toBeGreaterThan(0);
+      const foreign = hand.filter((c) => !mine.cards.has(c));
+      expect(foreign, `${f.name}: every card in their opening hand is in the deck THEY loaded`).toEqual([]);
+      const decisive = hand.filter((c) => theirsOnly.has(c));
+      expect(decisive, `${f.name}: nothing from the other player's deck alone is in their hand`).toEqual([]);
+      handEvidence[f.name] = {
+        seat,
+        deck: mine.name,
+        hand,
+        // Cards this hand holds that the OTHER deck does not contain at all:
+        // each one is a card only this player's deck could have dealt.
+        onlyThisDeckCouldDeal: hand.filter((c) => !theirs.cards.has(c)),
+      };
+    }
+    summary.openingHands = handEvidence;
+    console.log(`[play] each seat's opening hand, against the deck that seat loaded: ${JSON.stringify(handEvidence)}`);
 
     // ── play: hands click CARDS, which the board still cannot do (a known gap).
     //    Buttons are no longer among them — those go through the board, above.
@@ -451,9 +794,29 @@ test(LIVE_TITLE, async ({ browser }) => {
     expect(rejoined.length).toBeGreaterThanOrEqual(1);
     expect(rejoined.every((l) => l.fresh === false)).toBe(true);
     expect(aborted).toEqual([]);
-    // The server armed the grace with the question open, and disarmed it on the rejoin.
-    expect(departing.map((l) => l.openAsks)).toEqual([1]);
-    expect(returned.map((l) => l.openAsks)).toEqual([1]);
+    // The server armed the grace with the question open, and every rejoin
+    // found it still open.
+    //
+    // The COUNT is deliberately not pinned, and this is the one thing in this
+    // block that changed with the room rewrite. `RoomShell` draws the table
+    // bare while `GET /api/whoami` is in flight and inside watchparty's
+    // `RoomChrome` once it answers — which REMOUNTS `MatchScreen`, so a freshly
+    // loaded match page opens a match socket, drops it a moment later and opens
+    // a second one. Depending on whether those two overlap, one reload produces
+    // one depart/return cycle or two. `toEqual([1])` therefore passed on one run
+    // and failed on the next against identical code; the property this test is
+    // actually about is that the question survived EVERY one of them.
+    //
+    // (The remount itself is a product wart, not a test problem: every load of
+    // a match page costs an extra join and a full snapshot resend. It is
+    // `apps/ui/src/room/RoomShell.tsx`, it predates this wave, and it belongs
+    // to whoever owns that file.)
+    expect(departing.length, 'the reload armed the reconnect grace').toBeGreaterThanOrEqual(1);
+    expect(departing.map((l) => l.openAsks), 'every departure was armed with the question open').toEqual(
+      departing.map(() => 1),
+    );
+    expect(returned.length, 'the seat came back').toBeGreaterThanOrEqual(1);
+    expect(returned.map((l) => l.openAsks), 'every return found the question still open').toEqual(returned.map(() => 1));
     // Forge's own call was parked across the whole reload: it was opened before
     // the reload began, so it measured at least reload → click.
     expect(aliceAnswer.body.ms ?? 0).toBeGreaterThanOrEqual(clickAt - reloadAt - 50);
@@ -542,8 +905,19 @@ test(LIVE_TITLE, async ({ browser }) => {
         ];
       }),
     );
-    const offHosts = [...alice.blocked, ...bob.blocked].filter((u) => !['cdn.hadoku.me', 'cards.scryfall.io'].includes(new URL(u).hostname));
-    summary.blockedArtRequests = alice.blocked.length + bob.blocked.length;
+    const offOrigin = [...alice.blocked, ...bob.blocked];
+    const offHosts = offOrigin.filter((u) => !isExpectedOffOrigin(u));
+    summary.blockedArtRequests = offOrigin.length;
+    summary.blockedOffOrigin = Object.fromEntries(
+      Object.entries(
+        offOrigin.reduce<Record<string, number>>((acc, u) => {
+          const { hostname, pathname } = new URL(u);
+          const key = `${hostname}${pathname.split('/').slice(0, 3).join('/')}`;
+          acc[key] = (acc[key] ?? 0) + 1;
+          return acc;
+        }, {}),
+      ).sort(),
+    );
     summary.durationMs = Date.now() - started;
 
     expect(report.violations).toEqual([]);
