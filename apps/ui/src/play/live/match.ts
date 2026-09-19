@@ -217,6 +217,14 @@ export interface MatchStats {
   aborts: number;
 }
 
+/** Forge's two-button bar. `label1` is OK/Play, `label2` is Cancel/Draw. */
+export interface LiveButtons {
+  label1: string;
+  label2: string;
+  enable1: boolean;
+  enable2: boolean;
+}
+
 export interface LiveMatch {
   readonly matchId: string;
   /** From the snapshot. Null until one lands. */
@@ -238,6 +246,18 @@ export interface LiveMatch {
    * a queue, because the server may hold more than one.
    */
   asks: LiveAsk[];
+  /**
+   * Forge's current prompt line and button bar, from the `notify` frames
+   * `showPromptMessage` and `updateButtons`.
+   *
+   * These are NOT a blocking ask — no `callId`, nothing to reply to — and that
+   * is why the board ignored them until now. But the coin toss, the mulligan
+   * and every "pass priority?" come through here, so a board that draws only
+   * `asks` shows an empty table and the match never starts. The server already
+   * stores and replays both on join (`match.ts`'s `resendAfterSnapshot`).
+   */
+  prompt: string | null;
+  buttons: LiveButtons | null;
   /** The most recent failure worth showing. Cleared when a snapshot lands. */
   lastError: string | null;
   /** Why the most recent malformed envelope or frame was refused. */
@@ -317,6 +337,8 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     skippedDeltas: 0,
     view: null,
     asks: [],
+    prompt: null,
+    buttons: null,
     lastError: null,
     lastInvalid: null,
     lastVerdict: null,
@@ -387,6 +409,30 @@ export function answerAsk(match: LiveMatch, callId: string, method: BlockingMeth
   }
   closeAsk(match, callId);
   send(match, replyFrame(callId, method, parsed.data));
+  match.stats.replies += 1;
+  notify(match);
+  return true;
+}
+
+/**
+ * Press one of Forge's two buttons.
+ *
+ * Unlike `answerAsk` there is no `callId` and no reply schema: the button bar
+ * is a notify, and the answer is an unsolicited `act`. The server forwards it
+ * to Forge's `selectButtonOk` / `selectButtonCancel`.
+ *
+ * Refuses when that button is disabled, so a stale bar cannot send an act the
+ * game is not waiting for — the frame that disabled it is the authority, and
+ * Forge would otherwise take the click as an answer to whatever it asks next.
+ */
+export function pressButton(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
+  const bar = match.buttons;
+  if (bar === null) return false;
+  if (which === 'ok' ? !bar.enable1 : !bar.enable2) return false;
+  send(match, { kind: 'act', method: which === 'ok' ? 'selectButtonOk' : 'selectButtonCancel' });
+  // Forge sends a fresh bar for the next decision; until it does, the bar we
+  // just answered must not be pressable twice.
+  match.buttons = { ...bar, enable1: false, enable2: false };
   match.stats.replies += 1;
   notify(match);
   return true;
@@ -680,6 +726,16 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     else match.asks[i] = frame;
     return;
   }
+  if (frame.kind === 'notify' && frame.method === 'showPromptMessage') {
+    match.prompt = typeof frame.message === 'string' ? frame.message : null;
+  } else if (frame.kind === 'notify' && frame.method === 'updateButtons') {
+    match.buttons = {
+      label1: typeof frame.label1 === 'string' ? frame.label1 : 'OK',
+      label2: typeof frame.label2 === 'string' ? frame.label2 : 'Cancel',
+      enable1: frame.enable1 === true,
+      enable2: frame.enable2 === true,
+    };
+  }
   foldFrames(match, [frame]);
 }
 
@@ -690,4 +746,6 @@ function discardLocal(match: LiveMatch): void {
   match.skippedDeltas = 0;
   match.view = null;
   match.asks = [];
+  match.prompt = null;
+  match.buttons = null;
 }

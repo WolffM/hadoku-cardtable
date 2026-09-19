@@ -31,7 +31,7 @@ import { Component, useSyncExternalStore, type ReactNode } from 'react';
 import { Board } from '../Board.tsx';
 import { PromptFor, isPromptMethod, lookupFromState, type AskOf, type PromptMethod } from '../prompts/index.ts';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
-import { abortAsk, answerAsk, answerConfirm, currentAsk, subscribe, type LiveAsk, type LiveMatch } from './match.ts';
+import { abortAsk, answerAsk, answerConfirm, currentAsk, pressButton, subscribe, type LiveAsk, type LiveMatch } from './match.ts';
 import './live.css';
 
 /** One line of plain words for where the connection is. */
@@ -103,6 +103,31 @@ export function LiveBoard({ match }: { match: LiveMatch }) {
         <p className="live__waiting">Waiting for the game state.</p>
       ) : (
         <Board view={match.view} />
+      )}
+      {ask === null && match.buttons !== null && (match.buttons.enable1 || match.buttons.enable2) && (
+        <div className="live__buttons" data-testid="live-buttons">
+          {match.prompt !== null && (
+            <p className="live__says" data-testid="live-says">
+              {match.prompt}
+            </p>
+          )}
+          <button
+            type="button"
+            data-testid="live-button-ok"
+            disabled={!match.buttons.enable1}
+            onClick={() => pressButton(match, 'ok')}
+          >
+            {match.buttons.label1}
+          </button>
+          <button
+            type="button"
+            data-testid="live-button-cancel"
+            disabled={!match.buttons.enable2}
+            onClick={() => pressButton(match, 'cancel')}
+          >
+            {match.buttons.label2}
+          </button>
+        </div>
       )}
       {ask !== null && (
         <div className="live__prompt" data-testid="live-prompt" data-call-id={ask.callId} data-method={ask.method}>

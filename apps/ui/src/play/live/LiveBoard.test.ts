@@ -233,3 +233,77 @@ describe('the other fourteen prompts, on the live board', () => {
     }
   });
 });
+
+/*
+ * The coin toss, and the gap that let every production match hang at Turn 0.
+ *
+ * Forge opens a match by asking "play or draw?" through `showPromptMessage` +
+ * `updateButtons`. Neither is a blocking `ask`: no callId, no reply schema,
+ * nothing for `currentAsk` to return. The board drew only `asks`, so the page
+ * showed an empty table with no control on it and the game never started —
+ * observed live on 2026-09-19, match `m-090bf01ba811`, with Forge's own log
+ * carrying `updateButtons` and `showPromptMessage` for a seat whose browser
+ * rendered neither.
+ *
+ * `e2e/play/hands.ts` existed to press these buttons over a second socket, so
+ * the browser suite went green while the product could not be played. These
+ * tests are the ones that bite instead.
+ */
+describe('Forge asks with buttons, not only with asks', () => {
+  function buttonFrames(message: string, label1: string, label2: string) {
+    return [
+      { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null },
+      {
+        kind: 'notify',
+        method: 'updateButtons',
+        owner: { kind: 'player', id: 0 },
+        label1,
+        label2,
+        enable1: true,
+        enable2: true,
+        focus1: true,
+      },
+    ];
+  }
+
+  it('draws the coin toss and sends the click Forge is waiting for', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+
+    for (const f of buttonFrames('Seat 1, you have won the coin toss.\n\nPlay or draw?', 'Play', 'Draw')) {
+      s.send(f);
+    }
+
+    await waitFor(() => expect(getByTestId('live-buttons')).toBeTruthy());
+    expect(getByTestId('live-says').textContent).toContain('coin toss');
+    expect(getByTestId('live-button-ok').textContent).toBe('Play');
+    expect(getByTestId('live-button-cancel').textContent).toBe('Draw');
+
+    const before = m.stats.replies;
+    fireEvent.click(getByTestId('live-button-ok'));
+
+    await waitFor(() => expect(m.stats.replies).toBe(before + 1));
+    await waitFor(() =>
+      expect(
+        s
+          .clientFrames()
+          .some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonOk'),
+      ).toBe(true),
+    );
+  });
+
+  it('a bar Forge has disabled is not pressable, so a stale click cannot answer the NEXT question', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+
+    for (const f of buttonFrames('Choose', 'OK', 'Cancel')) s.send(f);
+    await waitFor(() => expect(getByTestId('live-buttons')).toBeTruthy());
+
+    fireEvent.click(getByTestId('live-button-ok'));
+    await waitFor(() => expect(queryByTestId('live-buttons')).toBeNull());
+
+    // A second click cannot happen because the bar is gone; and the state
+    // refuses it even if something held a reference.
+    const after = m.stats.replies;
+    expect(m.buttons?.enable1).toBe(false);
+    expect(m.stats.replies).toBe(after);
+  });
+})

@@ -81,3 +81,47 @@
   border-color: var(--accent);
   box-shadow: 0 6px 24px rgb(0 0 0 / 45%);
 }
+
+/*
+ * Forge's button bar. Not a prompt component — see `LiveBoard.tsx`: these
+ * arrive as `notify` frames with no callId, and before this existed every
+ * match sat at Turn 0 because the coin toss had nowhere to draw.
+ */
+.live__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #3a3f4b;
+  border-radius: 8px;
+  background: #1b1e25;
+}
+
+.live__says {
+  flex: 1 1 100%;
+  margin: 0;
+  white-space: pre-line;
+  color: #e7e9ee;
+}
+
+.live__buttons button {
+  min-width: 108px;
+  padding: 9px 18px;
+  border: 1px solid #4a5163;
+  border-radius: 6px;
+  background: #2a2f3a;
+  color: #e7e9ee;
+  font: inherit;
+  cursor: pointer;
+}
+
+.live__buttons button:hover:not(:disabled) {
+  background: #343a47;
+}
+
+.live__buttons button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
