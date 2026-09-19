@@ -37,6 +37,11 @@
  * both cards. A failure path demonstrated with a card that was genuinely banned
  * on a date that genuinely happened is worth more than a tampered list, so the
  * library ships both poles.
+ *
+ * Every other date is a collection's own date, one per collection, so each
+ * deck is validated against the pool for the day it was played: `2011-05-14`
+ * (NPH), `2011-08-14` (M12), `2011-10-30` and `2011-11-20` (ISD), `2012-02-12`
+ * (DKA), `2012-06-16` (AVR) and `2012-08-11` (M13).
  */
 
 import { createReadStream, mkdirSync, writeFileSync } from 'node:fs';
@@ -72,7 +77,17 @@ type IndexedCard =
   Parameters<typeof buildPrintingIndex>[0] extends Iterable<infer T> ? T : never;
 
 /** The dates frozen. See the header for why each one is here. */
-export const FIXTURE_DATES: readonly string[] = ['2011-02-13', '2011-07-01', '2011-10-30', '2011-11-20', '2012-02-12'];
+export const FIXTURE_DATES: readonly string[] = [
+  '2011-02-13',
+  '2011-05-14',
+  '2011-07-01',
+  '2011-08-14',
+  '2011-10-30',
+  '2011-11-20',
+  '2012-02-12',
+  '2012-06-16',
+  '2012-08-11',
+];
 
 function arg(name: string): string | null {
   const prefix = `--${name}=`;

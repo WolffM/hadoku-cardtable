@@ -29,6 +29,8 @@ import {
   deckPath,
   libraryDeckPaths,
   poolFixturePath,
+  type LibraryCollection,
+  type LibraryEntry,
 } from './catalog.ts';
 import {
   LibraryDeckError,
@@ -64,15 +66,62 @@ function deckOf(id: string): LibraryDeck {
   return loadLibraryDeck(text);
 }
 
-describe('the catalog and the files agree', () => {
-  it('lists every .dck in the collection directory, and no others', () => {
-    const onDisk = readdirSync(join(REPO_ROOT, PT_PARIS.directory))
+/** Every deck in the library, with the collection it is filed under. */
+const ALL_DECKS = LIBRARY.flatMap((c) => c.decks.map((entry) => ({ collection: c, entry })));
+
+function libraryDeckOf(collection: LibraryCollection, entry: LibraryEntry): LibraryDeck {
+  return loadLibraryDeck(read(deckPath(collection, entry)));
+}
+
+function sectionCount(deck: LibraryDeck, section: string): number {
+  return (deck.file.sections.get(section) ?? []).reduce((sum, e) => sum + e.count, 0);
+}
+
+/** `Caw-Blade (Edgar Flores)` → `Caw-Blade`. The file's own `Name` is the copy that counts. */
+function archetypeOf(deck: LibraryDeck): string {
+  const matched = /^(.*) \([^()]+\)$/.exec(deck.name);
+  if (matched === null) throw new Error(`deck name "${deck.name}" is not "Archetype (Player)"`);
+  return matched[1] as string;
+}
+
+/** The mtgtop8 event id a collection cites, off its `source` URL. */
+function eventIdOf(collection: LibraryCollection): string {
+  const matched = /^https:\/\/www\.mtgtop8\.com\/event\?e=(\d+)&f=ST$/.exec(collection.source);
+  if (matched === null) throw new Error(`${collection.id}: source is not an mtgtop8 event page`);
+  return matched[1] as string;
+}
+
+describe('every collection: catalog, files and citations agree', () => {
+  it.each(LIBRARY.map((c) => c.id))('%s lists every .dck in its directory, and no others', (id) => {
+    const c = LIBRARY.find((x) => x.id === id) as LibraryCollection;
+    const onDisk = readdirSync(join(REPO_ROOT, c.directory))
       .filter((f) => f.endsWith('.dck'))
       .sort();
-    const catalogued = PT_PARIS.decks.map((d) => d.file).sort();
-    expect(onDisk).toEqual(catalogued);
+    expect(onDisk).toEqual(c.decks.map((d) => d.file).sort());
   });
 
+  it.each(ALL_DECKS.map(({ collection, entry }) => [collection.id, entry.id] as const))(
+    '%s / %s is filed under its collection, cites its event, and is a legal size',
+    (collectionId, entryId) => {
+      const c = LIBRARY.find((x) => x.id === collectionId) as LibraryCollection;
+      const entry = c.decks.find((d) => d.id === entryId) as LibraryEntry;
+      const deck = libraryDeckOf(c, entry);
+      expect(deck.format).toBe(c.format);
+      expect(deck.date).toBe(c.date);
+      expect(deck.citation).toMatch(new RegExp(`^https://www\\.mtgtop8\\.com/event\\?e=${eventIdOf(c)}&d=\\d+&f=ST$`));
+      expect(deck.provenance).toMatch(/Transcribed from mtgtop8 deck \d+\.$/);
+      // The citation and the provenance name the same mtgtop8 deck.
+      const cited = /&d=(\d+)&/.exec(deck.citation)?.[1];
+      expect(deck.provenance).toContain(`mtgtop8 deck ${String(cited)}.`);
+      // 60 is a minimum, not a target: Asahara registered 61, Cole 62, Marlow 61.
+      expect(sectionCount(deck, 'main')).toBeGreaterThanOrEqual(60);
+      expect(sectionCount(deck, 'sideboard')).toBeLessThanOrEqual(15);
+      expect(writePrebuiltDeck(deck)).toBe(read(deckPath(c, entry)));
+    },
+  );
+});
+
+describe('PT Paris is the complete Top 8', () => {
   it('is the complete Top 8 and nothing else', () => {
     expect(PT_PARIS.decks).toHaveLength(8);
     expect(new Set(PT_PARIS.decks.map((d) => d.id)).size).toBe(8);
@@ -81,14 +130,6 @@ describe('the catalog and the files agree', () => {
     // library-wide total held only while there was one collection, and broke
     // the moment a second landed (PT Dark Ascension, 2026-09-18).
     expect(libraryDeckPaths()).toHaveLength(LIBRARY.reduce((n, c) => n + c.decks.length, 0));
-  });
-
-  it('files every deck under the format and date the collection claims', () => {
-    for (const entry of PT_PARIS.decks) {
-      const deck = deckOf(entry.id);
-      expect(deck.format, entry.id).toBe(PT_PARIS.format);
-      expect(deck.date, entry.id).toBe(PT_PARIS.date);
-    }
   });
 });
 
@@ -101,13 +142,6 @@ describe('every deck loads, with a citation', () => {
     expect(deck.citation).toMatch(/^https:\/\/www\.mtgtop8\.com\/event\?e=1016&d=\d+&f=ST$/);
     expect(deck.provenance).toContain('Pro Tour Paris 2011');
     expect(deck.provenance).toMatch(/Transcribed from mtgtop8 deck \d+\.$/);
-  });
-
-  it('round-trips byte-for-byte through the writer', () => {
-    for (const entry of PT_PARIS.decks) {
-      const text = read(deckPath(PT_PARIS, entry));
-      expect(writePrebuiltDeck(loadLibraryDeck(text)), entry.file).toBe(text);
-    }
   });
 
   it('is a 60-card deck with a 15-card sideboard, as a Pro Tour deck must be', () => {
@@ -127,7 +161,8 @@ describe('the committed pool fixtures', () => {
     // `standardFormatAt` answers from the committed 154-row table alone. So this
     // is the one join that can be checked in CI, and it is the join that would
     // break if a fixture were regenerated for the wrong date.
-    for (const date of [PT_PARIS.date, '2011-07-01']) {
+    const dates = [...new Set([...LIBRARY.map((c) => c.date), '2011-07-01'])];
+    for (const date of dates) {
       const frozen = fixture(date);
       const live = standardFormatAt(date);
       expect(live.ok, date).toBe(true);
@@ -179,14 +214,19 @@ describe('the committed pool fixtures', () => {
 });
 
 describe('validating the library against its own pool', () => {
-  it('finds every deck legal in Standard (MBS) on 2011-02-13', () => {
-    const pool = poolFromFixture(fixture(PT_PARIS.date));
-    for (const entry of PT_PARIS.decks) {
-      const deck = deckOf(entry.id);
-      expect(libraryPoolMismatch(deck, pool), entry.id).toBeNull();
-      expect(libraryIssues(deck, pool).map((i) => i.message), entry.id).toEqual([]);
-    }
-  });
+  // One test per deck, named, so a list that stops validating fails by name.
+  it.each(ALL_DECKS.map(({ collection, entry }) => [collection.id, entry.id] as const))(
+    '%s / %s is legal in its own era\'s frozen pool',
+    (collectionId, entryId) => {
+      const c = LIBRARY.find((x) => x.id === collectionId) as LibraryCollection;
+      const entry = c.decks.find((d) => d.id === entryId) as LibraryEntry;
+      const pool = poolFromFixture(fixture(c.date));
+      expect(pool.name).toBe(c.format);
+      const deck = libraryDeckOf(c, entry);
+      expect(libraryPoolMismatch(deck, pool)).toBeNull();
+      expect(libraryIssues(deck, pool).map((i) => i.message)).toEqual([]);
+    },
+  );
 
   it('says so when the pool is for a different format', () => {
     const deck = deckOf('pt-paris-2011-1-ben-stark');
@@ -331,14 +371,20 @@ describe('the library as a whole', () => {
   // Pins the library's exact shape on purpose, so adding a collection is a
   // deliberate act with a visible diff rather than something that drifts in.
   // It caught the 2026-09-18 addition of PT Dark Ascension, which is what it is
-  // for — the failure was the test doing its job, not a regression.
-  it('is four collections and twenty-five decks, oldest format first', () => {
+  // for — the failure was the test doing its job, not a regression. Wave 12
+  // added the four SCG Open collections, one per era the window was missing.
+  it('is eight collections and forty-nine decks, oldest format first', () => {
     expect(LIBRARY.map((c) => [c.id, c.format, c.decks.length])).toEqual([
       ['pt-paris-2011-standard', 'Standard (MBS)', 8],
+      ['scg-orlando-2011-standard', 'Standard (NPH)', 6],
+      ['scg-richmond-2011-standard', 'Standard (M12)', 6],
       ['gp-hiroshima-2011-standard', 'Standard (ISD)', 1],
       ['worlds-2011-standard', 'Standard (ISD)', 8],
       ['pt-dark-ascension-2012-standard', 'Standard (DKA)', 8],
+      ['scg-indianapolis-2012-standard', 'Standard (AVR)', 6],
+      ['scg-kansas-city-2012-standard', 'Standard (M13)', 6],
     ]);
+    expect(ALL_DECKS).toHaveLength(49);
   });
 
   /*
@@ -354,21 +400,66 @@ describe('the library as a whole', () => {
    */
   const PARTIAL_BY_DESIGN = new Set(['gp-hiroshima-2011-standard']);
 
+  /*
+   * The era collections (Wave 12): one Top 8 each, cut to the best-placed deck
+   * of each archetype as mtgtop8 labels it. `catalog.ts` states the rule and
+   * why; what is checkable here is that no archetype appears twice, so the cut
+   * really is one-per-archetype and not a hand-picked handful.
+   */
+  const ONE_PER_ARCHETYPE = new Set([
+    'scg-orlando-2011-standard',
+    'scg-richmond-2011-standard',
+    'scg-indianapolis-2012-standard',
+    'scg-kansas-city-2012-standard',
+  ]);
+
   it('every collection is a complete Top 8, or is a documented exception', () => {
     for (const c of LIBRARY) {
       if (PARTIAL_BY_DESIGN.has(c.id)) expect(c.decks.length, c.id).toBeLessThan(8);
+      else if (ONE_PER_ARCHETYPE.has(c.id)) expect(c.decks.length, c.id).toBeLessThanOrEqual(8);
       else expect(c.decks, c.id).toHaveLength(8);
     }
   });
 
-  it('the ISD era can field every colour, which is why the exception exists', () => {
-    const isd = LIBRARY.filter((c) => c.format === 'Standard (ISD)');
+  it.each([...ONE_PER_ARCHETYPE])('%s holds one deck per archetype, all from its Top 8', (id) => {
+    const c = LIBRARY.find((x) => x.id === id) as LibraryCollection;
+    const decks = c.decks.map((d) => libraryDeckOf(c, d));
+    const archetypes = decks.map(archetypeOf);
+    expect(new Set(archetypes).size, archetypes.join(', ')).toBe(archetypes.length);
+    for (const deck of decks) expect(deck.provenance, deck.name).toContain(', Top 8: ');
+  });
+
+  /*
+   * The operator's window — New Phyrexia to Return to Ravnica, 2011-05-13 to
+   * 2012-10-05 — as the six Standard snapshots Forge's rotation table has for
+   * it. `Standard (2011-07-01)` also falls inside, but it is the two-week
+   * ban-list row between NPH and M12 rather than a set release, and the brief
+   * names six eras; the library uses it as the ban-path pool instead.
+   */
+  const WINDOW_ERAS = [
+    'Standard (NPH)',
+    'Standard (M12)',
+    'Standard (ISD)',
+    'Standard (DKA)',
+    'Standard (AVR)',
+    'Standard (M13)',
+  ];
+
+  it('has at least one collection in every era of the window', () => {
+    const formats = new Set(LIBRARY.map((c) => c.format));
+    expect(WINDOW_ERAS.filter((f) => !formats.has(f))).toEqual([]);
+  });
+
+  // The five-colour rule, per era: every colour's basic land appears in at
+  // least one maindeck across the era's collections. A basic is the plainest
+  // evidence a deck is playing a colour — card colours are not, because
+  // Phyrexian mana puts Dismember in colourless decks.
+  it.each(WINDOW_ERAS)('%s can field every colour', (format) => {
     const basics = new Set<string>();
-    for (const c of isd) {
+    for (const c of LIBRARY.filter((x) => x.format === format)) {
       for (const d of c.decks) {
-        for (const line of read(deckPath(c, d)).split('\n')) {
-          const m = /^\d+ (Plains|Island|Swamp|Mountain|Forest)\|/.exec(line);
-          if (m) basics.add(m[1] as string);
+        for (const e of libraryDeckOf(c, d).file.sections.get('main') ?? []) {
+          if (/^(Plains|Island|Swamp|Mountain|Forest)$/.test(e.card.name)) basics.add(e.card.name);
         }
       }
     }

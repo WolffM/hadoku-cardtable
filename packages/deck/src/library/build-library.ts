@@ -1,15 +1,22 @@
 /*
- * Transcribes the Pro Tour Paris 2011 Top 8 from mtgtop8's own exports into the
- * `.dck` files under `decks/`.
+ * Transcribes library collections from mtgtop8's own exports into the `.dck`
+ * files under `decks/`.
  *
  * Run from the repo root, once, when the library changes:
  *
- *   node packages/deck/src/library/build-library.ts
+ *   node packages/deck/src/library/build-library.ts                 # every collection below
+ *   node packages/deck/src/library/build-library.ts --only=<id>     # one collection, by catalog id
+ *
+ * It covers the collections listed in `SOURCES`, which is every collection
+ * transcribed by this script: PT Paris 2011 and the four SCG Open collections
+ * added for the NPH, M12, AVR and M13 eras. Worlds 2011, GP Hiroshima 2011 and
+ * PT Dark Ascension 2012 were transcribed by hand from the same source before
+ * this script took a list, and are not re-derived here.
  *
  * It needs the network; nothing else in this lane does, and CI never runs it.
  * The committed `.dck` files are the artefact.
  *
- * ## Why a script and not eight hand-typed files
+ * ## Why a script and not hand-typed files
  *
  * Because a hand-typed decklist is a decklist nobody can check. This script
  * fetches mtgtop8's machine-readable export for each deck id, so the
@@ -39,7 +46,15 @@ import { fileURLToPath } from 'node:url';
 import type { DeckEntry, DeckFile } from '@hadoku/carddata/dck';
 
 import { writeDck, type DckSpelling } from '../dck-write.ts';
-import { PT_PARIS_2011_STANDARD, deckPath, type LibraryCollection } from './catalog.ts';
+import {
+  PT_PARIS_2011_STANDARD,
+  SCG_INDIANAPOLIS_2012_STANDARD,
+  SCG_KANSAS_CITY_2012_STANDARD,
+  SCG_ORLANDO_2011_STANDARD,
+  SCG_RICHMOND_2011_STANDARD,
+  deckPath,
+  type LibraryCollection,
+} from './catalog.ts';
 import { LIBRARY_PROVENANCE_KEY, LIBRARY_SOURCE_KEY } from './library.ts';
 import { PREBUILT_DATE_KEY, PREBUILT_FORMAT_KEY } from '../prebuilt.ts';
 
@@ -76,6 +91,13 @@ interface SourceDeck {
   readonly archetype: string;
 }
 
+/** A catalog collection and the mtgtop8 event its decks came off. */
+interface SourceCollection {
+  readonly collection: LibraryCollection;
+  readonly eventId: number;
+  readonly decks: readonly SourceDeck[];
+}
+
 /**
  * Pro Tour Paris 2011's Top 8, in finishing order, as
  * https://www.mtgtop8.com/event?e=1016&f=ST lists them. Placings are joint from
@@ -91,6 +113,61 @@ const PT_PARIS_2011_TOP_8: readonly SourceDeck[] = [
   { file: '6-tom-martell-mystic-caw-go.dck', deckId: 209241, player: 'Tom Martell', placing: '5th-8th', archetype: 'Mystic Caw Go' },
   { file: '7-shintaro-ishimura-mystic-caw-go.dck', deckId: 209243, player: 'Shintaro Ishimura', placing: '5th-8th', archetype: 'Mystic Caw Go' },
   { file: '8-patrick-chapin-tezzeret-control.dck', deckId: 209240, player: 'Patrick Chapin', placing: '5th-8th', archetype: 'Tezzeret Control' },
+];
+
+/*
+ * The four era collections. Each is the Top 8 of one StarCityGames Open, cut
+ * to the best-placed deck of each archetype as mtgtop8 names it (see
+ * `catalog.ts` for why). Placings, players and archetype labels are copied off
+ * the event page; the archetype label is mtgtop8's own, verbatim.
+ */
+
+/** SCG Open Orlando, 2011-05-14 — https://www.mtgtop8.com/event?e=1571&f=ST */
+const SCG_ORLANDO_2011: readonly SourceDeck[] = [
+  { file: '1-edgar-flores-caw-blade.dck', deckId: 212091, player: 'Edgar Flores', placing: '1st', archetype: 'Caw-Blade' },
+  { file: '2-michael-strunk-grixis-twin-exarch.dck', deckId: 212092, player: 'Michael Strunk', placing: '2nd', archetype: 'Grixis Twin Exarch' },
+  { file: '3-tim-landale-rug-twin-exarch.dck', deckId: 212093, player: 'Tim Landale', placing: '3rd', archetype: 'RUG Twin Exarch' },
+  { file: '4-kitt-holland-kozilek-caw-blade.dck', deckId: 212094, player: 'Kitt Holland', placing: '4th', archetype: 'Kozilek Caw-Blade' },
+  { file: '7-aadil-qadir-br-vampires.dck', deckId: 212097, player: 'Aadil Qadir', placing: '7th', archetype: 'Br Vampires' },
+  { file: '8-miguel-rondon-valakut-ramp.dck', deckId: 212098, player: 'Miguel Rondon', placing: '8th', archetype: 'Valakut Ramp' },
+];
+
+/** SCG Open Richmond, 2011-08-14 — https://www.mtgtop8.com/event?e=1910&f=ST */
+const SCG_RICHMOND_2011: readonly SourceDeck[] = [
+  { file: '1-pat-cox-valakut-ramp.dck', deckId: 213773, player: 'Pat Cox', placing: '1st', archetype: 'Valakut Ramp' },
+  { file: '2-kyle-rose-caw-blade.dck', deckId: 213774, player: 'Kyle Rose', placing: '2nd', archetype: 'Caw-Blade' },
+  { file: '3-shaheen-soorani-ub-control.dck', deckId: 213775, player: 'Shaheen Soorani', placing: '3rd-4th', archetype: 'UB Control' },
+  { file: '5-thomas-cole-boros-landfall.dck', deckId: 213779, player: 'Thomas Cole', placing: '5th-8th', archetype: 'Boros Landfall' },
+  { file: '5-robbie-auchter-red-deck-wins.dck', deckId: 213777, player: 'Robbie Auchter', placing: '5th-8th', archetype: 'Red Deck Wins' },
+  { file: '5-ian-shore-rug-pod.dck', deckId: 213780, player: 'Ian Shore', placing: '5th-8th', archetype: 'RUG Pod' },
+];
+
+/** SCG Open Indianapolis, 2012-06-16 — https://www.mtgtop8.com/event?e=2767&f=ST */
+const SCG_INDIANAPOLIS_2012: readonly SourceDeck[] = [
+  { file: '1-ross-merriam-uw-delver.dck', deckId: 217906, player: 'Ross Merriam', placing: '1st', archetype: 'UW Delver' },
+  { file: '2-michael-marlow-bu-zombies.dck', deckId: 217907, player: 'Michael Marlow', placing: '2nd', archetype: 'BU Zombies' },
+  { file: '3-dan-musser-rug-pod.dck', deckId: 217910, player: 'Dan Musser', placing: '3rd-4th', archetype: 'RUG Pod' },
+  { file: '5-logan-mize-kessig-titan.dck', deckId: 217912, player: 'Logan Mize', placing: '5th-8th', archetype: 'Kessig Titan' },
+  { file: '5-robbie-cordell-solar-flare.dck', deckId: 217909, player: 'Robbie Cordell', placing: '5th-8th', archetype: 'Solar Flare' },
+  { file: '5-ian-farnung-tezzeret-control.dck', deckId: 217913, player: 'Ian Farnung', placing: '5th-8th', archetype: 'Tezzeret Control' },
+];
+
+/** SCG Open Kansas City, 2012-08-11 — https://www.mtgtop8.com/event?e=2814&f=ST */
+const SCG_KANSAS_CITY_2012: readonly SourceDeck[] = [
+  { file: '1-mike-prokop-uw-delver.dck', deckId: 218164, player: 'Mike Prokop', placing: '1st', archetype: 'UW Delver' },
+  { file: '2-nick-marriott-mono-green-infect.dck', deckId: 218165, player: 'Nick Marriott', placing: '2nd', archetype: 'Mono Green Infect' },
+  { file: '3-robert-berni-blue-kessig.dck', deckId: 218167, player: 'Robert Berni', placing: '3rd-4th', archetype: 'Blue Kessig' },
+  { file: '3-eric-holmes-naya-pod.dck', deckId: 218166, player: 'Eric Holmes', placing: '3rd-4th', archetype: 'Naya Pod' },
+  { file: '5-scott-ouderkirk-gr-aggro.dck', deckId: 218169, player: 'Scott Ouderkirk', placing: '5th-8th', archetype: 'Gr Aggro' },
+  { file: '5-matthew-dennis-zombie-pod.dck', deckId: 218171, player: 'Matthew Dennis', placing: '5th-8th', archetype: 'Zombie Pod' },
+];
+
+const SOURCES: readonly SourceCollection[] = [
+  { collection: PT_PARIS_2011_STANDARD, eventId: 1016, decks: PT_PARIS_2011_TOP_8 },
+  { collection: SCG_ORLANDO_2011_STANDARD, eventId: 1571, decks: SCG_ORLANDO_2011 },
+  { collection: SCG_RICHMOND_2011_STANDARD, eventId: 1910, decks: SCG_RICHMOND_2011 },
+  { collection: SCG_INDIANAPOLIS_2012_STANDARD, eventId: 2767, decks: SCG_INDIANAPOLIS_2012 },
+  { collection: SCG_KANSAS_CITY_2012_STANDARD, eventId: 2814, decks: SCG_KANSAS_CITY_2012 },
 ];
 
 /** mtgtop8's plain-text export for one deck. `f=` is only a filename hint. */
@@ -185,24 +262,35 @@ async function fetchText(url: string): Promise<string> {
   return await response.text();
 }
 
+function arg(name: string): string | null {
+  const prefix = `--${name}=`;
+  for (const a of process.argv.slice(2)) if (a.startsWith(prefix)) return a.slice(prefix.length);
+  return null;
+}
+
 async function main(): Promise<void> {
-  const collection = PT_PARIS_2011_STANDARD;
-  const eventId = 1016;
-  const outDir = join(REPO_ROOT, collection.directory);
-  mkdirSync(outDir, { recursive: true });
+  const only = arg('only');
+  const chosen = SOURCES.filter((s) => only === null || s.collection.id === only);
+  if (chosen.length === 0) throw new Error(`--only=${String(only)} names no collection this script transcribes`);
 
-  for (const source of PT_PARIS_2011_TOP_8) {
-    const what = `${source.player} (mtgtop8 ${String(source.deckId)})`;
-    const list = parseDecExport(await fetchText(exportUrl(source.deckId)), what);
-    const file = buildDeckFile(collection, source, eventId, list);
-    const entry = collection.decks.find((d) => d.file === source.file);
-    if (entry === undefined) throw new Error(`${what}: ${source.file} is not in the catalog`);
+  for (const { collection, eventId, decks } of chosen) {
+    const outDir = join(REPO_ROOT, collection.directory);
+    mkdirSync(outDir, { recursive: true });
+    console.log(`== ${collection.id}`);
 
-    const target = join(REPO_ROOT, deckPath(collection, entry));
-    writeFileSync(target, writeDck(file, { spelling: LIBRARY_SPELLING }), 'utf8');
-    console.log(
-      `${source.file}: main ${String(totalCount(list.main))}, sideboard ${String(totalCount(list.sideboard))}`,
-    );
+    for (const source of decks) {
+      const what = `${source.player} (mtgtop8 ${String(source.deckId)})`;
+      const list = parseDecExport(await fetchText(exportUrl(source.deckId)), what);
+      const file = buildDeckFile(collection, source, eventId, list);
+      const entry = collection.decks.find((d) => d.file === source.file);
+      if (entry === undefined) throw new Error(`${what}: ${source.file} is not in the catalog`);
+
+      const target = join(REPO_ROOT, deckPath(collection, entry));
+      writeFileSync(target, writeDck(file, { spelling: LIBRARY_SPELLING }), 'utf8');
+      console.log(
+        `${source.file}: main ${String(totalCount(list.main))}, sideboard ${String(totalCount(list.sideboard))}`,
+      );
+    }
   }
 }
 

@@ -218,12 +218,119 @@ export const GP_HIROSHIMA_2011_STANDARD: LibraryCollection = {
   decks: [{ id: 'gp-hiroshima-2011-3-akira-asahara', file: '3-akira-asahara-solar-flare.dck' }],
 };
 
+/*
+ * ## The four era collections, and their membership rule
+ *
+ * The operator's window is New Phyrexia to Return to Ravnica, 2011-05-13 to
+ * 2012-10-05: six Standard snapshots in Forge's rotation table. The four
+ * collections below fill the four that had no decks — `Standard (NPH)`,
+ * `Standard (M12)`, `Standard (AVR)` and `Standard (M13)`.
+ *
+ * Each is **one StarCityGames Open's Top 8, cut to the best-placed deck of each
+ * archetype as mtgtop8 labels it**. The operator asked for roughly five decks
+ * per era, and a complete Top 8 of that period is mostly one deck — four to six
+ * copies of Caw-Blade or UW Delver — so the cut keeps what can be played
+ * against each other and drops the mirrors. The rule is still mechanical: the
+ * archetype label is mtgtop8's, verbatim, and "best-placed" is the source's
+ * placing, with joint placings resolved by the order the event page lists them.
+ * Nobody chose which decks to keep.
+ *
+ * Why SCG Opens rather than Grand Prix: for each of these eras, the event whose
+ * cut fields all five colours was an Open. GP Singapore 2011 (NPH) has no green
+ * deck in its Top 8, GP Pittsburgh 2011 (M12) no black one, US Nationals 2011
+ * no green one; GP Minneapolis 2012 (AVR) is four flavours of Delver plus a
+ * single Swamp; and the M13 era had no paper GP or Pro Tour Standard Top 8 on
+ * mtgtop8 at all — the 2012 World Magic Cup is a team event filed by country.
+ * The five-colour rule is per era (`library.test.ts` checks it), and a single
+ * event that meets it beats two events stitched together, because a collection
+ * is one event, one date and one pool.
+ *
+ * Every deck is checked against its own era's generated pool in
+ * `library.test.ts`, by name, one test per deck.
+ */
+
+/** SCG Open Orlando 2011 — the New Phyrexia era, `Standard (NPH)`, before the Jace/Stoneforge bans. */
+export const SCG_ORLANDO_2011_STANDARD: LibraryCollection = {
+  id: 'scg-orlando-2011-standard',
+  directory: `${DECKS_ROOT}/standard-2011-05-14-scg-orlando`,
+  event: 'StarCityGames Open Orlando 2011, Standard, Top 8',
+  format: 'Standard (NPH)',
+  date: '2011-05-14',
+  source: 'https://www.mtgtop8.com/event?e=1571&f=ST',
+  decks: [
+    { id: 'scg-orlando-2011-1-edgar-flores', file: '1-edgar-flores-caw-blade.dck' },
+    { id: 'scg-orlando-2011-2-michael-strunk', file: '2-michael-strunk-grixis-twin-exarch.dck' },
+    { id: 'scg-orlando-2011-3-tim-landale', file: '3-tim-landale-rug-twin-exarch.dck' },
+    { id: 'scg-orlando-2011-4-kitt-holland', file: '4-kitt-holland-kozilek-caw-blade.dck' },
+    { id: 'scg-orlando-2011-7-aadil-qadir', file: '7-aadil-qadir-br-vampires.dck' },
+    { id: 'scg-orlando-2011-8-miguel-rondon', file: '8-miguel-rondon-valakut-ramp.dck' },
+  ],
+};
+
+/** SCG Open Richmond 2011 — the Magic 2012 era, `Standard (M12)`, Jace and Stoneforge banned. */
+export const SCG_RICHMOND_2011_STANDARD: LibraryCollection = {
+  id: 'scg-richmond-2011-standard',
+  directory: `${DECKS_ROOT}/standard-2011-08-14-scg-richmond`,
+  event: 'StarCityGames Open Richmond 2011, Standard, Top 8',
+  format: 'Standard (M12)',
+  date: '2011-08-14',
+  source: 'https://www.mtgtop8.com/event?e=1910&f=ST',
+  decks: [
+    { id: 'scg-richmond-2011-1-pat-cox', file: '1-pat-cox-valakut-ramp.dck' },
+    { id: 'scg-richmond-2011-2-kyle-rose', file: '2-kyle-rose-caw-blade.dck' },
+    { id: 'scg-richmond-2011-3-shaheen-soorani', file: '3-shaheen-soorani-ub-control.dck' },
+    { id: 'scg-richmond-2011-5-thomas-cole', file: '5-thomas-cole-boros-landfall.dck' },
+    { id: 'scg-richmond-2011-5-robbie-auchter', file: '5-robbie-auchter-red-deck-wins.dck' },
+    { id: 'scg-richmond-2011-5-ian-shore', file: '5-ian-shore-rug-pod.dck' },
+  ],
+};
+
+/** SCG Open Indianapolis 2012 — the Avacyn Restored era, `Standard (AVR)`. */
+export const SCG_INDIANAPOLIS_2012_STANDARD: LibraryCollection = {
+  id: 'scg-indianapolis-2012-standard',
+  directory: `${DECKS_ROOT}/standard-2012-06-16-scg-indianapolis`,
+  event: 'StarCityGames Open Indianapolis 2012, Standard, Top 8',
+  format: 'Standard (AVR)',
+  date: '2012-06-16',
+  source: 'https://www.mtgtop8.com/event?e=2767&f=ST',
+  decks: [
+    { id: 'scg-indianapolis-2012-1-ross-merriam', file: '1-ross-merriam-uw-delver.dck' },
+    { id: 'scg-indianapolis-2012-2-michael-marlow', file: '2-michael-marlow-bu-zombies.dck' },
+    { id: 'scg-indianapolis-2012-3-dan-musser', file: '3-dan-musser-rug-pod.dck' },
+    { id: 'scg-indianapolis-2012-5-logan-mize', file: '5-logan-mize-kessig-titan.dck' },
+    { id: 'scg-indianapolis-2012-5-robbie-cordell', file: '5-robbie-cordell-solar-flare.dck' },
+    { id: 'scg-indianapolis-2012-5-ian-farnung', file: '5-ian-farnung-tezzeret-control.dck' },
+  ],
+};
+
+/** SCG Open Kansas City 2012 — the Magic 2013 era, `Standard (M13)`, the last before Return to Ravnica. */
+export const SCG_KANSAS_CITY_2012_STANDARD: LibraryCollection = {
+  id: 'scg-kansas-city-2012-standard',
+  directory: `${DECKS_ROOT}/standard-2012-08-11-scg-kansas-city`,
+  event: 'StarCityGames Open Kansas City 2012, Standard, Top 8',
+  format: 'Standard (M13)',
+  date: '2012-08-11',
+  source: 'https://www.mtgtop8.com/event?e=2814&f=ST',
+  decks: [
+    { id: 'scg-kansas-city-2012-1-mike-prokop', file: '1-mike-prokop-uw-delver.dck' },
+    { id: 'scg-kansas-city-2012-2-nick-marriott', file: '2-nick-marriott-mono-green-infect.dck' },
+    { id: 'scg-kansas-city-2012-3-robert-berni', file: '3-robert-berni-blue-kessig.dck' },
+    { id: 'scg-kansas-city-2012-3-eric-holmes', file: '3-eric-holmes-naya-pod.dck' },
+    { id: 'scg-kansas-city-2012-5-scott-ouderkirk', file: '5-scott-ouderkirk-gr-aggro.dck' },
+    { id: 'scg-kansas-city-2012-5-matthew-dennis', file: '5-matthew-dennis-zombie-pod.dck' },
+  ],
+};
+
 /** Every collection in the library, oldest format first. */
 export const LIBRARY: readonly LibraryCollection[] = [
   PT_PARIS_2011_STANDARD,
+  SCG_ORLANDO_2011_STANDARD,
+  SCG_RICHMOND_2011_STANDARD,
   GP_HIROSHIMA_2011_STANDARD,
   WORLDS_2011_STANDARD,
   PT_DARK_ASCENSION_2012_STANDARD,
+  SCG_INDIANAPOLIS_2012_STANDARD,
+  SCG_KANSAS_CITY_2012_STANDARD,
 ];
 
 /**
