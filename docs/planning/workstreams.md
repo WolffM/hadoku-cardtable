@@ -295,7 +295,85 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-19 — tracker, closing Wave 12)
+## Verified this pass (2026-09-19 — tracker, the match-hang bug)
+
+**Every production match hung at Turn 0, and the browser suite was green
+throughout.** The operator found it by trying to play: both seats claimed, an
+empty table, nothing to click.
+
+### The bug
+
+Forge opens a match with `showPromptMessage` + `updateButtons` — the coin toss.
+Neither is a blocking `ask`: no `callId`, no reply schema, nothing for
+`currentAsk` to return. `LiveBoard` drew only `asks`, so there was nothing on
+the page to answer with, and Forge parks forever waiting. `Turn 0 / hand 0 /
+library 60` was the CORRECT state: the toss happens before opening hands are
+dealt, so the board was right about everything except the one thing you could
+act on.
+
+**The server was never at fault.** `match.ts` already stored both frames per
+seat and `resendAfterSnapshot` replayed them on join. The client folded them
+into the state channel and drew nothing. Diagnosed from Forge's own stderr in
+the live run dir (`GuiGameEvent 12: updateButtons`, `13: showPromptMessage`)
+against a seat whose browser rendered neither.
+
+Fixed in `LiveBoard` + `live/match.ts` (`8137132`): `LiveMatch` carries
+`prompt`/`buttons`, `pressButton` sends the act, a disabled button refuses the
+click, and pressing one disables the bar until Forge sends a fresh one —
+otherwise a stale bar answers the NEXT question, which is worse than drawing
+nothing.
+
+### The seventh green gate that did nothing — and this one was load-bearing
+
+`e2e/play/hands.ts` opens a second socket per friend to press these buttons.
+Its own header says so: *"TEST SCAFFOLDING for a product gap: the buttons the
+board does not have"*. The spec recorded the gap as `uiAloneAtStart` —
+`controlsOnPage 0, promptOnPage 0, turnOnPage "Turn 0"` — which is a precise
+description of the operator's screenshot, written by our own suite, and passed
+anyway.
+
+**The tracker reported that suite as "two friends play one Forge match" and
+told the operator production was ready. That was wrong**, and it was wrong
+because "4 passed" was read instead of what the test did.
+
+`e89a78c` fixes the test: whichever seat holds the ENABLED bar must answer by
+clicking its own page, and the click must move the game (Forge deals opening
+hands only once the toss is answered, so a library still at 60 means nothing
+happened). Which seat wins the toss varies by seed — bob on one run, alice on
+the next — so it finds the decider rather than assuming.
+
+Mutation-tested against a real Forge, both directions:
+
+| board | result |
+| --- | --- |
+| pre-fix | **FAILS** — *"neither board drew Forge's button bar — the match cannot be started by a human"* |
+| restored | passes — *"alice answered the opening prompt on their own board"*, 1 passed (32.8s) |
+
+`controlsOnPage` moved **0 → 2**.
+
+### A third instance of the same shape, in the tracker's own verification
+
+The first mutation run **passed** with the broken board. Cause:
+`VAR=x cmd1 && cmd2` exports to `cmd1` only, so Playwright ran without
+`CARDTABLE_FORGE_JAR`, **skipped** the test, and exited 0. A skip reads as a
+pass. Three instances in one session — the scaffolding, `| head; echo $?`, and
+this — all of them a green signal proving nothing.
+
+### Still open: the board cannot click CARDS
+
+`hands.ts` remains, narrowed to what it is still needed for. A human can now
+start a match and answer prompts; they **cannot play a land or cast a spell**
+through the UI. Nothing covers that for a human, and it is the next lane —
+the last thing between the operator and an actual game.
+
+### Not verified: production itself
+
+The fix is verified against the BUILT BUNDLE of the deployed commit, in two
+real Chromium contexts. The Chrome extension is not connected, so the tracker
+could not drive an authenticated production session. That is strictly less than
+a production test and is not being reported as one.
+
+## Previously verified (2026-09-19 — tracker, closing Wave 12)
 
 Landed in one push, `8ec31f6..481875e`. Deployed tree carries it, PM2 restarted
 **after** the install (`Starting PM2 service: cardtable` 00:16:33.839Z, deploy
