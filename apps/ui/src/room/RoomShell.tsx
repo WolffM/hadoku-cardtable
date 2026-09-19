@@ -21,19 +21,29 @@
  * our draft and match sockets stay ours and are untouched. Two connections on
  * purpose: the room is their product, the table is ours.
  *
- * ## Identity
+ * ## Identity comes from the fleet, not from us
  *
- * From `/api/whoami`, which the edge stamps and the server hands straight
- * through. We do NOT invent an identity: if whoami fails the chrome is not
- * mounted and the table renders alone, because a room that cannot say who you
- * are is worse than no room.
+ * This used to call cardtable's own `/api/whoami`, which returns `{ userId,
+ * tier }` and no display name — so the app rendered `anon`, which is literally
+ * `ANON_USER_ID` from `@wolffm/prefs-client`, beside a chat column that knew
+ * the operator's real name. That is the same gap that left this app with no
+ * theme picker: it was hydrated from `tunnel-loopback-ui`, which scaffolds no
+ * UI, and the hydrator's chrome warning only fires for proxy apps
+ * (`docs/requests/HADOKU_SITE_GAME_TEMPLATE.md`).
+ *
+ * `whoami()` from `@wolffm/prefs-client` is the fleet's own, returns `name`,
+ * and shares one in-flight promise per page (`globalThis.__hadokuWhoami`) so
+ * several apps on a page do not each re-fetch it.
+ *
+ * We still do NOT invent an identity: if it fails the chrome is not mounted
+ * and the table renders alone, because a room that cannot say who you are is
+ * worse than no room.
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { RoomChrome } from '@wolffm/watchparty-ui/room-chrome';
 import '@wolffm/watchparty-ui/room-chrome.css';
-
-import { apiBase } from '../screens/tables.ts';
+import { whoami as hadokuWhoami } from '@wolffm/prefs-client';
 
 /**
  * Watchparty's server, on whatever origin serves this page. In production that
@@ -54,6 +64,8 @@ const ROOM_ID = /^[a-z0-9-]{1,40}$/;
 export interface Who {
   userId: string;
   tier: 'admin' | 'wife' | 'service' | 'friend' | 'public';
+  /** The viewer's display name. Null when the fleet has none for them. */
+  name: string | null;
 }
 
 /**
@@ -72,13 +84,10 @@ export function useWhoami(): Who | null | 'pending' {
   const [who, setWho] = useState<Who | null | 'pending'>('pending');
   useEffect(() => {
     let live = true;
-    const base = import.meta.env?.BASE_URL;
-    fetch(`${apiBase(typeof base === 'string' ? base : '/')}whoami`, { credentials: 'same-origin' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body: unknown) => {
+    hadokuWhoami()
+      .then((r) => {
         if (!live) return;
-        const b = body as Partial<Who> | null;
-        setWho(b !== null && typeof b.userId === 'string' && typeof b.tier === 'string' ? (b as Who) : null);
+        setWho({ userId: r.userId, tier: r.userType, name: r.name ?? null });
       })
       .catch(() => {
         if (live) setWho(null);

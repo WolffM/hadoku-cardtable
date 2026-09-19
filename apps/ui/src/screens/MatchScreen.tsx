@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from '../play/live/match.ts';
-import { navigate, routeUrl } from './route.ts';
+import {navigate } from './route.ts';
 
 export interface MatchScreenProps {
   matchId: string;
@@ -34,17 +34,8 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
     return () => closeMatch(handle);
   }, [matchId, makeTransport]);
 
-  const link = routeUrl({ kind: 'match', matchId }, globalThis.location);
-
   return (
-    <div className="shell" data-testid="match">
-      <header className="shell__head">
-        <h1 className="shell__title">Match</h1>
-        <p className="shell__sub">
-          Send this to your opponent:{' '}
-          <input className="tables__invite" data-testid="match-invite" readOnly value={link} onFocus={(e) => e.target.select()} />
-        </p>
-      </header>
+    <div className="shell shell--match" data-testid="match">
       {match !== null && <LiveBoard match={match} />}
       <footer className="shell__foot">
         <p>

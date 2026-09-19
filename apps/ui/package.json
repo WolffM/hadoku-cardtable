@@ -17,6 +17,7 @@
     "@hadoku/draft": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
     "@hadoku/shared": "workspace:*",
+    "@wolffm/prefs-client": "1.0.12",
     "@wolffm/rooms-protocol": "0.38.115",
     "@wolffm/watchparty-ui": "0.39.0",
     "react": "19.2.8",

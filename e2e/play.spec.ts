@@ -551,8 +551,10 @@ test(LIVE_TITLE, async ({ browser }) => {
     if (matchId === undefined) throw new Error(`no match id in ${alice.page.url()}`);
     expect(matchUrl.exec(bob.page.url())?.[1], 'both players are in the SAME match').toBe(matchId);
     summary.matchId = matchId;
-    const invite = await alice.page.getByTestId('match-invite').inputValue();
-    expect(invite).toBe(`${origin}${PREFIX}/#/match/${matchId}`);
+    // The match invite box is gone: a match is reached through its ROOM now,
+    // and a second link to the same place was a row of chrome on a screen that
+    // must not scroll. The URL still IS the route, which is what this checks.
+    expect(alice.page.url()).toBe(`${origin}${PREFIX}/#/match/${matchId}`);
 
     await expect(alice.page.getByTestId('live-status')).toHaveText('Seat 1, live.', { timeout: 30_000 });
     await expect(bob.page.getByTestId('live-status')).toHaveText('Seat 2, live.', { timeout: 30_000 });
