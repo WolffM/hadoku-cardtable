@@ -65,6 +65,7 @@ describe('parseRoute', () => {
       { kind: 'deck', draftId: 'amber-lantern-k7q4' },
       { kind: 'play' },
       { kind: 'match', matchId: 'm-0123456789ab' },
+      { kind: 'room', roomId: 'r-friday-k7q4' },
       // The id that needs encoding on the way out and decoding on the way back.
       { kind: 'draft', draftId: 'friday cube/2' },
     ];
@@ -152,6 +153,15 @@ describe('mintDraftId', () => {
     const id = mintDraftId(pinned([0.3, 0.7, 0.1, 0.9, 0.4, 0.6]));
     const url = inviteUrl(id, { origin: 'https://hadoku.me', pathname: '/cardtable/' });
     expect(draftIdFromInput(url)).toBe(id);
+  });
+});
+
+describe('room routes', () => {
+  it('reads #/room/<id>, and a room with no id is the lobby', () => {
+    expect(parseRoute('#/room/r-friday-k7q4')).toEqual({ kind: 'room', roomId: 'r-friday-k7q4' });
+    for (const hash of ['#/room', '#/room/', '#/room/a/b']) {
+      expect(parseRoute(hash), hash).toEqual({ kind: 'lobby' });
+    }
   });
 });
 

@@ -8,7 +8,7 @@
  * diagnosis is that the harness was the front door. It is not deleted; it moved
  * to `#/debug` and is `DebugHarness`.
  *
- * What is here now is a switch over the hash. Six routes, no router
+ * What is here now is a switch over the hash. Seven routes, no router
  * dependency, no server change: see `screens/route.ts` for why the hash and not
  * the path.
  *
@@ -17,6 +17,7 @@
  *   `#/deck/<draftId>`   `DeckScreen`
  *   `#/play`             `ConstructedScreen` — pick a format and a deck
  *   `#/match/<matchId>`  `MatchScreen` — the invite link and the live board
+ *   `#/room/<roomId>`    `ConstructedScreen` — a lobby room: each player's own deck
  *   `#/debug`            `DebugHarness` — the old front door
  *
  * An unknown hash renders the lobby, which is a screen that explains itself.
@@ -58,6 +59,8 @@ function roomIdFor(route: ReturnType<typeof useRoute>): string | null {
       return route.draftId;
     case 'match':
       return route.matchId;
+    case 'room':
+      return route.roomId;
     default:
       return null;
   }
@@ -77,6 +80,8 @@ function Screen({ transport }: AppProps) {
       return <ConstructedScreen />;
     case 'match':
       return <MatchScreen matchId={route.matchId} />;
+    case 'room':
+      return <ConstructedScreen />;
     case 'lobby':
       return <LobbyScreen />;
   }

@@ -41,6 +41,7 @@ export type Route =
   | { kind: 'deck'; draftId: string }
   | { kind: 'play' }
   | { kind: 'match'; matchId: string }
+  | { kind: 'room'; roomId: string }
   | { kind: 'debug' };
 
 /**
@@ -69,6 +70,8 @@ export function parseRoute(hash: string): Route {
       return { kind: 'deck', draftId: id };
     case 'match':
       return { kind: 'match', matchId: id };
+    case 'room':
+      return { kind: 'room', roomId: id };
     default:
       return { kind: 'lobby' };
   }
@@ -102,6 +105,8 @@ export function routeHash(route: Route): string {
       return '#/play';
     case 'match':
       return `#/match/${encodeURIComponent(route.matchId)}`;
+    case 'room':
+      return `#/room/${encodeURIComponent(route.roomId)}`;
   }
 }
 
