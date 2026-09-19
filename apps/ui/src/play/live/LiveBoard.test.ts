@@ -251,7 +251,7 @@ describe('the other fourteen prompts, on the live board', () => {
  */
 describe('Forge asks with buttons, not only with asks', () => {
   function buttonFrames(message: string, label1: string, label2: string) {
-    return [
+    return parseFrames([
       { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null },
       {
         kind: 'notify',
@@ -263,7 +263,12 @@ describe('Forge asks with buttons, not only with asks', () => {
         enable2: true,
         focus1: true,
       },
-    ];
+    ]);
+  }
+
+  /** Each literal through forge-wire, so a shape the server could not send cannot be tested. */
+  function parseFrames(raw: unknown[]) {
+    return raw.map((r) => parseServerFrame(r));
   }
 
   it('draws the coin toss and sends the click Forge is waiting for', async () => {
