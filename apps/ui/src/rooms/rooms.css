@@ -1,0 +1,192 @@
+/*
+ * The room list. Uses the shell's tokens from `screens.css`; draws no symbols
+ * of its own — a lock is the word "password", not an icon.
+ */
+
+.rooms {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rooms__title {
+  font-size: 19px;
+}
+
+.rooms__status {
+  margin: 0;
+  color: var(--ink-dim);
+}
+
+.rooms__status--bad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--warn);
+}
+
+.rooms__status--bad p {
+  margin: 0;
+}
+
+.rooms__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rooms__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: var(--bg);
+}
+
+.rooms__info {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rooms__name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rooms__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+.rooms__lock,
+.rooms__playing {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.rooms__members {
+  font-size: 13px;
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+}
+
+.rooms__enter,
+.rooms__password button,
+.rooms__status--bad button {
+  background: var(--bg-card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+}
+
+.rooms__password {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 100%;
+}
+
+.rooms__password label,
+.rooms__create label {
+  flex-basis: 100%;
+  color: var(--ink-faint);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.rooms__password input,
+.rooms__create input,
+.rooms__create select {
+  min-width: 0;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  font: inherit;
+}
+
+.rooms__password input {
+  flex: 1 1 200px;
+}
+
+.rooms__error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--warn);
+}
+
+.rooms__stale {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.rooms__create {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 420px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.rooms__create h3 {
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+
+.rooms__hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.rooms__create .lobby__go {
+  margin-top: 6px;
+}
+
+/* ── draft pods: kept, but secondary ─────────────────────────────────── */
+
+.pods .lobby__card {
+  background: transparent;
+}
+
+.front {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.pods__title {
+  font-size: 15px;
+  color: var(--ink-dim);
+  margin: 0 0 8px;
+}
+
+.pods .lobby__card h3 {
+  font-size: 16px;
+  margin: 0;
+}

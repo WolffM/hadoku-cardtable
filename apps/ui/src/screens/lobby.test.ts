@@ -24,9 +24,9 @@
  * file or `environment` stays `node` and every DOM call throws.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DRAFT_CHANNEL, safeParseClientMessage, stateMessage, type ClientMessage } from '@hadoku/shared';
 
 import { App } from '../App.tsx';
@@ -102,10 +102,35 @@ function open(stub: Stub, hash = '') {
   return render(createElement(App, { transport: stub.make }));
 }
 
+/*
+ * The front page asks the server for its rooms. This answers the way
+ * `GET /api/rooms` does, with one room, and answers everything else (whoami
+ * included) 404 — which is what keeps `RoomShell` from mounting a chrome here.
+ */
+const ONE_ROOM = {
+  id: 'r-friday',
+  name: 'Friday night',
+  creator: 'http-a',
+  leader: 'http-a',
+  gameType: 'constructed-1v1',
+  locked: false,
+  members: [{ id: 'http-a', name: 'alice', joinedAt: '2026-09-19T00:00:00.000Z' }],
+  matchId: null,
+  createdAt: '2026-09-19T00:00:00.000Z',
+};
+
 beforeEach(() => {
   globalThis.location.hash = '';
+  vi.stubGlobal('fetch', async (url: string) =>
+    String(url).endsWith('/api/rooms')
+      ? new Response(JSON.stringify({ rooms: [ONE_ROOM] }), { status: 200 })
+      : new Response('{}', { status: 404 }),
+  );
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 /* ── the lobby ───────────────────────────────────────────────────────── */
 
@@ -118,6 +143,23 @@ describe('the front door', () => {
     // The harness is still in the build; it is just no longer what you meet.
     expect(screen.queryByText('Fixtures — five committed payloads')).toBeNull();
     expect(screen.queryByTestId('pack')).toBeNull();
+  });
+
+  it('is the room list first, with draft pods still reachable underneath', async () => {
+    const stub = makeStub();
+    open(stub);
+    const rooms = screen.getByTestId('rooms');
+    await waitFor(() => expect(within(rooms).getAllByTestId('room-row')).toHaveLength(1));
+    expect(within(rooms).getByTestId('room-name').textContent).toBe('Friday night');
+    expect(within(rooms).getByTestId('room-create')).toBeTruthy();
+    // The pick-both-decks screen the operator rejected has no way in from here.
+    expect(screen.queryByTestId('play-constructed')).toBeNull();
+    // The draft half has not vanished.
+    const pods = screen.getByTestId('draft-pods');
+    expect(within(pods).getByTestId('start-pod')).toBeTruthy();
+    expect(within(pods).getByTestId('join-id')).toBeTruthy();
+    // The room list comes before the pods in the page.
+    expect(rooms.compareDocumentPosition(pods) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('still has the harness, one hash away', () => {
