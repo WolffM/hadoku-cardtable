@@ -535,3 +535,90 @@ makes it exit 1 and print the refusal.
 matters.** The ones in the original section were produced by the same code
 path; they are probably fine, because the builds preceding them succeeded, but
 "probably" is doing real work in that sentence.
+
+---
+
+# applyDelta's 19, checked: **none of them are the protocol**
+
+The section above guessed that `applyDelta`'s 19 missing APIs were "likely
+inapplicable to us" because our bridge re-encodes the wire, and marked it
+unverified. Verified now.
+
+Patch: `scripts/spike/client-wasm/cuts/02-applydelta-no-java-serialization.patch`.
+Applied to the spike's copy; `forge/` untouched.
+
+## Running total
+
+| cuts applied | distinct missing APIs |
+| --- | --- |
+| none (Wave 14 lane A) | **53** |
+| + win/lose net-modes-only | **43** |
+| + applyDelta without `TrackableSerializer` | **33** |
+
+## What `applyDelta` actually reaches, in two groups
+
+**Group 1 — Java serialization, and its netty tail (10, now gone).** Every one
+enters through `TrackableSerializer.<clinit>:33`, which is
+`ClassResolvers.cacheDisabled(null)` — **netty's** class resolver:
+
+```
+CObjectInputStream.readObject / close / enableResolveObject
+sun.misc.Unsafe            org.apache.log4j.Logger
+ClassLoader.loadClass      org.apache.logging.log4j.LogManager
+ClassLoader.getSystemResources   Runtime.maxMemory
+java.util.concurrent.LinkedBlockingQueue
+```
+
+One static initialiser is the door for all of them. In this project the browser
+never receives a Java-serialised `DeltaPacket`: the bridge resolves events
+server-side and sends JSON (`@hadoku/forge-wire`'s events arm, 41 schemas built
+from real captures). `unwrapEvents` is simply not on our client's path.
+
+**Group 2 — the logger (8, remaining).** These come from
+`NetworkGuiGame.applyDelta:41`, which is `netLog.error(...)`. They are log4j's
+platform detection and async appender, not the protocol:
+
+```
+java.lang.management.ManagementFactory   android.os.Process
+java.lang.ProcessHandle                  dalvik.system.VMStack
+java.util.concurrent.locks.ReadWriteLock ReentrantReadWriteLock
+sun.reflect.Reflection                   ClassLoader.getResources
+```
+
+**So the answer is yes, with a correction to the shape of the guess.** The 19
+were not "19 serialization APIs we can skip". They are ~11 serialization and
+~8 **logging**, and both are severable for a browser build — the second more
+easily than the first, because swapping log4j for a no-op appender is a build
+concern, not a protocol one.
+
+**Nothing in `applyDelta`'s missing set is the delta protocol itself.** The
+method's actual work — walking a `DeltaPacket` into the `Tracker` — links
+clean, which is consistent with the view layer linking at 0 missing APIs.
+
+## What is left: 33, and it is now mostly the UI
+
+| entering via | count | severable? |
+| --- | --- | --- |
+| `openView` | **15** | **NO — this is Forge's match UI.** `TextRenderer`→`BreakIterator`, `FSkinFont.generateFont`→native freetype. Cutting these deletes the thing the route exists to run. They are work: a web font, and a text-measurement path TeaVM can support. |
+| `applyDelta` | 8 | yes — log4j only (above) |
+| `finishGame` | 7 | probably — what remains after cut 01 |
+| (no entry frame) | 4 | |
+| `setPlayerAvatar` | 2 | yes — `ImageKeys`/`ImageCache` |
+
+**The shape of the remaining problem has changed completely.** At 53 it was
+"the client drags in the rules engine". At 33 it is "the client needs fonts and
+text layout, and log4j does not run in a browser". The first is an
+architectural objection; the second is a porting task with known answers.
+
+## Still NOT a GO, and the reason is unchanged
+
+These entry points call each protocol method once with null arguments. Clearing
+the last of the 33 only reaches the next link error, and **libGDX under
+gdx-teavm remains unattempted** — which is the largest unknown left, and is not
+made smaller by any of this.
+
+What these two cuts establish is narrower and worth stating exactly: **the
+obstacle is no longer the rules engine.** D7 said the engine was the blocker;
+Wave 14 lane A said `forge-gui-mobile`'s other game modes were; this says the
+modes and the serializer are both severable in ~60 lines of patch, and what
+remains is the mobile UI's own platform needs.

@@ -1,0 +1,38 @@
+--- a/forge-gui/src/main/java/forge/gamemodes/net/NetworkGuiGame.java
++++ b/forge-gui/src/main/java/forge/gamemodes/net/NetworkGuiGame.java
+@@ -2,7 +2,6 @@
+ 
+ import forge.card.CardStateName;
+ import forge.game.GameView;
+-import forge.game.event.GameEvent;
+ import forge.game.card.CardView;
+ import forge.game.card.CardView.CardStateView;
+ import forge.game.phase.PhaseType;
+@@ -168,10 +167,23 @@
+ 
+         // Unwrap and dispatch events now that new objects are in the tracker.
+         if (hasEvents) {
+-            List<GameEvent> resolvedEvents = TrackableSerializer.unwrapEvents(packet.getEvents(), tracker);
+-            if (!resolvedEvents.isEmpty()) {
+-                handleGameEvents(resolvedEvents);
+-            }
++            // WAVE 14 / ITEM 1 CUT -- measuring whether applyDelta's missing
++            // APIs are OURS TO SKIP.
++            //
++            // TrackableSerializer.<clinit>:33 is ClassResolvers.cacheDisabled(null)
++            // -- netty's resolver -- and that static initialiser is the single
++            // door through which all 19 of applyDelta's missing APIs enter:
++            // java.io.ObjectInputStream and CObjectInputStream on one side,
++            // log4j plus sun.misc.Unsafe, ManagementFactory, ProcessHandle and
++            // dalvik.system.VMStack on the other.
++            //
++            // In THIS project the browser never receives a Java-serialised
++            // DeltaPacket. The bridge resolves events server-side and sends
++            // JSON (@hadoku/forge-wire's events arm, 41 game-event schemas built
++            // from real captures). So unwrapEvents is not on our client's path
++            // at all, and this stub represents our architecture rather than
++            // deleting a feature.
++            handleGameEvents(java.util.Collections.emptyList());
+         }
+ 
+         // TODO shouldn't be needed if hands are ordered correctly
