@@ -41,6 +41,12 @@
  * socket path stays socket.io's default `/socket.io/` for the same reason every
  * other path here is a root path: the edge strips `/cardtable` before we see it.
  *
+ * A SECOND transport shares that same HTTP server: `GET /play/ws`, a plain
+ * WebSocket for a browser client that cannot speak socket.io. It re-applies the
+ * identical two steps for the identical reason — see `attachBrowserBridge`
+ * below and `src/play/browser/index.ts`'s header. Two listeners on one
+ * `upgrade` event, each answering only its own path.
+ *
  * ## Why this is not built with `tsc`
  *
  * `package.json`'s `build` typechecks with `tsc --noEmit` and then bundles with
@@ -72,6 +78,7 @@ import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory, type PlayHandle } from './play/index.js';
+import { attachBrowserBridge } from './play/browser/index.js';
 import { attachTables } from './http/index.js';
 import { attachRooms } from './http/rooms.js';
 import { openLobby } from './room/lobby.js';
@@ -268,10 +275,37 @@ play = attachPlay(io, api, {
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
 });
 
+// ── The browser bridge ───────────────────────────────────────────────────────
+// `GET /play/ws`: the SECOND client type for the same matches — a plain
+// WebSocket, for a browser client that is not our React app and cannot speak
+// socket.io (the CheerpJ page binds a browser `WebSocket` into Forge's
+// `IToServer`). It is not a second play stack: every byte it serves comes out
+// of the registry `attachPlay` built above, already projected for one seat.
+//
+// `matches` is read LAZILY, as `attachTables`'s is and for the same reason —
+// `play` does not exist until the call above returns, and a lazy read is what
+// lets this mount sit anywhere in the file without an ordering dependency.
+//
+// It shares `httpServer` with engine.io. socket.io's own `upgrade` listener
+// ignores a path that is not `/socket.io/` and then ends the socket only if
+// nothing was written to it; this handler writes its 101 synchronously, so both
+// listeners run and each answers only its own path. See play/browser/index.ts.
+//
+// The gate is `CONFIG.minTier` — the same floor `requireMinTier` and both
+// socket attaches enforce, re-applied a third time because an `upgrade` event
+// runs no express middleware. No new tier, no anonymous path, no token.
+const browserBridge = attachBrowserBridge(httpServer, {
+	minTier: CONFIG.minTier,
+	matches: () => play?.matches ?? null,
+	// Dev-only, and checked against CONFIG inside — same hatch as play's.
+	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
+});
+
 // ── Listen ───────────────────────────────────────────────────────────────────
 httpServer.listen(CONFIG.port, CONFIG.host, () => {
 	console.log(`[cardtable] listening on ${CONFIG.host}:${CONFIG.port}`);
 	console.log(`[cardtable] tier floor: ${CONFIG.minTier}`);
+	console.log(`[cardtable] browser bridge on ${browserBridge.path} (same floor, re-applied at the upgrade)`);
 	if (poolLoad.ok) {
 		console.log(`[cardtable] draft socket ready — ${poolLoad.detail}`);
 	} else {

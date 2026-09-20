@@ -23,14 +23,24 @@ CheerpJ page ──browser WebSocket──►  index.ts
 | `session.ts` | one connection, socket-free: join / resync / c2s / disconnect against a `Match` |
 | `fanout.ts` | the live connections, and the one call `../socket.ts` has to make |
 | `browser.test.ts` | end to end against the recorded real transcript. Runs in CI |
+| `mounted.test.ts` | the bridge **as `src/index.ts` mounts it** — `src/index.ts` spawned as a real process, a real upgrade driven at it. Runs in CI |
 | `browser-jvm.test.ts` | the same against a real Forge in a child JVM. Skips without one |
 
-## The one line that is still missing
+## Mounted — and the one line that is still missing
 
-`Match` hands each projected envelope to the `emit` that `createMatchRegistry`
-was built with, and there is no later seam. So a second client type has to be
-reached from inside that same closure. Lane C did not own `../socket.ts`, so
-the call is **not wired yet**. It goes first in that closure:
+`src/index.ts` **calls `attachBrowserBridge`** (Wave 16, lane C), next to
+`attachPlay`, on the same `httpServer` engine.io uses, behind the same
+`CONFIG.minTier` floor and with `matches` read lazily. `mounted.test.ts` proves
+it by spawning `src/index.ts` as a real process and driving a real browser
+`WebSocket` upgrade at it — remove the call and that suite goes red, which is
+the check the previous wave did not have.
+
+What is **still** missing is the other half, and it is not this directory's
+file. `Match` hands each projected envelope to the `emit` that
+`createMatchRegistry` was built with, and there is no later seam, so a second
+client type has to be reached from inside that same closure. Until this lands,
+a mounted browser joins, is seated, is answered and its acts reach Forge — but
+no LIVE frame is pushed to it, and it has to `resync` to see the board move:
 
 ```ts
 // apps/server/src/play/socket.ts, in the createMatchRegistry({ … }) call
@@ -40,10 +50,8 @@ emit: (match, seat, envelope) => {
 },
 ```
 
-with `import { browserFanout } from './browser/index.js';` at the top, and
-`attachBrowserBridge(httpServer, { minTier: CONFIG.minTier, matches: () => play?.matches ?? null })`
-in `src/index.ts` next to `attachPlay`. Until then the endpoint exists and is
-proven by its tests, and nothing in production reaches it.
+with `import { browserFanout } from './browser/index.js';` at the top.
+`../socket.ts` was not lane C's file in Wave 15 and was not in Wave 16 either.
 
 ## The wire
 
@@ -141,6 +149,12 @@ Three guards produce that, and each is tested on its own:
    seat in that match.
 3. `BrowserSession.push` refuses an envelope for a match the connection holds no
    seat in, and writes nothing after `disconnect`.
+
+Guard 2 is mutation-tested in `mounted.test.ts`: with the seat filter deleted
+from `deliver`, a real frame out of seat 1's own projected snapshot lands on
+seat 0's WebSocket and **16 of seat 0's secrets are read off seat 0's wire** —
+the suite fails on exactly that list. The tier floor is mutation-tested the
+same way, against the spawned `src/index.ts`.
 
 ## Why the WebSocket is hand-written
 
