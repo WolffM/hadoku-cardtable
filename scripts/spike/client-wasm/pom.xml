@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Wave 14, lane A: TeaVM against the Forge CLIENT, not the engine.
+
+  D7 (docs/spikes/teavm-go-no-go.md) asked whether forge-core + forge-game link
+  under TeaVM. They do not: 30 missing APIs, centred on java.util.concurrent.
+  That was the ENGINE. The engine already runs on hokon in a real JVM
+  (docs/FORGE_JAR.md), so the browser only ever needs the CLIENT: the 45
+  server->client ProtocolMethods landing on IGuiGame, and the 15 client->server
+  ones leaving through IGameController.
+
+  This is an OVERLAY, exactly like scripts/spike/teavm/. It never modifies
+  forge/ (D2). It consumes forge-gui-mobile as an ordinary Maven artifact from
+  the local repository, and its build directory is outside the repo.
+
+  Entry points (-Dspike.mainClass):
+    clientspike.GuiSurfaceMain   the 45 server->client methods on the mobile
+                                 IGuiGame implementation. This is what our
+                                 bridge would drive.
+    clientspike.NetClientMain    the above plus Forge's own outbound half
+                                 (NetGameController -> GameProtocolSender ->
+                                 ReplyPool), i.e. the client we would keep if
+                                 we kept Forge's own reply plumbing.
+    clientspike.ViewLayerMain    the trackable view layer alone: the narrowest
+                                 possible client, no libGDX at all.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>me.hadoku.cardtable.spike</groupId>
+    <artifactId>client-wasm-spike</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+    <name>cardtable Forge-client TeaVM spike</name>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.release>17</maven.compiler.release>
+        <!-- 0.15.0 so the missing-API list is comparable with D7's 30. -->
+        <teavm.version>0.15.0</teavm.version>
+        <forge.version>2.0.15-SNAPSHOT</forge.version>
+        <spike.mainClass>clientspike.GuiSurfaceMain</spike.mainClass>
+        <spike.stopOnErrors>true</spike.stopOnErrors>
+        <!-- WEBASSEMBLY_GC or JAVASCRIPT; both share teavm-classlib. -->
+        <spike.targetType>WEBASSEMBLY_GC</spike.targetType>
+        <!-- Out of the repo: four lanes share this worktree. -->
+        <spike.buildDir>${user.home}/.cache/w14a-spike/client-wasm-target</spike.buildDir>
+    </properties>
+
+    <repositories>
+        <!-- forge-gui-mobile's own pom names jitpack for textratypist/TenPatch -->
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.teavm</groupId>
+            <artifactId>teavm-classlib</artifactId>
+            <version>${teavm.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.teavm</groupId>
+            <artifactId>teavm-extension-spi</artifactId>
+            <version>${teavm.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!--
+          One direct Forge dependency: the mobile client. It drags forge-core,
+          forge-game, forge-ai and forge-gui in transitively, which is the whole
+          point - TeaVM's whole-program DCE decides what of them is reachable.
+        -->
+        <dependency>
+            <groupId>forge</groupId>
+            <artifactId>forge-gui-mobile</artifactId>
+            <version>${forge.version}</version>
+            <exclusions>
+                <!-- replaced by the stubs in src/main/java/io/sentry (see D7 step 3) -->
+                <exclusion>
+                    <groupId>io.sentry</groupId>
+                    <artifactId>sentry</artifactId>
+                </exclusion>
+                <!-- tinylog-impl registers writers through ServiceLoader, so TeaVM
+                     links all of them including JdbcWriter -> java.sql. -->
+                <exclusion>
+                    <groupId>org.tinylog</groupId>
+                    <artifactId>tinylog-impl</artifactId>
+                </exclusion>
+                <!-- forge-game declares testng at compile scope -->
+                <exclusion>
+                    <groupId>org.testng</groupId>
+                    <artifactId>testng</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <directory>${spike.buildDir}</directory>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>teavm</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.teavm</groupId>
+                        <artifactId>teavm-maven-plugin</artifactId>
+                        <version>${teavm.version}</version>
+                        <executions>
+                            <execution>
+                                <id>client-link</id>
+                                <phase>process-classes</phase>
+                                <goals>
+                                    <goal>compile</goal>
+                                </goals>
+                                <configuration>
+                                    <targetType>${spike.targetType}</targetType>
+                                    <mainClass>${spike.mainClass}</mainClass>
+                                    <targetDirectory>${project.build.directory}/wasm</targetDirectory>
+                                    <targetFileName>client.wasm</targetFileName>
+                                    <optimizationLevel>ADVANCED</optimizationLevel>
+                                    <debugInformationGenerated>false</debugInformationGenerated>
+                                    <sourceMapsGenerated>false</sourceMapsGenerated>
+                                    <stopOnErrors>${spike.stopOnErrors}</stopOnErrors>
+                                    <processMemory>6144</processMemory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+          gdx-teavm (xpenatan) is libGDX's browser backend. It is built against
+          TeaVM 0.13.0 and emits JavaScript, never WASM GC. Its org.teavm
+          artifacts are excluded here so the 0.15.0 classlib above stays the one
+          on the classpath; what we want from it is the backend classes and the
+          TeaVMPlugin service entry that substitutes libGDX's native calls.
+        -->
+        <profile>
+            <id>gdxteavm</id>
+            <dependencies>
+                <dependency>
+                    <groupId>com.github.xpenatan.gdx-teavm</groupId>
+                    <artifactId>backend-teavm</artifactId>
+                    <version>1.4.0</version>
+                    <exclusions>
+                        <exclusion>
+                            <groupId>org.teavm</groupId>
+                            <artifactId>*</artifactId>
+                        </exclusion>
+                    </exclusions>
+                </dependency>
+                <!--
+                  gdx-teavm declares reflections at RUNTIME scope, so Maven keeps
+                  it off the compile classpath the TeaVM plugin reads - and the
+                  plugin then dies with
+                    Unexpected error occurred: org/reflections/Reflections
+                  before it reports a single missing API. Declared here explicitly.
+                -->
+                <dependency>
+                    <groupId>org.reflections</groupId>
+                    <artifactId>reflections</artifactId>
+                    <version>0.10.2</version>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+</project>
