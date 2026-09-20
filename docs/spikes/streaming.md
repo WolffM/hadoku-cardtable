@@ -4,8 +4,26 @@
 running Forge desktop under `Xvfb`, screen-scraped by `x11vnc` and handed to a
 browser by noVNC, renders a **live Magic match in Chrome** — card art, hand,
 battlefield, the real Forge UI — for **1.26 GiB of RAM, 0.5 of a core and about
-1 Mbit/s per player**, with **65 ms of click-to-pixel on this host**. It took a
-Dockerfile and an afternoon, against the open questions in lanes A and B.
+1 Mbit/s per player**, with **~14 ms of click-to-pixel work on this host**. It
+took a Dockerfile and an afternoon, against the open questions in lanes A and B.
+
+> **CORRECTED 2026-09-20 — this headline said "65 ms" and that was wrong.**
+> `rfb-latency.py` holds the mouse button down for a fixed **50 ms** and starts
+> its clock at the *press*. Streamed Forge acts on the *release*, so the 50 ms
+> is inside the measurement: 63.7 ms is ~50 ms of deliberate harness hold plus
+> **~13.6 ms of real work**. A player clicking in a browser is acted on at
+> press and **never pays that 50 ms**.
+>
+> As a protocol the hold is sound and the body of this document says so. As a
+> *headline* it overstated streaming's latency by about 4×, and the tracker
+> quoted it as the bar CheerpJ had to beat throughout Waves 14 and 15 —
+> including in the wave file that set Wave 15's own gate. The comparison it
+> implied was never the right test.
+>
+> Reproduced independently by Wave 15 lane D; the method and the term-by-term
+> mapping are in `docs/spikes/cheerpj-firstpaint.md`, "The 65 ms needs a
+> footnote". **The figure to compare against another client is event→pixel, not
+> press→pixel.** The network caveat below still stands and is unaffected.
 
 What it gives up is not a resource number. **The match stops travelling through
 our netcode.** Forge's own client drives the game, Forge's own protocol carries
