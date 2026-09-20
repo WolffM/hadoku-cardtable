@@ -97,6 +97,68 @@ const BOOT_BUDGET = flag('boot-budget', 180_000);
 // the test that the gap between the two is frame-boundary wait and not
 // something CheerpJ is doing.
 const JITTER = flag('jitter', 0);
+// --diag (wave 16 lane B): characterise the target BEFORE measuring it, in the
+// same boot, because a boot costs minutes and a wrong target costs the run.
+// It answers three questions wave 15 left open or paid for the hard way:
+//   1. does the watched strip move on its own, with nothing clicked and the
+//      pointer parked on dead canvas?  (the unexplained 47-60 px)
+//   2. does the target repaint on HOVER rather than on the click?  If Forge's
+//      Card Detail / Card Picture panels fill on mouse-over, a press->pixel
+//      number taken there is timing the wrong event.
+//   3. how many pixels does the click itself change, and where?
+// --diag-only stops after that instead of taking the distribution.
+const DIAG = has('diag');
+const DIAG_ONLY = has('diag-only');
+const DIAG_WINDOW = flag('diag-window', 3000);
+// Somewhere the pointer can rest without hovering anything interactive. The
+// default is the middle of the opponent's empty battlefield in Forge's match
+// layout at 800x600; override for any other target.
+const DIAG_PARK = (str('diag-park', '450,150')).split(',').map(Number);
+// Declared here, above fail(), so a failure at ANY point still carries the
+// navigation trace and whatever characterisation had been done. Wave 15's
+// first attempt this wave lost a complete --diag pass because fail() reported
+// only its own three fields: seven minutes of boot, and the one artifact that
+// would have explained the failure was thrown away.
+let diag = null;
+const preLog = [];
+// If the primary targets turn out to change no pixels -- which is what happens
+// when Forge deals no hand, and costs a whole boot -- try a second set before
+// giving up. The gate is NOT weakened: the run still exits 1 if neither set
+// moves a pixel, and the output names which set produced the number.
+const FALLBACK_CLICKS = argv.reduce((a, v, i) => (v === '--fallback-clicks' ? [...a, argv[i + 1]] : a), [])
+  .map((c) => { const [x, y] = c.split(',').map(Number); return { x, y }; });
+const FALLBACK_WATCH = (() => {
+  const w = str('fallback-watch', null);
+  if (!w) return null;
+  const [x, y, ww, hh] = w.split(',').map(Number);
+  return { x, y, w: ww, h: hh };
+})();
+// --edge press|move -- which input event starts the clock.
+//
+// 'press' is streaming.md's protocol and stays the default. 'move' exists
+// because MEASURED on 2026-09-20 a click on a card in Forge's hand changes
+// EXACTLY ZERO pixels while the pointer arriving over that card repaints
+// 33,555-34,525 of them. Reading a card is the interaction a Magic player
+// performs most, it is answered entirely inside the client, and it is the one
+// this rig can time in that screen at all -- so it gets measured, and it gets
+// labelled as what it is rather than quoted as a click.
+const EDGE = str('edge', 'press');
+// How long the pointer rests on dead canvas before a move-mode baseline. The
+// pointer LEAVING a card repaints too, and a baseline taken while that is
+// still settling is the NOISY-BASELINE wave 15 spent 39 of 40 reps on.
+const PARK_MS = flag('park-ms', 1200);
+// A second distribution taken in the same boot, because a boot costs seven
+// minutes and the two numbers this wave needs are of two different events.
+const P2_EDGE = str('phase2-edge', null);
+const P2_CLICKS = argv.reduce((a, v, i) => (v === '--phase2-clicks' ? [...a, argv[i + 1]] : a), [])
+  .map((c) => { const [x, y] = c.split(',').map(Number); return { x, y }; });
+const P2_WATCH = (() => {
+  const w = str('phase2-watch', null);
+  if (!w) return null;
+  const [x, y, ww, hh] = w.split(',').map(Number);
+  return { x, y, w: ww, h: hh };
+})();
+const P2_REPS = flag('phase2-reps', null);
 
 const pct = (a, p) => {
   if (!a.length) return null;
@@ -164,7 +226,7 @@ const fail = async (why, extra = {}) => {
   const lines = await page.evaluate(() => (window.__fp && window.__fp.lines ? window.__fp.lines.map((l) => `${l.t.toFixed(0)}ms ${l.s}`) : [])).catch(() => []);
   const marks = await page.evaluate(() => (window.__fp ? window.__fp.marks : {})).catch(() => ({}));
   console.log(JSON.stringify({
-    url, ok: false, why, ...extra, marks, pageErrors,
+    url, ok: false, why, ...extra, preNavigation: preLog, diag, marks, pageErrors,
     transferByOrigin: Object.fromEntries(transfer),
     lines,
   }, null, 2));
@@ -270,12 +332,44 @@ const grab = async (name) => {
   await page.screenshot({ path: f, clip: { x: box.x, y: box.y, width: box.cssW, height: box.cssH } });
   return f;
 };
-const preLog = [];
 for (const st of PRE) {
   const [kind, arg] = st.split(':');
   if (kind === 'click') { const [cx, cy] = arg.split(',').map(Number); await clickCanvas(cx, cy); preLog.push(`click ${cx},${cy}`); }
   else if (kind === 'wait') { await page.waitForTimeout(Number(arg)); preLog.push(`wait ${arg}`); }
   else if (kind === 'shot') { preLog.push(`shot ${await grab(arg)}`); }
+  // clickuntil:<cx>,<cy>,<rx>,<ry>,<rw>,<rh>,<minStd>,<tries>,<gapMs>
+  //
+  // Click a button until a watched region has CONTENT in it, then stop.
+  // Forge's game-setup sequence is not deterministic: winning the coin toss
+  // puts a Play/Draw question up first and losing it goes straight to
+  // Keep/Mulligan, both render their first button at the same coordinate, and
+  // a run can also arrive at a blank "Game Setup" prompt where that button
+  // does nothing at all (observed 2026-09-20, screenshot measure-match.png).
+  // A fixed number of clicks therefore either under-clicks and measures an
+  // empty hand or over-clicks, answers the mulligan and starts a live game --
+  // and wave 15 hit BOTH, losing 80 reps to NO-CHANGE-ON-WARMUP and
+  // NOISY-BASELINE respectively.
+  //
+  // The stop condition is the region's own luma std, not "something changed",
+  // because "changed" cannot tell "the hand was just dealt" from "I just
+  // answered the mulligan and the cards flew away". Content is the thing we
+  // need, so content is what is tested, and it is tested BEFORE the first
+  // click so an already-dealt hand is never clicked past.
+  else if (kind === 'clickuntil') {
+    const [cx, cy, rx, ry, rw, rh, minStd, tries, gap] = arg.split(',').map(Number);
+    const reg = { x: rx, y: ry, w: rw, h: rh };
+    const seen = [];
+    let done = false;
+    for (let t = 0; t <= (tries || 4); t++) {
+      const st = await page.evaluate((r) => window.__fp.ctp.regionStats(r), reg);
+      seen.push({ try: t, std: st.std, mean: st.mean });
+      if (st.ok && st.std >= minStd) { done = true; break; }
+      if (t === (tries || 4)) break;
+      await clickCanvas(cx, cy);
+      await page.waitForTimeout(gap || 15000);
+    }
+    preLog.push(`clickuntil ${arg} -> ${done ? 'CONTENT' : 'GAVE-UP'} ${JSON.stringify(seen)}`);
+  }
   else if (kind === 'awaitcanvas') {
     // Same deterministic signal explore.mjs uses: under CheerpJ each AWT window
     // is its own canvas, so the splash giving way to Forge's document frame is
@@ -312,6 +406,58 @@ for (const st of PRE) {
 retarget();
 if (SHOT) await grab('measure-start');
 
+// ---- diagnostic characterisation of the target ---------------------------
+if (DIAG || DIAG_ONLY) {
+  const parkV = {
+    x: box.x + DIAG_PARK[0] * (box.cssW / box.pxW),
+    y: box.y + DIAG_PARK[1] * (box.cssH / box.pxH),
+  };
+  const park = async (ms) => { await page.mouse.move(parkV.x, parkV.y); await page.waitForTimeout(ms); };
+  await park(1500);
+
+  // 1. Is the strip quiet on its own? No click, no pointer movement, 1-pixel
+  //    threshold -- deliberately more sensitive than arm() is.
+  const qregion = WATCH || {
+    x: Math.max(0, Math.round(box.pxW / 2 - STRIP_W / 2)),
+    y: Math.max(0, Math.round(box.pxH / 2 - STRIP_H / 2)),
+    w: Math.min(STRIP_W, box.pxW), h: Math.min(STRIP_H, box.pxH),
+  };
+  await page.evaluate((r) => { window.__fp.ctp.region = r; }, qregion);
+  const idle = await page.evaluate((ms) => window.__fp.ctp.watchQuiet(ms, 1), DIAG_WINDOW);
+
+  // 2/3. Hover versus click, per target, full-canvas so the answer includes
+  //      WHERE it changed and not only whether the chosen strip moved.
+  const perTarget = [];
+  for (const [idx, T] of TARGETS.entries()) {
+    await park(900);
+    await page.evaluate(() => window.__fp.ctp.fullBaseline());
+    await page.mouse.move(T.x, T.y);
+    await page.waitForTimeout(1200);
+    const hover = await page.evaluate(() => window.__fp.ctp.locate());
+    // The pointer is already on the target and the hover repaint has settled,
+    // so what this baseline-to-locate catches is the CLICK's own repaint.
+    await page.evaluate(() => window.__fp.ctp.fullBaseline());
+    await page.mouse.down();
+    await page.waitForTimeout(HOLD || 50);
+    await page.mouse.up();
+    await page.waitForTimeout(1200);
+    const click = await page.evaluate(() => window.__fp.ctp.locate());
+    perTarget.push({ targetCanvas: CLICKS[idx] || null, hover, click });
+  }
+  await park(800);
+  diag = { parkCanvas: DIAG_PARK, idleRegion: qregion, idle, perTarget };
+  if (DIAG_ONLY) {
+    const anyClick = perTarget.some((t) => t.click && t.click.ok);
+    console.log(JSON.stringify({ url, ok: anyClick, diagOnly: true, canvas: box,
+      targets: { canvas: CLICKS, viewport: TARGETS }, preNavigation: preLog,
+      bootToReadyMs: bootMs, diag,
+      lines: await page.evaluate(() => (window.__fp.lines || []).map((l) => `${l.t.toFixed(0)}ms ${l.s}`)),
+    }, null, 2));
+    await browser.close();
+    process.exit(anyClick ? 0 : 1);
+  }
+}
+
 if (!NO_CLICK) { await page.mouse.move(TX, TY); await page.waitForTimeout(400); }
 const fb = await page.evaluate(() => window.__fp.ctp.fullBaseline());
 if (!fb.ok) await fail('READ-FAILED', { readPath: att.readPath });
@@ -324,30 +470,114 @@ if (!NO_CLICK) {
 }
 await page.waitForTimeout(600);
 let loc;
-if (WATCH) {
-  // An explicit watch region: do not go looking for one. But still prove that a
-  // click changes something INSIDE it, or there is nothing here to time.
-  //
-  // The warm-up tries each target in turn. With alternating targets the UI may
-  // already be on the one the warm-up would click, in which case that click
-  // legitimately changes nothing -- and a rig that called that a failure would
-  // be failing on the state it inherited rather than on anything real. It only
-  // gives up when NO target moves a pixel in the watched strip, which is the
-  // genuine "nothing to measure" condition.
-  loc = { ok: false, why: 'NO-CHANGE', watch: WATCH, warmupAttempts: [] };
-  for (const T of (NO_CLICK ? [WARM] : TARGETS)) {
-    await page.evaluate((r) => { window.__fp.ctp.region = r; }, WATCH);
-    await page.evaluate((q) => window.__fp.ctp.arm(q), QUIET);
+let activeWatch = WATCH;
+let targetSetUsed = 'primary';
+// An explicit watch region: do not go looking for one. But still prove that a
+// click changes something INSIDE it, or there is nothing here to time.
+//
+// The warm-up tries each target in turn. With alternating targets the UI may
+// already be on the one the warm-up would click, in which case that click
+// legitimately changes nothing -- and a rig that called that a failure would
+// be failing on the state it inherited rather than on anything real. It only
+// gives up when NO target moves a pixel in the watched strip, which is the
+// genuine "nothing to measure" condition.
+const parkViewport = () => ({
+  x: box.x + DIAG_PARK[0] * (box.cssW / box.pxW),
+  y: box.y + DIAG_PARK[1] * (box.cssH / box.pxH),
+});
+// Deliver the measured event at T, for whichever edge is configured.
+//   press: move there first, settle, THEN press -- so a hover repaint is
+//          folded into the baseline instead of being credited to the button.
+//   move:  park on dead canvas, settle, THEN move onto T -- the arrival IS
+//          the event, so it must happen after the baseline, never before.
+const deliver = async (edge, T) => {
+  if (edge === 'move') { await page.mouse.move(T.x, T.y); return; }
+  await page.mouse.move(T.x, T.y);
+  await page.mouse.down();
+  await page.waitForTimeout(HOLD);
+  await page.mouse.up();
+};
+const prepare = async (edge, T) => {
+  if (edge === 'move') {
+    const pv = parkViewport();
+    await page.mouse.move(pv.x, pv.y);
+    await page.waitForTimeout(PARK_MS);
+  } else {
+    await page.mouse.move(T.x, T.y);
+    await page.waitForTimeout(80);
+  }
+};
+// arm(), and BELIEVE IT. The warm-up used to throw arm()'s verdict away, and
+// that is a gate that can pass while measuring nothing -- the exact defect
+// this rig exists to prevent, one level up from where it was being prevented.
+//
+// The mechanism, MEASURED 2026-09-20: arm() takes the baseline, watches for
+// quietMs, and CLEARS the change list before returning. If the region was
+// repainting during that window the baseline is stale, so the very next sample
+// after the event re-detects the old difference and the rig reports one or two
+// sampler ticks -- 16.7 ms, 17.0 ms, 17.7 ms were all produced this way -- as
+// though they were a latency. It is why a press-mode warm-up "succeeded" on
+// Forge's hand (17.7 ms, 3,342 px) in the same boot in which a full-canvas
+// diff proved the press changes ZERO pixels, and it is almost certainly why
+// wave 15's warm-up reported 34,925 px for a click that changes nothing.
+//
+// The rep loop always honoured arm() and dropped the rep as NOISY-BASELINE;
+// only the warm-up did not. So the distributions are unaffected and the gate
+// that decides whether to take one was not.
+const armQuiet = async (edge, T, tries = 3) => {
+  let armed = { ok: false, why: 'NOT-ARMED' };
+  for (let k = 0; k < tries; k++) {
+    if (!NO_CLICK) await prepare(edge, T);
+    armed = await page.evaluate((q) => window.__fp.ctp.arm(q), QUIET);
+    if (armed.ok || NO_CLICK) return armed;
+    await page.waitForTimeout(600 * (k + 1));
+  }
+  return armed;
+};
+const tryWatch = async (watch, targets, edge) => {
+  const out = { ok: false, why: 'NO-CHANGE', watch, edge, warmupAttempts: [] };
+  for (const T of (NO_CLICK ? [targets[targets.length - 1]] : targets)) {
+    await page.evaluate((r) => { window.__fp.ctp.region = r; }, watch);
+    await page.evaluate((e) => { window.__fp.ctp.edge = e; }, edge);
+    const armed = await armQuiet(edge, T);
+    if (!armed.ok) {
+      out.warmupAttempts.push({ target: T, armRefused: armed.why, preClickChanges: armed.preClickChanges });
+      continue;
+    }
     if (!NO_CLICK) {
-      await page.mouse.move(T.x, T.y); await page.waitForTimeout(250);
-      await page.mouse.down(); await page.waitForTimeout(HOLD); await page.mouse.up();
+      if (edge === 'press') { await page.waitForTimeout(250); }
+      await deliver(edge, T);
     }
     const probe = await page.evaluate((b) => window.__fp.ctp.collect(b), BUDGET);
-    loc.warmupAttempts.push({ target: T, pollMs: probe.pollMs, pressed: !!probe.press });
+    out.warmupAttempts.push({ target: T, pollMs: probe.pollMs, pressed: !!probe.press,
+                              changedPixels: probe.pollChangedPixels });
     if (probe.pollMs != null || probe.rafMs != null) {
-      loc = { ok: true, watch: WATCH, warmupPollMs: probe.pollMs,
-              changedPixels: probe.pollChangedPixels, warmupAttempts: loc.warmupAttempts };
-      break;
+      return { ok: true, watch, edge, warmupPollMs: probe.pollMs,
+               changedPixels: probe.pollChangedPixels, warmupAttempts: out.warmupAttempts };
+    }
+  }
+  return out;
+};
+if (WATCH) {
+  loc = await tryWatch(WATCH, TARGETS, EDGE);
+  if (!loc.ok && FALLBACK_CLICKS.length) {
+    // The primary target changed nothing. Rather than throw away a boot that
+    // cost minutes, try the declared fallback -- and SAY which one was used,
+    // because a number taken against a different target is a number of a
+    // different thing.
+    const fbTargets = FALLBACK_CLICKS.map(toViewport);
+    const fbWatch = FALLBACK_WATCH || WATCH;
+    const primary = loc;
+    const alt = await tryWatch(fbWatch, fbTargets, EDGE);
+    if (alt.ok) {
+      targetSetUsed = 'fallback';
+      activeWatch = fbWatch;
+      TARGETS = fbTargets;
+      WARM = fbTargets[fbTargets.length - 1];
+      TX = WARM.x; TY = WARM.y;
+      loc = { ...alt, primaryRefused: primary };
+    } else {
+      loc = { ...primary, fallbackAlsoRefused: alt };
     }
   }
 } else {
@@ -361,33 +591,35 @@ if (!loc.ok) {
       : 'a click was delivered at the target and no pixel on the canvas changed; there is no click-to-pixel here to measure',
   });
 }
-const region = WATCH
-  ? WATCH
+const region = activeWatch
+  ? activeWatch
   : await page.evaluate(([b, w, h]) => window.__fp.ctp.setRegionFromBBox(b, w, h), [loc.bbox, STRIP_W, STRIP_H]);
 
 // ---- the reps -------------------------------------------------------------
+// One pass of the protocol. Extracted so the same boot can take TWO
+// distributions -- the events Forge answers in its match UI are not all
+// button presses, and a seven-minute boot is too expensive to spend on one.
+const runReps = async (edge, targets, watch, nreps) => {
 const reps = [];
-for (let i = 0; i < REPS; i++) {
-  // Move FIRST, then arm. A UI that highlights on hover (Forge's does) repaints
-  // when the pointer arrives; if that repaint lands after the press it would be
-  // timed as the click's own. Moving before the baseline is taken folds the
-  // hover state into the baseline instead.
-  const T = TARGETS[i % TARGETS.length];
-  if (!NO_CLICK) { await page.mouse.move(T.x, T.y); await page.waitForTimeout(80); }
+await page.evaluate((r) => { window.__fp.ctp.region = r; }, watch);
+await page.evaluate((e) => { window.__fp.ctp.edge = e; }, edge);
+for (let i = 0; i < nreps; i++) {
+  // Prepare FIRST, then arm. In press mode that means moving to the target and
+  // letting any hover repaint land in the baseline rather than in the number
+  // (Forge's UI does highlight on hover). In move mode it means parking on
+  // dead canvas, because there the arrival is the measured event.
+  const T = targets[i % targets.length];
+  if (!NO_CLICK) await prepare(edge, T);
   const armed = await page.evaluate((q) => window.__fp.ctp.arm(q), QUIET);
   if (!armed.ok) { reps.push({ i, dropped: armed.why || 'ARM-FAILED', ...armed }); continue; }
   if (JITTER > 0) await page.waitForTimeout(Math.random() * JITTER);
-  if (!NO_CLICK) {
-    await page.mouse.move(T.x, T.y);
-    await page.mouse.down();
-    await page.waitForTimeout(HOLD);
-    await page.mouse.up();
-  }
+  if (!NO_CLICK) await deliver(edge, T);
   const r = await page.evaluate((b) => window.__fp.ctp.collect(b), BUDGET);
   const javaClicks = await page.evaluate(() => window.__fp.lines.filter((l) => l.s.startsWith('PAINT-CLICK')).length);
   reps.push({
     i,
     pressed: !!r.press,
+    edge: r.edge,
     pollMs: r.pollMs, rafMs: r.rafMs,
     javaListenerMs: r.javaListenerMs, javaPaintDoneMs: r.javaPaintDoneMs,
     // Internal consistency: Java said it finished rasterising at
@@ -403,10 +635,67 @@ for (let i = 0; i < REPS; i++) {
     rafIntervalMedian: r.rafIntervals.length ? +pct(r.rafIntervals, 0.5).toFixed(2) : null,
     javaClicksSoFar: javaClicks,
     allChanges: r.allChanges,
-    dropped: !r.press ? 'CLICK-NOT-DELIVERED-TO-DOM'
+    dropped: !r.press ? (edge === 'move' ? 'MOVE-NOT-DELIVERED-TO-DOM' : 'CLICK-NOT-DELIVERED-TO-DOM')
       : (r.pollMs == null && r.rafMs == null) ? 'NO-PIXEL-CHANGE'
       : null,
   });
+}
+return reps;
+};
+
+// A pass's numbers, in the shape streaming.md reports.
+const summarise = (reps, edge, targets, watch) => {
+  const g = reps.filter((r) => !r.dropped);
+  const pm = g.map((r) => r.pollMs).filter((v) => v != null);
+  const rm = g.map((r) => r.rafMs).filter((v) => v != null);
+  const pi = g.map((r) => r.pollIntervalMedian).filter((v) => v != null);
+  const ri = g.map((r) => r.rafIntervalMedian).filter((v) => v != null);
+  return {
+    edge,
+    eventToPixel: edge === 'move'
+      ? 'pointer arrives over the target -> pixels. NO hold is inside it.'
+      : `press -> pixels, with the ${HOLD} ms hold inside it exactly as rfb-latency.py has its own`,
+    targetsCanvas: targets, watch,
+    // repsAttempted, NOT `reps`. This object also carries the rep ARRAY under
+    // `reps`, and when the count was called `reps` too the later shorthand
+    // silently won: every phase-2 summary declared no n at all. Caught by
+    // no-dupe-keys, not by reading the output, which is the point -- a summary
+    // whose self-declared n has quietly become an array of 40 objects still
+    // serialises and still looks like a result.
+    holdMs: HOLD, repsAttempted: reps.length,
+    clickToPixel: { pollCanvasBackingStore: stats(pm), rafCompositedFrame: stats(rm) },
+    decomposition: {
+      clickToJavaListener: stats(g.map((r) => r.javaListenerMs).filter((v) => v != null)),
+      clickToJavaPaintDone: stats(g.map((r) => r.javaPaintDoneMs).filter((v) => v != null)),
+      repsWhereJavaPaintPrecededPixels: g.filter((r) => r.orderOk === true).length,
+      repsWhereItDidNot: g.filter((r) => r.orderOk === false).length,
+    },
+    samplerQuantumMs: {
+      pollMedianOfPerRepMedians: pi.length ? +pct(pi, 0.5).toFixed(2) : null,
+      pollMaxOfPerRepMedians: pi.length ? +pct(pi, 1).toFixed(2) : null,
+      rafMedianOfPerRepMedians: ri.length ? +pct(ri, 0.5).toFixed(2) : null,
+    },
+    changedPixelsAtDetection: stats(g.map((r) => r.pollChangedPixels).filter((v) => v != null)),
+    drops: {
+      total: reps.length - g.length,
+      byReason: reps.filter((r) => r.dropped).reduce((m, r) => (m[r.dropped] = (m[r.dropped] || 0) + 1, m), {}),
+    },
+    reps,
+  };
+};
+
+const reps = await runReps(EDGE, TARGETS, region, REPS);
+
+// Phase 2: the other event, in the same boot, against its own targets.
+let phase2 = null;
+if (P2_EDGE) {
+  const p2targets = (P2_CLICKS.length ? P2_CLICKS : CLICKS).map(toViewport);
+  const p2watch = P2_WATCH || region;
+  const warm = await tryWatch(p2watch, p2targets, P2_EDGE);
+  const p2reps = warm.ok ? await runReps(P2_EDGE, p2targets, p2watch, P2_REPS || REPS) : [];
+  phase2 = { warmupLocate: warm, ...(warm.ok
+    ? summarise(p2reps, P2_EDGE, P2_CLICKS.length ? P2_CLICKS : CLICKS, p2watch)
+    : { edge: P2_EDGE, refused: true, targetsCanvas: P2_CLICKS, watch: p2watch }) };
 }
 
 const good = reps.filter((r) => !r.dropped);
@@ -424,18 +713,23 @@ const out = await page.evaluate(() => ({ marks: window.__fp.marks || {}, error: 
 const result = {
   url,
   ok: pollMs.length > 0 || rafMs.length > 0,
+  phase2,
   method: {
     protocol: 'docs/spikes/streaming.md -- fixed hold, clock starts at the press, n reps, min/median/p95/max, dropped clicks counted not averaged',
     holdMs: HOLD, reps: REPS, quietMs: QUIET, budgetMs: BUDGET, jitterMs: JITTER,
     injected: INJECT || null,
     strip: region, watchGiven: !!WATCH, readPath: att.readPath,
+    targetSetUsed, edge: EDGE, parkMs: PARK_MS, parkCanvas: DIAG_PARK,
     minChangedPixels: await page.evaluate(() => window.__fp.ctp.MIN_PIXELS),
     clockNote: 'press timestamp is the trusted MouseEvent.timeStamp read in the page; pixel timestamp is performance.now() in the same page. One clock.',
   },
   canvas: box,
-  targets: { canvas: CLICKS.length ? CLICKS : [{ x: CX, y: CY }], viewport: TARGETS, alternating: TARGETS.length > 1 },
-  watch: WATCH,
+  targets: { canvas: targetSetUsed === 'fallback' ? FALLBACK_CLICKS : (CLICKS.length ? CLICKS : [{ x: CX, y: CY }]),
+             viewport: TARGETS, alternating: TARGETS.length > 1, targetSetUsed },
+  watch: activeWatch,
+  watchRequested: WATCH,
   warmupLocate: loc,
+  diag,
   preNavigation: preLog,
   screenshots: SHOT ? [shotPath('measure-start'), shotPath('measure-end')] : null,
   bootToReadyMs: bootMs,

@@ -1,0 +1,1608 @@
+{
+  "url": "http://127.0.0.1:8743/index.html?build=20260920T231437Z-0e9b04fb53&target=boot&w=1280&h=800&args=/app/res-boot.zip%7C/files/%7Cforge.view.Main&props=user.dir%3D/files/%7Cuser.home%3D/files%7Cforge.assetsDir%3D/files/",
+  "ok": true,
+  "phase2": {
+    "warmupLocate": {
+      "ok": true,
+      "watch": {
+        "x": 650,
+        "y": 440,
+        "w": 140,
+        "h": 30
+      },
+      "edge": "press",
+      "warmupPollMs": 17.700000286102295,
+      "changedPixels": 3342,
+      "warmupAttempts": [
+        {
+          "target": {
+            "x": 200,
+            "y": 757
+          },
+          "pollMs": 17.700000286102295,
+          "pressed": true
+        }
+      ]
+    },
+    "edge": "press",
+    "eventToPixel": "press -> pixels, with the 50 ms hold inside it exactly as rfb-latency.py has its own",
+    "targetsCanvas": [
+      {
+        "x": 200,
+        "y": 510
+      },
+      {
+        "x": 333,
+        "y": 510
+      }
+    ],
+    "watch": {
+      "x": 650,
+      "y": 440,
+      "w": 140,
+      "h": 30
+    },
+    "holdMs": 50,
+    "reps": [
+      {
+        "i": 0,
+        "pressed": true,
+        "edge": "press",
+        "pollMs": null,
+        "rafMs": null,
+        "javaListenerMs": null,
+        "javaPaintDoneMs": null,
+        "orderOk": null,
+        "pollChangedPixels": null,
+        "rafChangedPixels": null,
+        "pollSamples": 3019,
+        "rafSamples": 744,
+        "pollIntervalMedian": 4.1,
+        "pollIntervalP95": 4.2,
+        "pollIntervalMax": 18.2,
+        "rafIntervalMedian": 16.7,
+        "javaClicksSoFar": 0,
+        "allChanges": [],
+        "dropped": "NO-PIXEL-CHANGE"
+      },
+      {
+        "i": 1,
+        "dropped": "NOISY-BASELINE",
+        "ok": false,
+        "why": "NOISY-BASELINE",
+        "preClickChanges": 67,
+        "armedAt": 453225.90000009537
+      },
+      {
+        "i": 2,
+        "dropped": "NOISY-BASELINE",
+        "ok": false,
+        "why": "NOISY-BASELINE",
+        "preClickChanges": 68,
+        "armedAt": 453636.7000002861
+      },
+      {
+        "i": 3,
+        "dropped": "NOISY-BASELINE",
+        "ok": false,
+        "why": "NOISY-BASELINE",
+        "preClickChanges": 70,
+        "armedAt": 454038
+      },
+      {
+        "i": 4,
+        "dropped": "NOISY-BASELINE",
+        "ok": false,
+        "why": "NOISY-BASELINE",
+        "preClickChanges": 64,
+        "armedAt": 454435.40000009537
+      }
+    ],
+    "clickToPixel": {
+      "pollCanvasBackingStore": {
+        "n": 0
+      },
+      "rafCompositedFrame": {
+        "n": 0
+      }
+    },
+    "decomposition": {
+      "clickToJavaListener": {
+        "n": 0
+      },
+      "clickToJavaPaintDone": {
+        "n": 0
+      },
+      "repsWhereJavaPaintPrecededPixels": 0,
+      "repsWhereItDidNot": 0
+    },
+    "samplerQuantumMs": {
+      "pollMedianOfPerRepMedians": null,
+      "pollMaxOfPerRepMedians": null,
+      "rafMedianOfPerRepMedians": null
+    },
+    "changedPixelsAtDetection": {
+      "n": 0
+    },
+    "drops": {
+      "total": 5,
+      "byReason": {
+        "NO-PIXEL-CHANGE": 1,
+        "NOISY-BASELINE": 4
+      }
+    }
+  },
+  "method": {
+    "protocol": "docs/spikes/streaming.md -- fixed hold, clock starts at the press, n reps, min/median/p95/max, dropped clicks counted not averaged",
+    "holdMs": 50,
+    "reps": 40,
+    "quietMs": 300,
+    "budgetMs": 12000,
+    "jitterMs": 25,
+    "injected": null,
+    "strip": {
+      "x": 650,
+      "y": 440,
+      "w": 140,
+      "h": 30
+    },
+    "watchGiven": true,
+    "readPath": "direct2d",
+    "targetSetUsed": "primary",
+    "edge": "move",
+    "parkMs": 1200,
+    "parkCanvas": [
+      450,
+      150
+    ],
+    "minChangedPixels": 500,
+    "clockNote": "press timestamp is the trusted MouseEvent.timeStamp read in the page; pixel timestamp is performance.now() in the same page. One clock."
+  },
+  "canvas": {
+    "x": 0,
+    "y": 247,
+    "cssW": 800,
+    "cssH": 600,
+    "pxW": 800,
+    "pxH": 600
+  },
+  "targets": {
+    "canvas": [
+      {
+        "x": 200,
+        "y": 510
+      },
+      {
+        "x": 333,
+        "y": 510
+      }
+    ],
+    "viewport": [
+      {
+        "x": 200,
+        "y": 757
+      },
+      {
+        "x": 333,
+        "y": 757
+      }
+    ],
+    "alternating": true,
+    "targetSetUsed": "primary"
+  },
+  "watch": {
+    "x": 650,
+    "y": 440,
+    "w": 140,
+    "h": 30
+  },
+  "watchRequested": {
+    "x": 650,
+    "y": 440,
+    "w": 140,
+    "h": 30
+  },
+  "warmupLocate": {
+    "ok": true,
+    "watch": {
+      "x": 650,
+      "y": 440,
+      "w": 140,
+      "h": 30
+    },
+    "edge": "move",
+    "warmupPollMs": 198.80000019073486,
+    "changedPixels": 3342,
+    "warmupAttempts": [
+      {
+        "target": {
+          "x": 200,
+          "y": 757
+        },
+        "pollMs": 198.80000019073486,
+        "pressed": true
+      }
+    ]
+  },
+  "diag": {
+    "parkCanvas": [
+      450,
+      150
+    ],
+    "idleRegion": {
+      "x": 650,
+      "y": 440,
+      "w": 140,
+      "h": 30
+    },
+    "idle": {
+      "ok": true,
+      "region": {
+        "x": 650,
+        "y": 440,
+        "w": 140,
+        "h": 30
+      },
+      "windowMs": 3000,
+      "minPixels": 1,
+      "baselineUniform": false,
+      "pollSamples": 740,
+      "pollChanges": 0,
+      "maxChangedPixels": 0,
+      "first": []
+    },
+    "perTarget": [
+      {
+        "targetCanvas": {
+          "x": 200,
+          "y": 510
+        },
+        "hover": {
+          "ok": true,
+          "changedPixels": 29437,
+          "bbox": {
+            "x": 170,
+            "y": 55,
+            "w": 622,
+            "h": 504
+          }
+        },
+        "click": {
+          "ok": false,
+          "why": "NO-CHANGE",
+          "changedPixels": 0
+        }
+      },
+      {
+        "targetCanvas": {
+          "x": 333,
+          "y": 510
+        },
+        "hover": {
+          "ok": true,
+          "changedPixels": 27426,
+          "bbox": {
+            "x": 302,
+            "y": 62,
+            "w": 484,
+            "h": 497
+          }
+        },
+        "click": {
+          "ok": false,
+          "why": "NO-CHANGE",
+          "changedPixels": 0
+        }
+      }
+    ]
+  },
+  "preNavigation": [
+    "awaitcanvas 800x600,900000 OK 800x600",
+    "wait 8000",
+    "shot /home/hadoku/.cache/w15d-firstpaint/shots/measure-home.png",
+    "click 485,380",
+    "wait 15000",
+    "click 702,460",
+    "wait 20000",
+    "click 407,543",
+    "wait 45000",
+    "shot /home/hadoku/.cache/w15d-firstpaint/shots/measure-after-start.png",
+    "click 338,362",
+    "wait 90000",
+    "shot /home/hadoku/.cache/w15d-firstpaint/shots/measure-match.png",
+    "clickuntil 48,576,180,470,440,90,20,6,20000 -> CONTENT [{\"try\":0,\"std\":3.21,\"mean\":26.7},{\"try\":1,\"std\":72.51,\"mean\":83.57}]",
+    "shot /home/hadoku/.cache/w15d-firstpaint/shots/measure-hand.png"
+  ],
+  "screenshots": [
+    "/home/hadoku/.cache/w15d-firstpaint/shots/measure-measure-start.png",
+    "/home/hadoku/.cache/w15d-firstpaint/shots/measure-measure-end.png"
+  ],
+  "bootToReadyMs": 52335.300000190735,
+  "wallMs": 454566,
+  "clickToPixel": {
+    "pollCanvasBackingStore": {
+      "n": 39,
+      "min": 100.2,
+      "median": 136.4,
+      "p95": 177.6,
+      "max": 209.2,
+      "mean": 139.9
+    },
+    "rafCompositedFrame": {
+      "n": 39,
+      "min": 116.3,
+      "median": 153.1,
+      "p95": 194.1,
+      "max": 225.5,
+      "mean": 156.5
+    }
+  },
+  "decomposition": {
+    "clickToJavaListener": {
+      "n": 0
+    },
+    "clickToJavaPaintDone": {
+      "n": 0
+    },
+    "repsWhereJavaPaintPrecededPixels": 0,
+    "repsWhereItDidNot": 0
+  },
+  "samplerQuantumMs": {
+    "pollMedianOfPerRepMedians": 4.1,
+    "pollMaxOfPerRepMedians": 4.1,
+    "rafMedianOfPerRepMedians": 16.7
+  },
+  "drops": {
+    "total": 1,
+    "byReason": {
+      "NO-PIXEL-CHANGE": 1
+    }
+  },
+  "javaSide": {
+    "paintClickLines": 0,
+    "paintDoneLines": 0
+  },
+  "memory": {
+    "blankBrowserRssKb": 432972,
+    "loadedBrowserRssKb": 1807120,
+    "deltaKb": 1374148,
+    "processes": 6,
+    "note": "process-tree RSS from /proc; the DELTA is the honest figure (tree RSS double-counts shared pages)"
+  },
+  "nativeCalls": {},
+  "transferByOrigin": {
+    "http://127.0.0.1:8743": {
+      "bytes": 65812311,
+      "requests": 483
+    },
+    "https://cjrtnc.leaningtech.com": {
+      "bytes": 25002504,
+      "requests": 154
+    },
+    "https://api.scryfall.com": {
+      "bytes": 0,
+      "requests": 5
+    },
+    "https://cards.scryfall.io": {
+      "bytes": 684888,
+      "requests": 5
+    }
+  },
+  "marks": {
+    "pageStart": 7,
+    "loaderReady": 226.5,
+    "wipeDone": 226.5,
+    "initDone": 1293.7000002861023,
+    "displayDone": 1298
+  },
+  "pageError": null,
+  "pageErrors": [],
+  "reps": [
+    {
+      "i": 0,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": null,
+      "rafMs": null,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": null,
+      "rafChangedPixels": null,
+      "pollSamples": 2959,
+      "rafSamples": 738,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 4.2,
+      "pollIntervalMax": 78.3,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [],
+      "dropped": "NO-PIXEL-CHANGE"
+    },
+    {
+      "i": 1,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 136.39999961853027,
+      "rafMs": 153.09999990463257,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 96,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 12,
+      "pollIntervalMax": 59.3,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 136.4,
+          "px": 3342
+        },
+        {
+          "ms": 153.2,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 2,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 166.60000038146973,
+      "rafMs": 183.7000002861023,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 94,
+      "rafSamples": 29,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 16.5,
+      "pollIntervalMax": 55.9,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 166.6,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 3,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 131.30000019073486,
+      "rafMs": 148,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 95,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 8.7,
+      "pollIntervalMax": 63.7,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 131.3,
+          "px": 3342
+        },
+        {
+          "ms": 148.1,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 4,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 162,
+      "rafMs": 178.5,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 91,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 16.4,
+      "pollIntervalMax": 63.7,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 162,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 5,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 138.5,
+      "rafMs": 155,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 94,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 7.7,
+      "pollIntervalMax": 57,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 138.5,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 6,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 171.90000009536743,
+      "rafMs": 188.5,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 94,
+      "rafSamples": 28,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 17,
+      "pollIntervalMax": 65,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 171.9,
+          "px": 3342
+        },
+        {
+          "ms": 188.5,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 7,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 132.30000019073486,
+      "rafMs": 148.90000009536743,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 92,
+      "rafSamples": 26,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 6.3,
+      "pollIntervalMax": 61.4,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 132.3,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 8,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 170.7000002861023,
+      "rafMs": 187.30000019073486,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 93,
+      "rafSamples": 28,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 16.5,
+      "pollIntervalMax": 70.5,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 170.7,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 9,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 131.60000038146973,
+      "rafMs": 148.2000002861023,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 92,
+      "rafSamples": 26,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 7.3,
+      "pollIntervalMax": 59.2,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 131.6,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 10,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 154.69999980926514,
+      "rafMs": 171,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 92,
+      "rafSamples": 28,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 16.4,
+      "pollIntervalMax": 52.7,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 154.7,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 11,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 125.30000019073486,
+      "rafMs": 141.90000009536743,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 93,
+      "rafSamples": 26,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 6.2,
+      "pollIntervalMax": 62.5,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 125.3,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 12,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 131.2000002861023,
+      "rafMs": 147.90000009536743,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 93,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 16.7,
+      "pollIntervalMax": 57.8,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 131.2,
+          "px": 3342
+        },
+        {
+          "ms": 148,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 13,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 129.09999990463257,
+      "rafMs": 146.09999990463257,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 92,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 7.6,
+      "pollIntervalMax": 51.2,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 129.1,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 14,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 156.2000002861023,
+      "rafMs": 172.7000002861023,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 91,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 16.8,
+      "pollIntervalMax": 58.6,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 156.2,
+          "px": 3342
+        },
+        {
+          "ms": 172.9,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 15,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 115.80000019073486,
+      "rafMs": 132.5,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 89,
+      "rafSamples": 25,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 5,
+      "pollIntervalMax": 61,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 115.8,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 16,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 149.80000019073486,
+      "rafMs": 166.5,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 96,
+      "rafSamples": 28,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 16.9,
+      "pollIntervalMax": 61.4,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 149.8,
+          "px": 3342
+        },
+        {
+          "ms": 166.6,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 17,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 157.7000002861023,
+      "rafMs": 174.40000009536743,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 93,
+      "rafSamples": 26,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 6.7,
+      "pollIntervalMax": 84.1,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 157.7,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 18,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 152.5,
+      "rafMs": 169,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 92,
+      "rafSamples": 28,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 16.5,
+      "pollIntervalMax": 59.6,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 152.5,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 19,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 126.69999980926514,
+      "rafMs": 142.90000009536743,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 90,
+      "rafSamples": 25,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 11.2,
+      "pollIntervalMax": 65,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 126.7,
+          "px": 3342
+        },
+        {
+          "ms": 143,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 20,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 177.59999990463257,
+      "rafMs": 194.09999990463257,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 99,
+      "rafSamples": 30,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 16.7,
+      "pollIntervalMax": 60.4,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 177.6,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 21,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 144.5,
+      "rafMs": 162.09999990463257,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 94,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 7.5,
+      "pollIntervalMax": 71.7,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 144.5,
+          "px": 3342
+        },
+        {
+          "ms": 162.2,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 22,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 209.19999980926514,
+      "rafMs": 225.5,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 93,
+      "rafSamples": 29,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 17,
+      "pollIntervalMax": 82.2,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 209.2,
+          "px": 3342
+        },
+        {
+          "ms": 225.7,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 23,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 130.59999990463257,
+      "rafMs": 147.09999990463257,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 92,
+      "rafSamples": 26,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 10.2,
+      "pollIntervalMax": 64.3,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 130.6,
+          "px": 3342
+        },
+        {
+          "ms": 147.2,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 24,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 166.90000009536743,
+      "rafMs": 183.69999980926514,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 93,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 6.1,
+      "pollIntervalMax": 82.8,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 166.9,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 25,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 147.90000009536743,
+      "rafMs": 165.09999990463257,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 94,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 7.4,
+      "pollIntervalMax": 64.2,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 147.9,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 26,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 158.30000019073486,
+      "rafMs": 174.80000019073486,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 96,
+      "rafSamples": 28,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 16.6,
+      "pollIntervalMax": 56.8,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 158.3,
+          "px": 3342
+        },
+        {
+          "ms": 174.9,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 27,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 147.90000009536743,
+      "rafMs": 164.30000019073486,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 91,
+      "rafSamples": 26,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 7.2,
+      "pollIntervalMax": 86.9,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 147.9,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 28,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 150.60000038146973,
+      "rafMs": 167.2000002861023,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 96,
+      "rafSamples": 28,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 8.1,
+      "pollIntervalMax": 66.4,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 150.6,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 29,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 104.2000002861023,
+      "rafMs": 120.90000009536743,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 92,
+      "rafSamples": 26,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 6.6,
+      "pollIntervalMax": 45,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 104.2,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 30,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 146.90000009536743,
+      "rafMs": 163.59999990463257,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 96,
+      "rafSamples": 28,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 16.5,
+      "pollIntervalMax": 48,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 146.9,
+          "px": 3342
+        },
+        {
+          "ms": 163.8,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 31,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 109.09999990463257,
+      "rafMs": 125.7999997138977,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 90,
+      "rafSamples": 25,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 5.7,
+      "pollIntervalMax": 43.9,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 109.1,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 32,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 117.09999990463257,
+      "rafMs": 133.59999990463257,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 93,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 9.4,
+      "pollIntervalMax": 41.8,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 117.1,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 33,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 100.2000002861023,
+      "rafMs": 116.30000019073486,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 89,
+      "rafSamples": 25,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 6.6,
+      "pollIntervalMax": 43.3,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 100.2,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 34,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 119.40000009536743,
+      "rafMs": 135.90000009536743,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 94,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 7,
+      "pollIntervalMax": 43.1,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 119.4,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 35,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 114.90000009536743,
+      "rafMs": 131.59999990463257,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 91,
+      "rafSamples": 26,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 6.6,
+      "pollIntervalMax": 43.6,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 114.9,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 36,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 129.2999997138977,
+      "rafMs": 146.5,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 94,
+      "rafSamples": 27,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 8.3,
+      "pollIntervalMax": 42.8,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 129.3,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 37,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 112.40000009536743,
+      "rafMs": 129,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 93,
+      "rafSamples": 26,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 8.4,
+      "pollIntervalMax": 43.4,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 112.4,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 38,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 121.39999961853027,
+      "rafMs": 137.5,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 90,
+      "rafSamples": 26,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 9.8,
+      "pollIntervalMax": 45.8,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 121.4,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    },
+    {
+      "i": 39,
+      "pressed": true,
+      "edge": "move",
+      "pollMs": 106.7999997138977,
+      "rafMs": 123.69999980926514,
+      "javaListenerMs": null,
+      "javaPaintDoneMs": null,
+      "orderOk": null,
+      "pollChangedPixels": 3342,
+      "rafChangedPixels": 3342,
+      "pollSamples": 88,
+      "rafSamples": 25,
+      "pollIntervalMedian": 4.1,
+      "pollIntervalP95": 8.3,
+      "pollIntervalMax": 44.3,
+      "rafIntervalMedian": 16.7,
+      "javaClicksSoFar": 0,
+      "allChanges": [
+        {
+          "ms": 106.8,
+          "px": 3342
+        }
+      ],
+      "dropped": null
+    }
+  ],
+  "lines": [
+    "1294ms               ____ _                              _\n             / ___| |__   ___  ___ _ __ _ __     | |\n            | |   | '_ \\ / _ \\/ _ \\ '__| '_ \\ _  | |\n            | |___| | | |  __/  __/ |  | |_) | |_| |\n             \\____|_| |_|\\___|\\___|_|  | .__/ \\___/\n                                       |_|\n\n CHEERPJ COMMUNITY EDITION - FOR PERSONAL AND NON-BUSINESS USE ONLY\nAny other use requires a license: https://cheerpj.com/docs/licensing",
+    "5696ms BOOT begin zip=/app/res-boot.zip dest=/files/ main=forge.view.Main\n",
+    "5784ms BOOT zip open ms=24 entries=16153 archiveBytes=50279251\n",
+    "6779ms BOOT unpack progress files=500 bytes=16911748 ms=980\n",
+    "7101ms BOOT unpack progress files=1000 bytes=17301753 ms=1316\n",
+    "7405ms BOOT unpack progress files=1500 bytes=18281244 ms=1620\n",
+    "8067ms BOOT unpack progress files=2000 bytes=32130705 ms=2281\n",
+    "9379ms BOOT unpack progress files=2500 bytes=35274679 ms=3594\n",
+    "9892ms BOOT unpack progress files=3000 bytes=37517166 ms=4107\n",
+    "10539ms BOOT unpack progress files=3500 bytes=38312432 ms=4754\n",
+    "11327ms BOOT unpack progress files=4000 bytes=39157416 ms=5541\n",
+    "13629ms BOOT unpack progress files=4500 bytes=39508657 ms=7844\n",
+    "15445ms BOOT unpack progress files=5000 bytes=44581320 ms=9660\n",
+    "16432ms BOOT unpack progress files=5500 bytes=45226678 ms=10646\n",
+    "18623ms BOOT unpack progress files=6000 bytes=45569844 ms=12837\n",
+    "21572ms BOOT unpack progress files=6500 bytes=45939837 ms=15787\n",
+    "23205ms BOOT unpack progress files=7000 bytes=46482342 ms=17419\n",
+    "24046ms BOOT unpack progress files=7500 bytes=46782339 ms=18261\n",
+    "25147ms BOOT unpack progress files=8000 bytes=47112609 ms=19362\n",
+    "25802ms BOOT unpack progress files=8500 bytes=47457886 ms=20017\n",
+    "26117ms BOOT unpack progress files=9000 bytes=47828879 ms=20332\n",
+    "26444ms BOOT unpack progress files=9500 bytes=48181558 ms=20659\n",
+    "26706ms BOOT unpack progress files=10000 bytes=48544737 ms=20921\n",
+    "26974ms BOOT unpack progress files=10500 bytes=48905536 ms=21188\n",
+    "27248ms BOOT unpack progress files=11000 bytes=49261533 ms=21463\n",
+    "27543ms BOOT unpack progress files=11500 bytes=49607125 ms=21758\n",
+    "27823ms BOOT unpack progress files=12000 bytes=49987134 ms=22038\n",
+    "28158ms BOOT unpack progress files=12500 bytes=50351762 ms=22373\n",
+    "28524ms BOOT unpack progress files=13000 bytes=50705626 ms=22739\n",
+    "28908ms BOOT unpack progress files=13500 bytes=51061644 ms=23123\n",
+    "29328ms BOOT unpack progress files=14000 bytes=51433849 ms=23543\n",
+    "31312ms BOOT unpack progress files=14500 bytes=52097292 ms=25527\n",
+    "33245ms BOOT unpack progress files=15000 bytes=71101636 ms=27459\n",
+    "35108ms BOOT unpack progress files=15500 bytes=71196994 ms=29323\n",
+    "36403ms BOOT unpack done files=15685 dirs=468 bytes=71226313 ms=30594\n",
+    "36427ms BOOT unpack total ms=30725\n",
+    "36482ms BOOT verify /files/res isDir=true entries=25\n",
+    "36629ms BOOT verify /files/res/editions isDir=true entries=679\n",
+    "36636ms BOOT handing off to forge.view.Main\n",
+    "38016ms Error handling registered!\n",
+    "38989ms 16:31:02 [INFO ] GuiBase: ##########################################\n",
+    "38991ms 16:31:02 [INFO ] GuiBase: APP: Forge v.2.0.15-SNAPSHOT-09.20\n",
+    "38993ms 16:31:02 [INFO ] GuiBase: Java: 17.0.19-internal (Leaning Technologies Ltd)\n",
+    "38994ms 16:31:02 [INFO ] GuiBase: OS: Linux 1.0 cheerpj\n",
+    "38995ms 16:31:02 [INFO ] GuiBase: RAM: 2048 MB max, 1 CPUs\n",
+    "38997ms 16:31:02 [INFO ] GuiBase: ##########################################\n",
+    "41950ms FSkin > can't find skins directory!\n",
+    "44324ms CheerpJ: Font rempping for Tahoma\n",
+    "45016ms Language 'en-US' loaded successfully.\n",
+    "45047ms (ThreadUtil first call): Running with priority ",
+    "45049ms 5",
+    "45050ms \n",
+    "52335ms Read cards: ",
+    "52336ms 33785",
+    "52337ms  archived files in ",
+    "52338ms 5",
+    "52339ms  ms (",
+    "52339ms 25",
+    "52340ms  parts) ",
+    "52340ms in same thread",
+    "52341ms \n",
+    "65086ms Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.\n",
+    "65087ms The card A-Alrund's Epiphany was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65095ms The card A-Baba Lysaga, Night Witch was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65096ms The card A-Divide by Zero was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65098ms The card A-Esika's Chariot was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65099ms The card A-Faceless Haven was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65100ms The card A-Fires of Invention was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65101ms The card A-Goldspan Dragon was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65102ms The card A-Hullbreaker Horror was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65103ms The card A-Kumano Faces Kakkazan was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65104ms The card A-Luminarch Aspirant was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65104ms The card A-Monster Manual was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65105ms The card A-Omnath, Locus of Creation was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65107ms The card A-The Meathook Massacre was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65108ms The card A-Unholy Heat was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65115ms The card Blinding Radiance was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65137ms The card Goblin Bruiser was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65157ms The card Ogre Painbringer was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65179ms The card Titanic Pelagosaur was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "65182ms The card Treetop Recluse was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. \n",
+    "66620ms Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.\n",
+    "67140ms Read cards: ",
+    "67140ms 848",
+    "67141ms  files in ",
+    "67142ms 0",
+    "67142ms  ms (",
+    "67143ms 8",
+    "67143ms  parts) ",
+    "67144ms in same thread",
+    "67145ms \n",
+    "111465ms CheerpJ: Font rempping for Samsung Sharp Sans Medium\n",
+    "138531ms FView: panel HOME_GAUNTLETCONTESTS failed to initialize, skipping it: java.lang.ExceptionInInitializerError\n",
+    "193526ms Sep 20, 2026 4:33:37 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Morgan shuffles their library\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 28800 to 28800 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.player.Player.shuffle(Unknown Source)\n\tat forge.game.Match.prepareAllZones(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "193798ms Sep 20, 2026 4:33:37 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Fraderk shuffles their library\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 28800 to 28800 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.player.Player.shuffle(Unknown Source)\n\tat forge.game.Match.prepareAllZones(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "193934ms Sep 20, 2026 4:33:37 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Flipped coin\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 58752 to 58752 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.determineFirstTurnPlayer(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324479ms CheerpJ: Unexpected initialization of all fonts\n",
+    "324555ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Swamp (44) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324580ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Mountain (21) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324613ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Mountain (22) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324645ms Attempting to fetch: https://api.scryfall.com/cards/tsp/290/en?format=image&version=normal\n",
+    "324655ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Magus of the Arena (3) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324677ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Mindlash Sliver (58) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324702ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Terramorphic Expanse (11) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324839ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Mindlash Sliver (60) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324861ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Swamp (96) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324883ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Artisan of Forms (66) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324907ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Island (108) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324934ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Island (110) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324955ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Island (116) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "324978ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Death's Duet (75) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "325003ms Sep 20, 2026 4:35:48 PM com.google.common.eventbus.EventBus$LoggingHandler handleException\nSEVERE: Exception thrown by subscriber method receiveGameEvent(forge.game.event.GameEvent) on subscriber forge.gui.control.FControlGameEventHandler@21dc1 when dispatching event: Jwar Isle Refuge (61) : [Library] -> [Hand]\njava.lang.IllegalArgumentException: No line matching interface Clip supporting format PCM_UNSIGNED 44100.0 Hz, 8 bit, mono, 1 bytes/frame, and buffers of 12672 to 12672 bytes is supported.\n\tat javax.sound.sampled.AudioSystem.getLine(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.createClip(Unknown Source)\n\tat forge.sound.AudioClip$ClipWrapper.<init>(Unknown Source)\n\tat forge.sound.AudioClip.addClip(Unknown Source)\n\tat forge.sound.AudioClip.<init>(Unknown Source)\n\tat forge.GuiDesktop.createAudioClip(Unknown Source)\n\tat forge.sound.SoundSystem.fetchResource(Unknown Source)\n\tat forge.sound.SoundSystem.play(Unknown Source)\n\tat forge.sound.SoundSystem.receiveEvent(Unknown Source)\n\tat forge.gui.control.FControlGameEventHandler.receiveGameEvent(Unknown Source)\n\tat jdk.internal.reflect.GeneratedMethodAccessor28.invoke(Unknown Source)\n\tat jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n\tat java.lang.reflect.Method.invoke(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$SynchronizedSubscriber.invokeSubscriberMethod(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.lambda$dispatchEvent$0(Unknown Source)\n\tat com.google.common.eventbus.Subscriber$$Lambda$1004.run(Unknown Source)\n\tat com.google.common.util.concurrent.DirectExecutor.execute(Unknown Source)\n\tat com.google.common.eventbus.Subscriber.dispatchEvent(Unknown Source)\n\tat com.google.common.eventbus.Dispatcher$PerThreadQueuedDispatcher.dispatch(Unknown Source)\n\tat com.google.common.eventbus.EventBus.post(Unknown Source)\n\tat forge.game.Game.fireEvent(Unknown Source)\n\tat forge.game.GameAction.changeZone(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.GameAction.moveTo(Unknown Source)\n\tat forge.game.player.Player.doDraw(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.player.Player.drawCards(Unknown Source)\n\tat forge.game.GameAction.startGame(Unknown Source)\n\tat forge.game.Match.startGame(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch.lambda$startGame$2(Unknown Source)\n\tat forge.gamemodes.match.HostedMatch$$Lambda$959.run(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n\tat java.lang.Thread.run(Unknown Source)\n\n",
+    "325869ms Saved image to /files/.cache/forge/pics/cards/TSP/Swamp1.fullborder.jpg\n",
+    "326303ms Attempting to fetch: https://api.scryfall.com/cards/tsp/294/en?format=image&version=normal\n",
+    "326937ms Saved image to /files/.cache/forge/pics/cards/TSP/Mountain1.fullborder.jpg\n",
+    "326944ms Attempting to fetch: https://api.scryfall.com/cards/plc/104/en?format=image&version=normal\n",
+    "327938ms Saved image to /files/.cache/forge/pics/cards/PLC/Magus of the Arena.fullborder.jpg\n",
+    "327945ms Attempting to fetch: https://api.scryfall.com/cards/tsp/118/en?format=image&version=normal\n",
+    "328635ms Saved image to /files/.cache/forge/pics/cards/TSP/Mindlash Sliver.fullborder.jpg\n",
+    "328641ms Attempting to fetch: https://api.scryfall.com/cards/tsp/279/en?format=image&version=normal\n",
+    "329279ms Saved image to /files/.cache/forge/pics/cards/TSP/Terramorphic Expanse.fullborder.jpg\n"
+  ]
+}

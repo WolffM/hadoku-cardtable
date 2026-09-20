@@ -30,6 +30,16 @@ const CTP = S.ctp = {
   baseline: null,
   changes: [],         // { t, via, changedPixels }
   presses: [],         // { t, x, y } from trusted mousedown, page clock
+  moves: [],           // { t, x, y } from trusted pointermove, page clock
+  // Which input event starts the clock. 'press' is streaming.md's protocol and
+  // the default. 'move' exists because Forge's match UI answers the POINTER,
+  // not the button: MEASURED 2026-09-20, hovering a card in hand repaints the
+  // Card Detail and Card Picture panels by 33,555-34,525 pixels and the click
+  // that follows changes EXACTLY ZERO. A press->pixel number on a card in hand
+  // is therefore not a slow number, it is not a number at all, and wave 15's
+  // "the warm-up click changed 34,925 px" was the hover being credited to the
+  // click that came 250 ms after it.
+  edge: 'press',
   sampling: false,
   pollTimes: [],
   rafTimes: [],
@@ -59,6 +69,17 @@ for (const type of ['pointerdown', 'mousedown']) {
   window.addEventListener(type, (e) => {
     CTP.presses.push({ t: e.timeStamp, now: performance.now(), type: e.type,
                        x: e.clientX, y: e.clientY, trusted: e.isTrusted });
+  }, { capture: true, passive: true });
+}
+// The same, for the pointer arriving over a target. Recorded on the identical
+// terms -- capture phase, passive, trusted event.timeStamp -- so a move->pixel
+// figure and a press->pixel figure are the same measurement of a different
+// event and not two different measurements. arm() clears the list, so the only
+// moves in it are the ones the driver made after the baseline was taken.
+for (const type of ['pointermove', 'mousemove']) {
+  window.addEventListener(type, (e) => {
+    CTP.moves.push({ t: e.timeStamp, now: performance.now(), type: e.type,
+                     x: e.clientX, y: e.clientY, trusted: e.isTrusted });
   }, { capture: true, passive: true });
 }
 
@@ -123,6 +144,32 @@ const isUniform = (a) => {
     if (a[i] !== a[0] || a[i + 1] !== a[1] || a[i + 2] !== a[2]) return false;
   }
   return true;
+};
+
+// Luma mean and standard deviation of an arbitrary region (wave 16 lane B).
+//
+// This exists to answer one question from inside the page: HAS FORGE DEALT THE
+// HAND YET? The measurement has to be taken at the mulligan prompt, and which
+// prompt Forge puts up first is not deterministic -- wave 15 lost runs to it
+// and said so. Waiting a fixed number of seconds and clicking a fixed button
+// either lands on the right screen or sits on a blank "Game Setup" prompt
+// forever, and a seven-minute boot is too expensive to spend on a coin toss.
+//
+// MEASURED on this lane's own screenshots, region 180,470,440,90 (Forge's hand
+// panel at 800x600): empty hand std = 3.2, seven cards with art std = 79.0.
+// Two orders of... one order of magnitude apart, with nothing in between.
+CTP.regionStats = (r) => {
+  const d = CTP.read(r.x, r.y, r.w, r.h);
+  if (!d) return { ok: false, why: 'READ-FAILED' };
+  let s = 0, s2 = 0;
+  const n = d.length / 4;
+  for (let i = 0; i < d.length; i += 4) {
+    const y = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    s += y; s2 += y * y;
+  }
+  const mean = s / n;
+  return { ok: true, n, mean: +mean.toFixed(2),
+           std: +Math.sqrt(Math.max(0, s2 / n - mean * mean)).toFixed(2) };
 };
 
 // Full-canvas diff, used once to LOCATE the region a click actually changes.
@@ -214,6 +261,49 @@ CTP.startSampling = () => {
 
 CTP.stopSampling = () => { CTP.sampling = false; CTP.gen++; };
 
+// DIAGNOSTIC (wave 16 lane B). Baseline the watched region and record EVERY
+// change over a fixed window with NO input delivered at all.
+//
+// Wave 15 measured a steady 47-60 changed pixels of a 140x30 strip inside the
+// 300 ms quiet window on every rep at Forge's mulligan prompt and could not say
+// what caused it, so it raised the threshold and moved on. A threshold that
+// hides an unidentified signal is the same shape as a harness that passes while
+// measuring nothing. This answers the question the threshold was covering: with
+// the pointer parked on dead canvas and nothing clicked, does the strip move on
+// its own, and by how much, how often?
+//
+// It reports every detection at a 1-pixel threshold, so it sees what arm()
+// deliberately does not.
+CTP.watchQuiet = async (ms, minPixels) => {
+  const r = CTP.region;
+  const saveMin = CTP.MIN_PIXELS;
+  CTP.MIN_PIXELS = minPixels || 1;
+  CTP.changes = [];
+  CTP.pollTimes = [];
+  CTP.rafTimes = [];
+  CTP.baseline = CTP.read(r.x, r.y, r.w, r.h);
+  if (!CTP.baseline) { CTP.MIN_PIXELS = saveMin; return { ok: false, why: 'READ-FAILED' }; }
+  const uniform = isUniform(CTP.baseline);
+  CTP.startSampling();
+  const t0 = performance.now();
+  await new Promise((res) => setTimeout(res, ms));
+  CTP.stopSampling();
+  const all = CTP.changes.filter((c) => c.t >= t0);
+  const poll = all.filter((c) => c.via === 'poll');
+  CTP.MIN_PIXELS = saveMin;
+  CTP.changes = [];
+  return {
+    ok: true, region: { ...r }, windowMs: ms, minPixels: minPixels || 1,
+    baselineUniform: uniform,
+    pollSamples: CTP.pollTimes.length,
+    pollChanges: poll.length,
+    maxChangedPixels: poll.reduce((m, c) => Math.max(m, c.changedPixels), 0),
+    // The first twenty are enough to see whether this is one settling repaint
+    // or a periodic animation, and the interval between them names which.
+    first: poll.slice(0, 20).map((c) => ({ ms: +(c.t - t0).toFixed(1), px: c.changedPixels })),
+  };
+};
+
 // Re-baseline and clear per-rep state. Returns once the canvas has been quiet
 // for quietMs -- a pre-click baseline that is already moving makes any number
 // taken against it meaningless.
@@ -221,6 +311,7 @@ CTP.arm = async (quietMs) => {
   const r = CTP.region;
   CTP.changes = [];
   CTP.presses = [];
+  CTP.moves = [];
   CTP.pollTimes = [];
   CTP.rafTimes = [];
   CTP.baseline = CTP.read(r.x, r.y, r.w, r.h);
@@ -238,9 +329,15 @@ CTP.arm = async (quietMs) => {
 
 // Wait for the first change of each kind after the press, or run out of budget.
 CTP.collect = async (budgetMs) => {
+  // The clock starts at the FIRST event of the configured kind after arm().
+  // For 'press' that is streaming.md's protocol verbatim; for 'move' it is the
+  // moment the pointer arrived over the target, which is the event Forge's
+  // match UI actually answers.
+  const src = () => (CTP.edge === 'move' ? CTP.moves : CTP.presses);
+  const first = () => (src().length ? src().slice().sort((a, b) => a.t - b.t)[0] : null);
   const t0 = performance.now();
   while (performance.now() - t0 < budgetMs) {
-    const p = CTP.presses.length ? CTP.presses.slice().sort((a, b) => a.t - b.t)[0] : null;
+    const p = first();
     if (p) {
       const poll = CTP.changes.find((c) => c.via === 'poll' && c.t > p.t);
       const raf = CTP.changes.find((c) => c.via === 'raf' && c.t > p.t);
@@ -249,7 +346,7 @@ CTP.collect = async (budgetMs) => {
     await new Promise((res) => setTimeout(res, 2));
   }
   CTP.stopSampling();
-  const p = CTP.presses.length ? CTP.presses.slice().sort((a, b) => a.t - b.t)[0] : null;
+  const p = first();
   const poll = p ? CTP.changes.find((c) => c.via === 'poll' && c.t > p.t) : null;
   const raf = p ? CTP.changes.find((c) => c.via === 'raf' && c.t > p.t) : null;
   const ivl = (ts) => { const d = []; for (let i = 1; i < ts.length; i++) d.push(ts[i] - ts[i - 1]); return d; };
@@ -264,6 +361,9 @@ CTP.collect = async (budgetMs) => {
   const jDone = after('PAINT-DONE');
   return {
     press: p,
+    edge: CTP.edge,
+    pressCountRaw: CTP.presses.length,
+    moveCountRaw: CTP.moves.length,
     javaListenerMs: jClick ? jClick.t - p.t : null,
     javaPaintDoneMs: jDone ? jDone.t - p.t : null,
     pressCount: CTP.presses.length,

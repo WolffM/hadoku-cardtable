@@ -1,6 +1,18 @@
 # Click-to-pixel under CheerpJ, and what it is a number OF
 
-**Status: PHASE 2 — the premise is proved, the number is not taken.**
+**Status: PHASE 3 — the number is taken, and the event it is a number of is not
+the one anybody expected.**
+
+> **Forge's real match UI answers a pointer event in ~136–148 ms (median) to the
+> canvas and ~153–165 ms to a composited frame, on a quiet host, over three
+> independent boots.** And the event is the **pointer arriving**, not the button
+> going down: **clicking a card in Forge's hand changes exactly zero pixels.**
+> The Card Detail and Card Picture panels are driven by mouse-over. See
+> **PHASE 3** at the bottom; it supersedes the "THE NUMBER WAS NOT TAKEN"
+> section, which is kept for the traps it records.
+
+**Phase 2's paragraph below said the gate figure was not in this document. It is
+now.** Read Phase 3 before quoting anything from Phase 2's closing sections.
 
 The rig works, is demonstrated to be able to FAIL, and has produced numbers for
 a bare Swing component under CheerpJ, for streamed Forge in a browser, and for
@@ -1029,6 +1041,13 @@ This is the same `--watch` mechanism used to point the rig at streaming's
 
 ## THE NUMBER WAS NOT TAKEN — built, measurement pending
 
+> **SUPERSEDED by PHASE 3 (wave 16 lane B): the number is taken.** Kept because
+> every refusal recorded here turned out to be correct and the reasons are the
+> finding — but two of its readings are wrong, and Phase 3's "Corrections" names
+> which. In particular the "47–60 changed pixels" below is 47–60 change *events*
+> caused by the rig's own pointer, and the "34,925 px" selection change was a
+> hover, not a click.
+
 **There is no click-to-pixel figure for Forge's real match UI in this document,
 and nothing below should be read as one.** The rig reaches the match UI and the
 UI paints; every attempt to take the distribution was refused by the rig's own
@@ -1181,3 +1200,381 @@ layer (`docs/spikes/streaming.md`, "What is lost").
 - **`FSkin.loadFull` now demonstrably runs** (the home screen is skinned), which
   closes one of lane B's open items — but no font, sprite or icon was checked
   for correctness beyond "the screen looks right in a PNG".
+
+---
+
+# PHASE 3 — the number, and the event it is a number of
+
+*Wave 16 lane B. Everything below ran on hokon on 2026-09-20 between 15:45 and
+16:49 local, at `/proc/loadavg` **2.3 – 3.9** throughout — a quiet host, unlike
+Phase 2's 12–41.4. Build id on every measurement and every control:
+`…-0e9b04fb53` (the timestamp prefix differs per rebuild; the source hash, which
+is the part that says what ran, does not).*
+
+> **Forge's real match UI, at the mulligan prompt, answers a pointer event over
+> a card in hand in a median 146.7 ms to the canvas and 163.8 ms to a composited
+> frame** — n = 117 over three independent cold boots, 3 dropped reps in 120,
+> min 87.2, p95 209.5, max 268.1.
+>
+> **And the event is the pointer arriving, not the button going down. Clicking a
+> card in Forge's hand changes EXACTLY ZERO pixels** — measured six times, by
+> full-canvas diff, across three boots. Forge's Card Detail and Card Picture
+> panels are driven by mouse-over.
+
+That second sentence is the finding. A press→pixel figure for a card in Forge's
+hand is not slow, **it does not exist**, and every refusal wave 15 recorded in
+"THE NUMBER WAS NOT TAKEN" was the rig correctly declining to invent one.
+
+## What was measured, exactly
+
+| | |
+| --- | --- |
+| screen | Forge's match UI at the **mulligan prompt** — hand dealt, board static, nothing running |
+| event | the pointer arriving over a card in hand (`pointermove`, trusted, `event.timeStamp`, capture phase) |
+| targets | canvas `200,510` and `333,510` — two different cards, **alternating**, as `rfb-latency.py` alternates its two menu entries |
+| watched region | canvas `650,440,140,30` — a 140×30 strip across the Card Picture panel |
+| detection | ≥ **500** changed pixels of that 4,200-pixel strip; a pixel counts when any channel moves > 12 |
+| detected change | 2,821 / 3,342 / 3,979 px per run — **the same value on every single rep of a run**, i.e. the strip is replaced wholesale |
+| sampler quantum | poll **4.1–4.2 ms**, rAF **16.7 ms**, in all three runs |
+| baseline | pointer parked on dead canvas for 1,200 ms, then 300 ms of enforced quiet before the event |
+| n | 40 reps per run, 39 good, 1 dropped |
+
+### The distribution
+
+Backing-store ("the app has rasterised") and composited-frame ("it has survived
+to a frame boundary") are both reported, as in Phase 1.
+
+| run | n | min | **median** | p95 | max | composited median | dropped |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 39 | 87.2 | **148.2** | 223.4 | 230.9 | 165.3 | 1 |
+| 2 | 39 | 100.2 | **136.4** | 177.6 | 209.2 | 153.1 | 1 |
+| 3 | 39 | 107.2 | **150.5** | 224.2 | 268.1 | 167.5 | 1 |
+| **combined** | **117** | **87.2** | **146.7** | **209.5** | **268.1** | **163.8** | **3 of 120** |
+
+**Dropped reps, by cause: 3 × `NO-PIXEL-CHANGE`, one per run, and all three are
+rep 0.** Rep 0 follows the warm-up, which leaves the pointer already sitting on
+the first target, so there is no arrival to time. Nothing was dropped for any
+other reason: **zero `NOISY-BASELINE`, zero `MOVE-NOT-DELIVERED-TO-DOM`** in 120
+reps, against wave 15's 39-of-40 noisy.
+
+**It warms up.** Within every run the figure falls as the run proceeds — median
+of the first ten reps 175.9 / 146.6 / 181.3 ms, median of the last ten
+120.6 / 116.0 / 137.8 ms. A warmed CheerpJ answers this event in **~120–140 ms**;
+the combined median carries the cold part of each run with it. Nobody measured
+where it stops.
+
+### The exact command
+
+```sh
+export SPIKE_CACHE=$HOME/.cache/w15d-firstpaint PORT=8743
+scripts/spike/cheerpj/firstpaint/run.sh build            # exit 0
+scripts/spike/cheerpj/firstpaint/run.sh stage-forge      # exit 0, prints both patch proofs
+scripts/spike/cheerpj/firstpaint/run.sh forge-measure \
+    --edge move --clicks 200,510 --clicks 333,510 --watch 650,440,140,30 \
+    --min-pixels 500 --budget 12000 --reps 40 \
+    --phase2-edge press --phase2-reps 5 --diag          # exit 0, ~7.5 min
+```
+
+`--phase2-edge press` takes a **second** distribution in the same boot, with the
+button, against the same two cards. In the run taken after the warm-up gate was
+fixed (below) it did what it should: **refused, on both targets, with no
+number.** That is the click-changes-nothing finding reproduced inside the same
+boot as the figure, rather than in a separate argument.
+
+## Clicking a card changes nothing; the pointer changes everything
+
+`--diag` characterises the target before measuring it, in the same boot. It
+parks the pointer on dead canvas, watches the strip with **nothing happening**,
+then for each target measures the full-canvas change caused by the pointer
+arriving and, separately, by the press that follows once the hover has settled.
+
+| | run 1 | run 2 | run 3 |
+| --- | --- | --- | --- |
+| strip changes in 3,000 ms, pointer parked, **1-pixel** threshold | **0** of 738 samples | **0** of 740 | **0** of 739 |
+| full-canvas pixels changed by the pointer ARRIVING, target A / B | 35,590 / 36,662 | 29,437 / 27,426 | 33,550 / 29,433 |
+| full-canvas pixels changed by the PRESS that follows | **0 / 0** | **0 / 0** | **0 / 0** |
+
+Two things fall out, and both close open items.
+
+**1. The match UI is perfectly quiet on its own.** Wave 15 wrote that a steady
+"47–60 changed pixels" appeared inside every quiet window and that *"the cause
+is not identified"*. It is identified now, and it was two mistakes stacked:
+
+- **That field is a count of detection EVENTS, not of pixels.** `arm()` returns
+  `preClickChanges: noisy.length` — the number of samples in the window that
+  detected a change. Wave 15 read it as a pixel count and concluded the movement
+  was tiny (~1.3 % of the strip). It was not tiny; it was 47–60 *consecutive
+  detections*, i.e. the strip was repainting for essentially the whole window.
+- **The cause was the rig's own pointer.** The rep loop moved the pointer onto
+  the target, waited **80 ms**, and then armed for 300 ms. Forge answers that
+  move by repainting the Card Picture panel, and that repaint takes ~140 ms —
+  so it landed squarely inside the baseline window, every rep. Park the pointer
+  instead and the same strip is silent for three seconds at a 1-pixel threshold.
+
+So `--min-pixels 500` was not hiding a mystery. It was hiding the signal.
+
+**2. Wave 15's "the warm-up click changed 34,925 px" was the hover.** The
+warm-up moves to the target, waits 250 ms and then presses; the 34,925 px was
+the arrival being credited to the button that came after it. The number is the
+right size — this lane measures 27,426–36,662 px for the same arrival — and it
+was attached to the wrong event. Everything wave 15 then observed follows
+directly: `locate()` returned a 490×504 bounding box (Card Detail top right and
+Card Picture bottom right, far apart, nothing between them), the 520×30 strip
+centred in that box landed on empty battlefield, and all 40 reps reported
+`NO-PIXEL-CHANGE` — **correctly**, because the press really does change nothing.
+
+## A gate that could pass while measuring nothing, found and closed
+
+This is the defect class the whole rig exists to prevent, and it was sitting in
+the rig.
+
+`tryWatch`, the warm-up that decides whether a distribution may be taken at all,
+called `arm()` and **threw its verdict away**. `arm()` takes a baseline, watches
+for `quietMs`, and clears the change list before returning. If the region was
+repainting during that window the baseline is **stale**, so the first sample
+after the event re-detects the old difference and the rig reports one or two
+sampler ticks as though they were a latency.
+
+Measured, before the fix: a **press**-mode warm-up on Forge's hand reported
+`pollMs: 17.7, changedPixels: 3342` — a plausible-looking fast number — in the
+same boot in which a full-canvas diff proved that press changes zero pixels.
+Two more of the same shape (16.7 ms, 17.0 ms) came out of a tab-strip probe.
+
+The rep loop always honoured `arm()` and dropped the rep as `NOISY-BASELINE`, so
+**no reported distribution is affected**; only the gate in front of it was. Fixed
+by having the warm-up re-prepare and re-arm up to three times and refuse if it
+never gets a quiet baseline. With the fix in, the press-mode phase on Forge's
+hand refuses on both targets, as it always should have.
+
+**Do not quote any ~17 ms figure from this rig's warm-up output.** If a warm-up
+reports a latency far below the distribution that follows it, suspect the
+baseline before believing the number.
+
+## The boot stall did not reproduce
+
+Wave 15: *"four of eight runs never reached `Read cards:`"*. This lane:
+**5 boots, 5 reached it**, at 51.4 / 52.3 / 52.3 / 56.8 / 68.3 s from page load
+— an order of magnitude tighter than Phase 2's ~86 s and consistent with a
+quieter host. Nothing was changed to achieve that and **lane A's fix was not
+used**: `scripts/spike/cheerpj/boot/` defaults to `spike.bootFix=off`, which is
+lane B's unpacker line for line.
+
+**So the stall is not fixed, it did not happen.** Wave 15's runs were taken at
+load 12–41.4 with four `ffmpeg` processes on the box; these were taken at
+2.3–3.9. That is a correlation on a sample of thirteen, not a diagnosis, and it
+is worth handing to lane A.
+
+## What the 146.7 ms is, and what it is not
+
+**It is not CheerpJ's input path.** Phase 1 measured that at ~35 ms to the canvas
+for one `JComponent`, and the input-to-listener part of it at 17.7 ms. The extra
+~110 ms here is **Forge drawing a card**: the Card Detail panel's text and the
+Card Picture panel's full-size card image, scaled, on the EDT, in an interpreter.
+
+**It is not a network round trip.** Forge does fetch card art from Scryfall the
+first time it needs it — this lane's runs pulled 5–7 images, 492–685 KB, all of
+it during navigation and before the first rep, and the per-rep detected pixel
+count is byte-identical across every rep of a run, which is what a cached image
+being re-scaled looks like. **No rep contains a fetch.** But the first hover of
+each new card in a real session does, and that is not measured here.
+
+**It is not the same repaint streaming was measured on.** Phase 1's streamed
+figure (46.9 ms canvas / 49.7 ms composited) was Forge's **home-screen menu
+heading**, a 727-pixel text change. This is a card-image panel, ~30,000 pixels.
+Putting them in one row would be dishonest, so:
+
+| | what changed | event→pixel, canvas | event→pixel, composited |
+| --- | --- | --- | --- |
+| **streamed Forge**, home-screen menu heading | 727 px | **46.9 ms** | **49.7 ms** |
+| **CheerpJ**, one `JComponent` (a floor) | whole component | **34.7 ms** | **49.5 ms** |
+| **CheerpJ, Forge's real match UI**, card detail + picture | ~30,000 px | **146.7 ms** | **163.8 ms** |
+| *the same repaint on the streamed side* | — | **not measured** | **not measured** |
+
+**The honest reading: Forge's real match UI under CheerpJ costs about 3× the
+Phase 1 floor and about 3× the streamed figure, for a repaint that is about 40×
+larger than the one the streamed figure was taken on.** Nobody has measured a
+streamed Forge doing this same repaint, and until someone does, the row that
+would settle "3× because CheerpJ, or 3× because it is a bigger repaint?" is
+blank. It is one run of Wave 14's container away.
+
+### What it means for a player, in one paragraph
+
+Hovering a card to read it is the thing a Magic player does more than anything
+else, it is answered entirely inside the client, and under CheerpJ it takes
+**~150 ms cold, ~120 ms warmed**, on this machine. That is perceptible — it is
+about the gap between "instant" and "the computer did something" — but it is
+**not** the range where a card game stops feeling like one, and it does not move
+with the player's network. Over a 50 ms link the streamed equivalent pays
+2 × RTT on top of its own ~47 ms, so roughly 150 ms for the *small* repaint and
+more for this one, every time, forever, on a budget we cannot improve. CheerpJ's
+150 ms is local work on the player's machine: a faster laptop makes it smaller,
+and nothing about the internet makes it bigger. **The latency argument still
+comes out CheerpJ's way, and it is now decided on a measurement of Forge's real
+match UI instead of on a floor.**
+
+What the operator should actually weigh, unchanged by this number: a **19.19 MB**
+third-party runtime per cold cache, a **~1.35–1.55 GiB** browser tab (measured
+again here: 1,374,148 / 1,417,520 / 1,546,680 kB delta), and a boot measured in
+**tens of seconds on a quiet host** (52 s to the card database; the match UI
+follows).
+
+## What Phase 3 did NOT verify
+
+- **The same repaint on the streamed side.** The single most useful missing row,
+  named above. Everything about "3× slower" is unattributed without it.
+- **press→pixel anywhere inside Forge's match board.** The click on a card
+  changes nothing, and this lane found no other in-board target that a click
+  repaints. A tab-strip probe (Forge's own window tabs) was tried and abandoned:
+  it triggers `java.lang.RuntimeException: Error doing rescale. Target size was
+  2x4 but must be at least 3x3` repeatedly, which raises Forge's modal bug-report
+  dialog and makes everything after it meaningless. **That crash is real, it is
+  reproducible, and nobody has looked at it.** It is not on the path of anything
+  measured above.
+- **Why the pointer, and not the click, drives those panels.** Observed from
+  outside, six times. Forge's `CardPanel` / `CardDetailPanel` source was not
+  read, so "mouse-over drives it" is a measurement, not a mechanism.
+- **The first hover of a card, which includes a Scryfall fetch.** Excluded by
+  construction here. In a real session every card is hovered cold once.
+- **Where the warm-up curve stops.** It was still falling at rep 39 in all three
+  runs. Minutes-long sessions and JIT steady state are unmeasured, as in Phase 1.
+- **Anything at a real viewer's screen**, and **headless Chromium vs a real
+  browser** — both still open from Phase 1, both still apply.
+- **The boot stall.** It did not reproduce in five boots; it was not diagnosed
+  and nothing was fixed. **IndexedDB quota is still unchecked**, three waves on.
+- **The SEVERE `receiveGameEvent` subscriber exceptions.** Forge's own event bus
+  logs a burst of them while the match is being set up, in every run. The UI
+  paints and plays regardless, and this lane did not read one of the stack
+  traces. Something in the match UI is not receiving game events.
+- **Whether `--edge move` is a fair analogue of `rfb-latency.py`'s pointer
+  event.** Both are a trusted pointer event timestamped in the same clock as the
+  pixels, and neither has a hold inside it. But `rfb-latency.py` sends a button
+  and this sends a motion, and no one has checked that noVNC and CheerpJ turn
+  those into AWT events on comparable terms.
+
+## Corrections to the earlier sections of this document
+
+Three things written above are wrong and are corrected here rather than deleted,
+because each cost somebody time:
+
+1. **"a steady 47–60 changed pixels … the cause is not identified"** — it is 47–60
+   change *events*, not pixels, and the cause is the rig's own pointer. Closed.
+2. **"lane D's own warm-up measured 34,925 px for one [selection change]"** — that
+   was the hover, not the click. The click changes zero.
+3. **The `javap` patch proof for patch 0004 was broken.** Phase 2 published
+   ```sh
+   javap -p -c -cp $SPIKE_CACHE/www/forge.jar forge.gamemodes.net.server.FServerManager \
+     | awk '/^  forge.gamemodes.net.server.FServerManager\(\);/,/^$/' | grep -c NioEventLoopGroup
+   ```
+   `javap -p` prints `  private forge…FServerManager();`, so that pattern matches
+   nothing and the command prints **0 — "patched" — for a STOCK jar**. Verified
+   against the stock jar on 2026-09-20: the anchored form says 0, the anchor-free
+   form `/FServerManager\(\);$/` says 4. `run.sh stage-forge` now uses the
+   working form, prints both patch proofs, and **exits non-zero** if either one
+   fails, instead of printing a number nobody reads.
+
+## Two harness bugs fixed, because both could have published a wrong number
+
+- **`run.sh build` silently un-staged the patched Forge jar.** It ended with an
+  unconditional `cp -f "$FORGE_JAR" "$WWW/forge.jar"`, so building the probe —
+  which every lane does — replaced the *patched* Forge that `stage-forge` had put
+  there with the **stock** one. The next `forge-measure` would have booted stock
+  Forge, died in `FView`, and done it after a seven-minute boot. This lane hit it
+  on its first command of the wave. `stage-forge` now writes a
+  `FORGE_JAR_SOURCE=patched` marker and `build` refuses to cross it
+  (`FP_FORCE_STOCK=1` overrides).
+- **The warm-up gate**, above.
+
+Both are the shape of trap 6: a wrapper that exits 0 while the next step runs
+against the wrong artifact.
+
+## What the rig gained
+
+All of it in `scripts/spike/cheerpj/firstpaint/`, all of it used above:
+
+- **`--diag`** — parks the pointer, proves the watched region is quiet with no
+  input at a 1-pixel threshold, then separates **hover** from **click** with a
+  full-canvas diff per target. It runs in the same boot as the measurement,
+  because a boot costs seven minutes and a wrong target costs the boot.
+- **`--edge move|press`** — which input event starts the clock, recorded on
+  identical terms (capture phase, passive, trusted `event.timeStamp`).
+- **`--phase2-edge` / `--phase2-clicks` / `--phase2-watch`** — a second
+  distribution in the same boot, so two events can be compared without paying
+  for two boots.
+- **`--pre clickuntil:…`** — answers Forge's game-setup prompt only while the
+  hand is empty, testing the hand panel's own luma standard deviation
+  (**3.2 empty, 72–89 dealt**, measured). It converges on the mulligan prompt
+  from either side of the coin toss and never clicks past it. This is what makes
+  the run reproducible: wave 15's fixed click landed on the wrong screen in both
+  directions, and this lane's first run found a **third** state it had not
+  described — a blank "Game Setup" prompt with OK/Cancel where that button does
+  nothing and the hand is never dealt (`shots/measure-match.png`). `clickuntil`
+  waits that one out and then gives up honestly.
+- **`--fallback-clicks` / `--fallback-watch`** — a declared second target set,
+  tried only after the first changes nothing, with `targetSetUsed` in the output.
+  The gate is not weakened: neither set moving a pixel is still exit 1.
+- **`fail()` now carries `preNavigation` and `diag`.** It used to report three
+  fields, so this lane's first run threw away a complete characterisation pass
+  that would have explained the failure.
+
+### Where the evidence is, and one field name that moved
+
+The raw artifacts behind every figure in Phase 3 are committed at
+`scripts/spike/cheerpj/firstpaint/out/` — `run3.json` / `run4.json` /
+`run5.json`, the three final control JSONs, and `event-to-pixel.tsv`, which is
+all **120** rep rows (40 per run, including the 3 dropped ones) with the run,
+rep index, edge, canvas and composited times, the Java-side decomposition and
+the drop reason. The distribution in the table above recomputes from that TSV
+alone.
+
+**Read `n` from the `reps` array, not from a count field.** In a summary object
+the rep count was originally called `reps` alongside the rep **array**, also
+called `reps`; the shorthand won, so the declared count was silently dropped.
+It is now **`repsAttempted`**. Two details, so nobody chases the wrong thing:
+
+- It only ever affected the **`phase2`** block. The top-level summary's count
+  lives in `method.reps`, a different object literal, and reads 40 in all three
+  committed runs.
+- **The committed JSONs predate the rename** and therefore carry no count under
+  `phase2` at all. That is the bug's footprint, left as it was found rather than
+  regenerated — re-running the measurement to make a field name tidy would have
+  replaced the evidence the number rests on. Runs taken from now on carry
+  `repsAttempted`.
+
+Caught by `no-dupe-keys`, not by reading the output, which is the whole lesson:
+a summary whose self-declared `n` has quietly become an array of forty objects
+still serialises and still looks like a result.
+
+`BUILDID` still hashes `java/spike/*.java`, `index.html` and `rig.js` only.
+`clicktopixel.mjs` and `run.sh` run from the working tree on every invocation and
+cannot go stale, which is why they are deliberately outside it — the same scope
+note Phase 1 made, restated because this wave changed all three.
+
+## The controls, re-run at the published build
+
+Re-run after every change above, on 2026-09-20 at 16:48, at
+`build=20260920T233945Z-0e9b04fb53` — the same source hash as all three
+measurement runs, quoted by the JVM itself in each control's `PAINT-READY` line.
+
+| control | result | exit |
+| --- | --- | --- |
+| `control-noclick` | `NO-CHANGE-WITHOUT-CLICK`, `changedPixels: 0` | **1** |
+| `control-nolistener` | `NO-CHANGE-ON-WARMUP`, `changedPixels: 0` | **1** |
+| `control-noise` | 3/3 reps `NOISY-BASELINE`, `n: 0` | **1** |
+
+The instrument that produced 146.7 ms was demonstrated able to fail, three
+different ways, on the day the number was published.
+
+And it was demonstrated still able to **succeed on the thing it already
+measured**, which is the other half of a regression check. `run.sh measure` with
+`FP_MODE=release`, the Phase 1 `spike.PaintProbe` run, after every change above:
+
+| | Phase 1, 2026-09-20 morning | Phase 3, same day, after the refactor |
+| --- | --- | --- |
+| press→pixel, 50 ms hold, canvas | 84.7 ms | **85.2 ms** (n=12) |
+| press→pixel, 50 ms hold, composited | 99.5 ms | **99.7 ms** |
+| dropped | 0 | **0** |
+| reps with Java's `PAINT-DONE` at or before the pixels | 40/40 | **12/12** |
+
+The press path still works, gives the same answer as before the rig was
+rebuilt, and independently reproduces Phase 1's published figure on a second
+occasion.

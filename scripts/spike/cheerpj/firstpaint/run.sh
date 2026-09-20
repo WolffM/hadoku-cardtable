@@ -82,7 +82,20 @@ cmd_build() {
     cp -f "$HERE/index.html" "$WWW/index.html"
     cp -f "$HERE/rig.js" "$WWW/rig.js"
     printf '%s' "$buildid" > "$WWW/BUILDID"
-    if [[ -f "$FORGE_JAR" ]]; then cp -f "$FORGE_JAR" "$WWW/forge.jar"; else
+    # WAVE 16 lane B, paid for once: this used to `cp -f "$FORGE_JAR"`
+    # unconditionally, so `build` -- which every lane runs to refresh the probe
+    # -- silently replaced the PATCHED Forge jar that stage-forge had put here
+    # with the stock one, and the next forge-measure would have booted stock
+    # Forge and died in FView. That is trap 6 exactly: the wrapper exits 0 and
+    # the next measurement runs against the wrong artifact. stage-forge leaves a
+    # marker; build refuses to cross it.
+    if [[ "$(cat "$WWW/FORGE_JAR_SOURCE" 2>/dev/null)" == "patched" && "${FP_FORCE_STOCK:-0}" != "1" ]]; then
+        echo "keeping the PATCHED Forge jar in $WWW (FORGE_JAR_SOURCE=patched)."
+        echo "  the paint probe does not need forge.jar; forge-measure needs the patched one."
+        echo "  FP_FORCE_STOCK=1 to overwrite it with $FORGE_JAR."
+    elif [[ -f "$FORGE_JAR" ]]; then
+        cp -f "$FORGE_JAR" "$WWW/forge.jar"; printf 'stock' > "$WWW/FORGE_JAR_SOURCE"
+    else
         echo "note: no Forge jar at $FORGE_JAR -- the paint probe does not need it" >&2
     fi
 
@@ -145,11 +158,34 @@ cmd_stage_forge() {
     [[ -f "$SPIKE_CACHE/zipbuild/res-boot.zip" ]] || { echo "no res-boot.zip in $SPIKE_CACHE/zipbuild" >&2; exit 1; }
     mkdir -p "$WWW"
     cp -f "$PATCHED_JAR" "$WWW/forge.jar"
+    printf 'patched' > "$WWW/FORGE_JAR_SOURCE"
     cp -f "$SPIKE_CACHE/zipbuild/res-boot.zip" "$WWW/res-boot.zip"
     ls -l --time-style=full-iso "$WWW/forge.jar" "$WWW/res-boot.zip"
-    echo "patch proof -- FView must NOT reference VBazaarUI:"
-    "$JDK_HOME/bin/javap" -p -c -cp "$WWW/forge.jar" forge.view.FView 2>/dev/null \
-        | grep -c 'VBazaarUI' || true
+
+    # PATCH PROOF, and it GATES: a staged jar that is not the patched one is the
+    # "measured the wrong artifact" failure, so this exits non-zero rather than
+    # printing a number nobody reads.
+    #
+    # The FServerManager check in wave 15's doc was anchored on
+    #   /^  forge.gamemodes.net.server.FServerManager\(\);/
+    # and javap -p prints `  private forge...FServerManager();` -- so it matched
+    # nothing and printed 0 ("patched") for a STOCK jar. Verified on 2026-09-20
+    # against the stock jar: the anchored form says 0, the form below says 4.
+    local bad=0
+    local nbazaar nnetty
+    nbazaar="$("$JDK_HOME/bin/javap" -p -c -cp "$WWW/forge.jar" forge.view.FView 2>/dev/null \
+        | grep -c 'VBazaarUI' || true)"
+    nnetty="$("$JDK_HOME/bin/javap" -p -c -cp "$WWW/forge.jar" \
+        forge.gamemodes.net.server.FServerManager 2>/dev/null \
+        | awk '/FServerManager\(\);$/,/^$/' | grep -c 'NioEventLoopGroup' || true)"
+    echo "patch proof 0002 -- VBazaarUI refs in FView (must be 0): $nbazaar"
+    echo "patch proof 0004 -- NioEventLoopGroup in the FServerManager ctor (must be 0): $nnetty"
+    [[ "$nbazaar" == "0" ]] || bad=1
+    [[ "$nnetty"  == "0" ]] || bad=1
+    if [[ "$bad" != "0" ]]; then
+        echo "STAGED JAR IS NOT THE PATCHED ONE -- refusing to leave it staged" >&2
+        exit 1
+    fi
 }
 
 # Query string for the Forge boot, shared by explore and measure.
@@ -226,10 +262,25 @@ cmd_explore() {
 #
 # Which question Forge asks first is not deterministic -- winning the coin toss
 # gives Play/Draw, losing it goes straight to Keep/Mulligan -- and both render
-# their first button at this coordinate. So one click lands on the mulligan
-# prompt when we won the toss, and in a live game when we lost it. The second
-# case is visible as NOISY-BASELINE drops, and the run is simply repeated.
-# Pinning a deck and a seed would remove the coin flip; that was not done.
+# their first button at this coordinate. Wave 15 clicked it a FIXED number of
+# times and lost runs both ways: too few clicks measures the coin-toss screen,
+# where the hand is empty and nothing repaints (NO-CHANGE-ON-WARMUP), and one
+# too many answers the mulligan and starts a live game, where the AI repaints
+# continuously (39/40 NOISY-BASELINE).
+#
+# WAVE 16: `clickuntil` replaces the fixed click. It clicks that button only
+# while Forge's hand panel is EMPTY, and stops the moment the hand has content,
+# so it converges on the mulligan prompt from either side of the coin toss and
+# never clicks past it. The test is the hand region's own luma standard
+# deviation, measured on this lane's screenshots at 800x600: 3.2 with an empty
+# hand, 79.0 with seven cards drawn with art. The threshold is 20.
+#
+# It also survives the third state, which wave 15 did not know about and this
+# lane hit on its first run: a blank "Game Setup" prompt with OK/Cancel where
+# that button does nothing and the hand is never dealt at all (shots
+# measure-match.png, 2026-09-20). clickuntil keeps waiting there for up to
+# 6 x 20 s and then gives up, at which point --fallback-clicks decides whether
+# the boot still produces a number.
 cmd_forge_measure() {
     require_staged
     start_server
@@ -249,8 +300,7 @@ cmd_forge_measure() {
         --pre click:338,362 \
         --pre wait:90000 \
         --pre shot:match \
-        --pre click:48,576 \
-        --pre wait:20000 \
+        --pre clickuntil:48,576,180,470,440,90,20,6,20000 \
         --pre shot:hand \
         --screenshot "$SPIKE_CACHE/shots/measure.png" \
         --reps 40 --hold 50 --jitter 25 --budget 8000 "$@"

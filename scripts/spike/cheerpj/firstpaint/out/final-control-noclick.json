@@ -1,0 +1,50 @@
+{
+  "url": "http://127.0.0.1:8743/index.html?build=20260920T233945Z-0e9b04fb53&target=paint&mode=normal",
+  "ok": false,
+  "why": "NO-CHANGE-WITHOUT-CLICK",
+  "locate": {
+    "ok": false,
+    "why": "NO-CHANGE",
+    "changedPixels": 0
+  },
+  "readPath": "direct2d",
+  "box": {
+    "x": 0,
+    "y": 247,
+    "cssW": 800,
+    "cssH": 600,
+    "pxW": 800,
+    "pxH": 600
+  },
+  "target": {
+    "x": 400,
+    "y": 547
+  },
+  "note": "control: no click was delivered and the canvas did not change -- the rig is not reporting a latency it invented",
+  "preNavigation": [],
+  "diag": null,
+  "marks": {
+    "pageStart": 6,
+    "loaderReady": 266,
+    "wipeDone": 266,
+    "initDone": 1343.8000001907349,
+    "displayDone": 1348.3000001907349
+  },
+  "pageErrors": [],
+  "transferByOrigin": {
+    "http://127.0.0.1:8743": {
+      "bytes": 2902414,
+      "requests": 24
+    },
+    "https://cjrtnc.leaningtech.com": {
+      "bytes": 19191749,
+      "requests": 117
+    }
+  },
+  "lines": [
+    "1344ms               ____ _                              _\n             / ___| |__   ___  ___ _ __ _ __     | |\n            | |   | '_ \\ / _ \\/ _ \\ '__| '_ \\ _  | |\n            | |___| | | |  __/  __/ |  | |_) | |_| |\n             \\____|_| |_|\\___|\\___|_|  | .__/ \\___/\n                                       |_|\n\n CHEERPJ COMMUNITY EDITION - FOR PERSONAL AND NON-BUSINESS USE ONLY\nAny other use requires a license: https://cheerpj.com/docs/licensing",
+    "6065ms PAINT-MAIN build=20260920T233945Z-0e9b04fb53 mode=normal java.version=17.0.19-internal headless=false\n",
+    "9016ms PAINT-FRAME visible 800x600\n",
+    "11933ms PAINT-READY build=20260920T233945Z-0e9b04fb53 mode=normal size=800x600\n"
+  ]
+}

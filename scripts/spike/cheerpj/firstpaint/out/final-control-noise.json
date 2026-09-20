@@ -1,0 +1,166 @@
+{
+  "url": "http://127.0.0.1:8743/index.html?build=20260920T233945Z-0e9b04fb53&target=paint&mode=noise",
+  "ok": false,
+  "phase2": null,
+  "method": {
+    "protocol": "docs/spikes/streaming.md -- fixed hold, clock starts at the press, n reps, min/median/p95/max, dropped clicks counted not averaged",
+    "holdMs": 50,
+    "reps": 3,
+    "quietMs": 300,
+    "budgetMs": 3000,
+    "jitterMs": 0,
+    "injected": null,
+    "strip": {
+      "x": 140,
+      "y": 285,
+      "w": 520,
+      "h": 30
+    },
+    "watchGiven": false,
+    "readPath": "direct2d",
+    "targetSetUsed": "primary",
+    "edge": "press",
+    "parkMs": 1200,
+    "parkCanvas": [
+      450,
+      150
+    ],
+    "minChangedPixels": 24,
+    "clockNote": "press timestamp is the trusted MouseEvent.timeStamp read in the page; pixel timestamp is performance.now() in the same page. One clock."
+  },
+  "canvas": {
+    "x": 0,
+    "y": 247,
+    "cssW": 800,
+    "cssH": 600,
+    "pxW": 800,
+    "pxH": 600
+  },
+  "targets": {
+    "canvas": [
+      {
+        "x": null,
+        "y": null
+      }
+    ],
+    "viewport": [
+      {
+        "x": 400,
+        "y": 547
+      }
+    ],
+    "alternating": false,
+    "targetSetUsed": "primary"
+  },
+  "watch": null,
+  "watchRequested": null,
+  "warmupLocate": {
+    "ok": true,
+    "changedPixels": 477513,
+    "bbox": {
+      "x": 0,
+      "y": 0,
+      "w": 800,
+      "h": 600
+    }
+  },
+  "diag": null,
+  "preNavigation": [],
+  "screenshots": null,
+  "bootToReadyMs": 11867.699999809265,
+  "wallMs": 14158,
+  "clickToPixel": {
+    "pollCanvasBackingStore": {
+      "n": 0
+    },
+    "rafCompositedFrame": {
+      "n": 0
+    }
+  },
+  "decomposition": {
+    "clickToJavaListener": {
+      "n": 0
+    },
+    "clickToJavaPaintDone": {
+      "n": 0
+    },
+    "repsWhereJavaPaintPrecededPixels": 0,
+    "repsWhereItDidNot": 0
+  },
+  "samplerQuantumMs": {
+    "pollMedianOfPerRepMedians": null,
+    "pollMaxOfPerRepMedians": null,
+    "rafMedianOfPerRepMedians": null
+  },
+  "drops": {
+    "total": 3,
+    "byReason": {
+      "NOISY-BASELINE": 3
+    }
+  },
+  "javaSide": {
+    "paintClickLines": 1,
+    "paintDoneLines": 1
+  },
+  "memory": {
+    "blankBrowserRssKb": 432728,
+    "loadedBrowserRssKb": 780164,
+    "deltaKb": 347436,
+    "processes": 6,
+    "note": "process-tree RSS from /proc; the DELTA is the honest figure (tree RSS double-counts shared pages)"
+  },
+  "nativeCalls": {},
+  "transferByOrigin": {
+    "http://127.0.0.1:8743": {
+      "bytes": 3427806,
+      "requests": 28
+    },
+    "https://cjrtnc.leaningtech.com": {
+      "bytes": 19191521,
+      "requests": 117
+    }
+  },
+  "marks": {
+    "pageStart": 6,
+    "loaderReady": 223,
+    "wipeDone": 223,
+    "initDone": 1263.8999996185303,
+    "displayDone": 1268.1999998092651
+  },
+  "pageError": null,
+  "pageErrors": [],
+  "reps": [
+    {
+      "i": 0,
+      "dropped": "NOISY-BASELINE",
+      "ok": false,
+      "why": "NOISY-BASELINE",
+      "preClickChanges": 75,
+      "armedAt": 13345.89999961853
+    },
+    {
+      "i": 1,
+      "dropped": "NOISY-BASELINE",
+      "ok": false,
+      "why": "NOISY-BASELINE",
+      "preClickChanges": 88,
+      "armedAt": 13741.799999713898
+    },
+    {
+      "i": 2,
+      "dropped": "NOISY-BASELINE",
+      "ok": false,
+      "why": "NOISY-BASELINE",
+      "preClickChanges": 82,
+      "armedAt": 14139.699999809265
+    }
+  ],
+  "lines": [
+    "1264ms               ____ _                              _\n             / ___| |__   ___  ___ _ __ _ __     | |\n            | |   | '_ \\ / _ \\/ _ \\ '__| '_ \\ _  | |\n            | |___| | | |  __/  __/ |  | |_) | |_| |\n             \\____|_| |_|\\___|\\___|_|  | .__/ \\___/\n                                       |_|\n\n CHEERPJ COMMUNITY EDITION - FOR PERSONAL AND NON-BUSINESS USE ONLY\nAny other use requires a license: https://cheerpj.com/docs/licensing",
+    "5983ms PAINT-MAIN build=20260920T233945Z-0e9b04fb53 mode=noise java.version=17.0.19-internal headless=false\n",
+    "9013ms PAINT-FRAME visible 800x600\n",
+    "11868ms PAINT-READY build=20260920T233945Z-0e9b04fb53 mode=noise size=800x600\n",
+    "12312ms PAINT-CLICK 39 edge=press at 400,300\n",
+    "12317ms PAINT-DONE 39\n"
+  ]
+}
