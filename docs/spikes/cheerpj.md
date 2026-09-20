@@ -641,3 +641,75 @@ built there. The spike's own build output lives in `~/.cache/w14b-cheerpj/`, and
 | Forge jar | `~/.local/share/cardtable/forge.jar`, 39,686,151 B, `2.0.15-SNAPSHOT-09.18`, `Main-Class: forge.view.Main` |
 | Netty in that jar | 4.1.115.Final (`META-INF/io.netty.versions.properties`) |
 | Forge submodule | `2ad70eb447a22efe5b80904c07188311da034a42` |
+
+---
+
+# SETTLED 2026-09-20: the `natives` path works, with one constraint
+
+The section above says *"The entire GO depends on it"* about CheerpJ's
+`natives` JS-interop path, never exercised. It has now been exercised.
+
+**Result: it works. Lane B's GO-WITH-COST is unblocked** — and the transport
+has a shape it must take, which is worth more than the yes.
+
+Reproduce: `scripts/spike/cheerpj/run.sh build && ./run.sh measure natives`
+(`java/spike/NativesProbe.java`, the `natives` block in `index.html`, and an
+RFC6455 echo endpoint at `/echo` in `serve.mjs` — hand-rolled, ~40 lines, so
+the spike adds no npm dependency).
+
+| step | question | result |
+| --- | --- | --- |
+| BOUND | is a JS-implemented `native` callable from Java? | **PASS** — `ping->pong:hello` |
+| BYTES | does a `byte[]` survive both crossings? | **PASS** — `00017f80ff42`, `0x00` and `0xFF` intact |
+| ASYNC | **can a Java native block on a JS Promise?** | **PASS** — 6 B round trip in **153 ms** |
+| SOCKET | through a real WebSocket to a real server? | **PASS** |
+| GROW | may a native return a *different-length* array? | **FAIL** — `ArrayIndexOutOfBoundsException` |
+
+## ASYNC is the one that mattered, and it passed
+
+Forge's `IToServer.send(...)` is synchronous; a browser `WebSocket` is not. If
+CheerpJ could not suspend the Java thread across a JS `await`, every Forge call
+site assuming a synchronous transport would need rewriting, and "GO-WITH-COST"
+would have been wrong by a rewrite.
+
+It suspends. The JS implementation `await`s a deliberate 150 ms timer *before*
+touching the socket, and Java measured **153 ms** — so the pass cannot be a
+synchronous stub resolving instantly, which is the way this test fails
+silently.
+
+## The constraint: a native fills the caller's array, it does not return a new one
+
+Returning a freshly constructed `Uint8Array` throws
+`ArrayIndexOutOfBoundsException` **on the Java side**, after the JS side has
+run correctly. Both failures were measured:
+
+- `wsRoundTrip` returning a new array → FAIL. Copying the reply into the array
+  CheerpJ handed in and returning *that* → PASS.
+- `growBytes` returning a correct `2n`-byte array → FAIL, with the JS log
+  showing `in=6 out=12`, i.e. JS did its job and the crossing refused it.
+
+**What this means for the bridge.** `IToServer.send(byte[])` is unaffected — it
+needs no return payload. The inbound direction cannot be `byte[] recv()`; it
+has to be the JNI-shaped pair:
+
+```java
+private static native int  recvLength();        // how many bytes are waiting
+private static native void recvInto(byte[] buf); // fill a Java-allocated buffer
+```
+
+That is a shape, not an obstacle, and it is the shape JNI has always had. It is
+listed here so nobody designs the bridge around a `byte[]` return and discovers
+this at integration time.
+
+## What is STILL not verified
+
+- **Whether JS can allocate a Java array at all** under CheerpJ (some runtimes
+  expose a helper). If it can, the pair above collapses back to one call. Not
+  needed for a GO; it only decides how tidy the bridge is.
+- Everything else in the previous section's "NOT verified" list stands
+  unchanged — `ZipFile`, Forge's UI at any frame rate, and the Tailscale
+  question, which matters less than it sounds because our bridge cannot
+  terminate WireGuard either way.
+
+**Nothing under `forge/` was touched.** `git submodule status forge` unchanged;
+no `target/` directories.

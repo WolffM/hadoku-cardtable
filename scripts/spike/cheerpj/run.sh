@@ -13,7 +13,7 @@
 #   ./run.sh build              compile the probes, stage the static site
 #   ./run.sh serve              foreground static server on $PORT (ctrl-C to stop)
 #   ./run.sh measure [probe]    launch headless Chromium at the page, print JSON
-#                               probe = net (default) | swing | forgejar
+#                               probe = net (default) | swing | fs | natives | forgejar
 #   ./run.sh all                build + measure net + measure swing
 #
 # `measure` starts and stops its own server, so `serve` is only for eyeballing

@@ -65,6 +65,76 @@ mark('pageStart');
     // CheerpJ's default cwd is /files/. Pointing it at /app/ lets Forge find a
     // res/ tree served next to the jar.
     const init = { version: 17, enableDebug: false, javaProperties: ['user.dir=/app/'] };
+
+    // ── The natives probe (Wave 14 lane B's one unverified dependency) ──────
+    //
+    // CheerpJ binds a Java `native` method to a JS function named
+    // Java_<pkg>_<Class>_<method>. The signature CheerpJ passes is
+    // (lib, ...args) for a STATIC native — `lib` is the handle, not an
+    // argument — and getting that wrong looks exactly like "natives are
+    // broken", so each implementation logs what it actually received.
+    //
+    // These are declared `async` ON PURPOSE. That is the question: whether
+    // CheerpJ suspends the Java thread across a JS await. Forge's
+    // IToServer.send() is synchronous and a browser WebSocket is not, so if
+    // this does not hold, lane B's cost estimate is wrong by a rewrite.
+    if (S.probe === 'natives') {
+      const enc = (arr) => Array.from(arr, b => (b & 0xff).toString(16).padStart(2, '0')).join('');
+      init.natives = {
+        async Java_spike_NativesProbe_ping(lib, str) {
+          console.log('NATIVES-JS ping argc=' + arguments.length + ' arg=' + String(str));
+          return 'pong:' + String(str);
+        },
+        async Java_spike_NativesProbe_echoBytes(lib, bytes) {
+          console.log('NATIVES-JS echoBytes len=' + (bytes && bytes.length) + ' hex=' + enc(bytes || []));
+          return bytes;
+        },
+        // Does a native have to return the array it was given? A transport's
+        // replies are not the size of its requests, so if the answer is yes,
+        // the shape of the bridge changes (two calls: length, then fetch).
+        async Java_spike_NativesProbe_growBytes(lib, bytes) {
+          const out = new Uint8Array(bytes.length * 2);
+          out.set(bytes, 0);
+          out.set(bytes, bytes.length);
+          console.log('NATIVES-JS growBytes in=' + bytes.length + ' out=' + out.length);
+          return out;
+        },
+        async Java_spike_NativesProbe_wsRoundTrip(lib, url, bytes) {
+          const u = String(url);
+          console.log('NATIVES-JS wsRoundTrip url=' + u + ' len=' + (bytes && bytes.length));
+          // A deliberate delay BEFORE the socket work, so a pass cannot be a
+          // synchronous stub resolving instantly: the Java side prints the
+          // elapsed time and it must exceed this.
+          await new Promise(r => setTimeout(r, 150));
+          const out = await new Promise((resolve, reject) => {
+            const ws = new WebSocket(u);
+            ws.binaryType = 'arraybuffer';
+            const t = setTimeout(() => { try { ws.close(); } catch {} reject(new Error('ws timeout')); }, 10000);
+            ws.onerror = (e) => { clearTimeout(t); reject(new Error('ws error')); };
+            ws.onopen = () => ws.send(new Uint8Array(bytes));
+            ws.onmessage = (ev) => {
+              clearTimeout(t);
+              const got = new Uint8Array(ev.data);
+              try { ws.close(); } catch {}
+              resolve(got);
+            };
+          });
+          console.log('NATIVES-JS wsRoundTrip got len=' + out.length + ' hex=' + enc(out));
+          // A freshly constructed Uint8Array threw ArrayIndexOutOfBoundsException
+          // on the Java side (measured), while echoBytes returning the array
+          // CheerpJ handed IN worked. So copy into the caller's array and return
+          // that object: this distinguishes "natives cannot carry a payload back"
+          // from "the return must be an array CheerpJ minted", and only the
+          // second is survivable.
+          if (out.length !== bytes.length) {
+            console.log('NATIVES-JS wsRoundTrip LENGTH MISMATCH in=' + bytes.length + ' out=' + out.length);
+            return bytes;
+          }
+          for (let i = 0; i < out.length; i++) bytes[i] = out[i];
+          return bytes;
+        },
+      };
+    }
     if (new URLSearchParams(location.search).get('tailscale') === '1') {
       // Deliberately a DEAD control plane on this same origin, and an obviously
       // fake key. The question is not "can we join a tailnet" -- it is whether
@@ -85,12 +155,15 @@ mark('pageStart');
       // Forge desktop's own entry point, straight off the shipped fat jar.
       await cheerpjRunJar('/app/forge.jar');
     } else {
-      const cls = { swing: 'spike.SwingProbe', fs: 'spike.FsProbe' }[S.probe] || 'spike.NetProbe';
+      const cls = { swing: 'spike.SwingProbe', fs: 'spike.FsProbe', natives: 'spike.NativesProbe' }[S.probe] || 'spike.NetProbe';
       // NetProbe's argv[0] is this page's own origin, so it can try same-origin
       // HTTP and a raw TCP connect to the SAME host:port and compare the two
       // failures. FsProbe's argv[0] is a path to look for under /app/.
-      const argv = { fs: ['res/skins/default/bg_splash.png'], swing: [] }[S.probe]
-        || [location.origin];
+      const argv = {
+        fs: ['res/skins/default/bg_splash.png'],
+        swing: [],
+        natives: [location.origin.replace(/^http/, 'ws') + '/echo'],
+      }[S.probe] || [location.origin];
       await cheerpjRunMain(cls, '/app/probe.jar:/app/forge.jar', ...argv);
     }
     mark('runReturned');
