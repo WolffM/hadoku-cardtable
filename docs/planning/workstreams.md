@@ -295,7 +295,87 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Verified this pass (2026-09-19 — tracker, closing Wave 13)
+## Verified this pass (2026-09-20 — tracker, closing Wave 14)
+
+Landed `b597510..1aaf108`. **`forge/` is pristine** — submodule unchanged, no
+`target/` dirs, D2 holds. **The three spikes changed zero product code**, which
+I checked by diffing `apps/` and `packages/` across each: empty. Gate re-run
+here: `pnpm check` exit 0, 1,841 passing.
+
+### The answer to the question the wave asked
+
+| lane | verdict | the number that carries it |
+| --- | --- | --- |
+| A — TeaVM on the client | **NO-GO**, but not where D7 died | the **view layer links clean: 0 missing APIs, a 493 KB artifact** |
+| B — CheerpJ | **GO-WITH-COST** — contingent | the whole GO rests on one probe **never exercised** |
+| C — streaming | **WORKS** | 1.26 GiB, 0.5 core, ~1 Mbit/s, **65 ms click-to-pixel** |
+
+**Lane A is the important result and "NO-GO" undersells it.** D7 could not
+produce an artifact at all. Lane A produced a real 493 KB one for
+`GameView`/`CardView`/`PlayerView`/`Tracker` and the 214-property
+`TrackableProperty` — **the half that is actually on the wire** — with zero
+missing APIs on both WASM GC and JS. `java.util.concurrent.locks`, D7's killer,
+is **not** on the client's path except through a dev-mode snapshot that is dead
+when `GameView.getGame()` is null and a quest-draft bracket behind the win/lose
+screen. Forge's outbound half costs 3 APIs, none of them `java.util.concurrent`.
+
+What actually blocks it: `forge-gui-mobile` is a whole product — quest,
+adventure, gauntlet, deck editor, a server-hosting singleton — reachable in a
+few hops from the match screen, and TeaVM's whole-program analysis links all of
+it. Cutting **eight named edges** takes 53 missing APIs → **11**, measured, and
+removes `forge.game.Game` from every chain. The lane's own caveat, inherited
+correctly from D7: *fixing all 53 only gets you to the next link error*, because
+these entry points call each protocol method once with null arguments.
+
+**Lane B corrected my brief.** I wrote *"targets `forge-gui-desktop`
+essentially unmodified"*; it does not — the stock jar boots, reaches
+`SplashFrame`, and dies on networking and the filesystem, both needing fork
+changes. The verdict is GO-WITH-COST because all three fixes are local and
+named to the line, not research. **But its own "NOT verified" section says the
+entire GO depends on CheerpJ's `natives` JS-interop path, which was never
+exercised.** That is not a GO yet; it is a GO gated on one afternoon's probe.
+
+**Lane C built the thing.** A real Magic match, real Forge UI, card art and
+all, rendering in Chrome — for less RAM than a browser tab and 65 ms of
+click-to-pixel measured on this host. And it is still the wrong default for the
+reason the operator already gave: the match stops travelling through our
+netcode, which reduces the watchparty room layer to chat around a video feed.
+The lane says so itself rather than selling it.
+
+### Lane D shipped, correctly — and with no tests
+
+`HadokuThemeRoot` + `AppHeader`, no local theme hook (the template's
+capitalised rule, honoured). 450 lines of product code and **zero test files**;
+`AppChrome` has no test at all.
+
+**That is a flaw in the wave file, not the lane.** §D's done-when asked that
+"the theme picker works and persists across a reload" without demanding a test
+that proves it, so the lane met the letter. The claim that persistence works is
+currently unverified by anything that runs.
+
+### Found: `@wolffm/themes@5.8.5` calls `matchMedia` unguarded
+
+`prefersDark()` guards it; the effect that follows the OS light/dark switch does
+not — `dist/useTheme.js:216` is a bare
+`window.matchMedia('(prefers-color-scheme: dark)')` inside a `useEffect`. jsdom
+has never implemented it, so mounting `AppChrome` threw in **26** existing
+tests. Lane D shipped a feature-detected polyfill
+(`apps/ui/src/chrome/matchMedia.ts`) and documented it as upstream's bug. It is
+not a test-only concern: any embedder without the API takes the same throw in a
+real browser. **Worth reporting to the themes owner.**
+
+### CI has been QUEUED for 15 minutes, and the host is why
+
+Load average **44.51 on 12 cores** — a manually started
+`dataplatform.cli media perceptual --workers 4` is saturating hokon, which is
+also the CI runner. The manager reported one unreproducible e2e red (a Forge
+match spec blowing a 300 s wall-clock budget at turn 4, then passing three times
+at ~38 s under higher load) and blamed this. **The load corroborates it**, and
+`e2e/**` is byte-identical to what was green, so no lane introduced it. The
+tracker has NOT re-run `pnpm e2e` for the same reason — a timing-budgeted test
+on a 3.7× oversubscribed host measures the host.
+
+## Previously verified (2026-09-19 — tracker, closing Wave 13)
 
 Landed in one push, `e08bb68..06006f4`. Gate re-run by the tracker: **1,836
 passed / 6 skipped**, exit 0 — up from 1,775. Deploy tree at `06006f4`, PM2
