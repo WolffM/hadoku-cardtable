@@ -353,7 +353,45 @@ outstanding** — the server log's last entries predate their deploy and the
 tracker cannot mint an authenticated request; the next real page load settles
 it. Rooms already persisted with `anon` keep it; nothing backfills.
 
-### Four deletions, gated on upgrading 0.38.115 → 0.39.3
+### UPDATED 2026-09-20 — target is **0.39.4**, and two new items
+
+hadoku_site revised the doc mid-w15. The tracker checked all three against our
+code: **none of it changes Wave 15**, which is the CheerpJ client and does not
+touch the room layer. All three are for the w16 adoption.
+
+**1. Go to 0.39.4**, not 0.39.3.
+
+**2. `seatRows` — we do NOT have this bug, and the reason matters.** Their
+warning is that a screen drawing a pod's seats from `room.seats` renders
+arrivals rather than pod size, so a four-seat room with two players shows two
+rows. Ours come from the engine: `packages/draft/src/view.ts:54` is
+`Array.from({ length: state.seatCount }, …)`, with `capacity` carried
+separately, so a pod of 8 always renders 8.
+
+**The interaction to watch in w16:** their deletion #2 asks us to drop
+`room.seats = state.table` (`draftRooms.ts:230`) in favour of `RoomRegistry`'s
+seat-table factory. That aliasing is *precisely* what keeps our seating
+full-size and single-sourced — `draftRooms.ts:14-21` explains why two tables
+would be two answers to "which seat is Alice in". Taking the deletion without
+routing the engine's table through the factory would introduce the very bug
+`seatRows` warns about. **Do the deletion and the `seatRows` adoption
+together, or neither.**
+
+**3. `onRoomDelete` — only bites once we start deleting rooms, which we
+deliberately do not.** `draftRooms.ts:79-86` records the decision: `collectGC`
+reaps a room whose `clients.size` is 0, which for a forty-five-minute draft is
+every room the moment a blip lands on the last connected player. So rooms live
+for the life of the process — *"a slow leak and a much smaller one than
+destroying a game in progress."*
+
+What we would leak **if** w16 enables GC: the `vacating` timers
+(`draftRooms.ts:130`, `:407`) and, for play rooms, the match's JVM handle.
+`onRoomDelete` is the hook for exactly that. So the order in w16 is: adopt the
+hook **first**, then consider enabling GC — never the reverse, and the
+"no GC" decision should be re-taken explicitly rather than inherited by
+accident from a package default.
+
+### Four deletions, gated on upgrading 0.38.115 → **0.39.4**
 
 All three packages are published at **0.39.3** (checked). **All four targets
 exist at the lines they name** (checked):
