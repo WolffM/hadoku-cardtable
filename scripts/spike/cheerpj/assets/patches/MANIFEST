@@ -1,0 +1,3 @@
+forge-gui-desktop/src/main/java/forge/GuiDesktop.java|0001-assets-dir-from-system-property.patch
+forge-core/src/main/java/forge/CardStorageReader.java|0002-card-data-from-zip-without-directories.patch
+forge-core/src/main/java/forge/util/Localizer.java|0003-language-bundles-without-a-directory-url.patch

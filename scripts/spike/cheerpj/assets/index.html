@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CheerpJ assets probe -- wave 15 lane B</title>
+<style>
+  body { font: 13px/1.5 ui-monospace, monospace; margin: 0; background: #111; color: #ddd; }
+  #log { white-space: pre-wrap; padding: 8px; max-height: 45vh; overflow: auto; border-bottom: 1px solid #333; }
+</style>
+</head>
+<body>
+<div id="log">booting...</div>
+<div id="display"></div>
+<script>
+// ---------------------------------------------------------------------------
+// Wave 15, lane B's OWN harness page. The shared scripts/spike/cheerpj/index.html
+// is owned by nobody this wave, so this lane brings its own driver rather than
+// editing it (the manager wires them at landing).
+//
+// Same console contract as the shared page -- window.__spike.{marks,lines,error,
+// finished} -- so drive.mjs and the shared measure.mjs can both read it. The
+// console hook is installed BEFORE loader.js is fetched so no Java stdout line
+// is lost, and every line is stamped with performance.now(): one clock.
+//
+// Query parameters (this page runs whatever it is told, rather than hardcoding
+// a probe table, because this lane iterates on patched Forge jars):
+//   main=<class>    class to run via cheerpjRunMain      (default spike.ZipProbe)
+//   jar=<path>      run a jar's manifest main instead    (e.g. /app/forge.jar)
+//   args=a|b|c      pipe-separated argv
+//   cp=<classpath>  colon-separated, default /app/probe.jar:/app/forge.jar
+//   userdir=<path>  value for the user.dir system property (default /app/)
+//   props=k=v|k=v   extra javaProperties
+// ---------------------------------------------------------------------------
+const Q = new URLSearchParams(location.search);
+const S = window.__spike = {
+  probe: Q.get('main') || Q.get('jar') || 'spike.ZipProbe',
+  lines: [], marks: {}, error: null, finished: false,
+};
+const mark = (n) => { S.marks[n] = performance.now(); };
+const logEl = document.getElementById('log');
+
+for (const m of ['log', 'warn', 'error', 'info']) {
+  const orig = console[m].bind(console);
+  console[m] = (...a) => {
+    const s = a.map((x) => (typeof x === 'string' ? x : String(x))).join(' ');
+    S.lines.push({ t: performance.now(), s });
+    logEl.textContent += '\n' + s;
+    logEl.scrollTop = logEl.scrollHeight;
+    orig(...a);
+  };
+}
+window.addEventListener('error', (e) => { S.error = String(e.message || e.error); });
+window.addEventListener('unhandledrejection', (e) => { S.error = String(e.reason); });
+S.find = (prefix) => (S.lines.find((l) => l.s.startsWith(prefix)) || null);
+
+mark('pageStart');
+</script>
+<script src="https://cjrtnc.leaningtech.com/4.3/loader.js"></script>
+<script>
+(async () => {
+  try {
+    mark('loaderReady');
+    // wipe=1 deletes every IndexedDB database on this origin BEFORE cheerpjInit,
+    // so a "cold" run is provably cold. It has to be provable: a Playwright
+    // context that looked fresh still had a previous run's /files/ tree in it,
+    // and an unpack that silently skipped produced a boot time that read like a
+    // result. The names deleted are logged so the transcript shows what was there.
+    if (Q.get('wipe') === '1' && indexedDB.databases) {
+      const dbs = await indexedDB.databases();
+      console.log('WIPE found ' + dbs.length + ' db(s): ' + dbs.map((d) => d.name).join(','));
+      await Promise.all(dbs.map((d) => new Promise((res) => {
+        const r = indexedDB.deleteDatabase(d.name);
+        r.onsuccess = r.onerror = r.onblocked = () => res();
+      })));
+      console.log('WIPE done');
+    }
+    mark('wipeDone');
+    // version: 17 is REQUIRED. CheerpJ defaults to Java 8 mode and refuses any
+    // class file above major 52; Forge is built at --release 17
+    // (forge/pom.xml:27) and so are this lane's probes.
+    const props = ['user.dir=' + (Q.get('userdir') || '/app/')];
+    for (const p of (Q.get('props') || '').split('|')) { if (p) props.push(p); }
+    await cheerpjInit({ version: 17, enableDebug: false, javaProperties: props });
+    mark('initDone');
+
+    cheerpjCreateDisplay(1024, 768, document.getElementById('display'));
+    mark('displayDone');
+
+    const jar = Q.get('jar');
+    const argv = (Q.get('args') || '').split('|').filter((s) => s.length > 0);
+    if (jar) {
+      await cheerpjRunJar(jar, ...argv);
+    } else {
+      const cp = Q.get('cp') || '/app/probe.jar:/app/forge.jar';
+      await cheerpjRunMain(Q.get('main') || 'spike.ZipProbe', cp, ...argv);
+    }
+    mark('runReturned');
+  } catch (e) {
+    S.error = (e && e.stack) ? e.stack : String(e);
+    console.error('SPIKE-HARNESS-ERROR ' + S.error);
+  } finally {
+    S.finished = true;
+    mark('finished');
+  }
+})();
+</script>
+</body>
+</html>

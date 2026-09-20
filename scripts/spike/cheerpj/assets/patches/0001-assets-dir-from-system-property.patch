@@ -1,0 +1,18 @@
+--- a/forge-gui-desktop/src/main/java/forge/GuiDesktop.java
++++ b/forge-gui-desktop/src/main/java/forge/GuiDesktop.java
+@@ -87,6 +87,15 @@
+ 
+     @Override
+     public String getAssetsDir() {
++        // A browser build has no process working directory to resolve assets
++        // against: under CheerpJ the jar and res/ tree are served from the
++        // read-only /app/ mount and every relative path misses. -Dforge.assetsDir
++        // is set from cheerpjInit's javaProperties and is empty everywhere else,
++        // so the desktop behaviour below is unchanged.
++        final String override = System.getProperty("forge.assetsDir");
++        if (override != null && !override.isEmpty()) {
++            return override;
++        }
+         return StringUtils.containsIgnoreCase(BuildInfo.getVersionString(), "git") ?
+                 // FIXME: replace this hardcoded value!!
+                 "../forge-gui/" : "";

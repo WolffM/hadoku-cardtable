@@ -1,0 +1,23 @@
+--- a/forge-core/src/main/java/forge/util/Localizer.java
++++ b/forge-core/src/main/java/forge/util/Localizer.java
+@@ -151,7 +151,19 @@
+             URL[] urls = null;
+ 
+             try {
+-                urls = new URL[] { file.toURI().toURL() };
++                // File.toURI() only appends the trailing slash when isDirectory()
++                // says so, and URLClassLoader treats a URL WITHOUT one as a jar
++                // rather than a directory -- so on any mount that cannot report
++                // directories (CheerpJ's /app/ reports exists=false for every one
++                // of them) the language bundles are looked for inside a nonexistent
++                // archive and every getBundle throws MissingResourceException.
++                // Appending it unconditionally is identical on a real filesystem,
++                // where isDirectory() was going to add it anyway.
++                String u = file.toURI().toURL().toExternalForm();
++                if (!u.endsWith("/")) {
++                    u = u + "/";
++                }
++                urls = new URL[] { new URL(u) };
+             } catch (MalformedURLException e) {
+                 e.printStackTrace();
+             }

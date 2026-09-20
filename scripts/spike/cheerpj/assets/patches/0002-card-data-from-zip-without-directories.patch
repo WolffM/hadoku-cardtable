@@ -1,0 +1,52 @@
+--- a/forge-core/src/main/java/forge/CardStorageReader.java
++++ b/forge-core/src/main/java/forge/CardStorageReader.java
+@@ -85,18 +85,27 @@
+ 
+         this.loadCardsLazily = loadCardsLazily;
+ 
+-        // These read data for lightweight classes.
+-        if (!cardsfolder.exists()) {
+-            throw new RuntimeException("CardReader : constructor error -- " + cardsfolder.getAbsolutePath() + " file/folder not found.");
+-        }
++        final File zipFile = new File(cardsfolder, "cardsfolder.zip");
+ 
+-        if (!cardsfolder.isDirectory()) {
+-            throw new RuntimeException("CardReader : constructor error -- not a directory -- " + cardsfolder.getAbsolutePath());
+-        }
++        // A browser mount has files but no directories: CheerpJ's /app/ opens any
++        // exact absolute path and reports exists=false for every directory above
++        // it. The two guards below are a sanity check on a local install, not a
++        // precondition of reading cards -- when the archive is present every card
++        // comes out of it and the enclosing directory is never walked. So test
++        // the archive FIRST and only fall back to the directory contract if it is
++        // not there.
++        if (!zipFile.isFile()) {
++            // These read data for lightweight classes.
++            if (!cardsfolder.exists()) {
++                throw new RuntimeException("CardReader : constructor error -- " + cardsfolder.getAbsolutePath() + " file/folder not found.");
++            }
+ 
+-        final File zipFile = new File(cardsfolder, "cardsfolder.zip");
++            if (!cardsfolder.isDirectory()) {
++                throw new RuntimeException("CardReader : constructor error -- not a directory -- " + cardsfolder.getAbsolutePath());
++            }
++        }
+ 
+-        if (zipFile.exists()) {
++        if (zipFile.isFile()) {
+             try {
+                 this.zip = new ZipFile(zipFile);
+             } catch (final Exception exn) {
+@@ -385,6 +394,12 @@
+ 
+     public static List<File> collectCardFiles(final List<File> accumulator, final File startDir) {
+         final String[] list = startDir.list();
++        if (list == null) {
++            // Not a directory, or a mount that cannot enumerate one (CheerpJ's
++            // /app/ returns null for every path). Upstream this NPEs one line
++            // below; there is nothing to collect either way.
++            return accumulator;
++        }
+         for (final String filename : list) {
+             final File entry = new File(startDir, filename);
+ 
