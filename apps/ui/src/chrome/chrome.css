@@ -1,0 +1,107 @@
+/*
+ * The chrome's own layout. Colour comes from `@wolffm/themes` and nowhere else.
+ *
+ * Every colour below is a semantic token — a token names a ROLE, not a hue, and
+ * the light/dark pair resolves from `data-theme` on <html> (and on this
+ * container, which `HadokuThemeRoot` mirrors it onto). No hex literals, and no
+ * `var(--token, #fallback)` defaults: a fallback hides a broken token instead of
+ * failing loudly.
+ *
+ * `main.tsx` imports the four fleet stylesheets before this one, in that order,
+ * for exactly this reason — the tokens have to be defined before anything reads
+ * them, and ESM evaluates imports in source order.
+ */
+
+/* Explicit colour-scheme per variant. "dark only" also tells Dark Reader to
+   keep its hands off a theme that is already dark. */
+.cardtable-chrome[data-dark-theme='false'] {
+  color-scheme: light;
+}
+
+.cardtable-chrome[data-dark-theme='true'] {
+  color-scheme: dark only;
+}
+
+.cardtable-chrome {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/* The header is a fixed row; whatever the route renders takes the rest. The
+   direct-child rule is what lets both possible children grow — `.shell` on a
+   roomless route, and watchparty's `.wp-room-chrome-frame` on a room one, which
+   asks for `height: 100%` and would otherwise sit at content height. */
+.cardtable-chrome__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.cardtable-chrome__content > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The viewer's name, in AppHeader's `status` slot. */
+.cardtable-chrome__who {
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The table is a dark island inside a themed page, deliberately.
+ *
+ * `styles.css` is the DRAFT TABLE's stylesheet, and `rooms.css`, `board.css`,
+ * `live.css`, `prompts.css` and `spectate.css` are its neighbours. None of them
+ * is this lane's, and all of them paint from the TABLE's palette — `--bg`,
+ * `--bg-raised`, `--ink` — which is dark on purpose and for a reason that is
+ * not taste: a draft is read for forty-five minutes at a stretch, and the
+ * colour-pie hues are desaturated away from the printed ones so a pip reads as
+ * ours.
+ *
+ * Those surfaces set a background and INHERIT their text colour. So letting
+ * `--color-text` reach them would put a light theme's dark ink on a permanently
+ * dark tile — unreadable, and it would be the chrome that broke it.
+ *
+ * Hence this: the roots those stylesheets own re-assert their own palette, and
+ * everything around them — header, lobby chrome, pod bar, deck builder, footer
+ * — is themed. This list is the seam between the themed frame and the table,
+ * and it is the thing to extend when a new dark surface appears (or to delete,
+ * when those sheets move onto semantic tokens too).
+ */
+.cardtable-chrome :is(.app, .draft, .board, .deck, .rooms, .spectate) {
+  background-color: var(--bg);
+}
+
+.cardtable-chrome
+  :is(.app, .draft, .board, .deck, .deckrow, .rooms, .spectate, .conn, .prompt, .confirm) {
+  color: var(--ink);
+}
+
+/*
+ * The other half of the same seam, and the only rule here that is a patch.
+ *
+ * `.pods__title` ("Draft pods", `rooms/rooms.css:183`) sits OUTSIDE the dark
+ * islands above — its section has no background of its own, so it renders
+ * straight onto the themed page — and it paints from the table palette. Against
+ * a light theme that measured 2.44:1, which is not readable, and the chrome is
+ * what put it there.
+ *
+ * This belongs one line up in `rooms.css`, as `--ink-dim` → `--color-text-
+ * secondary`. That file is not this lane's, so the fix lives here until it can
+ * be moved; delete this rule when it is.
+ */
+.cardtable-chrome .pods__title {
+  color: var(--color-text-secondary);
+}

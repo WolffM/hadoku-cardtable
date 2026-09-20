@@ -6,9 +6,26 @@
  * by nobody this wave; a second lane editing it in the same tree is how a wave
  * ends up with a merge conflict in a file neither of them owns.
  *
- * It does inherit `styles.css`'s custom properties — `--bg`, `--ink`, `--accent`
- * and the rest are defined on `:root` there, and `main.tsx` imports it first, so
- * the palette is shared rather than forked. Nothing here redefines a token.
+ * COLOUR COMES FROM `@wolffm/themes`, not from this app. Every value below is a
+ * semantic token — `--color-text`, `--color-bg-card`, `--color-border` — which
+ * names a ROLE and resolves light/dark from `data-theme`. It used to read the
+ * draft table's own `--bg` / `--ink` / `--accent` from `styles.css`, which was
+ * correct while this app had no theme picker and is a bug now that it has one:
+ * a themed page with a hardcoded-dark lobby on it is the half-migrated look the
+ * operator saw from the other side (a themed chat column beside an unthemed
+ * app). `styles.css` keeps those names for the TABLE, which stays dark on
+ * purpose — see the island rule in `chrome/chrome.css`.
+ *
+ * No hex literals, and no `var(--token, #fallback)` defaults: a fallback hides
+ * a broken token instead of failing loudly.
+ *
+ * `--color-text-secondary` is as dim as anything here gets, including the rules
+ * that used to read `--ink-faint`. That is measured, not taste: against
+ * `--color-bg`, `--color-text-muted` clears 3:1 in NO light theme (worst 1.75,
+ * pink-light) and `--color-text-tertiary` misses it in four (worst 2.60,
+ * ocean-light), while `--color-text-secondary` is at 5.36 or better in all
+ * eighteen. The hierarchy those rules wanted is carried by size, weight and
+ * letter-spacing instead, which is what the fleet's own sheets do.
  *
  * Same two legal rules as the table: no `url()` anywhere, and no WotC trade
  * dress. There is nothing to draw here but text, boxes and one status dot.
@@ -16,8 +33,10 @@
 
 /* ── shell ─────────────────────────────────────────────────────────── */
 
+/* No `min-height: 100vh` here any more: the chrome's `__content` region is a
+   flex column that already grows its child to the viewport, and a second full
+   viewport height under a header is a page that scrolls by exactly the header. */
 .shell {
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -39,14 +58,14 @@
 
 .shell__sub {
   margin: 0;
-  color: var(--ink-dim);
+  color: var(--color-text-secondary);
 }
 
 .shell__foot {
   margin-top: auto;
   padding-top: 16px;
-  border-top: 1px solid var(--line-soft);
-  color: var(--ink-faint);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
   font-size: 12px;
   max-width: 70ch;
 }
@@ -56,7 +75,7 @@
 }
 
 .shell__link {
-  color: var(--accent);
+  color: var(--color-primary);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -76,9 +95,9 @@
 }
 
 .lobby__card {
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -91,16 +110,16 @@
 
 .lobby__note {
   margin: 0;
-  color: var(--ink-dim);
+  color: var(--color-text-secondary);
   max-width: 52ch;
 }
 
 .lobby__go {
   align-self: flex-start;
-  background: var(--accent);
-  color: #10131a;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--hdk-radius);
   padding: 10px 18px;
   font-weight: 600;
 }
@@ -119,7 +138,7 @@
 
 .lobby__form label {
   flex-basis: 100%;
-  color: var(--ink-faint);
+  color: var(--color-text-secondary);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -128,24 +147,24 @@
 .lobby__form input {
   flex: 1 1 220px;
   min-width: 0;
-  background: var(--bg);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
   padding: 9px 10px;
   font: inherit;
 }
 
 .lobby__form button {
-  background: var(--bg-card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
   padding: 9px 16px;
 }
 
 .lobby__error {
   margin: 0;
-  color: var(--warn);
+  color: var(--color-warning);
 }
 
 /* ── pod ───────────────────────────────────────────────────────────── */
@@ -155,9 +174,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 20px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
   padding: 12px 16px;
 }
 
@@ -175,7 +194,7 @@
 .pod__cube,
 .pod__conn,
 .pod__tally {
-  color: var(--ink-dim);
+  color: var(--color-text-secondary);
   font-size: 13px;
 }
 
@@ -189,12 +208,12 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--ink-faint);
+  background: var(--color-neutral);
   flex: none;
 }
 
 .pod__dot--on {
-  background: var(--c-green);
+  background: var(--color-success);
 }
 
 .pod__invite {
@@ -207,7 +226,7 @@
 }
 
 .pod__invite-label {
-  color: var(--ink-faint);
+  color: var(--color-text-secondary);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -216,36 +235,36 @@
 .pod__invite-url {
   flex: 1 1 200px;
   min-width: 0;
-  background: var(--bg);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
   padding: 7px 9px;
   font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .pod__invite button {
-  background: var(--bg-card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
   padding: 7px 14px;
 }
 
 .pod__invite-said {
-  color: var(--ink-faint);
+  color: var(--color-text-secondary);
   font-size: 12px;
 }
 
 .pod__error {
   margin: 0;
-  color: var(--warn);
+  color: var(--color-warning);
 }
 
 .pod__waiting,
 .pod__done {
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
   padding: 32px;
   display: flex;
   flex-direction: column;
@@ -256,7 +275,7 @@
 .pod__waiting p,
 .pod__done p {
   margin: 0;
-  color: var(--ink-dim);
+  color: var(--color-text-secondary);
   max-width: 60ch;
 }
 
@@ -265,7 +284,7 @@
   padding-left: 22px;
   columns: 3;
   column-gap: 32px;
-  color: var(--ink-dim);
+  color: var(--color-text-secondary);
 }
 
 /* ── constructed (`#/play`) and a match (`#/match/<id>`) ─────────────── */
@@ -280,17 +299,17 @@
 .tables__seat select,
 .lobby__card select {
   padding: 0.45rem 0.6rem;
-  background: var(--bg);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
   font: inherit;
   max-width: 100%;
 }
 
 .tables__opponent {
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
   margin: 0 0 1rem;
   padding: 0.5rem 0.75rem;
   display: flex;
@@ -299,11 +318,11 @@
 }
 
 .tables__legal {
-  color: var(--c-green);
+  color: var(--color-success);
 }
 
 .tables__illegal {
-  color: var(--warn);
+  color: var(--color-warning);
 }
 
 .tables__issues {
@@ -312,16 +331,16 @@
 }
 
 .tables__card {
-  color: var(--ink);
+  color: var(--color-text);
 }
 
 .tables__invite {
   width: min(32rem, 100%);
   padding: 0.3rem 0.5rem;
-  background: var(--bg);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
   font: inherit;
 }
 
@@ -348,23 +367,23 @@
 }
 
 .builder__n--short {
-  color: var(--warn);
+  color: var(--color-warning);
 }
 
 .builder__n--quiet {
   font-size: 17px;
-  color: var(--ink-faint);
+  color: var(--color-text-secondary);
 }
 
 .builder__of {
-  color: var(--ink-dim);
+  color: var(--color-text-secondary);
 }
 
 .builder__h2 {
   font-size: 13px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ink-dim);
+  color: var(--color-text-secondary);
   margin: 0;
 }
 
@@ -374,9 +393,9 @@
   align-items: center;
   gap: 10px 18px;
   padding: 10px 14px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
-  background: var(--bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-alt);
 }
 
 .builder__basic {
@@ -386,17 +405,17 @@
 }
 
 .builder__basic-name {
-  color: var(--ink-dim);
+  color: var(--color-text-secondary);
 }
 
 .builder__basic button {
   width: 26px;
   height: 26px;
   padding: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--color-border-light);
   border-radius: 4px;
-  background: var(--bg-card);
-  color: var(--ink);
+  background: var(--color-bg-hover);
+  color: var(--color-text);
   cursor: pointer;
 }
 
@@ -426,13 +445,13 @@
 }
 
 .builder__pile-n {
-  color: var(--ink);
+  color: var(--color-text);
   margin-left: 4px;
 }
 
 .builder__hint {
   margin: 0;
-  color: var(--ink-faint);
+  color: var(--color-text-secondary);
   font-size: 12px;
 }
 
@@ -457,21 +476,21 @@
   padding: 6px 10px;
   text-align: left;
   font: inherit;
-  color: var(--ink);
-  background: var(--bg-raised);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
+  color: var(--color-text);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
   cursor: pointer;
 }
 
 .builder__row:hover,
 .builder__row:focus-visible {
-  border-color: var(--accent);
+  border-color: var(--color-primary);
 }
 
 .builder__row-n {
   grid-area: n;
-  color: var(--ink-dim);
+  color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -490,7 +509,7 @@
 
 .builder__row-type {
   grid-area: type;
-  color: var(--ink-faint);
+  color: var(--color-text-secondary);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -506,9 +525,9 @@
   gap: 10px;
   margin: 16px 0;
   padding: 16px;
-  border: 1px solid #3a3f4b;
-  border-radius: 8px;
-  background: #1b1e25;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-lg);
+  background: var(--color-bg-card);
 }
 
 .lobby__locked p {
@@ -518,19 +537,19 @@
 
 .lobby__locked input {
   padding: 7px 10px;
-  border: 1px solid #4a5163;
-  border-radius: 6px;
-  background: #12151b;
-  color: #e7e9ee;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
   font: inherit;
 }
 
 .lobby__locked button {
   padding: 7px 16px;
-  border: 1px solid #4a5163;
-  border-radius: 6px;
-  background: #2a2f3a;
-  color: #e7e9ee;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-hover);
+  color: var(--color-text);
   font: inherit;
   cursor: pointer;
 }

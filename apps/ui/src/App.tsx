@@ -35,7 +35,8 @@ import { LobbyScreen } from './screens/LobbyScreen.tsx';
 import { MatchScreen } from './screens/MatchScreen.tsx';
 import { PodScreen } from './screens/PodScreen.tsx';
 import { useRoute } from './screens/route.ts';
-import { RoomShell } from './room/RoomShell.tsx';
+import { AppChrome } from './chrome/AppChrome.tsx';
+import { RoomShell, useWhoami } from './room/RoomShell.tsx';
 import type { DraftTransport } from './draft/socket.ts';
 import './screens/screens.css';
 
@@ -90,12 +91,24 @@ function Screen({ transport }: AppProps) {
 export function App({ transport }: AppProps) {
   const route = useRoute();
 
+  // The fleet's identity, read once here and threaded down. `RoomShell` reads
+  // the same hook for its own use; `whoami()` shares one in-flight promise per
+  // page (`globalThis.__hadokuWhoami`), so this is one identity path with two
+  // consumers, not two paths. See `chrome/AppChrome.tsx`.
+  const who = useWhoami();
+
   // ONE chrome for the page. Their store and socket are module singletons, so
   // a second RoomChrome would share and then tear down the first's connection
   // — which is why this wraps the switch rather than living in a screen.
+  //
+  // `AppChrome` is the hadoku frame (theme root + AppHeader) and goes OUTSIDE
+  // it: the header belongs to the app, the room is one thing the app renders.
+  // It mounts no room of its own.
   return (
-    <RoomShell roomId={roomIdFor(route)}>
-      <Screen transport={transport} />
-    </RoomShell>
+    <AppChrome who={who}>
+      <RoomShell roomId={roomIdFor(route)}>
+        <Screen transport={transport} />
+      </RoomShell>
+    </AppChrome>
   );
 }

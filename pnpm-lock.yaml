@@ -108,6 +108,12 @@ importers:
       '@wolffm/rooms-protocol':
         specifier: 0.38.115
         version: 0.38.115
+      '@wolffm/task-ui-components':
+        specifier: 4.8.3
+        version: 4.8.3(@wolffm/themes@5.8.5(react@19.2.8))(react@19.2.8)
+      '@wolffm/themes':
+        specifier: 5.8.5
+        version: 5.8.5(react@19.2.8)
       '@wolffm/watchparty-ui':
         specifier: 0.39.0
         version: 0.39.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
