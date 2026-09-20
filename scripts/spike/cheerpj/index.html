@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CheerpJ x Forge -- wave 14 lane B spike</title>
+<style>
+  body { font: 13px/1.5 ui-monospace, monospace; margin: 0; background: #111; color: #ddd; }
+  #log { white-space: pre-wrap; padding: 8px; max-height: 40vh; overflow: auto; border-bottom: 1px solid #333; }
+</style>
+</head>
+<body>
+<div id="log">booting...</div>
+<div id="display"></div>
+<script>
+// ---------------------------------------------------------------------------
+// Every line CheerpJ's Java System.out/System.err produces arrives here as a
+// console.log. We hook console BEFORE loader.js is fetched so no line is lost,
+// and stamp each with performance.now() -- so every latency in this spike is
+// measured in ONE clock (the browser's) and there is no JVM/JS correlation to
+// get wrong.
+// ---------------------------------------------------------------------------
+const S = window.__spike = {
+  probe: new URLSearchParams(location.search).get('probe') || 'net',
+  lines: [],          // { t, s }
+  marks: {},          // name -> performance.now()
+  error: null,
+  finished: false,
+};
+const mark = (n) => { S.marks[n] = performance.now(); };
+const logEl = document.getElementById('log');
+
+for (const m of ['log', 'warn', 'error', 'info']) {
+  const orig = console[m].bind(console);
+  console[m] = (...a) => {
+    const s = a.map(x => (typeof x === 'string' ? x : String(x))).join(' ');
+    S.lines.push({ t: performance.now(), s });
+    logEl.textContent += '\n' + s;
+    logEl.scrollTop = logEl.scrollHeight;
+    orig(...a);
+  };
+}
+window.addEventListener('error', e => { S.error = String(e.message || e.error); });
+window.addEventListener('unhandledrejection', e => { S.error = String(e.reason); });
+
+// find the performance.now() of the first console line matching a prefix
+S.find = (prefix) => (S.lines.find(l => l.s.startsWith(prefix)) || null);
+
+mark('pageStart');
+</script>
+<script src="https://cjrtnc.leaningtech.com/4.3/loader.js"></script>
+<script>
+(async () => {
+  try {
+    mark('loaderReady');
+    // No tailscale* options are passed on purpose: this spike does NOT stand up
+    // a Tailscale/Headscale control plane, and the point of NetProbe is to see
+    // what java.nio does WITHOUT one. See docs/spikes/cheerpj.md.
+    // version: 17 is REQUIRED. CheerpJ defaults to Java 8 mode and then refuses
+    // any class file above major 52 with:
+    //   "Required Java version 17, but CheerpJ is currently in Java 8 mode."
+    // Forge is built at --release 17 (forge/pom.xml:27), so this is not optional.
+    // user.dir: Forge resolves its assets relative to the process working
+    // directory (GuiDesktop.getAssetsDir() returns "" for a non-"git" version
+    // string, forge-gui-desktop/src/main/java/forge/GuiDesktop.java:89-92), and
+    // CheerpJ's default cwd is /files/. Pointing it at /app/ lets Forge find a
+    // res/ tree served next to the jar.
+    const init = { version: 17, enableDebug: false, javaProperties: ['user.dir=/app/'] };
+    if (new URLSearchParams(location.search).get('tailscale') === '1') {
+      // Deliberately a DEAD control plane on this same origin, and an obviously
+      // fake key. The question is not "can we join a tailnet" -- it is whether
+      // CheerpJ installs the sun.nio.ch.Net natives when ANY tailscale* option is
+      // present, i.e. whether the UnsatisfiedLinkError the no-Tailscale run hits
+      // is "not configured" or "not implemented". No real key is ever used, and
+      // nothing is sent to login.tailscale.com.
+      init.tailscaleControlUrl = location.origin + '/no-such-control-plane/';
+      init.tailscaleAuthKey = 'tskey-auth-NOT-A-REAL-KEY';
+    }
+    await cheerpjInit(init);
+    mark('initDone');
+
+    cheerpjCreateDisplay(800, 600, document.getElementById('display'));
+    mark('displayDone');
+
+    if (S.probe === 'forgejar') {
+      // Forge desktop's own entry point, straight off the shipped fat jar.
+      await cheerpjRunJar('/app/forge.jar');
+    } else {
+      const cls = { swing: 'spike.SwingProbe', fs: 'spike.FsProbe' }[S.probe] || 'spike.NetProbe';
+      // NetProbe's argv[0] is this page's own origin, so it can try same-origin
+      // HTTP and a raw TCP connect to the SAME host:port and compare the two
+      // failures. FsProbe's argv[0] is a path to look for under /app/.
+      const argv = { fs: ['res/skins/default/bg_splash.png'], swing: [] }[S.probe]
+        || [location.origin];
+      await cheerpjRunMain(cls, '/app/probe.jar:/app/forge.jar', ...argv);
+    }
+    mark('runReturned');
+  } catch (e) {
+    S.error = (e && e.stack) ? e.stack : String(e);
+    console.error('SPIKE-HARNESS-ERROR ' + S.error);
+  } finally {
+    S.finished = true;
+    mark('finished');
+  }
+})();
+</script>
+</body>
+</html>
