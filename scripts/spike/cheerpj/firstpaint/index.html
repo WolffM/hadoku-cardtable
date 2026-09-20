@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CheerpJ click-to-pixel -- wave 15 lane D</title>
+<style>
+  html, body { margin: 0; background: #000; color: #ddd; font: 12px/1.4 ui-monospace, monospace; }
+  #log { white-space: pre-wrap; padding: 6px; max-height: 26vh; overflow: auto; border-bottom: 1px solid #333; }
+  #display { width: 800px; height: 600px; }
+</style>
+</head>
+<body>
+<div id="log">booting...</div>
+<div id="display"></div>
+<script>
+// ===========================================================================
+// Wave 15, lane D -- click-to-pixel, taken the same way Wave 14 lane C took
+// streaming's 65 ms (docs/spikes/streaming.md, "MEASURED: latency, and exactly
+// how"). The method being copied, quoted:
+//
+//   "ffmpeg -f x11grab captures a 520x30 strip of the X display as 8-bit grey
+//    raw frames at 200 fps straight into a pipe; the script timestamps each
+//    frame as it arrives and compares it to a pre-click baseline. ... every
+//    figure below uses a fixed 50 ms hold and starts the clock at the press"
+//
+// The transliteration into a browser, term by term:
+//
+//   520x30 strip of the X display  ->  a 520x30 strip of CheerpJ's canvas
+//   ffmpeg at 200 fps (5 ms)       ->  a setTimeout(0) sampler, ~4-5 ms in
+//                                      Chrome (the 4 ms nesting clamp); its own
+//                                      measured interval is reported, exactly
+//                                      as the streaming harness reported its
+//                                      capture arrival interval
+//   compares to a pre-click baseline -> same, on RGBA bytes
+//   fixed 50 ms hold, clock at press -> same; the press timestamp is the
+//                                      browser's own trusted-event timeStamp,
+//                                      taken in the page, so press and pixel
+//                                      share ONE clock and there is no
+//                                      Node/page or JVM/JS correlation
+//
+// Two detectors run off the SAME click, because they answer two questions that
+// streaming.md keeps separate:
+//
+//   poll  -- first sample in which the canvas BACKING STORE differs. This is
+//            the analogue of x11grab reading the X framebuffer: "the app has
+//            rasterised". Comparable to streaming's hop-1/hop-2 numbers.
+//   raf   -- first requestAnimationFrame at which the difference is present,
+//            i.e. the change has survived to a compositing frame boundary.
+//            streaming.md item 2 of "What these numbers do NOT include" says
+//            its 65 ms EXCLUDES the browser's decode and canvas paint,
+//            "ESTIMATED at roughly one frame, 8-16 ms. Not measured", and that
+//            to settle it you should "drive the click from inside the page and
+//            time it against a requestAnimationFrame after the canvas changes".
+//            That is this detector.
+//
+// Both are reported. Neither is allowed to report a number the rig cannot
+// justify: see NOISY-BASELINE, BASELINE-BLANK and NO-CHANGE below.
+// ===========================================================================
+
+const Q = new URLSearchParams(location.search);
+const S = window.__fp = {
+  target: Q.get('target') || 'paint',   // paint | forgejar | jar
+  mode: Q.get('mode') || 'normal',      // passed through to the Java target
+  lines: [],
+  marks: {},
+  error: null,
+  finished: false,
+};
+const mark = (n) => { S.marks[n] = performance.now(); };
+const logEl = document.getElementById('log');
+
+// Hook console BEFORE loader.js: every Java System.out line arrives as a
+// console.log and we must not lose the early ones.
+for (const m of ['log', 'warn', 'error', 'info']) {
+  const orig = console[m].bind(console);
+  console[m] = (...a) => {
+    const s = a.map((x) => (typeof x === 'string' ? x : String(x))).join(' ');
+    S.lines.push({ t: performance.now(), s });
+    if (logEl) { logEl.textContent += '\n' + s; logEl.scrollTop = logEl.scrollHeight; }
+    orig(...a);
+  };
+}
+window.addEventListener('error', (e) => { S.error = String(e.message || e.error); });
+window.addEventListener('unhandledrejection', (e) => { S.error = String(e.reason); });
+S.find = (p) => (S.lines.find((l) => l.s.startsWith(p)) || null);
+S.findLast = (p) => { for (let i = S.lines.length - 1; i >= 0; i--) if (S.lines[i].s.startsWith(p)) return S.lines[i]; return null; };
+
+mark('pageStart');
+
+</script>
+<script src="rig.js"></script>
+<script src="https://cjrtnc.leaningtech.com/4.3/loader.js"></script>
+<script>
+(async () => {
+  try {
+    mark('loaderReady');
+    // version 17 is mandatory (CheerpJ defaults to Java 8 mode and refuses
+    // class files above major 52); user.dir=/app/ is what Forge's
+    // GuiDesktop.getAssetsDir() needs. Both established in Wave 14 lane B.
+    await cheerpjInit({ version: 17, enableDebug: false, javaProperties: ['user.dir=/app/'] });
+    mark('initDone');
+    cheerpjCreateDisplay(800, 600, document.getElementById('display'));
+    mark('displayDone');
+
+    if (S.target === 'forgejar') {
+      await cheerpjRunJar('/app/forge.jar');
+    } else {
+      const cp = '/app/firstpaint.jar' + (Q.get('withforge') === '0' ? '' : ':/app/forge.jar');
+      await cheerpjRunMain('spike.PaintProbe', cp, Q.get('build') || 'unknown', S.mode);
+    }
+    mark('runReturned');
+  } catch (e) {
+    S.error = (e && e.stack) ? e.stack : String(e);
+    console.error('FP-HARNESS-ERROR ' + S.error);
+  } finally {
+    S.finished = true;
+    mark('finished');
+  }
+})();
+</script>
+</body>
+</html>
