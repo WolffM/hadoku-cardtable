@@ -295,6 +295,98 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
+## Queued (2026-09-20 — tracker): hadoku_site's `templates/game` adoption
+
+`/home/hadoku/srv/hadoku_site/docs/requests/CARDTABLE_GAME_TEMPLATE_ADOPTION.md`.
+**Not scheduled — the operator said it does not affect the current spike work.**
+Recorded here with what the tracker verified independently, because every line
+reference in it checks out and it should not be lost.
+
+**Their headline: we do not hydrate the template.** *"You already are it,
+written by hand, a version behind."* Re-hydrating would scaffold a fresh app
+next to a repo carrying a draft engine, a JVM bridge and a forge vendor tree.
+They are explicitly not proposing it, and are not asking for a timeline.
+
+### A security finding about OUR production, which they fixed
+
+`injectUserId` was not only how the server learns who is calling. It is **the
+only thing that strips a client-supplied `X-User-Id`** — `proxyRequest` deletes
+that header inside `if (injectUserId)` and nowhere else. Verified in their
+source (`workers/edge-router/src/proxy.ts:272-273`).
+
+So before 2026-09-19 the edge forwarded whatever `X-User-Id` a caller invented,
+**under a valid `X-Edge-Auth` seal telling our server to believe it**. Anyone
+who could reach `hadoku.me/cardtable` could assert another player's identity.
+The `anon` display name we reported was the mild, visible half of the same bug.
+
+`injectUserId: true` is now on the cardtable mount
+(`edge-router/src/index.ts:1577`, verified). **Live confirmation still
+outstanding** — the server log's last entries predate their deploy and the
+tracker cannot mint an authenticated request; the next real page load settles
+it. Rooms already persisted with `anon` keep it; nothing backfills.
+
+### Four deletions, gated on upgrading 0.38.115 → 0.39.3
+
+All three packages are published at **0.39.3** (checked). **All four targets
+exist at the lines they name** (checked):
+
+| our file | delete | replaced by |
+| --- | --- | --- |
+| `room/draftRooms.ts:378` | the re-seat guard `seatParticipant(room.seats, …)` | `leaveRoom` now drops the client first |
+| `room/draftRooms.ts:230` | `room.seats = state.table` | `RoomRegistry`'s seat-table factory |
+| `room/identity.ts:35` | the whole `createHash` digest | `createParticipantIdDeriver(domain)` |
+| `room/identity.ts:132` | `participantHandle` | `@wolffm/rooms-protocol` |
+
+**They adopted our domain scheme** — `hadoku.cardtable.participant.v1` produces
+the same ids, so this is a cleanup, not a re-identification. Two shapes changed
+and will not typecheck silently: the deriver returns `{ id, tier }`, not a bare
+id; and per-tier separation is enforced inside the package, so there is nowhere
+to pass a second domain string.
+
+### The trap in it, which this project has now hit six times
+
+> *"Whatever currently pins your re-seat guard now passes because the PACKAGE
+> does it. That reads as coverage and is not."*
+
+**A test that goes quiet rather than red.** It is only observable with **both**
+`seatHoldMs: 0` and `disconnectGraceMs: 0`, where a seat is empty, unreserved,
+and the next arrival takes it while its owner is still connected on another
+tab. Under shipped defaults the grace and the reservation each hide it.
+
+**Re-aim that test; do not delete it.** Their
+`templates/game/apps/server/test/rooms.test.ts` runs a second server configured
+that way for exactly this.
+
+### Do NOT delete our disconnect grace
+
+Watchparty deliberately did not take it and they were right: it covers the
+other ordering — a refresh drops the old socket ~36 ms **before** the new one
+joins, so there is nothing live to find at close time. That is Wave 11's own
+finding, independently arrived at. If it ever goes upstream they would take the
+API from ours rather than invent a second.
+
+### They guessed we share the `sendFile` trap. Half right — and their fix is better
+
+`res.sendFile(absolutePath)` 404s from any dot-directory, because `send`
+applies its dotfiles rule to the whole path. We **found this in Wave 11** and
+**detected** it: `checkBundle` mounts the real `sendIndex` on a throwaway
+loopback server and `/health` says `degraded` if it 404s
+(`apps/server/src/base-path.ts:18-36`).
+
+Detecting is not fixing. Their one-liner —
+`res.sendFile('index.html', { root: CONFIG.webDir })` — makes the app **work**
+from a worktree instead of honestly reporting that it cannot. Worth taking.
+
+### Shared fate we did not have before
+
+`MAX_EPHEMERAL_ROOMS` (800) is now **one pool across every namespace**, so a
+second game app shares it with our draft rooms. Measured headroom is 1600 rooms
+/ 6400 sockets at 10% of a core, and a per-namespace cap is on offer if a draft
+night ever meets a runaway neighbour. Also: `EPHEMERAL_ROOM_NAMESPACES`
+**replaces** the default, so `cardtable` must stay in the list when the next app
+is added — their wrapper now states it explicitly rather than relying on the
+default.
+
 ## Verified this pass (2026-09-20 — tracker, closing Wave 14)
 
 Landed `b597510..1aaf108`. **`forge/` is pristine** — submodule unchanged, no
