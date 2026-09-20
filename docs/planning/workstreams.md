@@ -297,6 +297,77 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
+## Verified this pass (2026-09-20 — tracker, closing Wave 15)
+
+**Forge's real match UI paints in a browser.** The tracker opened
+`~/.cache/w15d-firstpaint/shots/measure-hand.png` and confirmed it: Forge's own
+desktop chrome, two battlefields at 20 life, a seven-card hand with card art
+(Satyr Wayfinder, Returned Centaur ×2, Swamp, Forest), the Prompt panel reading
+*"Ault, you are going first!"* with live **Keep / Mulligan** buttons. Reached by
+**four small patches over stock Forge**.
+
+`forge/` pristine (`2ad70eb4`, unchanged). Gate re-run here: `pnpm check`
+exit 0, **1,855 passing / 7 skipped**.
+
+### The number the operator asked for does not exist, and the manager said so
+
+§0 required *"a click-to-pixel figure taken the same way streaming's was"*. It
+was not produced, because a boot-reliability bug in the `res/` unpack fails
+about half of runs. **The manager reported that plainly rather than inventing a
+figure**, which is the right call and the reason the rest of this is worth
+trusting.
+
+### The tracker's own 65 ms was wrong, and the tracker propagated it
+
+`docs/spikes/streaming.md`'s headline — *"65 ms of click-to-pixel on this
+host"* — is **~50 ms of deliberate harness button-hold plus ~13.6 ms of real
+work**. `rfb-latency.py` holds the button 50 ms and starts its clock at the
+press; a browser acts on the press, so **a real player never pays that 50 ms**.
+
+Independently reproduced by lane D. **The tracker quoted 65 ms as streaming's
+bar repeatedly across Wave 14 and Wave 15 planning**, including in the wave file
+that set this lane's gate. The comparison it implied — CheerpJ needing to beat
+65 ms — was never the right test.
+
+`streaming.md` is owned by no lane and **still carries the uncorrected
+headline**. Fixing it is a tracker action, not a lane's.
+
+### The real comparison, at the player's screen
+
+| | streamed Forge | Forge under CheerpJ |
+| --- | --- | --- |
+| event→pixel, composited | 49.7 ms (real Forge) | 49.5 ms (**a floor** — one component, so real Forge is slower) |
+| per cold cache | 0 | **19.19 MB** from a third party we cannot self-host |
+| memory | **1.26 GiB on OUR host, per player** | **1.43 GiB in the PLAYER's tab** |
+| the player's network | **2 × RTT on every click** — up with the click, back with the pixels. ~150–200 ms over the internet | **0** for anything the UI answers locally; 1 × RTT + ~6 ms only when game state moves |
+
+**Latency does not decide this.** On loopback they are level; over the internet
+the asymmetry is enormous and runs CheerpJ's way, because streaming pays an RTT
+on *every click* while CheerpJ pays one only when the game state actually moves.
+
+**What decides it is cost and risk.** Streaming spends 1.26 GiB and half a core
+of *our* host per player and gives up the room layer entirely. CheerpJ spends a
+**1.43 GiB browser tab**, a 19.19 MB third-party download, and ~12 s of boot —
+with no fallback if `cjrtnc.leaningtech.com` goes away. The 1.43 GiB is new and
+is a real ask of a laptop; it belongs in front of the operator beside the
+download.
+
+### Two debts this wave created
+
+1. **Lane C's endpoint is landed, tested and UNREACHABLE.** Verified:
+   `apps/server/src/play/browser/` exists with its own tests, and nothing in
+   `apps/server/src/index.ts` references it. Two lines in a file no lane owned.
+   Correct protocol, real debt — and a browser client cannot reach the server
+   until it lands.
+2. **`streaming.md` still says 65 ms.** Above.
+
+### What this changes about the route
+
+Wave 14 called CheerpJ *GO-WITH-COST* gated on an unrun probe. Wave 15 leaves it
+**not a research risk** — an engineering cost with a known shape. The remaining
+blocker is not latency and not architecture: it is that the `res/` unpack fails
+about half the time on boot.
+
 ## SCHEDULED — the wave AFTER the game client: `templates/game` adoption
 
 **Operator decision, 2026-09-20:** *"lets make sure that we work through their
