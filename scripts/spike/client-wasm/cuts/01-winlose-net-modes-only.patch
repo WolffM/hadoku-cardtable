@@ -1,0 +1,59 @@
+--- a/forge-gui-mobile/src/forge/screens/match/winlose/ViewWinLose.java
++++ b/forge-gui-mobile/src/forge/screens/match/winlose/ViewWinLose.java
+@@ -21,7 +21,6 @@
+ import forge.item.PaperCard;
+ import forge.localinstance.skin.FSkinProp;
+ import forge.menu.FMagnifyView;
+-import forge.model.FModel;
+ import forge.toolbox.FButton;
+ import forge.toolbox.FContainer;
+ import forge.toolbox.FDisplayObject;
+@@ -83,35 +82,25 @@
+         lblTitle.setText(composeTitle(game0));
+ 
+         // Control of the win/lose is handled differently for various game modes
++        // WAVE 14 / ITEM 1 CUT — net-play client only.
++        //
++        // This switch is the single largest edge from the match screen into the
++        // rest of the mobile application: Quest, QuestDraft, PlanarConquest,
++        // Adventure and Gauntlet each drag in their own mode. QuestDraft alone
++        // reaches QuestDraftUtils.updateFromTournament -> Match.<init> ->
++        // Game.<init>, i.e. the whole rules engine, into a CLIENT that never
++        // runs a rule.
++        //
++        // A client connected to a hosted match is Constructed, Draft or Sealed.
++        // It is never in a quest, a gauntlet or adventure mode, because those
++        // are single-player modes driven by the local game model.
+         ControlWinLose control = null;
+         switch (game0.getGameType()) {
+-        case Quest:
+-            control = new QuestWinLose(this, game0);
+-            break;
+-        case QuestDraft:
+-            control = new QuestDraftWinLose(this, game0);
+-            break;
+-        case PlanarConquest:
+-            control = new ConquestWinLose(this, game0);
+-            break;
+-        case Adventure:
+-        case AdventureEvent:
+-            control = new AdventureWinLose(this, game0);
+-            break;
+         case Draft:
+-            if (!FModel.getGauntletMini().isGauntletDraft()) {
+-                break;
+-            }
+-        //$FALL-THROUGH$
+         case Sealed:
+             control = new LimitedWinLose(this, game0);
+             break;
+-        case Gauntlet:
+-        case CommanderGauntlet:
+-        case DeckManager:
+-            control = new GauntletWinLose(this, game0);
+-            break;
+-        default: // will catch it after switch
++        default:
+             break;
+         }
+         if (control == null) {

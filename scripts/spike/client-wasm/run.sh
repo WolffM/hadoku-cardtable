@@ -69,7 +69,25 @@ cmd_copy_forge() {
 
 cmd_build_forge() {
     use_toolchain
-    ( cd "$FORGE_COPY" && mvn install -pl forge-gui-mobile -am -DskipTests )
+    # The exit code is checked EXPLICITLY, and loudly.
+    #
+    # This used to be a bare `( cd ... && mvn install ... )` subshell, and on
+    # 2026-09-20 a Checkstyle failure in forge-gui-mobile made maven print
+    # BUILD FAILURE while this function returned 0. `link` then ran against the
+    # PREVIOUS jar and reported a missing-API count for code that had not been
+    # built — a number that looked like a result and meant nothing. It was
+    # caught only because the jar's mtime did not match the edit.
+    #
+    # A measurement harness that silently measures a stale artifact is worse
+    # than one that crashes, so this refuses to continue.
+    local rc=0
+    ( cd "$FORGE_COPY" && mvn install -pl forge-gui-mobile -am -DskipTests ) || rc=$?
+    if (( rc != 0 )); then
+        echo "" >&2
+        echo "BUILD FAILED (mvn exit $rc). NOT installing, NOT measuring." >&2
+        echo "Anything you link now would measure the previously installed jar." >&2
+        return "$rc"
+    fi
 
     # Forge uses ${revision} CI-friendly versioning without flatten-maven-plugin,
     # so the installed child POMs name their parent forge:forge:${revision}

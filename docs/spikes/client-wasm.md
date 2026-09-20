@@ -436,3 +436,102 @@ also outside the repo, so no `target/` tree appears in anyone's `git status`.
 | gdx-teavm | `com.github.xpenatan.gdx-teavm:backend-teavm:1.4.0` (libGDX 1.14.0, TeaVM 0.13.0) |
 | libGDX | 1.14.2, as `forge-gui-mobile/pom.xml` declares |
 | Forge | `2ad70eb4`, `2.0.15-SNAPSHOT` |
+
+---
+
+# ITEM 1, MEASURED 2026-09-20: one cut removes D7's killer
+
+The section above recommends, as the cheapest first step on a GO,
+*"a fork that severs eight edges from the match screen"*, and says it is worth
+doing **before** any libGDX work because it decides whether the rest is worth
+paying for.
+
+**One of those edges has now been cut and measured. It removes the exact chain
+D7 died on.**
+
+Patch: `scripts/spike/client-wasm/cuts/01-winlose-net-modes-only.patch`, applied
+to the spike's **copy** of forge. `forge/` itself is untouched —
+`run.sh verify-pristine` and `git submodule status forge` both confirm it.
+
+## The cut
+
+`ViewWinLose.<init>` switches on `game0.getGameType()` and hands control to a
+mode-specific win/lose controller: Quest, QuestDraft, PlanarConquest, Adventure,
+Gauntlet. **A net-play client is in none of those modes** — they are
+single-player, driven by the local game model. The cut deletes those branches
+and leaves Draft/Sealed plus the default `ControlWinLose`. About twenty lines.
+
+## What it moved
+
+| | before | after |
+| --- | --- | --- |
+| distinct missing APIs, all 106 inbound calls | **53** | **43** |
+| entering via `finishGame()` | 18 | **7** |
+
+The ten that came off are not ten arbitrary APIs. They are D7's verdict:
+
+```
+java.util.concurrent.locks.ReentrantLock              <- D7's stated killer
+com.google.common.cache.LocalCache$Segment.lock()V
+com.google.common.cache.LocalCache$Segment.unlock()V
+com.google.common.cache.LocalCache$Segment.tryLock()Z
+com.google.common.cache.LocalCache$Segment.isHeldByCurrentThread()Z
+com.google.common.util.concurrent.ListenableFuture.isDone()Z
+java.util.concurrent.ConcurrentLinkedQueue
+java.util.concurrent.CopyOnWriteArraySet
+java.util.concurrent.atomic.AtomicReferenceArray
+java.io.ObjectStreamField
+```
+
+D7 concluded: *"`Game.java:97` constructs a Guava `EventBus`; Guava's
+`LocalCache$Segment` extends `ReentrantLock`; and `teavm-classlib-0.15.0.jar`
+ships **zero** classes in `java.util.concurrent.locks`."*
+
+That chain reached the client **only through the non-net game modes**, and a
+twenty-line cut to one `switch` severs it. The engine was never the client's
+problem; the quest/gauntlet/adventure wiring hanging off the match screen was.
+
+## What is left: 43
+
+| entering via | count | what it is |
+| --- | --- | --- |
+| `applyDelta` | 19 | Java serialization — `CObjectInputStream` → `ObjectInputStream`. **Likely inapplicable to us:** our bridge already re-encodes the wire as JSON (`@hadoku/forge-wire`), so a browser client of ours never calls `TrackableSerializer.unwrapEvents`. Unverified as a cut. |
+| `openView` | 14 | Forge's own match UI — `TextRenderer`→`BreakIterator`, `FSkinFont.generateFont`→native fonts. **These must NOT be "cut":** removing them deletes the UI this whole route exists to run. They are real work (a web font for freetype), not edges to sever. |
+| `finishGame` | 7 | what remains after the cut above |
+| `setPlayerAvatar` | 2 | `ImageKeys.getImageFile` → `ImageCache` |
+| (no entry frame) | 6 | |
+
+## What this does and does not change
+
+**It does not turn D7's NO-GO into a GO.** The caveat both spikes carry still
+holds: these entry points call each protocol method once with null arguments,
+so fixing the last of them only gets you to the next link error, and libGDX
+under gdx-teavm remains unattempted.
+
+**It does change the shape of the bet.** Before this, "fork `forge-gui-mobile`"
+was an unbounded commitment against a blocker D7 described in terms of the
+rules engine. It is now a bounded one against a blocker that is the mobile
+app's *other game modes*, with the largest single edge measured at twenty
+lines and the most feared API already gone.
+
+The honest next measurement is `applyDelta`: if those 19 are genuinely ours to
+skip, the remaining surface is the match UI itself, which is work rather than
+an obstacle.
+
+## A defect in this harness, found the hard way
+
+`run.sh build-forge` ran `( cd … && mvn install … )` in a subshell and returned
+**0 when maven printed `BUILD FAILURE`**. The first measurement of this cut was
+taken against the PREVIOUS jar and reported "53, unchanged" — a number that
+looked like a result and meant nothing. It was caught only because the
+installed jar's mtime predated the edit.
+
+Fixed: the exit code is now checked explicitly and the function refuses to
+continue, with a message saying anything linked afterwards would measure a
+stale artifact. Mutation-tested — appending `this is not java` to the cut file
+makes it exit 1 and print the refusal.
+
+**Every number this harness produced before that fix should be re-taken if it
+matters.** The ones in the original section were produced by the same code
+path; they are probably fine, because the builds preceding them succeeded, but
+"probably" is doing real work in that sentence.
