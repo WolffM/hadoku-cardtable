@@ -84,7 +84,13 @@ export function useWhoami(): Who | null | 'pending' {
   const [who, setWho] = useState<Who | null | 'pending'>('pending');
   useEffect(() => {
     let live = true;
-    hadokuWhoami()
+    // Same-origin on purpose. `whoami()` defaults to the edge-router origin,
+    // which in production IS this page's origin — but hard-coding it makes the
+    // app reach `https://hadoku.me` from wherever it happens to be served,
+    // which the e2e correctly flags as an off-host request and which would be
+    // wrong for any future preview host. Same-origin gives the identical
+    // answer in production and stays local everywhere else.
+    hadokuWhoami({ whoamiUrl: `${globalThis.location.origin}/session/whoami` })
       .then((r) => {
         if (!live) return;
         setWho({ userId: r.userId, tier: r.userType, name: r.name ?? null });
