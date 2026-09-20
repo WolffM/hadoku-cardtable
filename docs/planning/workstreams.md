@@ -81,6 +81,8 @@ it. PR-5 is new and exists to serve it.
 
 | # | Programme | State |
 | --- | --- | --- |
+| **PR-7** | **The outer shell** — adopt hadoku_site's `templates/game` and delete our hand-written wrapper in favour of it | **SCHEDULED: the wave immediately after the game client.** Operator, 2026-09-20. Not before — the shell wraps the client, and the client is the unproven half |
+| **PR-6** | **The game client** — a real Forge UI in the browser, speaking through our bridge | **IN PROGRESS.** CheerpJ's natives path settled (works); `forge-gui-mobile` at 53→33 missing APIs after two measured cuts. Neither is a GO yet |
 | **PR-5** | **Constructed** — historical Standard pools, prebuilt decks, format validation. The operator's stated goal. | **Wave 6 lanes C/D** lay the data track; play needs PR-4 |
 | **PR-1** | **Ground truth** — toolchain, card data, and the WASM go/no-go that decides the UI strategy | **done** (Wave 1) |
 | **PR-2** | **Draft** — pure draft engine, cube import, draft UI. Playable with friends. | **built end to end, unproven with two people.** Engine (W3), card art (W4) and a live socket (W5) all land; `DraftScreen` renders from fixtures, the in-process engine, or a server. **"Playable with friends" is not ticked** until two browsers draft one pod — see the queue |
@@ -295,12 +297,38 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
-## Queued (2026-09-20 — tracker): hadoku_site's `templates/game` adoption
+## SCHEDULED — the wave AFTER the game client: `templates/game` adoption
 
+**Operator decision, 2026-09-20:** *"lets make sure that we work through their
+new template after we're done testing the inner functionality. make sure thats
+recorded as the objective for the next wave, after we're done with the game
+client itself."*
+
+So the order is settled and is not a judgement call for a later session:
+
+1. **Now — the game client.** The browser-side Forge route: CheerpJ's transport
+   (lane B item 1, unblocked by the natives probe), and/or the remaining
+   `forge-gui-mobile` cuts. Prove the inner functionality works.
+2. **Then — this.** Adopt hadoku_site's `templates/game` outer shell and
+   **delete our own wrapper code in favour of it.** The operator's framing:
+   *"we will need to take this seriously and remove all our custom outside
+   wrapper code for it instead."*
+
+That ordering is deliberate. The template is the shell; the client is what goes
+inside it. Adopting the shell first would mean re-doing the adoption around
+whatever the client turns out to need — and the client is the part that is
+still unproven.
+
+**Scope note for whoever runs it:** the operator said *remove* our custom
+wrapper code, not wrap the template around it. The four deletions below are the
+floor, not the ceiling — `apps/ui/src/chrome/**` (Wave 14 lane D, written by
+hand because no template existed yet) is a candidate too, and should be checked
+against what the template ships rather than kept by default.
+
+Source:
 `/home/hadoku/srv/hadoku_site/docs/requests/CARDTABLE_GAME_TEMPLATE_ADOPTION.md`.
-**Not scheduled — the operator said it does not affect the current spike work.**
-Recorded here with what the tracker verified independently, because every line
-reference in it checks out and it should not be lost.
+Recorded with what the tracker verified independently, because every line
+reference in it checks out.
 
 **Their headline: we do not hydrate the template.** *"You already are it,
 written by hand, a version behind."* Re-hydrating would scaffold a fresh app
