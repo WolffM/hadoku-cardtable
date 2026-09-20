@@ -1,0 +1,574 @@
+diff -ruN orig/forge-gui/src/main/java/forge/gamemodes/net/client/BrowserTransport.java work/forge-gui/src/main/java/forge/gamemodes/net/client/BrowserTransport.java
+--- orig/forge-gui/src/main/java/forge/gamemodes/net/client/BrowserTransport.java	1969-12-31 16:00:00.000000000 -0800
++++ work/forge-gui/src/main/java/forge/gamemodes/net/client/BrowserTransport.java	2026-09-19 23:55:20.367555944 -0700
+@@ -0,0 +1,489 @@
++package forge.gamemodes.net.client;
++
++import com.google.gson.JsonArray;
++import com.google.gson.JsonElement;
++import com.google.gson.JsonNull;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import com.google.gson.JsonPrimitive;
++
++import forge.gamemodes.match.NextGameDecision;
++import forge.gamemodes.net.ProtocolMethod;
++import forge.gamemodes.net.event.GuiGameEvent;
++import forge.gamemodes.net.event.HeartbeatEvent;
++import forge.gamemodes.net.event.IdentifiableNetEvent;
++import forge.gamemodes.net.event.LoginEvent;
++import forge.gamemodes.net.event.NetEvent;
++import forge.gamemodes.net.event.ReplyEvent;
++import forge.gui.interfaces.IGuiGame;
++import forge.localinstance.skin.FSkinProp;
++
++import java.lang.reflect.Method;
++import java.nio.charset.StandardCharsets;
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.HashMap;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++
++/**
++ * Forge's client transport, over a browser WebSocket, under CheerpJ.
++ *
++ * This is the thing {@code FGameClient} used to get from Netty. It implements
++ * the same three-method {@link forge.gamemodes.net.IRemote} seam
++ * ({@code send} / {@code sendAndWait} / {@code write}) and nothing else
++ * changes: {@code NetGameController} still builds {@code GuiGameEvent}s, and
++ * {@code ProtocolMethod} is still the vocabulary. What changes is the wire.
++ *
++ * <h2>Why this class has to exist at all</h2>
++ *
++ * Forge's client opens its socket through Netty's NIO transport, and under
++ * CheerpJ {@code new NioEventLoopGroup()} throws
++ * {@code UnsatisfiedLinkError: Java_sun_nio_ch_EPoll_create} — CheerpJ's
++ * runtime ships no {@code sun.nio.ch} natives, so the transport cannot be
++ * constructed at all (docs/spikes/cheerpj.md). The blocking OIO transport does
++ * not save it either. A browser {@code WebSocket} is the only socket a page
++ * has, and it is reachable from Java only through CheerpJ's {@code natives}
++ * JS-interop path.
++ *
++ * <h2>The native shape is not a preference</h2>
++ *
++ * Measured 2026-09-20 (docs/spikes/cheerpj.md, the SETTLED section): a native
++ * that returns a <em>freshly built</em> array throws
++ * {@code ArrayIndexOutOfBoundsException} on the Java side, after the JS side
++ * has run correctly. A native may only fill an array the caller handed it. So
++ * outbound is {@code wsSend(byte[])} and inbound is the JNI-shaped pair
++ * {@code wsRecvLength()} + {@code wsRecvInto(byte[])}. Do not "tidy" this into
++ * a {@code byte[] recv()}; that has already been measured and it fails.
++ *
++ * <h2>The wire is {@code @hadoku/forge-wire}, not Forge's</h2>
++ *
++ * Forge's own wire is Java serialisation over Netty's
++ * {@code CompatibleObjectEncoder}. We do not speak it: the bridge speaks the
++ * JSON envelope in {@code packages/forge-wire/src/envelope.ts} — {@code act},
++ * {@code notify}, {@code ask}, {@code reply}, {@code abort}, flat fields, one
++ * arm per {@code ProtocolMethod}.
++ *
++ * <h2>What this class deliberately does NOT do</h2>
++ *
++ * Only Tier A's 14 methods (8 server→client, 6 client→server, all scalars) are
++ * marshalled. Tier B (entity references) and Tier C (the delta state channel)
++ * are <b>refused by name</b> on a log line rather than silently dropped —
++ * a transport spike that quietly ate an unmodelled frame would be exactly the
++ * "passes while measuring nothing" defect this repo has hit six times.
++ *
++ * Licensed under GPL-3.0-or-later, like the rest of the Forge fork.
++ */
++public final class BrowserTransport implements IToServer {
++
++    /* ── The JS seam ─────────────────────────────────────────────────────
++     *
++     * CheerpJ binds a Java `native` to a JS function named
++     * Java_<pkg>_<Class>_<method>, and for a STATIC native it calls it as
++     * (lib, ...args) — `lib` is the handle, not an argument. These are static
++     * for exactly that reason: the (lib, self, ...args) shape for an instance
++     * native is NOT exercised anywhere in this project, and guessing it wrong
++     * looks identical to "natives are broken".
++     */
++
++    /** Opens the socket and blocks until it is open. 0 = open, non-zero = failed. */
++    private static native int wsOpen(String url);
++
++    /** One outbound frame, already UTF-8 encoded. Fire and forget. */
++    private static native void wsSend(byte[] frameUtf8);
++
++    /**
++     * Bytes waiting in the next inbound frame: 0 = nothing arrived within the
++     * JS side's poll window, -1 = the socket is closed and never will deliver.
++     * The JS side blocks (awaits) rather than spinning, which is the whole
++     * reason the ASYNC probe mattered.
++     */
++    private static native int wsRecvLength();
++
++    /** Fill {@code buf} with the frame {@link #wsRecvLength()} just sized. */
++    private static native void wsRecvInto(byte[] buf);
++
++    /* ── State ───────────────────────────────────────────────────────────── */
++
++    private final FGameClient client;
++    private final String url;
++    /** Forge's ReplyEvent id → the server's callId, so a reply can be routed back. */
++    private final Map<Integer, String> callIds = Collections.synchronizedMap(new LinkedHashMap<>());
++    private volatile boolean closed;
++    private volatile Thread pump;
++
++    /** Counters, so "it worked" is a number and not an impression. */
++    private volatile int framesOut;
++    private volatile int framesIn;
++    private volatile int refusedOut;
++    private volatile int refusedIn;
++
++    BrowserTransport(final FGameClient client, final String url) {
++        this.client = client;
++        this.url = url;
++    }
++
++    public int getFramesOut() { return framesOut; }
++    public int getFramesIn() { return framesIn; }
++    public int getRefusedOut() { return refusedOut; }
++    public int getRefusedIn() { return refusedIn; }
++
++    private static void log(final String s) {
++        // System.out, not tinylog: under CheerpJ this is the only sink that
++        // reliably reaches the page, and every line here is evidence.
++        System.out.println("TRANSPORT " + s);
++    }
++
++    /* ── Lifecycle ───────────────────────────────────────────────────────── */
++
++    /** Opens the WebSocket. Returns false if the browser refused to connect. */
++    public boolean open() {
++        final int rc = wsOpen(url);
++        log("OPEN url=" + url + " rc=" + rc);
++        return rc == 0;
++    }
++
++    /**
++     * Runs the inbound pump on a background Java thread.
++     *
++     * Returns false if CheerpJ would not start the thread, in which case the
++     * caller has to drive {@link #pumpFor(long)} itself from whichever thread
++     * it owns. That is not hypothetical bookkeeping: {@code sendAndWait} parks
++     * on an untimed {@code ReplyPool.get()}, so with no pump thread a blocking
++     * call has nobody left to deliver its answer.
++     */
++    public boolean startPump() {
++        final Thread t = new Thread(() -> {
++            while (!closed) {
++                if (!pumpOnce()) {
++                    break;
++                }
++            }
++            log("PUMP-EXIT framesIn=" + framesIn);
++        }, "cheerpj-browser-transport");
++        t.setDaemon(true);
++        try {
++            t.start();
++        } catch (final Throwable e) {
++            log("PUMP-THREAD-FAIL " + e.getClass().getName() + ": " + e.getMessage());
++            return false;
++        }
++        pump = t;
++        return true;
++    }
++
++    public void close() {
++        closed = true;
++    }
++
++    /* ── Inbound ─────────────────────────────────────────────────────────── */
++
++    /**
++     * Reads at most one frame. Returns false once the socket is gone.
++     *
++     * The length/fill pair is the measured constraint, not a style choice —
++     * see the class header.
++     */
++    public boolean pumpOnce() {
++        final int len;
++        try {
++            len = wsRecvLength();
++        } catch (final Throwable e) {
++            log("RECV-FAIL " + e.getClass().getName() + ": " + e.getMessage());
++            return false;
++        }
++        if (len < 0) {
++            return false;
++        }
++        if (len == 0) {
++            return true;
++        }
++        final byte[] buf = new byte[len];
++        wsRecvInto(buf);
++        final String json = new String(buf, StandardCharsets.UTF_8);
++        framesIn++;
++        try {
++            dispatch(JsonParser.parseString(json).getAsJsonObject());
++        } catch (final Throwable e) {
++            log("IN-FAIL " + e.getClass().getName() + ": " + e.getMessage() + " raw=" + json);
++        }
++        return true;
++    }
++
++    /** Pumps inline for up to {@code ms}, for a caller with no pump thread. */
++    public void pumpFor(final long ms) {
++        final long end = System.currentTimeMillis() + ms;
++        while (!closed && System.currentTimeMillis() < end) {
++            if (!pumpOnce()) {
++                return;
++            }
++        }
++    }
++
++    private void dispatch(final JsonObject frame) {
++        final String kind = frame.has("kind") ? frame.get("kind").getAsString() : "?";
++        final String name = frame.has("method") ? frame.get("method").getAsString() : "?";
++        log("IN kind=" + kind + " method=" + name);
++
++        final ProtocolMethod method;
++        try {
++            method = ProtocolMethod.valueOf(name);
++        } catch (final IllegalArgumentException e) {
++            refusedIn++;
++            log("REFUSE-IN method=" + name + " reason=not-a-ProtocolMethod");
++            return;
++        }
++        if (!TIER_A_SERVER.containsKey(method)) {
++            refusedIn++;
++            log("REFUSE-IN method=" + name + " reason=tier-B-or-C-not-modelled-in-this-spike");
++            return;
++        }
++
++        final Object[] args = decodeArgs(method, frame);
++        method.checkArgs(args);
++
++        final Method target = method.getMethod();
++        final IGuiGame gui = client.getGui();
++        if (target == null || gui == null) {
++            log("IN-DROP method=" + name + " reason=" + (gui == null ? "no-gui" : "no-method"));
++            return;
++        }
++
++        Object result = null;
++        try {
++            result = target.invoke(gui, args);
++        } catch (final Throwable e) {
++            final Throwable cause = e.getCause() == null ? e : e.getCause();
++            log("IN-INVOKE-FAIL method=" + name + " " + cause.getClass().getName() + ": " + cause.getMessage());
++        }
++
++        if ("ask".equals(kind)) {
++            // Forge's own reply path, verbatim: mint a ReplyEvent and hand it
++            // back to the transport. `send` below turns it into a reply frame.
++            final int id = REPLY_SEQ++;
++            callIds.put(id, frame.get("callId").getAsString());
++            replyMethods.put(id, method);
++            send(new ReplyEvent(id, result instanceof java.io.Serializable ? (java.io.Serializable) result : null));
++        }
++    }
++
++    private static int REPLY_SEQ = 1;
++    private final Map<Integer, ProtocolMethod> replyMethods = Collections.synchronizedMap(new HashMap<>());
++
++    /* ── Outbound ────────────────────────────────────────────────────────── */
++
++    @Override
++    public void send(final NetEvent event) {
++        if (closed) {
++            return;
++        }
++        final JsonObject frame;
++        if (event instanceof GuiGameEvent gge) {
++            frame = encodeAct(gge);
++        } else if (event instanceof ReplyEvent re) {
++            frame = encodeReply(re);
++        } else if (event instanceof LoginEvent || event instanceof HeartbeatEvent) {
++            // Forge's lobby and heartbeat are not on this wire: the room layer
++            // authenticates at the edge and owns liveness. Named, not dropped.
++            refusedOut++;
++            log("REFUSE-OUT " + event.getClass().getSimpleName() + " reason=not-in-forge-wire-envelope");
++            return;
++        } else {
++            refusedOut++;
++            log("REFUSE-OUT " + event.getClass().getSimpleName() + " reason=unknown-NetEvent");
++            return;
++        }
++        if (frame == null) {
++            return;
++        }
++        final byte[] bytes = frame.toString().getBytes(StandardCharsets.UTF_8);
++        framesOut++;
++        log("OUT " + frame.toString());
++        wsSend(bytes);
++    }
++
++    @Override
++    public void write(final NetEvent event) {
++        send(event);
++    }
++
++    /**
++     * Blocking client→server call.
++     *
++     * <b>There is no client→server ask on this wire, and that is Forge's own
++     * rule</b>: "these should all return void, to avoid awkward situations in
++     * which client and server wait for one another's response"
++     * (ProtocolMethod.java:84-86). Exactly one {@code Mode.CLIENT} method
++     * breaks it — {@code getActivateDescription(CardView) -> String}, called
++     * from {@code PlayArea.java:842} on card hover — and it is not one of the
++     * 38 methods {@code @hadoku/forge-wire} models.
++     *
++     * So this method does the only honest thing available: it sends nothing it
++     * cannot spell, completes the caller with {@code null} immediately, and
++     * says so. Parking on Forge's untimed {@code ReplyPool.get()} for an answer
++     * the wire cannot carry would hang a Forge thread forever on every hover.
++     */
++    @Override
++    public Object sendAndWait(final IdentifiableNetEvent event) {
++        final String name = event instanceof GuiGameEvent gge ? String.valueOf(gge.getMethod()) : event.getClass().getSimpleName();
++        log("SEND-AND-WAIT method=" + name + " -> null (no client->server ask in forge-wire)");
++        return null;
++    }
++
++    /* ── Codec ───────────────────────────────────────────────────────────── */
++
++    private JsonObject encodeAct(final GuiGameEvent event) {
++        final ProtocolMethod method = event.getMethod();
++        final String[] fields = TIER_A_CLIENT.get(method);
++        if (fields == null) {
++            refusedOut++;
++            log("REFUSE-OUT method=" + method + " reason=tier-B-or-C-not-modelled-in-this-spike");
++            return null;
++        }
++        final JsonObject o = new JsonObject();
++        o.addProperty("kind", "act");
++        o.addProperty("method", method.name());
++        final Object[] args = event.getObjects();
++        final Class<?>[] types = method.getArgTypes();
++        for (int i = 0; i < fields.length; i++) {
++            o.add(fields[i], encodeValue(args[i], types[i]));
++        }
++        return o;
++    }
++
++    private JsonObject encodeReply(final ReplyEvent event) {
++        final String callId = callIds.remove(event.getIndex());
++        final ProtocolMethod method = replyMethods.remove(event.getIndex());
++        if (callId == null || method == null) {
++            refusedOut++;
++            log("REFUSE-OUT ReplyEvent id=" + event.getIndex() + " reason=no-callId-for-this-id");
++            return null;
++        }
++        final JsonObject o = new JsonObject();
++        o.addProperty("kind", "reply");
++        o.addProperty("callId", callId);
++        o.addProperty("method", method.name());
++        o.add("result", encodeValue(event.getReply(), method.getReturnType()));
++        return o;
++    }
++
++    /** The bridge's own frame for "no answer is coming" (envelope.ts). */
++    public void abort(final String callId, final String reason, final String detail) {
++        final JsonObject o = new JsonObject();
++        o.addProperty("kind", "abort");
++        o.addProperty("callId", callId);
++        o.addProperty("reason", reason);
++        if (detail != null) {
++            o.addProperty("detail", detail);
++        }
++        framesOut++;
++        log("OUT " + o.toString());
++        wsSend(o.toString().getBytes(StandardCharsets.UTF_8));
++    }
++
++    private static JsonElement encodeValue(final Object v, final Class<?> type) {
++        if (v == null) {
++            return JsonNull.INSTANCE;
++        }
++        if (v instanceof Boolean b) {
++            return new JsonPrimitive(b);
++        }
++        if (v instanceof Number n) {
++            return new JsonPrimitive(n);
++        }
++        if (v instanceof String s) {
++            return new JsonPrimitive(s);
++        }
++        if (v instanceof Enum<?> e) {
++            return new JsonPrimitive(e.name());
++        }
++        throw new UnsupportedOperationException("no Tier A encoding for " + v.getClass().getName()
++                + " (declared " + type.getName() + ")");
++    }
++
++    private static Object[] decodeArgs(final ProtocolMethod method, final JsonObject frame) {
++        final String[] fields = TIER_A_SERVER.get(method);
++        final Class<?>[] types = method.getArgTypes();
++        final Object[] args = new Object[fields.length];
++        for (int i = 0; i < fields.length; i++) {
++            args[i] = decodeValue(frame.get(fields[i]), types[i], method, fields[i]);
++        }
++        return args;
++    }
++
++    private static Object decodeValue(final JsonElement el, final Class<?> type,
++                                      final ProtocolMethod method, final String field) {
++        final boolean isNull = el == null || el.isJsonNull();
++        if (type == String.class) {
++            return isNull ? null : el.getAsString();
++        }
++        if (type == Boolean.TYPE) {
++            return !isNull && el.getAsBoolean();
++        }
++        if (type == Integer.TYPE) {
++            return isNull ? 0 : el.getAsInt();
++        }
++        if (type == Byte.TYPE) {
++            return isNull ? (byte) 0 : (byte) el.getAsInt();
++        }
++        if (type == FSkinProp.class) {
++            return isNull ? null : FSkinProp.valueOf(el.getAsString());
++        }
++        if (type == NextGameDecision.class) {
++            return isNull ? null : NextGameDecision.valueOf(el.getAsString());
++        }
++        if (type == List.class) {
++            final List<String> out = new ArrayList<>();
++            if (!isNull) {
++                final JsonArray arr = el.getAsJsonArray();
++                for (final JsonElement e : arr) {
++                    out.add(e.isJsonNull() ? null : e.getAsString());
++                }
++            }
++            return out;
++        }
++        throw new UnsupportedOperationException("no Tier A decoding for " + method.name()
++                + "." + field + " of type " + type.getName());
++    }
++
++    /* ── The Tier A census ───────────────────────────────────────────────
++     *
++     * Field names and order are transcribed from
++     * packages/forge-wire/src/tier-a.ts, and the ORDER is load-bearing: it is
++     * the order of the Java method's parameters, which is how a flat JSON
++     * object becomes an Object[] for ProtocolMethod.getMethod().invoke().
++     * Tier B's 21 and Tier C's 3 are absent on purpose.
++     */
++
++    /** 8 server→client: 5 notify, 3 ask. */
++    private static final Map<ProtocolMethod, String[]> TIER_A_SERVER = new HashMap<>();
++    /** 6 client→server, all act. */
++    private static final Map<ProtocolMethod, String[]> TIER_A_CLIENT = new HashMap<>();
++
++    static {
++        TIER_A_SERVER.put(ProtocolMethod.afterGameEnd, new String[] {});
++        TIER_A_SERVER.put(ProtocolMethod.finishGame, new String[] {});
++        TIER_A_SERVER.put(ProtocolMethod.clearSelectables, new String[] {});
++        TIER_A_SERVER.put(ProtocolMethod.message, new String[] { "message", "title" });
++        TIER_A_SERVER.put(ProtocolMethod.showErrorDialog, new String[] { "message", "title" });
++        TIER_A_SERVER.put(ProtocolMethod.showConfirmDialog,
++                new String[] { "message", "title", "yesButtonText", "noButtonText", "defaultYes" });
++        TIER_A_SERVER.put(ProtocolMethod.showOptionDialog,
++                new String[] { "message", "title", "icon", "options", "defaultOption" });
++        TIER_A_SERVER.put(ProtocolMethod.showInputDialog,
++                new String[] { "message", "title", "icon", "initialInput", "inputOptions", "isNumeric" });
++
++        TIER_A_CLIENT.put(ProtocolMethod.useMana, new String[] { "color" });
++        TIER_A_CLIENT.put(ProtocolMethod.selectButtonOk, new String[] {});
++        TIER_A_CLIENT.put(ProtocolMethod.selectButtonCancel, new String[] {});
++        TIER_A_CLIENT.put(ProtocolMethod.concede, new String[] {});
++        TIER_A_CLIENT.put(ProtocolMethod.requestResync, new String[] {});
++        TIER_A_CLIENT.put(ProtocolMethod.nextGameDecision, new String[] { "decision" });
++    }
++
++    /** For the spike's own census line: 8 + 6 = the 14 Tier A methods. */
++    public static int modelledMethodCount() {
++        return TIER_A_SERVER.size() + TIER_A_CLIENT.size();
++    }
++}
+diff -ruN orig/forge-gui/src/main/java/forge/gamemodes/net/client/FGameClient.java work/forge-gui/src/main/java/forge/gamemodes/net/client/FGameClient.java
+--- orig/forge-gui/src/main/java/forge/gamemodes/net/client/FGameClient.java	2026-09-19 23:55:20.363556000 -0700
++++ work/forge-gui/src/main/java/forge/gamemodes/net/client/FGameClient.java	2026-09-19 23:55:34.731346541 -0700
+@@ -40,6 +40,21 @@
+     private volatile boolean disconnectSimulated;
+     private Channel channel;
+ 
++    /**
++     * Set when this client runs in a browser under CheerpJ, where Netty's NIO
++     * transport cannot be constructed at all (see {@link BrowserTransport}).
++     * Non-null means every write below goes through the bridge instead of a
++     * {@link Channel}; the protocol above this line is unchanged.
++     */
++    private BrowserTransport browser;
++
++    /**
++     * The URL the browser bridge dials, e.g.
++     * {@code -Dforge.net.browserTransport=ws://host:8741/bridge}. Absent means
++     * the ordinary Netty client.
++     */
++    public static final String BROWSER_TRANSPORT_PROPERTY = "forge.net.browserTransport";
++
+     public FGameClient(String username, IGuiGame clientGui, String hostname, int port) {
+         this.username = username;
+         this.clientGui = clientGui;
+@@ -58,7 +73,22 @@
+         return replies;
+     }
+ 
++    /** The bridge, when this client is running in a browser; null otherwise. */
++    public BrowserTransport getBrowserTransport() {
++        return browser;
++    }
++
+     public void connect() {
++        final String browserUrl = System.getProperty(BROWSER_TRANSPORT_PROPERTY);
++        if (browserUrl != null && !browserUrl.isEmpty()) {
++            // A browser page has exactly one kind of socket and Netty cannot
++            // open it. Swap the transport; leave the protocol alone.
++            browser = new BrowserTransport(this, browserUrl);
++            if (!browser.open()) {
++                browser = null;
++            }
++            return;
++        }
+         final EventLoopGroup group = new NioEventLoopGroup();
+         try {
+             final Bootstrap b = new Bootstrap()
+@@ -97,6 +127,8 @@
+     }
+ 
+     public void close() {
++        if (browser != null)
++            browser.close();
+         if (channel != null)
+             channel.close();
+         NetworkLogConfig.deactivateNetworkLogging();
+@@ -108,6 +140,10 @@
+             return;
+         }
+         netLog.info("Client sent {}", event);
++        if (browser != null) {
++            browser.send(event);
++            return;
++        }
+         final CompatibleObjectEncoder encoder = channel.pipeline().get(CompatibleObjectEncoder.class);
+         if (encoder == null) {
+             netLog.error("No encoder in client pipeline for {}", event);
+@@ -150,6 +186,12 @@
+ 
+     @Override
+     public Object sendAndWait(final IdentifiableNetEvent event) {
++        if (browser != null) {
++            // The browser wire has no client->server ask; BrowserTransport says
++            // why, and completing here keeps a Forge thread off ReplyPool's
++            // untimed get().
++            return browser.sendAndWait(event);
++        }
+         replies.initialize(event.getId());
+ 
+         send(event);

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>w15 lane A -- the transport</title>
+<style>
+  body { font: 13px/1.5 ui-monospace, monospace; margin: 0; background: #111; color: #ddd; }
+  #log { white-space: pre-wrap; padding: 8px; overflow: auto; }
+</style>
+</head>
+<body>
+<div id="log">booting...</div>
+<div id="display"></div>
+<script>
+// Console hook BEFORE loader.js, so no Java System.out line is lost. Every line
+// is stamped with performance.now(): one clock, no JVM/JS correlation to get
+// wrong. Same shape as the shared harness; this lane carries its own copy.
+const S = window.__spike = { lines: [], marks: {}, error: null, finished: false };
+const mark = (n) => { S.marks[n] = performance.now(); };
+const logEl = document.getElementById('log');
+for (const m of ['log', 'warn', 'error', 'info']) {
+  const orig = console[m].bind(console);
+  console[m] = (...a) => {
+    const s = a.map(x => (typeof x === 'string' ? x : String(x))).join(' ');
+    S.lines.push({ t: performance.now(), s });
+    logEl.textContent += '\n' + s;
+    logEl.scrollTop = logEl.scrollHeight;
+    orig(...a);
+  };
+}
+window.addEventListener('error', e => { S.error = String(e.message || e.error); });
+window.addEventListener('unhandledrejection', e => { S.error = String(e.reason); });
+mark('pageStart');
+</script>
+<script src="https://cjrtnc.leaningtech.com/4.3/loader.js"></script>
+<script>
+(async () => {
+  try {
+    mark('loaderReady');
+
+    /* ── The bridge's JS half ──────────────────────────────────────────────
+     *
+     * Three natives, and the SHAPE is not a preference. Measured 2026-09-20
+     * (docs/spikes/cheerpj.md, SETTLED): a native that returns a freshly built
+     * array throws ArrayIndexOutOfBoundsException on the Java side. So a
+     * native may only FILL an array the caller handed it, and inbound is
+     * length-then-fill. Anyone tempted to collapse this into one call should
+     * read that section first.
+     *
+     * CheerpJ calls a STATIC native as (lib, ...args); `lib` is the handle,
+     * not an argument.
+     *
+     * These are async ON PURPOSE. Forge's IToServer.send() is synchronous and
+     * a browser WebSocket is not; CheerpJ suspending the Java thread across a
+     * JS await is what makes this bridge possible at all (ASYNC probe, 153 ms
+     * across a deliberate 150 ms timer).
+     */
+    let sock = null;
+    const inbox = [];          // Uint8Array per inbound frame, FIFO
+    let socketClosed = false;
+    const RECV_POLL_MS = 100;  // how long recvLength blocks before returning 0
+
+    const natives = {
+      async Java_forge_gamemodes_net_client_BrowserTransport_wsOpen(lib, url) {
+        const u = String(url);
+        console.log('BRIDGE-JS wsOpen ' + u);
+        return await new Promise((resolve) => {
+          let done = false;
+          const ws = new WebSocket(u);
+          ws.binaryType = 'arraybuffer';
+          const finish = (rc) => { if (!done) { done = true; resolve(rc); } };
+          const timer = setTimeout(() => finish(2), 10000);
+          ws.onopen = () => { clearTimeout(timer); sock = ws; finish(0); };
+          ws.onerror = () => { clearTimeout(timer); socketClosed = true; finish(1); };
+          ws.onclose = () => { socketClosed = true; console.log('BRIDGE-JS wsClose'); };
+          ws.onmessage = (ev) => {
+            const bytes = typeof ev.data === 'string'
+              ? new TextEncoder().encode(ev.data)
+              : new Uint8Array(ev.data);
+            inbox.push(bytes);
+            console.log('BRIDGE-JS in ' + bytes.length + 'B queued=' + inbox.length);
+          };
+        });
+      },
+
+      async Java_forge_gamemodes_net_client_BrowserTransport_wsSend(lib, bytes) {
+        if (!sock || sock.readyState !== 1) {
+          console.log('BRIDGE-JS wsSend DROPPED (socket not open)');
+          return;
+        }
+        // Copy out of the Java array before handing it to the socket: the
+        // backing buffer belongs to the JVM heap and must not be retained.
+        const out = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] & 0xff;
+        console.log('BRIDGE-JS out ' + out.length + 'B');
+        sock.send(out);
+      },
+
+      /* Blocks (awaits) up to RECV_POLL_MS rather than spinning. Does NOT
+       * dequeue -- the Java side allocates from this number and then calls
+       * recvInto, so dequeuing here would lose the frame. */
+      async Java_forge_gamemodes_net_client_BrowserTransport_wsRecvLength(lib) {
+        const deadline = performance.now() + RECV_POLL_MS;
+        for (;;) {
+          if (inbox.length > 0) return inbox[0].length;
+          if (socketClosed) return -1;
+          if (performance.now() >= deadline) return 0;
+          await new Promise(r => setTimeout(r, 1));
+        }
+      },
+
+      Java_forge_gamemodes_net_client_BrowserTransport_wsRecvInto(lib, buf) {
+        const head = inbox.shift();
+        if (!head) { console.log('BRIDGE-JS recvInto with an EMPTY inbox'); return; }
+        const n = Math.min(head.length, buf.length);
+        for (let i = 0; i < n; i++) buf[i] = head[i];
+        if (n !== head.length) {
+          console.log('BRIDGE-JS recvInto TRUNCATED ' + head.length + ' -> ' + n);
+        }
+      },
+    };
+
+    const wsUrl = location.origin.replace(/^http/, 'ws') + '/bridge';
+    await cheerpjInit({
+      // 17 is required: CheerpJ defaults to Java 8 mode and refuses class files
+      // above major 52. Forge builds at --release 17 (forge/pom.xml:27).
+      version: 17,
+      enableDebug: false,
+      javaProperties: ['user.dir=/app/', 'forge.net.browserTransport=' + wsUrl],
+      natives,
+    });
+    mark('initDone');
+
+    // No display is created: this lane measures a transport, not a paint. Lane
+    // D owns first paint and the click-to-pixel number.
+
+    // transport.jar FIRST, forge.jar second: the patched FGameClient must win
+    // over the one inside the 39 MB fat jar. If CheerpJ ignored that order the
+    // probe would die on NoSuchMethodError for getBrowserTransport(), which is
+    // a loud failure rather than a silent wrong answer.
+    await cheerpjRunMain('spike.TransportProbe', '/app/transport.jar:/app/forge.jar');
+    mark('runReturned');
+  } catch (e) {
+    S.error = (e && e.stack) ? e.stack : String(e);
+    console.error('SPIKE-HARNESS-ERROR ' + S.error);
+  } finally {
+    S.finished = true;
+    mark('finished');
+  }
+})();
+</script>
+</body>
+</html>
