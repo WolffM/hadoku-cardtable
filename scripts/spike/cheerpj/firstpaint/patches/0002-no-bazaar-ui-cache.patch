@@ -1,0 +1,51 @@
+Wave 15, lane D -- do not pre-instantiate the quest bazaar screen.
+
+Lane B's wall (docs/spikes/cheerpj-assets.md §5): Forge's boot dies in
+forge.util.IgnoringXStream.<init>, reached from QuestBazaarManager.load <-
+VBazaarUI.populateStalls <- FView.cacheUIStates. XStream's
+com.thoughtworks.xstream.core.JVM.<clinit> self-tests the unsafe reflection
+provider, CheerpJ ships no Java_jdk_internal_misc_Unsafe_putChar, and the
+resulting UnsatisfiedLinkError is an Error rather than an Exception, so
+XStream's own guard does not catch it and the class is poisoned for the life of
+the JVM.
+
+Lane B named "does a match-only client touch XStream at all?" as the free thing
+to try first. It does not: XStream appears in exactly three areas of Forge --
+quest (incl. bazaar), gauntlet and tournament -- and a Constructed match path
+enters none of them. `grep -rl XStream` over the tree lists only
+gamemodes/quest/**, gamemodes/gauntlet/**, gamemodes/tournament/**,
+util/IgnoringXStream.java and one desktop test.
+
+cacheUIStates() pre-builds three screens at startup purely to warm them. Two of
+them (home, deck editor) are on our path; the bazaar is a quest-mode screen this
+product would never show. Not instantiating it eagerly is the smallest change
+that clears the wall, and it is a change we would want anyway.
+
+The import goes too, and not as tidiness: forge-gui-desktop runs
+maven-checkstyle-plugin at validate with UnusedImports as an ERROR, so leaving
+it turns a working patch into a BUILD FAILURE. Measured -- the first version of
+this patch kept the import "because an unused import is a warning, not an
+error", and Checkstyle 10.18.2 failed the build on exactly that line.
+
+--- a/forge-gui-desktop/src/main/java/forge/view/FView.java
++++ b/forge-gui-desktop/src/main/java/forge/view/FView.java
+@@ -40,7 +40,6 @@
+ import forge.gui.framework.SLayoutIO;
+ import forge.localinstance.properties.ForgeConstants;
+ import forge.localinstance.skin.FSkinProp;
+-import forge.screens.bazaar.VBazaarUI;
+ import forge.screens.deckeditor.VDeckEditorUI;
+ import forge.screens.home.VHomeUI;
+ import forge.screens.home.settings.DialogDownloadCardImages;
+@@ -420,7 +419,10 @@
+ 	private static void cacheUIStates() {
+ 		VHomeUI.SINGLETON_INSTANCE.instantiate();
+ 		VDeckEditorUI.SINGLETON_INSTANCE.instantiate();
+-		VBazaarUI.SINGLETON_INSTANCE.instantiate();
++		// Wave 15 lane D: the bazaar is quest-mode only and its stall loader
++		// pulls in XStream, which cannot initialise under CheerpJ (see
++		// docs/spikes/cheerpj-assets.md §5). Nothing on a match path needs it.
++		// VBazaarUI.SINGLETON_INSTANCE.instantiate();
+ 	}
+ 
+ 	public void incrementSplashProgessBar(final int value) {

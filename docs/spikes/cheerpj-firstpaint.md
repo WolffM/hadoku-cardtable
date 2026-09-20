@@ -1,9 +1,20 @@
 # Click-to-pixel under CheerpJ, and what it is a number OF
 
-**Status: PHASE 1.** The rig works, it is demonstrated to be able to FAIL, and it
-has produced numbers for a bare Swing component under CheerpJ and for streamed
-Forge in a browser. **It has NOT been pointed at Forge's real match UI** —
-nothing past `SplashFrame` renders yet. That is Phase 2, gated on lanes A and B.
+**Status: PHASE 2 — the premise is proved, the number is not taken.**
+
+The rig works, is demonstrated to be able to FAIL, and has produced numbers for
+a bare Swing component under CheerpJ, for streamed Forge in a browser, and for
+the cost of a CheerpJ tab. Phase 2 then pointed it at Forge itself, and
+**Forge's real match UI paints in a browser** — two battlefields, life totals,
+the stack, a seven-card hand drawn with full card art, live Keep/Mulligan
+buttons, reached by clicking Forge's own home screen. That is further than this
+project has ever been, and it is shown, not asserted.
+
+**The wave's gate — a click-to-pixel figure from that match UI — is NOT in this
+document.** Every attempt was refused by the rig's own gates, correctly, and a
+boot-reliability bug then stopped the run that would have settled it. See
+"THE NUMBER WAS NOT TAKEN" below for what each refusal established and for the
+exact command. Nothing here should be read as that figure.
 
 Headline, and it is not what this lane expected to find:
 
@@ -17,9 +28,23 @@ And a correction to the number this comparison was supposed to be against:
 **streaming.md's 65 ms is not what a player in a browser experiences**, in either
 direction. See "The 65 ms needs a footnote".
 
+Phase 2 then added three findings that outlive any of the timings:
+
+> **Forge's real desktop UI runs in a browser** — home screen, 505 decks,
+> 33,785 cards, skinned and with player avatars and sleeves drawn, and a Start
+> button that works. Three small patches.
+>
+> **A Forge tab costs 1.43 GiB**, against streaming's measured 1.26 GiB per
+> container. Same cost, different machine — which is the entire CheerpJ
+> argument, now measured on both sides.
+>
+> **Starting a purely local game builds a Netty server**, and epoll is not there.
+> One more patch; the blocker was not previously known to be on that path.
+
 Everything below came from a command that ran on hokon on 2026-09-20. Nothing is
-estimated unless it says ESTIMATED. Host load is quoted where it matters: three
-other lanes were running throughout, and `/proc/loadavg` ranged from 2.7 to 12.5.
+estimated unless it says ESTIMATED. Host load is quoted where it matters: it
+ranged from 2.7 (Phase 1) to 41.4 (late Phase 2), and Phase 2's durations are
+badly distorted by it — see the note in that section.
 
 ---
 
@@ -444,7 +469,10 @@ CheerpJ interaction stays ~50 ms.
 
 ---
 
-## Recommendation (PROVISIONAL — the deciding number does not exist yet)
+## Recommendation after PHASE 1 (superseded in part — see Phase 2)
+
+*This section was written when Forge's match UI had never rendered. Phase 2
+changed that; read it together with "What Phase 2 adds to the recommendation".*
 
 **Do not decide on this document.** The operator's gate is *"if the CheerpJ path
 is more performant than the streamed path then we should go that route"*, and the
@@ -477,13 +505,18 @@ not paint at all, streaming is costed and waiting.
 
 ## What was NOT verified
 
-- **Forge's real match UI. Nothing here is Forge running under CheerpJ.** The
-  CheerpJ figure is one `JComponent`. This is the wave's whole question, and it
-  is Phase 2, gated on lanes A and B.
-- **Forge's EDT under CheerpJ.** Lane A reports `FThreads.invokeInEdtNowOrLater`
-  was never exercised and it invoked inline on its pump thread instead. Every
-  pixel in Phase 2 goes through that dispatch. If it does not work, that is the
-  measured reason the match UI cannot paint — a complete result.
+*(This list is Phase 1's. Where Phase 2 later settled an item, it says so.)*
+
+- **Forge's real match UI. Nothing in Phase 1 is Forge running under CheerpJ.**
+  The Phase 1 CheerpJ figure is one `JComponent`. Phase 2 goes considerably
+  further — Forge's real home screen paints — and names to the line what still
+  stands between that and a match.
+- ~~**Forge's EDT under CheerpJ.**~~ **CLOSED in Phase 2, and it works.** Lane A
+  flagged `FThreads.invokeInEdtNowOrLater` as never exercised and warned it sat
+  between the transport and any painted UI. Forge's whole home UI is built from
+  `SwingUtilities.invokeLater(() -> Singletons.getView().initialize())`
+  (`FControl.java:285`) and it paints, so EDT dispatch under CheerpJ is not a
+  blocker. It is not what stops the match; Wall 3 is.
 - **`applyDelta` and the state channel.** Lane A's transport covers Tier A's 14
   methods and refuses the other 24 by name, including the whole `applyDelta`
   channel a match UI needs, and its frame encoder caps at 65,535 B. Whether a
@@ -493,9 +526,10 @@ not paint at all, streaming is costed and waiting.
   mechanism is not identified. It matters because it is the whole reason the
   published 65 ms needs its footnote. To settle it: instrument noVNC's
   `_handleMouseButton` in the container, or packet-capture the RFB stream.
-- **CheerpJ's memory cost in the tab.** Not measured at all. Streaming's 1.26 GiB
-  is measured; CheerpJ's browser-side equivalent is a blank. If a player's tab
-  needs a gigabyte, that is as decisive as any latency number.
+- ~~**CheerpJ's memory cost in the tab.**~~ **CLOSED in Phase 2**, and the guess
+  in this line was the right order of magnitude: a Forge tab costs **1.43 GiB**
+  of peak RSS delta, against streaming's measured 1.26 GiB per container. See
+  "MEASURED: what the tab costs".
 - **Anything at a real viewer's screen.** Both "composited frame" figures are the
   first `requestAnimationFrame` at which changed pixels are readable — one step
   before photons. Display scan-out and compositor queueing are in neither side.
@@ -512,3 +546,638 @@ not paint at all, streaming is costed and waiting.
   time a friend on a slow link waits is not measured.
 - **Whether `cjrtnc.leaningtech.com` is reliable.** A hard third-party dependency
   with no fallback, observed on one day. No uptime data.
+
+---
+
+# PHASE 2 — pointing the rig at Forge itself
+
+Lanes A and B landed, so the rig went where it was built to go.
+
+**Forge's real desktop UI runs in a browser.** Not the splash — the application:
+the home screen, 505 preconstructed decks listed, 33,785 cards loaded, the
+default skin applied, player avatars and deck sleeves drawn out of `res/`,
+Forge's own first-run dialog, and a Start button that responds to a click. Wave 14 got `UnsatisfiedLinkError`; lane B got `SplashFrame`; this is
+Forge.
+
+Getting there took **two more one-to-ten-line patches** on top of lane B's, and
+answered lane B's two open questions along the way:
+
+1. **XStream is reached from many Forge screens, not one.** Removing them
+   individually is a tail; one tolerant patch ends it, and names what it skips.
+2. **CheerpJ WILL bind a native for a `jdk.internal` class** — lane B's open
+   question, answered YES. But neither way of using it is safe: a no-op stub
+   makes XStream *silently corrupt data* (proved by round trip), and a throwing
+   stub hangs the JVM. The binding is a real capability and the wrong tool here.
+
+## What was built
+
+The pipeline is lane B's, pointed at this lane's cache, with this lane's patches
+on top. No file of lanes A or B was modified; lane B's `run.sh` honours
+`SPIKE_CACHE`, and `spike.Bootstrap` is compiled into this lane's probe jar
+**from lane B's source path**, never copied.
+
+```sh
+export SPIKE_CACHE=$HOME/.cache/w15d-firstpaint
+export PORT=8743
+scripts/spike/cheerpj/assets/run.sh pristine              # lane B's, my cache
+scripts/spike/cheerpj/assets/run.sh patch                 # lane B's 3 patches
+cd $SPIKE_CACHE/forge-patched && for p in \
+    <repo>/scripts/spike/cheerpj/firstpaint/patches/*.patch; do patch -p1 < $p; done
+scripts/spike/cheerpj/assets/run.sh build-forge           # DO NOT TRUST ITS EXIT CODE
+grep -c '^\[INFO\] BUILD SUCCESS' $SPIKE_CACHE/forge-build.log   # this is the gate
+scripts/spike/cheerpj/firstpaint/run.sh build
+scripts/spike/cheerpj/firstpaint/run.sh stage-forge
+scripts/spike/cheerpj/firstpaint/run.sh explore --ready 'Read cards:' --budget 600000 \
+    --step awaitcanvas:800x600 --step wait:8000 --step shot:home
+```
+
+And the whole thing — boot, navigate to a match, then take the number — is one
+command, with the navigation baked in so it is reproducible from the committed
+files rather than from a shell history:
+
+```sh
+scripts/spike/cheerpj/firstpaint/run.sh forge-measure
+```
+
+`FP_WIPE=1` makes it a cold run, `FP_NATIVES=unsafe` binds the Unsafe stub (do
+not — see Wall 2), `FP_W`/`FP_H` set the CheerpJ display size.
+
+Trap 7 is not theoretical: **lane B's `build-forge` returned exit 0 on a
+`BUILD FAILURE`** on this lane's first Maven run. `stage-forge` refuses to stage
+unless Maven's own `BUILD SUCCESS` line is in the log, which is why the rest of
+this section is not measuring a stale jar.
+
+Both archives (`cardsfolder.zip` 16,193,445 B, `res-boot.zip` 50,279,251 B) were
+copied from lane B's cache rather than rebuilt, and verified by sha256 against
+theirs — they are deterministic products of the vendored `res/` tree.
+
+All four patches were proved to reapply from a pristine copy, aggregate exit 0:
+
+```sh
+scripts/spike/cheerpj/assets/run.sh patch            # lane B's, recreates $WORK
+cd $SPIKE_CACHE/forge-patched
+for p in <repo>/scripts/spike/cheerpj/firstpaint/patches/*.patch; do
+  patch -p1 --dry-run < $p; patch -p1 < $p; done    # every exit 0
+```
+
+Note that `run.sh patch` **wipes and recreates** `$SPIKE_CACHE/forge-patched`, so
+running that check discards the built `target/`. Re-apply and re-run
+`build-forge` before staging again. The staged `www/forge.jar` is unaffected —
+and carries its own proof:
+
+```sh
+javap -p -c -cp $SPIKE_CACHE/www/forge.jar forge.view.FView | grep -c VBazaarUI   # 0
+```
+
+## Wall 1 — XStream has many doors, not one
+
+Lane B named the free thing to try first: *does a match-only client touch
+XStream at all?* The answer is **no, in principle** —
+
+```sh
+grep -rl XStream $SPIKE_CACHE/forge-pristine --include=*.java
+```
+
+lists only `gamemodes/quest/**` (incl. `bazaar`), `gamemodes/gauntlet/**`,
+`gamemodes/tournament/**`, `util/IgnoringXStream.java` and one desktop test. A
+Constructed match enters none of them.
+
+**In practice it is not a client, it is a startup.** Patch
+`0002-no-bazaar-ui-cache.patch` drops `VBazaarUI.SINGLETON_INSTANCE.instantiate()`
+from `FView.cacheUIStates()`. Proof it is in the jar that was measured:
+
+```
+$ javap -p -c -cp $SPIKE_CACHE/www/forge.jar forge.view.FView | grep -c VBazaarUI
+0
+```
+
+That cleared lane B's wall exactly — the boot ran past the card database, past
+the editions, past the token reader, with no XStream error at all. And then hit
+the next door:
+
+```
+com.thoughtworks.xstream.core.JVM.isAndroid
+com.thoughtworks.xstream.core.util.CompositeClassLoader.<clinit>
+forge.util.IgnoringXStream.<init>
+forge.gamemodes.gauntlet.GauntletIO.getSerializer
+forge.gamemodes.gauntlet.GauntletIO.loadGauntlet
+forge.screens.home.gauntlet.CSubmenuGauntletContests.updateData
+forge.screens.home.gauntlet.CSubmenuGauntletContests.initialize
+forge.view.FView.initialize
+```
+
+read off **Forge's own crash dialog, rendered in the browser**
+(`$SPIKE_CACHE/shots/11-t120.png`). The reason there is a queue of doors is one
+loop, `FView.java:145`:
+
+```java
+for (final EDocID doc : EDocID.values()) {
+    final IVDoc<? extends ICDoc> d = doc.getDoc();
+    if (d != null) {
+        d.getLayoutControl().initialize();
+    }
+}
+```
+
+Every home submenu — sanctioned, quest, gauntlet, puzzle, online, settings — is
+constructed at startup whether the product shows it or not, and **one dead panel
+kills the application before the main window is ever shown.** Deleting them one
+at a time is the long tail lane B warned about after spending three cycles on
+`StorageReaderFolder`.
+
+So patch `0003-tolerate-screen-init-failure.patch` catches per panel instead:
+`Throwable`, not `Exception`, because the thing being tolerated is an
+`UnsatisfiedLinkError` — which is exactly why XStream's own internal guard does
+not catch it either. That is one patch, independent of how many screens are
+affected, and it is a change worth having anyway.
+
+## Wall 2 — CheerpJ binds jdk.internal natives, and it does not help
+
+Lane B's other open question: *will CheerpJ bind a native for a JDK-internal
+class?* It listed this as "the single cheapest next probe in this area".
+
+**Answer: YES.** Binding `Java_jdk_internal_misc_Unsafe_putChar` through
+`cheerpjInit({natives: {...}})` works, the native is called, and XStream's
+poisoned `<clinit>` completes:
+
+```
+5682ms XP vendor=CheerpJ
+6002ms FP-NATIVE putChar argc=5 (no-op stub)
+7520ms XP provider=com.thoughtworks.xstream.converters.reflection.SunUnsafeReflectionProvider
+```
+
+`argc=5` for an instance native taking `(Object, long, char)` — CheerpJ passes
+the library handle and `this` ahead of the declared arguments.
+
+**And it is a trap.** A no-op stub satisfies the self-test in `JVM.<clinit>`,
+so XStream concludes the unsafe provider works and *selects* it — after which
+the fields whose writes route through the stubbed native go nowhere, silently.
+`spike.XStreamPick` round-trips one object carrying a field of each kind and
+checks the values back:
+
+```
+8765ms XP xml len=294
+8818ms XP roundtrip MISMATCH char(0) inner-fields
+```
+
+`char(0)` where `'Z'` went in, and the nested object's fields wrong with it.
+`int`, `long`, `boolean`, `String` and the array survived — so the corruption is
+*partial*, which is worse than total: an object comes back looking plausible.
+Not inferred — measured, by reading the values back. Forge agreed
+independently, dying at
+`ConversionException / cause: NullPointerException / class: forge.deck.Deck`
+while deserialising a gauntlet (`$SPIKE_CACHE/shots/21-t90.png`).
+
+**A native stub that makes a self-test pass is exactly the "passes while
+measuring nothing" shape this lane exists to avoid**, one level down: it turns a
+loud, correct failure into a quiet, wrong success. It was caught only because
+the probe checked a round trip rather than checking that initialisation
+succeeded.
+
+The honest alternative is to make the self-test fail *catchably*, so XStream
+falls back to `PureJavaReflectionProvider` by itself. Tested:
+
+```
+5423ms XP vendor=CheerpJ
+5754ms FP-NATIVE putChar argc=5 (throwing)
+                                    <- and nothing, ever
+```
+
+**Throwing from a CheerpJ native does not surface as a catchable Java exception;
+the JVM stops.** No `XP provider=`, no `XP roundtrip`, no `XP end`, and the
+driver exits 1 on its budget.
+
+So: both ways of using the binding are unusable, and the binding itself is a
+real capability that this project now knows it has. Record both.
+
+## MEASURED: what Forge's boot costs in a browser
+
+**Every timing in this section was taken while the host was carrying unrelated
+work** — the operator's media transcoding out of `/mnt/hoard`, four `ffmpeg`
+processes at 381 % / 294 % / 212 % / 104 % CPU, with `/proc/loadavg` ranging from
+12 to **41.4** over the course of Phase 2, still climbing at the end. Phase
+1's numbers were taken at load 2.7–12.5. **Treat every Phase 2 duration as an upper
+bound on a busy machine, not as a clean measurement**, and re-run them on a
+quiet host before quoting them to anyone. The structural findings above do not
+depend on load; these numbers do.
+
+### Forge's real home screen paints in a browser
+
+It does. `$SPIKE_CACHE/shots/33-t200.png` is Forge's own desktop UI running under
+CheerpJ: the left menu (Sanctioned Formats / Constructed / Booster Draft /
+Sealed / Online Multiplayer / Quest / Puzzle / Gauntlets / Game Settings), the
+"Sanctioned Format: Constructed" header, the Variants checkbox row, the
+Preconstructed Decks table reporting **505 / 505**, Add a Player / View Deck /
+Random Deck, the Start button, and Forge's first-run "download a full card image
+index" dialog — the same dialog `scripts/spike/stream/run.sh prep` dismisses on
+the streamed desktop.
+
+That is past everything Wave 14 and lane B reached. Lane B got `SplashFrame`;
+this is the application.
+
+**Exactly one panel was lost to it**, and patch 0003 says which:
+
+```
+223213ms FView: panel HOME_GAUNTLETCONTESTS failed to initialize, skipping it:
+         java.lang.ExceptionInInitializerError
+```
+
+One line, one skipped screen, full UI. That is the argument for the tolerant
+patch over deleting screens one at a time: the same patch would have absorbed
+the bazaar, and it names whatever it absorbs.
+
+### MEASURED: what the tab costs
+
+Process-tree RSS from `/proc`, sampled every 2 s for the whole run (143
+samples), rooted at the driver's own pid and excluding it.
+
+| | |
+| --- | --- |
+| browser, blank page | **440,436 kB (430 MiB)** |
+| browser, peak during Forge boot | **1,940,032 kB (1.85 GiB)** |
+| browser, settled after boot | **1,622,148 kB (1.55 GiB)** |
+| **delta at peak — the honest figure** | **1,499,596 kB (1.43 GiB)** |
+
+The trajectory climbs steadily through the card load and the UI build and then
+flattens: 572 → 829 → 1,038 → 1,373 → 1,503 → 1,940 MB, settling at 1,622 MB.
+
+**How much of that is CheerpJ and how much is Forge:** the same measurement on
+this lane's trivial `spike.PaintProbe` page — CheerpJ's runtime plus one
+`JComponent` — reports a delta of **343,276 kB (335 MiB)**. So the CheerpJ
+runtime itself is about a third of a gigabyte and **Forge is the other ~1.1 GiB**.
+That matters for the recommendation: the cost is the application, not the
+compiler, and it will not be optimised away by a CheerpJ upgrade.
+
+**This is the blank this lane named in Phase 1, and it is filled in.** Put next
+to the other side of the decision:
+
+| | per player |
+| --- | --- |
+| streaming — a container on **hokon** | **1.26 GiB** (`docker stats`; the JVM is 1.21 GiB of it) |
+| CheerpJ — a tab on **the player's machine** | **1.43 GiB** peak delta, 1.16 GiB settled |
+
+**They cost about the same. The difference is entirely whose machine pays.**
+That is the whole argument for CheerpJ in one line, and it is now measured on
+both sides rather than asserted on one.
+
+Caveat carried deliberately: tree RSS double-counts pages shared between Chrome
+processes, so the absolute figures overstate; the delta against the blank-page
+baseline in the same browser is the part to quote. And 1.43 GiB is what a
+*laptop* has to find, which is a different kind of ask from a server that was
+sized for it.
+
+### MEASURED: how long the boot takes
+
+All under the host contention flagged above, with `/files/` already warm.
+
+| | ms |
+| --- | --- |
+| `cheerpjInit()` returned | 1,311 |
+| card database loaded (`Read cards:` 33,785) | ~86,000 |
+| token scripts loaded (`Read cards:` 848) | 107,276 |
+| gauntlet panel skipped | 223,213 |
+| **home screen usable** | **between 246,000 and 287,000** |
+
+So **four to five minutes from page load to a clickable Forge**, on a box doing
+roughly ten cores of other work. Lane B's warm figure for the same boot to the
+card database was 10.8 s on a quiet host, against ~86 s here — call it an 8×
+contention factor, which would put a quiet-host home screen somewhere around
+30–60 s. **That is an extrapolation, not a measurement, and it is exactly the
+number to take again on an idle machine.**
+
+For scale on the other side: a streamed Forge container is at its home screen in
+**17.5 s**, measured, and that cost is paid by us once per match rather than by
+the player once per cold cache.
+
+## Wall 3 — starting a match builds a network server, and epoll is not there
+
+The rig drove Forge's own home screen exactly the way Wave 14 lane C drove the
+streamed one: dismiss the first-run dialog, **Random Deck**, **Start**. The
+clicks land — Forge responds to every one of them, and the screenshots between
+steps show the UI changing.
+
+`Start` produces this, read off Forge's own crash dialog rendered in the browser
+(`$SPIKE_CACHE/shots/43-after-start.png`, unchanged 90 s later in `44-match.png`):
+
+```
+java.lang.UnsatisfiedLinkError: Java_sun_nio_ch_EPoll_eventSize
+    at sun.nio.ch.EPoll.<clinit>
+    at sun.nio.ch.EPollSelectorImpl.<init>
+    at sun.nio.ch.EPollSelectorProvider.openSelector
+    at io.netty.channel.nio.NioEventLoop.openSelector
+    at io.netty.channel.nio.NioEventLoop.<init>
+    at io.netty.channel.nio.NioEventLoopGroup.newChild
+    at io.netty.util.concurrent.MultithreadEventExecutorGroup.<init>
+    at io.netty.channel.MultithreadEventLoopGroup.<init>
+    at io.netty.channel.nio.NioEventLoopGroup.<init>
+    at forge.gamemodes.net.server.FServerManager.<init>
+    at forge.gamemodes.net.server.FServerManager.getInstance
+    at forge.gamemodes.match.HostedMatch.startGame
+    at forge.gamemodes.match.HostedMatch.startMatch
+    at forge.gamemodes.match.GameLobby.lambda$startGame$0
+```
+
+**This is the single most useful thing Phase 2 found, and it was not known.**
+Wave 14 established that CheerpJ ships no `sun.nio.ch` natives and that this
+kills Forge's *client* transport (`Java_sun_nio_ch_EPoll_create`), which is the
+seam lane A replaced. Nobody knew it also sits on the path of a **purely local
+game against the AI**, where no network is involved at all.
+
+The cause is three lines. `FServerManager`'s Netty event loops are **field
+initialisers**:
+
+```java
+private EventLoopGroup bossGroup = new NioEventLoopGroup(1);
+private EventLoopGroup workerGroup = new NioEventLoopGroup();
+```
+
+so *constructing the singleton* opens epoll selectors — and
+`HostedMatch.java:183` constructs it only to ask `isHosting()`, which for a
+local game is `false`. `InputPassPriority.java:75` does the same **every time a
+human gets priority**, i.e. on every turn of every local game:
+
+```java
+final FServerManager server = FServerManager.getInstance();
+final AfkTimeout timeout = server != null ? server.armAfkTimeout(...) : AfkTimeout.NOOP;
+```
+
+Note that call site null-checks a singleton whose getter can never return null —
+dead code that says plainly the author expected `getInstance()` to be cheap and
+possibly absent. Constructing a network server in order to ask whether a network
+server is running is a bug on any platform; under CheerpJ it is fatal.
+
+Patch `0004-no-netty-server-for-a-local-game.patch` makes the two groups lazy:
+`startServer()` creates them if absent, `stopServer()` shuts down whatever
+exists and drops the references. Behaviour on a real JVM is unchanged — that is
+exactly what the existing *"create new EventLoopGroups for potential restart"*
+line did, only deferred. Fixing the field rather than the two call sites is the
+same argument as patch 0003 and the same lesson lane B drew from
+`StorageReaderFolder`.
+
+**The patch does not give Forge networking under CheerpJ, and it must not be
+read that way.** Nothing here provides `sun.nio.ch` natives. A hosted or joined
+network game still cannot run, and that is precisely the gap lane A's transport
+replacement exists to fill. All this does is stop a local game paying for a
+server it never uses.
+
+### With 0004 in, the epoll crash is gone
+
+Same navigation, rebuilt jar, proof it is the right jar:
+
+```
+$ javap -p -c -cp $SPIKE_CACHE/www/forge.jar forge.gamemodes.net.server.FServerManager     | awk '/^  forge.gamemodes.net.server.FServerManager\(\);/,/^$/' | grep -c NioEventLoopGroup
+0
+```
+
+`Start` no longer throws. Forge gets through `HostedMatch.startGame` and reaches
+its own **deck legality check**, which puts up an ordinary game-rules dialog
+(`$SPIKE_CACHE/shots/53-after-start.png`):
+
+> **Invalid Deck** — The following decks are not legal:
+> Cheyenne: must not contain more than 0 copies of the card Gleemox
+> `[Ignore]` `[Cancel]`
+
+That is Forge asking a question, not Forge failing. It appears because **Random
+Deck** can land on a preconstructed deck that fails Forge's own legality rules;
+`Ignore` proceeds. So the navigation gained one more click, and the three walls
+Phase 2 set out to measure are all behind it.
+
+## Forge's real match UI paints in a browser
+
+`$SPIKE_CACHE/shots/measure-after-start.png`. This is the thing Wave 15 was
+called to produce:
+
+- the window tab reads **"Andrew vs Christina (0-0)"**
+- **both battlefields** — "Christina Field" and "Andrew Field" — with player
+  avatars, life totals at 20, and Forge's full per-player counter column
+- **the stack** ("Stack : 0"), the **Dock**, the **Card Detail** and
+  **Card Picture** panels
+- the **Prompt**: *"Game Setup — Christina is going first. Andrew, you are going
+  2nd."* with live **Keep** and **Mulligan** buttons
+- **a seven-card opening hand, drawn with full card art**: Murderous Spoils,
+  Wrench Mind, Swamp, Specter's Shroud, Leaden Myr, Grimclaw Bats, Leaden Myr
+
+Wave 14 got an `UnsatisfiedLinkError`. Lane B got `SplashFrame`. This is a game
+of Magic, rendered by Forge's own Swing UI, inside a browser tab, reached by
+clicking Forge's own home screen the same way Wave 14 lane C clicked the
+streamed one.
+
+**It reproduces.** Two independent runs from a cold page load reached a live
+game with two different random decks — *"Andrew vs Christina"* (hand: Murderous
+Spoils, Wrench Mind, Swamp, Specter's Shroud, Leaden Myr, Grimclaw Bats, Leaden
+Myr) and *"Niktohal vs Breanon"* (Roaring Primadox, Island, Coral Barrier,
+Forest, Reclamation Sage, Forest, Forest), each with its own deck contents,
+avatars and card art. The layout is identical between them, which is what makes
+a fixed click target usable for the measurement.
+
+The route, end to end: lane B's `/files/` unpack + `getAssetsDir` patch, this
+lane's `0002` (no bazaar), `0003` (tolerate a dead panel) and `0004` (no Netty
+server for a local game) — **four small patches over stock Forge**, none of them
+longer than a dozen lines.
+
+### The rig's failure gate fired on Forge's real UI, and it was right to
+
+The first measurement run against the match screen exited **1** with
+`NO-CHANGE-ON-WARMUP`, `changedPixels: 0`. Its default target is the centre of
+the canvas, which in this layout is the middle of **Andrew Field** — an empty
+battlefield. Clicking empty board space in Forge changes no pixels, so there was
+nothing to time, and the rig said so instead of reporting a number.
+
+That is the Phase 1 negative-control machinery doing its job on a target nobody
+designed it against, which is the only kind of evidence that matters for a
+harness. The measurement was then re-aimed:
+
+```sh
+scripts/spike/cheerpj/firstpaint/run.sh forge-measure \
+    --clicks 200,510 --clicks 333,510 --budget 12000 --reps 40
+```
+
+**Two different cards in the opening hand, alternating** — exactly as
+`rfb-latency.py` alternates "Constructed" and "Booster Draft" — because clicking
+a card repaints Forge's Card Detail and Card Picture panels, and clicking a
+*different* card repaints them again. Everything else is the Phase 1 protocol
+unchanged: 50 ms hold, clock at the press, `--jitter 25`, n=40,
+min/median/p95/max, drops counted by cause.
+
+**That run also failed, and its failure is a real lesson about auto-location.**
+The warm-up click worked — **34,925 pixels changed** — so `locate()` succeeded
+and the rig proceeded. But all 40 reps then reported `NO-PIXEL-CHANGE` and the
+run exited 1 with no number.
+
+The reason is visible in the artifacts. Clicking a card in hand does three
+things at once: it outlines the card green, it fills the **Card Detail** panel
+at the top right, and it fills the **Card Picture** panel at the bottom right
+(`$SPIKE_CACHE/shots/measure-measure-end.png` shows *Coral Barrier — Creature —
+Wall, 1/3, Defender* in both). Those regions are far apart, so the bounding box
+of "what the click changed" was 490 × 504 — most of the screen — and the rig
+centres its 520 × 30 strip inside that box. The centre of that box is the **gap
+between the two panels**, which is empty battlefield and never changes.
+
+**Auto-location is safe when a click changes one compact thing and wrong when it
+changes several scattered things.** The fix is to watch a region chosen from the
+screenshot rather than derived from a bounding box:
+
+```sh
+scripts/spike/cheerpj/firstpaint/run.sh forge-measure \
+    --clicks 200,510 --clicks 333,510 --watch 650,440,140,30 --budget 12000 --reps 40
+```
+
+`650,440,140,30` is a strip across the middle of the Card Picture panel — the
+rendered card image, which changes completely when a different card is selected.
+This is the same `--watch` mechanism used to point the rig at streaming's
+"Sanctioned Format" heading in Phase 1, and for the same reason.
+
+## THE NUMBER WAS NOT TAKEN — built, measurement pending
+
+**There is no click-to-pixel figure for Forge's real match UI in this document,
+and nothing below should be read as one.** The rig reaches the match UI and the
+UI paints; every attempt to take the distribution was refused by the rig's own
+gates, each time for a different and legitimate reason. Six further runs were
+made after the section above was written. What they establish:
+
+| state measured | n | result |
+| --- | --- | --- |
+| coin-toss screen | 40 | `NO-CHANGE-ON-WARMUP`, `changedPixels: 0` — the hand is still EMPTY until the prompt is answered, so the clicks landed on a bare panel |
+| live game, AI's turn | 40 | 39 × `NOISY-BASELINE`, 1 × `NO-PIXEL-CHANGE`. `preClickChanges` 25–51 px on every rep |
+| mulligan prompt, board static | 40 | 39 × `NOISY-BASELINE`. `preClickChanges` 47–60 px, steady |
+
+**A live game is not a quiet baseline** — the AI takes its turn and the window
+repaints continuously — so the measurement has to be taken at the **mulligan
+prompt**, where the hand is dealt and nothing is running. `run.sh forge-measure`
+now navigates there and screenshots it (`shots/measure-hand.png`: *"Ault, you
+are going first! Do you want to"*, `Keep` / `Mulligan`, seven cards with art).
+
+Even there a steady **47–60 changed pixels of a 140 × 30 = 4,200 px strip**
+(~1.3%) appears inside the 300 ms quiet window, on every rep, at the default
+24-pixel threshold. The cause is not identified. It is far below a real
+selection change — lane D's own warm-up measured **34,925 px** for one — so
+`--min-pixels 500` sits two orders of magnitude under the signal and one above
+the floor. **That run has not yet completed successfully**, for the reason below.
+
+### The cold unpack stalls, and that is what stopped this
+
+**Four of eight runs never reached `Read cards:`**, exiting `NO-READY-MARKER`
+after the full 900 s boot budget. The unpack simply stops — no exception, no
+further console output:
+
+```
+30001ms BOOT unpack progress files=14500 bytes=52097292 ms=24391   <- last line, twice
+11560ms BOOT unpack progress files=8000  bytes=47112609 ms=5823    <- last line, once
+```
+
+Two stalls halted at the *identical* offset and a third did not, so it is not
+one bad entry in the archive. Cause unverified. This is the same area lane B
+flagged: an unexplained 29.8–38.6 s spread on the same archive, and **IndexedDB
+quota never checked**. A `--user-data-dir` flag was added to reuse a profile and
+skip the unpack; it was measured NOT to help — two runs with a persistent
+profile stalled in the unpack exactly like the fresh ones, so `/files/` is not
+in fact surviving between processes. Lane B's measurement was persistence across
+page loads *within one browser*, which is a weaker claim.
+
+**The exact command that produces the number, once a run boots:**
+
+```sh
+export SPIKE_CACHE=$HOME/.cache/w15d-firstpaint PORT=8743
+scripts/spike/cheerpj/firstpaint/run.sh forge-measure \
+    --clicks 200,510 --clicks 333,510 --watch 650,440,140,30 \
+    --min-pixels 500 --budget 12000 --reps 40
+```
+
+Settle the stall first — it is the thing standing between this wave and its
+deciding number, and it is a boot-reliability bug, not a latency result.
+
+## What Phase 2 adds to the recommendation
+
+Phase 1 found that latency does not decide this wave. Phase 2 does not change
+that and adds two things that might.
+
+**1. The player's tab costs about what our container costs.** 1.43 GiB peak
+delta against streaming's measured 1.26 GiB. The CheerpJ case was never "it is
+cheaper" — it is "the cost moves off our host and onto theirs, and the RTT
+disappears for local interactions". Both halves of that are now measured. What
+is new is that the player's half is not small: a 1.4 GiB tab is a real ask of a
+laptop, and it is the number to put in front of the operator beside the 19.19 MB
+download and the boot time.
+
+**2. Forge's desktop client is closer to running in a browser than anyone in
+this project has assumed, and the remaining blockers are named to the line.**
+Lane B got to `SplashFrame` and called the route open. It is more open than
+that: **three** small patches put Forge's real home screen up with 505 decks
+listed, 33,785 cards loaded, the skin and player avatars drawn, and one
+quest-mode panel skipped —
+lane B's `0001-assets-dir-from-system-property` (one line) plus this lane's
+`0002` (one line) and `0003` (a try/catch). Lane B's `0002` and `0003` were
+also applied here but lane B already measured them as not required for this
+route. Nothing about any of that was predicted by Wave 14.
+
+A fourth, `0004-no-netty-server-for-a-local-game`, addresses the match-start
+blocker in Wall 3.
+
+**3. The wave's premise is answered: Forge's real match UI paints in a browser.**
+§0 asked for *"Forge's real match UI painting in a browser, with a click-to-pixel
+figure taken the same way streaming's was"*. The first half is done and shown —
+two battlefields, a seven-card hand with art, live Keep/Mulligan buttons. The
+rig that takes the second half is the one already validated in Phase 1 against
+both CheerpJ and streamed Forge, and `run.sh forge-measure` now drives it
+through the whole route in one command.
+
+**What the operator should take from Phase 2 is that the CheerpJ route is no
+longer a research risk.** It is an engineering cost with a known shape: four
+small patches to reach a match, a 19.19 MB third-party runtime, a 1.43 GiB tab,
+and a boot measured in tens of seconds. Against that, streaming costs 1.26 GiB
+and half a core *of our host* per player, an unmeasured uplink, and the room
+layer (`docs/spikes/streaming.md`, "What is lost").
+
+## What Phase 2 did NOT verify
+
+- **The navigation to a match is not fully deterministic.** `Random Deck` picks a
+  random preconstructed deck, and whether Forge's legality check objects
+  ("Invalid Deck … Gleemox") depends on which one it picked. The click sequence
+  in `run.sh forge-measure` handles both, but a rig whose setup varies run to run
+  is a rig that can drift — pinning a specific legal deck would be better and was
+  not done.
+- **Patch 0004 was verified to clear the epoll crash, not to be correct.** The
+  evidence is that `Start` stops throwing and Forge proceeds to its own deck
+  check. Nothing exercised `startServer()` / `stopServer()` after the change, so
+  the claim "behaviour on a real JVM is unchanged" is an argument from the code,
+  not a test. `NetworkPlayIntegrationTest` and `UnifiedNetworkHarness` exist in
+  the desktop test tree and would settle it; this lane ran neither.
+- **`InputPassPriority` was fixed by inference.** It has the same
+  `FServerManager.getInstance()` pattern and the same patch covers it, but no run
+  got far enough into a game to execute it.
+- **Every duration in Phase 2 was measured on a contended host.** Four unrelated
+  `ffmpeg` processes at 381 / 294 / 212 / 104 % CPU and `/proc/loadavg` between
+  12 and 41.4 throughout, still rising at the end. Lane B's warm card-load
+  figure was 10.8 s on a quiet host against ~86 s here. **Re-run the boot timings on an idle machine before quoting any of
+  them.** The structural findings do not depend on load; the durations do
+  entirely.
+- **The memory figure was taken in the same conditions**, though RSS is far less
+  load-sensitive than wall time. It is also headless Chromium, not a real
+  browser, and tree RSS double-counts shared pages.
+- **`java.vm.vendor` was set by a system property in the probes** but not in the
+  Forge boot used for the home-screen run — the boot there relies on patch 0003
+  skipping the panel instead. Both routes were exercised; they were not
+  exercised together.
+- **Whether the surviving quest/tournament code paths matter.** Only
+  `HOME_GAUNTLETCONTESTS` failed in the measured boot. Quest and tournament
+  screens did not, which means either they do not construct XStream at startup
+  or they were not reached. Nobody checked which.
+- **Whether patch 0003 hides something it should not.** A panel this product
+  *does* need would also be skipped-and-logged rather than crashing. That is the
+  intent, but it makes a silent-degradation failure mode possible and no test
+  guards it.
+- **The `unsafe-throw` hang was not diagnosed.** It is measured that the JVM
+  stops producing output after a native throws; whether that is a CheerpJ thread
+  death, a deadlock, or an uncaught JS rejection is unknown. Worth knowing
+  before anyone relies on natives for anything load-bearing.
+- **The no-op stub's blast radius was characterised on one object.**
+  `spike.XStreamPick` shows `char` fields lost and nested object fields wrong;
+  `int`, `long`, `boolean`, `String` and arrays survived. Whether other types
+  are silently wrong was not enumerated.
+- **IndexedDB quota for the 71 MB unpack was still never checked** — lane B
+  flagged it and this lane did not close it. Every run here reused an already
+  warm `/files/`. If a quota refusal turns the 30 s unpack into a per-visit
+  cost, §4 of lane B's doc and the boot figures here both change.
+- **`FSkin.loadFull` now demonstrably runs** (the home screen is skinned), which
+  closes one of lane B's open items — but no font, sprite or icon was checked
+  for correctness beyond "the screen looks right in a PNG".

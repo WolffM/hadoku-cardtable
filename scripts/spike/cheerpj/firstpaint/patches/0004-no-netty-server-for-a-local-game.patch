@@ -1,0 +1,96 @@
+Wave 15, lane D -- do not build a network server to start a local game.
+
+MEASURED, from Forge's own crash dialog rendered in the browser
+($SPIKE_CACHE/shots/43-after-start.png): clicking Start on a local Constructed
+game against the AI dies with
+
+  java.lang.UnsatisfiedLinkError: Java_sun_nio_ch_EPoll_eventSize
+    at sun.nio.ch.EPoll.<clinit>
+    at sun.nio.ch.EPollSelectorImpl.<init>
+    at sun.nio.ch.EPollSelectorProvider.openSelector
+    at io.netty.channel.nio.NioEventLoop.openSelector
+    at io.netty.channel.nio.NioEventLoop.<init>
+    ...
+    at forge.gamemodes.net.server.FServerManager.<init>
+    at forge.gamemodes.net.server.FServerManager.getInstance
+    at forge.gamemodes.match.HostedMatch.startGame
+
+This is the same class of blocker Wave 14 found on the CLIENT transport
+(Java_sun_nio_ch_EPoll_create) and it was not known to be on the local-match
+path as well. It is, and the reason is small: FServerManager's two Netty
+EventLoopGroups are FIELD INITIALISERS, so merely constructing the singleton
+opens epoll selectors -- and HostedMatch.java:183 constructs it only to ask
+`isHosting()`, which for a local game is false. InputPassPriority.java:75 does
+the same during play.
+
+Constructing a network server in order to ask whether a network server is
+running is a bug on any platform; under CheerpJ it is fatal. Making the groups
+lazy fixes every caller at once rather than one call site at a time -- the same
+argument as patch 0003, and the same reason lane B stopped patching
+StorageReaderFolder callers one by one.
+
+Behaviour is unchanged on a real JVM: startServer() creates the pair if absent,
+stopServer() shuts down what exists and drops the references, and the next
+startServer() makes fresh ones -- which is exactly what the "create new
+EventLoopGroups for potential restart" line did, only deferred.
+
+This patch does NOT make Forge's networking work under CheerpJ. Nothing here
+gives sun.nio.ch natives to anybody; a hosted or joined network game still
+cannot run. It only stops a LOCAL game from paying for a server it never uses,
+which is what lane A's transport replacement exists to supersede.
+
+--- a/forge-gui/src/main/java/forge/gamemodes/net/server/FServerManager.java
++++ b/forge-gui/src/main/java/forge/gamemodes/net/server/FServerManager.java
+@@ -149,8 +149,8 @@
+     }
+ 
+     private volatile boolean isHosting = false;
+-    private EventLoopGroup bossGroup = new NioEventLoopGroup(1);
+-    private EventLoopGroup workerGroup = new NioEventLoopGroup();
++    private EventLoopGroup bossGroup = null;
++    private EventLoopGroup workerGroup = null;
+     private UpnpService upnpService = null;
+     private ServerGameLobby localLobby;
+     private ILobbyListener lobbyListener;
+@@ -236,6 +236,10 @@
+         }
+         netLog.info("Starting Multiplayer Server");
+         try {
++            if (bossGroup == null) {
++                bossGroup = new NioEventLoopGroup(1);
++                workerGroup = new NioEventLoopGroup();
++            }
+             final ServerBootstrap b = new ServerBootstrap()
+                     .group(bossGroup, workerGroup)
+                     .channel(NioServerSocketChannel.class)
+@@ -322,8 +326,12 @@
+         afkSlots.clear();
+ 
+         try {
+-            bossGroup.shutdownGracefully().sync();
+-            workerGroup.shutdownGracefully().sync();
++            if (bossGroup != null) {
++                bossGroup.shutdownGracefully().sync();
++            }
++            if (workerGroup != null) {
++                workerGroup.shutdownGracefully().sync();
++            }
+         } catch (final InterruptedException e) {
+             Thread.currentThread().interrupt();
+         }
+@@ -342,9 +350,12 @@
+         isHosting = false;
+         UPnPMapped = false;
+         NetworkLogConfig.deactivateNetworkLogging();
+-        // create new EventLoopGroups for potential restart
+-        bossGroup = new NioEventLoopGroup(1);
+-        workerGroup = new NioEventLoopGroup();
++        // Dropped rather than recreated here: startServer() builds a fresh
++        // pair when it next runs, which is the same "new groups for a restart"
++        // behaviour without constructing epoll selectors for a server nobody
++        // has started.
++        bossGroup = null;
++        workerGroup = null;
+     }
+ 
+     public boolean isHosting() {

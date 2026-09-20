@@ -24,6 +24,7 @@
 // Nothing is installed and no pnpm command is run.
 
 import { createRequire } from 'node:module';
+import { treeRssKb } from './procrss.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PW_CORE || 'playwright-core');
 
@@ -60,6 +61,17 @@ const SELECTOR = str('selector', null);
 // threshold the same way rfb-latency.py does.
 const MIN_PCT = flag('min-pixels-pct', null);
 const MIN_PIXELS = flag('min-pixels', null);
+// Reuse a browser profile across runs, so CheerpJ's /files/ mount survives and
+// the boot skips the unpack. See the launch site for why this is sound for an
+// interaction number and wrong for a cold-load one.
+const USER_DATA_DIR = str('user-data-dir', null);
+// --pre <step> (repeatable): navigation performed AFTER boot and BEFORE the
+// warm-up, in the same grammar explore.mjs uses -- click:<canvasX>,<canvasY> /
+// wait:<ms> / shot:<name>. Forge's match UI is several screens in from its home
+// screen, so getting there is part of the measurement setup, not part of the
+// measurement.
+const PRE = argv.reduce((a, v, i) => (v === '--pre' ? [...a, argv[i + 1]] : a), []);
+const SHOT = str('screenshot', null);
 // --clicks X,Y (repeatable) and --watch X,Y,W,H, both in CANVAS coordinates and
 // both deliberately the same options scripts/spike/stream/rfb-latency.py takes.
 // streaming.md's 63.7 ms was taken by alternating between the left-menu entries
@@ -100,10 +112,38 @@ const stats = (a) => a.length ? {
   mean: +(a.reduce((s, v) => s + v, 0) / a.length).toFixed(1),
 } : { n: 0 };
 
-const browser = await chromium.launch({ headless: true });
 // A brand-new context every run: nothing is cached, so the transfer figures
 // below are cold-cache figures by construction rather than by assertion.
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+//
+// --user-data-dir gives that up ON PURPOSE, and only for click-to-pixel. With a
+// persistent profile CheerpJ's /files/ mount survives from the previous run, so
+// the ~30 s res/ unpack and the cold card load are skipped: a run costs ~3 min
+// instead of ~10. That is sound for an INTERACTION number -- click-to-pixel is
+// measured long after boot, against the same painted UI either way -- and it is
+// NOT sound for a cold-load figure. Every transfer/boot number in this doc comes
+// from a run WITHOUT this flag; coldload.mjs never takes it.
+//
+// It does NOT route around the boot stall described in cheerpj-firstpaint.md
+// (§"The cold unpack stalls"). That was the hope when this flag was added and
+// it was measured to be false: two runs with a persistent profile stalled in
+// the unpack exactly as the fresh-profile runs did, so /files/ is evidently not
+// surviving between runs here. Why it does not is unverified — lane B measured
+// /files/ persisting across page loads WITHIN one browser, which is a weaker
+// claim than across processes. Do not assume this flag makes a run cheap until
+// someone shows a run that actually skipped the unpack.
+const browser = USER_DATA_DIR
+  ? await chromium.launchPersistentContext(USER_DATA_DIR, {
+      headless: true, viewport: { width: 1280, height: 900 },
+    })
+  : await chromium.launch({ headless: true });
+const page = USER_DATA_DIR
+  ? (browser.pages()[0] || await browser.newPage())
+  : await browser.newPage({ viewport: { width: 1280, height: 900 } });
+// Baseline the browser's resident memory BEFORE the page does anything, so the
+// reported cost is a delta and not a Chrome installation.
+const browserPid = process.pid;   // the browser is our child; see procrss.mjs
+await page.waitForTimeout(500);
+const rssBlank = treeRssKb(browserPid, { excludeRoot: true });
 
 if (INJECT) await page.addInitScript({ path: INJECT });
 const pageErrors = [];
@@ -192,18 +232,86 @@ const box = await page.evaluate(() => {
 const CX = flag('target-cx', null);
 const CY = flag('target-cy', null);
 const toViewport = (p) => ({ x: box.x + p.x * (box.cssW / box.pxW), y: box.y + p.y * (box.cssH / box.pxH) });
-const TARGETS = CLICKS.length ? CLICKS.map(toViewport)
+let TARGETS = CLICKS.length ? CLICKS.map(toViewport)
   : [{ x: CX != null ? box.x + CX * (box.cssW / box.pxW) : flag('target-x', box.x + box.cssW / 2),
        y: CY != null ? box.y + CY * (box.cssH / box.pxH) : flag('target-y', box.y + box.cssH / 2) }];
 // The warm-up click goes on the LAST target so that rep 0, which clicks the
 // first, is a real change rather than a click on what is already selected --
 // the same reason rfb-latency.py does it.
-const WARM = TARGETS[TARGETS.length - 1];
-const TX = WARM.x, TY = WARM.y;
+let WARM = TARGETS[TARGETS.length - 1];
+let TX = WARM.x, TY = WARM.y;
+// Recomputed after pre-navigation, because awaitcanvas can swap the canvas
+// underneath us (splash -> document frame) and every target is relative to it.
+const retarget = () => {
+  TARGETS = CLICKS.length ? CLICKS.map(toViewport)
+    : [{ x: CX != null ? box.x + CX * (box.cssW / box.pxW) : flag('target-x', box.x + box.cssW / 2),
+         y: CY != null ? box.y + CY * (box.cssH / box.pxH) : flag('target-y', box.y + box.cssH / 2) }];
+  WARM = TARGETS[TARGETS.length - 1];
+  TX = WARM.x; TY = WARM.y;
+};
 
 // ---- warm-up click: LOCATE what a click changes ---------------------------
 // This is also the rig's first chance to fail honestly. If a click changes no
 // pixels at all, there is nothing here to time and the run ends with exit 1.
+// --- pre-navigation --------------------------------------------------------
+const clickCanvas = async (cx, cy) => {
+  const x = box.x + cx * (box.cssW / box.pxW);
+  const y = box.y + cy * (box.cssH / box.pxH);
+  await page.mouse.move(x, y);
+  await page.waitForTimeout(150);
+  await page.mouse.down();
+  await page.waitForTimeout(HOLD || 50);
+  await page.mouse.up();
+};
+const shotPath = (name) => (SHOT ? SHOT.replace(/\.png$/, '') + '-' + name + '.png' : null);
+const grab = async (name) => {
+  const f = shotPath(name);
+  if (!f) return null;
+  await page.screenshot({ path: f, clip: { x: box.x, y: box.y, width: box.cssW, height: box.cssH } });
+  return f;
+};
+const preLog = [];
+for (const st of PRE) {
+  const [kind, arg] = st.split(':');
+  if (kind === 'click') { const [cx, cy] = arg.split(',').map(Number); await clickCanvas(cx, cy); preLog.push(`click ${cx},${cy}`); }
+  else if (kind === 'wait') { await page.waitForTimeout(Number(arg)); preLog.push(`wait ${arg}`); }
+  else if (kind === 'shot') { preLog.push(`shot ${await grab(arg)}`); }
+  else if (kind === 'awaitcanvas') {
+    // Same deterministic signal explore.mjs uses: under CheerpJ each AWT window
+    // is its own canvas, so the splash giving way to Forge's document frame is
+    // a canvas-size change. Waiting on a fixed sleep instead either races the
+    // boot or throws minutes away, and the boot's duration moves with host load
+    // by nearly an order of magnitude.
+    const [w, h] = arg.split(',')[0].split('x').map(Number);
+    const ms = Number(arg.split(',')[1] || 600000);
+    const deadline = Date.now() + ms;
+    let got = null;
+    while (Date.now() < deadline) {
+      got = await page.evaluate(() => {
+        const cs = [...document.querySelectorAll('canvas')];
+        if (!cs.length) return null;
+        const c = cs.sort((a, b) => b.width * b.height - a.width * a.height)[0];
+        return { pxW: c.width, pxH: c.height };
+      }).catch(() => null);
+      if (got && got.pxW >= w && got.pxH >= h) break;
+      await page.waitForTimeout(2000);
+    }
+    const ok = !!(got && got.pxW >= w && got.pxH >= h);
+    preLog.push(`awaitcanvas ${arg} ${ok ? 'OK' : 'TIMEOUT'} ${got ? got.pxW + 'x' + got.pxH : 'none'}`);
+    if (!ok) await fail('AWAITCANVAS-TIMEOUT', { preNavigation: preLog });
+    // The canvas just changed identity, so re-attach and re-measure its box.
+    await page.evaluate((sel) => window.__fp.ctp.attach(sel), SELECTOR);
+    const nb = await page.evaluate(() => {
+      const c = window.__fp.ctp.canvas; const r = c.getBoundingClientRect();
+      return { x: r.x, y: r.y, cssW: r.width, cssH: r.height, pxW: c.width, pxH: c.height };
+    });
+    Object.assign(box, nb);
+  }
+  else preLog.push(`UNKNOWN STEP ${st}`);
+}
+retarget();
+if (SHOT) await grab('measure-start');
+
 if (!NO_CLICK) { await page.mouse.move(TX, TY); await page.waitForTimeout(400); }
 const fb = await page.evaluate(() => window.__fp.ctp.fullBaseline());
 if (!fb.ok) await fail('READ-FAILED', { readPath: att.readPath });
@@ -309,6 +417,8 @@ const allRafIvl = good.map((r) => r.rafIntervalMedian).filter((v) => v != null);
 
 const javaClickLines = await page.evaluate(() => (window.__fp.lines || []).filter((l) => l.s.startsWith('PAINT-CLICK')).length);
 const javaDoneLines = await page.evaluate(() => (window.__fp.lines || []).filter((l) => l.s.startsWith('PAINT-DONE')).length);
+if (SHOT) await grab('measure-end');
+const rssLoaded = treeRssKb(browserPid, { excludeRoot: true });
 const out = await page.evaluate(() => ({ marks: window.__fp.marks || {}, error: window.__fp.error || null, lines: (window.__fp.lines || []).map((l) => `${l.t.toFixed(0)}ms ${l.s}`) }));
 
 const result = {
@@ -326,6 +436,8 @@ const result = {
   targets: { canvas: CLICKS.length ? CLICKS : [{ x: CX, y: CY }], viewport: TARGETS, alternating: TARGETS.length > 1 },
   watch: WATCH,
   warmupLocate: loc,
+  preNavigation: preLog,
+  screenshots: SHOT ? [shotPath('measure-start'), shotPath('measure-end')] : null,
   bootToReadyMs: bootMs,
   wallMs: Date.now() - t0,
   clickToPixel: {
@@ -348,6 +460,16 @@ const result = {
     byReason: reps.filter((r) => r.dropped).reduce((m, r) => (m[r.dropped] = (m[r.dropped] || 0) + 1, m), {}),
   },
   javaSide: { paintClickLines: javaClickLines, paintDoneLines: javaDoneLines },
+  memory: {
+    blankBrowserRssKb: rssBlank ? rssBlank.rssKb : null,
+    loadedBrowserRssKb: rssLoaded ? rssLoaded.rssKb : null,
+    deltaKb: (rssBlank && rssLoaded) ? rssLoaded.rssKb - rssBlank.rssKb : null,
+    processes: rssLoaded ? rssLoaded.processes : null,
+    note: 'process-tree RSS from /proc; the DELTA is the honest figure (tree RSS double-counts shared pages)',
+  },
+  // If a stubbed Unsafe native was bound, how many times it was actually
+  // called. Only-during-<clinit> means the stub affected nothing measured.
+  nativeCalls: await page.evaluate(() => (window.__fp ? window.__fp.nativeCalls : null)),
   transferByOrigin: Object.fromEntries(transfer),
   marks: out.marks,
   pageError: out.error,

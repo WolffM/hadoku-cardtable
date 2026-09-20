@@ -1,0 +1,49 @@
+Wave 15, lane D -- one failing home-screen panel must not take down the boot.
+
+FView.initialize() walks EVERY EDocID and calls initialize() on its layout
+control, so every home submenu -- sanctioned, quest, gauntlet, puzzle, online,
+settings -- is constructed at startup whether or not the product ever shows it.
+Under CheerpJ the quest, gauntlet and tournament ones die in XStream (see
+docs/spikes/cheerpj-assets.md §5 and cheerpj-firstpaint.md §"the wall"), and
+because the loop is unguarded, one dead panel kills the whole application
+before the main window is ever shown.
+
+Patch 0002 removed the bazaar from cacheUIStates(). That cleared exactly one
+door and the next run found the next one -- CSubmenuGauntletContests, reached
+from this loop -- which is precisely the "long tail with no visible end" lane B
+warned about after spending three build-and-boot cycles on the equivalent
+problem in StorageReaderFolder. Removing screens one at a time is the wrong
+shape of fix.
+
+This is the right shape: catch per panel, log, carry on. It is independent of
+how many screens are affected and of which library they fail in, and it is a
+change worth having on its own terms -- a deck editor panel that throws should
+not prevent a game of Magic. The panels that fail are exactly the ones this
+product does not ship, and if a panel we DO need fails, the log names it rather
+than the app vanishing.
+
+Note the catch is Throwable, not Exception, and that is the whole point: the
+failure being tolerated is UnsatisfiedLinkError, an Error, which is why
+XStream's own internal guard does not catch it either.
+
+--- a/forge-gui-desktop/src/main/java/forge/view/FView.java
++++ b/forge-gui-desktop/src/main/java/forge/view/FView.java
+@@ -145,7 +145,17 @@
+ 		for (final EDocID doc : EDocID.values()) {
+ 			final IVDoc<? extends ICDoc> d = doc.getDoc();
+ 			if (d != null) {
+-				d.getLayoutControl().initialize();
++				// Wave 15 lane D: a panel that cannot initialise must not take
++				// the application with it. Throwable, not Exception: the case
++				// this exists for is UnsatisfiedLinkError out of XStream under
++				// CheerpJ, and an Error is exactly what escapes every guard
++				// that catches Exception.
++				try {
++					d.getLayoutControl().initialize();
++				} catch (final Throwable t) {
++					System.err.println("FView: panel " + doc.name()
++							+ " failed to initialize, skipping it: " + t);
++				}
+ 			}
+ 		}
+ 

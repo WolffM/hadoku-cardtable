@@ -7,6 +7,7 @@
   html, body { margin: 0; background: #000; color: #ddd; font: 12px/1.4 ui-monospace, monospace; }
   #log { white-space: pre-wrap; padding: 6px; max-height: 26vh; overflow: auto; border-bottom: 1px solid #333; }
   #display { width: 800px; height: 600px; }
+  body.wide #display { width: 1280px; height: 800px; }
 </style>
 </head>
 <body>
@@ -94,16 +95,97 @@ mark('pageStart');
 (async () => {
   try {
     mark('loaderReady');
+
+    // wipe=1 deletes every IndexedDB database on this origin BEFORE
+    // cheerpjInit, which is what makes a run COLD. /files/ is IndexedDB-backed
+    // and persists across page loads (lane B), so without this a "cold" run
+    // silently measures a warm one.
+    if (Q.get('wipe') === '1' && indexedDB.databases) {
+      const dbs = await indexedDB.databases();
+      for (const d of dbs) {
+        if (!d.name) continue;
+        await new Promise((res) => {
+          const r = indexedDB.deleteDatabase(d.name);
+          r.onsuccess = r.onerror = r.onblocked = () => res();
+        });
+      }
+      console.log('FP wipe cleared ' + dbs.length + ' IndexedDB databases');
+    }
+    mark('wipeDone');
+
+    const W = Number(Q.get('w') || 800);
+    const H = Number(Q.get('h') || 600);
+    if (W > 800) document.body.classList.add('wide');
+
     // version 17 is mandatory (CheerpJ defaults to Java 8 mode and refuses
-    // class files above major 52); user.dir=/app/ is what Forge's
-    // GuiDesktop.getAssetsDir() needs. Both established in Wave 14 lane B.
-    await cheerpjInit({ version: 17, enableDebug: false, javaProperties: ['user.dir=/app/'] });
+    // class files above major 52). The default user.dir=/app/ is what the
+    // PaintProbe route wants; the Forge route overrides it to /files/ because
+    // Forge's assets are unpacked there (lane B, docs/spikes/cheerpj-assets.md).
+    const props = (Q.get('props') || 'user.dir=/app/').split('|').filter(Boolean);
+    const init = { version: 17, enableDebug: false, javaProperties: props };
+
+    // natives=unsafe binds the JDK-internal native whose absence poisons
+    // XStream (lane B §5). Wave 14 proved CheerpJ binds natives for USER
+    // classes; whether it will bind one for a jdk.internal class is a
+    // different question and this is the probe for it. Every implementation
+    // logs what it actually received, because a wrong arity looks exactly
+    // like "natives are broken".
+    //
+    // TWO variants, because the obvious one is dangerous:
+    //
+    //   natives=unsafe        a NO-OP stub. It satisfies XStream's <clinit>
+    //                         self-test, which is all that is needed to stop
+    //                         the class being poisoned -- but a no-op putChar
+    //                         is a LIE. If XStream then selects
+    //                         SunUnsafeReflectionProvider as its default,
+    //                         every later char field it writes goes nowhere.
+    //                         So the call count is recorded: if the native is
+    //                         called only during <clinit> and never again, the
+    //                         stub demonstrably affected nothing else.
+    //   natives=unsafe-throw  throws instead. XStream's own guard catches
+    //                         Exception (not Error), so IF CheerpJ surfaces a
+    //                         thrown JS error as a Java Exception, XStream
+    //                         falls back to PureJavaReflectionProvider on its
+    //                         own and nothing is stubbed at all. That is the
+    //                         correct fix rather than a prop. Whether CheerpJ
+    //                         does that is the thing being tested.
+    //
+    S.nativeCalls = {};
+    if (Q.get('natives') === 'unsafe' || Q.get('natives') === 'unsafe-throw') {
+      const THROW = Q.get('natives') === 'unsafe-throw';
+      const hit = (n, argc) => {
+        const c = S.nativeCalls[n] = (S.nativeCalls[n] || 0) + 1;
+        if (c === 1) console.log('FP-NATIVE ' + n + ' argc=' + argc + (THROW ? ' (throwing)' : ' (no-op stub)'));
+        if (THROW) throw new Error('spike: no Unsafe.' + n + ' under CheerpJ');
+      };
+      const mk = (n) => function () { hit(n, arguments.length); return n.startsWith('get') ? 0 : undefined; };
+      init.natives = {
+        Java_jdk_internal_misc_Unsafe_putChar: mk('putChar'),
+        Java_jdk_internal_misc_Unsafe_getChar: mk('getChar'),
+        Java_sun_misc_Unsafe_putChar: mk('sun.putChar'),
+        Java_sun_misc_Unsafe_getChar: mk('sun.getChar'),
+      };
+    }
+
+    await cheerpjInit(init);
     mark('initDone');
-    cheerpjCreateDisplay(800, 600, document.getElementById('display'));
+    cheerpjCreateDisplay(W, H, document.getElementById('display'));
     mark('displayDone');
 
     if (S.target === 'forgejar') {
       await cheerpjRunJar('/app/forge.jar');
+    } else if (S.target === 'boot') {
+      // Lane B's Bootstrap: unpack /app/<zip> into /files/, then hand off to a
+      // main class. Compiled into THIS lane's probe jar from lane B's source
+      // (read-only); their file is not modified and not copied into this lane.
+      const argv = (Q.get('args') || '/app/res-boot.zip|/files/|forge.view.Main').split('|');
+      await cheerpjRunMain('spike.Bootstrap', '/app/firstpaint.jar:/app/forge.jar', ...argv);
+    } else if (S.target === 'main') {
+      // Run an arbitrary main class. Used to drive lane B's spike.XStreamProbe
+      // through THIS lane's harness, which is the only one that can bind
+      // natives -- lane B's page cannot, and its page is not mine to edit.
+      const argv = (Q.get('args') || '').split('|').filter((x) => x !== '');
+      await cheerpjRunMain(Q.get('main'), '/app/firstpaint.jar:/app/forge.jar', ...argv);
     } else {
       const cp = '/app/firstpaint.jar' + (Q.get('withforge') === '0' ? '' : ':/app/forge.jar');
       await cheerpjRunMain('spike.PaintProbe', cp, Q.get('build') || 'unknown', S.mode);
