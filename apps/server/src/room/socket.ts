@@ -332,12 +332,16 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					// Bots catch up immediately, so the pod is never waiting on
 					// a seat nobody is sitting in.
 					const advanced = runBots(result.state);
+					// No re-alias of `room.seats`. The registry was seeded with
+					// a seat-table FACTORY returning this draft's table
+					// (`draftRooms.ts` `open`), and the engine spreads its
+					// state rather than copying the table, so the room already
+					// holds the one the pick advanced. Assigning here
+					// "defensively" is the second owner of the field that the
+					// factory exists to remove — and if the engine ever did
+					// start copying the table it would paper over a real bug
+					// instead of letting it fail.
 					room.app.state = advanced.state;
-					// The engine spreads its state, so `table` is the same
-					// object it has always been and this is a no-op today.
-					// It is here so that the alias cannot quietly come apart
-					// if the engine ever starts copying the table.
-					room.seats = advanced.state.table;
 					log({
 						evt: 'pick',
 						participantId,

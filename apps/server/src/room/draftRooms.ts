@@ -4,55 +4,62 @@
  * `@wolffm/rooms-server` is a box of primitives, not a framework — there is no
  * `createRoomServer` and no `authenticate` hook, so the wiring is ours. This
  * file is the half of that wiring that has no transport in it: the registry,
- * the seat transitions, and the guard and grace that make a dropped socket
+ * the seat transitions, and the disconnect grace that makes a dropped socket
  * survivable. `emit.ts` and `socket.ts` are the half that needs `io`, and
  * keeping them apart is what lets the refresh hazard below be tested by calling
  * functions rather than by racing two sockets.
  *
  * ## One seat table, not two
  *
- * `CoreRoomState` arrives with its own `createSeatTable(null)` and the draft
- * engine arrives with `state.table`. Two tables would be two answers to "which
- * seat is Alice in", and every consumer would have to pick one: `leaveRoom`
- * writes to the room's, `viewFor` reads the engine's. So `openDraftRoom`
- * ALIASES them — `room.seats` IS `state.table`, same object — and there is one
- * source of truth for seating, exactly as `seats.ts`'s "roles are derived,
- * never stored" intends. It also means the hazard below lands where it can be
- * seen, rather than silently desynchronising two tables.
+ * `CoreRoomState` arrives with a seat table and the draft engine arrives with
+ * `state.table`. Two tables would be two answers to "which seat is Alice in",
+ * and every consumer would have to pick one: `leaveRoom` writes to the room's,
+ * `viewFor` reads the engine's. So the engine's table IS the room's —
+ * `RoomRegistry.seed` takes a seat-table FACTORY and `open` hands it one that
+ * returns `state.table`, so the room is BORN holding it.
  *
- * ## `leaveRoom` unseats a participant who is still here
+ * That is the whole of the difference from the aliasing this used to do
+ * (`room.seats = state.table`, immediately after `seed`). Same end state, but
+ * one owner of the field instead of two and no window in which something could
+ * read `room.seats` and get the other table — which is exactly the shape
+ * `seatRows` exists to keep unreachable: the engine's table is bounded at
+ * `seatCount`, the registry's default is unbounded, and a renderer that caught
+ * the default would draw a pod with however many players had arrived.
  *
- * `leaveRoom` (rooms-server 0.38.111, `state.js`) calls `unseatParticipant` on
- * EVERY disconnect, including one the room layer cannot tell apart from a
- * departure: a stale socket whose close lands AFTER its replacement has joined
- * and re-seated the participant. That close unseats a drafter who is sitting
- * right there with a live connection. (This was written as the refresh case;
- * a refresh turned out to arrive in the other order — next section.) Replayed
- * against the real package the result is a `spectator` with an empty seat and a
- * reservation held for themselves — for an eight-person pod forty-five minutes
- * in, that is the pod.
+ * ## `leaveRoom` used to unseat a participant who was still here
  *
- * Upstream has not fixed it, so the hosting app guards the call:
- * `leaveDraftRoom` re-seats the participant when another live client still
- * carries their id. `seatParticipant` prefers the remembered seat and a
- * participant is never blocked by their own reservation, so they land back in
- * the seat they were in rather than appended after everyone who stayed.
+ * Through 0.38.x, `leaveRoom` called `unseatParticipant` on EVERY disconnect,
+ * including one the room layer cannot tell apart from a departure: a stale
+ * socket whose close lands AFTER its replacement has joined and re-seated the
+ * participant. That close unseated a drafter sitting right there on a live
+ * connection — a `spectator` with an empty seat and a reservation held for
+ * themselves, which for an eight-person pod forty-five minutes in is the pod.
+ * This file carried the repair: re-seat the participant after `leaveRoom` when
+ * another live client still carried their id.
+ *
+ * **`@wolffm/rooms-server@0.39.4` deletes the connection FIRST and gives up the
+ * seat only when `clientByParticipant` finds nothing else carrying the
+ * identity** — our bug report, fixed once in the package rather than in each
+ * consumer. So the re-seat is gone from here; what remains is the `guarded`
+ * flag, which now REPORTS that a live duplicate kept the seat rather than
+ * repairing it. `socket.ts` logs it and `e2e/draft.spec.ts` reads that log, so
+ * it is still the observable that says the ordering happened at all.
  *
  * ## …but that is not the order a refresh actually arrives in
  *
  * Wave 10 measured a real browser refresh on loopback: the old socket's close
  * lands ~36 ms BEFORE the new socket joins. By the time the stale close is
- * processed there is no other live client, so the guard above has nothing to
- * guard — the seat is vacated with a hold, and the RESERVATION is what brings
- * the drafter back to it. The guard still earns its place, for the ordering
- * that does put a live socket beside a dying one: a second tab, or an old
- * connection the server only notices is dead at socket.io's ping timeout, long
- * after its replacement joined. It is just not the refresh mechanism.
+ * processed there is no other live client, so the package's own check has
+ * nothing to find — the seat is vacated with a hold, and the RESERVATION is
+ * what brings the drafter back to it. **Watchparty deliberately did not take
+ * the grace below, and they were right to leave it here**: it covers this
+ * ordering, which nothing upstream does, and moving it up would put a timer
+ * and a broadcast callback inside the package.
  *
  * What the reservation alone costs is visible: vacate, broadcast, re-seat,
  * broadcast — the rest of the pod watched the seat go `held` and come back
  * inside ~80 ms. So a disconnect with nobody else carrying the id gets the
- * same treatment the guard gives a live duplicate, for a short grace
+ * same treatment the package gives a live duplicate, for a short grace
  * (`disconnectGraceMs`): the participant is put straight back, nothing is
  * broadcast, and the vacate-with-hold is DEFERRED. A rejoin inside the grace
  * cancels it and is a no-op to everyone else (`joinDraftRoom` reports
@@ -82,7 +89,15 @@
  * empty client map is not an empty pod. So rooms live for the life of the
  * process, which is a slow leak and a much smaller one than destroying a game
  * in progress. Persistence (P6, `packages/room-store`) is where this gets a
- * real answer.
+ * real answer. Turning it on is the operator's decision, not this file's.
+ *
+ * `RoomRegistry.onRoomDelete` IS wired, though, and deliberately before there
+ * is anything to delete: a room owns pending `vacating` timers, and the only
+ * reason draining them at a GC sweep would have been correct is that GC was
+ * the one delete path. Registering the drain on the registry means a future
+ * admin close, a game-over reap or GC being switched on is covered by
+ * construction rather than by somebody remembering. Callbacks run BEFORE the
+ * room leaves the map, so the room is still resolvable inside one.
  *
  * **No bot backfill on a drop.** `unseatParticipant` empties the seat rather
  * than handing it to a bot, so `waitingOn` keeps naming it and the round waits
@@ -117,9 +132,10 @@ import { participantHandle } from './identity.js';
 /** The hosting app's room state: one draft. */
 export interface DraftApp {
 	/**
-	 * Null only between `RoomRegistry.seed` and `openDraftRoom` filling it in.
-	 * The registry's `createApp` callback is handed a timestamp and nothing
-	 * else — not the room id — so the draft cannot be built there.
+	 * Null only for the one statement between `RoomRegistry.seed` returning and
+	 * `open` filling it in. The registry's `createApp` callback is handed a
+	 * timestamp and nothing else — not the room id — so the draft cannot be
+	 * built there, even though the seat table now can be.
 	 */
 	state: DraftState | null;
 	/** How long a disconnected participant keeps their seat before it is vacated. */
@@ -182,6 +198,17 @@ export interface DraftRooms {
 	/** The room for a draft that already exists, or undefined. */
 	find(draftId: string): DraftRoom | undefined;
 	all(): DraftRoom[];
+	/**
+	 * Forget a room and everything it owns.
+	 *
+	 * The ONE delete path, and deliberately not reached by a sweep: GC is off
+	 * (see the header), so nothing in the running server calls this. It exists
+	 * because the registry's `onRoomDelete` drain has to be reachable to be
+	 * believable — a cleanup hook that no path can invoke is a hook nobody
+	 * knows is broken — and because when GC or an admin close does arrive, it
+	 * arrives as a caller rather than as a second cleanup.
+	 */
+	delete(draftId: string): void;
 }
 
 export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
@@ -194,6 +221,17 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		onDeferredChange,
 		vacating: new Map(),
 	}));
+
+	// Anything a room owns that outlives the map entry. Today that is the
+	// deferred vacates; GC is OFF (see the header), so nothing calls this yet
+	// — which is the point of registering it here rather than at the one
+	// delete path that happens to exist.
+	registry.onRoomDelete((roomId) => {
+		const room = registry.get(roomId);
+		if (room === undefined) return;
+		for (const timer of room.app.vacating.values()) clearTimeout(timer);
+		room.app.vacating.clear();
+	});
 
 	const build = (draftId: string): DraftState =>
 		createDraft({
@@ -220,15 +258,19 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		cube: options.cube,
 		params,
 		open(draftId) {
-			// `seed` returns the existing room when there is one, so this is
-			// idempotent; `??=` is what makes the draft built exactly once.
-			const room = registry.seed(draftId, draftId);
-			if (room.app.state === null) {
-				const state = build(draftId);
-				room.app.state = state;
-				// The alias. See this module's header.
-				room.seats = state.table;
-			}
+			// Idempotent: an existing room is returned untouched, and in
+			// particular its draft is NOT re-dealt. `seed` would do the same,
+			// but asking first is what lets the draft be built BEFORE the room
+			// exists — which is what makes the seat table single-sourced.
+			const existing = registry.get(draftId);
+			if (existing !== undefined) return existing;
+
+			const state = build(draftId);
+			// The seat-table FACTORY. `room.seats` IS `state.table` from the
+			// moment the room exists; nothing ever assigns to the field. See
+			// this module's header.
+			const room = registry.seed(draftId, draftId, () => state.table);
+			room.app.state = state;
 			return room;
 		},
 		find: (draftId) => {
@@ -236,6 +278,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			return room?.app.state === null ? undefined : room;
 		},
 		all: () => registry.all().filter((r) => r.app.state !== null),
+		delete: (draftId) => registry.delete(draftId),
 	};
 }
 
@@ -348,17 +391,18 @@ export interface LeaveOutcome {
  * Drop a connection, and undo the unseat while the participant is plausibly
  * still here.
  *
- * `leaveRoom` unseats on every close. Two cases put them straight back into
- * the REMEMBERED seat — which `unseatParticipant` recorded on the way out and
- * which is reserved for them, so they return to the seat they were in rather
- * than being appended:
+ * Two outcomes, and only one of them is still ours:
  *
- * - **guarded**: another live client still carries this participant id (a
- *   second tab, or a stale socket reaped after its replacement joined). They
- *   are here; nothing is deferred.
- * - **held**: nobody else carries it, and the room has a disconnect grace. The
- *   vacate is deferred to `vacateAfterGrace`; a rejoin inside the grace cancels
- *   it. This is the real order of a browser refresh — close first, join second.
+ * - **guarded**: another live client carries this participant id (a second
+ *   tab, or a stale socket reaped after its replacement joined). The PACKAGE
+ *   keeps the seat — `leaveRoom` only unseats a participant's last connection
+ *   — so this flag reports the ordering rather than repairing it.
+ * - **held**: nobody else carries it, and the room has a disconnect grace, so
+ *   they are put straight back into the REMEMBERED seat (reserved for them, so
+ *   they land where they were rather than appended after everyone who stayed)
+ *   and the vacate is deferred to `vacateAfterGrace`. A rejoin inside the
+ *   grace cancels it. This is the real order of a browser refresh — close
+ *   first, join second — and nothing upstream covers it.
  *
  * Only someone who was seated is put back: a spectator closing one of two tabs
  * must not be seated by the other one's existence.
@@ -375,7 +419,11 @@ export function leaveDraftRoom(room: DraftRoom, clientId: string): LeaveOutcome 
 	let held = false;
 	if (participantId !== null && before !== null) {
 		if (clientByParticipant(room, participantId) !== undefined) {
-			seatParticipant(room.seats, participantId);
+			// rooms-server >=0.39.0 kept the seat itself: it deletes the client
+			// first, then unseats only when nothing else carries the identity.
+			// Nothing to repair — this branch exists to REPORT that the
+			// ordering happened, which is what `socket.ts` logs and what the
+			// e2e reads back.
 			guarded = true;
 		} else if (room.app.disconnectGraceMs > 0) {
 			seatParticipant(room.seats, participantId);

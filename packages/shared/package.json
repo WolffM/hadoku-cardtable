@@ -1,6 +1,6 @@
 {
   "name": "@hadoku/shared",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@wolffm/rooms-protocol": "0.38.115",
+    "@wolffm/rooms-protocol": "0.39.4",
     "zod": "4.5.4"
   }
 }

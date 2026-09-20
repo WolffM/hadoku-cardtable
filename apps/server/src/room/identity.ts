@@ -1,13 +1,20 @@
 /**
- * Minting a `ParticipantId` — the DERIVATION half, which `@wolffm/rooms-protocol`
- * deliberately does not ship.
+ * Minting a `ParticipantId` — now a thin binding over the fleet's derivation.
  *
- * That package is zero-dependency and isomorphic, so it exports the *format*
- * (`formatParticipantId`, `resolveParticipantTier`, the prefixes, the digest
- * length) and stops there: hashing needs a synchronous crypto primitive it will
- * not assume. `node:crypto`'s `createHash` is that primitive, and this file is
- * the half that owns it. See `docs/requests/P5_SERVICE_PARTICIPANT.md` §7.2 —
- * we asked watchparty to publish it; until they do, this is it.
+ * The hashing used to live here: `@wolffm/rooms-protocol` is zero-dependency
+ * and isomorphic, so it shipped the *format* and stopped, and `node:crypto`'s
+ * `createHash` was ours to own. `@wolffm/rooms-server@0.39.4` publishes the
+ * other half — `createParticipantIdDeriver(domain)` — built from the scheme
+ * asked for in `docs/requests/P5_SERVICE_PARTICIPANT.md` §7.2, so this file is
+ * the domain string and the header plumbing and nothing else.
+ *
+ * **The ids did not change.** The package hashes
+ * `` `${domain}\u001f${tier}\u001f${material}` `` with SHA-256, hex, truncated to
+ * `PARTICIPANT_ID_DIGEST_LENGTH` — byte for byte what this file did, including
+ * the U+001F separator, and under the same `PARTICIPANT_ID_DOMAIN`. That is not
+ * taken on trust: `identity.test.ts` pins a known friend key to the exact `fk:`
+ * id it derived before the upgrade, so a future bump that DOES re-identify
+ * everybody arrives as a red test rather than as a room full of strangers.
  *
  * ## Derived, never accepted
  *
@@ -23,7 +30,7 @@
  * means after `io.engine.use(edgeProvenance)`. Handed unsanitized headers it
  * would happily mint an `fk:` identity for a forged key.
  *
- * ## The friend key never leaves this file
+ * ## The friend key never leaves the deriver
  *
  * It IS the credential. What comes out is a truncated SHA-256 of it, which is
  * what the id format is designed around: the digest can be logged, put on the
@@ -32,16 +39,9 @@
  * handle to keep in sync.
  */
 
-import { createHash } from 'node:crypto';
 import type { IncomingHttpHeaders } from 'node:http';
-import {
-	PARTICIPANT_ID_DIGEST_LENGTH,
-	formatParticipantId,
-	participantIdBody,
-	resolveParticipantTier,
-	type ParticipantId,
-	type ParticipantIdTier,
-} from '@wolffm/rooms-protocol';
+import { createParticipantIdDeriver } from '@wolffm/rooms-server';
+import type { ParticipantId } from '@wolffm/rooms-protocol';
 
 /**
  * Domain separation for the digest.
@@ -49,18 +49,23 @@ import {
  * Present so that a friend key hashed here can never collide with the same
  * bytes hashed for some other purpose, and versioned so that changing the
  * scheme is a visible change rather than a silent re-identification of
- * everybody. The unit separator (U+001F) cannot appear in a header value, so
- * the three fields cannot be made to run into one another.
+ * everybody.
  *
- * This is OUR scheme, not watchparty's — theirs is in a file we cannot import
- * and its exact byte sequence is not published. Ids minted here are therefore
- * only guaranteed to agree with ids minted here, which is all cardtable needs:
- * this process is the only thing that mints one. If `deriveParticipantId` ever
- * ships upstream, delete this and use it.
+ * Per-TIER separation is NOT spelled here any more: the package hashes the tier
+ * in alongside the domain, and its own header explains why asking the caller
+ * for a second string was the wrong shape. There is nowhere to pass one.
  */
 export const PARTICIPANT_ID_DOMAIN = 'hadoku.cardtable.participant.v1';
 
-const SEP = '';
+/**
+ * A short, wire-safe handle for a seat row — `@wolffm/rooms-protocol`'s, so the
+ * truncation length is one number for the fleet rather than one per app.
+ *
+ * Re-exported rather than imported at each call site because this module is
+ * where the rest of the server already looks for anything identity-shaped, and
+ * because the import that used to be here was the same function.
+ */
+export { participantHandle } from '@wolffm/rooms-protocol';
 
 export interface IdentityInputs {
 	/** `X-User-Key`, post-sanitize. The `account` tier's source material. */
@@ -71,29 +76,22 @@ export interface IdentityInputs {
 	socketId: string;
 }
 
-function digest(tier: ParticipantIdTier, material: string): string {
-	return createHash('sha256')
-		.update(`${PARTICIPANT_ID_DOMAIN}${SEP}${tier}${SEP}${material}`, 'utf8')
-		.digest('hex')
-		.slice(0, PARTICIPANT_ID_DIGEST_LENGTH);
-}
+/**
+ * Bound once, at module scope. The factory shape is deliberate upstream: a
+ * `(input, domain)` function would let a call site mint a second identity space
+ * for the same person by passing a different string.
+ */
+const derive = createParticipantIdDeriver(PARTICIPANT_ID_DOMAIN);
 
 /**
  * Mint an id for one connection.
  *
- * The tier decision is `resolveParticipantTier`'s, not ours — it is the one
- * definition of "is this friend key / device id long enough to be real", and
- * re-spelling it here is how the two come to disagree.
+ * The deriver returns `{ id, tier }`; callers here have only ever wanted the
+ * id, and the tier they act on is the EDGE tier (`x-hadoku-tier`), which is a
+ * different question from which material the id was minted from.
  */
 export function deriveParticipantId(input: IdentityInputs): ParticipantId {
-	const tier = resolveParticipantTier(input);
-	if (tier === 'ephemeral') {
-		// No digest: an ephemeral body IS the socket id by the format's own
-		// definition, and it dies with the socket, so there is nothing to hide.
-		return formatParticipantId('ephemeral', input.socketId);
-	}
-	const material = tier === 'account' ? input.friendKey : input.deviceId;
-	return formatParticipantId(tier, digest(tier, material as string));
+	return derive(input).id;
 }
 
 function headerValue(headers: IncomingHttpHeaders, name: string): string | null {
@@ -118,18 +116,4 @@ export function identityFromHeaders(
 		deviceId: headerValue(headers, 'x-user-id'),
 		socketId,
 	});
-}
-
-/**
- * A short, wire-safe handle for a seat row.
- *
- * The body of an id is a non-reversible digest (or, at the ephemeral tier, a
- * socket id), so this is the one part of a participant that may be shown to the
- * rest of the pod. The friend key and the account's `X-User-Id` are NOT: one is
- * the credential and the other is a name the edge resolved for our logs, not
- * for seven other people's screens.
- */
-export function participantHandle(id: ParticipantId): string {
-	const body = participantIdBody(id);
-	return body === null ? 'unknown' : body.slice(0, 6);
 }

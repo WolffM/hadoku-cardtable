@@ -1,6 +1,6 @@
 {
   "name": "@hadoku/room-ask",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -12,6 +12,6 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@wolffm/rooms-protocol": "0.38.115"
+    "@wolffm/rooms-protocol": "0.39.4"
   }
 }

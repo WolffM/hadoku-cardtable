@@ -7,7 +7,24 @@
  * that has to win a race to reproduce an ordering bug is a test that will one
  * day pass for the wrong reason. Every step is sampled, not just the end state:
  * the bug is that an intermediate call takes the seat away, and asserting only
- * the final seat would pass just as happily if the guard never ran.
+ * the final seat would pass just as happily if the property never held.
+ *
+ * ## `bare()`, and why the hazard is tested with everything switched OFF
+ *
+ * `rooms()` ships the product's defaults: a two-minute seat hold, and (in
+ * production) a disconnect grace. Under those, the live-duplicate property is
+ * INVISIBLE — a dropped socket is covered by the grace and a deliberate leave
+ * by the reservation the unseat itself takes out, so the seat comes back to
+ * its owner either way and a suite that tests the hazard against the defaults
+ * is green whether the property holds or not. That reads as coverage and is
+ * not.
+ *
+ * So the hazard is driven through `bare()`: `reservationTtlMs: 0` AND
+ * `disconnectGraceMs: 0`, the one configuration where an unseated player's
+ * seat is empty, unreserved and takeable while they are still connected on
+ * another tab. CAROL arriving into that seat is what the assertion is really
+ * about. (hadoku_site's `templates/game/apps/server/test/rooms.test.ts` runs a
+ * whole second server configured this way for the same reason.)
  */
 
 import { dirname, resolve } from 'node:path';
@@ -71,6 +88,15 @@ function rooms(
 		now: () => 1_700_000_000_000,
 		onDeferredChange: overrides.onDeferredChange,
 	});
+}
+
+/**
+ * The same rooms with every safety net OFF — no seat hold, no disconnect
+ * grace. See the module header: this is the only configuration in which the
+ * live-duplicate property is observable.
+ */
+function bare(): DraftRooms {
+	return rooms({ reservationTtlMs: 0, disconnectGraceMs: 0 });
 }
 
 describe('loadPool', () => {
@@ -213,8 +239,10 @@ describe('a genuine disconnect', () => {
 		const picked = enginePick(stateOf(room), 0, taken.cardId);
 		expect(picked.ok).toBe(true);
 		if (!picked.ok) return;
+		// No re-alias: the engine spreads its state, so `table` is the same
+		// object the registry's factory handed the room. Re-assigning
+		// `room.seats` here would be the second owner `open` just removed.
 		room.app.state = picked.state;
-		room.seats = picked.state.table;
 
 		leaveDraftRoom(room, 'sock-a');
 		expect(seatOf(room.seats, ALICE)).toBeNull();
@@ -241,23 +269,25 @@ describe('a genuine disconnect', () => {
 	});
 });
 
-describe('the refresh hazard in leaveRoom', () => {
+describe('the refresh hazard in leaveRoom, with nothing else covering it', () => {
 	/*
 	 * A stale close that lands AFTER its replacement joined — a second tab, or
-	 * a dead connection socket.io only reaps at its ping timeout. `leaveRoom`
-	 * then unseats a participant who is sitting right there on a live
-	 * connection. This was first written as "a browser refresh"; a real
-	 * refresh arrives the other way round (the next block), and this ordering
-	 * is what the guard is for.
+	 * a dead connection socket.io only reaps at its ping timeout. Through
+	 * 0.38.x `leaveRoom` unseated a participant who was sitting right there on
+	 * a live connection, and this file carried a re-seat afterwards to undo it.
+	 * `@wolffm/rooms-server@0.39.4` deletes the client FIRST and unseats only
+	 * a participant's LAST connection, so the re-seat is gone and the PACKAGE
+	 * holds the property.
 	 *
-	 * Every step below is sampled. The seat at the end is the headline, but the
-	 * `guarded` flag and the intermediate role are what distinguish "the guard
-	 * put them back" from "the unseat never happened in the first place" — and
-	 * the mutation test on this file breaks the guard specifically, so the
-	 * distinction has to be asserted rather than assumed.
+	 * Which is exactly why these run on `bare()` now. With a seat hold on, the
+	 * old suite passed whether the property held or not: the reservation
+	 * returned ALICE to seat 0 by itself. With both nets off, an unseated
+	 * ALICE is a spectator whose empty seat CAROL can walk into — so the last
+	 * test here is the one that actually fails when the property is absent,
+	 * and the `guarded`/role/reservation samples are what say WHY.
 	 */
 	function refresh() {
-		const r = rooms();
+		const r = bare();
 		const room = r.open('pod-1');
 
 		joinDraftRoom(room, 'sock-a', ALICE, 'friend');
@@ -283,10 +313,14 @@ describe('the refresh hazard in leaveRoom', () => {
 		expect(rejoin.seat).toBe(0);
 		expect(seated.afterRejoin).toBe(0);
 
-		// The guard fired, and it fired because another live client still
-		// carried this participant.
+		// It held because another live client still carried this participant.
 		expect(outcome.participantId).toBe(ALICE);
 		expect(outcome.guarded).toBe(true);
+
+		// Neither safety net is doing the work. Assert that, or this test
+		// silently becomes a test of the reservation again.
+		expect(reservationFor(room.seats, 0)).toBeNull();
+		expect(room.app.vacating.size).toBe(0);
 
 		// The state the pod actually sees.
 		expect(seated.afterStaleClose).toBe(0);
@@ -305,7 +339,7 @@ describe('the refresh hazard in leaveRoom', () => {
 	});
 
 	it('does not advance the cursor, because nothing about the table changed', () => {
-		const r = rooms();
+		const r = bare();
 		const room = r.open('pod-1');
 		joinDraftRoom(room, 'sock-a', ALICE, 'friend');
 		joinDraftRoom(room, 'sock-a2', ALICE, 'friend');
@@ -321,6 +355,28 @@ describe('the refresh hazard in leaveRoom', () => {
 		const { room } = refresh();
 		expect(room.clients.has('sock-a')).toBe(false);
 		expect(room.clients.get('sock-a2')?.participantId).toBe(ALICE);
+	});
+
+	/*
+	 * THE assertion. Everything above samples the mechanism; this is the
+	 * consequence, and it is the only one that goes red when the property is
+	 * gone. With no hold and no grace, an ALICE who was unseated by her own
+	 * stale socket leaves seat 0 empty and unreserved — and the next arrival
+	 * takes it while she is still connected, mid-draft, on her other tab.
+	 */
+	it('does not hand the seat to the next arrival while its owner is still connected', () => {
+		const { room } = refresh();
+
+		const carol = joinDraftRoom(room, 'sock-c', CAROL, 'friend');
+
+		expect(seatOf(room.seats, ALICE)).toBe(0);
+		expect(roleOf(room.seats, ALICE)).toBe('player');
+		expect(occupantOf(room.seats, 0)).toEqual({ kind: 'human', participantId: ALICE });
+		expect(carol.seat).not.toBe(0);
+		expect(seatOf(room.seats, CAROL)).not.toBe(0);
+		// And ALICE can still see her own hand, which is what the seat is for.
+		const mine = viewForParticipant(room, ALICE);
+		expect(mine.viewer.kind).toBe('seat');
 	});
 });
 
@@ -449,6 +505,98 @@ describe('a browser refresh, in the order it actually arrives', () => {
 		vi.advanceTimersByTime(GRACE_MS * 2);
 		expect(seatOf(room.seats, ALICE)).toBe(0);
 		expect(seen).toEqual([]);
+	});
+});
+
+describe('one seat table, not two', () => {
+	/*
+	 * `room.seats` used to be ASSIGNED `state.table` right after `seed`. It is
+	 * now the seat-table FACTORY's return value, so the room is born holding
+	 * the engine's table and nothing ever writes the field. Identity, not
+	 * equality: two tables that happen to agree today are still two answers to
+	 * "which seat is Alice in", and the whole point is that there is one.
+	 */
+	it('hands the registry the engine table itself, from the moment the room exists', () => {
+		const r = rooms();
+		const room = r.open('pod-1');
+		expect(room.seats).toBe(stateOf(room).table);
+		// Bounded at the pod size, which the registry's own default (unbounded)
+		// is not — so catching the default would be visible here.
+		expect(room.seats.capacity).toBe(8);
+	});
+
+	it('stays the same object across a pick, with nobody re-aliasing it', () => {
+		const r = rooms();
+		const room = r.open('pod-1');
+		joinDraftRoom(room, 'sock-a', ALICE, 'friend');
+		const table = room.seats;
+
+		const view = viewForParticipant(room, ALICE);
+		if (view.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		const card = view.viewer.pack[0];
+		if (card === undefined) throw new Error('an opening pack should not be empty');
+		const picked = enginePick(stateOf(room), 0, card.cardId);
+		expect(picked.ok).toBe(true);
+		if (!picked.ok) return;
+		room.app.state = picked.state;
+
+		expect(room.seats).toBe(table);
+		expect(room.seats).toBe(stateOf(room).table);
+	});
+
+	it('re-opens the same room rather than re-dealing it', () => {
+		const r = rooms();
+		const first = r.open('pod-1');
+		joinDraftRoom(first, 'sock-a', ALICE, 'friend');
+		const again = r.open('pod-1');
+		expect(again).toBe(first);
+		expect(again.seats).toBe(first.seats);
+		expect(seatOf(again.seats, ALICE)).toBe(0);
+	});
+});
+
+describe('onRoomDelete', () => {
+	/*
+	 * A room owns pending `vacating` timers. They used to be drained at the GC
+	 * sweep, which was correct only while that was the one delete path; they
+	 * are drained on the REGISTRY now, so a future admin close or game-over
+	 * reap is covered by construction. GC itself is still off — `collectGC` is
+	 * called from nowhere — and turning it on is the operator's decision.
+	 */
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('drains a room’s pending vacates when the room is deleted', () => {
+		vi.useFakeTimers();
+		const r = rooms({ disconnectGraceMs: 5_000 });
+		const room = r.open('pod-1');
+		joinDraftRoom(room, 'sock-a', ALICE, 'friend');
+
+		const closed = leaveDraftRoom(room, 'sock-a');
+		expect(closed.held).toBe(true);
+		expect(room.app.vacating.size).toBe(1);
+
+		r.delete('pod-1');
+		expect(room.app.vacating.size).toBe(0);
+		expect(r.find('pod-1')).toBeUndefined();
+
+		// The timer is really gone: the deferred vacate does not fire, and in
+		// particular does not reach `onDeferredChange` for a room that no
+		// longer exists.
+		expect(() => vi.advanceTimersByTime(60_000)).not.toThrow();
+		expect(seatOf(room.seats, ALICE)).toBe(0);
+	});
+
+	it('is still resolvable inside the callback — it runs BEFORE the map entry goes', () => {
+		const r = rooms({ disconnectGraceMs: 5_000 });
+		const room = r.open('pod-1');
+		joinDraftRoom(room, 'sock-a', ALICE, 'friend');
+		leaveDraftRoom(room, 'sock-a');
+		// If the drain ran after the delete it would find nothing and the
+		// timer above would survive. It does not.
+		r.delete('pod-1');
+		expect(room.app.vacating.size).toBe(0);
 	});
 });
 
