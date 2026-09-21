@@ -297,6 +297,100 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
+## Verified this pass (2026-09-21 — tracker, closing Wave 16)
+
+Landed `1a4081b..0117283`. `forge/` pristine. Gate re-run here: `pnpm check`
+exit 0, **1,871 passing / 7 skipped** (baseline 1,855). CI green on `0117283`.
+
+### The latency argument that decided the route has evaporated
+
+The operator chose CheerpJ on *"saves us ~150ms"*. That came from a **49.5 ms
+floor** — one Swing component, which Wave 15 itself labelled *"an upper bound
+on Forge, never a prediction of it"*.
+
+Lane B measured real Forge: **146.7 ms median** to canvas, 163.8 ms composited,
+n = 117 over three cold boots on a quiet host (load 2.3–3.9), p95 209.5.
+**Three times the floor.**
+
+Against streamed Forge's real UI measured the same way in a browser — 46.9 ms —
+CheerpJ is now **~100 ms slower locally**, and the crossover is exact:
+
+| player RTT | streamed (46.9 + 2×RTT) | CheerpJ (146.7, no RTT) | faster |
+| --- | --- | --- | --- |
+| 10 ms | 66.9 ms | 146.7 ms | **streaming** |
+| 25 ms | 96.9 ms | 146.7 ms | **streaming** |
+| **50 ms** | **146.9 ms** | **146.7 ms** | **dead even** |
+| 100 ms | 246.9 ms | 146.7 ms | **CheerpJ** |
+
+**Friends on the same continent would find streaming snappier.** This is an
+operator decision to re-take, and the tracker flagged it rather than letting a
+route ride on a number that moved.
+
+**What has NOT changed is the reason the operator gave FIRST**, and it is the
+stronger one: streaming bypasses the watchparty netcode — the objection that
+killed "friends run Forge desktop" — and spends 1.26 GiB plus half a core of
+**our** host per player, against 1.43 GiB in the player's own tab.
+
+### Lane B's real finding is not the number
+
+**Clicking a card in Forge's hand changes exactly zero pixels** — measured six
+times by full-canvas diff across three boots. Forge's Card Detail and Card
+Picture panels are driven by **mouse-over**. So the measured event is the
+pointer *arriving*, not the button going down.
+
+Which means **a press→pixel figure for a card in hand does not exist**, and
+every refusal Wave 15 recorded under "THE NUMBER WAS NOT TAKEN" was the rig
+correctly declining to invent one. A lane that had wanted a number could have
+produced one by watching the wrong region and never known.
+
+### Lane A's result is a negative, and it is worth more than a pass
+
+20/20 cold boots now reach the home screen. But the lane **killed its own
+theory**: the stall is not an IndexedDB quota — it is inside CheerpJ, upstream
+of IndexedDB. And it said plainly that **its own mutation test had no power**,
+naming the 175-unpack experiment that would settle it.
+
+A lane reporting "my evidence does not support my fix as strongly as it looks"
+is the behaviour this project has been short of, given its history with checks
+that cannot fail.
+
+### Found: CI has NEVER run the Forge match e2e
+
+`play.spec.ts:411` is `test.skip(!forge.ok, …)`, and **`.github/workflows/ci.yml`
+sets no `CARDTABLE_FORGE_JAR`** (verified — no mention anywhere in the file). So
+green CI is **3 of 4** e2e tests, and the one it skips is the only test that
+exercises a real child JVM.
+
+Pre-existing, announced rather than silent, and **the tracker has been quoting
+"CI green" across many waves without knowing it.** Now in memory as
+`ci-skips-the-forge-e2e`.
+
+### The wave file had a bug, and it was the tracker's
+
+The manager re-cut `apps/server/package.json` from lane C to lane D before
+dispatch, because D's 0.39.4 upgrade could not typecheck without it. **Correct,
+and the tracker's error**: the lane file lists were intersected for *overlap*
+and came back clean, but intersection cannot catch a file a lane **needs and
+was not given**. Both checks are required; only one was run.
+
+### Protocol deviations, both disclosed and both right
+
+- **Sub-agents did not commit.** Four agents racing HEAD on one branch is worse
+  than the protocol's letter; the manager committed each lane after verifying
+  it.
+- **Run data was moved out of `~/.cache`** into `boot/out/` and
+  `firstpaint/out/` with derived TSVs — *"the wave's two numbers should not live
+  only in a directory named cache."* Agreed, and it is why this close could
+  check them.
+
+### Still open
+
+- **Starting a purely local game builds a Netty server, and epoll is not
+  there.** One more patch; the blocker was not previously known to be on that
+  path.
+- Lane A's 175-unpack experiment, to give its fix real evidence.
+- CI's missing Forge e2e.
+
 ## Verified this pass (2026-09-20 — tracker, closing Wave 15)
 
 **Forge's real match UI paints in a browser.** The tracker opened
