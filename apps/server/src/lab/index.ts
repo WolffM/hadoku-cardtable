@@ -50,7 +50,7 @@
 import { createServer as _unusedCreateServer } from 'node:http';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { connect, type Socket } from 'node:net';
@@ -70,6 +70,15 @@ export interface LabDeps {
 	/** How many stream containers to expose. 0 → that half is off. */
 	streamCount: number;
 	log?: (entry: Record<string, unknown>) => void;
+	/**
+	 * Whether the bench is on. Defaults to `labIsOn()`.
+	 *
+	 * Injectable because the default reads a file on THIS host, and a test that
+	 * asserts "attaches nothing" would otherwise pass or fail depending on
+	 * whether the developer happens to have the bench switched on — which is
+	 * exactly how it failed the first time it was run here.
+	 */
+	on?: () => boolean;
 }
 
 export interface LabHandle {
@@ -99,7 +108,36 @@ function refuse(socket: Duplex, code: number, why: string): void {
 }
 
 /** The bench's switch: the env var, or a marker file the operator can `rm`. */
-export const LAB_MARKER = join(homedir(), '.local', 'share', 'cardtable', 'lab', 'ON');
+export const LAB_DIR = join(homedir(), '.local', 'share', 'cardtable', 'lab');
+export const LAB_MARKER = join(LAB_DIR, 'ON');
+
+/**
+ * What the bench exposes, derived from `LAB_DIR` rather than the environment.
+ *
+ * Same reason as the marker: the PM2 wrapper forwards a fixed set of variables,
+ * so `CARDTABLE_LAB_*` cannot reach this process without an edit in another
+ * repo. Both halves are therefore switched on by what is ON DISK — a staged
+ * site, and a file naming how many containers are up — which is also what
+ * someone auditing the host can see.
+ */
+export function labLayout(exists: (p: string) => boolean = existsSync, read: (p: string) => string = (f) => readFileSync(f, 'utf8')): { cheerpjDir: string | null; streamCount: number } {
+	const cheerpj = join(LAB_DIR, 'cheerpj');
+	let streams: number;
+	try {
+		const raw = exists(join(LAB_DIR, 'STREAMS')) ? read(join(LAB_DIR, 'STREAMS')).trim() : '0';
+		const n = Number(raw);
+		// A malformed count is zero containers, not a guess. Bounded because
+		// each one proxies to a port and an unbounded count is a port scan.
+		streams = Number.isInteger(n) && n >= 0 && n <= 8 ? n : 0;
+	} catch {
+		streams = 0;
+	}
+	try {
+		return { cheerpjDir: exists(cheerpj) ? cheerpj : null, streamCount: streams };
+	} catch {
+		return { cheerpjDir: null, streamCount: streams };
+	}
+}
 
 export function labIsOn(exists: (p: string) => boolean = existsSync): boolean {
 	if (process.env.CARDTABLE_LAB === '1') return true;
@@ -113,7 +151,7 @@ export function labIsOn(exists: (p: string) => boolean = existsSync): boolean {
 }
 
 export function attachLab(app: Router, server: Server, deps: LabDeps): LabHandle | null {
-	if (!labIsOn()) return null;
+	if (!(deps.on ?? labIsOn)()) return null;
 	const log = deps.log ?? (() => {});
 
 	const lab = express.Router();

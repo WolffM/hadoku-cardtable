@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import { createServer } from 'node:http';
 
-import { attachLab, labIsOn, streamIndexOf } from './index.ts';
+import { attachLab, labIsOn, labLayout, streamIndexOf } from './index.ts';
 
 const ORIGINAL = process.env.CARDTABLE_LAB;
 afterEach(() => {
@@ -20,14 +20,18 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
+// `on` is injected everywhere so these assertions do not depend on whether THIS
+// host has the bench switched on. The first run of this file failed for exactly
+// that reason, which is the bug the seam exists to prevent.
 const deps = { minTier: 'friend', cheerpjDir: null, streamBasePort: 6080, streamCount: 2 };
+const off = { ...deps, on: () => false };
 
 describe('the bench does not exist unless switched on', () => {
 	it('attaches nothing at all without CARDTABLE_LAB=1', () => {
 		delete process.env.CARDTABLE_LAB;
 		const server = createServer();
 		const before = server.listenerCount('upgrade');
-		expect(attachLab(express.Router(), server, deps)).toBeNull();
+		expect(attachLab(express.Router(), server, off)).toBeNull();
 		// The real assertion: no upgrade listener, so a websocket cannot reach it
 		// even if something guessed the path.
 		expect(server.listenerCount('upgrade')).toBe(before);
@@ -39,8 +43,7 @@ describe('the bench does not exist unless switched on', () => {
 		for (const v of ['0', 'true', 'yes', '']) {
 			process.env.CARDTABLE_LAB = v;
 			// The marker file is the other switch; this asserts the env one alone.
-			if (labIsOn()) continue;
-			expect(attachLab(express.Router(), server, deps), `CARDTABLE_LAB=${v}`).toBeNull();
+			expect(attachLab(express.Router(), server, { ...deps, on: () => labIsOn(() => false) }), `CARDTABLE_LAB=${v}`).toBeNull();
 		}
 		server.close();
 	});
@@ -85,5 +88,36 @@ describe('which container a path names', () => {
 		expect(streamIndexOf(undefined, 2)).toBeNull();
 		// Adjacent but not ours — must fall through so socket.io still gets it.
 		expect(streamIndexOf('/lab/streaming/0', 2)).toBeNull();
+	});
+});
+
+describe('what the bench exposes, read off the disk', () => {
+	const noFiles = () => false;
+
+	it('exposes nothing when nothing is staged', () => {
+		expect(labLayout(noFiles, () => '0')).toEqual({ cheerpjDir: null, streamCount: 0 });
+	});
+
+	it('a malformed container count is ZERO containers, not a guess', () => {
+		// Each container is a proxy to a port. Guessing here is a port scan.
+		for (const bad of ['', 'two', '-1', '1.5', 'NaN', '99']) {
+			expect(labLayout(() => true, () => bad).streamCount, `STREAMS=${bad}`).toBe(0);
+		}
+	});
+
+	it('is bounded at 8 even if the file says more', () => {
+		expect(labLayout(() => true, () => '8').streamCount).toBe(8);
+		expect(labLayout(() => true, () => '9').streamCount).toBe(0);
+	});
+
+	it('an unreadable STREAMS file exposes no containers', () => {
+		expect(
+			labLayout(
+				() => true,
+				() => {
+					throw new Error('EACCES');
+				},
+			).streamCount,
+		).toBe(0);
 	});
 });

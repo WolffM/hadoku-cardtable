@@ -78,7 +78,7 @@ import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory, type PlayHandle } from './play/index.js';
-import { attachLab } from './lab/index.js';
+import { attachLab, labLayout } from './lab/index.js';
 import { attachBrowserBridge } from './play/browser/index.js';
 import { attachTables } from './http/index.js';
 import { attachRooms } from './http/rooms.js';
@@ -301,9 +301,8 @@ play = attachPlay(io, api, {
 // middleware. See lab/index.ts for why it exists and when it must go.
 const lab = attachLab(app, httpServer, {
 	minTier: CONFIG.minTier,
-	cheerpjDir: process.env.CARDTABLE_LAB_CHEERPJ_DIR ?? null,
+	...labLayout(),
 	streamBasePort: Number(process.env.CARDTABLE_LAB_STREAM_PORT ?? 6080),
-	streamCount: Number(process.env.CARDTABLE_LAB_STREAMS ?? 0),
 });
 if (lab !== null) console.warn('[cardtable] LAB IS ON — /lab/** is live. This is temporary; see lab/index.ts');
 
