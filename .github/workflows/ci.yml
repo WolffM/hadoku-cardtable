@@ -129,33 +129,102 @@ jobs:
       - name: E2E — browser
         run: pnpm --filter @hadoku/e2e exec playwright install chromium
 
-      # ── The Forge match: run it, and prove it RAN ────────────────────────
+      # Every spec runs here, and the two that need Forge — `play.spec.ts`'s
+      # match and `table-fit.spec.ts` — SELF-SKIP, on purpose: this job runs on
+      # the fleet claws (`vars.CI_RUNNER`), and no claw has a Forge jar. Those
+      # two are covered by the `forge-e2e` job below, on the one runner that
+      # does. The draft e2e stays here, because it is part of the required
+      # check and needs nothing but the built server.
       #
-      # Until Wave 17 this step never set `CARDTABLE_FORGE_JAR`, so
-      # `e2e/play.spec.ts`'s match — the ONLY e2e that drives a real child JVM —
-      # self-skipped on every run, and a skip reads as a pass. Green CI meant
-      # 3 of 4. Found in Wave 16.
-      #
-      # The runner is self-hosted on this host (`vars.CI_RUNNER` above), so the
-      # jar production runs and the vendored Forge `res/` are both on disk here.
-      # These are the same two paths the wave gate exports locally.
-      #
-      # SCOPED TO THE E2E STEPS, not the job, on purpose. Job-wide, they would
-      # also un-skip the jar-gated vitest suites in "Test" (`play/jvm.test.ts`,
-      # `http/gate.test.ts`, `play/browser/browser-jvm.test.ts`,
-      # `ui/…/prompts.jvm.test.ts`) — a separate decision, with its own run
-      # time, that nobody has made. Those remain CI-skipped.
-      #
-      # Production is not touched: the harness pins the match's work dir to
-      # `e2e/.run/play-work` (`e2e/play/harness.ts`, `PLAY_WORK_DIR`), so its
-      # boot sweep never reaches production's `/tmp/cardtable-play`.
-      #
+      # Wave 17 briefly set the jar variables on THIS step, assuming the job ran
+      # on the host that has the jar. It does not — its runners are
+      # `jit-claw-*` / `warm-claw-*` — so the "Forge is present, or fail" guard
+      # did exactly its job and failed, and the image-boundary steps after it
+      # were skipped. A guard that reds is the guard working; the premise was
+      # what was wrong.
+      - name: E2E — two friends draft one pod
+        run: pnpm --filter @hadoku/e2e test
+
+      # Runs FIRST, and deliberately. A green gate is a claim; this is the
+      # demonstration. 65 throwaway fixtures under `mktemp -d`, each arm
+      # asserted in both directions and every reference case in all five
+      # spellings, so "the check passed" cannot mean "the check did nothing".
+      # Three separate controls in this repo have passed while doing nothing,
+      # including two versions of this very check.
+      - name: Image boundary — prove the gate bites
+        run: bash scripts/d13-gate.sh --self-test
+
+      - name: Image boundary (D13/D15) — the CDN hosts, we do not
+        run: bash scripts/d13-gate.sh apps/ui/dist
+
+  # ── The Forge e2e: run it, and prove it RAN ─────────────────────────────────
+  #
+  # Until Wave 17 no CI step set `CARDTABLE_FORGE_JAR`, so `e2e/play.spec.ts`'s
+  # match — the ONLY e2e that drives a real child JVM — self-skipped on every
+  # run, and a skip reads as a pass. Green CI meant 3 of 4. Found in Wave 16.
+  #
+  # WHY HOKON, and why NOT `vars.CI_RUNNER`. The jar production runs
+  # (`~/.local/share/cardtable/forge.jar`) and the vendored Forge `res/` live on
+  # hokon, the production PM2 host, and nowhere else. The fleet's claws — where
+  # `check` runs — have neither. So this job pins the repo-level runner by its
+  # `pm2-host` label and deliberately ignores `vars.CI_RUNNER`: the fleet
+  # variable says where a job CAN run, and this job can only run in one place.
+  # If hokon is offline this job queues rather than going green, which is the
+  # correct failure. It is not the required check; `check` is.
+  #
+  # LOAD AND PORTS. This runs on the production host, and it binds the e2e
+  # loopback ports — 19108/19008 (draft harness, `e2e/identities.ts`) and
+  # 19128/19028 (play harness, `e2e/play/harness.ts:66-67`). Any local
+  # `pnpm e2e` an agent runs on hokon uses the same four ports: do not start
+  # one while this job is in flight, and a red here while someone was running
+  # e2e locally is a collision before it is a bug.
+  #
+  # Production's run directories are not touched: the harness pins the match's
+  # work dir to `e2e/.run/play-work` (`PLAY_WORK_DIR`, `e2e/play/harness.ts:64`,
+  # passed as `CARDTABLE_PLAY_WORK_DIR` at :149), so its boot sweep never
+  # reaches production's `/tmp/cardtable-play`. No env override is needed.
+  #
+  # The jar variables are scoped to the two e2e steps, not the job. Job-wide
+  # they would matter only if this job ran vitest — it does not, and the
+  # jar-gated vitest suites (`play/jvm.test.ts`, `http/gate.test.ts`,
+  # `play/browser/browser-jvm.test.ts`, `ui/…/prompts.jvm.test.ts`) remain
+  # CI-skipped in `check`. That is a separate decision nobody has made.
+  #
+  # Runs in parallel with `check`; the workflow-level `concurrency` group
+  # cancels both together on a newer push.
+  forge-e2e:
+    name: forge-e2e
+    runs-on: [self-hosted, pm2-host]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      # Same as `check` — see the comments there.
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        with:
+          node-version: '24'
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+
+      - name: Build the bundle
+        run: pnpm --filter @hadoku/ui build
+
+      - name: Build the server
+        run: pnpm --filter @hadoku/server build
+
+      - name: E2E — browser
+        run: pnpm --filter @hadoku/e2e exec playwright install chromium
+
       # Two guards, because either alone is a check that can pass by doing
       # nothing:
       #
       #   1. Forge present, or FAIL. Mirrors `forgeAvailability()` in the
       #      harness arm for arm — a missing jar or a `res/` without
-      #      `cardsfolder` would make the spec skip, so here it reds instead.
+      #      `cardsfolder` would make the specs skip, so here it reds instead.
       #   2. Nothing skipped, or FAIL. Guard 1 cannot see a skip from any
       #      OTHER cause. So Playwright also writes a JSON report, and the step
       #      asserts `stats.skipped == 0` from it — reading the tool's own
@@ -169,28 +238,21 @@ jobs:
           CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
           CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
         run: |
-          test -f "$CARDTABLE_FORGE_JAR" || { echo "::error::CARDTABLE_FORGE_JAR missing: $CARDTABLE_FORGE_JAR — the Forge match would SKIP"; exit 1; }
-          test -d "$CARDTABLE_FORGE_RES/cardsfolder" || { echo "::error::CARDTABLE_FORGE_RES has no cardsfolder: $CARDTABLE_FORGE_RES — the Forge match would SKIP"; exit 1; }
+          test -f "$CARDTABLE_FORGE_JAR" || { echo "::error::CARDTABLE_FORGE_JAR missing: $CARDTABLE_FORGE_JAR — the Forge specs would SKIP"; exit 1; }
+          test -d "$CARDTABLE_FORGE_RES/cardsfolder" || { echo "::error::CARDTABLE_FORGE_RES has no cardsfolder: $CARDTABLE_FORGE_RES — the Forge specs would SKIP"; exit 1; }
 
-      - name: E2E — two friends draft one pod, then play a real Forge match
+      # ONLY the Forge specs; the draft already ran in `check`. The file names
+      # are appended by pnpm to the END of the package script, so they reach
+      # `playwright test` (the script's last command), not `node --test`.
+      # The draft harness still boots as Playwright's `webServer` — that is the
+      # config's, not the spec filter's.
+      - name: E2E — two friends play a real Forge match, and the table fits
         env:
           CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
           CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
           PW_TEST_REPORTER: json
-          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/e2e-report.json
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/forge-e2e-report.json
         run: |
           rm -f "$PLAYWRIGHT_JSON_OUTPUT_FILE"
-          pnpm --filter @hadoku/e2e test
+          pnpm --filter @hadoku/e2e test play.spec.ts table-fit.spec.ts
           jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null || { echo "::error::e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1) — a skipped test is not a pass"; exit 1; }
-
-      # Runs FIRST, and deliberately. A green gate is a claim; this is the
-      # demonstration. 65 throwaway fixtures under `mktemp -d`, each arm
-      # asserted in both directions and every reference case in all five
-      # spellings, so "the check passed" cannot mean "the check did nothing".
-      # Three separate controls in this repo have passed while doing nothing,
-      # including two versions of this very check.
-      - name: Image boundary — prove the gate bites
-        run: bash scripts/d13-gate.sh --self-test
-
-      - name: Image boundary (D13/D15) — the CDN hosts, we do not
-        run: bash scripts/d13-gate.sh apps/ui/dist
