@@ -297,6 +297,60 @@ entry — see O7.**
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
 
+## Found by the fleet (2026-09-21): the header-fleet audit, and a nightly restart
+
+hadoku_site's nightly `ci:header-fleet` audit paged @here at 13:09 UTC on two
+cardtable gaps. It runs locally —
+`node ~/repos/hadoku-fleet-manager/scripts/check-header-fleet.mjs` — across all
+16 fleet repos, and **cardtable was the only one with findings**, so every fix
+can be verified by re-running it.
+
+### `no-update-flow` — FIXED, `b22e846`
+
+cardtable had no `.github/workflows/update-wolffm.yml`, so no `@wolffm/*`
+release after onboarding would ever reach it. Added from `templates/ui-app`.
+Re-running the audit: **2 findings → 1.**
+
+The template was wrong for this repo in two ways, both reported back to
+hadoku_site as possible template fixes:
+- **cardtable tracks `.npmrc`.** The template writes a literal token into it,
+  leaving a secret one `git add` from a commit and making every no-update run
+  fail. Replaced with `setup-pnpm@v1`, as `ci.yml` already uses.
+- **It is an eleven-manifest workspace.** The template stages only the root
+  `package.json`, which would commit a lockfile out of step with the manifests.
+
+### `no-app-header` — deferred to track S, for a stated reason
+
+**We render `<AppHeader>`** — in `apps/ui/src/chrome/AppChrome.tsx`, wrapped by
+`App.tsx`. The rule reads `App.tsx` with comments blanked and greps for the
+token; ours names it only in a comment and the rule never opens `AppChrome`.
+
+Hoisting it into `App.tsx` would only trade this for `header-name-unverified`:
+the title is the literal `"cardtable"`, and **cardtable has no entry in
+hadoku_site's `spec/categories.json`**. The audit's pass condition is a
+*derived* name (`__HADOKU_APP_NAME__` from `@wolffm/catalogue`), which needs
+that entry first. **Asked of hadoku_site.** Our half — a vite `define` and the
+header at the `App.tsx` root — is the template-adoption work, so it belongs to
+track S. Not allowlisted: hadoku_site's allowlist rejects deferral-shaped
+reasons, correctly.
+
+### The service restarts at 08:00 UTC, every day
+
+cardtable is one of ten wrappers `pm2:wrapper-key-rotation` restarts daily at
+**08:00 UTC — 01:00 Pacific**. What survives:
+
+| | survives the restart? |
+| --- | --- |
+| lobby rooms | **yes** — `room-store`, on disk |
+| draft pods | **no** — in-memory (`draftRooms.ts:79-86`: rooms live for the process) |
+| live matches | **no** — child JVMs die with the server |
+
+Low collision for a friend group at 1 a.m., but it is a restart to **design
+for, not rely on the timing of**. And it matters to the frontend plan below: a
+seat surviving a *client* swap (a page reload) is a different guarantee from a
+match surviving a *server* restart. The first is w18's; the second nobody has
+yet.
+
 ## Verified this pass (2026-09-21 — tracker, closing Wave 16)
 
 Landed `1a4081b..0117283`. `forge/` pristine. Gate re-run here: `pnpm check`
