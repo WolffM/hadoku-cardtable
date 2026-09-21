@@ -228,7 +228,22 @@ export function secretsFor(states: readonly Map<string, WireObj>[], viewer: numb
 	return { secrets, hiddenCards };
 }
 
-/** Secrets whose JSON spelling occurs in the text. */
+/**
+ * Secrets whose JSON spelling occurs in the text as a VALUE. An object KEY is
+ * the wire's own vocabulary, not a card's: split card "Life // Death" has the
+ * face name "Life", and every PlayerView carries `"Life":{"t":"int",…}`. A
+ * key's closing quote is followed by optional whitespace and `:`, a value's is
+ * not, and every occurrence is checked, so a key earlier in the text cannot
+ * hide a value later on.
+ */
 export function leaked(secrets: Iterable<string>, text: string): string[] {
-	return [...secrets].filter((s) => text.includes(JSON.stringify(s)));
+	return [...secrets].filter((s) => {
+		const needle = JSON.stringify(s);
+		const colon = /\s*:/y;
+		for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1)) {
+			colon.lastIndex = at + needle.length;
+			if (!colon.test(text)) return true;
+		}
+		return false;
+	});
 }

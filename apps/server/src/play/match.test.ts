@@ -297,6 +297,26 @@ describe("regression: a card in both a precon's main deck and its sideboard (jvm
 	});
 });
 
+describe("regression: a secret spelled like a wire key (jvm.test.ts, seed 3269333, 'Life // Death')", () => {
+	// The hidden split card's face name "Life" is also the PlayerView key `"Life":{"t":"int",…}`.
+	const player = JSON.stringify({ _type: TYPE.player, _id: 0, Life: { t: 'int', v: 20 } });
+
+	it('does not count an occurrence as an object key as a leak', () => {
+		expect(leaked(['Life'], player)).toEqual([]);
+		expect(leaked(['Life'], '{"Life" \n : {"t":"int","v":20}}')).toEqual([]);
+	});
+
+	it('counts an occurrence as a value — even after the same text appeared as a key', () => {
+		expect(leaked(['Life'], JSON.stringify({ Name: { t: 'str', v: 'Life' } }))).toEqual(['Life']);
+		expect(leaked(['Life'], `${player}\n${JSON.stringify({ Name: { t: 'str', v: 'Life' } })}`)).toEqual(['Life']);
+		expect(leaked(['Life'], JSON.stringify({ Life: ['Life'] }))).toEqual(['Life']);
+	});
+
+	it('still does not match a secret embedded in a larger string value', () => {
+		expect(leaked(['Life'], JSON.stringify({ Text: 'You gain Life' }))).toEqual([]);
+	});
+});
+
 describe('the cursor', () => {
 	it('is per seat: from 1, by exactly 1, in one epoch', () => {
 		const h = harness();
