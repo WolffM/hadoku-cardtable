@@ -1,33 +1,69 @@
 /*
  * The board's layout. Consumes the palette on `:root` in `styles.css` and
- * defines no colours of its own beyond those tokens.
+ * defines no colours of its own beyond those tokens. How ONE card looks is
+ * `card.css`; this file decides where zones go and how big a card is in each.
  *
- * Phone first: at 360px every zone is a wrapping grid, so a crowded battlefield
- * grows downward and nothing pushes the page sideways. The one element that
- * could — a card tile, 190px wide in the draft — is shrunk here by overriding
- * the tile's own size tokens inside `.board`, rather than by forking the tile.
+ * ## The table never scrolls
+ *
+ * The operator, 2026-09-19: *"this module can NEVER require a scroll bar."*
+ * So nothing here grows downward any more. The board is handed a fixed box
+ * (`live.css` sizes the match to the viewport) and divides it:
+ *
+ *   turn bar            one line
+ *   opponent's seat     flex 1     head · hidden hand · battlefield | piles
+ *   the stack           one band, capped
+ *   your seat           flex 1.4   head · battlefield · hand         | piles
+ *
+ * Every zone is a bounded box, and a card's size is DERIVED from the box, not
+ * the other way round. Three mechanisms do it, and none of them depends on
+ * knowing how many cards there are in advance:
+ *
+ *   - **Rows of cards shrink to the width.** A battlefield or a hand is a grid
+ *     that flows into columns of `minmax(0, --card-w)`: while the cards fit
+ *     they are `--card-w` wide, and when they stop fitting every column gives
+ *     up the same share, so the thirteenth land makes all thirteen narrower
+ *     instead of starting a row below the fold.
+ *   - **`--card-w` comes from the zone's height.** Those zones are size
+ *     containers, so `100cqh` is the zone's own height and a card is sized so
+ *     that `--rows` rows of it fit (a card is 488 × 680, `card.css`).
+ *   - **More rows once one row would be too thin.** `--rows` steps from 1 to 2
+ *     to 3 by card count, at thresholds that depend on the zone's shape; the
+ *     derivation is beside the rules.
+ *
+ * Graveyard and exile are piles, not grids: each card shows a strip and the
+ * newest shows whole, and the strips shrink when the pile is taller than its
+ * box. Zones still scroll internally as a last resort (a pathological board),
+ * so a card can always be reached — but the page itself never scrolls, and
+ * `e2e/table-fit.spec.ts` asserts that on a live match at 1280×800 and
+ * 1366×768.
  *
  * No WotC marks in anything drawn here: states are words ("tapped"), life is a
  * number, and the stack is a list. Nothing in this file references an image.
  */
 
+/*
+ * The match hands the board its box (`live.css`); the dev harnesses mount it
+ * bare, with nothing to size it against, so on its own it takes the window.
+ */
 .board {
-  --board-card-w: 96px;
-  --card-w: var(--board-card-w);
-  --card-h: 150px;
+  --board-gap: 6px;
+  --cards-gap: 4px;
+  /* A card's height over its width: 680 / 488, the proportion `card.css` draws. */
+  --card-tall: 1.3934;
 
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 8px;
+  gap: var(--board-gap);
   min-width: 0;
+  min-height: 0;
+  padding: var(--board-gap);
+  text-align: start;
 }
 
 /* A text tile at board size: the same tile, tighter type. */
 .board .card {
-  padding: 6px 6px 6px 10px;
+  padding: 5px 5px 5px 9px;
   gap: 3px;
   font-size: 11px;
 }
@@ -43,18 +79,22 @@
 }
 
 .board__bar {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  flex: none;
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
+  flex-wrap: nowrap;
+  gap: 12px;
   align-items: baseline;
-  padding: 8px 10px;
+  min-width: 0;
+  padding: 5px 10px;
+  /* The live status line sits at the right end of this row (`live.css`). */
+  padding-right: 11rem;
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .board__bar [data-testid='phase'] {
@@ -67,42 +107,90 @@
 }
 
 .board__warn {
+  flex: none;
+  max-height: 2.6em;
   margin: 0;
+  overflow-y: auto;
+  font-size: 12px;
 }
 
 .board__opponents {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--board-gap);
+  min-height: 0;
+}
+
+.board__opponents > .seat {
+  flex: 1 1 0;
+}
+
+/* Your side gets more of the table: it holds the only hand with faces. */
+.board > .seat {
+  flex: 1.4 1 0;
 }
 
 /* ── a player's side of the table ─────────────────────────────────── */
 
-.seat {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+/*
+ * A seat is a grid. The piles take a narrow column at the right, graveyard
+ * over exile, beside the battlefield and the hand; the opponent's is mirrored
+ * so the two battlefields face each other across the stack. Your battlefield
+ * and hand split 4 : 3, which with the 1 : 1.4 split between the seats leaves
+ * the two battlefields about the same height.
+ *
+ * Scoped under `.board` because `styles.css` has a `.seat` of its own — the
+ * draft's seat list, a centred grid — and without the extra class its
+ * `align-items: center` collapses every zone here to zero height.
+ */
+.board .seat {
+  --pile-w: 4rem;
+
+  display: grid;
+  align-items: stretch;
+  justify-items: stretch;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 4fr) minmax(0, 3fr);
+  grid-template-areas:
+    'head head'
+    'field piles'
+    'hand piles';
+  gap: 4px 8px;
+  min-width: 0;
+  min-height: 0;
+  padding: 5px 8px 6px;
   background: var(--bg-raised);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
-  min-width: 0;
+  font-size: inherit;
 }
 
-.seat[data-viewer] {
+.board .seat:not([data-viewer]) {
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas:
+    'head head'
+    'hand piles'
+    'field piles';
+}
+
+.board .seat[data-viewer] {
   border-color: var(--line);
 }
 
 .seat__head {
+  grid-area: head;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px 10px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .seat__name {
-  font-size: 14px;
-  overflow-wrap: anywhere;
+  font-size: 13px;
 }
 
 .seat__you {
@@ -112,19 +200,20 @@
 
 .seat__life {
   min-width: 2.2em;
-  padding: 2px 8px;
+  padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
+  line-height: 1.35;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
 .seat__meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
+  flex-wrap: nowrap;
+  gap: 10px;
   color: var(--ink-dim);
   font-size: 12px;
 }
@@ -137,10 +226,21 @@
   color: var(--warn);
 }
 
+.seat > .zone--battlefield {
+  grid-area: field;
+}
+
+.seat > .zone--hand {
+  grid-area: hand;
+}
+
 .seat__piles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  gap: 8px;
+  grid-area: piles;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: var(--pile-w);
+  min-height: 0;
 }
 
 /* ── zones ────────────────────────────────────────────────────────── */
@@ -148,15 +248,18 @@
 .zone,
 .stack {
   min-width: 0;
+  min-height: 0;
 }
 
 .zone__head {
-  margin: 0 0 4px;
-  font-size: 12px;
+  margin: 0;
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1.3;
   color: var(--ink-dim);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .zone__count {
@@ -171,51 +274,286 @@
 }
 
 .zone__cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--board-card-w), 1fr));
-  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.board-card {
+/*
+ * A row zone: the battlefields and your hand. Its label runs up the left edge
+ * so it costs no height, and the cards take the rest of the box.
+ */
+.seat > .zone--battlefield,
+.seat[data-viewer] > .zone--hand {
+  --rows: 1;
+  --card-max: 7.5rem;
+
+  container: row-zone / size;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  /* The last resort. The sizing below is meant never to need it. */
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.seat[data-viewer] > .zone--hand {
+  --card-max: 7rem;
+}
+
+.seat > .zone--battlefield > .zone__head,
+.seat[data-viewer] > .zone--hand > .zone__head {
+  writing-mode: vertical-rl;
+  rotate: 180deg;
+  text-align: end;
+}
+
+.seat > .zone--battlefield > .zone__cards,
+.seat[data-viewer] > .zone--hand > .zone__cards {
+  /*
+   * Tall enough for `--rows` rows in the zone's own height (`100cqh`, less the
+   * gaps and a little room for a selectable card's ring and lift), and never
+   * wider than `--card-max`. The grid below narrows it further when the row is
+   * full.
+   */
+  --card-w: min(
+    var(--card-max),
+    calc((100cqh - (var(--rows) - 1) * var(--cards-gap) - 8px) / var(--rows) / var(--card-tall))
+  );
+
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--rows), auto);
+  grid-auto-columns: minmax(0, var(--card-w));
+  gap: var(--cards-gap);
+  align-content: start;
+  justify-content: start;
+  padding: 4px 3px;
+}
+
+/*
+ * When to add a row. With the zone W wide and H tall, one row of N cards is
+ * min(0.718·H, W/N) wide and two rows are min(0.359·H, 2W/N), so a second row
+ * gives bigger cards once N > 2.79·W/H, and a third beats two once
+ * N > 8.37·W/H. The zone's shape W/H is the container query, the count is
+ * `:has(nth-child)`, and each band of shapes uses its midpoint's thresholds.
+ * The bands nest (a zone 7:1 is also >= 3), so each starts by resetting to one
+ * row with a selector as specific as the ones it overrides.
+ */
+
+.zone__cards:has(> li:nth-child(7)) {
+  --rows: 2;
+}
+.zone__cards:has(> li:nth-child(21)) {
+  --rows: 3;
+}
+
+@container row-zone (aspect-ratio >= 3) {
+  .zone__cards:has(> li:nth-child(1)) {
+    --rows: 1;
+  }
+  .zone__cards:has(> li:nth-child(10)) {
+    --rows: 2;
+  }
+  .zone__cards:has(> li:nth-child(30)) {
+    --rows: 3;
+  }
+}
+
+@container row-zone (aspect-ratio >= 4) {
+  .zone__cards:has(> li:nth-child(1)) {
+    --rows: 1;
+  }
+  .zone__cards:has(> li:nth-child(13)) {
+    --rows: 2;
+  }
+  .zone__cards:has(> li:nth-child(38)) {
+    --rows: 3;
+  }
+}
+
+@container row-zone (aspect-ratio >= 5) {
+  .zone__cards:has(> li:nth-child(1)) {
+    --rows: 1;
+  }
+  .zone__cards:has(> li:nth-child(16)) {
+    --rows: 2;
+  }
+  .zone__cards:has(> li:nth-child(47)) {
+    --rows: 3;
+  }
+}
+
+@container row-zone (aspect-ratio >= 6) {
+  .zone__cards:has(> li:nth-child(1)) {
+    --rows: 1;
+  }
+  .zone__cards:has(> li:nth-child(20)) {
+    --rows: 2;
+  }
+  .zone__cards:has(> li:nth-child(59)) {
+    --rows: 3;
+  }
+}
+
+@container row-zone (aspect-ratio >= 8) {
+  .zone__cards:has(> li:nth-child(1)) {
+    --rows: 1;
+  }
+  .zone__cards:has(> li:nth-child(26)) {
+    --rows: 2;
+  }
+  .zone__cards:has(> li:nth-child(76)) {
+    --rows: 3;
+  }
+}
+
+@container row-zone (aspect-ratio >= 10) {
+  .zone__cards:has(> li:nth-child(1)) {
+    --rows: 1;
+  }
+  .zone__cards:has(> li:nth-child(31)) {
+    --rows: 2;
+  }
+  .zone__cards:has(> li:nth-child(93)) {
+    --rows: 3;
+  }
+}
+
+/* The opponent's hand is backs and a count: one short line. */
+.seat:not([data-viewer]) > .zone--hand {
+  --card-w: 2.6rem;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.seat:not([data-viewer]) > .zone--hand > .card-backs {
+  margin: 0;
+}
+
+/*
+ * A pile — graveyard, exile. Each card takes a strip of `--peek` and lies on
+ * the one before it, so the pile reads as names down to the newest card, which
+ * shows whole in the room reserved under the last strip. The strips are
+ * `minmax(0, --peek)`, so a pile taller than its box squeezes them instead of
+ * growing. Hovering a buried card lifts it out.
+ */
+.seat__piles > .zone {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The graveyard takes what is left; exile, usually empty, only what it needs. */
+.seat__piles > .zone--graveyard {
+  flex: 1 1 0;
+}
+
+.seat__piles > .zone--exile {
+  flex: 0 1 auto;
+}
+
+.seat__piles > .zone > .zone__head {
+  font-size: 9.5px;
+  letter-spacing: 0;
+  white-space: normal;
+}
+
+.seat__piles .zone__cards {
+  --card-w: var(--pile-w);
+  --peek: 1.15rem;
+
+  flex: 0 1 auto;
+  display: grid;
+  grid-auto-rows: minmax(0, var(--peek));
+  align-content: start;
+  min-height: 0;
+  padding-bottom: calc(var(--pile-w) * var(--card-tall) - var(--peek));
+  overflow: hidden;
+}
+
+.seat__piles .board-card {
+  min-height: 0;
+}
+
+.seat__piles .board-card:hover {
+  z-index: 1;
+}
+
+/* `start`, not stretched: a tapped card's box is shorter than its row, and
+   its chips belong on the card, not at the bottom of the row. */
+.board-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-self: start;
   min-width: 0;
 }
 
-/* Tapped: dimmed and labelled, never rotated — see Board.tsx. */
-.board-card[data-tapped] .card {
-  opacity: 0.6;
-  border-style: dashed;
-}
-
+/*
+ * Status chips sit ON the card, along its bottom edge: below it they would
+ * make a row of cards taller than the height its size was derived from.
+ */
 .board-card__chips {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  z-index: 1;
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px 4px;
+  flex-wrap: wrap-reverse;
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
+  pointer-events: none;
 }
 
 .board-card__chip {
-  padding: 0 5px;
+  padding: 0 4px;
   border: 1px solid var(--line);
   border-radius: 999px;
+  background: var(--bg-raised);
   color: var(--ink-dim);
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: 9px;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
 /* ── the stack ────────────────────────────────────────────────────── */
 
+/*
+ * A band between the two seats: its label, then the items side by side, top
+ * of the stack first. It is one line when empty and at most `--stack-h` when
+ * not; an item with more text than that scrolls inside itself.
+ */
 .stack {
-  padding: 8px;
+  --stack-h: 5.25rem;
+
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-height: var(--stack-h);
+  padding: 3px 8px;
   border: 1px dashed var(--line);
   border-radius: var(--radius);
+}
+
+.stack > .zone__head {
+  flex: none;
+  line-height: 1.5;
+}
+
+.stack > .zone__empty {
+  line-height: 1.3;
 }
 
 .stack__hint {
@@ -228,22 +566,30 @@
 
 .stack__items {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 6px;
+  min-width: 0;
+  max-height: calc(var(--stack-h) - 8px);
   margin: 0;
   padding: 0;
   list-style: none;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .stack__item {
+  flex: 0 0 15rem;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 6px 8px;
+  gap: 1px;
+  min-height: 0;
+  padding: 4px 8px;
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  overflow-y: auto;
   overflow-wrap: anywhere;
+  scrollbar-width: thin;
 }
 
 .stack__source {
@@ -259,16 +605,4 @@
 
 .stack__text {
   font-size: 12px;
-}
-
-@media (min-width: 700px) {
-  .board {
-    --board-card-w: 128px;
-    --card-h: 190px;
-    padding: 12px;
-  }
-  .board .card,
-  .board .card__name {
-    font-size: 12px;
-  }
 }
