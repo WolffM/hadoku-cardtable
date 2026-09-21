@@ -27,8 +27,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = '22f5867903c7d9c28540d2c8dbea214fe38769b425c30ea4879c71fcc1a09359';
-const BASELINE_LENGTH = 26480;
+const BASELINE_SHA256 = 'b92179c358b63d65580a7bd38931d3dd1d6bb6f82b654c2fdcdbe81ed19139c5';
+const BASELINE_LENGTH = 27524;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

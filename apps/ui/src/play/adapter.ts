@@ -41,11 +41,15 @@
  * ## What the wire does not carry
  *
  * - **No Scryfall id.** A card's print is Forge's `ImageKey`
- *   (`c:Mountain|MRD|1` — name, set, art index), not a Scryfall id, so
- *   `scryfallId` is left undefined and `CardTile` draws the text tile. Art on
- *   the board needs a `Name|SET` → Scryfall id step (`@hadoku/carddata`'s
- *   resolver does exactly that, server-side, from bulk data the browser does
- *   not have). Nothing here builds an image URL.
+ *   (`c:Mountain|MRD|1` — name, set, art index), not a Scryfall id. The
+ *   adapter looks the id up by `Name` + `SetCode` in an `ArtIdIndex` (below)
+ *   and puts it on the `DraftCard`; `CardTile` then resolves the art through
+ *   `@hadoku/carddata/art` exactly as the draft screen does. The default
+ *   index is the cube's own `pool.json` — the only name → id table the
+ *   browser has — so a card outside the cube (a basic land, most of a
+ *   constructed list) has no id and `CardTile` draws the text tile. Nothing
+ *   here builds an image URL: the adapter moves an id, the resolver owns the
+ *   host.
  * - **No collector number.** Left empty.
  * - **Which player is "me".** That is `openView(myPlayers)`, not a delta, so
  *   the caller passes `viewerPlayerId`. The fixture records it beside the
@@ -59,6 +63,7 @@
 
 import type { DraftCard, ManaColor, Rarity } from '@hadoku/shared';
 
+import poolData from '../draft/pool.json' with { type: 'json' };
 import type { WireState } from './fold.ts';
 import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from './wire.ts';
 
@@ -95,6 +100,11 @@ export interface BoardPlayer {
 export interface StackEntry {
   id: number;
   description: string;
+  /**
+   * The CardView the item came from. Forge names a spell on the stack by its
+   * card, so this is the id `setSelectables` uses when the item is a target.
+   */
+  sourceCardId: number | null;
   sourceName: string | null;
   controllerName: string | null;
   isAbility: boolean;
@@ -119,6 +129,51 @@ export interface BoardView {
 
 export interface AdaptOptions {
   viewerPlayerId: number;
+  /** Where a card's Scryfall id is looked up. Defaults to the cube's pool. */
+  artIds?: ArtIdIndex;
+}
+
+// ── which Scryfall id a card is ─────────────────────────────────────────────
+
+/**
+ * `Name|SET` and bare `Name` → Scryfall id. A lookup table of ids, never URLs:
+ * which host the art comes from stays the resolver's decision (D15).
+ */
+export type ArtIdIndex = ReadonlyMap<string, string>;
+
+export interface ArtIdSource {
+  name: string;
+  setCode: string;
+  scryfallId?: string | undefined;
+}
+
+/**
+ * Build an index from any list of known printings. The exact printing wins;
+ * failing that, the first printing of the same name — another printing's art
+ * is still that card. A double-faced card is also indexed by its front face,
+ * since Forge names the face it is showing.
+ */
+export function artIdIndex(cards: Iterable<ArtIdSource>): ArtIdIndex {
+  const index = new Map<string, string>();
+  for (const c of cards) {
+    if (c.scryfallId === undefined || c.scryfallId === '') continue;
+    const names = [c.name];
+    const front = c.name.split(' // ')[0];
+    if (front !== undefined && front !== c.name) names.push(front);
+    for (const name of names) {
+      const exact = `${name}|${c.setCode.toUpperCase()}`;
+      if (!index.has(exact)) index.set(exact, c.scryfallId);
+      if (!index.has(name)) index.set(name, c.scryfallId);
+    }
+  }
+  return index;
+}
+
+/** The cube's cards: the only name → id table the browser already carries. */
+export const CUBE_ART_IDS: ArtIdIndex = artIdIndex((poolData as { cards: ArtIdSource[] }).cards);
+
+export function scryfallIdFor(index: ArtIdIndex, name: string, setCode: string): string | undefined {
+  return index.get(`${name}|${setCode.toUpperCase()}`) ?? index.get(name);
 }
 
 // ── reading tagged values ───────────────────────────────────────────────────
@@ -240,7 +295,7 @@ function countersOf(obj: WireObject | undefined): { name: string; count: number 
   return (v.v as [string, number][]).map(([name, count]) => ({ name, count }));
 }
 
-function toBoardCard(state: WireState, id: number, onBattlefield = false): BoardCard | null {
+function toBoardCard(state: WireState, id: number, artIds: ArtIdIndex, onBattlefield = false): BoardCard | null {
   const view = state.get(deltaKey(WireType.Card, id));
   if (view === undefined) return null;
   const face = state.get(cardStateKey(id, readInt(view, 'CurrentState', 0)));
@@ -269,6 +324,8 @@ function toBoardCard(state: WireState, id: number, onBattlefield = false): Board
     collectorNumber: '',
     rarity: RARITY[readEnum(face, 'Rarity') ?? ''] ?? 'special',
   };
+  const scryfallId = scryfallIdFor(artIds, name, card.setCode);
+  if (scryfallId !== undefined) card.scryfallId = scryfallId;
   if (core.includes('Creature')) {
     card.power = String(readInt(face, 'Power'));
     card.toughness = String(readInt(face, 'Toughness'));
@@ -311,14 +368,18 @@ export const PHASE_LABEL: Readonly<Record<string, string>> = {
   CLEANUP: 'Cleanup',
 };
 
-export function toBoardView(state: WireState, seq: number, { viewerPlayerId }: AdaptOptions): BoardView {
+export function toBoardView(
+  state: WireState,
+  seq: number,
+  { viewerPlayerId, artIds = CUBE_ART_IDS }: AdaptOptions,
+): BoardView {
   const game = [...state.values()].find((o) => o._type === WireType.Game);
   const missing: number[] = [];
 
   const cardsIn = (ids: number[], onBattlefield = false): BoardCard[] => {
     const out: BoardCard[] = [];
     for (const id of ids) {
-      const c = toBoardCard(state, id, onBattlefield);
+      const c = toBoardCard(state, id, artIds, onBattlefield);
       if (c === null) missing.push(id);
       else out.push(c);
     }
@@ -354,11 +415,13 @@ export function toBoardView(state: WireState, seq: number, { viewerPlayerId }: A
 
   const stack: StackEntry[] = readIds(game, 'Stack').map((sid) => {
     const item = state.get(deltaKey(WireType.StackItem, sid));
-    const source = prop(item, 'SourceCard') !== undefined ? toBoardCard(state, readInt(item, 'SourceCard')) : null;
+    const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;
+    const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds) : null;
     const activator = prop(item, 'ActivatingPlayer') !== undefined ? readInt(item, 'ActivatingPlayer') : null;
     return {
       id: sid,
       description: readStr(item, 'Description') ?? readStr(item, 'Key') ?? `stack item ${sid}`,
+      sourceCardId,
       sourceName: source?.card.name ?? null,
       controllerName: activator === null ? null : nameOfPlayer(activator),
       isAbility: readBool(item, 'Ability'),

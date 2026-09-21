@@ -1,0 +1,148 @@
+/*
+ * How one card looks on the board: its box, selectable versus inert, tapped,
+ * and the back an opponent's hidden hand is drawn as. Page layout — zone
+ * heights, overflow, how many columns — is `board.css`, not this file.
+ *
+ * Every size here comes from `--card-w`, so the layout can shrink cards per
+ * zone by setting that one property. The box is a card's own proportion
+ * (488 × 680, Scryfall's `normal`), for text tiles too, so a row of cards is
+ * one height whether or not a given card has art.
+ *
+ * Our chrome only: no frames, no mana or tap symbols, no Magic card back. The
+ * art `<img>` itself is `styles.css`'s `.card__art`, unfiltered.
+ */
+
+.board-card {
+  width: var(--card-w, 5.5rem);
+  max-width: 100%;
+}
+
+.board-card__face {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+}
+
+.board-card .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+}
+
+/* ── selectable: Forge said this card may be chosen ──────────────────── */
+
+button.board-card__face {
+  cursor: pointer;
+}
+
+button.board-card__face .card {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+button.board-card__face:hover .card {
+  translate: 0 -3px;
+}
+
+button.board-card__face:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* ── tapped: a quarter turn, inside a landscape box of the same width ─── */
+
+.board-card[data-tapped] .board-card__face {
+  aspect-ratio: 680 / 488;
+}
+
+/*
+ * The card is laid out portrait at the landscape box's HEIGHT, so that turned
+ * a quarter it is exactly the box: width w·488/680, height w, rotated → w wide
+ * and w·488/680 tall.
+ */
+.board-card[data-tapped] .board-card__face > .card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(100% * 488 / 680);
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+/* ── a player Forge says may be chosen (a target, say) ───────────────── */
+
+.seat[data-selectable] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.seat__select {
+  padding: 0 8px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.seat__select:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ── a spell on the stack Forge says may be chosen ───────────────────── */
+
+.stack__item[data-selectable] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.stack__select {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.stack__select:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ── the back of a card: ours, not Magic's ───────────────────────────── */
+
+.card-backs {
+  --card-back-w: calc(var(--card-w, 5.5rem) * 0.5);
+
+  display: flex;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.card-back {
+  flex: none;
+  width: var(--card-back-w);
+  aspect-ratio: 488 / 680;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 0.75);
+  background: repeating-linear-gradient(45deg, var(--bg-card) 0 5px, var(--bg-raised) 5px 10px);
+}
+
+.card-back + .card-back {
+  margin-left: calc(var(--card-back-w) * -0.6);
+}
