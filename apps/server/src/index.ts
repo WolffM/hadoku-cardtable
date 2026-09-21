@@ -78,7 +78,6 @@ import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory, type PlayHandle } from './play/index.js';
-import { attachLab, attachLabRoutes, labLayout } from './lab/index.js';
 import { attachBrowserBridge } from './play/browser/index.js';
 import { attachTables } from './http/index.js';
 import { attachRooms } from './http/rooms.js';
@@ -161,9 +160,6 @@ api.get('/whoami', (req: Request, res: Response) => {
 
 app.use('/api', api);
 
-/** Container n's noVNC port. See lab/index.ts; temporary. */
-const LAB_STREAM_PORT = Number(process.env.CARDTABLE_LAB_STREAM_PORT ?? 6080);
-
 // ── Static bundle ────────────────────────────────────────────────────────────
 // Hashed filenames, so assets are immutable. index.html is handled separately
 // below with no-store: it is the one file whose name does not change, and a
@@ -181,13 +177,6 @@ if (basePath.ok) {
 		})
 	);
 }
-
-// ── The A/B bench's HTTP half (TEMPORARY — delete in w17) ───────────────────
-// MUST be above the SPA fallback. Below it, the fallback answers
-// /lab/stream/0/vnc.html with index.html and both stream links render the
-// cardtable app instead of noVNC — which is what happened on 2026-09-21.
-const LAB_LAYOUT = labLayout();
-attachLabRoutes(app, { minTier: CONFIG.minTier, streamBasePort: LAB_STREAM_PORT, ...LAB_LAYOUT });
 
 // ── SPA fallback ─────────────────────────────────────────────────────────────
 // Every client-routed path serves the same index.html. Scoped to GET/HEAD: a
@@ -305,17 +294,6 @@ play = attachPlay(io, api, {
 // The gate is `CONFIG.minTier` — the same floor `requireMinTier` and both
 // socket attaches enforce, re-applied a third time because an `upgrade` event
 // runs no express middleware. No new tier, no anonymous path, no token.
-// ── The A/B bench (TEMPORARY — delete in w17) ────────────────────────────────
-// Inert unless CARDTABLE_LAB=1. Mounted BELOW requireMinTier, and its websocket
-// half re-applies the floor itself because `upgrade` runs no express
-// middleware. See lab/index.ts for why it exists and when it must go.
-const lab = attachLab(app, httpServer, {
-	minTier: CONFIG.minTier,
-	streamBasePort: LAB_STREAM_PORT,
-	...LAB_LAYOUT,
-});
-if (lab !== null) console.warn('[cardtable] LAB IS ON — /lab/** is live. This is temporary; see lab/index.ts');
-
 const browserBridge = attachBrowserBridge(httpServer, {
 	minTier: CONFIG.minTier,
 	matches: () => play?.matches ?? null,

@@ -129,8 +129,59 @@ jobs:
       - name: E2E — browser
         run: pnpm --filter @hadoku/e2e exec playwright install chromium
 
-      - name: E2E — two friends draft one pod
-        run: pnpm --filter @hadoku/e2e test
+      # ── The Forge match: run it, and prove it RAN ────────────────────────
+      #
+      # Until Wave 17 this step never set `CARDTABLE_FORGE_JAR`, so
+      # `e2e/play.spec.ts`'s match — the ONLY e2e that drives a real child JVM —
+      # self-skipped on every run, and a skip reads as a pass. Green CI meant
+      # 3 of 4. Found in Wave 16.
+      #
+      # The runner is self-hosted on this host (`vars.CI_RUNNER` above), so the
+      # jar production runs and the vendored Forge `res/` are both on disk here.
+      # These are the same two paths the wave gate exports locally.
+      #
+      # SCOPED TO THE E2E STEPS, not the job, on purpose. Job-wide, they would
+      # also un-skip the jar-gated vitest suites in "Test" (`play/jvm.test.ts`,
+      # `http/gate.test.ts`, `play/browser/browser-jvm.test.ts`,
+      # `ui/…/prompts.jvm.test.ts`) — a separate decision, with its own run
+      # time, that nobody has made. Those remain CI-skipped.
+      #
+      # Production is not touched: the harness pins the match's work dir to
+      # `e2e/.run/play-work` (`e2e/play/harness.ts`, `PLAY_WORK_DIR`), so its
+      # boot sweep never reaches production's `/tmp/cardtable-play`.
+      #
+      # Two guards, because either alone is a check that can pass by doing
+      # nothing:
+      #
+      #   1. Forge present, or FAIL. Mirrors `forgeAvailability()` in the
+      #      harness arm for arm — a missing jar or a `res/` without
+      #      `cardsfolder` would make the spec skip, so here it reds instead.
+      #   2. Nothing skipped, or FAIL. Guard 1 cannot see a skip from any
+      #      OTHER cause. So Playwright also writes a JSON report, and the step
+      #      asserts `stats.skipped == 0` from it — reading the tool's own
+      #      tally, not grepping its console. `PW_TEST_REPORTER` is Playwright's
+      #      env hook for adding a reporter without touching the config
+      #      (pinned 1.62.1; `playwright/lib/runner/index.js`). If an upgrade
+      #      ever drops it, the report file is simply absent — and `jq` on an
+      #      absent file exits non-zero, so that reds too rather than passing.
+      - name: E2E — Forge is present, or fail
+        env:
+          CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
+          CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
+        run: |
+          test -f "$CARDTABLE_FORGE_JAR" || { echo "::error::CARDTABLE_FORGE_JAR missing: $CARDTABLE_FORGE_JAR — the Forge match would SKIP"; exit 1; }
+          test -d "$CARDTABLE_FORGE_RES/cardsfolder" || { echo "::error::CARDTABLE_FORGE_RES has no cardsfolder: $CARDTABLE_FORGE_RES — the Forge match would SKIP"; exit 1; }
+
+      - name: E2E — two friends draft one pod, then play a real Forge match
+        env:
+          CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
+          CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
+          PW_TEST_REPORTER: json
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/e2e-report.json
+        run: |
+          rm -f "$PLAYWRIGHT_JSON_OUTPUT_FILE"
+          pnpm --filter @hadoku/e2e test
+          jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null || { echo "::error::e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1) — a skipped test is not a pass"; exit 1; }
 
       # Runs FIRST, and deliberately. A green gate is a claim; this is the
       # demonstration. 65 throwaway fixtures under `mktemp -d`, each arm
