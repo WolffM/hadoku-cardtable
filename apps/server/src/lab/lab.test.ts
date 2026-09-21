@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import { createServer } from 'node:http';
 
-import { attachLab, labIsOn, labLayout, streamIndexOf } from './index.ts';
+import { attachLab, attachLabRoutes, labIsOn, labLayout, streamIndexOf } from './index.ts';
 
 const ORIGINAL = process.env.CARDTABLE_LAB;
 afterEach(() => {
@@ -119,5 +119,45 @@ describe('what the bench exposes, read off the disk', () => {
 				},
 			).streamCount,
 		).toBe(0);
+	});
+});
+
+describe('the bench must be reachable, which is a question about ORDER', () => {
+	/*
+	 * The bug this exists for, 2026-09-21: the lab was mounted next to
+	 * `attachBrowserBridge`, near the bottom of index.ts. That is safe for the
+	 * bridge because an `upgrade` bypasses express routing entirely — but the
+	 * lab has real HTTP routes, and below the SPA fallback every one of them
+	 * was answered with index.html. Both stream links rendered the cardtable
+	 * app, which looked exactly like two browsers joining the same room.
+	 */
+	it('answers its own path when registered BEFORE a catch-all', async () => {
+		const app = express();
+		attachLabRoutes(app, { minTier: 'friend', cheerpjDir: null, streamBasePort: 6080, streamCount: 1, on: () => true });
+		app.use((_req, res) => res.status(200).type('html').send('<html>THE SPA FALLBACK</html>'));
+
+		const server = app.listen(0);
+		const port = (server.address() as { port: number }).port;
+		const res = await fetch(`http://127.0.0.1:${String(port)}/lab/stream/0/vnc.html`);
+		const body = await res.text();
+		server.close();
+
+		// It may 502 — there is no container in a unit test — but it must NOT be
+		// the fallback's HTML. A 200 of index.html here is the whole bug.
+		expect(body).not.toContain('THE SPA FALLBACK');
+	});
+
+	it('CATCHES THE BUG: a catch-all registered first swallows the bench', async () => {
+		// The mutation, as a test. This is what index.ts did.
+		const app = express();
+		app.use((_req, res) => res.status(200).type('html').send('<html>THE SPA FALLBACK</html>'));
+		attachLabRoutes(app, { minTier: 'friend', cheerpjDir: null, streamBasePort: 6080, streamCount: 1, on: () => true });
+
+		const server = app.listen(0);
+		const port = (server.address() as { port: number }).port;
+		const body = await (await fetch(`http://127.0.0.1:${String(port)}/lab/stream/0/vnc.html`)).text();
+		server.close();
+
+		expect(body).toContain('THE SPA FALLBACK');
 	});
 });

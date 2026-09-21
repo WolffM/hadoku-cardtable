@@ -150,21 +150,28 @@ export function labIsOn(exists: (p: string) => boolean = existsSync): boolean {
 	}
 }
 
-export function attachLab(app: Router, server: Server, deps: LabDeps): LabHandle | null {
-	if (!(deps.on ?? labIsOn)()) return null;
+/**
+ * The HTTP half. **Must be registered BEFORE the SPA fallback.**
+ *
+ * This is split from the upgrade half for one reason, learned the hard way on
+ * 2026-09-21: `attachBrowserBridge` sits near the bottom of `index.ts` and that
+ * is safe, because an `upgrade` event bypasses express routing entirely and
+ * order cannot matter. The lab has real HTTP routes, so order matters
+ * completely — mounted in the same place, the SPA fallback answered
+ * `/lab/stream/0/vnc.html` with index.html, and both stream links rendered the
+ * cardtable app instead of noVNC. It looked exactly like two browsers joining
+ * one room.
+ */
+export function attachLabRoutes(app: Router, deps: LabDeps): boolean {
+	if (!(deps.on ?? labIsOn)()) return false;
 	const log = deps.log ?? (() => {});
-
 	const lab = express.Router();
 
-	// ── CheerpJ: static, and that is the whole of it ──────────────────────────
-	// The site is a directory of files. It needs no proxy, which is why only the
-	// streamed half below is real plumbing.
 	if (deps.cheerpjDir !== null) {
 		lab.use('/cheerpj', express.static(deps.cheerpjDir, { index: 'index.html', dotfiles: 'ignore' }));
 		log({ evt: 'lab-cheerpj', dir: deps.cheerpjDir });
 	}
 
-	// ── Streamed Forge: HTTP to noVNC, and the upgrade below ──────────────────
 	for (let n = 0; n < deps.streamCount; n += 1) {
 		const port = deps.streamBasePort + n;
 		lab.use(`/stream/${String(n)}`, (req, res) => {
@@ -175,13 +182,19 @@ export function attachLab(app: Router, server: Server, deps: LabDeps): LabHandle
 			upstream.on('error', () => {
 				if (!res.headersSent) res.status(502).type('text').send(`no stream container on ${String(port)}`);
 			});
-			// Raw pipe: noVNC's own HTML/JS, unmodified.
 			upstream.pipe(res.socket ?? res);
 			res.socket?.on('close', () => upstream.destroy());
 		});
 	}
 
 	app.use('/lab', lab);
+	log({ evt: 'lab-routes', cheerpj: deps.cheerpjDir !== null, streams: deps.streamCount });
+	return true;
+}
+
+export function attachLab(_app: Router, server: Server, deps: LabDeps): LabHandle | null {
+	if (!(deps.on ?? labIsOn)()) return null;
+	const log = deps.log ?? (() => {});
 
 	// ── The websocket half ────────────────────────────────────────────────────
 	// noVNC talks RFB over a websocket to websockify. express never sees an
@@ -220,7 +233,7 @@ export function attachLab(app: Router, server: Server, deps: LabDeps): LabHandle
 	};
 
 	server.on('upgrade', onUpgrade);
-	log({ evt: 'lab-attached', cheerpj: deps.cheerpjDir !== null, streams: deps.streamCount });
+	log({ evt: 'lab-attached', streams: deps.streamCount });
 
 	return {
 		close(): void {
