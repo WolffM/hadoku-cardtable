@@ -78,6 +78,7 @@ import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory, type PlayHandle } from './play/index.js';
+import { attachLab } from './lab/index.js';
 import { attachBrowserBridge } from './play/browser/index.js';
 import { attachTables } from './http/index.js';
 import { attachRooms } from './http/rooms.js';
@@ -294,6 +295,18 @@ play = attachPlay(io, api, {
 // The gate is `CONFIG.minTier` — the same floor `requireMinTier` and both
 // socket attaches enforce, re-applied a third time because an `upgrade` event
 // runs no express middleware. No new tier, no anonymous path, no token.
+// ── The A/B bench (TEMPORARY — delete in w17) ────────────────────────────────
+// Inert unless CARDTABLE_LAB=1. Mounted BELOW requireMinTier, and its websocket
+// half re-applies the floor itself because `upgrade` runs no express
+// middleware. See lab/index.ts for why it exists and when it must go.
+const lab = attachLab(app, httpServer, {
+	minTier: CONFIG.minTier,
+	cheerpjDir: process.env.CARDTABLE_LAB_CHEERPJ_DIR ?? null,
+	streamBasePort: Number(process.env.CARDTABLE_LAB_STREAM_PORT ?? 6080),
+	streamCount: Number(process.env.CARDTABLE_LAB_STREAMS ?? 0),
+});
+if (lab !== null) console.warn('[cardtable] LAB IS ON — /lab/** is live. This is temporary; see lab/index.ts');
+
 const browserBridge = attachBrowserBridge(httpServer, {
 	minTier: CONFIG.minTier,
 	matches: () => play?.matches ?? null,
