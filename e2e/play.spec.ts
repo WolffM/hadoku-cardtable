@@ -620,9 +620,19 @@ test(LIVE_TITLE, async ({ browser }) => {
     // Whoever holds the enabled bar must be able to answer it by clicking
     // their own page. If this fails, a human is stuck exactly where the
     // operator was on 2026-09-19.
-    const withBar = await Promise.all(
-      [alice, bob].map(async (f) => ({ f, n: await f.page.getByTestId('live-buttons').count() })),
-    );
+    //
+    // The bar itself is on BOTH pages in every frame now (it has a fixed
+    // home and never comes and goes), so the seat Forge is asking is the one
+    // whose OK is ENABLED — and it must be exactly one of them.
+    const seats = [alice, bob];
+    const enabledOk = async (f: Friend) => f.page.locator('[data-testid="live-button-ok"]:enabled').count();
+    await expect
+      .poll(async () => (await Promise.all(seats.map(enabledOk))).reduce((a, b) => a + b, 0), {
+        timeout: 30_000,
+        message: 'exactly one seat’s board must offer Forge’s opening OK',
+      })
+      .toBe(1);
+    const withBar = await Promise.all(seats.map(async (f) => ({ f, n: await enabledOk(f) })));
     const decider = withBar.find((w) => w.n > 0);
     expect(decider, 'neither board drew Forge\'s button bar — the match cannot be started by a human').toBeTruthy();
 

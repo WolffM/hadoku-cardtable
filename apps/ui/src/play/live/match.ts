@@ -56,6 +56,47 @@
  * the seam Wave 9 proved with `showConfirmDialog`. `answerConfirm` is that
  * call with the method filled in.
  *
+ * ## Clicking the board: Forge's inputs, never our rules
+ *
+ * Playing a land, casting a spell, choosing a target, declaring an attacker:
+ * on Forge's side each is an `Input` (`forge-gui/.../match/input/`) that takes
+ * `selectCard` / `selectPlayer` and decides for itself what a click means.
+ * Forge's own desktop client sends a click on ANY card to whatever input is
+ * current (`HandArea`, `PlayArea`, `VZone` → `selectCard`), and the input
+ * ignores what it cannot use — `InputPassPriority.onCardSelected` returns
+ * false for a card with no playable ability. Forge tells a client which cards
+ * it will take in only one case: a selection (`InputSelectTargets`,
+ * `InputSelectEntitiesFromList`) calls `setSelectables(cards, min, max)` when
+ * it starts and `clearSelectables()` when it stops. The priority input sends
+ * no set at all. So `boardInteraction` offers:
+ *
+ *  - **during a selection**, exactly the cards Forge listed — nothing else;
+ *  - **otherwise, while Forge's input is live**, every card and player the
+ *    seat was sent, as the desktop does. Whether the click does anything is
+ *    Forge's call, not ours: we implement no rules.
+ *
+ * What keeps a click from answering the wrong question is the button bar's
+ * rule, applied per card: **a click is checked against Forge's state when it
+ * is made, and the card it sent is not clickable again until Forge speaks.**
+ *
+ *  - `inputLive` is set by the frames Forge sends when an input shows itself
+ *    (`showPromptMessage`, `updateButtons`, `setSelectables`) and cleared by
+ *    `clearSelectables` (the input that listed the cards has stopped), by a
+ *    button press, by a snapshot and by an epoch change. While it is clear,
+ *    or while a question is open, NO click is sent.
+ *  - A click on an id Forge did not offer — one a cleared or replaced
+ *    selection used to hold, one no longer on the board — is not sent.
+ *  - A card or player once clicked is `spent` until Forge's next frame of
+ *    those kinds, so a double click cannot reach the NEXT input (a land
+ *    clicked twice would be played, then tapped for mana).
+ *
+ * Why a click does not spend the whole input, as a button press does:
+ * measured against the real jar (`./board-play.jvm.test.ts`), a click the
+ * input ignores — a second land in one turn — gets NO frame back at all
+ * (`InputPassPriority.onCardSelected` returns false and shows nothing). A
+ * board that locked on every click would lock for good on a misclick, with
+ * only "pass priority" left to press.
+ *
  * ## An open prompt never holds the board back
  *
  * A prompt arrives mid-priority, with the state channel still moving (the
@@ -217,6 +258,23 @@ export interface MatchStats {
   aborts: number;
 }
 
+/**
+ * Forge's `setSelectables(cards, min, max)`: the cards its current selection
+ * will take, and how many it needs. REPLACED by the next set, dropped by
+ * `clearSelectables`.
+ */
+export interface LiveSelectables {
+  cards: ReadonlySet<number>;
+  min: number;
+  max: number;
+}
+
+/** What the board may click right now — `Board`'s `BoardInteraction`, without the callbacks. */
+export interface LiveClickables {
+  selectable: ReadonlySet<number>;
+  selectablePlayers: ReadonlySet<number>;
+}
+
 /** Forge's two-button bar. `label1` is OK/Play, `label2` is Cancel/Draw. */
 export interface LiveButtons {
   label1: string;
@@ -258,6 +316,15 @@ export interface LiveMatch {
    */
   prompt: string | null;
   buttons: LiveButtons | null;
+  /** Forge's current selection, from `setSelectables`. Null: none is open. */
+  selectables: LiveSelectables | null;
+  /**
+   * Forge has shown an input since this client last acted. See the module
+   * header: without it, no card or player click is sent.
+   */
+  inputLive: boolean;
+  /** Cards and players clicked since Forge last spoke — not clickable again until it does. */
+  spent: { cards: Set<number>; players: Set<number> };
   /** The most recent failure worth showing. Cleared when a snapshot lands. */
   lastError: string | null;
   /** Why the most recent malformed envelope or frame was refused. */
@@ -339,6 +406,9 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     asks: [],
     prompt: null,
     buttons: null,
+    selectables: null,
+    inputLive: false,
+    spent: { cards: new Set(), players: new Set() },
     lastError: null,
     lastInvalid: null,
     lastVerdict: null,
@@ -429,10 +499,75 @@ export function pressButton(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
   const bar = match.buttons;
   if (bar === null) return false;
   if (which === 'ok' ? !bar.enable1 : !bar.enable2) return false;
+  // Forge's game thread is parked on the open question; a press now would
+  // reach whichever input is current once it is answered.
+  if (match.asks.length > 0) return false;
   send(match, { kind: 'act', method: which === 'ok' ? 'selectButtonOk' : 'selectButtonCancel' });
   // Forge sends a fresh bar for the next decision; until it does, the bar we
   // just answered must not be pressable twice.
   match.buttons = { ...bar, enable1: false, enable2: false };
+  match.inputLive = false;
+  match.stats.replies += 1;
+  notify(match);
+  return true;
+}
+
+const NOTHING: LiveClickables = { selectable: new Set(), selectablePlayers: new Set() };
+
+/** Every card id the seat was sent: all its zones, and the stack's sources. */
+function cardIdsInView(view: BoardView): Set<number> {
+  const ids = new Set<number>();
+  for (const p of view.players) {
+    for (const zone of [p.hand ?? [], p.battlefield, p.graveyard, p.exile]) for (const c of zone) ids.add(c.id);
+  }
+  for (const item of view.stack) if (item.sourceCardId !== null) ids.add(item.sourceCardId);
+  return ids;
+}
+
+/**
+ * What the board may click now — see the module header. Forge's list during
+ * a selection; every card and player the seat holds while an input is live
+ * and nothing is being asked; otherwise nothing.
+ */
+export function boardInteraction(match: LiveMatch): LiveClickables {
+  const view = match.view;
+  if (view === null || !match.inputLive || !match.connected || match.asks.length > 0) return NOTHING;
+  const offered = match.selectables === null ? cardIdsInView(view) : new Set(match.selectables.cards);
+  for (const id of match.spent.cards) offered.delete(id);
+  const players = new Set(view.players.map((p) => p.id));
+  for (const id of match.spent.players) players.delete(id);
+  return { selectable: offered, selectablePlayers: players };
+}
+
+/**
+ * Click a card: Forge's `selectCard`. Sends nothing, and returns false, when
+ * the card is not clickable NOW (`boardInteraction`) — a stale click would be
+ * taken by whatever Forge asks next. `triggerEvent` is null, as it is for
+ * every click that is not a mouse event in Forge's own Swing UI: with null,
+ * a card with several abilities comes back as a `getAbilityToPlay` ask
+ * (`CMatchUI.getAbilityToPlay`), which `../prompts/` answers.
+ */
+export function selectCard(match: LiveMatch, cardId: number): boolean {
+  if (!boardInteraction(match).selectable.has(cardId)) return false;
+  match.spent.cards.add(cardId);
+  return sendAct(match, {
+    kind: 'act',
+    method: 'selectCard',
+    card: { kind: 'card', id: cardId },
+    otherCardViewsToSelect: [],
+    triggerEvent: null,
+  });
+}
+
+/** Click a player: Forge's `selectPlayer`. Same rule as `selectCard`. */
+export function selectPlayer(match: LiveMatch, playerId: number): boolean {
+  if (!boardInteraction(match).selectablePlayers.has(playerId)) return false;
+  match.spent.players.add(playerId);
+  return sendAct(match, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: playerId }, triggerEvent: null });
+}
+
+function sendAct(match: LiveMatch, frame: Extract<ClientEnvelope['frame'], { kind: 'act' }>): boolean {
+  send(match, frame);
   match.stats.replies += 1;
   notify(match);
   return true;
@@ -554,6 +689,11 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.skippedDeltas = 0;
   // The server re-sends every open ask after the snapshot, as normal frames.
   match.asks = [];
+  // It does NOT re-send a selection (`resendAfterSnapshot` keeps only the
+  // prompt and the bar), so one held from before cannot be trusted.
+  match.selectables = null;
+  match.inputLive = false;
+  unspend(match);
   match.lastError = null;
   match.lastInvalid = null;
   foldFrames(match, snapshot.frames);
@@ -724,10 +864,13 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     const i = match.asks.findIndex((a) => a.callId === frame.callId);
     if (i < 0) match.asks.push(frame);
     else match.asks[i] = frame;
+    unspend(match);
     return;
   }
+  if (INPUT_FRAMES.has(frame.method)) unspend(match);
   if (frame.kind === 'notify' && frame.method === 'showPromptMessage') {
     match.prompt = typeof frame.message === 'string' ? frame.message : null;
+    match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'updateButtons') {
     match.buttons = {
       label1: typeof frame.label1 === 'string' ? frame.label1 : 'OK',
@@ -735,8 +878,22 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
       enable1: frame.enable1 === true,
       enable2: frame.enable2 === true,
     };
+    match.inputLive = true;
+  } else if (frame.kind === 'notify' && frame.method === 'setSelectables') {
+    match.selectables = { cards: new Set(frame.cards.map((c) => c.id)), min: frame.min, max: frame.max };
+    match.inputLive = true;
+  } else if (frame.kind === 'notify' && frame.method === 'clearSelectables') {
+    match.selectables = null;
+    match.inputLive = false;
   }
   foldFrames(match, [frame]);
+}
+
+/** The frames Forge sends when an input shows, refreshes or stops: "Forge spoke". */
+const INPUT_FRAMES: ReadonlySet<string> = new Set(['showPromptMessage', 'updateButtons', 'setSelectables', 'clearSelectables']);
+
+function unspend(match: LiveMatch): void {
+  match.spent = { cards: new Set(), players: new Set() };
 }
 
 function discardLocal(match: LiveMatch): void {
@@ -748,4 +905,7 @@ function discardLocal(match: LiveMatch): void {
   match.asks = [];
   match.prompt = null;
   match.buttons = null;
+  match.selectables = null;
+  match.inputLive = false;
+  unspend(match);
 }

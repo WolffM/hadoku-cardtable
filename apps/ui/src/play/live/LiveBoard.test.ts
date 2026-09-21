@@ -17,7 +17,7 @@ import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
 import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
 import { LiveBoard } from './LiveBoard.tsx';
-import { closeMatch, currentAsk, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
+import { closeMatch, currentAsk, pressButton, selectCard, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, type ReplayServer } from './replay-server.ts';
 
 let server: ReplayServer | null = null;
@@ -278,9 +278,8 @@ describe('Forge asks with buttons, not only with asks', () => {
       s.send(f);
     }
 
-    await waitFor(() => expect(getByTestId('live-buttons')).toBeTruthy());
+    await waitFor(() => expect(getByTestId('live-button-ok').textContent).toBe('Play'));
     expect(getByTestId('live-says').textContent).toContain('coin toss');
-    expect(getByTestId('live-button-ok').textContent).toBe('Play');
     expect(getByTestId('live-button-cancel').textContent).toBe('Draw');
 
     const before = m.stats.replies;
@@ -297,18 +296,93 @@ describe('Forge asks with buttons, not only with asks', () => {
   });
 
   it('a bar Forge has disabled is not pressable, so a stale click cannot answer the NEXT question', async () => {
-    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const { s, m, getByTestId } = await liveBoard();
 
     for (const f of buttonFrames('Choose', 'OK', 'Cancel')) s.send(f);
-    await waitFor(() => expect(getByTestId('live-buttons')).toBeTruthy());
+    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
 
     fireEvent.click(getByTestId('live-button-ok'));
-    await waitFor(() => expect(queryByTestId('live-buttons')).toBeNull());
+    // The bar stays where it is; its buttons go disabled until Forge sends a fresh one.
+    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(true));
+    expect(getByTestId('live-buttons')).toBeTruthy();
+    expect((getByTestId('live-button-cancel') as HTMLButtonElement).disabled).toBe(true);
 
-    // A second click cannot happen because the bar is gone; and the state
-    // refuses it even if something held a reference.
-    const after = m.stats.replies;
-    expect(m.buttons?.enable1).toBe(false);
-    expect(m.stats.replies).toBe(after);
+    fireEvent.click(getByTestId('live-button-ok'));
+    expect(pressButton(m, 'ok')).toBe(false);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(m.stats.replies).toBe(1);
   });
-})
+
+  it('the bar is there before Forge has sent one: neutral labels, both buttons disabled, nothing said', async () => {
+    const { getByTestId } = await liveBoard();
+    expect(getByTestId('live-says').textContent).toBe('');
+    const ok = getByTestId('live-button-ok') as HTMLButtonElement;
+    const cancel = getByTestId('live-button-cancel') as HTMLButtonElement;
+    expect([ok.textContent, cancel.textContent, ok.disabled, cancel.disabled]).toEqual(['OK', 'Cancel', true, true]);
+  });
+
+  it('the bar stays while a question is open, disabled, and a press sends nothing', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    for (const f of buttonFrames('Priority', 'OK', 'End Turn')) s.send(f);
+    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
+
+    s.send(confirmAsk('c-open'));
+    await waitFor(() => getByTestId('confirm-dialog'));
+    const ok = getByTestId('live-button-ok') as HTMLButtonElement;
+    expect([ok.disabled, (getByTestId('live-button-cancel') as HTMLButtonElement).disabled]).toEqual([true, true]);
+    expect(getByTestId('live-button-cancel').textContent).toBe('End Turn');
+    expect(getByTestId('live-says').textContent).toBe('Priority');
+    fireEvent.click(ok);
+    expect(pressButton(m, 'ok')).toBe(false);
+    expect(m.stats.replies).toBe(0);
+
+    fireEvent.click(getByTestId('confirm-dialog').querySelector('[data-answer="yes"]')!);
+    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
+    expect(s.clientFrames().map((f) => (f.ok ? f.value.kind : null))).toEqual(['reply']);
+  });
+});
+
+/*
+ * The board's cards, clicked. `Board` draws a card as a button only when
+ * `boardInteraction` offers it; the click goes to `selectCard`, which checks
+ * Forge's CURRENT state before sending.
+ */
+describe('clicking a card on the live board', () => {
+  function notify(raw: unknown[]) {
+    return raw.map((r) => parseServerFrame(r));
+  }
+
+  it('a card Forge lists is clickable and sends selectCard; once Forge clears the list it is inert and sends nothing', async () => {
+    const { s, m, container } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const [target, other] = [mine[0]!, mine[1]!];
+    const button = (id: number) => container.querySelector<HTMLButtonElement>(`[data-board-card="${id}"] button`);
+    expect(button(target)).toBeNull();
+
+    for (const f of notify([
+      { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Select a target', card: null },
+      { kind: 'notify', method: 'setSelectables', cards: [{ kind: 'card', id: target }], min: 1, max: 1 },
+    ])) {
+      s.send(f);
+    }
+    await waitFor(() => expect(button(target)).not.toBeNull());
+    expect(button(other)).toBeNull();
+    expect(container.querySelector(`[data-board-card="${target}"]`)!.hasAttribute('data-selectable')).toBe(true);
+
+    fireEvent.click(button(target)!);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(s.clientFrames()[0]).toEqual({
+      ok: true,
+      value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: target }, otherCardViewsToSelect: [], triggerEvent: null },
+    });
+    // Spent: not a button again until Forge speaks.
+    await waitFor(() => expect(button(target)).toBeNull());
+
+    s.send(parseServerFrame({ kind: 'notify', method: 'clearSelectables' }));
+    await waitFor(() => expect(m.selectables).toBeNull());
+    expect(button(target)).toBeNull();
+    expect(button(other)).toBeNull();
+    expect(selectCard(m, target)).toBe(false);
+    expect(m.stats.replies).toBe(1);
+  });
+});

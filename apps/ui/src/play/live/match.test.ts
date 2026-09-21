@@ -18,10 +18,14 @@ import {
   abortAsk,
   answerAsk,
   answerConfirm,
+  boardInteraction,
   closeMatch,
   currentAsk,
   ingest,
   MAX_RESYNCS_WITHOUT_PROGRESS,
+  pressButton,
+  selectCard,
+  selectPlayer,
   socketIoMatchTransport,
   startMatch,
   type LiveMatch,
@@ -443,5 +447,170 @@ describe('the viewer comes from the snapshot', () => {
       [0, false, null, 5],
       [1, false, null, 2],
     ]);
+  });
+});
+
+/*
+ * Clicking the board. Forge says what it will take — a selection's cards via
+ * `setSelectables`, otherwise whatever the current input makes of a click —
+ * and a click is checked against what Forge said LAST, when it is made. Every
+ * "sends nothing" below is proven against a barrier: a valid act sent after
+ * it, which must be the FIRST frame the server receives (socket.io keeps a
+ * socket's order), so a refused click cannot be hiding behind a slow wire.
+ */
+describe('clicking the board: selectCard, selectPlayer, and Forge’s selectables', () => {
+  const prompt = (message: string) =>
+    parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null });
+  const bar = (enable1: boolean) =>
+    parseServerFrame({
+      kind: 'notify',
+      method: 'updateButtons',
+      owner: { kind: 'player', id: 0 },
+      label1: 'OK',
+      label2: 'Cancel',
+      enable1,
+      enable2: false,
+      focus1: true,
+    });
+  const selectables = (ids: number[], min: number, max: number) =>
+    parseServerFrame({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max });
+  const clear = () => parseServerFrame({ kind: 'notify', method: 'clearSelectables' });
+
+  /** Card ids on the fixture board: the viewer's battlefield, and the opponent's. */
+  function ids(m: LiveMatch): { mine: number[]; theirs: number[] } {
+    const players = m.view!.players;
+    const mine = players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const theirs = players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
+    expect(mine.length).toBeGreaterThan(1);
+    expect(theirs.length).toBeGreaterThan(0);
+    return { mine, theirs };
+  }
+
+  const cardAct = (id: number) => ({
+    ok: true,
+    value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null },
+  });
+
+  /** Send a known-good act and require it to be the first thing the server got. */
+  async function barrier(s: ReplayServer, m: LiveMatch, id: number): Promise<void> {
+    await sendAndApply(s, m, [prompt('barrier')]);
+    expect(selectCard(m, id)).toBe(true);
+    await until('the barrier act', () => s.clientFrames().length >= 1);
+    expect(s.clientFrames()).toEqual([cardAct(id)]);
+  }
+
+  it('setSelectables is held with its min and max, REPLACED by the next set, and dropped by clearSelectables', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    await sendAndApply(s, m, [selectables([mine[0]!, theirs[0]!], 1, 2)]);
+    expect(m.selectables).toEqual({ cards: new Set([mine[0], theirs[0]]), min: 1, max: 2 });
+    expect(boardInteraction(m).selectable).toEqual(new Set([mine[0], theirs[0]]));
+
+    await sendAndApply(s, m, [selectables([mine[1]!], 0, 1)]);
+    expect(m.selectables).toEqual({ cards: new Set([mine[1]]), min: 0, max: 1 });
+    expect(boardInteraction(m).selectable).toEqual(new Set([mine[1]]));
+
+    await sendAndApply(s, m, [clear()]);
+    expect(m.selectables).toBeNull();
+    expect(boardInteraction(m).selectable.size).toBe(0);
+  });
+
+  it('a click on a selectable Forge has CLEARED sends nothing', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Select targets'), selectables([mine[0]!], 1, 1), clear()]);
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    await barrier(s, m, mine[1]!);
+  });
+
+  it('a click on a card only the REPLACED set held sends nothing', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    await sendAndApply(s, m, [selectables([mine[0]!, theirs[0]!], 1, 1), selectables([theirs[0]!], 1, 1)]);
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    expect(selectCard(m, theirs[0]!)).toBe(true);
+    await until('the act', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()).toEqual([cardAct(theirs[0]!)]);
+  });
+
+  it('during a selection only Forge’s cards are offered; outside one, every card the seat holds', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    const open = boardInteraction(m);
+    for (const id of [...mine, ...theirs]) expect(open.selectable.has(id)).toBe(true);
+    expect(open.selectablePlayers).toEqual(new Set(m.view!.players.map((p) => p.id)));
+
+    await sendAndApply(s, m, [selectables([theirs[0]!], 1, 1)]);
+    expect(boardInteraction(m).selectable).toEqual(new Set([theirs[0]]));
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    await barrier(s, m, theirs[0]!);
+  });
+
+  it('a card clicked is spent until Forge speaks again: a double click sends once', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    // Another card is still Forge's to judge: an ignored click gets no answer.
+    expect(selectCard(m, mine[1]!)).toBe(true);
+    await until('two acts', () => s.clientFrames().length === 2);
+    expect(s.clientFrames()).toEqual([cardAct(mine[0]!), cardAct(mine[1]!)]);
+
+    await sendAndApply(s, m, [prompt('Priority again')]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await until('the third act', () => s.clientFrames().length === 3);
+    expect(m.stats.replies).toBe(3);
+  });
+
+  it('nothing is clicked while a question is open, before Forge has shown an input, or for an id not on the board', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    expect(selectPlayer(m, 1)).toBe(false);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), optionAsk('c-open')]);
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    expect(pressButton(m, 'ok')).toBe(false);
+    expect(answerAsk(m, 'c-open', 'showOptionDialog', 0)).toBe(true);
+    await until('the reply', () => s.clientFrames().length === 1);
+    expect(selectCard(m, 999_999)).toBe(false);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await until('the act', () => s.clientFrames().length === 2);
+    expect(s.clientFrames().map((f) => (f.ok && 'method' in f.value ? f.value.method : null))).toEqual(['showOptionDialog', 'selectCard']);
+  });
+
+  it('a button press spends the whole input: no click until Forge shows the next one', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    expect(pressButton(m, 'ok')).toBe(true);
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    await until('the press', () => s.clientFrames().length === 1);
+    await sendAndApply(s, m, [prompt('Next'), bar(true)]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await until('the click', () => s.clientFrames().length === 2);
+    expect(s.clientFrames().map((f) => (f.ok && 'method' in f.value ? f.value.method : null))).toEqual(['selectButtonOk', 'selectCard']);
+  });
+
+  it('selectPlayer carries the player, and a snapshot drops a selection the server will not re-send', async () => {
+    const { s, m } = await fullGame();
+    const { theirs } = ids(m);
+    await sendAndApply(s, m, [prompt('Target'), selectables([theirs[0]!], 1, 1)]);
+    expect(selectPlayer(m, 1)).toBe(true);
+    expect(selectPlayer(m, 1)).toBe(false);
+    await until('the act', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()[0]).toEqual({
+      ok: true,
+      value: { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: 1 }, triggerEvent: null },
+    });
+
+    s.lose(prompt('lost'));
+    s.send(prompt('after the gap'));
+    await until('the resync', () => m.stats.snapshots === 2);
+    expect(m.selectables).toBeNull();
+    expect(selectCard(m, theirs[0]!)).toBe(false);
   });
 });

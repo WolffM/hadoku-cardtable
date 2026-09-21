@@ -24,14 +24,41 @@
  * A prompt component that throws is a bug in that component — and Forge's
  * thread is parked on the ask it failed to draw. `PromptBoundary` aborts that
  * ask (`unsupported`) so Forge takes its own default, and says so on screen.
+ *
+ * ## Clicks on the board
+ *
+ * `Board` gets a `BoardInteraction` built from `boardInteraction(match)` —
+ * Forge's selection, or every card while Forge's input is live (`./match.ts`
+ * says why) — and its callbacks go to `selectCard` / `selectPlayer`, which
+ * check the CURRENT state again before sending anything.
+ *
+ * ## The button bar never comes and goes
+ *
+ * It is drawn in every frame, with the same children, so the table does not
+ * jump when Forge asks or stops asking. A button is disabled unless Forge
+ * enabled it AND no question is open; `pressButton` refuses the same cases, so
+ * a disabled button that is somehow pressed still sends nothing. With no bar
+ * from Forge yet, the buttons carry neutral labels.
  */
 
 import { Component, useSyncExternalStore, type ReactNode } from 'react';
 
-import { Board } from '../Board.tsx';
+import { Board, type BoardInteraction } from '../Board.tsx';
 import { PromptFor, isPromptMethod, lookupFromState, type AskOf, type PromptMethod } from '../prompts/index.ts';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
-import { abortAsk, answerAsk, answerConfirm, currentAsk, pressButton, subscribe, type LiveAsk, type LiveMatch } from './match.ts';
+import {
+  abortAsk,
+  answerAsk,
+  answerConfirm,
+  boardInteraction,
+  currentAsk,
+  pressButton,
+  selectCard,
+  selectPlayer,
+  subscribe,
+  type LiveAsk,
+  type LiveMatch,
+} from './match.ts';
 import './live.css';
 
 /** One line of plain words for where the connection is. */
@@ -88,6 +115,12 @@ export function LiveBoard({ match }: { match: LiveMatch }) {
     () => match.revision,
   );
   const ask = currentAsk(match);
+  const bar = match.buttons;
+  const interaction: BoardInteraction = {
+    ...boardInteraction(match),
+    onSelectCard: (cardId) => selectCard(match, cardId),
+    onSelectPlayer: (playerId) => selectPlayer(match, playerId),
+  };
 
   return (
     <div className="live">
@@ -102,33 +135,29 @@ export function LiveBoard({ match }: { match: LiveMatch }) {
       {match.view === null ? (
         <p className="live__waiting">Waiting for the game state.</p>
       ) : (
-        <Board view={match.view} />
+        <Board view={match.view} interaction={interaction} />
       )}
-      {ask === null && match.buttons !== null && (match.buttons.enable1 || match.buttons.enable2) && (
-        <div className="live__buttons" data-testid="live-buttons">
-          {match.prompt !== null && (
-            <p className="live__says" data-testid="live-says">
-              {match.prompt}
-            </p>
-          )}
-          <button
-            type="button"
-            data-testid="live-button-ok"
-            disabled={!match.buttons.enable1}
-            onClick={() => pressButton(match, 'ok')}
-          >
-            {match.buttons.label1}
-          </button>
-          <button
-            type="button"
-            data-testid="live-button-cancel"
-            disabled={!match.buttons.enable2}
-            onClick={() => pressButton(match, 'cancel')}
-          >
-            {match.buttons.label2}
-          </button>
-        </div>
-      )}
+      <div className="live__buttons" data-testid="live-buttons">
+        <p className="live__says" data-testid="live-says">
+          {match.prompt ?? ''}
+        </p>
+        <button
+          type="button"
+          data-testid="live-button-ok"
+          disabled={ask !== null || bar === null || !bar.enable1}
+          onClick={() => pressButton(match, 'ok')}
+        >
+          {bar === null || bar.label1 === '' ? 'OK' : bar.label1}
+        </button>
+        <button
+          type="button"
+          data-testid="live-button-cancel"
+          disabled={ask !== null || bar === null || !bar.enable2}
+          onClick={() => pressButton(match, 'cancel')}
+        >
+          {bar === null || bar.label2 === '' ? 'Cancel' : bar.label2}
+        </button>
+      </div>
       {ask !== null && (
         <div className="live__prompt" data-testid="live-prompt" data-call-id={ask.callId} data-method={ask.method}>
           <PromptBoundary
