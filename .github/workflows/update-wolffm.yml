@@ -1,0 +1,228 @@
+name: Auto-update @wolffm packages
+
+# NO `schedule:` TRIGGER HERE — deliberate, do not add one back.
+#
+# The daily safety net moved to hadoku_site's cron-worker, where a Temporal
+# schedule fires ON TIME: `services/cron-worker/profiles.json` -> repo-sync
+# profile (13:00 UTC / 06:00 Pacific, the last daily profile) -> tail job
+# `ci:wolffm-fanout` -> `services/mgmt-api/src/routes/jobs/wolffm-fanout.ts`,
+# which dispatches `wolffm_published` to every consumer in child-apps.json.
+# That job throws on a non-204, so a dropped dispatch pages Discord — louder
+# than this cron ever was, since a failed CI fan-out only emits a warning and
+# leaves its run green.
+#
+# A GitHub Actions `schedule` is the wrong trigger for anything that ends in a
+# deploy, because it does not fire when it says it does. Measured across 46
+# runs of this same `0 */6 * * *` expression in hadoku-watchparty: median
+# +57min late, max +162min, worst at the 00:00 UTC slot (median +105min)
+# because midnight UTC is the most contended cron minute on the platform.
+# 00:00 UTC is 17:00 Pacific — on 2026-08-10 that slot landed at 18:52 Pacific
+# and redeployed production into a live watch party.
+#
+# Fast path is unchanged: a publish still dispatches `wolffm_published`
+# immediately via hadoku_site's update-packages.yml fan-out.
+on:
+  repository_dispatch:
+    types: [wolffm_published]
+  workflow_dispatch:
+
+concurrency:
+  group: update-wolffm
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  packages: read
+  issues: write
+
+jobs:
+  update:
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 10
+    steps:
+      - name: Mark the start, so the reported duration is real
+        run: echo "JOB_STARTED_AT=$(date -u +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v6
+        with:
+          # The bot pushes straight to a protected main. The default GITHUB_TOKEN
+          # is not an admin, so its push is rejected with "protected branch hook
+          # declined" — and only when there is actually something to push, which
+          # is why this can sit green for weeks. HADOKU_SITE_TOKEN is WolffM's
+          # PAT and the branch has enforce_admins=false, so it bypasses. Same
+          # fix hadoku-task (4276cf2e) and hadoku-resume-bot already took.
+          token: ${{ secrets.HADOKU_SITE_TOKEN }}
+          fetch-depth: 0
+
+      # CARDTABLE: setup-pnpm, not the template's corepack + `.npmrc` overwrite.
+      #
+      # This repo TRACKS `.npmrc` (registry line only, no token). The template
+      # writes a literal token into it, which (a) leaves a secret in the working
+      # tree one careless `git add` away from a commit, and (b) makes
+      # `git status --porcelain` non-empty on EVERY run, so a run with nothing
+      # to update would try to commit and fail. setup-pnpm writes the credential
+      # outside the repo and asserts it is non-empty — the same action ci.yml
+      # uses, with the same Node 24 pin (the action defaults to 22).
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        with:
+          node-version: '24'
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+
+      - name: Update @wolffm/* to latest (majors included)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+        run: |
+          # -r so worker/ subpackage's @wolffm/* deps update too
+          pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store update -r --latest "@wolffm/*"
+
+
+      # Always-latest is the policy, so "not at latest" is a failure, not a note.
+      # This runs AFTER the update above and re-reads the manifests, so it also
+      # catches an update that silently did nothing (a lost dispatch, a registry
+      # hiccup, a range pnpm declined to touch). The fan-out that triggers this
+      # workflow is best-effort; this step is what makes a missed one visible.
+      - name: Assert every @wolffm dependency is at latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+        run: |
+          node -e '
+            const {execSync}=require("child_process"), fs=require("fs");
+            const seen=new Set(); const stale=[]; const unchecked=[];
+            const manifests=execSync("git ls-files \"*package.json\"").toString().trim().split("\n");
+            for (const m of manifests) {
+              if (!m || m.includes("node_modules")) continue;
+              let pkg; try { pkg=JSON.parse(fs.readFileSync(m,"utf8")); } catch { continue; }
+              for (const field of ["dependencies","devDependencies"]) {
+                for (const [name,range] of Object.entries(pkg[field]||{})) {
+                  if (!name.startsWith("@wolffm/")) continue;
+                  // workspace: and * are not version claims — nothing to compare.
+                  const r=String(range);
+                  if (r.startsWith("workspace:") || r==="*") continue;
+                  // Key by FIELD too, not just name+manifest: a package can sit in
+                  // BOTH dependencies and devDependencies of one file with DIFFERENT
+                  // ranges, and deduping by name alone checked whichever came first
+                  // and silently skipped the stale one.
+                  const key=name+"@"+m+"#"+field; if (seen.has(key)) continue; seen.add(key);
+                  let latest; try {
+                    latest=execSync(`npm view ${name} version --registry=https://npm.pkg.github.com`,{stdio:["ignore","pipe","ignore"]}).toString().trim();
+                  } catch {
+                    // NOT `continue`. An unreachable registry is indistinguishable
+                    // from "at latest" if it is skipped, so a 401 here used to make
+                    // the whole step report success while checking nothing — which
+                    // is exactly what it happened to do wherever the .npmrc was not
+                    // in this step working directory.
+                    unchecked.push(`${name} in ${m}: could not read the registry`);
+                    continue;
+                  }
+                  const declared=(r.match(/(\d+\.\d+\.\d+)/)||[])[1];
+                  if (declared && latest && declared!==latest) {
+                    stale.push(`${name} in ${m}: declares ${r}, latest is ${latest}`);
+                  }
+                }
+              }
+            }
+            if (unchecked.length) {
+              for (const u of unchecked) console.log(`::error::${u}`);
+              console.error(`\n${unchecked.length} @wolffm package(s) could not be checked at all.`);
+              console.error("Usually the .npmrc is not in this step working directory.");
+              process.exit(1);
+            }
+            if (stale.length) {
+              for (const s of stale) console.log(`::error::${s}`);
+              console.error(`\n${stale.length} @wolffm dependency/ies are not at latest.`);
+              console.error("Every @wolffm package must track the newest version, majors included.");
+              console.error("If a major needs code changes, make them — do not pin back.");
+              process.exit(1);
+            }
+            console.log("All @wolffm dependencies are at latest.");
+          '
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # CARDTABLE: a pnpm workspace with eleven manifests, not one.
+          # `pnpm update -r` rewrites apps/*, packages/* and e2e/ too, and the
+          # template stages only the root package.json — which would commit a
+          # lockfile out of step with the manifests it describes. So stage every
+          # tracked package.json, and NOTHING else: never `git add -u`/`-A`,
+          # which would sweep up anything a step left in the tree.
+          manifests=$(git ls-files '*package.json')
+          if git diff --quiet -- $manifests pnpm-lock.yaml; then
+            echo "✅ No @wolffm package updates available"
+            exit 0
+          fi
+          git add -- $manifests pnpm-lock.yaml
+          git commit -m "chore: auto-update @wolffm/* to latest"
+
+          for i in 1 2 3; do
+            push_out=$(git push 2>&1) && rc=0 || rc=$?
+            echo "$push_out"
+            if [ "$rc" -eq 0 ]; then
+              echo "✅ Pushed"
+              exit 0
+            fi
+            # A branch-protection rejection (GH006 / "protected branch hook
+            # declined") is deterministic — rebasing and retrying cannot fix it,
+            # and on 2026-08-04 doing so buried the real cause under a stack of
+            # identical "race" retries. Name the fix and die on the first line.
+            if echo "$push_out" | grep -qiE "GH006|protected branch hook declined"; then
+              echo "::error::Push rejected by branch protection, not a race. The pushing credential cannot satisfy main's required checks — checkout must use a token that bypasses them (token: HADOKU_SITE_TOKEN, see the checkout step). Background: hadoku-task/docs/incident-2026-08-04-ci-failures.md."
+              exit 1
+            fi
+            echo "Push failed (attempt $i), rebasing..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+          done
+          echo "❌ Push failed after retries"
+          exit 1
+
+      # A red run here means the update pipeline is FROZEN — no @wolffm package
+      # (themes, worker-utils, security fixes) lands until someone acts. The
+      # 2026-08-03/04 incident (docs/incident-2026-08-04-ci-failures.md) sat
+      # red for ~19h because the only signal was the next morning's CI digest.
+      # An issue notifies the owner within minutes and self-closes on recovery.
+      - name: Open/refresh alert issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Auto-update @wolffm packages is red"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          existing=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Still red: $run_url"
+          else
+            gh issue create --title "$title" --body "$(printf 'The auto-update workflow is failing, so @wolffm package updates are frozen until this is fixed.\n\nFirst red run: %s\n\nThis issue closes itself when a run goes green. Playbook: docs/incident-2026-08-04-ci-failures.md' "$run_url")"
+          fi
+
+      # continue-on-error: this is tidy-up, not the payload. Before this was
+      # added, a transient `gh issue list`/`close` hiccup here (rate limit,
+      # network blip) failed THIS step under the default `bash -e`, which
+      # flips the whole job red — so a genuinely successful @wolffm update
+      # paged @here over a failed issue-close, not a failed update. Fixed here
+      # too (not just the 5 live repos, P6.7) so scaffolded repos are not born
+      # with the same defect.
+      - name: Close alert issue on recovery
+        if: success()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Auto-update @wolffm packages is red"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          existing=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')
+          [ -z "$existing" ] && exit 0
+          gh issue close "$existing" --comment "Recovered: $run_url"
+
+      # A red run is seen by nobody unless it says so itself: nothing polls
+      # these repos. `always()` so RECOVERIES report too -- without the success
+      # side the alert state stays broken and the next real failure arrives as a
+      # suppressed reminder rather than a new alert.
+      - name: Report the outcome so a silent failure can't hide
+        if: always()
+        uses: WolffM/hadoku-actions/report-job@v1
+        with:
+          job-name: 'cardtable:update-wolffm'
+          service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+          started-at: ${{ env.JOB_STARTED_AT }}
