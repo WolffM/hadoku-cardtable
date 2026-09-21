@@ -31,7 +31,7 @@ import {
 	secretsFor,
 	type ReplayHost,
 } from './fixtures/transcript.js';
-import { TYPE, csvCardId, foldFrames, type StateFrame } from './visibility.js';
+import { TYPE, csvCardId, foldFrames, keyOf, type StateFrame, type WireObj } from './visibility.js';
 
 const ALICE = 'fk:aaaaaaaaaaaaaaaa';
 const BOB = 'fk:bbbbbbbbbbbbbbbb';
@@ -263,6 +263,37 @@ describe("regression: the red jvm.test.ts run ('Flying'), from its captured fram
 				if (obj._type === TYPE.cardState) expect(csvCardId(obj._id)).not.toBe(99);
 			}
 		}
+	});
+});
+
+describe("regression: a card in both a precon's main deck and its sideboard (jvm.test.ts, seed 936747)", () => {
+	// "Arcane Tempo" lists Beacon Bolt in [Main] AND [Sideboard]. Seat 0 is sent its own
+	// sideboard with names, and the library copy's name once read as leaked by it.
+	const list = (...ids: number[]) => ({ t: 'list', v: ids.map((v) => ({ t: 'int', v })) });
+	const card = (id: number, name: string): [string, WireObj] => [
+		keyOf(TYPE.card, id),
+		{ _type: TYPE.card, _id: id, Name: { t: 'str', v: name } },
+	];
+	const state = new Map<string, WireObj>([
+		[keyOf(TYPE.player, 0), { _type: TYPE.player, _id: 0, Library: list(17), Sideboard: list(71) }],
+		[keyOf(TYPE.player, 1), { _type: TYPE.player, _id: 1, Library: list(200), Sideboard: list(271) }],
+		card(17, 'Beacon Bolt'),
+		card(71, 'Beacon Bolt'),
+		card(200, 'Faerie Duelist'),
+		card(271, 'Negate'),
+	]);
+
+	it("does not count the viewer's own sideboard as hidden, so its name is no secret", () => {
+		const { secrets, hiddenCards } = secretsFor([state], 0);
+		expect(hiddenCards.has(71)).toBe(false);
+		expect(secrets.has('Beacon Bolt')).toBe(false);
+	});
+
+	it("counts the opponent's sideboard as hidden, so its name is a secret", () => {
+		const { secrets, hiddenCards } = secretsFor([state], 0);
+		expect(hiddenCards.has(271)).toBe(true);
+		expect(secrets.has('Negate')).toBe(true);
+		expect(secrets.has('Faerie Duelist')).toBe(true);
 	});
 });
 

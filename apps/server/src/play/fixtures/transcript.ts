@@ -187,11 +187,11 @@ export function everyString(state: ReadonlyMap<string, WireObj>, cardId: number)
 /**
  * What a viewer must never receive, defined from ZONES and independently of
  * `visibility.ts`: every identifying string of every card that sat in the
- * opponent's hand or in any library at every observed step, minus any string
- * that the viewer may legitimately see on a card they saw (on the table, in a
- * graveyard or exile, or in their own hand) — two decks can both hold a
- * Mountain, and a Bog Imp's whole rules text, "Flying", is a keyword on every
- * other flyer in view.
+ * opponent's hand or sideboard or in any library at every observed step, minus
+ * any string that the viewer may legitimately see on a card they saw (on the
+ * table, in a graveyard or exile, or in their own hand or sideboard) — two
+ * decks can both hold a Mountain, and a Bog Imp's whole rules text, "Flying",
+ * is a keyword on every other flyer in view.
  *
  * `allowed` is taken from `everyString`, not from `identifyingStrings`: a string
  * the viewer can see ANYWHERE on a visible card, in any value shape, cannot be
@@ -212,7 +212,10 @@ export function secretsFor(states: readonly Map<string, WireObj>[], viewer: numb
 			if (obj._type !== TYPE.player) continue;
 			const mine = obj._id === viewer;
 			for (const prop of ['Battlefield', 'Graveyard', 'Exile', 'Command']) for (const id of ids(obj, prop)) everShown.add(id);
-			for (const id of ids(obj, 'Hand')) (mine ? everShown : everHidden).add(id);
+			// A sideboard is the owner's to know and nobody else's. Precons can list a card in
+			// both [Main] and [Sideboard] ("Arcane Tempo": Beacon Bolt, The Mirari Conjecture),
+			// and the owner's named sideboard copy once read as a leak of the library copy.
+			for (const zone of ['Hand', 'Sideboard']) for (const id of ids(obj, zone)) (mine ? everShown : everHidden).add(id);
 			for (const id of ids(obj, 'Library')) everHidden.add(id);
 		}
 	}
