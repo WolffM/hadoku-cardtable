@@ -15,9 +15,18 @@
  *
  * ## Inert unless switched on
  *
- * `attachLab` returns null when `CARDTABLE_LAB` is not `1`. No route, no
- * listener, no proxy. The default production posture is exactly as though this
- * file did not exist, which is the only honest way to ship a bench.
+ * `attachLab` returns null unless it is switched on. No route, no listener, no
+ * proxy. The default production posture is exactly as though this file did not
+ * exist, which is the only honest way to ship a bench.
+ *
+ * **Two switches, and the file is the one that works here.** `CARDTABLE_LAB=1`
+ * is the obvious one, but hadoku_site's generated PM2 wrapper sets an explicit
+ * `env` block with no ambient pass-through, so an env var cannot reach this
+ * process without editing a file in another repo that is regenerated on
+ * hydration. The marker file needs no such change, and it is *better* for a
+ * bench: it is visible in a directory listing, and `rm` turns it off at the
+ * next restart. Someone auditing this host can see the bench is on without
+ * reading a wrapper.
  *
  * ## The gate
  *
@@ -41,6 +50,9 @@
 import { createServer as _unusedCreateServer } from 'node:http';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { connect, type Socket } from 'node:net';
 import express, { type Request, type Router } from 'express';
 
@@ -86,8 +98,22 @@ function refuse(socket: Duplex, code: number, why: string): void {
 	socket.destroy();
 }
 
+/** The bench's switch: the env var, or a marker file the operator can `rm`. */
+export const LAB_MARKER = join(homedir(), '.local', 'share', 'cardtable', 'lab', 'ON');
+
+export function labIsOn(exists: (p: string) => boolean = existsSync): boolean {
+	if (process.env.CARDTABLE_LAB === '1') return true;
+	try {
+		return exists(LAB_MARKER);
+	} catch {
+		// An unreadable marker is not an on switch. Failing closed is the only
+		// safe direction for a thing that opens a proxy.
+		return false;
+	}
+}
+
 export function attachLab(app: Router, server: Server, deps: LabDeps): LabHandle | null {
-	if (process.env.CARDTABLE_LAB !== '1') return null;
+	if (!labIsOn()) return null;
 	const log = deps.log ?? (() => {});
 
 	const lab = express.Router();

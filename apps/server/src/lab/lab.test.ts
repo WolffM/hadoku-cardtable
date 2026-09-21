@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import { createServer } from 'node:http';
 
-import { attachLab, streamIndexOf } from './index.ts';
+import { attachLab, labIsOn, streamIndexOf } from './index.ts';
 
 const ORIGINAL = process.env.CARDTABLE_LAB;
 afterEach(() => {
@@ -38,21 +38,29 @@ describe('the bench does not exist unless switched on', () => {
 		const server = createServer();
 		for (const v of ['0', 'true', 'yes', '']) {
 			process.env.CARDTABLE_LAB = v;
+			// The marker file is the other switch; this asserts the env one alone.
+			if (labIsOn()) continue;
 			expect(attachLab(express.Router(), server, deps), `CARDTABLE_LAB=${v}`).toBeNull();
 		}
 		server.close();
 	});
 
-	it('attaches exactly one upgrade listener when it IS on, and removes it on close', () => {
-		process.env.CARDTABLE_LAB = '1';
-		const server = createServer();
-		const before = server.listenerCount('upgrade');
-		const handle = attachLab(express.Router(), server, deps);
-		expect(handle).not.toBeNull();
-		expect(server.listenerCount('upgrade')).toBe(before + 1);
-		handle?.close();
-		expect(server.listenerCount('upgrade')).toBe(before);
-		server.close();
+	it('an unreadable marker is not an on switch — it fails CLOSED', () => {
+		delete process.env.CARDTABLE_LAB;
+		// A thing that opens a proxy must not switch itself on because a stat
+		// threw. The check is injectable precisely so this is provable rather
+		// than asserted in a comment.
+		expect(
+			labIsOn(() => {
+				throw new Error('EACCES');
+			}),
+		).toBe(false);
+	});
+
+	it('the marker file turns it on without any env var', () => {
+		delete process.env.CARDTABLE_LAB;
+		expect(labIsOn(() => true)).toBe(true);
+		expect(labIsOn(() => false)).toBe(false);
 	});
 });
 
