@@ -1,0 +1,10 @@
+run 01/20 rc=0 READY   151s load=6.14  145810ms BOOT wd phase=close-streams entry=res/tokenscripts/g_3_1_boar.txt files=15165 bytes=71131048 inCallMs
+run 02/20 rc=0 READY   202s load=9.20  195936ms BOOT wd phase=close-streams entry=res/tokenscripts/u_0_1_starfish.txt files=15452 bytes=71189540 inCa
+run 03/20 rc=0 READY   200s load=6.60  196344ms BOOT wd phase=close-streams entry=res/tokenscripts/w_1_1_warrior.txt files=15598 bytes=71212997 inCal
+run 04/20 rc=0 READY   203s load=6.51  195851ms BOOT wd phase=close-streams entry=res/tokenscripts/r_3_1_dinosaur.txt files=15343 bytes=71163206 inCa
+run 05/20 rc=0 READY   199s load=7.32  195881ms BOOT wd phase=close-streams entry=res/tokenscripts/wu_4_4_elemental.txt files=15679 bytes=71224295 in
+run 06/20 rc=0 READY   210s load=8.65  206054ms BOOT wd phase=close-streams entry=res/tokenscripts/w_2_2_reflection.txt files=15626 bytes=71216383 in
+run 07/20 rc=0 READY   212s load=8.19  206002ms BOOT wd phase=close-streams entry=res/tokenscripts/u_6_5_leviathan_hexproof.txt files=15513 bytes=711
+run 08/20 rc=0 READY   226s load=13.85  221302ms BOOT wd phase=close-streams entry=res/tokenscripts/w_2_2_knight.txt files=15618 bytes=71215581 inCall
+run 09/20 rc=0 READY   315s load=17.70  311392ms BOOT wd phase=close-streams entry=res/tokenscripts/w_4_4_angel_warrior_flying.txt files=15645 bytes=7
+run 10/20 rc=0 READY   275s load=12.42  271444ms BOOT wd phase=close-streams entry=res/tokenscripts/wu_4_4_sphinx_flying_vigilance.txt files=15680 byt

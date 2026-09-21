@@ -1,0 +1,528 @@
+{
+  "url": "http://127.0.0.1:8744/index.html?build=20260920T230700Z-ad44f7ee91&wipe=1&persist=0&w=1280&h=800&args=/app/res-boot.zip%7C/files/%7Cforge.view.Main&props=user.dir%3D/files/%7Cuser.home%3D/files%7Cforge.assetsDir%3D/files/%7Cspike.bootFix%3Doff%7Cspike.wdMs%3D5000%7Cspike.verboseFrom%3D-1%7Cspike.batch%3D64%7Cspike.settleMs%3D1",
+  "outcome": "READY",
+  "readyMarker": "Read cards:",
+  "wallMs": 136081,
+  "markerMs": 52455,
+  "homeMs": 134075,
+  "homeCanvas": {
+    "pxW": 800,
+    "pxH": 600
+  },
+  "homeWant": "800x600",
+  "stalledIn": null,
+  "maxInCallMs": 14430,
+  "maxUnpackInCallMs": 25,
+  "forgeStallMs": 240000,
+  "stallMs": 75000,
+  "budgetMs": 480000,
+  "lastLine": "135238ms SPIKE-QUOTA t=135238 usage=55107567 quota=10792525807 idbTx=60107 aborts=0 errors=0 req=89490 done=89490 failed=0 outstanding=0",
+  "lastProgress": "34880ms BOOT unpack progress files=15500 bytes=71196994 ms=29273\n",
+  "lastWatchdog": "132069ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=95891\n",
+  "watchdogAlive": true,
+  "storage": {
+    "before": {
+      "t": 214.5,
+      "usage": 0,
+      "quota": 10737418240,
+      "detail": {}
+    },
+    "peakUsage": 61935029,
+    "quotaBytes": 10792525807,
+    "lastSample": {
+      "t": 135238.40000009537,
+      "usage": 55107567,
+      "quota": 10792525807,
+      "detail": {
+        "indexedDB": 55107567
+      }
+    },
+    "samples": 45
+  },
+  "idb": {
+    "transactions": 60107,
+    "aborts": 0,
+    "errors": 0,
+    "events": [],
+    "requests": 89490,
+    "completed": 89490,
+    "failed": 0,
+    "outstanding": 0,
+    "outstandingOps": [],
+    "lastOps": [
+      {
+        "id": 89471,
+        "op": "get",
+        "store": "files",
+        "t": 133968.59999990463
+      },
+      {
+        "id": 89472,
+        "op": "get",
+        "store": "files",
+        "t": 133968.7000002861
+      },
+      {
+        "id": 89473,
+        "op": "get",
+        "store": "files",
+        "t": 133969
+      },
+      {
+        "id": 89474,
+        "op": "get",
+        "store": "files",
+        "t": 133969.2000002861
+      },
+      {
+        "id": 89475,
+        "op": "get",
+        "store": "files",
+        "t": 133970.90000009537
+      },
+      {
+        "id": 89476,
+        "op": "get",
+        "store": "files",
+        "t": 134004.7000002861
+      },
+      {
+        "id": 89477,
+        "op": "get",
+        "store": "files",
+        "t": 134249.2000002861
+      },
+      {
+        "id": 89478,
+        "op": "get",
+        "store": "files",
+        "t": 134249.7000002861
+      },
+      {
+        "id": 89479,
+        "op": "get",
+        "store": "files",
+        "t": 134249.90000009537
+      },
+      {
+        "id": 89480,
+        "op": "get",
+        "store": "files",
+        "t": 134250
+      },
+      {
+        "id": 89481,
+        "op": "get",
+        "store": "files",
+        "t": 134250.2000002861
+      },
+      {
+        "id": 89482,
+        "op": "get",
+        "store": "files",
+        "t": 134250.5
+      },
+      {
+        "id": 89483,
+        "op": "get",
+        "store": "files",
+        "t": 134250.59999990463
+      },
+      {
+        "id": 89484,
+        "op": "get",
+        "store": "files",
+        "t": 134250.59999990463
+      },
+      {
+        "id": 89485,
+        "op": "get",
+        "store": "files",
+        "t": 134250.80000019073
+      },
+      {
+        "id": 89486,
+        "op": "get",
+        "store": "files",
+        "t": 134250.90000009537
+      },
+      {
+        "id": 89487,
+        "op": "put",
+        "store": "files",
+        "t": 134755.5
+      },
+      {
+        "id": 89488,
+        "op": "put",
+        "store": "files",
+        "t": 134755.5
+      },
+      {
+        "id": 89489,
+        "op": "put",
+        "store": "files",
+        "t": 134755.5
+      },
+      {
+        "id": 89490,
+        "op": "put",
+        "store": "files",
+        "t": 134758.2000002861
+      }
+    ]
+  },
+  "rejections": [],
+  "error": null,
+  "pageErrors": [],
+  "linesDropped": 0,
+  "seq": 167,
+  "marks": {
+    "pageStart": 6,
+    "loaderReady": 212.90000009536743,
+    "wipeDone": 214.09999990463257,
+    "initDone": 1269.8000001907349,
+    "displayDone": 1273.9000000953674
+  },
+  "env": {
+    "start": {
+      "load": [
+        3.08,
+        3.13,
+        3.17
+      ],
+      "tmp": {
+        "fs": "tmpfs",
+        "availKb": 7299640,
+        "usePct": "66%",
+        "mount": "/tmp"
+      },
+      "t": "2026-09-20T23:48:15.214Z"
+    },
+    "end": {
+      "load": [
+        2.04,
+        2.72,
+        3.01
+      ],
+      "tmp": {
+        "fs": "tmpfs",
+        "availKb": 7282592,
+        "usePct": "66%",
+        "mount": "/tmp"
+      },
+      "t": "2026-09-20T23:50:31.381Z"
+    }
+  },
+  "bootLines": [
+    "215ms SPIKE-PERSIST wasPersisted=false requested=false nowPersisted=false",
+    "5538ms BOOT begin zip=/app/res-boot.zip dest=/files/ main=forge.view.Main fix=off wdMs=5000 verboseFrom=-1 batch=64 settleMs=1\n",
+    "5563ms BOOT wd alive tick=5000ms\n",
+    "5605ms BOOT zip open ms=28 entries=16153 archiveBytes=50279251\n",
+    "6548ms BOOT unpack progress files=500 bytes=16911748 ms=928\n",
+    "6858ms BOOT unpack progress files=1000 bytes=17301753 ms=1251\n",
+    "7146ms BOOT unpack progress files=1500 bytes=18281244 ms=1539\n",
+    "7796ms BOOT unpack progress files=2000 bytes=32130705 ms=2189\n",
+    "9164ms BOOT unpack progress files=2500 bytes=35274679 ms=3557\n",
+    "9697ms BOOT unpack progress files=3000 bytes=37517166 ms=4091\n",
+    "10341ms BOOT unpack progress files=3500 bytes=38312432 ms=4735\n",
+    "11183ms BOOT unpack progress files=4000 bytes=39157416 ms=5577\n",
+    "13459ms BOOT unpack progress files=4500 bytes=39508657 ms=7852\n",
+    "15267ms BOOT unpack progress files=5000 bytes=44581320 ms=9660\n",
+    "16241ms BOOT unpack progress files=5500 bytes=45226678 ms=10634\n",
+    "18508ms BOOT unpack progress files=6000 bytes=45569844 ms=12901\n",
+    "21565ms BOOT unpack progress files=6500 bytes=45939837 ms=15958\n",
+    "23082ms BOOT unpack progress files=7000 bytes=46482342 ms=17476\n",
+    "23903ms BOOT unpack progress files=7500 bytes=46782339 ms=18296\n",
+    "25029ms BOOT unpack progress files=8000 bytes=47112609 ms=19423\n",
+    "25870ms BOOT unpack progress files=8500 bytes=47457886 ms=20263\n",
+    "26161ms BOOT unpack progress files=9000 bytes=47828879 ms=20555\n",
+    "26448ms BOOT unpack progress files=9500 bytes=48181558 ms=20841\n",
+    "26729ms BOOT unpack progress files=10000 bytes=48544737 ms=21122\n",
+    "27005ms BOOT unpack progress files=10500 bytes=48905536 ms=21399\n",
+    "27302ms BOOT unpack progress files=11000 bytes=49261533 ms=21696\n",
+    "27588ms BOOT unpack progress files=11500 bytes=49607125 ms=21981\n",
+    "27895ms BOOT unpack progress files=12000 bytes=49987134 ms=22289\n",
+    "28198ms BOOT unpack progress files=12500 bytes=50351762 ms=22591\n",
+    "28543ms BOOT unpack progress files=13000 bytes=50705626 ms=22936\n",
+    "28892ms BOOT unpack progress files=13500 bytes=51061644 ms=23286\n",
+    "29295ms BOOT unpack progress files=14000 bytes=51433849 ms=23687\n",
+    "31122ms BOOT unpack progress files=14500 bytes=52097292 ms=25515\n",
+    "33104ms BOOT unpack progress files=15000 bytes=71101636 ms=27497\n",
+    "34880ms BOOT unpack progress files=15500 bytes=71196994 ms=29273\n",
+    "35919ms BOOT unpack done files=15685 dirs=468 bytes=71226313 ms=30296\n",
+    "35951ms BOOT unpack total ms=30391\n",
+    "36010ms BOOT verify /files/res isDir=true entries=25\n",
+    "36174ms BOOT verify /files/res/editions isDir=true entries=679\n",
+    "36176ms BOOT handing off to forge.view.Main\n"
+  ],
+  "quotaSeries": [
+    {
+      "t": 3215,
+      "usage": 0,
+      "quota": 10737418240
+    },
+    {
+      "t": 6215,
+      "usage": 14138910,
+      "quota": 10751557150
+    },
+    {
+      "t": 9216,
+      "usage": 29758192,
+      "quota": 10767176432
+    },
+    {
+      "t": 12216,
+      "usage": 29817279,
+      "quota": 10767235519
+    },
+    {
+      "t": 15218,
+      "usage": 35856549,
+      "quota": 10773274789
+    },
+    {
+      "t": 18218,
+      "usage": 38794093,
+      "quota": 10776212333
+    },
+    {
+      "t": 21216,
+      "usage": 32423058,
+      "quota": 10769841298
+    },
+    {
+      "t": 24215,
+      "usage": 32872811,
+      "quota": 10770291051
+    },
+    {
+      "t": 27215,
+      "usage": 34037753,
+      "quota": 10771455993
+    },
+    {
+      "t": 30217,
+      "usage": 36508897,
+      "quota": 10773927137
+    },
+    {
+      "t": 33215,
+      "usage": 61935029,
+      "quota": 10799353269
+    },
+    {
+      "t": 36253,
+      "usage": 56095801,
+      "quota": 10793514041
+    },
+    {
+      "t": 39215,
+      "usage": 56106399,
+      "quota": 10793524639
+    },
+    {
+      "t": 42215,
+      "usage": 56106399,
+      "quota": 10793524639
+    },
+    {
+      "t": 45216,
+      "usage": 54992434,
+      "quota": 10792410674
+    },
+    {
+      "t": 48242,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 51237,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 54243,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 57236,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 60245,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 63238,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 66215,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 69246,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 72238,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 75247,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 78241,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 81233,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 84248,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 87242,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 90243,
+      "usage": 54996168,
+      "quota": 10792414408
+    },
+    {
+      "t": 93220,
+      "usage": 55022860,
+      "quota": 10792441100
+    },
+    {
+      "t": 96235,
+      "usage": 55052169,
+      "quota": 10792470409
+    },
+    {
+      "t": 99247,
+      "usage": 55052169,
+      "quota": 10792470409
+    },
+    {
+      "t": 102297,
+      "usage": 55052169,
+      "quota": 10792470409
+    },
+    {
+      "t": 105289,
+      "usage": 55085128,
+      "quota": 10792503368
+    },
+    {
+      "t": 108232,
+      "usage": 55085128,
+      "quota": 10792503368
+    },
+    {
+      "t": 111243,
+      "usage": 55102333,
+      "quota": 10792520573
+    },
+    {
+      "t": 114241,
+      "usage": 55120964,
+      "quota": 10792539204
+    },
+    {
+      "t": 117247,
+      "usage": 55156800,
+      "quota": 10792575040
+    },
+    {
+      "t": 120242,
+      "usage": 55175957,
+      "quota": 10792594197
+    },
+    {
+      "t": 123444,
+      "usage": 55175957,
+      "quota": 10792594197
+    },
+    {
+      "t": 126245,
+      "usage": 55175957,
+      "quota": 10792594197
+    },
+    {
+      "t": 129311,
+      "usage": 55193664,
+      "quota": 10792611904
+    },
+    {
+      "t": 132239,
+      "usage": 55144200,
+      "quota": 10792562440
+    },
+    {
+      "t": 135238,
+      "usage": 55107567,
+      "quota": 10792525807
+    }
+  ],
+  "tail": [
+    "65639ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=29461\n",
+    "66215ms SPIKE-QUOTA t=66215 usage=54996168 quota=10792414408 idbTx=55728 aborts=0 errors=0 req=86579 done=86579 failed=0 outstanding=0",
+    "69246ms SPIKE-QUOTA t=69246 usage=54996168 quota=10792414408 idbTx=56035 aborts=0 errors=0 req=86599 done=86599 failed=0 outstanding=0",
+    "70640ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=34463\n",
+    "72238ms SPIKE-QUOTA t=72238 usage=54996168 quota=10792414408 idbTx=56085 aborts=0 errors=0 req=86599 done=86599 failed=0 outstanding=0",
+    "75247ms SPIKE-QUOTA t=75247 usage=54996168 quota=10792414408 idbTx=56104 aborts=0 errors=0 req=86599 done=86599 failed=0 outstanding=0",
+    "75656ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=39478\n",
+    "78241ms SPIKE-QUOTA t=78241 usage=54996168 quota=10792414408 idbTx=56114 aborts=0 errors=0 req=86599 done=86599 failed=0 outstanding=0",
+    "80672ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=44495\n",
+    "81233ms SPIKE-QUOTA t=81233 usage=54996168 quota=10792414408 idbTx=56121 aborts=0 errors=0 req=86599 done=86599 failed=0 outstanding=0",
+    "84248ms SPIKE-QUOTA t=84248 usage=54996168 quota=10792414408 idbTx=56146 aborts=0 errors=0 req=86600 done=86600 failed=0 outstanding=0",
+    "85681ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=49504\n",
+    "87242ms SPIKE-QUOTA t=87242 usage=54996168 quota=10792414408 idbTx=56161 aborts=0 errors=0 req=86606 done=86606 failed=0 outstanding=0",
+    "90243ms SPIKE-QUOTA t=90243 usage=54996168 quota=10792414408 idbTx=56175 aborts=0 errors=0 req=86613 done=86613 failed=0 outstanding=0",
+    "90692ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=54515\n",
+    "93220ms SPIKE-QUOTA t=93220 usage=55022860 quota=10792441100 idbTx=56281 aborts=0 errors=0 req=86712 done=86708 failed=0 outstanding=4",
+    "95708ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=59530\n",
+    "96235ms SPIKE-QUOTA t=96235 usage=55052169 quota=10792470409 idbTx=58052 aborts=0 errors=0 req=88135 done=88135 failed=0 outstanding=0",
+    "99247ms SPIKE-QUOTA t=99247 usage=55052169 quota=10792470409 idbTx=58118 aborts=0 errors=0 req=88135 done=88135 failed=0 outstanding=0",
+    "100717ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=64539\n",
+    "102297ms SPIKE-QUOTA t=102297 usage=55052169 quota=10792470409 idbTx=58126 aborts=0 errors=0 req=88135 done=88135 failed=0 outstanding=0",
+    "105289ms SPIKE-QUOTA t=105289 usage=55085128 quota=10792503368 idbTx=58131 aborts=0 errors=0 req=88142 done=88142 failed=0 outstanding=0",
+    "105732ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=69554\n",
+    "106703ms CheerpJ: Font rempping for Samsung Sharp Sans Medium\n",
+    "108232ms SPIKE-QUOTA t=108232 usage=55085128 quota=10792503368 idbTx=58135 aborts=0 errors=0 req=88145 done=88145 failed=0 outstanding=0",
+    "110791ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=74613\n",
+    "111243ms SPIKE-QUOTA t=111243 usage=55102333 quota=10792520573 idbTx=58137 aborts=0 errors=0 req=88147 done=88146 failed=0 outstanding=1",
+    "114241ms SPIKE-QUOTA t=114241 usage=55120964 quota=10792539204 idbTx=58139 aborts=0 errors=0 req=88149 done=88149 failed=0 outstanding=0",
+    "115793ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=79615\n",
+    "117247ms SPIKE-QUOTA t=117247 usage=55156800 quota=10792575040 idbTx=58143 aborts=0 errors=0 req=88153 done=88153 failed=0 outstanding=0",
+    "120242ms SPIKE-QUOTA t=120242 usage=55175957 quota=10792594197 idbTx=58191 aborts=0 errors=0 req=88189 done=88189 failed=0 outstanding=0",
+    "120799ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=84621\n",
+    "123444ms SPIKE-QUOTA t=123444 usage=55175957 quota=10792594197 idbTx=58403 aborts=0 errors=0 req=88191 done=88191 failed=0 outstanding=0",
+    "125814ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=89636\n",
+    "126245ms SPIKE-QUOTA t=126245 usage=55175957 quota=10792594197 idbTx=58403 aborts=0 errors=0 req=88191 done=88191 failed=0 outstanding=0",
+    "129311ms SPIKE-QUOTA t=129311 usage=55193664 quota=10792611904 idbTx=58406 aborts=0 errors=0 req=88194 done=88194 failed=0 outstanding=0",
+    "129955ms FView: panel HOME_GAUNTLETCONTESTS failed to initialize, skipping it: java.lang.ExceptionInInitializerError\n",
+    "132069ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=95891\n",
+    "132239ms SPIKE-QUOTA t=132239 usage=55144200 quota=10792562440 idbTx=58527 aborts=0 errors=0 req=88306 done=88306 failed=0 outstanding=0",
+    "135238ms SPIKE-QUOTA t=135238 usage=55107567 quota=10792525807 idbTx=60107 aborts=0 errors=0 req=89490 done=89490 failed=0 outstanding=0"
+  ]
+}

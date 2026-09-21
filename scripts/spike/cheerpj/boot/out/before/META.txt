@@ -1,0 +1,4 @@
+label=before n=20 build=20260920T230700Z-ad44f7ee91
+fix=off batch=64 settleMs=1 persist=0
+wdMs=5000 verboseFrom=-1 stallMs=75000 budgetMs=480000
+started=2026-09-20T23:07:07Z load=3.69 4.08 3.31

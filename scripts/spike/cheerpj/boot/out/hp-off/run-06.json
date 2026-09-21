@@ -1,0 +1,751 @@
+{
+  "url": "http://127.0.0.1:8744/index.html?build=20260921T000355Z-ffa43bf5cb&wipe=1&persist=0&w=1280&h=800&args=/app/res-boot.zip%7C/files/%7Cnone&props=user.dir%3D/files/%7Cuser.home%3D/files%7Cforge.assetsDir%3D/files/%7Cspike.bootFix%3Doff%7Cspike.wdMs%3D5000%7Cspike.verboseFrom%3D-1%7Cspike.batch%3D64%7Cspike.settleMs%3D1%7Cspike.repeat%3D4",
+  "outcome": "READY",
+  "readyMarker": "BOOT ALLDONE",
+  "wallMs": 209643,
+  "markerMs": 207634,
+  "homeMs": 207634,
+  "homeCanvas": null,
+  "homeWant": "0x0",
+  "stalledIn": null,
+  "maxInCallMs": 49,
+  "maxUnpackInCallMs": 49,
+  "forgeStallMs": 240000,
+  "stallMs": 75000,
+  "budgetMs": 480000,
+  "lastLine": "206929ms SPIKE-QUOTA after {\"t\":206929,\"usage\":224840271,\"quota\":10962258511,\"detail\":{\"indexedDB\":224840271}}",
+  "lastProgress": "204232ms BOOT unpack progress files=15500 bytes=71196994 ms=69473\n",
+  "lastWatchdog": "206054ms BOOT wd phase=close-streams entry=res/tokenscripts/w_2_2_reflection.txt files=15626 bytes=71216383 inCallMs=28\n",
+  "watchdogAlive": true,
+  "storage": {
+    "before": {
+      "t": 229,
+      "usage": 0,
+      "quota": 10737418240,
+      "detail": {}
+    },
+    "peakUsage": 227892034,
+    "quotaBytes": 10963111371,
+    "lastSample": {
+      "t": 204231,
+      "usage": 225693131,
+      "quota": 10963111371,
+      "detail": {
+        "indexedDB": 225693131
+      }
+    },
+    "samples": 68
+  },
+  "idb": {
+    "transactions": 195256,
+    "aborts": 0,
+    "errors": 0,
+    "events": [],
+    "requests": 324988,
+    "completed": 324988,
+    "failed": 0,
+    "outstanding": 0,
+    "outstandingOps": [],
+    "lastOps": [
+      {
+        "id": 324969,
+        "op": "get",
+        "store": "files",
+        "t": 206836.30000019073
+      },
+      {
+        "id": 324970,
+        "op": "put",
+        "store": "files",
+        "t": 206837
+      },
+      {
+        "id": 324971,
+        "op": "put",
+        "store": "files",
+        "t": 206837
+      },
+      {
+        "id": 324972,
+        "op": "put",
+        "store": "files",
+        "t": 206837.10000038147
+      },
+      {
+        "id": 324973,
+        "op": "put",
+        "store": "files",
+        "t": 206837.30000019073
+      },
+      {
+        "id": 324974,
+        "op": "get",
+        "store": "files",
+        "t": 206846.40000009537
+      },
+      {
+        "id": 324975,
+        "op": "get",
+        "store": "files",
+        "t": 206846.7000002861
+      },
+      {
+        "id": 324976,
+        "op": "put",
+        "store": "files",
+        "t": 206847.10000038147
+      },
+      {
+        "id": 324977,
+        "op": "put",
+        "store": "files",
+        "t": 206847.10000038147
+      },
+      {
+        "id": 324978,
+        "op": "put",
+        "store": "files",
+        "t": 206847.10000038147
+      },
+      {
+        "id": 324979,
+        "op": "get",
+        "store": "files",
+        "t": 206847.2000002861
+      },
+      {
+        "id": 324980,
+        "op": "get",
+        "store": "files",
+        "t": 206855.40000009537
+      },
+      {
+        "id": 324981,
+        "op": "put",
+        "store": "files",
+        "t": 206855.7000002861
+      },
+      {
+        "id": 324982,
+        "op": "put",
+        "store": "files",
+        "t": 206855.7000002861
+      },
+      {
+        "id": 324983,
+        "op": "put",
+        "store": "files",
+        "t": 206855.7000002861
+      },
+      {
+        "id": 324984,
+        "op": "put",
+        "store": "files",
+        "t": 206855.90000009537
+      },
+      {
+        "id": 324985,
+        "op": "put",
+        "store": "files",
+        "t": 206866.2000002861
+      },
+      {
+        "id": 324986,
+        "op": "put",
+        "store": "files",
+        "t": 206866.2000002861
+      },
+      {
+        "id": 324987,
+        "op": "put",
+        "store": "files",
+        "t": 206866.2000002861
+      },
+      {
+        "id": 324988,
+        "op": "put",
+        "store": "files",
+        "t": 206866.2000002861
+      }
+    ]
+  },
+  "net": {
+    "fetches": 387,
+    "done": 387,
+    "failed": 0,
+    "xhr": 1,
+    "xhrDone": 1,
+    "outstanding": 0,
+    "outstandingOps": []
+  },
+  "rejections": [],
+  "error": null,
+  "pageErrors": [],
+  "linesDropped": 0,
+  "seq": 252,
+  "marks": {
+    "pageStart": 11.400000095367432,
+    "loaderReady": 225.80000019073486,
+    "wipeDone": 227.30000019073486,
+    "initDone": 1218.1000003814697,
+    "displayDone": 1223.9000000953674,
+    "runReturned": 206928.60000038147,
+    "finished": 206930
+  },
+  "env": {
+    "start": {
+      "load": [
+        7.32,
+        6.66,
+        5.58
+      ],
+      "tmp": {
+        "fs": "tmpfs",
+        "availKb": 7273960,
+        "usePct": "66%",
+        "mount": "/tmp"
+      },
+      "t": "2026-09-21T00:19:59.862Z"
+    },
+    "end": {
+      "load": [
+        8.65,
+        7.86,
+        6.29
+      ],
+      "tmp": {
+        "fs": "tmpfs",
+        "availKb": 7255880,
+        "usePct": "66%",
+        "mount": "/tmp"
+      },
+      "t": "2026-09-21T00:23:29.631Z"
+    }
+  },
+  "bootLines": [
+    "230ms SPIKE-PERSIST wasPersisted=false requested=false nowPersisted=false",
+    "5912ms BOOT begin zip=/app/res-boot.zip dest=/files/ main=none fix=off wdMs=5000 verboseFrom=-1 batch=64 settleMs=1\n",
+    "5963ms BOOT wd alive tick=5000ms\n",
+    "5965ms BOOT repeat 1/4 dest=/files/r0\n",
+    "6003ms BOOT zip open ms=23 entries=16153 archiveBytes=50279251\n",
+    "7273ms BOOT unpack progress files=500 bytes=16911748 ms=1260\n",
+    "7619ms BOOT unpack progress files=1000 bytes=17301753 ms=1614\n",
+    "7972ms BOOT unpack progress files=1500 bytes=18281244 ms=1966\n",
+    "8691ms BOOT unpack progress files=2000 bytes=32130705 ms=2686\n",
+    "10174ms BOOT unpack progress files=2500 bytes=35274679 ms=4169\n",
+    "10803ms BOOT unpack progress files=3000 bytes=37517166 ms=4798\n",
+    "11591ms BOOT unpack progress files=3500 bytes=38312432 ms=5586\n",
+    "12501ms BOOT unpack progress files=4000 bytes=39157416 ms=6496\n",
+    "15066ms BOOT unpack progress files=4500 bytes=39508657 ms=9061\n",
+    "17081ms BOOT unpack progress files=5000 bytes=44581320 ms=11076\n",
+    "18170ms BOOT unpack progress files=5500 bytes=45226678 ms=12164\n",
+    "20382ms BOOT unpack progress files=6000 bytes=45569844 ms=14377\n",
+    "23523ms BOOT unpack progress files=6500 bytes=45939837 ms=17518\n",
+    "25178ms BOOT unpack progress files=7000 bytes=46482342 ms=19173\n",
+    "26051ms BOOT unpack progress files=7500 bytes=46782339 ms=20046\n",
+    "27199ms BOOT unpack progress files=8000 bytes=47112609 ms=21194\n",
+    "27740ms BOOT unpack progress files=8500 bytes=47457886 ms=21735\n",
+    "28082ms BOOT unpack progress files=9000 bytes=47828879 ms=22076\n",
+    "28400ms BOOT unpack progress files=9500 bytes=48181558 ms=22395\n",
+    "28714ms BOOT unpack progress files=10000 bytes=48544737 ms=22709\n",
+    "29045ms BOOT unpack progress files=10500 bytes=48905536 ms=23040\n",
+    "29380ms BOOT unpack progress files=11000 bytes=49261533 ms=23375\n",
+    "29689ms BOOT unpack progress files=11500 bytes=49607125 ms=23684\n",
+    "30045ms BOOT unpack progress files=12000 bytes=49987134 ms=24039\n",
+    "30411ms BOOT unpack progress files=12500 bytes=50351762 ms=24406\n",
+    "30803ms BOOT unpack progress files=13000 bytes=50705626 ms=24798\n",
+    "31334ms BOOT unpack progress files=13500 bytes=51061644 ms=25328\n",
+    "31792ms BOOT unpack progress files=14000 bytes=51433849 ms=25786\n",
+    "33310ms BOOT unpack progress files=14500 bytes=52097292 ms=27305\n",
+    "35232ms BOOT unpack progress files=15000 bytes=71101636 ms=29227\n",
+    "37301ms BOOT unpack progress files=15500 bytes=71196994 ms=31296\n",
+    "38599ms BOOT unpack done files=15685 dirs=468 bytes=71226313 ms=32583\n",
+    "38618ms BOOT repeat 2/4 dest=/files/r1\n",
+    "38629ms BOOT zip open ms=5 entries=16153 archiveBytes=50279251\n",
+    "40233ms BOOT unpack progress files=500 bytes=16911748 ms=1603\n",
+    "40949ms BOOT unpack progress files=1000 bytes=17301753 ms=2319\n",
+    "41844ms BOOT unpack progress files=1500 bytes=18281244 ms=3214\n",
+    "43370ms BOOT unpack progress files=2000 bytes=32130705 ms=4740\n",
+    "46602ms BOOT unpack progress files=2500 bytes=35274679 ms=7972\n",
+    "47732ms BOOT unpack progress files=3000 bytes=37517166 ms=9102\n",
+    "49068ms BOOT unpack progress files=3500 bytes=38312432 ms=10438\n",
+    "50552ms BOOT unpack progress files=4000 bytes=39157416 ms=11922\n",
+    "54610ms BOOT unpack progress files=4500 bytes=39508657 ms=15980\n",
+    "57907ms BOOT unpack progress files=5000 bytes=44581320 ms=19277\n",
+    "59474ms BOOT unpack progress files=5500 bytes=45226678 ms=20844\n",
+    "62580ms BOOT unpack progress files=6000 bytes=45569844 ms=23950\n",
+    "67071ms BOOT unpack progress files=6500 bytes=45939837 ms=28441\n",
+    "69389ms BOOT unpack progress files=7000 bytes=46482342 ms=30759\n",
+    "70587ms BOOT unpack progress files=7500 bytes=46782339 ms=31957\n",
+    "72087ms BOOT unpack progress files=8000 bytes=47112609 ms=33457\n",
+    "74261ms BOOT unpack progress files=8500 bytes=47457886 ms=35631\n",
+    "75645ms BOOT unpack progress files=9000 bytes=47828879 ms=37014\n",
+    "76784ms BOOT unpack progress files=9500 bytes=48181558 ms=38154\n",
+    "78111ms BOOT unpack progress files=10000 bytes=48544737 ms=39481\n",
+    "79202ms BOOT unpack progress files=10500 bytes=48905536 ms=40572\n",
+    "80366ms BOOT unpack progress files=11000 bytes=49261533 ms=41736\n",
+    "81516ms BOOT unpack progress files=11500 bytes=49607125 ms=42886\n",
+    "82700ms BOOT unpack progress files=12000 bytes=49987134 ms=44070\n",
+    "83836ms BOOT unpack progress files=12500 bytes=50351762 ms=45206\n",
+    "84983ms BOOT unpack progress files=13000 bytes=50705626 ms=46353\n",
+    "86146ms BOOT unpack progress files=13500 bytes=51061644 ms=47516\n",
+    "87300ms BOOT unpack progress files=14000 bytes=51433849 ms=48670\n",
+    "88585ms BOOT unpack progress files=14500 bytes=52097292 ms=49955\n",
+    "90298ms BOOT unpack progress files=15000 bytes=71101636 ms=51668\n",
+    "94430ms BOOT unpack progress files=15500 bytes=71196994 ms=55801\n",
+    "96476ms BOOT unpack done files=15685 dirs=468 bytes=71226313 ms=57846\n",
+    "96487ms BOOT repeat 3/4 dest=/files/r2\n",
+    "96493ms BOOT zip open ms=4 entries=16153 archiveBytes=50279251\n",
+    "98022ms BOOT unpack progress files=500 bytes=16911748 ms=1528\n",
+    "98688ms BOOT unpack progress files=1000 bytes=17301753 ms=2193\n",
+    "99400ms BOOT unpack progress files=1500 bytes=18281244 ms=2905\n",
+    "100636ms BOOT unpack progress files=2000 bytes=32130705 ms=4141\n",
+    "102452ms BOOT unpack progress files=2500 bytes=35274679 ms=5958\n",
+    "103113ms BOOT unpack progress files=3000 bytes=37517166 ms=6618\n",
+    "103837ms BOOT unpack progress files=3500 bytes=38312432 ms=7342\n",
+    "104680ms BOOT unpack progress files=4000 bytes=39157416 ms=8185\n",
+    "106864ms BOOT unpack progress files=4500 bytes=39508657 ms=10370\n",
+    "108247ms BOOT unpack progress files=5000 bytes=44581320 ms=11753\n",
+    "109065ms BOOT unpack progress files=5500 bytes=45226678 ms=12570\n",
+    "110797ms BOOT unpack progress files=6000 bytes=45569844 ms=14302\n",
+    "113485ms BOOT unpack progress files=6500 bytes=45939837 ms=16990\n",
+    "114917ms BOOT unpack progress files=7000 bytes=46482342 ms=18422\n",
+    "115668ms BOOT unpack progress files=7500 bytes=46782339 ms=19173\n",
+    "116572ms BOOT unpack progress files=8000 bytes=47112609 ms=20078\n",
+    "118148ms BOOT unpack progress files=8500 bytes=47457886 ms=21653\n",
+    "119150ms BOOT unpack progress files=9000 bytes=47828879 ms=22655\n",
+    "119913ms BOOT unpack progress files=9500 bytes=48181558 ms=23418\n",
+    "120846ms BOOT unpack progress files=10000 bytes=48544737 ms=24352\n",
+    "121645ms BOOT unpack progress files=10500 bytes=48905536 ms=25150\n",
+    "122537ms BOOT unpack progress files=11000 bytes=49261533 ms=26043\n",
+    "123350ms BOOT unpack progress files=11500 bytes=49607125 ms=26856\n",
+    "124161ms BOOT unpack progress files=12000 bytes=49987134 ms=27666\n",
+    "125097ms BOOT unpack progress files=12500 bytes=50351762 ms=28603\n",
+    "126042ms BOOT unpack progress files=13000 bytes=50705626 ms=29547\n",
+    "127123ms BOOT unpack progress files=13500 bytes=51061644 ms=30628\n",
+    "128007ms BOOT unpack progress files=14000 bytes=51433849 ms=31512\n",
+    "128877ms BOOT unpack progress files=14500 bytes=52097292 ms=32383\n",
+    "130343ms BOOT unpack progress files=15000 bytes=71101636 ms=33848\n",
+    "133311ms BOOT unpack progress files=15500 bytes=71196994 ms=36816\n",
+    "134738ms BOOT unpack done files=15685 dirs=468 bytes=71226313 ms=38243\n",
+    "134749ms BOOT repeat 4/4 dest=/files/r3\n",
+    "134757ms BOOT zip open ms=5 entries=16153 archiveBytes=50279251\n",
+    "135990ms BOOT unpack progress files=500 bytes=16911748 ms=1231\n",
+    "136976ms BOOT unpack progress files=1000 bytes=17301753 ms=2217\n",
+    "138134ms BOOT unpack progress files=1500 bytes=18281244 ms=3375\n",
+    "139932ms BOOT unpack progress files=2000 bytes=32130705 ms=5173\n",
+    "143663ms BOOT unpack progress files=2500 bytes=35274679 ms=8903\n",
+    "145107ms BOOT unpack progress files=3000 bytes=37517166 ms=10348\n",
+    "146788ms BOOT unpack progress files=3500 bytes=38312432 ms=12028\n",
+    "148548ms BOOT unpack progress files=4000 bytes=39157416 ms=13788\n",
+    "153578ms BOOT unpack progress files=4500 bytes=39508657 ms=18819\n",
+    "157767ms BOOT unpack progress files=5000 bytes=44581320 ms=23008\n",
+    "159649ms BOOT unpack progress files=5500 bytes=45226678 ms=24890\n",
+    "163473ms BOOT unpack progress files=6000 bytes=45569844 ms=28713\n",
+    "169152ms BOOT unpack progress files=6500 bytes=45939837 ms=34393\n",
+    "171908ms BOOT unpack progress files=7000 bytes=46482342 ms=37148\n",
+    "173432ms BOOT unpack progress files=7500 bytes=46782339 ms=38673\n",
+    "175293ms BOOT unpack progress files=8000 bytes=47112609 ms=40534\n",
+    "177883ms BOOT unpack progress files=8500 bytes=47457886 ms=43124\n",
+    "179520ms BOOT unpack progress files=9000 bytes=47828879 ms=44761\n",
+    "180929ms BOOT unpack progress files=9500 bytes=48181558 ms=46170\n",
+    "182478ms BOOT unpack progress files=10000 bytes=48544737 ms=47718\n",
+    "183986ms BOOT unpack progress files=10500 bytes=48905536 ms=49227\n",
+    "185554ms BOOT unpack progress files=11000 bytes=49261533 ms=50795\n",
+    "187208ms BOOT unpack progress files=11500 bytes=49607125 ms=52448\n",
+    "188778ms BOOT unpack progress files=12000 bytes=49987134 ms=54018\n",
+    "190441ms BOOT unpack progress files=12500 bytes=50351762 ms=55682\n",
+    "192263ms BOOT unpack progress files=13000 bytes=50705626 ms=57504\n",
+    "193825ms BOOT unpack progress files=13500 bytes=51061644 ms=59066\n",
+    "195416ms BOOT unpack progress files=14000 bytes=51433849 ms=60657\n",
+    "196952ms BOOT unpack progress files=14500 bytes=52097292 ms=62192\n",
+    "199023ms BOOT unpack progress files=15000 bytes=71101636 ms=64264\n",
+    "204232ms BOOT unpack progress files=15500 bytes=71196994 ms=69473\n",
+    "206865ms BOOT unpack done files=15685 dirs=468 bytes=71226313 ms=72106\n",
+    "206924ms BOOT ALLDONE repeats=4\n"
+  ],
+  "quotaSeries": [
+    {
+      "t": 3230,
+      "usage": 0,
+      "quota": 10737418240
+    },
+    {
+      "t": 6236,
+      "usage": 200318,
+      "quota": 10737618558
+    },
+    {
+      "t": 9231,
+      "usage": 28481331,
+      "quota": 10765899571
+    },
+    {
+      "t": 12231,
+      "usage": 33112447,
+      "quota": 10770530687
+    },
+    {
+      "t": 15231,
+      "usage": 29682267,
+      "quota": 10767100507
+    },
+    {
+      "t": 18236,
+      "usage": 35575252,
+      "quota": 10772993492
+    },
+    {
+      "t": 21231,
+      "usage": 37533257,
+      "quota": 10774951497
+    },
+    {
+      "t": 24232,
+      "usage": 39575475,
+      "quota": 10776993715
+    },
+    {
+      "t": 27232,
+      "usage": 37037688,
+      "quota": 10774455928
+    },
+    {
+      "t": 30231,
+      "usage": 35365765,
+      "quota": 10772784005
+    },
+    {
+      "t": 33233,
+      "usage": 36842605,
+      "quota": 10774260845
+    },
+    {
+      "t": 36232,
+      "usage": 57076366,
+      "quota": 10794494606
+    },
+    {
+      "t": 39320,
+      "usage": 70828043,
+      "quota": 10808246283
+    },
+    {
+      "t": 42231,
+      "usage": 77729662,
+      "quota": 10815147902
+    },
+    {
+      "t": 45231,
+      "usage": 91178465,
+      "quota": 10828596705
+    },
+    {
+      "t": 48231,
+      "usage": 91593475,
+      "quota": 10829011715
+    },
+    {
+      "t": 51234,
+      "usage": 91978306,
+      "quota": 10829396546
+    },
+    {
+      "t": 54263,
+      "usage": 85590583,
+      "quota": 10823008823
+    },
+    {
+      "t": 57231,
+      "usage": 87783454,
+      "quota": 10825201694
+    },
+    {
+      "t": 60232,
+      "usage": 88437944,
+      "quota": 10825856184
+    },
+    {
+      "t": 63231,
+      "usage": 92624429,
+      "quota": 10830042669
+    },
+    {
+      "t": 66232,
+      "usage": 88507105,
+      "quota": 10825925345
+    },
+    {
+      "t": 69232,
+      "usage": 100050962,
+      "quota": 10837469202
+    },
+    {
+      "t": 72230,
+      "usage": 90609245,
+      "quota": 10828027485
+    },
+    {
+      "t": 75231,
+      "usage": 90915580,
+      "quota": 10828333820
+    },
+    {
+      "t": 78231,
+      "usage": 91567916,
+      "quota": 10828986156
+    },
+    {
+      "t": 81232,
+      "usage": 92709905,
+      "quota": 10830128145
+    },
+    {
+      "t": 84230,
+      "usage": 94123572,
+      "quota": 10831541812
+    },
+    {
+      "t": 87231,
+      "usage": 96671714,
+      "quota": 10834089954
+    },
+    {
+      "t": 90232,
+      "usage": 114688274,
+      "quota": 10852106514
+    },
+    {
+      "t": 93252,
+      "usage": 113466451,
+      "quota": 10850884691
+    },
+    {
+      "t": 96239,
+      "usage": 115316746,
+      "quota": 10852734986
+    },
+    {
+      "t": 99230,
+      "usage": 129510340,
+      "quota": 10866928580
+    },
+    {
+      "t": 102231,
+      "usage": 135243288,
+      "quota": 10872661528
+    },
+    {
+      "t": 105230,
+      "usage": 141431385,
+      "quota": 10878849625
+    },
+    {
+      "t": 108231,
+      "usage": 142050268,
+      "quota": 10879468508
+    },
+    {
+      "t": 111231,
+      "usage": 150527285,
+      "quota": 10887945525
+    },
+    {
+      "t": 114231,
+      "usage": 151147331,
+      "quota": 10888565571
+    },
+    {
+      "t": 117231,
+      "usage": 143785502,
+      "quota": 10881203742
+    },
+    {
+      "t": 120230,
+      "usage": 148050324,
+      "quota": 10885468564
+    },
+    {
+      "t": 123230,
+      "usage": 145935866,
+      "quota": 10883354106
+    },
+    {
+      "t": 126230,
+      "usage": 146825554,
+      "quota": 10884243794
+    },
+    {
+      "t": 129235,
+      "usage": 153479880,
+      "quota": 10890898120
+    },
+    {
+      "t": 132232,
+      "usage": 167966123,
+      "quota": 10905384363
+    },
+    {
+      "t": 135233,
+      "usage": 190040341,
+      "quota": 10927458581
+    },
+    {
+      "t": 138231,
+      "usage": 183559447,
+      "quota": 10920977687
+    },
+    {
+      "t": 141231,
+      "usage": 202670782,
+      "quota": 10940089022
+    },
+    {
+      "t": 144244,
+      "usage": 203609434,
+      "quota": 10941027674
+    },
+    {
+      "t": 147231,
+      "usage": 195721006,
+      "quota": 10933139246
+    },
+    {
+      "t": 150231,
+      "usage": 196617947,
+      "quota": 10934036187
+    },
+    {
+      "t": 153252,
+      "usage": 196684575,
+      "quota": 10934102815
+    },
+    {
+      "t": 156256,
+      "usage": 197074557,
+      "quota": 10934492797
+    },
+    {
+      "t": 159231,
+      "usage": 205145769,
+      "quota": 10942564009
+    },
+    {
+      "t": 162234,
+      "usage": 199639769,
+      "quota": 10937058009
+    },
+    {
+      "t": 165231,
+      "usage": 199706120,
+      "quota": 10937124360
+    },
+    {
+      "t": 168278,
+      "usage": 199139626,
+      "quota": 10936557866
+    },
+    {
+      "t": 171232,
+      "usage": 201592892,
+      "quota": 10939011132
+    },
+    {
+      "t": 174231,
+      "usage": 210213632,
+      "quota": 10947631872
+    },
+    {
+      "t": 177235,
+      "usage": 201377995,
+      "quota": 10938796235
+    },
+    {
+      "t": 180230,
+      "usage": 201950000,
+      "quota": 10939368240
+    },
+    {
+      "t": 183235,
+      "usage": 209511437,
+      "quota": 10946929677
+    },
+    {
+      "t": 186231,
+      "usage": 203171244,
+      "quota": 10940589484
+    },
+    {
+      "t": 189231,
+      "usage": 206039365,
+      "quota": 10943457605
+    },
+    {
+      "t": 192231,
+      "usage": 205461740,
+      "quota": 10942879980
+    },
+    {
+      "t": 195231,
+      "usage": 204758354,
+      "quota": 10942176594
+    },
+    {
+      "t": 198231,
+      "usage": 226867461,
+      "quota": 10964285701
+    },
+    {
+      "t": 201232,
+      "usage": 227892034,
+      "quota": 10965310274
+    },
+    {
+      "t": 204231,
+      "usage": 225693131,
+      "quota": 10963111371
+    }
+  ],
+  "tail": [
+    "171232ms SPIKE-QUOTA t=171232 usage=201592892 quota=10939011132 idbTx=168091 aborts=0 errors=0 req=279708 done=279705 failed=0 outstanding=3 netOut=0 fetches=387 xhr=1",
+    "171908ms BOOT unpack progress files=7000 bytes=46482342 ms=37148\n",
+    "173432ms BOOT unpack progress files=7500 bytes=46782339 ms=38673\n",
+    "174231ms SPIKE-QUOTA t=174231 usage=210213632 quota=10947631872 idbTx=170904 aborts=0 errors=0 req=284392 done=284390 failed=0 outstanding=2 netOut=0 fetches=387 xhr=1",
+    "175293ms BOOT unpack progress files=8000 bytes=47112609 ms=40534\n",
+    "176044ms BOOT wd phase=close-streams entry=res/quest/world/2019-09 Throne of Eldraine/duels/ELD 3 Lucky Clover 04UR.dck files=8145 bytes=47205539 inCallMs=3\n",
+    "177235ms SPIKE-QUOTA t=177235 usage=201377995 quota=10938796235 idbTx=172783 aborts=0 errors=0 req=287523 done=287522 failed=0 outstanding=1 netOut=0 fetches=387 xhr=1",
+    "177883ms BOOT unpack progress files=8500 bytes=47457886 ms=43124\n",
+    "179520ms BOOT unpack progress files=9000 bytes=47828879 ms=44761\n",
+    "180230ms SPIKE-QUOTA t=180230 usage=201950000 quota=10939368240 idbTx=175494 aborts=0 errors=0 req=292042 done=292038 failed=0 outstanding=4 netOut=0 fetches=387 xhr=1",
+    "180929ms BOOT unpack progress files=9500 bytes=48181558 ms=46170\n",
+    "181046ms BOOT wd phase=close-streams entry=res/quest/world/Dominaria/duels/Standard Cluster 101 Rakdos.dck files=9526 bytes=48199232 inCallMs=2\n",
+    "182478ms BOOT unpack progress files=10000 bytes=48544737 ms=47718\n",
+    "183235ms SPIKE-QUOTA t=183235 usage=209511437 quota=10946929677 idbTx=178545 aborts=0 errors=0 req=297130 done=297129 failed=0 outstanding=1 netOut=0 fetches=387 xhr=1",
+    "183986ms BOOT unpack progress files=10500 bytes=48905536 ms=49227\n",
+    "185554ms BOOT unpack progress files=11000 bytes=49261533 ms=50795\n",
+    "186047ms BOOT wd phase=close-streams entry=res/quest/world/Journey_into_Nyx/duels/53.dck files=11156 bytes=49359396 inCallMs=5\n",
+    "186231ms SPIKE-QUOTA t=186231 usage=203171244 quota=10940589484 idbTx=181494 aborts=0 errors=0 req=302049 done=302048 failed=0 outstanding=1 netOut=0 fetches=387 xhr=1",
+    "187208ms BOOT unpack progress files=11500 bytes=49607125 ms=52448\n",
+    "188778ms BOOT unpack progress files=12000 bytes=49987134 ms=54018\n",
+    "189231ms SPIKE-QUOTA t=189231 usage=206039365 quota=10943457605 idbTx=184305 aborts=0 errors=0 req=306737 done=306733 failed=0 outstanding=4 netOut=0 fetches=387 xhr=1",
+    "190441ms BOOT unpack progress files=12500 bytes=50351762 ms=55682\n",
+    "191049ms BOOT wd phase=close-streams entry=res/quest/world/Return_to_Ravnica/duels/12.dck files=12667 bytes=50473907 inCallMs=5\n",
+    "192231ms SPIKE-QUOTA t=192231 usage=205461740 quota=10942879980 idbTx=186982 aborts=0 errors=0 req=311202 done=311201 failed=0 outstanding=1 netOut=0 fetches=387 xhr=1",
+    "192263ms BOOT unpack progress files=13000 bytes=50705626 ms=57504\n",
+    "193825ms BOOT unpack progress files=13500 bytes=51061644 ms=59066\n",
+    "195231ms SPIKE-QUOTA t=195231 usage=204758354 quota=10942176594 idbTx=189883 aborts=0 errors=0 req=316038 done=316038 failed=0 outstanding=0 netOut=0 fetches=387 xhr=1",
+    "195416ms BOOT unpack progress files=14000 bytes=51433849 ms=60657\n",
+    "196050ms BOOT wd phase=close-streams entry=res/quest/world/Zendikar_Standard/duels/14.dck files=14192 bytes=51574745 inCallMs=0\n",
+    "196952ms BOOT unpack progress files=14500 bytes=52097292 ms=62192\n",
+    "198231ms SPIKE-QUOTA t=198231 usage=226867461 quota=10964285701 idbTx=192675 aborts=0 errors=0 req=320687 done=320687 failed=0 outstanding=0 netOut=0 fetches=387 xhr=1",
+    "199023ms BOOT unpack progress files=15000 bytes=71101636 ms=64264\n",
+    "201052ms BOOT wd phase=close-streams entry=res/tokenscripts/incubator_c_0_0_a_phyrexian.txt files=15252 bytes=71143563 inCallMs=2\n",
+    "201232ms SPIKE-QUOTA t=201232 usage=227892034 quota=10965310274 idbTx=194014 aborts=0 errors=0 req=322918 done=322916 failed=0 outstanding=2 netOut=0 fetches=387 xhr=1",
+    "204231ms SPIKE-QUOTA t=204231 usage=225693131 quota=10963111371 idbTx=194695 aborts=0 errors=0 req=324053 done=324053 failed=0 outstanding=0 netOut=0 fetches=387 xhr=1",
+    "204232ms BOOT unpack progress files=15500 bytes=71196994 ms=69473\n",
+    "206054ms BOOT wd phase=close-streams entry=res/tokenscripts/w_2_2_reflection.txt files=15626 bytes=71216383 inCallMs=28\n",
+    "206865ms BOOT unpack done files=15685 dirs=468 bytes=71226313 ms=72106\n",
+    "206924ms BOOT ALLDONE repeats=4\n",
+    "206929ms SPIKE-QUOTA after {\"t\":206929,\"usage\":224840271,\"quota\":10962258511,\"detail\":{\"indexedDB\":224840271}}"
+  ]
+}

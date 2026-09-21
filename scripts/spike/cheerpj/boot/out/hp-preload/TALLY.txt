@@ -1,0 +1,10 @@
+run 01/20 rc=0 READY   199s load=7.24  195927ms BOOT wd phase=close-streams entry=res/tokenscripts/w_2_4_ox.txt files=15633 bytes=71217066 inCallMs=1
+run 02/20 rc=0 READY   220s load=10.05  215832ms BOOT wd phase=close-streams entry=res/tokenscripts/w_2_2_alien.txt files=15607 bytes=71213875 inCallM
+run 03/20 rc=0 READY   210s load=6.54  205955ms BOOT wd phase=close-streams entry=res/tokenscripts/w_3_3_angel_flying.txt files=15636 bytes=71217366 
+run 04/20 rc=0 READY   212s load=6.76  206135ms BOOT wd phase=close-streams entry=res/tokenscripts/u_1_1_wizard_countersac.txt files=15483 bytes=7119
+run 05/20 rc=0 READY   198s load=8.01  196211ms BOOT wd phase=close-streams entry=res/tokenscripts/yellow_hat.txt files=15681 bytes=71224738 inCallMs
+run 06/20 rc=0 READY   215s load=11.12  210814ms BOOT wd phase=close-streams entry=res/tokenscripts/w_4_4_spirit_flying.txt files=15651 bytes=71219417
+run 07/20 rc=0 READY   211s load=9.10  206261ms BOOT wd phase=close-streams entry=res/tokenscripts/w_1_1_e_soldier.txt files=15572 bytes=71210004 inC
+run 08/20 rc=0 READY   255s load=16.99  251254ms BOOT wd phase=marker-write entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=0
+run 09/20 rc=0 READY   327s load=18.63  323517ms BOOT wd phase=close-streams entry=res/tokenscripts/w_2_2_samurai_double_strike.txt files=15627 bytes=
+run 10/20 rc=0 READY   239s load=15.13  231395ms BOOT wd phase=close-streams entry=res/tokenscripts/role_virtuous.txt files=15404 bytes=71176094 inCal

@@ -1,0 +1,468 @@
+{
+  "url": "http://127.0.0.1:8744/index.html?build=20260920T230700Z-ad44f7ee91&wipe=1&persist=0&w=1280&h=800&args=/app/res-boot.zip%7C/files/%7Cforge.view.Main&props=user.dir%3D/files/%7Cuser.home%3D/files%7Cforge.assetsDir%3D/files/%7Cspike.bootFix%3Doff%7Cspike.wdMs%3D5000%7Cspike.verboseFrom%3D-1%7Cspike.batch%3D64%7Cspike.settleMs%3D1",
+  "outcome": "STALL",
+  "readyMarker": "Read cards:",
+  "wallMs": 106943,
+  "markerMs": null,
+  "homeMs": null,
+  "homeCanvas": null,
+  "homeWant": "800x600",
+  "stalledIn": "close-streams",
+  "maxInCallMs": 75094,
+  "maxUnpackInCallMs": 75094,
+  "forgeStallMs": 240000,
+  "stallMs": 75000,
+  "budgetMs": 480000,
+  "lastLine": "105546ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=75094\n",
+  "lastProgress": "30078ms BOOT unpack progress files=14500 bytes=52097292 ms=24533\n",
+  "lastWatchdog": "105546ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=75094\n",
+  "watchdogAlive": true,
+  "storage": {
+    "before": {
+      "t": 208.80000019073486,
+      "usage": 0,
+      "quota": 10737418240,
+      "detail": {}
+    },
+    "peakUsage": 36830523,
+    "quotaBytes": 10774248763,
+    "lastSample": {
+      "t": 105209.30000019073,
+      "usage": 36830523,
+      "quota": 10774248763,
+      "detail": {
+        "indexedDB": 36830523
+      }
+    },
+    "samples": 35
+  },
+  "idb": {
+    "transactions": 45462,
+    "aborts": 0,
+    "errors": 0,
+    "events": [],
+    "requests": 75667,
+    "completed": 75667,
+    "failed": 0,
+    "outstanding": 0,
+    "outstandingOps": [],
+    "lastOps": [
+      {
+        "id": 75648,
+        "op": "put",
+        "store": "files",
+        "t": 30431.099999904633
+      },
+      {
+        "id": 75649,
+        "op": "get",
+        "store": "files",
+        "t": 30433.5
+      },
+      {
+        "id": 75650,
+        "op": "put",
+        "store": "files",
+        "t": 30433.800000190735
+      },
+      {
+        "id": 75651,
+        "op": "put",
+        "store": "files",
+        "t": 30433.800000190735
+      },
+      {
+        "id": 75652,
+        "op": "put",
+        "store": "files",
+        "t": 30433.800000190735
+      },
+      {
+        "id": 75653,
+        "op": "put",
+        "store": "files",
+        "t": 30439.800000190735
+      },
+      {
+        "id": 75654,
+        "op": "get",
+        "store": "files",
+        "t": 30444.5
+      },
+      {
+        "id": 75655,
+        "op": "put",
+        "store": "files",
+        "t": 30444.699999809265
+      },
+      {
+        "id": 75656,
+        "op": "put",
+        "store": "files",
+        "t": 30444.699999809265
+      },
+      {
+        "id": 75657,
+        "op": "put",
+        "store": "files",
+        "t": 30444.800000190735
+      },
+      {
+        "id": 75658,
+        "op": "put",
+        "store": "files",
+        "t": 30445.300000190735
+      },
+      {
+        "id": 75659,
+        "op": "get",
+        "store": "files",
+        "t": 30448.900000095367
+      },
+      {
+        "id": 75660,
+        "op": "put",
+        "store": "files",
+        "t": 30449.300000190735
+      },
+      {
+        "id": 75661,
+        "op": "put",
+        "store": "files",
+        "t": 30449.300000190735
+      },
+      {
+        "id": 75662,
+        "op": "put",
+        "store": "files",
+        "t": 30449.300000190735
+      },
+      {
+        "id": 75663,
+        "op": "put",
+        "store": "files",
+        "t": 30449.599999904633
+      },
+      {
+        "id": 75664,
+        "op": "get",
+        "store": "files",
+        "t": 30450
+      },
+      {
+        "id": 75665,
+        "op": "put",
+        "store": "files",
+        "t": 30450.199999809265
+      },
+      {
+        "id": 75666,
+        "op": "put",
+        "store": "files",
+        "t": 30450.199999809265
+      },
+      {
+        "id": 75667,
+        "op": "put",
+        "store": "files",
+        "t": 30450.199999809265
+      }
+    ]
+  },
+  "rejections": [],
+  "error": null,
+  "pageErrors": [],
+  "linesDropped": 0,
+  "seq": 91,
+  "marks": {
+    "pageStart": 7.400000095367432,
+    "loaderReady": 207.30000019073486,
+    "wipeDone": 208.5,
+    "initDone": 1196.4000000953674,
+    "displayDone": 1200.3000001907349
+  },
+  "env": {
+    "start": {
+      "load": [
+        3.52,
+        3.4,
+        3.23
+      ],
+      "tmp": {
+        "fs": "tmpfs",
+        "availKb": 7301264,
+        "usePct": "66%",
+        "mount": "/tmp"
+      },
+      "t": "2026-09-20T23:18:33.945Z"
+    },
+    "end": {
+      "load": [
+        1.68,
+        2.85,
+        3.06
+      ],
+      "tmp": {
+        "fs": "tmpfs",
+        "availKb": 7283296,
+        "usePct": "66%",
+        "mount": "/tmp"
+      },
+      "t": "2026-09-20T23:20:20.978Z"
+    }
+  },
+  "bootLines": [
+    "209ms SPIKE-PERSIST wasPersisted=false requested=false nowPersisted=false",
+    "5483ms BOOT begin zip=/app/res-boot.zip dest=/files/ main=forge.view.Main fix=off wdMs=5000 verboseFrom=-1 batch=64 settleMs=1\n",
+    "5505ms BOOT wd alive tick=5000ms\n",
+    "5543ms BOOT zip open ms=24 entries=16153 archiveBytes=50279251\n",
+    "6543ms BOOT unpack progress files=500 bytes=16911748 ms=987\n",
+    "6808ms BOOT unpack progress files=1000 bytes=17301753 ms=1263\n",
+    "7084ms BOOT unpack progress files=1500 bytes=18281244 ms=1540\n",
+    "7732ms BOOT unpack progress files=2000 bytes=32130705 ms=2187\n",
+    "8970ms BOOT unpack progress files=2500 bytes=35274679 ms=3426\n",
+    "9468ms BOOT unpack progress files=3000 bytes=37517166 ms=3923\n",
+    "10081ms BOOT unpack progress files=3500 bytes=38312432 ms=4536\n",
+    "10870ms BOOT unpack progress files=4000 bytes=39157416 ms=5325\n",
+    "13097ms BOOT unpack progress files=4500 bytes=39508657 ms=7553\n",
+    "14838ms BOOT unpack progress files=5000 bytes=44581320 ms=9293\n",
+    "15737ms BOOT unpack progress files=5500 bytes=45226678 ms=10193\n",
+    "17848ms BOOT unpack progress files=6000 bytes=45569844 ms=12303\n",
+    "20776ms BOOT unpack progress files=6500 bytes=45939837 ms=15231\n",
+    "22291ms BOOT unpack progress files=7000 bytes=46482342 ms=16747\n",
+    "23099ms BOOT unpack progress files=7500 bytes=46782339 ms=17555\n",
+    "24189ms BOOT unpack progress files=8000 bytes=47112609 ms=18644\n",
+    "24699ms BOOT unpack progress files=8500 bytes=47457886 ms=19154\n",
+    "25042ms BOOT unpack progress files=9000 bytes=47828879 ms=19498\n",
+    "25331ms BOOT unpack progress files=9500 bytes=48181558 ms=19786\n",
+    "25708ms BOOT unpack progress files=10000 bytes=48544737 ms=20163\n",
+    "26007ms BOOT unpack progress files=10500 bytes=48905536 ms=20462\n",
+    "26323ms BOOT unpack progress files=11000 bytes=49261533 ms=20779\n",
+    "26686ms BOOT unpack progress files=11500 bytes=49607125 ms=21141\n",
+    "26967ms BOOT unpack progress files=12000 bytes=49987134 ms=21422\n",
+    "27299ms BOOT unpack progress files=12500 bytes=50351762 ms=21754\n",
+    "27639ms BOOT unpack progress files=13000 bytes=50705626 ms=22094\n",
+    "28021ms BOOT unpack progress files=13500 bytes=51061644 ms=22477\n",
+    "28409ms BOOT unpack progress files=14000 bytes=51433849 ms=22863\n",
+    "30078ms BOOT unpack progress files=14500 bytes=52097292 ms=24533\n"
+  ],
+  "quotaSeries": [
+    {
+      "t": 3226,
+      "usage": 0,
+      "quota": 10737418240
+    },
+    {
+      "t": 6210,
+      "usage": 14094991,
+      "quota": 10751513231
+    },
+    {
+      "t": 9210,
+      "usage": 29883440,
+      "quota": 10767301680
+    },
+    {
+      "t": 12210,
+      "usage": 34139105,
+      "quota": 10771557345
+    },
+    {
+      "t": 15210,
+      "usage": 31014469,
+      "quota": 10768432709
+    },
+    {
+      "t": 18210,
+      "usage": 36418045,
+      "quota": 10773836285
+    },
+    {
+      "t": 21210,
+      "usage": 32882349,
+      "quota": 10770300589
+    },
+    {
+      "t": 24210,
+      "usage": 33837339,
+      "quota": 10771255579
+    },
+    {
+      "t": 27210,
+      "usage": 35434138,
+      "quota": 10772852378
+    },
+    {
+      "t": 30213,
+      "usage": 36768784,
+      "quota": 10774187024
+    },
+    {
+      "t": 33210,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 36209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 39209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 42209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 45209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 48209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 51210,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 54209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 57209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 60209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 63209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 66209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 69209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 72209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 75209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 78209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 81209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 84209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 87209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 90209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 93209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 96210,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 99210,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 102209,
+      "usage": 36830523,
+      "quota": 10774248763
+    },
+    {
+      "t": 105209,
+      "usage": 36830523,
+      "quota": 10774248763
+    }
+  ],
+  "tail": [
+    "33210ms SPIKE-QUOTA t=33210 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "35525ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=5074\n",
+    "36209ms SPIKE-QUOTA t=36209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "39209ms SPIKE-QUOTA t=39209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "40528ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=10076\n",
+    "42209ms SPIKE-QUOTA t=42209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "45209ms SPIKE-QUOTA t=45209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "45529ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=15078\n",
+    "48209ms SPIKE-QUOTA t=48209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "50531ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=20079\n",
+    "51210ms SPIKE-QUOTA t=51210 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "54209ms SPIKE-QUOTA t=54209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "55532ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=25081\n",
+    "57209ms SPIKE-QUOTA t=57209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "60209ms SPIKE-QUOTA t=60209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "60533ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=30082\n",
+    "63209ms SPIKE-QUOTA t=63209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "65535ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=35083\n",
+    "66209ms SPIKE-QUOTA t=66209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "69209ms SPIKE-QUOTA t=69209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "70536ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=40085\n",
+    "72209ms SPIKE-QUOTA t=72209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "75209ms SPIKE-QUOTA t=75209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "75538ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=45086\n",
+    "78209ms SPIKE-QUOTA t=78209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "80539ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=50088\n",
+    "81209ms SPIKE-QUOTA t=81209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "84209ms SPIKE-QUOTA t=84209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "85540ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=55089\n",
+    "87209ms SPIKE-QUOTA t=87209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "90209ms SPIKE-QUOTA t=90209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "90542ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=60090\n",
+    "93209ms SPIKE-QUOTA t=93209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "95543ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=65092\n",
+    "96210ms SPIKE-QUOTA t=96210 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "99210ms SPIKE-QUOTA t=99210 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "100544ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=70093\n",
+    "102209ms SPIKE-QUOTA t=102209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "105209ms SPIKE-QUOTA t=105209 usage=36830523 quota=10774248763 idbTx=45462 aborts=0 errors=0 req=75667 done=75667 failed=0 outstanding=0",
+    "105546ms BOOT wd phase=close-streams entry=res/quest/world/shandalar/duels/Undead Knight 4.dck files=14582 bytes=52139838 inCallMs=75094\n"
+  ]
+}

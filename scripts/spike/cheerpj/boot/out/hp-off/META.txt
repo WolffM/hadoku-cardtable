@@ -1,0 +1,5 @@
+label=hp-off n=20 build=20260921T000355Z-ffa43bf5cb
+fix=off batch=64 settleMs=1 persist=0
+wdMs=5000 verboseFrom=-1 stallMs=75000 budgetMs=480000
+repeat=4 main=none ready=BOOT ALLDONE extra=--home 0x0
+started=2026-09-21T00:04:04Z load=2.61 3.15 3.05

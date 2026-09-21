@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CheerpJ boot reliability -- wave 16 lane A</title>
+<style>
+  html, body { margin: 0; background: #000; color: #ddd; font: 12px/1.4 ui-monospace, monospace; }
+  #log { white-space: pre-wrap; padding: 6px; max-height: 26vh; overflow: auto; border-bottom: 1px solid #333; }
+  #display { width: 1280px; height: 800px; }
+</style>
+</head>
+<body>
+<div id="log">booting...</div>
+<div id="display"></div>
+<script>
+// ===========================================================================
+// Wave 16, lane A -- the boot-reliability harness.
+//
+// A FORK of scripts/spike/cheerpj/firstpaint/index.html (wave 15, lane D),
+// which lane B is driving right now and which is not this lane's to edit. The
+// console contract is deliberately the same shape -- window.__spike.{lines,
+// marks, error, finished} -- so the difference between the two pages is only
+// the instrumentation below.
+//
+// What is added, and why each piece exists:
+//
+//  1. A MONOTONIC SEQUENCE NUMBER (__spike.seq). Wave 15's stall was detected
+//     by a 900 s budget expiring. That costs 900 s per failure and says
+//     nothing. The driver here watches seq instead: "no new console line for
+//     N seconds" IS the stall, it is visible in ~75 s, and the LAST line names
+//     where it stopped.
+//
+//  2. A CAPPED line buffer and a capped DOM log. The Java side can now print a
+//     line per zip entry (spike.verboseFrom); appending 16k lines to one text
+//     node is quadratic and would itself change what is being measured.
+//
+//  3. navigator.storage.estimate() SAMPLING. The brief's named unexamined
+//     suspect. res-boot.zip unpacks to ~71 MB into /files/, which is
+//     IndexedDB, and nobody has ever looked at the quota. Sampled before
+//     cheerpjInit, every QUOTA_MS during the run, and once at the end, so a
+//     usage curve that flat-lines is visible rather than inferred.
+//
+//  4. An IndexedDB TRANSACTION HOOK. A quota refusal does not arrive as a
+//     thrown Java exception; it arrives as an IDBTransaction abort whose
+//     error.name is QuotaExceededError. If CheerpJ swallows that, nothing in
+//     the Java transcript can ever show it. So every transaction opened on
+//     this origin gets abort/error listeners attached (addEventListener, so
+//     CheerpJ's own onabort/onerror are untouched) and the first few are
+//     logged with their store names, object-store counts and error names.
+//
+//  5. Unhandled rejections are logged as lines, not only stashed in .error --
+//     a dropped promise inside CheerpJ's async /files/ writes is one of the
+//     three candidate mechanisms and it must be visible in the transcript.
+//
+// Query parameters:
+//   args=a|b|c      argv for spike.Bootstrap
+//   props=k=v|k=v   javaProperties
+//   wipe=1          delete every IndexedDB database BEFORE cheerpjInit
+//   w=, h=          display size
+//   quotams=3000    storage-estimate sampling interval
+// ===========================================================================
+const Q = new URLSearchParams(location.search);
+const MAX_LINES = 4000;
+const S = window.__spike = {
+  lines: [], marks: {}, error: null, finished: false,
+  seq: 0, progressSeq: 0, dropped: 0,
+  quota: { before: null, samples: [], after: null },
+  idb: { transactions: 0, aborts: 0, errors: 0, events: [],
+         requests: 0, completed: 0, failed: 0, outstanding: new Map(), lastOps: [] },
+  rejections: [],
+};
+const mark = (n) => { S.marks[n] = performance.now(); };
+const logEl = document.getElementById('log');
+
+for (const m of ['log', 'warn', 'error', 'info']) {
+  const orig = console[m].bind(console);
+  console[m] = (...a) => {
+    const s = a.map((x) => (typeof x === 'string' ? x : String(x))).join(' ');
+    S.seq += 1;
+    // progressSeq counts only lines that mean SOMETHING MOVED. The two
+    // instruments -- the quota sampler and the Java watchdog -- tick on their
+    // own whether or not the boot is alive, so counting them as liveness makes
+    // a stall undetectable. The first version of this harness did exactly that
+    // and burned the full 480 s budget on a run whose unpack had been dead for
+    // 443 of them.
+    if (!/^(SPIKE-QUOTA|BOOT wd )/.test(s)) { S.progressSeq += 1; }
+    S.lines.push({ t: performance.now(), s });
+    if (S.lines.length > MAX_LINES) { S.lines.splice(0, S.lines.length - MAX_LINES); S.dropped += 1; }
+    if (logEl) {
+      logEl.textContent += '\n' + s;
+      if (logEl.textContent.length > 20000) { logEl.textContent = logEl.textContent.slice(-12000); }
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    orig(...a);
+  };
+}
+window.addEventListener('error', (e) => { S.error = String(e.message || e.error); });
+window.addEventListener('unhandledrejection', (e) => {
+  const r = String(e.reason && e.reason.stack ? e.reason.stack : e.reason);
+  S.rejections.push({ t: performance.now(), r });
+  console.log('SPIKE-REJECTION ' + r.split('\n')[0]);
+});
+S.find = (p) => (S.lines.find((l) => l.s.startsWith(p)) || null);
+S.findLast = (p) => { for (let i = S.lines.length - 1; i >= 0; i--) if (S.lines[i].s.startsWith(p)) return S.lines[i]; return null; };
+
+// --- 4. the IndexedDB transaction hook, installed before ANY CheerpJ code ---
+(function hookIdb() {
+  const origTx = IDBDatabase.prototype.transaction;
+  if (!origTx) return;
+  IDBDatabase.prototype.transaction = function (stores, mode, opts) {
+    const tx = origTx.call(this, stores, mode, opts);
+    S.idb.transactions += 1;
+    const note = (kind) => {
+      const err = tx.error;
+      const name = err ? (err.name || String(err)) : '(none)';
+      if (kind === 'abort') S.idb.aborts += 1; else S.idb.errors += 1;
+      const rec = { t: performance.now(), kind, db: this.name, stores: String(stores), mode, name,
+                    message: err ? String(err.message || '') : '' };
+      S.idb.events.push(rec);
+      // Always log -- there should be ZERO of these in a healthy boot, so the
+      // volume is bounded by the bug and a cap would hide the finding.
+      console.log('SPIKE-IDB ' + kind + ' db=' + this.name + ' mode=' + mode
+        + ' stores=' + String(stores) + ' err=' + name + ' msg=' + rec.message);
+    };
+    tx.addEventListener('abort', () => note('abort'));
+    tx.addEventListener('error', () => note('error'));
+    return tx;
+  };
+
+  // Request-level accounting, which is what actually separates the two
+  // candidate mechanisms:
+  //
+  //   outstanding > 0 at the stall -> an IndexedDB request WAS issued and its
+  //                                   success/error event never arrived. The
+  //                                   loss is in IDB or the event loop.
+  //   outstanding == 0 at the stall -> CheerpJ never issued a request at all.
+  //                                    The Java thread is parked upstream of
+  //                                    IndexedDB, inside CheerpJ's own code.
+  //
+  // Nothing else in this transcript can tell those apart, and they call for
+  // completely different fixes.
+  let nextId = 1;
+  const track = (name, proto, key) => {
+    const orig = proto[key];
+    if (!orig) return;
+    proto[key] = function (...a) {
+      const req = orig.apply(this, a);
+      const id = nextId++;
+      const rec = { id, op: name, store: this.name, t: performance.now() };
+      S.idb.requests += 1;
+      S.idb.outstanding.set(id, rec);
+      S.idb.lastOps.push(rec);
+      if (S.idb.lastOps.length > 50) S.idb.lastOps.shift();
+      const settle = (ok) => {
+        if (S.idb.outstanding.delete(id)) { if (ok) S.idb.completed += 1; else S.idb.failed += 1; }
+      };
+      try {
+        req.addEventListener('success', () => settle(true));
+        req.addEventListener('error', () => settle(false));
+      } catch { settle(true); }   // not an IDBRequest after all; do not leak it
+      return req;
+    };
+  };
+  for (const k of ['put', 'get', 'add', 'delete', 'getAll', 'getAllKeys', 'openCursor', 'count']) {
+    track(k, IDBObjectStore.prototype, k);
+  }
+}());
+
+// --- the OTHER async subsystem in the same loop -----------------------------
+//
+// The unpack is not "read from memory, write to IndexedDB". /app/ is an HTTP
+// mount: ZipFile.getInputStream() pulls the entry's bytes off the network with
+// a Range request, and that fetch's continuation and the /files/ write's
+// continuation are resumed on the same Java thread. So every entry interleaves
+// TWO async subsystems, which is exactly the shape a lost-wakeup race wants.
+//
+// Counting outstanding fetches at the stall is what tells the two apart:
+//   fetch outstanding > 0 -> parked waiting for the network
+//   fetch outstanding == 0 and IDB outstanding == 0 -> parked waiting for
+//                            nothing at all, i.e. the wakeup was dropped
+S.net = { fetches: 0, done: 0, failed: 0, outstanding: new Map(), xhr: 0, xhrDone: 0 };
+(function hookNet() {
+  const origFetch = self.fetch;
+  let id = 1;
+  self.fetch = function (...a) {
+    const n = id++;
+    const rec = { n, url: String(a[0] && a[0].url ? a[0].url : a[0]).slice(-60),
+                  range: (a[1] && a[1].headers && (a[1].headers.Range || a[1].headers.range)) || null,
+                  t: performance.now() };
+    S.net.fetches += 1;
+    S.net.outstanding.set(n, rec);
+    const settle = (ok) => { if (S.net.outstanding.delete(n)) { if (ok) S.net.done += 1; else S.net.failed += 1; } };
+    return origFetch.apply(this, a).then(
+      (r) => { settle(true); return r; },
+      (e) => { settle(false); throw e; },
+    );
+  };
+  const origOpen = XMLHttpRequest.prototype.open;
+  const origSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function (...a) { this.__spikeUrl = String(a[1]); return origOpen.apply(this, a); };
+  XMLHttpRequest.prototype.send = function (...a) {
+    const n = id++;
+    S.net.xhr += 1;
+    S.net.outstanding.set(n, { n, url: String(this.__spikeUrl || '').slice(-60), xhr: true, t: performance.now() });
+    const settle = () => { if (S.net.outstanding.delete(n)) S.net.xhrDone += 1; };
+    this.addEventListener('loadend', settle);
+    return origSend.apply(this, a);
+  };
+}());
+
+mark('pageStart');
+</script>
+<script src="https://cjrtnc.leaningtech.com/4.3/loader.js"></script>
+<script>
+(async () => {
+  const QUOTA_MS = Number(Q.get('quotams') || 3000);
+  const estimate = async () => {
+    try {
+      if (!navigator.storage || !navigator.storage.estimate) return null;
+      const e = await navigator.storage.estimate();
+      return { t: performance.now(), usage: e.usage, quota: e.quota,
+               detail: e.usageDetails ? { ...e.usageDetails } : null };
+    } catch (err) { return { t: performance.now(), error: String(err) }; }
+  };
+  let quotaTimer = null;
+  try {
+    mark('loaderReady');
+
+    // ?wipe=1 makes a run provably COLD. /files/ is IndexedDB-backed and
+    // survives page loads, so without this a "cold" run silently measures a
+    // warm one -- wave 15 lane B was bitten by exactly that and said so.
+    if (Q.get('wipe') === '1' && indexedDB.databases) {
+      const dbs = await indexedDB.databases();
+      for (const d of dbs) {
+        if (!d.name) continue;
+        await new Promise((res) => {
+          const r = indexedDB.deleteDatabase(d.name);
+          r.onsuccess = r.onerror = r.onblocked = () => res();
+        });
+      }
+      console.log('SPIKE wipe cleared ' + dbs.length + ' IndexedDB database(s): '
+        + dbs.map((d) => d.name).join(',') || '(none)');
+    }
+    mark('wipeDone');
+
+    S.quota.before = await estimate();
+    console.log('SPIKE-QUOTA before ' + JSON.stringify(S.quota.before));
+    // persist() asks Chrome to make this origin's storage "persistent", which
+    // changes the eviction policy (best-effort buckets can be evicted under
+    // pressure, persistent ones cannot). persist=1 requests it; the RESULT is
+    // logged either way, because "we asked" and "we got it" are different
+    // facts and only the second one can explain anything.
+    if (navigator.storage && navigator.storage.persisted) {
+      const was = await navigator.storage.persisted().catch(() => null);
+      let got = was;
+      if (Q.get('persist') === '1' && navigator.storage.persist) {
+        got = await navigator.storage.persist().catch((e) => 'error:' + e);
+      }
+      console.log('SPIKE-PERSIST wasPersisted=' + was + ' requested=' + (Q.get('persist') === '1')
+        + ' nowPersisted=' + got);
+    }
+
+    quotaTimer = setInterval(async () => {
+      const e = await estimate();
+      if (!e) return;
+      S.quota.samples.push(e);
+      console.log('SPIKE-QUOTA t=' + e.t.toFixed(0) + ' usage=' + e.usage + ' quota=' + e.quota
+        + ' idbTx=' + S.idb.transactions + ' aborts=' + S.idb.aborts + ' errors=' + S.idb.errors
+        + ' req=' + S.idb.requests + ' done=' + S.idb.completed + ' failed=' + S.idb.failed
+        + ' outstanding=' + S.idb.outstanding.size
+        + ' netOut=' + S.net.outstanding.size + ' fetches=' + S.net.fetches + ' xhr=' + S.net.xhr);
+    }, QUOTA_MS);
+
+    const W = Number(Q.get('w') || 1280);
+    const H = Number(Q.get('h') || 800);
+    document.getElementById('display').style.width = W + 'px';
+    document.getElementById('display').style.height = H + 'px';
+
+    // version 17 is mandatory: CheerpJ defaults to Java 8 mode and refuses
+    // class files above major 52, and Forge is built at 17 (forge/pom.xml:27).
+    const props = (Q.get('props') || 'user.dir=/files/').split('|').filter(Boolean);
+    await cheerpjInit({ version: 17, enableDebug: false, javaProperties: props });
+    mark('initDone');
+    cheerpjCreateDisplay(W, H, document.getElementById('display'));
+    mark('displayDone');
+
+    const argv = (Q.get('args') || '/app/res-boot.zip|/files/|forge.view.Main').split('|');
+    await cheerpjRunMain('spike.Bootstrap', '/app/boot.jar:/app/forge.jar', ...argv);
+    mark('runReturned');
+  } catch (e) {
+    S.error = (e && e.stack) ? e.stack : String(e);
+    console.error('SPIKE-HARNESS-ERROR ' + S.error);
+  } finally {
+    if (quotaTimer) clearInterval(quotaTimer);
+    S.quota.after = await estimate();
+    console.log('SPIKE-QUOTA after ' + JSON.stringify(S.quota.after));
+    S.finished = true;
+    mark('finished');
+  }
+})();
+</script>
+</body>
+</html>

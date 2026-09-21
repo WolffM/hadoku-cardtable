@@ -1,0 +1,24 @@
+run 01/20 rc=0 READY   175s load=8.34  173729ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=130288
+run 02/20 rc=0 READY   214s load=20.10  211919ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=157417
+run 03/20 rc=0 READY   231s load=15.92  229807ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=154893
+run 04/20 rc=0 READY   217s load=12.42  215573ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=140688
+run 05/20 rc=0 READY   180s load=9.26  175284ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=124512
+run 06/20 rc=0 READY   145s load=3.16  141702ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=103896
+run 07/20 rc=0 READY   147s load=4.77  142359ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=105377
+run 08/20 rc=0 READY   142s load=3.50  140974ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=104487
+run 09/20 rc=0 READY   143s load=2.76  138525ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=101483
+run 10/20 rc=0 READY   140s load=3.92  136429ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=99458
+run 11/20 rc=0 READY   141s load=3.60  136954ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=100858
+run 12/20 rc=0 READY   143s load=3.43  138517ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=100873
+run 13/20 rc=0 READY   144s load=2.87  142454ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=105118
+run 14/20 rc=0 READY   141s load=3.73  136720ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=99766
+run 15/20 rc=0 READY   150s load=4.57  147117ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=109335
+run 16/20 rc=0 READY   141s load=2.98  136063ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=98869
+run 17/20 rc=0 READY   141s load=3.38  138087ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=100236
+run 18/20 rc=0 READY   141s load=3.10  136191ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=99169
+run 19/20 rc=0 READY   140s load=3.76  136250ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=98973
+run 20/20 rc=0 READY   142s load=4.33  137229ms BOOT wd phase=forge entry=res/tutorial/Spellslinger.pzl files=15685 bytes=71226313 inCallMs=100198
+---
+label=after-boot n=20 READY=20 STALL=0 OTHER=0
+failures k=0  rate=0.00
+finished=2026-09-21T01:19:18Z load=4.33 4.04 4.68
