@@ -500,6 +500,13 @@
 /*
  * Status chips sit ON the card, along its bottom edge: below it they would
  * make a row of cards taller than the height its size was derived from.
+ *
+ * And they never make a card WIDER. A chip is one line of text, and "summoning
+ * sick" is about 74px — wider than a card once eleven share a row at
+ * 1280×800 (71px). An unclipped chip hung out of the last card and made the
+ * whole battlefield scroll sideways by 8px. So the strip is clipped to the
+ * card, and a chip too long for it is cut with an ellipsis; its full words
+ * are still in the list's accessible text.
  */
 .board-card__chips {
   position: absolute;
@@ -513,10 +520,13 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  overflow: hidden;
   pointer-events: none;
 }
 
 .board-card__chip {
+  min-width: 0;
+  max-width: 100%;
   padding: 0 4px;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -524,6 +534,8 @@
   color: var(--ink-dim);
   font-size: 9px;
   line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

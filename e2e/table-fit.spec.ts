@@ -39,9 +39,10 @@
  *
  *   1. the opening prompt (the coin toss) and the mulligan decisions, each
  *      answered by clicking OK on the BOARD of whichever seat Forge asked;
- *   2. several turns of real play: `play/hands.ts` plays lands and spells for
- *      both seats, and every ask the game raises is answered on the board
- *      (`play/prompts.ts`), so battlefields fill up and turns change;
+ *   2. real play, until turn 12 AND a battlefield of 8, under a hard cap:
+ *      `play/hands.ts` plays lands and spells for both seats, and every ask
+ *      the game raises is answered on the board (`play/prompts.ts`), so
+ *      battlefields fill up and turns change;
  *   3. a question open on each side — Forge's own `showConfirmDialog` through
  *      the probe route — with the page measured while it is up;
  *   4. the window sizes swapped, and measured again.
@@ -49,6 +50,17 @@
  * Then the samples are read back and asserted, with minimums (frames sampled,
  * turns seen, cards on a battlefield, prompts seen) so a sampler that looked
  * at nothing, or a game that never got past the coin toss, cannot pass.
+ *
+ * ## And a crowded table, built on purpose (the second test)
+ *
+ * A real game reaches 8–11 permanents a side by turn 12, so the first test
+ * cannot promise to have seen a crowd — and an 11-card battlefield at
+ * 1280×800 was exactly what broke (a status chip wider than the shrunken card
+ * made the zone scroll sideways). The second test parks a live match on its
+ * first keep-or-mulligan question and, as a DOM-only layout probe, fills both
+ * battlefields to 8, 11, 16 and 20 cards and the hand to 10, at both window
+ * sizes from both seats, asserting that no zone scrolls, the page does not,
+ * and no card is narrower than 36px.
  *
  * Needs a Forge build, exactly as `play.spec.ts`: `CARDTABLE_FORGE_JAR` +
  * `CARDTABLE_FORGE_RES`. Without them it SKIPS and its title says why, so the
@@ -72,9 +84,21 @@ import { forgeAvailability, RUN_DIR, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 
 const PREFIX = '/cardtable';
-/** Play at least this far, so both battlefields hold a real board. */
+/** Play at least this far, so the check has seen many turn transitions. */
 const MIN_TURN = 12;
-const PLAY_BUDGET_MS = 4 * 60_000;
+/**
+ * And until each page has seen a battlefield this big, so the fit is measured
+ * on a crowded table rather than an empty one. A real game reaches it at a
+ * turn that varies with the shuffle, so the spec PLAYS until it does.
+ */
+const MIN_BATTLEFIELD = 8;
+/**
+ * The hard cap on that: past this turn, or this long, the run fails and says
+ * how far it got. Setup (~30 s), the opening (≤ 90 s) and the checks after
+ * play (~30 s) plus this budget stay inside the 10-minute test timeout.
+ */
+const MAX_TURN = 40;
+const PLAY_BUDGET_MS = 6 * 60_000;
 /** How long Forge may wait on one question before the board answers it itself. */
 const STUCK_MS = 5_000;
 const SIZES = { alice: { width: 1280, height: 800 }, bob: { width: 1366, height: 768 } } as const;
@@ -84,6 +108,9 @@ const forge = forgeAvailability();
 const TITLE = forge.ok
   ? 'a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window'
   : `a live match fits 1280×800 and 1366×768 in every frame — SKIPPED: ${forge.reason}`;
+const CROWD_TITLE = forge.ok
+  ? 'a crowded table fits too: 8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling'
+  : `a crowded table fits too — SKIPPED: ${forge.reason}`;
 
 /* ── the sampler, which runs inside each page ────────────────────────── */
 
@@ -282,6 +309,46 @@ async function stateOf(f: Friend): Promise<Record<string, unknown>> {
   };
 }
 
+/**
+ * Into a match, through the product: alice creates a room, bob opens it, each
+ * loads their own deck and readies, and the server starts the match. Returns
+ * with both boards drawn.
+ */
+async function enterMatch(alice: Friend, bob: Friend, origin: string, summary: Record<string, unknown>): Promise<string> {
+  const friends = [alice, bob];
+  const choice = await twoLegalDecks(alice.context.request, origin);
+  summary.choice = choice;
+  await alice.page.goto(`${origin}${PREFIX}/`);
+  await alice.page.getByTestId('room-create-name').fill(`e2e table fit ${Date.now()}`);
+  await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
+  await alice.page.getByTestId('room-create-submit').click();
+  await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+  await bob.page.goto(alice.page.url());
+  for (const [f, deck] of [
+    [alice, choice.decks[0]],
+    [bob, choice.decks[1]],
+  ] as const) {
+    await expect(f.page.getByTestId('constructed')).toBeVisible();
+    await f.page.getByTestId('format').selectOption(choice.format);
+    await f.page.getByTestId('deck-mine').selectOption(deck);
+    await f.page.getByTestId('load-deck').click();
+    await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');
+  }
+  await alice.page.getByTestId('ready-toggle').click();
+  await expect(alice.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
+  await bob.page.getByTestId('ready-toggle').click();
+  const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
+  await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
+  await bob.page.waitForURL(matchUrl, { timeout: 120_000 });
+  const matchId = matchUrl.exec(alice.page.url())?.[1];
+  if (matchId === undefined) throw new Error(`no match id in ${alice.page.url()}`);
+  summary.matchId = matchId;
+  await expect(alice.page.getByTestId('live-status')).toHaveText('Seat 1, live.', { timeout: 30_000 });
+  await expect(bob.page.getByTestId('live-status')).toHaveText('Seat 2, live.', { timeout: 30_000 });
+  for (const f of friends) await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible();
+  return matchId;
+}
+
 /* ── the test ────────────────────────────────────────────────────────── */
 
 test(TITLE, async ({ browser }) => {
@@ -312,39 +379,7 @@ test(TITLE, async ({ browser }) => {
     }
     const origin = stack.origin;
 
-    /* ── into a match, through the product ─────────────────────────── */
-
-    const choice = await twoLegalDecks(alice.context.request, origin);
-    summary.choice = choice;
-    await alice.page.goto(`${origin}${PREFIX}/`);
-    await alice.page.getByTestId('room-create-name').fill(`e2e table fit ${Date.now()}`);
-    await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-    await alice.page.getByTestId('room-create-submit').click();
-    await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
-    const roomUrl = alice.page.url();
-    await bob.page.goto(roomUrl);
-    for (const [f, deck] of [
-      [alice, choice.decks[0]],
-      [bob, choice.decks[1]],
-    ] as const) {
-      await expect(f.page.getByTestId('constructed')).toBeVisible();
-      await f.page.getByTestId('format').selectOption(choice.format);
-      await f.page.getByTestId('deck-mine').selectOption(deck);
-      await f.page.getByTestId('load-deck').click();
-      await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');
-    }
-    await alice.page.getByTestId('ready-toggle').click();
-    await expect(alice.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
-    await bob.page.getByTestId('ready-toggle').click();
-    const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
-    await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
-    await bob.page.waitForURL(matchUrl, { timeout: 120_000 });
-    const matchId = matchUrl.exec(alice.page.url())?.[1];
-    if (matchId === undefined) throw new Error(`no match id in ${alice.page.url()}`);
-    summary.matchId = matchId;
-    await expect(alice.page.getByTestId('live-status')).toHaveText('Seat 1, live.', { timeout: 30_000 });
-    await expect(bob.page.getByTestId('live-status')).toHaveText('Seat 2, live.', { timeout: 30_000 });
-    for (const f of friends) await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible();
+    const matchId = await enterMatch(alice, bob, origin, summary);
 
     // Asks the game raises are the board's to answer, whenever they come.
     prompting = true;
@@ -397,16 +432,23 @@ test(TITLE, async ({ browser }) => {
     const discards: { who: string; turn: number }[] = [];
     const unstuck: { who: string; says: string; pressed: string }[] = [];
     const waiting = new Map<string, { says: string; since: number }>();
-    while ((await turnOf(alice)) < MIN_TURN) {
+    const attempts = new Map<string, number>();
+    // The largest battlefield each PAGE's sampler has seen — the number the
+    // assertion below reads — so the loop stops on exactly what is asserted.
+    const largestSeen = async (): Promise<number> => Math.min(...(await Promise.all(friends.map(async (f) => (await samples(f)).maxBattlefield))));
+    const farEnough = async (): Promise<boolean> => (await turnOf(alice)) >= MIN_TURN && (await largestSeen()) >= MIN_BATTLEFIELD;
+    const howFar = async (): Promise<string> =>
+      `turn ${await turnOf(alice)} (wanted >= ${MIN_TURN}), largest battlefield seen ${await largestSeen()} (wanted >= ${MIN_BATTLEFIELD})`;
+    while (!(await farEnough())) {
       checkPrompts();
-      if (Date.now() > playDeadline) {
+      if (Date.now() > playDeadline || (await turnOf(alice)) > MAX_TURN) {
         throw new Error(
-          `within ${PLAY_BUDGET_MS} ms the game reached turn ${await turnOf(alice)}, wanted ${MIN_TURN}; ` +
+          `the play cap was hit (${PLAY_BUDGET_MS} ms or turn ${MAX_TURN}) at ${await howFar()}; ` +
             `state: ${JSON.stringify(await Promise.all(friends.map(stateOf)))}; ` +
             `hands: ${hands.map((h) => h.log.slice(-6).join(' | ')).join(' || ')}`,
         );
       }
-      if ((await alice.page.locator('.board__over').count()) > 0) throw new Error(`the game ended at turn ${await turnOf(alice)}`);
+      if ((await alice.page.locator('.board__over').count()) > 0) throw new Error(`the game ended before the table was full, at ${await howFar()}`);
       // The cleanup discard, clicked on the BOARD: Forge marks the hand
       // selectable and says so. (`hands.ts` remembers a discard by its
       // message, so from the second identical one on it would wait forever.)
@@ -427,7 +469,8 @@ test(TITLE, async ({ browser }) => {
       // And when `hands.ts` has lost track — it can, mid mana payment, or
       // aiming a creature-only effect at a player — the person does what a
       // person would once Forge has waited a while: presses OK on their own
-      // board, or else clicks a card Forge marked selectable, or else Cancel.
+      // board, clicks a card Forge marked selectable, or presses Cancel,
+      // rotating through those while the same question stays open.
       for (const f of friends) {
         const says = (await f.page.getByTestId('live-says').textContent()) ?? '';
         const seen = waiting.get(f.name);
@@ -436,10 +479,21 @@ test(TITLE, async ({ browser }) => {
           continue;
         }
         if (Date.now() - seen.since < STUCK_MS || (await f.page.getByTestId('live-prompt').count()) > 0) continue;
+        // Each time the SAME question is still there, try the next thing: a
+        // click that changed nothing (a fetch land offered while Forge wants
+        // blue mana) must not be the only thing ever tried.
+        const key = `${f.name}\n${says}`;
+        const attempt = attempts.get(key) ?? 0;
+        attempts.set(key, attempt + 1);
         const selectable = f.page.locator('[aria-label="Game board"] li[data-selectable] button');
         const cancel = f.page.locator('[data-testid="live-button-cancel"]:enabled');
-        const press = (await enabledOk(f).count()) > 0 ? enabledOk(f) : (await selectable.count()) > 0 ? selectable.first() : cancel;
-        if ((await press.count()) === 0) continue;
+        const options = [];
+        if ((await enabledOk(f).count()) > 0) options.push(enabledOk(f));
+        const choices = await selectable.count();
+        if (choices > 0) options.push(selectable.nth(Math.floor(attempt / 2) % choices));
+        if ((await cancel.count()) > 0) options.push(cancel);
+        if (options.length === 0) continue;
+        const press = options[attempt % options.length];
         const pressed = (await press.getAttribute('data-testid')) ?? (await press.getAttribute('aria-label')) ?? '?';
         await press.click();
         unstuck.push({ who: f.name, says, pressed });
@@ -452,6 +506,7 @@ test(TITLE, async ({ browser }) => {
       }
       await new Promise((r) => setTimeout(r, 250));
     }
+    summary.playedTo = await howFar();
     summary.discardsOnTheBoard = discards;
     summary.boardAnswersWhenHandsStalled = unstuck;
     for (const h of hands) h.pause();
@@ -510,7 +565,7 @@ test(TITLE, async ({ browser }) => {
       expect(s.boardFrames, `${f.name}: frames sampled with the board drawn`).toBeGreaterThan(500);
       expect(s.promptFrames, `${f.name}: frames sampled with a question open`).toBeGreaterThan(0);
       expect(s.turns.length, `${f.name}: distinct turns seen`).toBeGreaterThanOrEqual(MIN_TURN);
-      expect(s.maxBattlefield, `${f.name}: the largest battlefield seen`).toBeGreaterThanOrEqual(8);
+      expect(s.maxBattlefield, `${f.name}: the largest battlefield seen`).toBeGreaterThanOrEqual(MIN_BATTLEFIELD);
       expect(Object.keys(s.barBoxes).sort(), `${f.name}: both window sizes were sampled`).toEqual(['1280x800', '1366x768']);
       // And in every one of those frames:
       expect(s.breaches, `${f.name}: every frame fits (first breaches: ${JSON.stringify(s.examples.slice(0, 5))})`).toEqual({});
@@ -528,5 +583,219 @@ test(TITLE, async ({ browser }) => {
     await stack.stop();
     mkdirSync(RUN_DIR, { recursive: true });
     writeFileSync(resolve(RUN_DIR, 'table-fit-summary.json'), JSON.stringify(summary, null, 2));
+  }
+});
+
+/* ── the crowd probe: big zones, deterministically ───────────────────── */
+
+/**
+ * How many cards each zone is filled to, step by step. A real game reaches
+ * 8–11 permanents by turn 12 and rarely more, so the test above can never
+ * promise it has seen a crowded table. This one builds the crowd itself.
+ */
+const CROWD_STEPS = [
+  { battlefield: 8, hand: 7, backs: 7 },
+  { battlefield: 11, hand: 8, backs: 8 },
+  { battlefield: 16, hand: 10, backs: 10 },
+  { battlefield: 20, hand: 10, backs: 10 },
+] as const;
+/** Cards may shrink to fit, but not to nothing: a fit that makes a card unreadable is not a fit. */
+const MIN_CARD_PX = 36;
+
+interface ZoneFit {
+  zone: string;
+  viewer: boolean;
+  cards: number;
+  rows: string;
+  box: [number, number];
+  scroll: [number, number];
+  cardW: [number, number];
+  cardH: number;
+}
+
+interface CrowdFit {
+  size: string;
+  page: [number, number];
+  overflowing: string[];
+  zones: ZoneFit[];
+}
+
+/**
+ * Fill every zone on this page to the given counts and measure it. Runs in
+ * the page.
+ *
+ * DOM ONLY — a pure layout probe. It copies the viewer's own dealt hand cards
+ * (real `CardTile`s, with their art and rules text, as the board drew them)
+ * into both battlefields and the hand, and copies card backs into the
+ * opponent's hidden hand. On a battlefield every third copy is tapped and every
+ * fifth carries status chips, because those change a card's box — and the
+ * chips were what broke at 11. Nothing is sent to Forge
+ * and nothing enters React's state. The copies are marked `data-probe` and
+ * removed by `clearCrowd`. The page is left alone between steps: Forge is
+ * parked on a keep-or-mulligan question, so no frame arrives and React does
+ * not redraw the zones under the copies.
+ */
+function fillCrowd(counts: { battlefield: number; hand: number; backs: number }): Promise<CrowdFit> {
+  const source = Array.from(document.querySelectorAll<HTMLElement>('.seat[data-viewer] > [data-zone="hand"] li.board-card')).filter(
+    (li) => !li.hasAttribute('data-probe'),
+  );
+  if (source.length === 0) throw new Error('no dealt hand to copy cards from');
+  const listIn = (zone: HTMLElement, cls: string): HTMLElement => {
+    const have = zone.querySelector<HTMLElement>(`:scope > ul.${cls}`);
+    if (have !== null) return have;
+    for (const p of Array.from(zone.querySelectorAll<HTMLElement>(':scope > .zone__empty'))) {
+      p.setAttribute('data-probe-hidden', '');
+      p.style.display = 'none';
+    }
+    const ul = document.createElement('ul');
+    ul.className = cls;
+    ul.setAttribute('data-probe', '');
+    zone.appendChild(ul);
+    return ul;
+  };
+  const fillTo = (ul: HTMLElement, n: number, onBattlefield: boolean): void => {
+    let i = 0;
+    while (ul.children.length < n) {
+      const copy = source[i % source.length].cloneNode(true) as HTMLElement;
+      copy.setAttribute('data-probe', '');
+      copy.removeAttribute('data-selectable');
+      if (onBattlefield && i % 3 === 1) copy.setAttribute('data-tapped', 'true');
+      if (onBattlefield && i % 5 === 2) {
+        const chips = document.createElement('ul');
+        chips.className = 'board-card__chips';
+        chips.innerHTML = '<li class="board-card__chip">summoning sick</li><li class="board-card__chip">2 damage</li>';
+        copy.appendChild(chips);
+      }
+      ul.appendChild(copy);
+      i += 1;
+    }
+  };
+  for (const zone of Array.from(document.querySelectorAll<HTMLElement>('.seat > [data-zone="battlefield"]'))) {
+    fillTo(listIn(zone, 'zone__cards'), counts.battlefield, true);
+  }
+  const hand = document.querySelector<HTMLElement>('.seat[data-viewer] > [data-zone="hand"]');
+  if (hand !== null) fillTo(listIn(hand, 'zone__cards'), counts.hand, false);
+  const backs = document.querySelector<HTMLElement>('.seat:not([data-viewer]) > [data-zone="hand"] ul.card-backs');
+  if (backs !== null && backs.children.length > 0) {
+    while (backs.children.length < counts.backs) {
+      const back = backs.children[0].cloneNode(true) as HTMLElement;
+      back.setAttribute('data-probe', '');
+      backs.appendChild(back);
+    }
+  }
+
+  return new Promise((done) =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const page = document.scrollingElement ?? document.documentElement;
+        const overflowing: string[] = [];
+        const over = (el: HTMLElement): boolean => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+        const match = document.querySelector<HTMLElement>('[data-testid="match"]');
+        for (let el: HTMLElement | null = match; el !== null && el !== document.documentElement; el = el.parentElement) {
+          if (over(el)) overflowing.push(el.className === '' ? el.tagName.toLowerCase() : el.className);
+        }
+        const zones = Array.from(document.querySelectorAll<HTMLElement>('.board [data-zone]')).map((zone): ZoneFit => {
+          const cards = Array.from(zone.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li'));
+          const widths = cards.map((c) => c.getBoundingClientRect().width);
+          const ul = zone.querySelector<HTMLElement>(':scope > ul.zone__cards');
+          const fit: ZoneFit = {
+            zone: zone.dataset.zone ?? '?',
+            viewer: zone.closest('.seat[data-viewer]') !== null,
+            cards: cards.length,
+            rows: ul === null ? '' : getComputedStyle(ul).getPropertyValue('--rows').trim(),
+            box: [zone.clientWidth, zone.clientHeight],
+            scroll: [zone.scrollWidth, zone.scrollHeight],
+            cardW: widths.length === 0 ? [0, 0] : [Math.round(Math.min(...widths)), Math.round(Math.max(...widths))],
+            cardH: Math.round(Math.max(0, ...cards.map((c) => c.getBoundingClientRect().height))),
+          };
+          if (over(zone)) overflowing.push(`${fit.viewer ? 'your' : 'their'} ${fit.zone} of ${fit.cards}`);
+          return fit;
+        });
+        done({ size: `${innerWidth}x${innerHeight}`, page: [page.scrollWidth, page.scrollHeight], overflowing, zones });
+      }),
+    ),
+  );
+}
+
+/** Take every probe copy back out. Runs in the page. */
+function clearCrowd(): void {
+  for (const el of Array.from(document.querySelectorAll('[data-probe]'))) el.remove();
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-probe-hidden]'))) {
+    el.removeAttribute('data-probe-hidden');
+    el.style.display = '';
+  }
+}
+
+test(CROWD_TITLE, async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(5 * 60_000);
+
+  const stack = await startPlayStack(forge);
+  const friends: Friend[] = [];
+  const summary: Record<string, unknown> = {};
+  const steps: (CrowdFit & { who: string; step: string })[] = [];
+  try {
+    const alice = await openFriend(browser, 'alice');
+    const bob = await openFriend(browser, 'bob');
+    friends.push(alice, bob);
+    for (const f of friends) await f.page.setViewportSize(SIZES[f.name as keyof typeof SIZES]);
+    await enterMatch(alice, bob, stack.origin, summary);
+
+    // Answer the coin toss on the board, so hands are dealt; then Forge parks
+    // on the first keep-or-mulligan question and nothing moves.
+    const enabledOk = (f: Friend) => f.page.locator('[data-testid="live-button-ok"]:enabled');
+    await expect.poll(async () => (await enabledOk(alice).count()) + (await enabledOk(bob).count()), { timeout: 30_000 }).toBe(1);
+    const decider = (await enabledOk(alice).count()) > 0 ? alice : bob;
+    await enabledOk(decider).click();
+    for (const f of friends) {
+      await expect
+        .poll(async () => f.page.locator('.seat[data-viewer] > [data-zone="hand"] li.board-card').count(), {
+          timeout: 30_000,
+          message: `${f.name}: no opening hand was dealt`,
+        })
+        .toBeGreaterThan(0);
+    }
+    await expect.poll(async () => /keep your hand/i.test((await decider.page.getByTestId('live-says').textContent()) ?? ''), { timeout: 30_000 }).toBe(true);
+
+    for (const sizes of [SIZES, { alice: SIZES.bob, bob: SIZES.alice }]) {
+      for (const f of friends) await f.page.setViewportSize(sizes[f.name as keyof typeof SIZES]);
+      for (const f of friends) {
+        for (const counts of CROWD_STEPS) {
+          const step = `battlefields ${counts.battlefield}, hand ${counts.hand}`;
+          const got = await f.page.evaluate(fillCrowd, counts);
+          steps.push({ who: f.name, step, ...got });
+          const bf = got.zones.filter((z) => z.zone === 'battlefield');
+          console.log(
+            `[table-fit crowd] ${f.name} ${got.size} ${step}: overflowing ${JSON.stringify(got.overflowing)}; ` +
+              got.zones
+                .filter((z) => z.cards > 0)
+                .map((z) => `${z.viewer ? 'your' : 'their'} ${z.zone} ${z.cards} rows ${z.rows} box ${z.box.join('x')} scroll ${z.scroll.join('x')} card ${z.cardW.join('-')}w ${z.cardH}h`)
+                .join('; '),
+          );
+          if (SHOTS !== '' && counts.battlefield === 20) {
+            mkdirSync(SHOTS, { recursive: true });
+            await f.page.screenshot({ path: resolve(SHOTS, `crowd-20-${f.name}-${got.size}.png`) });
+          }
+          const where = `${f.name} at ${got.size}, ${step}`;
+          // The probe put the cards where it meant to — a probe that filled nothing cannot pass.
+          expect(bf.map((z) => z.cards), `${where}: both battlefields filled`).toEqual([counts.battlefield, counts.battlefield]);
+          expect(got.zones.find((z) => z.zone === 'hand' && z.viewer)?.cards, `${where}: the hand filled`).toBe(counts.hand);
+          expect(got.page[1], `${where}: the page scrolls vertically`).toBeLessThanOrEqual(Number(got.size.split('x')[1]));
+          expect(got.page[0], `${where}: the page scrolls sideways`).toBeLessThanOrEqual(Number(got.size.split('x')[0]));
+          expect(got.overflowing, `${where}: every zone and every box around the match holds what is in it`).toEqual([]);
+          for (const z of got.zones.filter((zz) => zz.cards > 0 && zz.zone !== 'graveyard' && zz.zone !== 'exile')) {
+            expect(z.cardW[0], `${where}: ${z.viewer ? 'your' : 'their'} ${z.zone}'s narrowest card`).toBeGreaterThanOrEqual(MIN_CARD_PX);
+          }
+        }
+        await f.page.evaluate(clearCrowd);
+      }
+    }
+    summary.crowd = steps;
+  } finally {
+    for (const f of friends) await f.context.close();
+    await stack.stop();
+    mkdirSync(RUN_DIR, { recursive: true });
+    writeFileSync(resolve(RUN_DIR, 'table-fit-crowd-summary.json'), JSON.stringify({ ...summary, crowd: steps }, null, 2));
   }
 });
