@@ -28,6 +28,7 @@
  * what ships.
  */
 
+import { AppHeader } from '@wolffm/task-ui-components';
 import { ConstructedScreen } from './screens/ConstructedScreen.tsx';
 import { DebugHarness } from './screens/DebugHarness.tsx';
 import { DeckScreen } from './screens/DeckScreen.tsx';
@@ -96,16 +97,45 @@ export function App({ transport }: AppProps) {
   // page (`globalThis.__hadokuWhoami`), so this is one identity path with two
   // consumers, not two paths. See `chrome/AppChrome.tsx`.
   const who = useWhoami();
+  const viewer = who === 'pending' || who === null ? null : who;
+
+  // The shared header, authored HERE at the root because that is the fleet's
+  // convention and what its audit reads: the app root mounts the header, the
+  // chrome frame slots it in inside the theme provider. The title is the
+  // catalogue's name for this app, filled at build time — see app-name.ts, and
+  // the tab title is the same string.
+  const header = (
+    <AppHeader
+      title={__HADOKU_APP_NAME__}
+      // The viewer's real name, in the bar. The fleet's usual answer is that
+      // identity lives inside the gear's popout and nowhere else — but the
+      // thing the operator actually reported was `anon` where their name goes,
+      // so it is shown in the one slot `AppHeader` leaves open for the app.
+      // It renders only when the fleet HAS a name for them: a blank is honest,
+      // a sentinel is what we are removing.
+      status={
+        viewer?.name == null ? undefined : (
+          <span className="cardtable-chrome__who" data-testid="chrome-who">
+            {viewer.name}
+          </span>
+        )
+      }
+      // Identity the page already knows, so the popout does not re-resolve it.
+      // `ConnectedSettings` otherwise calls its own `whoami()` against
+      // `/session/whoami`, which is a second identity path to the same fact.
+      settingsProps={viewer === null ? undefined : { userType: viewer.tier, name: viewer.name }}
+    />
+  );
 
   // ONE chrome for the page. Their store and socket are module singletons, so
   // a second RoomChrome would share and then tear down the first's connection
   // — which is why this wraps the switch rather than living in a screen.
   //
-  // `AppChrome` is the hadoku frame (theme root + AppHeader) and goes OUTSIDE
-  // it: the header belongs to the app, the room is one thing the app renders.
-  // It mounts no room of its own.
+  // `AppChrome` is the hadoku frame (theme root + the header's slot) and goes
+  // OUTSIDE the room: the header belongs to the app, the room is one thing the
+  // app renders. It mounts no room of its own.
   return (
-    <AppChrome who={who}>
+    <AppChrome header={header}>
       <RoomShell roomId={roomIdFor(route)}>
         <Screen transport={transport} />
       </RoomShell>

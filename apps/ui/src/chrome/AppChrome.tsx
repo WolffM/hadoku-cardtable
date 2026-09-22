@@ -26,14 +26,14 @@
  * `<AppHeader>` renders the theme picker and the settings gear ITSELF. Neither
  * is a prop, and there is no slot to substitute one — which is the point.
  *
- * ## Identity is NOT ours either
+ * ## The header is not rendered here
  *
- * `who` is threaded in from `App`, which reads the fleet's `whoami()` through
- * `useWhoami` — the SAME hook `RoomShell` already uses, and the same shared
- * in-flight promise underneath it (`globalThis.__hadokuWhoami`), so the page
- * still makes exactly one whoami call no matter how many consumers read it.
- * Passing it to `settingsProps` also stops `ConnectedSettings` resolving its
- * own identity, which would have been a second path to the same fact.
+ * The shared `<AppHeader>` element is authored at the `App` root and passed in
+ * as the `header` slot — the fleet's convention is that the app root mounts
+ * the header, and its audit reads it there (the name it titles with comes from
+ * the catalogue; see `app-name.ts`). This file slots it in at the one place it
+ * is themeable: INSIDE `HadokuThemeRoot`, which is why it is a slot rather
+ * than an import.
  *
  * ## One chrome per page, still
  *
@@ -43,9 +43,7 @@
  */
 
 import { useRef, type ReactNode, type RefObject } from 'react';
-import { AppHeader } from '@wolffm/task-ui-components';
 import { HadokuThemeRoot, useHadokuTheme } from '@wolffm/themes';
-import type { Who } from '../room/RoomShell.tsx';
 import { ensureMatchMedia } from './matchMedia.ts';
 import './chrome.css';
 
@@ -55,19 +53,19 @@ import './chrome.css';
 ensureMatchMedia();
 
 export interface AppChromeProps {
-  /** The viewer, as `App` already resolved them. `'pending'` while in flight. */
-  who: Who | null | 'pending';
+  /** The shared header, as `App` authored it. Rendered inside the theme root. */
+  header: ReactNode;
   children: ReactNode;
 }
 
-export function AppChrome({ who, children }: AppChromeProps) {
+export function AppChrome({ header, children }: AppChromeProps) {
   // The provider mirrors `data-theme` onto this container as well as <html>,
   // which is what lets the chrome be themed even when something above it owns
   // the document.
   const containerRef = useRef<HTMLElement>(null);
   return (
     <HadokuThemeRoot containerRef={containerRef}>
-      <ChromeInner containerRef={containerRef} who={who}>
+      <ChromeInner containerRef={containerRef} header={header}>
         {children}
       </ChromeInner>
     </HadokuThemeRoot>
@@ -76,14 +74,12 @@ export function AppChrome({ who, children }: AppChromeProps) {
 
 function ChromeInner({
   containerRef,
-  who,
+  header,
   children,
 }: AppChromeProps & { containerRef: RefObject<HTMLElement | null> }) {
   // From the provider above. There is one implementation of this in the fleet
   // and this app is now a consumer of it rather than a fork of it.
   const { isDarkTheme } = useHadokuTheme();
-
-  const viewer = who === 'pending' || who === null ? null : who;
 
   return (
     <main
@@ -91,26 +87,7 @@ function ChromeInner({
       className="cardtable-chrome"
       data-dark-theme={isDarkTheme ? 'true' : 'false'}
     >
-      <AppHeader
-        title="cardtable"
-        // The viewer's real name, in the bar. The fleet's usual answer is that
-        // identity lives inside the gear's popout and nowhere else — but the
-        // thing the operator actually reported was `anon` where their name goes,
-        // so it is shown in the one slot `AppHeader` leaves open for the app.
-        // It renders only when the fleet HAS a name for them: a blank is honest,
-        // a sentinel is what we are removing.
-        status={
-          viewer?.name == null ? undefined : (
-            <span className="cardtable-chrome__who" data-testid="chrome-who">
-              {viewer.name}
-            </span>
-          )
-        }
-        // Identity the page already knows, so the popout does not re-resolve it.
-        // `ConnectedSettings` otherwise calls its own `whoami()` against
-        // `/session/whoami`, which is a second identity path to the same fact.
-        settingsProps={viewer === null ? undefined : { userType: viewer.tier, name: viewer.name }}
-      />
+      {header}
       <div className="cardtable-chrome__content">{children}</div>
     </main>
   );
