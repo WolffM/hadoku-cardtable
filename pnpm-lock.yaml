@@ -104,7 +104,7 @@ importers:
         version: link:../../packages/shared
       '@wolffm/prefs-client':
         specifier: 1.0.12
-        version: 1.0.12(react@19.2.8)(zod@4.5.4)
+        version: 1.0.12(react@19.2.8)(zod@4.6.5)
       '@wolffm/rooms-protocol':
         specifier: 0.39.4
         version: 0.39.4
@@ -2081,6 +2081,9 @@ packages:
   zod@4.5.4:
     resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
 
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
+
   zustand@5.0.15:
     resolution: {integrity: sha512-MpSEjRiBkA9crSYeOUH32rJC7SVqAbm0Fqcqge/bUi2PPoLcBWKOsG+C8mevmpr8TwXHBVkChbbJiyvkE+i/3A==}
     engines: {node: '>=12.20.0'}
@@ -2674,10 +2677,10 @@ snapshots:
     dependencies:
       react: 19.2.8
 
-  '@wolffm/prefs-client@1.0.12(react@19.2.8)(zod@4.5.4)':
+  '@wolffm/prefs-client@1.0.12(react@19.2.8)(zod@4.6.5)':
     dependencies:
       react: 19.2.8
-      zod: 4.5.4
+      zod: 4.6.5
 
   '@wolffm/rooms-protocol@0.39.4': {}
 
@@ -2693,21 +2696,21 @@ snapshots:
 
   '@wolffm/themes@5.8.5(react@19.2.8)':
     dependencies:
-      '@wolffm/prefs-client': 1.0.12(react@19.2.8)(zod@4.5.4)
+      '@wolffm/prefs-client': 1.0.12(react@19.2.8)(zod@4.6.5)
       react: 19.2.8
-      zod: 4.5.4
+      zod: 4.6.5
 
   '@wolffm/watchparty-ui@0.39.4(@types/react@19.2.18)(@wolffm/task-ui-components@4.8.3(@wolffm/themes@5.8.5(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@wolffm/cdn-client': 1.0.5(react@19.2.8)
-      '@wolffm/prefs-client': 1.0.12(react@19.2.8)(zod@4.5.4)
+      '@wolffm/prefs-client': 1.0.12(react@19.2.8)(zod@4.6.5)
       '@wolffm/rooms-protocol': 0.39.4
       '@wolffm/task-ui-components': 4.8.3(@wolffm/themes@5.8.5(react@19.2.8))(react@19.2.8)
       '@wolffm/themes': 5.8.5(react@19.2.8)
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
       socket.io-client: 4.8.3
-      zod: 4.5.4
+      zod: 4.6.5
       zustand: 5.0.15(@types/react@19.2.18)(react@19.2.8)
     transitivePeerDependencies:
       - '@types/react'
@@ -3828,6 +3831,8 @@ snapshots:
   yocto-queue@0.1.0: {}
 
   zod@4.5.4: {}
+
+  zod@4.6.5: {}
 
   zustand@5.0.15(@types/react@19.2.18)(react@19.2.8):
     optionalDependencies:
