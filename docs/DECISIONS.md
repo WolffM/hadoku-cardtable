@@ -592,3 +592,29 @@ operator decision; and citing D13 or D15's origin clause as live.
 `hadoku.me/watchparty/…`, no longer fail our gate. That was O10, and it was the
 thing that would have made the O9 room-chrome request worthless even if
 watchparty shipped it.
+
+## D19 — Two game frontends, user-selectable · settled · 2026-09-21 · operator
+
+The product keeps **two frontends for the same matches**: our own React UI
+(primary) and **Forge's own desktop UI** (the option). The operator, on
+keeping the old UI after w16: *"i want to continue supporting the old forge ui
+(either through streamed client or Cheerpj whichever is better) the client can
+be chosen through an options menu by the user"* — including mid-game, where
+switching reloads the page with the newly selected client and the game and
+room load naturally (a seat is a client-agnostic identity, not a renderer).
+
+**Delivery of the old-UI half is streaming, not CheerpJ.** The operator first
+leaned CheerpJ on latency (*"CheerpJ looks like it's saves us ~150ms
+latency"*), but the w16 live bench and the CheerpJ spike's own constraints
+settled it the other way at product level: the CheerpJ runtime licence forbids
+self-hosting it, the page needs a CSP carve-out, the tab holds ~1.4 GiB, and
+— decisive — the operator then chose our own UI as the primary route
+(*"ok let's see if we can build our own UI then. that's the right route"*),
+which removes the reason to carry CheerpJ's weight for the secondary one. The
+CheerpJ staging was deleted with w17 lane D and stays deleted.
+
+**Interim form, live since 2026-09-21:** `/cardtable/stream/<n>/` — the
+streamed containers behind the app's own friend gate (5301813). Static
+containers, one Forge session each, matches started by hand through Forge's
+own Online lobby. The options-menu entry, mid-game switch and per-match
+container lifecycle are the stream track planned after the w18 seams wave.
