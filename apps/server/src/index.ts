@@ -78,6 +78,7 @@ import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory, type PlayHandle } from './play/index.js';
+import { attachStream, attachStreamRoutes, streamLayout, STREAM_BASE_PORT } from './stream/index.js';
 import { attachBrowserBridge } from './play/browser/index.js';
 import { attachTables } from './http/index.js';
 import { attachRooms } from './http/rooms.js';
@@ -177,6 +178,16 @@ if (basePath.ok) {
 		})
 	);
 }
+
+// ── Streamed Forge, HTTP half ────────────────────────────────────────────────
+// noVNC's pages and assets, straight out of websockify in the containers.
+// MUST be above the SPA fallback: below it, /stream/0/vnc.html is answered
+// with index.html and the link renders the cardtable app instead of noVNC —
+// which is what happened to this route's bench predecessor on 2026-09-21.
+// Inert unless ~/.local/share/cardtable/stream/STREAMS names containers; see
+// stream/index.ts for the gate and the interim limits.
+const STREAM_LAYOUT = streamLayout();
+attachStreamRoutes(app, { minTier: CONFIG.minTier, streamBasePort: STREAM_BASE_PORT, ...STREAM_LAYOUT });
 
 // ── SPA fallback ─────────────────────────────────────────────────────────────
 // Every client-routed path serves the same index.html. Scoped to GET/HEAD: a
@@ -300,6 +311,22 @@ const browserBridge = attachBrowserBridge(httpServer, {
 	// Dev-only, and checked against CONFIG inside — same hatch as play's.
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
 });
+
+// ── Streamed Forge, websocket half ───────────────────────────────────────────
+// noVNC's RFB socket, proxied to the same containers. Inert unless STREAMS
+// names containers, and the floor is re-applied at the upgrade because an
+// `upgrade` runs no express middleware — the same two steps, in the same
+// order, as the bridge above.
+const streamHandle = attachStream(httpServer, {
+	minTier: CONFIG.minTier,
+	streamBasePort: STREAM_BASE_PORT,
+	...STREAM_LAYOUT,
+});
+if (streamHandle !== null) {
+	console.warn(
+		`[cardtable] streamed Forge LIVE — ${STREAM_LAYOUT.streamCount} container(s) at /stream/** (interim form; see stream/index.ts)`,
+	);
+}
 
 // ── Listen ───────────────────────────────────────────────────────────────────
 httpServer.listen(CONFIG.port, CONFIG.host, () => {
