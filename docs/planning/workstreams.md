@@ -343,13 +343,17 @@ icon "layers". Our half then shipped as one commit:
 the deployed tree at `b287fe2` carries `<title>Card Table</title>` and the
 string in the bundle; CI fetched the new dep on the claws green.
 
-**Found while shipping it — filed with hadoku_site:** the vault's
-`HADOKU_NPM_READ_TOKEN` 401s against npm.pkg.github.com on this host (both the
-pre- and post-16:00-swap vintages), while CI's own token works. Our deploy
-survived only because the pnpm store was pre-warmed; any deploy that needs a
-NEW registry package will 401 until the vault item is fixed. Also: catalogue
-1.0.2's 15:55Z publish fired no `wolffm_published` dispatch anywhere in the
-fleet.
+**Found while shipping it, then run to ground with hadoku_site — the mirrors,
+not the vault:** the live vault item is healthy (their three tests, including a
+cold-store install), but every PROCESS mirror of `HADOKU_NPM_READ_TOKEN` on
+this host 401s — decisively, mgmt-api's own `/proc/<pid>/environ` (pm2 pid
+432828), which is what `deployEnv()` reads. The 16:00 UTC key swap rotated the
+item after the day's 08:00 UTC mirror refresh, and nothing has restarted since.
+**Open until mgmt-api restarts** (hadoku_site's call, or the 08:00 UTC
+rotation): deploys needing a NEW registry package will 401 on install —
+warm-store installs are unaffected; ours was pre-warmed on purpose. The missing
+`wolffm_published` dispatch for catalogue 1.0.2 was NOT an incident: site-
+published packages propagate on the daily 13:00 UTC fan-out by design.
 
 ### The service restarts at 08:00 UTC, every day
 
