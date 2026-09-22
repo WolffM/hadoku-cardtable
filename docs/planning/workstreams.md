@@ -326,20 +326,30 @@ hadoku_site as possible template fixes:
 - **It is an eleven-manifest workspace.** The template stages only the root
   `package.json`, which would commit a lockfile out of step with the manifests.
 
-### `no-app-header` — deferred to track S, for a stated reason
+### `no-app-header` — FIXED, `b287fe2` (2026-09-22)
 
-**We render `<AppHeader>`** — in `apps/ui/src/chrome/AppChrome.tsx`, wrapped by
-`App.tsx`. The rule reads `App.tsx` with comments blanked and greps for the
-token; ours names it only in a comment and the rule never opens `AppChrome`.
+hadoku_site landed the catalogue entry (098737eb, then published as
+`@wolffm/catalogue@1.0.2`): **cardtable → "Card Table"**, social, tier friend,
+icon "layers". Our half then shipped as one commit:
 
-Hoisting it into `App.tsx` would only trade this for `header-name-unverified`:
-the title is the literal `"cardtable"`, and **cardtable has no entry in
-hadoku_site's `spec/categories.json`**. The audit's pass condition is a
-*derived* name (`__HADOKU_APP_NAME__` from `@wolffm/catalogue`), which needs
-that entry first. **Asked of hadoku_site.** Our half — a vite `define` and the
-header at the `App.tsx` root — is the template-adoption work, so it belongs to
-track S. Not allowlisted: hadoku_site's allowlist rejects deferral-shaped
-reasons, correctly.
+- `apps/ui/app-name.ts` — the app's one identifier (`cardtable`), display name
+  looked up via `labelFor`, so repo and catalogue cannot disagree.
+- `__HADOKU_APP_NAME__` defined in vite and the root vitest config; index.html's
+  title is the same token, rewritten at build. Tab and header are one string.
+- `<AppHeader>` authored at the `App.tsx` root (where the audit reads it) and
+  slotted into `AppChrome` so it still renders inside `HadokuThemeRoot`.
+
+**Verified:** the fleet audit reads `OK — 16 repos, no drift` (tracker ran it);
+the deployed tree at `b287fe2` carries `<title>Card Table</title>` and the
+string in the bundle; CI fetched the new dep on the claws green.
+
+**Found while shipping it — filed with hadoku_site:** the vault's
+`HADOKU_NPM_READ_TOKEN` 401s against npm.pkg.github.com on this host (both the
+pre- and post-16:00-swap vintages), while CI's own token works. Our deploy
+survived only because the pnpm store was pre-warmed; any deploy that needs a
+NEW registry package will 401 until the vault item is fixed. Also: catalogue
+1.0.2's 15:55Z publish fired no `wolffm_published` dispatch anywhere in the
+fleet.
 
 ### The service restarts at 08:00 UTC, every day
 
