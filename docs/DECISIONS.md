@@ -616,5 +616,34 @@ CheerpJ staging was deleted with w17 lane D and stays deleted.
 **Interim form, live since 2026-09-21:** `/cardtable/stream/<n>/` — the
 streamed containers behind the app's own friend gate (5301813). Static
 containers, one Forge session each, matches started by hand through Forge's
-own Online lobby. The options-menu entry, mid-game switch and per-match
-container lifecycle are the stream track planned after the w18 seams wave.
+own Online lobby, until room-scoped streamed rooms ship.
+
+---
+
+## D19a — Amendment: the mode is the ROOM's, not the user's · settled · 2026-09-22 · operator
+
+**Amends D19's delivery clause.** The two frontends stand, but the choice is
+made **once, by the room creator, at room creation** — not per user, not
+switchable mid-game.
+
+**Operator, 2026-09-22:** *"let's have it be a room toggle. otherwise we have
+to side-load host the 1gb streaming clients which is awful. on room create the
+room creator can decide the mode."*
+
+Per-user choice fails on resources, and w17's own §0 priced it: a streamed
+player costs **~1.26 GiB + ½ core of hokon**. If any seat in any room could
+elect streaming, containers must sit warm for every room in the app. Room-
+scoped, only rooms that chose it ever pay — which is the same shape as the
+friend gate: a small, explicit set of trusted humans, each paying only for
+what they opened.
+
+**What this kills:** the options-menu client picker, mid-game switching, and
+the client-agnostic seat work that existed only to make a seat survive a
+renderer swap. A seat in a streamed room is a container; a seat in a builtin
+room is our React board; a room is one or the other for its whole life.
+
+**What stands:** both frontends exist; streamed rooms provision their
+containers on creation and reclaim them when the room dies; the static
+two-seat bench at `/cardtable/stream/<n>/` stays up (a friend demo is
+pending) until an operator has played a room-scoped streamed room end to
+end.
