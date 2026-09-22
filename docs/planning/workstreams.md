@@ -343,17 +343,18 @@ icon "layers". Our half then shipped as one commit:
 the deployed tree at `b287fe2` carries `<title>Card Table</title>` and the
 string in the bundle; CI fetched the new dep on the claws green.
 
-**Found while shipping it, then run to ground with hadoku_site — the mirrors,
-not the vault:** the live vault item is healthy (their three tests, including a
-cold-store install), but every PROCESS mirror of `HADOKU_NPM_READ_TOKEN` on
-this host 401s — decisively, mgmt-api's own `/proc/<pid>/environ` (pm2 pid
-432828), which is what `deployEnv()` reads. The 16:00 UTC key swap rotated the
-item after the day's 08:00 UTC mirror refresh, and nothing has restarted since.
-**Open until mgmt-api restarts** (hadoku_site's call, or the 08:00 UTC
-rotation): deploys needing a NEW registry package will 401 on install —
-warm-store installs are unaffected; ours was pre-warmed on purpose. The missing
-`wolffm_published` dispatch for catalogue 1.0.2 was NOT an incident: site-
-published packages propagate on the daily 13:00 UTC fan-out by design.
+**A finding raised while shipping it, and fully retracted after hadoku_site ran
+it to ground: there was never a token problem.** The vault item, our repo's
+GitHub-secret copy, and mgmt-api's LIVE env are all healthy — the 401s my
+probes reported came from reading `/proc/<pid>/environ` and pm2's stored env,
+which are EXEC-TIME snapshots: `bw.ts` mirrors the vault into the live
+`process.env` after boot, and `pm2 restart` reuses the stored environment, so
+several services carry months-old token fossils there that nothing reads.
+**Nothing ever 401'd in a deploy**; the pre-warm was right for the window it
+covered and harmless. The fossil cleanup (a fleet-wide delete+start at a quiet
+time) is flagged to the operator by hadoku_site — not ours. The missing
+`wolffm_published` dispatch for catalogue 1.0.2 was likewise not an incident:
+site-published packages propagate on the daily 13:00 UTC fan-out by design.
 
 ### The service restarts at 08:00 UTC, every day
 
