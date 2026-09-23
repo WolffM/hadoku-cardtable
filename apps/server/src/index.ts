@@ -79,6 +79,7 @@ import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory, type PlayHandle } from './play/index.js';
 import { attachStream, attachStreamRoutes, streamLayout, STREAM_BASE_PORT } from './stream/index.js';
+import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
 import { attachTables } from './http/index.js';
 import { attachRooms } from './http/rooms.js';
@@ -187,7 +188,69 @@ if (basePath.ok) {
 // Inert unless ~/.local/share/cardtable/stream/STREAMS names containers; see
 // stream/index.ts for the gate and the interim limits.
 const STREAM_LAYOUT = streamLayout();
-attachStreamRoutes(app, { minTier: CONFIG.minTier, streamBasePort: STREAM_BASE_PORT, ...STREAM_LAYOUT });
+
+// ── Streamed Forge, the containers a ROOM owns ───────────────────────────────
+// D19: the client is the ROOM's choice, made once at create. A room in
+// `streamed` mode gets one container per seat, provisioned on first request
+// and reclaimed when the room dies or nobody watches it for 30 minutes.
+//
+// It is built HERE, above the SPA fallback, because its HTTP half must be —
+// and it closes over `lobby` and `draftRooms`, which are built further down.
+// A closure, not a read: nothing below is called until a request arrives.
+const CONTAINER_SCRIPT = findContainerScript();
+if (CONTAINER_SCRIPT === null) {
+	console.warn('[cardtable] no scripts/stream/container.sh — room-keyed streams are OFF (the static bench is unaffected)');
+}
+const streamLog = (entry: Record<string, unknown>): void =>
+	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-stream', ...entry }));
+const roomStreams =
+	CONTAINER_SCRIPT === null
+		? null
+		: createRoomStreams({
+				// A lobby room or a draft pod. Neither has a delete path today
+				// (see lobby.ts and draftRooms.ts), so this is the sweep's only
+				// honest question: can anyone still reach this room?
+				roomExists: (roomKey) => lobby.get(roomKey) !== undefined || draftRooms?.find(roomKey) !== undefined,
+				script: scriptRunner(CONTAINER_SCRIPT),
+				log: streamLog,
+			});
+
+/**
+ * Seats to provision for a room, or null for a room that wants no containers.
+ *
+ * `clientMode` is the room's own, chosen at create and immutable after (D19,
+ * `room/lobby.ts`). A builtin room never reaches this and never costs a
+ * container, which is the whole point of the toggle.
+ */
+const streamedSeats = (roomKey: string): number | null => {
+	const room = lobby.get(roomKey);
+	if (room === undefined) return null;
+	if (room.clientMode !== 'streamed') return null;
+	const seats = room.gameType === 'draft' ? (draftRooms?.params.seatCount ?? MAX_ROOM_SEATS) : 2;
+	return Math.min(seats, MAX_ROOM_SEATS);
+};
+
+// Fire-and-forget: a cold container is ~18 s to a usable window, so the
+// request that triggered this is answered honestly ("not up yet") rather than
+// held open for it. `allocate` is idempotent, so a reloading browser asks for
+// the same room over and over without stacking containers.
+const ensureRoomStreams = (roomKey: string): void => {
+	if (roomStreams === null || roomStreams.find(roomKey) !== undefined) return;
+	const seats = streamedSeats(roomKey);
+	if (seats === null) return;
+	void roomStreams.allocate(roomKey, seats).then((result) => {
+		if (!result.ok) streamLog({ evt: 'stream-allocate-refused', room: roomKey, reason: result.reason, detail: result.detail });
+	});
+};
+
+attachStreamRoutes(app, {
+	minTier: CONFIG.minTier,
+	streamBasePort: STREAM_BASE_PORT,
+	...STREAM_LAYOUT,
+	rooms: roomStreams,
+	ensureRoom: ensureRoomStreams,
+	log: streamLog,
+});
 
 // ── SPA fallback ─────────────────────────────────────────────────────────────
 // Every client-routed path serves the same index.html. Scoped to GET/HEAD: a
@@ -321,11 +384,25 @@ const streamHandle = attachStream(httpServer, {
 	minTier: CONFIG.minTier,
 	streamBasePort: STREAM_BASE_PORT,
 	...STREAM_LAYOUT,
+	rooms: roomStreams,
+	ensureRoom: ensureRoomStreams,
+	log: streamLog,
 });
 if (streamHandle !== null) {
 	console.warn(
-		`[cardtable] streamed Forge LIVE — ${STREAM_LAYOUT.streamCount} container(s) at /stream/** (interim form; see stream/index.ts)`,
+		`[cardtable] streamed Forge LIVE — ${STREAM_LAYOUT.streamCount} static container(s) at /stream/**${roomStreams === null ? '' : ', plus room-keyed streams at /stream/<room>/<seat>/'} (see stream/index.ts)`,
 	);
+}
+
+// ── Reclaim ──────────────────────────────────────────────────────────────────
+// Containers outlive this process, so the first thing a new one does is take
+// back what the old one left; after that a room is reclaimed when it stops
+// existing or when nobody has watched it for the idle window. One minute is
+// far finer than the 30-minute window it enforces, and costs a `docker ps`.
+const STREAM_SWEEP_MS = 60_000;
+if (roomStreams !== null) {
+	void roomStreams.sweepOrphans();
+	setInterval(() => void roomStreams.sweep(), STREAM_SWEEP_MS).unref();
 }
 
 // ── Listen ───────────────────────────────────────────────────────────────────
