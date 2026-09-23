@@ -24,8 +24,9 @@
  *
  * The snapshot's `members` are the room's members, and each member's `app` blob
  * is lane C's per-player state (deck choice, ready) — which is exactly what that
- * field is for. The room-level `app` blob carries name, leader, game type and
- * match id, plus the password's salt and scrypt hash.
+ * field is for. The room-level `app` blob carries name, leader, game type,
+ * client mode and match id, plus the password's salt and scrypt hash. A room
+ * written before `clientMode` existed has no such key and reads back `builtin`.
  *
  * ## The password is privacy between friends, not authentication
  *
@@ -69,6 +70,21 @@ export type GameType = 'constructed-1v1' | 'draft';
 export const GAME_TYPES: readonly GameType[] = ['constructed-1v1', 'draft'];
 export const DEFAULT_GAME_TYPE: GameType = 'constructed-1v1';
 
+/**
+ * Which client the room's players sit in front of: our own React table
+ * (`builtin`), or Forge's full client streamed from a per-seat container
+ * (`streamed`).
+ *
+ * **Chosen at create and never again.** The mode decides what the server
+ * provisions for a room, so there is no update path for it — `http/rooms.ts`'s
+ * PATCH refuses the field outright rather than accepting and ignoring it, and
+ * `setGameType` (the only mutator of the room's own shape) does not touch it.
+ */
+export type ClientMode = 'builtin' | 'streamed';
+/** Every client mode a room may be created with. */
+export const CLIENT_MODES: readonly ClientMode[] = ['builtin', 'streamed'];
+export const DEFAULT_CLIENT_MODE: ClientMode = 'builtin';
+
 /** What `roomKeyFor` in the UI accepts, and every id this file mints. */
 export const ROOM_ID_RE = /^[a-z0-9-]{1,40}$/;
 
@@ -87,6 +103,8 @@ export interface RoomView {
 	creator: string;
 	leader: string;
 	gameType: GameType;
+	/** Fixed at create. Every client sees it before joining, from `list()` as well as `get()`. */
+	clientMode: ClientMode;
 	/** Whether a password is set — never the password, never any hash of it. */
 	locked: boolean;
 	members: RoomMember[];
@@ -103,6 +121,8 @@ export interface Caller {
 export interface CreateRoomInput {
 	name: string;
 	gameType: GameType;
+	/** The one place this is ever set. Required here; the HTTP layer defaults a missing field. */
+	clientMode: ClientMode;
 	/** Absent or empty: an open room. */
 	password?: string;
 }
@@ -137,7 +157,7 @@ export interface Lobby {
 	create(caller: Caller, input: CreateRoomInput): CreateResult;
 	/** Idempotent for an existing member, who needs no password again. */
 	join(roomId: string, caller: Caller, password?: string): JoinResult;
-	/** Leader only. */
+	/** Leader only. Changes the game type and NOTHING else — a room's `clientMode` is immutable. */
 	setGameType(roomId: string, callerId: string, gameType: GameType): SetGameTypeResult;
 }
 
@@ -198,6 +218,7 @@ interface RoomRecord {
 	creator: string;
 	leader: string;
 	gameType: GameType;
+	clientMode: ClientMode;
 	matchId: string | null;
 	createdAt: number;
 	members: MemberRecord[];
@@ -209,14 +230,25 @@ interface StoredApp {
 	creator: string;
 	leader: string;
 	gameType: GameType;
+	clientMode: ClientMode;
 	matchId: string | null;
 	secret: Secret | null;
 }
 
+/**
+ * Not bumped for `clientMode`. The field is additive and is read with a
+ * default, so a record written before it existed decodes without a migration —
+ * and a bump would imply one that does not exist. `deserialize` gets the stored
+ * version anyway if a real migration ever needs it.
+ */
 const APP_VERSION = 1;
 
 function isGameType(v: unknown): v is GameType {
 	return typeof v === 'string' && (GAME_TYPES as readonly string[]).includes(v);
+}
+
+function isClientMode(v: unknown): v is ClientMode {
+	return typeof v === 'string' && (CLIENT_MODES as readonly string[]).includes(v);
 }
 
 function isSecret(v: unknown): v is Secret {
@@ -239,6 +271,12 @@ const appCodec: AppCodec<StoredApp> = {
 		if (typeof a.creator !== 'string') throw new Error('app.creator is not a string');
 		if (typeof a.leader !== 'string') throw new Error('app.leader is not a string');
 		if (!isGameType(a.gameType)) throw new Error('app.gameType is not a known game type');
+		// Written before wave 18: absent means `builtin`, which is what those rooms
+		// are. A field that is PRESENT and unknown is not defaulted away — that is
+		// a record this build does not understand, so it quarantines like any other.
+		if (a.clientMode !== undefined && !isClientMode(a.clientMode)) {
+			throw new Error('app.clientMode is not a known client mode');
+		}
 		if (a.matchId !== null && typeof a.matchId !== 'string') throw new Error('app.matchId is invalid');
 		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
 		return {
@@ -246,6 +284,7 @@ const appCodec: AppCodec<StoredApp> = {
 			creator: a.creator,
 			leader: a.leader,
 			gameType: a.gameType,
+			clientMode: a.clientMode === undefined ? DEFAULT_CLIENT_MODE : a.clientMode,
 			matchId: a.matchId as string | null,
 			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
 		};
@@ -261,6 +300,7 @@ function viewOf(room: RoomRecord, locked: boolean): RoomView {
 		creator: room.creator,
 		leader: room.leader,
 		gameType: room.gameType,
+		clientMode: room.clientMode,
 		locked,
 		members: room.members.map((m) => ({
 			id: m.id,
@@ -342,6 +382,7 @@ class FileLobby implements Lobby {
 			creator: room.creator,
 			leader: room.leader,
 			gameType: room.gameType,
+			clientMode: room.clientMode,
 			matchId: room.matchId,
 			secret: this.#secrets.get(room.id) ?? null,
 		};
@@ -411,6 +452,7 @@ class FileLobby implements Lobby {
 			creator: caller.id,
 			leader: caller.id,
 			gameType: input.gameType,
+			clientMode: input.clientMode,
 			matchId: null,
 			createdAt: now,
 			members: [{ id: caller.id, name: caller.name, joinedAt: now, state: undefined }],
@@ -420,7 +462,13 @@ class FileLobby implements Lobby {
 			this.#secrets.set(id, makeSecret(input.password));
 		}
 		this.#persist(room);
-		this.#log({ event: 'room-created', roomId: id, gameType: room.gameType, locked: this.#secrets.has(id) });
+		this.#log({
+			event: 'room-created',
+			roomId: id,
+			gameType: room.gameType,
+			clientMode: room.clientMode,
+			locked: this.#secrets.has(id),
+		});
 		return { ok: true, room: this.#view(room) };
 	}
 
@@ -504,6 +552,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					creator: app.creator,
 					leader: app.leader,
 					gameType: app.gameType,
+					clientMode: app.clientMode,
 					matchId: app.matchId,
 					createdAt: decoded.createdAt,
 					members,

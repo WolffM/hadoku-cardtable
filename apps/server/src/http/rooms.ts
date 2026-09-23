@@ -7,10 +7,20 @@
  * `room/lobby.ts`'s header.
  *
  *   GET   /api/rooms            → 200 { rooms: RoomView[] }
- *   POST  /api/rooms            { name, gameType?, password? }  → 201 RoomView
+ *   POST  /api/rooms            { name, gameType?, clientMode?, password? } → 201 RoomView
  *   GET   /api/rooms/:id        → 200 RoomView | 404
  *   POST  /api/rooms/:id/join   { password? }                   → 200 RoomView | 404 | 429
  *   PATCH /api/rooms/:id        { gameType }                    → 200 RoomView | 403 | 404
+ *
+ * ## `clientMode` is a create-only field
+ *
+ * A room's client mode decides what the server provisions for it, so it is
+ * chosen once and never changed. POST takes it (defaulting to `builtin`); every
+ * other route refuses it, because each one allow-lists its own body keys and
+ * `clientMode` is on none of those lists — so a PATCH carrying it is a 400
+ * `unknown field(s): clientMode`, not an accepted-and-ignored write. If an
+ * update path is ever wanted it has to be added deliberately; it cannot arrive
+ * by a field quietly passing through.
  *
  * ## A wrong password and a missing room are the same answer
  *
@@ -40,10 +50,13 @@ import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { userIdOf } from '../edge-auth.js';
 import { identityFromHeaders } from '../room/identity.js';
 import {
+	CLIENT_MODES,
+	DEFAULT_CLIENT_MODE,
 	DEFAULT_GAME_TYPE,
 	GAME_TYPES,
 	ROOM_ID_RE,
 	type Caller,
+	type ClientMode,
 	type GameType,
 	type Lobby,
 } from '../room/lobby.js';
@@ -100,6 +113,14 @@ function parseGameType(v: unknown): Parsed<GameType> {
 	return { ok: false, error: `gameType must be one of: ${GAME_TYPES.join(', ')}` };
 }
 
+/** Same shape as `parseGameType`: an unknown value is a stated refusal, never a silent default. */
+function parseClientMode(v: unknown): Parsed<ClientMode> {
+	if (typeof v === 'string' && (CLIENT_MODES as readonly string[]).includes(v)) {
+		return { ok: true, value: v as ClientMode };
+	}
+	return { ok: false, error: `clientMode must be one of: ${CLIENT_MODES.join(', ')}` };
+}
+
 /**
  * `undefined`, `null` and `""` all mean "no password" — a blank form field is
  * an open room, not an error. Anything else must be a string of 1–200 chars.
@@ -116,10 +137,10 @@ function parsePassword(v: unknown): Parsed<string | undefined> {
 
 function parseCreate(
 	body: unknown,
-): Parsed<{ name: string; gameType: GameType; password: string | undefined }> {
+): Parsed<{ name: string; gameType: GameType; clientMode: ClientMode; password: string | undefined }> {
 	const o = asObject(body);
 	if (o === null) return { ok: false, error: 'body must be a JSON object' };
-	const extra = unknownKeys(o, ['name', 'gameType', 'password']);
+	const extra = unknownKeys(o, ['name', 'gameType', 'clientMode', 'password']);
 	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
 	if (typeof o.name !== 'string') return { ok: false, error: 'name must be a string' };
 	const name = o.name.trim();
@@ -132,9 +153,15 @@ function parseCreate(
 	}
 	const gameType = o.gameType === undefined ? ({ ok: true, value: DEFAULT_GAME_TYPE } as const) : parseGameType(o.gameType);
 	if (!gameType.ok) return gameType;
+	const clientMode =
+		o.clientMode === undefined ? ({ ok: true, value: DEFAULT_CLIENT_MODE } as const) : parseClientMode(o.clientMode);
+	if (!clientMode.ok) return clientMode;
 	const password = parsePassword(o.password);
 	if (!password.ok) return password;
-	return { ok: true, value: { name, gameType: gameType.value, password: password.value } };
+	return {
+		ok: true,
+		value: { name, gameType: gameType.value, clientMode: clientMode.value, password: password.value },
+	};
 }
 
 function parseJoin(body: unknown): Parsed<{ password: string | undefined }> {
@@ -152,6 +179,8 @@ function parseJoin(body: unknown): Parsed<{ password: string | undefined }> {
 function parsePatch(body: unknown): Parsed<{ gameType: GameType }> {
 	const o = asObject(body);
 	if (o === null) return { ok: false, error: 'body must be a JSON object' };
+	// The allow-list is the refusal: `clientMode` is not on it, so a PATCH
+	// carrying it is a 400 rather than a write nobody notices. See the header.
 	const extra = unknownKeys(o, ['gameType']);
 	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
 	const gameType = parseGameType(o.gameType);

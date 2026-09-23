@@ -165,6 +165,8 @@ describe('POST /api/rooms', () => {
 		expect(room.id).toMatch(/^[a-z0-9-]{1,40}$/);
 		expect(room.name).toBe('Kitchen table');
 		expect(room.gameType).toBe('constructed-1v1');
+		// No mode asked for: the default is our own table, stated not implied.
+		expect(room.clientMode).toBe('builtin');
 		expect(room.locked).toBe(false);
 		expect(room.matchId).toBeNull();
 		expect(room.leader).toBe(room.creator);
@@ -175,6 +177,7 @@ describe('POST /api/rooms', () => {
 		expect(Date.parse(room.createdAt)).not.toBeNaN();
 		// The whole public shape, so a field added without a decision fails here.
 		expect(Object.keys(room).sort()).toEqual([
+			'clientMode',
 			'createdAt',
 			'creator',
 			'gameType',
@@ -203,6 +206,33 @@ describe('POST /api/rooms', () => {
 		expect((res.json() as { gameType: string }).gameType).toBe('draft');
 	});
 
+	it('takes the client mode at creation, and it survives a restart', async () => {
+		const dir = await tempDir();
+		const h = await openApp(dir);
+		const res = await call(h, 'POST', '/api/rooms', {
+			body: { name: 'Forge night', gameType: 'draft', clientMode: 'streamed' },
+		});
+		expect(res.status).toBe(201);
+		const created = res.json() as import('../room/lobby.ts').RoomView;
+		expect(created.clientMode).toBe('streamed');
+
+		// The list and the single-room read agree, before anyone joins.
+		const listed = ((await call(h, 'GET', '/api/rooms', { as: 'bob' })).json() as {
+			rooms: import('../room/lobby.ts').RoomView[];
+		}).rooms;
+		expect(listed.map((r) => r.clientMode)).toEqual(['streamed']);
+		expect(
+			((await call(h, 'GET', `/api/rooms/${created.id}`, { as: 'bob' })).json() as { clientMode: string })
+				.clientMode,
+		).toBe('streamed');
+
+		const second = await openApp(dir);
+		expect(
+			((await call(second, 'GET', `/api/rooms/${created.id}`, { as: 'bob' })).json() as { clientMode: string })
+				.clientMode,
+		).toBe('streamed');
+	});
+
 	it('refuses a body that is not a room', async () => {
 		const h = await openApp(await tempDir());
 		const cases: Array<[unknown, string]> = [
@@ -211,6 +241,13 @@ describe('POST /api/rooms', () => {
 			[{ name: 'x'.repeat(61) }, 'name must be 1–60 characters'],
 			[{ name: 'bad\u0007name' }, 'name must not contain control characters'],
 			[{ name: 'ok', gameType: 'chess' }, 'gameType must be one of: constructed-1v1, draft'],
+			// An unknown mode is a stated refusal, NOT a silent fall back to builtin:
+			// a creator who asked for a streamed room must not quietly get our table.
+			[{ name: 'ok', clientMode: 'telepathy' }, 'clientMode must be one of: builtin, streamed'],
+			[{ name: 'ok', clientMode: 'Streamed' }, 'clientMode must be one of: builtin, streamed'],
+			[{ name: 'ok', clientMode: '' }, 'clientMode must be one of: builtin, streamed'],
+			[{ name: 'ok', clientMode: null }, 'clientMode must be one of: builtin, streamed'],
+			[{ name: 'ok', clientMode: 1 }, 'clientMode must be one of: builtin, streamed'],
 			[{ name: 'ok', password: 42 }, 'password must be a string'],
 			[{ name: 'ok', sneaky: true }, 'unknown field(s): sneaky'],
 			[[], 'body must be a JSON object'],
@@ -220,6 +257,8 @@ describe('POST /api/rooms', () => {
 			expect(res.status, JSON.stringify(body)).toBe(400);
 			expect(res.json()).toEqual({ error });
 		}
+		// A refusal is a refusal: none of those made a room.
+		expect(((await call(h, 'GET', '/api/rooms')).json() as { rooms: unknown[] }).rooms).toEqual([]);
 	});
 
 	it('refuses a caller the edge could not name', async () => {
@@ -451,6 +490,61 @@ describe('PATCH /api/rooms/:id', () => {
 	});
 });
 
+/* ── clientMode has no update path ───────────────────────────────────── */
+
+describe('a room’s clientMode', () => {
+	it('is refused by every route but create, and survives every one of them unchanged', async () => {
+		const dir = await tempDir();
+		const h = await openApp(dir);
+		const created = (
+			await call(h, 'POST', '/api/rooms', {
+				as: 'alice',
+				body: { name: 'Forge night', clientMode: 'streamed' },
+			})
+		).json() as import('../room/lobby.ts').RoomView;
+		expect(created.clientMode).toBe('streamed');
+
+		// No route other than POST /api/rooms takes the field. Each of these
+		// allow-lists its own body keys, so the answer is a stated 400 rather
+		// than a write that silently lands or silently does not.
+		const refusals: Array<[string, string]> = [
+			['PATCH', `/api/rooms/${created.id}`],
+			['POST', `/api/rooms/${created.id}/join`],
+		];
+		for (const [method, path] of refusals) {
+			const res = await call(h, method, path, { as: 'alice', body: { clientMode: 'builtin' } });
+			expect(res.status, `${method} ${path}`).toBe(400);
+			expect(res.json()).toEqual({ error: 'unknown field(s): clientMode' });
+		}
+		// …including a PATCH that smuggles it alongside a field that IS allowed.
+		const smuggled = await call(h, 'PATCH', `/api/rooms/${created.id}`, {
+			as: 'alice',
+			body: { gameType: 'draft', clientMode: 'builtin' },
+		});
+		expect(smuggled.status).toBe(400);
+		expect(smuggled.json()).toEqual({ error: 'unknown field(s): clientMode' });
+		// And it was refused WHOLE: the allowed half did not land either.
+		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { gameType: string }).gameType).toBe(
+			'constructed-1v1',
+		);
+
+		// Now every mutating route that DOES exist, run for real. None of them
+		// may move the mode.
+		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
+		await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { gameType: 'draft' } });
+		h.lobby.setPlayerState(created.id, created.creator, { deck: 'mono-red' });
+		h.lobby.setMatch(created.id, 'match-9');
+
+		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { clientMode: string };
+		expect(after.clientMode).toBe('streamed');
+		// Across a restart too, so nothing above persisted a room that lost it.
+		const second = await openApp(dir);
+		expect(
+			((await call(second, 'GET', `/api/rooms/${created.id}`)).json() as { clientMode: string }).clientMode,
+		).toBe('streamed');
+	});
+});
+
 /* ── the password never escapes ──────────────────────────────────────── */
 
 describe('the password', () => {
@@ -576,7 +670,7 @@ describe('the lobby', () => {
 		const caller = { id: 'fk:1111111111111111', name: 'user-alice' };
 		const first = await lobbyMod.openLobby({ dir, now: () => 1_000 });
 		for (const name of ['one', 'two', 'three']) {
-			const made = first.create(caller, { name, gameType: 'constructed-1v1' });
+			const made = first.create(caller, { name, gameType: 'constructed-1v1', clientMode: 'builtin' });
 			expect(made.ok).toBe(true);
 		}
 		expect(first.list().map((r) => r.name)).toEqual(['one', 'two', 'three']);
@@ -585,7 +679,7 @@ describe('the lobby', () => {
 		const second = await lobbyMod.openLobby({ dir, now: () => 1_000 });
 		expect(second.list().map((r) => r.name)).toEqual(['one', 'two', 'three']);
 		// A room created AFTER the restart still sorts last.
-		expect(second.create(caller, { name: 'four', gameType: 'draft' }).ok).toBe(true);
+		expect(second.create(caller, { name: 'four', gameType: 'draft', clientMode: 'builtin' }).ok).toBe(true);
 		expect(second.list().map((r) => r.name)).toEqual(['one', 'two', 'three', 'four']);
 	});
 
