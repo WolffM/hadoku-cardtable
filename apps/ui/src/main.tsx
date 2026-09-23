@@ -1,3 +1,16 @@
+/*
+ * The mount, the stylesheet order, and nothing else.
+ *
+ * No app logic lives here on purpose: `App.tsx` routes and
+ * `chrome/AppChrome.tsx` frames, and that file's header states the boundary a
+ * replacement wrapper lands on. The one app-specific value on this path is the
+ * catalogue token, and it is not read here — vite's `define` substitutes
+ * `__HADOKU_APP_NAME__` into the bundle and its `transformIndexHtml` into
+ * `index.html`'s <title> (see ../app-name.ts and ../vite.config.ts), so the tab
+ * and the header stay one name without this file knowing it.
+ *
+ * The import ORDER below is load-bearing; a wrapper swap keeps tier 1 first.
+ */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 

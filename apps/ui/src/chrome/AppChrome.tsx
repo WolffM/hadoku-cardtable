@@ -1,5 +1,6 @@
 /*
- * The hadoku chrome this app never got.
+ * The app's chrome: everything above the screens, and the boundary anything
+ * that replaces it has to honour.
  *
  * cardtable was hydrated from `templates/tunnel-loopback-ui`, which scaffolds
  * no UI at all, and the hydrator's "NO HADOKU CHROME" warning is gated on
@@ -13,7 +14,92 @@
  * This file is the fix, and it is deliberately thin: everything it renders
  * belongs to the platform.
  *
- * ## Theming is NOT ours
+ * =====================================================================
+ * THE CONTRACT — read this before swapping this file for the template
+ * =====================================================================
+ *
+ * hadoku_site's `templates/game` is meant to replace this hand-written
+ * wrapper. That swap is the whole reason this section exists: the boundary
+ * it has to land on is written down here, so the replacement is a diff
+ * against a stated contract rather than archaeology over six files. Wave 18
+ * §D is where it was written; the audit behind "known gaps" below was run
+ * then, and the line numbers are from that reading.
+ *
+ * ## The division
+ *
+ * `main.tsx` mounts and nothing else. `App.tsx` routes and authors the
+ * header. `chrome/` frames — it owns everything ABOVE the screens and
+ * nothing below them, and it knows what a pod, a room or a match is only in
+ * the sense that `chrome.css` has to name their dark roots (see the island
+ * seam below). Screens own themselves.
+ *
+ * ## What `chrome/` guarantees to whatever it wraps
+ *
+ * 1. **The theme tokens are defined and resolved.** `--color-*` and
+ *    `--hdk-*` exist by the time a child paints, and `data-theme` is on
+ *    <html> AND mirrored onto `.cardtable-chrome`, so a descendant resolves
+ *    light/dark from either. `screens/screens.css` paints entirely from
+ *    these. This is the designed channel between chrome and screens and the
+ *    only one — there is no theme value on any prop today.
+ * 2. **`color-scheme` matches the theme**, via `data-dark-theme` on the
+ *    container, so native controls and scrollbars are not the wrong half.
+ * 3. **One content region, and it grows.** `.cardtable-chrome__content` is a
+ *    column flex item with `min-height: 0`, and its DIRECT CHILD is given
+ *    `flex: 1 1 auto; min-height: 0`. A screen may assume it has the
+ *    viewport minus the header and may scroll inside it; `screens.css`
+ *    dropped its own `min-height: 100vh` on the strength of this.
+ * 4. **`window.matchMedia` exists** before any child effect runs
+ *    (`ensureMatchMedia()`, at module load — `matchMedia.ts` has the
+ *    upstream bug it absorbs). A wrapper that drops it takes the throw in
+ *    every jsdom test that renders `App`, and in any embedder without the
+ *    API.
+ * 5. **Exactly one chrome per page.** Watchparty's store and socket are
+ *    module singletons; a second `RoomChrome` shares and then tears down the
+ *    first one's connection. This wraps `RoomShell`, outside it, once.
+ *
+ * ## What a screen may assume
+ *
+ * Its own props, and the CSS tokens above. Nothing else. There is no chrome
+ * context, no chrome export a screen imports, and no global this file sets.
+ * `grep -r "from '../chrome" apps/ui/src/screens/` is empty and is meant to
+ * stay empty — that grep is the cheap half of this contract.
+ *
+ * ## What `chrome/` will pass down when a screen needs something
+ *
+ * A prop from `App.tsx`, or a context exported from this directory. Never a
+ * global, never a module singleton. Both candidates are already resolved
+ * above the screens and neither is asked for today:
+ *
+ * - **Identity.** `App.tsx` reads `useWhoami()` once and spends it on the
+ *   header's `status` and `settingsProps`. `RoomShell` reads the same hook,
+ *   and `whoami()` shares one in-flight promise per page
+ *   (`globalThis.__hadokuWhoami`), so that is one identity path with two
+ *   consumers rather than two paths. A screen that needs the viewer takes it
+ *   as a prop; it does not call `whoami()` itself.
+ * - **Theme state.** `useHadokuTheme()` is read in `ChromeInner` and nowhere
+ *   else in this repo. A screen that has to branch on light/dark takes
+ *   `isDarkTheme` as a prop or reads `data-theme` in CSS.
+ *
+ * ## What a replacement wrapper must provide
+ *
+ * The five guarantees, plus the two seams this file carries that do not look
+ * like chrome at first glance:
+ *
+ * - **The island rules in `chrome.css`** (its last three blocks). The draft
+ *   table and its neighbours paint from the TABLE's palette — `--bg`,
+ *   `--ink` — which is dark on purpose, and they inherit their text colour.
+ *   Letting `--color-text` reach them puts a light theme's dark ink on a
+ *   permanently dark tile. Those rules are the seam between the themed frame
+ *   and the table; a wrapper that drops them breaks the table in light mode,
+ *   and the breakage is the chrome's.
+ * - **The header is a SLOT, not an import.** `App.tsx` authors `<AppHeader>`
+ *   at the app root — the fleet's convention, and where its audit reads it —
+ *   and this file slots it in INSIDE `HadokuThemeRoot`, the one place it is
+ *   themeable. `<AppHeader>` renders the theme picker and the settings gear
+ *   itself; neither is a prop and there is no slot to substitute one, which
+ *   is the point.
+ *
+ * ## Theming is NOT ours, and must not become ours
  *
  * `<HadokuThemeRoot>` owns the theme, its three persistence layers
  * (sessionStorage for the pre-paint script, localStorage for the next cold
@@ -23,23 +109,50 @@
  * on real behaviour (only one wrote localStorage, so the rest lost the theme on
  * a browser restart). That is the entire reason the shared one exists.
  *
- * `<AppHeader>` renders the theme picker and the settings gear ITSELF. Neither
- * is a prop, and there is no slot to substitute one — which is the point.
+ * ## Known gaps — where the boundary is NOT clean
  *
- * ## The header is not rendered here
+ * Audited at wave 18. Lane D owned only `chrome/**`, `App.tsx`, `main.tsx`
+ * and `index.html`, so every one of these is reported here rather than
+ * fixed: each fix lives in a file the lane did not own. They are listed
+ * because a wrapper swap meets them, not because they are acceptable.
  *
- * The shared `<AppHeader>` element is authored at the `App` root and passed in
- * as the `header` slot — the fleet's convention is that the app root mounts
- * the header, and its audit reads it there (the name it titles with comes from
- * the catalogue; see `app-name.ts`). This file slots it in at the one place it
- * is themeable: INSIDE `HadokuThemeRoot`, which is why it is a slot rather
- * than an import.
+ * 1. **`play/live/live.css` selects `.cardtable-chrome`** — twice, at :32
+ *    and :38: `:has(.shell--match)` to take `100dvh`, and
+ *    `> .app-header` to kill the header's bottom margin on the match route.
+ *    This is the one place something BELOW the chrome reaches up into its
+ *    private DOM, and it is the gap most likely to break silently: rename
+ *    the container and the match screen quietly loses its height. Track R
+ *    owns `play/**`. The clean shape is a chrome-owned modifier the route
+ *    asks for, not a descendant selector aimed at chrome's class.
+ * 2. **`screens/route.ts` is a global-reading module singleton** — the hash
+ *    router reads `globalThis.location.hash` (:290, :304), subscribes to
+ *    `hashchange` on the global (:282, :285) and mints ids from
+ *    `globalThis.crypto` (:254). Every screen imports `navigate` from it,
+ *    and so does `App.tsx` (`useRoute`). It is deliberate and documented
+ *    there, but it means a screen's navigation is not a prop, and a wrapper
+ *    that owns routing has to meet it.
+ * 3. **`screens/PodScreen.tsx` reads two browser globals directly** —
+ *    `globalThis.location` for the invite URL (:100) and
+ *    `globalThis.navigator.clipboard` for the copy button (:245, :251).
+ *    Both are optional-chained, so neither crashes a host without them.
+ * 4. **`rooms/RoomList.tsx` subscribes to `document.visibilitychange`** in
+ *    the effect that drives its poll, to stop polling on a hidden tab.
+ *    Page-visibility is the shell's fact, not a list's. (No line numbers:
+ *    lane C is rewriting that file in this same wave.)
+ * 5. **`screens/tables.ts` (:127) and `screens/LobbyScreen.tsx` read
+ *    `import.meta.env`** — `BASE_URL` for the api base, `DEV` for a
+ *    dev-only affordance. Build-time, not runtime, and both optional-chain.
+ *    Named so a wrapper that changes the base path knows where it is read.
+ * 6. **`chrome.css` reaches DOWN**, at its last three blocks, naming
+ *    `.app`, `.draft`, `.board`, `.deck`, `.deckrow`, `.rooms`, `.spectate`,
+ *    `.conn`, `.prompt`, `.confirm` and `.pods__title`. That is this lane's
+ *    own file and it is the island seam above — deliberate, but it is a
+ *    coupling in the other direction and it is the thing to delete when
+ *    those sheets move onto semantic tokens.
  *
- * ## One chrome per page, still
- *
- * This wraps `RoomShell`, it does not replace or duplicate it. Watchparty's
- * store and socket are module singletons; a second `RoomChrome` would share and
- * then tear down the first one's connection. See `App.tsx`.
+ * What is NOT here, and must not move here: routing rules, the api base,
+ * room/match/draft state, and anything that knows a card. This file renders
+ * a frame.
  */
 
 import { useRef, type ReactNode, type RefObject } from 'react';
