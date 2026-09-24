@@ -53,11 +53,30 @@ async function ours(): Promise<string[]> {
   return out === '' ? [] : out.split('\n').filter((n) => n.startsWith(STREAM_NAME_PREFIX));
 }
 
+let usableMemo: string | null | undefined;
+
+/**
+ * Why this machine cannot host a container, or null if it can.
+ *
+ * Memoised because `afterAll` asks too, and it must reach the same verdict as
+ * the tests did — on the fleet's CI claws `docker` is INSTALLED but the runner
+ * has no permission on the daemon socket, so a naive teardown shells
+ * `docker ps`, gets "permission denied", and reds a run in which every test
+ * correctly skipped. That is exactly how this spec first broke CI.
+ */
 async function dockerUsable(): Promise<string | null> {
+  if (usableMemo !== undefined) return usableMemo;
+  usableMemo = await computeDockerUsable();
+  return usableMemo;
+}
+
+async function computeDockerUsable(): Promise<string | null> {
   try {
+    // `docker version` talks to the DAEMON, so it fails on a host where the
+    // binary exists but the socket is not ours — which is the case CI has.
     await docker(['version', '--format', '{{.Server.Version}}']);
   } catch {
-    return 'no docker on this machine';
+    return 'no usable docker on this machine (absent, or no permission on the daemon socket)';
   }
   const image = process.env.CARDTABLE_STREAM_IMAGE ?? 'cardtable-stream-spike:w14';
   const found = await docker(['images', '-q', image]);
@@ -105,13 +124,18 @@ async function createStreamedRoom(f: Friend, name: string): Promise<string> {
 }
 
 test.afterAll(async () => {
-  // Unconditional: a failed assertion must not leave 1.25 GiB per seat running
-  // on the machine that hosts production.
+  // Inert where docker is not ours to talk to: nothing can have been created,
+  // and asking anyway is what turned a fully-skipped CI run red.
+  if ((await dockerUsable()) !== null) {
+    expect(created.size, 'containers were created on a host with no usable docker').toBe(0);
+    return;
+  }
+  // Otherwise unconditional: a failed assertion must not leave 1.25 GiB per
+  // seat running on the machine that hosts production.
   for (const name of created) {
     await docker(['rm', '-f', name]).catch(() => '');
   }
-  const left = await ours();
-  expect(left, 'this run left containers behind').toEqual([]);
+  expect(await ours(), 'this run left containers behind').toEqual([]);
 });
 
 test('two friends, one streamed room: the server provisions, and each seat frames real Forge', async ({

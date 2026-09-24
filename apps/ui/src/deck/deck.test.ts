@@ -234,7 +234,12 @@ describe('DeckScreen', () => {
     expect((await screen.findByTestId('deck-verdict')).textContent).toContain('maindeck has 0 cards, needs at least 40');
   });
 
-  it('builds 23 drafted cards and 17 basics into a 40-card deck, and checks exactly that text', async () => {
+  // 20_000, not the 5 s default: this builds a 40-card deck out of the real
+  // 534-card pool and re-renders the builder for every promotion. It runs in
+  // ~0.4 s here and timed out at 5 s on a contended CI claw (run 36032980118),
+  // reddening main on a change that could not touch it. The budget is the
+  // machine's, not the test's.
+  it('builds 23 drafted cards and 17 basics into a 40-card deck, and checks exactly that text', { timeout: 20_000 }, async () => {
     const api = stubApi({ check: () => legal, start: { status: 500, body: {} } });
     await mountReady(api);
 
@@ -258,7 +263,8 @@ describe('DeckScreen', () => {
     expect(deck.sideboard.reduce((n, e) => n + e.count, 0)).toBe(22);
   });
 
-  it('starts the match through the gate with the text it checked, and goes to it', async () => {
+  // Same shape, same reason: a full build plus the gate round-trip.
+  it('starts the match through the gate with the text it checked, and goes to it', { timeout: 20_000 }, async () => {
     const api = stubApi({ check: () => legal, start: { status: 201, body: { matchId: 'm-0123456789ab', epoch: 'e', seats: [] } } });
     await mountReady(api);
     promote(40);
