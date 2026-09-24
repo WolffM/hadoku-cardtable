@@ -152,6 +152,11 @@ describe('the front door', () => {
     await waitFor(() => expect(within(rooms).getAllByTestId('room-row')).toHaveLength(1));
     expect(within(rooms).getByTestId('room-name').textContent).toBe('Friday night');
     expect(within(rooms).getByTestId('room-create')).toBeTruthy();
+    // `ONE_ROOM` carries no `clientMode` — the shape a server older than the
+    // field sends. Nobody joins blind, and nobody joins a streamed room by
+    // accident because a field was missing.
+    expect(within(rooms).getByTestId('room-mode').textContent).toBe('our table');
+    expect(within(rooms).getByTestId('room-create-mode')).toBeTruthy();
     // The pick-both-decks screen the operator rejected has no way in from here.
     expect(screen.queryByTestId('play-constructed')).toBeNull();
     // The draft half has not vanished.

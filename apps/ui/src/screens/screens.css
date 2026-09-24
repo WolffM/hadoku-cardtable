@@ -558,3 +558,64 @@
   opacity: 0.45;
   cursor: default;
 }
+
+/* ── a streamed room: one screen per seat ────────────────────────────── */
+
+/* `.lobby` is an auto-fit grid of 300px cards; a wall of live screens wants
+   the whole row, so the streams card spans it rather than sharing with a
+   sibling that is not there. */
+.streams {
+  grid-column: 1 / -1;
+}
+
+.streams__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.streams__seat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  padding: 10px;
+  background: var(--color-bg-alt);
+}
+
+.streams__who {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* 4:3 is the container's own desktop shape; a fixed ratio keeps the waiting
+   line and the live screen the same size, so a seat coming up does not shove
+   the rest of the grid around. */
+.streams__frame,
+.streams__waiting {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  margin: 0;
+}
+
+.streams__frame {
+  display: block;
+  background: var(--color-bg);
+}
+
+.streams__waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
+}

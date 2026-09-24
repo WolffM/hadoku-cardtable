@@ -19,7 +19,15 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
 import { parseRoute } from '../screens/route.ts';
-import { parseRoomView, roomsClient, type Fetch, type RoomView } from './api.ts';
+import {
+  clientModeLabel,
+  parseRoomView,
+  roomsClient,
+  streamPath,
+  streamReachable,
+  type Fetch,
+  type RoomView,
+} from './api.ts';
 
 afterEach(() => {
   cleanup();
@@ -31,6 +39,7 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   creator: 'http-a',
   leader: 'http-a',
   gameType: 'constructed-1v1',
+  clientMode: 'builtin',
   locked: false,
   members: [{ id: 'http-a', name: 'alice', joinedAt: '2026-09-19T00:00:00.000Z' }],
   matchId: null,
@@ -71,7 +80,16 @@ function server(rooms: RoomView[], opts: { password?: string; listStatus?: numbe
     }
     if (method === 'POST' && path === 'rooms') {
       const b = body ?? {};
-      return json(201, room({ id: 'r-new', name: String(b.name), gameType: String(b.gameType), locked: 'password' in b }));
+      return json(
+        201,
+        room({
+          id: 'r-new',
+          name: String(b.name),
+          gameType: String(b.gameType),
+          clientMode: b.clientMode === 'streamed' ? 'streamed' : 'builtin',
+          locked: 'password' in b,
+        }),
+      );
     }
     const m = /^rooms\/([^/]+)\/join$/.exec(path);
     if (method === 'POST' && m !== null) {
@@ -184,6 +202,66 @@ describe('the list', () => {
   });
 });
 
+/* ── which client the room runs (D19a) ───────────────────────────────── */
+
+describe('the client mode', () => {
+  it('defaults a missing field to builtin, so an older server cannot render as streamed', () => {
+    const noMode: Record<string, unknown> = { ...OPEN };
+    delete noMode.clientMode;
+    expect('clientMode' in noMode).toBe(false);
+    expect(parseRoomView(noMode)?.clientMode).toBe('builtin');
+    expect(parseRoomView({ ...OPEN, clientMode: undefined })?.clientMode).toBe('builtin');
+    expect(parseRoomView({ ...OPEN, clientMode: null })?.clientMode).toBe('builtin');
+  });
+
+  it('takes only the exact string "streamed" as streamed — never a near miss', () => {
+    expect(parseRoomView({ ...OPEN, clientMode: 'streamed' })?.clientMode).toBe('streamed');
+    for (const near of ['Streamed', 'STREAMED', ' streamed', 'stream', 1, true, {}, ['streamed']]) {
+      expect(parseRoomView({ ...OPEN, clientMode: near })?.clientMode).toBe('builtin');
+    }
+  });
+
+  it('shows every room its mode in the list, not just the streamed ones', async () => {
+    const streamedRoom = room({ id: 'r-forge', name: 'Full client', clientMode: 'streamed' });
+    const { client } = server([OPEN, streamedRoom]);
+    mount(client);
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(2));
+
+    expect(within(rowFor('r-open')).getByTestId('room-mode').textContent).toBe('our table');
+    expect(within(rowFor('r-forge')).getByTestId('room-mode').textContent).toBe('streamed Forge');
+    expect(clientModeLabel('builtin')).toBe('our table');
+    expect(clientModeLabel('streamed')).toBe('streamed Forge');
+  });
+});
+
+/* ── the seat's stream path, and whether it is really there ──────────── */
+
+describe('a seat\u2019s stream', () => {
+  it('is same-origin under the app\u2019s own prefix, keyed by room and seat', () => {
+    expect(streamPath('r-forge', 0, '/cardtable/')).toBe('/cardtable/stream/r-forge/0/');
+    expect(streamPath('r-forge', 1, '/cardtable')).toBe('/cardtable/stream/r-forge/1/');
+    expect(streamPath('r-forge', 0, '/')).toBe('/stream/r-forge/0/');
+    expect(streamPath('r-forge', 0, '')).toBe('/stream/r-forge/0/');
+    // No host, ever: the frame is this origin's or it is nothing.
+    expect(streamPath('r-forge', 0, '/cardtable/')).not.toContain('//');
+  });
+
+  it('believes a stream only on positive evidence, never on a 200', async () => {
+    const novnc = '<!DOCTYPE html><title>noVNC</title><canvas id="noVNC_canvas"></canvas>';
+    // What the server ACTUALLY answers with no containers: its SPA fallback,
+    // HTTP 200, our own page. `res.ok` is true and the stream does not exist.
+    const spa = '<!DOCTYPE html><html><head><title>Cardtable</title></head><body><div id="root"></div></body></html>';
+
+    const answered = (status: number, body: string): Fetch => async () => new Response(body, { status });
+    expect(await streamReachable('/cardtable/stream/r/0/', answered(200, novnc))).toBe(true);
+    expect(await streamReachable('/cardtable/stream/r/0/', answered(200, spa))).toBe(false);
+    expect(await streamReachable('/cardtable/stream/r/0/', answered(404, 'not found'))).toBe(false);
+    expect(
+      await streamReachable('/cardtable/stream/r/0/', () => Promise.reject(new Error('offline'))),
+    ).toBe(false);
+  });
+});
+
 /* ── create ──────────────────────────────────────────────────────────── */
 
 describe('creating a room', () => {
@@ -203,7 +281,7 @@ describe('creating a room', () => {
     expect(post).toEqual({
       url: '/cardtable/api/rooms',
       method: 'POST',
-      body: { name: 'Friday night', gameType: 'constructed-1v1', password: 'hunter2' },
+      body: { name: 'Friday night', gameType: 'constructed-1v1', clientMode: 'builtin', password: 'hunter2' },
     });
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
@@ -220,7 +298,49 @@ describe('creating a room', () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId('room-create-submit'));
     });
-    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ name: 'Open table', gameType: 'constructed-1v1' });
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
+      name: 'Open table',
+      gameType: 'constructed-1v1',
+      clientMode: 'builtin',
+    });
+  });
+
+  it('offers the two clients before the room is made, with our table preselected, and sends the pick', async () => {
+    const { client, calls } = server([]);
+    mount(client);
+    await screen.findByTestId('rooms-empty');
+
+    // Visible before create, both of them, with what each one costs you.
+    const pick = screen.getByTestId('room-create-mode');
+    expect(pick.textContent).toContain('Our table');
+    expect(pick.textContent).toContain('Streams your screen from the server');
+    const builtin = screen.getByTestId('room-create-mode-builtin') as HTMLInputElement;
+    const streamed = screen.getByTestId('room-create-mode-streamed') as HTMLInputElement;
+    expect(builtin.checked).toBe(true);
+    expect(streamed.checked).toBe(false);
+    // And it says the choice is the room's, for the room's whole life.
+    expect(screen.getByTestId('room-create-mode-hint').textContent).toContain('fixed when the room is made');
+
+    fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Full client night' } });
+    fireEvent.click(streamed);
+    expect((screen.getByTestId('room-create-mode-streamed') as HTMLInputElement).checked).toBe(true);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('room-create-submit'));
+    });
+
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
+      name: 'Full client night',
+      gameType: 'constructed-1v1',
+      clientMode: 'streamed',
+    });
+  });
+
+  it('carries the mode through to the room it lands you in', async () => {
+    const { client } = server([]);
+    const created = await client.create({ name: 'Full client night', gameType: 'draft', clientMode: 'streamed' });
+    expect(created.ok && created.room.clientMode).toBe('streamed');
+    const plain = await client.create({ name: 'Ours', gameType: 'constructed-1v1', clientMode: 'builtin' });
+    expect(plain.ok && plain.room.clientMode).toBe('builtin');
   });
 
   it('refuses a nameless room without calling the server', async () => {

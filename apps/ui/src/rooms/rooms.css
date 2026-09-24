@@ -76,7 +76,8 @@
 }
 
 .rooms__lock,
-.rooms__playing {
+.rooms__playing,
+.rooms__mode {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0 8px;
@@ -160,6 +161,65 @@
 
 .rooms__hint {
   margin: 0;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+/* ── which client the room runs (D19a) ───────────────────────────────── */
+
+.rooms__modes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px 12px;
+  margin: 4px 0 0;
+  min-width: 0;
+}
+
+.rooms__modes legend {
+  color: var(--ink-faint);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 4px;
+}
+
+/* `.rooms__create label` and `.rooms__create input` style the form's field
+   labels and text boxes — uppercase, full-width, padded and boxed. A radio and
+   its sentence are neither, so both are reset here rather than by making the
+   generic rules narrower, which would touch the fields this lane did not add. */
+.rooms__create .rooms__mode-pick {
+  flex-basis: auto;
+  color: inherit;
+  font-size: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.rooms__create .rooms__mode-pick input {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  justify-self: start;
+}
+
+.rooms__mode-pick {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 2px;
+}
+
+.rooms__mode-name {
+  font-weight: 600;
+}
+
+.rooms__mode-note {
+  grid-column: 2;
   font-size: 13px;
   color: var(--ink-faint);
 }

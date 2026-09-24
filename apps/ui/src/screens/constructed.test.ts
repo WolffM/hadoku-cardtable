@@ -22,11 +22,12 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import { ConstructedScreen } from './ConstructedScreen.tsx';
 import { LobbyScreen } from './LobbyScreen.tsx';
 import { parseRoute } from './route.ts';
+import { roomsClient, type ClientMode, type RoomView } from '../rooms/api.ts';
 import { apiBase, tablesClient, type Fetch, type RoomPlayer, type SeatChoice, type Verdict } from './tables.ts';
 
 afterEach(() => {
@@ -110,6 +111,12 @@ function opponent(over: Partial<RoomPlayer> = {}): RoomPlayer {
 interface Table {
   players: RoomPlayer[];
   matchId: string | null;
+  /** What `GET /api/rooms/:id` says this room is. Absent ⇒ the field is not sent at all. */
+  clientMode?: ClientMode;
+  /** Who the ROOM says is in it — a streamed room's seats come from here. */
+  members?: { id: string; name: string }[];
+  /** The room record read fails, while the table read still works. */
+  roomUnreadable?: boolean;
   /** 404 for both "no such room" and "you are not in it", as the server does. */
   missing?: boolean;
   /** A start the server refuses — e.g. the other player un-readied between polls. */
@@ -129,6 +136,23 @@ function stubServer(table: Table) {
     you: { player: table.players.some((p) => p.you) },
     players: table.players.map((p, seat) => ({ ...p, seat })),
   });
+  /*
+   * `GET /api/rooms/:id`, as `http/rooms.ts` answers it. `clientMode` is left
+   * OUT of the body when the table does not set one, which is the shape a
+   * server older than the field sends — the screen must read that as builtin.
+   */
+  const roomRecord = (): Record<string, unknown> => ({
+    id: ROOM,
+    name: 'Friday night',
+    creator: 'user-alice',
+    leader: 'user-alice',
+    gameType: 'constructed-1v1',
+    ...(table.clientMode === undefined ? {} : { clientMode: table.clientMode }),
+    locked: false,
+    members: (table.members ?? [{ id: 'p-alice', name: 'user-alice' }]).map((m) => ({ ...m, joinedAt: '' })),
+    matchId: table.matchId,
+    createdAt: '2026-09-19T00:00:00.000Z',
+  });
   const verdictFor = (choice: SeatChoice): Verdict => {
     const id = 'library' in choice.deck ? choice.deck.library : '?';
     const name = DECKS.find((d) => d.id === id)?.name ?? '?';
@@ -140,6 +164,9 @@ function stubServer(table: Table) {
   const fetchImpl: Fetch = async (url, init) => {
     const body: unknown = init?.body === undefined ? undefined : JSON.parse(String(init.body));
     calls.push({ url, method: init?.method ?? 'GET', body });
+    if (url.endsWith(`/api/rooms/${ROOM}`)) {
+      return table.roomUnreadable === true ? json(503, { error: 'rooms are restarting' }) : json(200, roomRecord());
+    }
     if (url.endsWith('/tables/formats')) return json(200, { formats: FORMATS });
     if (url.endsWith('/tables/decks')) return json(200, { decks: DECKS });
     if (table.missing === true && url.includes('/tables/rooms/')) return json(404, { error: 'no such room' });
@@ -180,12 +207,17 @@ function stubServer(table: Table) {
     }
     return json(404, { error: 'not found' });
   };
-  return { calls, table, client: tablesClient(fetchImpl, '/cardtable/api/') };
+  return {
+    calls,
+    table,
+    client: tablesClient(fetchImpl, '/cardtable/api/'),
+    rooms: roomsClient(fetchImpl, '/cardtable/api/'),
+  };
 }
 
 async function mountRoom(table: Table) {
   const server = stubServer(table);
-  render(createElement(ConstructedScreen, { client: server.client, roomId: ROOM, pollMs: 10 }));
+  render(createElement(ConstructedScreen, { client: server.client, rooms: server.rooms, roomId: ROOM, pollMs: 10 }));
   await screen.findByTestId('room-players');
   return server;
 }
@@ -204,7 +236,7 @@ describe('apiBase', () => {
 describe('the constructed screen without a room', () => {
   it('points back at the room list instead of picking two decks', async () => {
     const server = stubServer({ players: [], matchId: null });
-    render(createElement(ConstructedScreen, { client: server.client }));
+    render(createElement(ConstructedScreen, { client: server.client, rooms: server.rooms }));
     expect((await screen.findByTestId('constructed-pointer')).textContent).toContain('played in a room');
     // The shape the operator rejected is not on the screen at all.
     expect(screen.queryByTestId('deck-mine')).toBeNull();
@@ -317,6 +349,10 @@ describe('a room’s table', () => {
       },
       client: {
         list: async () => [],
+        // The room record: a locked room the caller is not in answers the same
+        // 404 the table read does, so the mode stays unknown and the screen
+        // renders the builtin table — which is what these tests then drive.
+        get: async (): Promise<RoomView | null> => null,
         create: async () => ({ ok: false as const, message: 'not used' }),
         join: async (roomId: string, password?: string) => {
           joins.push(roomId);
@@ -332,6 +368,7 @@ describe('a room’s table', () => {
                   creator: 'user-alice',
                   leader: 'user-alice',
                   gameType: 'constructed-1v1',
+                  clientMode: 'builtin' as const,
                   locked: false,
                   members: [],
                   matchId: null,
@@ -465,5 +502,119 @@ describe('the lobby reaches a match', () => {
     });
     fireEvent.submit(screen.getByTestId('join-id').closest('form') as HTMLFormElement);
     expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: 'm-0123456789ab' });
+  });
+});
+
+/* ── the two clients (D19a) ──────────────────────────────────────────── */
+
+describe('a streamed room', () => {
+  /** Mounts a room whose stream route answers however `stream` says. */
+  async function mountStreamed(table: Table, stream: Fetch) {
+    const server = stubServer({ clientMode: 'streamed', ...table });
+    render(
+      createElement(ConstructedScreen, {
+        client: server.client,
+        rooms: server.rooms,
+        roomId: ROOM,
+        pollMs: 10,
+        streamFetch: stream,
+      }),
+    );
+    await screen.findByTestId('room-streams');
+    return server;
+  }
+
+  /** What the server really answers with no containers: its own SPA, HTTP 200. */
+  const noContainers: Fetch = async () =>
+    new Response('<!DOCTYPE html><html><body><div id="root"></div></body></html>', { status: 200 });
+  const container: Fetch = async () => new Response('<!DOCTYPE html><title>noVNC</title>', { status: 200 });
+
+  it('gives every member their own seat, and says the stream is not there rather than spinning', async () => {
+    await mountStreamed(
+      {
+        players: [],
+        matchId: null,
+        members: [
+          { id: 'p-alice', name: 'user-alice' },
+          { id: 'p-bob', name: 'user-bob' },
+        ],
+      },
+      noContainers,
+    );
+
+    const seats = screen.getAllByTestId('stream-seat');
+    expect(seats).toHaveLength(2);
+    expect(seats.map((s) => s.getAttribute('data-seat'))).toEqual(['0', '1']);
+    expect(seats.map((s) => within(s).getByTestId('stream-seat-who').textContent)).toEqual([
+      'user-alice',
+      'user-bob',
+    ]);
+
+    // A 200 that is our own page is NOT a stream: the seat says so in words.
+    await waitFor(() => expect(screen.getAllByTestId('stream-waiting')).toHaveLength(2));
+    expect(screen.getAllByTestId('stream-waiting')[0].textContent).toContain('Waiting for the stream');
+    expect(screen.queryByTestId('stream-frame')).toBeNull();
+
+    // And none of the builtin table is on the screen: there is no deck here.
+    expect(screen.queryByTestId('deck-mine')).toBeNull();
+    expect(screen.queryByTestId('format')).toBeNull();
+    expect(screen.queryByTestId('ready-toggle')).toBeNull();
+    expect(screen.queryByTestId('room-players')).toBeNull();
+  });
+
+  it('frames a seat that IS up, same-origin, at the room-keyed stream path', async () => {
+    await mountStreamed(
+      { players: [], matchId: null, members: [{ id: 'p-alice', name: 'user-alice' }] },
+      container,
+    );
+    const frame = (await screen.findByTestId('stream-frame')) as HTMLIFrameElement;
+    // `BASE_URL` is `/` under vitest; the deploy-prefix arithmetic is
+    // `streamPath`'s own test in `rooms/rooms.test.ts`.
+    expect(frame.getAttribute('src')).toBe(`/stream/${ROOM}/0/`);
+    // Same-origin by construction: a path, never a host.
+    expect(frame.getAttribute('src')?.startsWith('/')).toBe(true);
+    expect(frame.getAttribute('src')).not.toContain('//');
+    expect(screen.queryByTestId('stream-waiting')).toBeNull();
+  });
+
+  it('says so when the room is empty instead of drawing nothing', async () => {
+    await mountStreamed({ players: [], matchId: null, members: [] }, noContainers);
+    expect(screen.getByTestId('stream-nobody').textContent).toContain('Nobody has joined yet');
+    expect(screen.queryByTestId('stream-seat')).toBeNull();
+  });
+
+  it('states the mode in the header, so a link does not land you somewhere unexplained', async () => {
+    await mountStreamed({ players: [], matchId: null, members: [] }, noContainers);
+    expect(screen.getByTestId('room-client-mode').textContent).toContain('Forge’s full client');
+    expect(screen.getByTestId('room-name').textContent).toBe('Friday night');
+  });
+});
+
+describe('a builtin room is what it has always been', () => {
+  it('says the same sentence in its header, and draws no stream anywhere', async () => {
+    await mountRoom({ players: [opponent()], matchId: null, clientMode: 'builtin' });
+    // Byte for byte the sentence this screen has always carried.
+    expect(screen.getByTestId('room-client-mode').textContent).toBe(
+      'Constructed 1v1 — each of you loads your own deck.',
+    );
+    expect(screen.queryByTestId('room-streams')).toBeNull();
+    expect(screen.queryByTestId('stream-seat')).toBeNull();
+    expect(screen.getByTestId('deck-mine')).toBeTruthy();
+  });
+
+  it('is what a server that never heard of the field gets: no clientMode, still our table', async () => {
+    // `mountRoom`'s default table sets no `clientMode`, so the body omits the
+    // field entirely — the older-server case, which must not render streamed.
+    await mountRoom({ players: [opponent()], matchId: null });
+    expect(screen.queryByTestId('room-streams')).toBeNull();
+    expect(screen.getByTestId('deck-mine')).toBeTruthy();
+  });
+
+  it('still renders when the room record cannot be read at all', async () => {
+    // The room read failing must not hide the table: it is the same server the
+    // table poll is reading, and that poll reports the outage in words.
+    await mountRoom({ players: [opponent()], matchId: null, roomUnreadable: true });
+    expect(screen.getByTestId('deck-mine')).toBeTruthy();
+    expect(screen.queryByTestId('room-streams')).toBeNull();
   });
 });

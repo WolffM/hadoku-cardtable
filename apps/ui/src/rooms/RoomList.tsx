@@ -31,7 +31,17 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { navigate } from '../screens/route.ts';
-import { GAME_TYPES, gameTypeLabel, roomsClient, type GameType, type RoomView, type RoomsClient } from './api.ts';
+import {
+  CLIENT_MODES,
+  clientModeLabel,
+  GAME_TYPES,
+  gameTypeLabel,
+  roomsClient,
+  type ClientMode,
+  type GameType,
+  type RoomView,
+  type RoomsClient,
+} from './api.ts';
 import './rooms.css';
 
 export const POLL_MS = 5000;
@@ -193,6 +203,12 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
         </span>
         <span className="rooms__meta">
           <span data-testid="room-type">{gameTypeLabel(room.gameType)}</span>
+          {/* Every row, not just the streamed ones: "no mode shown" would have
+              to mean "builtin", and a reader cannot tell that apart from a
+              row that simply forgot. */}
+          <span className="rooms__mode" data-testid="room-mode" data-mode={room.clientMode}>
+            {clientModeLabel(room.clientMode)}
+          </span>
           {room.locked && (
             <span className="rooms__lock" data-testid="room-locked">
               password
@@ -269,6 +285,7 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
 function CreateRoom({ client }: { client: RoomsClient }) {
   const [name, setName] = useState('');
   const [gameType, setGameType] = useState<GameType>('constructed-1v1');
+  const [clientMode, setClientMode] = useState<ClientMode>('builtin');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -282,7 +299,7 @@ function CreateRoom({ client }: { client: RoomsClient }) {
     }
     setBusy(true);
     setError(null);
-    const outcome = await client.create({ name: trimmed, gameType, password });
+    const outcome = await client.create({ name: trimmed, gameType, clientMode, password });
     setBusy(false);
     if (!outcome.ok) {
       setError(outcome.message);
@@ -327,6 +344,33 @@ function CreateRoom({ client }: { client: RoomsClient }) {
           </option>
         ))}
       </select>
+
+      {/* The mode is the ROOM's, chosen here and never again (D19a) — one pick
+          for constructed rooms and draft pods alike, because a pod is a lobby
+          room with `gameType: 'draft'`. Two radios rather than a select: the
+          whole choice, and what each half costs you, is readable without
+          opening anything. */}
+      <fieldset className="rooms__modes" data-testid="room-create-mode">
+        <legend>Which client</legend>
+        {CLIENT_MODES.map((m) => (
+          <label key={m.value} className="rooms__mode-pick" htmlFor={`room-create-mode-${m.value}`}>
+            <input
+              id={`room-create-mode-${m.value}`}
+              data-testid={`room-create-mode-${m.value}`}
+              type="radio"
+              name="room-create-mode"
+              value={m.value}
+              checked={clientMode === m.value}
+              onChange={() => setClientMode(m.value)}
+            />
+            <span className="rooms__mode-name">{m.label}</span>
+            <span className="rooms__mode-note">{m.note}</span>
+          </label>
+        ))}
+      </fieldset>
+      <p className="rooms__hint" data-testid="room-create-mode-hint">
+        This is fixed when the room is made. To play the other way, make another room.
+      </p>
 
       <label htmlFor="room-create-password">Password (optional)</label>
       <input

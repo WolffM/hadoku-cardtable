@@ -13,11 +13,28 @@
  * 404-vs-403 would tell an enumerator which rooms exist. This client keeps that
  * property: a join refused with either status is `refused`, and nothing
  * downstream can tell which it was.
+ *
+ * ## The client mode is the ROOM's, and a missing one is `builtin`
+ *
+ * D19a: which client a room's players sit in front of is chosen once, at
+ * create, and never again. `parseRoomView` therefore treats anything that is
+ * not exactly `'streamed'` — absent, misspelled, a number, a server older than
+ * this field — as `'builtin'`. That direction is deliberate: rendering our own
+ * table for a room that turns out to be streamed is a wrong-looking screen,
+ * while rendering stream frames for a room nobody provisioned containers for
+ * is a page of dead iframes pointed at a route that does not exist.
  */
 
 import { apiBase } from '../screens/tables.ts';
 
 export type GameType = 'constructed-1v1' | 'draft';
+
+/**
+ * Which client a room's players sit in front of. The server's own
+ * `room/lobby.ts` owns this type too; it is written down again here because
+ * the wire is the contract.
+ */
+export type ClientMode = 'builtin' | 'streamed';
 
 export interface RoomMember {
   id: string;
@@ -32,6 +49,8 @@ export interface RoomView {
   leader: string;
   /** Kept as a string: a type the server adds later is shown, not dropped. */
   gameType: string;
+  /** Fixed at create, for the room's whole life. Missing on the wire ⇒ builtin. */
+  clientMode: ClientMode;
   locked: boolean;
   members: RoomMember[];
   matchId: string | null;
@@ -50,6 +69,68 @@ export function gameTypeLabel(gameType: string): string {
   return gameType;
 }
 
+/**
+ * The two clients the create form offers, in the words a person picks between.
+ *
+ * `note` is shown beside the pick, not behind a tooltip: "streams your screen
+ * from the server" is the whole difference, and someone choosing it should
+ * read it before they choose rather than after.
+ */
+export const CLIENT_MODES: readonly { value: ClientMode; label: string; note: string }[] = [
+  { value: 'builtin', label: 'Our table', note: 'The board this app draws, in your browser.' },
+  { value: 'streamed', label: 'Forge’s full client', note: 'Streams your screen from the server — one screen per seat.' },
+];
+
+/** The mode in two or three words, for a list row or a header. */
+export function clientModeLabel(mode: ClientMode): string {
+  return mode === 'streamed' ? 'streamed Forge' : 'our table';
+}
+
+/**
+ * Where one seat's stream lives: the server's room-keyed stream route.
+ *
+ * One expression, in one file, on purpose — the path shape is a contract with
+ * the server's `stream/` module and repointing it must stay a one-line edit.
+ * `base` is the app's deploy prefix (`/cardtable/`), so this is same-origin by
+ * construction and no host is ever written down here.
+ */
+export function streamPath(roomId: string, seat: number, base: string = defaultAppBase()): string {
+  const prefix = base === '' ? '/' : base;
+  const root = prefix.endsWith('/') ? prefix : `${prefix}/`;
+  return `${root}stream/${encodeURIComponent(roomId)}/${seat}/`;
+}
+
+/**
+ * A string that appears in noVNC's page and in nothing this app serves.
+ *
+ * The reachability probe below needs POSITIVE evidence, because a 200 proves
+ * nothing here: with no containers the server's SPA fallback answers every
+ * `/stream/**` path with our own `index.html` and HTTP 200, so `res.ok` is
+ * true for a stream that does not exist — and a frame on it renders this app
+ * inside itself. Asking "does this look like noVNC" is false for our page,
+ * false for an error page and false for no answer at all, and each of those
+ * gets the stated waiting state instead of a frame that lies.
+ */
+export const STREAM_MARK = 'noVNC';
+
+/** True only when the seat's page really is the stream's. Never throws. */
+export async function streamReachable(url: string, fetchImpl: Fetch = (i, init) => fetch(i, init)): Promise<boolean> {
+  let res: Response;
+  try {
+    res = await fetchImpl(url, { credentials: 'same-origin' });
+  } catch {
+    // Not reachable IS the answer this returns; there is nothing being
+    // swallowed here, and the caller renders the waiting state either way.
+    return false;
+  }
+  if (!res.ok) return false;
+  try {
+    return (await res.text()).includes(STREAM_MARK);
+  } catch {
+    return false;
+  }
+}
+
 /** The server's own id rule — the same one `roomKeyFor` enforces. */
 const ROOM_ID = /^[a-z0-9-]{1,40}$/;
 
@@ -64,10 +145,22 @@ function parseMember(v: unknown): RoomMember | null {
   return { id, name, joinedAt: typeof joinedAt === 'string' ? joinedAt : '' };
 }
 
+/**
+ * The room's client mode, as read off the wire.
+ *
+ * Only the exact string `'streamed'` makes a streamed room. Everything else —
+ * absent, `null`, `'Streamed'`, a server that predates the field — is
+ * `'builtin'`. See the header: this is the control that stops an older server
+ * rendering as streamed, and it is asserted directly in `rooms.test.ts`.
+ */
+function parseClientMode(v: unknown): ClientMode {
+  return v === 'streamed' ? 'streamed' : 'builtin';
+}
+
 /** A RoomView, or null when the body is not one. */
 export function parseRoomView(v: unknown): RoomView | null {
   if (!isRecord(v)) return null;
-  const { id, name, creator, leader, gameType, locked, members, matchId, createdAt } = v;
+  const { id, name, creator, leader, gameType, clientMode, locked, members, matchId, createdAt } = v;
   if (typeof id !== 'string' || !ROOM_ID.test(id)) return null;
   if (typeof name !== 'string' || typeof gameType !== 'string' || typeof locked !== 'boolean') return null;
   if (!Array.isArray(members)) return null;
@@ -77,6 +170,7 @@ export function parseRoomView(v: unknown): RoomView | null {
     creator: typeof creator === 'string' ? creator : '',
     leader: typeof leader === 'string' ? leader : '',
     gameType,
+    clientMode: parseClientMode(clientMode),
     locked,
     members: members.map(parseMember).filter((m): m is RoomMember => m !== null),
     matchId: typeof matchId === 'string' ? matchId : null,
@@ -98,6 +192,11 @@ export type CreateOutcome = { ok: true; room: RoomView } | { ok: false; message:
 export interface CreateRequest {
   name: string;
   gameType: GameType;
+  /**
+   * Always sent, never inferred. The create form makes the choice visible
+   * before it is made, so there is no hidden default to omit here.
+   */
+  clientMode: ClientMode;
   /** Omitted from the body when empty: an empty string is not a password. */
   password?: string;
 }
@@ -105,6 +204,12 @@ export interface CreateRequest {
 export interface RoomsClient {
   /** Throws with a sentence a person can read when the list cannot be loaded. */
   list(): Promise<RoomView[]>;
+  /**
+   * One room: `null` when the server answers its usual 404 (no such room, or
+   * one it will not admit to), and a thrown sentence for anything else — a
+   * reachability problem is not the same fact as "there is no such room".
+   */
+  get(roomId: string): Promise<RoomView | null>;
   create(req: CreateRequest): Promise<CreateOutcome>;
   join(roomId: string, password?: string): Promise<JoinOutcome>;
 }
@@ -122,9 +227,13 @@ function serverMessage(body: unknown, status: number): string {
   return `the server answered HTTP ${status}`;
 }
 
-function defaultApiBase(): string {
+function defaultAppBase(): string {
   const base = import.meta.env?.BASE_URL;
-  return apiBase(typeof base === 'string' ? base : '/');
+  return typeof base === 'string' ? base : '/';
+}
+
+function defaultApiBase(): string {
+  return apiBase(defaultAppBase());
 }
 
 const JSON_HEADERS = { 'content-type': 'application/json' };
@@ -148,8 +257,23 @@ export function roomsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
       return body.rooms.map(parseRoomView).filter((r): r is RoomView => r !== null);
     },
 
+    async get(roomId) {
+      let res: Response;
+      try {
+        res = await fetchImpl(url(`/${encodeURIComponent(roomId)}`), { credentials: 'same-origin' });
+      } catch {
+        throw new Error('Could not reach the server.');
+      }
+      if (res.status === 404) return null;
+      const body = await bodyOf(res);
+      if (!res.ok) throw new Error(`Could not load the room: ${serverMessage(body, res.status)}.`);
+      const room = parseRoomView(body);
+      if (room === null) throw new Error('The server sent something that is not a room.');
+      return room;
+    },
+
     async create(req) {
-      const payload: Record<string, string> = { name: req.name, gameType: req.gameType };
+      const payload: Record<string, string> = { name: req.name, gameType: req.gameType, clientMode: req.clientMode };
       if (req.password !== undefined && req.password !== '') payload.password = req.password;
       let res: Response;
       try {

@@ -27,6 +27,21 @@
  * what sends each player to `#/match/<id>` — including a player who never
  * pressed anything.
  *
+ * ## Two clients, and the room decides which (D19a)
+ *
+ * A room is created `builtin` — this table — or `streamed`, which is Forge's
+ * own desktop client running in a container per seat and shown through the
+ * server's `/stream/**` route. The choice is the ROOM's, made once at create
+ * and never again, so this screen reads it and renders one of two bodies; it
+ * offers no switch, because there is nothing to switch to mid-room.
+ *
+ * The mode comes from `GET /api/rooms/:id`, polled beside the table, and is
+ * latched the first time it is read: a later answer cannot turn a room someone
+ * is sitting in into the other kind. A read that fails leaves the mode unknown
+ * and this renders the builtin table — the same direction `parseRoomView`
+ * defaults in, and the same outage the table poll is already reporting in
+ * words a few lines below.
+ *
  * ## Without a room
  *
  * `#/play` has nothing left to do: a match against a person starts in a room.
@@ -36,7 +51,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { navigate } from './route.ts';
-import { roomsClient, type RoomsClient } from '../rooms/api.ts';
+import {
+  roomsClient,
+  streamPath,
+  streamReachable,
+  type ClientMode,
+  type Fetch,
+  type RoomMember,
+  type RoomView,
+  type RoomsClient,
+} from '../rooms/api.ts';
 import {
   deckSize,
   tablesClient,
@@ -58,7 +82,12 @@ export interface ConstructedScreenProps {
   pollMs?: number;
   /** Tests pass a rooms client so the join-on-entry can be driven. Production passes nothing. */
   rooms?: RoomsClient;
+  /** Tests pass the stream probe's `fetch`. Production passes nothing. */
+  streamFetch?: Fetch;
 }
+
+/** How often a seat that has no stream yet asks again. */
+export const STREAM_PROBE_MS = 5000;
 
 type Loaded = { formats: TableFormat[]; decks: TableDeck[] };
 
@@ -66,9 +95,13 @@ function seatChoice(deckId: string, formatId: string): SeatChoice {
   return { deck: { library: deckId }, rules: { kind: 'standard', format: formatId } };
 }
 
-export function ConstructedScreen({ client: given, roomId, pollMs = 1500, rooms }: ConstructedScreenProps) {
+export function ConstructedScreen({ client: given, roomId, pollMs = 1500, rooms, streamFetch }: ConstructedScreenProps) {
   const client = useMemo(() => given ?? tablesClient(), [given]);
-  return roomId === undefined ? <NoRoom /> : <RoomTableScreen client={client} roomId={roomId} pollMs={pollMs} rooms={rooms} />;
+  return roomId === undefined ? (
+    <NoRoom />
+  ) : (
+    <RoomTableScreen client={client} roomId={roomId} pollMs={pollMs} rooms={rooms} streamFetch={streamFetch} />
+  );
 }
 
 function RoomTableScreen({
@@ -76,11 +109,13 @@ function RoomTableScreen({
   roomId,
   pollMs,
   rooms: givenRooms,
+  streamFetch,
 }: {
   client: TablesClient;
   roomId: string;
   pollMs: number;
   rooms?: RoomsClient;
+  streamFetch?: Fetch;
 }) {
   const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -108,6 +143,20 @@ function RoomTableScreen({
   /** Bumped to re-run the join with whatever `passwordRef` now holds. */
   const [attempt, setAttempt] = useState(0);
   const passwordRef = useRef('');
+  /**
+   * The room's own record: which client it runs, and who is in it. Streamed
+   * rooms are drawn entirely from this — there is no deck to load and no
+   * `players` list to read, so `table` says nothing useful about them.
+   *
+   * `resolved` flips on the first answer of any kind, success or failure, and
+   * gates the body below so a streamed room never flashes the builtin table on
+   * the way in. It is one extra concurrent request alongside the table read,
+   * not a second round trip after it.
+   */
+  const [view, setView] = useState<RoomView | null>(null);
+  const [resolved, setResolved] = useState(false);
+  /** Latched on the first read. A room does not change mode under its players. */
+  const modeRef = useRef<ClientMode | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -196,6 +245,37 @@ function RoomTableScreen({
     };
   }, [client, rooms, roomId, pollMs, attempt]);
 
+  // The room record, polled on the same beat as the table. The mode is latched
+  // on the first read; the membership keeps moving, because a streamed room's
+  // seats appear as people arrive.
+  useEffect(() => {
+    let live = true;
+    const read = (): void => {
+      rooms.get(roomId).then(
+        (room) => {
+          if (!live) return;
+          setResolved(true);
+          if (room === null) return;
+          modeRef.current ??= room.clientMode;
+          setView(room);
+        },
+        () => {
+          // The room could not be read. That is the same server the table poll
+          // is reading, and `tableError` below already says so in words; adding
+          // a second sentence about it would say it twice. What this must not
+          // do is stay silent AND keep the body hidden, so the gate opens.
+          if (live) setResolved(true);
+        },
+      );
+    };
+    read();
+    const timer = setInterval(read, pollMs);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [rooms, roomId, pollMs]);
+
   const players = table?.players ?? [];
   const mine = players.find((p) => p.you) ?? null;
   const matchId = table?.room.matchId ?? null;
@@ -268,17 +348,33 @@ function RoomTableScreen({
   };
 
   const format = loaded?.formats.find((f) => f.id === formatId);
+  const streamed = modeRef.current === 'streamed';
 
   return (
     <div className="shell" data-testid="constructed">
       <header className="shell__head">
         <h1 className="shell__title" data-testid="room-name">
-          {table?.room.name ?? roomId}
+          {streamed ? (view?.name ?? roomId) : (table?.room.name ?? roomId)}
         </h1>
-        <p className="shell__sub">Constructed 1v1 — each of you loads your own deck.</p>
+        {/* The header states which client this room is, so nobody who followed
+            a link has to work it out from what is drawn below. A builtin room
+            says exactly what it has always said — that sentence already names
+            our table — so the only new words are the streamed room's. */}
+        <p className="shell__sub" data-testid="room-client-mode">
+          {streamed
+            ? 'Forge’s full client — your screen is streamed from the server, one screen per seat.'
+            : 'Constructed 1v1 — each of you loads your own deck.'}
+        </p>
       </header>
 
       <main className="lobby">
+        {streamed && <StreamedSeats roomId={roomId} members={view?.members ?? []} streamFetch={streamFetch} />}
+        {/* Everything below is the builtin room, unchanged. It waits for the
+            room record as well as the table so a streamed room never flashes
+            a deck picker on its way in; both reads are in flight together, so
+            this is not a second round trip. */}
+        {!streamed && resolved && (
+          <>
         {locked !== null && (
           <form
             className="lobby__locked"
@@ -431,6 +527,8 @@ function RoomTableScreen({
             )}
           </>
         )}
+          </>
+        )}
       </main>
 
       <footer className="shell__foot">
@@ -448,6 +546,110 @@ function RoomTableScreen({
         </p>
       </footer>
     </div>
+  );
+}
+
+/* ── the streamed room's face ─────────────────────────────────────────── */
+
+/**
+ * A streamed room's body: one seat per member, each seat one stream.
+ *
+ * One container per seat is the settled shape (operator, at w18's dispatch), so
+ * this is a grid of member-sized screens rather than one shared view. The seat
+ * number is the member's place in the room's own member list — the same order
+ * the server hands out and the same number its stream route is keyed by.
+ *
+ * Nothing here draws a mana symbol, a set symbol, a tap symbol or a card frame:
+ * it is text, boxes and a frame. The pixels inside the frame are Forge's own.
+ */
+function StreamedSeats({
+  roomId,
+  members,
+  streamFetch,
+}: {
+  roomId: string;
+  members: RoomMember[];
+  streamFetch?: Fetch;
+}) {
+  return (
+    <section className="lobby__card streams" data-testid="room-streams">
+      <h2>One screen each</h2>
+      <p className="lobby__note">
+        Everyone at this table gets their own Forge, running on the server. Play in your own screen; the
+        others are here so you can see the table is real, not so you can reach into them.
+      </p>
+      {members.length === 0 ? (
+        <p className="lobby__note" data-testid="stream-nobody">
+          Nobody has joined yet. The first screen appears when somebody does.
+        </p>
+      ) : (
+        <ul className="streams__grid" data-testid="stream-seats">
+          {members.map((member, seat) => (
+            <StreamSeat key={member.id} roomId={roomId} seat={seat} member={member} streamFetch={streamFetch} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/**
+ * One seat's screen, or the honest reason there is not one.
+ *
+ * The frame is mounted only once the seat's page has been fetched and proved
+ * to be the stream's (`streamReachable`). Anything else — no containers, a
+ * container still starting, the route not there — is the stated waiting line.
+ * It is never a spinner: a spinner says "nearly", and until a container exists
+ * nobody knows that. Once a seat is up it stays up and the probe stops.
+ */
+function StreamSeat({
+  roomId,
+  seat,
+  member,
+  streamFetch,
+}: {
+  roomId: string;
+  seat: number;
+  member: RoomMember;
+  streamFetch?: Fetch;
+}) {
+  const url = streamPath(roomId, seat);
+  const [up, setUp] = useState(false);
+
+  useEffect(() => {
+    if (up) return;
+    let live = true;
+    const probe = (): void => {
+      void streamReachable(url, streamFetch).then((ok) => {
+        if (live && ok) setUp(true);
+      });
+    };
+    probe();
+    const timer = setInterval(probe, STREAM_PROBE_MS);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [url, up, streamFetch]);
+
+  return (
+    <li className="streams__seat" data-testid="stream-seat" data-seat={seat}>
+      <span className="streams__who" data-testid="stream-seat-who">
+        {member.name}
+      </span>
+      {up ? (
+        <iframe
+          className="streams__frame"
+          data-testid="stream-frame"
+          title={`${member.name}’s screen`}
+          src={url}
+        />
+      ) : (
+        <p className="streams__waiting" data-testid="stream-waiting">
+          Waiting for the stream. The server has no screen for this seat yet.
+        </p>
+      )}
+    </li>
   );
 }
 
