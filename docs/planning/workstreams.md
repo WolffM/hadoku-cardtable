@@ -373,6 +373,49 @@ seat surviving a *client* swap (a page reload) is a different guarantee from a
 match surviving a *server* restart. The first is w18's; the second nobody has
 yet.
 
+## Streamed rooms, actually driven (2026-09-24 — tracker, after the wave)
+
+**The wave shipped a streamed room that could not work, and every gate was
+green.** Nothing had ever driven the feature against a live container: the
+allocator's tests run `container.sh` in dry-run, and `room-mode.spec.ts` aborts
+`/stream/**` so CI stays green without docker. The first test that let the
+probe through (`e2e/streamed-live.spec.ts`, `d6dcfe8`) found three defects
+stacked, any one of which made it useless to a person:
+
+| defect | what a player would have seen |
+| --- | --- |
+| the seat pointed at the container's ROOT, which websockify answers with a **directory listing** — no `noVNC` marker, so the reachability probe said "unreachable" forever | "Waiting for the stream" for ever, on a healthy container |
+| `proxyHttp` **spliced sockets** instead of parsing: it wrote the request by hand and piped the upstream socket into `res.socket`, around express. Survives one request on a fresh connection (how the bench is used, and why it looked fine); a browser pulling noVNC's dozen assets over keep-alive got 502 on all of them | a noVNC page whose JavaScript 502s — a black seat, no actionable error |
+| the e2e harness shared **production's container namespace**, and every cardtable boot runs `sweepOrphans()`, which kills every container matching its prefix that its own live map does not own | `pnpm e2e` deleting a real player's room mid-match, and production's next restart deleting the test's containers mid-run |
+
+The third was observed, not theorised: a hand-made `cardtable-room-*` container
+was gone within two minutes, reclaimed by production's boot sweep after an
+unrelated key-swap restart. The prefix is now env-settable and the harness
+claims `cardtable-e2e-room-*` on ports 6300+ (`e2e/streamNamespace.ts`).
+
+**Now proven, by two real browsers against real containers:** noVNC reports
+`Connected (unencrypted)` and paints a **1280x800** desktop in **both** seats;
+the friend gate still answers **404** to an unauthenticated caller *with a live
+container behind it* — the moment a tier check is most dangerous; a **builtin
+room starts no container at all**; and a `docker ps -a` census either side of
+the suite shows the host exactly as it was found. The spec skips itself, with
+the reason named, where docker is absent or its socket is not ours.
+
+**Two CI reds fixed on top (`ae8d607`):** the new spec's teardown shelled
+`docker` even when both tests had skipped, which reds the claws (docker
+installed, socket not permitted) — reproduced with a refusing `docker` stub,
+now 2 skipped / exit 0. And `deck.test.ts`'s two heaviest cases have an
+explicit 20 s budget: ~0.4 s here, they timed out at the 5 s default on a
+contended claw (run `36032980118`) and passed on rerun, so they were reddening
+main on changes that cannot touch them. Nothing skipped or weakened.
+
+**Deployed and verified:** `ae8d607`, `/health` 200, and the friend-demo
+bench's `vnc.html` **and its JavaScript** both 200 through the fixed proxy —
+the bench was served by the same spliced hop, so it benefits too.
+
+**Still unproven, and only the operator can:** a human playing a streamed room
+end to end — two people, Forge's own lobby, a real match.
+
 ## Verified this pass (2026-09-24 — tracker, closing Wave 18)
 
 **Landed `ab93919..f42be96`, five commits, linear, one push.** `main` and the
