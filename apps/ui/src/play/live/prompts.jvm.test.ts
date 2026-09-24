@@ -7,11 +7,19 @@
  * engine into asking: Arc Lightning divides damage (`openZones`,
  * `assignGenericAmount`), a double block makes the attacker assign damage
  * (`assignCombatDamage`), Serum Powder is usable at the mulligan (`confirm`),
- * Brainstorm picks and orders cards (`tempShowZones`, `order`), Temple of
- * Mystery scries (`manipulateCardList`), Blaze announces X past the list of
- * numbers (`getChoices` → "Other..." → `showInputDialog`), and Impetuous
- * Lootmonger heists (`chooseSingleEntityForEffect`). `showConfirmDialog` is
- * Forge's server-side probe, answered AGAINST its default.
+ * Brainstorm picks and orders cards (`tempShowZones`, `order`), Blaze announces
+ * X past the list of numbers (`getChoices` → "Other..." → `showInputDialog`),
+ * and Impetuous Lootmonger heists (`chooseSingleEntityForEffect`).
+ * `showConfirmDialog` is Forge's server-side probe, answered AGAINST its
+ * default.
+ *
+ * Temple of Mystery used to scry through `manipulateCardList` — until Wave 19
+ * lane C closed the Preordain finding at the ORIGIN: each run directory writes
+ * Forge's preferences with `UI_SELECT_FROM_CARD_DISPLAYS=false`, so a scry now
+ * asks about the scried cards by name through the same `order` / `confirm`
+ * prompts a desktop player gets. `arrangeForScry` was `manipulateCardList`'s
+ * only production caller, so nothing asks it any more and no scenario here
+ * waits on it.
  *
  * Each answer is given by clicking the component, and goes back through
  * `answerAsk` → `forge:c2s` → `Match.fromClient` → the bridge → Forge. A method
@@ -84,11 +92,23 @@ function snapshotCursor(h: LiveHarness, seat: number) {
 
 /** Stop acting, let the frames in flight land, then hold each seat to the server's own history. */
 async function expectNoDesync(h: LiveHarness): Promise<void> {
-  await waitUntil(
-    () => h.seats.every((s) => JSON.stringify(s.live.cursor) === JSON.stringify(snapshotCursor(h, s.seat))),
-    'each seat to catch up with the server',
-    10_000,
-  );
+  /*
+   * QUIESCENCE, not a single equality: with the shortcuts on, the server keeps
+   * talking after the plan is done — every auto-pass is a frame, and the last
+   * one can cross between a poll that matched and the assert that read the
+   * snapshot again (a one-frame race this suite hit the moment lane C's says
+   * made the ending livelier). The equality must HOLD across two polls before
+   * anything is asserted; the game does go quiet, because a seat with a land
+   * in hand has an action and is never auto-passed for it.
+   */
+  let stable = 0;
+  const settleBy = Date.now() + 10_000;
+  while (stable < 2) {
+    if (Date.now() > settleBy) throw new Error('each seat never settled level with the server');
+    const level = h.seats.every((s) => JSON.stringify(s.live.cursor) === JSON.stringify(snapshotCursor(h, s.seat)));
+    stable = level ? stable + 1 : 0;
+    await new Promise((r) => setTimeout(r, 150));
+  }
   for (const s of h.seats) {
     expect(s.live.cursor).toEqual(snapshotCursor(h, s.seat));
     expect(s.live.stats).toMatchObject({ gaps: 0, epochChanges: 0, resyncsRequested: 0, invalid: 0 });
@@ -189,6 +209,23 @@ describe.skipIf(!available.ok)(title, () => {
       for (const m of ['getAbilityToPlay', 'openZones', 'assignGenericAmount', 'assignCombatDamage', 'showConfirmDialog']) {
         expect(answered(h, m).length, m).toBeGreaterThan(0);
       }
+
+      // Wave 19 lane B, against the real jar: every ability Forge offered
+      // carried its label — the picker never has to say "ability #id".
+      const abilityAsks = h.asks.filter((a) => a.method === 'getAbilityToPlay');
+      const labelled = abilityAsks.flatMap((a) => (a.ask as Extract<typeof a.ask, { method: 'getAbilityToPlay' }>).abilities);
+      expect(labelled.length, 'abilities were offered').toBeGreaterThan(0);
+      for (const ab of labelled) {
+        expect(typeof ab.label === 'string' && ab.label.length > 0, `ability ${ab.id} carried a label`).toBe(true);
+      }
+      console.log(`[prompts.jvm] ability labels over the wire: ${JSON.stringify(labelled.map((ab) => ab.label).slice(0, 4))}`);
+
+      // And the says reached the browser (§C.2's observability, client side):
+      // what was auto-passed and what was paid, held by the live handle.
+      for (const seat of h.seats) {
+        expect(seat.live.says.length, `seat ${seat.seat} holds says`).toBeGreaterThan(0);
+      }
+      console.log(`[prompts.jvm] says held: ${JSON.stringify(h.seats.map((s) => s.live.says.slice(-3)))}`);
       expectCleanBridge(h);
       await expectNoDesync(h);
       expectNoLeak(h);
@@ -198,7 +235,7 @@ describe.skipIf(!available.ok)(title, () => {
   );
 
   it(
-    'choices: confirm, order, tempShowZones, manipulateCardList, getChoices, showInputDialog, chooseSingleEntityForEffect',
+    'choices: confirm, order, tempShowZones, getChoices, showInputDialog, chooseSingleEntityForEffect',
     async () => {
       const h = await startLiveMatch({
         seed: 7,
@@ -227,13 +264,16 @@ describe.skipIf(!available.ok)(title, () => {
         // Blaze's X: take "Other..." past the list of numbers, then type 0.
         prompts: { choice: (label) => label === 'Other...', input: '0' },
       };
-      const want = ['confirm', 'order', 'tempShowZones', 'manipulateCardList', 'getChoices', 'showInputDialog', 'chooseSingleEntityForEffect'];
+      const want = ['confirm', 'order', 'tempShowZones', 'getChoices', 'showInputDialog', 'chooseSingleEntityForEffect'];
       const driver = createDriver(h, plan);
       await drive(driver, () => want.every((m) => answered(h, m).length > 0), 180_000, () => status(h));
 
       summary('choices', h);
-      console.log(driver.log.filter((l) => / answers (chooseSingleEntityForEffect|order|manipulateCardList|confirm|getChoices|showInputDialog|tempShowZones) /.test(l)).join('\n'));
+      console.log(driver.log.filter((l) => / answers (chooseSingleEntityForEffect|order|confirm|getChoices|showInputDialog|tempShowZones) /.test(l)).join('\n'));
       for (const m of want) expect(answered(h, m).length, m).toBeGreaterThan(0);
+      // Lane C's origin fix, held: a scry must not arrive as the library-sized
+      // list any more, so nothing of that shape was asked on the way here.
+      expect(answered(h, 'manipulateCardList').length).toBe(0);
       expectCleanBridge(h);
       await expectNoDesync(h);
       expectNoLeak(h);

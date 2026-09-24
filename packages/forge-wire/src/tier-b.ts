@@ -286,6 +286,35 @@ export const TempShowZonesSchema = z.strictObject({
 export const TempShowZonesReplySchema = PlayerZoneUpdatesSchema;
 
 /**
+ * An ability as `getAbilityToPlay` carries it: the ref, plus the label Forge's
+ * own menu would show.
+ *
+ * Wave 19 lane B. The picker drew "ability #243" because the state channel
+ * carries no `SpellAbilityView` objects at all — Tier C's object types are
+ * 0–4, and a spell ability is none of them (`apps/ui/src/play/prompts/
+ * lookup.ts`'s header records the finding). The label closes that: the bridge
+ * sends `SpellAbilityView.toString()`, which is Forge's "cost then
+ * description" (`SpellAbilityView.java:42-55` → `toUnsuppressedString`) —
+ * `{1}, Sacrifice Pyrite Spellbomb: Draw a card.` — and the picker shows it
+ * instead of a number. The braces stay Forge's notation on the wire; the UI
+ * already says them in words (`lookup.ts` `plainRulesText`, because `{T}` is
+ * a WotC mark).
+ *
+ * OPTIONAL, and on this offer's own shape rather than on `SpellAbilityRef`
+ * itself, so an offer without labels — a bridge that predates this, the
+ * committed fixtures — parses unchanged, and so a ref somewhere else
+ * (`selectAbility`, an entity list) still carries identity only. The reply
+ * echoes whatever it was offered; the bridge reads `kind` and `id` and
+ * nothing else.
+ */
+export const OfferedAbilitySchema = z.strictObject({
+  ...SpellAbilityRefSchema.shape,
+  label: z.string().optional(),
+});
+
+export type OfferedAbility = z.infer<typeof OfferedAbilitySchema>;
+
+/**
  * `SpellAbilityView getAbilityToPlay(CardView hostCard,
  * List<SpellAbilityView> abilities, ITriggerEvent triggerEvent)` —
  * IGuiGame.java:147. Reply nullable: no ability chosen.
@@ -295,11 +324,11 @@ export const GetAbilityToPlaySchema = z.strictObject({
   callId: z.string().min(1),
   method: z.literal('getAbilityToPlay'),
   hostCard: CardRefSchema,
-  abilities: z.array(SpellAbilityRefSchema),
+  abilities: z.array(OfferedAbilitySchema),
   triggerEvent: TriggerEventSchema.nullable(),
 });
 
-export const GetAbilityToPlayReplySchema = SpellAbilityRefSchema.nullable();
+export const GetAbilityToPlayReplySchema = OfferedAbilitySchema.nullable();
 
 /**
  * `Map<CardView, Integer> assignCombatDamage(CardView attacker,

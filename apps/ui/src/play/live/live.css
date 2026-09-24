@@ -309,3 +309,50 @@
   user-select: none;
   cursor: grabbing;
 }
+
+/*
+ * The says: the last things the server said to this seat — what was
+ * auto-passed, what a cast paid (`LiveBoard.tsx`). A state, not prose, so it
+ * is one quiet column of lines beside the prompt, never a panel of its own.
+ *
+ * The slot is ALWAYS two lines tall and always this wide, empty or full: the
+ * bar must not change shape when a say arrives ("nothing comes and goes").
+ * Lines are pinned to the BOTTOM so the newest is always the bottom line —
+ * one say does not shift two says up a row — and each line ellipsizes rather
+ * than wraps, because a wrapped line is a taller bar.
+ */
+.live__log {
+  flex: 0 0 11rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 2.6em;
+  margin: 0;
+  overflow: hidden;
+  list-style: none;
+  font-size: 12.5px;
+  line-height: 1.3;
+  color: var(--ink-dim);
+}
+
+.live__log li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The full-control toggle (§C.4). Styled by the `.live__buttons button` rules
+ * like its neighbours; pressed is the accent border the selectable cards and
+ * the bar's own state already use, so "on" reads as one affordance everywhere.
+ */
+.live__buttons .live__toggle {
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+
+.live__buttons .live__toggle[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}

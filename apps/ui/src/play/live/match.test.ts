@@ -26,6 +26,8 @@ import {
   pressButton,
   selectCard,
   selectPlayer,
+  setFullControl,
+  SAYS_KEPT,
   socketIoMatchTransport,
   startMatch,
   type LiveMatch,
@@ -463,50 +465,52 @@ describe('the viewer comes from the snapshot', () => {
  * `cardIdsInView` fallback — "no selection, so offer every card in view" —
  * fails it, which is the point.
  */
-describe('clicking the board: only what Forge offered', () => {
-  const prompt = (message: string) =>
-    parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null });
-  const bar = (enable1: boolean) =>
-    parseServerFrame({
-      kind: 'notify',
-      method: 'updateButtons',
-      owner: { kind: 'player', id: 0 },
-      label1: 'OK',
-      label2: 'Cancel',
-      enable1,
-      enable2: false,
-      focus1: true,
-    });
-  const selectables = (ids: number[], min: number, max: number) =>
-    parseServerFrame({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max });
-  const clear = () => parseServerFrame({ kind: 'notify', method: 'clearSelectables' });
-  /** Forge's priority-time offer. `pushActionableCards` sends this, weighted. */
-  const actionable = (ids: number[]) =>
-    parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
-  const clearActionable = () => parseServerFrame({ kind: 'notify', method: 'clearWeaklySelectable' });
-
-  /** Card ids on the fixture board: the viewer's battlefield, and the opponent's. */
-  function ids(m: LiveMatch): { mine: number[]; theirs: number[] } {
-    const players = m.view!.players;
-    const mine = players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    const theirs = players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
-    expect(mine.length).toBeGreaterThan(1);
-    expect(theirs.length).toBeGreaterThan(0);
-    return { mine, theirs };
-  }
-
-  const cardAct = (id: number) => ({
-    ok: true,
-    value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null },
+/* Frame builders the interaction cases share. */
+const prompt = (message: string) =>
+  parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null });
+const bar = (enable1: boolean) =>
+  parseServerFrame({
+    kind: 'notify',
+    method: 'updateButtons',
+    owner: { kind: 'player', id: 0 },
+    label1: 'OK',
+    label2: 'Cancel',
+    enable1,
+    enable2: false,
+    focus1: true,
   });
+const selectables = (ids: number[], min: number, max: number) =>
+  parseServerFrame({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max });
+const clear = () => parseServerFrame({ kind: 'notify', method: 'clearSelectables' });
+/** Forge's priority-time offer. `pushActionableCards` sends this, weighted. */
+const actionable = (ids: number[]) =>
+  parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
+const clearActionable = () => parseServerFrame({ kind: 'notify', method: 'clearWeaklySelectable' });
 
-  /** Send a known-good act and require it to be the first thing the server got. */
-  async function barrier(s: ReplayServer, m: LiveMatch, id: number): Promise<void> {
-    await sendAndApply(s, m, [prompt('barrier'), actionable([id])]);
-    expect(selectCard(m, id)).toBe(true);
-    await until('the barrier act', () => s.clientFrames().length >= 1);
-    expect(s.clientFrames()).toEqual([cardAct(id)]);
-  }
+/** Card ids on the fixture board: the viewer's battlefield, and the opponent's. */
+function ids(m: LiveMatch): { mine: number[]; theirs: number[] } {
+  const players = m.view!.players;
+  const mine = players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+  const theirs = players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
+  expect(mine.length).toBeGreaterThan(1);
+  expect(theirs.length).toBeGreaterThan(0);
+  return { mine, theirs };
+}
+
+const cardAct = (id: number) => ({
+  ok: true,
+  value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null },
+});
+
+/** Send a known-good act and require it to be the first thing the server got. */
+async function barrier(s: ReplayServer, m: LiveMatch, id: number): Promise<void> {
+  await sendAndApply(s, m, [prompt('barrier'), actionable([id])]);
+  expect(selectCard(m, id)).toBe(true);
+  await until('the barrier act', () => s.clientFrames().length >= 1);
+  expect(s.clientFrames()).toEqual([cardAct(id)]);
+}
+
+describe('clicking the board: only what Forge offered', () => {
 
   /*
    * THE mutation target for Wave 19 §B item 1 (the operator's #1 complaint).
@@ -701,5 +705,92 @@ describe('clicking the board: only what Forge offered', () => {
     expect(m.selectables).toBeNull();
     expect(m.weaklySelectable).toBeNull();
     expect(selectCard(m, theirs[0]!)).toBe(false);
+  });
+});
+
+/*
+ * The says (`message` notifies) and the full-control toggle — Wave 19's §C.2
+ * observability and §C.4 escape hatch, client side.
+ *
+ * The case that matters is the negative one: a `message` frame is DISPLAY
+ * ONLY. It must not make anything clickable, unspend a click, answer an ask,
+ * or send anything — the board's whole discipline is that only Forge's two
+ * offered sets are affordances, and a say is not one of them.
+ */
+describe('the says, and full control', () => {
+  const says = (text: string) =>
+    parseServerFrame({ kind: 'notify', method: 'message', message: text, title: '' });
+
+  it('holds the last things said, newest last, capped at eight', async () => {
+    const { s, m } = await fullGame();
+    for (let i = 1; i <= SAYS_KEPT + 1; i += 1) await sendAndApply(s, m, [says(`line ${i}`)]);
+    expect(m.says).toEqual(['line 2', 'line 3', 'line 4', 'line 5', 'line 6', 'line 7', 'line 8', 'line 9']);
+  });
+
+  it('a say with no text is not a line', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [says(''), says('auto-passed Upkeep step')]);
+    expect(m.says).toEqual(['auto-passed Upkeep step']);
+  });
+
+  it('a snapshot clears the log, and the lines that come after it refill it', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [says('auto-passed Upkeep step'), says('paid U — Volcanic Island')]);
+    expect(m.says).toHaveLength(2);
+
+    s.lose(says('lost')); // a gap: the client must resync, and the server re-sends its kept says
+    s.send(says('after the gap'));
+    await until('the resync', () => m.stats.snapshots === 2);
+    expect(m.says).toEqual([]);
+    await sendAndApply(s, m, [says('auto-passed Draw step')]);
+    expect(m.says).toEqual(['auto-passed Draw step']);
+  });
+
+  it('a message frame offers nothing, answers nothing, and spends nothing — it is display only', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!])]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await until('the act', () => s.clientFrames().length === 1);
+    const before = boardInteraction(m);
+    expect(before.selectable.size).toBe(0); // mine[0] is spent; nothing else was offered
+
+    await sendAndApply(s, m, [says('auto-passed Upkeep step')]);
+    expect(m.says).toEqual(['auto-passed Upkeep step']);
+    const after = boardInteraction(m);
+    expect(after.selectable).toEqual(before.selectable);
+    expect(after.selectablePlayers).toEqual(before.selectablePlayers);
+    expect(m.inputLive).toBe(true);
+    expect(m.spent.cards.has(mine[0]!)).toBe(true);
+    expect(m.asks).toEqual([]);
+    // And nothing was sent on the say's own account: the next legitimate act
+    // must be the SECOND frame the server receives (the first was the click
+    // above), with nothing between them.
+    await sendAndApply(s, m, [prompt('barrier'), actionable([mine[1]!])]);
+    expect(selectCard(m, mine[1]!)).toBe(true);
+    await until('the barrier act', () => s.clientFrames().length >= 2);
+    expect(s.clientFrames()[1]).toEqual(cardAct(mine[1]!));
+  });
+
+  it('the full-control toggle sends its event, and only when it changes', async () => {
+    const { s, m } = await fullGame();
+    expect(m.fullControl).toBe(false);
+    expect(setFullControl(m, false)).toBe(false);
+    expect(s.received.filter((r) => r.event === MATCH_EVENTS.fullControl)).toEqual([]);
+
+    expect(setFullControl(m, true)).toBe(true);
+    expect(m.fullControl).toBe(true);
+    expect(setFullControl(m, true)).toBe(false); // already on: nothing crosses
+    expect(setFullControl(m, false)).toBe(true);
+    expect(m.fullControl).toBe(false);
+    await until('both full-control emits', () => s.received.filter((r) => r.event === MATCH_EVENTS.fullControl).length >= 2);
+
+    const seen = s.received.filter((r) => r.event === MATCH_EVENTS.fullControl);
+    expect(seen).toEqual([
+      { event: MATCH_EVENTS.fullControl, payload: { matchId: s.matchId, on: true } },
+      { event: MATCH_EVENTS.fullControl, payload: { matchId: s.matchId, on: false } },
+    ]);
+    // It is a preference, not a frame: nothing of it crossed forge:c2s.
+    expect(s.clientFrames()).toEqual([]);
   });
 });

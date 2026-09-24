@@ -80,6 +80,24 @@
  *        Dragging a land onto the table is #6's whole point.
  *      · anything else → nothing, and nothing said.
  *
+ * ## The says, and the full-control toggle
+ *
+ * Lane C's server says a thing to the seat when it acts for it —
+ * "auto-passed Upkeep step", "paid U — Volcanic Island" — because an
+ * auto-pass nobody can see is indistinguishable from a board that froze
+ * (§C.2), and a cast that shows no payment looks free (#8). Those arrive as
+ * Tier-A `message` notifies; `match.says` holds the last few and the bar
+ * draws the newest two, always in a slot of its own so the table never moves
+ * ("nothing comes and goes"). A say is a state, not prose — it is rendered
+ * exactly as sent, braces said in words like every other rules text.
+ *
+ * The toggle beside the buttons is §C.4's escape hatch: full control OFF is
+ * the default (the shortcuts run), ON asks every question and stops at every
+ * stop. One click, one `forge:full-control`, `setFullControl` the only
+ * sender. It is a preference of the person in the seat, not an answer to
+ * anything Forge is waiting on, so it is pressable at ANY time — before the
+ * first prompt is exactly when a player wants "ask me everything".
+ *
  * ## The button bar never comes and goes
  *
  * It is drawn in every frame, with the same children, so the table does not
@@ -101,7 +119,8 @@ import {
 import { createPortal } from 'react-dom';
 
 import { Board, type BoardInteraction } from '../Board.tsx';
-import { PromptFor, isPromptMethod, lookupFromState, type AskOf, type PromptMethod } from '../prompts/index.ts';
+import { lookupFromState, plainRulesText, withAbilityLabels } from '../prompts/lookup.ts';
+import { isPromptMethod, PromptFor, type AskOf, type PromptMethod } from '../prompts/index.ts';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
 import {
   abortAsk,
@@ -112,6 +131,7 @@ import {
   pressButton,
   selectCard,
   selectPlayer,
+  setFullControl,
   subscribe,
   type LiveAsk,
   type LiveClickables,
@@ -161,12 +181,26 @@ function LivePrompt({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
   return (
     <PromptFor
       ask={ask as AskOf<PromptMethod>}
-      lookup={lookupFromState(match.state)}
+      // `getAbilityToPlay` is the one ask whose options carry their own label
+      // (the bridge sends Forge's "cost then description"; the state channel
+      // has no SpellAbilityView to read). Layered over the fold so an
+      // unlabelled offer still draws its "ability #id" fallback.
+      lookup={withAbilityLabels(lookupFromState(match.state), abilityLabelsOf(ask))}
       onAnswer={(reply) => answerAsk(match, ask.callId, ask.method, reply)}
     />
   );
 }
 
+/** The labels a `getAbilityToPlay` offer carries, keyed by ability id. */
+function abilityLabelsOf(ask: LiveAsk): Record<number, string> {
+  if (ask.method !== 'getAbilityToPlay') return {};
+  const out: Record<number, string> = {};
+  for (const ab of ask.abilities) if (ab.label !== undefined) out[ab.id] = ab.label;
+  return out;
+}
+
+/** How many of the held says the bar draws. The slot is always this tall. */
+export const SAYS_SHOWN = 2;
 
 /* ── The drag gesture and the targeter arrow ─────────────────────────── */
 
@@ -274,10 +308,13 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
   const target = targetUnder(node, offered);
 
   if (target === null) {
-    // Nothing Forge named is under the pointer. Inside a selection that is a
-    // miss and says nothing. Outside one, a drop on the table is the card
-    // being used — the same single frame its own face sends.
-    if (source === null || match.selectables !== null) return;
+    // Nothing Forge named is under the pointer. A drop inside a zone is the
+    // card being used — the same single frame its own face sends — whenever
+    // Forge currently offers it, selection open or not: `source` is null for
+    // a card Forge did not name, and `selectCard` re-checks the offer before
+    // anything leaves, so this can never invent an affordance. A drop
+    // outside every zone does nothing and says nothing.
+    if (source === null) return;
     if (!(node instanceof Element) || node.closest('[data-zone]') === null) return;
     selectCard(match, source);
     return;
@@ -440,6 +477,25 @@ export function LiveBoard({ match }: { match: LiveMatch }) {
         <p className="live__says" data-testid="live-says">
           {match.prompt ?? ''}
         </p>
+        {/*
+         * The says, newest at the bottom. Always rendered, always two lines
+         * tall: an empty log is an empty slot, never a bar that changed shape.
+         * Brace notation is said in words, as every other rules text is.
+         */}
+        <ul className="live__log" data-testid="live-log" aria-label="Said">
+          {match.says.slice(-SAYS_SHOWN).map((line, i) => (
+            <li key={i}>{plainRulesText(line)}</li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          className="live__toggle"
+          data-testid="live-full-control"
+          aria-pressed={match.fullControl}
+          onClick={() => setFullControl(match, !match.fullControl)}
+        >
+          Full control
+        </button>
         <button
           type="button"
           data-testid="live-button-ok"

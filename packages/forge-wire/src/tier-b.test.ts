@@ -214,3 +214,42 @@ describe('Tier B — sideboard is @hadoku/deck’s pool model, at runtime', () =
     ).toBe(false);
   });
 });
+
+/*
+ * `getAbilityToPlay` carries its own label (Wave 19 lane B).
+ *
+ * The picker used to draw "ability #243" because no `SpellAbilityView` is ever
+ * on the wire; the label is what the bridge sends instead. The battery above
+ * cannot cover it — `malformed.ts` mutates a frame's TOP-LEVEL keys, and the
+ * label lives inside `abilities[]` — so these are hand-written, positive and
+ * negative both.
+ */
+describe('getAbilityToPlay — the label travels with the offer', () => {
+  const offer = SERVER_FRAME_EXAMPLES.getAbilityToPlay as Record<string, unknown>;
+  const labelled = { kind: 'spellAbility', id: 9001, label: '{1}, Sacrifice Pyrite Spellbomb: Draw a card.' };
+  const reply = (result: unknown) =>
+    safeParseClientFrame({ kind: 'reply', callId: 'c-5', method: 'getAbilityToPlay', result });
+
+  it('parses an offer whose abilities carry labels', () => {
+    expect(safeParseServerFrame({ ...offer, abilities: [labelled] }).ok).toBe(true);
+  });
+
+  it('parses an offer with none — the shape a bridge that predates the label sends', () => {
+    expect(safeParseServerFrame({ ...offer, abilities: [{ kind: 'spellAbility', id: 9001 }] }).ok).toBe(true);
+  });
+
+  it('a reply may echo the label it was offered, or answer with the bare ref', () => {
+    expect(reply(labelled).ok).toBe(true);
+    expect(reply({ kind: 'spellAbility', id: 9001 }).ok).toBe(true);
+  });
+
+  it('rejects a label that is not a string, in the offer and in the reply', () => {
+    const bad = { ...labelled, label: 42 };
+    expect(safeParseServerFrame({ ...offer, abilities: [bad] }).ok).toBe(false);
+    expect(reply(bad).ok).toBe(false);
+  });
+
+  it('rejects an ability object with a field nobody agreed to', () => {
+    expect(safeParseServerFrame({ ...offer, abilities: [{ ...labelled, power: '3' }] }).ok).toBe(false);
+  });
+});

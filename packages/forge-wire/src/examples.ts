@@ -161,7 +161,9 @@ export const SERVER_FRAME_EXAMPLES: Readonly<Record<string, unknown>> = {
     callId: 'c-5',
     method: 'getAbilityToPlay',
     hostCard: CARD,
-    abilities: [ABILITY],
+    // Labelled, as the bridge sends it (`tier-b.ts` `OfferedAbilitySchema`).
+    // The REPLY example below stays a bare ref on purpose: both shapes parse.
+    abilities: [{ ...ABILITY, label: '{1}, Sacrifice Pyrite Spellbomb: Draw a card.' }],
     triggerEvent: CLICK,
   },
   assignCombatDamage: {

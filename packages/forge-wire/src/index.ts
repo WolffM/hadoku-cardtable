@@ -131,6 +131,8 @@ export {
   TempShowZonesReplySchema,
   GetAbilityToPlaySchema,
   GetAbilityToPlayReplySchema,
+  OfferedAbilitySchema,
+  type OfferedAbility,
   AssignCombatDamageSchema,
   AssignCombatDamageReplySchema,
   GenericAmountKeySchema,

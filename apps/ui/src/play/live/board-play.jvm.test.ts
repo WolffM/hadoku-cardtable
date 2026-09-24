@@ -277,6 +277,12 @@ describe.skipIf(!available.ok)(title, () => {
           `${shockResolved ? `resolved, opponent at ${opponent(a).life}` : 'on the stack'} — ${((Date.now() - started) / 1000).toFixed(1)} s`,
       );
 
+      // Lane C's says crossed and this client holds them (display only). With
+      // the shortcuts on, a match this short has still auto-passed stops for
+      // the actor — the board must be able to say so.
+      expect(a.live.says.length).toBeGreaterThan(0);
+      console.log(`[board-play.jvm] says held by the actor: ${JSON.stringify(a.live.says.slice(-4))}`);
+
       // Nothing this client sent was refused, by the server or by the bridge.
       expect(h.refused).toEqual([]);
       expect(h.raw.filter((l) => l.t === 'rejected' || l.t === 'stale' || l.t === 'fatal' || l.t === 'unsupported')).toEqual([]);

@@ -132,6 +132,36 @@
  * sends nothing. There is no wire method for a drag, because there is no such
  * thing on Forge's side — a gesture is two clicks or it is nothing.
  *
+ * ## The says: `message` frames are display, never input
+ *
+ * Forge's Tier-A `message` notify is how the server says a thing to this seat
+ * with no question attached. Wave 19 lane C made that load-bearing: every stop
+ * passed for the player ("auto-passed Upkeep step") and every payment
+ * ("paid U — Volcanic Island") arrives as one, because an auto-pass nobody
+ * can see is indistinguishable from a board that froze. The client holds the
+ * last few (`SAYS_KEPT`, the server's own number) and `LiveBoard` draws them.
+ *
+ * The rule that keeps this honest: **a `message` frame changes nothing but the
+ * log.** It is not an input frame — it does not set `inputLive`, does not
+ * unspend, does not touch a selection, answers nothing. A say never makes a
+ * card clickable, which is the whole of §B item 1's discipline.
+ *
+ * A snapshot CLEARS the log, exactly as it clears asks and selections: the
+ * server re-sends its kept says after the snapshot as ordinary frames, so the
+ * lines come back — and a line held from before the snapshot is not trusted
+ * for the same reason a selection held from before is not.
+ *
+ * ## Full control
+ *
+ * The seat's escape hatch (§C.4): `forge:full-control` turns lane C's
+ * auto-pass and single-answer shortcuts off for this seat, and back on. It is
+ * a preference, not a frame — it goes on its own event, `setFullControl` is
+ * the one sender, and the handle's flag is what this client last sent. The
+ * server does not echo a seat's toggle into its snapshot (the snapshot has no
+ * such field), so a refreshed page draws the toggle off even where the server
+ * holds it on; the next click re-syncs it, because setting a seat to the
+ * state it already has is a documented no-op.
+ *
  * ## An open prompt never holds the board back
  *
  * A prompt arrives mid-priority, with the state channel still moving (the
@@ -165,6 +195,7 @@ import { foldPackets, type WireState } from '../fold.ts';
 import { expectWirePackets, type WirePacket } from '../wire.ts';
 import {
   abortFrame,
+  fullControlFrame,
   MATCH_EVENTS,
   parseMatchAck,
   parseServerEnvelope,
@@ -228,6 +259,13 @@ export const DEFAULT_ACK_TIMEOUT_MS = 10_000;
  * disconnect with a question open as an abort (`disconnected`).
  */
 export const DISCONNECT_GRACE_MS = 100;
+
+/**
+ * How many `message` lines this client holds — the same number the server
+ * keeps per seat (`apps/server/src/play/match.ts`'s `SAYS_KEPT`), so a
+ * snapshot's clear-and-re-send reproduces the log it cleared.
+ */
+export const SAYS_KEPT = 8;
 
 export function socketIoMatchTransport(options: SocketIoMatchOptions = {}): MatchTransport {
   const path = options.path ?? defaultSocketPath();
@@ -354,6 +392,12 @@ export interface LiveMatch {
   /** Forge's current selection, from `setSelectables`. Null: none is open. */
   selectables: LiveSelectables | null;
   /**
+   * The last few things SAID to this seat — `message` notifies: what was
+   * auto-passed, what a cast paid. Display only; see the module header.
+   * Newest last, capped at `SAYS_KEPT`.
+   */
+  says: string[];
+  /**
    * Forge's current actionable set, from `setWeaklySelectable` — what the
    * input that is live right now will do something with. Null: Forge has named
    * nothing (it never has, or `clearWeaklySelectable` ended the last set).
@@ -370,6 +414,8 @@ export interface LiveMatch {
   inputLive: boolean;
   /** Cards and players clicked since Forge last spoke — not clickable again until it does. */
   spent: { cards: Set<number>; players: Set<number> };
+  /** This seat's full-control toggle, as this client last sent it. Off by default. */
+  fullControl: boolean;
   /** The most recent failure worth showing. Cleared when a snapshot lands. */
   lastError: string | null;
   /** Why the most recent malformed envelope or frame was refused. */
@@ -453,8 +499,10 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     buttons: null,
     selectables: null,
     weaklySelectable: null,
+    says: [],
     inputLive: false,
     spent: { cards: new Set(), players: new Set() },
+    fullControl: false,
     lastError: null,
     lastInvalid: null,
     lastVerdict: null,
@@ -554,6 +602,23 @@ export function pressButton(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
   match.buttons = { ...bar, enable1: false, enable2: false };
   match.inputLive = false;
   match.stats.replies += 1;
+  notify(match);
+  return true;
+}
+
+/**
+ * Flip this seat's full-control toggle and tell the server.
+ *
+ * The ONE sender — the toggle button in `LiveBoard` and nothing else. Sends
+ * nothing (and returns false) when the toggle is already where it is asked to
+ * be: the server treats that as a no-op anyway, and a click that changes
+ * nothing should not cross the wire. Optimistic: the server logs a refusal
+ * rather than answering, so the flag is this client's own last word.
+ */
+export function setFullControl(match: LiveMatch, on: boolean): boolean {
+  if (match.fullControl === on) return false;
+  match.transport.emit(MATCH_EVENTS.fullControl, fullControlFrame(match.matchId, on));
+  match.fullControl = on;
   notify(match);
   return true;
 }
@@ -753,6 +818,9 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   // from before cannot be trusted.
   match.selectables = null;
   match.weaklySelectable = null;
+  // The log, like the asks: the server re-sends its kept says after the
+  // snapshot, so a line that survives from before is not trusted.
+  match.says = [];
   match.inputLive = false;
   unspend(match);
   match.lastError = null;
@@ -951,6 +1019,13 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // it too); membership is the whole of what a board needs.
     match.weaklySelectable = new Set(frame.cards.map((c) => c.id));
     match.inputLive = true;
+  } else if (frame.kind === 'notify' && frame.method === 'message') {
+    // Display only — see the module header. Not an input frame, not an answer:
+    // nothing below this line reads it back, on purpose.
+    if (frame.message !== '') {
+      match.says.push(frame.message);
+      if (match.says.length > SAYS_KEPT) match.says.shift();
+    }
   } else if (frame.kind === 'notify' && frame.method === 'clearWeaklySelectable') {
     // The input that offered them has stopped. `inputLive` is NOT cleared
     // here: Forge clears the set at the END of priority and again at the start
@@ -986,6 +1061,7 @@ function discardLocal(match: LiveMatch): void {
   match.buttons = null;
   match.selectables = null;
   match.weaklySelectable = null;
+  match.says = [];
   match.inputLive = false;
   unspend(match);
 }

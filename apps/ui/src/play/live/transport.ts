@@ -22,6 +22,9 @@
  *   client → server  `forge:join`    `{ matchId }`, ack → `MatchSnapshot | { error }`
  *   client → server  `forge:resync`  `{ matchId }`, ack → `MatchSnapshot | { error }`
  *   client → server  `forge:c2s`     `{ matchId, frame: ClientFrame }`
+ *   client → server  `forge:full-control`  `{ matchId, on }` — this seat's escape
+ *                    hatch (Wave 19 lane C's `play/auto.ts`); carries nothing
+ *                    about the game, and no ack: the server only logs a refusal
  *   server → client  `forge:s2c`     `{ matchId, cursor, frame: ServerFrame }`
  *
  * `POST <base>/api/play/matches` starts a match; its body is lane A's, and
@@ -52,6 +55,7 @@ import {
   ClientReplySchema,
   FORGE_CHANNEL,
   ServerFrameSchema,
+  ShowConfirmDialogReplySchema,
   TrackableIdSchema,
   type BlockingMethod,
   type ClientAbort,
@@ -71,6 +75,8 @@ const borrowed = {
   unknown: ClientReplySchema.shape.result,
   /** A Forge id, a Java int: `TrackableIdSchema` is `z.number().int()`. */
   forgeId: TrackableIdSchema,
+  /** A boolean: `ShowConfirmDialogReplySchema` is `z.boolean()`. */
+  boolean: ShowConfirmDialogReplySchema,
   /** An empty object schema to extend — `z.object({})` by another route. */
   emptyObject: SeqCursorSchema.pick({}),
 };
@@ -83,6 +89,8 @@ export const MATCH_EVENTS = {
   resync: 'forge:resync',
   serverToClient: FORGE_CHANNEL.serverToClient,
   clientToServer: FORGE_CHANNEL.clientToServer,
+  /** Wave 19 lane C: the full-control escape hatch, per seat, off by default. */
+  fullControl: 'forge:full-control',
 } as const;
 
 /* ── Cursor ──────────────────────────────────────────────────────────── */
@@ -110,6 +118,23 @@ export const ClientEnvelopeSchema = borrowed.emptyObject
 export interface ClientEnvelope {
   matchId: string;
   frame: ClientFrame;
+}
+
+/**
+ * `forge:full-control` — this seat wants every question and every stop, or
+ * wants the shortcuts back (`play/auto.ts`). Nothing about the game crosses
+ * here: it is a preference of the person sitting in the seat, and the server
+ * binds it to the seat the socket claimed, never to a payload field.
+ */
+export const FullControlSchema = borrowed.emptyObject
+  .extend({ matchId: borrowed.nonEmptyString, on: borrowed.boolean })
+  .strict();
+
+export type FullControlRequest = Output<typeof FullControlSchema>;
+
+/** The payload of a `forge:full-control` emit, parsed through its own schema. */
+export function fullControlFrame(matchId: string, on: boolean): FullControlRequest {
+  return FullControlSchema.parse({ matchId, on });
 }
 
 /* ── Server → client ─────────────────────────────────────────────────── */

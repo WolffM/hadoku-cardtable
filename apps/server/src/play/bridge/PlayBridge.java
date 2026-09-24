@@ -277,6 +277,30 @@ public final class PlayBridge {
         return r == null ? JsonNull.INSTANCE : r;
     }
 
+    /**
+     * An ability ref WITH its label — {@link SpellAbilityView#toString()}, which
+     * is Forge's "cost then description" (SpellAbilityView.java:42-55, from
+     * {@code toUnsuppressedString}): {@code {1}, Sacrifice Pyrite Spellbomb: Draw a card.}
+     *
+     * Wave 19 lane B: the state channel carries no SpellAbilityView objects, so
+     * without this the browser can only draw "ability #243". The braces stay
+     * Forge's notation; the client says them in words ({@code plainRulesText},
+     * because {@code {T}} is a WotC mark). Omitted when empty, so the frame is
+     * the same shape an older bridge sent.
+     */
+    static JsonArray labelledAbilities(final Iterable<SpellAbilityView> abilities) {
+        final JsonArray a = new JsonArray();
+        if (abilities != null) {
+            for (final SpellAbilityView sa : abilities) {
+                final JsonObject r = ref("spellAbility", sa.getId());
+                final String label = sa.toString();
+                if (label != null && !label.isEmpty()) { r.addProperty("label", label); }
+                a.add(r);
+            }
+        }
+        return a;
+    }
+
     static JsonArray refs(final Iterable<?> items) {
         final JsonArray a = new JsonArray();
         if (items != null) {
@@ -989,7 +1013,7 @@ public final class PlayBridge {
             final PendingAsk ask = open("getAbilityToPlay", f);
             offer(ask, abilities);
             f.add("hostCard", ref("card", hostCard.getId()));
-            f.add("abilities", refs(abilities));
+            f.add("abilities", labelledAbilities(abilities));
             f.add("triggerEvent", JsonNull.INSTANCE);
             final JsonElement r = await(ask, f);
             return r == ABORTED ? null : (SpellAbilityView) lookup(ask, r);

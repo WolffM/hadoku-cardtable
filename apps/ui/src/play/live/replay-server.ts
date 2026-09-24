@@ -204,6 +204,11 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       if (!parsed.ok || (parsed.value.kind !== 'reply' && parsed.value.kind !== 'abort')) return;
       openAsks.delete(parsed.value.callId);
     });
+    // Recorded and nothing else: the real server only logs a refusal, so there
+    // is no ack to fake and no state to hold.
+    socket.on(MATCH_EVENTS.fullControl, (payload) => {
+      server.received.push({ event: MATCH_EVENTS.fullControl, payload });
+    });
   });
 
   await new Promise<void>((ready) => http.listen(0, '127.0.0.1', ready));

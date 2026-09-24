@@ -253,6 +253,30 @@ async function dragToBattlefield(f: Friend, cardId: number): Promise<void> {
   await f.page.mouse.up();
 }
 
+/**
+ * Did the drag's `selectCard` actually cross? False is a normal outcome now:
+ * with the auto-pass shortcuts on, the server replaces the input under a
+ * gesture in flight — an ask opens, a stop is passed — and the client then
+ * CORRECTLY sends nothing. The caller re-reads what is offered and drags
+ * again; only the budget, not a single attempt, is fatal.
+ *
+ * While waiting, anything Forge asked is answered by the board, because an
+ * ask that opened under the gesture is the usual reason nothing crossed.
+ */
+async function dragLanded(f: Friend, before: number, cardId: number, name: string, ms: number): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    await answerPrompt(f.page);
+    const acts = cardActsFrom(f).slice(before);
+    if (acts.length > 0) {
+      expect(acts.every((a) => a === cardId), `${f.name}: every act the drag of ${name} sent was that card`).toBe(true);
+      return true;
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return false;
+}
+
 async function quiet(friends: Friend[], ms: number, budget = 60_000): Promise<void> {
   const deadline = Date.now() + budget;
   let last = friends.map((f) => f.captures.length).join();
@@ -773,11 +797,12 @@ test(LIVE_TITLE, async ({ browser }) => {
         if (pick !== undefined) {
           const before = cardActsFrom(f).length;
           await dragToBattlefield(f, pick.id);
-          await expect
-            .poll(() => cardActsFrom(f).length, { timeout: 10_000, message: `${f.name}: the drag of ${pick.name} sent no selectCard` })
-            .toBeGreaterThan(before);
-          expect(cardActsFrom(f).slice(before), `${f.name}: the drag sent that card, and nothing else`).toEqual([pick.id]);
-          dragged.push({ name: f.name, id: pick.id, card: pick.name, type: pick.type, where: 'hand' });
+          // The affordance can go stale under the gesture; `dragLanded` retries
+          // a drag that sent nothing on the next pass, against a freshly
+          // read board, until the budget runs out.
+          if (await dragLanded(f, before, pick.id, pick.name, 6_000)) {
+            dragged.push({ name: f.name, id: pick.id, card: pick.name, type: pick.type, where: 'hand' });
+          }
           continue;
         }
         // Paying for what was just cast is the same gesture on a land already
@@ -787,8 +812,12 @@ test(LIVE_TITLE, async ({ browser }) => {
           await dragToBattlefield(f, paying[0]!.id);
           continue;
         }
-        const ok = f.page.getByTestId('live-button-ok');
-        if ((await f.page.locator('[data-testid="live-button-ok"]:enabled').count()) > 0) await ok.click();
+        // The bar flips with the auto-passes, so an OK seen enabled can be
+        // disabled before the click lands. Best effort with a short leash:
+        // a missed press costs one 250 ms pass, and the server presses the
+        // stop for the seat anyway when it can.
+        const ok = f.page.locator('[data-testid="live-button-ok"]:enabled');
+        if ((await ok.count()) > 0) await ok.click({ timeout: 2_000 }).catch(() => {});
       }
       await new Promise((r) => setTimeout(r, 250));
     }

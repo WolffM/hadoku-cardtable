@@ -493,23 +493,50 @@ describe('dragging a card, and the targeter arrow', () => {
     expect(sent(s)).toEqual([['selectCard', target]]);
   });
 
-  it('a drag that ends nowhere legal does nothing and says nothing', async () => {
+  it('a drag of a card Forge did not offer does nothing and says nothing', async () => {
     const { s, m, container } = await liveBoard();
     const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
     const theirs = m.view!.players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose a target'), selectables([mine[0]!], 1, 1)])) s.send(f);
     await waitFor(() => expect(m.selectables).not.toBeNull());
 
-    // A card Forge did NOT offer, inside a selection: a miss.
-    drag(cardEl(container, mine[0]!), cardEl(container, theirs[0]!));
+    // The opponent's card is not offered — dragged to the stack (the one
+    // zone no seat owns, so nothing is under it) or off the board entirely,
+    // it sends nothing. A drop inside a seat WOULD point at that player;
+    // that is the pointing gesture, and it has its own test below.
+    const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
+    drag(cardEl(container, theirs[0]!), stack);
+    drag(cardEl(container, theirs[0]!), document.body);
     expect(m.lastError).toBeNull();
     expect(container.querySelector('[data-testid="live-error"]')).toBeNull();
+    expect(s.clientFrames()).toHaveLength(0);
 
     // Proven against a barrier: the next legitimate act must be the FIRST
     // frame the server sees, so a refused drag cannot be hiding behind a wire.
     fireEvent.click(cardEl(container, mine[0]!).querySelector('button')!);
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+  });
+
+  it('inside a selection, an offered card dropped where nothing is offered is used — a spell drags out of its own target ask', async () => {
+    const { s, m, container } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const theirs = m.view!.players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
+    // Forge is asking for a target (the spell's own ask) and has named the
+    // spell among the candidates. The drag lands on an unoffered card in a
+    // zone — `targetUnder` stops at that card and names nothing — so the drop
+    // is the card's own click: one selectCard for the source, nothing else.
+    for (const f of notify([prompt('Choose a target'), selectables([mine[0]!, mine[1]!], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    drag(cardEl(container, mine[0]!), cardEl(container, theirs[0]!));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+
+    // And a drop outside every zone still does nothing and says nothing.
+    drag(cardEl(container, mine[1]!), document.body);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames()).toHaveLength(1);
   });
 
   it('outside a selection, a drop on the table is the one frame a click sends — and it is not sent twice', async () => {
@@ -606,5 +633,110 @@ describe('dragging a card, and the targeter arrow', () => {
     fireEvent.pointerUp(faceEl(container, 1), { clientX: 200, clientY: 140 });
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectPlayer', 1]]);
+  });
+});
+
+/*
+ * The says, the full-control toggle, and the ability label — Wave 19's §C
+ * items as they reach the player's eyes. All three assert on the WIRE (what
+ * `s.received` / `s.clientFrames()` hold) or on the text drawn, never on
+ * internals.
+ */
+describe('the says, the toggle, and the ability label', () => {
+  const says = (text: string) => parseServerFrame({ kind: 'notify', method: 'message', message: text, title: '' });
+
+  it('draws the newest two says in a slot that is there before any arrive', async () => {
+    const { s, container } = await liveBoard();
+    const log = container.querySelector('[data-testid="live-log"]')!;
+    expect(log.querySelectorAll('li')).toHaveLength(0); // the slot, empty, not gone
+
+    for (const f of [says('auto-passed Upkeep step'), says('paid U — Volcanic Island'), says('auto-passed Draw step')]) {
+      s.send(f);
+    }
+    await waitFor(() => expect(log.querySelectorAll('li')).toHaveLength(2));
+    expect([...log.querySelectorAll('li')].map((li) => li.textContent)).toEqual([
+      'paid U — Volcanic Island',
+      'auto-passed Draw step',
+    ]);
+  });
+
+  it('says a say\'s brace notation in words, like every other rules text', async () => {
+    const { s, container } = await liveBoard();
+    s.send(says('paid {U} — {T} Volcanic Island'));
+    await waitFor(() => expect(container.querySelector('[data-testid="live-log"] li')?.textContent).toBe('paid U — Tap Volcanic Island'));
+  });
+
+  it('the toggle: off by default, a click sends forge:full-control and the button says on, and back', async () => {
+    const { s, getByTestId } = await liveBoard();
+    const toggle = getByTestId('live-full-control') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(s.received.filter((r) => r.event === 'forge:full-control')).toEqual([]);
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('true'));
+    await waitFor(() => expect(s.received.filter((r) => r.event === 'forge:full-control')).toHaveLength(1));
+    expect(s.received.filter((r) => r.event === 'forge:full-control')[0]!.payload).toEqual({
+      matchId: s.matchId,
+      on: true,
+    });
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('false'));
+    await waitFor(() => expect(s.received.filter((r) => r.event === 'forge:full-control')).toHaveLength(2));
+    expect(s.received.filter((r) => r.event === 'forge:full-control')[1]!.payload).toEqual({
+      matchId: s.matchId,
+      on: false,
+    });
+    // A preference, not a frame: none of it crossed forge:c2s.
+    expect(s.clientFrames()).toEqual([]);
+  });
+
+  it('the ability picker shows the LABEL the bridge sent, braces in words, and the reply still names the ability', async () => {
+    const { s, m, container, getByTestId } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 'fx-labelled',
+        method: 'getAbilityToPlay',
+        hostCard: { kind: 'card', id: mine[0]! },
+        abilities: [
+          { kind: 'spellAbility', id: 9001, label: '{T}: Add {R}.' },
+          { kind: 'spellAbility', id: 9002, label: '{2}, Sacrifice Pyrite Spellbomb: Draw a card.' },
+        ],
+        triggerEvent: null,
+      }),
+    );
+    await waitFor(() => expect(getByTestId('live-prompt').dataset.method).toBe('getAbilityToPlay'));
+    const sheet = container.querySelector('[data-prompt="getAbilityToPlay"]')!;
+    const offered = [...sheet.querySelectorAll<HTMLButtonElement>('[data-testid="prompt-choice"]')];
+    // The label is the affordance — no number is drawn anywhere in it.
+    expect(offered.map((b) => b.textContent)).toEqual(['Tap: Add R.', '2, Sacrifice Pyrite Spellbomb: Draw a card.']);
+    expect(sheet.textContent).not.toMatch(/ability #/);
+
+    fireEvent.click(offered[1]!);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(s.clientFrames()[0]).toMatchObject({
+      ok: true,
+      value: { kind: 'reply', callId: 'fx-labelled', method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 9002 } },
+    });
+  });
+
+  it('an offer with no labels keeps its fallback — the shape a bridge that predates them sends', async () => {
+    const { s, m, container, getByTestId } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 'fx-unlabelled',
+        method: 'getAbilityToPlay',
+        hostCard: { kind: 'card', id: mine[0]! },
+        abilities: [{ kind: 'spellAbility', id: 9001 }],
+        triggerEvent: null,
+      }),
+    );
+    await waitFor(() => expect(getByTestId('live-prompt').dataset.method).toBe('getAbilityToPlay'));
+    const sheet = container.querySelector('[data-prompt="getAbilityToPlay"]')!;
+    expect(sheet.querySelector('[data-testid="prompt-choice"]')!.textContent).toBe('ability #9001');
   });
 });
