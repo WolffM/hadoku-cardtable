@@ -78,9 +78,19 @@ import {
 	type ServerFrame,
 } from '@hadoku/forge-wire';
 
+import { autoPassReason, onlyAnswer, paymentCost, paymentLine, type Payment } from './auto.js';
 import type { BridgeLine, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
-import { createProjector, foldFrames, type ObjTable, type SeatProjector, type StateFrame } from './visibility.js';
+import {
+	createProjector,
+	foldFrames,
+	keyOf,
+	TYPE,
+	type ObjTable,
+	type SeatProjector,
+	type StateFrame,
+	type WireObj,
+} from './visibility.js';
 
 export type MatchStatus = 'starting' | 'running' | 'over' | 'failed' | 'stopped';
 
@@ -116,6 +126,28 @@ export interface SeatState {
 	ended: ServerFrame | null;
 	/** Armed when the seat's last connection went; aborts its asks when it fires. */
 	departure: NodeJS.Timeout | null;
+
+	/* ── Wave 19 lane C: questions with one answer, stops with nothing to do ── */
+
+	/**
+	 * The escape hatch, off by default. While it is on, this seat is asked
+	 * everything and passes nothing for itself — because the one thing worse
+	 * than a stop you did not want is a stop you did not get.
+	 */
+	fullControl: boolean;
+	/** Forge's latest actionable set for this seat; null when it has not said (`auto.ts`). */
+	actionable: number[] | null;
+	/** The payment being made, while its prompt is up. */
+	payment: Payment | null;
+	/** How many asks were answered for this seat, and how many stops passed. */
+	autoAnswered: number;
+	autoPassed: number;
+	/**
+	 * The last few `message` lines this seat was sent — what was auto-passed,
+	 * what a cast paid. Re-sent after a snapshot so a refresh does not lose the
+	 * only record that a cost was paid.
+	 */
+	says: ServerFrame[];
 }
 
 export interface MatchDeps {
@@ -138,6 +170,27 @@ export interface MatchDeps {
 
 /** What a seat is shown when its match fails. Title and wording are ours; the frame is forge-wire's. */
 export const MATCH_ENDED_TITLE = 'Match ended';
+
+/** How many `message` lines a seat keeps for a re-send after a snapshot. */
+const SAYS_KEPT = 8;
+
+/**
+ * The name this seat is entitled to see for a card, off its own projected
+ * state — never off the raw stream. A card the projection hid has no name here,
+ * and the id it falls back to is the one the seat already holds.
+ */
+function cardName(state: ReadonlyMap<string, WireObj>, id: number): string | null {
+	const view = state.get(keyOf(TYPE.card, id));
+	if (view === undefined) return null;
+	const current = view.CurrentState as { t?: string; v?: unknown } | undefined;
+	const ordinal = current?.t === 'int' && typeof current.v === 'number' ? current.v : 0;
+	const face = state.get(keyOf(TYPE.cardState, id * 16 + ordinal));
+	for (const obj of [face, view]) {
+		const name = obj?.Name as { t?: string; v?: unknown } | undefined;
+		if (name?.t === 'str' && typeof name.v === 'string' && name.v !== '') return name.v;
+	}
+	return null;
+}
 
 export type ClaimOutcome = { ok: true; seat: number; fresh: boolean } | { ok: false; error: string };
 export type ClientOutcome = { ok: true } | { ok: false; error: string };
@@ -191,6 +244,12 @@ export class Match {
 			deck: null,
 			ended: null,
 			departure: null,
+			fullControl: false,
+			actionable: null,
+			payment: null,
+			autoAnswered: 0,
+			autoPassed: 0,
+			says: [],
 		}));
 	}
 
@@ -288,6 +347,7 @@ export class Match {
 	resendAfterSnapshot(seat: number): void {
 		const s = this.seats[seat];
 		if (s === undefined) return;
+		for (const said of s.says) this.send(s, said);
 		if (s.prompt !== null) this.send(s, s.prompt);
 		if (s.buttons !== null) this.send(s, s.buttons);
 		for (const ask of s.asks.values()) this.send(s, ask.frame);
@@ -399,6 +459,7 @@ export class Match {
 	private sendState(s: SeatState, raw: StateFrame): void {
 		const projected = s.projector.project(raw) as unknown as ServerFrame;
 		s.history.push(projected);
+		this.notePaymentTaps(s, projected);
 		this.send(s, projected);
 	}
 
@@ -477,6 +538,22 @@ export class Match {
 		}
 
 		if (frame.kind === 'ask' && isBlocking(frame.method)) {
+			// A question with one answer is not a question (`auto.ts`). Answered
+			// here, the browser never sees the ask at all — no modal to dismiss.
+			const auto = s.fullControl ? null : onlyAnswer(frame);
+			if (auto !== null) {
+				s.autoAnswered += 1;
+				this.deps.log({
+					evt: 'ask-auto-answered',
+					matchId: this.id,
+					seat: s.seat,
+					callId: auto.callId,
+					method: auto.method,
+					why: auto.why,
+				});
+				this.command({ t: 'reply', seat: s.seat, callId: auto.callId, result: auto.result });
+				return;
+			}
 			const callId = frame.callId;
 			const timer = setTimeout(() => this.abortAsk(s, callId, 'timeout'), this.deps.askTimeoutMs);
 			timer.unref();
@@ -485,8 +562,102 @@ export class Match {
 			s.prompt = frame;
 		} else if (frame.method === 'updateButtons') {
 			s.buttons = frame;
+		} else if (frame.method === 'setWeaklySelectable') {
+			// A set — even an empty one — is Forge's answer to "what can this seat
+			// do". `clearWeaklySelectable` is the absence of one; see `auto.ts`.
+			s.actionable = frame.cards.map((c) => c.id);
+		} else if (frame.method === 'clearWeaklySelectable') {
+			s.actionable = null;
 		}
 		this.send(s, frame);
+		if (frame.method === 'showPromptMessage') this.trackPayment(s, frame.message);
+		if (frame.method === 'updateButtons') this.maybeAutoPass(s);
+	}
+
+	/* ── Wave 19 lane C ─────────────────────────────────────────────── */
+
+	/**
+	 * The escape hatch. Off by default; while it is on this seat is asked every
+	 * question and passes no stop for itself.
+	 */
+	setFullControl(seat: number, on: boolean): ClientOutcome {
+		const s = this.seats[seat];
+		if (s === undefined || s.ai) return { ok: false, error: 'no-such-seat' };
+		if (s.fullControl === on) return { ok: true };
+		s.fullControl = on;
+		this.deps.log({ evt: 'full-control', matchId: this.id, seat, on });
+		this.say(s, on ? 'full control on' : 'full control off');
+		return { ok: true };
+	}
+
+	fullControl(seat: number): boolean {
+		return this.seats[seat]?.fullControl ?? false;
+	}
+
+	/** One observable line to a seat: what was auto-passed, what a cast paid. */
+	private say(s: SeatState, message: string): void {
+		const frame = { kind: 'notify', method: 'message', message, title: '' } as unknown as ServerFrame;
+		s.says.push(frame);
+		if (s.says.length > SAYS_KEPT) s.says.shift();
+		this.send(s, frame);
+	}
+
+	/**
+	 * Pass a stop the seat cannot act in — and say so. Never silent: an
+	 * auto-pass nobody can see is indistinguishable from a board that froze.
+	 */
+	private maybeAutoPass(s: SeatState): void {
+		if (s.fullControl || s.ai || this.status !== 'running') return;
+		const phase = autoPassReason({
+			playerId: s.playerId,
+			prompt: s.prompt,
+			buttons: s.buttons,
+			actionable: s.actionable,
+			openAsks: s.asks.size,
+		});
+		if (phase === null) return;
+		s.autoPassed += 1;
+		// Forge clears the set as the input stops; drop ours with it so the next
+		// stop is judged on the next answer rather than on this one.
+		s.actionable = null;
+		this.deps.log({ evt: 'auto-passed', matchId: this.id, seat: s.seat, phase });
+		this.say(s, `auto-passed ${phase}`);
+		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
+	}
+
+	/**
+	 * A cast must never look free (#8). Forge's payment prompt names the cost
+	 * (`Pay Mana Cost: {U}`) and the lands tap under it; both vanish the moment
+	 * the spell is on the stack, so the pair is kept and said once.
+	 */
+	private trackPayment(s: SeatState, message: string): void {
+		const cost = paymentCost(message);
+		if (cost !== null) {
+			if (s.payment === null || s.payment.cost !== cost) s.payment = { cost, tapped: [] };
+			return;
+		}
+		const payment = s.payment;
+		s.payment = null;
+		if (payment === null) return;
+		const state = foldFrames(s.history as unknown as StateFrame[]);
+		for (const card of payment.tapped) card.name = cardName(state, card.id) ?? card.name;
+		this.say(s, paymentLine(payment));
+	}
+
+	/** Cards that tapped under an open payment prompt, from this seat's own projected delta. */
+	private notePaymentTaps(s: SeatState, projected: ServerFrame): void {
+		const payment = s.payment;
+		if (payment === null || projected.method !== 'applyDelta') return;
+		const packet = (projected as unknown as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		for (const table of [packet.newObjects, packet.objectDeltas]) {
+			for (const obj of Object.values(table)) {
+				if (obj._type !== 0) continue;
+				const tapped = obj.Tapped as { t?: string; v?: unknown } | undefined;
+				if (tapped?.t !== 'bool' || tapped.v !== true) continue;
+				if (payment.tapped.some((c) => c.id === obj._id)) continue;
+				payment.tapped.push({ id: obj._id, name: `card #${obj._id}` });
+			}
+		}
 	}
 
 	/**

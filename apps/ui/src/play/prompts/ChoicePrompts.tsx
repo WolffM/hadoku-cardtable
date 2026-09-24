@@ -25,11 +25,16 @@ function toggle<T>(list: readonly T[], item: T, single: boolean): T[] {
   return single ? [item] : [...list, item];
 }
 
+/**
+ * The bound, as a LABEL. Not a sentence: the board states things, it does not
+ * explain them (operator, 2026-09-24). `max === 0` is Forge revealing a list
+ * rather than asking about it, and says so in one word.
+ */
 function boundsText(min: number, max: number): string {
-  if (max === 0) return 'Nothing to choose — look, then continue.';
-  if (min === max) return `Choose ${min}.`;
-  if (min === 0) return `Choose up to ${max}.`;
-  return `Choose ${min} to ${max}.`;
+  if (max === 0) return 'Revealed';
+  if (min === max) return `Choose ${min}`;
+  if (min === 0) return `Up to ${max}`;
+  return `${min}\u2013${max}`;
 }
 
 export function GetChoicesPrompt({ ask, onAnswer }: PromptProps<'getChoices'>) {

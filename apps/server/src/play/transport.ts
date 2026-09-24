@@ -40,6 +40,7 @@ import {
 	ClientReplySchema,
 	FORGE_CHANNEL,
 	ServerFrameSchema,
+	ShowConfirmDialogReplySchema,
 	TrackableIdSchema,
 	safeParseClientFrame,
 	type ClientFrame,
@@ -58,6 +59,8 @@ const borrowed = {
 	unknown: ClientReplySchema.shape.result,
 	/** `TrackableIdSchema` is `z.number().int()`. */
 	forgeId: TrackableIdSchema,
+	/** `ShowConfirmDialogReplySchema` is `z.boolean()`. */
+	boolean: ShowConfirmDialogReplySchema,
 	/** `z.object({})` by another route. */
 	emptyObject: SeqCursorSchema.pick({}),
 };
@@ -69,6 +72,8 @@ export const MATCH_EVENTS = {
 	resync: 'forge:resync',
 	serverToClient: FORGE_CHANNEL.serverToClient,
 	clientToServer: FORGE_CHANNEL.clientToServer,
+	/** Wave 19 lane C: the full-control escape hatch, per seat, off by default. */
+	fullControl: 'forge:full-control',
 } as const;
 
 /* ── Cursor ──────────────────────────────────────────────────────────── */
@@ -91,6 +96,16 @@ export interface ClientEnvelope {
 	matchId: string;
 	frame: ClientFrame;
 }
+
+/**
+ * `forge:full-control` — this seat wants every question and every stop, or
+ * wants the shortcuts back (`play/auto.ts`). Nothing about the game crosses
+ * here: it is a preference of the person sitting in the seat.
+ */
+export const FullControlSchema = borrowed.emptyObject
+	.extend({ matchId: borrowed.nonEmptyString, on: borrowed.boolean })
+	.strict();
+export type FullControlRequest = Output<typeof FullControlSchema>;
 
 /* ── Server → client ─────────────────────────────────────────────────── */
 
@@ -154,6 +169,10 @@ function fromZod<T>(
 
 export function parseMatchRequest(raw: unknown): Parsed<MatchRequest> {
 	return fromZod(MatchRequestSchema.safeParse(raw));
+}
+
+export function parseFullControl(raw: unknown): Parsed<FullControlRequest> {
+	return fromZod(FullControlSchema.safeParse(raw));
 }
 
 /** Envelope first, then the frame — a reply's `result` is checked against its method here. */

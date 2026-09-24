@@ -29,7 +29,7 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
 
   return (
     <PromptShell method="manipulateCardList" title={ask.title} problems={problems} onSubmit={submit}>
-      <p className="prompt__hint">Top first.</p>
+      <p className="prompt__hint">Top</p>
       <ol className="prompt__list" data-testid="manipulate-list">
         {cards.map((card, i) => {
           const name = refName(lookup, card);
@@ -70,6 +70,7 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
           );
         })}
       </ol>
+      <p className="prompt__hint">Bottom</p>
     </PromptShell>
   );
 }

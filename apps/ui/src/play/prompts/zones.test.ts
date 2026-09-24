@@ -50,9 +50,12 @@ describe('tempShowZones', () => {
       ...askFor('tempShowZones'),
       zonesToUpdate: [{ player: { kind: 'player', id: 1 }, zones: ['Battlefield'] }] as ReplyOf<'tempShowZones'>,
     };
-    const { answers, getByTestId } = mountPrompt('tempShowZones', ask);
+    const { answers, queryByTestId } = mountPrompt('tempShowZones', ask);
     expect(answers).toEqual([[]]);
-    expect(getByTestId('prompt-zones-none')).toBeTruthy();
+    // Nothing opens, so nothing is drawn — not even a sentence saying so.
+    expect(queryByTestId('prompt-zones')).toBeNull();
+    expect(queryByTestId('prompt-zones-none')).toBeNull();
+    expect(document.querySelector('.prompt__hint')).toBeNull();
   });
 });
 

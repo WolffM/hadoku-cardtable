@@ -44,11 +44,7 @@ function OpenZonesNotice({
 }) {
   return (
     <PromptShell method={method} title="Zones opened">
-      {updates.length === 0 ? (
-        <p className="prompt__hint" data-testid="prompt-zones-none">
-          Nothing extra to show.
-        </p>
-      ) : (
+      {updates.length === 0 ? null : (
         <ul className="prompt__list" data-testid="prompt-zones">
           {updates.map((u) => (
             <li key={u.player.id}>

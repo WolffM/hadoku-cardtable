@@ -321,6 +321,7 @@ function stageRunDir(config: JvmHostConfig, name: string): string {
 	const run = join(config.workDir, name);
 	rmSync(run, { recursive: true, force: true });
 	mkdirSync(join(run, 'user', 'decks', 'constructed'), { recursive: true });
+	mkdirSync(join(run, 'user', 'preferences'), { recursive: true });
 	mkdirSync(join(run, 'cache'), { recursive: true });
 	symlinkSync(config.res, join(run, 'res'));
 	writeFileSync(
@@ -333,7 +334,48 @@ function stageRunDir(config: JvmHostConfig, name: string): string {
 			'',
 		].join('\n'),
 	);
+	// ForgeConstants.MAIN_PREFS_FILE = <userDir>/preferences/forge.preferences
+	// (ForgeConstants.java:247,275); AbstractPreferences reads it line by line
+	// before FModel.initialize's callback runs (AbstractPreferences.java:41-67).
+	writeFileSync(join(run, 'user', 'preferences', 'forge.preferences'), forgePreferencesFile());
 	return run;
+}
+
+/**
+ * Forge preferences every match runs with, and why each one is here.
+ *
+ * These are **Forge's own settings**, not rules: each turns off a desktop-UI
+ * behaviour that makes no sense for a browser client, and the file is the
+ * documented way to set them (`AbstractPreferences`). A JVM is one match, so
+ * the file is written per run directory and nothing outlives it.
+ */
+export const FORGE_PREFERENCES: Readonly<Record<string, string>> = {
+	/**
+	 * Wave 19, #12 — *"when i cast preordain it showed the whole library with
+	 * all the cards numbered? thats quite odd"*.
+	 *
+	 * With this pref true (its default, `ForgePreferences.java:157`),
+	 * `PlayerControllerHuman.arrangeForScry` hands the GUI
+	 * `player.getCardsIn(ZoneType.Library)` — **the whole library** — as the
+	 * pile to rearrange, with only the scried cards `manipulable`
+	 * (`PlayerControllerHuman.java:1006-1012`). Verified on this host: a
+	 * Preordain scry arrived as `manipulateCardList` with **53** cards and 2
+	 * manipulable. The desktop UI renders that as a drag inside its library
+	 * display; a browser client has no such display and draws 53 rows, 51 of
+	 * them cards the seat is not allowed to see and so cannot name.
+	 *
+	 * False takes Forge's other branch (`:1013-1027`): it asks with the scried
+	 * cards alone. The seat's own library stops crossing the wire for a scry.
+	 */
+	UI_SELECT_FROM_CARD_DISPLAYS: 'false',
+};
+
+function forgePreferencesFile(): string {
+	return [
+		'# Written per run directory by apps/server/src/play/host.ts. See FORGE_PREFERENCES.',
+		...Object.entries(FORGE_PREFERENCES).map(([key, value]) => `${key}=${value}`),
+		'',
+	].join('\n');
 }
 
 /* ── What is left of a run directory ─────────────────────────────────── */

@@ -58,7 +58,14 @@ import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
 import { identityFromHeaders, participantHandle } from '../room/identity.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec } from './host.js';
 import { createMatchRegistry, type Match, type MatchRegistry } from './match.js';
-import { MATCH_EVENTS, parseClientEnvelope, parseMatchRequest, type MatchError, type MatchSnapshot } from './transport.js';
+import {
+	MATCH_EVENTS,
+	parseClientEnvelope,
+	parseFullControl,
+	parseMatchRequest,
+	type MatchError,
+	type MatchSnapshot,
+} from './transport.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
 
@@ -387,6 +394,25 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			if (!outcome.ok) {
 				log({ evt: 'c2s-refused', participantId, matchId: match.id, seat, error: outcome.error, kind: parsed.value.frame.kind });
 			}
+		});
+
+		// Wave 19 lane C: the escape hatch. A preference of the person in the
+		// seat — it carries nothing about the game, and a seat may only set its
+		// own (the seat is the one `claim` bound, never a payload's).
+		socket.on(MATCH_EVENTS.fullControl, (raw: unknown) => {
+			const parsed = parseFullControl(raw);
+			if (!parsed.ok) {
+				log({ evt: 'full-control-malformed', participantId, errors: parsed.errors.slice(0, 3) });
+				return;
+			}
+			const match = matches.get(parsed.value.matchId);
+			const seat = match === undefined ? undefined : joined.get(match.id);
+			if (match === undefined || seat === undefined) {
+				log({ evt: 'full-control-not-joined', participantId, matchId: parsed.value.matchId });
+				return;
+			}
+			const outcome = match.setFullControl(seat, parsed.value.on);
+			if (!outcome.ok) log({ evt: 'full-control-refused', participantId, matchId: match.id, seat, error: outcome.error });
 		});
 
 		socket.on('disconnect', (reason: string) => {
