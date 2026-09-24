@@ -47,7 +47,7 @@
 import { randomUUID } from 'node:crypto';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
-import { userIdOf } from '../edge-auth.js';
+import { userNameOf } from '../edge-auth.js';
 import { identityFromHeaders } from '../room/identity.js';
 import {
 	CLIENT_MODES,
@@ -92,7 +92,12 @@ export interface RoomsDeps {
 }
 
 function callerOf(req: Request): Caller {
-	return { id: identityFromHeaders(req.headers, `http-${randomUUID()}`), name: userIdOf(req) };
+	// The DISPLAY NAME, not the id. This was `userIdOf(req)` — an opaque
+	// registry identifier — so every room roster read like
+	// "2a25151a-5ec8-…". The name arrives edge-injected beside the id
+	// (`X-User-Name`); a key that was never named falls back to a word rather
+	// than an identifier, because a roster is for humans.
+	return { id: identityFromHeaders(req.headers, `http-${randomUUID()}`), name: userNameOf(req) ?? 'friend' };
 }
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };

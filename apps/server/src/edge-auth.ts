@@ -63,6 +63,7 @@ export function sanitizeHeaders(headers: Record<string, unknown>): void {
 			if (typeof headers['x-hadoku-tier'] !== 'string' || headers['x-hadoku-tier'] === '') {
 				headers['x-hadoku-tier'] = CONFIG.devTier;
 				headers['x-user-id'] ??= 'local-dev';
+				headers['x-user-name'] ??= 'local-dev';
 			}
 			return;
 		}
@@ -76,6 +77,7 @@ export function sanitizeHeaders(headers: Record<string, unknown>): void {
 	// is the platform's SFW floor.
 	headers['x-hadoku-content-level'] = '1';
 	delete headers['x-user-id'];
+	delete headers['x-user-name'];
 	delete headers['x-user-key'];
 }
 
@@ -87,6 +89,16 @@ export function tierOf(req: Request): string {
 export function userIdOf(req: Request): string {
 	const u = req.headers['x-user-id'];
 	return typeof u === 'string' && u !== '' ? u : 'anon';
+}
+
+/**
+ * The caller's DISPLAY NAME, edge-injected from the registry beside
+ * `X-User-Id` (same trust class: exclusively edge-set, stripped from
+ * unvouched requests). null when the edge sent none — an unnamed key.
+ */
+export function userNameOf(req: Request): string | null {
+	const n = req.headers['x-user-name'];
+	return typeof n === 'string' && n !== '' ? n : null;
 }
 
 /** Express middleware: sanitize provenance on every inbound request. */

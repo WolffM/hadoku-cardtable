@@ -89,13 +89,20 @@ function headersFor(user: string, tier = 'friend'): Record<string, string> {
 		'x-edge-auth': EDGE_SECRET,
 		'x-hadoku-tier': tier,
 		'x-user-id': `user-${user}`,
+		// What the edge injects beside the id, since the roster shows names.
+		'x-user-name': `user-${user}`,
 		'x-user-key': `friend-key-${user}`,
 	};
 }
 
 /** Friend tier, but the edge named nobody: an `eph:` identity. */
+/**
+ * Vouched by the edge, friend tier, but NOBODY NAMED — the identity headers
+ * are present and empty so the merge in `call` cannot resurrect them from the
+ * default set. "The edge could not name this caller" is the case under test.
+ */
 function anonymousHeaders(): Record<string, string> {
-	return { 'x-edge-auth': EDGE_SECRET, 'x-hadoku-tier': 'friend' };
+	return { 'x-edge-auth': EDGE_SECRET, 'x-hadoku-tier': 'friend', 'x-user-id': '', 'x-user-name': '', 'x-user-key': '' };
 }
 
 interface Reply {
@@ -110,7 +117,9 @@ async function call(
 	path: string,
 	opts: { as?: string; headers?: Record<string, string>; body?: unknown; raw?: string } = {},
 ): Promise<Reply> {
-	const headers: Record<string, string> = opts.headers ?? headersFor(opts.as ?? 'alice');
+	// Merged, not replaced: a test can override one header (the display
+	// name) without dropping the auth the request still needs.
+	const headers: Record<string, string> = { ...headersFor(opts.as ?? 'alice'), ...opts.headers };
 	let body: string | undefined;
 	if (opts.raw !== undefined) {
 		body = opts.raw;
@@ -154,6 +163,33 @@ afterAll(async () => {
 });
 
 /* ── the shape ───────────────────────────────────────────────────────── */
+
+describe('a member is named by their display name, never their id', () => {
+	it('carries X-User-Name into the roster, and falls back to a word when the edge sent none', async () => {
+		const h = await openApp(await tempDir());
+		const named = (
+			await call(h, 'POST', '/api/rooms', {
+				as: 'alice',
+				headers: { 'x-user-name': 'Matthaus' },
+				body: { name: 'Named' },
+			})
+		).json() as import('../room/lobby.ts').RoomView;
+		expect(named.members.map((m) => m.name)).toEqual(['Matthaus']);
+
+		// The regression this pins: the name used to be `userIdOf(req)`, so the
+		// roster showed the opaque registry identifier — a GUID-looking string
+		// the operator rightly refused to read.
+		const unnamed = (
+			await call(h, 'POST', '/api/rooms', {
+				as: 'bob',
+				headers: { 'x-user-name': '' },
+				body: { name: 'Unnamed' },
+			})
+		).json() as import('../room/lobby.ts').RoomView;
+		expect(unnamed.members.map((m) => m.name)).toEqual(['friend']);
+		expect(unnamed.members.map((m) => m.name).join()).not.toContain('user-bob');
+	});
+});
 
 describe('POST /api/rooms', () => {
 	it('creates a room whose creator is its leader and its only member', async () => {
@@ -273,7 +309,10 @@ describe('POST /api/rooms', () => {
 
 	it('is not reachable below the tier floor', async () => {
 		const h = await openApp(await tempDir());
-		const res = await call(h, 'GET', '/api/rooms', { headers: { 'x-hadoku-tier': 'admin' } });
+		// A claimed tier with NO edge secret — the empty string is the point:
+		// the merge would otherwise resurrect the vouched set this test is
+		// refusing to send.
+		const res = await call(h, 'GET', '/api/rooms', { headers: { 'x-hadoku-tier': 'admin', 'x-edge-auth': '' } });
 		// No edge secret: provenance degrades the caller to `public`.
 		expect(res.status).toBe(404);
 	});

@@ -53,6 +53,7 @@ export function edgeHeaders(
     out['x-edge-auth'] = secret;
     out['x-hadoku-tier'] = 'friend';
     out['x-user-id'] = friend.userId;
+    out['x-user-name'] = friend.name;
     out['x-user-key'] = friend.key;
   }
   return out;
