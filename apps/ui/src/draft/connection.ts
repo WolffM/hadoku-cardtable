@@ -102,7 +102,7 @@ export function connectionState(facts: ConnectionFacts): ConnectionState {
       seatHeld: false,
       stalled: true,
       label: 'Connecting',
-      detail: 'Joining the draft. Which seat you get is the server’s answer, not this browser’s request.',
+      detail: 'Joining…',
     };
   }
 
@@ -113,7 +113,7 @@ export function connectionState(facts: ConnectionFacts): ConnectionState {
       stalled: true,
       label: seated ? `${seatPhrase(facts.seatId)} is held for you` : 'Disconnected',
       detail: seated
-        ? 'The connection dropped. The table is holding your seat and your picks; nobody else can take it while the reservation lasts. Reconnecting.'
+        ? 'Connection dropped — seat held. Reconnecting.'
         : 'The connection dropped. Reconnecting.',
     };
   }
@@ -125,7 +125,7 @@ export function connectionState(facts: ConnectionFacts): ConnectionState {
       stalled: true,
       label: 'Catching up',
       detail:
-        'Payloads were missed, so the table asked for the whole state rather than guessing at the ones in between. The next thing to arrive is a full snapshot.',
+        'Resyncing.',
     };
   }
 
@@ -139,7 +139,7 @@ export function connectionState(facts: ConnectionFacts): ConnectionState {
       stalled: true,
       label: 'Reconnected — waiting for the table',
       detail:
-        'Back on the socket and re-seated. A re-join is answered with a full snapshot, so the next payload re-establishes the table; nothing is being patched from before the drop.',
+        'Reconnected — resyncing.',
     };
   }
 
@@ -149,7 +149,7 @@ export function connectionState(facts: ConnectionFacts): ConnectionState {
       seatHeld: false,
       stalled: false,
       label: seated ? `Back in ${seatPhrase(facts.seatId).toLowerCase()}` : 'Back',
-      detail: 'Recovered. The table below is the server’s state, not what this tab remembered.',
+      detail: 'Recovered.',
     };
   }
 

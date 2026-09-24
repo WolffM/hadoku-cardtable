@@ -224,7 +224,7 @@ export function DeckBuilder({ draftId, pool, client, checkDelayMs = 300 }: DeckB
       <div className="builder__piles">
         <Pile
           title="Maindeck"
-          hint="Click a card to send it back to the sideboard."
+          hint="Click a card to return it to the sideboard."
           testId="main-list"
           entries={sortPile(deck.main, index)}
           index={index}
@@ -269,11 +269,7 @@ export function DeckBuilder({ draftId, pool, client, checkDelayMs = 300 }: DeckB
               </select>
               {opponentChoice !== undefined && <p className="lobby__note">{opponentChoice.provenance}</p>}
             </div>
-            <p className="lobby__note">
-              Forge reads both decks when the match starts, and your pool is checked only for you — so the other
-              seat plays a deck from the library, not somebody else&rsquo;s draft. To play a friend, make a room on
-              the front page: there you each load your own deck.
-            </p>
+            <p className="lobby__note">The other seat is a library deck played by Forge&rsquo;s AI.</p>
           </>
         )}
         <button

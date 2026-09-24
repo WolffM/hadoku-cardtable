@@ -73,7 +73,7 @@ describe('a spectator payload renders the table and says it is a spectator', () 
   it('shows a notice that names the state in its own element', () => {
     mount(initialState(spectatorView()));
     const notice = screen.getByTestId('spectator-notice');
-    expect(notice.textContent).toContain('watching this draft, not drafting in it');
+    expect(notice.textContent).toContain('Spectating');
     expect(within(notice).getByText('Spectating')).toBeTruthy();
     expect(screen.getByTestId('draft-screen').dataset.viewer).toBe('spectator');
   });
@@ -97,7 +97,7 @@ describe('a spectator payload renders the table and says it is a spectator', () 
 
   it('explains the empty pack instead of leaving a blank panel', () => {
     mount(initialState(spectatorView()));
-    expect(screen.getByTestId('pack').textContent).toContain('carries no pack');
+    expect(screen.getByTestId('pack').textContent).toContain('Spectating');
   });
 });
 
@@ -169,7 +169,7 @@ describe('the connection banner', () => {
       connection: connectionState(facts({ joins: 2, applied: 4, appliedAtLastJoin: 4 })),
     });
     expect(screen.getByTestId('connection').dataset.phase).toBe('reconnecting');
-    expect(screen.getByTestId('connection-detail').textContent).toContain('full snapshot');
+    expect(screen.getByTestId('connection-detail').textContent).toContain('resyncing');
 
     rerender(
       createElement(DraftScreen, {

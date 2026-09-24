@@ -47,6 +47,11 @@ async function docker(args: string[]): Promise<string> {
   return stdout.trim();
 }
 
+/** Our containers for ONE room — the only count a test should assert on. */
+async function mine(roomId: string): Promise<string[]> {
+  return (await ours()).filter((n) => n.startsWith(`${STREAM_NAME_PREFIX}-${roomId}-`));
+}
+
 /** Every container on this host whose name is OURS. Never production's. */
 async function ours(): Promise<string[]> {
   const out = await docker(['ps', '-a', '--format', '{{.Names}}']);
@@ -169,19 +174,25 @@ test('two friends, one streamed room: the server provisions, and each seat frame
   // ── the server provisions, for real ──────────────────────────────────────
   // The probe is fire-and-forget and the seat re-asks every STREAM_PROBE_MS,
   // so this waits on the CONTAINERS, which is the fact under test.
+  // Wait for ALL of them, not merely one: `streamedSeats` gives a constructed
+  // room two seats whoever has arrived, and polling for "at least one" let the
+  // SECOND `docker run` land during the NEXT test's window — which is how this
+  // spec failed in a full-suite run and passed every time on its own.
   await expect
-    .poll(async () => (await ours()).length, {
+    .poll(async () => (await mine(roomId)).length, {
       message: 'the server never started this room’s containers',
       timeout: 120_000,
       intervals: [1000],
     })
-    .toBeGreaterThanOrEqual(1);
-  for (const n of await ours()) created.add(n);
+    .toBe(2);
+  for (const n of await mine(roomId)) created.add(n);
 
   // Named for the room and the seat, so an operator reading `docker ps` can
   // tell which room a gigabyte belongs to.
-  const names = (await ours()).sort();
-  expect(names.every((n) => n.startsWith(`${STREAM_NAME_PREFIX}-${roomId}-`))).toBe(true);
+  expect((await mine(roomId)).sort()).toEqual([
+    `${STREAM_NAME_PREFIX}-${roomId}-0`,
+    `${STREAM_NAME_PREFIX}-${roomId}-1`,
+  ]);
 
   // ── and a person is looking at Forge ─────────────────────────────────────
   // The frame appearing is the UI's claim; what is INSIDE it is the product.
@@ -257,7 +268,6 @@ test('a builtin room costs no container at all', async ({ browser }) => {
   const why = await dockerUsable();
   test.skip(why !== null, why ?? '');
 
-  const before = await ours();
   const alice = await open(browser, 'alice');
   await alice.page.goto(`${PREFIX}/`);
   await alice.page.getByTestId('room-create-name').fill(`e2e builtin ${Date.now()}`);
@@ -265,11 +275,14 @@ test('a builtin room costs no container at all', async ({ browser }) => {
   await alice.page.getByTestId('room-create-mode-builtin').check();
   await alice.page.getByTestId('room-create-submit').click();
   await expect(alice.page.getByTestId('deck-mine')).toBeVisible();
+  const roomId = (await alice.page.evaluate(() => window.location.hash)).replace('#/room/', '');
 
   // The whole economic argument for the toggle: our table starts nothing. Held
-  // for long enough that a fire-and-forget provision would have landed.
+  // long enough that a fire-and-forget provision would have landed. Scoped to
+  // THIS room rather than a host-wide census, so another test's allocation
+  // landing in this window cannot be mistaken for one of ours.
   await alice.page.waitForTimeout(5000);
-  expect(await ours(), 'a builtin room started a container').toEqual(before);
+  expect(await mine(roomId), 'a builtin room started a container').toEqual([]);
 
   await alice.context.close();
 });

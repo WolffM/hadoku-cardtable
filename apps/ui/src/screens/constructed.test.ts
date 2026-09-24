@@ -287,7 +287,7 @@ describe('a room’s table', () => {
     expect(verdict).toContain('Jace, the Mind Sculptor');
     expect(verdict).toContain('Stoneforge Mystic');
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByTestId('ready-blocked').textContent).toContain('not legal in Standard (2011-07-01)');
+    expect(screen.getByTestId('ready-blocked').textContent).toContain('Not legal in Standard (2011-07-01)');
     // The other player is untouched by it: still ready, still legal.
     expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('ready');
     // And nothing was started.
@@ -431,7 +431,7 @@ describe('a room’s table', () => {
     fireEvent.change(screen.getByTestId('room-password'), { target: { value: 'wrong' } });
     fireEvent.submit(screen.getByTestId('room-password-submit').closest('form') as HTMLFormElement);
 
-    await waitFor(() => expect(screen.getByTestId('room-locked').textContent).toContain('did not work'));
+    await waitFor(() => expect(screen.getByTestId('room-locked').textContent).toContain('Wrong password'));
   });
 
   it('stops after ONE refused join instead of re-asking on the timer', async () => {
@@ -458,7 +458,7 @@ describe('a room’s table', () => {
 
   it('tells a third person there is no seat, rather than a picker that cannot work', async () => {
     await mountRoom({ players: [opponent(), opponent({ name: 'user-carol', deckName: 'Mystic Caw Go (Ben Stark)' })], matchId: null });
-    expect(screen.getByTestId('room-spectator').textContent).toContain('two players');
+    expect(screen.getByTestId('room-spectator').textContent).toContain('Table full');
     expect(screen.queryByTestId('deck-mine')).toBeNull();
     expect(screen.getByTestId('room-seat-1').textContent).toContain('user-carol');
   });
@@ -552,7 +552,7 @@ describe('a streamed room', () => {
 
     // A 200 that is our own page is NOT a stream: the seat says so in words.
     await waitFor(() => expect(screen.getAllByTestId('stream-waiting')).toHaveLength(2));
-    expect(screen.getAllByTestId('stream-waiting')[0].textContent).toContain('Waiting for the stream');
+    expect(screen.getAllByTestId('stream-waiting')[0].textContent).toContain('No screen yet');
     expect(screen.queryByTestId('stream-frame')).toBeNull();
 
     // And none of the builtin table is on the screen: there is no deck here.
@@ -602,10 +602,7 @@ describe('a streamed room', () => {
 describe('a builtin room is what it has always been', () => {
   it('says the same sentence in its header, and draws no stream anywhere', async () => {
     await mountRoom({ players: [opponent()], matchId: null, clientMode: 'builtin' });
-    // Byte for byte the sentence this screen has always carried.
-    expect(screen.getByTestId('room-client-mode').textContent).toBe(
-      'Constructed 1v1 — each of you loads your own deck.',
-    );
+    expect(screen.getByTestId('room-client-mode').textContent).toBe('Constructed 1v1');
     expect(screen.queryByTestId('room-streams')).toBeNull();
     expect(screen.queryByTestId('stream-seat')).toBeNull();
     expect(screen.getByTestId('deck-mine')).toBeTruthy();

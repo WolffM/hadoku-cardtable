@@ -63,7 +63,7 @@ describe('the phases', () => {
     expect(state.stalled).toBe(true);
     expect(state.label).toContain('Seat 3');
     expect(state.label).toContain('held');
-    expect(state.detail).toContain('holding your seat');
+    expect(state.detail).toContain('seat held');
     expect(isWorthShowing(state)).toBe(true);
   });
 
@@ -85,7 +85,7 @@ describe('the phases', () => {
     const state = connectionState(healthy({ joins: 2, applied: 7, appliedAtLastJoin: 7 }));
     expect(state.phase).toBe('reconnecting');
     expect(state.stalled).toBe(true);
-    expect(state.detail).toContain('full snapshot');
+    expect(state.detail).toContain('resyncing');
   });
 
   it('recovered — the first payload after the re-join', () => {

@@ -32,12 +32,7 @@ export function SpectatorNotice({ seatCount }: SpectatorNoticeProps) {
   return (
     <div className="spectate" data-testid="spectator-notice" role="note">
       <span className="spectate__tag">Spectating</span>
-      <p className="spectate__text">
-        You are watching this draft, not drafting in it. There is no pack and no pool
-        because none was sent to this browser — a spectator&rsquo;s payload carries no
-        cards at all. You can see all {seatCount} seats, whose turn it is, and how many
-        cards each has taken.
-      </p>
+      <p className="spectate__text">No pack and no pool — {seatCount} seats visible.</p>
     </div>
   );
 }

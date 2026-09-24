@@ -106,7 +106,7 @@ describe('assignCombatDamage', () => {
 
   it('says so when Forge would allow a skip it cannot yet express', () => {
     const { getByTestId } = mountPrompt('assignCombatDamage', { ...askFor('assignCombatDamage'), maySkip: true });
-    expect(getByTestId('prompt-mayskip').textContent).toContain('not yet expressible');
+    expect(getByTestId('prompt-mayskip').textContent).toContain('not supported yet');
   });
 });
 

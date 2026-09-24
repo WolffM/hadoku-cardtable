@@ -128,11 +128,11 @@ export function DraftScreen({
   );
 
   const emptyNote = spectating
-    ? 'Spectating — a spectator payload carries no pack.'
+    ? 'Spectating.'
     : stalled
-      ? 'The table is waiting on the connection. Your seat and your picks are held.'
+      ? 'Reconnecting &mdash; seat held.'
       : awaiting
-        ? 'Picked. The pack has moved on; waiting for the next one.'
+        ? 'Picked &mdash; waiting for the next pack.'
         : 'This pack is empty.';
 
   return (
@@ -182,9 +182,9 @@ export function DraftScreen({
 
       <p className="draft__status" data-testid="status" role="status">
         {spectating
-          ? 'You are spectating. No pack, no pool — by construction.'
+          ? 'Spectating.'
           : awaiting
-            ? 'Pick sent. Waiting for the next payload.'
+            ? 'Pick sent.'
             : blocked?.reason === 'not-your-turn'
               ? 'You have already picked from this pack.'
               : `Your pick — ${visiblePack(state).length} cards in the pack.`}

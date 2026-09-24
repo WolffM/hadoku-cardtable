@@ -54,7 +54,6 @@ import {
   poolOf,
   setBasicLand,
   sideboardSize,
-  totalCards,
   type Deck,
 } from '@hadoku/deck';
 // The `/dck` subpath, never the barrel — see `draft/deckFromPool.ts`.
@@ -154,10 +153,6 @@ export function DeckView({ draftId, pool, onDownload = downloadFile }: DeckViewP
       <header className="deck__head">
         <div>
           <h1 className="deck__title">Your deck</h1>
-          <p className="deck__sub">
-            All {totalCards(poolOf(deck))} drafted cards start in the sideboard. Promote the
-            ones you are playing; basics come from the table, not the pool.
-          </p>
         </div>
         <div className="deck__counts">
           <span className="deck__count" data-testid="main-count">
@@ -261,7 +256,7 @@ export function DeckView({ draftId, pool, onDownload = downloadFile }: DeckViewP
         <span className="deck__note" data-testid="deck-ready">
           {playable
             ? 'Forge opens this file directly.'
-            : 'You can export an unfinished deck; Forge will say the same thing about it that we do.'}
+            : 'Incomplete.'}
         </span>
       </footer>
     </section>

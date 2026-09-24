@@ -63,8 +63,7 @@ export function DeckScreen({ draftId, makeTransport, client: given, checkDelayMs
       <header className="shell__head">
         <h1 className="shell__title">Your deck</h1>
         <p className="shell__sub">
-          Built from what you drafted in pod <strong>{draftId}</strong>. Play what you took, add basic lands, and start
-          a match with it.
+          Pod <strong>{draftId}</strong>
         </p>
       </header>
 
@@ -89,16 +88,13 @@ export function DeckScreen({ draftId, makeTransport, client: given, checkDelayMs
             {readiness.kind === 'spectator' && (
               <>
                 <h2>You have no seat in this pod</h2>
-                <p className="lobby__note">
-                  A deck is built from your own pool, and the server only knows the pools of the people who drafted.
-                </p>
               </>
             )}
             {readiness.kind === 'unfinished' && (
               <>
                 <h2>The draft is not over</h2>
                 <p className="lobby__note">
-                  You have taken {readiness.picked} of {readiness.total} cards. Finish the draft, then come back here.
+                  Drafted {readiness.picked} of {readiness.total}.
                 </p>
               </>
             )}

@@ -165,10 +165,6 @@ export function PodScreen({ draftId, makeTransport }: PodScreenProps) {
       ) : table === null ? (
         <div className="pod__waiting" data-testid="pod-waiting">
           <h1>{draft?.everConnected === true ? 'Waiting for the table' : 'Joining the pod'}</h1>
-          <p>
-            Send the link above while you wait — the pod exists the moment the server
-            answers, and anyone who opens it takes a seat.
-          </p>
         </div>
       ) : (
         <DraftScreen

@@ -76,9 +76,9 @@ export function gameTypeLabel(gameType: string): string {
  * from the server" is the whole difference, and someone choosing it should
  * read it before they choose rather than after.
  */
-export const CLIENT_MODES: readonly { value: ClientMode; label: string; note: string }[] = [
-  { value: 'builtin', label: 'Our table', note: 'The board this app draws, in your browser.' },
-  { value: 'streamed', label: 'Forge’s full client', note: 'Streams your screen from the server — one screen per seat.' },
+export const CLIENT_MODES: readonly { value: ClientMode; label: string }[] = [
+  { value: 'builtin', label: 'Our table' },
+  { value: 'streamed', label: 'Forge’s full client' },
 ];
 
 /** The mode in two or three words, for a list row or a header. */

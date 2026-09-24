@@ -362,8 +362,8 @@ function RoomTableScreen({
             our table — so the only new words are the streamed room's. */}
         <p className="shell__sub" data-testid="room-client-mode">
           {streamed
-            ? 'Forge’s full client — your screen is streamed from the server, one screen per seat.'
-            : 'Constructed 1v1 — each of you loads your own deck.'}
+            ? 'Forge’s full client'
+            : 'Constructed 1v1'}
         </p>
       </header>
 
@@ -391,8 +391,8 @@ function RoomTableScreen({
               {locked === 'need'
                 ? 'This room needs a password.'
                 : locked === 'wrong'
-                  ? 'That password did not work. It may also be that the room is no longer there.'
-                  : 'Too many attempts. Wait a moment before trying again.'}
+                  ? 'Wrong password.'
+                  : 'Too many attempts.'}
             </p>
             <label htmlFor="room-password">Password</label>
             <input
@@ -458,7 +458,7 @@ function RoomTableScreen({
             {spectating ? (
               <section className="lobby__card">
                 <p className="lobby__note" data-testid="room-spectator">
-                  This table already has two players. You can watch the room, but there is no third seat.
+                  Table full &mdash; watching.
                 </p>
               </section>
             ) : (
@@ -514,7 +514,7 @@ function RoomTableScreen({
                   </button>
                   {mine !== null && !mine.legal && (
                     <p className="lobby__note" data-testid="ready-blocked">
-                      Your deck is not legal in {mine.rulesName} yet, so you cannot ready up.
+                      Not legal in {mine.rulesName}.
                     </p>
                   )}
                   {actionError !== null && (
@@ -574,13 +574,9 @@ function StreamedSeats({
   return (
     <section className="lobby__card streams" data-testid="room-streams">
       <h2>One screen each</h2>
-      <p className="lobby__note">
-        Everyone at this table gets their own Forge, running on the server. Play in your own screen; the
-        others are here so you can see the table is real, not so you can reach into them.
-      </p>
       {members.length === 0 ? (
         <p className="lobby__note" data-testid="stream-nobody">
-          Nobody has joined yet. The first screen appears when somebody does.
+          Nobody has joined yet.
         </p>
       ) : (
         <ul className="streams__grid" data-testid="stream-seats">
@@ -646,7 +642,7 @@ function StreamSeat({
         />
       ) : (
         <p className="streams__waiting" data-testid="stream-waiting">
-          Waiting for the stream. The server has no screen for this seat yet.
+          No screen yet.
         </p>
       )}
     </li>
@@ -655,9 +651,9 @@ function StreamSeat({
 
 /** The sentence under the two players: who is being waited on, in one line. */
 function startStateText(players: RoomPlayer[], bothReady: boolean, starting: boolean, matchId: string | null): string {
-  if (matchId !== null) return 'The match is running — taking you to it.';
+  if (matchId !== null) return 'Match running — joining.';
   if (starting) return 'Starting Forge…';
-  if (players.length < 2) return 'Waiting for a second player to load a deck.';
+  if (players.length < 2) return 'Waiting for a second player.';
   if (bothReady) return 'Both ready.';
   const waiting = players.filter((p) => !p.ready).map((p) => (p.you ? 'you' : p.name));
   return `Waiting for ${waiting.join(' and ')}.`;
@@ -696,14 +692,10 @@ function NoRoom() {
     <div className="shell" data-testid="constructed">
       <header className="shell__head">
         <h1 className="shell__title">Constructed</h1>
-        <p className="shell__sub">A Standard format from years past, and a deck that was played in it.</p>
       </header>
       <main className="lobby">
         <section className="lobby__card">
-          <p data-testid="constructed-pointer">
-            A constructed game is played in a room: open a room from the front page (or make one), and each of you loads
-            your own deck there. Nobody picks anybody else’s deck any more.
-          </p>
+          <p data-testid="constructed-pointer">Constructed is played in a room.</p>
           <button
             type="button"
             className="lobby__go"

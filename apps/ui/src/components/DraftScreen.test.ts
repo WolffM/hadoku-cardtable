@@ -150,7 +150,7 @@ describe('the draft screen, on committed fixtures', () => {
 
     // …and the pack says it has moved on rather than pretending to know the next one.
     expect(packCards()).toHaveLength(0);
-    expect(screen.getByTestId('status').textContent).toContain('Waiting for the next payload');
+    expect(screen.getByTestId('status').textContent).toContain('Pick sent');
   });
 
   it('the colour counters on the pool follow the pick', () => {
@@ -207,7 +207,7 @@ describe('the draft screen, on committed fixtures', () => {
 
     expect(screen.queryByTestId('pool')).toBeNull();
     expect(packCards()).toHaveLength(0);
-    expect(screen.getByTestId('pack').textContent).toContain('spectator payload carries no pack');
+    expect(screen.getByTestId('pack').textContent).toContain('Spectating');
 
     // The public half is all still there.
     expect(within(screen.getByTestId('seat-bar')).getAllByRole('listitem')).toHaveLength(8);

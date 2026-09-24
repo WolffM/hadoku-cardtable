@@ -61,7 +61,6 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
     <div className="shell" data-testid="lobby">
       <header className="shell__head">
         <h1 className="shell__title">Cardtable</h1>
-        <p className="shell__sub">Pick a room, or make one, and play your friends.</p>
       </header>
 
       <main className="front">
@@ -74,10 +73,6 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
           <div className="lobby">
             <div className="lobby__card">
               <h3>Start a pod</h3>
-              <p className="lobby__note">
-                You get a link. Send it to whoever is drafting; opening it puts them at the table.
-                Seats nobody takes are drafted by bots, so a pod works with one person or eight.
-              </p>
               <button type="button" className="lobby__go" data-testid="start-pod" onClick={start}>
                 Start a pod
               </button>
@@ -85,7 +80,6 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
 
             <div className="lobby__card">
               <h3>Join a pod or a match</h3>
-              <p className="lobby__note">Paste the link you were sent, or just the pod id out of it.</p>
               <form
                 className="lobby__form"
                 onSubmit={(e) => {
@@ -119,10 +113,6 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
       </main>
 
       <footer className="shell__foot">
-        <p>
-          A pod is eight seats and three packs of fifteen cards, from one cube &mdash; the
-          server&rsquo;s settings, not a choice made in this browser. Card text is drawn by us.
-        </p>
         {import.meta.env?.DEV === true && (
           <p>
             <a

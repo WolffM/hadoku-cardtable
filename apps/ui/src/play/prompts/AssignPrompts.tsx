@@ -118,7 +118,7 @@ export function AssignCombatDamagePrompt({ ask, onAnswer, lookup }: PromptProps<
     >
       {ask.maySkip && (
         <p className="prompt__hint" data-testid="prompt-mayskip">
-          Forge would let you skip this assignment; skipping is not yet expressible on the wire.
+          Skipping is not supported yet.
         </p>
       )}
       <ol className="prompt__amounts">

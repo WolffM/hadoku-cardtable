@@ -103,7 +103,7 @@ export function RoomList({ client: given }: RoomListProps) {
 
       {state.kind === 'loading' && (
         <p className="rooms__status" role="status" data-testid="rooms-loading">
-          Loading rooms&hellip; You can create one below while you wait.
+          Loading rooms&hellip;
         </p>
       )}
 
@@ -118,7 +118,7 @@ export function RoomList({ client: given }: RoomListProps) {
 
       {state.kind === 'ready' && state.rooms.length === 0 && (
         <p className="rooms__status" data-testid="rooms-empty">
-          No rooms yet. Make the first one &mdash; name it below and your friends will see it here.
+          No rooms yet.
         </p>
       )}
 
@@ -132,7 +132,7 @@ export function RoomList({ client: given }: RoomListProps) {
 
       {state.kind === 'ready' && state.stale !== null && (
         <p className="rooms__stale" data-testid="rooms-stale">
-          Could not refresh the list just now; these may be out of date.
+          List may be out of date.
         </p>
       )}
 
@@ -163,12 +163,12 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
         setError(
           room.locked
             ? 'No room with that name and password.'
-            : 'No room with that name and password — it may have just closed.',
+            : 'No such room.',
         );
         onGone();
         return;
       case 'rate-limited':
-        setError('Too many attempts. Wait a minute, then try again.');
+        setError('Too many attempts.');
         return;
       case 'error':
         setError(outcome.message);
@@ -187,7 +187,7 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
   const onPassword = (e: FormEvent): void => {
     e.preventDefault();
     if (password === '') {
-      setError('This room has a password. Type it to enter.');
+      setError('Password required.');
       return;
     }
     void enter(password);
@@ -294,7 +294,7 @@ function CreateRoom({ client }: { client: RoomsClient }) {
     e.preventDefault();
     const trimmed = name.trim();
     if (trimmed === '') {
-      setError('Give the room a name, so your friends can find it.');
+      setError('Name required.');
       return;
     }
     setBusy(true);
@@ -364,14 +364,9 @@ function CreateRoom({ client }: { client: RoomsClient }) {
               onChange={() => setClientMode(m.value)}
             />
             <span className="rooms__mode-name">{m.label}</span>
-            <span className="rooms__mode-note">{m.note}</span>
           </label>
         ))}
       </fieldset>
-      <p className="rooms__hint" data-testid="room-create-mode-hint">
-        This is fixed when the room is made. To play the other way, make another room.
-      </p>
-
       <label htmlFor="room-create-password">Password (optional)</label>
       <input
         id="room-create-password"
@@ -382,11 +377,6 @@ function CreateRoom({ client }: { client: RoomsClient }) {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <p className="rooms__hint">
-        A password keeps a room between the friends you give it to. Everyone here can still see the room is
-        there.
-      </p>
-
       <button type="submit" className="lobby__go" data-testid="room-create-submit" disabled={busy}>
         Create room
       </button>

@@ -104,11 +104,12 @@ async function createRoom(f: Friend, name: string, mode: 'builtin' | 'streamed')
   await expect(f.page.getByTestId('room-create')).toBeVisible();
 
   // The choice is visible BEFORE the room is made, and our table is the one
-  // already picked — no hidden default, and never streamed by accident.
+  // already picked — no hidden default, and never streamed by accident. Labels
+  // only: the UI states the choice, it does not explain it.
   await expect(f.page.getByTestId('room-create-mode-builtin')).toBeChecked();
   await expect(f.page.getByTestId('room-create-mode-streamed')).not.toBeChecked();
   await expect(f.page.getByTestId('room-create-mode')).toContainText('Our table');
-  await expect(f.page.getByTestId('room-create-mode')).toContainText('Streams your screen from the server');
+  await expect(f.page.getByTestId('room-create-mode')).toContainText('Forge’s full client');
 
   await f.page.getByTestId('room-create-name').fill(name);
   await f.page.getByTestId('room-create-type').selectOption('constructed-1v1');
@@ -134,9 +135,9 @@ test.describe('the room decides which client', () => {
 
     const builtinId = await createRoom(alice, `e2e builtin ${Date.now()}`, 'builtin');
     await expect(alice.page.getByTestId('constructed')).toBeVisible();
-    // Unchanged from before this lane: the same sentence, the same deck picker.
+    // The mode in the header, and the deck picker a builtin room has always had.
     await expect(alice.page.getByTestId('room-client-mode')).toHaveText(
-      'Constructed 1v1 — each of you loads your own deck.',
+      'Constructed 1v1',
     );
     await expect(alice.page.getByTestId('deck-mine')).toBeVisible();
     await expect(alice.page.getByTestId('room-players')).toBeVisible();
@@ -154,7 +155,7 @@ test.describe('the room decides which client', () => {
     const seats = alice.page.getByTestId('stream-seat');
     await expect(seats).toHaveCount(1);
     await expect(alice.page.getByTestId('stream-waiting')).toHaveText(
-      'Waiting for the stream. The server has no screen for this seat yet.',
+      'No screen yet.',
     );
     await expect(alice.page.getByTestId('stream-frame')).toHaveCount(0);
 

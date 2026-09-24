@@ -321,16 +321,16 @@ describe('creating a room', () => {
     mount(client);
     await screen.findByTestId('rooms-empty');
 
-    // Visible before create, both of them, with what each one costs you.
+    // Visible before create, both of them. Labels only — the UI states the
+    // choice, it does not explain it.
     const pick = screen.getByTestId('room-create-mode');
     expect(pick.textContent).toContain('Our table');
-    expect(pick.textContent).toContain('Streams your screen from the server');
+    expect(pick.textContent).toContain('Forge’s full client');
     const builtin = screen.getByTestId('room-create-mode-builtin') as HTMLInputElement;
     const streamed = screen.getByTestId('room-create-mode-streamed') as HTMLInputElement;
     expect(builtin.checked).toBe(true);
     expect(streamed.checked).toBe(false);
     // And it says the choice is the room's, for the room's whole life.
-    expect(screen.getByTestId('room-create-mode-hint').textContent).toContain('fixed when the room is made');
 
     fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Full client night' } });
     fireEvent.click(streamed);
