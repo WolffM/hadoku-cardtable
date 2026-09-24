@@ -331,7 +331,10 @@ describe('GET /api/rooms', () => {
 		expect(rooms[0].name).toBe('Survivor');
 		expect(rooms[0].gameType).toBe('draft');
 		expect(rooms[0].locked).toBe(true);
-		expect(rooms[0].matchId).toBe('match-42');
+		// The match does NOT come back, and must not: it was a child JVM of the
+		// process that died. A room that kept its match id sat on the front page
+		// advertising "playing" about a game that no longer existed.
+		expect(rooms[0].matchId).toBeNull();
 		expect(rooms[0].leader).toBe(created.creator);
 		expect(rooms[0].members.map((m) => m.name).sort()).toEqual(['user-alice', 'user-bob']);
 		expect(second.lobby.playerState(created.id, created.creator)).toEqual({

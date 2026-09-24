@@ -26,6 +26,7 @@ import {
 	CLIENT_MODES,
 	DEFAULT_CLIENT_MODE,
 	openLobby,
+	ROOM_IDLE_MS,
 	type ClientMode,
 	type Lobby,
 	type RoomView,
@@ -53,14 +54,14 @@ afterAll(async () => {
  * entirely — which is the whole point: a room from before the field existed
  * cannot be produced by calling today's `create`.
  */
-function writeFixtureRoom(dir: string, roomId: string, app: Record<string, unknown>): void {
+function writeFixtureRoom(dir: string, roomId: string, app: Record<string, unknown>, updatedAt = 1_700_000_000_000): void {
 	const snapshot: RoomSnapshot = {
 		storeVersion: STORE_VERSION,
 		roomId,
 		roomKey: roomId,
 		lastEventSeq: 0,
 		createdAt: 1_700_000_000_000,
-		updatedAt: 1_700_000_000_000,
+		updatedAt,
 		members: [{ participantId: ALICE.id, joinedAt: 1_700_000_000_000, lastSeen: 1_700_000_000_000, name: ALICE.name, app: null }],
 		usedAvatars: [],
 		clientNames: {},
@@ -150,10 +151,16 @@ describe('a room stored before clientMode existed', () => {
 		writeFixtureRoom(dir, 'r-bbbbbbbbbbbb', legacyApp());
 		const first = await openLobby({ dir });
 		expect(first.setMatch('r-bbbbbbbbbbbb', 'match-1')).toBe(true);
+		// The write happened, in this process: the match is live here.
+		expect(first.get('r-bbbbbbbbbbbb')?.matchId).toBe('match-1');
 
 		const second = await openLobby({ dir });
 		expect(second.get('r-bbbbbbbbbbbb')?.clientMode).toBe('builtin');
-		expect(second.get('r-bbbbbbbbbbbb')?.matchId).toBe('match-1');
+		// But NOT across the restart. A match is a child JVM this process owns;
+		// it dies with the process, so a restored room that kept its match id
+		// advertised "playing" about a game that no longer exists. This used to
+		// assert 'match-1' and that was the bug, not the contract.
+		expect(second.get('r-bbbbbbbbbbbb')?.matchId).toBeNull();
 	});
 
 	it('quarantines a record whose clientMode is present and unknown, rather than defaulting it away', async () => {
@@ -198,5 +205,80 @@ describe('clientMode is immutable once a room exists', () => {
 		// snapshot that lost or flipped it.
 		const reopened = await openLobby({ dir });
 		expect(reopened.get(id)?.clientMode).toBe('streamed');
+	});
+});
+
+/* ── a room is not immortal ──────────────────────────────────────────── */
+
+describe('Lobby.sweep', () => {
+	/*
+	 * `create` had no opposite for the lobby's whole life — no leave, no close,
+	 * no expiry — so every room ever made stayed on the front page. The operator
+	 * found a four-day-old test room still listed, still advertising a match
+	 * whose JVM had died in the first nightly restart after it.
+	 */
+	it('forgets a room nobody has touched, from memory AND from disk', async () => {
+		const dir = await tempDir();
+		const now = 2_000_000_000_000;
+		writeFixtureRoom(dir, 'r-stale00000001', legacyApp({ name: 'test 1v1' }), now - ROOM_IDLE_MS - 1);
+		writeFixtureRoom(dir, 'r-fresh00000002', legacyApp({ name: 'tonight' }), now - 60_000);
+
+		const lobby = await openLobby({ dir, now: () => now });
+		expect(lobby.list().map((r) => r.id).sort()).toEqual(['r-fresh00000002', 'r-stale00000001']);
+
+		expect(lobby.sweep()).toEqual(['r-stale00000001']);
+		expect(lobby.list().map((r) => r.id)).toEqual(['r-fresh00000002']);
+		expect(lobby.get('r-stale00000001')).toBeUndefined();
+
+		// And it must not come back at the next boot, which is the half that
+		// makes this a fix rather than a filter on the list.
+		await new Promise((r) => setTimeout(r, 50));
+		const rebooted = await openLobby({ dir, now: () => now });
+		expect(rebooted.list().map((r) => r.id)).toEqual(['r-fresh00000002']);
+	});
+
+	it('keeps a room that was touched inside the window, and a brand new one', async () => {
+		const dir = await tempDir();
+		let clock = 3_000_000_000_000;
+		const lobby = await openLobby({ dir, now: () => clock });
+		const made = lobby.create(ALICE, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+
+		// A room made this instant must never be swept by the sweep that runs
+		// at boot moments later.
+		expect(lobby.sweep()).toEqual([]);
+
+		// Still inside the window after most of it has passed.
+		clock += ROOM_IDLE_MS - 1;
+		expect(lobby.sweep()).toEqual([]);
+		expect(lobby.list()).toHaveLength(1);
+
+		// A join is a touch: it resets the clock rather than ageing out under
+		// somebody who just arrived.
+		if (!made.ok) return;
+		lobby.join(made.room.id, BOB);
+		clock += ROOM_IDLE_MS - 1;
+		expect(lobby.sweep()).toEqual([]);
+
+		clock += 2;
+		expect(lobby.sweep()).toEqual([made.room.id]);
+		expect(lobby.list()).toEqual([]);
+	});
+});
+
+/* ── a match never outlives the process that ran it ──────────────────── */
+
+describe('a restored room is never still playing', () => {
+	it('drops a matchId written before the restart', async () => {
+		const dir = await tempDir();
+		// Exactly the shape the operator's stale room had on disk: a live-looking
+		// match id, pointing at a child JVM that died with the process.
+		writeFixtureRoom(dir, 'r-played0000001', legacyApp({ name: 'test 1v1', matchId: 'm-b2853c882395' }));
+
+		const lobby = await openLobby({ dir });
+		const room = lobby.get('r-played0000001');
+		expect(room?.matchId, 'a room claimed to be playing a match that cannot exist').toBeNull();
+		// The list is what the front page reads, so assert it there too.
+		expect(lobby.list()[0]?.matchId).toBeNull();
 	});
 });

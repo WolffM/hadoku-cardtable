@@ -143,6 +143,22 @@ export type SetGameTypeResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' };
 
+/**
+ * How long a room may sit untouched before the lobby forgets it.
+ *
+ * Rooms used to be permanent: `create` had no opposite, and neither `leave`
+ * nor any expiry existed, so every room ever made stayed on the front page for
+ * ever. The operator found a four-day-old room still advertising a match whose
+ * JVM died in the first nightly restart after it.
+ *
+ * Twelve hours, because the only clock a lobby room has is its own mutations —
+ * joining, choosing a deck, readying up. Nobody sits in a room for half a day
+ * without touching any of that, and anything shorter risks reaping a room out
+ * from under people who are mid-conversation in the chat panel, which this
+ * server cannot see.
+ */
+export const ROOM_IDLE_MS = 12 * 60 * 60_000;
+
 export interface Lobby {
 	list(): RoomView[];
 	get(roomId: string): RoomView | undefined;
@@ -159,6 +175,11 @@ export interface Lobby {
 	join(roomId: string, caller: Caller, password?: string): JoinResult;
 	/** Leader only. Changes the game type and NOTHING else — a room's `clientMode` is immutable. */
 	setGameType(roomId: string, callerId: string, gameType: GameType): SetGameTypeResult;
+	/**
+	 * Forget every room untouched for longer than `idleMs`, on disk as well as
+	 * in memory. Returns the ids dropped, for the caller's log.
+	 */
+	sweep(idleMs?: number): string[];
 }
 
 /** Structured, and never carries a password, hash or salt. */
@@ -221,6 +242,8 @@ interface RoomRecord {
 	clientMode: ClientMode;
 	matchId: string | null;
 	createdAt: number;
+	/** Last mutation, in ms. What `sweep` ages a room out on. */
+	updatedAt: number;
 	members: MemberRecord[];
 }
 
@@ -366,6 +389,7 @@ class FileLobby implements Lobby {
 
 	#persist(room: RoomRecord): void {
 		const now = this.#now();
+		room.updatedAt = now;
 		const members: SerializedMember[] = room.members.map((m) => {
 			const member: SerializedMember = {
 				participantId: m.id,
@@ -455,6 +479,7 @@ class FileLobby implements Lobby {
 			clientMode: input.clientMode,
 			matchId: null,
 			createdAt: now,
+			updatedAt: now,
 			members: [{ id: caller.id, name: caller.name, joinedAt: now, state: undefined }],
 		};
 		this.#rooms.set(id, room);
@@ -497,6 +522,25 @@ class FileLobby implements Lobby {
 		this.#persist(room);
 		this.#log({ event: 'room-game-type', roomId, gameType });
 		return { ok: true, room: this.#view(room) };
+	}
+
+	sweep(idleMs: number = ROOM_IDLE_MS): string[] {
+		const cutoff = this.#now() - idleMs;
+		const dropped: string[] = [];
+		for (const [id, room] of this.#rooms) {
+			if (room.updatedAt > cutoff) continue;
+			this.#rooms.delete(id);
+			this.#secrets.delete(id);
+			dropped.push(id);
+			// The room is gone from the list the moment it leaves the map; the
+			// disk write is best-effort and logged, because a store that cannot
+			// delete must not resurrect the room on the next boot silently.
+			void this.#store.remove(id).catch((err: unknown) => {
+				this.#log({ event: 'room-forget-failed', roomId: id, err: String(err) });
+			});
+			this.#log({ event: 'room-forgotten', roomId: id, idleMs });
+		}
+		return dropped;
 	}
 }
 
@@ -553,8 +597,16 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					leader: app.leader,
 					gameType: app.gameType,
 					clientMode: app.clientMode,
-					matchId: app.matchId,
+					// **Never restored.** A match is a child JVM this process
+					// owns; nothing survives a restart, and this repo restarts on
+					// every deploy and again at 08:00 UTC. A room that kept its
+					// `matchId` advertised "playing" for ever, pointing at a game
+					// that died days earlier — which is what the operator found.
+					matchId: null,
 					createdAt: decoded.createdAt,
+					// The raw snapshot's clock: when this room was last touched
+					// by the process that wrote it. `decoded` does not carry it.
+					updatedAt: snapshot.updatedAt,
 					members,
 				},
 				app.secret,

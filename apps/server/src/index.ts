@@ -321,6 +321,20 @@ const lobby = await openLobby({
 });
 attachRooms(api, { lobby });
 
+// ── Rooms are not immortal ───────────────────────────────────────────────────
+// `create` had no opposite for its whole life: no leave, no close, no expiry,
+// so every room ever made stayed on the front page. A room untouched for
+// `ROOM_IDLE_MS` is forgotten, on disk as well as in memory — at boot, because
+// this process restarts on every deploy and again at 08:00 UTC, and hourly so
+// a long-running process is not the exception.
+const ROOM_SWEEP_MS = 60 * 60_000;
+const sweepRooms = (): void => {
+	const dropped = lobby.sweep();
+	if (dropped.length > 0) console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', event: 'rooms-swept', rooms: dropped.length }));
+};
+sweepRooms();
+setInterval(sweepRooms, ROOM_SWEEP_MS).unref();
+
 // ── Constructed ──────────────────────────────────────────────────────────────
 // Formats, the deck library, and the deck gate on POST /api/play/matches. MUST
 // come before attachPlay: the gate is a handler on play's own path and runs
