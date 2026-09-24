@@ -1,0 +1,137 @@
+/*
+ * `Name|SET → Scryfall id` — the lookup that stands between Forge's wire and
+ * `resolveArtUrl`.
+ *
+ * ## Why this is a separate step from `./index.ts`
+ *
+ * `./index.ts` answers "where do this id's bytes live". It cannot answer
+ * "which card is this", because Forge never sends an id. A card crosses the
+ * play wire as a `Name` plus a `SetCode` in Forge's own set vocabulary — the
+ * `ImageKey` spells it `c:Mountain|MRD|1` — so something has to turn that pair
+ * into an id first. That is this module, and it is deliberately the only place
+ * that knows the shape of that key.
+ *
+ * Splitting it out of `apps/ui/src/play/adapter.ts` (where it started) is what
+ * lets it be tested against the real resolver without dragging the whole UI
+ * package in, and is why the play board and the draft screen now agree on one
+ * implementation instead of two.
+ *
+ * ## The fallback, which is the whole point
+ *
+ * Three answers, in order:
+ *
+ *   1. the exact printing — `Name|SET`;
+ *   2. **any** printing of the same name — the bare `Name` key. Another
+ *      printing's art is still that card's art, and a slightly wrong Lightning
+ *      Bolt beats a blank rectangle every time;
+ *   3. nothing, and the caller draws its text tile.
+ *
+ * ## Ids, never URLs
+ *
+ * Nothing in this file builds a URL or names a host. A card's art is a lookup
+ * (D15); which host serves it is `resolveArtUrl`'s decision alone, so
+ * re-sourcing the art stays a one-line data edit in `art-manifest.json`.
+ *
+ * ## No Node APIs
+ *
+ * This goes into the browser bundle. The committed table is imported as JSON by
+ * the caller and handed in; nothing here reads a file.
+ */
+
+/**
+ * `Name|SET` (set upper-cased) and bare `Name` → Scryfall id.
+ *
+ * A table of ids, never of URLs.
+ */
+export type ArtIdIndex = ReadonlyMap<string, string>;
+
+/** Anything that knows a card's name, printing and id. */
+export interface ArtIdSource {
+  name: string;
+  setCode: string;
+  scryfallId?: string | undefined;
+}
+
+/**
+ * The committed `art-ids.json`: a flat map whose keys are already index keys.
+ *
+ * `version` exists so a format change is detectable rather than silently
+ * misread, exactly as `ArtManifestFile` carries one. Nothing switches on it
+ * yet; when something does it will be because the shape really changed.
+ */
+export interface ArtIdTableFile {
+  readonly version: number;
+  /** Human note in the committed file. Carried so the type matches the file. */
+  readonly note?: string;
+  readonly ids: Readonly<Record<string, string>>;
+}
+
+/** The version `scripts/art/build-art-ids.ts` writes. */
+export const ART_ID_TABLE_VERSION = 1;
+
+/** The key an exact printing answers to. */
+export function artIdKey(name: string, setCode: string): string {
+  return `${name}|${setCode.toUpperCase()}`;
+}
+
+/**
+ * Build an index from any list of known printings.
+ *
+ * The exact printing wins; failing that, the first printing of the same name.
+ * A double-faced card is also indexed by its front face, since Forge names the
+ * face it is showing.
+ */
+export function artIdIndex(cards: Iterable<ArtIdSource>): ArtIdIndex {
+  const index = new Map<string, string>();
+  for (const c of cards) {
+    if (c.scryfallId === undefined || c.scryfallId === '') continue;
+    const names = [c.name];
+    const front = c.name.split(' // ')[0];
+    if (front !== undefined && front !== c.name) names.push(front);
+    for (const name of names) {
+      const exact = artIdKey(name, c.setCode);
+      if (!index.has(exact)) index.set(exact, c.scryfallId);
+      if (!index.has(name)) index.set(name, c.scryfallId);
+    }
+  }
+  return index;
+}
+
+/**
+ * Read a committed table straight into an index.
+ *
+ * Its keys are already index keys — that is the format's one job, and it is why
+ * loading it needs no logic that could disagree with `artIdIndex`. Values that
+ * are not strings are dropped rather than trusted: this is committed JSON, so
+ * its declared type is a claim about what we meant to write.
+ */
+export function artIdIndexFromTable(table: ArtIdTableFile): ArtIdIndex {
+  const index = new Map<string, string>();
+  for (const [key, id] of Object.entries(table.ids)) {
+    if (typeof id === 'string' && id.length > 0) index.set(key, id);
+  }
+  return index;
+}
+
+/**
+ * Merge indexes, **earlier wins**.
+ *
+ * Same precedence as `artIdIndex`'s own first-write-wins, so composing two
+ * tables behaves like concatenating the lists they came from. Callers put the
+ * more specific table first: the drafted pool before the general table, because
+ * the pool is the printing that cube was actually built from.
+ */
+export function mergeArtIdIndexes(...indexes: readonly ArtIdIndex[]): ArtIdIndex {
+  const merged = new Map<string, string>();
+  for (const index of indexes) {
+    for (const [key, id] of index) {
+      if (!merged.has(key)) merged.set(key, id);
+    }
+  }
+  return merged;
+}
+
+/** The exact printing, else any printing of the same name, else `undefined`. */
+export function scryfallIdFor(index: ArtIdIndex, name: string, setCode: string): string | undefined {
+  return index.get(artIdKey(name, setCode)) ?? index.get(name);
+}

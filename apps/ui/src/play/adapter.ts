@@ -42,14 +42,21 @@
  *
  * - **No Scryfall id.** A card's print is Forge's `ImageKey`
  *   (`c:Mountain|MRD|1` — name, set, art index), not a Scryfall id. The
- *   adapter looks the id up by `Name` + `SetCode` in an `ArtIdIndex` (below)
- *   and puts it on the `DraftCard`; `CardTile` then resolves the art through
- *   `@hadoku/carddata/art` exactly as the draft screen does. The default
- *   index is the cube's own `pool.json` — the only name → id table the
- *   browser has — so a card outside the cube (a basic land, most of a
- *   constructed list) has no id and `CardTile` draws the text tile. Nothing
- *   here builds an image URL: the adapter moves an id, the resolver owns the
- *   host.
+ *   adapter looks the id up by `Name` + `SetCode` in an `ArtIdIndex`
+ *   (`@hadoku/carddata/art`) and puts it on the `DraftCard`; `CardTile` then
+ *   resolves the art through the same module exactly as the draft screen does.
+ *   Nothing here builds an image URL: the adapter moves an id, the resolver
+ *   owns the host.
+ *
+ *   The default index used to be the cube's `pool.json` alone, which is why
+ *   every card a match can contain that was NOT in the drafted cube — a basic
+ *   land above all, and every card of a constructed list — had no id and drew
+ *   the text tile. That is wave 19 §D #9, *"some art missing"*. The default
+ *   is now `KNOWN_ART_IDS`: the pool first (so a cube card still resolves to
+ *   the printing its cube was built from), then the committed
+ *   `../draft/art-ids.json`, which carries every basic land under every Forge
+ *   set code, every card of the committed `decks/` lists, and a bare-name
+ *   fallback row per name. `scripts/art/build-art-ids.ts` generates it.
  * - **No collector number.** Left empty.
  * - **Which player is "me".** That is `openView(myPlayers)`, not a delta, so
  *   the caller passes `viewerPlayerId`. The fixture records it beside the
@@ -61,8 +68,18 @@
  * hand rather than showing one.
  */
 
+import {
+  artIdIndex,
+  artIdIndexFromTable,
+  mergeArtIdIndexes,
+  scryfallIdFor,
+  type ArtIdIndex,
+  type ArtIdSource,
+  type ArtIdTableFile,
+} from '@hadoku/carddata/art';
 import type { DraftCard, ManaColor, Rarity } from '@hadoku/shared';
 
+import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import poolData from '../draft/pool.json' with { type: 'json' };
 import type { WireState } from './fold.ts';
 import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from './wire.ts';
@@ -106,6 +123,8 @@ export interface StackEntry {
    */
   sourceCardId: number | null;
   sourceName: string | null;
+  /** The source card's full face, so the stack can draw its art. Null when the item names no card. */
+  sourceCard: DraftCard | null;
   controllerName: string | null;
   isAbility: boolean;
 }
@@ -129,52 +148,38 @@ export interface BoardView {
 
 export interface AdaptOptions {
   viewerPlayerId: number;
-  /** Where a card's Scryfall id is looked up. Defaults to the cube's pool. */
+  /** Where a card's Scryfall id is looked up. Defaults to `KNOWN_ART_IDS`. */
   artIds?: ArtIdIndex;
 }
 
-// ── which Scryfall id a card is ─────────────────────────────────────────────
+// ── which Scryfall id a card is ──────────────────────────────────────────
 
-/**
- * `Name|SET` and bare `Name` → Scryfall id. A lookup table of ids, never URLs:
- * which host the art comes from stays the resolver's decision (D15).
+/*
+ * The index itself lives in `@hadoku/carddata/art`, beside the resolver that
+ * consumes its answer. It is re-exported here because this module is where the
+ * play board's callers already look for it, and because `./Board.test.ts`
+ * imports it from here.
  */
-export type ArtIdIndex = ReadonlyMap<string, string>;
+export { artIdIndex, scryfallIdFor, type ArtIdIndex, type ArtIdSource };
 
-export interface ArtIdSource {
-  name: string;
-  setCode: string;
-  scryfallId?: string | undefined;
-}
-
-/**
- * Build an index from any list of known printings. The exact printing wins;
- * failing that, the first printing of the same name — another printing's art
- * is still that card. A double-faced card is also indexed by its front face,
- * since Forge names the face it is showing.
- */
-export function artIdIndex(cards: Iterable<ArtIdSource>): ArtIdIndex {
-  const index = new Map<string, string>();
-  for (const c of cards) {
-    if (c.scryfallId === undefined || c.scryfallId === '') continue;
-    const names = [c.name];
-    const front = c.name.split(' // ')[0];
-    if (front !== undefined && front !== c.name) names.push(front);
-    for (const name of names) {
-      const exact = `${name}|${c.setCode.toUpperCase()}`;
-      if (!index.has(exact)) index.set(exact, c.scryfallId);
-      if (!index.has(name)) index.set(name, c.scryfallId);
-    }
-  }
-  return index;
-}
-
-/** The cube's cards: the only name → id table the browser already carries. */
+/** The cube's cards, keyed by the SCRYFALL set code `build-pool` wrote. */
 export const CUBE_ART_IDS: ArtIdIndex = artIdIndex((poolData as { cards: ArtIdSource[] }).cards);
 
-export function scryfallIdFor(index: ArtIdIndex, name: string, setCode: string): string | undefined {
-  return index.get(`${name}|${setCode.toUpperCase()}`) ?? index.get(name);
-}
+/**
+ * Every id the browser knows: the drafted pool first, then the committed table.
+ *
+ * Order matters and is the whole design. `mergeArtIdIndexes` keeps the FIRST
+ * value for a key, so a cube card still resolves to the printing its cube was
+ * built from and nothing that worked before this wave resolves differently.
+ * `art-ids.json` only ever ADDS keys the pool never had — basic lands under
+ * Forge's set codes, the committed constructed lists, and the bare-name
+ * fallback that means a card is never blank just because Forge named a
+ * printing nobody wrote down.
+ */
+export const KNOWN_ART_IDS: ArtIdIndex = mergeArtIdIndexes(
+  CUBE_ART_IDS,
+  artIdIndexFromTable(artIdsData as ArtIdTableFile),
+);
 
 // ── reading tagged values ───────────────────────────────────────────────────
 
@@ -371,7 +376,7 @@ export const PHASE_LABEL: Readonly<Record<string, string>> = {
 export function toBoardView(
   state: WireState,
   seq: number,
-  { viewerPlayerId, artIds = CUBE_ART_IDS }: AdaptOptions,
+  { viewerPlayerId, artIds = KNOWN_ART_IDS }: AdaptOptions,
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === WireType.Game);
   const missing: number[] = [];
@@ -423,6 +428,7 @@ export function toBoardView(
       description: readStr(item, 'Description') ?? readStr(item, 'Key') ?? `stack item ${sid}`,
       sourceCardId,
       sourceName: source?.card.name ?? null,
+      sourceCard: source?.card ?? null,
       controllerName: activator === null ? null : nameOfPlayer(activator),
       isAbility: readBool(item, 'Ability'),
     };

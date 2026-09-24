@@ -266,3 +266,22 @@ export function resolveArtUrl(
       return scryfallArtUrl(scryfallId, size);
   }
 }
+
+/*
+ * The other half of the art path: which id a card IS.
+ *
+ * `resolveArtUrl` above takes an id; Forge's play wire carries a name and a set
+ * code and no id at all. `./ids.ts` is the lookup between them, re-exported
+ * here so `@hadoku/carddata/art` is the one import a renderer needs.
+ */
+export {
+  ART_ID_TABLE_VERSION,
+  artIdIndex,
+  artIdIndexFromTable,
+  artIdKey,
+  mergeArtIdIndexes,
+  scryfallIdFor,
+  type ArtIdIndex,
+  type ArtIdSource,
+  type ArtIdTableFile,
+} from './ids.ts';
