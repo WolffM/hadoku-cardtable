@@ -1,16 +1,35 @@
 /*
- * Tier B — the 21 methods that carry entity references.
+ * Tier B — the 22 methods that carry entity references.
  *
  * Wave 6 lane F (`docs/spikes/itoclient.md`, "Tier B — carry entity
- * references. Needs an id scheme, which Forge already has. 21 methods."). The
+ * references. Needs an id scheme, which Forge already has. 21 methods."), plus
+ * `setWeaklySelectable`, which Wave 19 lane B added — see below. The
  * id scheme is `refs.ts`; this file is the transcription, with argument types
  * from `ProtocolMethod.java` and parameter names from `IGuiGame` /
  * `IGameController`.
  *
- * Eighteen are server→client (twelve of them blocking) and three are
+ * Nineteen are server→client (twelve of them blocking) and three are
  * client→server. Together with Tier A's three, the blocking set is the 15 lane
  * F re-derived independently from `RemoteClientGuiGame`'s `sendAndWait` call
  * sites.
+ *
+ * ## `setWeaklySelectable` is the set Forge offers at PRIORITY
+ *
+ * Lane F's 38 did not include it, and that omission is what made the board
+ * invent its own affordance: `setSelectables` is sent only by the two SELECTION
+ * inputs (`InputSelectTargets.java:68`, `InputSelectEntitiesFromList.java:57`),
+ * so outside a selection the client had nothing to go on and offered every card
+ * it held. Forge does publish the priority-time answer — it just publishes it
+ * through this method (ProtocolMethod.java:71-72, sent by
+ * `RemoteClientGuiGame.java:507-516`), computed by
+ * `PlayerControllerHuman.pushActionableCards` (:1543-1601) from
+ * `AvailableActions.collectActionable` at priority and from
+ * `cardHasPlayableManaAbility` during payment, and bracketed by
+ * `clearActionableCards()` on every such input's `onStop`.
+ *
+ * It is gated on `FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS`, which defaults to
+ * `"false"` (ForgePreferences.java:100) — our bridge turns it on
+ * (`apps/server/src/play/bridge/PlayBridge.java`).
  *
  * ## Three places where the transcription is a decision, not a copy
  *
@@ -66,7 +85,7 @@ import {
 } from './refs.ts';
 import { CardPoolSchema, DeckEntrySchema } from './sideboard.ts';
 
-/** The 21 Tier B method names, in `ProtocolMethod` declaration order per direction. */
+/** The 22 Tier B method names, in `ProtocolMethod` declaration order per direction. */
 export const TIER_B_METHODS = [
   // Mode.SERVER
   'showPromptMessage',
@@ -84,6 +103,7 @@ export const TIER_B_METHODS = [
   'chooseEntitiesForEffect',
   'manipulateCardList',
   'setSelectables',
+  'setWeaklySelectable',
   'openZones',
   'restoreOldZones',
   'applyYieldUpdate',
@@ -172,7 +192,7 @@ export const YieldUpdateSchema = z.discriminatedUnion('update', [
 
 export type YieldUpdate = z.infer<typeof YieldUpdateSchema>;
 
-/* ── Server → client, fire-and-forget (6) ────────────────────────────── */
+/* ── Server → client, fire-and-forget (7) ────────────────────────────── */
 
 /** `void showPromptMessage(PlayerView playerView, String message, CardView card)` — IGuiGame.java:77. */
 export const ShowPromptMessageSchema = z.strictObject({
@@ -213,6 +233,25 @@ export const SetSelectablesSchema = z.strictObject({
   cards: z.array(CardRefSchema),
   min: z.number().int().nonnegative(),
   max: z.number().int().nonnegative(),
+});
+
+/**
+ * `void setWeaklySelectable(Iterable<CardView> cards)` — IGuiGame.java:276.
+ *
+ * The cards Forge's CURRENT input will actually do something with. Unlike
+ * `setSelectables` it carries no min/max: it is not a selection with a size,
+ * it is "these are the cards that are worth clicking".
+ *
+ * Forge's own iterable is WEIGHTED — a card appears twice when the auto-tap
+ * preview also names it (`AbstractGuiGame.java:385-394` counts into a
+ * `Multiset`, and the desktop reads the count at `CardPanel.java:326`). The
+ * wire keeps the list rather than a set, so the weighting survives if a client
+ * ever wants it; our board only asks whether a card is in it.
+ */
+export const SetWeaklySelectableSchema = z.strictObject({
+  kind: z.literal('notify'),
+  method: z.literal('setWeaklySelectable'),
+  cards: z.array(CardRefSchema),
 });
 
 /** `void restoreOldZones(PlayerView playerView, PlayerZoneUpdates playerZoneUpdates)` — IGuiGame.java:263. */
@@ -517,7 +556,7 @@ export const SelectAbilitySchema = z.strictObject({
 
 /* ── The tier, assembled ─────────────────────────────────────────────── */
 
-/** The 18 server→client Tier B frames. */
+/** The 19 server→client Tier B frames. */
 export const TIER_B_SERVER_FRAMES = [
   ShowPromptMessageSchema,
   UpdateButtonsSchema,
@@ -534,6 +573,7 @@ export const TIER_B_SERVER_FRAMES = [
   ChooseEntitiesForEffectSchema,
   ManipulateCardListSchema,
   SetSelectablesSchema,
+  SetWeaklySelectableSchema,
   OpenZonesSchema,
   RestoreOldZonesSchema,
   ApplyYieldUpdateSchema,

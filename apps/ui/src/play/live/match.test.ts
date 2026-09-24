@@ -452,13 +452,18 @@ describe('the viewer comes from the snapshot', () => {
 
 /*
  * Clicking the board. Forge says what it will take — a selection's cards via
- * `setSelectables`, otherwise whatever the current input makes of a click —
- * and a click is checked against what Forge said LAST, when it is made. Every
- * "sends nothing" below is proven against a barrier: a valid act sent after
- * it, which must be the FIRST frame the server receives (socket.io keeps a
- * socket's order), so a refused click cannot be hiding behind a slow wire.
+ * `setSelectables`, everything else's via `setWeaklySelectable` — and a click
+ * is checked against what Forge said LAST, when it is made. Every "sends
+ * nothing" below is proven against a barrier: a valid act sent after it, which
+ * must be the FIRST frame the server receives (socket.io keeps a socket's
+ * order), so a refused click cannot be hiding behind a slow wire.
+ *
+ * The case that matters most is the negative one: with an input LIVE and Forge
+ * having named nothing, the board offers nothing. Restoring the old
+ * `cardIdsInView` fallback — "no selection, so offer every card in view" —
+ * fails it, which is the point.
  */
-describe('clicking the board: selectCard, selectPlayer, and Forge’s selectables', () => {
+describe('clicking the board: only what Forge offered', () => {
   const prompt = (message: string) =>
     parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null });
   const bar = (enable1: boolean) =>
@@ -475,6 +480,10 @@ describe('clicking the board: selectCard, selectPlayer, and Forge’s selectable
   const selectables = (ids: number[], min: number, max: number) =>
     parseServerFrame({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max });
   const clear = () => parseServerFrame({ kind: 'notify', method: 'clearSelectables' });
+  /** Forge's priority-time offer. `pushActionableCards` sends this, weighted. */
+  const actionable = (ids: number[]) =>
+    parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
+  const clearActionable = () => parseServerFrame({ kind: 'notify', method: 'clearWeaklySelectable' });
 
   /** Card ids on the fixture board: the viewer's battlefield, and the opponent's. */
   function ids(m: LiveMatch): { mine: number[]; theirs: number[] } {
@@ -493,11 +502,90 @@ describe('clicking the board: selectCard, selectPlayer, and Forge’s selectable
 
   /** Send a known-good act and require it to be the first thing the server got. */
   async function barrier(s: ReplayServer, m: LiveMatch, id: number): Promise<void> {
-    await sendAndApply(s, m, [prompt('barrier')]);
+    await sendAndApply(s, m, [prompt('barrier'), actionable([id])]);
     expect(selectCard(m, id)).toBe(true);
     await until('the barrier act', () => s.clientFrames().length >= 1);
     expect(s.clientFrames()).toEqual([cardAct(id)]);
   }
+
+  /*
+   * THE mutation target for Wave 19 §B item 1 (the operator's #1 complaint).
+   * The old code answered "Forge has named nothing" with "then offer
+   * everything", and this is the case that says otherwise.
+   */
+  it('Forge has named nothing: an input is live and the board offers NOTHING', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    // Forge's input has shown itself — prompt and an enabled bar — but it has
+    // sent neither a selection nor an actionable set.
+    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    expect(m.inputLive).toBe(true);
+    expect(m.selectables).toBeNull();
+    expect(m.weaklySelectable).toBeNull();
+
+    const open = boardInteraction(m);
+    expect(open.selectable.size).toBe(0);
+    expect(open.selectablePlayers.size).toBe(0);
+    // Every card the seat can see, and every player: none of them is offered.
+    for (const id of [...mine, ...theirs]) expect(open.selectable.has(id)).toBe(false);
+    for (const p of m.view!.players) expect(open.selectablePlayers.has(p.id)).toBe(false);
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    expect(selectPlayer(m, 1)).toBe(false);
+    await barrier(s, m, theirs[0]!);
+  });
+
+  it('setWeaklySelectable is Forge’s answer at priority: exactly those cards, and no player', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    // Forge weights its list — a card twice when the auto-tap preview names it
+    // too. Membership is all a board needs, and a duplicate is not two cards.
+    await sendAndApply(s, m, [prompt('Priority'), actionable([mine[0]!, mine[0]!, theirs[0]!])]);
+    expect(m.weaklySelectable).toEqual(new Set([mine[0], theirs[0]]));
+    const open = boardInteraction(m);
+    expect(open.selectable).toEqual(new Set([mine[0], theirs[0]]));
+    expect(open.selectablePlayers.size).toBe(0);
+    expect(selectCard(m, mine[1]!)).toBe(false);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await until('the act', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()).toEqual([cardAct(mine[0]!)]);
+  });
+
+  it('an EMPTY actionable set is Forge saying "nothing here", not "I have not spoken"', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([])]);
+    expect(m.weaklySelectable).toEqual(new Set());
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    await barrier(s, m, mine[1]!);
+  });
+
+  it('clearWeaklySelectable ends the offer, and leaves the bar where it is', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!])]);
+    expect(boardInteraction(m).selectable).toEqual(new Set([mine[0]]));
+
+    await sendAndApply(s, m, [clearActionable()]);
+    expect(m.weaklySelectable).toBeNull();
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    // The input has not been answered, so the bar Forge sent is still pressable.
+    expect(m.inputLive).toBe(true);
+    expect(pressButton(m, 'ok')).toBe(true);
+    await until('the press', () => s.clientFrames().length === 1);
+    expect(s.clientFrames().map((f) => (f.ok && 'method' in f.value ? f.value.method : null))).toEqual(['selectButtonOk']);
+  });
+
+  it('a card Forge dropped from the view is not offered, whichever list still names it', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([mine[0]!, 999_999])]);
+    expect(m.weaklySelectable!.has(999_999)).toBe(true);
+    expect(boardInteraction(m).selectable).toEqual(new Set([mine[0]]));
+    expect(selectCard(m, 999_999)).toBe(false);
+    await barrier(s, m, mine[1]!);
+  });
 
   it('setSelectables is held with its min and max, REPLACED by the next set, and dropped by clearSelectables', async () => {
     const { s, m } = await fullGame();
@@ -513,6 +601,21 @@ describe('clicking the board: selectCard, selectPlayer, and Forge’s selectable
     await sendAndApply(s, m, [clear()]);
     expect(m.selectables).toBeNull();
     expect(boardInteraction(m).selectable.size).toBe(0);
+  });
+
+  it('a selection OUTRANKS the actionable set: only Forge’s targets, and the players a selection takes', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([mine[0]!, mine[1]!])]);
+    expect(boardInteraction(m).selectablePlayers.size).toBe(0);
+
+    // The spell is cast; Forge's targeting input opens.
+    await sendAndApply(s, m, [selectables([theirs[0]!], 1, 1)]);
+    const open = boardInteraction(m);
+    expect(open.selectable).toEqual(new Set([theirs[0]]));
+    expect(open.selectablePlayers).toEqual(new Set(m.view!.players.map((p) => p.id)));
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    await barrier(s, m, theirs[0]!);
   });
 
   it('a click on a selectable Forge has CLEARED sends nothing', async () => {
@@ -533,28 +636,13 @@ describe('clicking the board: selectCard, selectPlayer, and Forge’s selectable
     expect(s.clientFrames()).toEqual([cardAct(theirs[0]!)]);
   });
 
-  it('during a selection only Forge’s cards are offered; outside one, every card the seat holds', async () => {
-    const { s, m } = await fullGame();
-    const { mine, theirs } = ids(m);
-    expect(boardInteraction(m).selectable.size).toBe(0);
-    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
-    const open = boardInteraction(m);
-    for (const id of [...mine, ...theirs]) expect(open.selectable.has(id)).toBe(true);
-    expect(open.selectablePlayers).toEqual(new Set(m.view!.players.map((p) => p.id)));
-
-    await sendAndApply(s, m, [selectables([theirs[0]!], 1, 1)]);
-    expect(boardInteraction(m).selectable).toEqual(new Set([theirs[0]]));
-    expect(selectCard(m, mine[0]!)).toBe(false);
-    await barrier(s, m, theirs[0]!);
-  });
-
   it('a card clicked is spent until Forge speaks again: a double click sends once', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
-    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([mine[0]!, mine[1]!])]);
     expect(selectCard(m, mine[0]!)).toBe(true);
     expect(selectCard(m, mine[0]!)).toBe(false);
-    // Another card is still Forge's to judge: an ignored click gets no answer.
+    // Another card Forge named is still Forge's to judge: an ignored click gets no answer.
     expect(selectCard(m, mine[1]!)).toBe(true);
     await until('two acts', () => s.clientFrames().length === 2);
     expect(s.clientFrames()).toEqual([cardAct(mine[0]!), cardAct(mine[1]!)]);
@@ -570,7 +658,7 @@ describe('clicking the board: selectCard, selectPlayer, and Forge’s selectable
     const { mine } = ids(m);
     expect(selectCard(m, mine[0]!)).toBe(false);
     expect(selectPlayer(m, 1)).toBe(false);
-    await sendAndApply(s, m, [prompt('Priority'), bar(true), optionAsk('c-open')]);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!]), optionAsk('c-open')]);
     expect(boardInteraction(m).selectable.size).toBe(0);
     expect(selectCard(m, mine[0]!)).toBe(false);
     expect(pressButton(m, 'ok')).toBe(false);
@@ -585,11 +673,11 @@ describe('clicking the board: selectCard, selectPlayer, and Forge’s selectable
   it('a button press spends the whole input: no click until Forge shows the next one', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
-    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!])]);
     expect(pressButton(m, 'ok')).toBe(true);
     expect(selectCard(m, mine[0]!)).toBe(false);
     await until('the press', () => s.clientFrames().length === 1);
-    await sendAndApply(s, m, [prompt('Next'), bar(true)]);
+    await sendAndApply(s, m, [prompt('Next'), bar(true), actionable([mine[0]!])]);
     expect(selectCard(m, mine[0]!)).toBe(true);
     await until('the click', () => s.clientFrames().length === 2);
     expect(s.clientFrames().map((f) => (f.ok && 'method' in f.value ? f.value.method : null))).toEqual(['selectButtonOk', 'selectCard']);
@@ -611,6 +699,7 @@ describe('clicking the board: selectCard, selectPlayer, and Forge’s selectable
     s.send(prompt('after the gap'));
     await until('the resync', () => m.stats.snapshots === 2);
     expect(m.selectables).toBeNull();
+    expect(m.weaklySelectable).toBeNull();
     expect(selectCard(m, theirs[0]!)).toBe(false);
   });
 });

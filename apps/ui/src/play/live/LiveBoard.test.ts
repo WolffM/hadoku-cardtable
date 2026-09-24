@@ -386,3 +386,225 @@ describe('clicking a card on the live board', () => {
     expect(m.stats.replies).toBe(1);
   });
 });
+
+/*
+ * Dragging, and the targeter arrow (Wave 19 §B items 2 and 3).
+ *
+ * Every assertion here is about WHAT WAS SENT — the frames that left through
+ * `selectCard` / `selectPlayer` and reached the replay server — not about what
+ * was drawn. The arrow has two assertions of its own and they are about
+ * existence and snapping, because a picture is not a proof that the right
+ * thing happened.
+ *
+ * The overlay root is lane A's (`[data-board-overlay]`). These tests add one
+ * by hand where they need it, and the case that does NOT is the guard: with no
+ * overlay the arrow is not drawn and the drag still sends.
+ *
+ * jsdom has no layout, so every `getBoundingClientRect` is zeroes and the
+ * arrow's geometry is all 0 — which is why nothing here asserts a coordinate.
+ * What it does assert is which element the arrow snapped to, and that is read
+ * off the DOM, not off a number.
+ */
+describe('dragging a card, and the targeter arrow', () => {
+  function notify(raw: unknown[]) {
+    return raw.map((r) => parseServerFrame(r));
+  }
+  const prompt = (message: string) =>
+    parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null });
+  const actionable = (ids: number[]) =>
+    parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
+  const selectables = (ids: number[], min: number, max: number) =>
+    parseServerFrame({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max });
+
+  /**
+   * Lane A's overlay root. It is theirs to render, so this looks for it and
+   * only falls back to one of its own if the contract is not met yet — which
+   * keeps these cases independent of their landing order.
+   */
+  function overlayOf(container: HTMLElement): HTMLElement {
+    const found = container.querySelector<HTMLElement>('[data-board-overlay]');
+    if (found !== null) return found;
+    const made = document.createElement('div');
+    made.setAttribute('data-board-overlay', '');
+    container.querySelector('.live')!.appendChild(made);
+    return made;
+  }
+
+  const cardEl = (c: HTMLElement, id: number) => c.querySelector<HTMLElement>(`[data-board-card="${id}"]`)!;
+  const faceEl = (c: HTMLElement, id: number) => c.querySelector<HTMLElement>(`[data-player-face][data-player-id="${id}"]`)!;
+
+  /** Press on `from`, move over `over`, release there. Past the slop, so it is a drag. */
+  function drag(from: HTMLElement, over: HTMLElement): void {
+    fireEvent.pointerDown(from, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(over, { clientX: 200, clientY: 140 });
+    fireEvent.pointerUp(over, { clientX: 200, clientY: 140 });
+  }
+
+  /** What actually left this client, as `[method, id]` pairs. The whole point of these tests. */
+  const sent = (s: ReplayServer): unknown[] =>
+    s.clientFrames().map((f) => {
+      if (!f.ok || f.value.kind !== 'act') return f;
+      const act = f.value;
+      if (act.method === 'selectCard') return ['selectCard', act.card.id];
+      if (act.method === 'selectPlayer') return ['selectPlayer', act.player.id];
+      return [act.method];
+    });
+
+  it('a drag from a card Forge offered onto the opponent’s seat sends selectCard then selectPlayer', async () => {
+    const { s, m, container } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const [source, other] = [mine[0]!, mine[1]!];
+    // A selection Forge wants TWO of, so the source is sent as well as the drop.
+    for (const f of notify([prompt('Choose two'), selectables([source, other], 1, 2)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    drag(cardEl(container, source), faceEl(container, 1));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s)).toEqual([
+      ['selectCard', source],
+      ['selectPlayer', 1],
+    ]);
+  });
+
+  it('a drag from one offered card onto another sends both, in order', async () => {
+    const { s, m, container } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const [source, target] = [mine[0]!, mine[1]!];
+    for (const f of notify([prompt('Choose two'), selectables([source, target], 1, 2)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    drag(cardEl(container, source), cardEl(container, target));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s)).toEqual([
+      ['selectCard', source],
+      ['selectCard', target],
+    ]);
+  });
+
+  it('Forge wants ONE thing: the drop is what the player pointed at, and it is the only frame sent', async () => {
+    const { s, m, container } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const [source, target] = [mine[0]!, mine[1]!];
+    for (const f of notify([prompt('Choose a target'), selectables([source, target], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables!.max).toBe(1));
+
+    drag(cardEl(container, source), cardEl(container, target));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', target]]);
+  });
+
+  it('a drag that ends nowhere legal does nothing and says nothing', async () => {
+    const { s, m, container } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const theirs = m.view!.players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Choose a target'), selectables([mine[0]!], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    // A card Forge did NOT offer, inside a selection: a miss.
+    drag(cardEl(container, mine[0]!), cardEl(container, theirs[0]!));
+    expect(m.lastError).toBeNull();
+    expect(container.querySelector('[data-testid="live-error"]')).toBeNull();
+
+    // Proven against a barrier: the next legitimate act must be the FIRST
+    // frame the server sees, so a refused drag cannot be hiding behind a wire.
+    fireEvent.click(cardEl(container, mine[0]!).querySelector('button')!);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+  });
+
+  it('outside a selection, a drop on the table is the one frame a click sends — and it is not sent twice', async () => {
+    const { s, m, container } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+
+    const zone = container.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
+    drag(cardEl(container, mine[0]!), zone);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+  });
+
+  it('a press that does not move is still a click, and sends exactly once', async () => {
+    const { s, m, container } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+
+    const face = cardEl(container, mine[0]!).querySelector<HTMLButtonElement>('button')!;
+    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(face, { clientX: 12, clientY: 11 });
+    fireEvent.pointerUp(face, { clientX: 12, clientY: 11 });
+    fireEvent.click(face);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+  });
+
+  it('the arrow is drawn into lane A’s overlay and snaps to the legal target under the pointer', async () => {
+    const { s, m, container } = await liveBoard();
+    const overlay = overlayOf(container);
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const theirs = m.view!.players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Choose a target'), selectables([mine[0]!, mine[1]!], 1, 2)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull();
+    fireEvent.pointerDown(cardEl(container, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
+    // Over nothing in particular: the arrow follows the pointer, unsnapped.
+    fireEvent.pointerMove(cardEl(container, theirs[0]!), { clientX: 120, clientY: 90 });
+    const arrow = await waitFor(() => overlay.querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(arrow.dataset.source).toBe(String(mine[0]));
+    expect(arrow.dataset.target).toBeUndefined();
+    expect(arrow.dataset.snapped).toBeUndefined();
+    expect(arrow.querySelector('line')).not.toBeNull();
+    expect(arrow.querySelector('polygon')).not.toBeNull();
+
+    // Over a card Forge DID offer: it snaps.
+    fireEvent.pointerMove(cardEl(container, mine[1]!), { clientX: 200, clientY: 140 });
+    await waitFor(() => expect(overlay.querySelector<SVGElement>('[data-testid="targeter"]')!.dataset.target).toBe(`card:${mine[1]}`));
+    expect(overlay.querySelector<SVGElement>('[data-testid="targeter"]')!.dataset.snapped).toBe('true');
+
+    fireEvent.pointerUp(cardEl(container, mine[1]!), { clientX: 200, clientY: 140 });
+    await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull());
+    expect(sent(s)).toEqual([
+      ['selectCard', mine[0]!],
+      ['selectCard', mine[1]!],
+    ]);
+  });
+
+  it('with no overlay root the arrow is not drawn, and the drag still sends', async () => {
+    const { s, m, container } = await liveBoard();
+    // Lane A owns the overlay; a board drawn without one must still be
+    // playable, so take it away and drive the same gesture.
+    container.querySelector('[data-board-overlay]')?.remove();
+    expect(container.querySelector('[data-board-overlay]')).toBeNull();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Choose two'), selectables([mine[0]!, mine[1]!], 1, 2)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    fireEvent.pointerDown(cardEl(container, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(cardEl(container, mine[1]!), { clientX: 200, clientY: 140 });
+    expect(document.querySelector('[data-testid="targeter"]')).toBeNull();
+    fireEvent.pointerUp(cardEl(container, mine[1]!), { clientX: 200, clientY: 140 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s)).toEqual([
+      ['selectCard', mine[0]!],
+      ['selectCard', mine[1]!],
+    ]);
+  });
+
+  it('a pointing gesture inside a selection needs no source: the drop alone is sent', async () => {
+    const { s, m, container } = await liveBoard();
+    const theirs = m.view!.players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
+    // Forge offers only the opponent's creature — nothing of the viewer's to
+    // drag from, which is the ordinary shape of a targeting input.
+    for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    const stack = container.querySelector<HTMLElement>('[data-zone="stack"]') ?? container.querySelector<HTMLElement>('.board')!;
+    fireEvent.pointerDown(stack, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(faceEl(container, 1), { clientX: 200, clientY: 140 });
+    fireEvent.pointerUp(faceEl(container, 1), { clientX: 200, clientY: 140 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectPlayer', 1]]);
+  });
+});

@@ -60,6 +60,7 @@ export const SERVER_FRAME_EXAMPLES: Readonly<Record<string, unknown>> = {
   afterGameEnd: { kind: 'notify', method: 'afterGameEnd' },
   finishGame: { kind: 'notify', method: 'finishGame' },
   clearSelectables: { kind: 'notify', method: 'clearSelectables' },
+  clearWeaklySelectable: { kind: 'notify', method: 'clearWeaklySelectable' },
   message: { kind: 'notify', method: 'message', message: 'Turn 3', title: 'Forge' },
   showErrorDialog: {
     kind: 'notify',
@@ -129,6 +130,13 @@ export const SERVER_FRAME_EXAMPLES: Readonly<Record<string, unknown>> = {
     cards: [CARD, OTHER_CARD],
     min: 1,
     max: 2,
+  },
+  // Weighted on purpose: Forge sends a card twice when the auto-tap preview
+  // also names it (`AbstractGuiGame.java:385-394`).
+  setWeaklySelectable: {
+    kind: 'notify',
+    method: 'setWeaklySelectable',
+    cards: [CARD, OTHER_CARD, OTHER_CARD],
   },
   restoreOldZones: {
     kind: 'notify',

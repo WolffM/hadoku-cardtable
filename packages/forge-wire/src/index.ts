@@ -1,12 +1,13 @@
 /*
  * @hadoku/forge-wire — the bridge contract.
  *
- * Zod schemas for the 38 Forge `ProtocolMethod`s a browser client actually
- * needs, tiered as Wave 6 lane F mapped them
- * (`docs/spikes/itoclient.md`, item 3):
+ * Zod schemas for the 40 Forge `ProtocolMethod`s a browser client actually
+ * needs — Wave 6 lane F's 38 (`docs/spikes/itoclient.md`, item 3) plus the
+ * `setWeaklySelectable` / `clearWeaklySelectable` pair Wave 19 lane B added so
+ * the board can offer exactly what Forge offers at priority:
  *
- *   Tier A — 14 methods, scalars only. Transcription. `tier-a.ts`
- *   Tier B — 21 methods, entity references. `refs.ts` is the id scheme,
+ *   Tier A — 15 methods, scalars only. Transcription. `tier-a.ts`
+ *   Tier B — 22 methods, entity references. `refs.ts` is the id scheme,
  *            `sideboard.ts` is the one method that is not a reference.
  *   Tier C —  3 methods, the state channel. `tier-c.ts`, modelled from and
  *            tested against Wave 7's captured packets. Its events arm is
@@ -94,6 +95,7 @@ export {
   AfterGameEndSchema,
   FinishGameSchema,
   ClearSelectablesSchema,
+  ClearWeaklySelectableSchema,
   MessageSchema,
   ShowErrorDialogSchema,
   ShowConfirmDialogSchema,
@@ -122,6 +124,7 @@ export {
   UpdateButtonsSchema,
   HideZonesSchema,
   SetSelectablesSchema,
+  SetWeaklySelectableSchema,
   RestoreOldZonesSchema,
   ApplyYieldUpdateSchema,
   TempShowZonesSchema,

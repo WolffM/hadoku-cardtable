@@ -28,9 +28,57 @@
  * ## Clicks on the board
  *
  * `Board` gets a `BoardInteraction` built from `boardInteraction(match)` —
- * Forge's selection, or every card while Forge's input is live (`./match.ts`
- * says why) — and its callbacks go to `selectCard` / `selectPlayer`, which
- * check the CURRENT state again before sending anything.
+ * exactly what Forge named, and nothing else (`./match.ts` says how) — and its
+ * callbacks go to `selectCard` / `selectPlayer`, which check the CURRENT state
+ * again before sending anything.
+ *
+ * ## Dragging, and the targeter arrow
+ *
+ * The operator, 2026-09-24: *"i need like a targeter arrow that helps me pick
+ * a target, and i dont even know how to select the opponent"*, and *"cards are
+ * not dragable"*. Both are one gesture, handled here, and **neither invents a
+ * wire method**: a drag ends in the same `selectCard` / `selectPlayer` senders
+ * a click uses, and the click path is untouched.
+ *
+ * The gesture is delegated from `.live` itself rather than from a wrapper,
+ * because `live.css` styles `.live > .board` directly and an extra element
+ * between them would silently change the table's layout. It listens on
+ * `window` for the move and the release (no pointer capture), so the event's
+ * own `target` is the element under the pointer — jsdom has no
+ * `elementFromPoint`, and a captured pointer would report the source anyway.
+ *
+ *  - **It starts** on a card `boardInteraction` offers. While a selection is
+ *    live it also starts on anything else on the table, with no source: that
+ *    is the pure pointing gesture, drag from the spell to the thing you mean.
+ *  - **It draws** an arrow into lane A's overlay root, `[data-board-overlay]`,
+ *    in that element's own coordinates. If the overlay is absent NOTHING is
+ *    drawn and the gesture still works — the arrow is guidance, not the
+ *    mechanism.
+ *  - **It snaps** to whatever legal target is under the pointer: an offered
+ *    card, or an offered player's face. A STACK ITEM is neither, on purpose:
+ *    it carries `data-source-card` rather than `data-card-id` (lane A's note
+ *    in `Board.tsx` — an ability on the stack whose card is still in play
+ *    would otherwise name that id twice), so the id would not anchor the arrow
+ *    to the thing the pointer is actually over. Stack items stay click-only,
+ *    and `Board` still draws them as buttons when Forge offers their source.
+ * A drag needs no click suppression, and does not do any: a browser fires the
+ * trailing `click` only when the press and the release share an element, which
+ * is the drop-on-the-source case — and that has already sent `selectCard`, so
+ * the source is `spent` and the click sends nothing (`./match.ts`). A press
+ * that never passed the slop is a plain click and the gesture stays out of it.
+ *
+ *  - **On release** it sends, and what it sends is Forge's answer:
+ *      · dropped on the source itself → `selectCard(source)`, a click;
+ *      · dropped on another legal target → `selectCard(source)` then the
+ *        target's send — EXCEPT while a selection whose `max` is one is live,
+ *        where Forge wants a single thing and the drop is the thing the player
+ *        pointed at, so only the target is sent. `max` is Forge's own number
+ *        (`setSelectables`), not a rule of ours;
+ *      · dropped on no target, outside a selection, but inside a zone →
+ *        `selectCard(source)`. The single frame the card's own face sends: it
+ *        is the card being used, which is all the priority input takes.
+ *        Dragging a land onto the table is #6's whole point.
+ *      · anything else → nothing, and nothing said.
  *
  * ## The button bar never comes and goes
  *
@@ -41,7 +89,16 @@
  * from Forge yet, the buttons carry neutral labels.
  */
 
-import { Component, useSyncExternalStore, type ReactNode } from 'react';
+import {
+  Component,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
+import { createPortal } from 'react-dom';
 
 import { Board, type BoardInteraction } from '../Board.tsx';
 import { PromptFor, isPromptMethod, lookupFromState, type AskOf, type PromptMethod } from '../prompts/index.ts';
@@ -57,6 +114,7 @@ import {
   selectPlayer,
   subscribe,
   type LiveAsk,
+  type LiveClickables,
   type LiveMatch,
 } from './match.ts';
 import './live.css';
@@ -109,6 +167,173 @@ function LivePrompt({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
   );
 }
 
+
+/* ── The drag gesture and the targeter arrow ─────────────────────────── */
+
+/**
+ * How far the pointer must travel before a press is a DRAG rather than a
+ * click. Below it the card's own button handles the click, exactly as before.
+ */
+export const DRAG_SLOP_PX = 6;
+
+/** What the pointer is over, when Forge has offered it. */
+type DropTarget = { kind: 'card'; id: number } | { kind: 'player'; id: number };
+
+interface DragState {
+  /** The card the gesture started on. Null: a pointing gesture inside a selection. */
+  source: number | null;
+  /**
+   * Where the pointer went down, in client coordinates. The slop is measured
+   * from HERE and not from `from`: a press near a card's edge is already
+   * several pixels from its centre, and measuring from the centre would call
+   * that press a drag before the pointer had moved at all.
+   */
+  press: { x: number; y: number };
+  /** Where the arrow starts, in client coordinates: the source's centre. */
+  from: { x: number; y: number };
+  /** Where the pointer is, in client coordinates. */
+  at: { x: number; y: number };
+  target: DropTarget | null;
+  /** The pointer has travelled past `DRAG_SLOP_PX`. */
+  moved: boolean;
+}
+
+function centreOf(el: Element): { x: number; y: number } {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
+/**
+ * A card's box. `data-board-card` first, `data-card-id` (lane A's name, same
+ * value on the same element) second. Both are on the `<li>`, so either finds
+ * the whole card rather than something inside it.
+ */
+function cardBox(root: ParentNode, id: number): Element | null {
+  return root.querySelector(`[data-board-card="${id}"]`) ?? root.querySelector(`[data-card-id="${id}"]`);
+}
+
+/** A player's face. Lane A's `data-player-face`, with the seat section as the fallback. */
+function faceBox(root: ParentNode, id: number): Element | null {
+  return (
+    root.querySelector(`[data-player-face][data-player-id="${id}"]`) ??
+    root.querySelector(`[data-testid="player"][data-player-id="${id}"]`)
+  );
+}
+
+function boxOf(root: ParentNode, target: DropTarget): Element | null {
+  return target.kind === 'card' ? cardBox(root, target.id) : faceBox(root, target.id);
+}
+
+/** A board id: digits only. See `boardId` on why that matters. */
+const BOARD_ID = /^\d+$/;
+
+/**
+ * An id attribute's value, when it is one of OUR ids.
+ *
+ * `CardTile` (`Board.tsx`'s own note) draws a `data-card-id` of its own in the
+ * DRAFT's namespace — `w<forge id>` — and it is a descendant of the board
+ * card's `<li>`. A walk up from a pointer event meets the tile first, so an id
+ * that is not a plain integer means "not this lane's attribute, keep walking"
+ * rather than "a card Forge did not offer".
+ */
+function boardId(el: Element, ...names: string[]): number | null {
+  for (const name of names) {
+    const raw = el.getAttribute(name);
+    if (raw !== null && BOARD_ID.test(raw)) return Number(raw);
+  }
+  return null;
+}
+
+/**
+ * The nearest thing under `node` that Forge has offered, or null.
+ *
+ * Nearest wins, walking up: a card inside a seat section is the card, not the
+ * seat. A card or face Forge did NOT offer stops the walk — dropping on an
+ * inert thing is not a drop on whatever contains it.
+ */
+function targetUnder(node: EventTarget | null, offered: LiveClickables): DropTarget | null {
+  let el = node instanceof Element ? node : null;
+  while (el !== null) {
+    const cardId = boardId(el, 'data-board-card', 'data-card-id');
+    if (cardId !== null) {
+      return offered.selectable.has(cardId) ? { kind: 'card', id: cardId } : null;
+    }
+    if (el.hasAttribute('data-player-face') || el.getAttribute('data-testid') === 'player') {
+      const id = boardId(el, 'data-player-id');
+      return id !== null && offered.selectablePlayers.has(id) ? { kind: 'player', id } : null;
+    }
+    el = el.parentElement;
+  }
+  return null;
+}
+
+/** Everything a release can mean. Exported for `./LiveBoard.test.ts`; see the module header. */
+export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget | null): void {
+  const offered = boardInteraction(match);
+  const source = drag.source !== null && offered.selectable.has(drag.source) ? drag.source : null;
+  const target = targetUnder(node, offered);
+
+  if (target === null) {
+    // Nothing Forge named is under the pointer. Inside a selection that is a
+    // miss and says nothing. Outside one, a drop on the table is the card
+    // being used — the same single frame its own face sends.
+    if (source === null || match.selectables !== null) return;
+    if (!(node instanceof Element) || node.closest('[data-zone]') === null) return;
+    selectCard(match, source);
+    return;
+  }
+  if (target.kind === 'card' && target.id === source) {
+    selectCard(match, source);
+    return;
+  }
+  // Forge's own `max`: one thing wanted, so the drop is the thing meant.
+  const single = match.selectables !== null && match.selectables.max <= 1;
+  if (source !== null && !single && !selectCard(match, source)) return;
+  if (target.kind === 'card') selectCard(match, target.id);
+  else selectPlayer(match, target.id);
+}
+
+/**
+ * The arrow. Ours: a tapered shaft and a plain head, no card frame, no mana
+ * symbol, no tap symbol — nothing of WotC's (`CLAUDE.md`).
+ *
+ * Drawn in the overlay's own coordinates, so it is correct wherever lane A
+ * puts the overlay, and `pointer-events: none` throughout so it can never
+ * become the thing under the pointer.
+ */
+function Targeter({ overlay, drag, root }: { overlay: HTMLElement; drag: DragState; root: ParentNode }) {
+  const box = overlay.getBoundingClientRect();
+  const snap = drag.target === null ? null : boxOf(root, drag.target);
+  const tip = snap === null ? drag.at : centreOf(snap);
+  const x1 = drag.from.x - box.left;
+  const y1 = drag.from.y - box.top;
+  const x2 = tip.x - box.left;
+  const y2 = tip.y - box.top;
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const head = 13;
+  const spread = 0.42;
+  const points = [
+    `${x2},${y2}`,
+    `${x2 - head * Math.cos(angle - spread)},${y2 - head * Math.sin(angle - spread)}`,
+    `${x2 - head * Math.cos(angle + spread)},${y2 - head * Math.sin(angle + spread)}`,
+  ].join(' ');
+
+  return createPortal(
+    <svg
+      className="targeter"
+      data-testid="targeter"
+      data-source={drag.source ?? undefined}
+      data-target={drag.target === null ? undefined : `${drag.target.kind}:${drag.target.id}`}
+      data-snapped={snap === null ? undefined : true}
+      aria-hidden="true"
+    >
+      <line className="targeter__shaft" x1={x1} y1={y1} x2={x2} y2={y2} />
+      <polygon className="targeter__head" points={points} />
+    </svg>,
+    overlay,
+  );
+}
+
 export function LiveBoard({ match }: { match: LiveMatch }) {
   useSyncExternalStore(
     (listener) => subscribe(match, listener),
@@ -116,14 +341,88 @@ export function LiveBoard({ match }: { match: LiveMatch }) {
   );
   const ask = currentAsk(match);
   const bar = match.buttons;
+  const offered = boardInteraction(match);
   const interaction: BoardInteraction = {
-    ...boardInteraction(match),
+    ...offered,
     onSelectCard: (cardId) => selectCard(match, cardId),
     onSelectPlayer: (playerId) => selectPlayer(match, playerId),
   };
 
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  // The live handle: window listeners are registered once per gesture and must
+  // see the CURRENT drag, not the one they closed over.
+  const dragRef = useRef<DragState | null>(null);
+
+  // Lane A's overlay root, looked up after every render: it is not ours to
+  // render, it may not exist at all, and when it does not the arrow is simply
+  // not drawn. Same-value writes are dropped, so this does not loop.
+  const [overlay, setOverlay] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const found = rootRef.current?.querySelector<HTMLElement>('[data-board-overlay]') ?? null;
+    setOverlay((previous) => (previous === found ? previous : found));
+  });
+
+  function update(next: DragState | null): void {
+    dragRef.current = next;
+    setDrag(next);
+  }
+
+  useLayoutEffect(() => {
+    if (drag === null) return undefined;
+    const move = (event: PointerEvent): void => {
+      const held = dragRef.current;
+      if (held === null) return;
+      const at = { x: event.clientX, y: event.clientY };
+      const moved = held.moved || Math.hypot(at.x - held.press.x, at.y - held.press.y) >= DRAG_SLOP_PX;
+      update({ ...held, at, moved, target: targetUnder(event.target, boardInteraction(match)) });
+    };
+    const up = (event: PointerEvent): void => {
+      const held = dragRef.current;
+      update(null);
+      if (held === null || !held.moved) return;
+      commitDrag(match, held, event.target);
+    };
+    const cancel = (): void => update(null);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+    };
+  }, [drag === null, match]);
+
+  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
+    // Left button only: a right-click is Forge's own menu on the desktop and
+    // is not this gesture's to take.
+    if (event.button !== 0) return;
+    const at = { x: event.clientX, y: event.clientY };
+    const under = targetUnder(event.target, offered);
+    if (under !== null && under.kind === 'card') {
+      const box = rootRef.current === null ? null : cardBox(rootRef.current, under.id);
+      update({ source: under.id, press: at, from: box === null ? at : centreOf(box), at, target: under, moved: false });
+      return;
+    }
+    // Inside a selection the gesture may start anywhere on the table: the
+    // spell doing the targeting is not itself one of Forge's choices, so
+    // there is often no offered card to drag FROM.
+    if (match.selectables === null) return;
+    if (!(event.target instanceof Element) || event.target.closest('.board') === null) return;
+    update({ source: null, press: at, from: at, at, target: under, moved: false });
+  }
+
   return (
-    <div className="live">
+    <div
+      className="live"
+      ref={rootRef}
+      onPointerDown={onPointerDown}
+      data-dragging={drag !== null && drag.moved ? true : undefined}
+    >
+      {overlay !== null && drag !== null && drag.moved && (
+        <Targeter overlay={overlay} drag={drag} root={rootRef.current ?? document} />
+      )}
       <p className="live__status" role="status" data-testid="live-status">
         {statusLine(match)}
       </p>

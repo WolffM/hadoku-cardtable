@@ -740,6 +740,31 @@ public final class PlayBridge {
             frame(f);
         }
 
+        /**
+         * Forge's answer to "what is worth clicking RIGHT NOW", at priority and
+         * during payment — see `packages/forge-wire/src/tier-b.ts`.
+         *
+         * {@code setSelectables} is sent only by the two selection inputs, so
+         * without this pair a client has nothing to go on at priority and has to
+         * invent an affordance. {@code super} is called so this seat's own
+         * tracker answers {@code isWeaklySelectable} as the stock client's would;
+         * the browser gets the list.
+         *
+         * Forge sends the iterable WEIGHTED (a card twice when the auto-tap
+         * preview also names it); {@link #refs} keeps it as sent.
+         */
+        @Override public void setWeaklySelectable(final Iterable<CardView> cards) {
+            super.setWeaklySelectable(cards == null ? List.of() : cards);
+            final JsonObject f = notify("setWeaklySelectable");
+            f.add("cards", refs(cards));
+            frame(f);
+        }
+
+        @Override public void clearWeaklySelectable() {
+            super.clearWeaklySelectable();
+            frame(notify("clearWeaklySelectable"));
+        }
+
         @Override public void hideZones(final PlayerView controller, final Iterable<PlayerZoneUpdate> zonesToUpdate) {
             if (controller == null) { return; }
             final JsonObject f = notify("hideZones");
@@ -1342,12 +1367,24 @@ public final class PlayBridge {
             prefs.setPref(FPref.UI_LANGUAGE, "en-US");
             // Limited decks are 40 cards; constructed legality is not ours to enforce here.
             prefs.setPref(FPref.ENFORCE_DECK_LEGALITY, false);
+            // Forge's priority-time "what can I actually click" scan. It defaults to
+            // "false" (ForgePreferences.java:100), and while it is false
+            // PlayerControllerHuman.pushActionableCards sends clearWeaklySelectable and
+            // nothing else (:1551-1558) — so the browser would have no answer outside a
+            // selection and would go back to inventing one. UI_SHOW_AUTOTAP_PREVIEW is
+            // deliberately left off: it only raises a card's WEIGHT inside the same set
+            // (:1580-1589), and our board reads the set, not the weights.
+            prefs.setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, true);
             return null;
         });
         if (StaticData.instance() == null) {
             fatal("Forge did not initialise (no StaticData) — is res/ in the working directory?", null);
         }
         FModel.getPreferences().setPref(FPref.ENFORCE_DECK_LEGALITY, false);
+        // Belt and braces: FModel.initialize only runs its lambda on a FIRST init, and
+        // YieldController.getStringPref falls back to FModel for any pref a client did
+        // not override (YieldController.java:90-96).
+        FModel.getPreferences().setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, true);
         // UPnP ASK opens a modal dialog inside startServer (docs/spikes/forge-server.md).
         FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.UPnP, "NEVER");
         // AFK auto-pass would have Forge act for a human who is thinking. The Node side

@@ -18,9 +18,12 @@
  *     it), click Raging Goblin, pay by clicking the Mountain now on the
  *     battlefield (`InputPayMana`). The actor never presses a button in this
  *     main phase, so only the land click can have paid.
- *  2. Then a click Forge's input IGNORES — a second land the same turn. Forge
- *     sends nothing back (measured, and printed); the card clicked is spent
- *     and the rest of the board stays clickable.
+ *  2. Then the card Forge's input IGNORES — a second land the same turn. There
+ *     is no longer a button to click: Forge names what is actionable through
+ *     `setWeaklySelectable` and a second land is not in it, so `Board` draws
+ *     the card inert. This step checks the whole equivalence, card for card —
+ *     a face exists exactly where Forge named the card and nowhere else — and
+ *     it is the proof against the real jar that the frame crosses at all.
  *  3. The actor's next turn: a land, then Shock. Forge's `InputSelectTargets`
  *     sends `setSelectables` — its own list, with min and max — and the actor
  *     clicks the OPPONENT'S SEAT (`selectPlayer`), then pays with a land.
@@ -226,19 +229,41 @@ describe.skipIf(!available.ok)(title, () => {
           `${goblinResolved ? 'resolved' : 'on the stack'}, paid by clicking the land — ${((Date.now() - started) / 1000).toFixed(1)} s`,
       );
 
-      // 2. A click Forge's input ignores: the card is spent, the board is not.
-      await waitUntil(() => a.live.inputLive && currentAsk(a.live) === null, 'the actor to hold priority again', 10_000);
+      // 2. The card Forge's input ignores is drawn inert — nothing to click.
+      //
+      // `setWeaklySelectable` is the frame that makes this possible, so first
+      // prove it crossed: against the real jar, for this seat, at least once.
+      await waitUntil(
+        () => a.live.inputLive && currentAsk(a.live) === null && a.live.weaklySelectable !== null && a.live.spent.cards.size === 0,
+        'the actor to hold priority again with Forge’s actionable set',
+        15_000,
+      );
+      const weaklyFrames = h.emitted.filter(
+        (e) => e.seat === a.seat && (e.envelope.frame as { method?: unknown }).method === 'setWeaklySelectable',
+      );
+      expect(weaklyFrames.length, 'Forge must publish its actionable set to this seat').toBeGreaterThan(0);
+
+      const offeredNow = a.live.weaklySelectable!;
       const second = me(a).hand?.find(isMountain);
-      const other = me(a).hand?.find((c) => c.id !== second?.id);
       expect(second).toBeDefined();
-      expect(other).toBeDefined();
-      const before = h.emitted.filter((e) => e.seat === a.seat).length;
-      click(cardButton(roots[a.seat]!, second!.id)!, `a second Mountain ${second!.id} (a land already played)`, a);
-      await new Promise((r) => setTimeout(r, 3000));
-      const answer = h.emitted.filter((e) => e.seat === a.seat).slice(before).map((e) => (e.envelope.frame as { method?: unknown }).method);
-      console.log(`[board-play.jvm] frames Forge sent in 3 s after a click its input ignores: ${JSON.stringify(answer)}`);
+      // A second land in one turn: Forge does not name it, so it is not drawn
+      // as a button — the click that used to go nowhere cannot be made.
+      expect([...offeredNow].includes(second!.id), `Forge's actionable set was ${JSON.stringify([...offeredNow])}`).toBe(false);
       expect(cardButton(roots[a.seat]!, second!.id)).toBeNull();
-      expect(cardButton(roots[a.seat]!, other!.id)).not.toBeNull();
+
+      // And the whole board agrees with Forge, card for card: a clickable face
+      // exists exactly where Forge named the card, and nowhere else. This is
+      // the "nothing glows that cannot be clicked" claim, measured.
+      const onBoard = [...(me(a).hand ?? []), ...me(a).battlefield, ...opponent(a).battlefield];
+      expect(onBoard.length).toBeGreaterThan(1);
+      const drawn = onBoard.map((c) => [c.id, cardButton(roots[a.seat]!, c.id) !== null] as const);
+      const forge = onBoard.map((c) => [c.id, offeredNow.has(c.id)] as const);
+      expect(drawn).toEqual(forge);
+      console.log(
+        `[board-play.jvm] Forge's actionable set at priority: ${JSON.stringify([...offeredNow])}; of ${onBoard.length} cards drawn, ` +
+          `${drawn.filter(([, on]) => on).length} are clickable, and every one of them is Forge's — ` +
+          `${weaklyFrames.length} setWeaklySelectable frames reached this seat`,
+      );
       phase1Checked = true;
 
       // 3. Next turn: a targeted spell, the target chosen by clicking a seat.

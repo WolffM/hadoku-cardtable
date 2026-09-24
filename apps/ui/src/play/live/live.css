@@ -260,3 +260,52 @@
 .confirm__button[data-default] {
   border-color: var(--accent);
 }
+
+/*
+ * The targeter arrow, and the drag that draws it (`LiveBoard.tsx`).
+ *
+ * Ours, drawn: a tapered shaft and a plain triangular head. No card frame, no
+ * mana symbol, no tap symbol — nothing of WotC's, here or anywhere
+ * (`CLAUDE.md`). The palette is `styles.css`'s accent, so the arrow reads as
+ * the same affordance a selectable card's outline does.
+ *
+ * It renders into lane A's overlay root and fills it exactly, which is why it
+ * takes no size of its own: the overlay covers the canvas, the SVG covers the
+ * overlay, and every coordinate `LiveBoard` computes is in that box. It never
+ * takes the pointer — if it did, it would become the element under the cursor
+ * and the drop would land on the arrow instead of the target.
+ *
+ * `overflow: visible` because the head is drawn at the tip: a snap to a card
+ * flush against the canvas edge would otherwise be clipped in half.
+ */
+.targeter {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.targeter__shaft {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.targeter__head {
+  fill: var(--accent);
+}
+
+/* A drag is a drag, not a text selection, and not a scroll. The table never
+   scrolls (`board.css`), so taking the touch gesture costs nothing. */
+.live .board {
+  touch-action: none;
+}
+
+.live[data-dragging] {
+  user-select: none;
+  cursor: grabbing;
+}

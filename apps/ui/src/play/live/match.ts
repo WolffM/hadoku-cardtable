@@ -61,29 +61,57 @@
  * Playing a land, casting a spell, choosing a target, declaring an attacker:
  * on Forge's side each is an `Input` (`forge-gui/.../match/input/`) that takes
  * `selectCard` / `selectPlayer` and decides for itself what a click means.
- * Forge's own desktop client sends a click on ANY card to whatever input is
- * current (`HandArea`, `PlayArea`, `VZone` → `selectCard`), and the input
- * ignores what it cannot use — `InputPassPriority.onCardSelected` returns
- * false for a card with no playable ability. Forge tells a client which cards
- * it will take in only one case: a selection (`InputSelectTargets`,
- * `InputSelectEntitiesFromList`) calls `setSelectables(cards, min, max)` when
- * it starts and `clearSelectables()` when it stops. The priority input sends
- * no set at all. So `boardInteraction` offers:
  *
- *  - **during a selection**, exactly the cards Forge listed — nothing else;
- *  - **otherwise, while Forge's input is live**, every card and player the
- *    seat was sent, as the desktop does. Whether the click does anything is
- *    Forge's call, not ours: we implement no rules.
+ * **Nothing is offered that Forge did not name.** Until Wave 19 this file
+ * offered every card in view whenever `setSelectables` was silent, and the
+ * operator hit it at once: *"why are cards clickable when i can't even do
+ * anything with them?"* The blue outline was ours, not the rules engine's.
+ *
+ * Forge names the clickable set through TWO wire methods, and between them
+ * they cover every input:
+ *
+ *  - **a selection** — `InputSelectTargets` (`:68`, `:454`) and
+ *    `InputSelectEntitiesFromList` (`:57`, `:171`) — calls
+ *    `setSelectables(cards, min, max)` when it starts and `clearSelectables()`
+ *    when it stops. Exactly those cards, with the count Forge wants.
+ *  - **everything else** — priority, mana payment, declaring attackers and
+ *    blockers — calls `setWeaklySelectable(cards)` / `clearWeaklySelectable()`
+ *    through `PlayerControllerHuman.pushActionableCards`
+ *    (`PlayerControllerHuman.java:1543-1601`), computed from
+ *    `AvailableActions.collectActionable` at priority and from
+ *    `cardHasPlayableManaAbility` during payment, and cleared by every such
+ *    input's `onStop` (`InputPassPriority.java:70`, `InputPayMana.java:69`,
+ *    `InputAttack.java:101`, `InputBlock.java:96`).
+ *
+ * When Forge has named neither, the board offers **nothing**. We implement no
+ * rules: every id `boardInteraction` returns came off one of those two frames.
+ *
+ * ### Players
+ *
+ * Forge publishes no per-player legality signal at all — `setSelectables`
+ * carries cards only (IGuiGame.java:272), and `InputSelectTargets` validates a
+ * player only once it has been clicked (`:334-360`). What it does say is which
+ * INPUT is live, and `selectPlayer` reaches an input that does something with
+ * it in exactly one published case: `Input.onPlayerSelected` is a no-op by
+ * default (`InputBase.java:116`) and the two inputs that override it and
+ * publish a set are the two SELECTION inputs
+ * (`InputSelectTargets.java:334`, `InputSelectEntitiesFromList.java:97`). So
+ * players are offered while a selection is live and at no other time. (The
+ * other two overrides, `InputAttack.java:169` and
+ * `InputPayManaOfCostPayment.java:44`, publish `setWeaklySelectable`, which
+ * the priority input publishes too — there is nothing on the wire that tells
+ * them apart, and inventing one is exactly what this rewrite removes.)
  *
  * What keeps a click from answering the wrong question is the button bar's
  * rule, applied per card: **a click is checked against Forge's state when it
  * is made, and the card it sent is not clickable again until Forge speaks.**
  *
  *  - `inputLive` is set by the frames Forge sends when an input shows itself
- *    (`showPromptMessage`, `updateButtons`, `setSelectables`) and cleared by
- *    `clearSelectables` (the input that listed the cards has stopped), by a
- *    button press, by a snapshot and by an epoch change. While it is clear,
- *    or while a question is open, NO click is sent.
+ *    (`showPromptMessage`, `updateButtons`, `setSelectables`,
+ *    `setWeaklySelectable`) and cleared by `clearSelectables` (the input that
+ *    listed the cards has stopped), by a button press, by a snapshot and by an
+ *    epoch change. While it is clear, or while a question is open, NO click is
+ *    sent.
  *  - A click on an id Forge did not offer — one a cleared or replaced
  *    selection used to hold, one no longer on the board — is not sent.
  *  - A card or player once clicked is `spent` until Forge's next frame of
@@ -92,10 +120,17 @@
  *
  * Why a click does not spend the whole input, as a button press does:
  * measured against the real jar (`./board-play.jvm.test.ts`), a click the
- * input ignores — a second land in one turn — gets NO frame back at all
- * (`InputPassPriority.onCardSelected` returns false and shows nothing). A
- * board that locked on every click would lock for good on a misclick, with
- * only "pass priority" left to press.
+ * input ignores gets NO frame back at all (`InputPassPriority.onCardSelected`
+ * returns false and shows nothing). A board that locked on every click would
+ * lock for good on a misclick, with only "pass priority" left to press.
+ *
+ * ## Dragging, and the targeter arrow
+ *
+ * Both are `LiveBoard.tsx`'s, and both end in the SAME two senders as a click.
+ * A drag from a source to a legal drop target is `selectCard(source)` then
+ * `selectCard`/`selectPlayer` on the target; a drag that ends nowhere legal
+ * sends nothing. There is no wire method for a drag, because there is no such
+ * thing on Forge's side — a gesture is two clicks or it is nothing.
  *
  * ## An open prompt never holds the board back
  *
@@ -319,6 +354,16 @@ export interface LiveMatch {
   /** Forge's current selection, from `setSelectables`. Null: none is open. */
   selectables: LiveSelectables | null;
   /**
+   * Forge's current actionable set, from `setWeaklySelectable` — what the
+   * input that is live right now will do something with. Null: Forge has named
+   * nothing (it never has, or `clearWeaklySelectable` ended the last set).
+   *
+   * An EMPTY set is not null and does not mean the same thing: it is Forge
+   * saying "nothing on this board is worth clicking", which is the answer at a
+   * priority window with no legal action.
+   */
+  weaklySelectable: ReadonlySet<number> | null;
+  /**
    * Forge has shown an input since this client last acted. See the module
    * header: without it, no card or player click is sent.
    */
@@ -407,6 +452,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     prompt: null,
     buttons: null,
     selectables: null,
+    weaklySelectable: null,
     inputLive: false,
     spent: { cards: new Set(), players: new Set() },
     lastError: null,
@@ -514,6 +560,34 @@ export function pressButton(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
 
 const NOTHING: LiveClickables = { selectable: new Set(), selectablePlayers: new Set() };
 
+/**
+ * What the board may click now — see the module header. Exactly what Forge
+ * named, and nothing else:
+ *
+ *  - a selection is open (`setSelectables`) → those cards, and the players a
+ *    selection input will take;
+ *  - otherwise Forge's actionable set (`setWeaklySelectable`) → those cards,
+ *    and no player;
+ *  - Forge has named neither → nothing.
+ *
+ * A card the seat cannot see is dropped whichever list held it: the view is
+ * the hidden-information boundary, and an id that survived a zone change is
+ * not an affordance.
+ */
+export function boardInteraction(match: LiveMatch): LiveClickables {
+  const view = match.view;
+  if (view === null || !match.inputLive || !match.connected || match.asks.length > 0) return NOTHING;
+  const selection = match.selectables;
+  const named = selection === null ? match.weaklySelectable : selection.cards;
+  if (named === null) return NOTHING;
+  const drawn = cardIdsInView(view);
+  const offered = new Set<number>();
+  for (const id of named) if (drawn.has(id) && !match.spent.cards.has(id)) offered.add(id);
+  const players = new Set<number>();
+  if (selection !== null) for (const p of view.players) if (!match.spent.players.has(p.id)) players.add(p.id);
+  return { selectable: offered, selectablePlayers: players };
+}
+
 /** Every card id the seat was sent: all its zones, and the stack's sources. */
 function cardIdsInView(view: BoardView): Set<number> {
   const ids = new Set<number>();
@@ -522,21 +596,6 @@ function cardIdsInView(view: BoardView): Set<number> {
   }
   for (const item of view.stack) if (item.sourceCardId !== null) ids.add(item.sourceCardId);
   return ids;
-}
-
-/**
- * What the board may click now — see the module header. Forge's list during
- * a selection; every card and player the seat holds while an input is live
- * and nothing is being asked; otherwise nothing.
- */
-export function boardInteraction(match: LiveMatch): LiveClickables {
-  const view = match.view;
-  if (view === null || !match.inputLive || !match.connected || match.asks.length > 0) return NOTHING;
-  const offered = match.selectables === null ? cardIdsInView(view) : new Set(match.selectables.cards);
-  for (const id of match.spent.cards) offered.delete(id);
-  const players = new Set(view.players.map((p) => p.id));
-  for (const id of match.spent.players) players.delete(id);
-  return { selectable: offered, selectablePlayers: players };
 }
 
 /**
@@ -689,9 +748,11 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.skippedDeltas = 0;
   // The server re-sends every open ask after the snapshot, as normal frames.
   match.asks = [];
-  // It does NOT re-send a selection (`resendAfterSnapshot` keeps only the
-  // prompt and the bar), so one held from before cannot be trusted.
+  // It does NOT re-send a selection or an actionable set
+  // (`resendAfterSnapshot` keeps only the prompt and the bar), so one held
+  // from before cannot be trusted.
   match.selectables = null;
+  match.weaklySelectable = null;
   match.inputLive = false;
   unspend(match);
   match.lastError = null;
@@ -885,12 +946,30 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
   } else if (frame.kind === 'notify' && frame.method === 'clearSelectables') {
     match.selectables = null;
     match.inputLive = false;
+  } else if (frame.kind === 'notify' && frame.method === 'setWeaklySelectable') {
+    // Forge's list is WEIGHTED (a card twice when the auto-tap preview names
+    // it too); membership is the whole of what a board needs.
+    match.weaklySelectable = new Set(frame.cards.map((c) => c.id));
+    match.inputLive = true;
+  } else if (frame.kind === 'notify' && frame.method === 'clearWeaklySelectable') {
+    // The input that offered them has stopped. `inputLive` is NOT cleared
+    // here: Forge clears the set at the END of priority and again at the start
+    // of payment, with the prompt and bar for the next input still standing.
+    // With nothing named, nothing is offered either way.
+    match.weaklySelectable = null;
   }
   foldFrames(match, [frame]);
 }
 
 /** The frames Forge sends when an input shows, refreshes or stops: "Forge spoke". */
-const INPUT_FRAMES: ReadonlySet<string> = new Set(['showPromptMessage', 'updateButtons', 'setSelectables', 'clearSelectables']);
+const INPUT_FRAMES: ReadonlySet<string> = new Set([
+  'showPromptMessage',
+  'updateButtons',
+  'setSelectables',
+  'clearSelectables',
+  'setWeaklySelectable',
+  'clearWeaklySelectable',
+]);
 
 function unspend(match: LiveMatch): void {
   match.spent = { cards: new Set(), players: new Set() };
@@ -906,6 +985,7 @@ function discardLocal(match: LiveMatch): void {
   match.prompt = null;
   match.buttons = null;
   match.selectables = null;
+  match.weaklySelectable = null;
   match.inputLive = false;
   unspend(match);
 }

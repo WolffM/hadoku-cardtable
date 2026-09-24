@@ -202,6 +202,57 @@ function serverLog(stack: PlayStack): Record<string, unknown>[] {
     .map((l) => JSON.parse(l) as Record<string, unknown>);
 }
 
+/* ── dragging on the board ───────────────────────────────────────────── */
+
+/** How long the drag phase has to get a land and a spell down. */
+const DRAG_BUDGET_MS = 3 * 60_000;
+
+/** Every `selectCard` this browser SENT, oldest first. */
+function cardActsFrom(f: Friend): number[] {
+  return messages(f)
+    .filter((m) => m.dir === 'out' && m.kind === 'c2s')
+    .map((m) => (m.msg as { frame: { kind: string; method?: string; card?: { id: number } } }).frame)
+    .filter((fr) => fr.kind === 'act' && fr.method === 'selectCard')
+    .map((fr) => fr.card?.id ?? -1);
+}
+
+/**
+ * A card this seat may click right now, with its own type line.
+ *
+ * `[data-selectable]` is `Board`'s rendering of what Forge offered, so this
+ * only ever finds cards the rules engine named — which is the point of §B.
+ */
+async function offeredIn(f: Friend, zone: 'hand' | 'battlefield'): Promise<{ id: number; type: string; name: string }[]> {
+  return f.page.evaluate((z) => {
+    const sel = `[data-zone="${z}"][data-owner="you"] [data-board-card][data-selectable]`;
+    return Array.from(document.querySelectorAll(sel)).map((el) => ({
+      id: Number(el.getAttribute('data-board-card')),
+      type: el.querySelector('.card__type')?.textContent ?? '',
+      name: el.querySelector('.card__name')?.textContent ?? '',
+    }));
+  }, zone);
+}
+
+/**
+ * Drag a card onto this seat's own battlefield, with a real mouse.
+ *
+ * Chromium's input domain turns these into genuine `pointerdown` /
+ * `pointermove` / `pointerup`, which is what `LiveBoard`'s gesture listens
+ * for. The move is stepped so it passes the gesture's slop (`DRAG_SLOP_PX`)
+ * rather than teleporting, exactly as a hand would.
+ */
+async function dragToBattlefield(f: Friend, cardId: number): Promise<void> {
+  const card = f.page.locator(`[data-board-card="${cardId}"]`);
+  const drop = f.page.locator('[data-zone="battlefield"][data-owner="you"]');
+  const from = await card.boundingBox();
+  const to = await drop.boundingBox();
+  if (from === null || to === null) throw new Error(`${f.name}: no box for card ${cardId} or for their battlefield`);
+  await f.page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await f.page.mouse.down();
+  await f.page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+  await f.page.mouse.up();
+}
+
 async function quiet(friends: Friend[], ms: number, budget = 60_000): Promise<void> {
   const deadline = Date.now() + budget;
   let last = friends.map((f) => f.captures.length).join();
@@ -686,6 +737,77 @@ test(LIVE_TITLE, async ({ browser }) => {
     }
     summary.openingHands = handEvidence;
     console.log(`[play] each seat's opening hand, against the deck that seat loaded: ${JSON.stringify(handEvidence)}`);
+
+    // ── play: a LAND and a SPELL, dragged on the board. Not clicked, not
+    //    scaffolded — the pointer gesture `LiveBoard` added in Wave 19.
+    //
+    // The operator, 2026-09-24: *"cards are not dragable"*. This is that,
+    // proved where it counts: the frames that LEFT the browser. A drag ends in
+    // `selectCard`, the same act a click sends and the only one there is — so
+    // what is asserted below is the act on the wire and the card arriving
+    // where Forge put it, never a pixel.
+    //
+    // Only cards Forge offered are ever dragged (`[data-selectable]` is
+    // `boardInteraction`'s answer), so this phase also exercises §B item 1: if
+    // the board offered things Forge had not named, the drags would land on a
+    // server that has nothing to do with them and nothing would move.
+    const dragged: { name: string; id: number; card: string; type: string; where: string }[] = [];
+    const dragDeadline = Date.now() + DRAG_BUDGET_MS;
+    const wantLand = () => !dragged.some((d) => /Land/.test(d.type));
+    const wantSpell = () => !dragged.some((d) => !/Land/.test(d.type));
+
+    while (wantLand() || wantSpell()) {
+      if (Date.now() > dragDeadline) {
+        throw new Error(
+          `within ${DRAG_BUDGET_MS} ms no land and no spell were played by DRAGGING: ${JSON.stringify(dragged)}; ` +
+            `turn ${await alice.page.getByTestId('turn').textContent()}`,
+        );
+      }
+      if ((await alice.page.locator('.board__over').count()) > 0) throw new Error('the game ended before a card was dragged');
+      for (const f of [alice, bob]) {
+        // Anything Forge ASKS is still answered by the board, by clicking.
+        await answerPrompt(f.page);
+        const inHand = await offeredIn(f, 'hand');
+        // A land first, then anything that is not one.
+        const pick = wantLand() ? inHand.find((c) => /Land/.test(c.type)) : inHand.find((c) => !/Land/.test(c.type));
+        if (pick !== undefined) {
+          const before = cardActsFrom(f).length;
+          await dragToBattlefield(f, pick.id);
+          await expect
+            .poll(() => cardActsFrom(f).length, { timeout: 10_000, message: `${f.name}: the drag of ${pick.name} sent no selectCard` })
+            .toBeGreaterThan(before);
+          expect(cardActsFrom(f).slice(before), `${f.name}: the drag sent that card, and nothing else`).toEqual([pick.id]);
+          dragged.push({ name: f.name, id: pick.id, card: pick.name, type: pick.type, where: 'hand' });
+          continue;
+        }
+        // Paying for what was just cast is the same gesture on a land already
+        // in play: Forge offers it, so it is draggable, so drag it.
+        const paying = await offeredIn(f, 'battlefield');
+        if (paying.length > 0 && dragged.length > 0) {
+          await dragToBattlefield(f, paying[0]!.id);
+          continue;
+        }
+        const ok = f.page.getByTestId('live-button-ok');
+        if ((await f.page.locator('[data-testid="live-button-ok"]:enabled').count()) > 0) await ok.click();
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+
+    // Each dragged card went where Forge put it: a land onto its controller's
+    // battlefield, a spell off their hand and onto the stack or past it.
+    for (const d of dragged) {
+      const f = d.name === alice!.name ? alice! : bob!;
+      const gone = f.page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${d.id}"]`);
+      await expect(gone, `${f.name}: ${d.card} left their hand after the drag`).toHaveCount(0, { timeout: 30_000 });
+      if (/Land/.test(d.type)) {
+        await expect(
+          f.page.locator(`[data-zone="battlefield"][data-owner="you"] [data-board-card="${d.id}"]`),
+          `${f.name}: ${d.card} was dragged onto their battlefield`,
+        ).toHaveCount(1, { timeout: 30_000 });
+      }
+    }
+    summary.draggedOntoTheBoard = dragged;
+    console.log(`[play] played by DRAGGING, not clicking: ${JSON.stringify(dragged)}`);
 
     // ── play: hands click CARDS, which the board still cannot do (a known gap).
     //    Buttons are no longer among them — those go through the board, above.

@@ -1,5 +1,5 @@
 /*
- * Tier B — 21 methods that carry entity references.
+ * Tier B — 22 methods that carry entity references.
  *
  * The generated battery again, then the four claims that make this tier more
  * than a transcription:
@@ -39,10 +39,10 @@ const clientExamples = Object.fromEntries(
   Object.entries(CLIENT_FRAME_EXAMPLES).filter(([method]) => TIER_B.has(method)),
 );
 
-describe('Tier B — the 21 reference-carrying methods', () => {
-  it('models exactly 21 methods, 18 server and 3 client', () => {
-    expect(TIER_B_METHODS).toHaveLength(21);
-    expect(Object.keys(serverExamples)).toHaveLength(18);
+describe('Tier B — the 22 reference-carrying methods', () => {
+  it('models exactly 22 methods, 19 server and 3 client', () => {
+    expect(TIER_B_METHODS).toHaveLength(22);
+    expect(Object.keys(serverExamples)).toHaveLength(19);
     expect(Object.keys(clientExamples)).toHaveLength(3);
   });
 

@@ -44,16 +44,23 @@ import { TIER_C_METHODS } from './tier-c.ts';
 
 const SRC_DIR = dirname(fileURLToPath(import.meta.url));
 
-describe('the census — 14 + 21 + 3 = 38', () => {
-  it('matches Wave 6 lane F’s tiering, method for method', () => {
-    expect(TIER_A_METHODS).toHaveLength(14);
-    expect(TIER_B_METHODS).toHaveLength(21);
+describe('the census — 15 + 22 + 3 = 40', () => {
+  it('matches Wave 6 lane F’s tiering plus the weakly-selectable pair, method for method', () => {
+    expect(TIER_A_METHODS).toHaveLength(15);
+    expect(TIER_B_METHODS).toHaveLength(22);
     expect(TIER_C_METHODS).toHaveLength(3);
-    expect(REQUIRED_METHODS).toHaveLength(38);
+    expect(REQUIRED_METHODS).toHaveLength(40);
+  });
+
+  it('carries Forge’s priority-time offer, which lane F’s 38 left out', () => {
+    // Without these two the client has no wire answer to "what can I click
+    // right now?" outside a selection, and invents one. See `tier-b.ts`.
+    expect(REQUIRED_METHODS).toContain('setWeaklySelectable');
+    expect(REQUIRED_METHODS).toContain('clearWeaklySelectable');
   });
 
   it('names no method twice', () => {
-    expect(new Set(REQUIRED_METHODS).size).toBe(38);
+    expect(new Set(REQUIRED_METHODS).size).toBe(40);
   });
 
   it('has exactly one example per Tier A/B method; Tier C is tested against captures', () => {
@@ -63,7 +70,7 @@ describe('the census — 14 + 21 + 3 = 38', () => {
     ].sort();
     const modelled = [...TIER_A_METHODS, ...TIER_B_METHODS].sort();
     expect(examples).toEqual(modelled);
-    expect(examples).toHaveLength(35);
+    expect(examples).toHaveLength(37);
   });
 });
 

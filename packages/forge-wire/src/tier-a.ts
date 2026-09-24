@@ -1,15 +1,18 @@
 /*
- * Tier A — the 14 methods that carry nothing but scalars.
+ * Tier A — the 15 methods that carry nothing but scalars.
  *
  * Wave 6 lane F's classification (`docs/spikes/itoclient.md`, "Tier A —
  * strings, numbers, booleans and enums only. Browser-ready as-is. 14
- * methods."). Argument and return types below come from
+ * methods."), plus `clearWeaklySelectable`, which Wave 19 lane B added: it is
+ * the other half of `setWeaklySelectable` (`tier-b.ts`), takes no argument at
+ * all (ProtocolMethod.java:72) and so belongs here beside `clearSelectables`.
+ * Argument and return types below come from
  * `forge/forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java`, with
  * the parameter NAMES from the interfaces that enum dispatches to —
  * `IGuiGame` for `Mode.SERVER` and `IGameController` for `Mode.CLIENT`
  * (ProtocolMethod.java:104-107).
  *
- * Eight are server→client, six are client→server, and three of the eight block
+ * Nine are server→client, six are client→server, and three of the nine block
  * (`showConfirmDialog`, `showOptionDialog`, `showInputDialog`). `envelope.ts`
  * is where blocking is expressed; this file states the payloads.
  *
@@ -30,7 +33,7 @@ import { z } from 'zod';
 
 import { JavaByteSchema, NextGameDecisionSchema, SkinPropSchema } from './refs.ts';
 
-/** The 14 Tier A method names, in `ProtocolMethod` declaration order per direction. */
+/** The 15 Tier A method names, in `ProtocolMethod` declaration order per direction. */
 export const TIER_A_METHODS = [
   // Mode.SERVER
   'afterGameEnd',
@@ -41,6 +44,7 @@ export const TIER_A_METHODS = [
   'showOptionDialog',
   'showInputDialog',
   'clearSelectables',
+  'clearWeaklySelectable',
   // Mode.CLIENT
   'useMana',
   'selectButtonOk',
@@ -52,7 +56,7 @@ export const TIER_A_METHODS = [
 
 export type TierAMethod = (typeof TIER_A_METHODS)[number];
 
-/* ── Server → client, fire-and-forget (5) ────────────────────────────── */
+/* ── Server → client, fire-and-forget (6) ────────────────────────────── */
 
 /** `void afterGameEnd()` — IGuiGame.java:70. */
 export const AfterGameEndSchema = z.strictObject({
@@ -70,6 +74,20 @@ export const FinishGameSchema = z.strictObject({
 export const ClearSelectablesSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('clearSelectables'),
+});
+
+/**
+ * `void clearWeaklySelectable()` — IGuiGame.java:277.
+ *
+ * The end of the actionable set `setWeaklySelectable` opened. Sent from
+ * `PlayerControllerHuman.clearActionableCards()` (PlayerControllerHuman.java:
+ * 1600), which every input that pushed a set calls on stop —
+ * `InputPassPriority.onStop` (:70), `InputPayMana.onStop` (:69),
+ * `InputAttack` (:101), `InputBlock` (:96).
+ */
+export const ClearWeaklySelectableSchema = z.strictObject({
+  kind: z.literal('notify'),
+  method: z.literal('clearWeaklySelectable'),
 });
 
 /** `void message(String message, String title)` — IGuiGame.java:157. */
@@ -199,7 +217,7 @@ export const NextGameDecisionActionSchema = z.strictObject({
 
 /* ── The tier, assembled ─────────────────────────────────────────────── */
 
-/** The 8 server→client Tier A frames. */
+/** The 9 server→client Tier A frames. */
 export const TIER_A_SERVER_FRAMES = [
   AfterGameEndSchema,
   FinishGameSchema,
@@ -209,6 +227,7 @@ export const TIER_A_SERVER_FRAMES = [
   ShowOptionDialogSchema,
   ShowInputDialogSchema,
   ClearSelectablesSchema,
+  ClearWeaklySelectableSchema,
 ] as const;
 
 /** The 6 client→server Tier A frames. */
