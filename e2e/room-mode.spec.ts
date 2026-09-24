@@ -158,9 +158,15 @@ test.describe('the room decides which client', () => {
     );
     await expect(alice.page.getByTestId('stream-frame')).toHaveCount(0);
 
-    // And it asked the right server for it: room-keyed, seat-keyed, same-origin.
+    // And it asked the right server for it: room-keyed, seat-keyed, same-origin
+    // — and for `vnc.html`, not the seat's ROOT. websockify answers the root
+    // with a directory listing, so a seat that asked for it framed a file index
+    // and never connected. `e2e/streamed-live.spec.ts` is what caught that,
+    // because it is the one that lets the probe through to a real container.
     await expect.poll(() => alice.streamProbes.length).toBeGreaterThan(0);
-    expect(new Set(alice.streamProbes)).toEqual(new Set([`${PREFIX}/stream/${streamedId}/0/`]));
+    expect(new Set(alice.streamProbes)).toEqual(
+      new Set([`${PREFIX}/stream/${streamedId}/0/vnc.html`]),
+    );
 
     // And none of the builtin table is here: a streamed room loads no deck.
     await expect(alice.page.getByTestId('deck-mine')).toHaveCount(0);

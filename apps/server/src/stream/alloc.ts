@@ -71,8 +71,21 @@ export const MAX_ROOM_SEATS = 8;
 /** No websocket attached for this long → the containers go. See the header. */
 export const IDLE_RECLAIM_MS = 30 * 60_000;
 
-/** Container names: `<prefix>-<roomKey>-<seat>`. `container.sh` enforces it. */
-export const CONTAINER_NAME_PREFIX = 'cardtable-room';
+/**
+ * Container names: `<prefix>-<roomKey>-<seat>`. `container.sh` enforces it.
+ *
+ * **Env-settable because the prefix is this server's OWNERSHIP claim, and a
+ * host can run more than one cardtable.** `sweepOrphans()` destroys every
+ * container matching the prefix that this process's `live` map does not own —
+ * which is right for reclaiming what a restart of THIS server left behind, and
+ * catastrophic across two servers sharing one name. A `pnpm e2e` run boots a
+ * second server on the machine that runs production: with one prefix its boot
+ * sweep would delete a real player's containers mid-match. The e2e harness
+ * therefore sets its own prefix, and `container.sh` already reads the same
+ * variable, so the script and the server can never disagree about what this
+ * server may touch.
+ */
+export const CONTAINER_NAME_PREFIX = process.env.CARDTABLE_STREAM_NAME_PREFIX ?? 'cardtable-room';
 
 export interface RoomStreamSeat {
 	seat: number;

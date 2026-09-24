@@ -40,6 +40,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { startEdge } from './edge.ts';
+import { STREAM_BASE_PORT, STREAM_NAME_PREFIX, STREAM_PORT_MAX } from './streamNamespace.ts';
 import { EDGE_PORT, SERVER_PORT } from './identities.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -96,6 +97,25 @@ const server = spawn(process.execPath, [SERVER_JS], {
     CARDTABLE_WEB_DIR: WEB_DIR,
     CARDTABLE_LOG_DIR: resolve(RUN_DIR, 'logs'),
     EDGE_AUTH_SECRET: secret,
+    // ── This server may only ever touch ITS OWN containers ──────────────────
+    // Every cardtable boot runs `sweepOrphans()`, which removes every container
+    // matching its name prefix that its own `live` map does not own. That is
+    // correct for reclaiming what a restart left behind — and lethal across two
+    // servers, because this harness runs on the machine that also runs
+    // PRODUCTION cardtable. Sharing the default prefix, this server's boot
+    // sweep would delete a real player's streamed room mid-match, and
+    // production's next restart would delete this one's containers mid-test.
+    // A distinct prefix makes each server's sweep blind to the other's, in both
+    // directions; `scripts/stream/container.sh` reads the same variable, so the
+    // script and the server cannot disagree about what is ours.
+    CARDTABLE_STREAM_NAME_PREFIX: STREAM_NAME_PREFIX,
+    // Clear of production's 6100-6199 and of the bench's 6080-6081, so two
+    // servers provisioning at once cannot race for a port either.
+    CARDTABLE_ROOM_STREAM_PORT: String(STREAM_BASE_PORT),
+    // `container.sh` guards the port window a second time, behind the server's
+    // constant. Both ends have to move together or every provision is refused.
+    CARDTABLE_STREAM_PORT_MIN: String(STREAM_BASE_PORT),
+    CARDTABLE_STREAM_PORT_MAX: String(STREAM_PORT_MAX),
     // Deliberately absent: CARDTABLE_INSECURE_NO_EDGE_AUTH, CARDTABLE_FORGE_JAR,
     // CARDTABLE_PLAY_PROBE. This is the production posture, minus Forge, which
     // a draft does not touch.

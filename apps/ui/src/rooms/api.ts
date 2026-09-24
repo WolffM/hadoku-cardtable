@@ -94,10 +94,34 @@ export function clientModeLabel(mode: ClientMode): string {
  * `base` is the app's deploy prefix (`/cardtable/`), so this is same-origin by
  * construction and no host is ever written down here.
  */
-export function streamPath(roomId: string, seat: number, base: string = defaultAppBase()): string {
+export function streamRoot(roomId: string, seat: number, base: string = defaultAppBase()): string {
   const prefix = base === '' ? '/' : base;
   const root = prefix.endsWith('/') ? prefix : `${prefix}/`;
   return `${root}stream/${encodeURIComponent(roomId)}/${seat}/`;
+}
+
+/**
+ * The page a seat actually shows, and probes.
+ *
+ * **Not the seat's root.** websockify answers `/` with its own DIRECTORY
+ * LISTING — `vnc.html`, `vnc_lite.html`, a few folders — which is a 200 with no
+ * noVNC in it. A seat pointed at the root therefore framed a file listing and
+ * probed as unreachable forever, so every streamed room sat on "waiting for the
+ * stream" with a perfectly healthy container behind it. Found by
+ * `e2e/streamed-live.spec.ts` on 2026-09-24, the first time anything drove a
+ * real container.
+ *
+ * `path` tells noVNC where its websocket lives, RELATIVE to the origin and
+ * with no leading slash, because we are served under a base prefix. This is
+ * the same shape the static bench's links use, and they work.
+ *
+ * `autoconnect` so a player sees Forge rather than a Connect button;
+ * `resize=scale` so the 1280x800 desktop fits the seat it is drawn in.
+ */
+export function streamPath(roomId: string, seat: number, base: string = defaultAppBase()): string {
+  const root = streamRoot(roomId, seat, base);
+  const socket = `${root}websockify`.replace(/^\//, '');
+  return `${root}vnc.html?path=${encodeURIComponent(socket)}&autoconnect=true&resize=scale`;
 }
 
 /**

@@ -24,6 +24,7 @@ import {
   parseRoomView,
   roomsClient,
   streamPath,
+  streamRoot,
   streamReachable,
   type Fetch,
   type RoomView,
@@ -238,10 +239,20 @@ describe('the client mode', () => {
 
 describe('a seat\u2019s stream', () => {
   it('is same-origin under the app\u2019s own prefix, keyed by room and seat', () => {
-    expect(streamPath('r-forge', 0, '/cardtable/')).toBe('/cardtable/stream/r-forge/0/');
-    expect(streamPath('r-forge', 1, '/cardtable')).toBe('/cardtable/stream/r-forge/1/');
-    expect(streamPath('r-forge', 0, '/')).toBe('/stream/r-forge/0/');
-    expect(streamPath('r-forge', 0, '')).toBe('/stream/r-forge/0/');
+    expect(streamRoot('r-forge', 0, '/cardtable/')).toBe('/cardtable/stream/r-forge/0/');
+    expect(streamRoot('r-forge', 1, '/cardtable')).toBe('/cardtable/stream/r-forge/1/');
+    expect(streamRoot('r-forge', 0, '/')).toBe('/stream/r-forge/0/');
+    expect(streamRoot('r-forge', 0, '')).toBe('/stream/r-forge/0/');
+
+    // The page a seat shows is vnc.html, NOT the root: websockify answers the
+    // root with a directory listing, which framed a file index and probed as
+    // unreachable forever. See `streamPath`.
+    expect(streamPath('r-forge', 0, '/cardtable/')).toBe(
+      '/cardtable/stream/r-forge/0/vnc.html?path=cardtable%2Fstream%2Fr-forge%2F0%2Fwebsockify&autoconnect=true&resize=scale',
+    );
+    // The websocket path is relative to the ORIGIN and carries no leading
+    // slash — noVNC appends it to the origin itself.
+    expect(streamPath('r-forge', 0, '/cardtable/')).not.toContain('path=%2F');
     // No host, ever: the frame is this origin's or it is nothing.
     expect(streamPath('r-forge', 0, '/cardtable/')).not.toContain('//');
   });

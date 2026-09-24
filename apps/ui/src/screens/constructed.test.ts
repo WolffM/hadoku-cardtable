@@ -570,10 +570,19 @@ describe('a streamed room', () => {
     const frame = (await screen.findByTestId('stream-frame')) as HTMLIFrameElement;
     // `BASE_URL` is `/` under vitest; the deploy-prefix arithmetic is
     // `streamPath`'s own test in `rooms/rooms.test.ts`.
-    expect(frame.getAttribute('src')).toBe(`/stream/${ROOM}/0/`);
+    // **vnc.html, not the seat's root.** websockify answers the root with a
+    // directory listing, so a seat pointed there framed a file index and never
+    // connected — a black screen behind a healthy container. This assertion
+    // used to pin that root, which is how it shipped. See `streamPath`.
+    const src = frame.getAttribute('src') ?? '';
+    expect(src.startsWith(`/stream/${ROOM}/0/vnc.html?`)).toBe(true);
+    // noVNC needs to be told where its websocket is, relative to the origin,
+    // and to connect without a human pressing Connect first.
+    expect(src).toContain(`path=${encodeURIComponent(`stream/${ROOM}/0/websockify`)}`);
+    expect(src).toContain('autoconnect=true');
     // Same-origin by construction: a path, never a host.
-    expect(frame.getAttribute('src')?.startsWith('/')).toBe(true);
-    expect(frame.getAttribute('src')).not.toContain('//');
+    expect(src.startsWith('/')).toBe(true);
+    expect(src).not.toContain('//');
     expect(screen.queryByTestId('stream-waiting')).toBeNull();
   });
 

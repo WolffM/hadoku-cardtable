@@ -57,6 +57,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { connect, type Socket } from 'node:net';
+import { request as httpRequest } from 'node:http';
 import express from 'express';
 
 import { rankOf, sanitizeHeaders, tierOf } from '../edge-auth.js';
@@ -173,18 +174,52 @@ function refuse(socket: Duplex, code: number, why: string): void {
 	socket.destroy();
 }
 
-/** One HTTP hop into a container's websockify. Both forms proxy identically. */
+/**
+ * One HTTP hop into a container's websockify. Both forms proxy identically.
+ *
+ * **A parsed hop, not a socket splice.** This wrote the request by hand and
+ * piped the upstream SOCKET into `res.socket` — raw status line and headers
+ * straight onto the wire, around express. That survives one request on a fresh
+ * connection, which is how the static bench is used and why it looked fine.
+ * A browser loading noVNC does not do that: it opens keep-alive connections
+ * and pulls `app/ui.js`, `core/*.js` and a dozen assets in parallel, and a
+ * spliced response leaves express believing the response is still pending, so
+ * the next request on that connection is answered with garbage. The visible
+ * result was a noVNC page whose JavaScript 502'd, on a container that was
+ * healthy — a black seat with no error a player could act on. Found by
+ * `e2e/streamed-live.spec.ts`, 2026-09-24.
+ *
+ * Parsing the upstream response and copying status + headers onto `res` keeps
+ * node's own connection handling in charge of both sides, which is what makes
+ * concurrent asset loads work.
+ */
 function proxyHttp(req: Request, res: Response, port: number, path: string): void {
-	const upstream = connect({ host: '127.0.0.1', port }, () => {
-		upstream.write(
-			`${req.method ?? 'GET'} ${path} HTTP/1.1\r\nHost: 127.0.0.1:${String(port)}\r\nConnection: close\r\n\r\n`,
-		);
-	});
+	const upstream = httpRequest(
+		{
+			host: '127.0.0.1',
+			port,
+			method: req.method ?? 'GET',
+			path,
+			// The container answers on loopback and does not virtual-host, but a
+			// correct Host keeps websockify's own logging honest.
+			headers: { ...req.headers, host: `127.0.0.1:${String(port)}` },
+		},
+		(up) => {
+			res.status(up.statusCode ?? 502);
+			for (const [k, v] of Object.entries(up.headers)) {
+				// node re-computes framing headers for our own response; copying
+				// them would describe the upstream's body, not ours.
+				if (v === undefined || k === 'connection' || k === 'transfer-encoding') continue;
+				res.setHeader(k, v);
+			}
+			up.pipe(res);
+		},
+	);
 	upstream.on('error', () => {
 		if (!res.headersSent) res.status(502).type('text').send(`no stream container on ${String(port)}`);
 	});
-	upstream.pipe(res.socket ?? res);
-	res.socket?.on('close', () => upstream.destroy());
+	res.on('close', () => upstream.destroy());
+	req.pipe(upstream);
 }
 
 /**
