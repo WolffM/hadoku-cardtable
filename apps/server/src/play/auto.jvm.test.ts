@@ -169,7 +169,7 @@ describe.skipIf(!available.ok)(title, () => {
 					if (f.kind !== 'ask' || answered.has(f.callId as string)) continue;
 					const callId = f.callId as string;
 					answered.add(callId);
-					let result: unknown = null;
+					let result: unknown;
 					switch (f.method) {
 						case 'confirm':
 						case 'showConfirmDialog':
