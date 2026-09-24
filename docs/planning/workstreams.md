@@ -82,7 +82,7 @@ it. PR-5 is new and exists to serve it.
 | # | Programme | State |
 | --- | --- | --- |
 | **PR-7** | **The outer shell** — adopt hadoku_site's `templates/game` and delete our hand-written wrapper in favour of it | **SCHEDULED: the wave immediately after the game client.** Operator, 2026-09-20. Not before — the shell wraps the client, and the client is the unproven half |
-| **PR-6** | **The game client** — a real Forge UI in the browser, speaking through our bridge | **IN PROGRESS, and two clients by decision (D19 + D19a: the mode is the ROOM's, chosen at create).** W17 landed tier 1 of our own React board — a game you can actually play. Streamed Forge is live in prod at `/cardtable/stream/<n>/` (interim static bench, friend demo pending). w18 cuts the room toggle + room-owned containers; after that the React tiers and the template adoption run as parallel tracks |
+| **PR-6** | **The game client** — a real Forge UI in the browser, speaking through our bridge | **IN PROGRESS. W18 landed the room toggle (D19a): a room is `builtin` or `streamed`, chosen at create, immutable after.** Streamed rooms own their containers (one per seat, reclaimed); the static bench at `/cardtable/stream/<n>/` is still up for the friend demo. Unplayed: no operator has yet played a room-scoped streamed room end to end. Tracks R and S can now run in parallel |
 | **PR-5** | **Constructed** — historical Standard pools, prebuilt decks, format validation. The operator's stated goal. | **Wave 6 lanes C/D** lay the data track; play needs PR-4 |
 | **PR-1** | **Ground truth** — toolchain, card data, and the WASM go/no-go that decides the UI strategy | **done** (Wave 1) |
 | **PR-2** | **Draft** — pure draft engine, cube import, draft UI. Playable with friends. | **built end to end, unproven with two people.** Engine (W3), card art (W4) and a live socket (W5) all land; `DraftScreen` renders from fixtures, the in-process engine, or a server. **"Playable with friends" is not ticked** until two browsers draft one pod — see the queue |
@@ -372,6 +372,73 @@ for, not rely on the timing of**. And it matters to the frontend plan below: a
 seat surviving a *client* swap (a page reload) is a different guarantee from a
 match surviving a *server* restart. The first is w18's; the second nobody has
 yet.
+
+## Verified this pass (2026-09-24 — tracker, closing Wave 18)
+
+**Landed `ab93919..f42be96`, five commits, linear, one push.** `main` and the
+served tree both at `f42be96`. Worktree removed, branch `w18` gone, the forge
+submodule still registered (` 2ad70eb…`).
+
+**Verified from artifacts, not prose:**
+
+| claim | how it was checked |
+| --- | --- |
+| gate green | tracker re-ran it at `f42be96` in a detached worktree: **1965 passed / 8 skipped, exit 0** — matches the note exactly (was 1910 before the wave) |
+| the real Forge match ran | CI run `35937434745` **jobs**: `forge-e2e` success AND `check` success. The claws job self-skips the Forge specs, so only the hokon job proves the match — it ran |
+| the tier gate on the new room-keyed route | **mutation-tested by the tracker**: neutering `passesFloor`'s comparison → **3 failed / 22 passed**; restored → **25 passed** |
+| deploy is completion | served tree `/home/hadoku/repos/hadoku-cardtable` at `f42be96`, both packages `0.13.0`, `dist/index.js` rebuilt 00:14:10Z carrying `clientMode` (14×) and `cardtable-room` (3×), `container.sh` shipped `-rwxr-xr-x`, `/health` 200 `bundle: ok`, and production's own log line reports both forms live: `"evt":"stream-attached","streams":2,"rooms":true` |
+| the friend demo survived | `cardtable-lab-0/1` up 2 days across the whole wave, `STREAMS`=2, both `vnc.html` 200, and a raw upgrade to `/stream/0/websockify` still answers the gate's `404` |
+| the wave created no containers | `docker ps -aq` census either side of the tracker's full gate run: 9 before, 9 after, no diff. The allocator's tests drive `container.sh` in `CARDTABLE_STREAM_DRY_RUN` mode |
+
+### Found: an e2e can start real containers on this host — OPEN, and it never reached the closing note
+
+A sub-agent recorded this in project memory mid-wave; the manager's report does
+not mention it, so it is recorded here as the board's item.
+`stream/alloc.ts`'s `findContainerScript()` resolves `scripts/stream/container.sh`
+by walking up from `apps/server/dist/`, so the allocator is **live under the e2e
+harness**, and `e2e/harness.ts` sets no `CARDTABLE_STREAM_DRY_RUN`. A GET of
+`/stream/<roomKey>/<seat>/` for a streamed room would therefore `docker run` a
+real ~1.25 GiB container **on the machine that also runs production and the
+bench**.
+
+Nothing does that today: `e2e/room-mode.spec.ts` aborts `**/stream/**` in the
+browser. **The guard is in the spec, not the harness** — so it protects exactly
+one test, and the next streamed-room e2e walks into it.
+
+**Settles it:** add `CARDTABLE_STREAM_DRY_RUN: '1'` to `e2e/harness.ts`'s spawn
+env, then confirm with a `docker ps -a` census either side of `pnpm e2e` — and
+check what the route answers under dry-run, since the allocation then succeeds
+with no container behind it. Untested as of w18. Small enough to fold into the
+next wave.
+
+### Two wave-file bugs, both the tracker's
+
+Recorded because the lane-cutting rule is the thing that keeps parallel lanes
+safe, and it failed twice in one wave even after a mechanical re-cut:
+
+1. **§B told lane B to use `onRoomDelete`, which was not reachable from B's
+   files.** The re-cut had already removed the A→B seam and pointed B at
+   `lobby`/`draftRooms` in its own `index.ts`; §B's prose kept a stale
+   instruction the file list did not support.
+2. **`apps/ui/package.json` was in no lane's row.** C and D both changed
+   `apps/ui`, so the version bump belonged to neither; the manager took it
+   itself (`f42be96`) rather than widening a lane — the right call.
+
+**Rule for the next wave file:** intersecting the lane lists is not enough.
+Every *instruction* in a lane's brief must name only files in that lane's row —
+check the prose against the row, not just row against row. And **every
+package.json a wave will bump needs an owner**, named in the table.
+
+### The handoff named the wrong deploy tree — corrected
+
+The handoff sent the manager to
+`/home/hadoku/actions-runner-hadoku-cardtable/_work/…` as "the deployed tree".
+That is the **CI runner's workspace**. Production serves from the main checkout,
+`/home/hadoku/repos/hadoku-cardtable` — confirmed authoritatively from the
+running process: the node listening on 9008 has cwd
+`…/repos/hadoku-cardtable/apps/server` and runs that tree's `dist/index.js`.
+The manager ignored the handoff and verified the right tree. The existing
+memory note already said this; the handoff contradicted it.
 
 ## Verified this pass (2026-09-21 — tracker, closing Wave 16)
 
