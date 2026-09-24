@@ -4,7 +4,8 @@
  *
  * ## The baseline
  *
- * `BASELINE_SHA256` / `BASELINE_LENGTH` are the static markup of
+ * Re-recorded in Wave 19 (Board gained faces, fixed zones and stack art:
+ * 5c42535, 48d8266). `BASELINE_SHA256` / `BASELINE_LENGTH` are the static markup of
  * `<Board view={boardFromFixture(PLAY_FIXTURES[0])} />`, recorded at commit
  * 2709447 — Wave 9's base, BEFORE this lane touched `../adapter.ts` or added
  * anything under `live/`. If this test fails, the fixture path renders
@@ -27,8 +28,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = 'b92179c358b63d65580a7bd38931d3dd1d6bb6f82b654c2fdcdbe81ed19139c5';
-const BASELINE_LENGTH = 27524;
+const BASELINE_SHA256 = '42042c4c63f2a0367d667120ac4bb3dd7749de731e7e18983783855d14d82ae1';
+const BASELINE_LENGTH = 32543;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));
