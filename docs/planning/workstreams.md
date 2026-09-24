@@ -82,7 +82,7 @@ it. PR-5 is new and exists to serve it.
 | # | Programme | State |
 | --- | --- | --- |
 | **PR-7** | **The outer shell** — adopt hadoku_site's `templates/game` and delete our hand-written wrapper in favour of it | **SCHEDULED: the wave immediately after the game client.** Operator, 2026-09-20. Not before — the shell wraps the client, and the client is the unproven half |
-| **PR-6** | **The game client** — a real Forge UI in the browser, speaking through our bridge | **IN PROGRESS. W18 landed the room toggle (D19a): a room is `builtin` or `streamed`, chosen at create, immutable after.** Streamed rooms own their containers (one per seat, reclaimed); the static bench at `/cardtable/stream/<n>/` is still up for the friend demo. Unplayed: no operator has yet played a room-scoped streamed room end to end. Tracks R and S can now run in parallel |
+| **PR-6** | **The game client** — a real Forge UI in the browser, speaking through our bridge | **IN PROGRESS. W19 landed the QOL wave**: static canvas with player faces, only-Forge-offered clickability + drag + targeter, stops only where a legal action exists with payment said out loud, art ids for every card and stack item. The operator's bar — *"i would not even call this alpha playable yet"* — was the brief; their re-test is the remaining proof |
 | **PR-5** | **Constructed** — historical Standard pools, prebuilt decks, format validation. The operator's stated goal. | **Wave 6 lanes C/D** lay the data track; play needs PR-4 |
 | **PR-1** | **Ground truth** — toolchain, card data, and the WASM go/no-go that decides the UI strategy | **done** (Wave 1) |
 | **PR-2** | **Draft** — pure draft engine, cube import, draft UI. Playable with friends. | **built end to end, unproven with two people.** Engine (W3), card art (W4) and a live socket (W5) all land; `DraftScreen` renders from fixtures, the in-process engine, or a server. **"Playable with friends" is not ticked** until two browsers draft one pod — see the queue |
@@ -168,7 +168,7 @@ Status: `todo` · `wave-N` · `blocked` · `done` · `watch`
 | --- | --- | --- | --- |
 | `case "server":` headless mode | **spiked — viable** | D `df716ef` | **Forge runs headless.** `SimulateMatch` played a full AI-vs-AI game to a damage win on turn 12, exit 0, no display, no X server, no network; actual output in `docs/spikes/headless-server.md`. `case "server":` itself reaches its arm headless and exits 0 — **the scaffolding works, only the body is missing.** Build: `mvn -B install -pl forge-gui-desktop -am -DskipTests`, 69 s cold / 15.9 s warm |
 | **A headless net harness already exists in-tree** | **found** | D `df716ef` | **new row, nobody had budgeted for this.** `forge-gui-desktop/src/test/java/forge/net/` is **3,919 lines**: `HeadlessNetworkGuiGame`, `HeadlessNetworkClient`, `HeadlessGuiDesktop`, a `MultiProcessGameExecutor`, and an integration test that calls `FServerManager.startServer(port)`. **PR-4 is not greenfield** |
-| `ProtocolMethod` surface | **measured** | D `df716ef` | **60 methods, not 62** — tracker re-derived independently from the enum: **45 SERVER / 15 CLIENT**. **38 required** (29 s→c + 9 c→s), 20 not, **2 dead** (`setRememberedActions`, `nextRememberedAction` are not on `IGuiGame` at all). **For a browser *draft* client: 0 of 60** — `ProtocolMethod` is the *match* protocol and has no draft methods, which independently corroborates O2 |
+| `ProtocolMethod` surface | **measured** | D `df716ef` | **60 methods, not 62** — tracker re-derived independently from the enum: **45 SERVER / 15 CLIENT**. **38 required at the w1 measurement** (29 s→c + 9 c→s), 20 not, **2 dead** — superseded: forge-wire now models **40** (w19 lane B re-derived; see `packages/forge-wire`) (`setRememberedActions`, `nextRememberedAction` are not on `IGuiGame` at all). **For a browser *draft* client: 0 of 60** — `ProtocolMethod` is the *match* protocol and has no draft methods, which independently corroborates O2 |
 | WS/JSON `IToClient` | todo | us | `IRemote` is 3 methods; `IToClient` is empty (D9: required in every branch) |
 | ~~gdx-teavm embed payload~~ **or** React client | **decided: React** | us | D7 NO-GO. ~14 prompt components over a board renderer. D6's iframe payload does **not** already exist |
 | Disable jUPnP | **answered: config, not code** | D `df716ef` | `FServerManager.java:230-274` — `mapNatPort()` runs only when the `UPnP` pref is `ALWAYS`, so `UPnP=NEVER` in `server.preferences` means jUPnP is never constructed. **No fork change needed.** The trap is the shipped `ASK` default: it calls `SOptionPane.showOptionDialog`, a blocking modal a headless server cannot answer |
@@ -372,6 +372,47 @@ for, not rely on the timing of**. And it matters to the frontend plan below: a
 seat surviving a *client* swap (a page reload) is a different guarantee from a
 match surviving a *server* restart. The first is w18's; the second nobody has
 yet.
+
+## Verified this pass (2026-09-25 — tracker, closing Wave 19)
+
+**Landed `3c1a052..4899a14`, eight commits, one push.** Deployed tree at
+`4899a14`, apps 0.15.0 / forge-wire 0.3.0 / carddata 0.2.0, pm2 restart
+23:26:30Z, CI `check` + `forge-e2e` both success.
+
+**Verified by the tracker, from artifacts and by re-running:**
+
+| claim | how |
+| --- | --- |
+| the gate | tracker's own `pnpm check` at `4899a14`: exit 0 |
+| the wave's own e2e proofs | tracker re-ran `play.spec.ts` + `table-fit.spec.ts`: 4 passed, incl. *"the canvas is static as the stack fills"* at both sizes |
+| only-Forge-offered clickability | **mutation re-run by the tracker**: restoring the everything-glows fallback → 2 failed / 42; restored → 44/44 |
+| Preordain fixed at the origin | `host.ts:370` sets `UI_SELECT_FROM_CARD_DISPLAYS: 'false'` — the wire had carried all 53 library refs (2 manipulable, names did NOT cross: no hidden-info leak), so the fix belongs where the pref is written, not in a component filter |
+| every card an art id | `art-ids.json`: 2145 rows, all uuid-shaped, no host or URL anywhere; `d13-gate.sh --self-test` 9/9 |
+
+**The manager re-cut the lanes before dispatch, and was right to:** the wave
+file's "#1 is one line" diagnosis was incomplete — `setSelectables` only
+arrives from the two selection inputs, so removing the fallback alone would
+have shipped a dead board. B gained `forge-wire/**` and `PlayBridge.java`
+(from C) and built `setWeaklySelectable`, a real mechanism, where the wave
+file assumed a deletion. The lesson for wave files: a diagnosis naming one
+line is a hypothesis about the fix's SIZE, not its shape.
+
+**Left over (fold into track R):**
+
+- `fullControl` is not in the match snapshot — a refresh draws the toggle off
+  (declared in `match.ts`).
+- Arrow geometry unverified in a real browser (jsdom zeroes boxes; snap
+  targets asserted, coordinates not). Combat is not driven by drag anywhere.
+- Blank art can still appear for quest-precon cards (a no-deck match draws a
+  random Forge precon; 12,722 printings deliberately excluded from the table).
+  Which room type produced the operator's blank hand is unasked — ask them.
+
+**Landed with the close (same push):** room members are now their display
+name, never their id — the edge injects `X-User-Name` (hadoku_site `78667246`,
+verified on their origin/main with a green workers deploy) and `callerOf` uses
+it, falling back to `'friend'`. The e2e identities carry a name deliberately
+unequal to the id so ids-as-names cannot pass again. The operator's
+*"come on man. GUIDs for names? hideous."* is the row's reason to exist.
 
 ## Streamed rooms, actually driven (2026-09-24 — tracker, after the wave)
 
