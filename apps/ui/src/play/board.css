@@ -3,16 +3,37 @@
  * defines no colours of its own beyond those tokens. How ONE card looks is
  * `card.css`; this file decides where zones go and how big a card is in each.
  *
- * ## The table never scrolls
+ * ## The canvas is static — every track is a fixed track
  *
- * The operator, 2026-09-19: *"this module can NEVER require a scroll bar."*
- * So nothing here grows downward any more. The board is handed a fixed box
- * (`live.css` sizes the match to the viewport) and divides it:
+ * The operator, 2026-09-24: *"the location for the stack causes the field to
+ * change in size. this can never happen. the entire canvas must be fully
+ * static at all times."*
  *
- *   turn bar            one line
- *   opponent's seat     flex 1     head · hidden hand · battlefield | piles
- *   the stack           one band, capped
- *   your seat           flex 1.4   head · battlefield · hand         | piles
+ * So the board is a grid whose rows are named sizes, not content:
+ *
+ *   bar    var(--bar-h)         one line, clipped
+ *   them   minmax(0, 1fr)       the opponents' seats
+ *   mid    var(--mid-h)         their face · the stack · your face
+ *   you    minmax(0, 1.4fr)     your seat
+ *
+ * and each seat is a grid of fixed rows in the same way. Nothing in this file
+ * is sized by what is in it. Three consequences are load-bearing, and each one
+ * is a bug that was there before:
+ *
+ *   - **The stack's band is `--mid-h` whether it holds nothing or five items.**
+ *     Items that do not fit scroll sideways INSIDE the band. The battlefields
+ *     above and below it never move.
+ *   - **An opponent's hidden hand is a fixed row** (`--opp-hand-h`), so the
+ *     first card they draw does not shrink their battlefield.
+ *   - **The missing-card alert and the overlay root are out of flow**
+ *     (`position: absolute`), so neither can push a track when it appears.
+ *
+ * The board also never scrolls, which is the older rule and still holds: the
+ * operator, 2026-09-19, *"this module can NEVER require a scroll bar."*
+ * `e2e/table-fit.spec.ts` measures both claims in a browser, on a live match,
+ * at 1280×800 and 1366×768.
+ *
+ * ## How a card is sized, given a box
  *
  * Every zone is a bounded box, and a card's size is DERIVED from the box, not
  * the other way round. Three mechanisms do it, and none of them depends on
@@ -32,13 +53,18 @@
  *
  * Graveyard and exile are piles, not grids: each card shows a strip and the
  * newest shows whole, and the strips shrink when the pile is taller than its
- * box. Zones still scroll internally as a last resort (a pathological board),
- * so a card can always be reached — but the page itself never scrolls, and
- * `e2e/table-fit.spec.ts` asserts that on a live match at 1280×800 and
- * 1366×768.
+ * box.
+ *
+ * ## Hand and battlefield are different places
+ *
+ * The operator: *"need a visually different background for hand and
+ * battlefield"*. A battlefield is a sunken slab — the darkest surface on the
+ * page, inset — and a hand is a raised panel, lighter, hatched, with a lit top
+ * edge. They are ours: no frame, no felt texture pretending to be a table.
  *
  * No WotC marks in anything drawn here: states are words ("tapped"), life is a
- * number, and the stack is a list. Nothing in this file references an image.
+ * number, a player is a circle and a bust we drew, and the stack is a list.
+ * Nothing in this file references an image.
  */
 
 /*
@@ -51,9 +77,24 @@
   /* A card's height over its width: 680 / 488, the proportion `card.css` draws. */
   --card-tall: 1.3934;
 
+  /* The fixed tracks. Change one of these and the whole table re-proportions;
+     nothing else may change them, and nothing content-sized may exist. */
+  --bar-h: 2rem;
+  --mid-h: 6rem;
+  --faces-w: 5.5rem;
+  --seat-head-h: 1.5rem;
+  --opp-hand-h: 2.05rem;
+
+  position: relative;
   height: 100dvh;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--bar-h) minmax(0, 1fr) var(--mid-h) minmax(0, 1.4fr);
+  grid-template-areas:
+    'bar'
+    'them'
+    'mid'
+    'you';
   gap: var(--board-gap);
   min-width: 0;
   min-height: 0;
@@ -79,13 +120,13 @@
 }
 
 .board__bar {
-  flex: none;
+  grid-area: bar;
   display: flex;
   flex-wrap: nowrap;
   gap: 12px;
-  align-items: baseline;
+  align-items: center;
   min-width: 0;
-  padding: 5px 10px;
+  padding: 0 10px;
   /* The live status line sits at the right end of this row (`live.css`). */
   padding-right: 11rem;
   background: var(--bg-raised);
@@ -101,44 +142,69 @@
   color: var(--accent);
 }
 
-.board__over,
-.board__warn {
+.board__over {
   color: var(--warn);
 }
 
+/*
+ * A bug telling on itself: a zone named a card that never arrived. It is out
+ * of flow on purpose — it appears mid-game, and a track that appears is
+ * exactly what the static rule forbids.
+ */
 .board__warn {
-  flex: none;
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--board-gap) + var(--bar-h) + 2px);
+  left: var(--board-gap);
+  right: var(--board-gap);
   max-height: 2.6em;
   margin: 0;
-  overflow-y: auto;
+  padding: 2px 6px;
+  background: var(--bg-raised);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  color: var(--warn);
   font-size: 12px;
+  overflow-y: auto;
+}
+
+/*
+ * The seam with the interaction lane: a positioned root covering the canvas
+ * exactly, which that lane renders a targeter arrow into. This file gives it
+ * its box and nothing else — no handler, no child, no arrow.
+ */
+.board__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .board__opponents {
-  flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
+  grid-area: them;
+  display: grid;
+  grid-auto-flow: row;
+  grid-auto-rows: minmax(0, 1fr);
   gap: var(--board-gap);
+  min-width: 0;
   min-height: 0;
 }
 
-.board__opponents > .seat {
-  flex: 1 1 0;
-}
-
-/* Your side gets more of the table: it holds the only hand with faces. */
 .board > .seat {
-  flex: 1.4 1 0;
+  grid-area: you;
 }
 
 /* ── a player's side of the table ─────────────────────────────────── */
 
 /*
- * A seat is a grid. The piles take a narrow column at the right, graveyard
- * over exile, beside the battlefield and the hand; the opponent's is mirrored
- * so the two battlefields face each other across the stack. Your battlefield
- * and hand split 4 : 3, which with the 1 : 1.4 split between the seats leaves
- * the two battlefields about the same height.
+ * A seat is a grid of fixed rows. The piles take a narrow column at the right,
+ * graveyard over exile, beside the battlefield and the hand; the opponent's is
+ * mirrored so the two battlefields face each other across the stack. Your
+ * battlefield and hand split 4 : 3, which with the 1 : 1.4 split between the
+ * seats leaves the two battlefields about the same height.
+ *
+ * Every row is a named size or an `fr`: `auto` anywhere here would let a
+ * card, a flag or a count move a sibling zone.
  *
  * Scoped under `.board` because `styles.css` has a `.seat` of its own — the
  * draft's seat list, a centred grid — and without the extra class its
@@ -151,7 +217,7 @@
   align-items: stretch;
   justify-items: stretch;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto minmax(0, 4fr) minmax(0, 3fr);
+  grid-template-rows: var(--seat-head-h) minmax(0, 4fr) minmax(0, 3fr);
   grid-template-areas:
     'head head'
     'field piles'
@@ -167,7 +233,7 @@
 }
 
 .board .seat:not([data-viewer]) {
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: var(--seat-head-h) var(--opp-hand-h) minmax(0, 1fr);
   grid-template-areas:
     'head head'
     'hand piles'
@@ -190,6 +256,7 @@
 }
 
 .seat__name {
+  margin: 0;
   font-size: 13px;
 }
 
@@ -203,9 +270,9 @@
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -234,10 +301,16 @@
   grid-area: hand;
 }
 
+/*
+ * The piles column: graveyard over exile, in fixed shares. Fixed, not
+ * content-sized, because exile is usually empty and the first exiled card
+ * would otherwise shorten the graveyard beside it — a zone filling and moving
+ * a sibling is the thing this board may not do.
+ */
 .seat__piles {
   grid-area: piles;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
   gap: 4px;
   width: var(--pile-w);
   min-height: 0;
@@ -266,13 +339,6 @@
   color: var(--ink);
 }
 
-.zone__empty,
-.zone__hidden {
-  margin: 0;
-  color: var(--ink-faint);
-  font-size: 12px;
-}
-
 .zone__cards {
   margin: 0;
   padding: 0;
@@ -292,13 +358,34 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 6px;
-  /* The last resort. The sizing below is meant never to need it. */
+  border-radius: var(--radius);
+  /* The last resort. The sizing above is meant never to need it. */
   overflow: auto;
   scrollbar-width: thin;
 }
 
+/* A battlefield is the table: the darkest surface here, sunken into the seat. */
+.seat > .zone--battlefield {
+  padding: 0 4px 0 2px;
+  background: var(--bg);
+  border: 1px solid rgb(0 0 0 / 55%);
+  box-shadow: inset 0 3px 8px rgb(0 0 0 / 70%);
+}
+
+/*
+ * Your hand is not the table — it is held. A raised panel, one step lighter
+ * than the seat, hatched, with a lit top edge where the cards come over it.
+ */
 .seat[data-viewer] > .zone--hand {
   --card-max: 7rem;
+
+  padding: 0 4px 0 2px;
+  background:
+    repeating-linear-gradient(-45deg, transparent 0 7px, rgb(255 255 255 / 4.5%) 7px 14px),
+    var(--bg-card);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--line);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
 }
 
 .seat > .zone--battlefield > .zone__head,
@@ -420,7 +507,10 @@
   }
 }
 
-/* The opponent's hand is backs and a count: one short line. */
+/*
+ * The opponent's hand is backs and a count in one fixed row. The strip is in
+ * the markup at zero cards, so their first draw moves nothing.
+ */
 .seat:not([data-viewer]) > .zone--hand {
   --card-w: 2.6rem;
 
@@ -428,6 +518,12 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  padding: 0 4px;
+  background:
+    repeating-linear-gradient(-45deg, transparent 0 7px, rgb(255 255 255 / 4.5%) 7px 14px),
+    var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   overflow: hidden;
   white-space: nowrap;
 }
@@ -451,15 +547,6 @@
   overflow: hidden;
 }
 
-/* The graveyard takes what is left; exile, usually empty, only what it needs. */
-.seat__piles > .zone--graveyard {
-  flex: 1 1 0;
-}
-
-.seat__piles > .zone--exile {
-  flex: 0 1 auto;
-}
-
 .seat__piles > .zone > .zone__head {
   font-size: 9.5px;
   letter-spacing: 0;
@@ -477,6 +564,11 @@
   min-height: 0;
   padding-bottom: calc(var(--pile-w) * var(--card-tall) - var(--peek));
   overflow: hidden;
+}
+
+/* An empty pile reserves no room under a card that is not there. */
+.seat__piles .zone__cards:not(:has(> li)) {
+  padding-bottom: 0;
 }
 
 .seat__piles .board-card {
@@ -539,66 +631,107 @@
   white-space: nowrap;
 }
 
+/* ── the centre band: two faces and the stack between them ────────── */
+
+/*
+ * Three fixed columns. The faces sit in the middle of the table where a
+ * person looks for them, and the stack runs between them. The band's height
+ * is `--mid-h` and never anything else.
+ */
+.board__mid {
+  grid-area: mid;
+  display: grid;
+  grid-template-columns: var(--faces-w) minmax(0, 1fr) var(--faces-w);
+  gap: var(--board-gap);
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+}
+
+.board__faces {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* ── the stack ────────────────────────────────────────────────────── */
 
 /*
- * A band between the two seats: its label, then the items side by side, top
- * of the stack first. It is one line when empty and at most `--stack-h` when
- * not; an item with more text than that scrolls inside itself.
+ * Its label at the left, then the items side by side, top of the stack first.
+ * The band is one size, always: an item scrolls into view rather than growing
+ * the box, and an empty stack is the same box holding an empty list.
  */
 .stack {
-  --stack-h: 5.25rem;
-
-  flex: none;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  max-height: var(--stack-h);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
   padding: 3px 8px;
+  background: var(--bg-raised);
   border: 1px dashed var(--line);
   border-radius: var(--radius);
 }
 
 .stack > .zone__head {
-  flex: none;
+  align-self: center;
   line-height: 1.5;
 }
 
-.stack > .zone__empty {
-  line-height: 1.3;
-}
-
-.stack__hint {
-  margin-left: 8px;
-  color: var(--ink-faint);
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
 .stack__items {
+  /* The art is as tall as the band lets it be: the band, less its border and
+     padding, less the item's own border and padding. */
+  --stack-card-w: calc((var(--mid-h) - 18px) / var(--card-tall));
+
   display: flex;
   flex-direction: row;
+  align-items: stretch;
   gap: 6px;
   min-width: 0;
-  max-height: calc(var(--stack-h) - 8px);
+  height: 100%;
   margin: 0;
   padding: 0;
   list-style: none;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: thin;
 }
 
 .stack__item {
-  flex: 0 0 15rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-height: 0;
-  padding: 4px 8px;
+  flex: 0 0 16rem;
+  min-width: 0;
+  padding: 2px 6px 2px 2px;
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* The item's body — a `<span>`, or a `<button>` when Forge offers the item. */
+.stack__body {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.stack__art {
+  flex: none;
+  display: block;
+  width: var(--stack-card-w);
+}
+
+.stack__what {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
   overflow-y: auto;
   overflow-wrap: anywhere;
   scrollbar-width: thin;

@@ -51,16 +51,30 @@
  * turns seen, cards on a battlefield, prompts seen) so a sampler that looked
  * at nothing, or a game that never got past the coin toss, cannot pass.
  *
- * ## And a crowded table, built on purpose (the second test)
+ * ## The static canvas, and a crowded table (the second test)
  *
- * A real game reaches 8–11 permanents a side by turn 12, so the first test
+ * The second test parks a live match on its first keep-or-mulligan question
+ * and runs two DOM-only layout probes, at both window sizes from both seats.
+ *
+ * The first **fills the stack** to 0, 1, 5 and 12 items and measures every
+ * slot on the board — the bar, both seats, the centre band, every zone, both
+ * player faces and the overlay root. Every one of those boxes must be the
+ * same number at all four. The operator, 2026-09-24: *"the location for the
+ * stack causes the field to change in size. this can never happen. the entire
+ * canvas must be fully static at all times."* What does not fit goes sideways
+ * inside the stack's own slot, never downward and never into a neighbour. It
+ * also checks that the overlay root covers the board exactly, that a face is
+ * big enough to aim at, that the hand and the battlefield are not painted the
+ * same, and that no empty-state text came back.
+ *
+ * The second **fills the table**:
+ *
+ * a real game reaches 8–11 permanents a side by turn 12, so the first test
  * cannot promise to have seen a crowd — and an 11-card battlefield at
  * 1280×800 was exactly what broke (a status chip wider than the shrunken card
- * made the zone scroll sideways). The second test parks a live match on its
- * first keep-or-mulligan question and, as a DOM-only layout probe, fills both
- * battlefields to 8, 11, 16 and 20 cards and the hand to 10, at both window
- * sizes from both seats, asserting that no zone scrolls, the page does not,
- * and no card is narrower than 36px.
+ * made the zone scroll sideways). So it fills both battlefields to 8, 11, 16
+ * and 20 cards and the hand to 10, asserting that no zone scrolls, the page
+ * does not, and no card is narrower than 36px.
  *
  * Needs a Forge build, exactly as `play.spec.ts`: `CARDTABLE_FORGE_JAR` +
  * `CARDTABLE_FORGE_RES`. Without them it SKIPS and its title says why, so the
@@ -109,8 +123,8 @@ const TITLE = forge.ok
   ? 'a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window'
   : `a live match fits 1280×800 and 1366×768 in every frame — SKIPPED: ${forge.reason}`;
 const CROWD_TITLE = forge.ok
-  ? 'a crowded table fits too: 8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling'
-  : `a crowded table fits too — SKIPPED: ${forge.reason}`;
+  ? 'the canvas is static as the stack fills, and a crowded table fits too: 8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling'
+  : `the canvas is static and a crowded table fits too — SKIPPED: ${forge.reason}`;
 
 /* ── the sampler, which runs inside each page ────────────────────────── */
 
@@ -640,13 +654,11 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
     (li) => !li.hasAttribute('data-probe'),
   );
   if (source.length === 0) throw new Error('no dealt hand to copy cards from');
+  // Every zone renders its list whether or not it holds anything (`Board.tsx`,
+  // the static-canvas rule), so this finds one rather than making one.
   const listIn = (zone: HTMLElement, cls: string): HTMLElement => {
     const have = zone.querySelector<HTMLElement>(`:scope > ul.${cls}`);
     if (have !== null) return have;
-    for (const p of Array.from(zone.querySelectorAll<HTMLElement>(':scope > .zone__empty'))) {
-      p.setAttribute('data-probe-hidden', '');
-      p.style.display = 'none';
-    }
     const ul = document.createElement('ul');
     ul.className = cls;
     ul.setAttribute('data-probe', '');
@@ -720,10 +732,132 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
 /** Take every probe copy back out. Runs in the page. */
 function clearCrowd(): void {
   for (const el of Array.from(document.querySelectorAll('[data-probe]'))) el.remove();
-  for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-probe-hidden]'))) {
-    el.removeAttribute('data-probe-hidden');
-    el.style.display = '';
+}
+
+/* ── the canvas is static: the stack fills, and nothing else moves ───── */
+
+/**
+ * The operator, 2026-09-24: *"the location for the stack causes the field to
+ * change in size. this can never happen. the entire canvas must be fully
+ * static at all times."*
+ *
+ * `Board.test.ts` holds the markup and the stylesheet's tracks; jsdom lays
+ * nothing out, so the boxes themselves are measured here, in a browser that
+ * does. Every slot on the board is measured with the stack holding 0, 1, 5 and
+ * 12 items, and every one of those boxes must be the same number in all four.
+ */
+const STACK_STEPS = [0, 1, 5, 12] as const;
+/** A face has to be worth aiming at. */
+const MIN_FACE_PX = 28;
+
+interface StaticShot {
+  size: string;
+  items: number;
+  /** name → "left,top,width,height", rounded. */
+  boxes: Record<string, string>;
+  page: [number, number];
+  /** The stack's list: overflow may go sideways INSIDE it, never downward. */
+  stackScroll: [number, number];
+  stackClient: [number, number];
+  /** Hand and battlefield must not be painted the same (#3). */
+  surfaces: Record<string, string>;
+  prose: number;
+}
+
+/**
+ * Put `n` items on the stack, DOM only, and measure every slot on the board.
+ * Runs in the page.
+ *
+ * The items are built from the same classes `Board.tsx` renders, with a real
+ * `CardTile` cloned out of the viewer's dealt hand for the art, so what is
+ * measured is the stylesheet doing its job rather than a stand-in. Nothing is
+ * sent to Forge and nothing enters React's state; the match is parked on a
+ * keep-or-mulligan question, so no frame redraws the list under the copies.
+ */
+function fillStack(n: number): Promise<StaticShot> {
+  const board = document.querySelector<HTMLElement>('.board');
+  if (board === null) throw new Error('no board on the page');
+  const list = board.querySelector<HTMLElement>('[data-zone="stack"] > ol.stack__items');
+  if (list === null) throw new Error('the stack has no list of its own — an empty stack must still render its slot');
+  const art = document.querySelector<HTMLElement>('.seat[data-viewer] > [data-zone="hand"] li.board-card [data-testid="card"]');
+  if (art === null) throw new Error('no dealt hand to copy a card from');
+
+  for (const el of Array.from(list.querySelectorAll('[data-probe]'))) el.remove();
+  while (list.querySelectorAll('[data-probe]').length < n) {
+    const li = document.createElement('li');
+    li.className = 'stack__item';
+    li.setAttribute('data-probe', '');
+    const body = document.createElement('span');
+    body.className = 'stack__body';
+    const wrap = document.createElement('span');
+    wrap.className = 'stack__art';
+    wrap.appendChild(art.cloneNode(true));
+    const what = document.createElement('span');
+    what.className = 'stack__what';
+    what.innerHTML =
+      '<span class="stack__source">Probe<span class="stack__kind"> · ability</span></span>' +
+      '<span class="stack__controller">someone</span>' +
+      '<span class="stack__text">deals 2 damage to any target, and a second line of text so the item is as tall as one ever gets</span>';
+    body.append(wrap, what);
+    li.appendChild(body);
+    list.appendChild(li);
   }
+
+  return new Promise((done) =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const rect = (el: Element): string => {
+          const r = el.getBoundingClientRect();
+          return [r.left, r.top, r.width, r.height].map((x) => Math.round(x)).join(',');
+        };
+        const boxes: Record<string, string> = { board: rect(board) };
+        for (const [name, sel] of [
+          ['bar', '.board__bar'],
+          ['them', '.board__opponents'],
+          ['mid', '.board__mid'],
+          ['overlay', '[data-board-overlay]'],
+          ['you', ':scope > .seat[data-viewer]'],
+        ] as const) {
+          const el = board.querySelector(sel);
+          if (el === null) throw new Error(`the board has no ${name} (${sel})`);
+          boxes[name] = rect(el);
+        }
+        for (const z of Array.from(board.querySelectorAll<HTMLElement>('[data-zone]'))) {
+          boxes[`${z.dataset.owner ?? '?'}/${z.dataset.zone ?? '?'}`] = rect(z);
+        }
+        for (const f of Array.from(board.querySelectorAll<HTMLElement>('[data-player-face]'))) {
+          boxes[`face/${f.dataset.playerId ?? '?'}`] = rect(f);
+        }
+        const surfaces: Record<string, string> = {};
+        for (const [name, sel] of [
+          ['battlefield', '.seat[data-viewer] > [data-zone="battlefield"]'],
+          ['hand', '.seat[data-viewer] > [data-zone="hand"]'],
+        ] as const) {
+          const el = board.querySelector(sel);
+          if (el === null) throw new Error(`no ${name} to read a surface from`);
+          const s = getComputedStyle(el);
+          surfaces[name] = `${s.backgroundColor} | ${s.backgroundImage} | ${s.boxShadow}`;
+        }
+        const page = document.scrollingElement ?? document.documentElement;
+        done({
+          size: `${innerWidth}x${innerHeight}`,
+          items: n,
+          boxes,
+          page: [page.scrollWidth, page.scrollHeight],
+          stackScroll: [list.scrollWidth, list.scrollHeight],
+          stackClient: [list.clientWidth, list.clientHeight],
+          surfaces,
+          // No empty-state text, no hidden-hand sentence, no hint (#4).
+          prose: board.querySelectorAll('.zone__empty, .zone__hidden, .stack__hint').length,
+        });
+      }),
+    ),
+  );
+}
+
+/** Take the probe items back off the stack. Runs in the page. */
+function clearStack(): void {
+  for (const el of Array.from(document.querySelectorAll('[data-zone="stack"] [data-probe]'))) el.remove();
 }
 
 test(CROWD_TITLE, async ({ browser }) => {
@@ -735,6 +869,7 @@ test(CROWD_TITLE, async ({ browser }) => {
   const friends: Friend[] = [];
   const summary: Record<string, unknown> = {};
   const steps: (CrowdFit & { who: string; step: string })[] = [];
+  const staticShots: (StaticShot & { who: string })[] = [];
   try {
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
@@ -761,6 +896,61 @@ test(CROWD_TITLE, async ({ browser }) => {
     for (const sizes of [SIZES, { alice: SIZES.bob, bob: SIZES.alice }]) {
       for (const f of friends) await f.page.setViewportSize(sizes[f.name as keyof typeof SIZES]);
       for (const f of friends) {
+        /* ── the canvas is static: fill the stack, and nothing else may move ── */
+        const shots: StaticShot[] = [];
+        for (const n of STACK_STEPS) shots.push(await f.page.evaluate(fillStack, n));
+        await f.page.evaluate(clearStack);
+        staticShots.push(...shots.map((s) => ({ who: f.name, ...s })));
+        const base = shots[0]!;
+        const where = `${f.name} at ${base.size}`;
+        console.log(
+          `[table-fit static] ${where}: ${shots.map((s) => `${s.items} on the stack → mid ${s.boxes.mid}, you/battlefield ${s.boxes['you/battlefield']}`).join('; ')}`,
+        );
+        // The board really was measured: every slot, and a face per player.
+        expect(Object.keys(base.boxes).sort(), `${where}: every slot measured`).toEqual([
+          'bar',
+          'board',
+          'face/0',
+          'face/1',
+          'mid',
+          'overlay',
+          'table/stack',
+          'them',
+          'them/battlefield',
+          'them/exile',
+          'them/graveyard',
+          'them/hand',
+          'you',
+          'you/battlefield',
+          'you/exile',
+          'you/graveyard',
+          'you/hand',
+        ]);
+        // The overlay root covers the canvas exactly — it is where the
+        // interaction lane draws, and an arrow aimed through a box that is not
+        // the board's lands somewhere else.
+        expect(base.boxes.overlay, `${where}: the overlay covers the board exactly`).toBe(base.boxes.board);
+        // A face is a thing you can hit.
+        for (const id of ['face/0', 'face/1']) {
+          const [, , w, h] = base.boxes[id]!.split(',').map(Number);
+          expect(Math.min(w!, h!), `${where}: ${id} is worth aiming at`).toBeGreaterThanOrEqual(MIN_FACE_PX);
+        }
+        // Hand and battlefield are different places, at a glance (#3).
+        expect(base.surfaces.hand, `${where}: the hand is not painted like the battlefield`).not.toBe(base.surfaces.battlefield);
+        for (const s of shots) {
+          const at = `${where}, ${s.items} on the stack`;
+          // Every box, identical. This is the whole rule.
+          expect(s.boxes, `${at}: no slot moved`).toEqual(base.boxes);
+          expect(s.page[1], `${at}: the page scrolls vertically`).toBeLessThanOrEqual(Number(s.size.split('x')[1]));
+          expect(s.page[0], `${at}: the page scrolls sideways`).toBeLessThanOrEqual(Number(s.size.split('x')[0]));
+          // What does not fit goes sideways INSIDE the stack's own slot.
+          expect(s.stackScroll[1], `${at}: the stack overflows downward instead of sideways`).toBeLessThanOrEqual(s.stackClient[1] + 1);
+          expect(s.prose, `${at}: empty-state text, a hidden-hand sentence or a hint came back`).toBe(0);
+        }
+        // And it really did get crowded: 12 items do not fit across the band.
+        const full = shots.at(-1)!;
+        expect(full.stackScroll[0], `${where}: 12 items are more than the band is wide`).toBeGreaterThan(full.stackClient[0]);
+
         for (const counts of CROWD_STEPS) {
           const step = `battlefields ${counts.battlefield}, hand ${counts.hand}`;
           const got = await f.page.evaluate(fillCrowd, counts);
@@ -792,10 +982,14 @@ test(CROWD_TITLE, async ({ browser }) => {
       }
     }
     summary.crowd = steps;
+    summary.staticCanvas = staticShots;
   } finally {
     for (const f of friends) await f.context.close();
     await stack.stop();
     mkdirSync(RUN_DIR, { recursive: true });
-    writeFileSync(resolve(RUN_DIR, 'table-fit-crowd-summary.json'), JSON.stringify({ ...summary, crowd: steps }, null, 2));
+    writeFileSync(
+      resolve(RUN_DIR, 'table-fit-crowd-summary.json'),
+      JSON.stringify({ ...summary, crowd: steps, staticCanvas: staticShots }, null, 2),
+    );
   }
 });

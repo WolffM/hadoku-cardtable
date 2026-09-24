@@ -7,6 +7,33 @@
  * protocol, no fold: see `fixtures.ts` → `fold.ts` → `adapter.ts` for how a
  * view is made.
  *
+ * ## The canvas is static, and that is absolute
+ *
+ * The operator, 2026-09-24: *"the location for the stack causes the field to
+ * change in size. this can never happen. the entire canvas must be fully
+ * static at all times."* So the board is a grid of FIXED tracks (`board.css`)
+ * and every zone renders its slot whether or not it holds anything:
+ *
+ *   - a zone's card list is always in the markup, empty or not, so an empty
+ *     zone is the same box as a full one;
+ *   - an opponent's hidden hand is always its backs strip, zero backs or ten;
+ *   - the stack's band is a fixed height, holding nothing or five items —
+ *     items overflow by scrolling INSIDE the band;
+ *   - the missing-card alert and the overlay root are positioned out of flow,
+ *     so neither can push a track when it appears.
+ *
+ * Nothing here is sized by its content. `Board.test.ts` renders the same view
+ * with an empty, a one-item and a five-item stack and holds the structure
+ * identical; `e2e/table-fit.spec.ts` measures the real boxes in a browser.
+ *
+ * ## No prose
+ *
+ * The operator, same session: *"this text is completely unnecessary: 'Stack 0
+ * / empty'"*. There is no empty-state text, no hint and no explanation
+ * anywhere on this board. A zone shows its label and its count; when it holds
+ * nothing it shows its slot and nothing else. Do not reintroduce a sentence
+ * here.
+ *
  * ## Cards are `CardTile`
  *
  * Every card on the board is the draft's own `CardTile`, unchanged — our
@@ -14,7 +41,8 @@
  * `@hadoku/carddata/art`) from the Scryfall id the adapter looked up. No host
  * is named here. A card with no id is the text tile, which is a whole card on
  * its own. The board adds only the state a printed card doesn't have (damage,
- * counters, attacking), as chips beside the tile, in our own words.
+ * counters, attacking), as chips beside the tile, in our own words. A stack
+ * item draws its source card the same way, from `StackEntry.sourceCard`.
  *
  * ## Tapped is turned sideways
  *
@@ -28,8 +56,34 @@
  * whose id is in that set is a real `<button>` — focusable, Enter/Space work —
  * and calls `onSelectCard`; any other card is inert markup with no handler at
  * all, so there is nothing to call. Players are the same, from
- * `selectablePlayers`. This file never decides what may be selected: we
- * implement no rules. With no `interaction` every card is inert.
+ * `selectablePlayers`: a selectable seat's name and its face are both buttons,
+ * and an unselectable one is neither. This file never decides what may be
+ * selected: we implement no rules. With no `interaction` every card is inert.
+ *
+ * ## The DOM is the seam with the interaction lane
+ *
+ * Another lane draws a targeter arrow and drags cards; it finds things without
+ * owning this markup. What is guaranteed here, and pinned by a test:
+ *
+ *   - every card in a zone carries `data-card-id="<id>"`, and `<id>` is unique
+ *     across the board (it also keeps `data-board-card`, the older name, with
+ *     the same value — other suites query it). A stack item does NOT carry
+ *     `data-card-id`: the card an ability came from is still on its
+ *     battlefield, so the id would be there twice and uniqueness is the
+ *     property the arrow needs. The item names its card in `data-source-card`.
+ *
+ *     **`CardTile` draws its own `data-card-id` too, and it is a different
+ *     namespace**: the draft's card id, `w<forge id>` (`adapter.ts:317`). So
+ *     `[data-card-id="107"]` is this board's card 107 and nothing else, but a
+ *     bare `[data-card-id]` or a `closest()` also matches the tile inside it.
+ *     Match on the value, not the attribute.
+ *
+ *   - every player's face carries `data-player-face` and `data-player-id`;
+ *   - every zone carries `data-zone` and `data-owner` (`you`, `them`, or
+ *     `table` for the stack, which belongs to no seat);
+ *   - `data-board-overlay` is a positioned root covering the canvas exactly,
+ *     at the board's top level, for that lane to render into. This file adds
+ *     no pointer handler to it and draws no arrow.
  *
  * ## Hidden information
  *
@@ -39,9 +93,10 @@
  *
  * ## Layout
  *
- * Opponents on top, the stack in the middle, the viewer at the bottom with
- * their hand. Page layout is `board.css`; how a single card looks is
- * `card.css`, sized from `--card-w` so the layout can shrink cards per zone.
+ * Opponents on top, a centre band in the middle holding the two faces and the
+ * stack between them, the viewer at the bottom with their hand. Page layout is
+ * `board.css`; how a single card looks is `card.css`, sized from `--card-w` so
+ * the layout can shrink cards per zone.
  */
 
 import { CardTile } from '../components/CardTile.tsx';
@@ -59,6 +114,9 @@ export interface BoardInteraction {
   onSelectCard(cardId: number): void;
   onSelectPlayer(playerId: number): void;
 }
+
+/** Which side of the table a zone is on. The stack belongs to neither. */
+type ZoneOwner = 'you' | 'them' | 'table';
 
 /** `{T}` is a WotC mark; on our chrome it is the word. */
 function inOurWords(text: string): string {
@@ -82,6 +140,7 @@ function CardOnBoard({ entry, interaction }: { entry: BoardCard; interaction: Bo
       className="board-card"
       data-tapped={entry.tapped || undefined}
       data-board-card={entry.id}
+      data-card-id={entry.id}
       data-selectable={selectable || undefined}
     >
       {selectable ? (
@@ -111,63 +170,125 @@ function CardOnBoard({ entry, interaction }: { entry: BoardCard; interaction: Bo
   );
 }
 
+/**
+ * One zone's slot. The list is always rendered, empty or not: its box is the
+ * zone's box, and an empty zone that drew something else instead (a word, a
+ * shorter element, nothing at all) would be a different size from a full one.
+ */
 function Zone({
   owner,
+  ownerSide,
   zone,
   label,
   cards,
   interaction,
 }: {
   owner: string;
+  ownerSide: ZoneOwner;
   zone: string;
   label: string;
   cards: readonly BoardCard[];
   interaction: BoardInteraction | undefined;
 }) {
   return (
-    <section className={`zone zone--${zone}`} aria-label={`${owner} ${label}`} data-zone={zone} data-count={cards.length}>
+    <section
+      className={`zone zone--${zone}`}
+      aria-label={`${owner} ${label}`}
+      data-zone={zone}
+      data-owner={ownerSide}
+      data-count={cards.length}
+    >
       <h4 className="zone__head">
         {label} <span className="zone__count">{cards.length}</span>
       </h4>
-      {cards.length === 0 ? (
-        <p className="zone__empty">empty</p>
-      ) : (
-        <ul className="zone__cards">
-          {cards.map((c) => (
-            <CardOnBoard key={c.id} entry={c} interaction={interaction} />
-          ))}
-        </ul>
-      )}
+      <ul className="zone__cards">
+        {cards.map((c) => (
+          <CardOnBoard key={c.id} entry={c} interaction={interaction} />
+        ))}
+      </ul>
     </section>
   );
 }
 
 /**
  * Someone else's hand: a count, drawn as that many backs. There is no card
- * here to draw a face from — the adapter never maps these cards.
+ * here to draw a face from — the adapter never maps these cards. The strip is
+ * always in the markup so the slot is one height at nought backs and at ten.
  */
 function HiddenHand({ player }: { player: BoardPlayer }) {
   return (
-    <section className="zone zone--hand" aria-label={`${player.name} Hand`} data-zone="hand" data-count={player.handCount}>
+    <section
+      className="zone zone--hand"
+      aria-label={`${player.name} Hand`}
+      data-zone="hand"
+      data-owner="them"
+      data-count={player.handCount}
+    >
       <h4 className="zone__head">
         Hand <span className="zone__count">{player.handCount}</span>
       </h4>
-      {player.handCount > 0 && (
-        <ul className="card-backs" aria-hidden="true">
-          {Array.from({ length: player.handCount }, (_, i) => (
-            <li key={i} className="card-back" data-card-back="" />
-          ))}
-        </ul>
-      )}
-      <p className="zone__hidden">
-        {player.handCount} {player.handCount === 1 ? 'card' : 'cards'}, hidden
-      </p>
+      <ul className="card-backs" aria-hidden="true">
+        {Array.from({ length: player.handCount }, (_, i) => (
+          <li key={i} className="card-back" data-card-back="" />
+        ))}
+      </ul>
     </section>
+  );
+}
+
+/**
+ * A player, as a thing you can point at: our own drawn mark with their life on
+ * it. Arena's affordance, none of its art — shapes in an inline `<svg>`, no
+ * image, no asset, and no WotC mark anywhere near it.
+ *
+ * It is a `<button>` exactly when Forge says the player may be selected, the
+ * same rule the cards follow, and it carries `data-player-face` so the
+ * interaction lane can anchor an arrow on it without reading this file.
+ */
+function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction: BoardInteraction | undefined }) {
+  const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
+  const mark = (
+    <>
+      <svg className="face__art" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+        <circle className="face__plate" cx="24" cy="24" r="22.5" />
+        <circle className="face__brow" cx="24" cy="18" r="7.5" />
+        <path className="face__bust" d="M10.5 40.5a13.5 13.5 0 0 1 27 0Z" />
+      </svg>
+      <span className="face__life" data-testid="face-life">
+        {player.life}
+      </span>
+    </>
+  );
+  return (
+    <div
+      className="face"
+      data-player-face=""
+      data-player-id={player.id}
+      data-viewer={player.isViewer || undefined}
+      data-active={player.isActive || undefined}
+      data-lost={player.hasLost || undefined}
+      data-selectable={selectable || undefined}
+    >
+      {selectable ? (
+        <button
+          type="button"
+          className="face__hit"
+          aria-label={`Select ${player.name}`}
+          onClick={() => interaction.onSelectPlayer(player.id)}
+        >
+          {mark}
+        </button>
+      ) : (
+        <div className="face__hit">{mark}</div>
+      )}
+      <span className="face__name">{player.name}</span>
+    </div>
   );
 }
 
 function PlayerArea({ player, interaction }: { player: BoardPlayer; interaction: BoardInteraction | undefined }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
+  const side: ZoneOwner = player.isViewer ? 'you' : 'them';
   const name = (
     <>
       {player.name}
@@ -210,13 +331,27 @@ function PlayerArea({ player, interaction }: { player: BoardPlayer; interaction:
         </span>
       </header>
 
-      <Zone owner={player.name} zone="battlefield" label="Battlefield" cards={player.battlefield} interaction={interaction} />
+      <Zone
+        owner={player.name}
+        ownerSide={side}
+        zone="battlefield"
+        label="Battlefield"
+        cards={player.battlefield}
+        interaction={interaction}
+      />
       <div className="seat__piles">
-        <Zone owner={player.name} zone="graveyard" label="Graveyard" cards={player.graveyard} interaction={interaction} />
-        <Zone owner={player.name} zone="exile" label="Exile" cards={player.exile} interaction={interaction} />
+        <Zone
+          owner={player.name}
+          ownerSide={side}
+          zone="graveyard"
+          label="Graveyard"
+          cards={player.graveyard}
+          interaction={interaction}
+        />
+        <Zone owner={player.name} ownerSide={side} zone="exile" label="Exile" cards={player.exile} interaction={interaction} />
       </div>
       {player.hand !== null ? (
-        <Zone owner={player.name} zone="hand" label="Hand" cards={player.hand} interaction={interaction} />
+        <Zone owner={player.name} ownerSide={side} zone="hand" label="Hand" cards={player.hand} interaction={interaction} />
       ) : (
         <HiddenHand player={player} />
       )}
@@ -224,17 +359,29 @@ function PlayerArea({ player, interaction }: { player: BoardPlayer; interaction:
   );
 }
 
+/**
+ * One item on the stack: its source card, drawn, beside what it is doing.
+ * `sourceCard` is the adapter's own resolved face, so the art here goes
+ * through the same resolver as every other card — nothing builds a URL.
+ */
 function StackItem({ item, interaction }: { item: StackEntry; interaction: BoardInteraction | undefined }) {
   const sourceId = item.sourceCardId;
   const selectable = interaction !== undefined && sourceId !== null && interaction.selectable.has(sourceId);
   const body = (
     <>
-      <span className="stack__source">
-        {item.sourceName ?? 'unknown source'}
-        {item.isAbility && <span className="stack__kind"> · ability</span>}
+      {item.sourceCard !== null && (
+        <span className="stack__art">
+          <CardTile card={item.sourceCard} />
+        </span>
+      )}
+      <span className="stack__what">
+        <span className="stack__source">
+          {item.sourceName ?? 'unknown source'}
+          {item.isAbility && <span className="stack__kind"> · ability</span>}
+        </span>
+        {item.controllerName !== null && <span className="stack__controller">{item.controllerName}</span>}
+        <span className="stack__text">{inOurWords(item.description)}</span>
       </span>
-      {item.controllerName !== null && <span className="stack__controller">{item.controllerName}</span>}
-      <span className="stack__text">{inOurWords(item.description)}</span>
     </>
   );
   return (
@@ -247,35 +394,36 @@ function StackItem({ item, interaction }: { item: StackEntry; interaction: Board
       {selectable ? (
         <button
           type="button"
-          className="stack__select"
+          className="stack__body stack__select"
           aria-label={`Select ${item.sourceName ?? 'stack item'}`}
           onClick={() => interaction.onSelectCard(sourceId)}
         >
           {body}
         </button>
       ) : (
-        body
+        <span className="stack__body">{body}</span>
       )}
     </li>
   );
 }
 
+/**
+ * The stack's band. Fixed height, always: the list is in the markup at zero
+ * items, and items past the band's width scroll inside it. Nothing about this
+ * zone's box depends on what is on the stack — that is item #2 of the
+ * operator's list and it is the whole point of this component's shape.
+ */
 function StackView({ stack, interaction }: { stack: readonly StackEntry[]; interaction: BoardInteraction | undefined }) {
   return (
-    <section className="stack" aria-label="Stack" data-zone="stack" data-count={stack.length}>
+    <section className="stack" aria-label="Stack" data-zone="stack" data-owner="table" data-count={stack.length}>
       <h3 className="zone__head">
         Stack <span className="zone__count">{stack.length}</span>
-        {stack.length > 0 && <span className="stack__hint">top first</span>}
       </h3>
-      {stack.length === 0 ? (
-        <p className="zone__empty">empty</p>
-      ) : (
-        <ol className="stack__items">
-          {stack.map((item) => (
-            <StackItem key={item.id} item={item} interaction={interaction} />
-          ))}
-        </ol>
-      )}
+      <ol className="stack__items">
+        {stack.map((item) => (
+          <StackItem key={item.id} item={item} interaction={interaction} />
+        ))}
+      </ol>
     </section>
   );
 }
@@ -296,19 +444,33 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
         {view.gameOver && <span className="board__over">game over</span>}
       </header>
 
-      {view.missingCardIds.length > 0 && (
-        <p className="board__warn" role="alert">
-          {view.missingCardIds.length} card(s) named by a zone never arrived: {view.missingCardIds.join(', ')}
-        </p>
-      )}
-
       <div className="board__opponents">
         {others.map((p) => (
           <PlayerArea key={p.id} player={p} interaction={interaction} />
         ))}
       </div>
-      <StackView stack={view.stack} interaction={interaction} />
+
+      <div className="board__mid" data-testid="board-mid">
+        <div className="board__faces board__faces--them">
+          {others.map((p) => (
+            <PlayerFace key={p.id} player={p} interaction={interaction} />
+          ))}
+        </div>
+        <StackView stack={view.stack} interaction={interaction} />
+        <div className="board__faces board__faces--you">
+          {viewer !== undefined && <PlayerFace player={viewer} interaction={interaction} />}
+        </div>
+      </div>
+
       {viewer !== undefined && <PlayerArea player={viewer} interaction={interaction} />}
+
+      {/* Out of flow, both of them: neither may move a track when it appears. */}
+      {view.missingCardIds.length > 0 && (
+        <p className="board__warn" role="alert">
+          {view.missingCardIds.length} card(s) named by a zone never arrived: {view.missingCardIds.join(', ')}
+        </p>
+      )}
+      <div className="board__overlay" data-board-overlay="" />
     </section>
   );
 }

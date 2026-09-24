@@ -1,15 +1,16 @@
 /*
- * How one card looks on the board: its box, selectable versus inert, tapped,
- * and the back an opponent's hidden hand is drawn as. Page layout — zone
+ * How one card looks on the board, how a player's face looks, and what
+ * "Forge says you may choose this" looks like on either. Page layout — zone
  * heights, overflow, how many columns — is `board.css`, not this file.
  *
- * Every size here comes from `--card-w`, so the layout can shrink cards per
- * zone by setting that one property. The box is a card's own proportion
+ * Every card size here comes from `--card-w`, so the layout can shrink cards
+ * per zone by setting that one property. The box is a card's own proportion
  * (488 × 680, Scryfall's `normal`), for text tiles too, so a row of cards is
  * one height whether or not a given card has art.
  *
- * Our chrome only: no frames, no mana or tap symbols, no Magic card back. The
- * art `<img>` itself is `styles.css`'s `.card__art`, unfiltered.
+ * Our chrome only: no frames, no mana or tap symbols, no Magic card back, and
+ * a player is a circle and a bust we drew rather than an avatar we fetched.
+ * The art `<img>` itself is `styles.css`'s `.card__art`, unfiltered.
  */
 
 .board-card {
@@ -31,7 +32,13 @@
   text-align: inherit;
 }
 
-.board-card .card {
+/*
+ * A card tile on the board keeps a card's proportion instead of `--card-h`:
+ * on the battlefield, in a hand, in a pile, and on the stack, where the same
+ * `CardTile` draws the item's source card.
+ */
+.board-card .card,
+.stack__art .card {
   aspect-ratio: 488 / 680;
   height: auto;
 }
@@ -75,6 +82,109 @@ button.board-card__face:focus-visible {
   transform: translate(-50%, -50%) rotate(90deg);
 }
 
+/* ── a player's face ─────────────────────────────────────────────────── */
+
+/*
+ * The operator, 2026-09-24: *"i dont even know how to select the opponent. i
+ * guess we need a face in the center middle like arena"*. So: a mark for each
+ * player where you look for one, big enough to hit, with their life on it.
+ *
+ * DRAWN, not fetched — shapes in an inline `<svg>` that we own. No avatar, no
+ * asset pipeline, and nothing that could be mistaken for a WotC mark.
+ */
+.face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.face__hit {
+  position: relative;
+  display: block;
+  width: 3.4rem;
+  height: 3.4rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.face__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.face__plate {
+  fill: var(--bg-card);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.face__brow,
+.face__bust {
+  fill: var(--ink-faint);
+}
+
+/* Your own mark reads as yours: the ink is brighter on your side. */
+.face[data-viewer] .face__brow,
+.face[data-viewer] .face__bust {
+  fill: var(--ink-dim);
+}
+
+/* Whose turn it is, on the thing you are already looking at. */
+.face[data-active] .face__plate {
+  stroke: var(--ink-dim);
+  stroke-width: 2;
+}
+
+.face[data-lost] .face__plate {
+  stroke: var(--warn);
+}
+
+.face[data-lost] .face__art {
+  opacity: 0.5;
+}
+
+.face__life {
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  min-width: 1.75rem;
+  padding: 0 5px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.face[data-lost] .face__life {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.face__name {
+  max-width: 100%;
+  color: var(--ink-dim);
+  font-size: 10px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── a player Forge says may be chosen (a target, say) ───────────────── */
 
 .seat[data-selectable] {
@@ -97,6 +207,30 @@ button.board-card__face:focus-visible {
   outline-offset: 2px;
 }
 
+button.face__hit {
+  cursor: pointer;
+}
+
+button.face__hit .face__plate {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+button.face__hit .face__brow,
+button.face__hit .face__bust {
+  fill: var(--accent);
+}
+
+button.face__hit:hover .face__art {
+  translate: 0 -2px;
+}
+
+button.face__hit:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+
 /* ── a spell on the stack Forge says may be chosen ───────────────────── */
 
 .stack__item[data-selectable] {
@@ -105,10 +239,7 @@ button.board-card__face:focus-visible {
 }
 
 .stack__select {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
+  margin: 0;
   padding: 0;
   border: 0;
   background: none;
