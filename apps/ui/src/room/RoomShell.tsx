@@ -44,6 +44,27 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { RoomChrome } from '@wolffm/watchparty-ui/room-chrome';
 import '@wolffm/watchparty-ui/room-chrome.css';
 import { whoami as hadokuWhoami } from '@wolffm/prefs-client';
+import { THEMES, useHadokuTheme, type Theme } from '@wolffm/themes';
+
+/**
+ * The two themes disagreeing, diagnosed rather than assumed (w20 §E).
+ *
+ * `RoomChrome` takes an optional `theme` prop (shipped in
+ * `@wolffm/watchparty-ui@0.39.4`, verified against
+ * `node_modules/.../dist/room-chrome.d.ts`). Left unset — which is what this
+ * file did until now — it resolves its OWN default from ITS OWN internal
+ * store, entirely independent of `HadokuThemeRoot`: `Do()` in
+ * `dist/room-chrome.js` returns the store's cached theme if one has loaded,
+ * else hard-codes `'dark'`. Measured live (a stub-`whoami` build served
+ * locally, `#/match/…`, no saved theme in either storage): the page resolved
+ * `data-theme="light"` on `.cardtable-chrome` while `.wp-room-chrome` sat at
+ * `data-theme="dark"` — two independent defaults, not a shared one that drifted.
+ * Passing our resolved theme through removes the second default entirely;
+ * they cannot disagree once there is only one source.
+ */
+function asWatchpartyTheme(theme: string): Theme | undefined {
+  return (THEMES as readonly string[]).includes(theme) ? (theme as Theme) : undefined;
+}
 
 /**
  * Watchparty's server, on whatever origin serves this page. In production that
@@ -114,12 +135,23 @@ export function useWhoami(): Who | null | 'pending' {
  */
 export function RoomShell({ roomId, children }: { roomId: string | null; children: ReactNode }) {
   const who = useWhoami();
+  // Always inside `AppChrome`'s `HadokuThemeRoot` — see chrome/AppChrome.tsx,
+  // which mounts this component. `useHadokuTheme()` throws with no provider
+  // on purpose (a silent fallback is the bug this removes), so a caller that
+  // ever renders `RoomShell` outside the theme root takes that throw here.
+  const { theme } = useHadokuTheme();
   const key = roomId === null ? null : roomKeyFor(roomId);
 
   if (key === null || who === 'pending' || who === null) return <>{children}</>;
 
   return (
-    <RoomChrome roomKey={key} serverOrigin={watchpartyOrigin()} userType={who.tier} userId={who.userId}>
+    <RoomChrome
+      roomKey={key}
+      serverOrigin={watchpartyOrigin()}
+      userType={who.tier}
+      userId={who.userId}
+      theme={asWatchpartyTheme(theme)}
+    >
       {children}
     </RoomChrome>
   );
