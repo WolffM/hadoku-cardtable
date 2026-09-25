@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "The pure cube-draft engine. Seeded, deterministic, transport-free \u2014 no sockets, no room, no server.",
+  "description": "The pure cube-draft engine. Seeded, deterministic, transport-free — no sockets, no room, no server.",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@hadoku/carddata": "workspace:*",
     "@hadoku/shared": "workspace:*",
-    "@wolffm/rooms-protocol": "0.39.4",
-    "@hadoku/carddata": "workspace:*"
+    "@wolffm/rooms-protocol": "0.39.5"
   }
 }
