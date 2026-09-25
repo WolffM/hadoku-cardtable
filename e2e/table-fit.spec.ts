@@ -229,12 +229,29 @@ function installSampler(): void {
            * whose rules text overflows its own box has a rect far below the
            * window and is invisible — four runs of this spec blamed one of those
            * for a prompt's overflow before this check was here.
+           *
+           * And the walk is up the CONTAINING BLOCK, not up the parents: an
+           * `overflow` ancestor does not clip a positioned descendant unless it
+           * is in that descendant's containing-block chain. Walking parents
+           * calls such an element clipped when the browser does not — which is
+           * how a visually-hidden `position: absolute` input inside a scrolling
+           * sheet grew the match shell while every candidate this loop could
+           * name came back "clipped" and the blame fell on an innocent card
+           * tile. `offsetParent` IS that chain: for a positioned box it is the
+           * nearest positioned ancestor, which is the only ancestor below which
+           * nothing clips it.
            */
           const clipped = (node: HTMLElement): boolean => {
-            for (let up = node.parentElement; up !== null && up !== el; up = up.parentElement) {
+            for (let cur = node; ; ) {
+              const position = getComputedStyle(cur).position;
+              // A fixed box is in the viewport's coordinate space and grows no
+              // ancestor's scroll box at all, so it can never be the answer.
+              if (position === 'fixed') return true;
+              const up = position === 'absolute' ? cur.offsetParent : cur.parentElement;
+              if (!(up instanceof HTMLElement) || up === el) return false;
               if (getComputedStyle(up).overflow !== 'visible') return true;
+              cur = up;
             }
-            return false;
           };
           // With its ancestry, up to the match: the element that sticks out is
           // often a card tile, and WHOSE tile is the whole question.
@@ -257,7 +274,15 @@ function installSampler(): void {
             }
             if (out > over && !clipped(kid)) {
               over = out;
-              worst = path(kid);
+              // Its `position`, and what holds it if it is positioned: a box
+              // that escaped a scroller's clip did so by being positioned
+              // against something further out, and naming that is the fix.
+              const where = getComputedStyle(kid).position;
+              const holder = kid.offsetParent;
+              worst =
+                where === 'static'
+                  ? path(kid)
+                  : `${path(kid)} (${where} in ${holder === null ? 'the viewport' : `${holder.tagName.toLowerCase()}.${holder.className.replace(/\s+/g, '.')}`})`;
             }
           }
           // Both, because the clipped one is the more readable answer when
