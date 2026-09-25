@@ -41,6 +41,18 @@ async function liveBoard(playerId = 0) {
   await waitFor(() => expect(m.stats.snapshots).toBe(1));
   const frames = fixtureFrames();
   for (const f of frames) s.send(f);
+  // Wait for DELIVERY first, on the counter that says so, and only then for
+  // what the delivery renders.
+  //
+  // This raced: the loop above hands every frame to the socket at once and the
+  // wait below asked only about the LAST frame's rendered effect, so on a
+  // contended runner `waitFor` could exhaust its window with the board still
+  // at an earlier turn — observed in CI as `expected 'Turn 13' to be
+  // 'Turn 14'`, at a sha whose only change was a dependency bump, and never
+  // reproducible locally (45/45, three runs). Waiting on `stats.applied` is
+  // waiting for the right thing: the assertion below is then about rendering,
+  // not about how fast a websocket drained.
+  await waitFor(() => expect(m.stats.applied).toBe(frames.length), { timeout: 10_000 });
   await waitFor(() => expect(utils.getByTestId('turn').textContent).toBe('Turn 14'));
   return { s, m, ...utils };
 }

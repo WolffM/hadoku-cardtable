@@ -299,7 +299,7 @@ entry — see O7.**
 | ~~**P2**~~ | **CLOSED — and it was already closed before Wave 5 started.** `gh secret list -R WolffM/hadoku-cardtable` on 2026-09-16 returns `HADOKU_NPM_READ_TOKEN` and `HADOKU_SITE_TOKEN`; the former was already dated 2026-09-15 when the Wave 5 manager first looked, and was re-seeded 2026-09-16T08:01Z. **The board carried "still empty" for two passes after it stopped being true.** ~~Set `HADOKU_NPM_READ_TOKEN` on the repo~~ — ~~`gh secret list` re-checked 2026-09-14: **still empty**.~~ CI's green runs are still vacuous: Wave 2 added no `@wolffm/*` dependency (because B never ran), so the token path has **still** never executed. The first lane that depends on `@wolffm/rooms-protocol` is where a cold runner surfaces the 403. | Repo secret |
 | ~~**P3**~~ | **CLOSED 2026-09-14 — delivered.** `origin/cardtable-w2-requests` at `ccfeab46`, upstream set, rebased to 0 behind their `main`, re-read against `0.38.110`, carrying the seat answer. ~~Decide what to do with `cardtable-w2-requests` in `hadoku-watchparty`~~ — our P3–P6 delivery is committed there on a branch with **no upstream**, and it is already stale: they shipped `0.38.110` mid-wave and answered W1 and W2 in `e58e3005`. Either push/PR it after a rebase + re-read, or drop it and re-derive against `0.38.110`. **Nothing reaches them until someone pushes.** | Their repo; ours to send |
 | ~~O2~~ | ~~P1 draft: reimplement in TS vs. reuse Forge's `limited/`~~ — **RESOLVED 2026-09-14: reimplement in TS.** | **Live and now decidable — the spike is in, and it changed the terms.** The "free draft engine *and* UI in the iframe" branch is **dead** (D7 NO-GO). But lane B proved the other half: `forge-core`+`forge-game` run headless on the JVM in 1.6 s and resolve real card interactions, so reusing `limited/` **server-side** is viable in a way nobody had evidence for before. So the trade is now: TS reimplementation (JVM-free P1, but pack collation/rarity/foil is accumulated correctness with no oracle but Forge — the D4 objection stands) vs. a JVM draft service (correct by construction, but P1 now carries a JVM and O3 arrives early). **Resolved.** The JVM branch lost on evidence gathered at planning time: `BoosterDraft.java` lives in **`forge-gui`** — precisely the module Wave 1's headless proof excluded — and carries 17 `SGuiChoose`/`SOptionPane` call sites plus the `FModel` singleton. Meanwhile the "accumulated correctness, no oracle" objection turned out to be about **set-booster collation**, which a cube never opens: **91** of 94 recipes are `Booster: 15 Any` (the planner said 92; lane A's count is the right one), 93/94 singleton, exactly 1 uses rarity slots. Reuse would cost `forge-gui` + a JVM to buy a pick/pass loop. **Revisit only for set/block draft or sealed**, where `BoosterGenerator` genuinely earns its keep. |
-| **P4** | **Seed `KEY_SERVICE_CARDTABLE` on the repo, or decide cardtable does not report.** `gh secret list` has no such secret, so `redeploy.yml`'s `report-job` gets an empty `service-key`. It does not fail — `report-job@v1` guards it and emits `##[warning]service key unset — cardtable:redeploy outcome not reported`, observed verbatim on Wave 5's own redeploy of `5cc9773` **and** on the tracker's push of `a1cf214`. So every cardtable redeploy is green and monitoring-api never hears about it. Seed from an up-to-date hadoku_site checkout: `python3 scripts/administration.py github-secrets child-repos`. | Repo secret |
+| ~~**P4**~~ | **CLOSED 2026-09-25 — seeded.** `gh secret list -R WolffM/hadoku-cardtable` shows `KEY_SERVICE_CARDTABLE` dated 2026-09-25T16:02:48Z, so `redeploy.yml`'s `report-job` has a service key and cardtable's redeploys reach monitoring-api. ~~Seed `KEY_SERVICE_CARDTABLE` on the repo, or decide cardtable does not report.~~ `gh secret list` has no such secret, so `redeploy.yml`'s `report-job` gets an empty `service-key`. It does not fail — `report-job@v1` guards it and emits `##[warning]service key unset — cardtable:redeploy outcome not reported`, observed verbatim on Wave 5's own redeploy of `5cc9773` **and** on the tracker's push of `a1cf214`. So every cardtable redeploy is green and monitoring-api never hears about it. Seed from an up-to-date hadoku_site checkout: `python3 scripts/administration.py github-secrets child-repos`. | Repo secret |
 | **P5** | **Tidy the duplicate `NODE_AUTH_TOKEN` export** — `~/.bashrc` exports it twice (`:166` and `:167`). Harmless today; the second silently wins, so a future rotation that edits only one line will look like it did nothing. It is also a **static `gho_` token in a dotfile** rather than `$(gh auth token)`, so it expires on its own schedule. | Shell profile |
 | O3 | One JVM per match vs. one hosting many | defer to PR-4, but decide before the service-participant lifecycle. **Arrives sooner if O2 goes the JVM way.** |
 | ~~O4~~ | ~~Does the spike block Wave 2?~~ | **Resolved 2026-09-12: moot.** The spike ran and finished inside Wave 1. |
@@ -372,6 +372,64 @@ for, not rely on the timing of**. And it matters to the frontend plan below: a
 seat surviving a *client* swap (a page reload) is a different guarantee from a
 match surviving a *server* restart. The first is w18's; the second nobody has
 yet.
+
+## Verified this pass (2026-09-25 — tracker, closing Wave 20)
+
+**Landed `9ce3602..dc48e84`, ten commits, one push.** apps 0.16.0, CI run
+`36108056554` green on BOTH jobs. Worktree removed, branch gone. Main has
+since moved to `f823837` on two bot dependency bumps, which is what the
+13:18Z restart is — not wave work.
+
+**The closing note was three lines** — no per-lane notes, no mutation counts,
+no unverified list — so everything below is the tracker's own run, not a
+re-reading of prose.
+
+| claim | how it was checked |
+| --- | --- |
+| the gate | tracker's `pnpm check` at both `dc48e84` and `f823837`: exit 0 |
+| the wave's e2e proofs | tracker ran `play.spec.ts` + `table-fit.spec.ts` + `room-mode.spec.ts` at the wave head: **5 passed**, the fit log showing the new grouped rows (`lands 9 | artifacts 2 | creatures 8 | other 1`) |
+| **#7 a turn is never auto-passed** | **mutation by the tracker**: removing `isOwnMainPhaseEntry`'s guard → **2 failed / 74**; restored → 76/76 |
+| **#4/#6 one legal reply is no question** | **mutation by the tracker**: disabling the single-ability arm → **3 failed / 135**; restored → 138 passed |
+| #5 the stack resolves | `auto.test.ts`'s captured-window table decides each real Forge frame: own-main-idle stops, own-main-stack-not-empty passes, both sides of the resolve |
+| #3 status pills | `PlayerRow` renders `StatusPill` with shape AND colour (tick/cross/ring) — not colour alone |
+| #10/#11 grouping, drag, anchors | `data-board-row` (lands/artifacts/creatures/other), drag on the viewer's own battlefield only, faces at the two ends |
+| #12/#8 prompts are cards | the tutor is a grid of `CardTile`s with art ids; the manipulate prompt takes a `DragEvent` |
+| #13 the inspector | `play/inspect/` exists with its own tests |
+| #2 one theme | **diagnosed live, not guessed**: the chrome resolves its own default from its own store (`'dark'` when nothing loaded) while the page resolved `light` — measured, then removed by passing our theme through |
+
+**#1, the GUID roster, is correctly still open.** watchparty accepted the ask
+and their `name` prop has not shipped (`@wolffm/watchparty-ui@0.39.5` here,
+no `name` in its `room-chrome.d.ts`), so lane E's one-liner waited exactly as
+the wave file instructed. Their contract is settled: precedence is
+custom name > our prop > auto identity, absent = no change.
+
+### Found while verifying: CI is flaky in `LiveBoard.test.ts`, and main was red
+
+Run `36140099030` (the bot's bump, `f823837`) failed BOTH jobs on
+`expected 'Turn 13' to be 'Turn 14'`. Not a product bug: the same sha passes
+on rerun (tracker re-ran it — `check` and `forge-e2e` both success), and the
+file passes locally 5+ times including under 3× core load.
+
+The race is real even though it was not reproducible: `liveBoard()` hands
+every fixture frame to the socket in one loop and then waits only on the LAST
+frame's RENDERED effect, so a slow drain exhausts the `waitFor` window with
+the board on an earlier turn. Hardened by waiting on `stats.applied` —
+delivery — before asserting what delivery renders.
+
+**Unproven, and stated as such:** the hardening was never observed to fix a
+failure, because the failure was never reproduced locally. What would settle
+it is time: if `Turn 13` appears again after this, the diagnosis is wrong and
+the next look should be at the replay server's send path, not the wait.
+
+### Left over for track R
+
+`fullControl` still absent from the snapshot (a refresh draws the toggle off);
+arrow geometry still unverified in a real browser; combat still not driven by
+drag anywhere; quest-precon art still excluded.
+
+**Closed while verifying:** `KEY_SERVICE_CARDTABLE` is now seeded
+(`gh secret list`, 2026-09-25T16:02Z) — **P4 on the operator's list is done**,
+so cardtable's redeploys now report to monitoring instead of warning.
 
 ## Verified this pass (2026-09-25 — tracker, closing Wave 19)
 
