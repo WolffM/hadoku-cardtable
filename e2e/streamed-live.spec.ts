@@ -52,6 +52,15 @@ async function mine(roomId: string): Promise<string[]> {
   return (await ours()).filter((n) => n.startsWith(`${STREAM_NAME_PREFIX}-${roomId}-`));
 }
 
+/**
+ * Every docker NETWORK this harness owns. Same prefix rule as the containers,
+ * so a sweep can never see production's or the friend-demo bench's.
+ */
+async function ourNetworks(): Promise<string[]> {
+  const out = await docker(['network', 'ls', '--format', '{{.Name}}']);
+  return out === '' ? [] : out.split('\n').filter((n) => n.startsWith(STREAM_NAME_PREFIX));
+}
+
 /** Every container on this host whose name is OURS. Never production's. */
 async function ours(): Promise<string[]> {
   const out = await docker(['ps', '-a', '--format', '{{.Names}}']);
@@ -141,6 +150,19 @@ test.afterAll(async () => {
     await docker(['rm', '-f', name]).catch(() => '');
   }
   expect(await ours(), 'this run left containers behind').toEqual([]);
+
+  // ── and the NETWORKS, which are the leak nobody saw ──────────────────────
+  // Every streamed room gets its own docker network, and removing a container
+  // does not remove the network it was on. Twenty-two of them accumulated on
+  // this host between 2026-09-18 and 2026-09-25 — one per e2e run — until
+  // docker refused to make another: `all predefined address pools have been
+  // fully subnetted`, which fails provisioning for EVERY service on the
+  // machine, not just this one. A container census cannot see this; the
+  // network census below can.
+  for (const net of await ourNetworks()) {
+    await docker(['network', 'rm', net]).catch(() => '');
+  }
+  expect(await ourNetworks(), 'this run left docker networks behind').toEqual([]);
 });
 
 test('two friends, one streamed room: the server provisions, and each seat frames real Forge', async ({

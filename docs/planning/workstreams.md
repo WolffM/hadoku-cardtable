@@ -373,6 +373,51 @@ seat surviving a *client* swap (a page reload) is a different guarantee from a
 match surviving a *server* restart. The first is w18's; the second nobody has
 yet.
 
+## Found while closing Wave 20 — two e2e defects, one of them host-wide
+
+**Docker had run out of network address pools on hokon.** Every streamed room
+creates its own docker network, and removing a container does not remove the
+network it sat on — so one leaked per e2e run from 2026-09-18 onward. At 22
+leaked `cardtable-e2e-room-*` networks docker began refusing to create any
+new one: `all predefined address pools have been fully subnetted`. That fails
+provisioning for **every service on the machine**, not only cardtable, and it
+is invisible to a container census, which is exactly what the spec had.
+
+Cleared by the tracker (22 removed, bench untouched — `cardtable-lab` still
+has its 2 containers), and closed at the source: `streamed-live.spec.ts`'s
+teardown now reaps networks by the harness's own prefix and asserts none
+remain. Proven: network count 9 before a run, 9 after, streamed room green.
+
+**`e2e/play.spec.ts` proved item 5 by luck.** It hunts a castable spell to
+show one resolves with nobody pressing a button — and the game was never
+seeded, so the shuffle decided whether the proof was reachable at all. CI drew
+a hand where Forge offered nothing but two lands (`casts: []`, `everOffered:
+["Plains", "Celestial Colonnade"]`) and the wave's headline proof went red on
+a dependency-bump commit that could not have touched it.
+
+`MatchSpec.seed` already existed for this — *"seeds Forge's shuffles and the
+precon pick, for a repeatable test run"* — and `bridgeConfig` already spread
+it to the JVM, but **nothing on the product path ever set it**, so only
+`jvm.test.ts` (which builds a spec by hand) could ask for one. The product
+path now reads `CARDTABLE_PLAY_SEED`, unset everywhere but the harness, which
+pins `e2e/playSeed.ts`. Mutation-tested: dropping the spread fails 1 of 16.
+
+### The `LiveBoard.test.ts` flake, and what it was not
+
+Run `36140099030` failed on `expected 'Turn 13' to be 'Turn 14'`. Reran green
+on the same sha, passes locally 5+ times including under 3x core load — so
+the diagnosis (the helper waits on the LAST frame's render rather than on
+delivery) is **plausible and unproven**, and the board says so. Hardened by
+waiting on `stats.applied` first. If `Turn 13` returns, the wait is not the
+cause and the replay server's send path is next.
+
+**A process note for the tracker, earned here:** while verifying I ran a local
+`pnpm e2e` and CPU-load tests that overlapped a CI `forge-e2e` job on this
+same machine — the exact collision `ci-runner-shares-e2e-ports` warns about. It
+was not the cause this time (the quiet-host rerun failed identically), but it
+cost a round of diagnosis. Check `gh run list` before AND after starting a
+local e2e, not only before.
+
 ## Verified this pass (2026-09-25 — tracker, closing Wave 20)
 
 **Landed `9ce3602..dc48e84`, ten commits, one push.** apps 0.16.0, CI run

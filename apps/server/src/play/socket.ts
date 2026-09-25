@@ -143,7 +143,7 @@ function playEmitPolicy(log: PlayLog): EmitPolicy {
 }
 
 /** `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null] }`. */
-function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | { ok: false; error: string } {
+export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | { ok: false; error: string } {
 	const b = (body ?? {}) as Record<string, unknown>;
 	if (typeof b !== 'object' || Array.isArray(b)) return { ok: false, error: 'body must be an object' };
 	for (const key of Object.keys(b)) {
@@ -158,6 +158,20 @@ function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | { ok: fa
 			return { ok: false, error: 'each deck is .dck text (at most 64 KiB) or null' };
 		}
 	}
+	// `CARDTABLE_PLAY_SEED` fixes Forge's shuffles, the coin toss and the precon
+	// pick (`play/README.md`, `MatchSpec.seed`), and `bridgeConfig` spreads the
+	// whole spec to the JVM. `jvm.test.ts` has always used it by building a spec
+	// directly; a match started through the PRODUCT path had no way to ask for
+	// one, so `e2e/play.spec.ts` played a different game every run. It hunts for
+	// a castable spell to prove one resolves unattended, and on 2026-09-25 CI
+	// drew a hand where Forge offered nothing but lands — `casts: []`,
+	// `everOffered: ["Plains", "Celestial Colonnade"]` — so the proof failed on
+	// the shuffle, not on the product.
+	//
+	// Unset in production, which is every deployment: this is the test hatch,
+	// and an unseeded match is what it falls back to.
+	const seedRaw = process.env.CARDTABLE_PLAY_SEED;
+	const seed = seedRaw === undefined || seedRaw === '' ? Number.NaN : Number(seedRaw);
 	return {
 		ok: true,
 		spec: {
@@ -166,6 +180,7 @@ function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | { ok: fa
 				{ name: 'Seat 1', ai: false, deck: decks[0] as string | null },
 				{ name: opponent === 'ai' ? 'Forge AI' : 'Seat 2', ai: opponent === 'ai', deck: decks[1] as string | null },
 			],
+			...(Number.isFinite(seed) ? { seed } : {}),
 		},
 	};
 }

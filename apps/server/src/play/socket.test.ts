@@ -17,6 +17,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
+import { parseStartBody } from './socket.ts';
 import type { BridgeLine } from './host.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, secretsFor, type ReplayHost } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
@@ -434,5 +435,47 @@ describe('the gate and identity', () => {
 		const a = (await one.request('forge:join', { matchId })) as { seat: number };
 		const b = (await two.request('forge:join', { matchId })) as { seat: number };
 		expect([a.seat, b.seat]).toEqual([0, 0]);
+	});
+});
+
+/* ── the test seed reaches the match spec ────────────────────────────── */
+
+describe('CARDTABLE_PLAY_SEED', () => {
+	const ORIGINAL = process.env.CARDTABLE_PLAY_SEED;
+	afterEach(() => {
+		if (ORIGINAL === undefined) delete process.env.CARDTABLE_PLAY_SEED;
+		else process.env.CARDTABLE_PLAY_SEED = ORIGINAL;
+	});
+
+	/*
+	 * `e2e/play.spec.ts` proves a spell resolves with nobody pressing a button,
+	 * which it can only do if the game ever offers a castable spell. Unseeded,
+	 * the shuffle decides that: on 2026-09-25 CI drew a hand where Forge
+	 * offered nothing but lands (`casts: []`), and the proof failed on luck.
+	 * `MatchSpec.seed` fixes Forge's shuffles, the coin toss and the precon
+	 * pick, and `bridgeConfig` spreads the whole spec to the JVM — but nothing
+	 * on the PRODUCT path ever set it, so only `jvm.test.ts` (which builds a
+	 * spec by hand) could ask for one.
+	 */
+	it('rides onto the spec when set, and is absent otherwise', () => {
+		delete process.env.CARDTABLE_PLAY_SEED;
+		const unseeded = parseStartBody({});
+		expect(unseeded.ok).toBe(true);
+		if (!unseeded.ok) return;
+		expect(unseeded.spec.seed, 'production must not be seeded').toBeUndefined();
+
+		process.env.CARDTABLE_PLAY_SEED = '20260925';
+		const seeded = parseStartBody({});
+		expect(seeded.ok).toBe(true);
+		if (!seeded.ok) return;
+		expect(seeded.spec.seed).toBe(20260925);
+	});
+
+	it('ignores a value that is not a number rather than seeding with NaN', () => {
+		process.env.CARDTABLE_PLAY_SEED = 'not-a-seed';
+		const r = parseStartBody({});
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(r.spec.seed).toBeUndefined();
 	});
 });

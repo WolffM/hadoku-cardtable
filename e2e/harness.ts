@@ -41,6 +41,7 @@ import { fileURLToPath } from 'node:url';
 
 import { startEdge } from './edge.ts';
 import { STREAM_BASE_PORT, STREAM_NAME_PREFIX, STREAM_PORT_MAX } from './streamNamespace.ts';
+import { PLAY_SEED } from './playSeed.ts';
 import { EDGE_PORT, SERVER_PORT } from './identities.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -108,6 +109,12 @@ const server = spawn(process.execPath, [SERVER_JS], {
     // A distinct prefix makes each server's sweep blind to the other's, in both
     // directions; `scripts/stream/container.sh` reads the same variable, so the
     // script and the server cannot disagree about what is ours.
+    // One game, every run. `play.spec.ts` hunts for a castable spell to prove
+    // one resolves with nobody pressing a button; unseeded, the shuffle
+    // decides whether that proof is even reachable, and CI drew a hand of
+    // nothing but lands on 2026-09-25. The seed fixes Forge's shuffles, the
+    // coin toss and the precon pick, so a red here is the product, not luck.
+    CARDTABLE_PLAY_SEED: String(PLAY_SEED),
     CARDTABLE_STREAM_NAME_PREFIX: STREAM_NAME_PREFIX,
     // Clear of production's 6100-6199 and of the bench's 6080-6081, so two
     // servers provisioning at once cannot race for a port either.
