@@ -1,0 +1,53 @@
+/*
+ * The inspector's presentation. Everything about WHERE the panel goes and how
+ * BIG it is, is computed in `index.ts` (`placeInspector`) and set inline; this
+ * file is the look, plus the two guarantees the look must keep:
+ *
+ *   - **the subtree enables no pointer-events.** The overlay root is already
+ *     `pointer-events: none` (`../board.css`, `.board__overlay`), so having
+ *     nothing to re-enable is the whole trick: the panel can never become the
+ *     element under the pointer, dismiss-on-leave simply works, and no click
+ *     the game needs is ever blocked. The declaration below is belt and
+ *     braces against a future rule re-enabling it by accident.
+ *   - **the panel is out of flow.** `position: absolute` in the overlay's
+ *     coordinate space — it cannot move a grid track, so the canvas layout
+ *     does not change when it appears (`e2e/table-fit.spec.ts` is the proof).
+ *
+ * The enlarged card IS the cloned `CardTile`: same chrome, same art element,
+ * no markup of ours around it beyond the positioning box. A card's own
+ * proportion (488 × 680) is forced here so the placement math in `index.ts`
+ * — which sizes the panel as `width × width · 680/488` — is the truth in the
+ * DOM: with art the whole-card image covers the tile exactly (`styles.css`,
+ * `.card__art`), without it the text tile fills the same box.
+ *
+ * The board's tighter tile type (`.board .card` in `../board.css`) applies to
+ * the clone too, because the overlay is inside `.board`; it is undone here so
+ * the no-art text tile — a complete card on its own — reads at the draft
+ * tile's size rather than the board's.
+ */
+
+.inspect {
+  position: absolute;
+  /* The floor; `index.ts` sets the real width inline from the placement math. */
+  width: 16.5rem;
+  /* Never the element under the pointer — see the header. */
+  pointer-events: none;
+}
+
+/* The card's own proportion, always; and back to the draft tile's type. */
+.board .inspect .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+  padding: 9px 10px 9px 14px;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.board .inspect .card .card__name {
+  font-size: 13px;
+}
+
+/* Lifted off the table, so it reads as an overlay and not a card in a zone. */
+.inspect .card {
+  box-shadow: 0 10px 28px rgb(0 0 0 / 60%);
+}
