@@ -10,6 +10,7 @@ import { cardRequest } from '@hadoku/forge-wire';
 import { askFor, asksFor, fixtureLookup } from './fixtures.ts';
 import {
   abilityProblems,
+  autoAnswer,
   chooseEntitiesProblems,
   chooseSingleProblems,
   combatDamageProblems,
@@ -124,6 +125,56 @@ describe('getAbilityToPlay', () => {
     expect(abilityProblems(ask, { kind: 'spellAbility', id: 9002 })).toEqual([]);
     expect(abilityProblems(ask, null)).toEqual([]);
     expect(abilityProblems(ask, { kind: 'spellAbility', id: 9003 })).toHaveLength(1);
+  });
+});
+
+/* ── One answer is no question (wave 20 §B.1) ─────────────────────────── */
+
+describe('autoAnswer', () => {
+  const two = askFor('getAbilityToPlay');
+  const one = { ...two, abilities: [two.abilities[0]!] };
+
+  it('answers an offer of exactly one ability, with the ability itself', () => {
+    expect(autoAnswer(one)).toEqual({
+      method: 'getAbilityToPlay',
+      reply: { kind: 'spellAbility', id: two.abilities[0]!.id },
+      why: `ability #${two.abilities[0]!.id}`,
+    });
+  });
+
+  it('names the offer’s own label when the bridge sent one — the shortcut can say what it played', () => {
+    const labelled = { ...one, abilities: [{ ...one.abilities[0]!, label: '{T}: Add {R}.' }] };
+    expect(autoAnswer(labelled)?.why).toBe('{T}: Add {R}.');
+  });
+
+  it('asks when there are two abilities: that is a real choice', () => {
+    expect(autoAnswer(two)).toBeNull();
+  });
+
+  it('asks when there are none — an empty offer is not an answer', () => {
+    expect(autoAnswer({ ...two, abilities: [] })).toBeNull();
+  });
+
+  it('answers only getAbilityToPlay: everything else with one legal reply is the server’s', () => {
+    // `apps/server/src/play/auto.ts`'s `onlyAnswer` owns the rest, and its own
+    // suite holds it. Two statements of one policy is what this keeps out.
+    for (const ask of [
+      askFor('getChoices'),
+      askFor('chooseSingleEntityForEffect'),
+      askFor('chooseEntitiesForEffect'),
+      askFor('showOptionDialog'),
+      askFor('order'),
+      askFor('confirm'),
+      askFor('assignCombatDamage'),
+      askFor('sideboard'),
+      askFor('manipulateCardList'),
+      askFor('tempShowZones'),
+      askFor('openZones'),
+      askFor('showInputDialog'),
+      askFor('assignGenericAmount'),
+    ]) {
+      expect(autoAnswer(ask), ask.method).toBeNull();
+    }
   });
 });
 

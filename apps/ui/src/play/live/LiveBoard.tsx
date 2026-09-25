@@ -25,6 +25,19 @@
  * thread is parked on the ask it failed to draw. `PromptBoundary` aborts that
  * ask (`unsupported`) so Forge takes its own default, and says so on screen.
  *
+ * ### One answer is no question
+ *
+ * Before any of that, an ask goes past `../prompts/rules.ts`'s `autoAnswer` —
+ * the ONE place the browser decides whether a question answers itself. Today
+ * that is `getAbilityToPlay` with exactly one ability: the operator's *"one
+ * choice shouldn't require this dialog at all"* (wave 20, item 4), and the
+ * whole of their *"'choose ability' often needs the click TWICE"* (item 9),
+ * because Forge asks that offer twice for one `selectCard` and both copies now
+ * answer themselves. The reply goes through `answerAsk` like any other and the
+ * board SAYS what it played (`noteAutoAnswered`), so the shortcut is visible;
+ * nothing is drawn for it, not even for a frame. `match.fullControl` turns it
+ * off and the picker comes back.
+ *
  * ## Clicks on the board
  *
  * `Board` gets a `BoardInteraction` built from `boardInteraction(match)` —
@@ -109,6 +122,7 @@
 
 import {
   Component,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -120,6 +134,7 @@ import { createPortal } from 'react-dom';
 
 import { Board, type BoardInteraction } from '../Board.tsx';
 import { lookupFromState, plainRulesText, withAbilityLabels } from '../prompts/lookup.ts';
+import { autoAnswer } from '../prompts/rules.ts';
 import { isPromptMethod, PromptFor, type AskOf, type PromptMethod } from '../prompts/index.ts';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
 import {
@@ -128,6 +143,7 @@ import {
   answerConfirm,
   boardInteraction,
   currentAsk,
+  noteAutoAnswered,
   pressButton,
   selectCard,
   selectPlayer,
@@ -376,7 +392,23 @@ export function LiveBoard({ match }: { match: LiveMatch }) {
     (listener) => subscribe(match, listener),
     () => match.revision,
   );
-  const ask = currentAsk(match);
+  const pending = currentAsk(match);
+  /*
+   * One answer is no question (§B, items 4 and 9). `rules.ts`'s `autoAnswer`
+   * is the only place that decides it; here it is sent, and the prompt that
+   * would have asked is never drawn. Full control turns it off, and then the
+   * picker comes back for one ability as it does for two.
+   */
+  const auto = pending === null || match.fullControl ? null : autoAnswer(pending);
+  const autoCallId = auto === null || pending === null ? null : pending.callId;
+  useEffect(() => {
+    if (autoCallId === null || auto === null) return;
+    // `answerAsk` refuses a callId that is no longer open, so a re-render
+    // between the reply and the frame that closes it cannot answer twice.
+    if (answerAsk(match, autoCallId, auto.method, auto.reply)) noteAutoAnswered(match, auto.why);
+  }, [match, autoCallId, auto]);
+  /* Nothing renders for an ask that answers itself — not even for a frame. */
+  const ask = auto === null ? pending : null;
   const bar = match.buttons;
   const offered = boardInteraction(match);
   const interaction: BoardInteraction = {

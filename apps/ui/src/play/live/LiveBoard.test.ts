@@ -731,12 +731,63 @@ describe('the says, the toggle, and the ability label', () => {
         callId: 'fx-unlabelled',
         method: 'getAbilityToPlay',
         hostCard: { kind: 'card', id: mine[0]! },
-        abilities: [{ kind: 'spellAbility', id: 9001 }],
+        // Two, because one answers itself and is never drawn — see below.
+        abilities: [{ kind: 'spellAbility', id: 9001 }, { kind: 'spellAbility', id: 9002 }],
         triggerEvent: null,
       }),
     );
     await waitFor(() => expect(getByTestId('live-prompt').dataset.method).toBe('getAbilityToPlay'));
     const sheet = container.querySelector('[data-prompt="getAbilityToPlay"]')!;
     expect(sheet.querySelector('[data-testid="prompt-choice"]')!.textContent).toBe('ability #9001');
+  });
+
+  /*
+   * Wave 20 §B.1, the operator's #4: *"one choice shouldn't require this dialog
+   * at all"*. The policy is `rules.ts`'s `autoAnswer`; this is the wiring.
+   */
+  it('an offer with ONE ability is answered without drawing anything', async () => {
+    const { s, m, queryByTestId } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 'fx-only-one',
+        method: 'getAbilityToPlay',
+        hostCard: { kind: 'card', id: mine[0]! },
+        abilities: [{ kind: 'spellAbility', id: 9001, label: '{T}: Add {R}.' }],
+        triggerEvent: null,
+      }),
+    );
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(s.clientFrames()[0]).toMatchObject({
+      ok: true,
+      value: { kind: 'reply', callId: 'fx-only-one', method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 9001 } },
+    });
+    // Nothing was ever drawn for it, and nothing is left open.
+    expect(queryByTestId('live-prompt')).toBeNull();
+    expect(m.asks).toEqual([]);
+    // And it said what it played, in Forge's own words: a shortcut nobody can
+    // see is a swallowed click. The braces are said in words at the draw
+    // (`plainRulesText`), as every other says line is.
+    expect(m.says).toContain('played {T}: Add {R}.');
+  });
+
+  it('full control makes that same one-ability offer a question again', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    fireEvent.click(getByTestId('live-full-control'));
+    await waitFor(() => expect(m.fullControl).toBe(true));
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 'fx-full-control',
+        method: 'getAbilityToPlay',
+        hostCard: { kind: 'card', id: mine[0]! },
+        abilities: [{ kind: 'spellAbility', id: 9001, label: '{T}: Add {R}.' }],
+        triggerEvent: null,
+      }),
+    );
+    await waitFor(() => expect(getByTestId('live-prompt').dataset.callId).toBe('fx-full-control'));
+    expect(s.clientFrames()).toEqual([]);
   });
 });

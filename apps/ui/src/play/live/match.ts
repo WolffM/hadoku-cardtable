@@ -697,6 +697,22 @@ function sendAct(match: LiveMatch, frame: Extract<ClientEnvelope['frame'], { kin
   return true;
 }
 
+/**
+ * Say that a question answered itself — wave 20 §B, the client half of w19's
+ * rule that no shortcut is silent.
+ *
+ * The line goes in the same log the server's own `message` notifies feed
+ * (`says`, display only, capped at `SAYS_KEPT`), because to the player there is
+ * no difference between "the server passed a stop for me" and "my click cast
+ * the spell without asking which ability". It is not sent anywhere and does not
+ * survive a snapshot; the frames that DO survive — `paid …` — are the server's.
+ */
+export function noteAutoAnswered(match: LiveMatch, what: string): void {
+  match.says.push(`played ${what}`);
+  if (match.says.length > SAYS_KEPT) match.says.shift();
+  notify(match);
+}
+
 /** `showConfirmDialog`'s answer: `answerAsk` with the method filled in. */
 export function answerConfirm(match: LiveMatch, callId: string, yes: boolean): boolean {
   return answerAsk(match, callId, 'showConfirmDialog', yes);

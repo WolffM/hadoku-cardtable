@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { REPLY_SCHEMAS, parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
 
-import { autoPassReason, onlyAnswer, paymentCost, paymentLine, plainCost } from './auto.js';
+import { autoPassReason, autoPayReason, isOwnMainPhaseEntry, onlyAnswer, paymentCost, paymentLine, plainCost } from './auto.js';
 import { FORGE_PREFERENCES } from './host.js';
 import { createMatchRegistry, type Match } from './match.js';
 import type { ServerEnvelope } from './transport.js';
@@ -84,12 +84,12 @@ describe('onlyAnswer, where Forge left exactly one possibility', () => {
 		return parseServerFrame({ ...(fixture(file) as unknown as Record<string, unknown>), ...patch });
 	}
 
-	it('getAbilityToPlay is never auto-answered, one ability or many', () => {
-		// A one-ability ask of it is always “you clicked this card”; payment never
-		// produces one, because Forge’s own InputPayMana plays the only ability
-		// without asking (InputPayMana.java:102-106) and only asks for two or
-		// more. Staying a question keeps the player’s click visible; the button’s
-		// label is the bridge’s to send (`lookup.ts`). See `auto.ts`.
+	it('getAbilityToPlay is never auto-answered HERE, one ability or many', () => {
+		// Wave 20 reversed the exclusion for the single-option case — but on the
+		// BROWSER side, in `apps/ui/src/play/prompts/rules.ts`'s `autoAnswer`, the
+		// only place that can name the ability it played (labels are resolved
+		// there, over the offer's own `label`). Two statements of one policy is
+		// what this assertion keeps out of this file. See `auto.ts`'s header.
 		const ask = fixture('getAbilityToPlay.json') as Extract<ServerFrame, { method: 'getAbilityToPlay' }>;
 		const one = narrowed('getAbilityToPlay.json', { abilities: [ask.abilities[0]] });
 		expect(onlyAnswer(one)).toBeNull();
@@ -174,6 +174,95 @@ describe('onlyAnswer, where Forge left exactly one possibility', () => {
 	});
 });
 
+/* ── The same rules over REAL frames off a real match ─────────────────── */
+
+/**
+ * `fixtures/w20-turn-flow.json` — the distilled evidence for wave 20 §B. Its
+ * own header says how it was cut and how to re-cut it; the point of reading it
+ * here is that every rule above is checked against frames Forge actually sent,
+ * not only against frames this file typed.
+ */
+interface FlowWindow {
+	label: string;
+	seat: number;
+	playerId: number;
+	prompt: Record<string, unknown>;
+	buttons: Record<string, unknown>;
+	actionable: number[] | null;
+}
+
+const FLOW = JSON.parse(
+	readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures/w20-turn-flow.json'), 'utf8'),
+) as { windows: FlowWindow[]; abilityOffers: Record<string, unknown>[] };
+
+/** What each captured window must decide. A new row in the fixture is a new row here. */
+const FLOW_EXPECTED: Readonly<Record<string, { pass: string | null; pay: string | null }>> = {
+	// Its own main phase, with three things Forge says it can do: a stop either way.
+	'own-main-with-actions': { pass: null, pay: null },
+	// The one the operator asked for (#7): its own main phase, NOTHING to do, and
+	// still a stop. This is the row a revert of the item-7 rule turns red.
+	'own-main-idle': { pass: null, pay: null },
+	// The same phase with the creature ON the stack — a stack window, passed (#5).
+	'own-main-stack-not-empty': { pass: 'Main phase, precombat', pay: null },
+	// The opponent's main phase is not this seat's turn, so it is passed as ever.
+	'opponent-main-idle': { pass: 'Main phase, precombat', pay: null },
+	// The other seat's window while the creature resolves: the other half of #5.
+	'opponent-window-stack-not-empty': { pass: 'Main phase, precombat', pay: null },
+	// One land, {U} to pay, Forge's own Auto live (#6).
+	'payment-one-source': { pass: null, pay: '{U}' },
+	'step-idle': { pass: 'Beginning of Combat Step', pay: null },
+	// Not a priority window and not a payment: neither rule touches it.
+	mulligan: { pass: null, pay: null },
+};
+
+describe('the captured turn flow — every rule against frames Forge really sent', () => {
+	it('the fixture and this table name the same windows', () => {
+		expect(FLOW.windows.map((w) => w.label).sort()).toEqual(Object.keys(FLOW_EXPECTED).sort());
+	});
+
+	it.each(FLOW.windows.map((w) => [w.label, w] as const))('%s', (label, w) => {
+		const notes = {
+			playerId: w.playerId,
+			prompt: parseServerFrame(w.prompt),
+			buttons: parseServerFrame(w.buttons),
+			actionable: w.actionable,
+			openAsks: 0,
+		};
+		const want = FLOW_EXPECTED[label]!;
+		expect(autoPassReason(notes), `${label}: auto-pass`).toBe(want.pass);
+		expect(autoPayReason(notes), `${label}: auto-pay`).toBe(want.pay);
+	});
+
+	it('every ability offer the run produced carried exactly one ability, and its label', () => {
+		expect(FLOW.abilityOffers.length).toBeGreaterThan(0);
+		for (const offer of FLOW.abilityOffers) {
+			const ask = parseServerFrame(offer);
+			expect(ask.method).toBe('getAbilityToPlay');
+			if (ask.method !== 'getAbilityToPlay') continue;
+			expect(ask.abilities, JSON.stringify(ask.abilities)).toHaveLength(1);
+			expect(typeof ask.abilities[0]?.label).toBe('string');
+			// And the server leaves every one of them alone — `rules.ts` answers them.
+			expect(onlyAnswer(ask)).toBeNull();
+		}
+	});
+
+	/*
+	 * Item 9, from the capture: two of the four offers are the SAME card and the
+	 * SAME ability, back to back, for ONE `selectCard`. Forge has two
+	 * `getAbilityToPlay` call sites and this pair carries the SPELL's ability, so
+	 * both came from `InputPassPriority.java:340` — one click, asked twice. The
+	 * live suite pins the click count; this pins the shape, off disk.
+	 */
+	it('holds the repeated offer item 9 is: the same ability asked twice', () => {
+		const keys = FLOW.abilityOffers.map((o) => {
+			const ask = o as { hostCard: { id: number }; abilities: { id: number }[] };
+			return `${ask.hostCard.id}:${ask.abilities.map((a) => a.id).join(',')}`;
+		});
+		const repeated = keys.filter((k, i) => i > 0 && keys[i - 1] === k);
+		expect(repeated, JSON.stringify(keys)).not.toEqual([]);
+	});
+});
+
 /* ── Stops with nothing to do ────────────────────────────────────────── */
 
 const PRIORITY_MESSAGE = 'Priority: B\nTurn: 4 (A)\nPhase: End of Combat Step\nStack: Empty';
@@ -222,9 +311,26 @@ describe('autoPassReason', () => {
 		expect(autoPassReason({ ...IDLE, actionable: null })).toBeNull();
 	});
 
-	it('never passes with something on the stack', () => {
+	// Wave 20, #5: this used to be "never passes with something on the stack".
+	// That requirement is what made a creature need two humans to press OK.
+	it('PASSES a priority window with something on the stack — that is what resolves it', () => {
 		const onStack = prompt('Priority: B\nTurn: 4 (A)\nPhase: End step\nStack: 1 to Resolve.');
-		expect(autoPassReason({ ...IDLE, prompt: onStack })).toBeNull();
+		expect(autoPassReason({ ...IDLE, prompt: onStack })).toBe('End step');
+	});
+
+	// Wave 20, #7: "dont auto-pass peoples turns".
+	it('never passes the seat’s OWN main phase with an empty stack, even with nothing to do', () => {
+		for (const phase of ['Main phase, precombat', 'Main phase, postcombat']) {
+			const own = prompt(`Priority: B\nTurn: 4 (B)\nPhase: ${phase}\nStack: Empty`);
+			expect(autoPassReason({ ...IDLE, prompt: own }), phase).toBeNull();
+		}
+	});
+
+	it('still passes the OTHER seat’s main phase, and its own main phase with a stack', () => {
+		const theirs = prompt('Priority: B\nTurn: 4 (A)\nPhase: Main phase, precombat\nStack: Empty');
+		expect(autoPassReason({ ...IDLE, prompt: theirs })).toBe('Main phase, precombat');
+		const mineWithStack = prompt('Priority: B\nTurn: 4 (B)\nPhase: Main phase, precombat\nStack: 1 to Resolve.');
+		expect(autoPassReason({ ...IDLE, prompt: mineWithStack })).toBe('Main phase, precombat');
 	});
 
 	it('never passes a prompt that is not priority (a mulligan, a payment, a declare step)', () => {
@@ -251,6 +357,84 @@ describe('autoPassReason', () => {
 		expect(autoPassReason({ ...IDLE, playerId: null })).toBeNull();
 		expect(autoPassReason({ ...IDLE, prompt: null })).toBeNull();
 		expect(autoPassReason({ ...IDLE, buttons: null })).toBeNull();
+	});
+});
+
+describe('isOwnMainPhaseEntry — "your turn, your main phase, nothing on the stack"', () => {
+	it('reads Forge’s own two names out of one message', () => {
+		expect(isOwnMainPhaseEntry('Priority: A\nTurn: 2 (A)\nPhase: Main phase, precombat\nStack: Empty')).toBe(true);
+		expect(isOwnMainPhaseEntry('Priority: A\nTurn: 2 (B)\nPhase: Main phase, precombat\nStack: Empty')).toBe(false);
+		expect(isOwnMainPhaseEntry('Priority: A\nTurn: 2 (A)\nPhase: End step\nStack: Empty')).toBe(false);
+		expect(isOwnMainPhaseEntry('Priority: A\nTurn: 2 (A)\nPhase: Main phase, precombat\nStack: 1 to Resolve.')).toBe(false);
+	});
+
+	it('survives the day/night marker Forge appends to the turn line', () => {
+		expect(isOwnMainPhaseEntry('Priority: A\nTurn: 2 (A)  [Day]\nPhase: Main phase, postcombat\nStack: Empty')).toBe(true);
+	});
+
+	it('is not fooled by two seats sharing a name — it over-stops, which is the safe way to be wrong', () => {
+		expect(isOwnMainPhaseEntry('Priority: A\nTurn: 2 (A)\nPhase: Main phase, precombat\nStack: Empty')).toBe(true);
+	});
+});
+
+/* ── A payment with one source ───────────────────────────────────────── */
+
+/** The payment input's bar: Forge's own "Auto" (`InputPayMana.updateButtons`). */
+function autoBar(enable1: boolean, playerId = 1): ServerFrame {
+	return parseServerFrame({
+		kind: 'notify',
+		method: 'updateButtons',
+		owner: { kind: 'player', id: playerId },
+		label1: 'Auto',
+		label2: 'Cancel',
+		enable1,
+		enable2: true,
+		focus1: false,
+	});
+}
+
+const PAYING = {
+	playerId: 1,
+	prompt: prompt('Preordain - B scribes 2.\n\nPay Mana Cost: {U}'),
+	buttons: autoBar(true),
+	actionable: [67] as number[],
+	openAsks: 0,
+};
+
+describe('autoPayReason', () => {
+	it('presses Forge’s Auto for a payment with exactly one source, and names the cost', () => {
+		expect(autoPayReason(PAYING)).toBe('{U}');
+	});
+
+	it('asks when there is more than one source — which land to tap is a real choice', () => {
+		expect(autoPayReason({ ...PAYING, actionable: [67, 68] })).toBeNull();
+	});
+
+	it('asks when Forge named no source, or has not said at all', () => {
+		expect(autoPayReason({ ...PAYING, actionable: [] })).toBeNull();
+		expect(autoPayReason({ ...PAYING, actionable: null })).toBeNull();
+	});
+
+	it('never presses a bar that is not the payment input’s own Auto', () => {
+		expect(autoPayReason({ ...PAYING, buttons: autoBar(false) })).toBeNull();
+		// A priority window's button 1 is "OK" — pressing it there is the
+		// auto-pass's business, under its own rules.
+		expect(autoPayReason({ ...PAYING, buttons: buttons(true) })).toBeNull();
+	});
+
+	it('never presses a prompt that is not a payment', () => {
+		expect(autoPayReason({ ...PAYING, prompt: prompt(PRIORITY_MESSAGE) })).toBeNull();
+	});
+
+	it('leaves life alone: paying life instead of mana is a second payment', () => {
+		const phyrexian = prompt('Pay Mana Cost: {U/P}\nClick on your life total to pay life for phyrexian mana.');
+		expect(autoPayReason({ ...PAYING, prompt: phyrexian })).toBeNull();
+	});
+
+	it('never presses while a question is open, before the seat is named, or for the other seat', () => {
+		expect(autoPayReason({ ...PAYING, openAsks: 1 })).toBeNull();
+		expect(autoPayReason({ ...PAYING, playerId: null })).toBeNull();
+		expect(autoPayReason({ ...PAYING, buttons: autoBar(true, 0) })).toBeNull();
 	});
 });
 
@@ -419,6 +603,32 @@ describe('a Match with the shortcuts on (the default)', () => {
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
 	});
 
+	it('presses Forge’s Auto for a one-source payment, exactly once for that cost', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Preordain - A scribes 2.\n\nPay Mana Cost: {U}', me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
+			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
+		]);
+		// Forge re-shows the payment prompt after every tap; a second press would
+		// answer whatever it asks next.
+		push(h, 0, prompt('Preordain - A scribes 2.\n\nPay Mana Cost: {U}', me));
+		push(h, 0, autoBar(true, me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
+		expect(h.logs.filter((l) => l.evt === 'auto-paid')).toHaveLength(1);
+	});
+
+	it('does NOT press Auto when Forge offered two sources to tap', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Pay Mana Cost: {1}{U}', me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+	});
+
 	it('says what a cast paid, naming the lands that tapped, once the payment prompt ends', () => {
 		const h = harness();
 		// The rest of the real transcript, so the seat holds named cards of its own.
@@ -482,6 +692,16 @@ describe('full control — the escape hatch, off by default', () => {
 		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
 		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
 		push(h, 0, buttons(true, me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+	});
+
+	it('pays nothing for the seat either: Auto is a stop like any other', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		h.match.setFullControl(0, true);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Pay Mana Cost: {U}', me));
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
 	});
 

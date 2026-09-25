@@ -1,0 +1,329 @@
+{
+ "provenance": [
+  "REAL frames off a real Forge match, captured 2026-09-25 by",
+  "apps/ui/src/play/live/flow.jvm.test.ts with CARDTABLE_PLAY_DUMP set. Two seats,",
+  "decks of 20 Volcanic Island + 20 Merfolk of the Pearl Trident, seed 20260925.",
+  "Seat 0 played one land and cast the creature; nothing was edited.",
+  "Re-cut it with:",
+  "  CARDTABLE_FORGE_JAR=... CARDTABLE_FORGE_RES=... CARDTABLE_PLAY_WORK_DIR=$(mktemp -d) \\",
+  "  CARDTABLE_PLAY_DUMP=<dir> pnpm vitest run apps/ui/src/play/live/flow.jvm.test.ts",
+  "`windows` is one row per showPromptMessage: the prompt, the updateButtons bar",
+  "standing at that moment, and the setWeaklySelectable set standing at that",
+  "moment (null when Forge had cleared it). `abilityOffers` is every",
+  "getAbilityToPlay ask the run produced — all four one-ability, two of them the",
+  "SAME offer twice for one click (item 9)."
+ ],
+ "windows": [
+  {
+   "label": "own-main-with-actions",
+   "seat": 0,
+   "playerId": 0,
+   "prompt": {
+    "kind": "notify",
+    "method": "showPromptMessage",
+    "player": {
+     "kind": "player",
+     "id": 0
+    },
+    "message": "Priority: A\nTurn: 2 (A)\nPhase: Main phase, precombat\nStack: Empty",
+    "card": null
+   },
+   "buttons": {
+    "kind": "notify",
+    "method": "updateButtons",
+    "owner": {
+     "kind": "player",
+     "id": 0
+    },
+    "label1": "OK",
+    "label2": "End Turn",
+    "enable1": true,
+    "enable2": true,
+    "focus1": true
+   },
+   "actionable": [
+    16,
+    8,
+    15
+   ]
+  },
+  {
+   "label": "own-main-idle",
+   "seat": 0,
+   "playerId": 0,
+   "prompt": {
+    "kind": "notify",
+    "method": "showPromptMessage",
+    "player": {
+     "kind": "player",
+     "id": 0
+    },
+    "message": "Priority: A\nTurn: 2 (A)\nPhase: Main phase, precombat\nStack: Empty",
+    "card": null
+   },
+   "buttons": {
+    "kind": "notify",
+    "method": "updateButtons",
+    "owner": {
+     "kind": "player",
+     "id": 0
+    },
+    "label1": "OK",
+    "label2": "End Turn",
+    "enable1": true,
+    "enable2": true,
+    "focus1": true
+   },
+   "actionable": []
+  },
+  {
+   "label": "own-main-stack-not-empty",
+   "seat": 0,
+   "playerId": 0,
+   "prompt": {
+    "kind": "notify",
+    "method": "showPromptMessage",
+    "player": {
+     "kind": "player",
+     "id": 0
+    },
+    "message": "Priority: A\nTurn: 2 (A)\nPhase: Main phase, precombat\nStack: 1 to Resolve.",
+    "card": null
+   },
+   "buttons": {
+    "kind": "notify",
+    "method": "updateButtons",
+    "owner": {
+     "kind": "player",
+     "id": 0
+    },
+    "label1": "Auto",
+    "label2": "Cancel",
+    "enable1": true,
+    "enable2": true,
+    "focus1": true
+   },
+   "actionable": []
+  },
+  {
+   "label": "opponent-main-idle",
+   "seat": 0,
+   "playerId": 0,
+   "prompt": {
+    "kind": "notify",
+    "method": "showPromptMessage",
+    "player": {
+     "kind": "player",
+     "id": 0
+    },
+    "message": "Priority: A\nTurn: 3 (B)\nPhase: Main phase, precombat\nStack: Empty",
+    "card": null
+   },
+   "buttons": {
+    "kind": "notify",
+    "method": "updateButtons",
+    "owner": {
+     "kind": "player",
+     "id": 0
+    },
+    "label1": "OK",
+    "label2": "End Turn",
+    "enable1": true,
+    "enable2": true,
+    "focus1": true
+   },
+   "actionable": []
+  },
+  {
+   "label": "opponent-window-stack-not-empty",
+   "seat": 1,
+   "playerId": 1,
+   "prompt": {
+    "kind": "notify",
+    "method": "showPromptMessage",
+    "player": {
+     "kind": "player",
+     "id": 1
+    },
+    "message": "Priority: B\nTurn: 2 (A)\nPhase: Main phase, precombat\nStack: 1 to Resolve.",
+    "card": null
+   },
+   "buttons": {
+    "kind": "notify",
+    "method": "updateButtons",
+    "owner": {
+     "kind": "player",
+     "id": 1
+    },
+    "label1": "OK",
+    "label2": "End Turn",
+    "enable1": true,
+    "enable2": true,
+    "focus1": true
+   },
+   "actionable": []
+  },
+  {
+   "label": "payment-one-source",
+   "seat": 0,
+   "playerId": 0,
+   "prompt": {
+    "kind": "notify",
+    "method": "showPromptMessage",
+    "player": {
+     "kind": "player",
+     "id": 0
+    },
+    "message": "Merfolk of the Pearl Trident - Creature 1 / 1\n\nPay Mana Cost: {U}",
+    "card": {
+     "kind": "card",
+     "id": 40
+    }
+   },
+   "buttons": {
+    "kind": "notify",
+    "method": "updateButtons",
+    "owner": {
+     "kind": "player",
+     "id": 0
+    },
+    "label1": "Auto",
+    "label2": "Cancel",
+    "enable1": true,
+    "enable2": true,
+    "focus1": true
+   },
+   "actionable": [
+    15
+   ]
+  },
+  {
+   "label": "step-idle",
+   "seat": 0,
+   "playerId": 0,
+   "prompt": {
+    "kind": "notify",
+    "method": "showPromptMessage",
+    "player": {
+     "kind": "player",
+     "id": 0
+    },
+    "message": "Priority: A\nTurn: 2 (A)\nPhase: Beginning of Combat Step\nStack: Empty",
+    "card": null
+   },
+   "buttons": {
+    "kind": "notify",
+    "method": "updateButtons",
+    "owner": {
+     "kind": "player",
+     "id": 0
+    },
+    "label1": "OK",
+    "label2": "End Turn",
+    "enable1": true,
+    "enable2": true,
+    "focus1": true
+   },
+   "actionable": []
+  },
+  {
+   "label": "mulligan",
+   "seat": 0,
+   "playerId": 0,
+   "prompt": {
+    "kind": "notify",
+    "method": "showPromptMessage",
+    "player": {
+     "kind": "player",
+     "id": 0
+    },
+    "message": "B is going first.\nA, you are going 2nd.\n\nDo you want to keep your hand?",
+    "card": null
+   },
+   "buttons": {
+    "kind": "notify",
+    "method": "updateButtons",
+    "owner": {
+     "kind": "player",
+     "id": 0
+    },
+    "label1": "Keep",
+    "label2": "Mulligan",
+    "enable1": true,
+    "enable2": true,
+    "focus1": true
+   },
+   "actionable": null
+  }
+ ],
+ "abilityOffers": [
+  {
+   "kind": "ask",
+   "callId": "s0-1",
+   "method": "getAbilityToPlay",
+   "hostCard": {
+    "kind": "card",
+    "id": 15
+   },
+   "abilities": [
+    {
+     "kind": "spellAbility",
+     "id": 163,
+     "label": "Play land"
+    }
+   ],
+   "triggerEvent": null
+  },
+  {
+   "kind": "ask",
+   "callId": "s0-2",
+   "method": "getAbilityToPlay",
+   "hostCard": {
+    "kind": "card",
+    "id": 40
+   },
+   "abilities": [
+    {
+     "kind": "spellAbility",
+     "id": 161,
+     "label": "Merfolk of the Pearl Trident - Creature 1 / 1"
+    }
+   ],
+   "triggerEvent": null
+  },
+  {
+   "kind": "ask",
+   "callId": "s0-3",
+   "method": "getAbilityToPlay",
+   "hostCard": {
+    "kind": "card",
+    "id": 40
+   },
+   "abilities": [
+    {
+     "kind": "spellAbility",
+     "id": 161,
+     "label": "Merfolk of the Pearl Trident - Creature 1 / 1"
+    }
+   ],
+   "triggerEvent": null
+  },
+  {
+   "kind": "ask",
+   "callId": "s0-4",
+   "method": "getAbilityToPlay",
+   "hostCard": {
+    "kind": "card",
+    "id": 16
+   },
+   "abilities": [
+    {
+     "kind": "spellAbility",
+     "id": 168,
+     "label": "Play land"
+    }
+   ],
+   "triggerEvent": null
+  }
+ ]
+}

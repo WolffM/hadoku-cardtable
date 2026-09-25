@@ -78,7 +78,7 @@ import {
 	type ServerFrame,
 } from '@hadoku/forge-wire';
 
-import { autoPassReason, onlyAnswer, paymentCost, paymentLine, type Payment } from './auto.js';
+import { autoPassReason, autoPayReason, onlyAnswer, paymentCost, paymentLine, type Payment } from './auto.js';
 import type { BridgeLine, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
 import {
@@ -139,6 +139,12 @@ export interface SeatState {
 	actionable: number[] | null;
 	/** The payment being made, while its prompt is up. */
 	payment: Payment | null;
+	/**
+	 * The cost this seat's Auto was already pressed for. Forge re-sends the
+	 * payment prompt after every tap, and a second press would answer whatever
+	 * it asks next; one press per cost is all `autoPayReason` ever earns.
+	 */
+	autoPaid: string | null;
 	/** How many asks were answered for this seat, and how many stops passed. */
 	autoAnswered: number;
 	autoPassed: number;
@@ -247,6 +253,7 @@ export class Match {
 			fullControl: false,
 			actionable: null,
 			payment: null,
+			autoPaid: null,
 			autoAnswered: 0,
 			autoPassed: 0,
 			says: [],
@@ -572,6 +579,13 @@ export class Match {
 		this.send(s, frame);
 		if (frame.method === 'showPromptMessage') this.trackPayment(s, frame.message);
 		if (frame.method === 'updateButtons') this.maybeAutoPass(s);
+		/*
+		 * The payment input enables Auto (`updateButtons`) BEFORE it says what it
+		 * is paying for (`showPromptMessage`) — `InputPayMana.updateMessage` sets
+		 * the buttons, pushes the actionable set, then shows the message — so
+		 * both frames have to look.
+		 */
+		if (frame.method === 'showPromptMessage' || frame.method === 'updateButtons') this.maybeAutoPay(s);
 	}
 
 	/* ── Wave 19 lane C ─────────────────────────────────────────────── */
@@ -622,6 +636,31 @@ export class Match {
 		s.actionable = null;
 		this.deps.log({ evt: 'auto-passed', matchId: this.id, seat: s.seat, phase });
 		this.say(s, `auto-passed ${phase}`);
+		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
+	}
+
+	/**
+	 * Press Forge's own Auto for a payment with one source — and say nothing
+	 * extra: `trackPayment` already says what was paid and what tapped, which is
+	 * the whole record either way (#8).
+	 */
+	private maybeAutoPay(s: SeatState): void {
+		if (s.fullControl || s.ai || this.status !== 'running') return;
+		const cost = autoPayReason({
+			playerId: s.playerId,
+			prompt: s.prompt,
+			buttons: s.buttons,
+			actionable: s.actionable,
+			openAsks: s.asks.size,
+		});
+		if (cost === null) {
+			// The payment ended (or never started); the next one earns its press.
+			if (s.payment === null) s.autoPaid = null;
+			return;
+		}
+		if (s.autoPaid === cost) return;
+		s.autoPaid = cost;
+		this.deps.log({ evt: 'auto-paid', matchId: this.id, seat: s.seat, cost });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
 	}
 

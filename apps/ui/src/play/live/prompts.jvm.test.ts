@@ -119,7 +119,21 @@ async function expectNoDesync(h: LiveHarness): Promise<void> {
   }
 }
 
+/**
+ * Nothing a seat was not shown reached it — and the oracle had something to
+ * look for.
+ *
+ * The non-vacuity guard is over BOTH seats together, not each. A seat's secrets
+ * are the cards that were only ever hidden AND whose names never appeared in a
+ * shown zone, so a scenario that plays most of a repetitive deck out can
+ * legitimately reach zero for one seat: every remaining hidden card shares its
+ * name with one already on a battlefield or in a graveyard. Wave 20's flow
+ * changes reached exactly that on seat 0 of the `choices` scenario (0 secrets,
+ * 0 leaks) while seat 1 still had plenty. Requiring it per seat made the suite
+ * fail for a seat with nothing left to hide, which is not a leak.
+ */
 function expectNoLeak(h: LiveHarness): void {
+  let total = 0;
   for (const seat of [0, 1]) {
     const { secrets } = secretsFor(rawStatesOf(h.raw, seat), seat);
     const rawText = h.raw.filter((l) => l.t === 'frame' && l.seat === seat).map((l) => JSON.stringify(l)).join('\n');
@@ -127,10 +141,13 @@ function expectNoLeak(h: LiveHarness): void {
     console.log(
       `[prompts.jvm] seat ${seat}: ${secrets.size} secrets, ${leaked(secrets, rawText).length} in Forge's raw stream, ${leaked(secrets, emitted).length} emitted`,
     );
-    expect(secrets.size).toBeGreaterThan(0);
+    total += secrets.size;
+    // Every secret really is in Forge's own stream — the oracle is reading the
+    // unprojected truth — and none of them is in what the seat was sent.
     expect(leaked(secrets, rawText).length).toBe(secrets.size);
     expect(leaked(secrets, emitted)).toEqual([]);
   }
+  expect(total, 'the leak check had secrets to look for').toBeGreaterThan(0);
 }
 
 function expectCleanBridge(h: LiveHarness): void {

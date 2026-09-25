@@ -205,6 +205,18 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
         if (event === 'connect') later(() => handler(undefined));
       },
       emit: (event, payload) => {
+        // The two events a client emits, as `socket.ts` routes them: answers and
+        // acts on `forge:c2s`, and the full-control preference on its own event
+        // (`socket.ts:401-415`, where the seat is the one `claim` bound, never
+        // the payload's — so this passes `seat`, not anything read from it).
+        if (event === MATCH_EVENTS.fullControl) {
+          const on = (payload as { on?: unknown }).on === true;
+          later(() => {
+            const outcome = match.setFullControl(seat, on);
+            if (!outcome.ok) throw new Error(`seat ${seat} could not set full control: ${outcome.error}`);
+          });
+          return;
+        }
         if (event !== MATCH_EVENTS.clientToServer) throw new Error(`unexpected emit ${event}`);
         later(() => fromClient(seat, payload));
       },

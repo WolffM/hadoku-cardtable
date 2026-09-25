@@ -36,6 +36,7 @@
 import { describe, expect, it } from 'vitest';
 import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
 
+import { isOwnMainPhaseEntry } from './auto.js';
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine } from './host.js';
 import { createMatchRegistry } from './match.js';
 import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
@@ -81,8 +82,8 @@ describe.skipIf(!available.ok)(title, () => {
 
 			/** What each seat was last told, and what happened at each priority stop. */
 			const notes = [0, 1].map(() => ({ prompt: '', ok: false, actionable: null as number[] | null }));
-			/** One row per priority stop this seat was shown: was Forge's set empty, was it passed. */
-			const stops: { seat: number; phase: string; idle: boolean; passed: boolean }[] = [];
+			/** One row per priority window this seat was shown: was Forge's set empty, was it passed. */
+			const stops: { seat: number; phase: string; stackEmpty: boolean; idle: boolean; ownMain: boolean; passed: boolean }[] = [];
 			const says: { seat: number; message: string }[] = [];
 
 			const registry = createMatchRegistry({
@@ -95,18 +96,33 @@ describe.skipIf(!available.ok)(title, () => {
 					const f = envelope.frame;
 					if (f.method === 'setWeaklySelectable') notes[seat]!.actionable = f.cards.map((c) => c.id);
 					else if (f.method === 'clearWeaklySelectable') notes[seat]!.actionable = null;
-					else if (f.method === 'showPromptMessage') notes[seat]!.prompt = f.message;
-					else if (f.method === 'updateButtons') {
-						notes[seat]!.ok = f.enable1;
-						const n = notes[seat]!;
-						if (/^Priority: /.test(n.prompt) && /^Stack: Empty$/m.test(n.prompt) && f.enable1) {
+					else if (f.method === 'showPromptMessage') {
+						notes[seat]!.prompt = f.message;
+						/*
+						 * One row per priority WINDOW, opened by the prompt that names it.
+						 *
+						 * Wave 19 opened a row on `updateButtons` instead, and wave 20 broke
+						 * that: the payment input enables its bar BEFORE it says what it is
+						 * paying for (`InputPayMana.updateMessage`), so a row opened there
+						 * carried the PREVIOUS window's message and then absorbed the next
+						 * window's auto-pass. The prompt is the frame that identifies a
+						 * window, so the row starts with it — and windows with a NON-empty
+						 * stack are rows too now, because wave 20 passes those (#5).
+						 */
+						if (/^Priority: /.test(f.message)) {
 							stops.push({
 								seat,
-								phase: /^Phase: (.+)$/m.exec(n.prompt)?.[1] ?? '?',
-								idle: n.actionable !== null && n.actionable.length === 0,
+								phase: /^Phase: (.+)$/m.exec(f.message)?.[1] ?? '?',
+								stackEmpty: /^Stack: Empty$/m.test(f.message),
+								idle: notes[seat]!.actionable !== null && notes[seat]!.actionable!.length === 0,
+								// Wave 20 #7: a seat's own main phase is a stop whatever Forge
+								// says is actionable, so it is counted apart from the rest.
+								ownMain: isOwnMainPhaseEntry(f.message),
 								passed: false,
 							});
 						}
+					} else if (f.method === 'updateButtons') {
+						notes[seat]!.ok = f.enable1;
 					} else if (f.method === 'message') {
 						says.push({ seat, message: f.message });
 						// The auto-pass lands right after the buttons that opened the stop.
@@ -273,9 +289,22 @@ describe.skipIf(!available.ok)(title, () => {
 
 			// #7 — every stop with nothing to do was passed, and every stop with
 			// something to do was NOT. The second half is the one that matters.
-			expect(stops.filter((s) => s.idle && !s.passed)).toEqual([]);
+			//
+			// Wave 20 carved one case out of the first half: a seat's OWN main phase
+			// with an empty stack is a stop even with nothing to do — *"dont
+			// auto-pass peoples turns"*. So the sweep is over the windows that are
+			// not that, and the carve-out gets an assertion of its own below.
+			expect(stops.filter((s) => s.idle && !s.ownMain && !s.passed)).toEqual([]);
 			expect(stops.filter((s) => !s.idle && s.passed)).toEqual([]);
 			expect(passed.length).toBeGreaterThan(4);
+
+			// #7, wave 20 — and no seat's own main phase with an empty stack was
+			// ever passed for it, whether it had anything to do or not.
+			expect(stops.filter((s) => s.ownMain && s.passed)).toEqual([]);
+			// #5, wave 20 — a window with the stack loaded and nothing to do IS
+			// passed, and this scenario contains some: that is what resolves a spell
+			// without two humans pressing OK.
+			expect(stops.filter((s) => !s.stackEmpty && s.idle && s.passed).length).toBeGreaterThan(0);
 
 			// #8 — a cast is never free: every payment named its cost and its lands.
 			expect(paid.length).toBeGreaterThanOrEqual(2);

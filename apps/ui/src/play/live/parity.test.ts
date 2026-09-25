@@ -16,6 +16,12 @@
  *
  * `Board.test.ts` and `fold.test.ts` are the finer-grained net and are not
  * modified by this lane; this is the coarse one that sees every byte.
+ *
+ * **It renders `Board` and nothing else**, so a failure here is a change to
+ * `../Board.tsx`, `../adapter.ts` or `../fixtures.ts` — never to anything under
+ * `live/`. Wave 20 §A is such a change (the battlefield grew `data-board-row`
+ * rows and a gutter), and re-recording the two numbers belongs in the commit
+ * that makes the markup change, not in a later one that merely notices it.
  */
 
 import { createHash } from 'node:crypto';

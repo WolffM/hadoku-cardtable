@@ -20,10 +20,11 @@ browser ──forge:join / forge:c2s──►  socket.ts ──► match.ts ─�
 | `visibility.ts` | the hidden-information projection (Forge's `canBeShownTo`, server side) |
 | `transport.ts` | the A↔B wrapper schemas (lane B mirrors them at `apps/ui/src/play/live/transport.ts`) |
 | `host.ts` | the `MatchHost` seam, the one-JVM-per-match implementation, its warm spare and the concurrency ceiling |
+| `auto.ts` | pure decisions: an ask with one legal reply, a stop with nothing to do, a payment with one source. `match.ts` acts on them; a seat's `fullControl` turns the file off for that seat |
 | `bridge/PlayBridge.java` | the Java side: runs as a single-file source program, no build step |
 | `dev/seat.ts` | a command-line seat, for local testing (see "Two seats locally") |
 | `dev/spare-bench.ts` | cold start vs warm spare, measured (see "The warm spare, measured") |
-| `fixtures/` | a recorded real bridge transcript, its replay host, and the leak oracle |
+| `fixtures/` | a recorded real bridge transcript, its replay host, the leak oracle, and `w20-turn-flow.json` (real priority/payment windows off a live match; see its own header) |
 
 ## The `src/index.ts` edit
 
@@ -219,6 +220,8 @@ was answered in 3 ms, and a probe ran alongside it in 4.4 ms.
 | `match.test.ts` (44) | identity binding and its failure modes, per-seat emission and the leak check, cursor, snapshot, asks (reply by callId, other seat cannot answer, disconnect/timeout/browser abort, re-send), invalid frames, lifecycle; the 'Flying' regression; **crash** (both seats told, once, at the next cursor; kept across a resync) and **reconnect** (the grace, the same board and ask after a refresh) | `fixtures/bridge-two-seats.ndjson`, `fixtures/bridge-flying-seat1.ndjson` |
 | `socket.test.ts` (14) | real express + socket.io + clients with edge headers: POST, joins, match-full, whole-transcript leak check, contiguous cursors from the snapshot, reply routing, disconnect vs refresh, tier gate, dev identity refused without the hatch; a refresh in browser order (old socket closed first) outliving the grace; a crash leaving the server up | same transcript |
 | `host.test.ts` (8) | the JVM pool against `fixtures/fake-bridge.mjs` (a child process speaking the bridge's line protocol, no Forge): spare adoption and re-addressing, a still-booting spare, spare off, `close()`, the ceiling counting the spare, the heap cap, a spare that keeps dying, a match's JVM SIGKILLed | fake bridge — runs in CI |
+| `auto.test.ts` (76) | the shortcuts as rules: every committed prompt fixture stays a question; the bounds cases that answer themselves; `autoPassReason` and `autoPayReason` over typed frames AND over `fixtures/w20-turn-flow.json`'s real windows; the same through a whole `Match` over the replay host; `fullControl` turning all of it off | `apps/ui/src/play/prompts/fixtures/*.json`, `fixtures/w20-turn-flow.json` |
+| `auto.jvm.test.ts` (1) | the same against a real Forge: stops passed only where Forge named nothing, every cast says what it paid, the scry asks about the scried cards; **skips visibly** without a jar | live |
 | `jvm.test.ts` (3) | real matches in real JVMs — fixed decks + seed (cold), and seeded variety **through the warm spare**; then a refresh with a real ask parked in Forge, and a SIGKILL; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
 
 The leak oracle (`fixtures/transcript.ts`, `secretsFor`) is defined from zones

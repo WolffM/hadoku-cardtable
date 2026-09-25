@@ -15,9 +15,13 @@
  * The plan, for whichever seat takes turn 1 (the actor):
  *
  *  1. Turn 1: click a Mountain in hand (Forge's `InputPassPriority` plays
- *     it), click Raging Goblin, pay by clicking the Mountain now on the
- *     battlefield (`InputPayMana`). The actor never presses a button in this
- *     main phase, so only the land click can have paid.
+ *     it), then click Raging Goblin. With ONE Mountain in play there is exactly
+ *     one way to pay for it, so wave 20 §B has the server press Forge's own
+ *     Auto (`apps/server/src/play/auto.ts`, `autoPayReason`) and the payment is
+ *     over before a land could be clicked. The actor presses no button in this
+ *     main phase, so the cost was paid by nobody at this table — which is the
+ *     point, and is asserted from the server's own `auto-paid` line.
+ *     Clicking a land to pay is proved in step 3, where there are TWO.
  *  2. Then the card Forge's input IGNORES — a second land the same turn. There
  *     is no longer a button to click: Forge names what is actionable through
  *     `setWeaklySelectable` and a second land is not in it, so `Board` draws
@@ -26,7 +30,9 @@
  *     it is the proof against the real jar that the frame crosses at all.
  *  3. The actor's next turn: a land, then Shock. Forge's `InputSelectTargets`
  *     sends `setSelectables` — its own list, with min and max — and the actor
- *     clicks the OPPONENT'S SEAT (`selectPlayer`), then pays with a land.
+ *     clicks the OPPONENT'S SEAT (`selectPlayer`), then pays BY CLICKING a
+ *     land. Two Mountains are untapped by now, so which one to tap is a real
+ *     choice and the shortcut stays out of it.
  *
  * Done when each is visible on the actor's own folded board: the Mountain on
  * the battlefield, the Goblin on the stack or resolved, Shock on the stack or
@@ -171,7 +177,9 @@ describe.skipIf(!available.ok)(title, () => {
           if (clicked.land === null) clicked.land = fromHand(s, 'Mountain');
           else if (!p.battlefield.some((c) => c.id === clicked.land)) return;
           else if (clicked.goblin === null) clicked.goblin = fromHand(s, 'Raging Goblin');
-          // Pay only once Forge has answered the Goblin click (its mana input), never into the priority input.
+          // Pay only once Forge has answered the Goblin click (its mana input),
+          // never into the priority input. With one Mountain the server's Auto
+          // usually gets there first, and then there is nothing to click.
           else if (!clicked.landPaid && !s.live.spent.cards.has(clicked.goblin)) clicked.landPaid = payWithLand(s);
           return;
         }
@@ -220,8 +228,14 @@ describe.skipIf(!available.ok)(title, () => {
       const a = actor! as SeatClient;
       const mountain = me(a).battlefield.find((c) => c.id === clicked.land);
       expect(mountain?.card.name).toBe('Mountain');
-      // No button was pressed in this main phase, so only the click on the land paid.
-      expect(clicked.landPaid).toBe(true);
+      /*
+       * Wave 20 §B, the operator's #6. One Mountain is one way to pay, so the
+       * server pressed Forge's own Auto and the Goblin's cost was paid with no
+       * click and no button press by either browser — see the module header.
+       * The Mountain is tapped all the same: a cast is never free.
+       */
+      expect(a.live.says.some((line) => /^paid /.test(line)), JSON.stringify(a.live.says)).toBe(true);
+      expect(h.serverLog.filter((l) => l.evt === 'auto-paid' && l.seat === a.seat).length).toBeGreaterThan(0);
       expect(mountain?.tapped).toBe(true);
       const goblinResolved = me(a).battlefield.some((c) => c.id === clicked.goblin);
       console.log(
@@ -270,6 +284,9 @@ describe.skipIf(!available.ok)(title, () => {
       await drive(phase2Done, 'Shock at the opponent by clicking');
       const t = targeting as LiveSelectables | null;
       expect(t).not.toBeNull();
+      // Two untapped Mountains: which to tap is a real choice, so the shortcut
+      // stays out and a CLICK on a land is what paid for Shock.
+      expect(clicked.shockPaid, 'Shock was paid by clicking a land on the battlefield').toBe(true);
       const shockResolved = me(a).graveyard.some((c) => c.id === clicked.shock);
       console.log(
         `[board-play.jvm] seat ${a.seat} turn ${a.live.view!.turn}: Forge's setSelectables for Shock was ` +

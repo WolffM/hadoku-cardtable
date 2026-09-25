@@ -135,6 +135,8 @@ test.describe.configure({ mode: 'serial' });
 const PREFIX = '/cardtable';
 /** How long the game may take to put a question to each side. */
 const PLAY_BUDGET_MS = 5 * 60_000;
+/** How long §B item 5 has to find a resolution nobody had to press a button for. */
+const FLOW_BUDGET_MS = 2 * 60_000;
 /** Play at least this far, so the check covers draws, casts and a discard, not just the opening. */
 const MIN_TURN = 5;
 /** Marks the asks the probe raises, so they are never counted as "the game asked". */
@@ -214,6 +216,15 @@ function cardActsFrom(f: Friend): number[] {
     .map((m) => (m.msg as { frame: { kind: string; method?: string; card?: { id: number } } }).frame)
     .filter((fr) => fr.kind === 'act' && fr.method === 'selectCard')
     .map((fr) => fr.card?.id ?? -1);
+}
+
+/** Every button press this browser SENT, with when — the clicks §B item 5 says nobody should need. */
+function buttonPresses(ms: readonly PlayMessage[]): { t: number; method: string }[] {
+  return ms
+    .filter((m) => m.dir === 'out' && m.kind === 'c2s')
+    .map((m) => ({ t: m.t, frame: (m.msg as { frame: { kind: string; method?: string } }).frame }))
+    .filter((x) => x.frame.kind === 'act' && (x.frame.method === 'selectButtonOk' || x.frame.method === 'selectButtonCancel'))
+    .map((x) => ({ t: x.t, method: x.frame.method ?? '?' }));
 }
 
 /**
@@ -838,6 +849,139 @@ test(LIVE_TITLE, async ({ browser }) => {
     summary.draggedOntoTheBoard = dragged;
     console.log(`[play] played by DRAGGING, not clicking: ${JSON.stringify(dragged)}`);
 
+    /*
+     * ── §B item 5: a spell RESOLVES with nobody pressing a button.
+     *
+     * The operator, on a creature sitting on the stack while the opponent had no
+     * response: *"ridiculous. just resolve it"*. What resolves it is the server
+     * passing a priority window Forge itself said the seat can do nothing in
+     * (`apps/server/src/play/auto.ts`, `autoPassReason`).
+     *
+     * It runs HERE, before `connectHands`, on purpose: the two browsers are the
+     * only things in the world that can act at this point, so "nobody pressed
+     * anything" is a complete statement rather than one about one of three
+     * actors.
+     *
+     * The window starts when the card LEAVES THE HAND, not when it is clicked.
+     * Announcing a spell — targets, and a payment with a choice of which land to
+     * tap — is the player's, and is item 6's business, not item 5's; what item 5
+     * is about is everything after, which is priority passing until the spell
+     * resolves. `pressedSinceTheClick` reports the other half for the record, and
+     * `apps/ui/src/play/live/flow.jvm.test.ts` pins the whole of it (a cast with
+     * ZERO clicks and ZERO prompts) against a deck built for the case.
+     *
+     * What is NOT measured is the stack: with both seats passing a window they
+     * can do nothing in, an uncontested spell's passage through it can be
+     * coalesced away before the browsers are told — measured over a whole
+     * recorded game, alice was sent no GameView `Stack`, no card in the `Stack`
+     * zone and no `… to Resolve.` prompt at all. So the window is the two things
+     * that are certainly observable: the card left the hand, and the card
+     * arrived where it resolves.
+     */
+    const resolvedZones = ['battlefield', 'graveyard', 'exile'] as const;
+    const inHand = async (id: number): Promise<boolean> =>
+      (await alice!.page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${id}"]`).count()) > 0;
+    const arrived = async (id: number): Promise<boolean> => {
+      for (const zone of resolvedZones) {
+        if ((await alice!.page.locator(`[data-zone="${zone}"][data-owner="you"] [data-board-card="${id}"]`).count()) > 0) return true;
+      }
+      return false;
+    };
+    const pressesSince = (t0: number): string[] =>
+      [alice!, bob!].flatMap((f) => buttonPresses(messages(f)).filter((p) => p.t >= t0).map((p) => `${f.name}:${p.method}`));
+    const pressOk = async (): Promise<void> => {
+      for (const f of [alice!, bob!]) {
+        await answerPrompt(f.page);
+        const ok = f.page.locator('[data-testid="live-button-ok"]:enabled');
+        if ((await ok.count()) > 0) await ok.click({ timeout: 2_000 }).catch(() => {});
+      }
+    };
+
+    let unattended: { card: string; ms: number; instant: boolean; pressedSinceTheClick: string[] } | null = null;
+    const casts: { card: string; left: boolean; arrived: boolean; pressed: string[] }[] = [];
+    const wontAnnounce = new Set<number>();
+    /** Consecutive passes with nothing offered — see the press rule below. */
+    let empty = 0;
+    /** Every card Forge offered alice in hand while this ran — so a failure says what it had to work with. */
+    const everOffered = new Set<string>();
+    let passes = 0;
+    const flowDeadline = Date.now() + FLOW_BUDGET_MS;
+    while (unattended === null && Date.now() < flowDeadline) {
+      if ((await alice.page.locator('.board__over').count()) > 0) break;
+      for (const f of [alice, bob]) await answerPrompt(f.page);
+      // Only cards Forge OFFERED are draggable, so an offered non-land in hand
+      // is a spell this seat can cast right now.
+      const offered = await offeredIn(alice, 'hand');
+      passes += 1;
+      for (const c of offered) everOffered.add(`${c.name} (${c.type})`);
+      const spell = offered.find((c) => !/Land/.test(c.type) && !wontAnnounce.has(c.id));
+      if (spell === undefined) {
+        const land = offered.find((c) => /Land/.test(c.type));
+        if (land !== undefined) {
+          empty = 0;
+          await dragToBattlefield(alice, land.id);
+        } else {
+          /*
+           * A stop is NOT a reason to press OK yet. Wave 20 makes the seat's own
+           * main phase a stop the server never passes, and that is the one
+           * window where Forge offers this hand anything — so pressing the
+           * moment the bar lights up skips it before the board has drawn what
+           * is offered. Only an idle board (nothing offered for ~1 s) is passed.
+           */
+          empty += 1;
+          if (empty >= 4) await pressOk();
+        }
+        await new Promise((r) => setTimeout(r, 300));
+        continue;
+      }
+      empty = 0;
+      const before = cardActsFrom(alice).length;
+      const clickedAt = Date.now();
+      await dragToBattlefield(alice, spell.id);
+      if (!(await dragLanded(alice, before, spell.id, spell.name, 6_000))) continue;
+
+      // Announce it: targets and payment, with whatever presses those want.
+      const announcedBy = Date.now() + 15_000;
+      while (Date.now() < announcedBy && (await inHand(spell.id))) {
+        await pressOk();
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      if (await inHand(spell.id)) {
+        // It wants something this phase cannot give it (a target to click).
+        // Back out and try another card rather than jamming the game.
+        const cancel = alice.page.locator('[data-testid="live-button-cancel"]:enabled');
+        if ((await cancel.count()) > 0) await cancel.click({ timeout: 2_000 }).catch(() => {});
+        wontAnnounce.add(spell.id);
+        casts.push({ card: spell.name, left: false, arrived: false, pressed: [] });
+        continue;
+      }
+
+      // ── Hands off. From here the only actor allowed is the server.
+      const t0 = Date.now();
+      const instant = await arrived(spell.id);
+      let landed = instant;
+      const watchUntil = Date.now() + 20_000;
+      while (!landed && Date.now() < watchUntil) {
+        for (const f of [alice, bob]) await answerPrompt(f.page);
+        landed = await arrived(spell.id);
+        if (!landed) await new Promise((r) => setTimeout(r, 250));
+      }
+      const pressed = pressesSince(t0);
+      casts.push({ card: spell.name, left: true, arrived: landed, pressed });
+      if (landed && pressed.length === 0) {
+        unattended = { card: spell.name, ms: Date.now() - t0, instant, pressedSinceTheClick: pressesSince(clickedAt) };
+      } else await pressOk();
+    }
+    summary.resolvedUnattended = { found: unattended, casts, passes, everOffered: [...everOffered] };
+    console.log(
+      `[play] spells that resolved with nobody pressing a button: ${JSON.stringify({ unattended, casts, passes, everOffered: [...everOffered] })}`,
+    );
+    expect(
+      unattended,
+      `a spell left the hand and resolved with no button press from either browser; casts: ${JSON.stringify(casts)}; ` +
+        `${passes} passes, offered in hand: ${JSON.stringify([...everOffered])}`,
+    ).not.toBeNull();
+
     // ── play: hands click CARDS, which the board still cannot do (a known gap).
     //    Buttons are no longer among them — those go through the board, above.
     for (const f of [alice, bob]) hands.push(await connectHands(origin, f.name, matchId));
@@ -875,6 +1019,7 @@ test(LIVE_TITLE, async ({ browser }) => {
       await new Promise((r) => setTimeout(r, 250));
     }
     await quiet([alice, bob], 2_000);
+
     summary.turnReached = await alice.page.getByTestId('turn').textContent();
     summary.gameAnswers = { alice: gameAnswers(alice), bob: gameAnswers(bob) };
     summary.clicks = clicks;

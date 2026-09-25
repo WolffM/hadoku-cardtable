@@ -23,7 +23,7 @@
  */
 
 import { deckIssues, newDeck, type Deck } from '@hadoku/deck';
-import type { ZoneType } from '@hadoku/forge-wire';
+import { REPLY_SCHEMAS, type BlockingMethod, type ZoneType } from '@hadoku/forge-wire';
 
 import type { PromptLookup } from './lookup.ts';
 import type { AskOf, ReplyOf } from './types.ts';
@@ -427,4 +427,72 @@ export function sideboardProblems(ask: AskOf<'sideboard'>, reply: ReplyOf<'sideb
   return deckIssues(probe, pool)
     .filter((i) => i.kind === 'more-copies-than-drafted')
     .map((i) => i.message);
+}
+
+/* ── One answer is no question ───────────────────────────────────────── */
+
+/**
+ * The single reply an ask admits, when it admits exactly one.
+ *
+ * This is the ONE place the browser decides "does this question answer
+ * itself". `../live/LiveBoard.tsx` calls it before a prompt would render and
+ * sends the reply instead; no component calls it, and no component embeds a
+ * policy decision of its own.
+ *
+ * The rule it obeys is the server's (`apps/server/src/play/auto.ts`): a
+ * shortcut may remove a question, never information, and it never decides
+ * anything about the GAME — only that Forge left one possibility. The seat's
+ * full-control toggle turns it off (`LiveBoard`), and then every stop comes
+ * back.
+ *
+ * ## Why `getAbilityToPlay` and only `getAbilityToPlay`
+ *
+ * Everything else with one legal reply is already answered a hop earlier, by
+ * `onlyAnswer` in the server's `auto.ts`, and duplicating those here would be
+ * two statements of one policy. `getAbilityToPlay` is the exception on
+ * purpose: the offer's LABEL is what makes the shortcut safe to report, and
+ * labels are resolved on this side (`lookup.ts`'s `withAbilityLabels` over the
+ * ask's own `label`), so the client is the only side that can name what it
+ * played.
+ *
+ * Forge's own desktop client does the same thing, in exactly our case:
+ * `CMatchUI.getAbilityToPlay` with a null `triggerEvent` returns the only
+ * ability and never opens `GuiChoose.oneOrNone`
+ * (`CMatchUI.java:1017-1023`) — and every act this client sends carries
+ * `triggerEvent: null` (`../live/match.ts`'s `selectCard`). Our bridge opens an
+ * ask regardless (`PlayBridge.java:1010-1013`), which is why a one-ability offer
+ * reached the browser at all; answering it here restores Forge's behaviour
+ * rather than inventing one. And a one-ability offer is always the direct consequence of
+ * THIS seat's own click — `InputPassPriority` for a card in hand, or
+ * `InputPayMana.onCardSelected` for a land, which plays a lone mana ability
+ * itself and only asks for two or more (`InputPayMana.java:101-106`) — so the
+ * player has already said what they want.
+ */
+export type AutoAnswer = {
+  method: 'getAbilityToPlay';
+  reply: ReplyOf<'getAbilityToPlay'>;
+  /**
+   * What was played, in Forge's own words: the offer's `label`. Said on the
+   * board (`../live/match.ts`'s `noteAutoAnswered`) — a shortcut nobody can see
+   * is indistinguishable from a board that swallowed the click.
+   */
+  why: string;
+};
+
+export function autoAnswer(ask: AskOf<BlockingMethod>): AutoAnswer | null {
+  if (ask.method !== 'getAbilityToPlay') return null;
+  // Exactly one, and nothing else: two abilities are a real choice, and zero
+  // is Forge asking about nothing, which the picker shows as "None" only.
+  if (ask.abilities.length !== 1) return null;
+  const only = ask.abilities[0];
+  if (only === undefined) return null;
+  // A malformed auto-answer must never leave: it would be refused a hop later
+  // with no player to blame. Fall through to asking instead.
+  const parsed = REPLY_SCHEMAS.getAbilityToPlay.safeParse(only);
+  if (!parsed.success) return null;
+  return {
+    method: 'getAbilityToPlay',
+    reply: parsed.data as ReplyOf<'getAbilityToPlay'>,
+    why: only.label ?? `ability #${only.id}`,
+  };
 }
