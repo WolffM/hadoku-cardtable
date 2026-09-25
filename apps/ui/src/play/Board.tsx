@@ -16,6 +16,8 @@
  *
  *   - a zone's card list is always in the markup, empty or not, so an empty
  *     zone is the same box as a full one;
+ *   - a battlefield always draws all four of its rows (below), so a player's
+ *     first artifact does not add a row to the table;
  *   - an opponent's hidden hand is always its backs strip, zero backs or ten;
  *   - the stack's band is a fixed height, holding nothing or five items —
  *     items overflow by scrolling INSIDE the band;
@@ -26,9 +28,58 @@
  * with an empty, a one-item and a five-item stack and holds the structure
  * identical; `e2e/table-fit.spec.ts` measures the real boxes in a browser.
  *
+ * ## The battlefield reads like a table: four labelled groups
+ *
+ * The operator, 2026-09-25: the battlefield's *"ordering random"*, and they
+ * want lands, artifacts and creatures apart. So a battlefield is four groups
+ * inside its one fixed slot — lands, artifacts, creatures, and everything else
+ * — each with its label and its count, all four always drawn. A card's group is
+ * read off its OWN type line (`BoardCard.card.typeLine`, which the adapter
+ * already carries); nothing is asked of the engine and no rule is implemented
+ * here. `rowFor` resolves an overlap by what the card is used as: an artifact
+ * land is a land, an artifact creature is a creature.
+ *
+ * They are drawn as LANES ACROSS the slot rather than bands down it, and that
+ * was measured, not chosen: the slot is 840 × 130 at 1280×800, where four
+ * bands are a 21px card and four lanes are a 100px one. `board.css` has the
+ * arithmetic. The attribute stays `data-board-row` — a row of the table, which
+ * is what it is — and which axis the stylesheet draws it on is the
+ * stylesheet's business.
+ *
+ * ## The arrangement is the player's, and it never leaves the browser
+ *
+ * Grouping is the DEFAULT order, not a cage. The viewer drags a permanent
+ * within a row or into another row and it stays where they put it; `Regroup`
+ * throws the arrangement away and the default grouping comes back. Two things
+ * about this are load-bearing:
+ *
+ *   - **It sends nothing to Forge.** There is no wire message, no reply, no
+ *     ask. It reorders what the VIEW draws, which is why a player may tidy a
+ *     board in the middle of someone else's turn.
+ *   - **It survives a resync.** A resync replaces the whole view (a new `seq`,
+ *     every object again) and may remount this component; the arrangement
+ *     lives in `ARRANGED`, a module-level store keyed by the match and the
+ *     seat, holding card ids — so a new view, a new mount, or both, redraw the
+ *     same arrangement. `forgetArrangements()` empties it, for a test that
+ *     wants the default grouping back.
+ *
+ * A card the arrangement names that is no longer on the battlefield is
+ * ignored, and a permanent that arrives while an arrangement stands joins the
+ * end of its own row. Only the viewer's own battlefield is draggable: the
+ * arrangement is theirs, and the opponent arranges their own side on their own
+ * screen.
+ *
+ * ## The faces anchor the table: ours at the bottom, theirs at the top
+ *
+ * The operator, 2026-09-25: *"avatar and number looks slick, but confusing
+ * which is which"*. So each face sits at its own end of the canvas — the
+ * opponent's in their seat's head, which is the top of the board, and ours in
+ * our seat's head, which `board.css` puts at the BOTTOM of ours. The stack
+ * keeps the centre band to itself. The faces themselves are unchanged.
+ *
  * ## No prose
  *
- * The operator, same session: *"this text is completely unnecessary: 'Stack 0
+ * The operator, 2026-09-24: *"this text is completely unnecessary: 'Stack 0
  * / empty'"*. There is no empty-state text, no hint and no explanation
  * anywhere on this board. A zone shows its label and its count; when it holds
  * nothing it shows its slot and nothing else. Do not reintroduce a sentence
@@ -60,10 +111,14 @@
  * and an unselectable one is neither. This file never decides what may be
  * selected: we implement no rules. With no `interaction` every card is inert.
  *
- * ## The DOM is the seam with the interaction lane
+ * The one control on this board that is ours rather than Forge's is `Regroup`,
+ * which answers no question and sends nothing.
  *
- * Another lane draws a targeter arrow and drags cards; it finds things without
- * owning this markup. What is guaranteed here, and pinned by a test:
+ * ## The DOM is the seam with the interaction and inspector lanes
+ *
+ * Other lanes draw a targeter arrow and enlarge a card under the pointer; they
+ * find things without owning this markup. What is guaranteed here, and pinned
+ * by a test:
  *
  *   - every card in a zone carries `data-card-id="<id>"`, and `<id>` is unique
  *     across the board (it also keeps `data-board-card`, the older name, with
@@ -81,9 +136,19 @@
  *   - every player's face carries `data-player-face` and `data-player-id`;
  *   - every zone carries `data-zone` and `data-owner` (`you`, `them`, or
  *     `table` for the stack, which belongs to no seat);
+ *   - a battlefield's rows each carry `data-board-row` (`lands`, `artifacts`,
+ *     `creatures`, `other`), in that order, and `data-empty` when the row
+ *     holds nothing. A draggable card carries `draggable` and the viewer's
+ *     battlefield carries one `[data-arrange-reset]` control;
  *   - `data-board-overlay` is a positioned root covering the canvas exactly,
- *     at the board's top level, for that lane to render into. This file adds
- *     no pointer handler to it and draws no arrow.
+ *     at the board's top level, for those lanes to render into. This file adds
+ *     no pointer handler to it and draws nothing in it.
+ *
+ * The inspector (`inspect/index.ts`) is BOOTED here — one mount effect on the
+ * board's root element, disposed on unmount — and that is the whole of this
+ * file's involvement with it: it attaches its own listeners, by delegation,
+ * and renders into the overlay root. No handler, prop or markup here is for
+ * it.
  *
  * ## Hidden information
  *
@@ -93,14 +158,17 @@
  *
  * ## Layout
  *
- * Opponents on top, a centre band in the middle holding the two faces and the
- * stack between them, the viewer at the bottom with their hand. Page layout is
- * `board.css`; how a single card looks is `card.css`, sized from `--card-w` so
- * the layout can shrink cards per zone.
+ * The opponent on top with their face in their head, a centre band holding the
+ * stack, the viewer at the bottom with their hand and their face under it.
+ * Page layout is `board.css`; how a single card looks is `card.css`, sized from
+ * `--card-w` so the layout can shrink cards per zone.
  */
+
+import { useEffect, useReducer, useRef, type DragEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from './adapter.ts';
+import { mountInspector } from './inspect/index.ts';
 import './board.css';
 import './card.css';
 
@@ -118,12 +186,158 @@ export interface BoardInteraction {
 /** Which side of the table a zone is on. The stack belongs to neither. */
 type ZoneOwner = 'you' | 'them' | 'table';
 
+/* ── the battlefield's rows ───────────────────────────────────────────── */
+
+/** The battlefield's rows, top to bottom. Every battlefield draws all four. */
+const BOARD_ROWS = ['lands', 'artifacts', 'creatures', 'other'] as const;
+type BoardRow = (typeof BOARD_ROWS)[number];
+
+const ROW_LABEL: Readonly<Record<BoardRow, string>> = {
+  lands: 'Lands',
+  artifacts: 'Artifacts',
+  creatures: 'Creatures',
+  other: 'Other',
+};
+
+/**
+ * Which row a permanent belongs in, from its own type line.
+ *
+ * Read off the types, never the subtypes — `Artifact — Equipment` is an
+ * artifact and nothing here should care that "Equipment" is a word. An overlap
+ * resolves to what the card is USED as, which is why the order below is land,
+ * then creature, then artifact: an artifact land is tapped for mana and an
+ * artifact creature attacks.
+ */
+function rowFor(card: BoardCard): BoardRow {
+  const types = card.card.typeLine.split('—')[0] ?? '';
+  if (/\bLand\b/i.test(types)) return 'lands';
+  if (/\bCreature\b/i.test(types)) return 'creatures';
+  if (/\bArtifact\b/i.test(types)) return 'artifacts';
+  return 'other';
+}
+
+/** One battlefield, in rows. Always all four keys, in `BOARD_ROWS` order. */
+type Grouped = Readonly<Record<BoardRow, readonly BoardCard[]>>;
+
+/**
+ * The player's own order, as card ids per `<playerId>:<row>`. A row the store
+ * does not name is drawn in the view's order; a row it names is drawn in
+ * theirs, and then anything the store has never heard of, in the view's order.
+ */
+type Arrangement = Readonly<Record<string, readonly number[]>>;
+
+const NO_ARRANGEMENT: Arrangement = {};
+const slotKey = (playerId: number, row: BoardRow): string => `${playerId}:${row}`;
+
+/**
+ * Every match's arrangement, in the browser and nowhere else — not on the
+ * wire, not in the view, not in React state, because a resync may remount the
+ * board and React state would go with it. Keyed by the match so two matches in
+ * one session do not inherit each other's tidying.
+ */
+const ARRANGED = new Map<string, Arrangement>();
+
+/** Which match a view is: its title and its seats. */
+function matchKey(view: BoardView): string {
+  return `${view.title}|${view.players.map((p) => p.id).join(',')}`;
+}
+
+/** Forget every match's arrangement. For a test that wants the default grouping. */
+export function forgetArrangements(): void {
+  ARRANGED.clear();
+}
+
+/**
+ * A battlefield's rows: what the player arranged first, then everything else in
+ * the row its type puts it in.
+ *
+ * Every card appears exactly once whatever the store says — an id the store
+ * lists twice, or lists for a card that has left the battlefield, cannot
+ * duplicate a card or lose one. `data-card-id` is unique across the board and
+ * three other lanes depend on that.
+ */
+function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangement): Grouped {
+  const byId = new Map(cards.map((c) => [c.id, c]));
+  const rows: Record<BoardRow, BoardCard[]> = { lands: [], artifacts: [], creatures: [], other: [] };
+  const placed = new Set<number>();
+  for (const row of BOARD_ROWS) {
+    for (const id of arranged[slotKey(playerId, row)] ?? []) {
+      const card = byId.get(id);
+      if (card === undefined || placed.has(id)) continue;
+      placed.add(id);
+      rows[row].push(card);
+    }
+  }
+  for (const card of cards) {
+    if (!placed.has(card.id)) rows[rowFor(card)].push(card);
+  }
+  return rows;
+}
+
+/**
+ * The arrangement after a drag: `cardId` lands in `row`, before `beforeId` or
+ * at the row's end.
+ *
+ * All four rows are written out, not just the two the card moved between: what
+ * the player is looking at becomes what is stored, so the next permanent to
+ * arrive joins the end of its row instead of landing in the middle of an order
+ * they arranged.
+ */
+function withMove(
+  rows: Grouped,
+  playerId: number,
+  arranged: Arrangement,
+  cardId: number,
+  row: BoardRow,
+  beforeId: number | null,
+): Arrangement {
+  const next: Record<string, readonly number[]> = { ...arranged };
+  for (const r of BOARD_ROWS) next[slotKey(playerId, r)] = rows[r].map((c) => c.id).filter((id) => id !== cardId);
+  const target = [...(next[slotKey(playerId, row)] ?? [])];
+  const before = beforeId === null ? -1 : target.indexOf(beforeId);
+  target.splice(before === -1 ? target.length : before, 0, cardId);
+  next[slotKey(playerId, row)] = target;
+  return next;
+}
+
+/** The arrangement with one seat's rows thrown away: the default grouping is back. */
+function withoutSeat(playerId: number, arranged: Arrangement): Arrangement {
+  const next: Record<string, readonly number[]> = { ...arranged };
+  for (const row of BOARD_ROWS) delete next[slotKey(playerId, row)];
+  return next;
+}
+
+/**
+ * The drag, as the markup sees it. Present only on the viewer's own
+ * battlefield; every other zone gets `undefined` and renders no drag
+ * affordance at all.
+ */
+interface Arranging {
+  start(event: DragEvent, cardId: number): void;
+  over(event: DragEvent): void;
+  /** `beforeId` is the card dropped ON, or null for the row itself. */
+  drop(event: DragEvent, row: BoardRow, beforeId: number | null): void;
+  /** A drag that ended anywhere — including outside the board — carries nothing now. */
+  end(): void;
+  regroup(): void;
+}
+
 /** `{T}` is a WotC mark; on our chrome it is the word. */
 function inOurWords(text: string): string {
   return text.replace(/\{T\}/g, 'TAP');
 }
 
-function CardOnBoard({ entry, interaction }: { entry: BoardCard; interaction: BoardInteraction | undefined }) {
+function CardOnBoard({
+  entry,
+  interaction,
+  arranging,
+  row,
+}: {
+  entry: BoardCard;
+  interaction: BoardInteraction | undefined;
+  arranging?: Arranging;
+  row?: BoardRow;
+}) {
   const chips: string[] = [];
   if (entry.tapped) chips.push('tapped');
   if (entry.summoningSick) chips.push('summoning sick');
@@ -134,6 +348,7 @@ function CardOnBoard({ entry, interaction }: { entry: BoardCard; interaction: Bo
   for (const c of entry.counters) chips.push(`${c.count} ${c.name}`);
 
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
+  const draggable = arranging !== undefined && row !== undefined;
 
   return (
     <li
@@ -142,6 +357,11 @@ function CardOnBoard({ entry, interaction }: { entry: BoardCard; interaction: Bo
       data-board-card={entry.id}
       data-card-id={entry.id}
       data-selectable={selectable || undefined}
+      draggable={draggable || undefined}
+      onDragStart={draggable ? (e) => arranging.start(e, entry.id) : undefined}
+      onDragEnd={draggable ? () => arranging.end() : undefined}
+      onDragOver={draggable ? (e) => arranging.over(e) : undefined}
+      onDrop={draggable ? (e) => arranging.drop(e, row, entry.id) : undefined}
     >
       {selectable ? (
         <button
@@ -191,22 +411,129 @@ function Zone({
   interaction: BoardInteraction | undefined;
 }) {
   return (
-    <section
-      className={`zone zone--${zone}`}
-      aria-label={`${owner} ${label}`}
-      data-zone={zone}
-      data-owner={ownerSide}
-      data-count={cards.length}
-    >
-      <h4 className="zone__head">
-        {label} <span className="zone__count">{cards.length}</span>
-      </h4>
+    <ZoneShell owner={owner} ownerSide={ownerSide} zone={zone} label={label} count={cards.length}>
       <ul className="zone__cards">
         {cards.map((c) => (
           <CardOnBoard key={c.id} entry={c} interaction={interaction} />
         ))}
       </ul>
+    </ZoneShell>
+  );
+}
+
+/** A zone's box, its label and its count. What goes inside is the caller's. */
+function ZoneShell({
+  owner,
+  ownerSide,
+  zone,
+  label,
+  count,
+  gutter,
+  children,
+}: {
+  owner: string;
+  ownerSide: ZoneOwner;
+  zone: string;
+  label: string;
+  count: number;
+  gutter?: ReactNode;
+  children: ReactNode;
+}) {
+  const head = (
+    <h4 className="zone__head">
+      {label} <span className="zone__count">{count}</span>
+    </h4>
+  );
+  return (
+    <section
+      className={`zone zone--${zone}`}
+      aria-label={`${owner} ${label}`}
+      data-zone={zone}
+      data-owner={ownerSide}
+      data-count={count}
+    >
+      {gutter === undefined ? (
+        head
+      ) : (
+        <div className="zone__gutter">
+          {head}
+          {gutter}
+        </div>
+      )}
+      {children}
     </section>
+  );
+}
+
+/**
+ * A battlefield: four labelled rows in one fixed slot, all four always drawn.
+ * The rows are the default ordering and the player's own arrangement on top of
+ * it; `arranging` is present only on the viewer's own side.
+ */
+function Battlefield({
+  player,
+  ownerSide,
+  interaction,
+  arranging,
+  arranged,
+}: {
+  player: BoardPlayer;
+  ownerSide: ZoneOwner;
+  interaction: BoardInteraction | undefined;
+  arranging: Arranging | undefined;
+  arranged: Arrangement;
+}) {
+  const rows = group(player.battlefield, player.id, arranged);
+  return (
+    <ZoneShell
+      owner={player.name}
+      ownerSide={ownerSide}
+      zone="battlefield"
+      label="Battlefield"
+      count={player.battlefield.length}
+      gutter={
+        arranging === undefined ? undefined : (
+          <button
+            type="button"
+            className="zone__regroup"
+            data-arrange-reset=""
+            aria-label="Regroup your battlefield"
+            onClick={arranging.regroup}
+          >
+            Regroup
+          </button>
+        )
+      }
+    >
+      <ul className="zone__rows">
+        {BOARD_ROWS.map((row) => (
+          <li
+            key={row}
+            className="zone__row"
+            data-board-row={row}
+            data-empty={rows[row].length === 0 || undefined}
+            /*
+             * A lane's share of the battlefield's width is its card count, so
+             * every card on the board comes out the same width whatever the
+             * split is (`board.css`). A lane holding nothing takes its label's
+             * width and the stylesheet decides that, not this number.
+             */
+            style={{ flexGrow: rows[row].length }}
+            onDragOver={arranging === undefined ? undefined : (e) => arranging.over(e)}
+            onDrop={arranging === undefined ? undefined : (e) => arranging.drop(e, row, null)}
+          >
+            <h5 className="zone__row-head">
+              {ROW_LABEL[row]} <span className="zone__count">{rows[row].length}</span>
+            </h5>
+            <ul className="zone__cards">
+              {rows[row].map((c) => (
+                <CardOnBoard key={c.id} entry={c} interaction={interaction} arranging={arranging} row={row} />
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </ZoneShell>
   );
 }
 
@@ -244,6 +571,10 @@ function HiddenHand({ player }: { player: BoardPlayer }) {
  * It is a `<button>` exactly when Forge says the player may be selected, the
  * same rule the cards follow, and it carries `data-player-face` so the
  * interaction lane can anchor an arrow on it without reading this file.
+ *
+ * It sits in its seat's head, which is the top of the board for the opponent
+ * and the bottom for the viewer (`board.css`) — the operator could not tell
+ * the two apart when both were in the centre band.
  */
 function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction: BoardInteraction | undefined }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
@@ -286,7 +617,17 @@ function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction:
   );
 }
 
-function PlayerArea({ player, interaction }: { player: BoardPlayer; interaction: BoardInteraction | undefined }) {
+function PlayerArea({
+  player,
+  interaction,
+  arranging,
+  arranged,
+}: {
+  player: BoardPlayer;
+  interaction: BoardInteraction | undefined;
+  arranging: Arranging | undefined;
+  arranged: Arrangement;
+}) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
   const side: ZoneOwner = player.isViewer ? 'you' : 'them';
   const name = (
@@ -305,6 +646,7 @@ function PlayerArea({ player, interaction }: { player: BoardPlayer; interaction:
       aria-label={player.isViewer ? `${player.name} (you)` : player.name}
     >
       <header className="seat__head">
+        <PlayerFace player={player} interaction={interaction} />
         <h3 className="seat__name">
           {selectable ? (
             <button
@@ -331,13 +673,12 @@ function PlayerArea({ player, interaction }: { player: BoardPlayer; interaction:
         </span>
       </header>
 
-      <Zone
-        owner={player.name}
+      <Battlefield
+        player={player}
         ownerSide={side}
-        zone="battlefield"
-        label="Battlefield"
-        cards={player.battlefield}
         interaction={interaction}
+        arranging={arranging}
+        arranged={arranged}
       />
       <div className="seat__piles">
         <Zone
@@ -433,8 +774,70 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
   const others = view.players.filter((p) => !p.isViewer);
   const active = view.players.find((p) => p.id === view.activePlayerId);
 
+  /*
+   * The inspector, booted and nothing more: it attaches its own listeners by
+   * delegation and draws into the overlay root. One mount, one dispose.
+   */
+  const root = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = root.current;
+    if (el === null) return undefined;
+    return mountInspector(el);
+  }, []);
+
+  /*
+   * The player's arrangement, out of the module store rather than React state
+   * — a resync may remount this component and the arrangement must outlive
+   * that. `redraw` is what a drag does: the store is the truth, so all a
+   * handler has to do is change it and ask for a frame.
+   */
+  const key = matchKey(view);
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+  const arranged = ARRANGED.get(key) ?? NO_ARRANGEMENT;
+  /** The card a drag is carrying. A ref: it changes nothing that is drawn. */
+  const carried = useRef<number | null>(null);
+
+  const arranging: Arranging | undefined =
+    viewer === undefined
+      ? undefined
+      : {
+          start(event, cardId) {
+            carried.current = cardId;
+            const data = event.dataTransfer as DataTransfer | undefined;
+            if (data !== undefined) {
+              data.effectAllowed = 'move';
+              data.setData('text/plain', String(cardId));
+            }
+          },
+          over(event) {
+            if (carried.current === null) return;
+            // Without this the browser refuses the drop.
+            event.preventDefault();
+            const data = event.dataTransfer as DataTransfer | undefined;
+            if (data !== undefined) data.dropEffect = 'move';
+          },
+          drop(event, row, beforeId) {
+            const cardId = carried.current;
+            carried.current = null;
+            if (cardId === null) return;
+            event.preventDefault();
+            // A card dropped on a row is also dropped on nothing above it.
+            event.stopPropagation();
+            if (cardId === beforeId || !viewer.battlefield.some((c) => c.id === cardId)) return;
+            ARRANGED.set(key, withMove(group(viewer.battlefield, viewer.id, arranged), viewer.id, arranged, cardId, row, beforeId));
+            redraw();
+          },
+          end() {
+            carried.current = null;
+          },
+          regroup() {
+            ARRANGED.set(key, withoutSeat(viewer.id, arranged));
+            redraw();
+          },
+        };
+
   return (
-    <section className="board" aria-label="Game board">
+    <section className="board" aria-label="Game board" ref={root}>
       <header className="board__bar" data-testid="turn-bar">
         <span data-testid="turn">Turn {view.turn}</span>
         <span data-testid="phase" data-phase={view.phase ?? ''}>
@@ -446,23 +849,17 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
 
       <div className="board__opponents">
         {others.map((p) => (
-          <PlayerArea key={p.id} player={p} interaction={interaction} />
+          <PlayerArea key={p.id} player={p} interaction={interaction} arranging={undefined} arranged={arranged} />
         ))}
       </div>
 
       <div className="board__mid" data-testid="board-mid">
-        <div className="board__faces board__faces--them">
-          {others.map((p) => (
-            <PlayerFace key={p.id} player={p} interaction={interaction} />
-          ))}
-        </div>
         <StackView stack={view.stack} interaction={interaction} />
-        <div className="board__faces board__faces--you">
-          {viewer !== undefined && <PlayerFace player={viewer} interaction={interaction} />}
-        </div>
       </div>
 
-      {viewer !== undefined && <PlayerArea player={viewer} interaction={interaction} />}
+      {viewer !== undefined && (
+        <PlayerArea player={viewer} interaction={interaction} arranging={arranging} arranged={arranged} />
+      )}
 
       {/* Out of flow, both of them: neither may move a track when it appears. */}
       {view.missingCardIds.length > 0 && (

@@ -20,6 +20,9 @@
  * `lobby.test.ts` gives.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { afterEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -34,6 +37,13 @@ afterEach(() => {
   cleanup();
   globalThis.location.hash = '';
 });
+
+/**
+ * The stylesheet itself, so "colour is not the only signal" can be asserted:
+ * jsdom lays nothing out and computes no cascade, and the rule that carries
+ * the second signal is a declaration, not a geometry.
+ */
+const SCREENS_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/screens', 'screens.css'), 'utf8');
 
 const FORMATS = [
   { id: '2011-02-13', name: 'Standard (MBS)', effective: '2011-02-04', sets: ['ZEN', 'WWK', 'ROE', 'M11', 'SOM', 'MBS'], banned: [], cardCount: 1204, source: 'x' },
@@ -250,10 +260,62 @@ describe('a room’s table', () => {
   it('shows both players, and says who is being waited on', async () => {
     await mountRoom({ players: [opponent()], matchId: null });
     expect(screen.getByTestId('room-seat-0').textContent).toContain('user-bob');
-    expect(screen.getByTestId('room-seat-0-legal').textContent).toContain('legal in Standard (MBS)');
+    expect(screen.getByTestId('room-seat-0-deck').textContent).toBe('Boros Landfall (Paul Rietzl)');
+    // The format is a cell, not a clause: "legal in Standard (MBS)" is gone.
+    expect(screen.getByTestId('room-seat-0-rules').textContent).toBe('Standard (MBS)');
+    expect(screen.getByTestId('room-seat-0-legal').textContent).toBe('legal');
     expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('not ready');
     expect(screen.getByTestId('room-seat-1-empty')).toBeTruthy();
     expect(screen.getByTestId('start-state').textContent).toContain('Waiting for a second player');
+  });
+
+  /*
+   * The operator, 2026-09-25, of the row this replaced — a sentence with
+   * middots for separators and `ready` as raw text: *"looks very cheap"*.
+   */
+  it('draws the seats as a table: no middots, and every state a shape AND a colour', async () => {
+    await mountRoom({ players: [opponent({ ready: true })], matchId: null });
+    const row = screen.getByTestId('room-seat-0');
+    // No separator characters anywhere in the row: the cells are the separation.
+    expect(row.textContent).not.toMatch(/[·—]/);
+    expect(row.className).toContain('tables__row');
+    expect([...row.children].map((c) => c.className.split(' ')[0])).toEqual([
+      'tables__who',
+      'tables__deck',
+      'tables__rules',
+      'pill',
+      'pill',
+    ]);
+
+    // Each state carries a drawn mark of its own, so colour is never the only
+    // difference. Ready is a tick; not ready is an open ring.
+    const ready = screen.getByTestId('room-seat-0-ready');
+    expect(ready.dataset.state).toBe('yes');
+    expect(ready.dataset.mark).toBe('tick');
+    expect(ready.querySelector('svg path')).not.toBeNull();
+    expect(ready.querySelector('svg circle')).toBeNull();
+
+    const legal = screen.getByTestId('room-seat-0-legal');
+    expect(legal.dataset.state).toBe('yes');
+    expect(legal.dataset.mark).toBe('tick');
+
+    // And the styles that colour them do not carry the whole signal: the
+    // stylesheet distinguishes the two states by border style as well.
+    expect(SCREENS_CSS).toMatch(/\.pill\[data-state='no'\] \{[^}]*border-style: dashed;/);
+  });
+
+  it('an unready, illegal seat reads as two failed states, with the count on the pill', async () => {
+    await mountRoom({ players: [opponent({ legal: false, issueCount: 3, ready: false })], matchId: null });
+    const legal = screen.getByTestId('room-seat-0-legal');
+    expect(legal.dataset.state).toBe('no');
+    expect(legal.dataset.mark).toBe('cross');
+    expect(legal.textContent).toBe('illegal3');
+    expect(legal.querySelector('.pill__count')!.textContent).toBe('3');
+    const ready = screen.getByTestId('room-seat-0-ready');
+    expect(ready.dataset.state).toBe('no');
+    expect(ready.dataset.mark).toBe('ring');
+    expect(ready.querySelector('svg circle')).not.toBeNull();
+    expect(ready.querySelector('svg path')).toBeNull();
   });
 
   it('loads YOUR deck only, and shows the server’s verdict for it', async () => {

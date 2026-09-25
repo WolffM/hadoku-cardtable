@@ -296,6 +296,130 @@
   margin-bottom: 1rem;
 }
 
+/*
+ * The two seats at a room's table, as a table: one row each, the same cells in
+ * the same places, so the eye reads down a column instead of parsing a
+ * sentence. The operator, 2026-09-25, of the sentence-with-middots this
+ * replaced: *"looks very cheap"*.
+ *
+ * The columns are named sizes and `fr`s, and a row that is waiting on someone
+ * spans all of them, so two rows are one shape whatever is in them.
+ */
+.tables__players {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.tables__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'who deck-legal deck-ready'
+    'deck deck rules';
+  align-items: center;
+  gap: 0.2rem 0.75rem;
+  padding: 0.45rem 0.7rem;
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+}
+
+.tables__row--empty {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'who';
+  color: var(--color-text-secondary);
+  border-style: dashed;
+}
+
+.tables__who {
+  grid-area: who;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The deck's own line, under the name: it is the longest thing on the row and
+   the column this card gets is narrow, so one line truncated it to "My…". */
+.tables__deck {
+  grid-area: deck;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tables__rules {
+  grid-area: rules;
+  justify-self: end;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pill--legal {
+  grid-area: deck-legal;
+}
+
+.pill--ready {
+  grid-area: deck-ready;
+}
+
+/*
+ * A state, not a clause: a shape, a colour and a word. The SHAPE is the
+ * primary signal — `ConstructedScreen.tsx` draws a tick, a cross or an open
+ * ring — and the border style is a second one, so nothing here depends on
+ * telling green from amber.
+ */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem 0.1rem 0.35rem;
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.pill[data-state='yes'] {
+  color: var(--color-success-dark);
+  background: var(--color-success-bg);
+}
+
+.pill[data-state='no'] {
+  color: var(--color-warning-dark);
+  background: var(--color-warning-bg);
+  border-style: dashed;
+}
+
+.pill__mark {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: none;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* How many problems, on the pill that says there are some. */
+.pill__count {
+  padding: 0 0.3rem;
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .tables__seat select,
 .lobby__card select {
   padding: 0.45rem 0.6rem;

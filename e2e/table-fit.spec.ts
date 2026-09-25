@@ -43,6 +43,11 @@
  *      `play/hands.ts` plays lands and spells for both seats, and every ask
  *      the game raises is answered on the board (`play/prompts.ts`), so
  *      battlefields fill up and turns change;
+ *   2b. the player arranges their own battlefield: a real permanent dragged
+ *      into another row with the browser's own drag events, asserted card by
+ *      card, and asserted AGAIN after step 3 has re-rendered the board — the
+ *      arrangement is the player's and nothing the engine does may take it
+ *      away (wave 20 §A.2);
  *   3. a question open on each side — Forge's own `showConfirmDialog` through
  *      the probe route — with the page measured while it is up;
  *   4. the window sizes swapped, and measured again.
@@ -64,8 +69,10 @@
  * canvas must be fully static at all times."* What does not fit goes sideways
  * inside the stack's own slot, never downward and never into a neighbour. It
  * also checks that the overlay root covers the board exactly, that a face is
- * big enough to aim at, that the hand and the battlefield are not painted the
- * same, and that no empty-state text came back.
+ * big enough to aim at, that the two faces are at OPPOSITE ENDS of the canvas
+ * with the stack's band between them (wave 20 §A.3), that the battlefield
+ * draws its four rows in order, that the hand and the battlefield are not
+ * painted the same, and that no empty-state text came back.
  *
  * The second **fills the table**:
  *
@@ -74,7 +81,15 @@
  * 1280×800 was exactly what broke (a status chip wider than the shrunken card
  * made the zone scroll sideways). So it fills both battlefields to 8, 11, 16
  * and 20 cards and the hand to 10, asserting that no zone scrolls, the page
- * does not, and no card is narrower than 36px.
+ * does not, and no card is narrower than its floor.
+ *
+ * The crowd is spread over the battlefield's four rows the way a real board
+ * fills up — mostly lands and creatures — so three rows are occupied at the
+ * small steps and all four at the big ones, which is the case where the rows
+ * share the slot most thinly. No ROW may scroll either, the rows that hold
+ * cards share the slot equally, and a row that holds nothing is a label strip.
+ * A grouped card's floor is lower than a single row's and says why
+ * (`MIN_GROUPED_CARD_PX`).
  *
  * Needs a Forge build, exactly as `play.spec.ts`: `CARDTABLE_FORGE_JAR` +
  * `CARDTABLE_FORGE_RES`. Without them it SKIPS and its title says why, so the
@@ -199,8 +214,61 @@ function installSampler(): void {
       // scrollbar THERE while the page measured clean. The match's own box
       // and every box around it must hold what is in them.
       for (let el: HTMLElement | null = match; el !== null && el !== document.documentElement; el = el.parentElement) {
-        if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) {
-          breach(`${el.className === '' ? el.tagName.toLowerCase() : el.className} overflows its box`);
+        const tall = el.scrollHeight > el.clientHeight + 1;
+        const wide = el.scrollWidth > el.clientWidth + 1;
+        if (tall || wide) {
+          // Which axis, by how much, and WHAT stuck out: "overflows its box"
+          // alone names neither the dimension nor the element, and this box has
+          // the whole match in it.
+          const by = tall ? `${el.scrollHeight}h > ${el.clientHeight}h` : `${el.scrollWidth}w > ${el.clientWidth}w`;
+          const box = el.getBoundingClientRect();
+          let worst = '?';
+          let over = 0;
+          /*
+           * Only elements nothing CLIPS can grow `el`'s scroll box. A card tile
+           * whose rules text overflows its own box has a rect far below the
+           * window and is invisible — four runs of this spec blamed one of those
+           * for a prompt's overflow before this check was here.
+           */
+          const clipped = (node: HTMLElement): boolean => {
+            for (let up = node.parentElement; up !== null && up !== el; up = up.parentElement) {
+              if (getComputedStyle(up).overflow !== 'visible') return true;
+            }
+            return false;
+          };
+          // With its ancestry, up to the match: the element that sticks out is
+          // often a card tile, and WHOSE tile is the whole question.
+          const path = (kid: HTMLElement): string => {
+            const where: string[] = [];
+            for (let up: HTMLElement | null = kid; up !== null && up !== el && where.length < 9; up = up.parentElement) {
+              const zone = up.dataset.zone === undefined ? '' : `[${up.dataset.owner ?? '?'}/${up.dataset.zone}]`;
+              where.push(`${up.tagName.toLowerCase()}.${up.className.replace(/\s+/g, '.')}${zone}`);
+            }
+            return where.reverse().join(' > ');
+          };
+          let anyWorst = 'nothing hangs below';
+          let anyOver = 0;
+          for (const kid of Array.from(el.querySelectorAll<HTMLElement>('*'))) {
+            const r = kid.getBoundingClientRect();
+            const out = tall ? r.bottom - box.bottom : r.right - box.right;
+            if (out > anyOver) {
+              anyOver = out;
+              anyWorst = path(kid);
+            }
+            if (out > over && !clipped(kid)) {
+              over = out;
+              worst = path(kid);
+            }
+          }
+          // Both, because the clipped one is the more readable answer when
+          // nothing unclipped sticks out at all.
+          const blame = over > 0 ? `${worst} +${Math.round(over)}` : `clipped: ${anyWorst} +${Math.round(anyOver)}`;
+          // And which question was open, if one was: a prompt is the usual
+          // reason a fixed canvas suddenly has more in it than it can hold.
+          const asking = document.querySelector<HTMLElement>('[data-testid="live-prompt"]')?.dataset.method ?? 'none';
+          breach(
+            `${el.className === '' ? el.tagName.toLowerCase() : el.className} overflows its box (${by}, ${blame}, asking ${asking})`,
+          );
         }
       }
 
@@ -309,6 +377,55 @@ async function fitsNow(f: Friend, moment: string): Promise<Record<string, unknow
   return { moment, ...m };
 }
 
+/* ── the player's own arrangement, on a real board ────────────────────── */
+
+interface RowCards {
+  row: string;
+  cards: number[];
+}
+
+/** The viewer's own battlefield, row by row: the ids each row draws, in order. */
+async function rowsOf(f: Friend): Promise<RowCards[]> {
+  return f.page.evaluate(() =>
+    Array.from(
+      document.querySelectorAll<HTMLElement>('.seat[data-viewer] > [data-zone="battlefield"] [data-board-row]'),
+    ).map((row) => ({
+      row: row.dataset.boardRow ?? '?',
+      cards: Array.from(row.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li.board-card')).map((c) =>
+        Number(c.dataset.cardId),
+      ),
+    })),
+  );
+}
+
+/**
+ * Drag one permanent into one of the battlefield's rows, with the browser's
+ * own drag events and a real `DataTransfer`. Runs in the page.
+ *
+ * Dispatched rather than mouse-driven because an HTML5 drag is a sequence of
+ * four events and this asserts what the BOARD does with them, not what the
+ * platform's drag-and-drop feels like. `Board.tsx` remembers the dragged card
+ * itself, so the transfer is a courtesy; it is passed anyway, because a real
+ * browser passes it.
+ */
+function dragBetweenRows({ cardId, row }: { cardId: number; row: string }): void {
+  const field = document.querySelector('.seat[data-viewer] > [data-zone="battlefield"]');
+  if (field === null) throw new Error('no battlefield of your own to arrange');
+  // By VALUE: `CardTile` draws its own `data-card-id`, in the `w<id>` namespace.
+  const card = field.querySelector<HTMLElement>(`li.board-card[data-card-id="${cardId}"]`);
+  const target = field.querySelector<HTMLElement>(`[data-board-row="${row}"]`);
+  if (card === null) throw new Error(`no card ${cardId} on your battlefield`);
+  if (target === null) throw new Error(`no ${row} row on your battlefield`);
+  const dataTransfer = new DataTransfer();
+  const fire = (el: Element, type: string): void => {
+    el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }));
+  };
+  fire(card, 'dragstart');
+  fire(target, 'dragover');
+  fire(target, 'drop');
+  fire(card, 'dragend');
+}
+
 /** What a page is showing right now, for a failure message. */
 async function stateOf(f: Friend): Promise<Record<string, unknown>> {
   return {
@@ -350,6 +467,12 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string, summary: R
   }
   await alice.page.getByTestId('ready-toggle').click();
   await expect(alice.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
+  // The room's table with one seat ready and one not, for a person to look at:
+  // both states of both pills are on this screen at once (wave 20 §A.4).
+  if (SHOTS !== '') {
+    mkdirSync(SHOTS, { recursive: true });
+    await bob.page.screenshot({ path: resolve(SHOTS, 'room-table-bob.png') });
+  }
   await bob.page.getByTestId('ready-toggle').click();
   const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
   await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
@@ -527,6 +650,46 @@ test(TITLE, async ({ browser }) => {
     await new Promise((r) => setTimeout(r, 2_000));
     for (const g of friends) moments.push(await fitsNow(g, 'mid-game'));
 
+    /* ── 2b. the player arranges their own battlefield ─────────────── */
+
+    /*
+     * §A.2: a permanent is dragged within and between rows, the arrangement is
+     * the player's, and it survives what the engine does next. Here it is on a
+     * REAL board — the permanents are the ones the game put there, the drag is
+     * the browser's own HTML5 drag, and the only thing that may change is
+     * which row draws which card.
+     *
+     * `hands.ts` is paused, so no frame arrives while the drag happens; the
+     * arrangement is checked again after step 3, which re-renders the board
+     * around an open question. Nothing is sent to Forge by any of it.
+     */
+    const arrangements: { who: string; moved: number; from: string; to: string; before: RowCards[]; after: RowCards[] }[] = [];
+    for (const f of friends) {
+      const before = await rowsOf(f);
+      const source = [...before].sort((a, b) => b.cards.length - a.cards.length)[0]!;
+      const target = before.find((r) => r.row !== source.row)!;
+      const moved = source.cards[source.cards.length - 1]!;
+      await f.page.evaluate(dragBetweenRows, { cardId: moved, row: target.row });
+      const after = await rowsOf(f);
+      const want = {
+        [source.row]: source.cards.slice(0, -1),
+        [target.row]: [...target.cards, moved],
+      };
+      arrangements.push({ who: f.name, moved, from: source.row, to: target.row, before, after });
+      for (const row of after) {
+        const expected = want[row.row] ?? before.find((r) => r.row === row.row)!.cards;
+        expect(row.cards, `${f.name}: the ${row.row} row after dragging ${moved} to ${target.row}`).toEqual(expected);
+      }
+      // The view the engine sent is untouched: the zone still counts the same
+      // cards, and nothing left the board.
+      expect(
+        after.reduce((n, r) => n + r.cards.length, 0),
+        `${f.name}: the battlefield still holds every permanent`,
+      ).toBe(before.reduce((n, r) => n + r.cards.length, 0));
+      moments.push(await fitsNow(f, 'battlefield arranged'));
+    }
+    summary.arrangements = arrangements;
+
     /* ── 3. a question open on each side ───────────────────────────── */
 
     prompting = false;
@@ -549,6 +712,15 @@ test(TITLE, async ({ browser }) => {
       moments.push(await fitsNow(f, 'question open'));
       await dialog.locator('[data-answer="yes"]').click();
       expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);
+    }
+
+    /* ── 3b. and the arrangement survived the re-render ─────────────── */
+
+    for (const [i, f] of friends.entries()) {
+      const now = await rowsOf(f);
+      expect(now, `${f.name}: the arrangement survived a question, an answer and a redraw`).toEqual(
+        arrangements[i]!.after,
+      );
     }
 
     /* ── 4. the other window size, from each seat ──────────────────── */
@@ -615,6 +787,26 @@ const CROWD_STEPS = [
 ] as const;
 /** Cards may shrink to fit, but not to nothing: a fit that makes a card unreadable is not a fit. */
 const MIN_CARD_PX = 36;
+/**
+ * And the floor for a card on a GROUPED battlefield (wave 20 §A.1), where four
+ * labelled lanes divide the slot's WIDTH — 840px at 1280×800 — in proportion to
+ * what each holds, at the full height of the slot. That is why it is a floor at
+ * all and not a cliff: this measured 21px when the same four groups were bands
+ * stacked down the slot's 130px of height, and `board.css` carries the
+ * arithmetic that moved them onto the other axis.
+ */
+const MIN_GROUPED_CARD_PX = 30;
+/** The rows a battlefield draws, in the order `Board.tsx` draws them. */
+const BOARD_ROWS = ['lands', 'artifacts', 'creatures', 'other'] as const;
+
+interface RowFit {
+  row: string;
+  cards: number;
+  empty: boolean;
+  box: [number, number];
+  scroll: [number, number];
+  cardW: [number, number];
+}
 
 interface ZoneFit {
   zone: string;
@@ -625,6 +817,8 @@ interface ZoneFit {
   scroll: [number, number];
   cardW: [number, number];
   cardH: number;
+  /** A battlefield's four rows; empty for every other zone. */
+  groups: RowFit[];
 }
 
 interface CrowdFit {
@@ -682,8 +876,37 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
       i += 1;
     }
   };
+  /*
+   * A battlefield is four labelled rows (`Board.tsx`), so the crowd is spread
+   * over them the way a real board fills up: mostly lands and creatures, a
+   * couple of artifacts, one of everything else — which also means all four
+   * rows are occupied at the biggest step, the case where the rows share the
+   * slot most thinly. The rows are found, never made: all four are always in
+   * the markup.
+   */
+  const share = (n: number): number[] => {
+    const lands = Math.max(1, Math.round(n * 0.45));
+    const creatures = Math.max(1, Math.round(n * 0.4));
+    const artifacts = Math.max(1, Math.min(2, n - lands - creatures));
+    return [lands, artifacts, creatures, Math.max(0, n - lands - creatures - artifacts)];
+  };
   for (const zone of Array.from(document.querySelectorAll<HTMLElement>('.seat > [data-zone="battlefield"]'))) {
-    fillTo(listIn(zone, 'zone__cards'), counts.battlefield, true);
+    const rows = Array.from(zone.querySelectorAll<HTMLElement>('[data-board-row]'));
+    if (rows.length !== 4) throw new Error(`a battlefield has ${rows.length} rows, not 4`);
+    const want = share(counts.battlefield);
+    rows.forEach((row, i) => {
+      const ul = row.querySelector<HTMLElement>(':scope > ul.zone__cards');
+      if (ul === null) throw new Error(`the ${row.dataset.boardRow ?? '?'} row has no list of its own`);
+      fillTo(ul, want[i], true);
+      /*
+       * `data-empty` and the lane's `flex-grow` are React's, and both are
+       * derived from the card count — so a probe that puts cards in a lane owes
+       * it both. Without the grow a filled lane is 0 wide (its cards with it),
+       * which is what a first run of this probe measured.
+       */
+      if (want[i] > 0) row.removeAttribute('data-empty');
+      row.style.flexGrow = String(want[i]);
+    });
   }
   const hand = document.querySelector<HTMLElement>('.seat[data-viewer] > [data-zone="hand"]');
   if (hand !== null) fillTo(listIn(hand, 'zone__cards'), counts.hand, false);
@@ -706,10 +929,36 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
         for (let el: HTMLElement | null = match; el !== null && el !== document.documentElement; el = el.parentElement) {
           if (over(el)) overflowing.push(el.className === '' ? el.tagName.toLowerCase() : el.className);
         }
+        const widthsOf = (cards: HTMLElement[]): [number, number] =>
+          cards.length === 0
+            ? [0, 0]
+            : [
+                Math.round(Math.min(...cards.map((c) => c.getBoundingClientRect().width))),
+                Math.round(Math.max(...cards.map((c) => c.getBoundingClientRect().width))),
+              ];
         const zones = Array.from(document.querySelectorAll<HTMLElement>('.board [data-zone]')).map((zone): ZoneFit => {
-          const cards = Array.from(zone.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li'));
-          const widths = cards.map((c) => c.getBoundingClientRect().width);
-          const ul = zone.querySelector<HTMLElement>(':scope > ul.zone__cards');
+          // A battlefield keeps its cards one level down, in its four rows.
+          const groups = Array.from(zone.querySelectorAll<HTMLElement>(':scope > ul.zone__rows > li[data-board-row]')).map(
+            (row): RowFit => {
+              const inRow = Array.from(row.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li'));
+              if (over(row)) overflowing.push(`the ${row.dataset.boardRow ?? '?'} row of ${inRow.length}`);
+              return {
+                row: row.dataset.boardRow ?? '?',
+                cards: inRow.length,
+                empty: row.hasAttribute('data-empty'),
+                box: [row.clientWidth, row.clientHeight],
+                scroll: [row.scrollWidth, row.scrollHeight],
+                cardW: widthsOf(inRow),
+              };
+            },
+          );
+          const cards =
+            groups.length > 0
+              ? Array.from(zone.querySelectorAll<HTMLElement>(':scope > ul.zone__rows > li > ul.zone__cards > li'))
+              : Array.from(zone.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li'));
+          const ul = zone.querySelector<HTMLElement>(
+            groups.length > 0 ? ':scope > ul.zone__rows > li:not([data-empty]) > ul.zone__cards' : ':scope > ul.zone__cards',
+          );
           const fit: ZoneFit = {
             zone: zone.dataset.zone ?? '?',
             viewer: zone.closest('.seat[data-viewer]') !== null,
@@ -717,8 +966,9 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
             rows: ul === null ? '' : getComputedStyle(ul).getPropertyValue('--rows').trim(),
             box: [zone.clientWidth, zone.clientHeight],
             scroll: [zone.scrollWidth, zone.scrollHeight],
-            cardW: widths.length === 0 ? [0, 0] : [Math.round(Math.min(...widths)), Math.round(Math.max(...widths))],
+            cardW: widthsOf(cards),
             cardH: Math.round(Math.max(0, ...cards.map((c) => c.getBoundingClientRect().height))),
+            groups,
           };
           if (over(zone)) overflowing.push(`${fit.viewer ? 'your' : 'their'} ${fit.zone} of ${fit.cards}`);
           return fit;
@@ -729,9 +979,18 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
   );
 }
 
-/** Take every probe copy back out. Runs in the page. */
+/**
+ * Take every probe copy back out, and hand the rows the `data-empty` React
+ * would have given them — the probe took it off the rows it filled, and a row
+ * that is empty again must be a label strip again. Runs in the page.
+ */
 function clearCrowd(): void {
   for (const el of Array.from(document.querySelectorAll('[data-probe]'))) el.remove();
+  for (const row of Array.from(document.querySelectorAll<HTMLElement>('[data-board-row]'))) {
+    const cards = row.querySelectorAll('.board-card').length;
+    if (cards === 0) row.setAttribute('data-empty', 'true');
+    row.style.flexGrow = String(cards);
+  }
 }
 
 /* ── the canvas is static: the stack fills, and nothing else moves ───── */
@@ -762,6 +1021,13 @@ interface StaticShot {
   /** Hand and battlefield must not be painted the same (#3). */
   surfaces: Record<string, string>;
   prose: number;
+  /**
+   * Ours and theirs, "left,top,width,height": item 11 puts them at opposite
+   * ends of the canvas, so which is which is a matter of where you look.
+   */
+  faces: { you: string; them: string };
+  /** The battlefield rows, in the order they are drawn: the grouping, in a browser. */
+  rows: string[];
 }
 
 /**
@@ -838,6 +1104,9 @@ function fillStack(n: number): Promise<StaticShot> {
           const s = getComputedStyle(el);
           surfaces[name] = `${s.backgroundColor} | ${s.backgroundImage} | ${s.boxShadow}`;
         }
+        const ours = board.querySelector('[data-player-face][data-viewer]');
+        const theirs = board.querySelector('[data-player-face]:not([data-viewer])');
+        if (ours === null || theirs === null) throw new Error('a seat has no face of its own');
         const page = document.scrollingElement ?? document.documentElement;
         done({
           size: `${innerWidth}x${innerHeight}`,
@@ -849,6 +1118,10 @@ function fillStack(n: number): Promise<StaticShot> {
           surfaces,
           // No empty-state text, no hidden-hand sentence, no hint (#4).
           prose: board.querySelectorAll('.zone__empty, .zone__hidden, .stack__hint').length,
+          faces: { you: rect(ours), them: rect(theirs) },
+          rows: Array.from(
+            board.querySelectorAll<HTMLElement>('.seat[data-viewer] > [data-zone="battlefield"] [data-board-row]'),
+          ).map((r) => r.dataset.boardRow ?? '?'),
         });
       }),
     ),
@@ -935,6 +1208,28 @@ test(CROWD_TITLE, async ({ browser }) => {
           const [, , w, h] = base.boxes[id]!.split(',').map(Number);
           expect(Math.min(w!, h!), `${where}: ${id} is worth aiming at`).toBeGreaterThanOrEqual(MIN_FACE_PX);
         }
+        /*
+         * The faces anchor the table (item 11): theirs at the top of the
+         * canvas, ours at the bottom, with the stack's band between them. The
+         * operator could not tell the two apart when both sat in that band.
+         */
+        {
+          const at = (box: string) => {
+            const [left, top, w, h] = box.split(',').map(Number);
+            return { left: left!, top: top!, bottom: top! + h!, mid: top! + h! / 2, width: w! };
+          };
+          const board = at(base.boxes.board!);
+          const mid = at(base.boxes.mid!);
+          const you = at(base.faces.you);
+          const them = at(base.faces.them);
+          const third = (board.bottom - board.top) / 3;
+          expect(them.mid, `${where}: their face is in the top third of the canvas`).toBeLessThan(board.top + third);
+          expect(you.mid, `${where}: our face is in the bottom third of the canvas`).toBeGreaterThan(board.bottom - third);
+          expect(them.bottom, `${where}: their face is above the stack's band`).toBeLessThanOrEqual(mid.top);
+          expect(you.top, `${where}: our face is below the stack's band`).toBeGreaterThanOrEqual(mid.bottom);
+          // And the grouping is there, in the order it is drawn.
+          expect(base.rows, `${where}: the battlefield's rows`).toEqual([...BOARD_ROWS]);
+        }
         // Hand and battlefield are different places, at a glance (#3).
         expect(base.surfaces.hand, `${where}: the hand is not painted like the battlefield`).not.toBe(base.surfaces.battlefield);
         for (const s of shots) {
@@ -960,12 +1255,16 @@ test(CROWD_TITLE, async ({ browser }) => {
             `[table-fit crowd] ${f.name} ${got.size} ${step}: overflowing ${JSON.stringify(got.overflowing)}; ` +
               got.zones
                 .filter((z) => z.cards > 0)
-                .map((z) => `${z.viewer ? 'your' : 'their'} ${z.zone} ${z.cards} rows ${z.rows} box ${z.box.join('x')} scroll ${z.scroll.join('x')} card ${z.cardW.join('-')}w ${z.cardH}h`)
+                .map(
+                  (z) =>
+                    `${z.viewer ? 'your' : 'their'} ${z.zone} ${z.cards} rows ${z.rows} box ${z.box.join('x')} scroll ${z.scroll.join('x')} card ${z.cardW.join('-')}w ${z.cardH}h` +
+                    (z.groups.length === 0 ? '' : ` [${z.groups.map((g) => `${g.row} ${g.cards}@${g.box[1]}px`).join(' | ')}]`),
+                )
                 .join('; '),
           );
-          if (SHOTS !== '' && counts.battlefield === 20) {
+          if (SHOTS !== '' && (counts.battlefield === 8 || counts.battlefield === 20)) {
             mkdirSync(SHOTS, { recursive: true });
-            await f.page.screenshot({ path: resolve(SHOTS, `crowd-20-${f.name}-${got.size}.png`) });
+            await f.page.screenshot({ path: resolve(SHOTS, `crowd-${counts.battlefield}-${f.name}-${got.size}.png`) });
           }
           const where = `${f.name} at ${got.size}, ${step}`;
           // The probe put the cards where it meant to — a probe that filled nothing cannot pass.
@@ -975,7 +1274,41 @@ test(CROWD_TITLE, async ({ browser }) => {
           expect(got.page[0], `${where}: the page scrolls sideways`).toBeLessThanOrEqual(Number(got.size.split('x')[0]));
           expect(got.overflowing, `${where}: every zone and every box around the match holds what is in it`).toEqual([]);
           for (const z of got.zones.filter((zz) => zz.cards > 0 && zz.zone !== 'graveyard' && zz.zone !== 'exile')) {
-            expect(z.cardW[0], `${where}: ${z.viewer ? 'your' : 'their'} ${z.zone}'s narrowest card`).toBeGreaterThanOrEqual(MIN_CARD_PX);
+            // A grouped battlefield's floor is lower, and deliberately so.
+            const floor = z.zone === 'battlefield' ? MIN_GROUPED_CARD_PX : MIN_CARD_PX;
+            expect(z.cardW[0], `${where}: ${z.viewer ? 'your' : 'their'} ${z.zone}'s narrowest card`).toBeGreaterThanOrEqual(floor);
+          }
+          /*
+           * The grouping, measured: four rows in order on both sides, a row
+           * that holds cards is not a label strip, the rows that hold cards
+           * share the slot equally, and NO row scrolls — the whole point of
+           * four fixed rows is that what does not fit shrinks rather than
+           * hides.
+           */
+          for (const z of bf) {
+            const side = z.viewer ? 'your' : 'their';
+            expect(z.groups.map((g) => g.row), `${where}: ${side} battlefield's rows`).toEqual([...BOARD_ROWS]);
+            const filled = z.groups.filter((g) => g.cards > 0);
+            expect(filled.length, `${where}: ${side} battlefield spread over rows`).toBeGreaterThanOrEqual(3);
+            expect(
+              z.groups.reduce((n, g) => n + g.cards, 0),
+              `${where}: every card of ${side} battlefield is in a row`,
+            ).toBe(counts.battlefield);
+            for (const g of z.groups) {
+              expect(g.empty, `${where}: ${side} ${g.row} of ${g.cards} marks itself empty`).toBe(g.cards === 0);
+              expect(g.scroll[0], `${where}: ${side} ${g.row} scrolls sideways`).toBeLessThanOrEqual(g.box[0] + 1);
+              expect(g.scroll[1], `${where}: ${side} ${g.row} scrolls downward`).toBeLessThanOrEqual(g.box[1] + 1);
+            }
+            // Every lane is the full height of the slot: they divide its width.
+            const heights = filled.map((g) => g.box[1]);
+            expect(Math.max(...heights) - Math.min(...heights), `${where}: ${side} lanes are one height`).toBeLessThanOrEqual(2);
+            expect(Math.min(...heights), `${where}: ${side} lanes take the slot's height`).toBeGreaterThanOrEqual(z.box[1] - 4);
+            // And the width each took is what it holds, so one card width fits
+            // the whole battlefield: the widest card is no more than half again
+            // the narrowest, whatever the split.
+            expect(z.cardW[1], `${where}: ${side} cards are one size across the lanes`).toBeLessThanOrEqual(
+              Math.round(z.cardW[0] * 2.2),
+            );
           }
         }
         await f.page.evaluate(clearCrowd);

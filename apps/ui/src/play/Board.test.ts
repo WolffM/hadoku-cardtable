@@ -18,12 +18,40 @@ import { createProjector, type StateFrame } from '../../../server/src/play/visib
 import { cardImageUrl } from '../draft/cardImage.ts';
 import poolData from '../draft/pool.json';
 import { artIdIndex, CUBE_ART_IDS, scryfallIdFor, toBoardView, type ArtIdIndex, type BoardView } from './adapter.ts';
-import { Board, type BoardInteraction } from './Board.tsx';
+import { Board, forgetArrangements, type BoardInteraction } from './Board.tsx';
 import { boardFromFixture, loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
 import { cardStateKey, deltaKey, expectWirePackets, isAnnotationKey, WireType, type WireObject } from './wire.ts';
 
-afterEach(cleanup);
+/**
+ * The inspector is lane D's and is NOT stubbed — the real module mounts and the
+ * real panel appears. The wrapper only counts: how many times the board booted
+ * it, on what, and whether the mount effect's dispose actually ran.
+ */
+const inspector = vi.hoisted(() => ({ mounts: [] as { root: ParentNode; disposed: boolean }[] }));
+
+vi.mock('./inspect/index.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./inspect/index.ts')>();
+  return {
+    ...real,
+    mountInspector(root: ParentNode) {
+      const entry = { root, disposed: false };
+      inspector.mounts.push(entry);
+      const dispose = real.mountInspector(root);
+      return () => {
+        entry.disposed = true;
+        dispose();
+      };
+    },
+  };
+});
+
+afterEach(() => {
+  cleanup();
+  // The arrangement outlives a mount on purpose (it has to survive a resync),
+  // so each test starts from the default grouping.
+  forgetArrangements();
+});
 
 const fixture = PLAY_FIXTURES[0]!;
 
@@ -32,8 +60,20 @@ function renderBoard(view: BoardView = boardFromFixture(fixture), interaction?: 
   const seat = (id: number) => utils.container.querySelector<HTMLElement>(`[data-testid="player"][data-player-id="${id}"]`)!;
   const zone = (id: number, name: string) => seat(id).querySelector<HTMLElement>(`[data-zone="${name}"]`)!;
   const cardNames = (el: HTMLElement) => [...el.querySelectorAll('.card__name')].map((n) => n.textContent);
-  return { ...utils, view, seat, zone, cardNames };
+  /** A battlefield row, by the name `Board.tsx` puts in `data-board-row`. */
+  const row = (id: number, name: string) => zone(id, 'battlefield').querySelector<HTMLElement>(`[data-board-row="${name}"]`)!;
+  /** The ids a row draws, in the order it draws them. */
+  const rowIds = (id: number, name: string) =>
+    [...row(id, name).querySelectorAll<HTMLElement>('.board-card')].map((c) => Number(c.dataset.cardId));
+  return { ...utils, view, seat, zone, cardNames, row, rowIds };
 }
+
+/**
+ * Forge's own controls are the cards and the seats; `Regroup` is ours and
+ * answers nothing (`Board.tsx`). The assertions about what Forge made
+ * clickable count the buttons that are Forge's.
+ */
+const forgeButtons = (container: HTMLElement) => container.querySelectorAll('button:not([data-arrange-reset])');
 
 describe('turn and phase', () => {
   it('shows the turn, the phase and whose turn it is', () => {
@@ -63,15 +103,17 @@ describe('players', () => {
 });
 
 describe('zones', () => {
-  it('lays out each battlefield with the fixture’s permanents', () => {
+  it('lays out each battlefield with the fixture’s permanents, grouped by what they are', () => {
     const { zone, cardNames } = renderBoard();
     expect(zone(0, 'battlefield').dataset.count).toBe('5');
+    // The fixture's own order is two gates, an island, a gate, an island with
+    // the creature third; grouped, the lands come first and the creature last.
     expect(cardNames(zone(0, 'battlefield'))).toEqual([
       'Izzet Guildgate',
       'Island',
-      'Fire Urchin',
       'Izzet Guildgate',
       'Island',
+      'Fire Urchin',
     ]);
     expect(zone(1, 'battlefield').dataset.count).toBe('8');
     expect(cardNames(zone(1, 'battlefield'))).toContain('Vulshok War Boar');
@@ -313,10 +355,12 @@ describe('BoardInteraction', () => {
   // One of each zone the viewer can see: my land, my hand, their creature, my graveyard.
   const picks = [me.battlefield[1]!.id, me.hand![2]!.id, them.battlefield.at(-1)!.id, me.graveyard[0]!.id];
 
-  it('with no interaction, nothing on the board is a button', () => {
+  it('with no interaction, nothing Forge offers on the board is a button', () => {
     const { container } = renderBoard(view);
-    expect(container.querySelectorAll('button')).toHaveLength(0);
+    expect(forgeButtons(container)).toHaveLength(0);
     expect(container.querySelectorAll('[data-selectable]')).toHaveLength(0);
+    // Ours is still there: it answers nothing and is not Forge's to enable.
+    expect(container.querySelectorAll('[data-arrange-reset]')).toHaveLength(1);
   });
 
   it('makes exactly the selectable cards buttons, and a click reports the id', () => {
@@ -325,7 +369,7 @@ describe('BoardInteraction', () => {
 
     const marked = [...container.querySelectorAll<HTMLElement>('[data-board-card][data-selectable]')];
     expect(marked.map((el) => Number(el.dataset.boardCard)).sort()).toEqual([...picks].sort());
-    expect(container.querySelectorAll('button')).toHaveLength(picks.length);
+    expect(forgeButtons(container)).toHaveLength(picks.length);
 
     for (const id of picks) {
       const face = container.querySelector<HTMLElement>(`[data-board-card="${id}"] > .board-card__face`)!;
@@ -359,7 +403,9 @@ describe('BoardInteraction', () => {
     expect(seat(me.id).dataset.selectable).toBeUndefined();
     expect(seat(me.id).querySelector('.seat__head button')).toBeNull();
     fireEvent.click(seat(me.id).querySelector('.seat__name')!);
-    fireEvent.click(within(seat(them.id)).getByRole('button', { name: `Select ${them.name}` }));
+    // Their head now holds two ways to choose them — the name and the face,
+    // which moved into the head (item 11). This is the name.
+    fireEvent.click(seat(them.id).querySelector<HTMLElement>('.seat__select')!);
     expect(onSelectPlayer.mock.calls).toEqual([[them.id]]);
     expect(onSelectCard).not.toHaveBeenCalled();
   });
@@ -378,7 +424,7 @@ describe('BoardInteraction', () => {
   it('an id Forge names that is not on the board makes nothing clickable', () => {
     const { interaction } = spyInteraction([987654]);
     const { container } = renderBoard(view, interaction);
-    expect(container.querySelectorAll('button')).toHaveLength(0);
+    expect(forgeButtons(container)).toHaveLength(0);
   });
 });
 
@@ -503,12 +549,23 @@ describe('the canvas is static', () => {
 
   it('lays the board and the seats out in named tracks, not in their content', () => {
     expect(declarationIn('.board', 'grid-template-rows')).toBe('var(--bar-h) minmax(0, 1fr) var(--mid-h) minmax(0, 1.4fr)');
-    expect(declarationIn('.board .seat', 'grid-template-rows')).toBe('var(--seat-head-h) minmax(0, 4fr) minmax(0, 3fr)');
+    // The viewer's head is the LAST row, so their face is at the bottom of the
+    // canvas; the opponent's is the first, so theirs is at the top (item 11).
+    expect(declarationIn('.board .seat', 'grid-template-rows')).toBe('minmax(0, 4fr) minmax(0, 2.6fr) var(--seat-head-h)');
     expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-rows')).toBe(
       'var(--seat-head-h) var(--opp-hand-h) minmax(0, 1fr)',
     );
-    expect(declarationIn('.board__mid', 'grid-template-columns')).toBe('var(--faces-w) minmax(0, 1fr) var(--faces-w)');
+    // The faces left the centre band, so the stack has all of it.
+    expect(declarationIn('.board__mid', 'grid-template-columns')).toBe('minmax(0, 1fr)');
+    expect(BOARD_CSS).not.toContain('--faces-w');
     expect(declarationIn('.seat__piles', 'grid-template-rows')).toBe('minmax(0, 2fr) minmax(0, 1fr)');
+    // A battlefield's four groups are lanes across the slot, each lane's share
+    // of the width its card count (`Board.tsx` sets the grow), and a lane with
+    // nothing in it its label's width. Neither is sized by what is in it.
+    expect(declarationIn('.zone__rows', 'flex-direction')).toBe('row');
+    expect(declarationIn('.zone__row', 'flex')).toBe('0 1 var(--group-overhead)');
+    expect(declarationIn('.zone__row[data-empty]', 'flex')).toBe('0 0 var(--group-empty-w)');
+    expect(declarationIn('.zone__row', 'overflow')).toBe('hidden');
     // The two things that appear mid-game are out of flow, so neither can
     // push a track when it does.
     expect(declarationIn('.board__warn', 'position')).toBe('absolute');
@@ -558,7 +615,15 @@ describe('the DOM contract', () => {
     const board = container.querySelector<HTMLElement>('.board')!;
     const faces = [...board.querySelectorAll<HTMLElement>('[data-player-face]')];
     expect(faces.map((f) => Number(f.dataset.playerId))).toEqual([1, 0]);
-    expect(faces.every((f) => f.parentElement!.closest('.board__mid') !== null), 'the faces are in the centre band').toBe(true);
+    // Each face is in its own seat's head, which `board.css` puts at that
+    // seat's outer edge — the top of the board for them, the bottom for us.
+    for (const f of faces) {
+      const inSeat = f.closest('.seat');
+      expect(inSeat, 'a face is in a seat').not.toBeNull();
+      expect(f.parentElement!.className, 'a face is in its seat’s head').toBe('seat__head');
+      expect(Number(inSeat!.getAttribute('data-player-id')), 'a face is in ITS OWN seat').toBe(Number(f.dataset.playerId));
+    }
+    expect(board.querySelector('.board__mid [data-player-face]'), 'no face is left in the centre band').toBeNull();
     for (const p of view.players) {
       const face = board.querySelector<HTMLElement>(`[data-player-face][data-player-id="${p.id}"]`)!;
       expect(within(face).getByTestId('face-life').textContent, `${p.name}'s life is on their face`).toBe(String(p.life));
@@ -591,6 +656,256 @@ describe('the DOM contract', () => {
     // This lane renders nothing into it and hangs no handler on it.
     expect(overlays[0]!.children).toHaveLength(0);
     expect(overlays[0]!.className).toBe('board__overlay');
+  });
+});
+
+/* ── the battlefield reads like a table ───────────────────────────────── */
+
+/**
+ * The operator, 2026-09-25: the battlefield's *"ordering random"*, and they
+ * want lands, artifacts and creatures apart. The fixture is the case that
+ * matters: seat 1 holds four Mountains, two Great Furnaces (`Artifact Land`)
+ * and a Goblin Replica (`Artifact Creature`), so it proves the overlap rule as
+ * well as the grouping — a land you tap is a land, an artifact that attacks is
+ * a creature.
+ */
+describe('the battlefield’s rows (#10)', () => {
+  const ROWS = ['lands', 'artifacts', 'creatures', 'other'];
+
+  it('draws all four rows, labelled and counted, on both sides and at every count', () => {
+    const { seat, zone } = renderBoard();
+    for (const id of [0, 1]) {
+      const rows = [...zone(id, 'battlefield').querySelectorAll<HTMLElement>('[data-board-row]')];
+      expect(rows.map((r) => r.dataset.boardRow), `seat ${id}'s rows, in order`).toEqual(ROWS);
+      // A lane's share of the width is its card count (`board.css`).
+      expect(
+        rows.map((r) => r.style.flexGrow),
+        `seat ${id}'s lanes grow by what they hold`,
+      ).toEqual(rows.map((r) => String(r.querySelectorAll('.board-card').length)));
+      for (const r of rows) {
+        const head = r.querySelector('.zone__row-head')!;
+        const cards = r.querySelectorAll('.board-card').length;
+        expect(head.textContent, `seat ${id}'s ${r.dataset.boardRow} is labelled and counted`).toBe(
+          `${r.dataset.boardRow![0]!.toUpperCase()}${r.dataset.boardRow!.slice(1)} ${cards}`,
+        );
+        // An empty row says so in an attribute, not by disappearing: the four
+        // rows are four tracks and the first artifact must not add one.
+        expect(r.dataset.empty, `seat ${id}'s ${r.dataset.boardRow} marks empty`).toBe(cards === 0 ? 'true' : undefined);
+      }
+      expect(seat(id).querySelectorAll('[data-board-row]')).toHaveLength(4);
+    }
+  });
+
+  it('puts each permanent in the row its own type line asks for', () => {
+    const { rowIds, view } = renderBoard();
+    // Seat 0: four lands (two gates, two islands) and one creature.
+    expect(rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
+    expect(rowIds(0, 'creatures')).toEqual([21]);
+    expect(rowIds(0, 'artifacts')).toEqual([]);
+    expect(rowIds(0, 'other')).toEqual([]);
+    // Seat 1: an `Artifact Land` is a land, an `Artifact Creature` a creature.
+    const them = view.players.find((p) => p.id === 1)!;
+    expect(them.battlefield.find((c) => c.id === 116)!.card.typeLine).toBe('Artifact Land');
+    expect(them.battlefield.find((c) => c.id === 67)!.card.typeLine).toBe('Artifact Creature — Goblin');
+    expect(rowIds(1, 'lands')).toEqual([87, 78, 93, 83, 116, 118]);
+    expect(rowIds(1, 'creatures')).toEqual([99, 67]);
+    expect(rowIds(1, 'artifacts')).toEqual([]);
+  });
+
+  it('files a plain artifact, an enchantment and a planeswalker where they belong', () => {
+    const base = boardFromFixture(fixture);
+    const me = base.players.find((p) => p.isViewer)!;
+    const seed = me.battlefield[0]!;
+    const typed = (id: number, typeLine: string) => ({ ...seed, id, card: { ...seed.card, cardId: `w${id}`, typeLine } });
+    const view: BoardView = {
+      ...base,
+      players: base.players.map((p) =>
+        !p.isViewer
+          ? p
+          : {
+              ...p,
+              battlefield: [
+                typed(901, 'Artifact — Equipment'),
+                typed(902, 'Enchantment — Aura'),
+                typed(903, 'Legendary Planeswalker — Jace'),
+                typed(904, 'Legendary Artifact Creature — Golem'),
+                typed(905, 'Snow Land'),
+              ],
+            },
+      ),
+    };
+    const { rowIds } = renderBoard(view);
+    expect(rowIds(0, 'lands')).toEqual([905]);
+    expect(rowIds(0, 'artifacts')).toEqual([901]);
+    expect(rowIds(0, 'creatures')).toEqual([904]);
+    expect(rowIds(0, 'other')).toEqual([902, 903]);
+  });
+});
+
+/* ── the arrangement is the player's, and it outlives a resync ────────── */
+
+/**
+ * §A.2: *"a player drags a permanent within and between rows. The arrangement
+ * is THEIRS — persisted per match in the client, keyed by card id, and it
+ * survives a resync. It sends NOTHING to the engine."*
+ *
+ * `fireEvent.dragStart` carries no `DataTransfer` in jsdom, which is exactly
+ * why `Board.tsx` remembers the dragged card itself and treats the transfer as
+ * a courtesy to the browser.
+ */
+describe('drag to arrange (#10)', () => {
+  /** Drag a card onto another card, or onto a row's own box. */
+  function drag(container: HTMLElement, cardId: number, onto: { card: number } | { row: string }) {
+    const from = container.querySelector<HTMLElement>(`[data-card-id="${cardId}"]`)!;
+    const to =
+      'card' in onto
+        ? container.querySelector<HTMLElement>(`[data-card-id="${onto.card}"]`)!
+        : container.querySelector<HTMLElement>(`.seat[data-viewer] [data-board-row="${onto.row}"]`)!;
+    fireEvent.dragStart(from);
+    fireEvent.dragOver(to);
+    fireEvent.drop(to);
+  }
+
+  it('reorders within a row', () => {
+    const { container, rowIds } = renderBoard();
+    expect(rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
+    drag(container, 25, { card: 24 });
+    expect(rowIds(0, 'lands')).toEqual([8, 25, 24, 6]);
+    // And the count on the zone and the row are still the truth.
+    expect(container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"]')!.dataset.count).toBe('5');
+    expect(container.querySelector('.seat[data-viewer] [data-board-row="lands"] .zone__row-head')!.textContent).toBe('Lands 4');
+  });
+
+  it('moves a permanent into another row, dropped on the row itself', () => {
+    const { container, rowIds } = renderBoard();
+    drag(container, 8, { row: 'other' });
+    expect(rowIds(0, 'lands')).toEqual([24, 6, 25]);
+    expect(rowIds(0, 'other')).toEqual([8]);
+    expect(container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="other"]')!.dataset.empty).toBeUndefined();
+    // Every card is still on the board exactly once — three lanes read
+    // `data-card-id` and uniqueness is the property they need.
+    const ids = [...container.querySelectorAll<HTMLElement>('.board-card')].map((c) => c.dataset.cardId);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toHaveLength(24);
+  });
+
+  it('drops in front of the card it was dropped on, in another row', () => {
+    const { container, rowIds } = renderBoard();
+    drag(container, 24, { card: 21 });
+    expect(rowIds(0, 'creatures')).toEqual([24, 21]);
+    expect(rowIds(0, 'lands')).toEqual([8, 6, 25]);
+  });
+
+  it('survives a resync: a new view, a remount, or both', () => {
+    const first = renderBoard();
+    drag(first.container, 25, { card: 8 });
+    expect(first.rowIds(0, 'lands')).toEqual([25, 8, 24, 6]);
+
+    // A resync replaces the whole view — a new `seq`, every object again — and
+    // may remount the board. The arrangement is neither in the view nor in
+    // React's state, so both survive it.
+    cleanup();
+    const resynced: BoardView = { ...boardFromFixture(fixture), seq: 4242 };
+    const after = renderBoard(resynced);
+    expect(after.rowIds(0, 'lands')).toEqual([25, 8, 24, 6]);
+
+    // A permanent that arrives after the arrangement joins the end of its row
+    // rather than the middle of an order the player chose.
+    cleanup();
+    const seed = resynced.players.find((p) => p.isViewer)!.battlefield[0]!;
+    const withNewLand: BoardView = {
+      ...resynced,
+      players: resynced.players.map((p) =>
+        !p.isViewer ? p : { ...p, battlefield: [{ ...seed, id: 777, card: { ...seed.card, cardId: 'w777' } }, ...p.battlefield] },
+      ),
+    };
+    const grown = renderBoard(withNewLand);
+    expect(grown.rowIds(0, 'lands')).toEqual([25, 8, 24, 6, 777]);
+  });
+
+  it('is per match: another match starts from the default grouping', () => {
+    const { container, rowIds } = renderBoard();
+    drag(container, 25, { card: 8 });
+    expect(rowIds(0, 'lands')).toEqual([25, 8, 24, 6]);
+    cleanup();
+    const elsewhere = renderBoard({ ...boardFromFixture(fixture), title: 'another match entirely' });
+    expect(elsewhere.rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
+  });
+
+  it('Regroup throws it away and the default grouping comes back', () => {
+    const { container, rowIds, getByLabelText } = renderBoard();
+    // Dropped on the row itself, so it joins the end of it.
+    drag(container, 8, { row: 'creatures' });
+    expect(rowIds(0, 'creatures')).toEqual([21, 8]);
+    fireEvent.click(getByLabelText('Regroup your battlefield'));
+    expect(rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
+    expect(rowIds(0, 'creatures')).toEqual([21]);
+  });
+
+  it('sends nothing to the engine: no selection, no reply, only the view moved', () => {
+    const view = boardFromFixture(fixture);
+    const { interaction, onSelectCard, onSelectPlayer } = spyInteraction([8, 24], [0, 1]);
+    const { container, rowIds } = renderBoard(view, interaction);
+    drag(container, 8, { card: 24 });
+    drag(container, 24, { row: 'artifacts' });
+    expect(rowIds(0, 'artifacts')).toEqual([24]);
+    expect(onSelectCard).not.toHaveBeenCalled();
+    expect(onSelectPlayer).not.toHaveBeenCalled();
+    // And the view the board was handed is untouched: the arrangement is ours.
+    expect(view.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id)).toEqual([8, 24, 21, 6, 25]);
+  });
+
+  it('is the viewer’s own battlefield only, and one Regroup with it', () => {
+    const { container, seat } = renderBoard();
+    expect(seat(0).querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
+    expect(seat(0).querySelectorAll('[data-zone="hand"] .board-card[draggable]')).toHaveLength(0);
+    expect(seat(0).querySelectorAll('[data-zone="graveyard"] .board-card[draggable]')).toHaveLength(0);
+    // The opponent's side is theirs to arrange, on their own screen.
+    expect(seat(1).querySelectorAll('.board-card[draggable]')).toHaveLength(0);
+    expect(seat(1).querySelectorAll('[data-arrange-reset]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-arrange-reset]')).toHaveLength(1);
+  });
+
+  it('a card dragged onto the opponent’s battlefield stays where it was', () => {
+    const { container, rowIds } = renderBoard();
+    const from = container.querySelector<HTMLElement>('[data-card-id="8"]')!;
+    fireEvent.dragStart(from);
+    const theirs = container.querySelector<HTMLElement>('.seat:not([data-viewer]) [data-board-row="lands"]')!;
+    fireEvent.dragOver(theirs);
+    fireEvent.drop(theirs);
+    expect(rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
+    expect(rowIds(1, 'lands')).toEqual([87, 78, 93, 83, 116, 118]);
+  });
+});
+
+/* ── the inspector, booted (lane D) ───────────────────────────────────── */
+
+/**
+ * The whole of this file's involvement with the inspector: boot it on the
+ * board's root, dispose it on unmount. It attaches its own listeners by
+ * delegation and draws into the overlay root; nothing here is a handler, a
+ * prop or a piece of markup for it.
+ */
+describe('the inspector', () => {
+  it('is booted on the board root, draws into the overlay, and is disposed on unmount', () => {
+    inspector.mounts.length = 0;
+    const { container, unmount } = renderBoard();
+    const board = container.querySelector<HTMLElement>('.board')!;
+    expect(inspector.mounts).toHaveLength(1);
+    expect(inspector.mounts[0]!.root, 'booted on the board itself').toBe(board);
+    expect(inspector.mounts[0]!.disposed).toBe(false);
+
+    // Live, and drawing where the contract says: hovering a card enlarges it
+    // into the overlay root and nowhere else on the board.
+    const overlay = board.querySelector<HTMLElement>('[data-board-overlay]')!;
+    expect(overlay.children).toHaveLength(0);
+    fireEvent.pointerOver(board.querySelector<HTMLElement>('[data-card-id="8"]')!, { pointerType: 'mouse' });
+    expect(overlay.querySelectorAll('[data-inspect]'), 'the enlargement is in the overlay').toHaveLength(1);
+    expect(board.querySelectorAll('[data-inspect]'), 'and nowhere else').toHaveLength(1);
+
+    unmount();
+    expect(inspector.mounts[0]!.disposed, 'the mount effect disposed it').toBe(true);
+    expect(inspector.mounts, 'booted once, not once a render').toHaveLength(1);
   });
 });
 

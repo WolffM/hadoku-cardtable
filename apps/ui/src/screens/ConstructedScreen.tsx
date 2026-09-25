@@ -427,7 +427,7 @@ function RoomTableScreen({
                 {[0, 1].map((seat) => {
                   const player = players[seat];
                   return player === undefined ? (
-                    <li key={seat} className="tables__seat" data-testid={`room-seat-${seat}-empty`}>
+                    <li key={seat} className="tables__row tables__row--empty" data-testid={`room-seat-${seat}-empty`}>
                       Waiting for someone to load a deck.
                     </li>
                   ) : (
@@ -659,15 +659,85 @@ function startStateText(players: RoomPlayer[], bothReady: boolean, starting: boo
   return `Waiting for ${waiting.join(' and ')}.`;
 }
 
+/**
+ * A status, drawn: a shape, a colour and a word.
+ *
+ * Colour alone is not a status — a third of the operator's friends could not
+ * read it — so each state has its OWN SHAPE (`data-mark`, drawn in an inline
+ * `<svg>` we own) and its own border style as well. `screens.css` colours it;
+ * remove every colour from that file and this still reads.
+ */
+function StatusPill({
+  kind,
+  testId,
+  state,
+  mark,
+  label,
+  count,
+}: {
+  kind: 'legal' | 'ready';
+  testId: string;
+  state: 'yes' | 'no';
+  mark: 'tick' | 'cross' | 'ring';
+  label: string;
+  count?: number;
+}) {
+  return (
+    <span className={`pill pill--${kind}`} data-testid={testId} data-state={state} data-mark={mark}>
+      <svg className="pill__mark" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+        {mark === 'tick' && <path d="M2.6 6.3 4.9 8.8 9.4 3.3" />}
+        {mark === 'cross' && <path d="M3.5 3.5 8.5 8.5M8.5 3.5 3.5 8.5" />}
+        {mark === 'ring' && <circle cx="6" cy="6" r="3.4" />}
+      </svg>
+      {label}
+      {count !== undefined && <span className="pill__count">{count}</span>}
+    </span>
+  );
+}
+
+/**
+ * One seat at the table, as a row of cells.
+ *
+ * The operator, 2026-09-25, of the shape this replaces — a sentence with
+ * middots for separators and `ready` as raw text: *"looks very cheap"*. So the
+ * separators are gone (the cells are the separation), the two states are
+ * `StatusPill`s, and the format is a cell of its own rather than a clause in
+ * "legal in Standard (MBS)".
+ *
+ * The cells are laid out in named areas over two lines (`screens.css`): who
+ * and the two states above, the deck and the format below. One line truncated
+ * "Mystic Caw Go (Naoki Nakada)" to "My…" in the column this card actually
+ * gets, which is the cheap look again by another route.
+ *
+ * The name and `(you)` stay in ONE text node, with that space: `e2e/play.spec`
+ * matches `e2e-alice (you)`, and cells in a grid put no whitespace between
+ * themselves.
+ */
 function PlayerRow({ seat, player }: { seat: number; player: RoomPlayer }) {
   return (
-    <li className="tables__seat" data-testid={`room-seat-${seat}`}>
-      <strong>{player.you ? `${player.name} (you)` : player.name}</strong> — {player.deckName}{' '}
-      <span data-testid={`room-seat-${seat}-legal`}>
-        {player.legal ? `legal in ${player.rulesName}` : `not legal in ${player.rulesName} (${player.issueCount} problems)`}
+    <li className="tables__row" data-testid={`room-seat-${seat}`}>
+      <strong className="tables__who">{player.you ? `${player.name} (you)` : player.name}</strong>
+      <span className="tables__deck" data-testid={`room-seat-${seat}-deck`}>
+        {player.deckName}
       </span>
-      {' · '}
-      <span data-testid={`room-seat-${seat}-ready`}>{player.ready ? 'ready' : 'not ready'}</span>
+      <span className="tables__rules" data-testid={`room-seat-${seat}-rules`}>
+        {player.rulesName}
+      </span>
+      <StatusPill
+        kind="legal"
+        testId={`room-seat-${seat}-legal`}
+        state={player.legal ? 'yes' : 'no'}
+        mark={player.legal ? 'tick' : 'cross'}
+        label={player.legal ? 'legal' : 'illegal'}
+        {...(player.legal ? {} : { count: player.issueCount })}
+      />
+      <StatusPill
+        kind="ready"
+        testId={`room-seat-${seat}-ready`}
+        state={player.ready ? 'yes' : 'no'}
+        mark={player.ready ? 'tick' : 'ring'}
+        label={player.ready ? 'ready' : 'not ready'}
+      />
     </li>
   );
 }

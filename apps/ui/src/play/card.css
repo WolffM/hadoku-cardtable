@@ -89,6 +89,11 @@ button.board-card__face:focus-visible {
  * guess we need a face in the center middle like arena"*. So: a mark for each
  * player where you look for one, big enough to hit, with their life on it.
  *
+ * And 2026-09-25: *"avatar and number looks slick, but confusing which is
+ * which"* — so the mark now sits in its seat's head, at the top of the board
+ * for the opponent and the bottom for the viewer (`board.css`). The mark itself
+ * is unchanged; in a head it is `--face-w` smaller, because a head is a strip.
+ *
  * DRAWN, not fetched — shapes in an inline `<svg>` that we own. No avatar, no
  * asset pipeline, and nothing that could be mistaken for a WotC mark.
  */
@@ -106,8 +111,8 @@ button.board-card__face:focus-visible {
 .face__hit {
   position: relative;
   display: block;
-  width: 3.4rem;
-  height: 3.4rem;
+  width: var(--face-w, 3.4rem);
+  height: var(--face-w, 3.4rem);
   margin: 0;
   padding: 0;
   border: 0;
@@ -173,6 +178,17 @@ button.board-card__face:focus-visible {
 .face[data-lost] .face__life {
   color: var(--warn);
   border-color: var(--warn);
+}
+
+/* In a seat's head the mark is a strip's worth, and its badge with it. */
+.seat__head .face {
+  --face-w: 2rem;
+}
+
+.seat__head .face__life {
+  min-width: 1.45rem;
+  padding: 0 4px;
+  font-size: 11px;
 }
 
 .face__name {
