@@ -123,16 +123,24 @@ async function expectNoDesync(h: LiveHarness): Promise<void> {
  * Nothing a seat was not shown reached it — and the oracle had something to
  * look for.
  *
- * The non-vacuity guard is over BOTH seats together, not each. A seat's secrets
- * are the cards that were only ever hidden AND whose names never appeared in a
- * shown zone, so a scenario that plays most of a repetitive deck out can
- * legitimately reach zero for one seat: every remaining hidden card shares its
- * name with one already on a battlefield or in a graveyard. Wave 20's flow
- * changes reached exactly that on seat 0 of the `choices` scenario (0 secrets,
- * 0 leaks) while seat 1 still had plenty. Requiring it per seat made the suite
- * fail for a seat with nothing left to hide, which is not a leak.
+ * The non-vacuity guard — "the oracle had something to look for" — is asked for
+ * PER SCENARIO, because it is a property of the decks, not of the projection.
+ *
+ * A seat's secrets are the cards that were only ever hidden AND whose names
+ * never appeared in a shown zone. `combat`'s decks hold four cards apiece that
+ * the other does not and that the plan never casts, so it always has some, and
+ * it is the scenario that carries the guard. `choices` deals seven distinct
+ * names over 54 cards, nearly the same list on both sides, and plays most of
+ * them out: measured across wave 20's runs it ended with 0, 4 and 0 secrets on
+ * the two seats — not a leak, but a hand with nothing left to hide. Demanding a
+ * number there fails the suite for the decks rather than for the code.
+ *
+ * What both scenarios always assert is the leak itself, and that every secret
+ * really was in Forge's unprojected stream — so a projection that started
+ * leaking is caught by `combat` (and by `apps/server/src/play/jvm.test.ts`,
+ * which counts secrets in the hundreds) on the same run.
  */
-function expectNoLeak(h: LiveHarness): void {
+function expectNoLeak(h: LiveHarness, mustHaveSecrets = true): void {
   let total = 0;
   for (const seat of [0, 1]) {
     const { secrets } = secretsFor(rawStatesOf(h.raw, seat), seat);
@@ -147,7 +155,8 @@ function expectNoLeak(h: LiveHarness): void {
     expect(leaked(secrets, rawText).length).toBe(secrets.size);
     expect(leaked(secrets, emitted)).toEqual([]);
   }
-  expect(total, 'the leak check had secrets to look for').toBeGreaterThan(0);
+  if (mustHaveSecrets) expect(total, 'the leak check had secrets to look for').toBeGreaterThan(0);
+  else console.log(`[prompts.jvm] non-vacuity not required here; the two seats held ${total} secrets between them`);
 }
 
 function expectCleanBridge(h: LiveHarness): void {
@@ -293,7 +302,7 @@ describe.skipIf(!available.ok)(title, () => {
       expect(answered(h, 'manipulateCardList').length).toBe(0);
       expectCleanBridge(h);
       await expectNoDesync(h);
-      expectNoLeak(h);
+      expectNoLeak(h, false);
       h.stop();
     },
     240_000,
