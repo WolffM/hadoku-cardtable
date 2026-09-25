@@ -4,8 +4,10 @@
  *
  * ## The baseline
  *
- * Re-recorded in Wave 19 (Board gained faces, fixed zones and stack art:
- * 5c42535, 48d8266). `BASELINE_SHA256` / `BASELINE_LENGTH` are the static markup of
+ * Re-recorded in Wave 20 at `dcb2e60` (§A: the battlefield grouped into
+ * `data-board-row` rows with a gutter and a reset control, and the faces moved
+ * to the ends). Before that, in Wave 19 (Board gained faces, fixed zones and
+ * stack art: 5c42535, 48d8266). `BASELINE_SHA256` / `BASELINE_LENGTH` are the static markup of
  * `<Board view={boardFromFixture(PLAY_FIXTURES[0])} />`, recorded at commit
  * 2709447 — Wave 9's base, BEFORE this lane touched `../adapter.ts` or added
  * anything under `live/`. If this test fails, the fixture path renders
@@ -19,9 +21,9 @@
  *
  * **It renders `Board` and nothing else**, so a failure here is a change to
  * `../Board.tsx`, `../adapter.ts` or `../fixtures.ts` — never to anything under
- * `live/`. Wave 20 §A is such a change (the battlefield grew `data-board-row`
- * rows and a gutter), and re-recording the two numbers belongs in the commit
- * that makes the markup change, not in a later one that merely notices it.
+ * `live/`. Re-recording the two numbers belongs with the commit that makes the
+ * markup change — or, when that commit does not own this file, immediately
+ * after it, naming it (as the paragraph above does for `dcb2e60`).
  */
 
 import { createHash } from 'node:crypto';
@@ -34,8 +36,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = '42042c4c63f2a0367d667120ac4bb3dd7749de731e7e18983783855d14d82ae1';
-const BASELINE_LENGTH = 32543;
+const BASELINE_SHA256 = '50ddadb265eaea3b463998d53ded073ded85aa6ab872dd0453daa107eeb19187';
+const BASELINE_LENGTH = 34149;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));
