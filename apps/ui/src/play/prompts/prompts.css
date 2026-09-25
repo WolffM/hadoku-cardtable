@@ -9,7 +9,25 @@
  * and selection. A prompt styles its own layout; it never restyles a card.
  */
 
+/*
+ * The sheet is the frame its own boxes live in.
+ *
+ * `position: relative` is not decoration: the hidden ticks below are
+ * `position: absolute`, and with no positioned ancestor inside the prompt their
+ * containing block is the OVERLAY the match mounts this in (`.live__prompt`,
+ * `../live/live.css`) — where the sheet's own `overflow-y: auto` does NOT clip
+ * them, because an `overflow` ancestor clips a positioned descendant only when
+ * it is in that descendant's containing-block chain. So each tick sat at its
+ * tile's static position, and in a scrolled card grid the ones far down the
+ * list sat hundreds of pixels below the window: 1px boxes that grew
+ * `.live__prompt`, then `.live`, then the match shell (measured at 960h > 751h
+ * and 1120h > 719h with a tutor's grid open — `e2e/table-fit.spec.ts`, which
+ * saw the shell overflow while the sheet itself fitted its box exactly).
+ * Positioned, the sheet contains them: they scroll with the grid and are
+ * clipped with it.
+ */
 .prompt {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
