@@ -73,6 +73,17 @@ describe('order', () => {
     expect(submit().disabled).toBe(true);
   });
 
+  it('renders each item as its own row, never one line joining several', () => {
+    const { source } = mount();
+    const items = [...source().querySelectorAll<HTMLElement>(':scope > li')];
+    expect(items).toHaveLength(3);
+    const names = ['Fire Urchin', "Ral's Staticaster", 'Hellkite Whelp'];
+    for (const li of items) {
+      const hits = names.filter((n) => li.textContent?.includes(n));
+      expect(hits).toHaveLength(1);
+    }
+  });
+
   it('never reports remember=true when the checkbox was not offered', () => {
     const ask = { ...askFor('order'), showRememberCheckbox: false };
     const { getByRole, queryByTestId, submit, answers } = mountPrompt('order', ask);

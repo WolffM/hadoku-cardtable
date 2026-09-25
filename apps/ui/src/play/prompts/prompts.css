@@ -2,6 +2,11 @@
  * The prompts' layout. Consumes the palette on `:root` in `styles.css`, like
  * `board.css`, and defines no colours of its own. Phone first: every list
  * wraps, the dual lists stack below 560px, and nothing here references an image.
+ *
+ * The card grids (`prompt__cards`) are the wave-20 half of "prompts are
+ * cards": the tiles inside them are the draft's own `.card` panel (styles.css)
+ * with the board's tile classes (`card.css`) reused read-only for proportion
+ * and selection. A prompt styles its own layout; it never restyles a card.
  */
 
 .prompt {
@@ -29,6 +34,11 @@
   margin: 0;
   color: var(--ink-dim);
   overflow-wrap: anywhere;
+}
+
+/* The reveal is a note plus the tiles it names (`prompt__cards--reveal`). */
+.prompt__reveal p {
+  margin: 0 0 4px;
 }
 
 .prompt__list,
@@ -64,6 +74,119 @@
 .prompt__list > li[data-movable] {
   border-color: var(--accent);
 }
+
+/* ── card grids: a prompt's cards are tiles, the board's card look ────── */
+
+/*
+ * `--card-w` here is the prompt's own size (the board sizes cards per zone in
+ * `board.css`; a prompt is not a zone and inherits the draft table's 190px,
+ * which is the wrong look for a choice). `auto-fill` + `minmax` is the same
+ * wrap `styles.css` gives the pack: N cards is N columns until they stop
+ * fitting.
+ */
+.prompt__cards {
+  --card-w: 7rem;
+
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+  gap: 6px;
+}
+
+.prompt__cards--reveal {
+  --card-w: 5rem;
+}
+
+.prompt__cards > li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+}
+
+/* A tile keeps a card's proportion whether or not it has art — the rule
+ * `.board-card .card` applies on the board (`card.css`), same intent. */
+.prompt__cards .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+}
+
+.prompt__cards > li[draggable] {
+  cursor: grab;
+}
+
+.prompt__cards > li[data-dragging] {
+  opacity: 0.5;
+}
+
+.prompt__cards > li[data-movable] {
+  border-color: var(--accent);
+}
+
+/* The label wraps the hidden input and the tile, so a click anywhere on the
+ * tile chooses it and the keyboard focus lands on the input. */
+.prompt__cards label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.prompt__tile {
+  display: block;
+  min-width: 0;
+}
+
+/*
+ * The tick is the border, not a checkbox: visually hidden, never
+ * display:none — the input must stay focusable (keyboard) and clickable
+ * through the label (the live driver drives it too).
+ */
+.prompt__cards input[type='checkbox'],
+.prompt__cards input[type='radio'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.prompt__cards > li:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.prompt__cards label:has(input:focus-visible) {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ── the manipulate destinations: in the layout, not a button label ───── */
+
+.prompt__dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.4rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.prompt__dropzone[data-over] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 
 .prompt__item,
 .prompt__amount-label {

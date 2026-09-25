@@ -4,18 +4,54 @@
  * `chooseEntitiesForEffect`, `getAbilityToPlay` — from their committed
  * fixtures. Names come from the real match's state (`fixtureLookup`), so a
  * card drawn as "card #67" would be a lookup bug and fails here.
+ *
+ * Wave 20: a card in a choice list is a TILE — the grid, the `data-card-id`
+ * stamps the inspector delegates on, and art resolved through the same
+ * art-id table the board reads. The committed match's cards have no rows in
+ * that table, so the art pin mounts a tutor over three real POOL cards
+ * (which do) and asserts the `<img>` src is the URL the board's own chain
+ * builds for that printing.
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent } from '@testing-library/react';
 
 import { askFor, asksFor } from './fixtures.ts';
-import { EMPTY_LOOKUP } from './lookup.ts';
+import { EMPTY_LOOKUP, type PromptLookup } from './lookup.ts';
 import { expectWireReply, mountPrompt } from './testing.ts';
+import { cardImageUrl } from '../../draft/cardImage.ts';
+import poolData from '../../draft/pool.json' with { type: 'json' };
 
 afterEach(cleanup);
 
 const labels = (els: HTMLElement[]) => els.map((e) => e.closest('li')!.textContent);
+
+/** Three real pool cards — the art-id table knows every one of them. */
+const POOL = (() => {
+  const seen = new Set<string>();
+  const unique: { name: string; scryfallId: string }[] = [];
+  for (const c of (poolData as { cards: { name: string; scryfallId?: string }[] }).cards) {
+    // First occurrence per name: that is the row the art-id index keeps, so
+    // the tile's art is this printing's art, not a duplicate's.
+    if (c.scryfallId === undefined || c.scryfallId === '' || seen.has(c.name)) continue;
+    seen.add(c.name);
+    unique.push({ name: c.name, scryfallId: c.scryfallId });
+    if (unique.length === 3) break;
+  }
+  return unique;
+})();
+const POOL_ID_BASE = 901;
+
+/** A lookup that names the pool cards, so the tiles resolve real art. */
+const poolLookup: PromptLookup = {
+  ...EMPTY_LOOKUP,
+  card: (id) => {
+    const hit = POOL[id - POOL_ID_BASE];
+    return hit === undefined
+      ? undefined
+      : { name: hit.name, lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false };
+  },
+};
 
 describe('getChoices', () => {
   it('chooses one colour and answers its key', () => {
@@ -58,10 +94,15 @@ describe('getChoices', () => {
     expectWireReply('getChoices', answers[0]);
   });
 
-  it('shows a display-only list with nothing to tick, and answers empty', () => {
+  it('shows a display-only GRID of the revealed cards, with nothing to tick, and answers empty', () => {
     const reveal = asksFor('getChoices').find((a) => a.max < 0)!;
-    const { getAllByTestId, answers, submit, container } = mountPrompt('getChoices', reveal);
-    expect(getAllByTestId('prompt-choice').map((e) => e.textContent)).toEqual(['Oxidda Golem', 'Gemini Engine']);
+    const { container, answers, submit, getByTestId } = mountPrompt('getChoices', reveal);
+    const grid = getByTestId('prompt-cards');
+    expect([...grid.querySelectorAll<HTMLElement>(':scope > li')].map((li) => li.dataset.cardId)).toEqual(['76', '77']);
+    expect(grid.textContent).toContain('Oxidda Golem');
+    expect(grid.textContent).toContain('Gemini Engine');
+    // Each revealed card is a tile, not a line of text.
+    expect(grid.querySelectorAll('.card')).toHaveLength(2);
     expect(container.querySelectorAll('input')).toHaveLength(0);
     fireEvent.click(submit());
     expect(answers).toEqual([[]]);
@@ -70,16 +111,42 @@ describe('getChoices', () => {
 });
 
 describe('chooseSingleEntityForEffect', () => {
-  it('names players and cards from the real board and answers the ref chosen', () => {
-    const { getAllByTestId, answers, submit } = mountPrompt(
+  it('draws cards as tiles and the player as a row, and answers the ref chosen', () => {
+    const { getAllByTestId, answers, submit, getByTestId } = mountPrompt(
       'chooseSingleEntityForEffect',
       askFor('chooseSingleEntityForEffect'),
     );
+    const grid = getByTestId('prompt-cards');
+    const tiles = [...grid.querySelectorAll<HTMLElement>(':scope > li')];
+    // The player is not a card: no id stamp, its name in words.
+    expect(tiles.map((li) => li.dataset.cardId)).toEqual([undefined, '67', '99', '21']);
+    expect(tiles[0]!.textContent).toContain('Alice (Host AI)');
+    expect(tiles.filter((li) => li.querySelector('.card'))).toHaveLength(3);
     const radios = getAllByTestId('prompt-choice');
-    expect(labels(radios)).toEqual(['Alice (Host AI)player', 'Goblin Replica', 'Vulshok War Boar', 'Fire Urchin']);
     fireEvent.click(radios[1]!);
     fireEvent.click(submit());
     expect(answers).toEqual([{ kind: 'card', id: 67 }]);
+    expectWireReply('chooseSingleEntityForEffect', answers[0]);
+  });
+
+  it('renders a tutor choice as a grid of tiles with art from the art-id table', () => {
+    const ask = {
+      ...askFor('chooseSingleEntityForEffect'),
+      optionList: POOL.map((_, i) => ({ kind: 'card' as const, id: POOL_ID_BASE + i })),
+    };
+    const { getAllByTestId, answers, submit, getByTestId } = mountPrompt('chooseSingleEntityForEffect', ask, poolLookup);
+    const tiles = [...getByTestId('prompt-cards').querySelectorAll<HTMLElement>(':scope > li')];
+    expect(tiles.map((li) => li.dataset.cardId)).toEqual(POOL.map((_, i) => String(POOL_ID_BASE + i)));
+    for (const [i, li] of tiles.entries()) {
+      const img = li.querySelector<HTMLImageElement>('img.card__art');
+      // The URL is the one the board's own chain builds for this printing —
+      // not a host a component decided on by itself.
+      expect(img, POOL[i]!.name).not.toBeNull();
+      expect(img!.getAttribute('src')).toBe(cardImageUrl(POOL[i]!.scryfallId));
+    }
+    fireEvent.click(getAllByTestId('prompt-choice')[1]!);
+    fireEvent.click(submit());
+    expect(answers).toEqual([{ kind: 'card', id: POOL_ID_BASE + 1 }]);
     expectWireReply('chooseSingleEntityForEffect', answers[0]);
   });
 
@@ -101,12 +168,24 @@ describe('chooseSingleEntityForEffect', () => {
 });
 
 describe('chooseEntitiesForEffect', () => {
-  it('shows the delayed reveal and answers the refs chosen, in offer order', () => {
+  it('shows the delayed reveal as tiles and answers the refs chosen, in offer order', () => {
     const { getAllByTestId, getByTestId, answers, submit } = mountPrompt(
       'chooseEntitiesForEffect',
       askFor('chooseEntitiesForEffect'),
     );
-    expect(getByTestId('prompt-reveal').textContent).toContain("Looking at: Fire Urchin, Rubblebelt Boar, Ral's Staticaster");
+    const reveal = getByTestId('prompt-reveal');
+    expect(reveal.textContent).toContain('Looking at:');
+    // Match on the VALUE, not the attribute: `CardTile` stamps its own
+    // `data-card-id` in the `w<forge id>` namespace (`Board.tsx`, `adapter.ts:317`),
+    // so a bare `[data-card-id]` selector also picks up the tile's own nested
+    // element — that duplication is expected, not a bug. Only the wrapper
+    // `<li>`s carry the bare forge id.
+    const revealed = [...reveal.querySelectorAll<HTMLElement>(':scope > ul > li[data-card-id]')];
+    expect(revealed.map((li) => li.dataset.cardId)).toEqual(['20', '11', '2']);
+    expect(reveal.querySelectorAll('.card')).toHaveLength(3);
+    // Never one line joining the names: each revealed card is its own tile.
+    expect(reveal.textContent).not.toContain('Fire Urchin, Rubblebelt Boar, Ral’s Staticaster');
+    expect(reveal.textContent).not.toContain("Fire Urchin, Rubblebelt Boar, Ral's Staticaster");
     const boxes = getAllByTestId('prompt-choice');
     fireEvent.click(boxes[2]!);
     fireEvent.click(boxes[0]!);
