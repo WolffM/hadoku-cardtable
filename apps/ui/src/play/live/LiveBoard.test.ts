@@ -9,15 +9,27 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { createElement, type ComponentType } from 'react';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame } from '@hadoku/forge-wire';
 
 import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
 import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
-import { LiveBoard } from './LiveBoard.tsx';
-import { closeMatch, currentAsk, pressButton, selectCard, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
+import { isMatchGone, LiveBoard, liveStatus, refusalOf, type LiveStatus } from './LiveBoard.tsx';
+import {
+  answerAsk,
+  closeMatch,
+  currentAsk,
+  pressButton,
+  selectCard,
+  socketIoMatchTransport,
+  startMatch,
+  type LiveMatch,
+  type MatchTransport,
+} from './match.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, type ReplayServer } from './replay-server.ts';
 
 let server: ReplayServer | null = null;
@@ -57,6 +69,14 @@ async function liveBoard(playerId = 0) {
   return { s, m, ...utils };
 }
 
+/**
+ * Every row of text the board draws ABOUT ITSELF, in DOM order — the status
+ * line and, while the board is live, the error line. `LiveBoard` marks them
+ * with `data-live-line`, and three of these at once is the bug §F.2 names.
+ */
+const lines = (container: HTMLElement): string[] =>
+  [...container.querySelectorAll('[data-live-line]')].map((el) => el.textContent ?? '');
+
 describe('the board follows the stream', () => {
   it('waits, then draws the game as the frames arrive', async () => {
     const s = (server = await startReplayServer());
@@ -64,9 +84,11 @@ describe('the board follows the stream', () => {
       matchId: s.matchId,
       transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
     }));
-    const { getByText, getByTestId, queryByTestId } = render(createElement(LiveBoard, { match: m }));
-    await waitFor(() => expect(getByTestId('live-status').textContent).toBe('Seat 1, live.'));
-    expect(getByText('Waiting for the game state.')).toBeTruthy();
+    const { container, getByTestId, queryByTestId } = render(createElement(LiveBoard, { match: m }));
+    // Seated, with no state yet: ONE line says exactly that, and it is the
+    // line — there is no second "waiting" row under it any more (§F.2).
+    await waitFor(() => expect(getByTestId('live-status').textContent).toBe('Seat 1, waiting for the state.'));
+    expect(lines(container)).toEqual(['Seat 1, waiting for the state.']);
     expect(queryByTestId('turn')).toBeNull();
 
     const frames = fixtureFrames();
@@ -801,5 +823,290 @@ describe('the says, the toggle, and the ability label', () => {
     );
     await waitFor(() => expect(getByTestId('live-prompt').dataset.callId).toBe('fx-full-control'));
     expect(s.clientFrames()).toEqual([]);
+  });
+});
+
+/*
+ * §F — the match's own chrome: six states, ONE line, and Leave where a person
+ * looks for it.
+ *
+ * The operator saw `forge:join was refused: unknown-match`, `Connected, not
+ * seated.` and `Waiting for the game state.` stacked together and asked
+ * whether anybody had decided that. Nobody had. Every case below drives a real
+ * state and asserts what the WHOLE board says about itself — `lines()`, not one
+ * element — because "exactly one line" is a claim about everything drawn, and a
+ * test that reads a single test-id cannot fail when a second line appears
+ * beside it.
+ *
+ * The five states before `live` are driven through a stub transport rather than
+ * the replay server: a refused join, an unanswered one and a socket that has
+ * not come up yet are exactly what a real server does NOT do.
+ */
+describe('one state, one line', () => {
+  interface Stub {
+    transport: MatchTransport;
+    /** Fire a socket event at the driver: `connect`, `disconnect`, a frame. */
+    fire: (event: string, payload?: unknown) => void;
+    /** Answer the join or resync the driver has in flight, as the server would. */
+    answer: (response: unknown) => void;
+  }
+
+  function stubTransport(): Stub {
+    const handlers = new Map<string, ((payload: unknown) => void)[]>();
+    const acks: ((err: Error | null, response: unknown) => void)[] = [];
+    return {
+      transport: {
+        on: (event, handler) => {
+          const held = handlers.get(event) ?? [];
+          held.push(handler);
+          handlers.set(event, held);
+        },
+        emit: () => {},
+        request: (_event, _payload, onAck) => {
+          acks.push(onAck);
+        },
+        disconnect: () => {},
+      },
+      fire: (event, payload) => {
+        for (const handler of handlers.get(event) ?? []) handler(payload);
+      },
+      answer: (response) => {
+        const onAck = acks.shift();
+        if (onAck === undefined) throw new Error('nothing was in flight to answer');
+        onAck(null, response);
+      },
+    };
+  }
+
+  const MATCH_ID = 'm-chrome';
+  /** A snapshot that seats this client and carries no state yet. */
+  const seatOnly = { matchId: MATCH_ID, seat: 0, playerId: 0, cursor: null, frames: [] };
+
+  function stubBoard() {
+    const stub = stubTransport();
+    const m = (match = startMatch({ matchId: MATCH_ID, transport: stub.transport }));
+    const utils = render(createElement(LiveBoard, { match: m, onLeave: () => {} }));
+    return { stub, m, ...utils };
+  }
+
+  /** The state, the one line, and that it IS the only line. */
+  function only(container: HTMLElement, m: LiveMatch, state: LiveStatus, text: string): void {
+    expect(liveStatus(m)).toBe(state);
+    expect(lines(container)).toEqual([text]);
+    const line = container.querySelector<HTMLElement>('[data-testid="live-status"]')!;
+    expect(line.dataset.status).toBe(state);
+    expect(container.querySelectorAll('[data-testid="live-status"]')).toHaveLength(1);
+  }
+
+  it('connecting: the socket is not up, and then the join is in flight', () => {
+    const { stub, m, container } = stubBoard();
+    only(container, m, 'connecting', 'Connecting…');
+
+    // The socket comes up; the join it sent is still unanswered, so there is
+    // still no seat and still nothing a player could do.
+    act(() => stub.fire('connect'));
+    expect(m.awaitingSnapshot).toBe(true);
+    only(container, m, 'connecting', 'Connecting…');
+  });
+
+  it('connected-not-seated: the join was answered with something that is not a seat', () => {
+    const { stub, m, container, queryByTestId } = stubBoard();
+    act(() => stub.fire('connect'));
+    act(() => stub.answer({}));
+
+    expect(m.seat).toBeNull();
+    expect(m.awaitingSnapshot).toBe(false);
+    only(container, m, 'connected-not-seated', 'Connected, not seated.');
+    // Not a refusal, so the seam says nothing about it — and the server's own
+    // sentence is on the line's title, not on a second row.
+    expect(refusalOf(m)).toBeNull();
+    expect(queryByTestId('live-error')).toBeNull();
+    expect(queryByTestId('live-status')!.title).toMatch(/is not a snapshot/);
+  });
+
+  it('seated-waiting-for-state: a seat, and no board yet', () => {
+    const { stub, m, container, queryByTestId } = stubBoard();
+    act(() => stub.fire('connect'));
+    act(() => stub.answer(seatOnly));
+
+    only(container, m, 'seated-waiting-for-state', 'Seat 1, waiting for the state.');
+    expect(container.querySelector('.board')).toBeNull();
+    expect(container.textContent).not.toContain('Waiting for the game state.');
+    expect(queryByTestId('live-error')).toBeNull();
+    // With no table under it the line takes the table's space; see `live.css`.
+    expect(queryByTestId('live-status')!.dataset.perch).toBe('table');
+  });
+
+  it('live: the seat and nothing else — the string three playwright specs wait on', async () => {
+    const { m, container, queryByTestId } = await liveBoard();
+    only(container, m, 'live', 'Seat 1, live.');
+    expect(queryByTestId('live-status')!.dataset.perch).toBe('corner');
+  });
+
+  it('the seat number is the snapshot’s seat, not a guess — seat 1 is “Seat 2”', () => {
+    // The replay server always seats a client at 0, so the second seat is
+    // driven here. `Seat 2, live.` — which `e2e/play.spec.ts` waits on — is the
+    // same `match.seat + 1` this renders.
+    const { stub, m, container } = stubBoard();
+    act(() => stub.fire('connect'));
+    act(() => stub.answer({ ...seatOnly, seat: 1, playerId: 1 }));
+    only(container, m, 'seated-waiting-for-state', 'Seat 2, waiting for the state.');
+  });
+
+  it('refused: the server’s own word, once, and it outranks every hopeful branch', () => {
+    const { stub, m, container, queryByTestId } = stubBoard();
+    act(() => stub.fire('connect'));
+    act(() => stub.answer({ error: 'seat-taken' }));
+
+    expect(refusalOf(m)).toBe('seat-taken');
+    expect(isMatchGone(m)).toBe(false);
+    only(container, m, 'refused', 'Refused: seat-taken');
+    // The state a refused join leaves behind — connected, no seat — is NOT
+    // what is drawn: an outcome outranks a status.
+    expect(m.connected).toBe(true);
+    expect(m.seat).toBeNull();
+    expect(queryByTestId('live-error')).toBeNull();
+  });
+
+  it('match-gone: unknown-match is not a status, and the three lines are one', () => {
+    const { stub, m, container, queryByTestId, getByTestId } = stubBoard();
+    act(() => stub.fire('connect'));
+    act(() => stub.answer({ error: 'unknown-match' }));
+
+    expect(isMatchGone(m)).toBe(true);
+    only(container, m, 'match-gone', 'Match gone.');
+    // The operator's three, as they were: the refusal, the seat line and the
+    // waiting line. Exactly one of them is drawn now, and it is none of them.
+    expect(container.textContent).not.toContain('Connected, not seated.');
+    expect(container.textContent).not.toContain('Waiting for the game state.');
+    expect(container.textContent).not.toContain('was refused');
+    expect(queryByTestId('live-error')).toBeNull();
+    // A state, and where it can be acted on: the bar's Leave says so.
+    expect(getByTestId('live-leave').dataset.urgent).toBe('true');
+    expect(getByTestId('live-status').title).toContain('unknown-match');
+  });
+
+  it('a gone match that the socket then drops is still gone, not connecting', () => {
+    const { stub, m, container } = stubBoard();
+    act(() => stub.fire('connect'));
+    act(() => stub.answer({ error: 'unknown-match' }));
+    act(() => stub.fire('disconnect'));
+    expect(m.connected).toBe(false);
+    only(container, m, 'match-gone', 'Match gone.');
+  });
+
+  it('the seam reads the refusal and nothing else: an unanswered ack is not a refusal', () => {
+    const { m } = stubBoard();
+    m.lastError = 'forge:join was not answered: operation has timed out';
+    expect(refusalOf(m)).toBeNull();
+    expect(isMatchGone(m)).toBe(false);
+    m.lastError = 'forge:resync was refused: unknown-match';
+    expect(refusalOf(m)).toBe('unknown-match');
+    expect(isMatchGone(m)).toBe(true);
+  });
+
+  it('a failure INSIDE a live match still gets its own line — that is a different kind of thing', async () => {
+    const { s, m, container, getByTestId } = await liveBoard();
+    // A real failure through a real seam: an answer that fails its own wire
+    // schema is refused by `answerAsk`, which is where this `lastError` comes
+    // from in production too.
+    s.send(confirmAsk('c-bad', true));
+    await waitFor(() => getByTestId('confirm-dialog'));
+    act(() => {
+      expect(answerAsk(m, 'c-bad', 'showConfirmDialog', 'not a boolean')).toBe(false);
+    });
+    expect(liveStatus(m)).toBe('live');
+    expect(lines(container)).toEqual([
+      'Seat 1, live.',
+      'refused to send an answer to showConfirmDialog that fails its wire schema',
+    ]);
+    expect(getByTestId('live-error')).toBeTruthy();
+    expect(s.clientFrames()).toEqual([]);
+  });
+});
+
+/*
+ * §F.1 — Leave, moved off the floor.
+ *
+ * *"'Leave the match' button is in a really weird spot, why is it below the
+ * game canvas?"* It is in the bar now. What these assert is where it sits in
+ * the DOM, that a keyboard can reach it, and that it is not inside the canvas —
+ * the canvas boxes are lane C's and this lane may not move one.
+ */
+describe('Leave is with the match controls', () => {
+  it('is a button in the bar, first in it, and not inside the board', async () => {
+    const { container, getByTestId } = await liveBoard();
+    const leave = getByTestId('live-leave');
+    const bar = getByTestId('live-buttons');
+    expect(leave.tagName).toBe('BUTTON');
+    expect(bar.contains(leave)).toBe(true);
+    // First in the bar: the far end from OK and Cancel, so a reach for Leave
+    // is never a misclick on Forge's answer.
+    expect(bar.firstElementChild).toBe(leave);
+    expect(container.querySelector('.board')!.contains(leave)).toBe(false);
+    // And the bar is still a sibling of the board, drawn after it: the chrome
+    // is around the canvas, not in it.
+    const live = container.querySelector('.live')!;
+    expect([...live.children].map((el) => el.className)).toEqual(['live__status', 'board', 'live__buttons']);
+  });
+
+  it('a keyboard reaches it, and a press leaves', async () => {
+    let left = 0;
+    const s = (server = await startReplayServer());
+    const m = (match = startMatch({
+      matchId: s.matchId,
+      transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
+    }));
+    const { getByTestId } = render(
+      createElement(LiveBoard, {
+        match: m,
+        onLeave: () => {
+          left += 1;
+        },
+      }),
+    );
+    const leave = getByTestId('live-leave') as HTMLButtonElement;
+    expect(leave.disabled).toBe(false);
+    expect(leave.tabIndex).toBe(0);
+    leave.focus();
+    expect(document.activeElement).toBe(leave);
+    // The Enter a focused button takes is a click; fire what the browser fires.
+    fireEvent.click(leave);
+    expect(left).toBe(1);
+    // It is not one of Forge's answers: nothing left over the wire.
+    expect(s.clientFrames()).toEqual([]);
+  });
+
+  it('is pressable with a question open — leaving is not an answer', async () => {
+    const { s, getByTestId } = await liveBoard();
+    s.send(confirmAsk('c-leave', true));
+    await waitFor(() => getByTestId('confirm-dialog'));
+    expect((getByTestId('live-leave') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  /*
+   * The canvas is lane C's. This lane's stylesheet may dress the chrome around
+   * it and must not reach inside it, so the guard is on the stylesheet itself:
+   * every selector in `live.css` that names a board part is one that was
+   * already there, with the reason written above it. A new one goes red here.
+   */
+  it('live.css reaches into the canvas in exactly the places it already did', () => {
+    // `import.meta.dirname` and not `import.meta.url`: under jsdom the URL is
+    // not a file one. Same read as `Board.test.ts`'s own CSS guard.
+    const css = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'live.css'), 'utf8');
+    const selectors = css
+      .split('}')
+      .map((rule) => rule.slice(0, rule.indexOf('{')))
+      .map((sel) => sel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ').trim())
+      .filter((sel) => sel !== '' && !sel.startsWith('@'));
+    // A board part: `.board`, a card class, a seat, a zone. `.cardtable-chrome`
+    // is the page's own wrapper and not one of them.
+    const canvas = /\.board\b|\.card\b|\.card__|\.seat\b|\[data-zone/;
+    expect(selectors.filter((sel) => canvas.test(sel))).toEqual([
+      '.shell--match .live, .live > .board',
+      '.live > .board',
+      '.live .card__rules',
+      '.live .board',
+    ]);
   });
 });

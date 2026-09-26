@@ -118,6 +118,36 @@
  * enabled it AND no question is open; `pressButton` refuses the same cases, so
  * a disabled button that is somehow pressed still sends nothing. With no bar
  * from Forge yet, the buttons carry neutral labels.
+ *
+ * **Leave is in that bar** (wave 22 §F.1). It was a link in the shell's footer,
+ * under the table — the operator: *"'Leave the match' button is in a really
+ * weird spot, why is it below the game canvas?"*. It is a real `<button>` at
+ * the far end of the bar from OK and Cancel, so it is one tab stop and never a
+ * misclick on Forge's answer. It changes no canvas box: the bar's height is
+ * fixed in `live.css` and Leave is a child of the bar.
+ *
+ * ## One state, one line
+ *
+ * The operator, on seeing `forge:join was refused: unknown-match`,
+ * `Connected, not seated.` and `Waiting for the game state.` stacked together:
+ * *"are these messages coordinated? are they in the right spot? i wonder if it
+ * makes sense to show all three."* No — they were three lines for one
+ * situation, and two of them were hopeful about a match that was already gone.
+ *
+ * `liveStatus` is the whole state machine (`LiveStatus`: six states, the names
+ * agreed with lane E, which owns what the SERVER says about a gone match). One
+ * of them holds, `statusText` gives it one line, and that line is the only one
+ * drawn — with one exception, and it is a different kind of thing: while the
+ * state is `live`, `lastError` draws its own alert, because a failure INSIDE a
+ * live match (a prompt that would not draw, a resync that never caught up) is
+ * not what state the board is in. In every other state the status line has
+ * already said what the error was about, and `lastError`'s full text is on the
+ * line's `title` rather than on a second row.
+ *
+ * A refusal is an **outcome**, not a status, so it outranks every hopeful
+ * branch — and `unknown-match` in particular means the match is gone.
+ * `isMatchGone` is the seam that decides that, and it is the ONE line lane E's
+ * new wire shape changes.
  */
 
 import {
@@ -136,6 +166,7 @@ import { Board, type BoardInteraction } from '../Board.tsx';
 import { lookupFromState, plainRulesText, withAbilityLabels } from '../prompts/lookup.ts';
 import { autoAnswer } from '../prompts/rules.ts';
 import { isPromptMethod, PromptFor, type AskOf, type PromptMethod } from '../prompts/index.ts';
+import { navigate } from '../../screens/route.ts';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
 import {
   abortAsk,
@@ -155,12 +186,102 @@ import {
 } from './match.ts';
 import './live.css';
 
-/** One line of plain words for where the connection is. */
-export function statusLine(match: LiveMatch): string {
-  if (!match.connected) return match.everConnected ? 'Disconnected — reconnecting…' : 'Connecting…';
-  if (match.awaitingSnapshot) return match.stats.snapshots === 0 ? 'Joining the match…' : 'Catching up…';
-  if (match.seat === null) return 'Connected, not seated.';
-  return `Seat ${match.seat + 1}, live.`;
+/* ── Where the match is: six states, one line ─────────────────────────── */
+
+/**
+ * The states a live board can be in. Exactly one holds, and exactly one line
+ * is drawn for it.
+ *
+ * These names are the wave-22 contract with lane E, which owns what the SERVER
+ * says when a match is gone; neither lane renames them and neither invents the
+ * other's text. `unknown-match` is NOT one of them: it is a refusal on the
+ * wire, and what it MEANS is `match-gone`.
+ */
+export type LiveStatus =
+  | 'connecting'
+  | 'connected-not-seated'
+  | 'seated-waiting-for-state'
+  | 'live'
+  | 'refused'
+  | 'match-gone';
+
+/** The refusal that means the match itself is gone, rather than this join. */
+export const MATCH_GONE_REFUSAL = 'unknown-match';
+
+/** `forge:join was refused: unknown-match` → `unknown-match`. */
+const REFUSAL = /\bwas refused: (.+)$/;
+
+/**
+ * The refusal a `forge:join` / `forge:resync` ack carried, or null.
+ *
+ * `match.ts` folds a refused ack into one sentence — the event, then the
+ * server's own word — and this is the ONE place the client reads that word back
+ * out. Every other `lastError` (an unanswered ack, a snapshot that did not
+ * parse, a prompt that would not draw) is not a refusal and does not come back
+ * through here.
+ */
+export function refusalOf(match: LiveMatch): string | null {
+  const found = REFUSAL.exec(match.lastError ?? '');
+  return found === null ? null : found[1]!;
+}
+
+/**
+ * **The seam.** Whether the match this board is pointed at is gone.
+ *
+ * Today the only signal is the refusal word on the join ack, so that is what
+ * this reads. Lane E is making a gone match distinguishable on the wire from a
+ * generic refusal: when that shape lands, THIS function's body is the one line
+ * that changes — nothing else in this file, and nothing in `live.css`, asks
+ * the question.
+ */
+export function isMatchGone(match: LiveMatch): boolean {
+  return refusalOf(match) === MATCH_GONE_REFUSAL;
+}
+
+/**
+ * Which state the board is in. The whole machine, in reading order.
+ *
+ * An outcome outranks a status: a refused join is not "connecting", and a match
+ * that is gone is not "not seated" — which is exactly the stack of three the
+ * operator was shown. `connecting` covers the handshake whole, socket and join
+ * both, because a join in flight with no seat yet is not a state a player can
+ * do anything about; `connected-not-seated` is the one that lasts — the socket
+ * is up, nothing is in flight, and no seat came back.
+ */
+export function liveStatus(match: LiveMatch): LiveStatus {
+  if (isMatchGone(match)) return 'match-gone';
+  if (refusalOf(match) !== null) return 'refused';
+  if (!match.connected) return 'connecting';
+  if (match.seat === null) return match.awaitingSnapshot ? 'connecting' : 'connected-not-seated';
+  if (match.view === null) return 'seated-waiting-for-state';
+  return 'live';
+}
+
+/**
+ * The one line, in the operator's register: a state, and no prose about it.
+ *
+ * `Seat N, live.` is unchanged because three playwright specs wait on that
+ * exact string, and a seat number is the one number here that names something
+ * the player can see on the table.
+ */
+export function statusText(match: LiveMatch): string {
+  // Both seated branches are reached only with a seat; the fallback keeps this
+  // total rather than asserting.
+  const seat = `Seat ${(match.seat ?? 0) + 1}`;
+  switch (liveStatus(match)) {
+    case 'connecting':
+      return 'Connecting…';
+    case 'connected-not-seated':
+      return 'Connected, not seated.';
+    case 'seated-waiting-for-state':
+      return `${seat}, waiting for the state.`;
+    case 'live':
+      return `${seat}, live.`;
+    case 'refused':
+      return `Refused: ${refusalOf(match) ?? ''}`;
+    case 'match-gone':
+      return 'Match gone.';
+  }
 }
 
 interface BoundaryProps {
@@ -387,7 +508,16 @@ function Targeter({ overlay, drag, root }: { overlay: HTMLElement; drag: DragSta
   );
 }
 
-export function LiveBoard({ match }: { match: LiveMatch }) {
+export interface LiveBoardProps {
+  match: LiveMatch;
+  /**
+   * What Leave does. Defaults to the lobby, which is where leaving a match
+   * goes; a test or a harness passes its own.
+   */
+  onLeave?: () => void;
+}
+
+export function LiveBoard({ match, onLeave }: LiveBoardProps) {
   useSyncExternalStore(
     (listener) => subscribe(match, listener),
     () => match.revision,
@@ -410,6 +540,14 @@ export function LiveBoard({ match }: { match: LiveMatch }) {
   /* Nothing renders for an ask that answers itself — not even for a frame. */
   const ask = auto === null ? pending : null;
   const bar = match.buttons;
+  const status = liveStatus(match);
+  /*
+   * The status line is the only line about WHERE the match is. `lastError`
+   * draws its own row only while the board is live, where it is a failure
+   * inside a match rather than the match's state — every other case has
+   * already been said above, and saying it twice is the bug §F.2 names.
+   */
+  const alert = status === 'live' ? match.lastError : null;
   const offered = boardInteraction(match);
   const interaction: BoardInteraction = {
     ...offered,
@@ -492,20 +630,47 @@ export function LiveBoard({ match }: { match: LiveMatch }) {
       {overlay !== null && drag !== null && drag.moved && (
         <Targeter overlay={overlay} drag={drag} root={rootRef.current ?? document} />
       )}
-      <p className="live__status" role="status" data-testid="live-status">
-        {statusLine(match)}
+      {/*
+       * `data-live-line` marks every row of text this component draws about
+       * itself, so a test can count them: three at once was the bug.
+       * `data-perch` is where the line sits — in the turn bar's corner with a
+       * table under it, or in the table's own space when there is none.
+       */}
+      <p
+        className="live__status"
+        role="status"
+        data-testid="live-status"
+        data-live-line=""
+        data-status={status}
+        data-perch={match.view === null ? 'table' : 'corner'}
+        title={status === 'live' ? undefined : (match.lastError ?? undefined)}
+      >
+        {statusText(match)}
       </p>
-      {match.lastError !== null && (
-        <p className="live__error" role="alert" data-testid="live-error">
-          {match.lastError}
+      {alert !== null && (
+        <p className="live__error" role="alert" data-testid="live-error" data-live-line="">
+          {alert}
         </p>
       )}
-      {match.view === null ? (
-        <p className="live__waiting">Waiting for the game state.</p>
-      ) : (
-        <Board view={match.view} interaction={interaction} />
-      )}
+      {match.view !== null && <Board view={match.view} interaction={interaction} />}
       <div className="live__buttons" data-testid="live-buttons">
+        {/*
+         * Leave: the match's own control, at the far end from Forge's answers.
+         * Not a link, because leaving is an action on this match and not a
+         * place — and a button is the tab stop a person expects in a bar.
+         */}
+        <button
+          type="button"
+          className="live__leave"
+          data-testid="live-leave"
+          data-urgent={status === 'match-gone' ? true : undefined}
+          onClick={() => {
+            if (onLeave !== undefined) onLeave();
+            else navigate({ kind: 'lobby' });
+          }}
+        >
+          Leave
+        </button>
         <p className="live__says" data-testid="live-says">
           {match.prompt ?? ''}
         </p>
