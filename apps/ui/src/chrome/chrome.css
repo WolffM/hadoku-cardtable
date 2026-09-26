@@ -49,6 +49,102 @@
   min-height: 0;
 }
 
+/*
+ * The header bar's edge buffer, and where its numbers come from.
+ *
+ * The operator, 2026-09-26: *"the top header bar has no left, top, or right
+ * edge buffer. i would prefer if we reused the existing css that hadoku_site
+ * ships with child apps for the header bar specifically."*
+ *
+ * What the fleet ships for the header is exactly ONE stylesheet —
+ * `@wolffm/task-ui-components/app-header.css`, which `main.tsx` has imported
+ * since wave 18 — and it deliberately sets no left, right or top spacing at
+ * all: `.app-header` is `padding-bottom: 1rem`, `margin-bottom: 1.5rem` and a
+ * border-bottom, "full width of whatever column the app places it in" (its own
+ * comment). There is no second header stylesheet anywhere in hadoku_site:
+ * `grep -rn '\.app-header' ~/srv/hadoku_site --include=*.css` finds only
+ * `templates/ui-app/src/styles/index.css`, and only to say "no header styles
+ * here — AppHeader owns them".
+ *
+ * In every other child app that column is the app's own content wrapper, and
+ * the header sits INSIDE it: `templates/ui-app/src/App.tsx` and
+ * `templates/tunnel-contained/packages/ui/src/App.tsx` both render
+ * `<AppHeader>` inside `<div className="…">`, whose rule is
+ * `max-width: 1200px; margin: 0 auto; padding: 2rem`. That `2rem` is the
+ * fleet's child-app edge buffer, and it is the only value there is to reuse.
+ *
+ * `templates/game` — the reference for a game like this one — is the template
+ * that does NOT do it: it renders `<AppHeader>` as a direct child of the
+ * unpadded container, OUTSIDE its padded `.{{APP_ID}}` wrapper. That is the
+ * layout the operator reported, and the shell here was written against it.
+ *
+ * So: the fleet's value, on the fleet's element, with no wrapper element.
+ *
+ * `margin` and not `padding`, because the fleet's geometry insets the
+ * border-bottom too — inside a padded wrapper the rule stops short of the
+ * viewport edge rather than running to it. Only the top and the inline axis are
+ * set; `margin-bottom` stays `app-header.css`'s 1.5rem.
+ *
+ * And no wrapper DIV, because `play/live/live.css:38` selects
+ * `.cardtable-chrome:has(.shell--match) > .app-header` to kill that bottom
+ * margin on the match route. An element between them would break that selector
+ * silently, and `play/**` is not this lane's to repair — this is known gap 1 in
+ * `AppChrome.tsx`. A rule on the fleet's own class leaves the coupling working.
+ *
+ * What is NOT done here: re-insetting the content to match. `screens.css`'s
+ * `.shell` is `max-width: 1400px; padding: 24px`, so on a wide viewport the
+ * centred content and the full-bleed header do not share a left edge. That is
+ * pre-existing, `screens.css` is not this lane's, and the fleet's answer is one
+ * wrapper around both — which is where it should be fixed, not with a third
+ * number here.
+ */
+.cardtable-chrome > .app-header {
+  margin-top: 2rem;
+  margin-inline: 2rem;
+}
+
+/*
+ * The match route, for the same reason `live.css` zeroes the bottom margin
+ * there: *"This module can NEVER require a scroll bar"* — the chrome is pinned
+ * to `100dvh` and every pixel above the board comes off the board. The inline
+ * buffer stays; the vertical one goes. Keyed exactly the way `live.css` keys its
+ * pair, and owned HERE, so the match route asks for nothing new.
+ */
+.cardtable-chrome:has(.shell--match) > .app-header {
+  margin-top: 0;
+}
+
+/*
+ * "Card Table", top-left, is the way back to the entry page — the operator,
+ * 2026-09-26: *"'Card Table' at the top should be clickable and bring you back
+ * to the entry page."*
+ *
+ * `App.tsx` passes a real `<a href="#/">` as `AppHeader`'s node title, with the
+ * <h1> inside it. `AppHeader` wraps a node title in its own
+ * `.app-header__title`, which already carries the size, weight and colour — so
+ * all these two rules do is stop the anchor looking like a link and stop the
+ * heading bringing a UA font size and margin of its own.
+ */
+.cardtable-chrome__home {
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--hdk-radius-sm);
+}
+
+.cardtable-chrome__home:hover {
+  text-decoration: underline;
+}
+
+.cardtable-chrome__home:focus-visible {
+  outline: none;
+  box-shadow: var(--hdk-shadow-focus);
+}
+
+.cardtable-chrome__home-name {
+  margin: 0;
+  font: inherit;
+}
+
 /* The viewer's name, in AppHeader's `status` slot. */
 .cardtable-chrome__who {
   color: var(--color-text-secondary);

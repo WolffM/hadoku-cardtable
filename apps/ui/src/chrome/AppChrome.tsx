@@ -25,6 +25,26 @@
  * §D is where it was written; the audit behind "known gaps" below was run
  * then, and the line numbers are from that reading.
  *
+ * ## The swap, done: it was a LAYOUT diff, not a migration (wave 21 §A)
+ *
+ * The operator, 2026-09-25: *"would be much better to use the child frontend
+ * header that is minted with the proper standard child app header that
+ * hadoku_site uses"*. Read against the reference before anything was designed
+ * — `~/srv/hadoku_site/templates/game/apps/ui/src/`, `templates/ui-app` and
+ * `templates/tunnel-contained` — and the answer was that we ALREADY mount the
+ * fleet's header: the same `AppHeader` from `@wolffm/task-ui-components`, with
+ * the same `@wolffm/task-ui-components/app-header.css` import, inside the same
+ * `HadokuThemeRoot`. There is no other header in the fleet to migrate to.
+ *
+ * What differed was where the header SITS. The fleet's header stylesheet sets
+ * no left/right/top spacing on purpose; in `templates/ui-app` and
+ * `templates/tunnel-contained` the buffer comes from the content wrapper the
+ * header is rendered inside (`padding: 2rem`). `templates/game` is the one
+ * template that renders `<AppHeader>` OUTSIDE that wrapper, and this app was
+ * written against `templates/game` — which is exactly why the bar had no edge
+ * buffer. `chrome.css` now carries that one rule, with the provenance of its
+ * value; see its `.cardtable-chrome > .app-header` block.
+ *
  * ## The division
  *
  * `main.tsx` mounts and nothing else. `App.tsx` routes and authors the
@@ -97,7 +117,10 @@
  *   and this file slots it in INSIDE `HadokuThemeRoot`, the one place it is
  *   themeable. `<AppHeader>` renders the theme picker and the settings gear
  *   itself; neither is a prop and there is no slot to substitute one, which
- *   is the point.
+ *   is the point. Its `title` is a NODE — a link home, with the <h1> inside
+ *   it — and `chrome.css` owns the two rules that make that node stop
+ *   looking like a link, plus the header's edge buffer. A wrapper that slots
+ *   a different header in has to bring both.
  *
  * ## Theming is NOT ours, and must not become ours
  *

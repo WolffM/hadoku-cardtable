@@ -106,7 +106,22 @@ export function App({ transport }: AppProps) {
   // the tab title is the same string.
   const header = (
     <AppHeader
-      title={__HADOKU_APP_NAME__}
+      // The title is the way HOME. The operator, 2026-09-26: *"'Card Table' at
+      // the top should be clickable and bring you back to the entry page."*
+      //
+      // A real `<a href="#/">`, not an onClick on a heading: an anchor is
+      // keyboard-reachable, announces itself as a link, and middle-clicks.
+      // `AppHeader`'s `title` takes a NODE for exactly this — its own docs call
+      // it "a node for custom markup (e.g. a clickable title button)" — and the
+      // <h1> stays INSIDE the link, which is the shape the fleet's audit
+      // documents (`check-header-fleet.mjs`, `appHeaderTitle`: "an <h1> nested
+      // in a <button>"). The name is still `__HADOKU_APP_NAME__`, so the audit's
+      // `header-name` rule still reads it as derived rather than hard-coded.
+      title={
+        <a className="cardtable-chrome__home" href="#/">
+          <h1 className="cardtable-chrome__home-name">{__HADOKU_APP_NAME__}</h1>
+        </a>
+      }
       // The viewer's real name, in the bar. The fleet's usual answer is that
       // identity lives inside the gear's popout and nowhere else — but the
       // thing the operator actually reported was `anon` where their name goes,
