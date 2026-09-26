@@ -401,10 +401,10 @@ describe('BoardInteraction', () => {
     const { seat } = renderBoard(view, interaction);
     expect(seat(them.id).dataset.selectable).toBe('true');
     expect(seat(me.id).dataset.selectable).toBeUndefined();
-    expect(seat(me.id).querySelector('.seat__head button')).toBeNull();
+    expect(seat(me.id).querySelector('[data-player-bar] button')).toBeNull();
     fireEvent.click(seat(me.id).querySelector('.seat__name')!);
-    // Their head now holds two ways to choose them — the name and the face,
-    // which moved into the head (item 11). This is the name.
+    // Their bar holds two ways to choose them — the name and the face. This is
+    // the name.
     fireEvent.click(seat(them.id).querySelector<HTMLElement>('.seat__select')!);
     expect(onSelectPlayer.mock.calls).toEqual([[them.id]]);
     expect(onSelectCard).not.toHaveBeenCalled();
@@ -466,12 +466,37 @@ describe('marks', () => {
  */
 
 const BOARD_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'board.css'), 'utf8');
+const CARD_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'card.css'), 'utf8');
 
-/** One declaration out of a rule in `board.css`, so a regression reads as itself. */
+/**
+ * A stylesheet with its comments taken out. A grep for a declaration must not
+ * be able to read PROSE about that declaration — both files below discuss
+ * `writing-mode` and `rotate` at length, and a test that the discussion can
+ * satisfy is a test that cannot fail for the right reason.
+ */
+function withoutComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
+/**
+ * One declaration out of a rule in `board.css`, so a regression reads as itself.
+ *
+ * `selector` has to be a whole selector LINE, which is how a rule with several
+ * selectors is addressed by any one of them. More than one rule can therefore
+ * carry the line — `.zone__cards`'s shared sizing rule and the per-zone rule
+ * that gives it a `--card-slack` are two such — so the blocks are read in file
+ * order and the LAST one declaring the property wins, which for rules of equal
+ * specificity is also what the cascade does.
+ */
 function declarationIn(selector: string, property: string): string | undefined {
-  const block = new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([\\s\\S]*?)^\\}`, 'm').exec(BOARD_CSS)?.[1];
-  if (block === undefined) return undefined;
-  return new RegExp(`(?:^|;|\\{)\\s*${property}:([^;]+);`, 'm').exec(block)?.[1]?.replace(/\s+/g, ' ').trim();
+  const blocks = new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([\\s\\S]*?)^\\}`, 'gm');
+  const declares = new RegExp(`(?:^|;|\\{)\\s*${property}:([^;]+);`, 'm');
+  let found: string | undefined;
+  for (const block of BOARD_CSS.matchAll(blocks)) {
+    const value = declares.exec(block[1]!)?.[1]?.replace(/\s+/g, ' ').trim();
+    if (value !== undefined) found = value;
+  }
+  return found;
 }
 
 /** The fixture's own stack item, repeated, so the only thing that varies is how many. */
@@ -549,16 +574,49 @@ describe('the canvas is static', () => {
 
   it('lays the board and the seats out in named tracks, not in their content', () => {
     expect(declarationIn('.board', 'grid-template-rows')).toBe('var(--bar-h) minmax(0, 1fr) var(--mid-h) minmax(0, 1.4fr)');
-    // The viewer's head is the LAST row, so their face is at the bottom of the
-    // canvas; the opponent's is the first, so theirs is at the top (item 11).
-    expect(declarationIn('.board .seat', 'grid-template-rows')).toBe('minmax(0, 4fr) minmax(0, 2.6fr) var(--seat-head-h)');
-    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-rows')).toBe(
-      'var(--seat-head-h) var(--opp-hand-h) minmax(0, 1fr)',
-    );
+    /*
+     * A seat is two card rows and no head row: the furniture is a vertical bar
+     * in a fixed COLUMN spanning both (§C.3), so nothing about it is sized by
+     * what it holds and the head row's height went to the battlefields.
+     */
+    expect(declarationIn('.board .seat', 'grid-template-columns')).toBe('var(--who-w) minmax(0, 1fr) auto');
+    expect(declarationIn('.board .seat', 'grid-template-rows')).toBe('minmax(0, 4fr) minmax(0, 2.6fr)');
+    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-rows')).toBe('var(--opp-hand-h) minmax(0, 1fr)');
+    expect(BOARD_CSS, 'the head row is gone, token and all').not.toContain('--seat-head-h');
+    /*
+     * And the bar itself is two fixed tracks with the avatar block in the seat's
+     * OUTER one — `auto` first for the opponent (the top of the board), `auto`
+     * last for the viewer (the bottom). That is what keeps wave 20's faces at
+     * opposite ends of the canvas through §C.3's move, and what
+     * `e2e/table-fit.spec.ts` measures as "their face is in the top third".
+     */
+    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto minmax(0, 1fr)');
+    expect(declarationIn('.board .seat[data-viewer] .seat__who', 'grid-template-rows')).toBe('minmax(0, 1fr) auto');
+    expect(declarationIn('.board .seat[data-viewer] .seat__ident', 'grid-row')).toBe('2');
+    expect(declarationIn('.board .seat[data-viewer] .seat__counts', 'grid-row')).toBe('1');
     // The faces left the centre band, so the stack has all of it.
     expect(declarationIn('.board__mid', 'grid-template-columns')).toBe('minmax(0, 1fr)');
     expect(BOARD_CSS).not.toContain('--faces-w');
     expect(declarationIn('.seat__piles', 'grid-template-rows')).toBe('minmax(0, 2fr) minmax(0, 1fr)');
+    // The bar spans both of the seat's card rows, on both sides of the table,
+    // so neither zone loses a row to it and both zones keep the same box.
+    expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'who field piles' 'who hand piles'");
+    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-areas')).toBe("'who hand piles' 'who field piles'");
+    /*
+     * Every label is a horizontal strip in a FIXED track (§C.1) — the zone's own
+     * across its slot, a lane's across the lane — and `--card-slack` owes back
+     * every strip between a list's container and its cards, or a two-row lane
+     * computes a card taller than the room under its own label and has to
+     * scroll. That is the one way un-rotating a label can break the fit.
+     */
+    expect(declarationIn('.seat[data-viewer] > .zone--hand', 'grid-template-rows')).toBe('var(--zone-head-h) minmax(0, 1fr)');
+    expect(declarationIn('.zone__row', 'grid-template-rows')).toBe('var(--row-head-h) minmax(0, 1fr)');
+    expect(declarationIn('.seat[data-viewer] > .zone--hand > .zone__cards', '--card-slack')).toBe(
+      'calc(8px + var(--zone-head-h) + var(--zone-head-gap))',
+    );
+    expect(declarationIn('.seat > .zone--battlefield .zone__row > .zone__cards', '--card-slack')).toBe(
+      'calc(6px + var(--row-head-h) + var(--row-head-gap))',
+    );
     // A battlefield's four groups are lanes across the slot, each lane's share
     // of the width its card count (`Board.tsx` sets the grow), and a lane with
     // nothing in it its label's width. Neither is sized by what is in it.
@@ -571,6 +629,159 @@ describe('the canvas is static', () => {
     expect(declarationIn('.board__warn', 'position')).toBe('absolute');
     expect(declarationIn('.board__overlay', 'position')).toBe('absolute');
     expect(declarationIn('.board__overlay', 'inset')).toBe('0');
+  });
+});
+
+/* ── no rotated text ─────────────────────────────────────────────────── */
+
+/**
+ * §C.1. The operator, 2026-09-26: *"vertical words are impossible to read, lets
+ * try it differently"* — of `BATTLEFIELD`, `HAND` and `GRAVEYARD`, which were
+ * set `writing-mode: vertical-rl`.
+ *
+ * Two halves, because either alone would pass a board that still reads
+ * sideways: the stylesheets must set nothing on its side, and the labels must
+ * actually still BE there, horizontal, with their counts.
+ */
+describe('no rotated text (operator, 2026-09-26)', () => {
+  /** Anything that can turn text on its side, in a declaration. */
+  const SIDEWAYS = /writing-mode\s*:|text-orientation\s*:|\brotate\s*:|\brotate\(/g;
+
+  it('sets no text sideways in board.css, and rotates only a CARD in card.css', () => {
+    expect(withoutComments(BOARD_CSS).match(SIDEWAYS), 'board.css turns nothing on its side').toBeNull();
+    /*
+     * card.css keeps exactly one rotation and it is not a word: a tapped
+     * permanent is turned a quarter inside a landscape box, which is the
+     * operator's own affordance and stays. If a second one appears, this is the
+     * test that says so.
+     */
+    const inCards = withoutComments(CARD_CSS).match(SIDEWAYS) ?? [];
+    expect(inCards).toEqual(['rotate(']);
+    const rotates = /^\s*transform: translate\(-50%, -50%\) rotate\(90deg\);$/m;
+    expect(rotates.test(CARD_CSS), 'the one rotation is the tapped card’s quarter turn').toBe(true);
+    const tapped = /\.board-card\[data-tapped\] \.board-card__face > \.card \{[^}]*rotate\(90deg\)/;
+    expect(tapped.test(withoutComments(CARD_CSS)), 'and it is on the tapped card’s own rule').toBe(true);
+  });
+
+  it('draws every zone and lane label horizontally, with its count', () => {
+    const { container, zone } = renderBoard();
+    const board = container.querySelector<HTMLElement>('.board')!;
+    // The labels the operator named, by the zones they head. Each is one
+    // element with the label and the count in it, and nothing rotates it.
+    const heads = [
+      [zone(0, 'battlefield').querySelector<HTMLElement>(':scope > .zone__gutter > .zone__head')!, 'Battlefield'],
+      [zone(0, 'hand').querySelector<HTMLElement>(':scope > .zone__head')!, 'Hand'],
+      [zone(0, 'graveyard').querySelector<HTMLElement>(':scope > .zone__head')!, 'Graveyard'],
+      [zone(0, 'exile').querySelector<HTMLElement>(':scope > .zone__head')!, 'Exile'],
+      // Theirs too, hidden hand and all: a count and a label, never a sentence.
+      [zone(1, 'battlefield').querySelector<HTMLElement>(':scope > .zone__head')!, 'Battlefield'],
+      [zone(1, 'hand').querySelector<HTMLElement>(':scope > .zone__head')!, 'Hand'],
+    ] as const;
+    for (const [head, label] of heads) {
+      expect(head, `a head for ${label}`).not.toBeNull();
+      const count = head.closest<HTMLElement>('[data-zone]')!.dataset.count!;
+      expect(head.textContent, `${label}'s head reads label then count`).toBe(`${label} ${count}`);
+    }
+    // And the four lane labels, which were the other rotated words.
+    expect(
+      [...zone(0, 'battlefield').querySelectorAll('.zone__row-head')].map((h) => h.textContent),
+      'the battlefield’s four lane labels',
+    ).toEqual(['Lands 4', 'Artifacts 0', 'Creatures 1', 'Other 0']);
+    // And nothing anywhere on the board asks for a rotation inline either.
+    for (const el of board.querySelectorAll<HTMLElement>('*')) {
+      const style = el.getAttribute('style') ?? '';
+      expect(style, `${el.className} rotates itself`).not.toMatch(/writing-mode|rotate/);
+    }
+  });
+});
+
+/* ── the seat's vertical bar ─────────────────────────────────────────── */
+
+/**
+ * §C.3. The operator, 2026-09-26: *"use a vertical bar for showing the players
+ * health, avatar, name, hand, library. horizontal space is precious"*.
+ *
+ * All five live in one narrow column per seat, and ours stays distinguishable
+ * from theirs — which in the new layout is the bar's OUTER track (the top of the
+ * board for them, the bottom for us), the `(you)` beside our name, and
+ * `data-viewer`. The boxes themselves are `e2e/table-fit.spec.ts`'s; what is
+ * checkable here is that the markup and the tracks say it.
+ */
+describe('the seat’s vertical bar (#9)', () => {
+  const view = boardFromFixture(fixture);
+
+  it('holds the health, the avatar, the name, the hand count and the library count — all five, per seat', () => {
+    const { seat } = renderBoard(view);
+    for (const p of view.players) {
+      const bar = seat(p.id).querySelector<HTMLElement>('[data-player-bar]')!;
+      expect(bar, `seat ${p.id} has a bar`).not.toBeNull();
+      // The avatar, drawn by us, with this seat's life on it and no image.
+      const face = bar.querySelector<HTMLElement>('[data-player-face]')!;
+      expect(Number(face.dataset.playerId)).toBe(p.id);
+      expect(face.querySelector('svg')).not.toBeNull();
+      expect(face.querySelector('img')).toBeNull();
+      expect(within(bar).getByTestId('life').textContent).toBe(String(p.life));
+      expect(bar.querySelector('.seat__name')!.textContent).toContain(p.name);
+      expect(within(bar).getByTestId('hand-count').textContent).toBe(`hand ${p.handCount}`);
+      expect(within(bar).getByTestId('library-count').textContent).toBe(`library ${p.libraryCount}`);
+      // One life total per seat, and it is the one on the avatar: the header
+      // used to carry a second copy beside it.
+      expect(seat(p.id).querySelectorAll('[data-testid="life"]')).toHaveLength(1);
+      expect(face.contains(within(bar).getByTestId('life'))).toBe(true);
+    }
+  });
+
+  it('is not a zone: the set of zones on this board is unchanged by it', () => {
+    const { container } = renderBoard(view);
+    const board = container.querySelector<HTMLElement>('.board')!;
+    for (const bar of board.querySelectorAll<HTMLElement>('[data-player-bar]')) {
+      expect(bar.dataset.zone, 'a bar is not a zone').toBeUndefined();
+      expect(bar.querySelector('[data-zone]'), 'and holds none').toBeNull();
+    }
+    expect([...board.querySelectorAll<HTMLElement>('[data-zone]')].map((z) => `${z.dataset.owner}/${z.dataset.zone}`)).toEqual([
+      'them/battlefield',
+      'them/graveyard',
+      'them/exile',
+      'them/hand',
+      'table/stack',
+      'you/battlefield',
+      'you/graveyard',
+      'you/exile',
+      'you/hand',
+    ]);
+  });
+
+  it('tells ours from theirs: the viewer’s bar says (you) and its seat says data-viewer', () => {
+    const { container, seat } = renderBoard(view);
+    const board = container.querySelector<HTMLElement>('.board')!;
+    const me = view.players.find((p) => p.isViewer)!;
+    const them = view.players.find((p) => !p.isViewer)!;
+    expect(seat(me.id).dataset.viewer).toBe('true');
+    expect(seat(them.id).dataset.viewer).toBeUndefined();
+    expect(seat(me.id).querySelector('.seat__you')!.textContent).toBe(' (you)');
+    expect(seat(them.id).querySelector('.seat__you')).toBeNull();
+    // The face carries it too, which is the hook `board.css` and the e2e spec
+    // both select on (`[data-player-face][data-viewer]`).
+    expect(board.querySelector<HTMLElement>('[data-player-face][data-viewer]')!.dataset.playerId).toBe(String(me.id));
+    expect(board.querySelector<HTMLElement>('[data-player-face]:not([data-viewer])')!.dataset.playerId).toBe(String(them.id));
+  });
+
+  it('keeps the flags out of the avatar’s track, so one arriving mid-game cannot move a face', () => {
+    const flagged: BoardView = {
+      ...view,
+      players: view.players.map((p) => ({ ...p, isActive: true, hasPriority: true, hasLost: true })),
+    };
+    const { seat } = renderBoard(flagged);
+    for (const p of view.players) {
+      const bar = seat(p.id).querySelector<HTMLElement>('[data-player-bar]')!;
+      const flags = [...bar.querySelectorAll('.seat__flag')].map((f) => f.textContent);
+      expect(flags, `seat ${p.id}'s flags`).toEqual(['their turn', 'priority', 'lost']);
+      // Every one of them is in the counts block, never the avatar block.
+      for (const f of bar.querySelectorAll('.seat__flag')) {
+        expect(f.closest('.seat__counts'), 'a flag is in the counts track').not.toBeNull();
+        expect(f.closest('.seat__ident'), 'and not in the avatar track').toBeNull();
+      }
+    }
   });
 });
 
@@ -615,18 +826,18 @@ describe('the DOM contract', () => {
     const board = container.querySelector<HTMLElement>('.board')!;
     const faces = [...board.querySelectorAll<HTMLElement>('[data-player-face]')];
     expect(faces.map((f) => Number(f.dataset.playerId))).toEqual([1, 0]);
-    // Each face is in its own seat's head, which `board.css` puts at that
-    // seat's outer edge — the top of the board for them, the bottom for us.
+    // Each face is in its own seat's vertical bar, which `board.css` anchors at
+    // that seat's outer edge — the top of the board for them, the bottom for us.
     for (const f of faces) {
       const inSeat = f.closest('.seat');
       expect(inSeat, 'a face is in a seat').not.toBeNull();
-      expect(f.parentElement!.className, 'a face is in its seat’s head').toBe('seat__head');
+      expect(f.closest('[data-player-bar]'), 'a face is in its seat’s vertical bar').not.toBeNull();
       expect(Number(inSeat!.getAttribute('data-player-id')), 'a face is in ITS OWN seat').toBe(Number(f.dataset.playerId));
     }
     expect(board.querySelector('.board__mid [data-player-face]'), 'no face is left in the centre band').toBeNull();
     for (const p of view.players) {
       const face = board.querySelector<HTMLElement>(`[data-player-face][data-player-id="${p.id}"]`)!;
-      expect(within(face).getByTestId('face-life').textContent, `${p.name}'s life is on their face`).toBe(String(p.life));
+      expect(within(face).getByTestId('life').textContent, `${p.name}'s life is on their face`).toBe(String(p.life));
       // Drawn, not fetched: shapes we own, no image, no asset.
       expect(face.querySelector('svg')).not.toBeNull();
       expect(face.querySelector('img')).toBeNull();

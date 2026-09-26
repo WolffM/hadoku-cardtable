@@ -69,13 +69,43 @@
  * arrangement is theirs, and the opponent arranges their own side on their own
  * screen.
  *
- * ## The faces anchor the table: ours at the bottom, theirs at the top
+ * ## A seat's furniture is a vertical bar at its side
  *
- * The operator, 2026-09-25: *"avatar and number looks slick, but confusing
- * which is which"*. So each face sits at its own end of the canvas — the
- * opponent's in their seat's head, which is the top of the board, and ours in
- * our seat's head, which `board.css` puts at the BOTTOM of ours. The stack
- * keeps the centre band to itself. The faces themselves are unchanged.
+ * The operator, 2026-09-26: *"use a vertical bar for showing the players
+ * health, avatar, name, hand, library. horizontal space is precious"*. So a
+ * seat is no longer a wide header strip over its zones: the avatar, the life
+ * on it, the name, the hand count and the library count stack in ONE narrow
+ * column at the seat's left edge (`board.css`, `--who-w`), spanning both of
+ * the seat's rows. The width that header used to spend on empty strip goes to
+ * the battlefield, and the 2.5rem of HEIGHT it cost every seat pays for the
+ * horizontal zone and lane labels below.
+ *
+ * **It supersedes the layout of wave 20's face anchoring, not its point.** The
+ * operator, 2026-09-25: *"avatar and number looks slick, but confusing which
+ * is which"* — so ours still reads as ours. Two things carry that, and both
+ * are load-bearing:
+ *
+ *   - the bar is a grid of two tracks and the AVATAR BLOCK sits in the outer
+ *     one: the first row for the opponent (the top of the board) and the last
+ *     for the viewer (the bottom). The two faces are still as far apart as the
+ *     canvas allows, with the stack's band between them, which is what
+ *     `e2e/table-fit.spec.ts` measures;
+ *   - the viewer's seat says so in words — `(you)` beside their name — and in
+ *     `data-viewer`, on the seat and on the face.
+ *
+ * The counts are the other track, so a flag arriving mid-game ("their turn",
+ * "priority") grows the track that has room rather than moving the face.
+ *
+ * ## Every label is horizontal
+ *
+ * The operator, 2026-09-26: *"vertical words are impossible to read, lets try
+ * it differently"*. Nothing on this board is set rotated. A zone's label and a
+ * battlefield lane's label are horizontal strips across the top of their own
+ * slot, each a FIXED track (`board.css`), so they read straight and still
+ * cannot be pushed by what the zone holds. `Board.test.ts` greps the
+ * stylesheet for `writing-mode` and `rotate` to keep it that way; the one
+ * rotation left on the board is a TAPPED CARD, which is a card turned
+ * sideways and not a word (`card.css`).
  *
  * ## No prose
  *
@@ -133,7 +163,10 @@
  *     bare `[data-card-id]` or a `closest()` also matches the tile inside it.
  *     Match on the value, not the attribute.
  *
- *   - every player's face carries `data-player-face` and `data-player-id`;
+ *   - every player's face carries `data-player-face` and `data-player-id`, and
+ *     lives in that seat's `[data-player-bar]` — the vertical bar, which is
+ *     NOT a zone and carries no `data-zone`, because the set of zones on this
+ *     board is itself asserted;
  *   - every zone carries `data-zone` and `data-owner` (`you`, `them`, or
  *     `table` for the stack, which belongs to no seat);
  *   - a battlefield's rows each carry `data-board-row` (`lands`, `artifacts`,
@@ -158,10 +191,10 @@
  *
  * ## Layout
  *
- * The opponent on top with their face in their head, a centre band holding the
- * stack, the viewer at the bottom with their hand and their face under it.
- * Page layout is `board.css`; how a single card looks is `card.css`, sized from
- * `--card-w` so the layout can shrink cards per zone.
+ * The opponent on top with their bar's face at its head, a centre band holding
+ * the stack, the viewer at the bottom with their hand and their bar's face at
+ * its foot. Page layout is `board.css`; how a single card looks is `card.css`,
+ * sized from `--card-w` so the layout can shrink cards per zone.
  */
 
 import { useEffect, useReducer, useRef, type DragEvent, type ReactNode } from 'react';
@@ -572,9 +605,14 @@ function HiddenHand({ player }: { player: BoardPlayer }) {
  * same rule the cards follow, and it carries `data-player-face` so the
  * interaction lane can anchor an arrow on it without reading this file.
  *
- * It sits in its seat's head, which is the top of the board for the opponent
- * and the bottom for the viewer (`board.css`) — the operator could not tell
- * the two apart when both were in the centre band.
+ * It sits at the OUTER end of its seat's vertical bar — the top of the board
+ * for the opponent, the bottom for the viewer (`board.css`) — because the
+ * operator could not tell the two apart when both were in the centre band.
+ *
+ * The badge on the mark is the seat's one life total: `data-testid="life"` is
+ * here and nowhere else, so the number a seat shows is the number the avatar
+ * shows. `e2e/play.spec.ts` reads it inside `[data-testid="player"]` and
+ * compares it to the view, so its text is the number and nothing else.
  */
 function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction: BoardInteraction | undefined }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
@@ -585,7 +623,7 @@ function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction:
         <circle className="face__brow" cx="24" cy="18" r="7.5" />
         <path className="face__bust" d="M10.5 40.5a13.5 13.5 0 0 1 27 0Z" />
       </svg>
-      <span className="face__life" data-testid="face-life">
+      <span className="face__life" data-testid="life">
         {player.life}
       </span>
     </>
@@ -645,33 +683,39 @@ function PlayerArea({
       data-selectable={selectable || undefined}
       aria-label={player.isViewer ? `${player.name} (you)` : player.name}
     >
-      <header className="seat__head">
-        <PlayerFace player={player} interaction={interaction} />
-        <h3 className="seat__name">
-          {selectable ? (
-            <button
-              type="button"
-              className="seat__select"
-              aria-label={`Select ${player.name}`}
-              onClick={() => interaction.onSelectPlayer(player.id)}
-            >
-              {name}
-            </button>
-          ) : (
-            name
-          )}
-        </h3>
-        <span className="seat__life" data-testid="life" aria-label={`${player.name} life`}>
-          {player.life}
-        </span>
-        <span className="seat__meta">
+      {/*
+       * The seat's furniture, in one narrow column at its side: the avatar
+       * with its life, the name, then the counts. Two blocks and two fixed
+       * grid tracks (`board.css`) — the avatar block in the seat's OUTER track
+       * so the two faces stay at opposite ends of the canvas, the counts in the
+       * one that has the slack, so a flag arriving mid-game cannot move a face.
+       */}
+      <div className="seat__who" data-player-bar="">
+        <div className="seat__ident">
+          <PlayerFace player={player} interaction={interaction} />
+          <h3 className="seat__name">
+            {selectable ? (
+              <button
+                type="button"
+                className="seat__select"
+                aria-label={`Select ${player.name}`}
+                onClick={() => interaction.onSelectPlayer(player.id)}
+              >
+                {name}
+              </button>
+            ) : (
+              name
+            )}
+          </h3>
+        </div>
+        <div className="seat__counts">
           <span data-testid="hand-count">hand {player.handCount}</span>
           <span data-testid="library-count">library {player.libraryCount}</span>
           {player.isActive && <span className="seat__flag">their turn</span>}
           {player.hasPriority && <span className="seat__flag">priority</span>}
           {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
-        </span>
-      </header>
+        </div>
+      </div>
 
       <Battlefield
         player={player}

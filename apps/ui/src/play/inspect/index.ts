@@ -67,9 +67,10 @@
  * Placement (`placeInspector`, pure, tested on real numbers) keeps the
  * enlarged card inside the board and NEVER over the viewer's own hand: it
  * shrinks to the room above the hand zone before it will ever reach it. It
- * sits beside the hovered card when there is room, flipping to the other
- * side, then over the card itself — covering the battlefield is the price of
- * reading a card; covering the hand never is.
+ * anchors on the hovered card's TOP-LEFT — the operator, 2026-09-26, wave 22
+ * item #6 — flipping to the card's right when the left has no room, then over
+ * the card itself: covering the battlefield is the price of reading a card;
+ * covering the hand never is.
  *
  * ## Staleness, on purpose
  *
@@ -186,6 +187,12 @@ function inspectedCardFrom(node: EventTarget | null): InspectTarget | null {
  *   - never outside the board: it flips sides, then clamps, before it will
  *     cross an edge;
  *   - never bigger than the room above the hand: it shrinks first.
+ *
+ * The anchor is the hovered card's TOP-LEFT (#6): the panel's top edge lines up
+ * with the card's, and it sits to the card's LEFT. The card's own left edge is
+ * the preference, not a fallback — a preview that opened to the right was what
+ * the operator asked to change — so the flip to the right only happens when the
+ * left side cannot hold the panel inside the board.
  */
 export function placeInspector(
   hover: Rect,
@@ -197,9 +204,9 @@ export function placeInspector(
   const availableHeight = Math.max(0, floorTop - GAP - (ceilingTop + GAP));
   const width = Math.max(0, Math.min(PREF_W, availableHeight / CARD_TALL, board.right - board.left - 2 * GAP));
   const height = width * CARD_TALL;
-  let left = hover.right + GAP;
-  if (left + width > board.right - GAP) left = hover.left - GAP - width;
-  if (left < board.left + GAP) left = Math.min(Math.max(hover.left, board.left + GAP), board.right - GAP - width);
+  let left = hover.left - GAP - width;
+  if (left < board.left + GAP) left = hover.right + GAP;
+  if (left + width > board.right - GAP) left = Math.min(Math.max(hover.left, board.left + GAP), board.right - GAP - width);
   const top = Math.min(Math.max(hover.top, ceilingTop + GAP), Math.max(ceilingTop + GAP, floorTop - GAP - height));
   return { left, top, width };
 }

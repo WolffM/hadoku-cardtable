@@ -64,13 +64,15 @@
  * a player's first artifact does not add a track to the table.
  *
  * **They divide the battlefield's WIDTH, not its height, and that is measured
- * rather than chosen.** A battlefield's slot is 840 × 127–150 at 1280×800
- * (`e2e/table-fit.spec.ts` prints every box). Four bands stacked in 130px are
+ * rather than chosen.** A battlefield's slot was 840 × 127–150 at 1280×800 when
+ * this was measured, before the vertical bar took 68px of that width and the
+ * seat's head row gave 26–44px of height back (`e2e/table-fit.spec.ts` prints
+ * every box, so the current numbers are one run away). Four bands in 130px are
  * 36px each, which is a 21px card — unreadable. Four lanes across 840px are
  * 200px each at the full height of the slot, which is a 100px card. Dividing
  * the short axis of a short, wide box is the wrong cut, so the groups are
- * lanes and the label of each runs up its left edge, costing width no cards
- * were going to use.
+ * lanes, and each lane's label is a horizontal strip across the TOP of that
+ * lane (`--row-head-h`) rather than a word running up its edge.
  *
  * **A lane's share is its card count**, so every card on the battlefield comes
  * out the same width: a lane of n cards `flex-grow: n` gets n/total of the
@@ -91,14 +93,42 @@
  * page, inset — and a hand is a raised panel, lighter, hatched, with a lit top
  * edge. They are ours: no frame, no felt texture pretending to be a table.
  *
- * ## The faces sit at opposite ends of the canvas
+ * ## A seat's furniture is a vertical bar, and the faces still sit at opposite
+ * ends of the canvas
  *
- * The operator, 2026-09-25: *"avatar and number looks slick, but confusing
- * which is which"*. A seat's head carries its face, and the head is the FIRST
- * row of the opponent's seat (the top of the board) and the LAST row of the
- * viewer's (the bottom). Nothing new is spent on it: the head row already
- * existed, and the centre band got the width back that the two faces used to
- * take. The stack keeps the band to itself.
+ * The operator, 2026-09-26: *"use a vertical bar for showing the players
+ * health, avatar, name, hand, library. horizontal space is precious"*. So the
+ * seat's wide header strip is gone and its furniture is one narrow column
+ * (`--who-w`) at the seat's left edge, spanning both of the seat's rows. The
+ * arithmetic of the trade, at 1280×800:
+ *
+ *   - the header cost every seat `2.5rem` of HEIGHT across its whole width and
+ *     used almost none of it. The viewer's battlefield gains ~26px and the
+ *     opponent's ~44px by not having it, which is what pays for the horizontal
+ *     zone and lane labels below (`--zone-head-h`, `--row-head-h`);
+ *   - the bar costs the battlefield 68px of width, and the labels moving off
+ *     the left edges give ~19px of it straight back (the zone's own label) plus
+ *     ~14px a lane in `--group-overhead`. Net, a card on a crowded battlefield
+ *     came out WIDER than before, measured at 20 permanents a side.
+ *
+ * And the point of wave 20's face anchoring survives the move, because
+ * `e2e/table-fit.spec.ts` measures it: the bar is two tracks and the avatar
+ * block sits in the seat's OUTER one — first row for the opponent, last for
+ * the viewer — so their face is still in the top third of the canvas, ours in
+ * the bottom third, with the stack's band between them. The counts take the
+ * track with the slack, so a flag appearing mid-game never moves a face.
+ *
+ * ## Every label is horizontal, and every label is a fixed track
+ *
+ * The operator, 2026-09-26: *"vertical words are impossible to read, lets try
+ * it differently"*. Nothing here sets text rotated. A zone's label is a
+ * `--zone-head-h` strip across the top of its slot and a battlefield lane's is
+ * a `--row-head-h` strip across the top of the lane; both are named sizes, so
+ * a label still cannot be pushed by what its zone holds. Because the label no
+ * longer costs its slot any WIDTH, the card-sizing maths has to give the height
+ * back: `--card-slack` on those lists includes the label track and its gap, or
+ * a two-row lane would compute a card taller than the room left under its own
+ * label. `Board.test.ts` greps this file for `writing-mode` and `rotate`.
  *
  * No WotC marks in anything drawn here: states are words ("tapped"), life is a
  * number, a player is a circle and a bust we drew, and the stack is a list.
@@ -119,7 +149,6 @@
      nothing else may change them, and nothing content-sized may exist. */
   --bar-h: 2rem;
   --mid-h: 5rem;
-  --seat-head-h: 2.5rem;
   --opp-hand-h: 2.05rem;
 
   position: relative;
@@ -234,19 +263,19 @@
 /* ── a player's side of the table ─────────────────────────────────── */
 
 /*
- * A seat is a grid of fixed rows. The piles take a narrow column at the right,
- * graveyard over exile, beside the battlefield and the hand; the opponent's is
- * mirrored so the two battlefields face each other across the stack. Your
- * battlefield and hand split 4 : 2.6, which with the 1 : 1.4 split between the
- * seats leaves the two battlefields about the same height — and the
- * battlefield the larger share, because it is the one holding four rows.
+ * A seat is a grid of fixed tracks. Two narrow columns hold everything that is
+ * not a card: the seat's own furniture (`--who-w`) at the left and the piles
+ * (`--pile-w`) at the right, graveyard over exile. Both span the seat's full
+ * height, so the battlefield and the hand keep every row to themselves. The
+ * opponent's ROWS are mirrored so the two battlefields face each other across
+ * the stack. Your battlefield and hand split 4 : 2.6, which with the 1 : 1.4
+ * split between the seats leaves the two battlefields about the same height —
+ * and the battlefield the larger share, because it holds four lanes.
  *
- * The head row carries the seat's face, and it is at the seat's OUTER edge:
- * first for the opponent (the top of the board), last for the viewer (the
- * bottom). That is the whole of item 11 — the two faces are as far apart as
- * the canvas allows, so which is which is a matter of where you look.
+ * There is no head row any more: the furniture is a vertical bar (see the
+ * header), and its 2.5rem of height went to the battlefields.
  *
- * Every row is a named size or an `fr`: `auto` anywhere here would let a
+ * Every track is a named size or an `fr`: `auto` anywhere here would let a
  * card, a flag or a count move a sibling zone.
  *
  * Scoped under `.board` because `styles.css` has a `.seat` of its own — the
@@ -255,16 +284,21 @@
  */
 .board .seat {
   --pile-w: 4rem;
+  /*
+   * The furniture column. Wide enough for the two counts written out ("library
+   * 46" at 10px) and for a mark worth aiming at, and no wider: the rest of the
+   * row is the battlefield's.
+   */
+  --who-w: 4.25rem;
 
   display: grid;
   align-items: stretch;
   justify-items: stretch;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: minmax(0, 4fr) minmax(0, 2.6fr) var(--seat-head-h);
+  grid-template-columns: var(--who-w) minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 4fr) minmax(0, 2.6fr);
   grid-template-areas:
-    'field piles'
-    'hand piles'
-    'head head';
+    'who field piles'
+    'who hand piles';
   gap: 4px 8px;
   min-width: 0;
   min-height: 0;
@@ -276,71 +310,105 @@
 }
 
 .board .seat:not([data-viewer]) {
-  grid-template-rows: var(--seat-head-h) var(--opp-hand-h) minmax(0, 1fr);
+  grid-template-rows: var(--opp-hand-h) minmax(0, 1fr);
   grid-template-areas:
-    'head head'
-    'hand piles'
-    'field piles';
+    'who hand piles'
+    'who field piles';
 }
 
 .board .seat[data-viewer] {
   border-color: var(--line);
 }
 
-.seat__head {
-  grid-area: head;
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 4px 10px;
+/*
+ * The vertical bar: the seat's avatar, life, name and counts in one narrow
+ * column, spanning the seat's full height.
+ *
+ * Two tracks, and which one the avatar block is in is the whole of wave 20's
+ * item 11 in the new layout: `auto` then `1fr` puts it at the TOP for the
+ * opponent, `1fr` then `auto` at the BOTTOM for the viewer, so the two faces
+ * are as far apart as the canvas allows with the stack's band between them.
+ * The counts live in the `1fr` track, which is where the slack is — a flag
+ * appearing mid-game ("their turn", "priority") grows into that track instead
+ * of moving the face, and the face is what `e2e/table-fit.spec.ts` measures.
+ */
+.board .seat__who {
+  grid-area: who;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 3px;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
+}
+
+.board .seat[data-viewer] .seat__who {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.board .seat[data-viewer] .seat__ident {
+  grid-row: 2;
+}
+
+.board .seat[data-viewer] .seat__counts {
+  grid-row: 1;
+  justify-content: flex-end;
+}
+
+/* The mark with the name under it. The `.face` draws its own name and would say
+   it twice, so the seat's own `<h3>` is the one that shows. */
+.seat__ident {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Clear of the life badge, which hangs below the mark's lower edge. */
+  gap: 6px;
+  min-width: 0;
+}
+
+.seat__ident > .face .face__name {
+  display: none;
+}
+
+.board .seat__name {
+  width: 100%;
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.25;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 /*
- * The face in the head: the mark only, laid across rather than down. The name
- * under it would be the seat's own name twice, and the life badge hangs off the
- * mark's corner, which the padding leaves room for.
+ * `(you)` on its own line, because the column is narrow enough to clip a long
+ * name and this is the part that may not be the bit that goes: it is one of the
+ * two things telling our bar from theirs (the other is which end of the canvas
+ * it is at). Present exactly when the seat is the viewer's, which never changes
+ * mid-match, so it moves nothing.
  */
-.seat__head > .face {
-  flex: none;
-  width: auto;
-  padding-right: 10px;
-}
-
-.seat__head > .face .face__name {
-  display: none;
-}
-
-.seat__name {
-  margin: 0;
-  font-size: 13px;
-}
-
-.seat__you {
+.board .seat__you {
+  display: block;
   color: var(--ink-dim);
   font-weight: 400;
 }
 
-.seat__life {
-  min-width: 2.2em;
-  padding: 0 8px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.3;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-.seat__meta {
+/* The counts, and the flags the game raises, down the bar one per line. */
+.board .seat__counts {
   display: flex;
-  flex-wrap: nowrap;
-  gap: 10px;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 1px;
   color: var(--ink-dim);
-  font-size: 12px;
+  font-size: 10px;
+  line-height: 1.3;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .seat__flag {
@@ -404,19 +472,24 @@
 }
 
 /*
- * A row zone: the battlefields and your hand. Its label runs up the left edge
- * so it costs no height, and the cards take the rest of the box — which for a
- * battlefield is its four lanes, each with a label of its own up ITS left edge.
+ * A row zone: the battlefields and your hand. Its label is a horizontal strip
+ * across the top — a FIXED track, so it reads straight and still cannot be
+ * moved by what the zone holds — and the cards take the rest of the box, which
+ * for a battlefield is its four lanes, each with a strip of its own.
  */
 .seat > .zone--battlefield,
 .seat[data-viewer] > .zone--hand {
   --rows: 1;
   --card-max: 7.5rem;
+  /* One line of the 11px label (14.3px), and nothing spare. */
+  --zone-head-h: 0.95rem;
+  --zone-head-gap: 2px;
 
   container: row-zone / size;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--zone-head-h) minmax(0, 1fr);
+  gap: var(--zone-head-gap);
   border-radius: var(--radius);
   /* The last resort. The sizing above is meant never to need it. */
   overflow: auto;
@@ -425,50 +498,54 @@
 
 /* A battlefield is the table: the darkest surface here, sunken into the seat. */
 .seat > .zone--battlefield {
-  /* A lane with nothing in it: its label's width, and nothing more. */
-  --group-empty-w: 1.3rem;
   /*
-   * And what a lane costs before its first card: its label column, the gap and
-   * the list's padding. It is the lane's flex BASIS, so `flex-grow: n` shares
-   * out only the room the cards themselves need — without it a lane holding one
-   * card pays the whole overhead out of its 1/20th and draws a 24px card beside
-   * a 41px one (measured, `e2e/table-fit.spec.ts`).
+   * A lane with nothing in it: enough for its own label, horizontal, and
+   * nothing more. "Creatures 0" is the longest of the four at this type size.
    */
-  --group-overhead: 1.15rem;
+  --group-empty-w: 3.4rem;
+  /*
+   * And what a lane costs before its first card: its border and the list's
+   * padding, now that the label is a strip over the lane rather than a column
+   * beside it. It is the lane's flex BASIS, so `flex-grow: n` shares out only
+   * the room the cards themselves need — without it a lane holding one card
+   * pays the whole overhead out of its 1/20th and draws a 24px card beside a
+   * 41px one (measured, `e2e/table-fit.spec.ts`).
+   */
+  --group-overhead: 0.35rem;
   --group-gap: 5px;
+  /* One line of the 9px lane label (12.6px). */
+  --row-head-h: 0.8rem;
+  --row-head-gap: 2px;
 
-  gap: 4px;
   padding: 0 4px 0 2px;
   background: var(--bg);
   border: 1px solid rgb(0 0 0 / 55%);
   box-shadow: inset 0 3px 8px rgb(0 0 0 / 70%);
 }
 
-/* The zone's own label, and the one control on this board that is ours. */
+/* The zone's label strip, and the one control on this board that is ours. */
 .zone__gutter {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
   justify-content: space-between;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
 .zone__regroup {
-  writing-mode: vertical-rl;
-  rotate: 180deg;
   flex: none;
   margin: 0;
-  padding: 5px 1px;
+  padding: 0 7px;
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--ink-dim);
   font: inherit;
   font-size: 9px;
-  line-height: 1.4;
+  line-height: 1.3;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -490,8 +567,8 @@
  * `flex-grow` to its card count, which is what makes every card on the
  * battlefield one width; a lane holding nothing is its label's width. Each
  * lane is its own size container, so the `--card-w` rule below reads the
- * LANE's height — which is the whole slot's, because the labels run up the
- * side and cost no height at all.
+ * LANE's height — which is the whole of what the zone's label strip left, and
+ * from which `--card-slack` then subtracts the lane's OWN label strip.
  */
 .zone__rows {
   display: flex;
@@ -508,9 +585,10 @@
   container: row-zone / size;
   flex: 0 1 var(--group-overhead);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--row-head-h) minmax(0, 1fr);
   align-items: stretch;
-  gap: 2px;
+  gap: var(--row-head-gap);
   min-width: 0;
   min-height: 0;
   border-left: 1px solid var(--line-soft);
@@ -526,19 +604,22 @@
   flex: 0 0 var(--group-empty-w);
 }
 
+/*
+ * The lane's label, across the top of the lane. Horizontal, and in mixed case
+ * rather than the uppercase the zone labels use: a thin lane is only as wide as
+ * its share, and uppercase at this size is both wider and the thing the
+ * operator said they could not read. It clips with an ellipsis rather than
+ * wrap, since a second line would be a track the four lanes do not all have.
+ */
 .zone__row-head {
-  writing-mode: vertical-rl;
-  rotate: 180deg;
-  margin: 0;
+  margin: 0 0 0 3px;
   font-size: 9px;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.4;
   color: var(--ink-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  text-align: end;
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .zone__row:not([data-empty]) > .zone__row-head {
@@ -570,22 +651,20 @@
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
 }
 
-.seat > .zone--battlefield .zone__head,
-.seat[data-viewer] > .zone--hand > .zone__head {
-  writing-mode: vertical-rl;
-  rotate: 180deg;
-  text-align: end;
-}
-
 .seat > .zone--battlefield .zone__row > .zone__cards,
 .seat[data-viewer] > .zone--hand > .zone__cards {
   /*
    * Tall enough for `--rows` rows in the container's own height (`100cqh` — the
    * LANE's height on a battlefield, the whole zone's in your hand, and on a
    * battlefield those are nearly the same because the lanes divide the width —
-   * less the gaps and `--card-slack` for a selectable card's ring and lift),
-   * and never wider than `--card-max`. The grid below narrows it further when
-   * the row is full.
+   * less the gaps and `--card-slack`), and never wider than `--card-max`. The
+   * grid below narrows it further when the row is full.
+   *
+   * `--card-slack` is the height the container has that this list does NOT: a
+   * selectable card's ring and lift, plus every label strip between the
+   * container's box and the cards. Get that wrong and a two-row lane computes a
+   * card taller than the room under its own label, which the lane then has to
+   * clip or scroll — and no zone on this board may scroll.
    */
   --card-w: min(
     var(--card-max),
@@ -602,13 +681,16 @@
   padding: var(--card-pad);
 }
 
+/* The hand's container is the zone, so its slack owes the zone's label strip. */
 .seat[data-viewer] > .zone--hand > .zone__cards {
-  --card-slack: 8px;
+  --card-slack: calc(8px + var(--zone-head-h) + var(--zone-head-gap));
   --card-pad: 4px 3px;
 }
 
+/* A lane's container is the lane, which the zone's label strip has already been
+   taken out of; what is left to pay for is the LANE's own label strip. */
 .seat > .zone--battlefield .zone__row > .zone__cards {
-  --card-slack: 6px;
+  --card-slack: calc(6px + var(--row-head-h) + var(--row-head-gap));
   --card-pad: 2px;
 }
 

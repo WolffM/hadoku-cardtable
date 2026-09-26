@@ -90,9 +90,15 @@ button.board-card__face:focus-visible {
  * player where you look for one, big enough to hit, with their life on it.
  *
  * And 2026-09-25: *"avatar and number looks slick, but confusing which is
- * which"* — so the mark now sits in its seat's head, at the top of the board
- * for the opponent and the bottom for the viewer (`board.css`). The mark itself
- * is unchanged; in a head it is `--face-w` smaller, because a head is a strip.
+ * which"* — so the mark sits at the outer end of its seat's vertical bar, the
+ * top of the board for the opponent and the bottom for the viewer
+ * (`board.css`). The mark itself is unchanged; in a bar it is `--face-w`
+ * smaller and its life badge is centred under it rather than hung off the
+ * corner, because the bar is narrow and clips.
+ *
+ * `e2e/table-fit.spec.ts` requires min(width, height) of `[data-player-face]`
+ * to be at least 28px — a thing you can aim at — which the `--face-w` below
+ * must keep true.
  *
  * DRAWN, not fetched — shapes in an inline `<svg>` that we own. No avatar, no
  * asset pipeline, and nothing that could be mistaken for a WotC mark.
@@ -180,13 +186,21 @@ button.board-card__face:focus-visible {
   border-color: var(--warn);
 }
 
-/* In a seat's head the mark is a strip's worth, and its badge with it. */
-.seat__head .face {
-  --face-w: 2rem;
+/*
+ * In a seat's bar the mark is the bar's width less its padding, and its badge
+ * is centred on the mark's lower edge: hung off the corner, as it is in the
+ * draft, the badge would run out of a `--who-w` column that clips.
+ */
+.seat__ident .face {
+  --face-w: 2.5rem;
 }
 
-.seat__head .face__life {
-  min-width: 1.45rem;
+.seat__ident .face__life {
+  right: auto;
+  left: 50%;
+  bottom: -3px;
+  translate: -50% 0;
+  min-width: 1.5rem;
   padding: 0 4px;
   font-size: 11px;
 }
@@ -208,14 +222,21 @@ button.board-card__face:focus-visible {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
+/* The name, as a control. It lives in the seat's narrow bar, so it clips
+   instead of widening the column. */
 .seat__select {
-  padding: 0 8px;
+  display: block;
+  max-width: 100%;
+  padding: 0 5px;
   border: 1px solid var(--accent);
   border-radius: 999px;
   background: none;
   color: inherit;
   font: inherit;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .seat__select:focus-visible {
