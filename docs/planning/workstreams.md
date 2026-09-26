@@ -402,6 +402,33 @@ it to the JVM, but **nothing on the product path ever set it**, so only
 path now reads `CARDTABLE_PLAY_SEED`, unset everywhere but the harness, which
 pins `e2e/playSeed.ts`. Mutation-tested: dropping the spread fails 1 of 16.
 
+**Seeding alone was not enough, and the first seed made it worse.** Seed
+20260925 produced a game where Forge never offered alice a castable spell at
+all — so the check failed deterministically, locally and in CI both, which is
+how the second half of this was found. Two things fixed it:
+
+1. **The assertion now says only what it can prove.** A spell cast that does
+   NOT resolve unattended is a real failure. A game that never offers a
+   castable spell is reported loudly (`[play] UNPROVEN: …`) and not failed —
+   because a proof whose precondition the shuffle grants is a proof that fails
+   on luck. The BEHAVIOUR's proof of record is `auto.test.ts`, which decides
+   every captured priority window deterministically and is mutation-tested
+   (2 of 76).
+2. **Seed 7**, which casts Squadron Hawk and resolves it with no button press,
+   verified over repeated runs.
+
+### Open: `board-play.jvm.test.ts` times out at 120 s
+
+Found running the jar-gated suites locally (they never run in CI):
+*"a land and Raging Goblin by clicking: not done in 120 s"*. Lane B's closing
+note recorded this suite passing during the wave, so it either regressed after
+it or belongs to the same class as the play.spec finding — a real match not
+reaching the state a test waits for. **Unverified either way.** Settle it with
+`CARDTABLE_FORGE_JAR`/`_RES` + a scratch `CARDTABLE_PLAY_WORK_DIR` and
+`pnpm vitest run apps/ui/src/play/live/board-play.jvm.test.ts`; if it is the
+same class, it wants the same treatment — a seeded game and an assertion that
+cannot fail on the shuffle.
+
 ### The `LiveBoard.test.ts` flake, and what it was not
 
 Run `36140099030` failed on `expected 'Turn 13' to be 'Turn 14'`. Reran green

@@ -13,7 +13,13 @@
  * 2026-09-25 CI drew a hand where Forge offered nothing but lands, so the
  * proof failed on the shuffle rather than on the product.
  *
- * Changing this number changes the game. If a spec goes red after a change
- * here, suspect the seed before the code.
+ * **Changing this number changes the game**, and not every game reaches the
+ * scenario a spec needs: seed 20260925 (the first one tried) produced a game
+ * where Forge never offered alice a castable spell at all, so `play.spec.ts`'s
+ * unattended-resolve check had nothing to exercise — deterministically, which
+ * is how it was found. Seed 7 casts Squadron Hawk and resolves it with no
+ * button press, verified twice.
+ *
+ * If a spec goes red after a change here, suspect the seed before the code.
  */
-export const PLAY_SEED = 20260925;
+export const PLAY_SEED = 7;

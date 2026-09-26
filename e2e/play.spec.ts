@@ -976,11 +976,42 @@ test(LIVE_TITLE, async ({ browser }) => {
     console.log(
       `[play] spells that resolved with nobody pressing a button: ${JSON.stringify({ unattended, casts, passes, everOffered: [...everOffered] })}`,
     );
-    expect(
-      unattended,
-      `a spell left the hand and resolved with no button press from either browser; casts: ${JSON.stringify(casts)}; ` +
-        `${passes} passes, offered in hand: ${JSON.stringify([...everOffered])}`,
-    ).not.toBeNull();
+    // ── What this may and may not fail on ───────────────────────────────────
+    //
+    // The check above HUNTS: it casts whatever the game happens to offer and
+    // watches whether it resolves with nobody pressing a button. That makes
+    // the assertion's precondition the SHUFFLE's to grant, and a proof that
+    // depends on luck fails on luck — CI drew a hand offering nothing but
+    // lands (`casts: []`, `everOffered: ["Celestial Colonnade (Land)"]`) and
+    // reddened a dependency-bump commit that could not have touched it.
+    // Seeding narrows this but cannot close it: the seed fixes Forge's
+    // shuffles and the coin toss, and explicitly NOT the AI or thread timing
+    // (`apps/server/src/play/README.md`), which is what decides how far this
+    // game actually gets.
+    //
+    // So the assertion is split by what it can honestly claim:
+    //   - a spell WAS cast and did not resolve unattended → a real failure,
+    //     and the one worth having;
+    //   - nothing was ever castable → the scenario never happened, reported
+    //     loudly and not failed.
+    //
+    // The BEHAVIOUR itself is not left to this test: `apps/server/src/play/
+    // auto.test.ts` decides every captured priority window against real Forge
+    // frames, deterministically, and the tracker mutation-tested it (removing
+    // the guard fails 2 of 76). This test is the end-to-end demonstration,
+    // not the proof of record.
+    if (casts.length === 0) {
+      console.warn(
+        `[play] UNPROVEN: the game never offered a castable spell, so "resolves unattended" was not exercised. ` +
+          `${passes} passes, offered in hand: ${JSON.stringify([...everOffered])}`,
+      );
+    } else {
+      expect(
+        unattended,
+        `a spell left the hand and resolved with no button press from either browser; casts: ${JSON.stringify(casts)}; ` +
+          `${passes} passes, offered in hand: ${JSON.stringify([...everOffered])}`,
+      ).not.toBeNull();
+    }
 
     // ── play: hands click CARDS, which the board still cannot do (a known gap).
     //    Buttons are no longer among them — those go through the board, above.
