@@ -31,6 +31,7 @@ import {
   type MatchTransport,
 } from './match.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, type ReplayServer } from './replay-server.ts';
+import { parseMatchAck } from './transport.ts';
 
 let server: ReplayServer | null = null;
 let match: LiveMatch | null = null;
@@ -827,6 +828,52 @@ describe('the says, the toggle, and the ability label', () => {
 });
 
 /*
+ * §N — the two lanes meet: lane E's honest `match-gone` ack has to survive
+ * lane F's client.
+ *
+ * Lane E made a gone match say so on the wire, lane F made the board render
+ * `match-gone`, and between them `MatchErrorSchema` was `.strict()` with one
+ * field, so E's three-field ack parsed as MALFORMED and F's state was never
+ * reached. Neither lane's own suite could see it: E asserts what the server
+ * sends and F drove the bare `{ error }` shape.
+ *
+ * A copy of lane E's sentence. `@hadoku/ui` does not depend on the server
+ * package, so `MATCH_GONE_WORDS` (`apps/server/src/play/socket.ts`) cannot be
+ * imported here; nothing below asserts its TEXT — only that a refusal shaped
+ * like E's parses, and reaches `match-gone`.
+ */
+const MATCH_GONE_MESSAGE =
+  'This match is no longer running on the server — it ended when the server restarted or when Forge stopped. Nothing you did caused it. Start a new match to play again.';
+
+describe('the refusal wire: a gone match, and every other refusal', () => {
+  it('a bare { error } still parses — every refusal but one sends exactly that, and so does an older server', () => {
+    for (const error of ['unknown-match', 'match-full', 'not-joined', 'match-starting', 'malformed: $.matchId']) {
+      const ack = parseMatchAck({ error });
+      expect(ack).toEqual({ ok: true, value: { error } });
+    }
+  });
+
+  it('lane E’s three-field match-gone ack parses — the fields are optional, so both shapes are one schema', () => {
+    const refusal = { error: 'unknown-match', outcome: 'match-gone', message: MATCH_GONE_MESSAGE };
+    const ack = parseMatchAck(refusal);
+    expect(ack).toEqual({ ok: true, value: refusal });
+  });
+
+  it('the refusal is still strict: a field the contract does not have is an error, not a shrug', () => {
+    // A typo in one of the new names is the case this guards — `outcom` must
+    // not slip through as "some key we now tolerate".
+    const typo = parseMatchAck({ error: 'unknown-match', outcom: 'match-gone' });
+    expect(typo.ok).toBe(false);
+    if (!typo.ok) {
+      expect(typo.errors.map((e) => e.path)).toEqual(['$']);
+      expect(typo.errors[0]!.message).toContain('outcom');
+    }
+    // And an empty `message` is not a message: the primitives still hold.
+    expect(parseMatchAck({ error: 'unknown-match', outcome: 'match-gone', message: '' }).ok).toBe(false);
+  });
+});
+
+/*
  * §F — the match's own chrome: six states, ONE line, and Leave where a person
  * looks for it.
  *
@@ -984,6 +1031,27 @@ describe('one state, one line', () => {
     // A state, and where it can be acted on: the bar's Leave says so.
     expect(getByTestId('live-leave').dataset.urgent).toBe('true');
     expect(getByTestId('live-status').title).toContain('unknown-match');
+  });
+
+  it('match-gone, from lane E’s ACTUAL ack: the outcome and the sentence do not make it malformed', () => {
+    const { stub, m, container, queryByTestId, getByTestId } = stubBoard();
+    act(() => stub.fire('connect'));
+    // The shape the server really sends now (§E). With `MatchErrorSchema`
+    // strict and one field, this parsed as malformed, `lastError` became
+    // "answered with something that is not a snapshot", the seam found no
+    // refusal word, and the board sat in `connected-not-seated` telling a
+    // player whose match had ended that they were merely not seated.
+    act(() => stub.answer({ error: 'unknown-match', outcome: 'match-gone', message: MATCH_GONE_MESSAGE }));
+
+    // Nothing was recorded as malformed: this ack is a REFUSAL, not a broken one.
+    expect(m.lastInvalid).toBeNull();
+    expect(m.stats.invalid).toBe(0);
+    expect(refusalOf(m)).toBe('unknown-match');
+    expect(isMatchGone(m)).toBe(true);
+    only(container, m, 'match-gone', 'Match gone.');
+    expect(container.textContent).not.toContain('is not a snapshot');
+    expect(queryByTestId('live-error')).toBeNull();
+    expect(getByTestId('live-leave').dataset.urgent).toBe('true');
   });
 
   it('a gone match that the socket then drops is still gone, not connecting', () => {

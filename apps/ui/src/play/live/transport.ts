@@ -172,7 +172,40 @@ export const MatchSnapshotSchema = borrowed.emptyObject
 
 export type MatchSnapshot = Output<typeof MatchSnapshotSchema>;
 
-export const MatchErrorSchema = borrowed.emptyObject.extend({ error: borrowed.nonEmptyString }).strict();
+/**
+ * A refused `forge:join` / `forge:resync`.
+ *
+ * `error` is the machine code every refusal carries, and it is unchanged.
+ * `outcome` and `message` are **optional because exactly one refusal sends
+ * them**: a match that is gone answers
+ * `{ error: 'unknown-match', outcome: 'match-gone', message: '<a sentence>' }`
+ * (wave 22 lane E — `matchGone` / `MATCH_GONE_WORDS` in
+ * `apps/server/src/play/socket.ts`), while `match-full`, `not-joined`,
+ * `match-starting` and `malformed: …` keep the bare `{ error }` they always
+ * had. Do not "tidy" them into required fields: that would make every OTHER
+ * refusal malformed. Their absence was the mirror bug — a `match-gone` ack
+ * failed this schema, so `match.ts` folded it into *"answered with something
+ * that is not a snapshot"*, `LiveBoard`'s `isMatchGone` never saw the refusal
+ * word, and the player was told something generic about the match that had
+ * just ended.
+ *
+ * `outcome` is a non-empty string rather than the literal `'match-gone'` on
+ * purpose: pinning the literal here would refuse the next outcome the server
+ * learns to send, which is this same bug again. The object stays `.strict()`,
+ * so a MISSPELLED field (`outcom`, `mesage`) is still an error rather than
+ * being quietly swallowed.
+ *
+ * The mirror named at the top of this file has not been brought across: the
+ * server BUILDS this shape and never parses it, so nothing there is broken by
+ * the difference, but it is the one place the two copies currently disagree.
+ */
+export const MatchErrorSchema = borrowed.emptyObject
+  .extend({
+    error: borrowed.nonEmptyString,
+    outcome: borrowed.nonEmptyString.optional(),
+    message: borrowed.nonEmptyString.optional(),
+  })
+  .strict();
 
 export const MatchAckSchema = MatchSnapshotSchema.or(MatchErrorSchema);
 
