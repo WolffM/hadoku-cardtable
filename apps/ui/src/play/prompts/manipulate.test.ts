@@ -6,6 +6,15 @@
  * Wave 20 item 8: the destination is in the LAYOUT (a drop zone above and
  * below the pile), not a "…to bottom" button label. The up/down nudges stay
  * as the keyboard and click fallback, tested here as their own path.
+ *
+ * Wave 22 item 7: and the CARD ITSELF answers a click. The operator mulliganed,
+ * was asked for a card back on the bottom, and nothing on the pile was
+ * clickable — Forge's own Auto was the only way out. `a London mulligan` below
+ * is that ask's shape (a whole hand, every card movable, the bottom and only
+ * the bottom) and it is answered by clicking ONE card, with the wire payload
+ * asserted ref by ref. `clicks`, throughout, is a click on the CARD — the
+ * `.card` panel the seat actually points at, inside the tile's label — not on
+ * some control beside it, because the control beside it was the bug.
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -16,14 +25,37 @@ import { expectWireReply, mountPrompt } from './testing.ts';
 
 afterEach(cleanup);
 
+/** `{ kind: 'card', id }` per id — the wire's own `CardRef`s, in order. */
+const refs = (...ids: number[]) => ids.map((id) => ({ kind: 'card' as const, id }));
+
 function mount(overrides: Partial<ReturnType<typeof askFor<'manipulateCardList'>>> = {}) {
   const utils = mountPrompt('manipulateCardList', { ...askFor('manipulateCardList'), ...overrides });
   const list = () => utils.getByTestId('manipulate-list');
   const order = () => [...list().querySelectorAll<HTMLElement>(':scope > li')].map((li) => Number(li.dataset.cardId));
   const press = (name: RegExp) => fireEvent.click(within(list()).getByRole('button', { name }));
   const tile = (id: number) => list().querySelector<HTMLElement>(`:scope > li[data-card-id="${id}"]`)!;
-  return { ...utils, list, order, press, tile };
+  /** Click the card's own panel, as a seat pointing at the art does. */
+  const clickCard = (id: number) => fireEvent.click(tile(id).querySelector<HTMLElement>('.card')!);
+  /** Is this card ticked as placed at a destination? */
+  const ticked = (id: number) => tile(id).querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked;
+  return { ...utils, list, order, press, tile, clickCard, ticked };
 }
+
+/**
+ * The London mulligan, in `manipulateCardList`'s shape: the seat's whole hand,
+ * every card of it movable, and one end — the bottom of the library. The title
+ * is Forge's own string (we render what the ask carries; we write no prose of
+ * our own), and the seven ids are real cards from the fixture match so every
+ * tile is named rather than numbered.
+ */
+const LONDON: Partial<ReturnType<typeof askFor<'manipulateCardList'>>> = {
+  title: 'Return cards to the bottom of your library',
+  cards: refs(1, 2, 11, 17, 20, 54, 60),
+  manipulable: refs(1, 2, 11, 17, 20, 54, 60),
+  toTop: false,
+  toBottom: true,
+  toAnywhere: false,
+};
 
 describe('manipulateCardList', () => {
   it('draws the pile top first with controls only on the movable cards', () => {
@@ -114,5 +146,148 @@ describe('manipulateCardList', () => {
     const { queryByTestId, getByTestId } = mount({ toTop: false });
     expect(queryByTestId('manipulate-top')).toBeNull();
     expect(getByTestId('manipulate-bottom')).toBeTruthy();
+  });
+
+  /*
+   * Both ends are offered here, so ONE click cannot say which was meant and the
+   * component must not guess. It arms the card and makes both ends live; the
+   * end that is clicked is the one the card goes to.
+   */
+  it('arms a clicked card when both ends are offered, and the end clicked places it', () => {
+    const { clickCard, tile, ticked, getByTestId, order, submit, answers } = mount();
+    clickCard(54);
+    expect(tile(54).dataset.armed).toBe('true');
+    expect(ticked(54)).toBe(false);
+    expect(order()).toEqual([54, 47, 17, 46, 60]);
+    expect(getByTestId('manipulate-top').dataset.live).toBe('true');
+    expect(getByTestId('manipulate-bottom').dataset.live).toBe('true');
+
+    fireEvent.click(getByTestId('manipulate-bottom'));
+    expect(order()).toEqual([47, 17, 46, 60, 54]);
+    expect(ticked(54)).toBe(true);
+    expect(tile(54).dataset.armed).toBeUndefined();
+    expect(getByTestId('manipulate-bottom').dataset.live).toBeUndefined();
+
+    fireEvent.click(submit());
+    expect(answers[0]).toEqual(refs(47, 17, 46, 60, 54));
+    expectWireReply('manipulateCardList', answers[0]);
+  });
+
+  it('un-arms the card when it is clicked again, and an unarmed end does nothing', () => {
+    const { clickCard, tile, getByTestId, order } = mount();
+    clickCard(54);
+    expect(tile(54).dataset.armed).toBe('true');
+    clickCard(54);
+    expect(tile(54).dataset.armed).toBeUndefined();
+    expect(getByTestId('manipulate-bottom').dataset.live).toBeUndefined();
+    fireEvent.click(getByTestId('manipulate-bottom'));
+    expect(order()).toEqual([54, 47, 17, 46, 60]);
+  });
+
+  it('never makes a fixed card clickable — no tick, no drag', () => {
+    const { tile } = mount();
+    expect(tile(17).querySelector('input')).toBeNull();
+    expect(tile(17).getAttribute('draggable')).toBeNull();
+    expect(tile(54).getAttribute('draggable')).toBe('true');
+  });
+
+  /* No end offered is nowhere to put anything: a tick there would be the very
+   * dead control this lane removed, so no card draws one. */
+  it('draws no tick at all when the ask offers no end', () => {
+    const { list, queryByTestId } = mount({ toTop: false, toBottom: false, toAnywhere: false });
+    expect(queryByTestId('manipulate-top')).toBeNull();
+    expect(queryByTestId('manipulate-bottom')).toBeNull();
+    expect(list().querySelectorAll('input')).toHaveLength(0);
+  });
+});
+
+/*
+ * Wave 22 item 7. The shape the operator actually met: a hand, all of it
+ * movable, one end. One click is the whole answer.
+ */
+describe('a London mulligan', () => {
+  it('is answerable by clicking ONE card, and the wire reply is that card on the bottom', () => {
+    const { clickCard, ticked, order, submit, answers } = mount(LONDON);
+    expect(order()).toEqual([1, 2, 11, 17, 20, 54, 60]);
+
+    clickCard(11);
+
+    expect(order()).toEqual([1, 2, 17, 20, 54, 60, 11]);
+    expect(ticked(11)).toBe(true);
+    expect(submit().disabled).toBe(false);
+    fireEvent.click(submit());
+    // The exact payload on the wire: the whole pile as `CardRef`s, in the order
+    // the one click left it, with Rubblebelt Boar (11) last.
+    expect(answers[0]).toEqual([
+      { kind: 'card', id: 1 },
+      { kind: 'card', id: 2 },
+      { kind: 'card', id: 17 },
+      { kind: 'card', id: 20 },
+      { kind: 'card', id: 54 },
+      { kind: 'card', id: 60 },
+      { kind: 'card', id: 11 },
+    ]);
+    expectWireReply('manipulateCardList', answers[0]);
+  });
+
+  it('offers only the end the ask asked for, so the click needs no second one', () => {
+    const { queryByTestId, getByTestId } = mount(LONDON);
+    expect(queryByTestId('manipulate-top')).toBeNull();
+    expect(getByTestId('manipulate-bottom').textContent).toBe('Bottom of library');
+  });
+
+  it('says which cards are chosen, and clicking one again puts it back where the ask had it', () => {
+    const { clickCard, ticked, order, submit, answers } = mount(LONDON);
+    clickCard(2);
+    clickCard(17);
+    expect(order()).toEqual([1, 11, 20, 54, 60, 2, 17]);
+    expect([2, 17].map(ticked)).toEqual([true, true]);
+    expect([1, 11, 20, 54, 60].map(ticked)).toEqual([false, false, false, false, false]);
+
+    // Un-choose the first one: it goes back among the cards it started between
+    // (after 1, before 11), and the other chosen card stays chosen and stays put.
+    clickCard(2);
+    expect(order()).toEqual([1, 2, 11, 20, 54, 60, 17]);
+    expect(ticked(2)).toBe(false);
+    expect(ticked(17)).toBe(true);
+
+    fireEvent.click(submit());
+    expect(answers[0]).toEqual(refs(1, 2, 11, 20, 54, 60, 17));
+    expectWireReply('manipulateCardList', answers[0]);
+  });
+
+  it('takes the tick off a card a NUDGE moved, because a nudge is not a destination', () => {
+    const { clickCard, press, ticked, order } = mount(LONDON);
+    clickCard(11);
+    expect(ticked(11)).toBe(true);
+    press(/move Rubblebelt Boar up/);
+    expect(order()).toEqual([1, 2, 17, 20, 54, 11, 60]);
+    expect(ticked(11)).toBe(false);
+  });
+
+  it('still orders SEVERAL cards by drag, which a click cannot say', () => {
+    const { tile, getByTestId, order, submit, answers } = mount(LONDON);
+    const bottom = getByTestId('manipulate-bottom');
+    // Two cards to the bottom, in a chosen order…
+    fireEvent.dragStart(tile(20));
+    fireEvent.dragOver(bottom);
+    fireEvent.drop(bottom);
+    fireEvent.dragEnd(tile(20));
+    fireEvent.dragStart(tile(1));
+    fireEvent.dragOver(bottom);
+    fireEvent.drop(bottom);
+    fireEvent.dragEnd(tile(1));
+    expect(order()).toEqual([2, 11, 17, 54, 60, 20, 1]);
+    // …then one of them dragged ON a tile, which is the ordering drag a click
+    // has no way to express: 1 lands just before 20.
+    fireEvent.dragStart(tile(1));
+    fireEvent.dragOver(tile(20));
+    fireEvent.drop(tile(20));
+    fireEvent.dragEnd(tile(1));
+    expect(order()).toEqual([2, 11, 17, 54, 60, 1, 20]);
+
+    fireEvent.click(submit());
+    expect(answers[0]).toEqual(refs(2, 11, 17, 54, 60, 1, 20));
+    expectWireReply('manipulateCardList', answers[0]);
   });
 });

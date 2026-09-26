@@ -146,6 +146,18 @@
 
 .prompt__cards > li[data-movable] {
   border-color: var(--accent);
+  cursor: pointer;
+}
+
+/*
+ * A movable card the seat clicked while the ask offers BOTH ends: it is waiting
+ * to be told which one, and the two destinations below go live with it
+ * (`[data-live]`). One end offered means one click answers and nothing is ever
+ * armed — see the component header.
+ */
+.prompt__cards > li[data-armed] {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
 }
 
 /* The label wraps the hidden input and the tile, so a click anywhere on the
@@ -203,6 +215,14 @@
 .prompt__dropzone[data-over] {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* A card is armed, so this end is now a click target, not only a drop target. */
+.prompt__dropzone[data-live] {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--accent);
+  cursor: pointer;
 }
 
 
