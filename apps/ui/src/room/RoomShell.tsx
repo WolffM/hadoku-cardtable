@@ -44,26 +44,75 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { RoomChrome } from '@wolffm/watchparty-ui/room-chrome';
 import '@wolffm/watchparty-ui/room-chrome.css';
 import { whoami as hadokuWhoami } from '@wolffm/prefs-client';
-import { THEMES, useHadokuTheme, type Theme } from '@wolffm/themes';
+import { useHadokuTheme, type Theme } from '@wolffm/themes';
 
 /**
- * The two themes disagreeing, diagnosed rather than assumed (w20 §E).
+ * The page's resolved theme, handed to the chrome as-is.
+ *
+ * ## Why the two disagreed, diagnosed rather than assumed (w20 §E)
  *
  * `RoomChrome` takes an optional `theme` prop (shipped in
- * `@wolffm/watchparty-ui@0.39.4`, verified against
- * `node_modules/.../dist/room-chrome.d.ts`). Left unset — which is what this
- * file did until now — it resolves its OWN default from ITS OWN internal
- * store, entirely independent of `HadokuThemeRoot`: `Do()` in
- * `dist/room-chrome.js` returns the store's cached theme if one has loaded,
- * else hard-codes `'dark'`. Measured live (a stub-`whoami` build served
+ * `@wolffm/watchparty-ui@0.39.4`; verified in the installed 0.39.5 at
+ * `node_modules/.../dist/room-chrome.d.ts:37`). Left unset — which is what this
+ * file did until w20 — it resolves its OWN default from ITS OWN internal store,
+ * entirely independent of `HadokuThemeRoot` (`Do()` in `dist/room-chrome.js`,
+ * quoted in full below). Measured live (a stub-`whoami` build served
  * locally, `#/match/…`, no saved theme in either storage): the page resolved
  * `data-theme="light"` on `.cardtable-chrome` while `.wp-room-chrome` sat at
  * `data-theme="dark"` — two independent defaults, not a shared one that drifted.
- * Passing our resolved theme through removes the second default entirely;
- * they cannot disagree once there is only one source.
+ * Passing our theme through removes the second default entirely; they cannot
+ * disagree once there is only one source.
+ *
+ * ## Why this casts instead of validating (w22 §G, found by hadoku_site)
+ *
+ * This used to filter through `THEMES` and answer `undefined` for a name it did
+ * not recognise. `undefined` is not a neutral value here — it is precisely what
+ * sends the chrome back to that second default, so the filter reintroduced the
+ * split-theme bug in the one case it was written to protect against.
+ *
+ * That case is unreachable today: one `@wolffm/themes` install (5.8.6), and
+ * `room-chrome.d.ts:3` imports `Theme` from it, so there is a single union. But
+ * watchparty-ui takes themes as a regular **dependency** (`^5.8.5`), not a peer,
+ * so a host outside that range resolves a second nested copy and two distinct
+ * unions exist. There, passing an unrecognised name through is strictly better
+ * than dropping it, and the shipped code is why — `Do()` in
+ * `dist/room-chrome.js` (0.39.5, read out of the installed bundle) is:
+ *
+ *     function Do(e) { if (e) return e; const t = ze().theme;
+ *                      return t && tn.includes(t) ? t : "dark"; }
+ *
+ * The prop is honoured VERBATIM, unvalidated, and lands on `data-theme` of the
+ * chrome's own `aside.wp-room-chrome` — never on the host document. Only a
+ * FALSY prop makes the chrome consult its own store and then hard-code `dark`.
+ * So an unknown name resolves against whichever `[data-theme=…]` palettes are
+ * loaded and otherwise falls to a neutral light base; `undefined` resolves to
+ * an actively wrong `dark`. `undefined` is the only value that cannot be
+ * ignored.
+ *
+ * Corrected against 0.39.5 rather than taken on trust: the §G brief said
+ * `room-chrome.css` "styles only its own light/dark internals". It does not —
+ * it ships all 18 `[data-theme=…]` blocks under `@scope (.wp-room-chrome)`,
+ * with `:scope,:scope[data-theme=light]` as the fallback rule, the same 18 the
+ * host's `@wolffm/themes/src/style.css` carries unscoped. That changes the
+ * reason, not the fix: what makes the pass-through work is `if (e) return e`,
+ * not a gap in the chrome's own palettes.
+ *
+ * ## The trap, for whoever edits this next
+ *
+ * The cast is load-bearing twice, and only one half announces itself.
+ * `theme={theme}` fails typecheck — TS2322, because `useHadokuTheme()` types
+ * `theme` as `string` (the picker's families are data-driven) — which is what
+ * sends people looking for a validator in the first place. But
+ * `theme={filtered ?? undefined}` compiles cleanly and IS the defect. Only the
+ * type error is loud; the wrong fix is silent. The `Theme` return type below,
+ * with no `| undefined`, is what makes the silent half loud too: a re-added
+ * `?? undefined` stops compiling here instead of shipping a chrome that resolves
+ * its own theme.
  */
-function asWatchpartyTheme(theme: string): Theme | undefined {
-  return (THEMES as readonly string[]).includes(theme) ? (theme as Theme) : undefined;
+export function watchpartyTheme(theme: string): Theme {
+  // Total by construction — every name reaches the chrome, including one this
+  // install's union does not know. Never narrow this to `Theme | undefined`.
+  return theme as Theme;
 }
 
 /**
@@ -150,7 +199,7 @@ export function RoomShell({ roomId, children }: { roomId: string | null; childre
       serverOrigin={watchpartyOrigin()}
       userType={who.tier}
       userId={who.userId}
-      theme={asWatchpartyTheme(theme)}
+      theme={watchpartyTheme(theme)}
     >
       {children}
     </RoomChrome>
