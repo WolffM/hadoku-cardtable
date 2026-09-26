@@ -30,6 +30,21 @@ name: Redeploy on hadoku_site
 on:
   push:
     branches: [main]
+    # A deploy is not free: mgmt-api rebuilds and `pm2 restart`s cardtable,
+    # the process exits, and `host.ts`'s exit hook SIGKILLs every match JVM —
+    # so every live game ends and every socket drops. On 2026-09-26 two
+    # docs-only pushes (a wave plan and a retrospective) did exactly that to
+    # the operator mid-match, four minutes apart: `forge:join was refused:
+    # unknown-match`.
+    #
+    # Nothing under these paths can change what the server serves, so nothing
+    # under them is worth ending a game for. This is the cheap half of the
+    # fix; the durable half is making a match survive a restart at all, which
+    # the client's rejoin/resync machinery is already built for.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.claude/**'
   workflow_dispatch:
 
 permissions: {}
