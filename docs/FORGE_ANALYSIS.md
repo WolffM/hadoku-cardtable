@@ -283,6 +283,13 @@ prompt can fall back to "open this game in Forge desktop".
 6. **jUPnP port mapping** must be disabled for a tunneled deployment.
 7. **No Maven on hokon**, and upstream ships **no `mvnw` wrapper** (only
    `.mvn/maven.config`). Install Maven or vendor a wrapper before building.
+8. **Reading a JVM's stdout over a fifo with `fs.createReadStream` deadlocks
+   Node.** Not a Forge fact — a Node one, and hazard 6 and 7's neighbour because
+   it bites the host, not the port. `fs.read` on a blocking fifo fd parks one of
+   libuv's 4 threadpool threads for as long as the fifo is empty; `net.Socket({ fd })`
+   puts the same fd in the event loop and costs no thread. Measured in Wave 22 —
+   see "Not Forge facts, but they decide whether a match can outlive its server"
+   at the end of this document, which also has why the fifo is opened `O_RDWR`.
 
 ## Open decisions this analysis surfaces
 
@@ -479,3 +486,111 @@ transcripts under `scripts/spike/tierc/out/`.
   structural risk left — one property of 214. Settle with
   `run.sh capture -Dtierc.games=40`, or a Commander or planar game.
   `scripts/spike/tierc/out/coverage.tsv` lists all 214.
+
+## Facts from a real match in front of a real player — Wave 22
+
+Same rule as the section above: each line names the file it came from, and every
+citation here was re-derived by this lane against the vendored tree in the
+deployed checkout (`forge/`, read-only) rather than copied from the lane that
+reported it. Where a lane's own wording was wrong, the correction is marked.
+
+### `setHighlighted` is a MARK, not an OFFER, and a London mulligan offers nothing
+
+This is the fact Wave 22 paid for twice: a lane built a clickable set out of
+`setHighlighted` on the belief that it was Forge saying "you may click these",
+and it is not. What Forge publishes when a London mulligan is open is a
+**prompt, two buttons and a boolean** — no selection, no actionable set, nothing
+marked. So a client that starts its click loop from what Forge offered starts
+nothing, which is why the operator had to press **Auto**. That is Forge's
+design, not a bug in our UI.
+
+- **VERIFIED (W22 lane L, re-derived here)** — the method takes
+  `GameEntityView`, not `CardView`:
+  `void setHighlighted(Iterable<GameEntityView> entities, boolean b)`
+  (`IGuiGame.java:265`). It is one of the fire-and-forget server→client methods
+  (`ProtocolMethod.java:70`, `Mode.SERVER, Void.TYPE`), so nothing waits on it
+  and it can carry no answer.
+- **VERIFIED (W22 lane L, re-derived here)** — the frame is **incremental, not a
+  replacement**. `AbstractGuiGame.setHighlighted` (`AbstractGuiGame.java:325-337`)
+  holds a `Set<GameEntityView> highlighted` (`:322`) and **adds** on `true`,
+  **removes** on `false`, redrawing only what changed. There is no "here is the
+  whole highlighted set" call, which is on its own enough to say it is not an
+  offer: an offer has to be complete to be counted against a min/max.
+- **VERIFIED (W22 lane L, re-derived here)** — `InputLondonMulligan.showMessage`
+  (`InputLondonMulligan.java:57-70`) is the whole of what a seat is told when the
+  mulligan opens: `game.getView().updateIsMulligan(true)` (`:60`),
+  `updateButtons(owner, "lblOK", "lblAuto", …)` (`:65`) and the
+  `lblReturnForLondon` prose (`:67`). **It highlights nothing and publishes no
+  selection.**
+- **VERIFIED (W22 lane Q, correcting the brief that sent this lane)** — the brief
+  said `setCardHighlight` is called "only inside `onCardSelected`". It has **two**
+  call sites in that file: `:123` in `onCardSelected`, and **`:92` in
+  `onCancel`** — the handler for the button `showMessage` labels **Auto**, which
+  fills the selection itself and then calls `onOk()` (`:100`). The claim that
+  actually matters survives unchanged and is stronger for it: **both call sites
+  are downstream of input Forge had already accepted**, and neither is reachable
+  before the seat has acted. `resetCardHighlights()` (`:104`, in `done()`) is the
+  only other highlight traffic.
+- **VERIFIED (W22 lane L, re-derived here)** — what `onCardSelected` will accept
+  is exactly a card in that player's hand: `player.getZone(ZoneType.Hand).contains(c0)`
+  (`InputLondonMulligan.java:113`), with `cardSelectLocked` closing it after OK
+  (`:114`). So the affordance our UI needs is *the seat's own hand*, and it is
+  derivable without Forge naming it.
+- **VERIFIED (W22 lane Q)** — neither "these are selectable" call is ever made by
+  the mulligan. `setSelectables` has exactly **2** call sites and
+  `setWeaklySelectable` exactly **4**, none of them in `InputLondonMulligan`:
+
+  ```sh
+  # from the repo root; the other hits of each name are the declaration in
+  # IGuiGame, the impl in AbstractGuiGame and the proxy in RemoteClientGuiGame
+  grep -rn 'setSelectables(' forge/forge-gui/src/main/java forge/forge-game/src/main/java
+  #   InputSelectEntitiesFromList.java:57, InputSelectTargets.java:68        (2 callers)
+  grep -rn 'setWeaklySelectable' forge/forge-gui/src/main/java forge/forge-game/src/main/java
+  #   PlayerControllerHuman.java:1590, :1617, :1628, :1646                   (4 callers)
+  ```
+
+- **VERIFIED (W22 lane L, re-derived here)** — the signal that a mulligan IS open
+  is a tracked boolean on the game view, not a prompt: `GameView.isMulligan()` /
+  `updateIsMulligan(boolean)` (`GameView.java:141-146`) over
+  `TrackableProperty.Mulligan` (`TrackableProperty.java:249`, `BooleanType`).
+  `updateIsMulligan` has **exactly two call sites in the whole tree**, both in
+  `InputLondonMulligan` — set at `:60`, cleared at `:105`
+  (`grep -rn 'updateIsMulligan' forge/ --include=*.java` → 3 lines: the
+  declaration and those two). Because it is a *property*, it arrives on the state
+  channel and survives a resync like any other state; we model it at
+  `packages/forge-wire/src/tier-c.ts:514`.
+- **Consequence, recorded because it is Forge's and not ours:** a seat in a
+  London mulligan is offered nothing up front. A client whose click loop is
+  driven by what Forge named as clickable therefore cannot start it, and the only
+  working button is Auto. Any browser client of Forge has to derive this one
+  affordance from `Mulligan` plus the seat's own hand.
+
+### Not Forge facts, but they decide whether a match can outlive its server
+
+Filed here rather than in a spike doc because they are the two things that had to
+be true before Wave 22 §E could exist, they were both discovered the expensive
+way, and the next person to wire a JVM to a non-Java front end will meet both.
+Neither is a claim about Forge's source: the first is about **our** bridge, the
+second about **Node**. They are also hazard 8 under "Known porting hazards".
+
+- **VERIFIED (W22 lane E, re-derived here)** — **our bridge exits on stdin EOF,
+  and an `O_RDWR` fifo fd is what stops it.** `PlayBridge.readCommands`
+  (`apps/server/src/play/bridge/PlayBridge.java:1617-1636`) loops on
+  `IN.readLine()` and, when that returns null, counts down `STOP` (`:1634-1635`);
+  `main` is parked on `STOP.await()` and then `Runtime.getRuntime().halt(0)`
+  (`:1587-1593`). A spare does the same before its `start` line (`:1392-1395`).
+  So a detached JVM reached over an inherited read-only pipe would end the match
+  the moment the server let go. Both ends open the named pipes `O_RDWR`
+  (`apps/server/src/play/host.ts`, `openJvmIo`), which on Linux succeeds with no
+  peer and means neither side ever reads EOF, because each is its own last
+  writer.
+- **VERIFIED (W22 lane E, measured; not re-run here)** — **`fs.createReadStream`
+  on a fifo parks a libuv threadpool thread for as long as the fifo is empty;
+  `net.Socket({ fd })` puts the fd in the event loop and costs no thread.** The
+  pool is 4 threads by default, and two matches plus a spare is three readers
+  waiting on a quiet Forge. Lane E's first version deadlocked `host.test.ts` into
+  ~130 s of timeouts, 12 of 14 failing, and could not even `process.exit()`; with
+  `net.Socket` the same suite ran in 888 ms, 14/14. The comment is on
+  `openJvmIo` in `apps/server/src/play/host.ts`. **This lane did not re-run
+  either measurement** (lane Q owns no code and no suite); the numbers are lane
+  E's, the mechanism is checked in the source.

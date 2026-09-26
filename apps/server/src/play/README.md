@@ -12,6 +12,11 @@ browser ──forge:join / forge:c2s──►  socket.ts ──► match.ts ─�
                                                     history, asks) ◄──stdout JSON lines──
 ```
 
+Since Wave 22 that stdin/stdout pair is **two named pipes in the match's run
+directory**, not pipes inherited from this process, and the JVM is detached — so
+the match outlives the server that started it. See "The run directory" and "A
+match outlives its server" below.
+
 | file | what |
 | --- | --- |
 | `index.ts` | the exports `src/index.ts` needs: `attachPlay`, `jvmHostConfig`, `jvmHostFactory` (plus `MAX_CONCURRENT_MATCHES`) |
@@ -19,7 +24,7 @@ browser ──forge:join / forge:c2s──►  socket.ts ──► match.ts ─�
 | `match.ts` | one match, socket-free: seat binding, per-seat projector/cursor/history, asks, lifecycle |
 | `visibility.ts` | the hidden-information projection (Forge's `canBeShownTo`, server side) |
 | `transport.ts` | the A↔B wrapper schemas (lane B mirrors them at `apps/ui/src/play/live/transport.ts`) |
-| `host.ts` | the `MatchHost` seam, the one-JVM-per-match implementation, its warm spare and the concurrency ceiling |
+| `host.ts` | the `MatchHost` seam, the one-JVM-per-match implementation, its warm spare, the concurrency ceiling, the run directory, and the re-attach seam a match survives a restart through (`orphans`/`attach`/`handOver`) |
 | `auto.ts` | pure decisions: an ask with one legal reply, a stop with nothing to do, a payment with one source. `match.ts` acts on them; a seat's `fullControl` turns the file off for that seat |
 | `bridge/PlayBridge.java` | the Java side: runs as a single-file source program, no build step |
 | `dev/seat.ts` | a command-line seat, for local testing (see "Two seats locally") |
@@ -67,6 +72,12 @@ Verified without touching `index.ts`: a scratch server wired exactly this way
 ran a two-seat match end to end (below), and `esbuild src/play/index.ts` with
 the `build` script's flags bundles (814.8 kB, exit 0). From `dist/`, the bridge
 source is found at `dist/../src/play/bridge/PlayBridge.java`.
+
+That diff is the Wave 9 wiring and is still the whole of the attachment. Since
+Wave 22 `index.ts` also has a **`SIGTERM`/`SIGINT` handler** that calls
+`PlayHandle.shutdown` before it closes the sockets — without it a deploy kills
+every live match, which is exactly what happened. See "A match outlives its
+server".
 
 ## In-process or child process: one child JVM per match
 
@@ -129,12 +140,51 @@ Same `io`, same default path, same edge gate as the draft (re-installed here —
 see `socket.ts`). Identity is `identityFromHeaders` over the sanitized
 handshake, never a payload.
 
-- `forge:join { matchId }` → ack `MatchSnapshot` or `{ error }`. The first join
+- `forge:join { matchId }` → ack `MatchSnapshot` or a refusal. The first join
   by a participant **claims** a seat: first free human seat, in order.
   Errors: `unknown-match`, `match-full`, `match-starting` (still booting after
   8 s), `a seat needs a durable identity …` (an `eph:` id).
-- `forge:resync { matchId }` → ack `MatchSnapshot` or `{ error }` (`not-joined`
+- `forge:resync { matchId }` → ack `MatchSnapshot` or a refusal (`not-joined`
   if this connection never joined).
+- **A refusal that means the match is GONE says so in words (Wave 22).** Join
+  and resync share one path (`snapshotFor` in `socket.ts`), and exactly two
+  outcomes get the wider shape:
+
+  ```json
+  { "error": "unknown-match", "outcome": "match-gone", "message": "<a sentence>" }
+  ```
+
+  `error` is **unchanged on purpose** — it is still the machine code, so nothing
+  that only reads `error` changes behaviour. `outcome` is what the client keys
+  off (`match-gone`, one of the six states lane F renders) and `message` is what
+  it puts on the page, instead of the string `unknown-match`, which is what the
+  operator was left looking at when a deploy killed their game.
+
+  The two cases: the registry has never heard of the id (`socket.ts:428-431`),
+  and the match is `failed`/`stopped` and this participant has no board to come
+  back to (`:436-443`, which uses the match's own failure instead of the
+  default sentence). The default is exported as **`MATCH_GONE_WORDS`** from
+  `socket.ts` (`:155-157`) so the tests and any other caller quote one string.
+
+  **Every other refusal keeps the bare `{ error }` it always had** — a malformed
+  request, `not-joined`, and everything `claim`/`whenRunning` refuses
+  (`match-full`, `match-starting`, the ephemeral-identity refusal). A client
+  that has not learned the two new fields keeps working for all of them; only
+  `match-gone` needs them.
+
+  **The two schema mirrors disagree about this today (checked 2026-09-26, at
+  `2ea81c0`).** The server BUILDS the three-field refusal through a type, not a
+  schema — `MatchRefusal = MatchError & { outcome?: 'match-gone'; message?: string }`
+  (`socket.ts:153`) — and its own `MatchErrorSchema` still allows only `error`
+  (`apps/server/src/play/transport.ts:168`, `.strict()`). The client's mirror has
+  been widened and parses the wide shape
+  (`apps/ui/src/play/live/transport.ts:202-208`: `outcome` and `message` optional
+  non-empty strings, and still `.strict()`, so a misspelled field is an error
+  rather than being swallowed). Nothing is broken by the difference, because the
+  server never parses what it builds — but the mirrors are the contract, and both
+  being `.strict()` means **a client mirror that has not been widened cannot
+  parse a `match-gone` at all**. `socket.ts:61`'s comment claims both mirrors are
+  already aligned; they are not, at the version above.
 - `forge:c2s { matchId, frame }` — `frame` parsed with `safeParseClientFrame`.
   A reply must match an open ask of **this seat** by `callId` and `method`.
 - `forge:s2c { matchId, cursor, frame }` — per seat. `seq` counts every frame
@@ -229,7 +279,7 @@ was answered in 3 ms, and a probe ran alongside it in 4.4 ms.
 | `visibility.test.ts` (21) | both seats projected from Wave 8's 27-packet fixture; whole-payload leak check; own hand fully visible after draws; public cards untouched; events dropped (real `GameEventCardChangeZone`); `setGameView`; a face-down permanent | `apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`, `packages/forge-wire/src/events/fixtures/` |
 | `match.test.ts` (44) | identity binding and its failure modes, per-seat emission and the leak check, cursor, snapshot, asks (reply by callId, other seat cannot answer, disconnect/timeout/browser abort, re-send), invalid frames, lifecycle; the 'Flying' regression; **crash** (both seats told, once, at the next cursor; kept across a resync) and **reconnect** (the grace, the same board and ask after a refresh) | `fixtures/bridge-two-seats.ndjson`, `fixtures/bridge-flying-seat1.ndjson` |
 | `socket.test.ts` (18) | real express + socket.io + clients with edge headers: POST, joins, match-full, whole-transcript leak check, contiguous cursors from the snapshot, reply routing, disconnect vs refresh, tier gate, dev identity refused without the hatch; a refresh in browser order (old socket closed first) outliving the grace; a crash leaving the server up; full control echoed to every join and resync, restored across a refresh, per seat, and withheld from a refused join | same transcript |
-| `host.test.ts` (8) | the JVM pool against `fixtures/fake-bridge.mjs` (a child process speaking the bridge's line protocol, no Forge): spare adoption and re-addressing, a still-booting spare, spare off, `close()`, the ceiling counting the spare, the heap cap, a spare that keeps dying, a match's JVM SIGKILLed | fake bridge — runs in CI |
+| `host.test.ts` (22) | the JVM pool against `fixtures/fake-bridge.mjs` (a child process speaking the bridge's line protocol, no Forge): spare adoption and re-addressing, a still-booting spare, spare off, `close()`, the ceiling counting the spare, the heap cap, a spare that keeps dying, a match's JVM SIGKILLed; the run directory (removed on a clean end, kept and pruned on a crash); the boot sweep against a **fixture** work dir (dead removed; live, fresh, in-bound crash records and anything not ours spared; the record bound; it runs when the pool is made); and Wave 22's re-attach — a JVM still running after the process that started it is gone and naming itself on disk, offered back and replayed into a new match, killed when nobody claims it, handed over on the way out and taken back by a second pool, a live spare ended from its own record, an orphan past `ORPHAN_MAX_MS` ended, and a live dir whose record names a different process left alone | fake bridge — runs in CI |
 | `auto.test.ts` (76) | the shortcuts as rules: every committed prompt fixture stays a question; the bounds cases that answer themselves; `autoPassReason` and `autoPayReason` over typed frames AND over `fixtures/w20-turn-flow.json`'s real windows; the same through a whole `Match` over the replay host; `fullControl` turning all of it off | `apps/ui/src/play/prompts/fixtures/*.json`, `fixtures/w20-turn-flow.json` |
 | `auto.jvm.test.ts` (1) | the same against a real Forge: stops passed only where Forge named nothing, every cast says what it paid, the scry asks about the scried cards; **skips visibly** without a jar | live |
 | `jvm.test.ts` (3) | real matches in real JVMs — fixed decks + seed (cold), and seeded variety **through the warm spare**; then a refresh with a real ask parked in Forge, and a SIGKILL; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
@@ -355,6 +405,46 @@ A second mutation one level down — `redactCard` and `faceAllowed` made to pass
 everything — fails 6 of `visibility.test.ts`'s 21 (both seats' byte check,
 both seats' hidden-card shape check, `setGameView`, face-down).
 
+## The run directory
+
+Every JVM gets `<workDir>/<id>` — `m-<12 hex>` for a match, `spare-<12 hex>` for
+the spare — staged by `stageRunDir` in `host.ts`. `workDir` is
+`CARDTABLE_PLAY_WORK_DIR`, default `<os tmpdir>/cardtable-play`, which is tmpfs
+here: a directory nobody removes is RAM nobody gets back. The JVM's **cwd is
+this directory**, and that fact is load-bearing twice over — Forge resolves
+`res/` and its profile against the cwd, and `/proc/<pid>/cwd` is how a later
+process tells a live run dir from a dead one.
+
+| in `<workDir>/<id>` | written by | what it is |
+| --- | --- | --- |
+| `res` (symlink), `user/`, `cache/`, `forge.profile.properties`, `user/preferences/forge.preferences` | `stageRunDir` | Forge's own scaffolding, per match, so nothing is written into the build it reads from. The preferences file is `FORGE_PREFERENCES` — see its doc comment |
+| `config.json` | `BridgeJvm.adopt`, and the pool before a cold spawn (the bridge reads it as its one argument) | the match the bridge is to run: id, seed, seats, decks. Kept in a crash record, so a crashed match can be replayed |
+| `in.fifo`, `out.fifo` | `makeFifos` (shells out to `mkfifo(1)`; `node:fs` has no binding) | the JVM's stdin and stdout. **Named** pipes, not inherited ones, so a process that did not spawn the JVM can still speak to it. Both ends open them `O_RDWR` (`openJvmIo`), which on Linux succeeds with no peer and means neither side ever reads EOF — the bridge exits on stdin EOF, so a read-only fd would end the match the moment the server let go |
+| `bridge.stderr.txt` | the JVM, through an `O_APPEND` fd | Forge's and the bridge's stderr — ~200 KB a match, and the only record of *why* a crash happened. A file rather than a pipe for the same reason as the fifos |
+| `stream.jsonl` | `BridgeJvm.persist`, on every line **and** every command sent | the match's whole protocol history, in order, both directions (a command is stored as `{"c":{…}}`). It is what a re-attach replays to rebuild the per-seat projectors, cursors and open asks. A line that cannot be appended sets `durable = false` and **deletes `jvm.json`**: a replay from a stream with a hole would hand a seat a board Forge does not have |
+| `jvm.json` | `BridgeJvm.writeRecord` — at spawn for a spare, on `adopt`, on `remember` (`match.ts:319`, `:340`, `:421`: the epoch at start/resume and the seats' owners as they are claimed) and on `handOver` | the handle a later process re-attaches by; below |
+| `crash.json` | `keepCrashRecord`, on an unclean exit | marks the directory as a crash record and says how it ended (`reason`, `code`, `signal`, `at`) |
+
+`jvm.json` is a `JvmRecord`: `{matchId, pid, run, startedAt, epoch, owners,
+spec, spare?, orphanedAt?}`. Each field is there because a re-attach cannot be
+done without it — `pid` + `run` are the identity check, `spec` is the match to
+rebuild, **`epoch` is why a client resyncs on the cursor it already holds
+instead of starting over**, and **`owners` (seat → participant id) is why seat 1
+cannot come back as seat 0**, which would hand them the other player's hand.
+`spare: true` marks a JVM that holds no game (never re-attached, killed at boot
+from its own record); `orphanedAt` is stamped by `handOver` so the orphan bound
+runs from the hand-over, not from the match's start. Nothing in it is something
+a seat could not already see: `owners` are participant ids, which never leave
+this host. It is read back by `readJvmRecord`, which returns null for anything
+that is not a record — a record with no `spec` and no `spare` flag is not
+re-attachable and is treated as absent.
+
+What happens to the directory when the JVM is gone is decided by *how* it went,
+and `host.ts`'s header ("The run directory") has the whole rule: a clean end —
+we asked it to stop and it exited 0 — is removed whole; anything else is kept as
+a crash record pruned to `CRASH_RECORD_FILES`, bounded by `CRASH_RECORDS_KEPT`
+(20) and `CRASH_RECORD_MAX_AGE_MS` (7 days).
+
 ## Match lifecycle: warm spare, crash, reconnect (Wave 10)
 
 ### The warm spare
@@ -473,6 +563,100 @@ NO), seat 0 went away for 1.5 s and came back; its 103-object board was equal
 before and after, the same ask was re-sent, and Forge's call returned `true` —
 the answer given after the refresh.
 
+## A match outlives its server (Wave 22, lane E)
+
+Until this wave every deploy ended every live game. `pm2 restart` SIGTERMs this
+process, there was no handler, and `host.ts`'s `process.on('exit')` hook
+**SIGKILLed every match JVM** on the way out — so two docs-only pushes killed
+the operator's match four minutes apart, and the 08:00 UTC restart had been
+doing it silently since the beginning. The client's reconnect was answered
+`unknown-match`, which is also why the refusal now uses words (above).
+
+Three things make a match survive, and each is forced by the one before it.
+`host.ts`'s header, "A match outlives its server", is the long form.
+
+1. **The JVM is spawned detached, on a transport that lives on disk.**
+   `detached: true` puts it in its own process group, so a signal aimed at ours
+   never reaches it; `child.unref()` keeps it off our event loop. Its stdio is
+   three fds nobody inherits: the two fifos and the appended stderr file (see
+   "The run directory"). **The exit hook is gone, on purpose** — an orphan is
+   bounded by the sweep and the two constants below, not by our last breath.
+2. **SIGTERM hands over instead of killing.** `index.ts`'s `shutdown()` calls
+   `PlayHandle.shutdown(reason)`, which (a) sets `draining`, so
+   `POST /api/play/matches` answers **503 with the sentence** rather than
+   starting something that is about to die; (b) `matches.handOver()` — every
+   `starting`/`running` match lets go of its JVM without signalling it, stamps
+   `orphanedAt`, and **emits nothing** (a frame sent now would take a `seq` the
+   next server's replay cannot reproduce); (c) a match that *cannot* be handed
+   over is told to its seats in words by `Match.serverStopping` and then
+   stopped; (d) the spare is closed either way, because it holds no game. Then
+   the sockets are closed and the process exits within `SHUTDOWN_DEADLINE_MS`
+   (5 s) whatever happens — pm2's `kill_timeout` is 1.6 s, so a handler that can
+   hang buys nothing.
+3. **The next process rebuilds the match from `stream.jsonl`.** The JVM still
+   holds Forge's game, but the per-seat projectors, histories, cursors and
+   parked asks died with the old process. `sweepRunDirs` (run once, when the
+   factory is made) hands back a `JvmRecord` for every run dir whose recorded
+   pid is still the process standing in it; `attachPlay` — at the very end, so a
+   resumed match is in the registry and has its room before any client can ask
+   for it — calls `matches.adopt(record)` for each, and `Match.resume` replays
+   the whole stream **synchronously, before the first live line**. Replay is
+   deterministic, so every seat's `seq` comes back identical; the epoch and the
+   seat owners come off `jvm.json` because a replay cannot reproduce them. A
+   client therefore resyncs on the cursor it already held. A re-attached JVM is
+   nobody's child, so it has no `exit` event: its death is noticed by polling
+   `process.kill(pid, 0)` every second (`PID_POLL_MS`).
+
+### Nothing keeps an orphan for ever
+
+Three bounds, each with its own reason, values read from the code:
+
+| bound | value | what it does |
+| --- | --- | --- |
+| `ORPHAN_MAX_MS` (`host.ts`) | **12 h** (`12 * 60 * 60 * 1000`) | measured from `orphanedAt` (or `startedAt`). Past it the sweep does not offer the match back at all: it kills the pid and removes the directory. Nobody is coming back to yesterday's game |
+| `ORPHAN_CLAIM_MS` (`host.ts`) | **60 s** (`60_000`) | an orphan nobody claimed this long after boot is killed and swept. This is what makes `orphans()` safe to ignore: a caller that never calls it cannot leak a JVM, and the spare comes back |
+| the rejoin grace | **5 min** (`match.ts`, `deps.rejoinGraceMs ?? 5 * 60_000`; `PlayDeps.rejoinGraceMs`) | a match taken back that nobody rejoins is `stop()`ped. A resumed match with no players is a JVM nobody wants |
+
+Orphans also count against `maxJvms` from the moment they are found, so a
+re-attach cannot push the JVM count past the ceiling of 2.
+
+`host.ts`'s header says this bound is enforced by `Match.expectRejoin`. **There
+is no such method** — it is `Match.resume`'s `rejoinGraceMs` timer
+(`match.ts:332-360`), fed from `createMatchRegistry`'s default at
+`match.ts:1038`. The behaviour is as described; only the name in that comment is
+wrong, and it is lane E's file to fix.
+
+### The boot sweep's live-process guard is a safety control
+
+`sweepRunDirs` spares any directory that **some live process on this host has as
+its cwd** — `processCwds()` reads `/proc/*/cwd`, and a JVM's cwd is its own run
+dir. That one condition is the difference between "clean up after a crash" and
+"delete a running match's files":
+
+- It is what lets **another server's** match survive our boot, including one
+  started by a version of this code that predates the record. A live directory
+  whose `jvm.json` we cannot match to the process standing in it is spared
+  **and left alone** — it may not be ours.
+- Identity is `pidIsStandingIn(record.pid, dir)`: the recorded pid must be the
+  very process whose cwd is *this* directory. That is what makes it safe against
+  pid reuse — a recycled pid is some other program, in some other directory. The
+  record's own `run` string is deliberately *not* compared, because `runDirs`
+  resolves `workDir` through `realpath` and the writer did not.
+- Where `/proc` cannot be read the sweep does **nothing at all** and says why
+  (`SweepResult.skipped`). A live directory cannot be told from a dead one there,
+  and guessing wrong deletes a running match.
+- Since this wave the guard also answers *whose*: a live dir with a re-attachable
+  record becomes a `SweepResult.orphans` entry. The only directories the sweep
+  ends while live are ones whose own record condemns them — a `--spare` (it holds
+  no game) or an orphan past `ORPHAN_MAX_MS`.
+
+**Do not "simplify" that condition away.** The manager mutation-tested it this
+wave: disabling the live-cwd check alone turns **8 of the 22 tests in
+`host.test.ts` red**. (Lane Q did not re-run it — this lane owns no code and ran
+no suite; the number is the manager's.) The failure mode it guards against is
+not a red test in production, it is a game deleted under two people who were
+playing it.
+
 ## Running a real match locally
 
 Prerequisites: the prebuilt jar and Forge's `res/` (read-only), and the
@@ -566,9 +750,19 @@ counted (`Match.invalidFrames`) and logged. No refused `GameEvent` was needed
   B's UI against this server is the manager's integration check.
 - **Most asks, live** (list above). Their encoders are exercised only by what
   the two live runs hit.
-- **Reconnect across a Node restart.** A restart kills the JVM (by design: the
-  exit hook SIGKILLs children), so the match is gone; clients see a new epoch
-  only on a new match.
+- ~~**Reconnect across a Node restart.** A restart kills the JVM (by design: the
+  exit hook SIGKILLs children)~~ — **no longer true, and it was the bug**: Wave
+  22 removed the exit hook and a match now survives a restart (see "A match
+  outlives its server"). What is verified is the mechanism, in `host.test.ts`
+  against the fake bridge: a JVM outliving its starter, the hand-over, the
+  re-attach and the replay, and every orphan bound — and once with a **real
+  Forge match and a real SIGTERM** against a fixture server on a scratch port
+  and work dir (lane E: handed over in 1 ms, the JVM survived, the next boot
+  swept `live:[m-…] orphans:[m-…] removed:0`, replayed 9 lines and answered
+  `running` on the same epoch with both seats back at `seq 4`). **Not watched: a
+  real `pm2 restart` under two live browsers** — that is the operator's check,
+  and the honest half of the fix (the seats told in words) is the path taken when
+  it fails.
 - **The `faceOnly` whitelist in a real game.** Tested on a real battlefield
   card flipped face down in a fixture; no real morph was captured.
 - **Card ids through a shuffle** (see "Hidden information").
