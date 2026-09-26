@@ -486,8 +486,12 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string, summary: R
   ] as const) {
     await expect(f.page.getByTestId('constructed')).toBeVisible();
     await f.page.getByTestId('format').selectOption(choice.format);
+    // Choosing the deck IS loading it: there is no Load button any more (wave
+    // 22 §B). The picker is dead until the era's own legality sweep answers,
+    // and it then offers only the decks that era holds — so wait for it to
+    // come alive rather than selecting into the last era's list.
+    await expect(f.page.getByTestId('deck-mine')).toBeEnabled();
     await f.page.getByTestId('deck-mine').selectOption(deck);
-    await f.page.getByTestId('load-deck').click();
     await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');
   }
   await alice.page.getByTestId('ready-toggle').click();

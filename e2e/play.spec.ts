@@ -115,7 +115,7 @@
  * `play-server.jsonl`, `play-summary.json`.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, readlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { expect, test, type APIRequestContext, type Locator } from '@playwright/test';
@@ -465,11 +465,20 @@ function roomRow(f: Friend, roomId: string): Locator {
   return f.page.locator(`[data-testid="room-row"][data-room-id="${roomId}"]`);
 }
 
-/** Choose a format and a deck in the room's own picker, and load it. Yours only. */
+/**
+ * Choose a format and a deck in the room's own picker. Yours only.
+ *
+ * Choosing the deck IS loading it — the Load button is gone (wave 22 §B), so
+ * the `PUT .../deck` rides the dropdown's own `change`. That keeps this one
+ * `PUT` per person, which is what makes the seat order below a claim: the
+ * table seats people in the order their deck lands. The dropdown is dead
+ * until the era's legality sweep answers and then offers only that era's
+ * decks, so the wait is on it coming alive, not on an arbitrary delay.
+ */
 async function loadOwnDeck(f: Friend, format: string, deckId: string): Promise<void> {
   await f.page.getByTestId('format').selectOption(format);
+  await expect(f.page.getByTestId('deck-mine')).toBeEnabled();
   await f.page.getByTestId('deck-mine').selectOption(deckId);
-  await f.page.getByTestId('load-deck').click();
   await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');
 }
 
@@ -1289,22 +1298,125 @@ test(LIVE_TITLE, async ({ browser }) => {
       await f.context.close();
     }
     await stack.stop();
-    summary.jvmsLeft = await jvmsStillAlive(stack);
+    const fates = await jvmFates(stack);
+    summary.jvmFates = fates;
+    summary.jvmsLeft = fates.filter((f) => f.alive).map((f) => f.pid);
     writeFileSync(resolve(RUN_DIR, 'play-summary.json'), JSON.stringify(summary, null, 2));
     console.log(JSON.stringify(summary, null, 2));
+    // A run that spawned nothing would satisfy every clause below by having no
+    // JVM to judge, so say out loud that there was one.
+    expect(fates.length, 'the server ran at least one Forge JVM').toBeGreaterThan(0);
+    expect(
+      fates.flatMap((f) => f.faults.map((why) => `${f.id} (pid ${f.pid}): ${why}`)),
+      'a handed-over Forge JVM is alive and re-attachable, and every other one is gone',
+    ).toEqual([]);
   }
-  expect(summary.jvmsLeft, 'no Forge JVM outlives the server').toEqual([]);
 });
 
 function playMessagesSince(f: Friend, mark: number): PlayMessage[] {
   return messages({ ...f, captures: f.captures.slice(mark) });
 }
 
-/** Bridge JVMs the server spawned that are still running after it stopped. SIGKILLed, and reported. */
-async function jvmsStillAlive(stack: PlayStack): Promise<number[]> {
-  const pids = serverLog(stack)
-    .filter((l) => l.evt === 'jvm-spawned' && typeof l.pid === 'number')
-    .map((l) => l.pid as number);
+/*
+ * The handle a later server re-attaches by, as `apps/server/src/play/host.ts`
+ * writes it (`JVM_RECORD_FILE`, `JvmRecord`, `ORPHAN_MAX_MS`). Mirrored here
+ * rather than imported: `host.ts` is not erasable-syntax-clean, and this
+ * package typechecks with `erasableSyntaxOnly` so Node can strip its types.
+ * Only the fields the contract below asks about are read.
+ */
+const JVM_RECORD_FILE = 'jvm.json';
+/** `host.ts` `ORPHAN_MAX_MS`: past this a boot kills an orphan instead of re-attaching. */
+const ORPHAN_MAX_MS = 12 * 60 * 60 * 1000;
+
+interface JvmRecordSeen {
+  matchId: string;
+  pid: number;
+  epoch: string | null;
+  owners: unknown[];
+  spec: unknown;
+  spare: boolean;
+  orphanedAt: string | null;
+}
+
+/** `<run>/jvm.json`, or null when it is missing, unreadable or not a record. */
+function readJvmRecord(run: string): JvmRecordSeen | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(resolve(run, JVM_RECORD_FILE), 'utf8'));
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const r = parsed as Record<string, unknown>;
+  if (typeof r.matchId !== 'string' || typeof r.pid !== 'number') return null;
+  return {
+    matchId: r.matchId,
+    pid: r.pid,
+    epoch: typeof r.epoch === 'string' ? r.epoch : null,
+    owners: Array.isArray(r.owners) ? r.owners : [],
+    spec: r.spec ?? null,
+    spare: r.spare === true,
+    orphanedAt: typeof r.orphanedAt === 'string' ? r.orphanedAt : null,
+  };
+}
+
+/** What became of one bridge JVM when the server stopped. `faults` empty is the contract met. */
+interface JvmFate {
+  /** The pool's own id for it — a match id, or `spare-<hex>`. */
+  id: string;
+  pid: number;
+  run: string;
+  /** The server said, on its way out, that a later server may take this one back. */
+  handedOver: boolean;
+  /** Its own record called it a `--spare`: no game, never re-attached. */
+  spare: boolean;
+  alive: boolean;
+  /** Why this fate breaks the contract. Empty is the pass. */
+  faults: string[];
+}
+
+/**
+ * Every bridge JVM this server ran, and whether what became of it is what
+ * wave 22 §E says it should be.
+ *
+ * **A match JVM is now MEANT to outlive its server.** Until §E the exit hook
+ * SIGKILLed every one of them, which ended the operator's game on two docs-only
+ * deploys; now a match is spawned detached, `<run>/jvm.json` is the handle, and
+ * the next boot re-attaches it and replays `<run>/stream.jsonl`. So "no JVM
+ * outlives the server" is no longer the contract — it is the bug §E fixed. What
+ * this pins instead is stronger, and it runs both ways:
+ *
+ *  - a JVM the server **handed over** must still be alive AND re-attachable;
+ *  - **every other** one — a `--spare`, or a match that ended — must be gone.
+ *
+ * Re-attachable is `host.ts`'s own definition, asked the way `orphans()` asks
+ * it, and this reads the record with `readJvmRecord` rather than a second
+ * parser that could drift from it:
+ *
+ *  - `jvm.json` parses as a record and names this pid;
+ *  - that pid is still the process whose **cwd is the run dir** — the pid-reuse
+ *    check, because a recycled pid is some other program;
+ *  - it is not a spare, which holds no game;
+ *  - it carries the match's `epoch` and both seats' owners, or a client could
+ *    not resync on the cursor it already holds and seat 2 could come back as
+ *    seat 1;
+ *  - and it is inside `ORPHAN_MAX_MS` of its `orphanedAt`, past which the next
+ *    boot kills it rather than taking it back.
+ *
+ * Proving a re-attach END TO END is `apps/server/src/play/host.test.ts` and the
+ * jar-gated `jvm.test.ts`; this is the e2e's claim that the real server, killed
+ * for real, left the real match in a state those can pick up.
+ *
+ * Everything still alive is SIGKILLed whatever the verdict, so this can never
+ * leak a JVM of its own and the next run starts clean.
+ */
+async function jvmFates(stack: PlayStack): Promise<JvmFate[]> {
+  const log = serverLog(stack);
+  const ran = log.filter(
+    (l) => (l.evt === 'jvm-spawned' || l.evt === 'jvm-attached') && typeof l.pid === 'number' && typeof l.run === 'string',
+  );
+  const handed = new Set(log.filter((l) => l.evt === 'jvm-handed-over' && typeof l.pid === 'number').map((l) => l.pid as number));
+  /** Alive, and not a zombie waiting to be reaped. */
   const running = (pid: number): boolean => {
     try {
       return !readFileSync(`/proc/${pid}/stat`, 'utf8').includes(') Z ');
@@ -1312,10 +1424,53 @@ async function jvmsStillAlive(stack: PlayStack): Promise<number[]> {
       return false; // no /proc entry: it has exited
     }
   };
-  // A JVM whose stdin closes stops on its own; give it the bridge's stop grace.
+  /** The cwd check `orphans()` uses: this pid is the process standing in `run`. */
+  const standingIn = (pid: number, run: string): boolean => {
+    try {
+      return resolve(readlinkSync(`/proc/${pid}/cwd`)) === resolve(run);
+    } catch {
+      return false;
+    }
+  };
+
+  // Only the ones that should be GONE are waited on; a handed-over match JVM
+  // never exits by design, so waiting on it would just burn the grace.
+  const shouldStop = ran.filter((l) => !handed.has(l.pid as number)).map((l) => l.pid as number);
   const deadline = Date.now() + 10_000;
-  while (pids.some(running) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 250));
-  const alive = pids.filter(running);
-  for (const pid of alive) process.kill(pid, 'SIGKILL');
-  return alive;
+  while (shouldStop.some(running) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 250));
+
+  const fates = ran.map((l): JvmFate => {
+    const pid = l.pid as number;
+    const run = l.run as string;
+    const id = typeof l.id === 'string' ? l.id : `pid-${pid}`;
+    const handedOver = handed.has(pid);
+    const alive = running(pid);
+    const record = readJvmRecord(run);
+    const faults: string[] = [];
+    if (!handedOver) {
+      // Not handed over: the server stopped it, so it must be gone.
+      if (alive) faults.push(`the server did not hand it over, yet it is still running (run ${run})`);
+    } else if (!alive) {
+      faults.push('the server handed it over, so a later server should be able to take it back — but it is gone');
+    } else if (record === null) {
+      faults.push(`alive with no readable ${JVM_RECORD_FILE} in ${run}: nothing can re-attach to it`);
+    } else {
+      if (record.pid !== pid) faults.push(`${JVM_RECORD_FILE} names pid ${record.pid}, not ${pid}`);
+      if (!standingIn(pid, run)) faults.push(`pid ${pid} is not the process standing in ${run} (orphans() would skip it)`);
+      if (record.spare) faults.push('a --spare holds no game and is never re-attached, so it must not survive');
+      if (record.epoch === null) faults.push('no epoch in the record: a re-attached client could not resync on its own cursor');
+      if (record.owners.length !== 2) faults.push(`${record.owners.length} seat owners recorded, not 2: a re-attach could seat someone at the wrong hand`);
+      if (record.spec === null) faults.push('no match spec in the record: nothing to rebuild the match from');
+      if (record.orphanedAt === null) faults.push('no orphanedAt in the record, so the next boot cannot bound how long it has been waiting');
+      else {
+        const waited = Date.now() - Date.parse(record.orphanedAt);
+        if (!(waited < ORPHAN_MAX_MS)) faults.push(`orphaned ${waited} ms ago, past ORPHAN_MAX_MS (${ORPHAN_MAX_MS}): the next boot would kill it, not take it back`);
+      }
+    }
+    return { id, pid, run, handedOver, spare: record?.spare ?? false, alive, faults };
+  });
+
+  // Whatever is still up goes, verdict or not: this test does not leave JVMs behind.
+  for (const f of fates) if (f.alive) process.kill(f.pid, 'SIGKILL');
+  return fates;
 }
