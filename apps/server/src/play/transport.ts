@@ -165,7 +165,48 @@ export interface MatchSnapshot {
 	frames: ServerFrame[];
 }
 
-export const MatchErrorSchema = borrowed.emptyObject.extend({ error: borrowed.nonEmptyString }).strict();
+/**
+ * A refused `forge:join` / `forge:resync`.
+ *
+ * **Deliberately identical to the client mirror's `MatchErrorSchema`**
+ * (`apps/ui/src/play/live/transport.ts`). The two are one contract, and the
+ * module header's rule applies here like everywhere else: a change here is a
+ * change there.
+ *
+ * `error` is the machine code every refusal carries, and it is unchanged.
+ * `outcome` and `message` are optional because **exactly one refusal sends
+ * them**: a match that is gone answers
+ * `{ error: 'unknown-match', outcome: 'match-gone', message: '<a sentence>' }`
+ * (Wave 22 lane E — `matchGone` / `MATCH_GONE_WORDS` in `socket.ts`), while
+ * `match-full`, `not-joined`, `match-starting` and `malformed: …` keep the bare
+ * `{ error }` they always had. Requiring the two fields would make every OTHER
+ * refusal malformed.
+ *
+ * `outcome` is a non-empty string rather than the literal `'match-gone'`: a
+ * PARSE schema that pins the literal refuses the next outcome the system learns
+ * to send, which is this class of bug again. The object stays `.strict()`, so a
+ * misspelled `outcom` or `mesage` is still an error and not quietly dropped.
+ *
+ * **Nothing on this server parses through this schema today.**
+ * `grep -rn MatchErrorSchema apps/server/src` finds this definition and two
+ * comments, nothing else; the shape is BUILT by lane E's `MatchRefusal`
+ * (`socket.ts`), which pins `outcome` to `'match-gone'` — a builder is narrow
+ * where a parser is wide. So widening this is not fixing a live bug: it is
+ * keeping the two mirrors one contract, so that the day something does validate
+ * an outbound refusal against the server's own schema, a `match-gone` passes.
+ *
+ * `MatchError` below stays the bare `{ error }` on purpose — it is what
+ * `browser/session.ts`'s `snapshotFor` returns, and that bridge forwards only
+ * the code. The refusal that carries the extra fields is `MatchRefusal`.
+ */
+export const MatchErrorSchema = borrowed.emptyObject
+	.extend({
+		error: borrowed.nonEmptyString,
+		outcome: borrowed.nonEmptyString.optional(),
+		message: borrowed.nonEmptyString.optional(),
+	})
+	.strict();
+
 export interface MatchError {
 	error: string;
 }
