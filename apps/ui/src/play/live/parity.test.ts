@@ -4,9 +4,28 @@
  *
  * ## The baseline
  *
- * Re-recorded in Wave 20 at `dcb2e60` (§A: the battlefield grouped into
+ * Re-recorded in Wave 22 for `f9dc909` (§C.3: a seat's furniture moved out of
+ * its wide `seat__head` strip into the vertical `seat__who` bar — the avatar,
+ * the name and the counts in one narrow column). 97 characters left, and the
+ * whole of the change is that move; §C.1 (no rotated labels) and §C.2 (the
+ * preview anchors top-left) are a stylesheet and a pure function and render no
+ * markup. The ledger, both seats together:
+ *
+ *   -54  `<header class="seat__head">` gone
+ *   +84  `<div class="seat__who" data-player-bar="">`
+ *   +50  `<div class="seat__ident">`
+ *    +6  each seat's `</header>` → `</div></div>`
+ *    +2  `<span class="seat__meta">` → `<div class="seat__counts">`
+ *    -2  and its `</span>` → `</div>`
+ *   -10  `data-testid="face-life"` → `data-testid="life"`
+ *  -173  the duplicate `.seat__life` pill, deleted: a seat drew its life twice,
+ *        once on the avatar and once beside the name, and the narrow bar has
+ *        room for one. `data-testid="life"` is the badge on the avatar now,
+ *        which is what `e2e/play.spec.ts` reads.
+ *
+ * Before that, in Wave 20 at `dcb2e60` (§A: the battlefield grouped into
  * `data-board-row` rows with a gutter and a reset control, and the faces moved
- * to the ends). Before that, in Wave 19 (Board gained faces, fixed zones and
+ * to the ends), and in Wave 19 (Board gained faces, fixed zones and
  * stack art: 5c42535, 48d8266). `BASELINE_SHA256` / `BASELINE_LENGTH` are the static markup of
  * `<Board view={boardFromFixture(PLAY_FIXTURES[0])} />`, recorded at commit
  * 2709447 — Wave 9's base, BEFORE this lane touched `../adapter.ts` or added
@@ -36,8 +55,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = '50ddadb265eaea3b463998d53ded073ded85aa6ab872dd0453daa107eeb19187';
-const BASELINE_LENGTH = 34149;
+const BASELINE_SHA256 = '78d3849befc5fd43e0e388d78ba49b758f402ee6d93cc119664899af79239695';
+const BASELINE_LENGTH = 34052;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));
