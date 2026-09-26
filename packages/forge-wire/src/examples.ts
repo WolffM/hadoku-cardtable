@@ -131,6 +131,14 @@ export const SERVER_FRAME_EXAMPLES: Readonly<Record<string, unknown>> = {
     min: 1,
     max: 2,
   },
+  // A card AND a player, because the argument is `Iterable<GameEntityView>`
+  // and both kinds are sent in practice (`InputSelectTargets.java:409`).
+  setHighlighted: {
+    kind: 'notify',
+    method: 'setHighlighted',
+    entities: [CARD, PLAYER],
+    on: true,
+  },
   // Weighted on purpose: Forge sends a card twice when the auto-tap preview
   // also names it (`AbstractGuiGame.java:385-394`).
   setWeaklySelectable: {

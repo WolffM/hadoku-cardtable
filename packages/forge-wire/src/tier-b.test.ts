@@ -1,7 +1,7 @@
 /*
- * Tier B — 22 methods that carry entity references.
+ * Tier B — 23 methods that carry entity references.
  *
- * The generated battery again, then the four claims that make this tier more
+ * The generated battery again, then the claims that make this tier more
  * than a transcription:
  *
  *   1. A reference's KIND is load-bearing. Handing `selectPlayer` a card id is
@@ -12,6 +12,8 @@
  *   4. `sideboard` uses `@hadoku/deck`'s pool model — asserted at RUNTIME by
  *      pushing parsed wire entries through that package and writing a `.dck`,
  *      not just by a type alias that a refactor could quietly widen.
+ *   5. `setHighlighted` carries a GameEntityView and a boolean — not a card
+ *      list, and not a replacement set.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -23,6 +25,8 @@ import { safeParseClientFrame, safeParseServerFrame } from './envelope.ts';
 import {
   OpenZonesSchema,
   SelectPlayerSchema,
+  SetHighlightedSchema,
+  SetSelectablesSchema,
   SideboardSchema,
   TIER_B_METHODS,
   YieldUpdateSchema,
@@ -39,10 +43,10 @@ const clientExamples = Object.fromEntries(
   Object.entries(CLIENT_FRAME_EXAMPLES).filter(([method]) => TIER_B.has(method)),
 );
 
-describe('Tier B — the 22 reference-carrying methods', () => {
-  it('models exactly 22 methods, 19 server and 3 client', () => {
-    expect(TIER_B_METHODS).toHaveLength(22);
-    expect(Object.keys(serverExamples)).toHaveLength(19);
+describe('Tier B — the 23 reference-carrying methods', () => {
+  it('models exactly 23 methods, 20 server and 3 client', () => {
+    expect(TIER_B_METHODS).toHaveLength(23);
+    expect(Object.keys(serverExamples)).toHaveLength(20);
     expect(Object.keys(clientExamples)).toHaveLength(3);
   });
 
@@ -152,6 +156,50 @@ describe('Tier B — YieldUpdate’s twelve arms', () => {
         phase: 'MAIN3',
         skip: true,
       }).success,
+    ).toBe(false);
+  });
+});
+
+/*
+ * `setHighlighted` is the third entity frame, and the only two-way one.
+ *
+ * The battery above proves the shape is closed. These four say what the shape
+ * MEANS, and they are the assertions a later "tidy this up into a card list
+ * like the other two" would break.
+ */
+describe('setHighlighted — an entity and a direction', () => {
+  const base = SERVER_FRAME_EXAMPLES.setHighlighted as Record<string, unknown>;
+
+  it('takes a player among the entities — the argument is Iterable<GameEntityView>', () => {
+    expect(SetHighlightedSchema.safeParse(base).success).toBe(true);
+    expect(
+      SetHighlightedSchema.safeParse({ ...base, entities: [{ kind: 'player', id: 1 }] }).success,
+    ).toBe(true);
+    // The contrast: setSelectables really is cards only (IGuiGame.java:272).
+    expect(
+      SetSelectablesSchema.safeParse({
+        kind: 'notify',
+        method: 'setSelectables',
+        cards: [{ kind: 'player', id: 1 }],
+        min: 0,
+        max: 1,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('carries the un-highlight call, which is the same frame with on false', () => {
+    expect(safeParseServerFrame({ ...base, on: false }).ok).toBe(true);
+  });
+
+  it('refuses an empty-entity frame no more than Forge does — an empty list is legal', () => {
+    expect(safeParseServerFrame({ ...base, entities: [] }).ok).toBe(true);
+  });
+
+  it('is not a selection: it has no min/max and refuses one', () => {
+    expect(safeParseServerFrame({ ...base, min: 1 }).ok).toBe(false);
+    expect(
+      SetHighlightedSchema.safeParse({ ...base, entities: [{ kind: 'spellAbility', id: 9 }] })
+        .success,
     ).toBe(false);
   });
 });

@@ -67,8 +67,8 @@
  * operator hit it at once: *"why are cards clickable when i can't even do
  * anything with them?"* The blue outline was ours, not the rules engine's.
  *
- * Forge names the clickable set through TWO wire methods, and between them
- * they cover every input:
+ * Forge names entities through THREE wire methods. The first two were said to
+ * cover every input; Wave 22 found the input they do not (below):
  *
  *  - **a selection** — `InputSelectTargets` (`:68`, `:454`) and
  *    `InputSelectEntitiesFromList` (`:57`, `:171`) — calls
@@ -82,9 +82,32 @@
  *    `cardHasPlayableManaAbility` during payment, and cleared by every such
  *    input's `onStop` (`InputPassPriority.java:70`, `InputPayMana.java:69`,
  *    `InputAttack.java:101`, `InputBlock.java:96`).
+ *  - **a mark** — `setHighlighted(entities, on)`, incremental and signed, for
+ *    the entities an input is already tracking: the targets chosen so far
+ *    (`InputSelectManyBase.java:127`, `InputSelectTargets.java:409`), the cards
+ *    set aside for a London mulligan (`InputLondonMulligan.java:138`). Added by
+ *    Wave 22 lane L. A mark is NOT an offer, and `boardInteraction` keeps the
+ *    two apart — read its header before touching that.
  *
- * When Forge has named neither, the board offers **nothing**. We implement no
- * rules: every id `boardInteraction` returns came off one of those two frames.
+ * When Forge has named none of them, the board offers **nothing**. We implement
+ * no rules: every id `boardInteraction` returns came off one of those frames.
+ *
+ * ### The input the first two do not cover
+ *
+ * `InputLondonMulligan` publishes no selectable set and no actionable set —
+ * `setSelectables` has exactly two call sites and `setWeaklySelectable` four,
+ * and none of the six is that input. It speaks per-card only through
+ * `setHighlighted`. So the seat got the prose, the OK/Auto bar and no entity at
+ * all, which is what the operator reported: *"mulligan said 'return a card to
+ * the bottom' and the cards were not clickable — had to press Auto."*
+ *
+ * Carrying the mark is what lets that seat UN-mark a card it marked. It does
+ * not by itself make the first card clickable, because Forge marks a card only
+ * after a click it accepted (`InputLondonMulligan.onCardSelected`, `:112-123`).
+ * The signal for the first click is `GameView`'s `Mulligan` flag
+ * (`GameView.java:141-146`, set at `InputLondonMulligan.java:60` and cleared at
+ * `:105`), which is on the state channel already (`tier-c.ts`,
+ * `Mulligan: 'BooleanType'`) and is not read here yet.
  *
  * ### Players
  *
@@ -418,6 +441,18 @@ export interface LiveMatch {
    */
   weaklySelectable: ReadonlySet<number> | null;
   /**
+   * The CARDS Forge's current input has marked, from `setHighlighted` — folded,
+   * because that frame is incremental: `on: true` adds, `on: false` removes
+   * (`AbstractGuiGame.java:322-337`). Null: Forge has never marked anything
+   * since the last `clearSelectables`.
+   *
+   * Cards only. The frame carries players too, and they are dropped here on
+   * purpose: the player rule below is Forge's published one — a player is
+   * offered while a SELECTION is live and at no other time — and a highlight
+   * is not that signal. See `boardInteraction`.
+   */
+  highlighted: ReadonlySet<number> | null;
+  /**
    * Forge has shown an input since this client last acted. See the module
    * header: without it, no card or player click is sent.
    */
@@ -514,6 +549,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     buttons: null,
     selectables: null,
     weaklySelectable: null,
+    highlighted: null,
     says: [],
     inputLive: false,
     spent: { cards: new Set(), players: new Set() },
@@ -687,19 +723,40 @@ const NOTHING: LiveClickables = { selectable: new Set(), selectablePlayers: new 
  *
  *  - a selection is open (`setSelectables`) → those cards, and the players a
  *    selection input will take;
- *  - otherwise Forge's actionable set (`setWeaklySelectable`) → those cards,
- *    and no player;
- *  - Forge has named neither → nothing.
+ *  - otherwise Forge's actionable set (`setWeaklySelectable`) union the cards
+ *    it has MARKED (`setHighlighted`) → those cards, and no player;
+ *  - Forge has named none of the three → nothing.
+ *
+ * ## Why `highlighted` sits BESIDE `selectables` and is not folded into it
+ *
+ * Wave 22 lane L. The two are different claims. `setSelectables` is an OFFER:
+ * "my selection will take a click on exactly these, and it wants between min
+ * and max of them". `setHighlighted` is a MARK: "my input is tracking this
+ * entity" — `InputSelectManyBase.java:127` uses it for the entities already
+ * chosen, `InputLondonMulligan.java:138` for the cards already set aside.
+ * Nothing in Forge says a marked entity is a legal click.
+ *
+ * So the mark is never allowed to widen the offer. When a selection is open,
+ * its card list is the whole of what this function returns and a highlight adds
+ * NOTHING — otherwise a target already chosen would go back on the block, and
+ * `min`/`max` would be counted against a set Forge never published. Outside a
+ * selection there is no offer to widen: the highlight joins the actionable set,
+ * which is what lets a seat un-mark what it marked (the only click the London
+ * mulligan has, and every one of those marks came from a click Forge accepted).
+ *
+ * The one thing that would collapse the two is Forge publishing a selection and
+ * a highlight that disagree. It does — and the offer wins, by this rule.
  *
  * A card the seat cannot see is dropped whichever list held it: the view is
  * the hidden-information boundary, and an id that survived a zone change is
- * not an affordance.
+ * not an affordance. That applies to a highlight too, so a mark cannot reveal
+ * a card this seat was not already sent.
  */
 export function boardInteraction(match: LiveMatch): LiveClickables {
   const view = match.view;
   if (view === null || !match.inputLive || !match.connected || match.asks.length > 0) return NOTHING;
   const selection = match.selectables;
-  const named = selection === null ? match.weaklySelectable : selection.cards;
+  const named = selection === null ? union(match.weaklySelectable, match.highlighted) : selection.cards;
   if (named === null) return NOTHING;
   const drawn = cardIdsInView(view);
   const offered = new Set<number>();
@@ -707,6 +764,19 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
   const players = new Set<number>();
   if (selection !== null) for (const p of view.players) if (!match.spent.players.has(p.id)) players.add(p.id);
   return { selectable: offered, selectablePlayers: players };
+}
+
+/**
+ * Two id sets Forge may each have left unsaid, as one. Null only when BOTH are
+ * null: an empty set means "Forge named nothing", which is not the same answer.
+ */
+function union(
+  a: ReadonlySet<number> | null,
+  b: ReadonlySet<number> | null,
+): ReadonlySet<number> | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return new Set([...a, ...b]);
 }
 
 /** Every card id the seat was sent: all its zones, and the stack's sources. */
@@ -890,6 +960,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   // from before cannot be trusted.
   match.selectables = null;
   match.weaklySelectable = null;
+  match.highlighted = null;
   // The log, like the asks: the server re-sends its kept says after the
   // snapshot, so a line that survives from before is not trusted.
   match.says = [];
@@ -1085,7 +1156,24 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'clearSelectables') {
     match.selectables = null;
+    // The marks belonged to the input that has just stopped. Forge unmarks them
+    // itself (`InputSelectManyBase.resetUsedToPay`, `InputLondonMulligan.done`),
+    // but the order of the two frames is that input's business, not ours, and a
+    // mark that outlived its input is an affordance nothing would take.
+    match.highlighted = null;
     match.inputLive = false;
+  } else if (frame.kind === 'notify' && frame.method === 'setHighlighted') {
+    // INCREMENTAL, unlike the two frames either side of it: fold, never
+    // replace. Cards only — see the field's note on why a marked player is not
+    // a clickable one. An empty result stays a set: Forge has spoken.
+    const next = new Set(match.highlighted ?? []);
+    for (const entity of frame.entities) {
+      if (entity.kind !== 'card') continue;
+      if (frame.on) next.add(entity.id);
+      else next.delete(entity.id);
+    }
+    match.highlighted = next;
+    match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'setWeaklySelectable') {
     // Forge's list is WEIGHTED (a card twice when the auto-tap preview names
     // it too); membership is the whole of what a board needs.
@@ -1114,6 +1202,7 @@ const INPUT_FRAMES: ReadonlySet<string> = new Set([
   'updateButtons',
   'setSelectables',
   'clearSelectables',
+  'setHighlighted',
   'setWeaklySelectable',
   'clearWeaklySelectable',
 ]);
@@ -1133,6 +1222,7 @@ function discardLocal(match: LiveMatch): void {
   match.buttons = null;
   match.selectables = null;
   match.weaklySelectable = null;
+  match.highlighted = null;
   match.says = [];
   match.inputLive = false;
   unspend(match);

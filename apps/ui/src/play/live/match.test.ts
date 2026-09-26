@@ -486,6 +486,14 @@ const clear = () => parseServerFrame({ kind: 'notify', method: 'clearSelectables
 const actionable = (ids: number[]) =>
   parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
 const clearActionable = () => parseServerFrame({ kind: 'notify', method: 'clearWeaklySelectable' });
+/** Forge's mark. Incremental and signed — `on: false` is the un-mark. */
+const highlight = (entities: Array<{ kind: 'card' | 'player'; id: number }>, on: boolean) =>
+  parseServerFrame({ kind: 'notify', method: 'setHighlighted', entities, on });
+const mark = (ids: number[], on = true) =>
+  highlight(
+    ids.map((id) => ({ kind: 'card' as const, id })),
+    on,
+  );
 
 /** Card ids on the fixture board: the viewer's battlefield, and the opponent's. */
 function ids(m: LiveMatch): { mine: number[]; theirs: number[] } {
@@ -705,6 +713,132 @@ describe('clicking the board: only what Forge offered', () => {
     expect(m.selectables).toBeNull();
     expect(m.weaklySelectable).toBeNull();
     expect(selectCard(m, theirs[0]!)).toBe(false);
+  });
+});
+
+/*
+ * `setHighlighted` — the third entity frame, Wave 22 lane L.
+ *
+ * `InputLondonMulligan` publishes no selection and no actionable set; the only
+ * thing it says per-card is this mark (`InputLondonMulligan.java:138,144`), and
+ * the bridge used to drop it, so the seat was left with prose and an OK/Auto bar
+ * and nothing to click — the operator's report.
+ *
+ * The mutation targets, in order: delete the `setHighlighted` arm of
+ * `applyFrame` and the first two fail; fold `highlighted` into `selectables`
+ * instead of keeping it beside, and the fourth fails.
+ */
+describe('setHighlighted: Forge’s mark is offered, and never widens an offer', () => {
+  it('a mark makes exactly those cards clickable when Forge has named nothing else', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    // The London mulligan's shape: prose, the OK/Auto pair, no selection, no
+    // actionable set. Before the mark there is nothing to click.
+    await sendAndApply(s, m, [prompt('Return 1 card(s) to the bottom of your library'), bar(false)]);
+    expect(boardInteraction(m).selectable.size).toBe(0);
+
+    await sendAndApply(s, m, [mark([mine[0]!])]);
+    expect(m.highlighted).toEqual(new Set([mine[0]]));
+    expect(m.selectables).toBeNull();
+    expect(m.weaklySelectable).toBeNull();
+    const open = boardInteraction(m);
+    expect(open.selectable).toEqual(new Set([mine[0]]));
+    // A mark is not the selection signal, so it offers no player either.
+    expect(open.selectablePlayers.size).toBe(0);
+    expect(selectCard(m, theirs[0]!)).toBe(false);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await until('the act', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()).toEqual([cardAct(mine[0]!)]);
+  });
+
+  it('un-marking takes it back, one card at a time, and the set FOLDS rather than replacing', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Return 2 card(s) to the bottom of your library')]);
+    // Forge marks one card per accepted click, so a second frame must ADD.
+    await sendAndApply(s, m, [mark([mine[0]!]), mark([mine[1]!])]);
+    expect(m.highlighted).toEqual(new Set([mine[0], mine[1]]));
+    expect(boardInteraction(m).selectable).toEqual(new Set([mine[0], mine[1]]));
+
+    await sendAndApply(s, m, [mark([mine[0]!], false)]);
+    expect(m.highlighted).toEqual(new Set([mine[1]]));
+    expect(boardInteraction(m).selectable).toEqual(new Set([mine[1]]));
+    expect(selectCard(m, mine[0]!)).toBe(false);
+
+    // `resetCardHighlights` un-marks the whole set at once (`:144`).
+    await sendAndApply(s, m, [mark([mine[0]!, mine[1]!], false)]);
+    expect(m.highlighted).toEqual(new Set());
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    await barrier(s, m, mine[1]!);
+  });
+
+  it('clearSelectables still clears, and drops the marks of the input that stopped', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    await sendAndApply(s, m, [prompt('Select targets'), selectables([theirs[0]!], 1, 1), mark([theirs[0]!])]);
+    expect(m.selectables).toEqual({ cards: new Set([theirs[0]]), min: 1, max: 1 });
+    expect(m.highlighted).toEqual(new Set([theirs[0]]));
+
+    await sendAndApply(s, m, [clear()]);
+    expect(m.selectables).toBeNull();
+    expect(m.highlighted).toBeNull();
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    expect(selectCard(m, theirs[0]!)).toBe(false);
+    await barrier(s, m, mine[1]!);
+  });
+
+  it('a mark does NOT widen a real setSelectables — the offer wins', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    // Forge's selection offers one card; its mark names a card the selection
+    // does not (a target already chosen, `InputSelectManyBase.java:127`).
+    await sendAndApply(s, m, [prompt('Select targets'), selectables([theirs[0]!], 1, 1), mark([mine[0]!])]);
+    expect(m.highlighted).toEqual(new Set([mine[0]]));
+    expect(boardInteraction(m).selectable).toEqual(new Set([theirs[0]]));
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    expect(selectCard(m, theirs[0]!)).toBe(true);
+    await until('the act', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()).toEqual([cardAct(theirs[0]!)]);
+  });
+
+  it('outside a selection a mark joins the actionable set rather than replacing it', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    await sendAndApply(s, m, [prompt('Declare attackers'), actionable([mine[0]!]), mark([mine[1]!])]);
+    expect(boardInteraction(m).selectable).toEqual(new Set([mine[0], mine[1]]));
+    expect(selectCard(m, theirs[0]!)).toBe(false);
+    await barrier(s, m, theirs[0]!);
+  });
+
+  it('a marked card the seat cannot see is not offered, and a marked PLAYER is not a click', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [
+      prompt('Return 1 card(s) to the bottom of your library'),
+      mark([mine[0]!, 999_999]),
+      highlight([{ kind: 'player', id: 1 }], true),
+    ]);
+    // The wire carried the player; the offered set is cards only, and the view
+    // is still the hidden-information boundary.
+    expect(m.highlighted).toEqual(new Set([mine[0], 999_999]));
+    expect(boardInteraction(m).selectable).toEqual(new Set([mine[0]]));
+    expect(boardInteraction(m).selectablePlayers.size).toBe(0);
+    expect(selectCard(m, 999_999)).toBe(false);
+    expect(selectPlayer(m, 1)).toBe(false);
+    await barrier(s, m, mine[1]!);
+  });
+
+  it('a snapshot drops the marks too — the server does not re-send them', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Return 1 card(s) to the bottom of your library'), mark([mine[0]!])]);
+    expect(boardInteraction(m).selectable).toEqual(new Set([mine[0]]));
+
+    s.lose(prompt('lost'));
+    s.send(prompt('after the gap'));
+    await until('the resync', () => m.stats.snapshots === 2);
+    expect(m.highlighted).toBeNull();
+    expect(selectCard(m, mine[0]!)).toBe(false);
   });
 });
 

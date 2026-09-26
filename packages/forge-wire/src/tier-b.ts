@@ -1,14 +1,15 @@
 /*
- * Tier B — the 22 methods that carry entity references.
+ * Tier B — the 23 methods that carry entity references.
  *
  * Wave 6 lane F (`docs/spikes/itoclient.md`, "Tier B — carry entity
  * references. Needs an id scheme, which Forge already has. 21 methods."), plus
- * `setWeaklySelectable`, which Wave 19 lane B added — see below. The
+ * `setWeaklySelectable`, which Wave 19 lane B added, plus `setHighlighted`,
+ * which Wave 22 lane L added — see below for both. The
  * id scheme is `refs.ts`; this file is the transcription, with argument types
  * from `ProtocolMethod.java` and parameter names from `IGuiGame` /
  * `IGameController`.
  *
- * Nineteen are server→client (twelve of them blocking) and three are
+ * Twenty are server→client (twelve of them blocking) and three are
  * client→server. Together with Tier A's three, the blocking set is the 15 lane
  * F re-derived independently from `RemoteClientGuiGame`'s `sendAndWait` call
  * sites.
@@ -30,6 +31,27 @@
  * It is gated on `FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS`, which defaults to
  * `"false"` (ForgePreferences.java:100) — our bridge turns it on
  * (`apps/server/src/play/bridge/PlayBridge.java`).
+ *
+ * ## `setHighlighted` is the set an input has MARKED
+ *
+ * Wave 22 lane L. It is the third and last entity frame Forge uses to say
+ * anything per-card outside a selection, and it was missing: the bridge
+ * implemented `setSelectables` and `setWeaklySelectable` and dropped this one,
+ * so an input that speaks only through it reached a seat as prose plus a
+ * two-button bar and nothing to click. `InputLondonMulligan` is that input —
+ * see the note on the client side in `apps/ui/src/play/live/match.ts`.
+ *
+ * Unlike the other two it is INCREMENTAL and two-way: Forge calls it with
+ * `true` to mark entities and with `false` to unmark them, one call per
+ * change, against a set the GUI keeps
+ * (`AbstractGuiGame.java:322-337` holds a `Set<GameEntityView>` and
+ * adds/removes). So the wire carries the boolean and the client folds, rather
+ * than replacing a set the way `setSelectables` does.
+ *
+ * Its argument is `Iterable<GameEntityView>`, not `Iterable<CardView>`
+ * (IGuiGame.java:265, ProtocolMethod.java:70) — `InputSelectManyBase.java:127`
+ * and `InputSelectTargets.java:409` both pass a player through it — so the
+ * wire uses `GameEntityRefSchema`, which is exactly CardView-or-PlayerView.
  *
  * ## Three places where the transcription is a decision, not a copy
  *
@@ -85,7 +107,7 @@ import {
 } from './refs.ts';
 import { CardPoolSchema, DeckEntrySchema } from './sideboard.ts';
 
-/** The 22 Tier B method names, in `ProtocolMethod` declaration order per direction. */
+/** The 23 Tier B method names, in `ProtocolMethod` declaration order per direction. */
 export const TIER_B_METHODS = [
   // Mode.SERVER
   'showPromptMessage',
@@ -103,6 +125,7 @@ export const TIER_B_METHODS = [
   'chooseEntitiesForEffect',
   'manipulateCardList',
   'setSelectables',
+  'setHighlighted',
   'setWeaklySelectable',
   'openZones',
   'restoreOldZones',
@@ -233,6 +256,26 @@ export const SetSelectablesSchema = z.strictObject({
   cards: z.array(CardRefSchema),
   min: z.number().int().nonnegative(),
   max: z.number().int().nonnegative(),
+});
+
+/**
+ * `void setHighlighted(Iterable<GameEntityView> entities, boolean b)` —
+ * IGuiGame.java:265, `ProtocolMethod.java:70`.
+ *
+ * The entities Forge's current input has MARKED. Incremental: `on: true` adds
+ * them to the set the GUI keeps, `on: false` removes them
+ * (`AbstractGuiGame.java:325-337`). The parameter is named `b` in Forge; the
+ * wire calls it `on`, because `b` names nothing.
+ *
+ * An entity ref, not a card ref: a player can be highlighted
+ * (`InputSelectManyBase.java:127`, `InputSelectTargets.java:409` both go
+ * through `GameEntityView.get(ge)`).
+ */
+export const SetHighlightedSchema = z.strictObject({
+  kind: z.literal('notify'),
+  method: z.literal('setHighlighted'),
+  entities: z.array(GameEntityRefSchema),
+  on: z.boolean(),
 });
 
 /**
@@ -585,7 +628,7 @@ export const SelectAbilitySchema = z.strictObject({
 
 /* ── The tier, assembled ─────────────────────────────────────────────── */
 
-/** The 19 server→client Tier B frames. */
+/** The 20 server→client Tier B frames. */
 export const TIER_B_SERVER_FRAMES = [
   ShowPromptMessageSchema,
   UpdateButtonsSchema,
@@ -602,6 +645,7 @@ export const TIER_B_SERVER_FRAMES = [
   ChooseEntitiesForEffectSchema,
   ManipulateCardListSchema,
   SetSelectablesSchema,
+  SetHighlightedSchema,
   SetWeaklySelectableSchema,
   OpenZonesSchema,
   RestoreOldZonesSchema,

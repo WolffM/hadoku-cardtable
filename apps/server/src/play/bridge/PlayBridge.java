@@ -765,6 +765,47 @@ public final class PlayBridge {
         }
 
         /**
+         * The entities the CURRENT input has marked — the third and last thing
+         * Forge says per-entity, and until Wave 22 the one this bridge dropped.
+         *
+         * {@code setSelectables} comes from the two selection inputs and
+         * {@code setWeaklySelectable} from priority and payment. An input that
+         * is neither speaks only through this method, and
+         * {@code InputLondonMulligan} is exactly that one
+         * ({@code InputLondonMulligan.java:138,144}): without this frame the
+         * seat got the prose and the OK/Auto bar and no entity at all, which is
+         * the bug the operator reported as "the cards were not clickable — had
+         * to press Auto".
+         *
+         * <p>Unlike the other two this is INCREMENTAL and signed: {@code true}
+         * marks, {@code false} unmarks, one call per change against a set the
+         * GUI keeps ({@code AbstractGuiGame.java:322-337}). The boolean is on
+         * the wire and the client folds; replacing a set here would lose the
+         * un-highlight at {@code InputLondonMulligan.java:144}.
+         *
+         * <p>{@code super} is called for the same reason as
+         * {@code setWeaklySelectable}: this seat's own tracker then answers
+         * {@code isHighlighted} as the stock client's would. It costs nothing —
+         * the two things {@code AbstractGuiGame.setHighlighted} calls back into
+         * are {@code updateCards} (a no-op default,
+         * {@code AbstractGuiGame.java:946}) and {@code updateLives} (a no-op
+         * here, {@code :1147}).
+         *
+         * <p>The argument is {@code Iterable<GameEntityView>}, not
+         * {@code Iterable<CardView>} (IGuiGame.java:265) — a player travels
+         * through it too ({@code InputSelectTargets.java:409}) — so
+         * {@link #refs} is what encodes it, and it emits {@code card} and
+         * {@code player} refs as they arrive.
+         */
+        @Override public void setHighlighted(final Iterable<GameEntityView> entities, final boolean on) {
+            super.setHighlighted(entities == null ? List.of() : entities, on);
+            final JsonObject f = notify("setHighlighted");
+            f.add("entities", refs(entities));
+            f.addProperty("on", on);
+            frame(f);
+        }
+
+        /**
          * Forge's answer to "what is worth clicking RIGHT NOW", at priority and
          * during payment — see `packages/forge-wire/src/tier-b.ts`.
          *
