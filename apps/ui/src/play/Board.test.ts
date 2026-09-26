@@ -603,17 +603,24 @@ describe('the canvas is static', () => {
     expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'who field piles' 'who hand piles'");
     expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-areas')).toBe("'who hand piles' 'who field piles'");
     /*
-     * Every label is a horizontal strip in a FIXED track (§C.1) — the zone's own
-     * across its slot, a lane's across the lane — and `--card-slack` owes back
-     * every strip between a list's container and its cards, or a two-row lane
-     * computes a card taller than the room under its own label and has to
-     * scroll. That is the one way un-rotating a label can break the fit.
+     * Every label is horizontal and in a FIXED track (§C.1), and which AXIS it
+     * costs is load-bearing, not taste:
+     *
+     *   - a ZONE's label is a `--gutter-w` COLUMN. A strip across the top would
+     *     make every lane shorter than the slot, and `e2e/table-fit.spec.ts`
+     *     asserts a filled lane is within 4px of the zone's own height.
+     *   - a LANE's label is a `--row-head-h` strip, because a lane is tall and
+     *     narrow and a column there would eat its whole share of the width.
+     *
+     * A lane paying in height means `--card-slack` owes that height back, or a
+     * two-row lane computes a card taller than the room under its own label and
+     * the lane has to scroll. The hand's label costs no height, so its slack is
+     * the ring and lift alone.
      */
-    expect(declarationIn('.seat[data-viewer] > .zone--hand', 'grid-template-rows')).toBe('var(--zone-head-h) minmax(0, 1fr)');
+    expect(declarationIn('.seat[data-viewer] > .zone--hand', 'grid-template-columns')).toBe('var(--gutter-w) minmax(0, 1fr)');
+    expect(declarationIn('.seat[data-viewer] > .zone--hand', 'grid-template-rows'), 'no label track over the lanes').toBeUndefined();
     expect(declarationIn('.zone__row', 'grid-template-rows')).toBe('var(--row-head-h) minmax(0, 1fr)');
-    expect(declarationIn('.seat[data-viewer] > .zone--hand > .zone__cards', '--card-slack')).toBe(
-      'calc(8px + var(--zone-head-h) + var(--zone-head-gap))',
-    );
+    expect(declarationIn('.seat[data-viewer] > .zone--hand > .zone__cards', '--card-slack')).toBe('8px');
     expect(declarationIn('.seat > .zone--battlefield .zone__row > .zone__cards', '--card-slack')).toBe(
       'calc(6px + var(--row-head-h) + var(--row-head-gap))',
     );

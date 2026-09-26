@@ -105,11 +105,12 @@
  *   - the header cost every seat `2.5rem` of HEIGHT across its whole width and
  *     used almost none of it. The viewer's battlefield gains ~26px and the
  *     opponent's ~44px by not having it, which is what pays for the horizontal
- *     zone and lane labels below (`--zone-head-h`, `--row-head-h`);
- *   - the bar costs the battlefield 68px of width, and the labels moving off
- *     the left edges give ~19px of it straight back (the zone's own label) plus
- *     ~14px a lane in `--group-overhead`. Net, a card on a crowded battlefield
- *     came out WIDER than before, measured at 20 permanents a side.
+ *     lane labels below (`--row-head-h`);
+ *   - the bar costs the battlefield 68px of width, and the lane labels moving
+ *     off their left edges give ~13px a lane back in `--group-overhead` — which
+ *     is most of what the zone's own label spends on becoming horizontal
+ *     (19px of column becomes 72px). Net, the narrowest card on a battlefield of
+ *     20 comes out within a pixel of what it was.
  *
  * And the point of wave 20's face anchoring survives the move, because
  * `e2e/table-fit.spec.ts` measures it: the bar is two tracks and the avatar
@@ -122,13 +123,19 @@
  *
  * The operator, 2026-09-26: *"vertical words are impossible to read, lets try
  * it differently"*. Nothing here sets text rotated. A zone's label is a
- * `--zone-head-h` strip across the top of its slot and a battlefield lane's is
- * a `--row-head-h` strip across the top of the lane; both are named sizes, so
- * a label still cannot be pushed by what its zone holds. Because the label no
- * longer costs its slot any WIDTH, the card-sizing maths has to give the height
- * back: `--card-slack` on those lists includes the label track and its gap, or
- * a two-row lane would compute a card taller than the room left under its own
- * label. `Board.test.ts` greps this file for `writing-mode` and `rotate`.
+ * horizontal word in a `--gutter-w` column at the left of its slot, and a
+ * battlefield lane's is a `--row-head-h` strip across the top of the lane. Both
+ * are named sizes, so a label still cannot be pushed by what its zone holds,
+ * and which AXIS each costs is the measured choice: a zone is wide, so its label
+ * takes width, while a lane is tall and narrow, so its label takes height —
+ * and a label strip over the whole zone would make every lane shorter than the
+ * slot, which `e2e/table-fit.spec.ts` reds on purpose.
+ *
+ * A lane paying for its label in height means the card-sizing maths has to give
+ * that height back: `--card-slack` on a lane's list includes the strip and its
+ * gap, or a two-row lane computes a card taller than the room under its own
+ * label and the lane has to scroll. `Board.test.ts` greps this file for
+ * `writing-mode` and `rotate`.
  *
  * No WotC marks in anything drawn here: states are words ("tapped"), life is a
  * number, a player is a circle and a bust we drew, and the stack is a list.
@@ -472,28 +479,45 @@
 }
 
 /*
- * A row zone: the battlefields and your hand. Its label is a horizontal strip
- * across the top — a FIXED track, so it reads straight and still cannot be
- * moved by what the zone holds — and the cards take the rest of the box, which
- * for a battlefield is its four lanes, each with a strip of its own.
+ * A row zone: the battlefields and your hand. Its label is a horizontal word in
+ * a FIXED column at the left (`--gutter-w`), and the cards take the rest of the
+ * box — which for a battlefield is its four lanes, each with a label strip of
+ * its own across the top of the lane.
+ *
+ * The label is a column rather than a strip over the slot because a lane has to
+ * be the whole HEIGHT of the slot: the lanes divide the width, and
+ * `e2e/table-fit.spec.ts` asserts every filled lane is within 4px of the zone's
+ * own height. A label track above them would make every lane 17px shorter than
+ * the zone and red that assertion — which is also the layout argument the
+ * header makes, from the other end. So the label costs width, and it is the
+ * `--group-overhead` the lane labels stopped costing that pays for it.
  */
 .seat > .zone--battlefield,
 .seat[data-viewer] > .zone--hand {
   --rows: 1;
   --card-max: 7.5rem;
-  /* One line of the 11px label (14.3px), and nothing spare. */
-  --zone-head-h: 0.95rem;
-  --zone-head-gap: 2px;
 
   container: row-zone / size;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: var(--zone-head-h) minmax(0, 1fr);
-  gap: var(--zone-head-gap);
+  grid-template-columns: var(--gutter-w) minmax(0, 1fr);
+  gap: 6px;
   border-radius: var(--radius);
   /* The last resort. The sizing above is meant never to need it. */
   overflow: auto;
   scrollbar-width: thin;
+}
+
+/*
+ * The word itself, horizontal. `auto` would let the column be as wide as the
+ * longest label at whatever type size — 83px for "BATTLEFIELD" at the 11px the
+ * other zones use — so the column is a named size and the type is the piles'
+ * 9.5px, wrapping the count onto a second line rather than clipping it.
+ */
+.seat > .zone--battlefield .zone__head,
+.seat[data-viewer] > .zone--hand > .zone__head {
+  font-size: 9.5px;
+  letter-spacing: 0;
+  white-space: normal;
 }
 
 /* A battlefield is the table: the darkest surface here, sunken into the seat. */
@@ -503,6 +527,12 @@
    * nothing more. "Creatures 0" is the longest of the four at this type size.
    */
   --group-empty-w: 3.4rem;
+  /*
+   * The zone's own label column: enough for "BATTLEFIELD" at 9.5px on one line,
+   * with the count wrapping under it, and enough for the Regroup control below
+   * that — which on the viewer's side is the wider of the two.
+   */
+  --gutter-w: 4.5rem;
   /*
    * And what a lane costs before its first card: its border and the list's
    * padding, now that the label is a strip over the lane rather than a column
@@ -517,19 +547,21 @@
   --row-head-h: 0.8rem;
   --row-head-gap: 2px;
 
+  gap: 4px;
   padding: 0 4px 0 2px;
   background: var(--bg);
   border: 1px solid rgb(0 0 0 / 55%);
   box-shadow: inset 0 3px 8px rgb(0 0 0 / 70%);
 }
 
-/* The zone's label strip, and the one control on this board that is ours. */
+/* The zone's label column, and the one control on this board that is ours: the
+   label at the top of the column, Regroup at the foot of it. */
 .zone__gutter {
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -538,7 +570,7 @@
 .zone__regroup {
   flex: none;
   margin: 0;
-  padding: 0 7px;
+  padding: 1px 4px;
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -567,8 +599,9 @@
  * `flex-grow` to its card count, which is what makes every card on the
  * battlefield one width; a lane holding nothing is its label's width. Each
  * lane is its own size container, so the `--card-w` rule below reads the
- * LANE's height — which is the whole of what the zone's label strip left, and
- * from which `--card-slack` then subtracts the lane's OWN label strip.
+ * LANE's height — which is the whole slot's, because the zone's label takes a
+ * column and no height at all — and from which `--card-slack` then subtracts the
+ * lane's own label strip.
  */
 .zone__rows {
   display: flex;
@@ -641,6 +674,8 @@
  */
 .seat[data-viewer] > .zone--hand {
   --card-max: 7rem;
+  /* "HAND 5" at 9.5px, on one line. */
+  --gutter-w: 2.8rem;
 
   padding: 0 4px 0 2px;
   background:
@@ -681,14 +716,14 @@
   padding: var(--card-pad);
 }
 
-/* The hand's container is the zone, so its slack owes the zone's label strip. */
+/* The hand's label is a column, so it costs this list no height at all. */
 .seat[data-viewer] > .zone--hand > .zone__cards {
-  --card-slack: calc(8px + var(--zone-head-h) + var(--zone-head-gap));
+  --card-slack: 8px;
   --card-pad: 4px 3px;
 }
 
-/* A lane's container is the lane, which the zone's label strip has already been
-   taken out of; what is left to pay for is the LANE's own label strip. */
+/* A lane's container is the lane, which is the whole height of the slot; what
+   this list does not get of it is the LANE's own label strip. */
 .seat > .zone--battlefield .zone__row > .zone__cards {
   --card-slack: calc(6px + var(--row-head-h) + var(--row-head-gap));
   --card-pad: 2px;
