@@ -12,6 +12,10 @@
  *   client → server  `forge:resync`  `{ matchId }`, ack → `MatchSnapshot | { error }`
  *   client → server  `forge:c2s`     `{ matchId, frame: ClientFrame }`
  *   server → client  `forge:s2c`     `{ matchId, cursor, frame: ServerFrame }`
+ *   client → server  `forge:full-control`  `{ matchId, on }`
+ *   server → client  `forge:full-control`  `{ matchId, on }` — the seat's
+ *                    current state, sent to a socket that has just been
+ *                    answered a snapshot. One event, one schema, both ways.
  *
  * ## The cursor, and the one place the contract's wording was sharpened
  *
@@ -101,11 +105,29 @@ export interface ClientEnvelope {
  * `forge:full-control` — this seat wants every question and every stop, or
  * wants the shortcuts back (`play/auto.ts`). Nothing about the game crosses
  * here: it is a preference of the person sitting in the seat.
+ *
+ * **It travels both ways, on one event and one schema.** Client → server it is
+ * a request; server → client it is the seat's CURRENT state, sent to a socket
+ * that has just been answered a snapshot. Full control is a per-seat
+ * preference the server holds and the state channel does not carry, so it
+ * belongs with the prompt and the bar in the set of things a fresh page needs
+ * after a join (`Match.resendAfterSnapshot`'s docstring names that set) — and
+ * without it a refresh drew the toggle off while the server still held the
+ * seat in full control. The payload is identical in both directions, so
+ * neither side needs a second schema and a drift is impossible.
  */
 export const FullControlSchema = borrowed.emptyObject
 	.extend({ matchId: borrowed.nonEmptyString, on: borrowed.boolean })
 	.strict();
 export type FullControlRequest = Output<typeof FullControlSchema>;
+
+/**
+ * The server → client payload of `forge:full-control`, built THROUGH the
+ * schema so an echo that does not satisfy the client's parse cannot be sent.
+ */
+export function fullControlEcho(matchId: string, on: boolean): FullControlRequest {
+	return FullControlSchema.parse({ matchId, on });
+}
 
 /* ── Server → client ─────────────────────────────────────────────────── */
 

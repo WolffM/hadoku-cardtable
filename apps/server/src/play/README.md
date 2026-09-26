@@ -139,6 +139,16 @@ handshake, never a payload.
   A reply must match an open ask of **this seat** by `callId` and `method`.
 - `forge:s2c { matchId, cursor, frame }` — per seat. `seq` counts every frame
   to that seat from 1, by exactly 1; `epoch` is `<matchId>:<start ms>`.
+- `forge:full-control { matchId, on }` — **both ways, one schema.** Client →
+  server it is a request, bound to the seat `claim` gave that connection and
+  never to anything in the payload. Server → client it is that seat's CURRENT
+  state, emitted to the socket that has just been answered a snapshot (join and
+  resync alike, `on: false` included). It carries nothing about the game; it is
+  a preference the server holds and no frame carries, so without the second
+  direction a refreshed page drew the toggle off while the server still had the
+  seat in full control (wave 21 §C.1). It is not a field of `MatchSnapshot`
+  because that schema is mirrored in two packages and this event already
+  existed — `transport.ts`'s header has the argument.
 
 Three clarifications of the contract. The first two were agreed with the
 manager mid-wave; the third is this lane's decision:
@@ -218,7 +228,7 @@ was answered in 3 ms, and a probe ran alongside it in 4.4 ms.
 | --- | --- | --- |
 | `visibility.test.ts` (21) | both seats projected from Wave 8's 27-packet fixture; whole-payload leak check; own hand fully visible after draws; public cards untouched; events dropped (real `GameEventCardChangeZone`); `setGameView`; a face-down permanent | `apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`, `packages/forge-wire/src/events/fixtures/` |
 | `match.test.ts` (44) | identity binding and its failure modes, per-seat emission and the leak check, cursor, snapshot, asks (reply by callId, other seat cannot answer, disconnect/timeout/browser abort, re-send), invalid frames, lifecycle; the 'Flying' regression; **crash** (both seats told, once, at the next cursor; kept across a resync) and **reconnect** (the grace, the same board and ask after a refresh) | `fixtures/bridge-two-seats.ndjson`, `fixtures/bridge-flying-seat1.ndjson` |
-| `socket.test.ts` (14) | real express + socket.io + clients with edge headers: POST, joins, match-full, whole-transcript leak check, contiguous cursors from the snapshot, reply routing, disconnect vs refresh, tier gate, dev identity refused without the hatch; a refresh in browser order (old socket closed first) outliving the grace; a crash leaving the server up | same transcript |
+| `socket.test.ts` (18) | real express + socket.io + clients with edge headers: POST, joins, match-full, whole-transcript leak check, contiguous cursors from the snapshot, reply routing, disconnect vs refresh, tier gate, dev identity refused without the hatch; a refresh in browser order (old socket closed first) outliving the grace; a crash leaving the server up; full control echoed to every join and resync, restored across a refresh, per seat, and withheld from a refused join | same transcript |
 | `host.test.ts` (8) | the JVM pool against `fixtures/fake-bridge.mjs` (a child process speaking the bridge's line protocol, no Forge): spare adoption and re-addressing, a still-booting spare, spare off, `close()`, the ceiling counting the spare, the heap cap, a spare that keeps dying, a match's JVM SIGKILLed | fake bridge — runs in CI |
 | `auto.test.ts` (76) | the shortcuts as rules: every committed prompt fixture stays a question; the bounds cases that answer themselves; `autoPassReason` and `autoPayReason` over typed frames AND over `fixtures/w20-turn-flow.json`'s real windows; the same through a whole `Match` over the replay host; `fullControl` turning all of it off | `apps/ui/src/play/prompts/fixtures/*.json`, `fixtures/w20-turn-flow.json` |
 | `auto.jvm.test.ts` (1) | the same against a real Forge: stops passed only where Forge named nothing, every cast says what it paid, the scry asks about the scried cards; **skips visibly** without a jar | live |

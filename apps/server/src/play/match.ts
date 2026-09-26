@@ -350,6 +350,13 @@ export class Match {
 	 * After a snapshot: what the seat needs that the state channel does not
 	 * carry — the prompt and buttons of the moment, and the open ask, if any.
 	 * Each is a normal frame with the next cursor.
+	 *
+	 * One member of that set is NOT a frame and so is not sent here: the seat's
+	 * `fullControl`, which `socket.ts` emits on `forge:full-control` right after
+	 * this runs (see `transport.ts`'s header). It is a preference rather than
+	 * anything Forge said, it has no cursor, and it must not enter this seat's
+	 * history — but it is needed after a snapshot for exactly the same reason
+	 * the prompt is.
 	 */
 	resendAfterSnapshot(seat: number): void {
 		const s = this.seats[seat];

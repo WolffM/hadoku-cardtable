@@ -155,12 +155,21 @@
  *
  * The seat's escape hatch (§C.4): `forge:full-control` turns lane C's
  * auto-pass and single-answer shortcuts off for this seat, and back on. It is
- * a preference, not a frame — it goes on its own event, `setFullControl` is
- * the one sender, and the handle's flag is what this client last sent. The
- * server does not echo a seat's toggle into its snapshot (the snapshot has no
- * such field), so a refreshed page draws the toggle off even where the server
- * holds it on; the next click re-syncs it, because setting a seat to the
- * state it already has is a documented no-op.
+ * a preference, not a frame — it goes on its own event, and `setFullControl`
+ * is the one sender.
+ *
+ * **The event travels both ways, and the server has the last word.** After
+ * every snapshot the server emits the seat's CURRENT state back on the same
+ * event with the same payload (`apps/server/src/play/socket.ts`, right after
+ * `resendAfterSnapshot`), and this client adopts it. That is what makes a
+ * refresh keep full control: a fresh page starts with the flag off, joins, and
+ * is told. It is not in `MatchSnapshot` because the snapshot's schema is
+ * mirrored in two packages and this event was already there — see
+ * `./transport.ts`.
+ *
+ * The flag is therefore the server's word where the server has spoken, and
+ * this client's own last word in between (the send is optimistic: the server
+ * logs a refusal rather than answering one).
  *
  * ## An open prompt never holds the board back
  *
@@ -195,6 +204,7 @@ import { foldPackets, type WireState } from '../fold.ts';
 import { expectWirePackets, type WirePacket } from '../wire.ts';
 import {
   abortFrame,
+  FullControlSchema,
   fullControlFrame,
   MATCH_EVENTS,
   parseMatchAck,
@@ -414,7 +424,12 @@ export interface LiveMatch {
   inputLive: boolean;
   /** Cards and players clicked since Forge last spoke — not clickable again until it does. */
   spent: { cards: Set<number>; players: Set<number> };
-  /** This seat's full-control toggle, as this client last sent it. Off by default. */
+  /**
+   * This seat's full-control toggle. The server's word after every snapshot,
+   * this client's own last word in between. Off by default — and off is also
+   * what a page that has not yet been answered a snapshot must draw, because
+   * the alternative is drawing a hatch nobody opened.
+   */
   fullControl: boolean;
   /** The most recent failure worth showing. Cleared when a snapshot lands. */
   lastError: string | null;
@@ -521,6 +536,10 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     ingest(match, payload);
   });
 
+  match.transport.on(MATCH_EVENTS.fullControl, (payload) => {
+    adoptFullControl(match, payload);
+  });
+
   match.transport.on('connect', () => {
     const rejoin = match.everConnected;
     match.connected = true;
@@ -621,6 +640,43 @@ export function setFullControl(match: LiveMatch, on: boolean): boolean {
   match.fullControl = on;
   notify(match);
   return true;
+}
+
+/**
+ * `forge:full-control` arriving FROM the server: the seat's state as the server
+ * holds it, sent to this socket after every snapshot. Adopting it is what makes
+ * a refresh keep full control.
+ *
+ * The same schema the sender uses, strictly — an unknown field or a missing
+ * `on` is recorded in `lastInvalid` and changes nothing, exactly as a malformed
+ * envelope does. A payload for another match is ignored for the same reason a
+ * snapshot for another match is refused: this handle speaks for one match only.
+ *
+ * It never sends anything. The server is telling us, not asking; answering it
+ * would be a loop.
+ */
+function adoptFullControl(match: LiveMatch, payload: unknown): void {
+  const parsed = FullControlSchema.safeParse(payload);
+  if (!parsed.success) {
+    match.lastInvalid = parsed.error.issues.map((i) => ({
+      path: `$${i.path.map((p) => (typeof p === 'number' ? `[${p}]` : `.${String(p)}`)).join('')}`,
+      message: i.message,
+    }));
+    match.stats.invalid += 1;
+    notify(match);
+    return;
+  }
+  if (parsed.data.matchId !== match.matchId) {
+    match.lastInvalid = [
+      { path: '$.matchId', message: `full control for match ${parsed.data.matchId}, not ${match.matchId}` },
+    ];
+    match.stats.invalid += 1;
+    notify(match);
+    return;
+  }
+  if (match.fullControl === parsed.data.on) return;
+  match.fullControl = parsed.data.on;
+  notify(match);
 }
 
 const NOTHING: LiveClickables = { selectable: new Set(), selectablePlayers: new Set() };

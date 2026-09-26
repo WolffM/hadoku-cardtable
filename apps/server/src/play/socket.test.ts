@@ -114,8 +114,12 @@ interface Peer {
 	frames: unknown[];
 	/** Every ack, as received. */
 	acks: unknown[];
+	/** Every `forge:full-control` payload the SERVER sent this socket, as received. */
+	fullControls: unknown[];
 	request(event: 'forge:join' | 'forge:resync', payload: unknown): Promise<unknown>;
 	send(payload: unknown): void;
+	/** Ask for full control, or give it back — the client → server direction. */
+	setFullControl(payload: unknown): void;
 	/** Everything this peer was sent, serialised. */
 	transcript(): string;
 }
@@ -134,15 +138,18 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 			socket,
 			frames: [],
 			acks: [],
+			fullControls: [],
 			request: async (event, payload) => {
 				const ack: unknown = await socket.timeout(3000).emitWithAck(event, payload);
 				peer.acks.push(ack);
 				return ack;
 			},
 			send: (payload) => socket.emit('forge:c2s', payload),
+			setFullControl: (payload) => socket.emit('forge:full-control', payload),
 			transcript: () => [...peer.acks, ...peer.frames].map((x) => JSON.stringify(x)).join('\n'),
 		};
 		socket.on('forge:s2c', (payload: unknown) => peer.frames.push(payload));
+		socket.on('forge:full-control', (payload: unknown) => peer.fullControls.push(payload));
 		socket.on('connect', () => done(peer));
 		socket.on('connect_error', (err) => fail(err));
 	});
@@ -384,6 +391,82 @@ describe('reconnect: a browser refresh mid-match', () => {
 		aliceAgain.send({ matchId, frame: { kind: 'reply', callId, method: 'showConfirmDialog', result: true } });
 		await waitUntil(() => host.commands.length > 0, 'the answer to reach Forge');
 		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
+	});
+});
+
+/*
+ * Full control is a per-seat preference the server holds and no frame carries,
+ * so a page that has just joined has no way to know it — which is exactly how a
+ * refresh came to draw the toggle off while the server still had the seat in
+ * full control. The server now says so on `forge:full-control`, the same event
+ * and the same payload the client sends, to the socket it has just answered.
+ *
+ * These cases are over REAL sockets: what is asserted is the bytes a browser
+ * would receive. The client's half — adopting it — is
+ * `apps/ui/src/play/live/match.test.ts`.
+ */
+describe('full control survives a refresh', () => {
+	it('tells a joining socket what this seat is set to, and a refreshed page is told ON', async () => {
+		const h = await boot({ disconnectGraceMs: 1000 });
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+
+		// Every join is told, so a page that has it ON and a server that does not
+		// is corrected too. The default is off, and that is what the first join says.
+		await waitUntil(() => alice.fullControls.length > 0 && bob.fullControls.length > 0, 'both first joins to be told');
+		expect(alice.fullControls).toEqual([{ matchId, on: false }]);
+		expect(bob.fullControls).toEqual([{ matchId, on: false }]);
+
+		// The player opens the hatch.
+		alice.setFullControl({ matchId, on: true });
+		await waitUntil(() => h.handle.matches.get(matchId)?.fullControl(0) === true, 'the server to hold full control');
+
+		// The refresh, in the order a browser does it: the old socket goes, a new
+		// one joins. It is a NEW page — it starts with the toggle off and nothing
+		// of the old one's memory.
+		alice.socket.disconnect();
+		await waitUntil(() => h.logs.some((l) => l.evt === 'left' && l.seat === 0 && l.stillHere === false), 'the old page to go');
+		const aliceAgain = await connect(h.port, edgeHeaders('alice'));
+		const again = (await aliceAgain.request('forge:join', { matchId })) as { seat: number };
+		expect(again.seat).toBe(0);
+
+		await waitUntil(() => aliceAgain.fullControls.length > 0, 'the refreshed page to be told');
+		expect(aliceAgain.fullControls).toEqual([{ matchId, on: true }]);
+		// And it is the seat's own state, not the match's: bob is untouched.
+		expect(bob.fullControls).toEqual([{ matchId, on: false }]);
+		expect(h.handle.matches.get(matchId)?.fullControl(1)).toBe(false);
+
+		// A resync is told too — the same reason a resync re-sends the prompt.
+		await aliceAgain.request('forge:resync', { matchId });
+		await waitUntil(() => aliceAgain.fullControls.length > 1, 'the resync to be told');
+		expect(aliceAgain.fullControls).toEqual([
+			{ matchId, on: true },
+			{ matchId, on: true },
+		]);
+
+		// It is the parsed payload, nothing more: the client's own strict schema
+		// accepts every one of these, which is what makes the echo adoptable.
+		for (const payload of aliceAgain.fullControls) {
+			expect(transportMod.FullControlSchema.safeParse(payload).success).toBe(true);
+		}
+	});
+
+	it('a refused join is told nothing at all — there is no seat to have a preference', async () => {
+		const h = await boot();
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		const carol = await connect(h.port, edgeHeaders('carol'));
+		expect(await carol.request('forge:join', { matchId })).toEqual({ error: 'match-full' });
+		await new Promise((r) => setTimeout(r, 200));
+		expect(carol.fullControls).toEqual([]);
 	});
 });
 

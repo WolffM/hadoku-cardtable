@@ -794,3 +794,124 @@ describe('the says, and full control', () => {
     expect(s.clientFrames()).toEqual([]);
   });
 });
+
+/*
+ * The other direction of `forge:full-control` (§C.1). The server holds the
+ * seat's preference and no frame carries it, so a refreshed page has no way to
+ * know it — it used to draw the toggle off while the server had the seat in
+ * full control, and only the next click re-synced it. The server now emits the
+ * seat's state on the same event, with the same payload, to the socket it has
+ * just answered a snapshot.
+ *
+ * Stubbed, because the inbound direction is the SERVER's to send and
+ * `./replay-server.ts` does not send it (it only records the client's emits).
+ * The server's half is `apps/server/src/play/socket.test.ts`'s "full control
+ * survives a refresh", over real sockets, which asserts the exact bytes these
+ * cases feed in — and asserts they satisfy the same strict schema this handle
+ * parses them with, so the two halves cannot drift apart silently.
+ */
+describe('full control, restored after a refresh', () => {
+  /*
+   * `cursor` is seq 1 with no frames in it, which the contract allows and the
+   * last case needs: `frames` is the STATE history and the cursor is the latest
+   * of any kind, so a seat whose only frame so far was a prompt looks exactly
+   * like this. It makes the seq-9 frame below a gap, and the gap is what makes
+   * the resync happen.
+   */
+  const SNAPSHOT = { matchId: 'm', seat: 0, playerId: 0, cursor: { epoch: 'e', seq: 1 }, frames: [] as unknown[] };
+
+  interface Stub {
+    m: LiveMatch;
+    /** Deliver a payload on `forge:full-control`, as the server does. */
+    tell(payload: unknown): void;
+    emitted: { event: string; payload: unknown }[];
+    /** Answer the join (or a resync) with a snapshot. */
+    ack(): void;
+  }
+
+  /** A fresh page: a new handle, the toggle off, nothing remembered. */
+  function fresh(): Stub {
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const emitted: { event: string; payload: unknown }[] = [];
+    const acks: ((err: Error | null, response: unknown) => void)[] = [];
+    const transport: MatchTransport = {
+      on: (event, handler) => {
+        handlers.set(event, handler);
+      },
+      emit: (event, payload) => emitted.push({ event, payload }),
+      request: (_event, _payload, onAck) => acks.push(onAck),
+      disconnect: () => {},
+    };
+    const m = startMatch({ matchId: 'm', transport });
+    return {
+      m,
+      emitted,
+      tell: (payload) => {
+        const handler = handlers.get(MATCH_EVENTS.fullControl);
+        if (handler === undefined) throw new Error('the handle does not listen on forge:full-control at all');
+        handler(payload);
+      },
+      ack: () => acks.shift()!(null, SNAPSHOT),
+    };
+  }
+
+  it('a page that joins into a seat the server holds in full control draws it ON', () => {
+    const { m, tell, emitted, ack } = fresh();
+    ack();
+    // A fresh handle knows nothing: off is what it must draw until told.
+    expect(m.fullControl).toBe(false);
+    const before = m.revision;
+
+    tell({ matchId: 'm', on: true });
+
+    expect(m.fullControl).toBe(true);
+    // It redrew: `LiveBoard` reads the flag through `subscribe`.
+    expect(m.revision).toBeGreaterThan(before);
+    // Nothing was sent back. The server is telling us; answering would loop.
+    expect(emitted).toEqual([]);
+    // And the toggle now agrees with the seat: the click that would turn it ON
+    // is the documented no-op, and the one that turns it OFF is what crosses.
+    expect(setFullControl(m, true)).toBe(false);
+    expect(setFullControl(m, false)).toBe(true);
+    expect(emitted).toEqual([{ event: MATCH_EVENTS.fullControl, payload: { matchId: 'm', on: false } }]);
+  });
+
+  it('the server has the last word: it turns the flag OFF as well as on', () => {
+    const { m, tell, ack } = fresh();
+    ack();
+    tell({ matchId: 'm', on: true });
+    expect(m.fullControl).toBe(true);
+    tell({ matchId: 'm', on: false });
+    expect(m.fullControl).toBe(false);
+  });
+
+  it('a payload for another match, or one the schema refuses, changes nothing and is counted', () => {
+    const { m, tell, ack } = fresh();
+    ack();
+    for (const bad of [
+      { matchId: 'someone-elses-match', on: true },
+      { matchId: 'm', on: 'yes' },
+      { matchId: 'm' },
+      { matchId: 'm', on: true, seat: 0 },
+      null,
+    ]) {
+      tell(bad);
+      expect(m.fullControl, `${JSON.stringify(bad)} must not open the hatch`).toBe(false);
+    }
+    expect(m.stats.invalid).toBe(5);
+    expect(m.lastInvalid).not.toBeNull();
+  });
+
+  it('a snapshot does not clear it: the echo lands after the ack, and a resync must not undo it', () => {
+    const { m, tell, ack } = fresh();
+    ack();
+    tell({ matchId: 'm', on: true });
+    // A resync adopts a fresh snapshot. It clears asks, selections and the log
+    // — it must NOT clear a preference the server has not withdrawn.
+    ingest(m, { matchId: 'm', cursor: { epoch: 'e', seq: 9 }, frame: FRAMES[0] });
+    expect(m.stats.resyncsRequested).toBe(1);
+    ack();
+    expect(m.stats.snapshots).toBe(2);
+    expect(m.fullControl).toBe(true);
+  });
+});

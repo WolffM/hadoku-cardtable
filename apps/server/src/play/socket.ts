@@ -59,6 +59,7 @@ import { identityFromHeaders, participantHandle } from '../room/identity.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec } from './host.js';
 import { createMatchRegistry, type Match, type MatchRegistry } from './match.js';
 import {
+	fullControlEcho,
 	MATCH_EVENTS,
 	parseClientEnvelope,
 	parseFullControl,
@@ -382,9 +383,29 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				void snapshotFor(raw, event === 'join').then((result) => {
 					(ack as (r: unknown) => void)(result);
 					if ('frames' in result) {
+						const match = matches.get(result.matchId);
+						if (match === undefined) return;
 						// After the ack, so the client has adopted the snapshot's cursor
 						// before the next frame reaches it.
-						matches.get(result.matchId)?.resendAfterSnapshot(result.seat);
+						match.resendAfterSnapshot(result.seat);
+						/*
+						 * And the seat's full-control state, on its own event, to THIS
+						 * socket only — the same "what a fresh page needs that the state
+						 * channel does not carry" as the prompt and the bar above.
+						 *
+						 * It is not in `MatchSnapshot` because the snapshot's schema is
+						 * mirrored in two packages (`transport.ts`'s header) and this
+						 * event already exists, with a payload that is identical in both
+						 * directions; the client applies it in `match.ts`. Without it a
+						 * refresh drew the toggle off while this seat was still in full
+						 * control, and only the next click re-synced it.
+						 *
+						 * Sent on every join and every resync, and always — `on: false`
+						 * as well — so a client that has the flag on and a server that
+						 * does not is corrected too, in the one direction that is the
+						 * server's to settle.
+						 */
+						socket.emit(MATCH_EVENTS.fullControl, fullControlEcho(result.matchId, match.fullControl(result.seat)));
 					}
 				});
 			};
