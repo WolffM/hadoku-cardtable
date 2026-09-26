@@ -1,6 +1,8 @@
 /**
- * The seat transitions, against the REAL `@wolffm/rooms-server@0.38.111` and the
- * real cube pool — no stub room, no fabricated cards.
+ * The seat transitions, against the REAL `@wolffm/rooms-server` — whichever
+ * version `apps/server/package.json` pins, which is the point: no stub room, no
+ * fabricated cards, and no version number in a comment to go stale. (This line
+ * said `0.38.111` for two upgrades after the upgrades landed.)
  *
  * The centrepiece is `leaveRoom`'s refresh hazard. It is tested here rather than
  * over a socket because the failure is a specific ORDER of calls, and a test
@@ -36,6 +38,7 @@ import {
 	reservationFor,
 	roleOf,
 	seatOf,
+	seatRows,
 	type SeatId,
 } from '@wolffm/rooms-protocol';
 import { pick as enginePick } from '@hadoku/draft';
@@ -597,6 +600,75 @@ describe('onRoomDelete', () => {
 		// timer above would survive. It does not.
 		r.delete('pod-1');
 		expect(room.app.vacating.size).toBe(0);
+	});
+});
+
+describe('the wire seat rows agree with seatRows, row for row', () => {
+	/*
+	 * `seatRows(table)` is 0.39.4's answer to "how does a renderer see a bounded
+	 * table": every existing seat, then empty rows out to `capacity`. A draft
+	 * payload's `seats` is built in `packages/draft/src/view.ts`, which still
+	 * hand-rolls `Array.from({ length: state.seatCount })`.
+	 *
+	 * Those two agree only while the table is exactly `capacity` seats long, and
+	 * for a draft room they are: `createDraft` calls `padWithBots` at creation,
+	 * so the table is FULL from birth (a human joining evicts a bot rather than
+	 * appending) and `unseatParticipant` empties a seat without shortening the
+	 * array. So neither of the two failure modes `seatRows` exists for — a short
+	 * render below capacity, and an occupied seat DROPPED when
+	 * `seats.length > capacity` — is reachable here today.
+	 *
+	 * "Not reachable today" is the whole reason to pin it. These tests are the
+	 * guard on that equivalence: they hold whichever way `view.ts` builds the
+	 * rows, they go red the moment the table stops being capacity-many, and they
+	 * are what makes swapping that one line to `seatRows` a refactor somebody
+	 * can verify instead of a change of behaviour nobody can see. The swap
+	 * itself is not this lane's file.
+	 */
+	const rowsOf = (room: DraftRoom, who: string) =>
+		viewForParticipant(room, who).seats.map(({ id, occupant }) => ({ id, occupant }));
+
+	it('is capacity-many rows, because the engine pre-pads the table', () => {
+		const r = rooms();
+		const room = r.open('pod-1');
+		// The invariant the hand-rolled pad is only correct under. If this ever
+		// stops holding, the payload is short or a seat vanishes from it.
+		expect(room.seats.seats).toHaveLength(8);
+		expect(room.seats.capacity).toBe(8);
+		expect(rowsOf(room, CAROL)).toEqual(seatRows(room.seats));
+		expect(rowsOf(room, CAROL)).toHaveLength(room.seats.capacity ?? -1);
+	});
+
+	it('still agrees after a join, a deliberate leave and a disconnect', () => {
+		const r = rooms();
+		const room = r.open('pod-1');
+		joinDraftRoom(room, 'sock-a', ALICE, 'friend');
+		joinDraftRoom(room, 'sock-b', BOB, 'friend');
+		expect(rowsOf(room, ALICE)).toEqual(seatRows(room.seats));
+
+		// An empty seat is emptied in place, never spliced out — which is what
+		// keeps the table capacity-many and the hand-rolled pad honest.
+		releaseSeat(room, ALICE);
+		expect(room.seats.seats).toHaveLength(8);
+		expect(rowsOf(room, BOB)).toEqual(seatRows(room.seats));
+		expect(rowsOf(room, BOB)[0]).toEqual({ id: 0, occupant: null });
+
+		leaveDraftRoom(room, 'sock-b');
+		expect(room.seats.seats).toHaveLength(8);
+		expect(rowsOf(room, CAROL)).toEqual(seatRows(room.seats));
+	});
+
+	it('names every occupant the table names, and invents none', () => {
+		const r = rooms();
+		const room = r.open('pod-1');
+		joinDraftRoom(room, 'sock-a', ALICE, 'friend');
+
+		const rows = rowsOf(room, ALICE);
+		for (const { id } of rows) expect(rows[id]?.occupant).toEqual(occupantOf(room.seats, id));
+		// Nobody is dropped: every occupied seat in the table appears in the view.
+		const occupiedInView = rows.filter((row) => row.occupant !== null).map((row) => row.id);
+		const occupiedInTable = room.seats.seats.filter((s) => s.occupant !== null).map((s) => s.id);
+		expect(occupiedInView).toEqual(occupiedInTable);
 	});
 });
 

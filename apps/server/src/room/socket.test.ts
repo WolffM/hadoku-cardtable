@@ -83,6 +83,17 @@ interface Harness {
 	rooms: DraftRooms;
 	io: SocketIOServer;
 	http: HttpServer;
+	/**
+	 * Every structured line the socket layer emitted, in order.
+	 *
+	 * Captured rather than silenced because one field on one line is a product
+	 * observable rather than noise: `disconnected … guarded` is the only report
+	 * that the stale-close ordering happened at all, now that
+	 * `@wolffm/rooms-server` holds the seat itself and there is no seat change
+	 * left to assert. `e2e/draft.spec.ts:456` reads that same field out of the
+	 * real server's stdout; this makes the claim checkable without a browser.
+	 */
+	lines: Array<Record<string, unknown>>;
 	close: () => Promise<void>;
 }
 
@@ -93,11 +104,15 @@ async function boot(deps: { rateLimit?: { capacity: number; refillAmount: number
 	const rooms = roomsMod.createDraftRooms({ pool: pool.cards, cube: pool.meta });
 	const http = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });
+	// Collected, not printed: nothing reaches the test output, and the one line
+	// that is a product observable stays assertable. See `Harness.lines`.
+	const lines: Array<Record<string, unknown>> = [];
 	const handle = socketMod.attachDraftSocket(io, {
 		rooms,
 		minTier: 'friend',
-		// Silence in the test log; the assertions read state, not lines.
-		log: () => {},
+		log: (line) => {
+			lines.push(line);
+		},
 		rateLimit: deps.rateLimit,
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
@@ -107,6 +122,7 @@ async function boot(deps: { rateLimit?: { capacity: number; refillAmount: number
 		rooms,
 		io,
 		http,
+		lines,
 		close: async () => {
 			handle.close();
 			io.close();
@@ -608,6 +624,56 @@ describe('a browser refresh', () => {
 		expect(view?.viewer.kind).toBe('seat');
 		if (view?.viewer.kind !== 'seat') return;
 		expect(view.viewer.seatId).toBe(0);
+	});
+
+	/*
+	 * `guarded` is all that is left of the workaround this file used to test.
+	 * Through 0.38.x the seat came back because `draftRooms.ts` put it back;
+	 * `@wolffm/rooms-server@0.39.5` deletes the client first and unseats only a
+	 * participant's LAST connection, so there is no repair left to observe —
+	 * the seat simply never moves, which is indistinguishable from a stale
+	 * close that was never processed at all.
+	 *
+	 * So the flag is the observable, and it only exists on the wire out: the
+	 * `disconnected` log line. `e2e/draft.spec.ts:456-502` reads it from the
+	 * real server's stdout and requires at least one. That e2e needs a browser
+	 * and a built bundle; this needs neither, so the claim in `draftRooms.ts`'s
+	 * header stops resting on a suite most runs skip.
+	 */
+	it('reports the ordering on the way out, because the seat no longer moves', async () => {
+		const first = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(first);
+		const participantId = room().clients.get(first.id)?.participantId ?? '';
+
+		const second = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(second);
+
+		const staleId = first.id;
+		first.socket.disconnect();
+		await waitUntil(() => !room().clients.has(staleId), 'the stale close to be processed');
+
+		const disconnects = live().lines.filter((l) => l.evt === 'disconnected');
+		expect(disconnects).toHaveLength(1);
+		expect(disconnects[0]).toMatchObject({ participantId, draftId: DRAFT_ID, guarded: true });
+		// The seat did not move, which is exactly why the flag has to exist.
+		expect(seatOf(room().seats, participantId)).toBe(0);
+	});
+
+	it('says guarded:false for a drop with nobody else carrying the id', async () => {
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		const participantId = room().clients.get(alice.id)?.participantId ?? '';
+
+		const aliceId = alice.id;
+		alice.socket.disconnect();
+		await waitUntil(() => !room().clients.has(aliceId), 'the disconnect to be processed');
+
+		const disconnects = live().lines.filter((l) => l.evt === 'disconnected');
+		expect(disconnects).toHaveLength(1);
+		expect(disconnects[0]).toMatchObject({ participantId, guarded: false });
+		// The real departure: unseated, and the reservation is what holds it.
+		expect(seatOf(room().seats, participantId)).toBeNull();
+		expect(room().seats.reservations[0]?.participantId).toBe(participantId);
 	});
 });
 
