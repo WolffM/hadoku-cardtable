@@ -129,6 +129,34 @@
   filter: brightness(1.08);
 }
 
+/*
+ * A dead button must LOOK dead, and not only by being dimmer.
+ *
+ * Ready is disabled until a deck is chosen, which is now the only thing
+ * standing between arriving in a room and starting a match — so "you cannot
+ * press this yet" is a state a person has to be able to read. Filled primary
+ * becomes an outline: the border and the flat background are the signal, the
+ * dimmer text is the confirmation, and the hover brightening is switched off
+ * so a press attempt gets no encouragement.
+ */
+.lobby__go:disabled {
+  background: var(--color-bg-alt);
+  color: var(--color-text-secondary);
+  box-shadow: inset 0 0 0 1px var(--color-border-light);
+  cursor: not-allowed;
+}
+
+.lobby__go:disabled:hover,
+.lobby__go:disabled:focus-visible {
+  filter: none;
+}
+
+/* The deck list while the era's legality answer is in flight: not choosable. */
+.lobby__card select:disabled {
+  color: var(--color-text-secondary);
+  cursor: progress;
+}
+
 .lobby__form {
   display: flex;
   flex-wrap: wrap;

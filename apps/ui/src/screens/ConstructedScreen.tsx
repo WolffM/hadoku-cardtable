@@ -17,6 +17,20 @@
  * refuses the same thing with the same sentence — the disabled button is a
  * courtesy, the refusal is the control.
  *
+ * ## Choosing a deck IS loading it, and the era decides which decks there are
+ *
+ * The operator, of the Load button this used to have: *"just 'I'm ready' is
+ * enough."* So there are two selects and one button. Picking a deck sends the
+ * `PUT` itself; picking an era re-sends it under the new rules, because a deck
+ * held against one format and started in another is the one way this screen
+ * could lie about what it checked.
+ *
+ * The era also NARROWS the deck list to the decks legal in it, which is one
+ * `POST /api/tables/check` per deck — see `legalDecksIn` for why there is no
+ * cheaper question to ask, and why a deck the server could not be asked about
+ * is offered rather than hidden. The answer is remembered per era, so flicking
+ * between two eras costs nothing the second time.
+ *
  * ## Waiting for the other person is the job
  *
  * Both players' state — chosen, legal, ready — is polled from the room
@@ -62,8 +76,12 @@ import {
   type RoomsClient,
 } from '../rooms/api.ts';
 import {
-  deckSize,
+  RANDOM_DECK,
+  legalDecksIn,
+  pickRandom,
+  secureRandom,
   tablesClient,
+  type LegalSweep,
   type RoomPlayer,
   type RoomTable,
   type SeatChoice,
@@ -84,6 +102,8 @@ export interface ConstructedScreenProps {
   rooms?: RoomsClient;
   /** Tests pass the stream probe's `fetch`. Production passes nothing. */
   streamFetch?: Fetch;
+  /** Where `Random` gets its number. Tests pin it; production passes nothing. */
+  rand?: () => number;
 }
 
 /** How often a seat that has no stream yet asks again. */
@@ -95,12 +115,26 @@ function seatChoice(deckId: string, formatId: string): SeatChoice {
   return { deck: { library: deckId }, rules: { kind: 'standard', format: formatId } };
 }
 
-export function ConstructedScreen({ client: given, roomId, pollMs = 1500, rooms, streamFetch }: ConstructedScreenProps) {
+export function ConstructedScreen({
+  client: given,
+  roomId,
+  pollMs = 1500,
+  rooms,
+  streamFetch,
+  rand = secureRandom,
+}: ConstructedScreenProps) {
   const client = useMemo(() => given ?? tablesClient(), [given]);
   return roomId === undefined ? (
     <NoRoom />
   ) : (
-    <RoomTableScreen client={client} roomId={roomId} pollMs={pollMs} rooms={rooms} streamFetch={streamFetch} />
+    <RoomTableScreen
+      client={client}
+      roomId={roomId}
+      pollMs={pollMs}
+      rooms={rooms}
+      streamFetch={streamFetch}
+      rand={rand}
+    />
   );
 }
 
@@ -110,12 +144,14 @@ function RoomTableScreen({
   pollMs,
   rooms: givenRooms,
   streamFetch,
+  rand,
 }: {
   client: TablesClient;
   roomId: string;
   pollMs: number;
   rooms?: RoomsClient;
   streamFetch?: Fetch;
+  rand: () => number;
 }) {
   const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -127,6 +163,9 @@ function RoomTableScreen({
   const [deckId, setDeckId] = useState('');
   const [busy, setBusy] = useState(false);
   const [starting, setStarting] = useState(false);
+  /** The era's answer to "which decks are legal here", and one per era kept. */
+  const [legal, setLegal] = useState<LegalSweep | null>(null);
+  const sweeps = useRef(new Map<string, LegalSweep>());
   const [startRefusal, setStartRefusal] = useState<string | null>(null);
   /** A start is in flight, or has been refused: not asked again on every poll. */
   const asked = useRef(false);
@@ -165,7 +204,9 @@ function RoomTableScreen({
         if (!live) return;
         setLoaded({ formats, decks });
         setFormatId((prev) => (prev === '' ? (formats[0]?.id ?? '') : prev));
-        setDeckId((prev) => (prev === '' ? (decks[0]?.id ?? '') : prev));
+        // No deck is chosen for you. Choosing one is what loads it, and the
+        // Ready button is dead until you have, so a default here would both
+        // load a deck nobody picked and make Ready live on arrival.
       })
       .catch((err: unknown) => {
         if (live) setLoadError(err instanceof Error ? err.message : String(err));
@@ -282,6 +323,52 @@ function RoomTableScreen({
   const full = players.length >= (table?.room.seats ?? 2);
   const spectating = table !== null && !table.you.player && full;
   const bothReady = players.length === 2 && players.every((p) => p.ready && p.legal);
+  const streamed = modeRef.current === 'streamed';
+  /** Whether the deck card is on the screen at all: nothing below asks for it otherwise. */
+  const picking = !streamed && resolved && locked === null && table !== null && !spectating && loaded !== null;
+
+  // Which decks this era offers. One sweep per era, remembered — see
+  // `legalDecksIn`. Gated on the card being drawn, so a streamed room, a
+  // locked room and a spectator ask nothing.
+  useEffect(() => {
+    if (!picking || loaded === null || formatId === '') return;
+    const cached = sweeps.current.get(formatId);
+    if (cached !== undefined) {
+      setLegal(cached);
+      return;
+    }
+    let live = true;
+    void legalDecksIn(client, formatId, loaded.decks).then((sweep) => {
+      // A sweep the server refused is NOT remembered: it offers every deck,
+      // and caching that would leave the era un-narrowed for as long as the
+      // page is open over one dropped request. Coming back to the era retries.
+      if (sweep.error === null) sweeps.current.set(sweep.formatId, sweep);
+      if (!live) return;
+      setLegal(sweep);
+      if (sweep.error !== null) setActionError(sweep.error);
+    });
+    return () => {
+      live = false;
+    };
+  }, [picking, loaded, formatId, client]);
+
+  /** The decks on offer, or null while the era's answer is still in flight. */
+  const offered = useMemo(
+    () =>
+      legal !== null && legal.formatId === formatId && loaded !== null
+        ? loaded.decks.filter((d) => legal.ids.has(d.id))
+        : null,
+    [legal, formatId, loaded],
+  );
+
+  // A deck the new era does not offer is no longer chosen. The `PUT` under the
+  // new rules has already gone (`chooseFormat`), so its verdict is on the
+  // screen saying which card is the problem; what this does is stop Ready
+  // coming back to life over a deck the list no longer contains.
+  useEffect(() => {
+    if (offered === null || deckId === '') return;
+    if (!offered.some((d) => d.id === deckId)) setDeckId('');
+  }, [offered, deckId]);
 
   // The match the server started — for whoever pressed nothing, too.
   useEffect(() => {
@@ -327,14 +414,38 @@ function RoomTableScreen({
     setActionError(outcome.error);
   };
 
-  const loadDeck = (): void => {
+  /** Hold a deck against a format. There is no button: choosing is loading. */
+  const loadDeck = (deck: string, format: string): void => {
     setBusy(true);
     setActionError(null);
     client
-      .loadDeck(roomId, seatChoice(deckId, formatId))
+      .loadDeck(roomId, seatChoice(deck, format))
       .then(apply)
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
+  };
+
+  /**
+   * The deck dropdown moved. `Random` is one of the decks ON OFFER — the era
+   * has already narrowed them, so it cannot roll an illegal deck — and it
+   * resolves to that deck's id rather than staying a mystery: what you got is
+   * what the dropdown then reads.
+   */
+  const chooseDeck = (value: string): void => {
+    const chosen = value === RANDOM_DECK ? pickRandom(offered ?? [], rand)?.id : value;
+    if (chosen === undefined || chosen === '') return;
+    setDeckId(chosen);
+    loadDeck(chosen, formatId);
+  };
+
+  /**
+   * The era moved. A deck already chosen is re-sent under the new rules, so the
+   * verdict the server holds is never one it formed against a different format.
+   * Whether the deck survives the new era is the sweep's answer, above.
+   */
+  const chooseFormat = (value: string): void => {
+    setFormatId(value);
+    if (deckId !== '') loadDeck(deckId, value);
   };
 
   const setReady = (ready: boolean): void => {
@@ -346,9 +457,6 @@ function RoomTableScreen({
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
   };
-
-  const format = loaded?.formats.find((f) => f.id === formatId);
-  const streamed = modeRef.current === 'streamed';
 
   return (
     <div className="shell" data-testid="constructed">
@@ -466,39 +574,37 @@ function RoomTableScreen({
                 <section className="lobby__card">
                   <h2>Your deck</h2>
                   <label htmlFor="format">Standard, as it stood on</label>
-                  <select id="format" data-testid="format" value={formatId} onChange={(e) => setFormatId(e.target.value)}>
+                  <select id="format" data-testid="format" value={formatId} onChange={(e) => chooseFormat(e.target.value)}>
                     {loaded.formats.map((f) => (
                       <option key={f.id} value={f.id}>
                         {f.id} — {f.name}
                       </option>
                     ))}
                   </select>
-                  {format !== undefined && (
-                    <p className="lobby__note" data-testid="format-detail">
-                      {format.sets.length} sets ({format.sets.join(', ')}), {format.cardCount} cards.{' '}
-                      {format.banned.length === 0 ? 'Nothing banned.' : `Banned: ${format.banned.join(', ')}.`}
-                    </p>
-                  )}
 
+                  {/* Only the decks that era offers, and the era's answer is
+                      the gate's. Disabled until it has answered: an option
+                      list assembled before the answer would offer decks the
+                      era does not have. */}
                   <label htmlFor="deck-mine">You play</label>
-                  <select id="deck-mine" data-testid="deck-mine" value={deckId} onChange={(e) => setDeckId(e.target.value)}>
-                    {loaded.decks.map((d) => (
+                  <select
+                    id="deck-mine"
+                    data-testid="deck-mine"
+                    value={deckId}
+                    disabled={offered === null || matchId !== null}
+                    onChange={(e) => chooseDeck(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      —
+                    </option>
+                    <option value={RANDOM_DECK}>Random</option>
+                    {(offered ?? []).map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.name}
                       </option>
                     ))}
                   </select>
-                  <DeckNote deck={loaded.decks.find((d) => d.id === deckId)} />
-
-                  <button
-                    type="button"
-                    className="lobby__go"
-                    data-testid="load-deck"
-                    disabled={busy || formatId === '' || deckId === '' || matchId !== null}
-                    onClick={loadDeck}
-                  >
-                    {mine === null ? 'Load this deck' : 'Load this deck instead'}
-                  </button>
+                  <DeckSource deck={(offered ?? []).find((d) => d.id === deckId)} />
 
                   {mine?.verdict != null && <VerdictView verdict={mine.verdict} testId="verdict-mine" />}
 
@@ -507,16 +613,11 @@ function RoomTableScreen({
                     className="lobby__go"
                     data-testid="ready-toggle"
                     aria-pressed={mine?.ready === true}
-                    disabled={busy || mine === null || !mine.legal || matchId !== null}
+                    disabled={busy || deckId === '' || mine === null || !mine.legal || matchId !== null}
                     onClick={() => setReady(!(mine?.ready === true))}
                   >
-                    {mine?.ready === true ? 'I’m ready — stand down' : 'I’m ready'}
+                    {mine?.ready === true ? 'Stand down' : 'Ready'}
                   </button>
-                  {mine !== null && !mine.legal && (
-                    <p className="lobby__note" data-testid="ready-blocked">
-                      Not legal in {mine.rulesName}.
-                    </p>
-                  )}
                   {actionError !== null && (
                     <p className="lobby__error" role="alert" data-testid="table-error">
                       {actionError}
@@ -742,16 +843,23 @@ function PlayerRow({ seat, player }: { seat: number; player: RoomPlayer }) {
   );
 }
 
-function DeckNote({ deck }: { deck: TableDeck | undefined }) {
+/**
+ * Where the chosen deck came from — a link, and nothing else.
+ *
+ * This used to be three sentences: the provenance line (*"Transcribed from
+ * mtgtop8 deck 209238."*), the citation buried mid-sentence, and the card
+ * counts. The operator wanted all of it gone; the link stays because the
+ * attribution is owed, and a link is not a sentence. The name is in the
+ * dropdown, the counts are the server's to complain about, and the era is the
+ * select above.
+ */
+function DeckSource({ deck }: { deck: TableDeck | undefined }) {
   if (deck === undefined) return null;
-  const size = deckSize(deck);
   return (
     <p className="lobby__note">
-      {deck.provenance}{' '}
-      <a className="shell__link" href={deck.citation} target="_blank" rel="noreferrer">
+      <a className="shell__link" data-testid="deck-source" href={deck.citation} target="_blank" rel="noreferrer">
         source
       </a>
-      . {size.main} cards{size.sideboard > 0 ? `, ${size.sideboard} in the sideboard` : ''}.
     </p>
   );
 }

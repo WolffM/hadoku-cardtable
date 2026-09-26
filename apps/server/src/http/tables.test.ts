@@ -134,6 +134,49 @@ describe('checkSeat', () => {
 		}
 	});
 
+	/*
+	 * The data behind the picker's era filter (wave 22 §B.4).
+	 *
+	 * `ConstructedScreen` narrows the deck dropdown to the decks legal in the
+	 * chosen era, and it does so by asking THIS — one `POST /api/tables/check`
+	 * per deck per era — rather than by arithmetic over the set list the browser
+	 * is sent. That makes the filter the gate's answer instead of a guess, and
+	 * it makes this test the thing that says the answer is usable: **no era
+	 * narrows the list to nothing**, and **no deck is unreachable** through some
+	 * era, so neither end of the picker has a dead option in it.
+	 *
+	 * Also the cost, measured rather than assumed: the whole matrix is 441 gate
+	 * runs and this test is one of the fast ones. What the browser pays is round
+	 * trips, which is why the screen asks once per era and remembers.
+	 *
+	 * Every count here is derived. A new collection or a new frozen pool moves
+	 * all of them and must not fail this.
+	 */
+	it('answers the era filter for every deck and every era, with no dead option at either end', () => {
+		const offered = new Map<string, string[]>();
+		for (const format of library.formats) {
+			const legal = library.decks
+				.filter((d) => {
+					const v = checkSeat({ deck: { library: d.id }, rules: { kind: 'standard', format: format.id } }, ctx);
+					return 'legal' in v && v.legal;
+				})
+				.map((d) => d.id);
+			offered.set(format.id, legal);
+		}
+
+		// An era that offered nothing would be a dead end a person can select.
+		expect([...offered].filter(([, ids]) => ids.length === 0).map(([id]) => id)).toEqual([]);
+		// A deck no era offers could never be chosen at all.
+		const reachable = new Set([...offered.values()].flat());
+		expect(library.decks.filter((d) => !reachable.has(d.id)).map((d) => d.id)).toEqual([]);
+
+		// And the filter does NARROW: the bans cost the list the decks that
+		// played the banned cards, Ben Stark's among them.
+		expect(offered.get(PT_PARIS)).toContain(BEN_STARK);
+		expect(offered.get(AFTER_BANS)).not.toContain(BEN_STARK);
+		expect(offered.get(AFTER_BANS)?.length).toBeLessThan(offered.get(PT_PARIS)?.length ?? 0);
+	});
+
 	it('refuses the same deck after the bans, naming each banned card', () => {
 		const v = checkSeat({ deck: { library: BEN_STARK }, rules: { kind: 'standard', format: AFTER_BANS } }, ctx) as SeatVerdict;
 		expect(v.legal).toBe(false);

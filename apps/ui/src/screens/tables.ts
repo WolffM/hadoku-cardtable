@@ -220,8 +220,91 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
   };
 }
 
-/** A deck's size, for the picker: maindeck and sideboard card counts. */
-export function deckSize(deck: TableDeck): { main: number; sideboard: number } {
-  const sum = (lines: DeckLine[]) => lines.reduce((n, l) => n + l.count, 0);
-  return { main: sum(deck.main), sideboard: sum(deck.sideboard) };
+/* ── the deck dropdown's two derived things ──────────────────────────── */
+
+/**
+ * The `Random` entry's option value. Not a deck id and not choosable as one:
+ * every library id is a slug of an event and a player, and this is neither.
+ */
+export const RANDOM_DECK = '__random__';
+
+/**
+ * A uniform [0,1) from `crypto`, never `Math.random`.
+ *
+ * The same rule `route.ts` states for a draft id, for the same reason: one
+ * rule, one place, no exception to remember.
+ */
+export function secureRandom(): number {
+  const buf = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(buf);
+  return buf[0] / 2 ** 32;
+}
+
+/**
+ * One of `items`, or undefined when there are none.
+ *
+ * `rand` is injectable so "Random picks one of the decks on offer" can be
+ * asserted against a pinned source rather than sampled and hoped about.
+ */
+export function pickRandom<T>(items: readonly T[], rand: () => number = secureRandom): T | undefined {
+  if (items.length === 0) return undefined;
+  return items[Math.min(items.length - 1, Math.floor(rand() * items.length))];
+}
+
+/** Which decks an era offers, and whether the server answered for all of them. */
+export interface LegalSweep {
+  /** The format this was asked about. */
+  readonly formatId: string;
+  /** Legal in it — plus any deck the server could not be asked about. */
+  readonly ids: ReadonlySet<string>;
+  /** The first refusal, and how many there were. Null when every one answered. */
+  readonly error: string | null;
+}
+
+/**
+ * Which of `decks` are legal in `formatId`, asked of the server.
+ *
+ * **One request per deck, and there is no cheaper way from a browser.** The
+ * gate is the only thing that can answer "is this deck legal in this format" —
+ * a client-side copy would be a second opinion free to disagree with the one
+ * that counts — and its only HTTP surface is `POST /api/tables/check`, which
+ * takes one seat. `GET /tables/formats` sends a pool's set list and its card
+ * COUNT, not its cards, so the arithmetic cannot be done here either.
+ *
+ * It is cheap where it runs and chatty where it is called: the whole library
+ * against every frozen pool is 441 gate runs in 160 ms
+ * (`apps/server/src/http/tables.test.ts`, "every era offers at least one deck"),
+ * so what this costs is round trips, not work. The caller therefore asks **once
+ * per era** and remembers the answer.
+ *
+ * A deck whose check could not be asked is **offered**, not hidden: the server
+ * refuses an illegal deck when it is loaded and says which card, so failing
+ * open costs a refusal the person can read, while failing closed would silently
+ * delete a deck from the library over a dropped request. The failure is
+ * returned rather than swallowed.
+ */
+export async function legalDecksIn(
+  client: Pick<TablesClient, 'check'>,
+  formatId: string,
+  decks: readonly TableDeck[],
+): Promise<LegalSweep> {
+  const errors: string[] = [];
+  const answers = await Promise.all(
+    decks.map(async (d) => {
+      try {
+        const verdict = await client.check({ deck: { library: d.id }, rules: { kind: 'standard', format: formatId } });
+        return verdict.legal;
+      } catch (err: unknown) {
+        errors.push(err instanceof Error ? err.message : String(err));
+        return true;
+      }
+    }),
+  );
+  const ids = new Set(decks.filter((_, i) => answers[i]).map((d) => d.id));
+  const first = errors[0];
+  return {
+    formatId,
+    ids,
+    error: first === undefined ? null : errors.length === 1 ? first : `${first} (and ${errors.length - 1} more)`,
+  };
 }

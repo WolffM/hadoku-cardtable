@@ -129,6 +129,10 @@ interface Table {
   roomUnreadable?: boolean;
   /** 404 for both "no such room" and "you are not in it", as the server does. */
   missing?: boolean;
+  /** `POST /tables/check` refuses, so the era's legality sweep cannot answer. */
+  checkFails?: boolean;
+  /** `PUT …/deck` refuses, so a hold made under an earlier era is left standing. */
+  deckFails?: boolean;
   /** A start the server refuses — e.g. the other player un-readied between polls. */
   refuseStart?: { status: number; error: string };
 }
@@ -179,9 +183,16 @@ function stubServer(table: Table) {
     }
     if (url.endsWith('/tables/formats')) return json(200, { formats: FORMATS });
     if (url.endsWith('/tables/decks')) return json(200, { decks: DECKS });
+    // One per deck, each time an era is chosen: how the picker learns which
+    // decks that era offers. The same gate that answers the load below.
+    if (url.endsWith('/tables/check')) {
+      if (table.checkFails === true) return json(503, { error: 'the gate is restarting' });
+      return json(200, verdictFor(body as SeatChoice));
+    }
     if (table.missing === true && url.includes('/tables/rooms/')) return json(404, { error: 'no such room' });
     if (url.endsWith(`/tables/rooms/${ROOM}`)) return json(200, view());
     if (url.endsWith(`/tables/rooms/${ROOM}/deck`)) {
+      if (table.deckFails === true) return json(503, { error: 'the room is restarting' });
       const verdict = verdictFor(body as SeatChoice);
       const mine: RoomPlayer = {
         seat: 0,
@@ -225,14 +236,54 @@ function stubServer(table: Table) {
   };
 }
 
-async function mountRoom(table: Table) {
+async function mountRoom(table: Table, rand?: () => number) {
   const server = stubServer(table);
-  render(createElement(ConstructedScreen, { client: server.client, rooms: server.rooms, roomId: ROOM, pollMs: 10 }));
+  render(
+    createElement(ConstructedScreen, {
+      client: server.client,
+      rooms: server.rooms,
+      roomId: ROOM,
+      pollMs: 10,
+      ...(rand === undefined ? {} : { rand }),
+    }),
+  );
   await screen.findByTestId('room-players');
   return server;
 }
 
 const lastCall = (calls: Call[], path: string): Call | undefined => calls.filter((c) => c.url.endsWith(path)).at(-1);
+
+/**
+ * The deck dropdown, once the era has answered which decks it offers.
+ *
+ * The list is disabled until then, on purpose — an option list assembled
+ * before the answer would offer decks the era does not have — so every test
+ * that picks a deck waits for the answer first. That wait IS the contract.
+ */
+async function deckSelect(): Promise<HTMLSelectElement> {
+  const select = (await screen.findByTestId('deck-mine')) as HTMLSelectElement;
+  await waitFor(() => expect(select.disabled).toBe(false));
+  return select;
+}
+
+/** Choosing a deck. There is no Load button: this is the load. */
+async function pick(value: string): Promise<void> {
+  const select = await deckSelect();
+  await act(async () => {
+    fireEvent.change(select, { target: { value } });
+  });
+}
+
+/** Choosing an era, which re-sends a chosen deck under the new rules. */
+async function pickEra(formatId: string): Promise<void> {
+  await act(async () => {
+    fireEvent.change(screen.getByTestId('format'), { target: { value: formatId } });
+  });
+}
+
+/** The deck dropdown's options, by value — what the era left on offer. */
+const offered = (): string[] =>
+  [...(screen.getByTestId('deck-mine') as HTMLSelectElement).options].map((o) => o.value);
 
 describe('apiBase', () => {
   it('puts the API under the prefix the app is deployed at', () => {
@@ -318,12 +369,17 @@ describe('a room’s table', () => {
     expect(ready.querySelector('svg path')).toBeNull();
   });
 
-  it('loads YOUR deck only, and shows the server’s verdict for it', async () => {
+  /*
+   * The operator, of the Load button: *"just 'I'm ready' is enough."* So
+   * choosing a deck IS loading it — the `PUT` goes on the change event, and
+   * there is no second thing to press. Asserted by the absence of the button
+   * AND by the request arriving without one, because either alone is half of
+   * it: a removed button with no load is a broken screen.
+   */
+  it('loads YOUR deck only when it is chosen, with no button to press', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
-    fireEvent.change(screen.getByTestId('deck-mine'), { target: { value: PAUL_RIETZL } });
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('load-deck'));
-    });
+    expect(screen.queryByTestId('load-deck')).toBeNull();
+    await pick(PAUL_RIETZL);
 
     const put = lastCall(server.calls, `/tables/rooms/${ROOM}/deck`);
     expect(put).toEqual({
@@ -337,19 +393,24 @@ describe('a room’s table', () => {
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false);
   });
 
+  /*
+   * The era moving under a chosen deck is now the only way to hold an illegal
+   * one: the dropdown offers nothing else. Both halves are asserted — the
+   * verdict names the banned cards, and the deck drops off the list — because
+   * the second is what stops Ready coming back to life over it.
+   */
   it('an illegal deck blocks YOUR ready and names the card, and nobody else’s', async () => {
     const server = await mountRoom({ players: [opponent({ ready: true })], matchId: null });
-    fireEvent.change(screen.getByTestId('format'), { target: { value: '2011-07-01' } });
-    fireEvent.change(screen.getByTestId('deck-mine'), { target: { value: BEN_STARK } });
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('load-deck'));
-    });
+    await pick(BEN_STARK);
+    await pickEra('2011-07-01');
 
     const verdict = screen.getByTestId('verdict-mine').textContent ?? '';
     expect(verdict).toContain('Jace, the Mind Sculptor');
     expect(verdict).toContain('Stoneforge Mystic');
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByTestId('ready-blocked').textContent).toContain('Not legal in Standard (2011-07-01)');
+    // The era that bans it no longer offers it, and nothing is chosen.
+    await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
+    expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe('');
     // The other player is untouched by it: still ready, still legal.
     expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('ready');
     // And nothing was started.
@@ -359,9 +420,7 @@ describe('a room’s table', () => {
 
   it('starts the match once both are ready, without either choosing the other’s deck', async () => {
     const server = await mountRoom({ players: [opponent({ ready: true })], matchId: null });
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('load-deck'));
-    });
+    await pick(BEN_STARK);
     await act(async () => {
       fireEvent.click(screen.getByTestId('ready-toggle'));
     });
@@ -531,9 +590,7 @@ describe('a room’s table', () => {
       matchId: null,
       refuseStart: { status: 409, error: 'user-bob is not ready yet' },
     });
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('load-deck'));
-    });
+    await pick(BEN_STARK);
     await act(async () => {
       fireEvent.click(screen.getByTestId('ready-toggle'));
     });
@@ -553,6 +610,148 @@ describe('a room’s table', () => {
       fireEvent.click(screen.getByTestId('start-retry'));
     });
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+  });
+});
+
+/* ── the picker: two selects, one button (wave 22 §B) ────────────────── */
+
+describe('the deck picker', () => {
+  it('says Ready, not “I’m ready”, and is dead until a deck is chosen', async () => {
+    await mountRoom({ players: [opponent()], matchId: null });
+    const ready = screen.getByTestId('ready-toggle') as HTMLButtonElement;
+    expect(ready.textContent).toBe('Ready');
+    // Nothing is chosen for you, so nothing is loaded and Ready cannot be pressed.
+    expect((await deckSelect()).value).toBe('');
+    expect(ready.disabled).toBe(true);
+
+    await pick(PAUL_RIETZL);
+    await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  it('narrows the deck list to the decks the era says are legal, asking the gate for each', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null });
+    // The opening era is legal for both, so both are on offer.
+    await deckSelect();
+    expect(offered()).toEqual(['', '__random__', BEN_STARK, PAUL_RIETZL]);
+
+    await pickEra('2011-07-01');
+    // The era that bans Jace and Stoneforge offers one of the two decks.
+    await waitFor(() => expect(offered()).toEqual(['', '__random__', PAUL_RIETZL]));
+
+    // It is the SERVER's answer, one request per deck per era — not arithmetic
+    // done here over a set list the browser was never sent.
+    const checks = server.calls.filter((c) => c.url.endsWith('/tables/check'));
+    expect(checks.map((c) => c.body)).toEqual(
+      expect.arrayContaining([
+        { deck: { library: BEN_STARK }, rules: { kind: 'standard', format: '2011-07-01' } },
+        { deck: { library: PAUL_RIETZL }, rules: { kind: 'standard', format: '2011-07-01' } },
+      ]),
+    );
+
+    // And an era already answered for is not asked again.
+    const asked = checks.length;
+    await pickEra('2011-02-13');
+    await waitFor(() => expect(offered()).toContain(BEN_STARK));
+    expect(server.calls.filter((c) => c.url.endsWith('/tables/check')).length).toBe(asked);
+  });
+
+  it('offers a deck it could not get an answer for rather than deleting it from the library', async () => {
+    // Failing closed over a dropped request would silently shrink the library.
+    // Failing open costs a refusal the person can read — and the failure is
+    // said out loud rather than swallowed.
+    await mountRoom({ players: [opponent()], matchId: null, checkFails: true });
+    await deckSelect();
+    expect(offered()).toEqual(['', '__random__', BEN_STARK, PAUL_RIETZL]);
+    await waitFor(() => expect(screen.getByTestId('table-error').textContent).toContain('the gate is restarting'));
+  });
+
+  /*
+   * The case the `deckId === ''` half of Ready's guard exists for, and the
+   * reason it is not redundant with "the server holds a legal deck for you":
+   * the era moved, the re-send under the new rules FAILED, and the verdict the
+   * server still holds is the one it formed against the era before. Ready has
+   * to be dead — pressing it would start a match from a hold nobody re-checked.
+   */
+  it('will not ready up on a hold the era moved out from under, when the re-send failed', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null });
+    await pick(BEN_STARK);
+    await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
+
+    server.table.deckFails = true;
+    await pickEra('2011-07-01');
+
+    // The server still says the old era's verdict — it never heard the new one.
+    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (MBS)');
+    expect(screen.getByTestId('table-error').textContent).toContain('the room is restarting');
+    // The deck is off the list, nothing is chosen, and Ready stays dead.
+    await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
+    expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe('');
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('Random chooses one of the decks on offer, and says which one it chose', async () => {
+    // Pinned source: 0.99 lands on the last deck the era offers.
+    const server = await mountRoom({ players: [opponent()], matchId: null }, () => 0.99);
+    await pick('__random__');
+
+    expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe(PAUL_RIETZL);
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({
+      deck: { library: PAUL_RIETZL },
+      rules: { kind: 'standard', format: '2011-02-13' },
+    });
+    // `Random` is never what gets loaded: it resolves to a deck id.
+    const loads = server.calls.filter((c) => c.url.endsWith('/deck'));
+    expect(loads.map((c) => JSON.stringify(c.body))).not.toContain(expect.stringContaining('__random__'));
+  });
+
+  it('Random cannot roll a deck the era bans, because the era narrowed the list first', async () => {
+    // 0 lands on the FIRST offered deck, which in this era is not Ben Stark's.
+    const server = await mountRoom({ players: [opponent()], matchId: null }, () => 0);
+    await pickEra('2011-07-01');
+    await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
+    await pick('__random__');
+    expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe(PAUL_RIETZL);
+    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in');
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({
+      deck: { library: PAUL_RIETZL },
+      rules: { kind: 'standard', format: '2011-07-01' },
+    });
+  });
+
+  /*
+   * The operator's third session, item 3: *"Transcribed from mtgtop8 deck
+   * 209238."* and its neighbours are gone. What is left of a deck's origin is
+   * the link, because the attribution is owed and a link is not a sentence.
+   */
+  it('explains nothing: no provenance, no set list, no card counts', async () => {
+    await mountRoom({ players: [opponent()], matchId: null });
+    await pick(BEN_STARK);
+    const card = screen.getByTestId('deck-mine').closest('section') as HTMLElement;
+
+    expect(card.textContent).not.toContain('Pro Tour Paris 2011');
+    expect(card.textContent).not.toMatch(/\d+ cards/);
+    expect(card.textContent).not.toContain('sideboard');
+    expect(card.textContent).not.toContain('Nothing banned');
+    expect(screen.queryByTestId('format-detail')).toBeNull();
+    // The one surviving sentence is the server's verdict, which is a finding
+    // about YOUR deck and not an explanation of the screen.
+    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (MBS)');
+
+    const source = screen.getByTestId('deck-source');
+    expect(source.tagName).toBe('A');
+    expect(source.textContent).toBe('source');
+    expect(source.getAttribute('href')).toBe('https://www.mtgtop8.com/event?e=1016&f=ST');
+  });
+
+  it('re-sends the deck under the new era, so the held verdict is never one from another format', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null });
+    await pick(PAUL_RIETZL);
+    await pickEra('2011-07-01');
+    // Same deck, new rules — not the rules it was first checked against.
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({
+      deck: { library: PAUL_RIETZL },
+      rules: { kind: 'standard', format: '2011-07-01' },
+    });
   });
 });
 
