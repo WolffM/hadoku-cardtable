@@ -8,8 +8,14 @@
  * both were removed on 2026-09-19, and they must not come back — every row of
  * chrome here is height the table does not have.
  *
- * The screen is the live board (`play/live/`) and one "leave" line under it,
- * and it is exactly one viewport tall: `.shell--match` is the hook
+ * The screen is the live board (`play/live/`) and nothing else. It held a
+ * "leave" line under the canvas until wave 22 §F moved Leave into the match's
+ * own button bar — *"a really weird spot"* (the operator) — so there is no
+ * footer here, and adding one back would put a second leave affordance and a
+ * second tab stop on the page. `LiveBoard`'s `onLeave` defaults to
+ * `navigate({ kind: 'lobby' })`, which is why this screen wires nothing.
+ *
+ * It is exactly one viewport tall: `.shell--match` is the hook
  * `play/live/live.css` uses to pin the page to the window, because *"this
  * module can NEVER require a scroll bar"*. `e2e/table-fit.spec.ts` measures
  * that on a live match.
@@ -24,7 +30,6 @@ import { useEffect, useState } from 'react';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from '../play/live/match.ts';
-import { navigate } from './route.ts';
 
 export interface MatchScreenProps {
   matchId: string;
@@ -44,20 +49,6 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
   return (
     <div className="shell shell--match" data-testid="match">
       {match !== null && <LiveBoard match={match} />}
-      <footer className="shell__foot">
-        <p>
-          <a
-            className="shell__link"
-            href="#/"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate({ kind: 'lobby' });
-            }}
-          >
-            Leave the match
-          </a>
-        </p>
-      </footer>
     </div>
   );
 }

@@ -54,21 +54,6 @@
   overflow: clip;
 }
 
-/*
- * The shell's footer held "Leave the match", below the canvas — *"a really
- * weird spot"* (the operator, wave 22 §F.1). Leave is a button in the match's
- * own bar now (`LiveBoard.tsx`), so this footer has nothing left to say, and
- * hiding it is what keeps ONE leave affordance and ONE tab stop on the page.
- *
- * `display: none` and not `visibility: hidden`: the link must leave the tab
- * order as well as the screen. The markup itself should go —
- * `apps/ui/src/screens/MatchScreen.tsx`'s `<footer>` — and this rule with it;
- * that file is not this lane's to edit.
- */
-.shell.shell--match > .shell__foot {
-  display: none;
-}
-
 /* On the match screen the shell sizes this; mounted bare (the live dev
    harness), it takes the window. */
 .live {
