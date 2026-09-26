@@ -172,19 +172,20 @@ handshake, never a payload.
   that has not learned the two new fields keeps working for all of them; only
   `match-gone` needs them.
 
-  **The two schema mirrors disagree about this today (checked 2026-09-26, at
-  `2ea81c0`).** The server BUILDS the three-field refusal through a type, not a
-  schema — `MatchRefusal = MatchError & { outcome?: 'match-gone'; message?: string }`
-  (`socket.ts:153`) — and its own `MatchErrorSchema` still allows only `error`
-  (`apps/server/src/play/transport.ts:168`, `.strict()`). The client's mirror has
-  been widened and parses the wide shape
-  (`apps/ui/src/play/live/transport.ts:202-208`: `outcome` and `message` optional
-  non-empty strings, and still `.strict()`, so a misspelled field is an error
-  rather than being swallowed). Nothing is broken by the difference, because the
-  server never parses what it builds — but the mirrors are the contract, and both
-  being `.strict()` means **a client mirror that has not been widened cannot
-  parse a `match-gone` at all**. `socket.ts:61`'s comment claims both mirrors are
-  already aligned; they are not, at the version above.
+  **`MatchErrorSchema` is `.strict()` in both mirrors, and that is why the
+  client's mirror had to be widened before it could parse a `match-gone` at
+  all** — a strict object refuses an unknown key rather than dropping it, which
+  also means a misspelling (`outcom`, `mesage`) is an error and not a field
+  quietly swallowed. Checked 2026-09-26, at `2ea81c0`: strict on both sides, and
+  the client's carries `outcome` and `message` as optional non-empty strings
+  (`apps/ui/src/play/live/transport.ts:202-208`).
+
+  Worth knowing while reading `socket.ts`: the server **builds** the wide refusal
+  through a type, not through its own schema —
+  `MatchRefusal = MatchError & { outcome?: 'match-gone'; message?: string }`
+  (`socket.ts:153`) — because nothing on the server parses what the server
+  emits. Both mirrors stay `.strict()` either way; strictness was never the thing
+  that differed between them.
 - `forge:c2s { matchId, frame }` — `frame` parsed with `safeParseClientFrame`.
   A reply must match an open ask of **this seat** by `callId` and `method`.
 - `forge:s2c { matchId, cursor, frame }` — per seat. `seq` counts every frame
