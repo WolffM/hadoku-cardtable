@@ -42,6 +42,14 @@ hydrated from that template inherits this bug before anyone writes a line.
 2. Failing that, make the prop's absence loud: a dev-mode warning when a
    `HadokuThemeRoot` is present above and `theme` was not passed.
 
+**Outcome:** confirmed by watchparty — `resolveTheme` (`RoomChrome.tsx:68-72`)
+returns the prop, else their store's saved theme, else literal `'dark'`, and
+the chrome consults no provider. Their board **E2**, taking option 1, riding
+with the `name` prop since it is the same file. They noted the
+`templates/game` evidence is what moved it from "cardtable passes a prop" to
+"every game from that template is born wrong" — worth fixing rather than
+documenting.
+
 ### 2. `@wolffm/themes` guards `matchMedia` in one place and not the other
 
 **Our band-aid:** `apps/ui/src/chrome/matchMedia.ts`, a shim installed before
@@ -60,6 +68,12 @@ moment the chrome mounted — in files that had nothing to do with theming.
 **The real fix:** one guard, the same shape as line 43, at line 216. Every
 consumer testing under jsdom is otherwise writing our shim.
 
+**Outcome:** confirmed by watchparty against source — `src/useTheme.tsx:57`
+guards, `:249` is bare (the `dist:216` we cited), and `src/index.ts:107`
+guards too, so `:249` is the ONLY unguarded site. The package lives in
+hadoku-task; filed as **WolffM/hadoku-task#91**. Our shim stays until it
+lands.
+
 ### 3. `name` on `RoomChrome` — accepted, noted here for completeness
 
 Already agreed with your session on 2026-09-25 (precedence: in-room custom
@@ -71,16 +85,26 @@ recorded so this document is the whole picture.
 **Our band-aid:** `hadokuWhoami({ whoamiUrl: \`${globalThis.location.origin}/session/whoami\` })`
 — an explicit same-origin URL.
 
-**The gap:** `@wolffm/prefs-client`'s `whoami()` defaults to the edge-router
-origin. An app served under a path prefix on the same host then makes an
-**off-host request** for its own identity. Ours was caught by an e2e that
-blocks every non-127.0.0.1 request (`8d71303`), which is the only reason we
-found it rather than shipping it.
+**The gap — corrected 2026-09-26, our first framing was wrong.** We wrote
+"defaults to the edge-router origin, so a prefix-served app makes an off-host
+request." Watchparty checked the source and the mechanism is different:
+`PREFS_API_BASE` is a hard-coded **absolute** `https://hadoku.me/prefs`
+(`constants.ts:17` → `whoami.ts:174`; verified here in
+`dist/index.js:2` and `:151`), so the whoami default is
+`https://hadoku.me/session/whoami`. For an app served at `hadoku.me/<prefix>`
+that IS same-host, and it works.
 
-**The real fix:** default to same-origin `/session/whoami`, or document the
-default as "the edge origin, which is wrong for any app that is not served
-from it." A default that is right for one deployment shape and silently wrong
-for another is the expensive kind.
+The defect is that the default is **pinned to one absolute origin at all**: it
+is right on hadoku.me and silently wrong for local dev, any other hostname,
+and the APK / service-to-service callers the file's own comments mention. Ours
+surfaced only under e2e, where the app is on 127.0.0.1 and a block on every
+non-local request caught it (`8d71303`) — "passes review and passes the prod
+smoke while being wrong everywhere else" is exactly what makes this worth a
+fix rather than a doc line.
+
+**The real fix:** resolve the base from the serving origin, with the absolute
+as a fallback for callers that genuinely have no origin (APK, s2s). Filed by
+watchparty as **WolffM/hadoku_site#419**.
 
 ---
 
