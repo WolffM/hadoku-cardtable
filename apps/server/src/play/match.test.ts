@@ -16,9 +16,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientFrameSchema, safeParseServerFrame, type ClientFrame } from '@hadoku/forge-wire';
 
-import type { BridgeLine } from './host.js';
+import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
 import { MATCH_ENDED_TITLE, createMatchRegistry, type Match } from './match.js';
-import { MatchSnapshotSchema, ServerEnvelopeSchema, type ServerEnvelope } from './transport.js';
+import { MatchSnapshotSchema, ServerEnvelopeSchema, type MatchSnapshot, type ServerEnvelope } from './transport.js';
 import {
 	FLYING_FILE,
 	FLYING_MATCH,
@@ -624,5 +624,296 @@ describe('reconnect: a refresh closes the old socket before the new page joins',
 		h.match.seatDisconnected(0);
 		vi.advanceTimersByTime(10);
 		expect(h.host.commands).toEqual([{ t: 'abort', seat: 0, callId: h.callId, reason: 'disconnected' }]);
+	});
+});
+
+/* ── A match that outlives its server (Wave 22 §E) ───────────────────── */
+
+/**
+ * A host whose "JVM" survives being let go, as `play/host.ts`'s does. It keeps
+ * the lines it delivered and the commands it was sent in ONE ordered stream —
+ * which is exactly what `<run>/stream.jsonl` is — and `attach` feeds that stream
+ * back before returning, which is the contract `Match.resume` is written
+ * against. Nothing here knows what a JVM or a fifo is; that half is
+ * `host.test.ts`'s.
+ */
+interface Survivable {
+	stream: ({ t: 'line'; line: BridgeLine } | { t: 'sent'; command: BridgeCommand })[];
+	remembered: { epoch: string; owners: (string | null)[] } | null;
+	handedOver: boolean;
+	stopped: boolean;
+	/** Deliver lines AND record them, the way a real host persists what it reads. */
+	push(...lines: BridgeLine[]): void;
+	commandsSent(): BridgeCommand[];
+}
+
+function survivable(): { factory: MatchHostFactory; attach: (record: JvmRecord, events: HostEvents) => MatchHost; state: Survivable } {
+	let events: HostEvents | null = null;
+	const state: Survivable = {
+		stream: [],
+		remembered: null,
+		handedOver: false,
+		stopped: false,
+		push(...lines) {
+			for (const line of lines) {
+				state.stream.push({ t: 'line', line });
+				events?.line(line);
+			}
+		},
+		commandsSent: () => state.stream.flatMap((e) => (e.t === 'sent' ? [e.command] : [])),
+	};
+	const face = (): MatchHost => ({
+		send: (command) => void state.stream.push({ t: 'sent', command }),
+		stop: () => void (state.stopped = true),
+		remember: (s) => void (state.remembered = { epoch: s.epoch, owners: [...s.owners] }),
+		handOver: () => {
+			state.handedOver = true;
+			return true;
+		},
+	});
+	return {
+		state,
+		factory: (_id, _spec, e) => {
+			events = e;
+			return face();
+		},
+		attach: (_record, e) => {
+			events = e;
+			// A copy: a replay must not see anything the replay itself causes.
+			for (const entry of [...state.stream]) {
+				if (entry.t === 'line') e.line(entry.line);
+				else e.replayed?.(entry.command);
+			}
+			return face();
+		},
+	};
+}
+
+function recordFor(match: Match, state: Survivable): JvmRecord {
+	return {
+		matchId: match.id,
+		pid: process.pid,
+		run: `/nonexistent/${match.id}`,
+		startedAt: new Date().toISOString(),
+		epoch: state.remembered?.epoch ?? null,
+		owners: state.remembered?.owners ?? [],
+		spec: { seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] },
+		orphanedAt: new Date().toISOString(),
+	};
+}
+
+describe('a match that outlives its server', () => {
+	interface Restartable {
+		state: Survivable;
+		first: Match;
+		sent: { seat: number; envelope: ServerEnvelope }[];
+		/** The next process: a second registry over the same surviving host. */
+		next(rejoinGraceMs?: number): { match: Match | null; sent: { seat: number; envelope: ServerEnvelope }[]; logs: Record<string, unknown>[] };
+	}
+
+	/** One match, both seats claimed, opened and mid-ask — then whatever the test does to it. */
+	function running(): Restartable {
+		const { factory, attach, state } = survivable();
+		const sent: Restartable['sent'] = [];
+		const registry = createMatchRegistry({
+			host: factory,
+			attach,
+			log: () => undefined,
+			askTimeoutMs: 60_000,
+			overGraceMs: 60_000,
+			emit: (_m, seat, envelope) => void sent.push({ seat, envelope }),
+		});
+		const first = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
+		first.claim(ALICE);
+		first.claim(BOB);
+		state.push(...OPENING, PROBE_ASK);
+		return {
+			state,
+			first,
+			sent,
+			next(rejoinGraceMs?: number) {
+				const nextSent: Restartable['sent'] = [];
+				const logs: Record<string, unknown>[] = [];
+				const nextRegistry = createMatchRegistry({
+					host: factory,
+					attach,
+					log: (e) => void logs.push(e),
+					askTimeoutMs: 60_000,
+					overGraceMs: 60_000,
+					...(rejoinGraceMs === undefined ? {} : { rejoinGraceMs }),
+					emit: (_m, seat, envelope) => void nextSent.push({ seat, envelope }),
+				});
+				return { match: nextRegistry.adopt(recordFor(first, state)), sent: nextSent, logs };
+			},
+		};
+	}
+
+	it('writes down the two things a replay cannot reproduce: the epoch, and who owns which seat', () => {
+		const r = running();
+		expect(r.state.remembered).toEqual({ epoch: r.first.epoch, owners: [ALICE, BOB] });
+	});
+
+	it('is handed over without one frame on the wire — a frame now would take a seq the replay cannot', () => {
+		const r = running();
+		const before = r.sent.length;
+		expect(before).toBeGreaterThan(0);
+		expect(r.first.handOver()).toBe(true);
+		expect(r.state.handedOver).toBe(true);
+		expect(r.state.stopped).toBe(false);
+		expect(r.sent.length).toBe(before);
+	});
+
+	it('comes back on the same epoch, at the same seats, with a snapshot identical to the one it had', () => {
+		const r = running();
+		const before = [r.first.snapshot(0), r.first.snapshot(1)];
+		r.first.handOver();
+
+		const { match } = r.next();
+		expect(match).not.toBeNull();
+		const resumed = match as Match;
+		expect(resumed.id).toBe(r.first.id);
+		expect(resumed.epoch).toBe(r.first.epoch);
+		expect(resumed.status).toBe('running');
+		// Seat 2 coming back as seat 1 would be handed the other player's hand.
+		expect(resumed.seatOf(ALICE)).toBe(0);
+		expect(resumed.seatOf(BOB)).toBe(1);
+		expect([resumed.snapshot(0), resumed.snapshot(1)]).toEqual(before);
+		// And a client that held the old cursor is offered the very same one.
+		expect((resumed.snapshot(0) as MatchSnapshot).cursor).toEqual({ epoch: r.first.epoch, seq: (before[0] as MatchSnapshot).cursor?.seq });
+	});
+
+	it('sends Forge nothing while it replays: every command in the stream was already sent once', () => {
+		const r = running();
+		// There has to be something in the stream to re-send, or this proves nothing.
+		r.first.fromClient(PROBE_ASK.seat, reply((PROBE_ASK.frame as { callId: string }).callId, true));
+		const already = r.state.commandsSent();
+		expect(already.length).toBeGreaterThan(0);
+		r.first.handOver();
+		r.next();
+		expect(r.state.commandsSent()).toEqual(already);
+	});
+
+	/**
+	 * The sharper half of the same rule. Above, the commands in the stream are
+	 * ones the BROWSER caused; here the stream holds a LINE that makes the match
+	 * answer by itself (`auto.ts`: a dialog with one button is not a question).
+	 * Replaying that line must not press the button a second time — Forge's
+	 * `sendAndWait` has already returned from it.
+	 */
+	it('does not answer for the seat a second time when the line that provoked it is replayed', () => {
+		const r = running();
+		const auto: BridgeLine = {
+			t: 'frame',
+			seat: 0,
+			frame: {
+				kind: 'ask',
+				callId: 'w22-one-button',
+				method: 'showOptionDialog',
+				message: 'Which game should this match continue with?',
+				title: 'Next game',
+				icon: 'ICO_QUESTION',
+				options: ['Play first'],
+				defaultOption: 0,
+			},
+		};
+		r.state.push(auto);
+		const already = r.state.commandsSent();
+		expect(already).toMatchObject([{ t: 'reply', seat: 0, callId: 'w22-one-button', result: 0 }]);
+
+		r.first.handOver();
+		const { match } = r.next();
+		// One press, not two — and the ask stayed closed, as it was.
+		expect(r.state.commandsSent()).toEqual(already);
+		expect((match as Match).seats[0]?.asks.has('w22-one-button')).toBe(false);
+	});
+
+	it('does not re-open an ask the old server had already answered', () => {
+		const r = running();
+		const callId = (PROBE_ASK.frame as { callId: string }).callId;
+		expect(r.first.seats[PROBE_ASK.seat]?.asks.has(callId)).toBe(true);
+		expect(r.first.fromClient(PROBE_ASK.seat, reply(callId, true))).toEqual({ ok: true });
+		r.first.handOver();
+
+		const { match } = r.next();
+		expect((match as Match).seats[PROBE_ASK.seat]?.asks.has(callId)).toBe(false);
+	});
+
+	it('re-opens an ask that was still parked in Forge, so the seat is asked it again', () => {
+		const r = running();
+		const callId = (PROBE_ASK.frame as { callId: string }).callId;
+		r.first.handOver();
+		const { match } = r.next();
+		expect((match as Match).seats[PROBE_ASK.seat]?.asks.has(callId)).toBe(true);
+	});
+
+	it('stops a match it took back that nobody rejoins — an orphan nobody wants is still a JVM', () => {
+		vi.useFakeTimers();
+		const r = running();
+		r.first.handOver();
+		const { match, logs } = r.next(1000);
+		expect((match as Match).status).toBe('running');
+		vi.advanceTimersByTime(1000);
+		expect((match as Match).status).toBe('stopped');
+		expect(logs.find((l) => l.evt === 'match-not-rejoined')).toMatchObject({ matchId: r.first.id });
+	});
+
+	it('keeps a match it took back that somebody does rejoin', () => {
+		vi.useFakeTimers();
+		const r = running();
+		r.first.handOver();
+		const { match } = r.next(1000);
+		(match as Match).seatConnected(0);
+		vi.advanceTimersByTime(5000);
+		expect((match as Match).status).toBe('running');
+	});
+
+	it('tells both seats in words when the match CANNOT be handed over', () => {
+		// The replay host has no `handOver`: its Forge dies with the process, which
+		// is every host that is not the JVM pool.
+		const h = harness();
+		h.match.claim(ALICE);
+		h.match.claim(BOB);
+		h.host.push(...OPENING);
+		expect(h.match.handOver()).toBe(false);
+
+		const mark = h.sent.length;
+		h.match.serverStopping('The server is restarting for a deploy.');
+		const notices = h.sent.slice(mark).map((s) => s.envelope.frame);
+		expect(notices).toHaveLength(2);
+		for (const frame of notices) {
+			expect(frame).toMatchObject({
+				kind: 'notify',
+				method: 'showErrorDialog',
+				title: MATCH_ENDED_TITLE,
+				message: 'The server is restarting for a deploy.',
+			});
+		}
+		// And it is kept, so a page that reloads after the restart is told too.
+		h.match.resendAfterSnapshot(0);
+		expect(h.sent.at(-1)?.envelope.frame).toMatchObject({ method: 'showErrorDialog' });
+	});
+
+	it("a registry whose host cannot re-attach adopts nothing rather than pretending to", () => {
+		const { factory } = replayFactory();
+		const registry = createMatchRegistry({
+			host: factory,
+			log: () => undefined,
+			askTimeoutMs: 60_000,
+			overGraceMs: 60_000,
+			emit: () => undefined,
+		});
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
+		expect(registry.handOver()).toEqual({ handed: [], ending: [match] });
+		expect(
+			registry.adopt({
+				matchId: 'm-000000000000',
+				pid: process.pid,
+				run: '/nonexistent',
+				startedAt: new Date().toISOString(),
+				epoch: 'm-000000000000:1',
+				owners: [],
+				spec: { seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] },
+			}),
+		).toBeNull();
 	});
 });

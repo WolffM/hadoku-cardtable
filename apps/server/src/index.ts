@@ -419,6 +419,73 @@ if (roomStreams !== null) {
 	setInterval(() => void roomStreams.sweep(), STREAM_SWEEP_MS).unref();
 }
 
+// ── Going down on purpose ────────────────────────────────────────────────────
+// Until Wave 22 there was NO signal handler here at all, and that absence was
+// the bug behind the operator's items #5 and #8. A deploy is: mgmt-api pulls,
+// builds, and `pm2 restart cardtable`; pm2 sends SIGTERM; with no handler the
+// default disposition killed this process outright, and `play/host.ts`'s exit
+// hook SIGKILLed every match JVM on the way out. Every live game ended and
+// every socket dropped, so the client's reconnect was answered
+// `unknown-match`. The same thing happened at 08:00 UTC every night.
+//
+// What a deploy does now, in this order:
+//
+//   1. Start nothing new. `play.shutdown` refuses `POST /api/play/matches` with
+//      a sentence rather than a 500, so a click during a deploy is not a bug.
+//   2. Leave every live match RUNNING. Its JVM is detached with its transport
+//      on disk (`host.ts`, "A match outlives its server"), and the next process
+//      re-attaches and replays it. A match that CANNOT be left running has its
+//      seats told so in words instead — the honest half of the same fix.
+//   3. Let the clients go: no new upgrades, existing sockets closed. The client
+//      already survives a dropped socket; what it could not survive was the
+//      match ceasing to exist.
+//   4. Exit within `SHUTDOWN_DEADLINE_MS` no matter what. pm2 waits
+//      `kill_timeout` (1.6 s by default) before SIGKILL, so a handler that can
+//      hang buys nothing: the deadline is what makes the ordering above
+//      reliable rather than hopeful.
+//
+// SIGINT gets the same treatment, for `pnpm dev` and for a ^C in a live check.
+const SHUTDOWN_DEADLINE_MS = 5_000;
+const SHUTDOWN_WORDS = 'The server is restarting for a deploy.';
+let shuttingDown = false;
+
+function shutdown(signal: string): void {
+	// A second signal is pm2 being impatient, not a second shutdown.
+	if (shuttingDown) return;
+	shuttingDown = true;
+	const startedAt = Date.now();
+	const say = (entry: Record<string, unknown>): void =>
+		console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable', ...entry }));
+	say({ evt: 'shutdown-begin', signal });
+
+	let outcome: { handed: string[]; ended: string[] } = { handed: [], ended: [] };
+	try {
+		outcome = play?.shutdown(SHUTDOWN_WORDS) ?? outcome;
+	} catch (err) {
+		// A match that will not let go must not stop the rest of the shutdown.
+		say({ evt: 'shutdown-matches-failed', error: (err as Error).message });
+	}
+	say({ evt: 'shutdown-matches', handed: outcome.handed, ended: outcome.ended });
+
+	const finish = (why: string): void => {
+		say({ evt: 'shutdown-done', signal, why, ms: Date.now() - startedAt, handed: outcome.handed.length, ended: outcome.ended.length });
+		process.exit(0);
+	};
+	// Referenced on purpose: it is what holds the process up long enough for the
+	// closes below, and what ends it if one of them never comes back.
+	const deadline = setTimeout(() => finish('deadline'), SHUTDOWN_DEADLINE_MS);
+
+	browserBridge.close();
+	// `io.close` disconnects every socket AND closes the HTTP server it was given.
+	io.close(() => {
+		clearTimeout(deadline);
+		finish('closed');
+	});
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
 // ── Listen ───────────────────────────────────────────────────────────────────
 httpServer.listen(CONFIG.port, CONFIG.host, () => {
 	console.log(`[cardtable] listening on ${CONFIG.host}:${CONFIG.port}`);

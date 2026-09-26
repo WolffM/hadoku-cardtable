@@ -37,6 +37,29 @@
  * `emitPerRecipient` with a builder that returns the seat's envelope to that
  * seat's connections and `SKIP` to everyone else. The envelope is built by
  * `Match`, which only ever builds one for a named seat.
+ *
+ * ## A refusal that a player can read (Wave 22 §E)
+ *
+ * `forge:join` used to answer `{ error: 'unknown-match' }` and the client put
+ * that string on the page — *"forge:join was refused: unknown-match"*, which is
+ * what the operator was left looking at when a deploy killed their game. Two
+ * things were wrong with it: it did not say what had happened, and it was
+ * indistinguishable from every other refusal, so the client could not treat it
+ * differently.
+ *
+ * So a refusal that means **the match is gone** now carries two more fields:
+ *
+ *     { error: 'unknown-match', outcome: 'match-gone', message: '<words>' }
+ *
+ * `error` is unchanged — it is still the machine code, and the browser bridge
+ * (`browser/session.ts`) still answers exactly that shape — so nothing that
+ * only reads `error` changes behaviour. `outcome` is what the client keys off
+ * (`match-gone`, one of the six states lane F renders) and `message` is what it
+ * shows. **Every OTHER refusal keeps the bare `{ error }` shape it always had**:
+ * a client that has not learned the new fields keeps working for `match-full`,
+ * `not-joined` and a malformed request, and only `match-gone` needs it to have.
+ * `MatchErrorSchema` is `.strict()` in both mirrors, so a client's mirror must
+ * allow the two fields before it can parse a `match-gone`.
  */
 
 import express, { type Request, type Response, type Router } from 'express';
@@ -103,12 +126,49 @@ export interface PlayDeps {
 	probe?: boolean;
 	/** Dev-only per-handshake identity; see the module header. */
 	devIdentity?: boolean;
+	/**
+	 * How long a match taken back from an earlier server waits for somebody to
+	 * rejoin before it is stopped. Default 5 minutes (`createMatchRegistry`).
+	 */
+	rejoinGraceMs?: number;
 }
 
 export interface PlayHandle {
 	matches: MatchRegistry;
 	/** Stop every match (each stops its JVM), and release the host's spare. */
 	close(): void;
+	/**
+	 * SIGTERM. Stop accepting new matches, leave every live one running for the
+	 * next process, and tell the seats of any that cannot be left running.
+	 * Returns what happened, for the shutdown log.
+	 */
+	shutdown(reason: string): { handed: string[]; ended: string[] };
+}
+
+/**
+ * Why a join or resync was refused, and the words for it. See the module header:
+ * `match-gone` carries `outcome` and `message`; everything else stays the bare
+ * `{ error }` a client already understands.
+ */
+export type MatchRefusal = MatchError & { outcome?: 'match-gone'; message?: string };
+
+/** What a player is told when the match they are asking for is not there any more. */
+export const MATCH_GONE_WORDS =
+	'This match is no longer running on the server — it ended when the server restarted or when Forge stopped. Nothing you did caused it. Start a new match to play again.';
+
+/** The `match-gone` refusal: the code the wire always carried, plus the outcome and the words. */
+function matchGone(message = MATCH_GONE_WORDS): MatchRefusal {
+	return { error: 'unknown-match', outcome: 'match-gone', message };
+}
+
+/**
+ * Does this participant hold a seat in this match that has a board to return?
+ * A finished match is still worth rejoining for someone who was playing it —
+ * they get the board and the notice that ended it. For anyone else it is gone.
+ */
+function hasBoard(match: Match, participantId: ParticipantId): boolean {
+	const seat = match.seatOf(participantId);
+	return seat !== null && match.seats[seat]?.playerId !== null;
 }
 
 interface PlayApp {
@@ -207,11 +267,17 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		return room;
 	};
 
+	/** Set by `shutdown`: this process is going away, so it starts nothing new. */
+	let draining: string | null = null;
+
+	const attach = deps.host?.attach;
 	const matches = createMatchRegistry({
 		host: (id, spec, events) => {
 			if (deps.host === null) throw new Error('no Forge host is configured');
 			return deps.host(id, spec, events);
 		},
+		...(attach === undefined ? {} : { attach: (record, events) => attach(record, events) }),
+		rejoinGraceMs: deps.rejoinGraceMs,
 		log,
 		askTimeoutMs: deps.askTimeoutMs ?? 10 * 60_000,
 		overGraceMs: deps.overGraceMs ?? 10 * 60_000,
@@ -236,6 +302,12 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		const parsed = parseStartBody(req.body);
 		if (!parsed.ok) {
 			res.status(400).json({ error: parsed.error });
+			return;
+		}
+		// A match started now would be handed a JVM this process is about to stop
+		// watching, and its seats would never be told. Refused in words instead.
+		if (draining !== null) {
+			res.status(503).json({ error: draining });
 			return;
 		}
 		if (deps.host === null) {
@@ -347,11 +419,28 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		/** matchId → seat, for this connection. */
 		const joined = new Map<string, number>();
 
-		async function snapshotFor(raw: unknown, isJoin: boolean): Promise<MatchSnapshot | MatchError> {
+		async function snapshotFor(raw: unknown, isJoin: boolean): Promise<MatchSnapshot | MatchRefusal> {
 			const request = parseMatchRequest(raw);
 			if (!request.ok) return { error: `malformed: ${request.errors[0]?.path ?? '$'} ${request.errors[0]?.message ?? ''}` };
 			const match = matches.get(request.value.matchId);
-			if (match === undefined) return { error: 'unknown-match' };
+			// The registry has never heard of it. Either it never existed, or — the
+			// case that actually happens — it died with an earlier process.
+			if (match === undefined) {
+				log({ evt: 'match-gone', matchId: request.value.matchId, participantId, event: isJoin ? 'join' : 'resync' });
+				return matchGone();
+			}
+			// It is here, and it is finished. A seat that has a board still gets it
+			// (with the notice the ending already put on its stream); one that has
+			// none has nothing to come back to, and saying `match-starting` to it —
+			// which is what `snapshot` would say — is a lie.
+			if ((match.status === 'failed' || match.status === 'stopped') && !hasBoard(match, participantId)) {
+				log({ evt: 'match-gone', matchId: match.id, status: match.status, participantId, event: isJoin ? 'join' : 'resync' });
+				return matchGone(
+					match.failure === null
+						? 'This match has ended. Start a new match to play again.'
+						: `This match ended and cannot continue: ${match.failure.split('; see ')[0]}. Start a new match to play again.`,
+				);
+			}
 
 			let seat = joined.get(match.id) ?? null;
 			if (seat === null) {
@@ -464,11 +553,48 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		});
 	});
 
+	/* ── Matches an earlier server left running (Wave 22 §E) ────────── */
+	//
+	// Last, and inside `attachPlay` rather than in `index.ts`, because a resumed
+	// match must be in the registry AND have its room before a single client can
+	// ask for it — which is exactly the ordering `create` above keeps. The host
+	// offers each orphan once; anything not taken here it kills on its own
+	// deadline, so an `attach` that throws costs one match, not a leaked JVM.
+	for (const record of deps.host?.orphans?.() ?? []) {
+		try {
+			const match = matches.adopt(record);
+			if (match === null) {
+				log({ evt: 'match-not-adopted', matchId: record.matchId, reason: 'the host cannot re-attach' });
+				continue;
+			}
+			roomFor(match);
+			log({
+				evt: 'match-adopted',
+				matchId: match.id,
+				pid: record.pid,
+				status: match.status,
+				orphanedAt: record.orphanedAt ?? null,
+				seats: match.seats.map((s) => ({ seat: s.seat, claimed: s.owner !== null, playerId: s.playerId })),
+			});
+		} catch (err) {
+			log({ evt: 'match-adopt-failed', matchId: record.matchId, error: (err as Error).message });
+		}
+	}
+
 	return {
 		matches,
 		close(): void {
 			matches.stopAll();
 			deps.host?.close?.();
+		},
+		shutdown(reason: string): { handed: string[]; ended: string[] } {
+			draining = reason;
+			const { handed, ending } = matches.handOver();
+			for (const match of ending) match.serverStopping(reason);
+			for (const match of ending) match.stop();
+			// The spare holds no game, so it is stopped either way.
+			deps.host?.close?.();
+			return { handed: handed.map((m) => m.id), ended: ending.map((m) => m.id) };
 		},
 	};
 }

@@ -254,9 +254,14 @@ describe('two seats over the socket', () => {
 		await alice.request('forge:join', { matchId });
 		await bob.request('forge:join', { matchId });
 		const carol = await connect(h.port, edgeHeaders('carol'));
+		// A generic refusal keeps the bare `{ error }` shape it always had — only
+		// `match-gone` carries the outcome and the words. See socket.ts's header.
 		expect(await carol.request('forge:join', { matchId })).toEqual({ error: 'match-full' });
-		expect(await carol.request('forge:join', { matchId: 'm-000000000000' })).toEqual({ error: 'unknown-match' });
 		expect(await carol.request('forge:resync', { matchId })).toEqual({ error: 'not-joined' });
+		expect(await carol.request('forge:join', { matchId: 'm-000000000000' })).toMatchObject({
+			error: 'unknown-match',
+			outcome: 'match-gone',
+		});
 	});
 
 	it("never puts one byte of the other seat's hidden cards in what either peer received", async () => {
@@ -560,5 +565,83 @@ describe('CARDTABLE_PLAY_SEED', () => {
 		expect(r.ok).toBe(true);
 		if (!r.ok) return;
 		expect(r.spec.seed).toBeUndefined();
+	});
+});
+
+/* ── A refusal a player can read, and a shutdown that says so (Wave 22 §E) ── */
+
+describe('a match that is gone says so, in words', () => {
+	it("answers a join for a match nobody has heard of with the outcome AND the sentence, not just 'unknown-match'", async () => {
+		const h = await boot();
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const ack = (await alice.request('forge:join', { matchId: 'm-000000000000' })) as Record<string, unknown>;
+		// `error` is unchanged, so anything that only reads it behaves as before…
+		expect(ack.error).toBe('unknown-match');
+		// …and the two new fields are what the client renders instead of the code.
+		expect(ack.outcome).toBe('match-gone');
+		expect(ack.message).toBe(socketMod.MATCH_GONE_WORDS);
+		expect(String(ack.message)).toMatch(/restarted/);
+		expect(h.logs.find((l) => l.evt === 'match-gone')).toMatchObject({ matchId: 'm-000000000000', event: 'join' });
+	});
+
+	it('says the same to a stranger asking after a match that has ENDED, and names the reason when there is one', async () => {
+		const { h, matchId, alice, host } = await twoSeatsFor();
+		await alice.request('forge:join', { matchId });
+		host.exit('the JVM exited (code 1, signal null); see /tmp/x/bridge.stderr.txt');
+		await waitUntil(() => h.handle.matches.get(matchId)?.status === 'failed', 'the match to fail');
+
+		// The seat that was playing still gets its board back, with the notice.
+		expect(await alice.request('forge:resync', { matchId })).toMatchObject({ matchId, seat: 0 });
+		// Anyone else is told it is gone, with the cause and no server path in it.
+		const carol = await connect(h.port, edgeHeaders('carol'));
+		const ack = (await carol.request('forge:join', { matchId })) as Record<string, unknown>;
+		expect(ack).toMatchObject({ error: 'unknown-match', outcome: 'match-gone' });
+		expect(String(ack.message)).toContain('code 1');
+		expect(String(ack.message)).not.toContain('bridge.stderr.txt');
+	});
+
+	async function twoSeatsFor(): Promise<{ h: Harness; matchId: string; alice: Peer; host: ReplayHost }> {
+		const h = await boot();
+		const { body } = await startMatch(h);
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		return { h, matchId: body.matchId as string, alice, host: h.hosts[0] as ReplayHost };
+	}
+});
+
+describe('shutdown', () => {
+	it('refuses a new match in a sentence, and tells the seats of one that cannot outlive the server', async () => {
+		const h = await boot();
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		const mark = { alice: alice.frames.length, bob: bob.frames.length };
+
+		// The replay host's Forge dies with this process — it has no `handOver` —
+		// so this match is in the `ended` half and its seats are owed words.
+		const outcome = h.handle.shutdown('The server is restarting for a deploy.');
+		expect(outcome).toEqual({ handed: [], ended: [matchId] });
+
+		await waitUntil(() => alice.frames.length > mark.alice && bob.frames.length > mark.bob, 'the ending notice at both seats');
+		for (const [peer, from] of [
+			[alice, mark.alice],
+			[bob, mark.bob],
+		] as const) {
+			const notice = peer.frames.slice(from).map((f) => (f as { frame: { method?: string; message?: string } }).frame);
+			expect(notice.map((f) => f.method)).toContain('showErrorDialog');
+			expect(notice.find((f) => f.method === 'showErrorDialog')?.message).toBe('The server is restarting for a deploy.');
+		}
+		expect(h.handle.matches.get(matchId)?.status).toBe('stopped');
+
+		// And nothing new is started by a process on its way out.
+		const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
+			method: 'POST',
+			headers: { ...edgeHeaders('carol'), 'content-type': 'application/json' },
+			body: '{}',
+		});
+		expect(res.status).toBe(503);
+		expect((await res.json()) as { error: string }).toEqual({ error: 'The server is restarting for a deploy.' });
 	});
 });

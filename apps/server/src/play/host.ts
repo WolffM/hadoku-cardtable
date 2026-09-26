@@ -98,6 +98,64 @@
  *   directory cannot be told from a dead one, and guessing wrong deletes a
  *   running match's files.
  *
+ *   Since Wave 22 the sweep also says **whose** each live directory is
+ *   (`SweepResult.orphans`): a live dir with a re-attachable `jvm.json` is a
+ *   match waiting to be picked back up rather than a stranger's, and that is
+ *   the only thing that changed about the guard. A live dir with no readable
+ *   `jvm.json` is still spared and still left alone — it may be another
+ *   server's.
+ *
+ * ## A match outlives its server (Wave 22, §E)
+ *
+ * Until this wave a deploy ended every live game. `pm2 restart` exits this
+ * process, and the `process.on('exit')` hook here **SIGKILLed every match JVM**
+ * — so two docs-only pushes on 2026-09-26 killed the operator's match four
+ * minutes apart and the client saw `forge:join was refused: unknown-match`.
+ * The nightly 08:00 UTC restart had been doing the same thing silently since
+ * the beginning.
+ *
+ * A match now survives the server that started it. Three things had to change,
+ * and each of them is forced:
+ *
+ * 1. **The transport cannot be an inherited pipe.** A pipe dies with the
+ *    process that created it, so a JVM reached over `stdio: ['pipe','pipe']`
+ *    can never be spoken to again. Each run dir therefore carries two named
+ *    pipes, `in.fifo` and `out.fifo` (`mkfifo`; there is no `mkfifoSync`), and
+ *    the JVM's stdin/stdout are fds on those. Both ends open them **`O_RDWR`**,
+ *    which on Linux succeeds without a peer and — the point — means neither
+ *    side ever sees EOF because each is its own last writer. The bridge exits
+ *    on stdin EOF, so an inherited read-only fd would end the match the moment
+ *    the server let go. stderr is an `O_APPEND` fd on `bridge.stderr.txt`, not
+ *    a pipe, for the same reason.
+ * 2. **The JVM must not be in our process group, and nothing may kill it on
+ *    the way out.** `detached: true`, `child.unref()`, and the exit hook no
+ *    longer kills anything — it is the whole bug.
+ * 3. **The new process has to be able to rebuild the match.** A re-attached
+ *    JVM keeps Forge's game, but `Match`'s per-seat projectors, histories,
+ *    cursors and parked asks live in the process that died. So every protocol
+ *    line is appended to `<run>/stream.jsonl` as it is read, and a re-attach
+ *    replays that file into the new `Match` before a single live line reaches
+ *    it. Replay is deterministic — same lines, same order, same projector — so
+ *    each seat's `seq` comes back identical, and `jvm.json` carries the match's
+ *    **epoch** and its seats' owners. A client therefore resyncs on the cursor
+ *    it already held, and seat 2 cannot come back as seat 1 (which would hand
+ *    them the other player's hand).
+ *
+ * `jvm.json` is the handle: `{matchId, pid, run, epoch, owners, spec, …}`,
+ * written when a JVM is adopted by a match and rewritten when a seat is
+ * claimed. At boot `orphans()` offers back every run dir whose recorded pid is
+ * still the pid of a process whose cwd is that dir — the `/proc/<pid>/cwd`
+ * check the boot sweep already used to spare a live directory, now asked
+ * whose it is. `attach()` then re-opens the fifos and replays the stream.
+ *
+ * **Nothing keeps an orphan for ever.** A JVM with no server to talk to is
+ * pure cost: `ORPHAN_MAX_MS` past its `orphanedAt` it is not re-attached at
+ * all but killed and swept; one nobody claims within `ORPHAN_CLAIM_MS` of boot
+ * is killed too (so a caller that ignores `orphans()` cannot leak a JVM); and
+ * a re-attached match whose seats never come back is stopped by
+ * `Match.expectRejoin`. A `--spare` JVM is never re-attached — it holds no
+ * game — and is killed at boot from its own `jvm.json`.
+ *
  * ## The line protocol
  *
  * `bridge/PlayBridge.java` writes one JSON object per line on stdout and reads
@@ -121,13 +179,15 @@
  * trap `CLAUDE.md` describes for `javac`.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
-	createWriteStream,
+	appendFileSync,
+	closeSync,
 	existsSync,
 	lstatSync,
 	mkdirSync,
+	openSync,
 	readdirSync,
 	readFileSync,
 	readlinkSync,
@@ -135,7 +195,9 @@ import {
 	rmSync,
 	symlinkSync,
 	writeFileSync,
+	writeSync,
 } from 'node:fs';
+import { Socket } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -194,21 +256,71 @@ export interface HostEvents {
 	/** The host is gone. `reason` says why, for the match's status. */
 	exit(reason: string): void;
 	log(entry: Record<string, unknown>): void;
+	/**
+	 * Replay only (`attach`): a command an EARLIER server had already sent to this
+	 * JVM. Nothing the bridge says records that an ask was answered, so without
+	 * this a resumed match would re-open asks Forge has already returned from.
+	 */
+	replayed?(command: BridgeCommand): void;
 }
 
 export interface MatchHost {
 	send(command: BridgeCommand): void;
 	/** Ask the match to stop; force it after a grace period. Idempotent. */
 	stop(): void;
+	/**
+	 * Write down what a re-attach of this match would need that only the match
+	 * knows: its epoch, and which participant owns each seat. Absent on a host
+	 * that cannot outlive the process (the replay host in the tests).
+	 */
+	remember?(state: { epoch: string; owners: (string | null)[] }): void;
+	/**
+	 * The server is going down and this match is being LEFT RUNNING. Let go of
+	 * the transport without killing anything and without settling the run
+	 * directory, so the next process can `attach` to it. Absent on a host whose
+	 * JVM cannot outlive us, and false when there was nothing to hand over — the
+	 * caller then owes the seats an explanation instead.
+	 */
+	handOver?(): boolean;
+}
+
+/**
+ * What one detached JVM is, from outside the process that started it —
+ * `<run>/jvm.json`. Everything a re-attach needs and nothing a seat could not
+ * already see: `owners` are participant ids, which never leave this host.
+ */
+export interface JvmRecord {
+	/** The match's id, which is also the JVM's own id after `adopt`. */
+	matchId: string;
+	pid: number;
+	run: string;
+	startedAt: string;
+	/** The match's epoch, so a re-attached client resyncs on the cursor it holds. */
+	epoch: string | null;
+	/** seat → participant id, so a re-attach cannot seat someone at the wrong hand. */
+	owners: (string | null)[];
+	/** Null only for a spare, which has no match and is never re-attached. */
+	spec: MatchSpec | null;
+	/** A `--spare` JVM holds no game and is never re-attached. */
+	spare?: boolean;
+	/** Set when a server handed this JVM over on its way out. */
+	orphanedAt?: string;
 }
 
 /**
  * Makes a host for one match. `close`, when present, releases whatever the
  * factory holds between matches (the JVM pool's spare); `attachPlay`'s
- * `close()` calls it.
+ * `close()` calls it. `orphans`/`attach` are the re-attach seam — a factory
+ * whose JVMs cannot outlive the process has neither.
  */
 export type MatchHostFactory = ((matchId: string, spec: MatchSpec, events: HostEvents) => MatchHost) & {
 	close?(): void;
+	/** Matches still running from an earlier server, oldest first. Read once, at boot. */
+	orphans?(): JvmRecord[];
+	/** Take one back: re-open its transport and replay its stream into `events` before returning. */
+	attach?(record: JvmRecord, events: HostEvents): MatchHost;
+	/** Leave every live match running for the next process (SIGTERM). */
+	handOverAll?(): void;
 };
 
 /** See "The ceiling" in the module header. Also `PlayDeps.maxMatches`'s default. */
@@ -310,6 +422,128 @@ export function jvmHostConfig(env: NodeJS.ProcessEnv = process.env): JvmAvailabi
 	};
 }
 
+/* ── A JVM that outlives us: the fifos, the record, the stream ───────── */
+
+/** The JVM's stdin. Both ends open it `O_RDWR`; see "A match outlives its server". */
+const IN_FIFO = 'in.fifo';
+/** The JVM's stdout, same treatment. */
+const OUT_FIFO = 'out.fifo';
+/** `JvmRecord` — the handle a later process re-attaches by. */
+export const JVM_RECORD_FILE = 'jvm.json';
+/** Every protocol line, as read, so a re-attach can replay the match into a fresh `Match`. */
+export const STREAM_FILE = 'stream.jsonl';
+
+/** An orphan older than this is not re-attached: it is killed and swept. */
+export const ORPHAN_MAX_MS = 12 * 60 * 60 * 1000;
+/**
+ * An orphan nobody claimed this long after boot is killed. A caller that never
+ * calls `orphans()` therefore cannot leak a JVM, and the spare comes back.
+ */
+export const ORPHAN_CLAIM_MS = 60_000;
+/** How often an attached JVM (which is nobody's child, so has no `exit` event) is checked for. */
+const PID_POLL_MS = 1000;
+
+/**
+ * Two named pipes in the run dir. `mkfifo(3)` has no binding in `node:fs`, so
+ * this shells out — once per run directory, at staging time.
+ */
+function makeFifos(run: string): void {
+	const made = spawnSync('mkfifo', [join(run, IN_FIFO), join(run, OUT_FIFO)], { stdio: 'pipe' });
+	if (made.error !== undefined) throw made.error;
+	if (made.status !== 0) {
+		throw new Error(`mkfifo failed in ${run} (status ${made.status}): ${made.stderr?.toString().trim() ?? ''}`);
+	}
+}
+
+/**
+ * The transport to one JVM, either end of which may be opened by a process that
+ * did not create it. Both fds are `O_RDWR` so neither side ever reads EOF —
+ * the bridge would exit on one, and we could not tell a handed-over JVM from a
+ * dead one.
+ */
+interface JvmIo {
+	writeFd: number;
+	lines: NodeJS.ReadableStream;
+	close(): void;
+}
+
+/**
+ * The read end is a `net.Socket` over the fd, **not** `fs.createReadStream`.
+ * That is not a style choice: `fs.read` on a blocking fifo fd parks a libuv
+ * THREADPOOL thread for as long as the fifo is empty, and the pool is four
+ * threads by default. Two matches and a spare is three readers waiting on a
+ * quiet Forge, and the fourth thread is every other piece of async file work
+ * this process does — which is how the first version of this deadlocked
+ * `host.test.ts` outright. `net.Socket` puts the fd in libuv's event loop
+ * (`uv_pipe_open`, epoll) and occupies no thread at all.
+ */
+function openJvmIo(run: string): JvmIo {
+	const writeFd = openSync(join(run, IN_FIFO), 'r+');
+	const readFd = openSync(join(run, OUT_FIFO), 'r+');
+	const lines = new Socket({ fd: readFd, readable: true, writable: false });
+	lines.on('error', () => {
+		// The fd went with the JVM, or was closed under us. The exit path says why.
+	});
+	return {
+		writeFd,
+		lines,
+		close(): void {
+			lines.destroy();
+			try {
+				closeSync(writeFd);
+			} catch {
+				// Already closed, or the fd went with the stream. Nothing to recover.
+			}
+		},
+	};
+}
+
+/** `<run>/jvm.json`, or null when it is missing, unreadable or not a record. */
+export function readJvmRecord(run: string): JvmRecord | null {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(readFileSync(join(run, JVM_RECORD_FILE), 'utf8'));
+	} catch {
+		return null;
+	}
+	if (typeof parsed !== 'object' || parsed === null) return null;
+	const record = parsed as Partial<JvmRecord>;
+	if (typeof record.matchId !== 'string' || typeof record.pid !== 'number' || typeof record.run !== 'string') return null;
+	// A spare carries no spec; anything else without one is not re-attachable.
+	const hasSpec = record.spec !== null && record.spec !== undefined && Array.isArray(record.spec.seats) && record.spec.seats.length === 2;
+	if (!hasSpec && record.spare !== true) return null;
+	return {
+		matchId: record.matchId,
+		pid: record.pid,
+		run: record.run,
+		startedAt: typeof record.startedAt === 'string' ? record.startedAt : new Date(0).toISOString(),
+		epoch: typeof record.epoch === 'string' ? record.epoch : null,
+		owners: Array.isArray(record.owners) ? record.owners.map((o) => (typeof o === 'string' ? o : null)) : [],
+		spec: hasSpec ? (record.spec as MatchSpec) : null,
+		...(record.spare === true ? { spare: true } : {}),
+		...(typeof record.orphanedAt === 'string' ? { orphanedAt: record.orphanedAt } : {}),
+	};
+}
+
+/**
+ * Is `pid` still the process standing in `run`? The cwd check is what makes
+ * this safe against pid reuse: a recycled pid is some other program, in some
+ * other directory. Null when `/proc` cannot answer.
+ */
+function pidIsStandingIn(pid: number, run: string): boolean | null {
+	let cwd: string;
+	try {
+		cwd = readlinkSync(`/proc/${pid}/cwd`);
+	} catch (err) {
+		const code = (err as NodeJS.ErrnoException).code;
+		if (code === 'ENOENT' || code === 'ESRCH') return false;
+		// EACCES/EPERM: the process exists and is not ours to inspect. Not ours to claim either.
+		if (code === 'EACCES' || code === 'EPERM') return false;
+		return null;
+	}
+	return cwd === run;
+}
+
 /**
  * Forge resolves `res/` against the working directory (`ForgeConstants.RES_DIR`
  * is "res/" when the version string carries no "git"), and reads its user and
@@ -324,6 +558,7 @@ function stageRunDir(config: JvmHostConfig, name: string): string {
 	mkdirSync(join(run, 'user', 'preferences'), { recursive: true });
 	mkdirSync(join(run, 'cache'), { recursive: true });
 	symlinkSync(config.res, join(run, 'res'));
+	makeFifos(run);
 	writeFileSync(
 		join(run, 'forge.profile.properties'),
 		[
@@ -488,29 +723,79 @@ export interface SweepResult {
 	fresh: string[];
 	/** Crash records kept, and those the bound removed. */
 	crashes: { kept: string[]; removed: string[] };
+	/**
+	 * Live directories that name themselves: a match from an earlier server whose
+	 * JVM is still the process standing in its run dir. Oldest first, ready for
+	 * `attach`. A subset of `live` — the rest of `live` is spared and untouched.
+	 */
+	orphans: JvmRecord[];
+	/**
+	 * Live directories the sweep ENDED, because their own `jvm.json` said they
+	 * were worthless: a `--spare` JVM (it holds no game) or an orphan past
+	 * `ORPHAN_MAX_MS`. Only ever a dir whose recorded pid is the very process
+	 * standing in it.
+	 */
+	killed: string[];
 	/** Set when the sweep did nothing, and why. */
 	skipped?: string;
 }
 
 /**
- * Remove the run directories an earlier process left behind. See "The run
- * directory" in the module header for what it spares and why.
+ * Remove the run directories an earlier process left behind, and hand back the
+ * ones that are still playing. See "The run directory" and "A match outlives
+ * its server" in the module header for what it spares and why.
  */
 export function sweepRunDirs(workDir: string, now = Date.now()): SweepResult {
-	const result: SweepResult = { removed: [], live: [], fresh: [], crashes: { kept: [], removed: [] } };
+	const result: SweepResult = { removed: [], live: [], fresh: [], crashes: { kept: [], removed: [] }, orphans: [], killed: [] };
 	const cwds = processCwds();
 	if (cwds === null) return { ...result, skipped: '/proc is not readable, so a live run directory cannot be told from a dead one' };
 	for (const { name, dir, mtimeMs } of runDirs(workDir)) {
-		if (cwds.some((cwd) => cwd === dir || cwd.startsWith(dir + sep))) result.live.push(name);
-		else if (existsSync(join(dir, CRASH_MARKER))) continue; // the bound decides, below
-		else if (now - mtimeMs < RUN_DIR_FRESH_MS) result.fresh.push(name);
+		if (cwds.some((cwd) => cwd === dir || cwd.startsWith(dir + sep))) {
+			// LIVE. Some process is standing here, so the directory is not ours to
+			// remove on a guess — that guard is why another server's match survives.
+			// The only question this branch asks is whose it is, and it is answered
+			// by the directory itself: a `jvm.json` whose pid IS the process
+			// standing here is one of ours and says what it is worth.
+			const record = readJvmRecord(dir);
+			// `pidIsStandingIn` is the whole identity check, and it is exact: the
+			// recorded pid must be the very process whose cwd is THIS directory. The
+			// record's own `run` string is deliberately not compared — `runDirs`
+			// resolves `workDir` through `realpath` and the writer did not, so on a
+			// host where the work dir is reached through a symlink the two spellings
+			// differ and a match would silently stop being re-attachable.
+			const mine = record !== null && pidIsStandingIn(record.pid, dir) === true;
+			const age = record === null ? 0 : now - Date.parse(record.orphanedAt ?? record.startedAt);
+			if (mine && record !== null && (record.spare === true || !(age < ORPHAN_MAX_MS))) {
+				// Worthless with certainty: a spare holds no game, and an orphan this
+				// old is not a match anybody is coming back to.
+				killPid(record.pid);
+				rmSync(dir, { recursive: true, force: true });
+				result.killed.push(name);
+				continue;
+			}
+			result.live.push(name);
+			if (mine && record !== null) result.orphans.push(record);
+			continue;
+		}
+		if (existsSync(join(dir, CRASH_MARKER))) continue; // the bound decides, below
+		if (now - mtimeMs < RUN_DIR_FRESH_MS) result.fresh.push(name);
 		else {
 			rmSync(dir, { recursive: true, force: true });
 			result.removed.push(name);
 		}
 	}
+	result.orphans.sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
 	result.crashes = pruneCrashRecords(workDir, now);
 	return result;
+}
+
+/** SIGKILL a pid we own, or say nothing: it may have gone between the check and here. */
+function killPid(pid: number): void {
+	try {
+		process.kill(pid, 'SIGKILL');
+	} catch {
+		// ESRCH — already gone, which is the outcome we wanted.
+	}
 }
 
 /** The config object the bridge reads — from `config.json` cold, or in a spare's `start` line. */
@@ -518,17 +803,16 @@ function bridgeConfig(matchId: string, spec: MatchSpec): Record<string, unknown>
 	return { matchId, ...spec };
 }
 
-/** Every JVM this process started and has not seen exit. Killed if Node exits first. */
-const live = new Set<ChildProcess>();
-let exitHookInstalled = false;
-
-function installExitHook(): void {
-	if (exitHookInstalled) return;
-	exitHookInstalled = true;
-	process.on('exit', () => {
-		for (const child of live) child.kill('SIGKILL');
-	});
-}
+/**
+ * Every JVM this process is talking to and has not seen exit.
+ *
+ * Until Wave 22 a `process.on('exit')` hook here SIGKILLed every one of them,
+ * which is exactly how a deploy ended the operator's game. There is no such
+ * hook any more, on purpose: a match is meant to outlive this process, and an
+ * orphan is bounded by `ORPHAN_MAX_MS` and the boot sweep instead of by our
+ * last breath. See "A match outlives its server".
+ */
+const live = new Set<BridgeJvm>();
 
 /** Number of bridge JVMs this process currently has running. */
 export function liveJvmCount(): number {
@@ -549,64 +833,129 @@ function parseWarmLine(text: string): { match: unknown; bootMs: number } | null 
 	return { match, bootMs: typeof bootMs === 'number' ? bootMs : -1 };
 }
 
+/** How a `BridgeJvm` came to be: we started it, or an earlier server did. */
+type JvmSource = { mode: 'spawn'; args: string[] } | { mode: 'attach'; record: JvmRecord };
+
 /**
  * One bridge JVM. Its lines are checked against `id` — the spare's own id until
  * `adopt`, the match's after — and go to `events`, which a spare does not have
  * yet. Everything a match sees of it is the `MatchHost` that `adopt` returns.
+ *
+ * It is addressed by **pid**, not by a `ChildProcess`: a JVM re-attached from an
+ * earlier server is nobody's child, so `child` is null for it and its death is
+ * noticed by polling rather than by an `exit` event.
  */
 class BridgeJvm {
 	id: string;
 	readonly run: string;
-	readonly child: ChildProcess;
+	readonly pid: number;
+	/** Set when we spawned it; null for one re-attached from an earlier server. */
+	private readonly child: ChildProcess | null = null;
+	private readonly io: JvmIo;
+	/** Where every protocol line is kept, so a later process can replay this match. */
+	private readonly streamFile: string;
+	/** False once a line could not be persisted: this match is no longer re-attachable. */
+	private durable = true;
+	/** The record on disk, from `adopt` or from the attach. Null while this JVM is a spare. */
+	private record: JvmRecord | null = null;
 	/** Set by `adopt`. Null while this JVM is a spare. */
 	private events: HostEvents | null = null;
 	/** The spare's `warm` line has arrived. A cold JVM never sends one. */
 	warm = false;
 	exited = false;
 	private stopping = false;
+	/** Handed to the next server: do not kill it, do not settle its run dir. */
+	private handedOver = false;
 	/** How it ended, set on exit and consumed when the run dir is settled. */
 	private ending: 'clean' | { reason: string; code: number | null; signal: NodeJS.Signals | null } | null = null;
 	private readonly killTimers: NodeJS.Timeout[] = [];
+	private watch: NodeJS.Timeout | null = null;
 
 	constructor(
 		private readonly config: JvmHostConfig,
 		run: string,
 		id: string,
-		args: string[],
+		source: JvmSource,
 		private log: (entry: Record<string, unknown>) => void,
 		private readonly hooks: { warm(jvm: BridgeJvm, bootMs: number): void; exit(jvm: BridgeJvm, reason: string): void },
 	) {
-		installExitHook();
 		this.id = id;
 		this.run = run;
-		const stderr = createWriteStream(join(run, 'bridge.stderr.txt'));
-		stderr.on('error', (err) => this.log({ evt: 'bridge-stderr-error', id: this.id, error: err.message }));
-		const child = spawn(
-			config.java,
-			['-Djava.awt.headless=true', ...config.jvmOpts, '-cp', config.jar, config.bridgeSource, ...args],
-			{ cwd: run, stdio: ['pipe', 'pipe', 'pipe'] },
-		);
+		this.streamFile = join(run, STREAM_FILE);
+		this.io = openJvmIo(run);
+		if (source.mode === 'attach') {
+			this.pid = source.record.pid;
+			this.record = source.record;
+			live.add(this);
+			log({ evt: 'jvm-attached', id, pid: this.pid, run, orphanedAt: source.record.orphanedAt ?? null });
+			// Reading starts only once the match has been replayed into `events` —
+			// see `resume`. A live line that arrived first would have nowhere to go.
+			this.watchPid();
+			return;
+		}
+		// stderr is an appended FILE, not a pipe: a pipe dies with this process and
+		// the JVM must not. It is also what a crash record keeps.
+		const stderrFd = openSync(join(run, 'bridge.stderr.txt'), 'a');
+		// The child gets its OWN fds on the fifos, closed here once it holds them.
+		const childIn = openSync(join(run, IN_FIFO), 'r+');
+		const childOut = openSync(join(run, OUT_FIFO), 'r+');
+		let child: ChildProcess;
+		try {
+			child = spawn(
+				config.java,
+				['-Djava.awt.headless=true', ...config.jvmOpts, '-cp', config.jar, config.bridgeSource, ...source.args],
+				// `detached` puts it in its own process group, so a signal aimed at
+				// ours never reaches it; `unref` keeps it off our event loop.
+				{ cwd: run, stdio: [childIn, childOut, stderrFd], detached: true },
+			);
+		} finally {
+			for (const fd of [childIn, childOut, stderrFd]) closeSync(fd);
+		}
+		child.unref();
 		this.child = child;
-		live.add(child);
-		log({ evt: 'jvm-spawned', id, pid: child.pid, run, spare: args[0] === '--spare' });
-		child.stderr?.pipe(stderr);
-		createInterface({ input: child.stdout as NodeJS.ReadableStream }).on('line', (text) => this.onText(text));
+		this.pid = child.pid ?? -1;
+		live.add(this);
+		const spare = source.args[0] === '--spare';
+		log({ evt: 'jvm-spawned', id, pid: this.pid, run, spare });
+		if (spare) {
+			// A spare holds no game, so it is never re-attached — but it must still
+			// be killable from disk if this process dies before it is adopted.
+			this.record = { matchId: id, pid: this.pid, run, startedAt: new Date().toISOString(), epoch: null, owners: [], spec: null, spare: true };
+			this.writeRecord({});
+		}
+		this.resume();
 		child.on('error', (err) => this.onGone(`the JVM could not be started: ${err.message}`, { code: null, signal: null }));
 		child.on('exit', (code, signal) => {
-			log({ evt: 'jvm-exited', id: this.id, pid: child.pid, code, signal });
+			this.log({ evt: 'jvm-exited', id: this.id, pid: this.pid, code, signal });
 			this.onGone(this.stopping ? 'stopped' : `the JVM exited (code ${code}, signal ${signal}); see ${run}/bridge.stderr.txt`, { code, signal });
 		});
-		// `close` comes after `exit` (or `error`) and after the child's stdio has
-		// closed. A child that never started never ends its stderr, so end the
-		// file here; the directory is settled once every byte is in it.
-		child.on('close', () => {
-			if (!stderr.writableEnded) stderr.end();
-			if (stderr.closed) this.settleRunDir();
-			else stderr.once('close', () => this.settleRunDir());
-		});
-		// A write after the JVM died is an EPIPE on a stream nobody is reading;
-		// the exit handler above already reported why.
-		child.stdin?.on('error', (err) => log({ evt: 'bridge-stdin-error', id: this.id, error: err.message }));
+	}
+
+	/** Start reading the JVM's lines. Called at spawn, and after a replay on attach. */
+	private resume(): void {
+		createInterface({ input: this.io.lines }).on('line', (text) => this.onText(text));
+	}
+
+	/**
+	 * An attached JVM is nobody's child, so there is no `exit` event for it. The
+	 * cwd check is not repeated here: `sweepRunDirs` established that this pid is
+	 * the process standing in this run dir, and a pid that dies is not reissued
+	 * to a process that then stands in the same directory.
+	 */
+	private watchPid(): void {
+		const timer = setInterval(() => {
+			try {
+				process.kill(this.pid, 0);
+			} catch {
+				this.log({ evt: 'jvm-exited', id: this.id, pid: this.pid, code: null, signal: null, attached: true });
+				this.onGone(
+					this.stopping ? 'stopped' : `the JVM exited; see ${this.run}/bridge.stderr.txt`,
+					{ code: null, signal: null },
+				);
+			}
+		}, PID_POLL_MS);
+		timer.unref();
+		this.watch = timer;
 	}
 
 	private onText(text: string): void {
@@ -633,19 +982,43 @@ class BridgeJvm {
 			this.log({ evt: 'spare-line', id: this.id, line: line.t });
 			return;
 		}
+		this.persist(line as BridgeLine);
 		this.events.line(line as BridgeLine);
 	}
 
+	/**
+	 * Keep the line, so a later process can rebuild this match by replaying it.
+	 * A line that cannot be kept makes the match un-re-attachable, and saying so
+	 * means deleting the handle — a replay from a stream with a hole would give a
+	 * seat a board Forge does not have.
+	 */
+	private persist(entry: BridgeLine | { c: Record<string, unknown> }): void {
+		if (!this.durable) return;
+		try {
+			appendFileSync(this.streamFile, `${JSON.stringify(entry)}\n`);
+		} catch (err) {
+			this.durable = false;
+			this.log({ evt: 'jvm-stream-broken', id: this.id, run: this.run, error: (err as Error).message });
+			rmSync(join(this.run, JVM_RECORD_FILE), { force: true });
+		}
+	}
+
 	private onGone(reason: string, how: { code: number | null; signal: NodeJS.Signals | null }): void {
-		if (this.exited) return;
+		if (this.exited || this.handedOver) return;
 		this.exited = true;
 		// Clean is only a stop we asked for that the bridge finished itself (`halt(0)`).
-		// One that took our SIGTERM/SIGKILL hung, and is kept like any crash.
-		this.ending = this.stopping && how.code === 0 && how.signal === null ? 'clean' : { reason, ...how };
-		live.delete(this.child);
+		// One that took our SIGTERM/SIGKILL hung, and is kept like any crash. An
+		// ATTACHED JVM has no exit code to read — nobody waited on it — so a stop we
+		// asked for is taken at its word.
+		const finishedItself = this.child === null ? true : how.code === 0 && how.signal === null;
+		this.ending = this.stopping && finishedItself ? 'clean' : { reason, ...how };
+		live.delete(this);
 		for (const t of this.killTimers) clearTimeout(t);
+		if (this.watch !== null) clearInterval(this.watch);
+		this.io.close();
 		if (this.events !== null) this.events.exit(reason);
 		this.hooks.exit(this, reason);
+		this.settleRunDir();
 	}
 
 	/**
@@ -672,8 +1045,39 @@ class BridgeJvm {
 
 	/** Raw write, addressed to whatever id this JVM holds right now. */
 	write(command: Record<string, unknown>): void {
-		const stdin = this.child.stdin;
-		if (stdin !== null && stdin.writable) stdin.write(`${JSON.stringify({ ...command, match: this.id })}\n`);
+		if (this.exited || this.handedOver) return;
+		// Kept in the same file, in the same order, as the lines that came back:
+		// a replay has to know which asks the old server had already answered.
+		if (this.events !== null && command.t !== 'stop') this.persist({ c: command });
+		try {
+			writeSync(this.io.writeFd, `${JSON.stringify({ ...command, match: this.id })}\n`);
+		} catch (err) {
+			// The JVM is gone, or its fifo is full and nobody is draining it. The
+			// exit path reports the first; the second cannot happen while the bridge
+			// is reading, which is all it does between lines.
+			this.log({ evt: 'bridge-stdin-error', id: this.id, error: (err as Error).message });
+		}
+	}
+
+	/** Update the on-disk handle a later process would re-attach by. */
+	private writeRecord(patch: Partial<JvmRecord>): void {
+		if (this.record === null || !this.durable) return;
+		this.record = { ...this.record, ...patch };
+		try {
+			writeFileSync(join(this.run, JVM_RECORD_FILE), `${JSON.stringify(this.record, null, 2)}\n`);
+		} catch (err) {
+			this.log({ evt: 'jvm-record-failed', id: this.id, error: (err as Error).message });
+		}
+	}
+
+	/** What a match holds of this JVM. The two optional halves are the re-attach seam. */
+	private hostFace(): MatchHost {
+		return {
+			send: (command: BridgeCommand) => this.write(command),
+			stop: () => this.stop(),
+			remember: (state) => this.writeRecord({ epoch: state.epoch, owners: state.owners }),
+			handOver: () => this.handOver(),
+		};
 	}
 
 	/**
@@ -687,13 +1091,94 @@ class BridgeJvm {
 		if (spare) this.write({ t: 'start', config: bridgeConfig(matchId, spec) });
 		// From here this JVM's log lines are the match's.
 		this.log = events.log;
-		this.log({ evt: spare ? 'spare-adopted' : 'jvm-cold', matchId, from: this.id, pid: this.child.pid, warm: this.warm });
+		this.log({ evt: spare ? 'spare-adopted' : 'jvm-cold', matchId, from: this.id, pid: this.pid, warm: this.warm });
 		this.id = matchId;
 		this.events = events;
-		return {
-			send: (command: BridgeCommand) => this.write(command),
-			stop: () => this.stop(),
+		// And from here it is re-attachable: the handle names the match, not the spare.
+		this.record = {
+			matchId,
+			pid: this.pid,
+			run: this.run,
+			startedAt: new Date().toISOString(),
+			epoch: null,
+			owners: [],
+			spec,
 		};
+		this.writeRecord({});
+		return this.hostFace();
+	}
+
+	/**
+	 * Take a JVM an earlier server left running back into a match: replay every
+	 * line that server read, THEN start reading live ones. The order is the whole
+	 * point — a live delta applied before the `setGameView` it follows would give
+	 * the seat a board Forge does not have — and it holds because the replay is
+	 * synchronous and Node is single-threaded.
+	 */
+	resumeInto(events: HostEvents): { host: MatchHost; replayed: number } {
+		this.log = events.log;
+		this.events = events;
+		const replayed = this.replay(events);
+		this.resume();
+		this.log({ evt: 'match-resumed', matchId: this.id, pid: this.pid, run: this.run, replayed });
+		return { host: this.hostFace(), replayed };
+	}
+
+	/** Feed `<run>/stream.jsonl` back to the match. Returns how many lines it had. */
+	private replay(events: HostEvents): number {
+		let text: string;
+		try {
+			text = readFileSync(this.streamFile, 'utf8');
+		} catch (err) {
+			this.log({ evt: 'replay-unreadable', matchId: this.id, run: this.run, error: (err as Error).message });
+			return 0;
+		}
+		let replayed = 0;
+		for (const raw of text.split('\n')) {
+			if (raw === '') continue;
+			let entry: unknown;
+			try {
+				entry = JSON.parse(raw);
+			} catch {
+				// Only ever the last line, and only if the old process died between
+				// the write and the newline. Said out loud: the seat is one frame
+				// behind what Forge has, and its next delta will say so.
+				this.log({ evt: 'replay-truncated', matchId: this.id, bytes: raw.length });
+				continue;
+			}
+			if (typeof entry !== 'object' || entry === null) continue;
+			const sent = (entry as { c?: unknown }).c;
+			if (typeof sent === 'object' && sent !== null) {
+				events.replayed?.(sent as BridgeCommand);
+				replayed += 1;
+				continue;
+			}
+			if (!LINE_TYPES.has(String((entry as { t?: unknown }).t))) continue;
+			events.line(entry as BridgeLine);
+			replayed += 1;
+		}
+		return replayed;
+	}
+
+	/**
+	 * Let go without killing: this process is going down and the match is not.
+	 * Nothing is signalled, the run directory is NOT settled (it is the next
+	 * server's handle), and the record is stamped so the orphan bound runs from
+	 * now. False when there was nothing to hand over.
+	 */
+	handOver(): boolean {
+		if (this.exited || this.handedOver || this.record === null || this.record.spare === true || !this.durable) return false;
+		this.handedOver = true;
+		this.writeRecord({ orphanedAt: new Date().toISOString() });
+		for (const t of this.killTimers) clearTimeout(t);
+		if (this.watch !== null) clearInterval(this.watch);
+		// Its exit is no longer our business, and must not be read as a crash.
+		this.child?.removeAllListeners('exit');
+		this.child?.removeAllListeners('error');
+		live.delete(this);
+		this.io.close();
+		this.log({ evt: 'jvm-handed-over', matchId: this.id, pid: this.pid, run: this.run });
+		return true;
 	}
 
 	/**
@@ -702,14 +1187,27 @@ class BridgeJvm {
 	 * (`docs/spikes/jvm-per-match.md` §6). Idempotent.
 	 */
 	stop(): void {
-		if (this.stopping || this.exited) return;
+		if (this.stopping || this.exited || this.handedOver) return;
 		this.stopping = true;
 		this.write({ t: 'stop' });
-		const term = setTimeout(() => this.child.kill('SIGTERM'), this.config.stopGraceMs);
-		const kill = setTimeout(() => this.child.kill('SIGKILL'), 2 * this.config.stopGraceMs);
+		const term = setTimeout(() => this.signal('SIGTERM'), this.config.stopGraceMs);
+		const kill = setTimeout(() => this.signal('SIGKILL'), 2 * this.config.stopGraceMs);
 		term.unref();
 		kill.unref();
 		this.killTimers.push(term, kill);
+	}
+
+	/** A spawned JVM is signalled through its handle, an attached one by pid. */
+	private signal(sig: NodeJS.Signals): void {
+		if (this.child !== null) {
+			this.child.kill(sig);
+			return;
+		}
+		try {
+			process.kill(this.pid, sig);
+		} catch {
+			// ESRCH — it went on its own, which the watcher will notice.
+		}
 	}
 }
 
@@ -729,6 +1227,9 @@ export interface JvmPoolOptions {
 export type JvmHostFactory = MatchHostFactory & {
 	close(): void;
 	spare(): 'none' | 'booting' | 'warm';
+	orphans(): JvmRecord[];
+	attach(record: JvmRecord, events: HostEvents): MatchHost;
+	handOverAll(): string[];
 };
 
 function defaultHostLog(entry: Record<string, unknown>): void {
@@ -746,6 +1247,14 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	const poolLog = options.log ?? defaultHostLog;
 	/** JVMs that belong to a match and have not exited. */
 	const serving = new Set<BridgeJvm>();
+	/**
+	 * Matches an earlier server left running, found by the boot sweep and not yet
+	 * taken back. They count against `maxJvms` from the moment they are found, so
+	 * a re-attach cannot push the JVM count past the ceiling — and they are killed
+	 * if nobody claims them, so a caller that ignores `orphans()` leaks nothing.
+	 */
+	const pending = new Map<string, JvmRecord>();
+	let claimDeadline: NodeJS.Timeout | null = null;
 	let spare: BridgeJvm | null = null;
 	let spareFailures = 0;
 	let retry: NodeJS.Timeout | null = null;
@@ -754,7 +1263,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	const hooks = {
 		warm(jvm: BridgeJvm, bootMs: number) {
 			spareFailures = 0;
-			poolLog({ evt: 'spare-warm', id: jvm.id, pid: jvm.child.pid, bootMs });
+			poolLog({ evt: 'spare-warm', id: jvm.id, pid: jvm.pid, bootMs });
 		},
 		exit(jvm: BridgeJvm, reason: string) {
 			if (jvm === spare) {
@@ -781,9 +1290,20 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 
 	function replenish(): void {
 		if (!useSpare || closed || spare !== null || spareFailures >= SPARE_MAX_FAILURES) return;
-		if (serving.size + 1 > maxJvms) return;
+		if (serving.size + pending.size + 1 > maxJvms) return;
 		const id = `spare-${randomBytes(6).toString('hex')}`;
-		spare = new BridgeJvm(config, stageRunDir(config, id), id, ['--spare', id], poolLog, hooks);
+		spare = new BridgeJvm(config, stageRunDir(config, id), id, { mode: 'spawn', args: ['--spare', id] }, poolLog, hooks);
+	}
+
+	/** Nobody came back for these. See "A match outlives its server". */
+	function dropUnclaimed(): void {
+		for (const [matchId, record] of pending) {
+			poolLog({ evt: 'orphan-unclaimed', matchId, pid: record.pid, run: record.run, afterMs: ORPHAN_CLAIM_MS });
+			killPid(record.pid);
+			rmSync(record.run, { recursive: true, force: true });
+		}
+		pending.clear();
+		replenish();
 	}
 
 	const factory = ((matchId: string, spec: MatchSpec, events: HostEvents): MatchHost => {
@@ -796,7 +1316,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		} else {
 			const run = stageRunDir(config, matchId);
 			writeFileSync(join(run, 'config.json'), JSON.stringify(bridgeConfig(matchId, spec)));
-			jvm = new BridgeJvm(config, run, matchId, [join(run, 'config.json')], events.log, hooks);
+			jvm = new BridgeJvm(config, run, matchId, { mode: 'spawn', args: [join(run, 'config.json')] }, events.log, hooks);
 		}
 		serving.add(jvm);
 		const host = jvm.adopt(matchId, spec, events, fromSpare);
@@ -807,6 +1327,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	factory.close = () => {
 		closed = true;
 		if (retry !== null) clearTimeout(retry);
+		if (claimDeadline !== null) clearTimeout(claimDeadline);
 		// Forget it first, so its exit is not counted as a spare that died.
 		const idle = spare;
 		spare = null;
@@ -814,19 +1335,63 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	};
 	factory.spare = () => (spare === null ? 'none' : spare.warm ? 'warm' : 'booting');
 
+	factory.orphans = () => [...pending.values()];
+
+	factory.attach = (record: JvmRecord, events: HostEvents): MatchHost => {
+		if (!pending.delete(record.matchId)) {
+			throw new Error(`there is no orphan match ${record.matchId} to attach to`);
+		}
+		const jvm = new BridgeJvm(config, record.run, record.matchId, { mode: 'attach', record }, events.log, hooks);
+		serving.add(jvm);
+		const { host } = jvm.resumeInto(events);
+		replenish();
+		return host;
+	};
+
+	/**
+	 * SIGTERM: every live match is left running for the next process, and the
+	 * spare — which holds no game — is stopped. Returns the matches handed over.
+	 */
+	factory.handOverAll = (): string[] => {
+		closed = true;
+		if (retry !== null) clearTimeout(retry);
+		if (claimDeadline !== null) clearTimeout(claimDeadline);
+		const handed: string[] = [];
+		for (const jvm of [...serving]) {
+			if (jvm.handOver()) {
+				serving.delete(jvm);
+				handed.push(jvm.id);
+			}
+		}
+		const idle = spare;
+		spare = null;
+		idle?.stop();
+		return handed;
+	};
+
 	if (options.sweep ?? true) {
 		try {
 			const swept = sweepRunDirs(config.workDir);
+			for (const record of swept.orphans) {
+				if (record.spare === true || record.spec === null) continue;
+				pending.set(record.matchId, record);
+			}
 			poolLog({
 				evt: 'run-dirs-swept',
 				workDir: config.workDir,
 				removed: swept.removed.length,
 				live: swept.live,
 				fresh: swept.fresh,
+				killed: swept.killed,
+				orphans: [...pending.keys()],
 				crashRecords: swept.crashes.kept.length,
 				crashRecordsRemoved: swept.crashes.removed.length,
 				...(swept.skipped === undefined ? {} : { skipped: swept.skipped }),
 			});
+			if (pending.size > 0) {
+				claimDeadline = setTimeout(dropUnclaimed, ORPHAN_CLAIM_MS);
+				claimDeadline.unref();
+			}
 		} catch (err) {
 			// A sweep that fails leaves directories behind; it must not stop play from starting.
 			poolLog({ evt: 'run-dir-sweep-failed', workDir: config.workDir, error: (err as Error).message });

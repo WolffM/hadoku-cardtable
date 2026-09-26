@@ -6,25 +6,31 @@
  */
 
 import { spawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
 import {
 	CRASH_RECORDS_KEPT,
 	CRASH_RECORD_FILES,
 	CRASH_RECORD_MAX_AGE_MS,
+	JVM_RECORD_FILE,
+	ORPHAN_CLAIM_MS,
+	ORPHAN_MAX_MS,
 	SPARE_MAX_FAILURES,
+	STREAM_FILE,
 	jvmHostFactory,
 	liveJvmCount,
+	readJvmRecord,
 	sweepRunDirs,
 	withHeapCap,
 	type BridgeLine,
 	type HostEvents,
 	type JvmHostConfig,
 	type JvmHostFactory,
+	type JvmRecord,
 	type MatchHost,
 	type MatchSpec,
 } from './host.js';
@@ -335,5 +341,246 @@ describe('the boot sweep — against a fixture work dir, never the real one', ()
 		pools.push(pool);
 		expect(existsSync(dead)).toBe(false);
 		expect(poolLog.find((l) => l.evt === 'run-dirs-swept')).toMatchObject({ workDir: root, removed: 1, live: [], fresh: [] });
+	});
+});
+
+/* ── A match that outlives its server (Wave 22 §E) ───────────────────── */
+
+describe('a JVM that outlives the process that started it', () => {
+	/** `tsx`, because `host.ts` uses parameter properties and node cannot strip those. */
+	const TSX = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'node_modules', '.bin', 'tsx');
+	const HOST = pathToFileURL(resolve(dirname(fileURLToPath(import.meta.url)), 'host.ts')).href;
+
+	/**
+	 * A whole other server, in its own process: it starts one match, waits for
+	 * `ready`, and then DIES without stopping it — the shape of a `pm2 restart`
+	 * with no handler, or of a SIGKILL. What it leaves behind is the only thing
+	 * the next process gets: a run directory, two fifos, `jvm.json`,
+	 * `stream.jsonl`, and a JVM still running in it.
+	 */
+	const maker = join(scratch, 'other-server.mts');
+	writeFileSync(
+		maker,
+		[
+			`import { jvmHostFactory } from ${JSON.stringify(HOST)};`,
+			'const args = JSON.parse(process.argv[2]);',
+			'const pool = jvmHostFactory(args.config, { spare: false, sweep: false, log: () => undefined });',
+			'pool(args.matchId, args.spec, {',
+			"  line: (l) => { if (l.t === 'ready') { process.stdout.write('READY\\n'); setTimeout(() => process.exit(0), 50); } },",
+			'  exit: () => undefined,',
+			'  log: () => undefined,',
+			'});',
+			'',
+		].join('\n'),
+	);
+
+	/** Run that other server to completion. Returns the work dir it left behind. */
+	async function otherServer(matchId: string): Promise<string> {
+		const workDir = mkdtempSync(join(scratch, 'outlive-'));
+		const child = spawn(TSX, [maker, JSON.stringify({ config: { ...config, workDir }, matchId, spec: SPEC })], {
+			stdio: ['ignore', 'pipe', 'pipe'],
+		});
+		let out = '';
+		let err = '';
+		child.stdout.on('data', (d: Buffer) => (out += d.toString()));
+		child.stderr.on('data', (d: Buffer) => (err += d.toString()));
+		const code = await new Promise<number | null>((done) => child.on('exit', (c) => done(c)));
+		if (code !== 0 || !out.includes('READY')) throw new Error(`the other server did not reach ready (code ${code}): ${err || out}`);
+		return workDir;
+	}
+
+	const strays: number[] = [];
+	afterEach(() => {
+		for (const pid of strays.splice(0)) {
+			try {
+				process.kill(pid, 'SIGKILL');
+			} catch {
+				// Already gone, which is what we wanted.
+			}
+		}
+	});
+
+	it('is still running after that process is gone, and names itself on disk', async () => {
+		const matchId = 'm-0000000000a1';
+		const workDir = await otherServer(matchId);
+		const record = readJvmRecord(join(workDir, matchId));
+		expect(record).not.toBeNull();
+		const live = record as JvmRecord;
+		strays.push(live.pid);
+		expect(live.matchId).toBe(matchId);
+		// The process that started it is gone; this one never knew it.
+		expect(() => process.kill(live.pid, 0)).not.toThrow();
+		expect(readlinkSync(`/proc/${live.pid}/cwd`)).toBe(join(workDir, matchId));
+		// And everything a replay needs is beside it.
+		expect(readFileSync(join(workDir, matchId, STREAM_FILE), 'utf8')).toContain('"ready"');
+	}, 30_000);
+
+	it('is offered back by the next pool, replayed into the new match, and still answers what we send it', async () => {
+		const matchId = 'm-0000000000a2';
+		const workDir = await otherServer(matchId);
+		strays.push((readJvmRecord(join(workDir, matchId)) as JvmRecord).pid);
+
+		const poolLog: Record<string, unknown>[] = [];
+		const pool = jvmHostFactory({ ...config, workDir }, { spare: false, log: (e) => poolLog.push(e) });
+		pools.push(pool);
+		// The boot sweep spared it AND said whose it is.
+		expect(poolLog.find((l) => l.evt === 'run-dirs-swept')).toMatchObject({ live: [matchId], orphans: [matchId], removed: 0 });
+		const offered = pool.orphans();
+		expect(offered.map((o) => o.matchId)).toEqual([matchId]);
+
+		const events = recorder();
+		const host = track(pool.attach(offered[0] as JvmRecord, events));
+		// The replay handed the new match everything the dead one had read.
+		expect(events.lines.map((l) => l.t)).toContain('ready');
+		expect(events.logs.find((l) => l.evt === 'match-resumed')).toMatchObject({ matchId, replayed: 1 });
+
+		// And the transport works in the other direction too: the fake bridge echoes
+		// a command back, addressed to this match, over the re-opened fifos.
+		host.send({ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } });
+		await waitUntil(() => events.lines.some((l) => l.t === 'rejected'), 'the echo from the re-attached JVM');
+		expect(events.lines.filter((l) => l.t === 'rejected')).toMatchObject([{ message: 'echo', command: 'act' }]);
+	}, 30_000);
+
+	it('is killed when nobody claims it, so ignoring orphans() cannot leak a JVM', async () => {
+		const matchId = 'm-0000000000a3';
+		const workDir = await otherServer(matchId);
+		const pid = (readJvmRecord(join(workDir, matchId)) as JvmRecord).pid;
+		strays.push(pid);
+
+		const pool = jvmHostFactory({ ...config, workDir }, { spare: false, log: () => undefined });
+		pools.push(pool);
+		expect(pool.orphans()).toHaveLength(1);
+		// The deadline is a minute in production; here it is reached by hand, the
+		// same way the pool's own timer would reach it.
+		expect(ORPHAN_CLAIM_MS).toBeGreaterThan(0);
+		const swept = sweepRunDirs(workDir, Date.now() + ORPHAN_MAX_MS + 1);
+		expect(swept.killed).toEqual([matchId]);
+		await waitUntil(() => {
+			try {
+				process.kill(pid, 0);
+				return false;
+			} catch {
+				return true;
+			}
+		}, 'the unclaimed JVM to be killed');
+		expect(existsSync(join(workDir, matchId))).toBe(false);
+	}, 30_000);
+});
+
+describe('handing a match over on the way out', () => {
+	it('lets go without killing, and a second pool takes it back', async () => {
+		const workDir = mkdtempSync(join(scratch, 'handover-'));
+		const first = jvmHostFactory({ ...config, workDir }, { spare: false, log: () => undefined });
+		pools.push(first);
+		const events = recorder();
+		first('m-0000000000b1', SPEC, events);
+		await waitUntil(() => events.lines.some((l) => l.t === 'ready'), 'ready');
+		const pid = (readJvmRecord(join(workDir, 'm-0000000000b1')) as JvmRecord).pid;
+
+		const handed = first.handOverAll();
+		expect(handed).toEqual(['m-0000000000b1']);
+		expect(liveJvmCount()).toBe(0);
+		// Handed over, not stopped: it is still playing, and its record says when.
+		expect(() => process.kill(pid, 0)).not.toThrow();
+		expect(readJvmRecord(join(workDir, 'm-0000000000b1'))?.orphanedAt).toEqual(expect.any(String));
+
+		const second = jvmHostFactory({ ...config, workDir }, { spare: false, log: () => undefined });
+		pools.push(second);
+		const back = second.orphans();
+		expect(back.map((o) => o.matchId)).toEqual(['m-0000000000b1']);
+		const resumed = recorder();
+		track(second.attach(back[0] as JvmRecord, resumed));
+		expect(resumed.lines.map((l) => l.t)).toEqual(['ready']);
+	}, 20_000);
+});
+
+describe('the boot sweep and a live directory it can identify', () => {
+	/** A live run dir with a `jvm.json` naming the process standing in it. */
+	async function squatted(root: string, name: string, patch: Partial<JvmRecord> = {}): Promise<{ dir: string; pid: number; kill(): void }> {
+		const dir = join(root, name);
+		mkdirSync(dir, { recursive: true });
+		const squatter = spawn('sleep', ['30'], { cwd: dir, stdio: 'ignore' });
+		await waitUntil(() => squatter.pid !== undefined, 'the squatter');
+		const pid = squatter.pid as number;
+		writeFileSync(
+			join(dir, JVM_RECORD_FILE),
+			JSON.stringify({
+				matchId: name,
+				pid,
+				run: dir,
+				startedAt: new Date().toISOString(),
+				epoch: `${name}:1`,
+				owners: ['fk:aaaaaaaaaaaaaaaa', null],
+				spec: SPEC,
+				...patch,
+			}),
+		);
+		return { dir, pid, kill: () => squatter.kill('SIGKILL') };
+	}
+
+	it("offers a live match back, with the epoch and owners it wrote down", async () => {
+		const root = mkdtempSync(join(scratch, 'ident-'));
+		const s = await squatted(root, 'm-00000000c001');
+		try {
+			const swept = sweepRunDirs(root);
+			expect(swept.live).toEqual(['m-00000000c001']);
+			expect(swept.killed).toEqual([]);
+			expect(swept.orphans).toMatchObject([{ matchId: 'm-00000000c001', pid: s.pid, epoch: 'm-00000000c001:1', owners: ['fk:aaaaaaaaaaaaaaaa', null] }]);
+			expect(existsSync(s.dir)).toBe(true);
+		} finally {
+			s.kill();
+		}
+	});
+
+	it('ends a live SPARE from its own record: a spare holds no game and nothing will come back for it', async () => {
+		const root = mkdtempSync(join(scratch, 'ident-'));
+		const s = await squatted(root, 'spare-00000000c002', { spare: true, spec: null });
+		try {
+			const swept = sweepRunDirs(root);
+			expect(swept.killed).toEqual(['spare-00000000c002']);
+			expect(swept.live).toEqual([]);
+			expect(swept.orphans).toEqual([]);
+			expect(existsSync(s.dir)).toBe(false);
+			await waitUntil(() => {
+				try {
+					process.kill(s.pid, 0);
+					return false;
+				} catch {
+					return true;
+				}
+			}, 'the spare to be killed');
+		} finally {
+			s.kill();
+		}
+	});
+
+	it(`ends a live match that has been an orphan for longer than ORPHAN_MAX_MS rather than offering it back`, async () => {
+		const root = mkdtempSync(join(scratch, 'ident-'));
+		const old = new Date(Date.now() - ORPHAN_MAX_MS - 1).toISOString();
+		const s = await squatted(root, 'm-00000000c003', { orphanedAt: old });
+		try {
+			const swept = sweepRunDirs(root);
+			expect(swept.killed).toEqual(['m-00000000c003']);
+			expect(swept.orphans).toEqual([]);
+			expect(existsSync(s.dir)).toBe(false);
+		} finally {
+			s.kill();
+		}
+	});
+
+	it("leaves a live directory alone when its record names a DIFFERENT process — it may be another server's", async () => {
+		const root = mkdtempSync(join(scratch, 'ident-'));
+		// A record that lies about the pid: the live-process guard still spares the
+		// directory, because a dir it cannot identify is never one it may remove.
+		const s = await squatted(root, 'm-00000000c004', { pid: 999_999_999, spare: true });
+		try {
+			const swept = sweepRunDirs(root);
+			expect(swept.killed).toEqual([]);
+			expect(swept.live).toEqual(['m-00000000c004']);
+			expect(swept.orphans).toEqual([]);
+			expect(existsSync(s.dir)).toBe(true);
+		} finally {
+			s.kill();
+		}
 	});
 });

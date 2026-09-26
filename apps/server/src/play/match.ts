@@ -58,6 +58,32 @@
  * epoch, so the client's `classifySeq` continues from it rather than seeing a
  * new match.
  *
+ * ## Restart: a deploy is a reconnect, not an ending (Wave 22 §E)
+ *
+ * A `pm2 restart` used to end every live game: the process exited and
+ * `host.ts`'s exit hook SIGKILLed every JVM, so the client's next `forge:join`
+ * was answered `unknown-match`. The JVM now outlives the server (see
+ * `host.ts`, "A match outlives its server") and this file is the half that
+ * rebuilds the match around it.
+ *
+ * - **Going down**: `handOver` lets go of the JVM without killing it and emits
+ *   NOTHING. A frame sent on the way out would take a `seq` the next server's
+ *   replay cannot reproduce. A match that cannot be handed over gets
+ *   `serverStopping` instead, which tells its seats in words.
+ * - **Coming back**: `resume` is `start`'s twin. The host replays every line
+ *   the dead server read — synchronously, before the first live line — so each
+ *   seat's projector, history, `seq`, prompt, buttons and open asks rebuild
+ *   themselves from exactly the input that built them the first time. Two
+ *   things a replay cannot reproduce come off disk instead: the **epoch** (a
+ *   new one would make every client's cursor a stranger) and the seats'
+ *   **owners** (a re-seated player would be handed the other player's hand).
+ * - **Commands are not replayed outward.** `replaying` gags `command`: every
+ *   reply, abort, auto-pass and auto-payment in the stream was already sent by
+ *   the server that read it. The two that CLOSE an ask are fed back in through
+ *   `onReplayedCommand`, because nothing the bridge says records that an ask
+ *   was answered — without it a seat would be re-shown a modal it had
+ *   already dismissed.
+ *
  * ## Crash: the seats are told, on the stream they already read (Wave 10)
  *
  * When the JVM dies (or the bridge sends `fatal`) mid-match, `fail` sends every
@@ -79,7 +105,7 @@ import {
 } from '@hadoku/forge-wire';
 
 import { autoPassReason, autoPayReason, onlyAnswer, paymentCost, paymentLine, type Payment } from './auto.js';
-import type { BridgeLine, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
+import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
 import {
 	createProjector,
@@ -228,13 +254,35 @@ export class Match {
 	private readonly runningWaiters: ((outcome: ClientOutcome) => void)[] = [];
 	private readonly probes = new Map<string, (r: ProbeResult) => void>();
 	private overTimer: NodeJS.Timeout | null = null;
+	/**
+	 * True while `resume` is feeding an earlier server's lines back in. Nothing
+	 * may go OUT during that: every command in the stream was already sent by the
+	 * server that read it, and sending it twice would act twice in Forge.
+	 */
+	private replaying = false;
+	/** Somebody has joined a seat since this match existed in this process. */
+	private rejoined = false;
+	/** Armed by `resume`: a re-attached match nobody comes back to is stopped. */
+	private rejoinTimer: NodeJS.Timeout | null = null;
 
-	constructor(id: string, spec: MatchSpec, deps: MatchDeps) {
+	constructor(
+		id: string,
+		spec: MatchSpec,
+		deps: MatchDeps,
+		/**
+		 * From `<run>/jvm.json`, when this match is being taken back from an
+		 * earlier server. The epoch and the seats' owners are exactly the two
+		 * things a replay cannot reproduce and that must not change: a new epoch
+		 * would make every client's cursor a stranger, and a re-seated player
+		 * would be handed the other player's hand.
+		 */
+		restore?: { epoch: string | null; owners: (string | null)[] },
+	) {
 		this.id = id;
 		this.spec = spec;
 		this.deps = deps;
 		this.now = deps.now ?? Date.now;
-		this.epoch = `${id}:${this.now()}`;
+		this.epoch = restore?.epoch ?? `${id}:${this.now()}`;
 		this.seats = spec.seats.map((s, seat) => ({
 			seat,
 			ai: s.ai,
@@ -258,19 +306,92 @@ export class Match {
 			autoPassed: 0,
 			says: [],
 		}));
+		for (const [seat, owner] of (restore?.owners ?? []).entries()) {
+			const s = this.seats[seat];
+			if (s !== undefined && owner !== null) s.owner = owner as ParticipantId;
+		}
 	}
 
 	/** Start Forge. Separate from the constructor so nothing can emit before the match is registered. */
 	start(): void {
 		if (this.host !== null) return;
-		this.host = this.deps.host(this.id, this.spec, {
+		this.host = this.deps.host(this.id, this.spec, this.hostEvents());
+		this.host.remember?.({ epoch: this.epoch, owners: this.owners() });
+	}
+
+	/**
+	 * Take over a JVM that is already playing this match, left running by a server
+	 * that has exited (Wave 22 §E). `attach` replays that server's whole line
+	 * stream into `onLine` before it returns, so by the time this call is done
+	 * every seat holds the history, cursor and open asks it held — same epoch,
+	 * same `seq`, same owners — and a client resyncs rather than starting over.
+	 *
+	 * Separate from `start` for the same reason `start` is separate from the
+	 * constructor: nothing may emit before the match is in the registry.
+	 */
+	resume(attach: (events: HostEvents) => MatchHost, rejoinGraceMs: number): void {
+		if (this.host !== null) return;
+		this.replaying = true;
+		try {
+			this.host = attach(this.hostEvents());
+		} finally {
+			this.replaying = false;
+		}
+		this.host.remember?.({ epoch: this.epoch, owners: this.owners() });
+		this.deps.log({
+			evt: 'match-resumed',
+			matchId: this.id,
+			status: this.status,
+			epoch: this.epoch,
+			seats: this.seats.map((s) => ({ seat: s.seat, playerId: s.playerId, seq: s.seq, asks: s.asks.size })),
+		});
+		// A resumed match with nobody in it is a JVM nobody wants. The seats have
+		// this long to come back before it is stopped for good.
+		if (rejoinGraceMs > 0) {
+			const timer = setTimeout(() => {
+				this.rejoinTimer = null;
+				if (this.rejoined) return;
+				this.deps.log({ evt: 'match-not-rejoined', matchId: this.id, afterMs: rejoinGraceMs });
+				this.stop();
+			}, rejoinGraceMs);
+			timer.unref();
+			this.rejoinTimer = timer;
+		}
+	}
+
+	private hostEvents(): HostEvents {
+		return {
 			line: (line) => this.onLine(line),
 			exit: (reason) => this.onExit(reason),
 			log: (entry) => this.deps.log(entry),
-		});
+			replayed: (command) => this.onReplayedCommand(command),
+		};
+	}
+
+	/** seat → owner, for the on-disk record a re-attach reads. */
+	private owners(): (string | null)[] {
+		return this.seats.map((s) => s.owner);
+	}
+
+	/**
+	 * A command the EARLIER server had already sent, met during a replay. Only
+	 * the two that close an ask matter: without them a seat would be re-shown a
+	 * modal it has already answered, because nothing the bridge SAYS records that
+	 * an ask was answered.
+	 */
+	private onReplayedCommand(command: BridgeCommand): void {
+		if (command.t !== 'reply' && command.t !== 'abort') return;
+		const s = this.seats[command.seat];
+		if (s === undefined) return;
+		this.closeAsk(s, command.callId);
 	}
 
 	private command(command: Parameters<MatchHost['send']>[0]): void {
+		// Before the null check, not after: during a replay the answer is already in
+		// Forge AND `this.host` does not exist yet, because `attach` replays the
+		// stream before it returns the host. A replayed line that provokes an
+		// auto-answer used to throw here.
+		if (this.replaying) return;
 		if (this.host === null) throw new Error(`match ${this.id} was never started`);
 		this.host.send(command);
 	}
@@ -295,6 +416,9 @@ export class Match {
 		const free = this.seats.find((s) => !s.ai && s.owner === null);
 		if (free === undefined) return { ok: false, error: 'match-full' };
 		free.owner = participantId;
+		// Written down beside the JVM: if this server is replaced mid-match, the
+		// next one must seat this person at THIS seat and no other.
+		this.host?.remember?.({ epoch: this.epoch, owners: this.owners() });
 		this.deps.log({ evt: 'seat-claimed', matchId: this.id, seat: free.seat, participantId });
 		return { ok: true, seat: free.seat, fresh: true };
 	}
@@ -427,10 +551,51 @@ export class Match {
 	/** A connection for this seat is back: whatever `seatDisconnected` armed is off. */
 	seatConnected(seat: number): void {
 		const s = this.seats[seat];
-		if (s === undefined || s.departure === null) return;
+		if (s === undefined) return;
+		// Before the departure check, and not inside it: this is also how a resumed
+		// match learns that somebody came back at all (see `resume`).
+		this.rejoined = true;
+		if (this.rejoinTimer !== null) {
+			clearTimeout(this.rejoinTimer);
+			this.rejoinTimer = null;
+		}
+		if (s.departure === null) return;
 		clearTimeout(s.departure);
 		s.departure = null;
 		this.deps.log({ evt: 'seat-returned', matchId: this.id, seat, openAsks: s.asks.size });
+	}
+
+	/* ── The server is going down (Wave 22 §E) ──────────────────────── */
+
+	/**
+	 * This process is stopping and this match is NOT: let go of the JVM without
+	 * killing it, so the next process can take it back. False when the match
+	 * cannot outlive us — the caller then owes its seats `serverStopping`.
+	 *
+	 * **Nothing is emitted here, on purpose.** A frame sent now would take a `seq`
+	 * that the next server's replay cannot reproduce, and the seat's cursor would
+	 * be one ahead of a stream that then reuses the number. The seats learn what
+	 * happened from the reconnect, which is what the client is already built for.
+	 */
+	handOver(): boolean {
+		if (this.status !== 'starting' && this.status !== 'running') return false;
+		if (this.host?.handOver === undefined) return false;
+		if (!this.host.handOver()) return false;
+		if (this.rejoinTimer !== null) clearTimeout(this.rejoinTimer);
+		this.rejoinTimer = null;
+		this.deps.log({ evt: 'match-handed-over', matchId: this.id, epoch: this.epoch });
+		return true;
+	}
+
+	/**
+	 * This process is stopping and this match cannot outlive it. Every seat with a
+	 * board is told so in words, on the stream it already reads, and the notice is
+	 * kept so a later snapshot repeats it — the same machinery a crash uses,
+	 * because to the player it is the same event.
+	 */
+	serverStopping(message: string): void {
+		this.deps.log({ evt: 'match-ending-with-server', matchId: this.id, status: this.status });
+		this.endNotice(message);
 	}
 
 	private abortAllAsks(s: SeatState): void {
@@ -777,13 +942,18 @@ export class Match {
 	 */
 	private tellSeatsItEnded(reason: string): void {
 		const cause = reason.split('; see ')[0] ?? reason;
+		this.endNotice(`Forge stopped, and this match cannot continue: ${cause}.`);
+	}
+
+	/** One ending, told once per seat and kept for every snapshot after it. */
+	private endNotice(message: string): void {
 		for (const s of this.seats) {
 			if (s.ai || s.playerId === null || s.ended !== null) continue;
 			s.ended = {
 				kind: 'notify',
 				method: 'showErrorDialog',
 				title: MATCH_ENDED_TITLE,
-				message: `Forge stopped, and this match cannot continue: ${cause}.`,
+				message,
 			} as ServerFrame;
 			this.send(s, s.ended);
 		}
@@ -810,10 +980,31 @@ export interface MatchRegistry {
 	/** Matches that hold a JVM: starting, running, or over-but-not-yet-stopped. */
 	active(): Match[];
 	stopAll(): void;
+	/**
+	 * Take back a match an earlier server left running (Wave 22 §E). Its JVM is
+	 * still playing; the host replays its stream into the new `Match` before this
+	 * returns, so the match comes back with its epoch, its seats' owners and every
+	 * seat's history and cursor. Returns null when the record cannot be resumed.
+	 */
+	adopt(record: JvmRecord): Match | null;
+	/**
+	 * SIGTERM: leave every live match running for the next process. Returns the
+	 * matches that were handed over and the ones that could NOT be, which the
+	 * caller owes an explanation (`Match.serverStopping`).
+	 */
+	handOver(): { handed: Match[]; ending: Match[] };
 }
 
 export type RegistryDeps = Omit<MatchDeps, 'emit'> & {
 	emit(match: Match, seat: number, envelope: ServerEnvelope): void;
+	/** The re-attach half of the host. Absent on a host whose JVMs die with us. */
+	attach?(record: JvmRecord, events: HostEvents): MatchHost;
+	/**
+	 * How long a resumed match waits for somebody to rejoin before it stops. It is
+	 * a JVM and ~700 MB of RSS; nobody coming back means nobody wants it.
+	 * Default 5 minutes.
+	 */
+	rejoinGraceMs?: number;
 };
 
 export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
@@ -833,6 +1024,28 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 		active: () => [...matches.values()].filter((m) => m.status === 'starting' || m.status === 'running' || m.status === 'over'),
 		stopAll() {
 			for (const m of matches.values()) m.stop();
+		},
+		adopt(record) {
+			const attach = deps.attach;
+			if (attach === undefined || record.spec === null) return null;
+			const match: Match = new Match(
+				record.matchId,
+				record.spec,
+				{ ...deps, emit: (seat, envelope) => deps.emit(match, seat, envelope) },
+				{ epoch: record.epoch, owners: record.owners },
+			);
+			matches.set(record.matchId, match);
+			match.resume((events) => attach(record, events), deps.rejoinGraceMs ?? 5 * 60_000);
+			return match;
+		},
+		handOver() {
+			const handed: Match[] = [];
+			const ending: Match[] = [];
+			for (const m of matches.values()) {
+				if (m.status !== 'starting' && m.status !== 'running') continue;
+				(m.handOver() ? handed : ending).push(m);
+			}
+			return { handed, ending };
 		},
 	};
 }
