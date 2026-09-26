@@ -26,8 +26,14 @@ Mechanism: **git submodule** onto `WolffM/forge` once that fork exists. Today
 `forge/` is a plain shallow clone of upstream and is **gitignored** — there is
 nothing to fork from yet because we've made no changes.
 
-**Rules out:** an MIT room layer living in this repo (see D11), and a
-`git subtree` that would put ~70k upstream commits in our history.
+**Rules out:** a `git subtree` that would put ~70k upstream commits in our
+history.
+
+It also ruled out *an MIT room layer living in this repo* (see D11). **That
+clause was amended by D16 on 2026-09-16 and is no longer live as written** —
+there is exactly one carve-out, `packages/room-ask`, justified by a documented
+clean room and an MIT destination, and D20 records the condition that makes it
+leave. Nothing else in this tree is MIT.
 
 ## D3 — Draft-first sequencing · settled · 2026-09-11 · operator
 
@@ -76,7 +82,13 @@ implementation and `Main.java`'s stubbed `case "server":`.
 survive are: no JVM to operate, client-side solo play, and a browser client we
 didn't have to write.
 
-## D6 — The Forge UI renders inside the player canvas · settled · 2026-09-11 · operator
+## D6 — The Forge UI renders inside the player canvas · **mechanism superseded by D17** · 2026-09-11 · operator
+
+> **Superseded 2026-09-16 by D17.** The *layout* intent below stands exactly —
+> their room chrome around, our table in the centre. The **mechanism does
+> not**: there is no iframe payload, because D7 came back NO-GO and cardtable
+> is its own app importing their chrome as a package. Read D17 before planning
+> anything off this entry. Closed as O7 in D20.
 
 > *"render the entire forge ui INSIDE what is currently reserved as the media
 > player canvas from the watchparty ui"*
@@ -647,3 +659,91 @@ containers on creation and reclaim them when the room dies; the static
 two-seat bench at `/cardtable/stream/<n>/` stays up (a friend demo is
 pending) until an operator has played a room-scoped streamed room end to
 end.
+
+---
+
+## D20 — The four stale board items are closed: O5, O7, O9, O10 · settled · 2026-09-26 · wave 21 lane E
+
+These are the **board's** O-numbers (`docs/planning/workstreams.md:292-295`),
+not the `O1`–`O5` table earlier in this file. The two series collided and were
+reconciled in `docs/requests/HADOKU_SITE_SUBMODULE_DEPLOY.md` Part 2: the
+board's series is the live one, and **this file's own O5 — how much card art we
+host — is a different item and stays open.**
+
+All four had sat over a week and none blocked anything. Two were already
+answered by a later decision and only ever needed the pointer written onto the
+earlier one (O7, O10); two needed a sentence that did not exist yet (O5, O9).
+Written from the record that exists, not re-litigated.
+
+### O5 — `packages/room-ask` is the MIT room layer D2 ruled out, and it stays
+
+**Closed.** D16 settled the substance on 2026-09-16 — MIT inside a GPL repo,
+justified by D12's clean room and an MIT destination. What was actually stale
+was D2's own "rules out" line, which still read as live; it now points here.
+No new licensing argument was needed and none was made.
+
+**The death condition, which is what O5 was really missing.** `room-ask` leaves
+this repo when any one of these becomes true:
+
+1. **It reads from Forge, or copies from it.** D16 voids itself on this — the
+   firewall is the entire justification. `grep -rniE 'forge|replypool'
+   packages/room-ask/` must stay empty; if it ever does not, the package is
+   relicensed GPL or discarded, not argued about.
+2. **Watchparty takes it.** They declined once — *"nothing in either repo uses
+   it"* (`docs/planning/wave13-2026-09-19.md:184`) — so the offer in
+   `docs/requests/WATCHPARTY_ROOM_CHROME.md` §6 is **spent, not standing**. A
+   second offer needs a consumer to point at first.
+3. **The operator says delete it.** They have not, and it is not a lane's to
+   take.
+
+**What is NOT a death condition: having no consumer.** That has been true since
+the day it was written and is the state it was specified in — P4 was specified
+for watchparty, and `apps/server/src/play/match.ts` shipped its own asks by
+`callId` instead. Re-verified 2026-09-26: nothing under `apps/` or `packages/`
+imports `@hadoku/room-ask` except two doc comments in `packages/forge-wire`
+(`envelope.ts:52`, `index.ts:30`). Carrying a clean-room package costs this
+paragraph; reproducing one costs a firewall.
+
+**Rules out:** deleting `room-ask` on "no consumer" alone; re-offering it
+upstream without a consumer; and a second MIT carve-out, which D16 already
+refused.
+
+### O7 — D6's mechanism is superseded, its layout intent is not
+
+**Closed by D17** (2026-09-16), which says exactly that in its first line. The
+only thing missing was the marker on D6 itself, so that a reader arriving at D6
+first does not read a dead mechanism as live. Added above; no new decision.
+
+### O9 — we are **not** sending `WATCHPARTY_ROOM_CHROME.md`
+
+**Closed: deliberately not sent.** The ask it carries was answered without it —
+`RoomChrome` shipped in `@wolffm/watchparty-ui@0.39.0`
+(watchparty's `docs/requests/ROOM_CHROME_RESPONSE.md`) and we consume it at
+**0.39.5** (`apps/ui/src/room/RoomShell.tsx:44`,
+`apps/ui/package.json:24`). Sending it now would ask for something already
+delivered and would re-open its §6 offer of `room-ask`, which watchparty has
+already declined. The outstanding asks that came *out of* consuming the chrome
+live in `docs/requests/RETRO_UPSTREAM_2026-09-26.md`, and that is what was sent
+instead. The request document stays in the repo as the record of what was asked
+and why; it is not to be sent.
+
+**Rules out:** sending a written-but-unsent request without first checking
+whether the thing it asks for shipped in the meantime.
+
+### O10 — moot; D18 repealed the clause the question was about
+
+**Closed: moot.** O10 asked whether D15's *"our own origin"* meant the
+cardtable app server or all of `hadoku.me`. **D18 (2026-09-19) repealed the
+clause outright**, so there is no reading left to choose between — D18's own
+closing paragraph already says so.
+
+Checked rather than assumed: `bash scripts/d13-gate.sh --self-test` exits **0**,
+**9 fixtures, 9 as expected**, and not one of them asserts anything about a
+host — arms 2–4 (the allowlist and the relative/same-origin refusal) and their
+50 host fixtures are gone. Watchparty's sprites on `hadoku.me/watchparty/…`
+were the case that raised the question and cannot fail a check that no longer
+exists. What the gate still enforces is arm 1 (no image bytes in the bundle)
+and arm 5 (no copied Scryfall `image_uris` blob), and neither is about origin.
+
+**Rules out:** treating O10 as a live question; and restoring a host allowlist
+without a new operator decision, which D18 already said.

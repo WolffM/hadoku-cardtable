@@ -69,9 +69,30 @@ the direction we need. GPL-3 → MIT is not, which is why D12's clean-room
 firewall on P4 exists — our P3–P6 contributions land in *their* MIT packages and
 must not be derived from Forge's GPL-3 source.
 
+### The one MIT file inside this GPL tree
+
+**`packages/room-ask` is MIT** and everything else here, including the repo
+root, is GPL-3.0-or-later. That is D16, and it is the only carve-out. It works
+for one reason and would not work without it: the package is **not a derivative
+of Forge** — it was written under D12's clean room by an agent that read
+`docs/requests/P4_ASK_REGISTRY.md` and nothing else, so copyleft never attached.
+It is MIT rather than GPL because it was specified as watchparty's P4 and MIT is
+the only licence their MIT packages could consume.
+
+Checkable, and worth re-checking rather than trusting: `packages/room-ask/LICENSE`
+carries the MIT text, `src/index.ts:2` carries
+`SPDX-License-Identifier: MIT` in its opening block comment,
+and `grep -rniE 'forge|replypool' packages/room-ask/` returns nothing. **If that
+grep ever hits, D16 is void** and the file is relicensed GPL or discarded —
+D20 records that as the package's death condition, along with the two others.
+The sibling `packages/room-store` is GPL-3.0-or-later precisely because it is
+ours and is not going upstream.
+
 ### Checklist
 
 - [x] `LICENSE` = GPL-3.0 at repo root
+- [x] Exactly one MIT carve-out (`packages/room-ask`, D16), with its own
+      `LICENSE` and SPDX header, and no Forge reference in it
 - [x] `NOTICE.md` credits Forge and links upstream
 - [ ] Don't strip or rewrite Forge's per-file copyright headers
 - [ ] Keep our Forge changes on a branch that can be published as-is
@@ -284,8 +305,11 @@ cancel out, and this one does not cancel either. Honestly stated:
   no reading of Scryfall's terms grants or withholds it. Nothing below licenses
   anything; it records that a person weighed it.
 - **Every other mitigation stays exactly where it was**, which is the whole
-  reason the trade was payable: no money, no public tier, no WotC marks, the
-  friend gate, and the app's own origin still serving zero image bytes.
+  reason the trade was payable: no money, no public tier, no WotC marks, and the
+  friend gate. The bundle also still carries zero image bytes — but note that
+  since **D18** that is a performance rule (arm 1 of the gate), **not** a
+  licensing mitigation: the *"our own origin never serves an image"* rule itself
+  is repealed and must not be cited back as live from this list.
 
 Do not read this section as cover. Read it as a recorded decision with its price
 named.
@@ -370,8 +394,10 @@ we do now:
   and uploaded to `cdn.hadoku.me`. Browsers then fetch from the CDN. That is
   strictly **fewer** requests at Scryfall than hotlinking every tile was, not
   more.
-- Bytes are never modified in transit, never committed to git, and never served
-  by the app's own origin.
+- Bytes are never modified in transit and never committed to git. They also do
+  not come from the app's own origin today — that is how the CDN happens to be
+  wired, not a rule: **D18 repealed the origin rule** and image URLs are no
+  longer restricted by host.
 - The manifest keeps the source swappable per card, so "touching images" here
   means holding a key, not owning an asset pipeline.
 

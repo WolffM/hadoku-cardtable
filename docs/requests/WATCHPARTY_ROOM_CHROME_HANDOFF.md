@@ -1,5 +1,10 @@
 # Handoff — give this to a Claude session in `hadoku-watchparty`
 
+> **SPENT — do not run this. Closed 2026-09-26 as O9 (D20).** `RoomChrome`
+> shipped in `@wolffm/watchparty-ui@0.39.0` and we consume it at 0.39.5; the
+> request this hands over was never sent and is not to be sent. See the status
+> block at the top of `WATCHPARTY_ROOM_CHROME.md`. Kept as history only.
+
 Open a session in the watchparty repo and paste the prompt below.
 
 ```sh

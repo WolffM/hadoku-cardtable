@@ -393,6 +393,16 @@ to `PR-n` (`:84-88`). That's the precedent for the proposal below.
 | workstreams P1–P3 (closed) | left as they are | They're struck history, and renaming them only makes churn |
 | next new decision | **O9** | Continues past the highest O ever issued (workstreams O8), so no new number can be mistaken for an old one |
 
-Nothing in this section has been applied. `docs/DECISIONS.md` and
-`docs/planning/workstreams.md` are exactly as they were. This lane owns
-neither file.
+### Status · updated 2026-09-26 (wave 21 lane E)
+
+**Partly applied.** The half that belongs to the decision log is done:
+**D20** closes the board's O5 (→ D16), O7 (→ D17), O9 (not sent) and O10
+(moot under D18), and states in its own first paragraph that the board's
+O-series is the live one while *this file's* O5 — card-art hosting — is a
+different, still-open item. D2's and D6's stale "rules out"/header lines now
+point at the decisions that amended them.
+
+**Still unapplied, and not this lane's to apply:** every renumbering in the
+table above (`O6 → A1`, `O8 → A2`, the `P4`/`P5` chores), and striking
+DECISIONS' own O1/O2. Those live in `docs/planning/workstreams.md`, which only
+the tracker edits.

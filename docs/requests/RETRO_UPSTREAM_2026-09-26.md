@@ -9,6 +9,37 @@ verified the gap — nothing here is inferred from behaviour alone.
 Written 2026-09-26, against `@wolffm/themes@5.8.6`,
 `@wolffm/watchparty-ui@0.39.5`, hadoku_site `main`.
 
+**Delivered 2026-09-26 to both teams** (wave 21 lane E). A request is delivered
+when the document lands in the target repo's `docs/requests/`; "the code for it
+landed" is not delivery, and parts of this had already been acted on before the
+file went out.
+
+| Target | Landed as | Commit on their `main` |
+| --- | --- | --- |
+| hadoku-watchparty | `docs/requests/CARDTABLE_RETRO_UPSTREAM_2026-09-26.md` | `cb399bcf` |
+| hadoku_site | `docs/requests/CARDTABLE_RETRO_UPSTREAM_2026-09-26.md` | `0ecbfaf1` |
+
+Each copy carries a delivery header listing what that repo had *already* done,
+so neither is asked twice. **No item in this file is blocking us, and answers
+are not waited on.** State at delivery:
+
+- **§1** — accepted as watchparty board **E2**, mini-wave w1.5 (their
+  `2e8f2640`). Our `theme` prop stays until it lands.
+- **§2** — **WolffM/hadoku-task#91**, open. `@wolffm/themes` lives in
+  hadoku-task, a repo this lane was not given; **nothing was delivered there**
+  because watchparty had already filed it. Our `matchMedia` shim stays.
+- **§3** — accepted as watchparty board **E1** (their `edfbf3de`).
+- **§4** — **WolffM/hadoku_site#419**, open, with our first framing corrected by
+  watchparty and their version kept.
+- **§5** — **already fixed** in hadoku_site before delivery: `7b9f6ebd`, test
+  `e70cf2ac`, comment `3550cc65`, and `da7a2fa0` naming the wrong fix. Nothing
+  owed.
+- **§6** — credit only; verified before we wrote it.
+- **§7** — the only thing still genuinely open on anyone's side, and it is a
+  suggestion for `templates/game`, not a defect.
+
+Answers arrive on their boards, not here. Nothing in this repo waits on them.
+
 ---
 
 ## For watchparty (`@wolffm/watchparty-ui`)

@@ -4,8 +4,19 @@
 **To:** hadoku-watchparty
 **Date:** 2026-09-18
 **Re:** `@wolffm/watchparty-ui` — the room chrome, as a component, on its own entry
-**Status:** request — **this one blocks a feature.** Not delivered yet: this file
-is our record; the tracker decides when and how it is sent.
+**Status:** **NEVER SENT, AND NOT TO BE SENT — closed 2026-09-26 as O9, D20.**
+It was overtaken before it went out: `RoomChrome` shipped in
+`@wolffm/watchparty-ui@0.39.0` (their `docs/requests/ROOM_CHROME_RESPONSE.md`,
+which answers this file by name) and we consume it at **0.39.5**
+(`apps/ui/src/room/RoomShell.tsx:44`). Sending it now would ask for something
+already delivered and would re-open §6's offer of `@hadoku/room-ask`, which
+watchparty has already declined. The asks that came *out of* consuming the
+chrome went upstream instead, as
+`docs/requests/RETRO_UPSTREAM_2026-09-26.md`. **Keep this file** — it is the
+record of what was asked and why the signature looks the way it does — and do
+not deliver it.
+*Status as originally written: request — this one blocks a feature; not
+delivered; the tracker decides when and how it is sent.*
 **Follows:** `WATCHPARTY_UI_COMPOSABLE.md` (2026-09-16, delivered on your branch
 `w6-composable-room-chrome` at `9b0b682a`, no reply, no published change —
 `0.38.115` is still `latest` and byte-identical to what that request read).
