@@ -1015,6 +1015,31 @@ describe('the London mulligan: Forge’s own flag makes the seat’s own hand cl
     expect(s.clientFrames()).toEqual([cardAct(theirs[0]!)]);
   });
 
+  it('the offer SURVIVES a resync, unlike a mark — the flag is state, not a notify', async () => {
+    const { s, m } = await fullGame();
+    const hand = myHand(m);
+    await sendAndApply(s, m, [mulligan(m, true), prompt('Return 1 card(s) to the bottom of your library'), mark([hand[0]!])]);
+    expect(boardInteraction(m).selectable).toEqual(new Set(hand));
+
+    s.lose(prompt('lost'));
+    s.send(prompt('after the gap'));
+    await until('the resync', () => m.stats.snapshots === 2);
+    // A snapshot clears `inputLive` and drops the mark, so nothing is offered
+    // the instant it lands — that part is the existing discipline.
+    expect(m.highlighted).toBeNull();
+    expect(boardInteraction(m).selectable.size).toBe(0);
+
+    // The difference: the FLAG came back with the state, so Forge showing its
+    // input again restores the offer with no entity frame of any kind. A mark
+    // could not do that — nothing re-sends a notify.
+    await sendAndApply(s, m, [prompt('Return 1 card(s) to the bottom of your library')]);
+    expect(m.highlighted).toBeNull();
+    expect(m.selectables).toBeNull();
+    expect(m.weaklySelectable).toBeNull();
+    expect(boardInteraction(m).selectable).toEqual(new Set(hand));
+    expect(selectCard(m, hand[0]!)).toBe(true);
+  });
+
   it('the flag alone is not an affordance: nothing is offered until Forge shows an input', async () => {
     const { s, m } = await fullGame();
     const hand = myHand(m);
