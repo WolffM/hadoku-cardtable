@@ -18,10 +18,8 @@
  *     it), then click Raging Goblin. With ONE Mountain in play there is exactly
  *     one way to pay for it, so wave 20 §B has the server press Forge's own
  *     Auto (`apps/server/src/play/auto.ts`, `autoPayReason`) and the payment is
- *     over before a land could be clicked. The actor presses no button in this
- *     main phase, so the cost was paid by nobody at this table — which is the
- *     point, and is asserted from the server's own `auto-paid` line.
- *     Clicking a land to pay is proved in step 3, where there are TWO.
+ *     over before a land could be clicked. **This driver does not click to pay
+ *     in this phase at all** — see "Nothing here is granted by the shuffle".
  *  2. Then the card Forge's input IGNORES — a second land the same turn. There
  *     is no longer a button to click: Forge names what is actionable through
  *     `setWeaklySelectable` and a second land is not in it, so `Board` draws
@@ -38,11 +36,64 @@
  * the battlefield, the Goblin on the stack or resolved, Shock on the stack or
  * in the graveyard with the opponent at 18.
  *
+ * ## Nothing here is granted by the shuffle (wave 21 §B)
+ *
+ * The tracker ran this suite outside a wave and got *"a land and Raging Goblin
+ * by clicking: not done in 120 s"*. FIVE separate ways this test could pass, or
+ * hang, on something other than the product were found and closed — three of
+ * them only visible with the whole suite running and 13 JVMs on the box, which
+ * is how the tracker found it and how this lane reproduced it. They are written
+ * down because each one is the shape the whole lane exists to remove.
+ *
+ *  - **A click the product declines is now retried, and counted.** `selectCard`
+ *    sends nothing and returns false when the card is no longer in
+ *    `boardInteraction` (`match.ts`) — a stale affordance, which is BY DESIGN:
+ *    an auto-pass lands, Forge clears its actionable set, and the button this
+ *    driver is holding a reference to stops meaning anything. `flow.jvm.test.ts`
+ *    measured that happening in two runs out of three (wave 20, `341e51d`).
+ *    This driver used to latch its target id on the DOM click alone, so one
+ *    declined click meant the card never arrived and the drive could only run
+ *    out its 120 s deadline. Every click now reports whether an act actually
+ *    left the client (`stats.replies`), a declined one re-latches to null and
+ *    is retried on the next tick, and the count is asserted as a BOUND.
+ *  - **The `paid …` line is waited for, not sampled.** It is a `message`
+ *    notify: the Goblin reaches the stack (which is what `phase1Done` watches)
+ *    before the line describing its payment has been delivered. Sampling it the
+ *    instant the drive returned failed one run in twenty.
+ *  - **A click Forge never acted on is made again.** Sending is not acting:
+ *    the server forwards an act to whatever input is current, so a window that
+ *    closed in between means Forge takes it as an answer to something else. A
+ *    whole-suite run latched Mountain 62 as played with an EMPTY `declined`, and
+ *    the card was still in hand and still in Forge's actionable set at turn 5.
+ *    Every latch now expires (`EFFECT_GRACE_MS`, or at once when the card is
+ *    still in hand), and the re-clicks are counted and bounded.
+ *  - **Phase 1 is no longer nailed to one turn number.** It used to run only on
+ *    the turn the actor was first seen at its own main; a run that missed that
+ *    window between two 150 ms ticks pressed OK to turn 108 and failed with the
+ *    tracker's own message and an untouched `clicked`. It now runs at the
+ *    actor's next own main, and phase 3 follows whatever turn that was. The
+ *    generic OK press is vetoed off Forge's prompt while that window is the one
+ *    the drive is waiting for.
+ *  - **A selection Forge wants `min` cards for gets `min` clicks in one tick.**
+ *    One per tick live-locked a run for the whole 120 s at *"Select 2 card(s) to
+ *    discard"*: `spent` is cleared by Forge's next frame, so the driver kept
+ *    re-offering itself the same first card and OK never enabled.
+ *  - **The card-for-card equivalence is sampled over the whole run, not once.**
+ *    Checked once at turn-1 priority it was vacuous: Forge names nothing there
+ *    (`[]`), so "every clickable face is Forge's" compared two empty answers.
+ *    It is now sampled on every tick, the samples where Forge named at least one
+ *    card are counted, and that count must be positive.
+ *
+ * `seed: 11` fixes Forge's shuffle, so the actor's opening hand is a fact about
+ * the seed rather than a hope. What the hand must contain is asserted, naming
+ * the seed, the moment the actor is known — so a seed change fails in a second
+ * with the hand printed instead of timing out in two minutes.
+ *
  * Skips visibly without `CARDTABLE_FORGE_JAR` / `CARDTABLE_FORGE_RES`.
  */
 
 import { afterAll, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { createElement } from 'react';
 
 import type { BoardCard, BoardPlayer } from '../adapter.ts';
@@ -56,6 +107,43 @@ const title = available.ok
   ? 'playing by clicking the board, against a real Forge match'
   : `playing by clicking the board, against a real Forge match — SKIPPED: ${available.reason}`;
 if (!available.ok) console.warn(`[board-play.jvm] SKIPPED — no Forge build: ${available.reason}`);
+
+/**
+ * How many clicks the product may decline before this is a defect rather than
+ * the designed race. `flow.jvm.test.ts` bounds the same mechanism at two; this
+ * driver clicks about six times, so the same bound applies here. Every declined
+ * click is retried, and the drive completing is the proof the retry landed.
+ */
+const DECLINED_CLICK_BOUND = 2;
+
+/**
+ * Declined clicks after which the drive gives up rather than running out its
+ * 120 s deadline. A declined click recovers because Forge's NEXT frame renames
+ * what is actionable; a decline that keeps repeating is a state the retry
+ * cannot leave, and two minutes of silence is the worst possible way to say so.
+ */
+const DECLINED_CLICK_LIMIT = 10;
+
+/**
+ * How long a click's effect may take before the latch on it is dropped and the
+ * click is made again.
+ *
+ * Wave 21 §B. A click the client SENT is still not a click Forge acted on:
+ * `Match.fromClient` forwards an act to whatever input is current, so a
+ * priority window that closed between the render and the send means Forge takes
+ * the act as an answer to something else and the card never moves. Measured, in
+ * a whole-suite run with 13 JVMs up: Mountain 62 was latched as played,
+ * `declined` was EMPTY — the act did leave the client — and the card was still
+ * in the actor's hand, still in Forge's own actionable set, at turn 5. So "the
+ * act left the client" is not enough on its own, and a latch that never expires
+ * turns one lost act into two minutes of silence. Generous on purpose: under
+ * that load Forge itself is slow, and where the card is STILL IN HAND the
+ * driver has a positive signal and does not wait for the clock at all.
+ */
+const EFFECT_GRACE_MS = 8_000;
+
+/** Re-clicks allowed before a lost act is a defect rather than the designed race. */
+const REDONE_CLICK_BOUND = 3;
 
 function deck(name: string): string {
   return `[metadata]\nName=${name}\n[main]\n24 Mountain\n18 Raging Goblin\n18 Shock\n`;
@@ -109,29 +197,60 @@ describe.skipIf(!available.ok)(title, () => {
 
       let actor: SeatClient | null = null;
       let firstTurn = 0;
+      /**
+       * The turn phase 1 last acted on. Phase 3 needs a LATER one.
+       *
+       * Wave 21 §B: this used to be `firstTurn`, the turn the actor was first
+       * seen at its own main — and phase 1 could then only ever happen on that
+       * one turn. A full-suite run where that window closed between two 150 ms
+       * ticks left the driver with nothing to do for the rest of the game: it
+       * pressed OK to turn 108 and failed with the tracker's own message and an
+       * untouched `clicked`. Phase 1 now runs at the actor's next own main,
+       * whichever turn that is, and phase 3 follows it.
+       */
+      let phase1Turn = 0;
+      /** The actor's hand the moment it first held priority — what `seed: 11` dealt it. */
+      let actorOpeningHand: string[] = [];
       const clicked = {
         land: null as number | null,
         goblin: null as number | null,
-        landPaid: false,
         land2: null as number | null,
         shock: null as number | null,
         targeted: false,
         shockPaid: false,
       };
       let targeting: LiveSelectables | null = null;
+      /** Clicks the product declined because the affordance had gone stale. */
+      const declined: string[] = [];
+      /** When each latched click was sent, so the latch on it can expire. */
+      const sentAt = new Map<string, number>();
+      /** Acts Forge did not act on, which this driver made again. */
+      const redone: string[] = [];
 
-      const click = (el: HTMLButtonElement, what: string, s: SeatClient) => {
-        log.push(`seat ${s.seat} t${s.live.view!.turn} clicks ${what}`);
+      /**
+       * Click, and say whether an act actually left the client.
+       *
+       * A `<button>` in the DOM is a render of a past state; `selectCard` and
+       * `selectPlayer` re-check `boardInteraction` and send nothing when the
+       * card or seat is no longer offered. `stats.replies` counts what was
+       * sent, so comparing it across the click is the only honest answer to
+       * "did that click do anything".
+       */
+      const click = (el: HTMLButtonElement, what: string, s: SeatClient): boolean => {
+        const before = s.live.stats.replies;
         fireEvent.click(el);
+        const sent = s.live.stats.replies > before;
+        log.push(`seat ${s.seat} t${s.live.view!.turn} clicks ${what}${sent ? '' : ' — DECLINED, will retry'}`);
+        if (!sent) declined.push(`seat ${s.seat} t${s.live.view!.turn}: ${what}`);
+        return sent;
       };
 
-      /** Click a card of this name in hand, if Board offers it. */
+      /** Click a card of this name in hand. Returns its id only when the click was sent. */
       function fromHand(s: SeatClient, name: string): number | null {
         const card = me(s).hand?.find(named(name));
         const button = card === undefined ? null : cardButton(roots[s.seat]!, card.id);
         if (card === undefined || button === null) return null;
-        click(button, `${name} ${card.id} in hand`, s);
-        return card.id;
+        return click(button, `${name} ${card.id} in hand`, s) ? card.id : null;
       }
 
       /** Pay by clicking an untapped Mountain on the battlefield. */
@@ -139,9 +258,33 @@ describe.skipIf(!available.ok)(title, () => {
         const land = me(s).battlefield.find((c) => isMountain(c) && !c.tapped);
         const button = land === undefined ? null : cardButton(roots[s.seat]!, land.id);
         if (land === undefined || button === null) return false;
-        click(button, `Mountain ${land.id} on the battlefield to pay: ${JSON.stringify(s.live.prompt)}`, s);
-        return true;
+        return click(button, `Mountain ${land.id} on the battlefield to pay: ${JSON.stringify(s.live.prompt)}`, s);
       }
+
+      /** Latch `id` under `key`, remembering when its click was sent. */
+      const mark = (key: string, id: number | null): number | null => {
+        if (id !== null) sentAt.set(key, Date.now());
+        return id;
+      };
+      /**
+       * Has the effect of the click latched under `key` failed to arrive?
+       *
+       * `stillInHand` is the positive signal — a card Forge acted on is not in
+       * the hand any more — and it is trusted after a second. Without one, the
+       * grace decides. Either way the latch drops so the click is made again.
+       */
+      const lost = (key: string, what: string, stillInHand: boolean): boolean => {
+        const at = sentAt.get(key);
+        if (at === undefined) return false;
+        const waited = Date.now() - at;
+        if (waited < (stillInHand ? 1_000 : EFFECT_GRACE_MS)) return false;
+        sentAt.delete(key);
+        redone.push(`${what} — ${stillInHand ? `still in hand after ${waited} ms` : `${waited} ms and nothing happened`}`);
+        log.push(`re-clicking: ${what}`);
+        return true;
+      };
+      /** Is this card still in the actor's hand? Then Forge did not act on the click. */
+      const inHand = (s: SeatClient, id: number | null): boolean => id !== null && (me(s).hand ?? []).some((c) => c.id === id);
 
       const phase1Done = (): boolean => {
         if (actor === null || clicked.goblin === null) return false;
@@ -158,9 +301,97 @@ describe.skipIf(!available.ok)(title, () => {
         return onStack || resolved;
       };
 
+      /*
+       * "A clickable face exists exactly where Forge named the card, and
+       * nowhere else", sampled over the whole run instead of once.
+       *
+       * React's pending work is flushed first (`act`), so the DOM compared is
+       * the render of the state compared and not of an earlier one — the
+       * updates arrive outside `act`, from socket events. `spent` must be empty
+       * for the same reason the one-shot check required it: a card this client
+       * has already clicked is deliberately not offered again, so Forge's raw
+       * set is only the authority while nothing is spent.
+       */
+      const parity = {
+        samples: 0,
+        /** Samples where Forge named at least one card the seat can see. */
+        named: 0,
+        mismatches: [] as string[],
+        /** The widest set Forge named at any sampled moment. */
+        widest: [] as number[],
+        /** A sample where Forge named cards AND a land in the actor's hand was not among them. */
+        inertLand: null as { forgeNamed: number[]; landId: number; hadButton: boolean } | null,
+        /** Why a tick was not sampled — so "no samples" is diagnosable rather than a bare zero. */
+        skipped: { noInput: 0, selecting: 0, cleared: 0, spent: 0, empty: 0 },
+      };
+      function sampleParity(s: SeatClient): void {
+        // Flush React's pending work, so the DOM read below is the render of
+        // the client state read below it and not of an earlier one. Every
+        // update here arrives outside `act` (socket events), which is what
+        // makes a stale DOM possible at all.
+        act(() => {});
+        const v = s.live.view;
+        if (v === null || !s.live.inputLive || currentAsk(s.live) !== null) {
+          parity.skipped.noInput += 1;
+          return;
+        }
+        if (s.live.selectables !== null) {
+          parity.skipped.selecting += 1;
+          return;
+        }
+        if (s.live.weaklySelectable === null) {
+          parity.skipped.cleared += 1;
+          return;
+        }
+        if (s.live.spent.cards.size > 0) {
+          parity.skipped.spent += 1;
+          return;
+        }
+        const forgeNamed = s.live.weaklySelectable;
+        const onBoard = [...(me(s).hand ?? []), ...me(s).battlefield, ...opponent(s).battlefield];
+        if (onBoard.length === 0) {
+          parity.skipped.empty += 1;
+          return;
+        }
+        parity.samples += 1;
+        const visible = onBoard.filter((c) => forgeNamed.has(c.id)).map((c) => c.id);
+        if (visible.length > 0) parity.named += 1;
+        if (visible.length > parity.widest.length) parity.widest = visible;
+        for (const c of onBoard) {
+          const hasButton = cardButton(roots[s.seat]!, c.id) !== null;
+          if (hasButton !== forgeNamed.has(c.id)) {
+            parity.mismatches.push(
+              `seat ${s.seat} t${v.turn} ${v.phase ?? '-'}: card ${c.id} (${c.card.name}) drawn ${hasButton ? 'clickable' : 'inert'} while Forge ` +
+                `${forgeNamed.has(c.id) ? 'named' : 'did not name'} it; Forge's set was ${JSON.stringify([...forgeNamed])}`,
+            );
+          }
+        }
+        // The specific wave-20 claim, at a moment where it says something: a
+        // land in hand that Forge left out of a set it did NOT leave empty.
+        if (parity.inertLand === null && visible.length > 0 && s === actor) {
+          const land = (me(s).hand ?? []).find((c) => isMountain(c) && !forgeNamed.has(c.id));
+          if (land !== undefined) {
+            parity.inertLand = { forgeNamed: [...forgeNamed], landId: land.id, hadButton: cardButton(roots[s.seat]!, land.id) !== null };
+          }
+        }
+      }
+
+      /*
+       * The window a click belongs to is read off the FOLDED VIEW, not Forge's
+       * prompt — measured, not assumed (wave 21 §B). Forge's prompt names the
+       * window more precisely, and reading it looks like the obvious fix for a
+       * driver that misses one; it is not. The prompt is a transient that the
+       * next frame overwrites, so a 150 ms tick can miss the actor's own main
+       * phase entirely: driving off the prompt, three runs out of three failed,
+       * one of them never finding an actor at all and running the game to turn
+       * 108. The folded phase persists until it changes, which is what a
+       * sampling driver needs.
+       */
+
       /** One tick for one seat: answer, act by clicking, or press OK. At most one click. */
       function step(s: SeatClient): void {
         const root = roots[s.seat]!;
+        sampleParity(s);
         if (currentAsk(s.live) !== null) {
           log.push(`seat ${s.seat} answers ${answerOpenPrompt(root) ?? 'nothing'}`);
           return;
@@ -172,60 +403,154 @@ describe.skipIf(!available.ok)(title, () => {
         if (myMain && actor === null) {
           actor = s;
           firstTurn = v.turn;
+          // Read before anything is clicked: this is what the seed dealt.
+          actorOpeningHand = (p.hand ?? []).map((c) => c.card.name);
         }
-        if (s === actor && myMain && v.turn === firstTurn && !phase1Done()) {
-          if (clicked.land === null) clicked.land = fromHand(s, 'Mountain');
-          else if (!p.battlefield.some((c) => c.id === clicked.land)) return;
-          else if (clicked.goblin === null) clicked.goblin = fromHand(s, 'Raging Goblin');
-          // Pay only once Forge has answered the Goblin click (its mana input),
-          // never into the priority input. With one Mountain the server's Auto
-          // usually gets there first, and then there is nothing to click.
-          else if (!clicked.landPaid && !s.live.spent.cards.has(clicked.goblin)) clicked.landPaid = payWithLand(s);
+        if (s === actor && myMain && !phase1Done()) {
+          phase1Turn = v.turn;
+          if (clicked.land === null) clicked.land = mark('land', fromHand(s, 'Mountain'));
+          else if (!p.battlefield.some((c) => c.id === clicked.land)) {
+            if (lost('land', `Mountain ${clicked.land} never reached the battlefield`, inHand(s, clicked.land))) clicked.land = null;
+          } else if (clicked.goblin === null) clicked.goblin = mark('goblin', fromHand(s, 'Raging Goblin'));
+          else if (lost('goblin', `Raging Goblin ${clicked.goblin} never left the hand`, inHand(s, clicked.goblin))) clicked.goblin = null;
+          /*
+           * Nothing pays here. With one Mountain in play there is exactly one
+           * way to pay {R}, so `autoPayReason` presses Forge's own Auto and the
+           * cost is settled with no click and no button press at this table —
+           * which is the wave-20 claim asserted below. A click racing that
+           * press would decide the claim by whichever won, so the driver does
+           * not make one. Clicking a land to pay is proved in step 3, where
+           * there are TWO and the shortcut correctly stays out.
+           */
           return;
         }
-        if (s === actor && myMain && v.turn > firstTurn && phase1Checked && !phase2Done()) {
-          if (clicked.land2 === null) clicked.land2 = fromHand(s, 'Mountain');
-          else if (!p.battlefield.some((c) => c.id === clicked.land2)) return;
-          else if (clicked.shock === null) clicked.shock = fromHand(s, 'Shock');
+        if (s === actor && myMain && v.turn > phase1Turn && phase1Checked && !phase2Done()) {
+          if (clicked.land2 === null) clicked.land2 = mark('land2', fromHand(s, 'Mountain'));
+          else if (!p.battlefield.some((c) => c.id === clicked.land2)) {
+            if (lost('land2', `Mountain ${clicked.land2} never reached the battlefield`, inHand(s, clicked.land2))) clicked.land2 = null;
+          } else if (clicked.shock === null) clicked.shock = mark('shock', fromHand(s, 'Shock'));
           else if (!clicked.targeted) {
             // Forge's own list of what Shock may target, as it arrived.
-            if (s.live.selectables === null) return;
+            if (s.live.selectables === null) {
+              if (lost('shock', `Shock ${clicked.shock} never asked for a target`, inHand(s, clicked.shock))) clicked.shock = null;
+              return;
+            }
             targeting = s.live.selectables;
             const target = seatButton(root, opponent(s).id);
             if (target === null) return;
-            click(target, `the opponent's seat (player ${opponent(s).id}) as Shock's target`, s);
-            clicked.targeted = true;
-          } else if (!clicked.shockPaid && s.live.selectables === null) clicked.shockPaid = payWithLand(s);
+            clicked.targeted = click(target, `the opponent's seat (player ${opponent(s).id}) as Shock's target`, s);
+            if (clicked.targeted) sentAt.set('targeted', Date.now());
+          } else if (!clicked.shockPaid) {
+            if (s.live.selectables === null) {
+              clicked.shockPaid = payWithLand(s);
+              if (clicked.shockPaid) sentAt.set('shockPaid', Date.now());
+            } else if (lost('targeted', 'the target click never closed Forge’s selection', false)) clicked.targeted = false;
+          } else if (lost('shockPaid', `Shock ${clicked.shock} never reached the stack after it was paid for`, false)) {
+            clicked.shockPaid = false;
+          }
           return;
         }
-        // Forge wants cards picked (the cleanup discard): pick the first it offers.
+        /*
+         * Forge wants cards picked (the cleanup discard): pick `min` of them,
+         * all in THIS tick.
+         *
+         * Wave 21 §B. One click per tick live-locked a run for the whole 120 s
+         * at *"Select 2 card(s) to discard"*: `spent` is cleared by Forge's
+         * next frame (`INPUT_FRAMES` → `unspend`), so the driver re-offered
+         * itself the same first card every tick and the OK button never
+         * enabled. Within one tick `spent` holds, so each click picks a
+         * different card and a 2-of-2 selection completes.
+         */
         const sel = s.live.selectables;
         const ok = root.querySelector<HTMLButtonElement>('[data-testid="live-button-ok"]');
         if (sel !== null && ok?.disabled === true) {
-          const pick = [...sel.cards].map((id) => cardButton(root, id)).find((b) => b !== null);
-          if (pick !== undefined && pick !== null) click(pick, `a card Forge offered (${sel.min}..${sel.max})`, s);
+          let picked = 0;
+          for (const id of sel.cards) {
+            if (picked >= Math.max(sel.min, 1)) break;
+            if (s.live.spent.cards.has(id)) continue;
+            const b = cardButton(root, id);
+            if (b !== null && click(b, `a card Forge offered (${sel.min}..${sel.max})`, s)) picked += 1;
+          }
           return;
         }
         if (ok !== null && !ok.disabled) {
+          /*
+           * Never press OK through the window this drive is waiting for.
+           *
+           * Wave 21 §B. `myMain` above is read off the FOLDED view, and
+           * `activePlayerId` / `phase` can lag Forge by a frame or two when the
+           * host is loaded; the branch then does not fire and this press passes
+           * the actor's own main phase — the one window the server never
+           * auto-passes for it (#7), so this driver is the only thing that can
+           * lose it. Forge's prompt names the window outright, so it vetoes the
+           * press. It is a veto and not the driver's compass: driven off the
+           * prompt alone, three runs of three failed, because the prompt is a
+           * transient a 150 ms tick can miss and the folded phase is not.
+           */
+          const text = s.live.prompt ?? '';
+          const priority = /^Priority: (.+)$/m.exec(text)?.[1] ?? null;
+          const turn = /^Turn: (\d+) \((.+)\)$/m.exec(text);
+          const ownMainByPrompt =
+            priority !== null && turn !== null && priority === turn[2] && /^Phase: Main phase, precombat$/m.test(text) && /^Stack: Empty$/m.test(text);
+          if (
+            s === actor &&
+            ownMainByPrompt &&
+            (!phase1Done() || (phase1Checked && !phase2Done() && Number(turn![1]) > phase1Turn))
+          ) {
+            return;
+          }
           log.push(`seat ${s.seat} t${v.turn} ${v.phase ?? '-'} presses ${ok.textContent ?? ''}`);
           fireEvent.click(ok);
         }
       }
 
+      /** What each seat is looking at — the only thing that makes a stalled drive diagnosable. */
+      const where = (): string =>
+        h.seats
+          .map(
+            (s) =>
+              `seat ${s.seat}: turn ${s.live.view?.turn ?? '-'} ${s.live.view?.phase ?? '-'}, inputLive ${String(s.live.inputLive)}, ` +
+              `ask ${currentAsk(s.live)?.method ?? 'none'}, prompt ${JSON.stringify(s.live.prompt)}, ` +
+              `Forge named ${s.live.weaklySelectable === null ? 'nothing (cleared)' : JSON.stringify([...s.live.weaklySelectable])}, ` +
+              `selecting ${s.live.selectables === null ? 'nothing' : JSON.stringify({ cards: [...s.live.selectables.cards], min: s.live.selectables.min, max: s.live.selectables.max })}, ` +
+              `spent ${JSON.stringify([...s.live.spent.cards])}`,
+          )
+          .join('\n');
+
       async function drive(until: () => boolean, label: string): Promise<void> {
         const deadline = Date.now() + 120_000;
         while (!until()) {
+          if (declined.length > DECLINED_CLICK_LIMIT) {
+            throw new Error(
+              `${label}: the product declined ${declined.length} clicks and the retry never landed — the affordance is stuck, not stale\n` +
+                `${JSON.stringify(declined.slice(-4))}\n${where()}`,
+            );
+          }
           if (Date.now() > deadline) {
-            throw new Error(`${label}: not done in 120 s\n${log.slice(-40).join('\n')}\nrefused: ${JSON.stringify(h.refused)}`);
+            throw new Error(
+              `${label}: not done in 120 s\nclicked: ${JSON.stringify(clicked)}\ndeclined clicks: ${JSON.stringify(declined)}\n` +
+                `re-clicked: ${JSON.stringify(redone)}\n` +
+                `${where()}\n${log.slice(-40).join('\n')}\nrefused: ${JSON.stringify(h.refused)}`,
+            );
           }
           for (const s of h.seats) step(s);
           await new Promise((r) => setTimeout(r, 150));
         }
       }
 
+      // 0. Whoever wins the toss is the actor, and `seed: 11` dealt it the hand
+      // the rest of this test needs. Stated here so a seed change says so.
+      await drive(() => actor !== null, 'a seat to reach its own main phase');
+      const a = actor! as SeatClient;
+      const mountains = actorOpeningHand.filter((n) => n === 'Mountain').length;
+      const seedDealt = `seed 11 dealt the actor (seat ${a.seat}) ${JSON.stringify(actorOpeningHand)}`;
+      // Two Mountains: one played in step 1, and a second left in hand for the
+      // inert-card check in step 2. One Raging Goblin to cast.
+      expect(mountains, seedDealt).toBeGreaterThanOrEqual(2);
+      expect(actorOpeningHand, seedDealt).toContain('Raging Goblin');
+
       // 1. A land and a spell, turn 1.
       await drive(phase1Done, 'a land and Raging Goblin by clicking');
-      const a = actor! as SeatClient;
       const mountain = me(a).battlefield.find((c) => c.id === clicked.land);
       expect(mountain?.card.name).toBe('Mountain');
       /*
@@ -233,14 +558,26 @@ describe.skipIf(!available.ok)(title, () => {
        * server pressed Forge's own Auto and the Goblin's cost was paid with no
        * click and no button press by either browser — see the module header.
        * The Mountain is tapped all the same: a cast is never free.
+       *
+       * The Goblin reaches the stack BEFORE the line describing its payment is
+       * delivered, so the line is waited for. A payment that never happens
+       * fails here with the whole log rather than with a bare `false`.
        */
-      expect(a.live.says.some((line) => /^paid /.test(line)), JSON.stringify(a.live.says)).toBe(true);
+      const paidSaid = (): boolean => a.live.says.some((line) => /^paid /.test(line));
+      const autoPaid = (): boolean => h.serverLog.some((l) => l.evt === 'auto-paid' && l.seat === a.seat);
+      try {
+        await waitUntil(() => paidSaid() && autoPaid(), 'the Goblin’s payment to be said, and to be the server’s Auto', 20_000);
+      } catch {
+        // Not a failure of its own: the two assertions below name what was
+        // missing, with the lines this seat actually holds.
+      }
+      expect(paidSaid(), JSON.stringify(a.live.says)).toBe(true);
       expect(h.serverLog.filter((l) => l.evt === 'auto-paid' && l.seat === a.seat).length).toBeGreaterThan(0);
       expect(mountain?.tapped).toBe(true);
       const goblinResolved = me(a).battlefield.some((c) => c.id === clicked.goblin);
       console.log(
         `[board-play.jvm] seat ${a.seat} turn ${firstTurn}: Mountain ${clicked.land} played, Raging Goblin ${clicked.goblin} ` +
-          `${goblinResolved ? 'resolved' : 'on the stack'}, paid by clicking the land — ${((Date.now() - started) / 1000).toFixed(1)} s`,
+          `${goblinResolved ? 'resolved' : 'on the stack'}, paid by the server's Auto with no click — ${((Date.now() - started) / 1000).toFixed(1)} s`,
       );
 
       // 2. The card Forge's input ignores is drawn inert — nothing to click.
@@ -259,24 +596,15 @@ describe.skipIf(!available.ok)(title, () => {
 
       const offeredNow = a.live.weaklySelectable!;
       const second = me(a).hand?.find(isMountain);
-      expect(second).toBeDefined();
+      expect(second, `the actor must still hold a second Mountain — hand ${JSON.stringify((me(a).hand ?? []).map((c) => c.card.name))}`).toBeDefined();
       // A second land in one turn: Forge does not name it, so it is not drawn
       // as a button — the click that used to go nowhere cannot be made.
       expect([...offeredNow].includes(second!.id), `Forge's actionable set was ${JSON.stringify([...offeredNow])}`).toBe(false);
       expect(cardButton(roots[a.seat]!, second!.id)).toBeNull();
-
-      // And the whole board agrees with Forge, card for card: a clickable face
-      // exists exactly where Forge named the card, and nowhere else. This is
-      // the "nothing glows that cannot be clicked" claim, measured.
-      const onBoard = [...(me(a).hand ?? []), ...me(a).battlefield, ...opponent(a).battlefield];
-      expect(onBoard.length).toBeGreaterThan(1);
-      const drawn = onBoard.map((c) => [c.id, cardButton(roots[a.seat]!, c.id) !== null] as const);
-      const forge = onBoard.map((c) => [c.id, offeredNow.has(c.id)] as const);
-      expect(drawn).toEqual(forge);
       console.log(
-        `[board-play.jvm] Forge's actionable set at priority: ${JSON.stringify([...offeredNow])}; of ${onBoard.length} cards drawn, ` +
-          `${drawn.filter(([, on]) => on).length} are clickable, and every one of them is Forge's — ` +
-          `${weaklyFrames.length} setWeaklySelectable frames reached this seat`,
+        `[board-play.jvm] at turn-${a.live.view!.turn} priority Forge named ${JSON.stringify([...offeredNow])}; the second Mountain ` +
+          `${second!.id} is not among them and has no button` +
+          `${offeredNow.size === 0 ? ' — but Forge named NOTHING here, so this instant does not tell a land apart from anything else' : ''}`,
       );
       phase1Checked = true;
 
@@ -294,11 +622,60 @@ describe.skipIf(!available.ok)(title, () => {
           `${shockResolved ? `resolved, opponent at ${opponent(a).life}` : 'on the stack'} — ${((Date.now() - started) / 1000).toFixed(1)} s`,
       );
 
+      /*
+       * The whole board agreed with Forge, card for card, at every quiet moment
+       * of the run: a clickable face existed exactly where Forge named the card
+       * and nowhere else. This is the "nothing glows that cannot be clicked"
+       * claim, and the `named` count is what stops it being two empty sets
+       * compared — the one-shot version of this check was exactly that.
+       */
+      expect(parity.mismatches, parity.mismatches.slice(0, 4).join('\n')).toEqual([]);
+      expect(parity.samples, `the board was never in a state that could be compared against Forge — ticks not sampled: ${JSON.stringify(parity.skipped)}`).toBeGreaterThan(0);
+      expect(parity.named, `Forge named a card the seat could see in none of ${parity.samples} samples`).toBeGreaterThan(0);
+      console.log(
+        `[board-play.jvm] ${parity.samples} samples of the actor's board against Forge's actionable set, ` +
+          `${parity.named} of them with at least one named card (widest ${JSON.stringify(parity.widest)}), 0 disagreements; ` +
+          `ticks not sampled: ${JSON.stringify(parity.skipped)}; ` +
+          `${weaklyFrames.length} setWeaklySelectable frames reached this seat`,
+      );
+      if (parity.inertLand !== null) {
+        // The wave-20 claim where it is not vacuous: Forge named things, and a
+        // land in hand was not one of them, and the board drew it inert.
+        expect(parity.inertLand.hadButton, JSON.stringify(parity.inertLand)).toBe(false);
+        console.log(
+          `[board-play.jvm] a land Forge left out of a NON-empty actionable set: Mountain ${parity.inertLand.landId} absent from ` +
+            `${JSON.stringify(parity.inertLand.forgeNamed)}, drawn inert`,
+        );
+      } else {
+        console.warn(
+          '[board-play.jvm] DID NOT HAPPEN: no sampled moment had Forge naming cards while a Mountain sat unnamed in the actor’s hand, ' +
+            'so the land-specific half of the inert-card claim was not exercised this run. The card-for-card equivalence above still holds.',
+        );
+      }
+
       // Lane C's says crossed and this client holds them (display only). With
       // the shortcuts on, a match this short has still auto-passed stops for
       // the actor — the board must be able to say so.
       expect(a.live.says.length).toBeGreaterThan(0);
       console.log(`[board-play.jvm] says held by the actor: ${JSON.stringify(a.live.says.slice(-4))}`);
+
+      /*
+       * Clicks the product declined, bounded. Zero is not the assertion: a
+       * stale affordance is by design (`flow.jvm.test.ts`, wave 20 `341e51d`),
+       * and the drive above completing is the proof that every declined click
+       * was retried and landed. A run over the bound is a product change.
+       */
+      expect(declined.length, `declined clicks: ${JSON.stringify(declined)}`).toBeLessThanOrEqual(DECLINED_CLICK_BOUND);
+      console.log(`[board-play.jvm] clicks the product declined and this driver retried: ${declined.length} ${JSON.stringify(declined)}`);
+
+      /*
+       * Acts that left the client and that Forge did not act on, bounded. Zero
+       * is not the assertion: the server forwards an act to whatever input is
+       * current, so a window that closes between the render and the send loses
+       * one by design. The drive completing is the proof each was made again.
+       */
+      expect(redone.length, `re-clicked: ${JSON.stringify(redone)}`).toBeLessThanOrEqual(REDONE_CLICK_BOUND);
+      console.log(`[board-play.jvm] acts Forge did not act on, which this driver made again: ${redone.length} ${JSON.stringify(redone)}`);
 
       // Nothing this client sent was refused, by the server or by the bridge.
       expect(h.refused).toEqual([]);

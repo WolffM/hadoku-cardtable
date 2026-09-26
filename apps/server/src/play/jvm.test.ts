@@ -35,6 +35,19 @@
  * (`PlayBridge.seed`). The AI and thread timing are not seeded, so a seed
  * narrows a failure down rather than guaranteeing a replay. A red run with
  * `CARDTABLE_PLAY_DUMP=<dir>` keeps every raw line and every envelope there.
+ *
+ * ## What the deal has a say in, audited (wave 21 §B)
+ *
+ * The variety run plays a RANDOM pair of precons on purpose, so every wait in
+ * it is a place where a red could be the deal rather than the product. Audited
+ * one by one, exactly one is: the wait for **turn 1** after six OKs, which only
+ * arrives while nothing else is parked on an answer. That wait now prints what
+ * each seat was last told and every ask that reached a browser, so the deal and
+ * the product are told apart from the failure alone. The others cannot turn on
+ * the deal: the ask is one this test itself sends (`match.probe`), the opening
+ * prompt is Forge's coin toss, and the secrets the leak check needs are two
+ * intact opening hands. Measured over three consecutive runs: turn 1 reached
+ * every time, 133-204 secrets per seat, 103 board objects at the refresh.
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -51,10 +64,17 @@ import { leaked, rawStatesOf, secretsFor } from './fixtures/transcript.js';
 const available = jvmHostConfig();
 const title = available.ok ? 'a real Forge match in a child JVM' : `a real Forge match in a child JVM — SKIPPED: ${available.reason}`;
 
-async function waitUntil(predicate: () => boolean, label: string, timeoutMs: number): Promise<void> {
+/**
+ * `detail` is read WHEN THE WAIT FAILS, never when it is set up. The variety run
+ * below plays a random pair of precons, so a wait that expires is as likely to
+ * be the deal as the product — and "timed out waiting for turn 1" cannot tell
+ * the two apart. Every wait whose precondition the shuffle has a say in passes
+ * one (wave 21 §B).
+ */
+async function waitUntil(predicate: () => boolean, label: string, timeoutMs: number, detail?: () => string): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
 	while (!predicate()) {
-		if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
+		if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}${detail === undefined ? '' : `\n${detail()}`}`);
 		await new Promise((r) => setTimeout(r, 50));
 	}
 }
@@ -157,14 +177,34 @@ describe.skipIf(!available.ok)(title, () => {
 
 			// Acts move the game: OK from both seats plays first and keeps both hands.
 			const before = sent.length;
+			const acts = { sent: 0 };
 			for (let i = 0; i < 3; i++) {
-				for (const seat of [0, 1]) match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+				for (const seat of [0, 1]) {
+					match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+					acts.sent += 1;
+				}
 				await new Promise((r) => setTimeout(r, 1500));
 			}
+			/*
+			 * The one precondition in this test that the DEAL has a say in: six OKs
+			 * reach turn 1 only while nothing else is waiting for an answer. An
+			 * unanswered ask (this test answers only the probe) parks Forge's thread
+			 * and no number of OKs moves it — so if this expires, what each seat was
+			 * last told and every ask still open is the answer, and it is printed.
+			 */
+			const lastPrompt = (seat: number): string =>
+				JSON.stringify(
+					[...sent].reverse().find((s) => s.seat === seat && s.envelope.frame.method === 'showPromptMessage')?.envelope.frame ?? null,
+				);
+			const openAsks = (): string =>
+				JSON.stringify(sent.filter((s) => s.envelope.frame.kind === 'ask').map((s) => ({ seat: s.seat, method: s.envelope.frame.method })));
 			await waitUntil(
 				() => sent.slice(before).some((s) => s.envelope.frame.method === 'showPromptMessage' && /Turn: 1/.test(JSON.stringify(s.envelope.frame))),
 				'turn 1',
 				30_000,
+				() =>
+					`${acts.sent} OKs sent and turn 1 never arrived. This is the deal or the product, and the difference is here:\n` +
+					`seat 0 last told ${lastPrompt(0)}\nseat 1 last told ${lastPrompt(1)}\nasks that reached a browser: ${openAsks()}`,
 			);
 
 			expect(match.invalidFrames).toBe(0);
@@ -182,6 +222,14 @@ describe.skipIf(!available.ok)(title, () => {
 					mkdirSync(dumpDir, { recursive: true });
 					writeFileSync(join(dumpDir, `leak-seat${seat}-${Date.now()}.json`), JSON.stringify({ label, seat, leaked: leaked(secrets, emitted), raw, sent }));
 				}
+				/*
+				 * Non-vacuity: the leak check had something to look for. It cannot
+				 * fail on the deal HERE, unlike `prompts.jvm.test.ts` where a hand
+				 * played out to nothing legitimately left 0 secrets (wave 20,
+				 * `341e51d`) — this run stops at turn 1 with both opening hands
+				 * intact, so every deal has ~130-200 hidden card names in it. Three
+				 * consecutive runs measured 133-204 per seat.
+				 */
 				expect(secrets.size).toBeGreaterThan(0);
 				expect(leaked(secrets, rawText).length).toBe(secrets.size);
 				expect(leaked(secrets, emitted)).toEqual([]);

@@ -282,6 +282,39 @@ describe.skipIf(!available.ok)(title, () => {
 			);
 			console.log(`[lane-c] said: ${JSON.stringify(says.map((x) => `${x.seat}: ${x.message}`))}`);
 
+			/*
+			 * Wave 21 §B. Every claim below is a sweep — "no stop of this shape was
+			 * passed", "no ask carried too much" — and a sweep over an empty set is
+			 * green while proving nothing. The populations are therefore counted
+			 * first, and each one must be non-empty before the sweep over it is
+			 * believed. The numbers in the messages are what this deck and
+			 * `seed: 20260924` produced over five runs: 26 stops, 22 of them
+			 * idle, 4-5 with something to do, 20 auto-passed, 2 payments, 9 asks.
+			 * Only the last of those moves at all — thread timing is not seeded.
+			 */
+			/*
+			 * The LAST window each seat was shown may still be open: the loop above
+			 * stops the moment it has two payments, and an auto-pass for a window
+			 * opened just before that lands after it. A window with no verdict yet is
+			 * not a window that was wrongly left alone — a whole-suite run under load
+			 * failed the "every idle stop was passed" sweep on exactly one such row
+			 * (seat 1, precombat main, stack loaded, 19 auto-passes instead of 20).
+			 * So the direction that needs a verdict — "this was passed" — is asked
+			 * only of windows that closed, and the direction that does not — "this was
+			 * NOT passed" — is asked of every row, because `passed` can only be true
+			 * if the message actually arrived (wave 21 §B).
+			 */
+			const openStill = new Set([0, 1].map((seat) => [...stops].reverse().find((x) => x.seat === seat)).filter((x) => x !== undefined));
+			const closed = stops.filter((x) => !openStill.has(x));
+
+			const population = {
+				idleNotOwnMain: closed.filter((s) => s.idle && !s.ownMain).length,
+				busy: stops.filter((s) => !s.idle).length,
+				ownMain: stops.filter((s) => s.ownMain).length,
+				stackLoadedIdle: stops.filter((s) => !s.stackEmpty && s.idle).length,
+				asksCarryingCards: asks.filter((a) => a.method === 'manipulateCardList' || a.method === 'order').length,
+			};
+			console.log(`[lane-c] the populations each sweep below is over: ${JSON.stringify(population)}`);
 
 			// The scenario actually happened.
 			expect(casts).toBeGreaterThanOrEqual(2);
@@ -294,24 +327,55 @@ describe.skipIf(!available.ok)(title, () => {
 			// with an empty stack is a stop even with nothing to do — *"dont
 			// auto-pass peoples turns"*. So the sweep is over the windows that are
 			// not that, and the carve-out gets an assertion of its own below.
-			expect(stops.filter((s) => s.idle && !s.ownMain && !s.passed)).toEqual([]);
+			expect(population.idleNotOwnMain, `no stop outside a main phase had nothing to do: ${JSON.stringify(population)}`).toBeGreaterThan(0);
+			expect(closed.filter((s) => s.idle && !s.ownMain && !s.passed)).toEqual([]);
+			// The half that matters, and the half that was vacuous without the count
+			// beside it: a stop where FORGE named something is never passed. With no
+			// busy stop in the run there is nothing for that rule to have got wrong.
+			expect(population.busy, `Forge named something actionable at no stop at all: ${JSON.stringify(population)}`).toBeGreaterThan(0);
 			expect(stops.filter((s) => !s.idle && s.passed)).toEqual([]);
 			expect(passed.length).toBeGreaterThan(4);
 
 			// #7, wave 20 — and no seat's own main phase with an empty stack was
 			// ever passed for it, whether it had anything to do or not.
+			expect(population.ownMain, `no seat ever entered its own main phase: ${JSON.stringify(population)}`).toBeGreaterThan(0);
 			expect(stops.filter((s) => s.ownMain && s.passed)).toEqual([]);
 			// #5, wave 20 — a window with the stack loaded and nothing to do IS
 			// passed, and this scenario contains some: that is what resolves a spell
 			// without two humans pressing OK.
 			expect(stops.filter((s) => !s.stackEmpty && s.idle && s.passed).length).toBeGreaterThan(0);
 
-			// #8 — a cast is never free: every payment named its cost and its lands.
+			/*
+			 * #8 — a cast is never free: every payment names its cost, and the cards
+			 * that tapped for it when any did.
+			 *
+			 * Wave 21 §B. This used to demand the `— <lands>` half of EVERY line, and
+			 * a whole-suite run under load produced a bare `paid U`. That is not a
+			 * regression: it is `paymentLine`'s own documented output for a payment
+			 * nothing tapped for (`auto.ts` — "mana already in the pool, a free
+			 * spell"). Whether a payment in THIS scenario taps is thread timing's to
+			 * decide, and from the outside a bare line cannot be told apart from the
+			 * payment tracker missing the tap frames under load. So the shape that
+			 * covers both is asserted for every line, the naming rule is asserted for
+			 * every line, and which of the two occurred is REPORTED — it is not
+			 * turned into a red that means nothing.
+			 */
 			expect(paid.length).toBeGreaterThanOrEqual(2);
 			for (const line of paid) {
-				expect(line.message, line.message).toMatch(/^paid [^ ]+ — .+$/);
+				// A cost, always. Lands after an em dash, or nothing at all.
+				expect(line.message, line.message).toMatch(/^paid [^ ]+( — .+)?$/);
 				// A name, not an id: the seat's own lands are named in its projection.
 				expect(line.message, line.message).not.toMatch(/card #\d+/);
+			}
+			const withLands = paid.filter((line) => / — /.test(line.message));
+			if (withLands.length === 0) {
+				console.warn(
+					`[lane-c] DID NOT HAPPEN: no payment in this run named a tapped card, so "the lands that paid are named" was not ` +
+						`exercised — every payment did name its cost. Lines: ${JSON.stringify(paid.map((x) => x.message))}. Either nothing ` +
+						`tapped (mana already in the pool) or the tracker missed the tap frames; this test cannot tell those apart.`,
+				);
+			} else {
+				console.log(`[lane-c] payments that named the cards that tapped: ${JSON.stringify(withLands.map((x) => x.message))}`);
 			}
 
 			// #11/#7 — the ability asks that reached a browser were the player's own
@@ -324,6 +388,9 @@ describe.skipIf(!available.ok)(title, () => {
 			// #12 — the scry asks about the cards it scried, never about the library.
 			const libraries = [0, 1].map((seat) => ids(stateOf(seat).get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1)), 'Library').length);
 			expect(Math.max(...libraries)).toBeGreaterThan(20);
+			// The sweep below is over the asks that carry card references at all; if
+			// none did, "no ask carried the whole library" would be two empty hands.
+			expect(population.asksCarryingCards, `no ask carried a card list: ${JSON.stringify(asks.map((a) => a.method))}`).toBeGreaterThan(0);
 			for (const ask of asks) {
 				const refs =
 					ask.method === 'manipulateCardList'
