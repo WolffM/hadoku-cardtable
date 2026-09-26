@@ -126,7 +126,15 @@ import { messages, openFriend, type Friend } from './play/browser.ts';
 import { isSnapshot, type Frame, type PlayMessage, type ServerEnvelope } from './play/frames.ts';
 import { connectHands, type Hands } from './play/hands.ts';
 import { answerPrompt, SELF_ANSWERING } from './play/prompts.ts';
-import { forgeAvailability, RUN_DIR, startPlayStack, type PlayStack } from './play/harness.ts';
+import {
+  forgeAvailability,
+  JVM_RECORD_FILE,
+  ORPHAN_MAX_MS,
+  readJvmRecord,
+  RUN_DIR,
+  startPlayStack,
+  type PlayStack,
+} from './play/harness.ts';
 import { checkPlayIsolation, foldStream, type PlaySeatLog } from './play/isolation.ts';
 import { FIXTURE_FILE, load, mutations } from './play/fixture.ts';
 
@@ -242,6 +250,65 @@ async function offeredIn(f: Friend, zone: 'hand' | 'battlefield'): Promise<{ id:
       name: el.querySelector('.card__name')?.textContent ?? '',
     }));
   }, zone);
+}
+
+/**
+ * Click an offered card when a CARD is the only thing Forge will take from this
+ * seat — and do nothing at all otherwise.
+ *
+ * ## The wedge this exists for
+ *
+ * `chooseCardsToDiscardToMaximumHandSize`
+ * (`forge/…/forge/player/PlayerControllerHuman.java:1722-1747`) builds an
+ * anonymous `InputSelectCardsFromList`, min 1 max 1, with
+ * `setCancelAllowed(false)`. `InputSelectManyBase.updateButtons`
+ * (`:98`) keeps OK DISABLED until `hasEnoughTargets()`, and cancel is refused
+ * outright — so Forge publishes a seat state in which **both buttons are dead
+ * and the only legal act in the world is a click on one of the named cards**,
+ * then parks its game thread in `showAndWait()`. Both seats stop.
+ *
+ * Measured, from this spec's own captures (2026-09-26 run, seat 1):
+ * `setSelectables` seq 244 with 8 hand cards and `min: 1, max: 1`, then
+ * `showPromptMessage` seq 246 "Cleanup Phase\nSelect 1 card(s) to discard…",
+ * then `updateButtons` seq 247 with `enable1: false, enable2: false` — and 118
+ * seconds in which the seat received NOTHING. The board had drawn the offer the
+ * whole time (`data-selectable`, `Board.tsx:392`, and a selectable card's face
+ * IS a button that sends `selectCard`, `:399-404`). Nothing clicked it: the
+ * flow loop read only alice's hand, and both seats were otherwise driven by
+ * `pressOk`, which asks for `:enabled` and finds nothing. The budget then
+ * expired and the run failed at turn 4 of a wanted 5.
+ *
+ * ## Why this is not a loosened test
+ *
+ * It presses no button, answers no ask and invents no affordance: it clicks a
+ * card the BOARD already offered, which is a card Forge itself named. And it
+ * fires only in the state that has no alternative — no pressable button, and a
+ * prompt that is not "Waiting…" (the same guard `play/hands.ts` makes, because
+ * a seat waiting on its opponent can still be holding a stale offer). At
+ * priority OK is enabled, so this never touches the cast hunt below.
+ *
+ * Returns the card it clicked once the `selectCard` has crossed, else null.
+ */
+async function clickForcedCard(f: Friend): Promise<{ id: number; name: string } | null> {
+  const pressable = await f.page.locator('[data-testid="live-button-ok"]:enabled, [data-testid="live-button-cancel"]:enabled').count();
+  if (pressable > 0) return null;
+  const says = (await f.page.getByTestId('live-says').textContent()) ?? '';
+  if (/^\s*Waiting/.test(says)) return null;
+  const offered = await offeredIn(f, 'hand');
+  const pick = offered[0];
+  if (pick === undefined) return null;
+  const before = cardActsFrom(f).length;
+  await f.page
+    .locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${pick.id}"] button`)
+    .click({ timeout: 2_000 })
+    .catch(() => {});
+  // The offer can be replaced under the click, exactly as a drag's can; a click
+  // that sent nothing is a normal outcome and the caller simply comes round again.
+  for (let i = 0; i < 12; i++) {
+    if (cardActsFrom(f).length > before) return { id: pick.id, name: pick.name };
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return null;
 }
 
 /**
@@ -796,6 +863,11 @@ test(LIVE_TITLE, async ({ browser }) => {
     // the board offered things Forge had not named, the drags would land on a
     // server that has nothing to do with them and nothing would move.
     const dragged: { name: string; id: number; card: string; type: string; where: string }[] = [];
+    /** Every card clicked because Forge would take nothing else — the evidence for `clickForcedCard`. */
+    const forcedCards: { name: string; id: number; card: string; where: string }[] = [];
+    // Assigned by reference, and before the first budget that can throw: a run
+    // that dies wedged must still say whether anything cleared a wedge.
+    summary.forcedCards = forcedCards;
     const dragDeadline = Date.now() + DRAG_BUDGET_MS;
     const wantLand = () => !dragged.some((d) => /Land/.test(d.type));
     const wantSpell = () => !dragged.some((d) => !/Land/.test(d.type));
@@ -811,6 +883,14 @@ test(LIVE_TITLE, async ({ browser }) => {
       for (const f of [alice, bob]) {
         // Anything Forge ASKS is still answered by the board, by clicking.
         await answerPrompt(f.page);
+        // And a seat Forge has left with nothing BUT a card to click stops the
+        // whole game, which this budget would otherwise blame on the drag. See
+        // `clickForcedCard`.
+        const forced = await clickForcedCard(f);
+        if (forced !== null) {
+          forcedCards.push({ name: f.name, id: forced.id, card: forced.name, where: 'drag' });
+          continue;
+        }
         const inHand = await offeredIn(f, 'hand');
         // A land first, then anything that is not one.
         const pick = wantLand() ? inHand.find((c) => /Land/.test(c.type)) : inHand.find((c) => !/Land/.test(c.type));
@@ -827,11 +907,20 @@ test(LIVE_TITLE, async ({ browser }) => {
         }
         // Paying for what was just cast is the same gesture on a land already
         // in play: Forge offers it, so it is draggable, so drag it.
+        //
+        // It does NOT `continue`, and that is the whole point of these lines.
+        // It used to, and then a hand with nothing castable and an ACTIVATABLE
+        // land in play — a fetchland, whose ability keeps it offered because it
+        // is not a mana ability that tapping ends — took this branch on every
+        // single pass. Dragging it onto its own battlefield is no legal
+        // activation, so it sent nothing, the offer never changed, and the OK
+        // press below was skipped forever. Measured 2026-09-26: alice at
+        // "Priority: Seat 1 / Turn: 1 / Main phase, precombat / Stack: Empty"
+        // with OK ENABLED, 175 seconds, 0 acts out of the browser, turn 1 of a
+        // wanted 5. Falling through costs a real payment nothing — Forge's own
+        // mana payment wants OK ("Auto"), which is what the press below sends.
         const paying = await offeredIn(f, 'battlefield');
-        if (paying.length > 0 && dragged.length > 0) {
-          await dragToBattlefield(f, paying[0]!.id);
-          continue;
-        }
+        if (paying.length > 0 && dragged.length > 0) await dragToBattlefield(f, paying[0]!.id);
         // The bar flips with the auto-passes, so an OK seen enabled can be
         // disabled before the click lands. Best effort with a short leash:
         // a missed press costs one 250 ms pass, and the server presses the
@@ -918,6 +1007,14 @@ test(LIVE_TITLE, async ({ browser }) => {
     while (unattended === null && Date.now() < flowDeadline) {
       if ((await alice.page.locator('.board__over').count()) > 0) break;
       for (const f of [alice, bob]) await answerPrompt(f.page);
+      // BOTH seats, not only the one this section is measuring: a seat Forge has
+      // left with nothing but a card to click stops the whole game, and the
+      // cleanup discard puts seat 2 there every time its hand passes 7. See
+      // `clickForcedCard`.
+      for (const f of [alice, bob]) {
+        const forced = await clickForcedCard(f);
+        if (forced !== null) forcedCards.push({ name: f.name, id: forced.id, card: forced.name, where: 'flow' });
+      }
       // Only cards Forge OFFERED are draggable, so an offered non-land in hand
       // is a spell this seat can cast right now.
       const offered = await offeredIn(alice, 'hand');
@@ -1035,6 +1132,13 @@ test(LIVE_TITLE, async ({ browser }) => {
       for (const f of [alice!, bob!]) {
         const done = await answerPrompt(f.page);
         if (done !== null) clicks.push({ name: f.name, ...done });
+        // Not an ask, so not one of `clicks` — but the same wedge reaches this
+        // loop, and `hands` cannot clear it: a connection that joins AFTER the
+        // `setSelectables` is re-sent the says, the prompt and the buttons
+        // (`Match.resendAfterSnapshot`) and NOT the selection, so it never
+        // learns which cards the discard will take. The board was sent it live.
+        const forced = await clickForcedCard(f);
+        if (forced !== null) forcedCards.push({ name: f.name, id: forced.id, card: forced.name, where: 'play' });
       }
     };
     const turnOnPage = async (): Promise<number> => Number(/Turn (\d+)/.exec((await alice!.page.getByTestId('turn').textContent()) ?? '')?.[1] ?? 0);
@@ -1297,10 +1401,15 @@ test(LIVE_TITLE, async ({ browser }) => {
       writeFileSync(resolve(RUN_DIR, `play-${f.name}.hands.log`), (hands.find((h) => h.seat === (f.name === 'alice' ? 0 : 1))?.log ?? []).join('\n'));
       await f.context.close();
     }
-    await stack.stop();
+    // `reap: false`: §E's contract is that a handed-over JVM SURVIVES its
+    // server, and `jvmFates` has to see that from outside. So the stack's
+    // reaper is held back until it has — and then run, before any expect
+    // below can throw past it.
+    await stack.stop({ reap: false });
     const fates = await jvmFates(stack);
     summary.jvmFates = fates;
     summary.jvmsLeft = fates.filter((f) => f.alive).map((f) => f.pid);
+    summary.jvmsReaped = stack.reap();
     writeFileSync(resolve(RUN_DIR, 'play-summary.json'), JSON.stringify(summary, null, 2));
     console.log(JSON.stringify(summary, null, 2));
     // A run that spawned nothing would satisfy every clause below by having no
@@ -1315,49 +1424,6 @@ test(LIVE_TITLE, async ({ browser }) => {
 
 function playMessagesSince(f: Friend, mark: number): PlayMessage[] {
   return messages({ ...f, captures: f.captures.slice(mark) });
-}
-
-/*
- * The handle a later server re-attaches by, as `apps/server/src/play/host.ts`
- * writes it (`JVM_RECORD_FILE`, `JvmRecord`, `ORPHAN_MAX_MS`). Mirrored here
- * rather than imported: `host.ts` is not erasable-syntax-clean, and this
- * package typechecks with `erasableSyntaxOnly` so Node can strip its types.
- * Only the fields the contract below asks about are read.
- */
-const JVM_RECORD_FILE = 'jvm.json';
-/** `host.ts` `ORPHAN_MAX_MS`: past this a boot kills an orphan instead of re-attaching. */
-const ORPHAN_MAX_MS = 12 * 60 * 60 * 1000;
-
-interface JvmRecordSeen {
-  matchId: string;
-  pid: number;
-  epoch: string | null;
-  owners: unknown[];
-  spec: unknown;
-  spare: boolean;
-  orphanedAt: string | null;
-}
-
-/** `<run>/jvm.json`, or null when it is missing, unreadable or not a record. */
-function readJvmRecord(run: string): JvmRecordSeen | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(resolve(run, JVM_RECORD_FILE), 'utf8'));
-  } catch {
-    return null;
-  }
-  if (typeof parsed !== 'object' || parsed === null) return null;
-  const r = parsed as Record<string, unknown>;
-  if (typeof r.matchId !== 'string' || typeof r.pid !== 'number') return null;
-  return {
-    matchId: r.matchId,
-    pid: r.pid,
-    epoch: typeof r.epoch === 'string' ? r.epoch : null,
-    owners: Array.isArray(r.owners) ? r.owners : [],
-    spec: r.spec ?? null,
-    spare: r.spare === true,
-    orphanedAt: typeof r.orphanedAt === 'string' ? r.orphanedAt : null,
-  };
 }
 
 /** What became of one bridge JVM when the server stopped. `faults` empty is the contract met. */
@@ -1407,8 +1473,12 @@ interface JvmFate {
  * jar-gated `jvm.test.ts`; this is the e2e's claim that the real server, killed
  * for real, left the real match in a state those can pick up.
  *
- * Everything still alive is SIGKILLed whatever the verdict, so this can never
- * leak a JVM of its own and the next run starts clean.
+ * It only LOOKS. Ending what it found is `PlayStack.reap()`'s job — one guarded
+ * reaper in `play/harness.ts` for every spec, which signals a pid only when
+ * `/proc/<pid>/cwd` puts it inside this stack's own work dir. So the caller
+ * stops the server with `reap: false`, reads the fates here while the
+ * handed-over JVM is still up, and reaps immediately after; nothing is left
+ * behind either way.
  */
 async function jvmFates(stack: PlayStack): Promise<JvmFate[]> {
   const log = serverLog(stack);
@@ -1469,8 +1539,5 @@ async function jvmFates(stack: PlayStack): Promise<JvmFate[]> {
     }
     return { id, pid, run, handedOver, spare: record?.spare ?? false, alive, faults };
   });
-
-  // Whatever is still up goes, verdict or not: this test does not leave JVMs behind.
-  for (const f of fates) if (f.alive) process.kill(f.pid, 'SIGKILL');
   return fates;
 }

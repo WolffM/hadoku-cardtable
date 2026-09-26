@@ -40,6 +40,44 @@
  *    nor share a directory with the draft stack's server, which is up at the
  *    same time under the same `.run/`.
  *
+ * ## …and the work dir must not be shared with ANOTHER STACK either
+ *
+ * Wave 22 §E made a match JVM outlive its server: SIGTERM hands every live
+ * match over (`jvm.json` gains `orphanedAt`) instead of killing it, and the
+ * next server that boots on the same work dir **re-attaches** it. In
+ * production that is the point. In a test it was a cross-spec hazard, because
+ * the work dir used to be one constant shared by every stack:
+ *
+ *   `play.spec.ts` / `table-fit.spec.ts` (two stacks of its own) / `arrow.spec.ts`
+ *   each tore their server down, leaving live handed-over JVMs in
+ *   `.run/play-work`; the NEXT stack's server swept that directory, adopted
+ *   them, and hit `MAX_CONCURRENT_MATCHES` — so `POST /api/play/matches`
+ *   answered **503** and the spec died on a `waitForURL` that could never
+ *   resolve. CI runs `play.spec.ts table-fit.spec.ts` in ONE invocation, so it
+ *   was deterministic there, not a flake.
+ *
+ * Two halves fix it, and both live here rather than in the product — §E's
+ * hand-over is the contract, not the bug:
+ *
+ *  1. **A work dir per stack.** `PLAY_WORK_ROOT` is only the parent now; each
+ *     `startPlayStack` gets its own `stack-<random>` subdirectory of it, which
+ *     is what the server's `CARDTABLE_PLAY_WORK_DIR` points at and what
+ *     `PlayStack.workDir` reports. One stack's run dirs are therefore not in
+ *     any other stack's sweep, so they cannot be adopted — not by the next
+ *     spec, and not by the next RUN either.
+ *  2. **Reaping on teardown.** A test has no successor server, so a
+ *     handed-over JVM here is a leak rather than a promise. `stop()` therefore
+ *     ends the JVMs it started once the server is down (`reapJvms`), and
+ *     `stop({ reap: false })` defers that to an explicit `reap()` for the one
+ *     caller that must first SEE a live handed-over JVM: `play.spec.ts`'s
+ *     `jvmFates()`, which is what proves §E's contract from outside.
+ *
+ * The reaper signals a pid only when `/proc/<pid>/cwd` puts that process
+ * inside THIS stack's work dir — the same pid-reuse check `host.ts`'s
+ * `orphans()` makes — and refuses outright to run on a work dir that is not
+ * under `PLAY_WORK_ROOT`. Production's JVMs live in `/tmp/cardtable-play` and
+ * can match neither test.
+ *
  * The bundle is served from a temp copy, for the reasons `../harness.ts` gives
  * (a concurrent `vite build` empties `dist/`; `send` 404s any path with a
  * dot-directory in it, and an agent worktree lives under `.claude/`).
@@ -47,10 +85,22 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { cpSync, createWriteStream, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import {
+  cpSync,
+  createWriteStream,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  rmSync,
+} from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 
 import { startEdge } from '../edge.ts';
 
@@ -60,12 +110,72 @@ const BUILT_WEB_DIR = resolve(ROOT, 'apps/ui/dist');
 export const RUN_DIR = resolve(import.meta.dirname, '..', '.run');
 /** This stack's room snapshots. Wiped per run; never production's `data/rooms`. */
 export const PLAY_ROOMS_DIR = resolve(RUN_DIR, 'play-rooms');
-/** This stack's per-match run directories. NEVER production's `/tmp/cardtable-play`. */
-export const PLAY_WORK_DIR = resolve(RUN_DIR, 'play-work');
+/**
+ * The PARENT of every stack's work dir — never itself a server's
+ * `CARDTABLE_PLAY_WORK_DIR`. See "…and the work dir must not be shared with
+ * ANOTHER STACK either". Never production's `/tmp/cardtable-play`, and the
+ * reaper refuses to signal anything outside it.
+ */
+export const PLAY_WORK_ROOT = resolve(RUN_DIR, 'play-work');
+/** Each stack's own subdirectory of `PLAY_WORK_ROOT`. */
+const STACK_DIR_PREFIX = 'stack-';
+/**
+ * How many dead leftovers under `PLAY_WORK_ROOT` a new stack keeps, newest
+ * first — a crashed run's diagnostics are worth reading, an unbounded pile of
+ * them is not. Nothing a process is standing in is ever pruned, whoever's it is.
+ */
+const STALE_WORK_DIRS_KEPT = 6;
 
 export const PLAY_EDGE_PORT = Number(process.env.CARDTABLE_E2E_PLAY_EDGE_PORT ?? '19128');
 export const PLAY_SERVER_PORT = Number(process.env.CARDTABLE_E2E_PLAY_SERVER_PORT ?? '19028');
 export const PLAY_EDGE_ORIGIN = `http://127.0.0.1:${PLAY_EDGE_PORT}`;
+
+/*
+ * The handle a later server re-attaches a match by, as
+ * `apps/server/src/play/host.ts` writes it (`JVM_RECORD_FILE`, `JvmRecord`,
+ * `ORPHAN_MAX_MS`). Read here rather than imported: `host.ts` is not
+ * erasable-syntax-clean and this package typechecks with `erasableSyntaxOnly`
+ * so Node can strip its types (`tsc` exits 2 on the import). ONE copy for the
+ * whole e2e — the reaper below and `play.spec.ts`'s `jvmFates` share it.
+ */
+
+/** `host.ts` `JVM_RECORD_FILE`: the record a run dir keeps itself in. */
+export const JVM_RECORD_FILE = 'jvm.json';
+/** `host.ts` `ORPHAN_MAX_MS`: past this a boot kills an orphan instead of re-attaching. */
+export const ORPHAN_MAX_MS = 12 * 60 * 60 * 1000;
+
+/** The fields of `host.ts`'s `JvmRecord` anything in the e2e asks about. */
+export interface JvmRecordSeen {
+  matchId: string;
+  pid: number;
+  epoch: string | null;
+  owners: unknown[];
+  spec: unknown;
+  spare: boolean;
+  orphanedAt: string | null;
+}
+
+/** `<run>/jvm.json`, or null when it is missing, unreadable or not a record. */
+export function readJvmRecord(run: string): JvmRecordSeen | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(resolve(run, JVM_RECORD_FILE), 'utf8'));
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const r = parsed as Record<string, unknown>;
+  if (typeof r.matchId !== 'string' || typeof r.pid !== 'number') return null;
+  return {
+    matchId: r.matchId,
+    pid: r.pid,
+    epoch: typeof r.epoch === 'string' ? r.epoch : null,
+    owners: Array.isArray(r.owners) ? r.owners : [],
+    spec: r.spec ?? null,
+    spare: r.spare === true,
+    orphanedAt: typeof r.orphanedAt === 'string' ? r.orphanedAt : null,
+  };
+}
 
 export type ForgeAvailability = { ok: true; jar: string; res: string } | { ok: false; reason: string };
 
@@ -80,6 +190,141 @@ export function forgeAvailability(env: NodeJS.ProcessEnv = process.env): ForgeAv
   return { ok: true, jar, res };
 }
 
+/* ── Reaping this stack's JVMs, and nobody else's ─────────────────────────── */
+
+/** One JVM the harness ended. `id` is its `jvm.json` match id, null when it had no record yet. */
+export interface ReapedJvm {
+  pid: number;
+  run: string;
+  id: string | null;
+}
+
+/** `realpathSync`, or null when the path is gone (a deleted cwd included). */
+function realpathOrNull(path: string): string | null {
+  try {
+    return realpathSync(path);
+  } catch {
+    return null;
+  }
+}
+
+/** Every process's cwd, as real paths. Null for a pid `/proc` will not answer for. */
+function processCwds(): { pid: number; cwd: string | null }[] {
+  const out: { pid: number; cwd: string | null }[] = [];
+  for (const entry of readdirSync('/proc')) {
+    if (!/^\d+$/.test(entry)) continue;
+    let link: string;
+    try {
+      link = readlinkSync(`/proc/${entry}/cwd`);
+    } catch {
+      continue; // gone, or not ours to inspect — either way not ours to signal
+    }
+    out.push({ pid: Number(entry), cwd: realpathOrNull(link) });
+  }
+  return out;
+}
+
+/** Is `cwd` `dir` itself or somewhere under it? Both must already be real paths. */
+function isUnder(cwd: string | null, dir: string): boolean {
+  return cwd !== null && (cwd === dir || cwd.startsWith(dir + sep));
+}
+
+/**
+ * End every JVM standing in `workDir`, and NOTHING else.
+ *
+ * Two guards, and they are the whole safety of this function:
+ *
+ *  1. `workDir` must resolve to `PLAY_WORK_ROOT` or a path under it — this
+ *     repo's `e2e/.run/play-work`. Production's work dir is
+ *     `/tmp/cardtable-play`, which is not under it, so a reaper pointed there
+ *     by a bad env or a stale constant throws instead of killing the
+ *     operator's game or its warm spare.
+ *  2. A pid is signalled only when `/proc/<pid>/cwd` — resolved through
+ *     `realpath`, exactly as `host.ts`'s `pidIsStandingIn` reads it — puts
+ *     that process inside that same directory. That is the pid-reuse check: a
+ *     recycled pid is some other program, in some other directory, and it is
+ *     not signalled. A pid whose cwd cannot be read is not signalled either.
+ *
+ * The records come first, because they name the match (and are what a
+ * successor server would have re-attached by); the `/proc` pass then catches a
+ * JVM that died before `adopt` wrote its `jvm.json` at all.
+ *
+ * Call it only once the server is down: while it is up, its own processes —
+ * and the match JVMs it means to keep — are exactly what this would kill.
+ */
+export function reapJvms(workDir: string): ReapedJvm[] {
+  const root = realpathOrNull(workDir);
+  if (root === null) return []; // never created, or already removed
+  const bound = realpathOrNull(PLAY_WORK_ROOT);
+  if (bound === null || !(root === bound || root.startsWith(bound + sep))) {
+    throw new Error(`refusing to reap ${workDir}: it is not under the e2e's own ${PLAY_WORK_ROOT}`);
+  }
+
+  const reaped: ReapedJvm[] = [];
+  const signalled = new Set<number>();
+  /** SIGKILL `pid`, but only if it is really the process standing in `dir`. */
+  const reap = (pid: number, dir: string, id: string | null): void => {
+    if (signalled.has(pid) || pid <= 0) return;
+    if (!isUnder(realpathOrNull(`/proc/${pid}/cwd`), dir)) return;
+    signalled.add(pid);
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // ESRCH: it went between the check and here, which is the outcome wanted.
+    }
+    reaped.push({ pid, run: dir, id });
+  };
+
+  for (const name of readdirSync(root)) {
+    const run = join(root, name);
+    let isDir: boolean;
+    try {
+      isDir = lstatSync(run).isDirectory();
+    } catch {
+      continue;
+    }
+    if (!isDir) continue;
+    const record = readJvmRecord(run);
+    if (record !== null) reap(record.pid, run, record.matchId);
+  }
+  // A match JVM writes `jvm.json` at `adopt`, so one killed before that has no
+  // record to be found by. Its cwd still names it, and that is guard 2 again.
+  for (const { pid, cwd } of processCwds()) {
+    if (cwd === null || !isUnder(cwd, root)) continue;
+    reap(pid, cwd, null);
+  }
+  return reaped;
+}
+
+/**
+ * Bound the pile under `PLAY_WORK_ROOT`: keep the newest `STALE_WORK_DIRS_KEPT`
+ * leftovers and remove the rest. A directory some process is standing in is
+ * never touched — that is the same guard `host.ts`'s `sweepRunDirs` leads with,
+ * and here it is what keeps a still-running stack (or a previous run's orphan
+ * this stack has no business ending) out of it.
+ */
+function pruneWorkRoot(): void {
+  const root = realpathOrNull(PLAY_WORK_ROOT);
+  if (root === null) return;
+  const cwds = processCwds();
+  const stale: { dir: string; mtimeMs: number }[] = [];
+  for (const name of readdirSync(root)) {
+    const dir = join(root, name);
+    let mtimeMs: number;
+    try {
+      const stat = lstatSync(dir);
+      if (!stat.isDirectory()) continue;
+      mtimeMs = stat.mtimeMs;
+    } catch {
+      continue;
+    }
+    if (cwds.some(({ cwd }) => isUnder(cwd, dir))) continue; // LIVE: not ours to remove
+    stale.push({ dir, mtimeMs });
+  }
+  stale.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  for (const { dir } of stale.slice(STALE_WORK_DIRS_KEPT)) rmSync(dir, { recursive: true, force: true });
+}
+
 export interface PlayStack {
   origin: string;
   serverPort: number;
@@ -87,9 +332,19 @@ export interface PlayStack {
   serverLogFile: string;
   /** Where this stack's rooms and match run dirs went. Reported, so a run can prove it was not production's. */
   roomsDir: string;
+  /** THIS stack's own subdirectory of `PLAY_WORK_ROOT`; no other stack sweeps it. */
   workDir: string;
-  /** Stop the server (which stops every match JVM) and the edge. Idempotent. */
-  stop(): Promise<void>;
+  /**
+   * Stop the server and the edge, then end this stack's JVMs. Idempotent.
+   *
+   * `reap: false` stops the server and leaves the JVMs it handed over ALIVE,
+   * for a caller that must see them before they go — `play.spec.ts`'s
+   * `jvmFates()`. Such a caller owns calling `reap()` itself; nothing else
+   * will, and a live JVM after the last spec is a leak.
+   */
+  stop(options?: { reap?: boolean }): Promise<void>;
+  /** End every JVM standing in `workDir`. Idempotent; safe after `stop()` either way. */
+  reap(): ReapedJvm[];
 }
 
 async function waitForHealth(server: ChildProcess): Promise<void> {
@@ -127,9 +382,12 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
   // list beside them.
   rmSync(PLAY_ROOMS_DIR, { recursive: true, force: true });
   mkdirSync(PLAY_ROOMS_DIR, { recursive: true });
-  // Not wiped: a crashed match's diagnostics are the reason this directory is
-  // kept, and the server's own boot sweep bounds it.
-  mkdirSync(PLAY_WORK_DIR, { recursive: true });
+  // This stack's OWN work dir, so no other stack's server can sweep it or adopt
+  // out of it. Not wiped, and not reused: a crashed match's diagnostics are the
+  // reason these directories are kept, and `pruneWorkRoot` is the bound.
+  mkdirSync(PLAY_WORK_ROOT, { recursive: true });
+  pruneWorkRoot();
+  const workDir = mkdtempSync(join(PLAY_WORK_ROOT, STACK_DIR_PREFIX));
   const serverLogFile = resolve(RUN_DIR, 'play-server.jsonl');
   const serverLog = createWriteStream(serverLogFile, { flags: 'w' });
   const secret = randomBytes(24).toString('hex');
@@ -146,7 +404,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
       CARDTABLE_WEB_DIR: webDir,
       CARDTABLE_LOG_DIR: resolve(RUN_DIR, 'play-logs'),
       CARDTABLE_ROOMS_DIR: PLAY_ROOMS_DIR,
-      CARDTABLE_PLAY_WORK_DIR: PLAY_WORK_DIR,
+      CARDTABLE_PLAY_WORK_DIR: workDir,
       EDGE_AUTH_SECRET: secret,
       CARDTABLE_FORGE_JAR: forge.jar,
       CARDTABLE_FORGE_RES: forge.res,
@@ -158,7 +416,8 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
   const exited = new Promise<void>((r) => server.once('exit', () => r()));
 
   let edge: Server | null = null;
-  const stop = async (): Promise<void> => {
+  const reap = (): ReapedJvm[] => reapJvms(workDir);
+  const stop = async (options: { reap?: boolean } = {}): Promise<void> => {
     edge?.closeAllConnections();
     edge?.close();
     edge = null;
@@ -170,6 +429,9 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
     }
     serverLog.end();
     rmSync(webDir, { recursive: true, force: true });
+    // Only now: while the server was up, the JVMs it means to keep are exactly
+    // what this would have killed.
+    if (options.reap !== false) reap();
   };
 
   try {
@@ -184,7 +446,8 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
     serverPort: PLAY_SERVER_PORT,
     serverLogFile,
     roomsDir: PLAY_ROOMS_DIR,
-    workDir: PLAY_WORK_DIR,
+    workDir,
     stop,
+    reap,
   };
 }
