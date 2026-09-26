@@ -3,9 +3,12 @@
  *
  * Four things are checked here that no single tier can check on its own:
  *
- *   1. **The census.** 14 + 21 + 3 = 38, no duplicates, and every modelled
+ *   1. **The census.** 15 + 23 + 3 = 41, no duplicates, and every modelled
  *      method has exactly one example. If a tier grows a method without a
  *      frame — or a frame without a method — this is where it shows.
+ *      The literals here are the ONLY record of the census's size, so they move
+ *      with it: lane F's 38, then Wave 19 lane B's weakly-selectable pair (40),
+ *      then Wave 22 lane L's `setHighlighted` (41).
  *   2. **Blocking is settled, not guessed.** 15 methods block; the set of
  *      frames that carry a `callId` must equal that list exactly, and so must
  *      the reply table's keys.
@@ -44,12 +47,12 @@ import { TIER_C_METHODS } from './tier-c.ts';
 
 const SRC_DIR = dirname(fileURLToPath(import.meta.url));
 
-describe('the census — 15 + 22 + 3 = 40', () => {
-  it('matches Wave 6 lane F’s tiering plus the weakly-selectable pair, method for method', () => {
+describe('the census — 15 + 23 + 3 = 41', () => {
+  it('matches Wave 6 lane F’s tiering plus the two pairs added since, method for method', () => {
     expect(TIER_A_METHODS).toHaveLength(15);
-    expect(TIER_B_METHODS).toHaveLength(22);
+    expect(TIER_B_METHODS).toHaveLength(23);
     expect(TIER_C_METHODS).toHaveLength(3);
-    expect(REQUIRED_METHODS).toHaveLength(40);
+    expect(REQUIRED_METHODS).toHaveLength(41);
   });
 
   it('carries Forge’s priority-time offer, which lane F’s 38 left out', () => {
@@ -59,8 +62,15 @@ describe('the census — 15 + 22 + 3 = 40', () => {
     expect(REQUIRED_METHODS).toContain('clearWeaklySelectable');
   });
 
+  it('carries the MARK as well as the two offers — Wave 22 lane L', () => {
+    // The third entity frame. `InputLondonMulligan` speaks per-card through
+    // this one and nothing else, so without it that input reaches a seat as
+    // prose and a two-button bar with no entity at all. See `tier-b.ts`.
+    expect(REQUIRED_METHODS).toContain('setHighlighted');
+  });
+
   it('names no method twice', () => {
-    expect(new Set(REQUIRED_METHODS).size).toBe(40);
+    expect(new Set(REQUIRED_METHODS).size).toBe(41);
   });
 
   it('has exactly one example per Tier A/B method; Tier C is tested against captures', () => {
@@ -70,7 +80,7 @@ describe('the census — 15 + 22 + 3 = 40', () => {
     ].sort();
     const modelled = [...TIER_A_METHODS, ...TIER_B_METHODS].sort();
     expect(examples).toEqual(modelled);
-    expect(examples).toHaveLength(37);
+    expect(examples).toHaveLength(38);
   });
 });
 

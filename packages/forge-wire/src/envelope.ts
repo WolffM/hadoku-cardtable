@@ -51,9 +51,10 @@
  *   that were sent is a correlation check, and correlation is the bridge's job
  *   (`@hadoku/room-ask` already solves ask/reply-with-timeout, and lane F noted
  *   that this is its first real consumer).
- * - It does not model the 20 `ProtocolMethod`s outside the required 38, nor the
+ * - It does not model the 17 `ProtocolMethod`s outside the required 41, nor the
  *   2 dead ones (`setRememberedActions`, `nextRememberedAction`, resolved to
- *   nothing by Wave 3's reflection dump).
+ *   nothing by Wave 3's reflection dump). 41 + 17 + 2 = 60, which is every
+ *   constant in `ProtocolMethod.java`.
  * - It does not give `applyDelta`'s events arm a shape. `tier-c.ts` carries
  *   it opaque until Wave 8 lane B's `events/` schema replaces it.
  */
@@ -99,7 +100,7 @@ export const CallIdSchema = z.string().min(1);
 
 /* ── The method census ───────────────────────────────────────────────── */
 
-/** The 38 `ProtocolMethod`s a browser client needs, by tier. */
+/** The 41 `ProtocolMethod`s a browser client needs, by tier. */
 export const REQUIRED_METHODS = [
   ...TIER_A_METHODS,
   ...TIER_B_METHODS,
@@ -144,9 +145,14 @@ export const REPLY_SCHEMAS = {
 /* ── Server → client ─────────────────────────────────────────────────── */
 
 /**
- * Every frame the bridge may send a browser: 29 arms, discriminated on
- * `method`. Three of them (Tier C) are the state channel, modelled from the
- * Wave 7 captures in `tier-c.ts`.
+ * Every frame the bridge may send a browser: 32 arms, discriminated on
+ * `method` — 9 Tier A, 20 Tier B, 3 Tier C. The last three are the state
+ * channel, modelled from the Wave 7 captures in `tier-c.ts`.
+ *
+ * This number had said 29 since before Wave 19, which added two server frames
+ * (`setWeaklySelectable`, `clearWeaklySelectable`) without moving it; Wave 22
+ * lane L added `setHighlighted` and re-derived it from the three arrays. No
+ * test reads it, which is exactly why it drifted — count it, do not trust it.
  */
 export const ServerFrameSchema = z.discriminatedUnion('method', [
   ...TIER_A_SERVER_FRAMES,

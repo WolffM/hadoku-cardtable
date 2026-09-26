@@ -102,12 +102,15 @@
  * the bottom' and the cards were not clickable — had to press Auto."*
  *
  * Carrying the mark is what lets that seat UN-mark a card it marked. It does
- * not by itself make the first card clickable, because Forge marks a card only
+ * not by itself make the FIRST card clickable, because Forge marks a card only
  * after a click it accepted (`InputLondonMulligan.onCardSelected`, `:112-123`).
- * The signal for the first click is `GameView`'s `Mulligan` flag
+ * The signal for that first click is `GameView`'s `Mulligan` flag
  * (`GameView.java:141-146`, set at `InputLondonMulligan.java:60` and cleared at
- * `:105`), which is on the state channel already (`tier-c.ts`,
- * `Mulligan: 'BooleanType'`) and is not read here yet.
+ * `:105`), which rides the state channel we already fold (`tier-c.ts`,
+ * `Mulligan: 'BooleanType'`; the server's projection passes a `GameView` through
+ * whole — `visibility.ts`'s `projectObject` redacts cards and card states and
+ * nothing else). `mulliganHand` reads it, and its header is where the argument
+ * that this transcribes Forge rather than inventing a rule is written down.
  *
  * ### Players
  *
@@ -224,7 +227,7 @@ import { io } from 'socket.io-client';
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { toBoardView, type BoardView } from '../adapter.ts';
 import { foldPackets, type WireState } from '../fold.ts';
-import { expectWirePackets, type WirePacket } from '../wire.ts';
+import { expectWirePackets, WireType, type WirePacket } from '../wire.ts';
 import {
   abortFrame,
   FullControlSchema,
@@ -724,8 +727,9 @@ const NOTHING: LiveClickables = { selectable: new Set(), selectablePlayers: new 
  *  - a selection is open (`setSelectables`) → those cards, and the players a
  *    selection input will take;
  *  - otherwise Forge's actionable set (`setWeaklySelectable`) union the cards
- *    it has MARKED (`setHighlighted`) → those cards, and no player;
- *  - Forge has named none of the three → nothing.
+ *    it has MARKED (`setHighlighted`) union — while `GameView.Mulligan` is up —
+ *    this seat's OWN hand → those cards, and no player;
+ *  - Forge has named none of the four → nothing.
  *
  * ## Why `highlighted` sits BESIDE `selectables` and is not folded into it
  *
@@ -756,7 +760,10 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
   const view = match.view;
   if (view === null || !match.inputLive || !match.connected || match.asks.length > 0) return NOTHING;
   const selection = match.selectables;
-  const named = selection === null ? union(match.weaklySelectable, match.highlighted) : selection.cards;
+  const named =
+    selection === null
+      ? union(match.weaklySelectable, match.highlighted, mulliganHand(match.state, view))
+      : selection.cards;
   if (named === null) return NOTHING;
   const drawn = cardIdsInView(view);
   const offered = new Set<number>();
@@ -767,16 +774,78 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
 }
 
 /**
- * Two id sets Forge may each have left unsaid, as one. Null only when BOTH are
+ * Id sets Forge may each have left unsaid, as one. Null only when EVERY one is
  * null: an empty set means "Forge named nothing", which is not the same answer.
  */
-function union(
-  a: ReadonlySet<number> | null,
-  b: ReadonlySet<number> | null,
-): ReadonlySet<number> | null {
-  if (a === null) return b;
-  if (b === null) return a;
-  return new Set([...a, ...b]);
+function union(...sets: ReadonlyArray<ReadonlySet<number> | null>): ReadonlySet<number> | null {
+  const said = sets.filter((s): s is ReadonlySet<number> => s !== null);
+  if (said.length === 0) return null;
+  if (said.length === 1) return said[0]!;
+  const all = new Set<number>();
+  for (const s of said) for (const id of s) all.add(id);
+  return all;
+}
+
+/**
+ * The seat's OWN hand while Forge is waiting for a London mulligan return, and
+ * null at every other moment.
+ *
+ * ## Why this exists, and why it is not "we invented an affordance"
+ *
+ * Wave 22 lane L, second pass. `InputLondonMulligan` publishes no selection and
+ * no actionable set, and it marks a card only AFTER a click it already accepted
+ * (`InputLondonMulligan.java:112-123`) — so the mark alone cannot start the
+ * loop, and the seat was stuck with prose and an OK/Auto bar. That is the
+ * operator's report: *"the cards were not clickable — had to press Auto."*
+ *
+ * Forge does publish the state this input is in, just not through an entity
+ * frame: `GameView.updateIsMulligan(true)` at `InputLondonMulligan.java:60`,
+ * cleared at `:105` when the input is done (`GameView.java:141-146`). It is a
+ * `TrackableProperty` on the one `GameView` object, so it rides the state
+ * channel we already fold, and it is the same flag Forge's own mobile client
+ * reads (`MatchScreen.java:381`).
+ *
+ * The set of cards that input accepts is not a guess either: `onCardSelected`
+ * takes a click only when `player.getZone(ZoneType.Hand).contains(c0)`
+ * (`:113`), and `player` is the seat's own player. So "this seat's hand, while
+ * that flag is up" is Forge's condition transcribed, not a rule of ours. Which
+ * of those cards Forge will actually act on stays Forge's to decide — a click
+ * past `toReturn` is a no-op on its side (`:117-119`), and we do not count.
+ *
+ * ## The hidden-information line, twice over
+ *
+ * Only `isViewer`'s hand is read, and `BoardPlayer.hand` is `null` for every
+ * other seat by construction (`adapter.ts` fills it `isViewer ? … : null`), so
+ * an opponent's hand is not merely skipped here — it is not in the projection
+ * this function can see. `boardInteraction` then intersects with
+ * `cardIdsInView`, which also takes `p.hand ?? []` and so contributes nothing
+ * for anyone else. An opponent's hand card cannot reach the offered set by
+ * either path.
+ */
+function mulliganHand(state: WireState, view: BoardView): ReadonlySet<number> | null {
+  if (!readGameBool(state, 'Mulligan')) return null;
+  const me = view.players.find((p) => p.isViewer);
+  // `hand` is null for a seat whose hand this viewer may not see. That can only
+  // be another seat, and it is the reason this reads the view and not the state.
+  if (me === undefined || me.hand === null) return null;
+  return new Set(me.hand.map((c) => c.id));
+}
+
+/**
+ * One boolean off the single `GameView` in the folded state.
+ *
+ * Absent is FALSE, and that is Forge's own encoding rather than a convenience:
+ * `TrackableObject.set` drops a property whose value is null or equals the
+ * type's default (`wire.ts`'s header), so `updateIsMulligan(false)` reaches us
+ * as a delta that DELETES the key, which `fold.ts` rule 3 honours.
+ */
+function readGameBool(state: WireState, property: string): boolean {
+  for (const obj of state.values()) {
+    if (obj._type !== WireType.Game) continue;
+    const value = obj[property];
+    return typeof value === 'object' && value !== null && value.t === 'bool' && value.v === true;
+  }
+  return false;
 }
 
 /** Every card id the seat was sent: all its zones, and the stack's sources. */

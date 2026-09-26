@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
 
 import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
+import { deltaKey, WireType, type Tagged } from '../wire.ts';
 import {
   abortAsk,
   answerAsk,
@@ -839,6 +840,189 @@ describe('setHighlighted: Forge’s mark is offered, and never widens an offer',
     await until('the resync', () => m.stats.snapshots === 2);
     expect(m.highlighted).toBeNull();
     expect(selectCard(m, mine[0]!)).toBe(false);
+  });
+});
+
+/*
+ * The London mulligan — the operator's item #7, closed.
+ *
+ * `InputLondonMulligan` publishes no selection, no actionable set, and marks a
+ * card only after a click it already accepted, so nothing above starts the
+ * loop. What Forge DOES publish is `GameView.Mulligan`
+ * (`InputLondonMulligan.java:60`, cleared at `:105`), on the state channel; and
+ * the cards that input accepts are exactly the seat's own hand (`:113`,
+ * `player.getZone(ZoneType.Hand).contains(c0)`).
+ *
+ * Two of these are hidden-information tests and they are the ones to keep: the
+ * OPPONENT's hand ids are in this client's folded state (Forge's stream carries
+ * zone lists as ids, and `visibility.ts` redacts faces, not lists), so "only the
+ * viewer's own hand" is a claim with something real to get wrong.
+ *
+ * Mutation target: delete `mulliganHand`'s term from `boardInteraction`'s
+ * `union` — every positive case below fails.
+ */
+describe('the London mulligan: Forge’s own flag makes the seat’s own hand clickable', () => {
+  /** The one `GameView`'s delta key, dug out of the folded state rather than guessed. */
+  function gameEntry(m: LiveMatch): { key: string; id: number } {
+    for (const [key, obj] of m.state) {
+      if (obj._type === WireType.Game) return { key, id: obj._id };
+    }
+    throw new Error('no GameView in the folded state');
+  }
+
+  let seq = 900;
+  /** A state-channel delta setting `GameView.Mulligan`. `null` is Forge's "back to the default". */
+  function mulligan(m: LiveMatch, on: boolean | null): ServerFrame {
+    const { key, id } = gameEntry(m);
+    const value: Tagged | null = on === null ? null : { t: 'bool', v: on };
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: {
+          seq: (seq += 1),
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: {},
+          objectDeltas: { [key]: { _type: WireType.Game, _id: id, Mulligan: value } },
+          events: [],
+        },
+      },
+    });
+  }
+
+  /** The viewer's hand, from the view. */
+  function myHand(m: LiveMatch): number[] {
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    expect(me.hand).not.toBeNull();
+    expect(me.hand!.length).toBeGreaterThan(1);
+    return me.hand!.map((c) => c.id);
+  }
+
+  /**
+   * The OPPONENT's hand ids, read out of the raw folded state. The view does not
+   * expose them (`hand` is null for anyone but the viewer) — which is the point:
+   * this client HOLDS these ids and must never offer them.
+   */
+  function theirHand(m: LiveMatch): number[] {
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    expect(them.hand).toBeNull();
+    const obj = m.state.get(deltaKey(WireType.Player, them.id))!;
+    const list = obj.Hand;
+    expect(typeof list === 'object' && list !== null && (list.t === 'list' || list.t === 'set')).toBe(true);
+    const ids = (list as { v: Tagged[] }).v.map((e) => (e as { v: number }).v);
+    expect(ids).toHaveLength(them.handCount);
+    expect(ids.length).toBeGreaterThan(0);
+    return ids;
+  }
+
+  it('while Mulligan is up the seat’s own hand is clickable, and a click reaches Forge', async () => {
+    const { s, m } = await fullGame();
+    const hand = myHand(m);
+    // Exactly the frames InputLondonMulligan.showMessage sends: the flag, then
+    // the prose, then the OK/Auto pair. No selection, no actionable set.
+    await sendAndApply(s, m, [
+      mulligan(m, true),
+      prompt('Return 1 card(s) to the bottom of your library'),
+      bar(false),
+    ]);
+    expect(m.selectables).toBeNull();
+    expect(m.weaklySelectable).toBeNull();
+    expect(m.highlighted).toBeNull();
+
+    const open = boardInteraction(m);
+    expect(open.selectable).toEqual(new Set(hand));
+    // Still no player: the mulligan takes cards, and nothing published says
+    // otherwise.
+    expect(open.selectablePlayers.size).toBe(0);
+    expect(selectCard(m, hand[0]!)).toBe(true);
+    await until('the act', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()).toEqual([cardAct(hand[0]!)]);
+
+    // Forge answers an accepted click with the mark, which un-spends the card so
+    // the seat can click it again to take it back. That is the whole loop.
+    await sendAndApply(s, m, [mark([hand[0]!]), prompt('Return 0 card(s) to the bottom of your library'), bar(true)]);
+    expect(m.highlighted).toEqual(new Set([hand[0]]));
+    expect(boardInteraction(m).selectable).toEqual(new Set(hand));
+    expect(selectCard(m, hand[0]!)).toBe(true);
+  });
+
+  it('ONLY the viewer’s own hand: the opponent’s hand ids are held and never offered', async () => {
+    const { s, m } = await fullGame();
+    const hand = myHand(m);
+    const hidden = theirHand(m);
+    await sendAndApply(s, m, [mulligan(m, true), prompt('Return 2 card(s) to the bottom of your library')]);
+
+    const open = boardInteraction(m);
+    expect(open.selectable).toEqual(new Set(hand));
+    for (const id of hidden) {
+      expect(open.selectable.has(id)).toBe(false);
+      expect(selectCard(m, id)).toBe(false);
+    }
+    await barrier(s, m, hand[1]!);
+  });
+
+  it('the HAND only — not the battlefield, graveyard or exile the seat can also see', async () => {
+    const { s, m } = await fullGame();
+    const hand = myHand(m);
+    await sendAndApply(s, m, [mulligan(m, true), prompt('Return 1 card(s) to the bottom of your library')]);
+
+    const open = boardInteraction(m);
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const elsewhere = [...me.battlefield, ...me.graveyard, ...me.exile].map((c) => c.id);
+    expect(elsewhere.length).toBeGreaterThan(0);
+    for (const id of elsewhere) expect(open.selectable.has(id)).toBe(false);
+    expect(open.selectable).toEqual(new Set(hand));
+    // The opponent's battlefield is visible and is not part of a mulligan either.
+    for (const id of ids(m).theirs) expect(open.selectable.has(id)).toBe(false);
+    await barrier(s, m, hand[0]!);
+  });
+
+  it('it ends when Forge clears the flag — both as false and as a deleted property', async () => {
+    const { s, m } = await fullGame();
+    const hand = myHand(m);
+    await sendAndApply(s, m, [mulligan(m, true), prompt('Return 1 card(s) to the bottom of your library')]);
+    expect(boardInteraction(m).selectable).toEqual(new Set(hand));
+
+    await sendAndApply(s, m, [mulligan(m, false)]);
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    expect(selectCard(m, hand[0]!)).toBe(false);
+
+    await sendAndApply(s, m, [mulligan(m, true)]);
+    expect(boardInteraction(m).selectable).toEqual(new Set(hand));
+
+    // `updateIsMulligan(false)` reaches us as a DELETE, because Forge drops a
+    // property that equals its default (`fold.ts` rule 3).
+    await sendAndApply(s, m, [mulligan(m, null)]);
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    expect(selectCard(m, hand[0]!)).toBe(false);
+    await barrier(s, m, hand[0]!);
+  });
+
+  it('a real setSelectables still wins outright while the flag is up', async () => {
+    const { s, m } = await fullGame();
+    const hand = myHand(m);
+    const { theirs } = ids(m);
+    await sendAndApply(s, m, [
+      mulligan(m, true),
+      prompt('Select targets'),
+      selectables([theirs[0]!], 1, 1),
+    ]);
+    expect(boardInteraction(m).selectable).toEqual(new Set([theirs[0]]));
+    for (const id of hand) expect(selectCard(m, id)).toBe(false);
+    expect(selectCard(m, theirs[0]!)).toBe(true);
+    await until('the act', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()).toEqual([cardAct(theirs[0]!)]);
+  });
+
+  it('the flag alone is not an affordance: nothing is offered until Forge shows an input', async () => {
+    const { s, m } = await fullGame();
+    const hand = myHand(m);
+    await sendAndApply(s, m, [mulligan(m, true)]);
+    expect(m.inputLive).toBe(false);
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    expect(selectCard(m, hand[0]!)).toBe(false);
+    await barrier(s, m, hand[0]!);
   });
 });
 
