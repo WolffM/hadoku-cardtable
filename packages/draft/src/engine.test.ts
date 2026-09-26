@@ -308,9 +308,14 @@ describe('seating', () => {
   });
 
   it('the pod is exactly seatCount seats', () => {
-    const view = viewFor(newDraft(), 0);
+    const state = newDraft();
+    const view = viewFor(state, 0);
     expect(view.seats.length).toBe(8);
     expect(view.capacity).toBe(8);
+    // The rows come from the TABLE, not from `seatCount` — they agree here only
+    // because `createDraft` bot-pads every seat, so all three numbers match.
+    // `view.test.ts` covers the cases where they do not.
+    expect(view.seats.length).toBe(state.table.seats.length);
   });
 
   it('a four-player pod still fills to eight', () => {

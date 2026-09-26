@@ -24,18 +24,32 @@
  * driven that way is this one's.
  */
 
-import { occupantOf, type SeatId } from '@wolffm/rooms-protocol';
+import { seatRows, type SeatId, type SeatOccupant } from '@wolffm/rooms-protocol';
 import type { DraftSeatView, DraftView } from '@hadoku/shared';
 import { directionFor, waitingOn, type DraftState } from './engine.ts';
 
-/** The public row for one seat — everything everyone may know, nothing more. */
-function seatView(state: DraftState, id: SeatId): DraftSeatView {
-  const occupant = occupantOf(state.table, id);
+/** One row as `seatRows` hands it over: a seat that exists, occupied or not. */
+type SeatRow = { id: SeatId; occupant: SeatOccupant | null };
+
+/**
+ * The public row for one seat — everything everyone may know, nothing more.
+ *
+ * Takes the row rather than a bare id so the occupant is whatever `seatRows`
+ * decided it was. A padded row and a vacant one are then the same thing here,
+ * which is the point: nothing downstream has to know which it was looking at.
+ */
+function seatView(state: DraftState, row: SeatRow): DraftSeatView {
+  const { id, occupant } = row;
   return {
     id,
     occupant,
     displayName: state.displayNames[id] ?? `Seat ${id}`,
-    pickedCount: (state.pools[id] as unknown[]).length,
+    // Optional index on purpose. A row is a SEAT, and the engine only has a
+    // pool for a seat it dealt to, so a row can legitimately have no pool
+    // entry — a padded seat nobody has taken, or a seat the table carries past
+    // what was dealt. `viewFor` below has always guarded the same index; this
+    // was the one place that did not, and it threw rather than reporting zero.
+    pickedCount: state.pools[id]?.length ?? 0,
   };
 }
 
@@ -51,7 +65,15 @@ function common(state: DraftState): Omit<DraftView, 'viewer'> {
     packSize: state.packSize,
     passDirection: directionFor(state.packNumber),
     capacity: state.table.capacity,
-    seats: Array.from({ length: state.seatCount }, (_, i) => seatView(state, i)),
+    // `seatRows` and not `Array.from({ length: ... })`. A seat table GROWS with
+    // arrivals rather than being pre-allocated, so rendering it verbatim draws
+    // a four-seat pod holding two players as a two-seat pod; and a hand-rolled
+    // loop to `capacity` is one `seats.length > capacity` away from dropping an
+    // occupied seat out of the view entirely. The package owns that loop
+    // (`@wolffm/rooms-protocol` `seatRows`) so every bounded-table renderer
+    // gets the same answer, and `apps/server` asserts row-for-row agreement
+    // with it on the wire.
+    seats: seatRows(state.table).map((row) => seatView(state, row)),
     waitingOn: waitingOn(state),
   };
 }
