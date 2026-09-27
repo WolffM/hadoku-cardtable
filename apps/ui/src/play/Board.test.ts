@@ -17,7 +17,15 @@ import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { createProjector, type StateFrame } from '../../../server/src/play/visibility.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import poolData from '../draft/pool.json';
-import { artIdIndex, CUBE_ART_IDS, scryfallIdFor, toBoardView, type ArtIdIndex, type BoardView } from './adapter.ts';
+import {
+  artIdIndex,
+  CUBE_ART_IDS,
+  scryfallIdFor,
+  toBoardView,
+  type ArtIdIndex,
+  type BoardCard,
+  type BoardView,
+} from './adapter.ts';
 import { Board, forgetArrangements, type BoardInteraction } from './Board.tsx';
 import { boardFromFixture, loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
@@ -488,16 +496,19 @@ function withoutComments(css: string): string {
  * order and the LAST one declaring the property wins, which for rules of equal
  * specificity is also what the cascade does.
  */
-function declarationIn(selector: string, property: string): string | undefined {
+function declarationInCss(css: string, selector: string, property: string): string | undefined {
   const blocks = new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([\\s\\S]*?)^\\}`, 'gm');
   const declares = new RegExp(`(?:^|;|\\{)\\s*${property}:([^;]+);`, 'm');
   let found: string | undefined;
-  for (const block of BOARD_CSS.matchAll(blocks)) {
+  for (const block of css.matchAll(blocks)) {
     const value = declares.exec(block[1]!)?.[1]?.replace(/\s+/g, ' ').trim();
     if (value !== undefined) found = value;
   }
   return found;
 }
+
+const declarationIn = (selector: string, property: string): string | undefined =>
+  declarationInCss(BOARD_CSS, selector, property);
 
 /** The fixture's own stack item, repeated, so the only thing that varies is how many. */
 function withStack(base: BoardView, n: number): BoardView {
@@ -895,11 +906,14 @@ describe('the battlefield’s rows (#10)', () => {
     for (const id of [0, 1]) {
       const rows = [...zone(id, 'battlefield').querySelectorAll<HTMLElement>('[data-board-row]')];
       expect(rows.map((r) => r.dataset.boardRow), `seat ${id}'s rows, in order`).toEqual(ROWS);
-      // A lane's share of the width is its card count (`board.css`).
+      // A lane's share of the width is how many COLUMNS it draws — its piles,
+      // one `<li>` each, not every card in them (`board.css`). Nothing is
+      // stacked in the fixture, so here the two numbers agree; the stacking
+      // tests below are where they part.
       expect(
         rows.map((r) => r.style.flexGrow),
-        `seat ${id}'s lanes grow by what they hold`,
-      ).toEqual(rows.map((r) => String(r.querySelectorAll('.board-card').length)));
+        `seat ${id}'s lanes grow by the columns they draw`,
+      ).toEqual(rows.map((r) => String(r.querySelectorAll(':scope > ul.zone__cards > li.board-card').length)));
       for (const r of rows) {
         const head = r.querySelector('.zone__row-head')!;
         const cards = r.querySelectorAll('.board-card').length;
@@ -1062,8 +1076,20 @@ describe('drag to arrange (#10)', () => {
 
   it('sends nothing to the engine: no selection, no reply, only the view moved', () => {
     const view = boardFromFixture(fixture);
-    const { interaction, onSelectCard, onSelectPlayer } = spyInteraction([8, 24], [0, 1]);
+    /*
+     * The senders are armed — every card of the viewer's HAND and both players
+     * are offered, so a stray call would land — but the cards being DRAGGED are
+     * ones Forge is not offering, because an offered card is not draggable at
+     * all (see "draggable and selectable are mutually exclusive"). Offering the
+     * cards under the drag would make this test pass by doing nothing.
+     */
+    const me = view.players.find((p) => p.isViewer)!;
+    const { interaction, onSelectCard, onSelectPlayer } = spyInteraction(
+      me.hand!.map((c) => c.id),
+      [0, 1],
+    );
     const { container, rowIds } = renderBoard(view, interaction);
+    expect(container.querySelectorAll('[data-selectable]').length, 'the senders really are armed').toBeGreaterThan(0);
     drag(container, 8, { card: 24 });
     drag(container, 24, { row: 'artifacts' });
     expect(rowIds(0, 'artifacts')).toEqual([24]);
@@ -1093,6 +1119,621 @@ describe('drag to arrange (#10)', () => {
     fireEvent.drop(theirs);
     expect(rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
     expect(rowIds(1, 'lands')).toEqual([87, 78, 93, 83, 116, 118]);
+  });
+});
+
+/* ── stacking: deliberate as well as free ─────────────────────────────── */
+
+/**
+ * §A.1 / §A.5. The operator, 2026-09-27: *"i dont want these snapping zones…
+ * put cards wherever they want… snap above/below each other in any order"*.
+ *
+ * Which THIRD of a card's box a drop lands in is the whole gesture, so every
+ * test here has to give the element a box: jsdom lays nothing out and every
+ * `getBoundingClientRect` is zeros, which `Board.tsx` reads as "no geometry" and
+ * treats as the old reorder. That fallback is why the drag tests above still
+ * pass unchanged, and it is not the behaviour a browser gets.
+ */
+describe('drag to stack (#1, #19)', () => {
+  const TOP = 100;
+  const HEIGHT = 90;
+
+  /** A box for one card: thirds at 130 and 160. */
+  function withBox(el: HTMLElement): HTMLElement {
+    el.getBoundingClientRect = () =>
+      ({ top: TOP, bottom: TOP + HEIGHT, height: HEIGHT, left: 0, right: 70, width: 70, x: 0, y: TOP, toJSON: () => ({}) }) as DOMRect;
+    return el;
+  }
+
+  const AT = { top: TOP + 10, middle: TOP + HEIGHT / 2, bottom: TOP + HEIGHT - 10 } as const;
+
+  /**
+   * A drop carrying a pointer height, which `fireEvent.drop(el, { clientY })`
+   * does NOT: **jsdom has no `DragEvent`**, so testing-library falls back to a
+   * plain `Event` and every `MouseEvent` field of the init is dropped on the
+   * floor. `Board.tsx` reads `clientY` because that is what a browser's real
+   * `DragEvent` carries, so the test has to put it there itself.
+   */
+  function dropAt(el: HTMLElement, clientY: number): void {
+    const event = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clientY', { value: clientY });
+    fireEvent(el, event);
+  }
+
+  /** Drop `cardId` on `ontoId`, in the named third of its box. */
+  function dragOnto(container: HTMLElement, cardId: number, ontoId: number, where: keyof typeof AT) {
+    const from = container.querySelector<HTMLElement>(`[data-card-id="${cardId}"]`)!;
+    const to = withBox(container.querySelector<HTMLElement>(`[data-card-id="${ontoId}"]`)!);
+    fireEvent.dragStart(from);
+    fireEvent.dragOver(to);
+    dropAt(to, AT[where]);
+  }
+
+  /** The viewer's lands lane, as columns of piles: each column bottom card first. */
+  function columns(container: HTMLElement, row = 'lands'): number[][] {
+    const lane = container.querySelector<HTMLElement>(`.seat[data-viewer] [data-board-row="${row}"]`)!;
+    return [...lane.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li.board-card')].map((base) => [
+      Number(base.dataset.cardId),
+      ...[...base.querySelectorAll<HTMLElement>(':scope > ul.board-card__pile > li.board-card')].map((m) => Number(m.dataset.cardId)),
+    ]);
+  }
+
+  it('stacks ON TOP when the drop lands in the upper third', () => {
+    const { container, rowIds } = renderBoard();
+    dragOnto(container, 25, 8, 'top');
+    expect(columns(container), '25 is on 8, and the lane is one column shorter').toEqual([[8, 25], [24], [6]]);
+    // Every card is still drawn, still once, and still in its lane.
+    expect(rowIds(0, 'lands')).toEqual([8, 25, 24, 6]);
+  });
+
+  it('stacks UNDERNEATH when the drop lands in the lower third', () => {
+    const { container } = renderBoard();
+    dragOnto(container, 25, 8, 'bottom');
+    expect(columns(container), '25 is under 8').toEqual([[25, 8], [24], [6]]);
+  });
+
+  it('still reorders when the drop lands in the middle third', () => {
+    const { container } = renderBoard();
+    dragOnto(container, 25, 24, 'middle');
+    expect(columns(container), 'four columns, nothing stacked').toEqual([[8], [25], [24], [6]]);
+  });
+
+  it('builds a pile of three and lets the player choose the order inside it', () => {
+    const { container } = renderBoard();
+    dragOnto(container, 24, 8, 'top');
+    dragOnto(container, 6, 24, 'top');
+    expect(columns(container)).toEqual([[8, 24, 6], [25]]);
+    // And a member of the pile can be re-stacked under another member.
+    dragOnto(container, 6, 24, 'bottom');
+    expect(columns(container)).toEqual([[8, 6, 24], [25]]);
+  });
+
+  it('a pile is one column: the lane asks for one card of width per pile', () => {
+    const { container } = renderBoard();
+    dragOnto(container, 25, 8, 'top');
+    const lane = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="lands"]')!;
+    // Three columns, four cards — this is exactly where the two numbers part.
+    expect(lane.style.flexGrow, 'the lane grows by its columns').toBe('3');
+    expect(lane.querySelectorAll(':scope > ul.zone__cards > li.board-card')).toHaveLength(3);
+    expect(lane.querySelectorAll('.board-card')).toHaveLength(4);
+    // The lane's own label still counts CARDS, which is what is on the board.
+    expect(lane.querySelector('.zone__row-head')!.textContent).toBe('Lands 4');
+    expect(container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"]')!.dataset.count).toBe('5');
+  });
+
+  it('keeps every card’s own data-card-id, unique across the board, at every depth', () => {
+    const { container } = renderBoard();
+    dragOnto(container, 24, 8, 'top');
+    dragOnto(container, 6, 24, 'top');
+    const board = container.querySelector<HTMLElement>('.board')!;
+    const ids = [...board.querySelectorAll<HTMLElement>('.board-card')].map((c) => c.dataset.cardId);
+    expect(ids).toHaveLength(24);
+    expect(new Set(ids).size, 'no id twice, pile or not').toBe(24);
+    for (const id of ids) expect(board.querySelectorAll(`[data-card-id="${id}"]`), `card ${id}`).toHaveLength(1);
+    // The pile marks its own depth, which is what `card.css` fans on.
+    const base = container.querySelector<HTMLElement>('[data-card-id="8"]')!;
+    expect(base.dataset.pileSize).toBe('3');
+    expect(base.dataset.pileDepth, 'the bottom of a pile is depth 0 and says nothing').toBeUndefined();
+    expect(
+      [...base.querySelectorAll<HTMLElement>(':scope > ul.board-card__pile > li')].map((m) => m.dataset.pileDepth),
+    ).toEqual(['1', '2']);
+    // A lone card is a pile of one and carries neither attribute.
+    const alone = container.querySelector<HTMLElement>('[data-card-id="25"]')!;
+    expect(alone.dataset.pileSize).toBeUndefined();
+    expect(alone.querySelector('.board-card__pile')).toBeNull();
+  });
+
+  it('unstacks a card dropped on the row’s own box', () => {
+    const { container } = renderBoard();
+    dragOnto(container, 25, 8, 'top');
+    expect(columns(container)).toEqual([[8, 25], [24], [6]]);
+    const lane = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="lands"]')!;
+    fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="25"]')!);
+    fireEvent.dragOver(lane);
+    fireEvent.drop(lane);
+    expect(columns(container), '25 is its own column again, at the row’s end').toEqual([[8], [24], [6], [25]]);
+  });
+
+  it('survives a resync, piles and all', () => {
+    const first = renderBoard();
+    dragOnto(first.container, 24, 8, 'top');
+    expect(columns(first.container)).toEqual([[8, 24], [6], [25]]);
+    cleanup();
+    const after = renderBoard({ ...boardFromFixture(fixture), seq: 9999 });
+    expect(columns(after.container), 'a new view and a new mount draw the same piles').toEqual([[8, 24], [6], [25]]);
+  });
+
+  it('Regroup throws the piles away too', () => {
+    const { container, getByLabelText } = renderBoard();
+    dragOnto(container, 24, 8, 'top');
+    expect(columns(container)).toEqual([[8, 24], [6], [25]]);
+    fireEvent.click(getByLabelText('Regroup your battlefield'));
+    expect(columns(container), 'the default grouping is back, nothing stacked').toEqual([[8], [24], [6], [25]]);
+  });
+
+  it('a card dropped on ITSELF changes nothing', () => {
+    const { container } = renderBoard();
+    dragOnto(container, 8, 8, 'top');
+    expect(columns(container)).toEqual([[8], [24], [6], [25]]);
+  });
+
+  /* ── a. the arrangement sends NOTHING to the engine ─────────────────── */
+
+  /**
+   * The safety control: a rearrange is invisible to Forge. Every sender the
+   * board has is counted, across every gesture this lane owns — reorder, stack
+   * above, stack below, unstack, and Regroup — with every card and both players
+   * declared selectable, which is the state in which a stray click WOULD send.
+   */
+  it('sends nothing to the engine: no sender is called by any arrangement gesture', () => {
+    const view = boardFromFixture(fixture);
+    const me = view.players.find((p) => p.isViewer)!;
+    /*
+     * Armed with every card the viewer's HAND holds and both players — not with
+     * the battlefield cards under the drag, which Forge offering would make
+     * undraggable and this test vacuous.
+     */
+    const { interaction, onSelectCard, onSelectPlayer } = spyInteraction(
+      me.hand!.map((c) => c.id),
+      view.players.map((p) => p.id),
+    );
+    const { container, getByLabelText } = renderBoard(view, interaction);
+    expect(container.querySelectorAll('[data-selectable]').length, 'the senders really are armed').toBeGreaterThan(0);
+    dragOnto(container, 24, 8, 'top');
+    dragOnto(container, 6, 8, 'bottom');
+    dragOnto(container, 25, 24, 'middle');
+    const lane = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="other"]')!;
+    fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="24"]')!);
+    fireEvent.dragOver(lane);
+    fireEvent.drop(lane);
+    fireEvent.click(getByLabelText('Regroup your battlefield'));
+
+    // The board really did move — so the zero below is not "nothing happened".
+    expect(container.querySelector('.seat[data-viewer] [data-board-row="other"]')!.querySelectorAll('.board-card')).toHaveLength(0);
+    expect(onSelectCard, 'no card was selected by a drag').not.toHaveBeenCalled();
+    expect(onSelectPlayer, 'no player was selected by a drag').not.toHaveBeenCalled();
+    expect(onSelectCard.mock.calls.length + onSelectPlayer.mock.calls.length, 'zero senders invoked').toBe(0);
+    // And the view the board was handed is untouched: the arrangement is ours.
+    expect(view.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id)).toEqual([8, 24, 21, 6, 25]);
+  });
+
+  /* ── b. only the viewer's own battlefield is arrangeable ────────────── */
+
+  it('rejects the gesture on an opponent’s battlefield — no drag, no drop, no pile', () => {
+    const { container, seat } = renderBoard();
+    // Nothing on their side is draggable or a drop target in the first place.
+    expect(seat(1).querySelectorAll('.board-card[draggable]')).toHaveLength(0);
+    expect(seat(1).querySelectorAll('[data-arrange-reset]')).toHaveLength(0);
+
+    const theirs = (id: number) => container.querySelector<HTMLElement>(`.seat:not([data-viewer]) [data-card-id="${id}"]`)!;
+    // Their own card onto their own card, in the stacking third.
+    fireEvent.dragStart(theirs(78));
+    const onto = withBox(theirs(87));
+    fireEvent.dragOver(onto);
+    dropAt(onto, AT.top);
+    // And one of OURS onto one of theirs, which is the drag they might do by
+    // accident: their side may not become a place we arrange.
+    fireEvent.dragStart(container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"]')!);
+    const mine = withBox(theirs(93));
+    fireEvent.dragOver(mine);
+    dropAt(mine, AT.top);
+
+    const theirLane = container.querySelector<HTMLElement>('.seat:not([data-viewer]) [data-board-row="lands"]')!;
+    expect(
+      [...theirLane.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li.board-card')].map((c) => Number(c.dataset.cardId)),
+      'their lands are exactly as the engine sent them',
+    ).toEqual([87, 78, 93, 83, 116, 118]);
+    expect(theirLane.querySelectorAll('.board-card__pile'), 'nothing on their side is a pile').toHaveLength(0);
+    // Ours did not move either — the drag went nowhere at all.
+    expect(columns(container)).toEqual([[8], [24], [6], [25]]);
+  });
+
+  /* ── c. Forge's attachment truth survives a rearrange ───────────────── */
+
+  /**
+   * §A.2 (#11). `AttachedCards` is Forge's answer about the board, so an
+   * equipped creature and its gear are one stack whatever the player does with
+   * the arrangement — including dragging the gear away, and including Regroup.
+   */
+  describe('an equipped creature and its gear are one stack (#11)', () => {
+    /** The fixture, with an Equipment attached to the viewer's Fire Urchin (21). */
+    function equipped(): BoardView {
+      const base = boardFromFixture(fixture);
+      const me = base.players.find((p) => p.isViewer)!;
+      const seed = me.battlefield[0]!;
+      const gear: BoardCard = {
+        ...seed,
+        id: 901,
+        card: { ...seed.card, cardId: 'w901', name: 'Bonesplitter', typeLine: 'Artifact — Equipment' },
+        attachedToId: 21,
+        attachedCardIds: [],
+      };
+      return {
+        ...base,
+        players: base.players.map((p) =>
+          !p.isViewer
+            ? p
+            : {
+                ...p,
+                battlefield: [
+                  ...p.battlefield.map((c) => (c.id === 21 ? { ...c, attachedCardIds: [901] } : c)),
+                  gear,
+                ],
+              },
+        ),
+      };
+    }
+
+    it('draws them as one stack, with the creature at the bottom of the pile', () => {
+      const { container } = renderBoard(equipped());
+      expect(columns(container, 'creatures'), 'the gear is in the creature’s pile').toEqual([[21, 901]]);
+      // And NOT in the artifacts lane its own type line would have put it in.
+      expect(columns(container, 'artifacts')).toEqual([]);
+      const gear = container.querySelector<HTMLElement>('[data-card-id="901"]')!;
+      expect(gear.dataset.pileDepth, 'the gear sits above the creature').toBe('1');
+      expect(gear.dataset.attached, 'and says Forge attached it — not the player').toBe('true');
+      expect(container.querySelector<HTMLElement>('[data-card-id="21"]')!.dataset.pileSize).toBe('2');
+    });
+
+    it('holds after the player rearranges, moves the host, and stacks something else on it', () => {
+      const { container } = renderBoard(equipped());
+      // Move the host into another lane, twice, and stack a land on it.
+      const other = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="other"]')!;
+      fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="21"]')!);
+      fireEvent.dragOver(other);
+      fireEvent.drop(other);
+      expect(columns(container, 'other'), 'the gear went with its creature').toEqual([[21, 901]]);
+      dragOnto(container, 8, 21, 'top');
+      expect(columns(container, 'other'), 'the land is on the pile and the gear is still in it').toEqual([[21, 901, 8]]);
+      expect(columns(container, 'creatures')).toEqual([]);
+    });
+
+    it('cannot be pulled apart: dragging the gear out puts it straight back', () => {
+      const { container } = renderBoard(equipped());
+      const lands = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="lands"]')!;
+      fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="901"]')!);
+      fireEvent.dragOver(lands);
+      fireEvent.drop(lands);
+      expect(columns(container, 'lands'), 'the gear is not a card of the lands lane').toEqual([[8], [24], [6], [25]]);
+      expect(columns(container, 'creatures'), 'it is back on its creature').toEqual([[21, 901]]);
+      // Nor by stacking it onto an unrelated card.
+      dragOnto(container, 901, 8, 'top');
+      expect(columns(container, 'lands')).toEqual([[8], [24], [6], [25]]);
+      expect(columns(container, 'creatures')).toEqual([[21, 901]]);
+    });
+
+    it('holds through Regroup', () => {
+      const { container, getByLabelText } = renderBoard(equipped());
+      dragOnto(container, 21, 8, 'top');
+      expect(columns(container, 'lands')).toEqual([[8, 21, 901], [24], [6], [25]]);
+      fireEvent.click(getByLabelText('Regroup your battlefield'));
+      expect(columns(container, 'lands'), 'the default grouping is back').toEqual([[8], [24], [6], [25]]);
+      expect(columns(container, 'creatures'), 'and the equip stack with it').toEqual([[21, 901]]);
+    });
+
+    it('leaves an aura on the opponent’s creature where Forge lists it', () => {
+      // The host is not on this battlefield, so nothing is folded in: the aura
+      // is a card of its own controller's side, which is where Forge put it.
+      const base = equipped();
+      const view: BoardView = {
+        ...base,
+        players: base.players.map((p) =>
+          !p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === 901 ? { ...c, attachedToId: 99 } : c)) },
+        ),
+      };
+      // Card 21 still claims it, so it still stacks — the HOST's `AttachedCards`
+      // is the authority and `attachedToId` never builds a stack by itself.
+      const { container } = renderBoard(view);
+      expect(columns(container, 'creatures')).toEqual([[21, 901]]);
+      cleanup();
+      forgetArrangements();
+      // With the claim gone, it is its own column again, in its own lane.
+      const unclaimed: BoardView = {
+        ...view,
+        players: view.players.map((p) =>
+          !p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === 21 ? { ...c, attachedCardIds: [] } : c)) },
+        ),
+      };
+      const after = renderBoard(unclaimed);
+      expect(columns(after.container, 'creatures')).toEqual([[21]]);
+      expect(columns(after.container, 'artifacts')).toEqual([[901]]);
+    });
+  });
+});
+
+/* ── a card Forge is offering belongs to Forge, not to the arrangement ── */
+
+/**
+ * The two gestures on this board must not both fire on one press.
+ *
+ * The interaction lane starts its targeter drag on `pointerdown` over any card
+ * in `interaction.selectable`; a `draggable="true"` element starts the BROWSER's
+ * own HTML5 drag from the same press. An offered card that was also draggable
+ * would therefore rearrange the board and send a `selectCard` from one gesture —
+ * worst on your own lands during a payment and your own creatures while
+ * something is targeting, which is exactly where both lanes are live at once.
+ *
+ * So `draggable` and `data-selectable` are mutually exclusive, and the assertions
+ * below are on the ATTRIBUTE because that is what the browser reads.
+ */
+describe('draggable and selectable are mutually exclusive', () => {
+  const view = boardFromFixture(fixture);
+  const me = view.players.find((p) => p.isViewer)!;
+  const lands = [8, 24, 6, 25];
+
+  it('a card Forge offers is NOT draggable; one it does not offer on your own battlefield IS', () => {
+    // Forge offers two of the viewer's four lands. Nothing else changes.
+    const offered = [8, 6];
+    const { interaction } = spyInteraction(offered);
+    const { container } = renderBoard(view, interaction);
+    const card = (id: number) => container.querySelector<HTMLElement>(`.seat[data-viewer] [data-card-id="${id}"]`)!;
+
+    for (const id of offered) {
+      expect(card(id).dataset.selectable, `card ${id} is offered`).toBe('true');
+      expect(card(id).hasAttribute('draggable'), `card ${id} is Forge’s, not the arrangement’s`).toBe(false);
+    }
+    for (const id of lands.filter((l) => !offered.includes(l))) {
+      expect(card(id).dataset.selectable, `card ${id} is not offered`).toBeUndefined();
+      expect(card(id).getAttribute('draggable'), `card ${id} is still yours to arrange`).toBe('true');
+    }
+    // And the creature, which Forge is not offering either.
+    expect(card(21).getAttribute('draggable')).toBe('true');
+
+    // Said once more as a set, so a card cannot be both however it got there.
+    for (const el of container.querySelectorAll<HTMLElement>('.board-card')) {
+      expect(
+        el.hasAttribute('draggable') && el.hasAttribute('data-selectable'),
+        `card ${el.dataset.cardId} is both draggable and selectable`,
+      ).toBe(false);
+    }
+  });
+
+  it('with every card offered, nothing on the board is draggable', () => {
+    const { interaction } = spyInteraction(me.battlefield.map((c) => c.id));
+    const { container } = renderBoard(view, interaction);
+    expect(container.querySelectorAll('.board-card[draggable]'), 'the whole board is Forge’s').toHaveLength(0);
+    // Regroup is ours and is not Forge's to disable: it answers nothing.
+    expect(container.querySelectorAll('[data-arrange-reset]')).toHaveLength(1);
+  });
+
+  it('with nothing offered, every card of your own battlefield is draggable', () => {
+    const { interaction } = spyInteraction([]);
+    const { container, seat } = renderBoard(view, interaction);
+    expect(seat(0).querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
+    expect(seat(1).querySelectorAll('.board-card[draggable]'), 'still never theirs').toHaveLength(0);
+    expect(container.querySelectorAll('[data-selectable]')).toHaveLength(0);
+  });
+
+  it('holds for a card inside a pile: the offered member is not draggable, the base is', () => {
+    /*
+     * The pile is built FIRST, while Forge is offering nothing — an offered card
+     * cannot be dragged onto anything, which is the rule under test. Then Forge
+     * offers the member, and the board is re-rendered: the arrangement is in the
+     * module store and survives the remount, so the same pile is redrawn.
+     */
+    const built = renderBoard(view);
+    const base = built.container.querySelector<HTMLElement>('[data-card-id="8"]')!;
+    base.getBoundingClientRect = () =>
+      ({ top: 100, bottom: 190, height: 90, left: 0, right: 70, width: 70, x: 0, y: 100, toJSON: () => ({}) }) as DOMRect;
+    fireEvent.dragStart(built.container.querySelector<HTMLElement>('[data-card-id="24"]')!);
+    fireEvent.dragOver(base);
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'clientY', { value: 110 });
+    fireEvent(base, drop);
+    expect(
+      built.container.querySelector('[data-card-id="8"] > .board-card__pile > [data-card-id="24"]'),
+      '24 is stacked on 8',
+    ).not.toBeNull();
+
+    cleanup();
+    const { interaction } = spyInteraction([24]);
+    const { container } = renderBoard(view, interaction);
+    const stacked = container.querySelector<HTMLElement>('[data-card-id="8"]')!;
+    const member = container.querySelector<HTMLElement>('[data-card-id="8"] > .board-card__pile > [data-card-id="24"]');
+    expect(member, 'the pile survived the remount').not.toBeNull();
+    expect(member!.dataset.selectable, 'and Forge is offering the member').toBe('true');
+    expect(member!.hasAttribute('draggable'), 'so it is not draggable, pile or no pile').toBe(false);
+    expect(stacked.dataset.selectable, 'the base is not offered').toBeUndefined();
+    expect(stacked.getAttribute('draggable'), 'and stays draggable').toBe('true');
+  });
+});
+
+/* ── P/T tells the truth ──────────────────────────────────────────────── */
+
+/**
+ * §A.3 (#12, #18). The operator's spec: *a 1/2 with +2/+2 that has taken 3 shows
+ * 3 (blue) / 1 (red)*.
+ *
+ * And settled at dispatch: **colour may not be the only signal**. So each
+ * assertion here checks the state attribute (which carries the ink), the marker
+ * glyph, and the accessible name — a reader with no colour at all gets the same
+ * answer.
+ */
+describe('power and toughness on the board (#12, #18)', () => {
+  /** The badge on one card: the two numbers, their states, and what it says. */
+  function badge(container: HTMLElement, id: number) {
+    const el = container.querySelector<HTMLElement>(`[data-card-id="${id}"] > .board-card__pt`);
+    if (el === null) return null;
+    const parts = [...el.querySelectorAll<HTMLElement>('.board-card__pt-n')];
+    return {
+      text: el.textContent,
+      label: el.getAttribute('aria-label'),
+      of: parts.map((p) => p.dataset.ptOf),
+      states: parts.map((p) => p.dataset.ptState),
+      marks: parts.map((p) => p.querySelector('[aria-hidden="true"]')?.textContent ?? null),
+    };
+  }
+
+  /** The fixture's Fire Urchin (21), with a printed base, a buff and damage. */
+  function urchin(power: number, toughness: number, damage: number, printed: { power: number; toughness: number } | null) {
+    const base = boardFromFixture(fixture);
+    return {
+      ...base,
+      players: base.players.map((p) =>
+        !p.isViewer
+          ? p
+          : {
+              ...p,
+              battlefield: p.battlefield.map((c) =>
+                c.id !== 21
+                  ? c
+                  : { ...c, damage, printed, card: { ...c.card, power: String(power), toughness: String(toughness) } },
+              ),
+            },
+      ),
+    } as BoardView;
+  }
+
+  it('draws the operator’s case: a 1/2 with +2/+2 that has taken 3 reads 3 / 1', () => {
+    const { container } = renderBoard(urchin(3, 4, 3, { power: 1, toughness: 2 }));
+    expect(badge(container, 21)).toEqual({
+      text: '▲3/▼1',
+      label: 'power 3, up from 1, toughness 1, 3 damage marked',
+      of: ['power', 'toughness'],
+      states: ['buffed', 'hurt'],
+      marks: ['▲', '▼'],
+    });
+  });
+
+  it('draws a plain creature plain — no ink, no marker, no claim', () => {
+    const { container } = renderBoard(urchin(1, 2, 0, { power: 1, toughness: 2 }));
+    expect(badge(container, 21)).toEqual({
+      text: '1/2',
+      label: 'power 1, toughness 2',
+      of: ['power', 'toughness'],
+      states: [undefined, undefined],
+      marks: [null, null],
+    });
+  });
+
+  it('draws a creature whose printed base we do not know as plain, never as buffed', () => {
+    // This is the fixture as captured: Forge precon decks, no card of which our
+    // card data has ever heard. The numbers are still right; the STATE is not
+    // guessed at.
+    const { container, view } = renderBoard();
+    expect(view.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === 21)!.printed, 'no printed base').toBeNull();
+    expect(badge(container, 21)).toEqual({
+      text: '1/3',
+      label: 'power 1, toughness 3',
+      of: ['power', 'toughness'],
+      states: [undefined, undefined],
+      marks: [null, null],
+    });
+    // A 5/5 with a big base and no knowledge of it is plain too, not blue.
+    expect(badge(container, 99)!.states).toEqual([undefined, undefined]);
+  });
+
+  it('marks a shrunk creature hurt, and a damaged one hurt without a base at all', () => {
+    const shrunk = renderBoard(urchin(0, 1, 0, { power: 1, toughness: 2 }));
+    expect(badge(shrunk.container, 21)!.states).toEqual(['hurt', 'hurt']);
+    expect(badge(shrunk.container, 21)!.text).toBe('▼0/▼1');
+    cleanup();
+    const hurt = renderBoard(urchin(1, 3, 2, null));
+    expect(badge(hurt.container, 21), 'damage alone is enough: it needs no printed base').toEqual({
+      text: '1/▼1',
+      label: 'power 1, toughness 1, 2 damage marked',
+      of: ['power', 'toughness'],
+      states: [undefined, 'hurt'],
+      marks: [null, '▼'],
+    });
+  });
+
+  it('says the damage in the badge instead of a second time in a chip', () => {
+    const { container } = renderBoard(urchin(1, 3, 2, null));
+    const card = container.querySelector<HTMLElement>('[data-card-id="21"]')!;
+    expect([...card.querySelectorAll(':scope > .board-card__chips > .board-card__chip')].map((c) => c.textContent)).not.toContain(
+      '2 damage',
+    );
+    expect(badge(container, 21)!.label).toContain('2 damage marked');
+  });
+
+  it('draws no badge on a land, in a hand, in a graveyard or on the stack', () => {
+    const { container, zone } = renderBoard(urchin(3, 4, 3, { power: 1, toughness: 2 }));
+    expect(badge(container, 8), 'a land has no P/T').toBeNull();
+    expect(zone(0, 'hand').querySelectorAll('.board-card__pt'), 'a hand is not a battlefield').toHaveLength(0);
+    expect(zone(0, 'graveyard').querySelectorAll('.board-card__pt')).toHaveLength(0);
+    expect(container.querySelectorAll('.stack__item .board-card__pt')).toHaveLength(0);
+    // Exactly the creatures on the two battlefields, and nothing else.
+    expect(container.querySelectorAll('.board-card__pt')).toHaveLength(3);
+  });
+
+  it('never carries meaning in colour alone: every state has a marker and words', () => {
+    const { container } = renderBoard(urchin(3, 4, 3, { power: 1, toughness: 2 }));
+    for (const n of container.querySelectorAll<HTMLElement>('[data-card-id="21"] > .board-card__pt .board-card__pt-n')) {
+      const state = n.dataset.ptState;
+      if (state === undefined) continue;
+      expect(n.querySelector('[aria-hidden="true"]')!.textContent, `${state} has a marker glyph`).toMatch(/[▲▼]/);
+    }
+    // The stylesheet pairs the ink with a weight, so the two states differ
+    // without a colour too.
+    for (const state of ['buffed', 'hurt']) {
+      const rule = new RegExp(`\\.board-card__pt-n\\[data-pt-state='${state}'\\] \\{([^}]*)\\}`).exec(withoutComments(CARD_CSS));
+      expect(rule, `${state} has a rule`).not.toBeNull();
+      expect(rule![1], `${state} sets a colour`).toMatch(/color:/);
+      expect(rule![1], `${state} sets a weight too`).toMatch(/font-weight:/);
+    }
+  });
+
+  it('is out of flow and takes no click: it may not move a card or eat a selection', () => {
+    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'position')).toBe('absolute');
+    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'pointer-events')).toBe('none');
+  });
+});
+
+/* ── haste is not summoning sickness ──────────────────────────────────── */
+
+describe('a hasty creature does not claim to be summoning sick (#17)', () => {
+  /** The chips one card wears. */
+  const chipsOf = (container: HTMLElement, id: number) =>
+    [...container.querySelectorAll<HTMLElement>(`[data-card-id="${id}"] > .board-card__chips > .board-card__chip`)].map(
+      (c) => c.textContent,
+    );
+
+  it('draws the chip from summoningSick, not from Forge’s raw Sickness', () => {
+    const base = boardFromFixture(fixture);
+    const view: BoardView = {
+      ...base,
+      players: base.players.map((p) =>
+        !p.isViewer
+          ? p
+          : {
+              ...p,
+              battlefield: p.battlefield.map((c) =>
+                c.id !== 21 ? c : { ...c, arrivedThisTurn: true, summoningSick: false, keywords: ['Haste'] },
+              ),
+            },
+      ),
+    };
+    const { container } = renderBoard(view);
+    expect(chipsOf(container, 21), 'it arrived this turn and it can still act').not.toContain('summoning sick');
+    cleanup();
+    const sick = renderBoard({
+      ...base,
+      players: base.players.map((p) =>
+        !p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id !== 21 ? c : { ...c, summoningSick: true })) },
+      ),
+    });
+    expect(chipsOf(sick.container, 21), 'and a creature that cannot act still says so').toContain('summoning sick');
   });
 });
 

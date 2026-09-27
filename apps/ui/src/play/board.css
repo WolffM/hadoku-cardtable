@@ -74,9 +74,12 @@
  * lanes, and each lane's label is a horizontal strip across the TOP of that
  * lane (`--row-head-h`) rather than a word running up its edge.
  *
- * **A lane's share is its card count**, so every card on the battlefield comes
- * out the same width: a lane of n cards `flex-grow: n` gets n/total of the
- * width, which is exactly the room n cards need at that common width. A lane
+ * **A lane's share is how many COLUMNS it draws**, so every card on the
+ * battlefield comes out the same width: a lane of n columns `flex-grow: n` gets
+ * n/total of the width, which is exactly the room n cards need at that common
+ * width. A column is a PILE, not a card — a stack of three (the player's, or an
+ * equipped creature's, `Board.tsx`) is one column, because `card.css` fans it
+ * inside a single card's box. A lane
  * holding nothing shrinks to `--group-empty-w`, its label and no more. Inside
  * a lane, the `--rows` stepping above still applies — a crowded lane goes to
  * two rows of smaller cards rather than a thinner single row — and each lane
@@ -918,7 +921,9 @@
   left: 2px;
   right: 2px;
   bottom: 2px;
-  z-index: 1;
+  /* Above the cards stacked behind this one (`card.css`'s pile order), so an
+     equipped creature's own chips are not hidden by its gear. */
+  z-index: 6;
   display: flex;
   flex-wrap: wrap-reverse;
   gap: 2px;

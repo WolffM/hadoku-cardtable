@@ -66,6 +66,64 @@
  * An id that names no player in the game makes NO seat the viewer, so every
  * hand is a count. That is the safe failure: a wrong or missing viewer hides a
  * hand rather than showing one.
+ *
+ * ## Attachment: `AttachedCards` is the authority, `EntityAttachedTo` is not
+ *
+ * Both arrive (`TrackableProperty.java:16, 90`; mapped by
+ * `packages/forge-wire/src/tier-c.ts` and let through by
+ * `apps/server/src/play/visibility.ts`'s `FACE_ONLY_KEEP`), and they say the
+ * same thing from opposite ends — which of them the board may BUILD a stack
+ * from is not a matter of taste:
+ *
+ *   - `AttachedCards` is a `CardViewCollectionType`, so it is a list of CARD
+ *     ids and nothing else. Unambiguous.
+ *   - `EntityAttachedTo` is a `GameEntityViewType`, which the server flattens
+ *     to a bare int (`DeltaSyncManager.toNetworkValue`). A `GameEntity` is a
+ *     card OR A PLAYER, and the two id spaces overlap — player 1 and card 1
+ *     are both `1` on the wire. An aura on a player would therefore stack onto
+ *     whichever card happens to share the number.
+ *
+ * So `attachedCardIds` (from the host) is what `Board.tsx` draws a stack from;
+ * `attachedToId` is carried because it is the attachment's own view of the
+ * world and a component may want to mark itself as attached, and it never
+ * creates a stack by itself.
+ *
+ * ## P/T: what the wire has, and the one thing it has not
+ *
+ * `Power` / `Toughness` (`TrackableProperty.java:132-133`) are the CURRENT
+ * values, `Damage` (:61) is damage marked, and all three arrive. So "damaged"
+ * is fully derivable here.
+ *
+ * "Buffed" is not: there is **no `BasePower`/`BaseToughness` and no printed or
+ * original card state in `TrackableProperty`** — the states are
+ * `CurrentState` / `AlternateState` / `LeftSplitState` / `RightSplitState`
+ * (:109-112), `OriginalColors` (:121) and `OriginalManaCost` (:125) exist with
+ * no P/T counterpart, and `HasPrintedPT` (:139) is a boolean Forge sets only
+ * for vehicles and spacecraft (`CardView.java:1102`). Verified by census of the
+ * committed capture: every `Power`/`Toughness` on the wire is a `CardStateView`
+ * property and no `Base*` key appears at all.
+ *
+ * The printed base therefore comes from OUR card data — `../draft/pool.json`,
+ * which carries `power`/`toughness` per card — keyed by name
+ * (`POOL_PRINTED_PT`). Coverage is the cube and nothing else, and a card it has
+ * never heard of has NO printed base: `boardPT` then reports `plain`, never
+ * "buffed". A `*` or `1+*` printed value is not a number and is treated the
+ * same way. Guessing a base would paint a plain creature blue, which is worse
+ * than drawing it plain.
+ *
+ * `LethalDamage` (:63) arrives too and is carried, but the board does not draw
+ * its number: it is `getLethal() - getDamage() - getTotalAssignedDamage()` and
+ * returns **0** outright when any assigned damage has deathtouch
+ * (`Card.java:5978-5986`), so it is not "remaining toughness".
+ *
+ * ## Haste is not summoning sickness
+ *
+ * Forge's `Sickness` (:54) is true for anything that arrived this turn, haste
+ * or not. `Keywords` (:146, `KeywordCollectionViewType`) is on the wire as each
+ * keyword's `original()` text — verified in the committed capture, where Oxidda
+ * Golem's face carries `["Affinity:Mountain", "Haste"]` — so `summoningSick` is
+ * `Sickness` AND no `Haste`, and `arrivedThisTurn` keeps Forge's raw answer for
+ * anyone who wants it.
  */
 
 import {
@@ -89,12 +147,86 @@ export interface BoardCard {
   /** What `CardTile` draws. */
   card: DraftCard;
   tapped: boolean;
+  /** It arrived this turn AND cannot act: Forge's `Sickness` and no `Haste`. */
   summoningSick: boolean;
   damage: number;
+  /*
+   * Everything below is OPTIONAL, and that is a deliberate boundary rather than
+   * laziness: `toBoardCard` always sets all of it, and a `BoardCard` typed out
+   * by hand in a suite that is testing something else entirely (the inspector's,
+   * say) does not have to restate the whole wire to name a card. Readers take
+   * the absent case as "nothing known", which is the same answer the wire gives
+   * for a card with no attachments and no keywords.
+   */
+  /** Forge's raw `Sickness` — true for anything that arrived this turn, haste or not. */
+  arrivedThisTurn?: boolean;
+  /** Each keyword's `original()` text, off the current face (`Keywords`). */
+  keywords?: readonly string[];
+  /** Forge's `LethalDamage`. Carried, not drawn — see the header. */
+  lethalDamage?: number;
+  /** `AttachedCards`: what Forge says is attached TO this card. The stack's authority. */
+  attachedCardIds?: readonly number[];
+  /**
+   * `EntityAttachedTo`: what this card is attached to, as the bare int the
+   * server flattens a `GameEntityView` to. A CARD or a PLAYER — the id spaces
+   * overlap — so nothing may build a stack from it. See the header.
+   */
+  attachedToId?: number | null;
+  /** Printed P/T from our own card data, or `null` when we do not know the card. */
+  printed?: { power: number; toughness: number } | null;
   counters: { name: string; count: number }[];
   attacking: boolean;
   blocking: boolean;
   token: boolean;
+}
+
+/** How one of a card's two numbers stands against its printed base. */
+export type PTState = 'buffed' | 'hurt' | 'plain';
+
+/** What the board draws for a creature's power and toughness. */
+export interface BoardPT {
+  /** Forge's current power. */
+  power: number;
+  /** Current toughness less damage marked — what is left of it. */
+  toughness: number;
+  powerState: PTState;
+  toughnessState: PTState;
+  /** `null` when our card data has no printed base for this card. */
+  printed: { power: number; toughness: number } | null;
+  damage: number;
+}
+
+/**
+ * The operator's spec (#12, #18): *a 1/2 with +2/+2 that has taken 3 reads
+ * 3 (blue) / 1 (red)*.
+ *
+ * Power is Forge's current power; toughness is what is LEFT of it, current less
+ * damage marked. A number is `buffed` when it is above the printed base,
+ * `hurt` when damage is marked or it is below the base, and `plain` when
+ * nothing is known — which is what a card our data has never heard of always
+ * gets, because an unknown base may not be drawn as a buff.
+ *
+ * `null` for anything without both numbers: not a creature, or a creature whose
+ * face carried no P/T.
+ */
+export function boardPT(entry: BoardCard): BoardPT | null {
+  const power = Number(entry.card.power);
+  const current = Number(entry.card.toughness);
+  if (entry.card.power === undefined || entry.card.toughness === undefined) return null;
+  if (!Number.isFinite(power) || !Number.isFinite(current)) return null;
+  const damage = entry.damage;
+  const toughness = current - damage;
+  const printed = entry.printed ?? null;
+  const against = (value: number, base: number | undefined): PTState =>
+    base === undefined ? 'plain' : value > base ? 'buffed' : value < base ? 'hurt' : 'plain';
+  return {
+    power,
+    toughness,
+    powerState: against(power, printed?.power),
+    toughnessState: damage > 0 ? 'hurt' : against(toughness, printed?.toughness),
+    printed,
+    damage,
+  };
 }
 
 export interface BoardPlayer {
@@ -150,7 +282,50 @@ export interface AdaptOptions {
   viewerPlayerId: number;
   /** Where a card's Scryfall id is looked up. Defaults to `KNOWN_ART_IDS`. */
   artIds?: ArtIdIndex;
+  /** Where a card's PRINTED power/toughness is looked up. Defaults to `POOL_PRINTED_PT`. */
+  printedPT?: PrintedPTIndex;
 }
+
+// ── what a card's printed power and toughness are ───────────────────────────
+
+/** Printed P/T by card name, lower-cased. A name it does not hold has no base. */
+export type PrintedPTIndex = ReadonlyMap<string, { power: number; toughness: number }>;
+
+/**
+ * A printed-P/T index over anything shaped like our card data.
+ *
+ * Keyed by NAME alone, not name + set: a printing does not change a creature's
+ * printed P/T, and Forge names a printing our tables often do not have. Only
+ * rows whose power AND toughness are integers are kept — `*` and `1+*` are real
+ * values in `pool.json` and they are not numbers, so those cards have no base
+ * and `boardPT` draws them plain.
+ */
+export function printedPTIndex(
+  cards: readonly { name?: unknown; power?: unknown; toughness?: unknown }[],
+): PrintedPTIndex {
+  const index = new Map<string, { power: number; toughness: number }>();
+  for (const card of cards) {
+    if (typeof card.name !== 'string') continue;
+    const power = Number.parseInt(String(card.power), 10);
+    const toughness = Number.parseInt(String(card.toughness), 10);
+    if (String(card.power) !== String(power) || String(card.toughness) !== String(toughness)) continue;
+    const key = card.name.trim().toLowerCase();
+    if (!index.has(key)) index.set(key, { power, toughness });
+  }
+  return index;
+}
+
+/**
+ * Every printed P/T the browser knows: the drafted cube's own pool.
+ *
+ * This is the whole of the coverage and the limit is deliberate — the wire
+ * carries no printed base at all (see the header), `../draft/art-ids.json`
+ * carries ids and nothing else, and inventing a base for a card nobody wrote
+ * down would paint an ordinary creature blue.
+ */
+export const POOL_PRINTED_PT: PrintedPTIndex = printedPTIndex(
+  (poolData as { cards: { name: string; power?: string; toughness?: string }[] }).cards,
+);
 
 // ── which Scryfall id a card is ──────────────────────────────────────────
 
@@ -208,6 +383,16 @@ function readStr(obj: WireObject | undefined, name: string): string | null {
 function readEnum(obj: WireObject | undefined, name: string): string | null {
   const v = prop(obj, name);
   return v !== undefined && v.t === 'enum' && typeof v.v === 'string' ? v.v : null;
+}
+
+/**
+ * A single entity reference: one int id, or `null`. Forge's `-1` is "nothing"
+ * (`resolveFromNetwork` skips it), and so is a value of any other shape.
+ */
+function readEntityId(obj: WireObject | undefined, name: string): number | null {
+  const v = prop(obj, name);
+  if (v === undefined || (v.t !== 'int' && v.t !== 'long') || typeof v.v !== 'number') return null;
+  return v.v === -1 ? null : v.v;
 }
 
 /** A `list` of `int` — how every collection of entities crosses the wire. */
@@ -294,13 +479,39 @@ function coreTypes(t: Tagged | undefined): string[] {
   return t !== undefined && t.t === 'cardtype' ? (t as Extract<Tagged, { t: 'cardtype' }>).core : [];
 }
 
+/** A `keywords` value — each keyword's `original()` text. */
+function readKeywords(obj: WireObject | undefined): readonly string[] {
+  const v = prop(obj, 'Keywords');
+  if (v === undefined || v.t !== 'keywords' || !Array.isArray(v.v)) return [];
+  return (v.v as unknown[]).filter((k): k is string => typeof k === 'string');
+}
+
+/**
+ * Whether a keyword list grants haste.
+ *
+ * A keyword crosses as its own text, with any parameter after a colon
+ * (`Affinity:Mountain` in the committed capture), so the token before the colon
+ * is the keyword's name. `Haste` takes no parameter
+ * (`Keyword.java:100 HASTE("Haste", SimpleKeyword.class, …)`). This is a
+ * membership test on structured data, not a match against prose.
+ */
+function hasHaste(keywords: readonly string[]): boolean {
+  return keywords.some((k) => (k.split(':')[0] ?? '').trim().toLowerCase() === 'haste');
+}
+
 function countersOf(obj: WireObject | undefined): { name: string; count: number }[] {
   const v = prop(obj, 'Counters');
   if (v === undefined || v.t !== 'multiset' || !Array.isArray(v.v)) return [];
   return (v.v as [string, number][]).map(([name, count]) => ({ name, count }));
 }
 
-function toBoardCard(state: WireState, id: number, artIds: ArtIdIndex, onBattlefield = false): BoardCard | null {
+function toBoardCard(
+  state: WireState,
+  id: number,
+  artIds: ArtIdIndex,
+  printedPT: PrintedPTIndex,
+  onBattlefield = false,
+): BoardCard | null {
   const view = state.get(deltaKey(WireType.Card, id));
   if (view === undefined) return null;
   const face = state.get(cardStateKey(id, readInt(view, 'CurrentState', 0)));
@@ -339,14 +550,26 @@ function toBoardCard(state: WireState, id: number, artIds: ArtIdIndex, onBattlef
     card.loyalty = loyaltyCounter !== undefined ? String(loyaltyCounter.count) : (readStr(face, 'Loyalty') ?? '0');
   }
 
+  const keywords = readKeywords(face);
+  // Forge sets `Sickness` on cards in every zone; it only means something on
+  // a creature on the battlefield, so it is only reported there.
+  const arrivedThisTurn = onBattlefield && core.includes('Creature') && readBool(view, 'Sickness');
+  const printedBase = core.includes('Creature') ? printedPT.get(name.trim().toLowerCase()) : undefined;
+
   return {
     id,
     card,
     tapped: readBool(view, 'Tapped'),
-    // Forge sets `Sickness` on cards in every zone; it only means something on
-    // a creature on the battlefield, so it is only reported there.
-    summoningSick: onBattlefield && core.includes('Creature') && readBool(view, 'Sickness'),
+    // #17: a hasty creature CAN act, so it is not summoning sick — whatever
+    // Forge's `Sickness` says about when it arrived.
+    summoningSick: arrivedThisTurn && !hasHaste(keywords),
+    arrivedThisTurn,
+    keywords,
     damage: readInt(view, 'Damage'),
+    lethalDamage: readInt(view, 'LethalDamage'),
+    attachedCardIds: readIds(view, 'AttachedCards'),
+    attachedToId: readEntityId(view, 'EntityAttachedTo'),
+    printed: printedBase ?? null,
     counters: counters.filter((c) => c.name !== 'Loyalty' || !core.includes('Planeswalker')),
     attacking: readBool(view, 'Attacking'),
     blocking: readBool(view, 'Blocking'),
@@ -376,7 +599,7 @@ export const PHASE_LABEL: Readonly<Record<string, string>> = {
 export function toBoardView(
   state: WireState,
   seq: number,
-  { viewerPlayerId, artIds = KNOWN_ART_IDS }: AdaptOptions,
+  { viewerPlayerId, artIds = KNOWN_ART_IDS, printedPT = POOL_PRINTED_PT }: AdaptOptions,
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === WireType.Game);
   const missing: number[] = [];
@@ -384,7 +607,7 @@ export function toBoardView(
   const cardsIn = (ids: number[], onBattlefield = false): BoardCard[] => {
     const out: BoardCard[] = [];
     for (const id of ids) {
-      const c = toBoardCard(state, id, artIds, onBattlefield);
+      const c = toBoardCard(state, id, artIds, printedPT, onBattlefield);
       if (c === null) missing.push(id);
       else out.push(c);
     }
@@ -421,7 +644,7 @@ export function toBoardView(
   const stack: StackEntry[] = readIds(game, 'Stack').map((sid) => {
     const item = state.get(deltaKey(WireType.StackItem, sid));
     const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;
-    const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds) : null;
+    const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds, printedPT) : null;
     const activator = prop(item, 'ActivatingPlayer') !== undefined ? readInt(item, 'ActivatingPlayer') : null;
     return {
       id: sid,

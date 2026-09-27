@@ -14,6 +14,9 @@
  */
 
 .board-card {
+  /* No pile: no fan, so every `calc` below reads zero on a lone card. */
+  --pile-fan: 0px;
+
   width: var(--card-w, 5.5rem);
   max-width: 100%;
 }
@@ -41,6 +44,163 @@
 .stack__art .card {
   aspect-ratio: 488 / 680;
   height: auto;
+}
+
+/* ── a pile: cards stacked, fanned INSIDE one card's box ─────────────── */
+
+/*
+ * The operator, 2026-09-27: *"put cards wherever they want… snap above/below
+ * each other in any order"*, and #11: an equipped creature and its gear draw as
+ * one stack.
+ *
+ * The whole pile occupies exactly the box ONE card would, and that is the
+ * property the static canvas rests on: a lane's `flex-grow` counts piles
+ * (`Board.tsx`), so a stack asks for one card's width and every card on the
+ * battlefield still comes out the same size. Nothing here can overflow its lane:
+ *
+ *   - every card in the pile is narrowed by the whole fan, so the deepest one's
+ *     right edge is `fan + (w - fan)` = `w`, the track's own width;
+ *   - the pile's height is `fan + (w - fan) · 1.3934`, which is SHORTER than one
+ *     card's `w · 1.3934` for any fan (because 1.3934 > 1). A pile is never
+ *     taller than the card it replaces.
+ *
+ * The card the player is looking at is the one on top of the PILE ORDER's
+ * bottom — the `<li>` itself, which for an equip stack is the creature — so it
+ * is drawn whole and in front, and the cards stacked on it peek out behind its
+ * lower-right corner. An equipped creature therefore still shows its own art,
+ * its own P/T badge and its own chips.
+ *
+ * The fan is capped at Forge's own `UI_MAX_STACK_DEPTH` (default 4,
+ * `ForgePreferences.java:96`): there is no rule for a fourth step below, so a
+ * pile of nine fans exactly as far as a pile of four and stays legible. The
+ * depth itself is NOT capped — refusing a drop the player made is worse than a
+ * tight fan.
+ */
+.board-card[data-pile-size] {
+  --stack-step: 8px;
+  --pile-fan: var(--stack-step);
+
+  /* One stacking context per pile, so the order below is the pile's own
+     business and no card of it can paint over a neighbouring lane. */
+  position: relative;
+  z-index: 0;
+}
+
+.board-card:has(> .board-card__pile > .board-card[data-pile-depth='2']) {
+  --pile-fan: calc(2 * var(--stack-step));
+}
+
+.board-card:has(> .board-card__pile > .board-card[data-pile-depth='3']) {
+  --pile-fan: calc(3 * var(--stack-step));
+}
+
+.board-card[data-pile-size] > .board-card__face {
+  z-index: 5;
+  width: calc(100% - var(--pile-fan));
+}
+
+/* Out of flow and behind the card it is stacked on: the list adds no height. */
+.board-card__pile {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-card__pile > .board-card {
+  /* Deeper than Forge's cap: the last step, for every card past it. */
+  --at: 3;
+
+  position: absolute;
+  top: calc(var(--at) * var(--stack-step));
+  left: calc(var(--at) * var(--stack-step));
+  z-index: calc(4 - var(--at));
+  width: calc(100% - var(--pile-fan));
+  max-width: none;
+}
+
+.board-card__pile > .board-card[data-pile-depth='1'] {
+  --at: 1;
+}
+
+.board-card__pile > .board-card[data-pile-depth='2'] {
+  --at: 2;
+}
+
+/* The chips belong on the card they describe, not out over its gear. */
+.board-card[data-pile-size] > .board-card__chips {
+  right: calc(2px + var(--pile-fan));
+}
+
+/*
+ * Forge said this card is attached to something (#11) — a second signal beside
+ * the stacking itself, so an equip stack is not merely "two cards near each
+ * other": a lit leading edge, which is ours and is not a colour on its own.
+ */
+.board-card[data-attached] > .board-card__face > .card {
+  border-color: var(--ink-faint);
+  box-shadow: inset 2px 0 0 var(--ink-dim);
+}
+
+/* ── power and toughness, as the board knows them ────────────────────── */
+
+/*
+ * The operator (#12, #18): *"3 (blue) / 1 (red)"* — blue for buffed, red for
+ * hurt. The badge is the board's, not the tile's: the art covers `CardTile`'s
+ * printed `.card__stat`, and the number that matters on a battlefield is the
+ * current one.
+ *
+ * **Colour is never the only signal.** Each state carries three: an ink, a
+ * heavier weight, and a marker glyph (`▲` / `▼`, drawn by `Board.tsx` and hidden
+ * from the accessible name because the name says it in words). Read with no
+ * colour at all, `▲3 / ▼1` still says buffed and hurt.
+ *
+ * Out of flow, clipped to the card, and `pointer-events: none`: it may not
+ * change a card's box and it may not eat a click Forge offered.
+ */
+.board-card__pt {
+  position: absolute;
+  top: 2px;
+  right: calc(2px + var(--pile-fan));
+  z-index: 6;
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  max-width: calc(100% - 4px - var(--pile-fan));
+  padding: 0 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  font-size: 10px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.board-card__pt-n {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  color: var(--ink);
+}
+
+.board-card__pt-n[data-pt-state='buffed'] {
+  color: var(--c-blue);
+  font-weight: 700;
+}
+
+.board-card__pt-n[data-pt-state='hurt'] {
+  color: var(--c-red);
+  font-weight: 700;
+}
+
+/* The marker, a shade smaller than the number it qualifies. */
+.board-card__pt-n[data-pt-state] > span {
+  font-size: 8px;
 }
 
 /* ── selectable: Forge said this card may be chosen ──────────────────── */

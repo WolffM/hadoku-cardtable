@@ -69,6 +69,31 @@
  * arrangement is theirs, and the opponent arranges their own side on their own
  * screen.
  *
+ * ## Stacking: deliberate as well as free
+ *
+ * The operator, 2026-09-27: *"i dont want these snapping zones… put cards
+ * wherever they want… snap above/below each other in any order"*. So a row is a
+ * list of PILES rather than a list of cards, and which third of a card's box a
+ * drop lands in says which of three things the player meant — stack on top of
+ * it, stack under it, or reorder in front of it (`dropOnCard`). A drop on the
+ * row's own box is still "at the end of this row, on its own", which is the
+ * gesture `e2e/table-fit.spec.ts` drives.
+ *
+ * Forge's own client has this as two preferences — `UI_STACK_CREATURES` and
+ * `UI_MAX_STACK_DEPTH` (default `4`, `ForgePreferences.java:93,96`, consumed by
+ * `VField.java:33` and `VCardDisplayArea.java:380`). We took the idea and not
+ * the implementation: stacking here is per pile rather than per player, it is
+ * never automatic, and the depth is not refused — a pile of nine is drawn, with
+ * the FAN capped at Forge's four so the offsets stay legible (`card.css`).
+ * Refusing a drop the player made is worse than a tight fan.
+ *
+ * ## Forge's attachments are not the player's arrangement (#11)
+ *
+ * An equipped creature and its gear are one pile because `AttachedCards` says
+ * so, and `withAttachments` applies that AFTER the player's arrangement — so
+ * rearranging the board cannot separate them, and `Regroup` cannot either. The
+ * player decides where the stack sits; Forge decides what is in it.
+ *
  * ## A seat's furniture is a vertical bar at its side
  *
  * The operator, 2026-09-26: *"use a vertical bar for showing the players
@@ -125,6 +150,18 @@
  * counters, attacking), as chips beside the tile, in our own words. A stack
  * item draws its source card the same way, from `StackEntry.sourceCard`.
  *
+ * ## P/T on the board is the board's badge, not the tile's stat
+ *
+ * A creature on a battlefield wears `3 / 1` — the current power and what is
+ * LEFT of the toughness — in a badge this file draws (`PowerToughness`), because
+ * the art covers `CardTile`'s printed `.card__stat` and `CardTile` is not this
+ * lane's file. `adapter.ts`'s `boardPT` decides what the numbers mean; this
+ * decides what they look like. Buffed is blue, hurt is red, and — settled at
+ * dispatch — **colour is never the only signal**: each state also carries a
+ * marker glyph, a heavier weight, and the whole thing in words in the badge's
+ * accessible name. A card whose printed base our data does not know draws
+ * plain, which is the honest answer and never a guessed buff.
+ *
  * ## Tapped is turned sideways
  *
  * A tapped card is rotated a quarter turn inside a landscape box of the same
@@ -173,6 +210,31 @@
  *     `creatures`, `other`), in that order, and `data-empty` when the row
  *     holds nothing. A draggable card carries `draggable` and the viewer's
  *     battlefield carries one `[data-arrange-reset]` control;
+ *
+ *     **A row's `:scope > ul.zone__cards > li.board-card` children are its
+ *     PILES, one per visual column** — the bottom card of each. The cards above
+ *     it are `li.board-card` inside that element's own `ul.board-card__pile`,
+ *     each with its own `data-card-id` and its `data-pile-depth`. A lone card is
+ *     a pile of one and carries neither attribute. So a descendant query for
+ *     `[data-card-id="<id>"]` still finds exactly one element anywhere on the
+ *     board, and a `:scope >` query still measures one card's box;
+ *
+ *   - this lane's gesture is HTML5 DRAG-AND-DROP and nothing else:
+ *     `dragstart` / `dragend` on a battlefield card's `<li>`, `dragover` /
+ *     `drop` on that `<li>` and on the row's `<li>`. **No pointer event is bound
+ *     anywhere in this file**, so the interaction lane's delegated pointer
+ *     handling has the pointer to itself. Nothing here reads, writes or styles
+ *     `data-attack-intent`; this lane's own attributes are `data-arrange-reset`,
+ *     `data-pile-size`, `data-pile-depth`, `data-attached` and `data-pt*`;
+ *
+ *     **`draggable` and `data-selectable` are mutually exclusive, and that is
+ *     the seam, not a detail.** A `draggable="true"` element starts the
+ *     browser's native drag from the same press the interaction lane starts a
+ *     targeter drag on, and that lane starts one over any card Forge is
+ *     offering — so an offered card that was also draggable would fire both
+ *     gestures at once. A card Forge offers is never draggable here
+ *     (`CardOnBoard`), which means a natively-draggable element is by
+ *     construction never one Forge offered;
  *   - `data-board-overlay` is a positioned root covering the canvas exactly,
  *     at the board's top level, for those lanes to render into. This file adds
  *     no pointer handler to it and draws nothing in it.
@@ -200,7 +262,7 @@
 import { useEffect, useReducer, useRef, type DragEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
-import type { BoardCard, BoardPlayer, BoardView, StackEntry } from './adapter.ts';
+import { boardPT, type BoardCard, type BoardPlayer, type BoardView, type PTState, type StackEntry } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
 import './board.css';
 import './card.css';
@@ -249,18 +311,29 @@ function rowFor(card: BoardCard): BoardRow {
   return 'other';
 }
 
-/** One battlefield, in rows. Always all four keys, in `BOARD_ROWS` order. */
-type Grouped = Readonly<Record<BoardRow, readonly BoardCard[]>>;
+/**
+ * A pile: cards drawn as one, BOTTOM FIRST. A lone card is a pile of one, and
+ * that is the overwhelming case — a battlefield with nothing stacked and nothing
+ * attached draws exactly the markup it drew before piles existed.
+ */
+type Pile = readonly BoardCard[];
+
+/** One battlefield, in rows of piles. Always all four keys, in `BOARD_ROWS` order. */
+type Grouped = Readonly<Record<BoardRow, readonly Pile[]>>;
 
 /**
- * The player's own order, as card ids per `<playerId>:<row>`. A row the store
- * does not name is drawn in the view's order; a row it names is drawn in
- * theirs, and then anything the store has never heard of, in the view's order.
+ * The player's own arrangement, as PILES of card ids per `<playerId>:<row>`. A
+ * row the store does not name is drawn in the view's order, each card on its
+ * own; a row it names is drawn in the player's piles, and then anything the
+ * store has never heard of, in the view's order.
  */
-type Arrangement = Readonly<Record<string, readonly number[]>>;
+type Arrangement = Readonly<Record<string, readonly (readonly number[])[]>>;
 
 const NO_ARRANGEMENT: Arrangement = {};
 const slotKey = (playerId: number, row: BoardRow): string => `${playerId}:${row}`;
+
+/** How many cards a row holds, across all its piles. */
+const cardsIn = (piles: readonly Pile[]): number => piles.reduce((n, p) => n + p.length, 0);
 
 /**
  * Every match's arrangement, in the browser and nowhere else — not on the
@@ -282,7 +355,8 @@ export function forgetArrangements(): void {
 
 /**
  * A battlefield's rows: what the player arranged first, then everything else in
- * the row its type puts it in.
+ * the row its type puts it in — and Forge's attachments folded in on top of
+ * both.
  *
  * Every card appears exactly once whatever the store says — an id the store
  * lists twice, or lists for a card that has left the battlefield, cannot
@@ -291,30 +365,134 @@ export function forgetArrangements(): void {
  */
 function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangement): Grouped {
   const byId = new Map(cards.map((c) => [c.id, c]));
-  const rows: Record<BoardRow, BoardCard[]> = { lands: [], artifacts: [], creatures: [], other: [] };
+  const rows: Record<BoardRow, BoardCard[][]> = { lands: [], artifacts: [], creatures: [], other: [] };
   const placed = new Set<number>();
   for (const row of BOARD_ROWS) {
-    for (const id of arranged[slotKey(playerId, row)] ?? []) {
-      const card = byId.get(id);
-      if (card === undefined || placed.has(id)) continue;
-      placed.add(id);
-      rows[row].push(card);
+    for (const pile of arranged[slotKey(playerId, row)] ?? []) {
+      const members: BoardCard[] = [];
+      for (const id of pile) {
+        const card = byId.get(id);
+        if (card === undefined || placed.has(id)) continue;
+        placed.add(id);
+        members.push(card);
+      }
+      if (members.length > 0) rows[row].push(members);
     }
   }
   for (const card of cards) {
-    if (!placed.has(card.id)) rows[rowFor(card)].push(card);
+    if (!placed.has(card.id)) rows[rowFor(card)].push([card]);
   }
-  return rows;
+  return withAttachments(rows, cards);
 }
 
 /**
- * The arrangement after a drag: `cardId` lands in `row`, before `beforeId` or
- * at the row's end.
+ * Forge's attachments, drawn as one stack with what they are attached to — and
+ * drawn that way whatever the player arranged, because this is the engine's
+ * truth about the board rather than the player's opinion about it (#11).
+ *
+ * The relation is read from the HOST's `AttachedCards`, never from the
+ * attachment's `EntityAttachedTo`: that one is a bare int that may name a card
+ * or a player and the two id spaces overlap (`adapter.ts`'s header).
+ *
+ * An attachment joins its host's pile wherever the player has put that host, so
+ * rearranging cannot separate an equipped creature from its gear; only cards on
+ * THIS battlefield are folded in, so an aura you control on their creature stays
+ * a card on your own side, which is where Forge lists it.
+ *
+ * With nothing attached this returns the rows it was given, unchanged — the
+ * common case costs one map and no allocation.
+ */
+function withAttachments(rows: Record<BoardRow, BoardCard[][]>, cards: readonly BoardCard[]): Grouped {
+  const byId = new Map(cards.map((c) => [c.id, c]));
+  /** attachment id → the host that claims it. First claim wins. */
+  const hostOf = new Map<number, number>();
+  for (const card of cards) {
+    for (const attached of card.attachedCardIds ?? []) {
+      if (attached === card.id || !byId.has(attached) || hostOf.has(attached)) continue;
+      hostOf.set(attached, card.id);
+    }
+  }
+  if (hostOf.size === 0) return rows;
+
+  /** The bottom of a chain (equipment on a creature, an aura on that equipment). */
+  const rootHost = (id: number): number => {
+    const seen = new Set<number>([id]);
+    let at = id;
+    for (;;) {
+      const next = hostOf.get(at);
+      if (next === undefined || seen.has(next)) return at;
+      seen.add(next);
+      at = next;
+    }
+  };
+
+  const out: Record<BoardRow, BoardCard[][]> = { lands: [], artifacts: [], creatures: [], other: [] };
+  /** Which pile array a host ended up in, so its attachments can be spliced into it. */
+  const home = new Map<number, BoardCard[]>();
+  for (const row of BOARD_ROWS) {
+    for (const pile of rows[row]) {
+      const kept = pile.filter((c) => rootHost(c.id) === c.id);
+      if (kept.length === 0) continue;
+      out[row].push(kept);
+      for (const c of kept) home.set(c.id, kept);
+    }
+  }
+  for (const card of cards) {
+    if (rootHost(card.id) === card.id) continue;
+    const pile = home.get(rootHost(card.id));
+    // A host that is itself an attachment of an attachment in a cycle has no
+    // home; its gear is still drawn, on its own, rather than lost.
+    if (pile === undefined) {
+      out[rowFor(card)].push([card]);
+      continue;
+    }
+    const at = pile.findIndex((c) => c.id === hostOf.get(card.id));
+    pile.splice(at === -1 ? pile.length : at + 1, 0, card);
+  }
+  return out;
+}
+
+/**
+ * Where a drop landed, and so what the player meant by it.
+ *
+ * A row's own box is "at the end of this row, on its own". A CARD is three
+ * targets, because the operator asked for two different things at once — *"put
+ * cards wherever they want"* and *"snap above/below each other in any order"*:
+ *
+ *   - its top third: stack ON TOP of that card;
+ *   - its bottom third: stack UNDERNEATH it;
+ *   - its middle: the old behaviour, in front of that card's pile.
+ */
+type DropTarget =
+  | { kind: 'row' }
+  | { kind: 'before'; id: number }
+  | { kind: 'stack'; id: number; onTop: boolean };
+
+/**
+ * A drop on a card, read off the pointer's height in that card's box.
+ *
+ * With no geometry to read it is a reorder, which is what a drop on a card has
+ * always meant. Both halves of "no geometry" happen for real: an element with no
+ * layout has a zero-height rect, and `clientY` is absent whenever the drop was
+ * not a real `DragEvent` — jsdom has no `DragEvent` at all, so a suite that
+ * wants the stacking thirds has to give the element a box AND put `clientY` on
+ * the event it dispatches, exactly as a browser does.
+ */
+function dropOnCard(rect: { top: number; height: number }, clientY: number | undefined, id: number): DropTarget {
+  const at = clientY === undefined || !(rect.height > 0) ? NaN : (clientY - rect.top) / rect.height;
+  if (at < 1 / 3) return { kind: 'stack', id, onTop: true };
+  if (at > 2 / 3) return { kind: 'stack', id, onTop: false };
+  return { kind: 'before', id };
+}
+
+/**
+ * The arrangement after a drag: `cardId` lands in `row`, at `target`.
  *
  * All four rows are written out, not just the two the card moved between: what
  * the player is looking at becomes what is stored, so the next permanent to
  * arrive joins the end of its row instead of landing in the middle of an order
- * they arranged.
+ * they arranged. Forge's attachments are written out with it and re-applied on
+ * the next render, so an equip stack survives every one of these moves.
  */
 function withMove(
   rows: Grouped,
@@ -322,20 +500,33 @@ function withMove(
   arranged: Arrangement,
   cardId: number,
   row: BoardRow,
-  beforeId: number | null,
+  target: DropTarget,
 ): Arrangement {
-  const next: Record<string, readonly number[]> = { ...arranged };
-  for (const r of BOARD_ROWS) next[slotKey(playerId, r)] = rows[r].map((c) => c.id).filter((id) => id !== cardId);
-  const target = [...(next[slotKey(playerId, row)] ?? [])];
-  const before = beforeId === null ? -1 : target.indexOf(beforeId);
-  target.splice(before === -1 ? target.length : before, 0, cardId);
-  next[slotKey(playerId, row)] = target;
+  const piles: Record<BoardRow, number[][]> = { lands: [], artifacts: [], creatures: [], other: [] };
+  for (const r of BOARD_ROWS) {
+    piles[r] = rows[r].map((p) => p.map((c) => c.id).filter((id) => id !== cardId)).filter((p) => p.length > 0);
+  }
+  const into = piles[row];
+  if (target.kind === 'row') {
+    into.push([cardId]);
+  } else {
+    const index = into.findIndex((p) => p.includes(target.id));
+    if (index === -1) into.push([cardId]);
+    else if (target.kind === 'before') into.splice(index, 0, [cardId]);
+    else {
+      const pile = into[index]!;
+      const at = pile.indexOf(target.id);
+      pile.splice(target.onTop ? at + 1 : at, 0, cardId);
+    }
+  }
+  const next: Record<string, readonly (readonly number[])[]> = { ...arranged };
+  for (const r of BOARD_ROWS) next[slotKey(playerId, r)] = piles[r];
   return next;
 }
 
 /** The arrangement with one seat's rows thrown away: the default grouping is back. */
 function withoutSeat(playerId: number, arranged: Arrangement): Arrangement {
-  const next: Record<string, readonly number[]> = { ...arranged };
+  const next: Record<string, readonly (readonly number[])[]> = { ...arranged };
   for (const row of BOARD_ROWS) delete next[slotKey(playerId, row)];
   return next;
 }
@@ -348,8 +539,10 @@ function withoutSeat(playerId: number, arranged: Arrangement): Arrangement {
 interface Arranging {
   start(event: DragEvent, cardId: number): void;
   over(event: DragEvent): void;
-  /** `beforeId` is the card dropped ON, or null for the row itself. */
-  drop(event: DragEvent, row: BoardRow, beforeId: number | null): void;
+  /** Dropped on a card: which third of its box decides stack-above, stack-below or reorder. */
+  dropOn(event: DragEvent<HTMLElement>, row: BoardRow, cardId: number): void;
+  /** Dropped on the row's own box: the row's end, on its own. */
+  dropInRow(event: DragEvent, row: BoardRow): void;
   /** A drag that ended anywhere — including outside the board — carries nothing now. */
   end(): void;
   regroup(): void;
@@ -360,28 +553,124 @@ function inOurWords(text: string): string {
   return text.replace(/\{T\}/g, 'TAP');
 }
 
+/**
+ * What a buffed or a hurt number wears BESIDES its colour.
+ *
+ * Settled at dispatch: *colour may never be the only signal*. So each state
+ * carries a marker glyph and a weight of its own as well as an ink, and the
+ * badge says the whole thing in words in its accessible name. The glyphs are
+ * geometry, not typography that might not render: `▲` and `▼`.
+ */
+const PT_MARK: Readonly<Record<'buffed' | 'hurt', string>> = { buffed: '▲', hurt: '▼' };
+
+/**
+ * A creature's power and toughness, as the operator asked for them (#12, #18):
+ * *"3 (blue) / 1 (red)"* — the current power, and what is LEFT of the toughness.
+ *
+ * `adapter.ts`'s `boardPT` decides what the numbers mean; this draws them. It
+ * is the board's own badge rather than the tile's `.card__stat`, because the art
+ * covers the tile and the printed stat with it, and because `CardTile` is not
+ * this lane's file.
+ *
+ * A card whose printed base our data does not know draws PLAIN — no ink, no
+ * marker — and never claims a buff it cannot know about.
+ */
+function PowerToughness({ entry }: { entry: BoardCard }) {
+  const pt = boardPT(entry);
+  if (pt === null) return null;
+  const say = (what: string, value: number, state: PTState): string =>
+    state === 'buffed'
+      ? `${what} ${value}, up from ${what === 'power' ? pt.printed?.power : pt.printed?.toughness}`
+      : state === 'hurt'
+        ? `${what} ${value}, ${pt.damage > 0 && what === 'toughness' ? `${pt.damage} damage marked` : 'down'}`
+        : `${what} ${value}`;
+  const number = (value: number, state: PTState, which: string) => (
+    <span className="board-card__pt-n" data-pt-state={state === 'plain' ? undefined : state} data-pt-of={which}>
+      {state === 'plain' ? null : <span aria-hidden="true">{PT_MARK[state]}</span>}
+      {value}
+    </span>
+  );
+  return (
+    <span
+      className="board-card__pt"
+      data-pt=""
+      aria-label={`${say('power', pt.power, pt.powerState)}, ${say('toughness', pt.toughness, pt.toughnessState)}`}
+    >
+      {number(pt.power, pt.powerState, 'power')}
+      <span aria-hidden="true">/</span>
+      {number(pt.toughness, pt.toughnessState, 'toughness')}
+    </span>
+  );
+}
+
+/**
+ * One card, and — when it is the bottom of a pile — everything stacked on it.
+ *
+ * The pile's own `<li>` IS the bottom card, and the cards above it are a nested
+ * list inside it. That shape is load-bearing in two directions:
+ *
+ *   - a battlefield row still answers `:scope > ul.zone__cards > li.board-card`
+ *     with one element per VISUAL column, which is what `e2e/table-fit.spec.ts`
+ *     measures a card's width from and what `e2e/play.spec.ts` walks;
+ *   - every card keeps its own `data-card-id` at its own depth, unique across
+ *     the board, which is what the other three lanes read.
+ *
+ * A lone card renders exactly the markup it rendered before piles existed: no
+ * wrapper, no nested list, no extra attribute. Only a pile of two or more is
+ * different, and only inside its own box (`card.css` fans it within one card's
+ * width — nothing about a pile changes the slot it is in).
+ */
 function CardOnBoard({
   entry,
   interaction,
   arranging,
   row,
+  pile,
+  depth = 0,
 }: {
   entry: BoardCard;
   interaction: BoardInteraction | undefined;
   arranging?: Arranging;
+  /** Set on a battlefield, and only there. A hand or a pile has no row. */
   row?: BoardRow;
+  /** The whole pile, on its bottom card. Absent for a lone card and for members. */
+  pile?: Pile;
+  /** 0 for the bottom of a pile, 1 for the card on it, and so on. */
+  depth?: number;
 }) {
   const chips: string[] = [];
   if (entry.tapped) chips.push('tapped');
   if (entry.summoningSick) chips.push('summoning sick');
   if (entry.attacking) chips.push('attacking');
   if (entry.blocking) chips.push('blocking');
-  if (entry.damage > 0) chips.push(`${entry.damage} damage`);
+  // Damage is the red half of the P/T badge when there is one; saying it twice
+  // on a 70px card is noise, and the badge carries the number and the words.
+  if (entry.damage > 0 && boardPT(entry) === null) chips.push(`${entry.damage} damage`);
   if (entry.token) chips.push('token');
   for (const c of entry.counters) chips.push(`${c.count} ${c.name}`);
 
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
-  const draggable = arranging !== undefined && row !== undefined;
+  /*
+   * A card Forge is OFFERING belongs to Forge, and `!selectable` is what says so
+   * to the pointer.
+   *
+   * Without it the two gestures on this board are not exclusive and both fire on
+   * one press. The interaction lane starts its targeter drag on `pointerdown`
+   * over any card in `interaction.selectable` (`live/gestures/install.ts`), and a
+   * `draggable="true"` element ALSO starts the browser's own HTML5 drag from the
+   * same press — so a press-and-move on an offered card on your own battlefield
+   * would both rearrange the board and send a `selectCard` on release. That is
+   * worst on exactly the cards that matter most: your own lands during a payment,
+   * your own creatures while something is targeting.
+   *
+   * So arranging is what you do with a card Forge is not asking about, which is
+   * the wave's "Forge decides, we render its answer" rule applied to a gesture
+   * rather than to a rule. Both gestures keep working, and neither has to guess
+   * what the other is doing: the attribute the browser reads is the same fact the
+   * pointer lane tests.
+   */
+  const draggable = arranging !== undefined && row !== undefined && !selectable;
+  const above = pile === undefined ? [] : pile.slice(1);
 
   return (
     <li
@@ -390,11 +679,15 @@ function CardOnBoard({
       data-board-card={entry.id}
       data-card-id={entry.id}
       data-selectable={selectable || undefined}
+      /* Forge says this card is attached to something: not the player's doing. */
+      data-attached={(entry.attachedToId ?? null) !== null || undefined}
+      data-pile-size={above.length > 0 ? pile!.length : undefined}
+      data-pile-depth={depth > 0 ? depth : undefined}
       draggable={draggable || undefined}
       onDragStart={draggable ? (e) => arranging.start(e, entry.id) : undefined}
       onDragEnd={draggable ? () => arranging.end() : undefined}
       onDragOver={draggable ? (e) => arranging.over(e) : undefined}
-      onDrop={draggable ? (e) => arranging.drop(e, row, entry.id) : undefined}
+      onDrop={draggable ? (e) => arranging.dropOn(e, row, entry.id) : undefined}
     >
       {selectable ? (
         <button
@@ -410,12 +703,27 @@ function CardOnBoard({
           <CardTile card={entry.card} />
         </div>
       )}
+      {row !== undefined && <PowerToughness entry={entry} />}
       {chips.length > 0 && (
         <ul className="board-card__chips" aria-label={`${entry.card.name} status`}>
           {chips.map((chip) => (
             <li key={chip} className="board-card__chip">
               {chip}
             </li>
+          ))}
+        </ul>
+      )}
+      {above.length > 0 && (
+        <ul className="board-card__pile" aria-label={`Stacked on ${entry.card.name}`}>
+          {above.map((c, i) => (
+            <CardOnBoard
+              key={c.id}
+              entry={c}
+              interaction={interaction}
+              arranging={arranging}
+              row={row}
+              depth={i + 1}
+            />
           ))}
         </ul>
       )}
@@ -546,21 +854,31 @@ function Battlefield({
             data-board-row={row}
             data-empty={rows[row].length === 0 || undefined}
             /*
-             * A lane's share of the battlefield's width is its card count, so
-             * every card on the board comes out the same width whatever the
-             * split is (`board.css`). A lane holding nothing takes its label's
-             * width and the stylesheet decides that, not this number.
+             * A lane's share of the battlefield's width is how many COLUMNS it
+             * draws — its piles, not its cards — so every card on the board comes
+             * out the same width whatever the split is (`board.css`). A stack
+             * takes one card's width, which is the whole point of stacking, and
+             * the lane it is in asks for one card's worth of room. A lane holding
+             * nothing takes its label's width and the stylesheet decides that,
+             * not this number.
              */
             style={{ flexGrow: rows[row].length }}
             onDragOver={arranging === undefined ? undefined : (e) => arranging.over(e)}
-            onDrop={arranging === undefined ? undefined : (e) => arranging.drop(e, row, null)}
+            onDrop={arranging === undefined ? undefined : (e) => arranging.dropInRow(e, row)}
           >
             <h5 className="zone__row-head">
-              {ROW_LABEL[row]} <span className="zone__count">{rows[row].length}</span>
+              {ROW_LABEL[row]} <span className="zone__count">{cardsIn(rows[row])}</span>
             </h5>
             <ul className="zone__cards">
-              {rows[row].map((c) => (
-                <CardOnBoard key={c.id} entry={c} interaction={interaction} arranging={arranging} row={row} />
+              {rows[row].map((pile) => (
+                <CardOnBoard
+                  key={pile[0]!.id}
+                  entry={pile[0]!}
+                  interaction={interaction}
+                  arranging={arranging}
+                  row={row}
+                  pile={pile}
+                />
               ))}
             </ul>
           </li>
@@ -841,12 +1159,43 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
   /** The card a drag is carrying. A ref: it changes nothing that is drawn. */
   const carried = useRef<number | null>(null);
 
+  /**
+   * One drop, applied. Everything a drop does is here: it stops the browser's
+   * default, keeps the row from also seeing a drop that landed on a card, and
+   * writes the store. It sends NOTHING — there is no sender in this scope, no
+   * ask, no reply; a rearrange is invisible to Forge by construction.
+   */
+  const place = (event: DragEvent, row: BoardRow, target: DropTarget): void => {
+    const cardId = carried.current;
+    carried.current = null;
+    if (viewer === undefined || cardId === null) return;
+    event.preventDefault();
+    // A card dropped on a card is not also dropped on the row under it.
+    event.stopPropagation();
+    if (target.kind !== 'row' && target.id === cardId) return;
+    if (!viewer.battlefield.some((c) => c.id === cardId)) return;
+    ARRANGED.set(
+      key,
+      withMove(group(viewer.battlefield, viewer.id, arranged), viewer.id, arranged, cardId, row, target),
+    );
+    redraw();
+  };
+
   const arranging: Arranging | undefined =
     viewer === undefined
       ? undefined
       : {
           start(event, cardId) {
             carried.current = cardId;
+            /*
+             * A card INSIDE a pile is inside the `<li>` of the card it is
+             * stacked on, and `dragstart` bubbles — so without this the base
+             * card's own handler runs next and overwrites which card is being
+             * carried. Dragging the equipment off a creature dragged the
+             * creature instead. Every one of this lane's handlers is on a card
+             * or a row and none of them wants its ancestor's copy.
+             */
+            event.stopPropagation();
             const data = event.dataTransfer as DataTransfer | undefined;
             if (data !== undefined) {
               data.effectAllowed = 'move';
@@ -860,16 +1209,13 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
             const data = event.dataTransfer as DataTransfer | undefined;
             if (data !== undefined) data.dropEffect = 'move';
           },
-          drop(event, row, beforeId) {
-            const cardId = carried.current;
-            carried.current = null;
-            if (cardId === null) return;
-            event.preventDefault();
-            // A card dropped on a row is also dropped on nothing above it.
-            event.stopPropagation();
-            if (cardId === beforeId || !viewer.battlefield.some((c) => c.id === cardId)) return;
-            ARRANGED.set(key, withMove(group(viewer.battlefield, viewer.id, arranged), viewer.id, arranged, cardId, row, beforeId));
-            redraw();
+          dropOn(event, row, cardId) {
+            const box = event.currentTarget as HTMLElement | null;
+            const rect = box?.getBoundingClientRect?.() ?? { top: 0, height: 0 };
+            place(event, row, dropOnCard(rect, event.clientY, cardId));
+          },
+          dropInRow(event, row) {
+            place(event, row, { kind: 'row' });
           },
           end() {
             carried.current = null;
