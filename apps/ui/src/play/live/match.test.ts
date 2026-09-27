@@ -19,9 +19,14 @@ import {
   abortAsk,
   answerAsk,
   answerConfirm,
+  attackIntents,
   boardInteraction,
   closeMatch,
+  concede,
   currentAsk,
+  declaringAttackers,
+  declaringBlockers,
+  isBlockAssignment,
   ingest,
   MAX_RESYNCS_WITHOUT_PROGRESS,
   pressButton,
@@ -1153,6 +1158,204 @@ describe('the says, and full control', () => {
  * cases feed in — and asserts they satisfy the same strict schema this handle
  * parses them with, so the two halves cannot drift apart silently.
  */
+/*
+ * Concede (wave 24, §C.4's wire half).
+ *
+ * `IGameController.concede` has been on the wire since the beginning
+ * (`forge-wire/src/tier-a.ts:52,199-202`) and has never had a sender. Lane C
+ * owns the button and the confirmation; this is the send, and the cases below
+ * are about what reaches the server and how often.
+ */
+describe('concede: the wire has always carried it, and now something sends it', () => {
+  const concedeAct = { ok: true, value: { kind: 'act', method: 'concede' } };
+
+  it('reaches the wire exactly once per call, and one more call is one more frame', async () => {
+    const { s, m } = await fullGame();
+    expect(concede(m)).toBe(true);
+    await until('the concede act', () => s.clientFrames().length >= 1);
+    expect(s.clientFrames()).toEqual([concedeAct]);
+    expect(m.stats.replies).toBe(1);
+
+    // Pressed twice (the confirmation double-fired, a key repeated): two calls,
+    // two frames, and never one call that sends two.
+    expect(concede(m)).toBe(true);
+    await until('the second concede act', () => s.clientFrames().length >= 2);
+    expect(s.clientFrames()).toEqual([concedeAct, concedeAct]);
+    expect(m.stats.replies).toBe(2);
+  });
+
+  it('is NOT gated on the board: nothing is offered, nothing is asked, and it still goes', async () => {
+    const { s, m } = await fullGame();
+    // No prompt, no bar, no selection: `boardInteraction` offers nothing at all
+    // and `pressButton` would refuse. Giving up is not an answer to a question.
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    expect(m.inputLive).toBe(false);
+    expect(pressButton(m, 'ok')).toBe(false);
+
+    expect(concede(m)).toBe(true);
+    await until('the concede act', () => s.clientFrames().length >= 1);
+    expect(s.clientFrames()).toEqual([concedeAct]);
+  });
+
+  it('goes with a question still open — leaving the game is not answering it', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [confirmAsk('c-concede')]);
+    expect(currentAsk(m)!.callId).toBe('c-concede');
+
+    expect(concede(m)).toBe(true);
+    await until('the concede act', () => s.clientFrames().length >= 1);
+    expect(s.clientFrames()).toEqual([concedeAct]);
+    // The ask is untouched: conceding did not answer it, and did not close it.
+    expect(currentAsk(m)!.callId).toBe('c-concede');
+  });
+});
+
+/*
+ * Combat, read off the state channel (wave 24 §B.1 and §B.3).
+ *
+ * The phase and the attackers are structured facts that have been on the wire
+ * all along — `GameView.Phase` / `PlayerTurn`, and each card's own `Attacking`.
+ * Nothing here reads Forge's prompt text, which is the wave's rule §0b.
+ */
+describe('combat, off the state channel: the intent mark and the block target', () => {
+  /** The Game object's wire key, and one synthetic delta. */
+  const GAME_KEY = String((WireType.Game << 28) | 1);
+  let seq = FRAMES.length;
+  function stateDelta(objectDeltas: Record<string, unknown>): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas, events: [] } },
+    });
+  }
+  const phase = (name: string, playerTurn: number) =>
+    stateDelta({
+      [GAME_KEY]: {
+        _type: WireType.Game,
+        _id: 1,
+        Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
+        PlayerTurn: { t: 'int', v: playerTurn },
+      },
+    });
+  const attacking = (cardIds: number[]) =>
+    stateDelta(
+      Object.fromEntries(cardIds.map((id) => [String(id), { _type: WireType.Card, _id: id, Attacking: { t: 'bool', v: true } }])),
+    );
+  const me = (m: LiveMatch) => m.view!.players.find((p) => p.isViewer)!;
+  const them = (m: LiveMatch) => m.view!.players.find((p) => !p.isViewer)!;
+
+  it('the intent is recorded at SELECTION, and it is never a claim about tapped', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const card = me(m).battlefield.find((c) => !c.tapped)!.id;
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id)]);
+    expect(declaringAttackers(m)).toBe(true);
+    await sendAndApply(s, m, [prompt('Declare attackers'), actionable([card, mine[1]!])]);
+
+    expect(attackIntents(m).size).toBe(0);
+    expect(selectCard(m, card)).toBe(true);
+    await until('the act', () => s.clientFrames().length >= 1);
+    expect(s.clientFrames()).toEqual([cardAct(card)]);
+    // Sent, and only sent: Forge has not answered yet.
+    expect(attackIntents(m).get(card)).toBe('sent');
+    // THE SAFETY CONTROL: an intent is not a tapped state, and the view still
+    // says what Forge says.
+    expect(me(m).battlefield.find((c) => c.id === card)!.tapped).toBe(false);
+    // And the card the player did not point at carries no intent.
+    expect(attackIntents(m).has(mine[1]!)).toBe(false);
+  });
+
+  it('Forge answered and did not declare it: the intent says so rather than going quiet', async () => {
+    const { s, m } = await fullGame();
+    const card = me(m).battlefield.find((c) => !c.tapped)!.id;
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id)]);
+    await sendAndApply(s, m, [prompt('Declare attackers'), actionable([card])]);
+    expect(selectCard(m, card)).toBe(true);
+    expect(attackIntents(m).get(card)).toBe('sent');
+
+    // Forge re-offers the card: `pushAttackerCandidates` drops the ones it HAS
+    // declared, so this is Forge saying it did not take the click.
+    await sendAndApply(s, m, [actionable([card])]);
+    expect(attackIntents(m).get(card)).toBe('refused');
+
+    // Then it declares it, and Forge's own truth takes the mark over.
+    await sendAndApply(s, m, [attacking([card])]);
+    expect(attackIntents(m).get(card)).toBe('declared');
+  });
+
+  it('an intent does not survive the phase or the turn', async () => {
+    const { s, m } = await fullGame();
+    const card = me(m).battlefield.find((c) => !c.tapped)!.id;
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id)]);
+    await sendAndApply(s, m, [prompt('Declare attackers'), actionable([card])]);
+    expect(selectCard(m, card)).toBe(true);
+    expect(attackIntents(m).size).toBe(1);
+
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_BLOCKERS', me(m).id)]);
+    expect(attackIntents(m).size).toBe(0);
+    // Back in declare-attackers, but the NEXT turn: an old intent is not a new one.
+    await sendAndApply(s, m, [
+      stateDelta({
+        [GAME_KEY]: {
+          _type: WireType.Game,
+          _id: 1,
+          Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: 'COMBAT_DECLARE_ATTACKERS' },
+          PlayerTurn: { t: 'int', v: me(m).id },
+          Turn: { t: 'int', v: m.view!.turn + 2 },
+        },
+      }),
+    ]);
+    expect(declaringAttackers(m)).toBe(true);
+    expect(attackIntents(m).size).toBe(0);
+  });
+
+  it('the attackers become offerable while InputBlock is running, and only then', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const attackers = them(m).battlefield.map((c) => c.id).slice(0, 2);
+    expect(attackers).toHaveLength(2);
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_BLOCKERS', them(m).id), attacking(attackers)]);
+    expect(declaringBlockers(m)).toBe(true);
+
+    // Forge's priority input in the same step: blocker candidates, no mark.
+    // `setCurrentAttacker` is the only thing that marks here, so no mark means
+    // this is not InputBlock, and no attacker is offered.
+    await sendAndApply(s, m, [prompt('Priority'), actionable([mine[0]!])]);
+    expect(boardInteraction(m).selectable.has(attackers[0]!)).toBe(false);
+    expect(isBlockAssignment(m, mine[0]!, attackers[1]!)).toBe(false);
+    expect(selectCard(m, attackers[1]!)).toBe(false);
+
+    // InputBlock: the mark appears, and BOTH attackers become offerable — the
+    // marked one through `setHighlighted`, the other through `blockTargets`.
+    await sendAndApply(s, m, [mark([attackers[0]!])]);
+    expect(boardInteraction(m).selectable.has(attackers[0]!)).toBe(true);
+    expect(boardInteraction(m).selectable.has(attackers[1]!)).toBe(true);
+    expect(isBlockAssignment(m, mine[0]!, attackers[1]!)).toBe(true);
+    // The other way round is not a block: an attacker does not block.
+    expect(isBlockAssignment(m, attackers[1]!, mine[0]!)).toBe(false);
+
+    // Nothing of the viewer's own becomes a block target, whatever is marked.
+    expect(isBlockAssignment(m, mine[0]!, mine[1]!)).toBe(false);
+    await barrier(s, m, mine[0]!);
+  });
+
+  it('a card the viewer was never sent cannot become a block target', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const attackers = them(m).battlefield.map((c) => c.id).slice(0, 1);
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_BLOCKERS', them(m).id), attacking(attackers)]);
+    await sendAndApply(s, m, [prompt('Select a blocker'), actionable([mine[0]!]), mark([attackers[0]!])]);
+    const offered = boardInteraction(m).selectable;
+    // Every offered id is a card this seat holds a projection of. An id Forge
+    // never sent (999) is not one of them, marked or not.
+    expect(offered.has(999)).toBe(false);
+    expect(isBlockAssignment(m, mine[0]!, 999)).toBe(false);
+    expect(selectCard(m, 999)).toBe(false);
+    await barrier(s, m, mine[0]!);
+  });
+});
+
 describe('full control, restored after a refresh', () => {
   /*
    * `cursor` is seq 1 with no frames in it, which the contract allows and the

@@ -112,6 +112,18 @@
  * nothing else). `mulliganHand` reads it, and its header is where the argument
  * that this transcribes Forge rather than inventing a rule is written down.
  *
+ * ### The input the offered set does not cover either: blocking
+ *
+ * Wave 24 §B.3 found the same shape once more. `InputBlock.onCardSelected`
+ * takes a click on any ATTACKING card and makes it the current attacker
+ * (`InputBlock.java:112-115`), but `pushBlockerCandidates` publishes only the
+ * defender's own creatures (`PlayerControllerHuman.java:1621-1647`) — so the
+ * attacker was never in the offered set and every drop on one was silently
+ * refused. `blockTargets` transcribes `combat.isAttacking`, which has been on
+ * the state channel as the card's `Attacking` property all along, and gates it
+ * on the two facts that identify the input rather than on its prose. Its own
+ * header carries the argument.
+ *
  * ### Players
  *
  * Forge publishes no per-player legality signal at all — `setSelectables`
@@ -463,6 +475,27 @@ export interface LiveMatch {
   /** Cards and players clicked since Forge last spoke — not clickable again until it does. */
   spent: { cards: Set<number>; players: Set<number> };
   /**
+   * The attackers this seat has POINTED AT, and the turn it pointed in.
+   *
+   * Wave 24 §B.1: the operator wants an attacker marked AT SELECTION rather
+   * than after Forge's declaration lands, so the intent is held here. It is an
+   * INTENT and nothing more — it never claims Forge's tapped state, and
+   * `attackIntents` is the one reader (see its note on the disagreement).
+   *
+   * Keyed by turn because declare-attackers comes round again: an id from turn
+   * 8's combat is not an intent in turn 13's.
+   */
+  attackIntent: { turn: number; ids: Set<number> } | null;
+  /**
+   * The card this seat most recently sent a `selectCard` for.
+   *
+   * §B.4's tail. A drag anchors its arrow to the card it was picked up from;
+   * a CLICK has no such anchor, and the thing the player pointed at last is
+   * what the arrow should come out of. Cleared by `clearSelectables` — the
+   * input that took the click has stopped — and by every snapshot.
+   */
+  lastSelectedCard: number | null;
+  /**
    * This seat's full-control toggle. The server's word after every snapshot,
    * this client's own last word in between. Off by default — and off is also
    * what a page that has not yet been answered a snapshot must draw, because
@@ -556,6 +589,8 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     says: [],
     inputLive: false,
     spent: { cards: new Set(), players: new Set() },
+    attackIntent: null,
+    lastSelectedCard: null,
     fullControl: false,
     lastError: null,
     lastInvalid: null,
@@ -762,7 +797,7 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
   const selection = match.selectables;
   const named =
     selection === null
-      ? union(match.weaklySelectable, match.highlighted, mulliganHand(match.state, view))
+      ? union(match.weaklySelectable, match.highlighted, mulliganHand(match.state, view), blockTargets(match, view))
       : selection.cards;
   if (named === null) return NOTHING;
   const drawn = cardIdsInView(view);
@@ -869,6 +904,8 @@ function cardIdsInView(view: BoardView): Set<number> {
 export function selectCard(match: LiveMatch, cardId: number): boolean {
   if (!boardInteraction(match).selectable.has(cardId)) return false;
   match.spent.cards.add(cardId);
+  match.lastSelectedCard = cardId;
+  noteAttackIntent(match, cardId);
   return sendAct(match, {
     kind: 'act',
     method: 'selectCard',
@@ -890,6 +927,160 @@ function sendAct(match: LiveMatch, frame: Extract<ClientEnvelope['frame'], { kin
   match.stats.replies += 1;
   notify(match);
   return true;
+}
+
+/**
+ * Give up. `IGameController.concede` — the wire has carried it since the
+ * beginning (`forge-wire/src/tier-a.ts:52,199-202`, `IGameController.java:22`)
+ * and until now had no sender.
+ *
+ * NOT gated on `boardInteraction`: conceding is not an answer to anything Forge
+ * is waiting on, so — like `setFullControl` — it is legal whenever the match is
+ * live, including at a moment when nothing on the board is clickable. That is
+ * the whole point of a concede button. The confirmation belongs to whoever
+ * draws the button (lane C); this is only the send.
+ */
+export function concede(match: LiveMatch): boolean {
+  return sendAct(match, { kind: 'act', method: 'concede' });
+}
+
+/* ── Combat, read off Forge's own state ──────────────────────────────── */
+
+/**
+ * `PhaseType.COMBAT_DECLARE_ATTACKERS` and this seat is the one declaring.
+ *
+ * Read off the state channel (`GameView.Phase`, `PlayerTurn` — `adapter.ts`
+ * surfaces them as `view.phase` / `view.activePlayerId`), never off Forge's
+ * prompt text: the wave's rule §0b forbids a regex over prose, and a phase is
+ * a structured fact that has been on the wire all along.
+ */
+export function declaringAttackers(match: LiveMatch): boolean {
+  const view = match.view;
+  return view !== null && view.phase === 'COMBAT_DECLARE_ATTACKERS' && view.activePlayerId === viewerIdOf(view);
+}
+
+/** `COMBAT_DECLARE_BLOCKERS`, and this seat is NOT the attacker — so it blocks. */
+export function declaringBlockers(match: LiveMatch): boolean {
+  const view = match.view;
+  return view !== null && view.phase === 'COMBAT_DECLARE_BLOCKERS' && view.activePlayerId !== viewerIdOf(view);
+}
+
+/**
+ * This seat's player id, off the view. `BoardView` carries no `viewerPlayerId`
+ * — the projection marks the seat with `isViewer`, which is the same fact and
+ * the one every other reader here uses (`mulliganHand`).
+ */
+function viewerIdOf(view: BoardView): number | null {
+  return view.players.find((p) => p.isViewer)?.id ?? null;
+}
+
+/**
+ * The attackers `InputBlock` will take a click on, or null when nothing is
+ * being blocked right now.
+ *
+ * ## Why this is Forge's condition and not a rule of ours
+ *
+ * `InputBlock.onCardSelected` accepts any card with `combat.isAttacking(card)`
+ * and makes it the *current attacker* — the one the next blocker click is
+ * assigned to (`InputBlock.java:112-115`). But `pushBlockerCandidates`
+ * (`PlayerControllerHuman.java:1621-1647`) puts only the DEFENDER's own
+ * creatures in `setWeaklySelectable`, so an attacker never reaches
+ * `boardInteraction` through the offered set and every drop on one was refused
+ * — the gap `./combat-drag.jvm.test.ts` records rather than works around.
+ *
+ * So this transcribes `isAttacking`, which rides the state channel as the
+ * card's own `Attacking` property (`adapter.ts:351`), and gates it on the two
+ * facts that say `InputBlock` is the input running:
+ *
+ *  - the phase is declare-blockers and this seat is not the attacker, and
+ *  - Forge has HIGHLIGHTED something — `setCurrentAttacker` is the only thing
+ *    that highlights in this phase (`InputBlock.java:190-197`), so a non-empty
+ *    mark is that input's signature. At the defender's ordinary priority in the
+ *    same step nothing is highlighted, and nothing here is offered.
+ *
+ * Hidden information is untouched: an attacking creature is on a battlefield
+ * this seat was already sent, and `boardInteraction` still intersects with
+ * `cardIdsInView`.
+ */
+function blockTargets(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
+  if (!declaringBlockers(match)) return null;
+  if (match.highlighted === null || match.highlighted.size === 0) return null;
+  const attackers = new Set<number>();
+  for (const p of view.players) {
+    if (p.isViewer) continue;
+    for (const c of p.battlefield) if (c.attacking) attackers.add(c.id);
+  }
+  return attackers;
+}
+
+/**
+ * Whether dragging `blocker` onto `attacker` is a block assignment — and so
+ * whether the two `selectCard`s go out ATTACKER FIRST (§B.3).
+ *
+ * The order is `InputBlock`'s, not a preference: a click on an attacker sets
+ * `currentAttacker`, and only the click AFTER that becomes its blocker
+ * (`InputBlock.java:112-160`). Sending the blocker first would assign it to
+ * whichever attacker Forge had auto-selected and then move the cursor to the
+ * one the player actually pointed at — two right frames in the wrong order,
+ * which is a wrong block.
+ */
+export function isBlockAssignment(match: LiveMatch, blocker: number, attacker: number): boolean {
+  const view = match.view;
+  if (view === null) return false;
+  const targets = blockTargets(match, view);
+  if (targets === null || !targets.has(attacker)) return false;
+  const me = view.players.find((p) => p.isViewer);
+  return me !== undefined && me.battlefield.some((c) => c.id === blocker);
+}
+
+/** What `attackIntents` can say about a card this seat pointed at. */
+export type AttackIntent = 'sent' | 'declared' | 'refused';
+
+/**
+ * Remember that this seat pointed at a card as an attacker. Called from
+ * `selectCard`, so a CLICK marks exactly as a box-draw does.
+ */
+function noteAttackIntent(match: LiveMatch, cardId: number): void {
+  if (!declaringAttackers(match)) return;
+  const turn = match.view!.turn;
+  if (match.attackIntent === null || match.attackIntent.turn !== turn) match.attackIntent = { turn, ids: new Set() };
+  match.attackIntent.ids.add(cardId);
+}
+
+/**
+ * The intent marks to draw, keyed by card id — §B.1, and the place the
+ * disagreement is kept visible rather than papered over.
+ *
+ * Three answers, and the third is the point:
+ *
+ *  - `declared` — Forge's own `Attacking` says so. Its truth, and it has caught
+ *    up with the intent.
+ *  - `sent` — the click is out and Forge has not answered yet (`spent` still
+ *    holds the id; every input frame clears it).
+ *  - `refused` — Forge answered and the card is still NOT attacking. That is a
+ *    disagreement between what the player pointed at and what the engine did,
+ *    and it is SHOWN. `pushAttackerCandidates` drops already-declared attackers
+ *    (`PlayerControllerHuman.java:1613-1614`), so an id Forge re-offers after
+ *    taking our click is an id it did not declare.
+ *
+ * **Nothing here is Forge's tapped state.** `BoardCard.tapped` stays the only
+ * source for that, and an intent mark on an untapped card leaves it untapped.
+ * Forge taps an attacker when the declaration lands; until then the mark says
+ * "you pointed at this", which is a different claim.
+ */
+export function attackIntents(match: LiveMatch): ReadonlyMap<number, AttackIntent> {
+  const out = new Map<number, AttackIntent>();
+  const view = match.view;
+  if (view === null || !declaringAttackers(match)) return out;
+  const held = match.attackIntent;
+  if (held === null || held.turn !== view.turn) return out;
+  const me = view.players.find((p) => p.isViewer);
+  if (me === undefined) return out;
+  for (const card of me.battlefield) {
+    if (!held.ids.has(card.id)) continue;
+    out.set(card.id, card.attacking ? 'declared' : match.spent.cards.has(card.id) ? 'sent' : 'refused');
+  }
+  return out;
 }
 
 /**
@@ -1231,6 +1422,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // mark that outlived its input is an affordance nothing would take.
     match.highlighted = null;
     match.inputLive = false;
+    match.lastSelectedCard = null;
   } else if (frame.kind === 'notify' && frame.method === 'setHighlighted') {
     // INCREMENTAL, unlike the two frames either side of it: fold, never
     // replace. Cards only — see the field's note on why a marked player is not
@@ -1294,5 +1486,7 @@ function discardLocal(match: LiveMatch): void {
   match.highlighted = null;
   match.says = [];
   match.inputLive = false;
+  match.attackIntent = null;
+  match.lastSelectedCard = null;
   unspend(match);
 }

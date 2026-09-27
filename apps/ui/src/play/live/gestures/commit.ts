@@ -1,0 +1,110 @@
+/*
+ * What a release MEANS. Every branch ends in `selectCard` / `selectPlayer` —
+ * the senders a click uses — and nothing here invents a wire method.
+ *
+ * Re-homed from `../LiveBoard.tsx` (wave 20 §B), plus wave 24's two combat
+ * gestures. `../match.ts` re-checks Forge's CURRENT offer inside both senders,
+ * so no decision taken here can put an id on the wire that Forge did not name.
+ */
+import { boardInteraction, isBlockAssignment, selectCard, selectPlayer, type LiveMatch } from '../match.ts';
+import { cardElements, targetUnder } from './targets.ts';
+import type { DragState, DropTarget } from './types.ts';
+
+/** Everything a release can mean. */
+export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget | null): void {
+  const offered = boardInteraction(match);
+  const source = drag.source !== null && offered.selectable.has(drag.source) ? drag.source : null;
+  const target = targetUnder(node, offered);
+
+  if (target === null) {
+    // Nothing Forge named is under the pointer. A drop inside a zone is the
+    // card being used — the same single frame its own face sends — whenever
+    // Forge currently offers it, selection open or not: `source` is null for
+    // a card Forge did not name, and `selectCard` re-checks the offer before
+    // anything leaves, so this can never invent an affordance. A drop
+    // outside every zone does nothing and says nothing.
+    if (source === null) return;
+    if (!(node instanceof Element) || node.closest('[data-zone]') === null) return;
+    selectCard(match, source);
+    return;
+  }
+  if (target.kind === 'card' && target.id === source) {
+    selectCard(match, source);
+    return;
+  }
+  /*
+   * Blocking by drag (§B.3), and the ONE place the order is reversed.
+   *
+   * `InputBlock` takes the attacker first — a click on an attacking card sets
+   * `currentAttacker`, and the click AFTER it becomes that attacker's blocker
+   * (`InputBlock.java:112-160`). The gesture the operator asked for is "drag
+   * the blocker onto the attacker", so the frames go out attacker-then-blocker
+   * even though the pointer travelled the other way. `isBlockAssignment` is
+   * where the argument that this is Forge's own condition lives.
+   *
+   * …unless Forge has ALREADY made that attacker the current one, which it
+   * says by HIGHLIGHTING it (`setCurrentAttacker`, `InputBlock.java:190-197` —
+   * and its constructor auto-selects the first blockable attacker before the
+   * input is even shown). Then the attacker's click would be a no-op and the
+   * gesture is one frame, which is what `../combat-drag.jvm.test.ts` measured
+   * against a real Forge. So the wire carries the clicks Forge still needs and
+   * not one more: two when the player pointed at a DIFFERENT attacker, one when
+   * they pointed at the one Forge was already on.
+   */
+  if (source !== null && target.kind === 'card' && isBlockAssignment(match, source, target.id)) {
+    const already = match.highlighted?.has(target.id) === true;
+    if (!already && !selectCard(match, target.id)) return;
+    selectCard(match, source);
+    return;
+  }
+  // Forge's own `max`: one thing wanted, so the drop is the thing meant.
+  const single = match.selectables !== null && match.selectables.max <= 1;
+  if (source !== null && !single && !selectCard(match, source)) return;
+  if (target.kind === 'card') selectCard(match, target.id);
+  else selectPlayer(match, target.id);
+}
+
+/** A rectangle in client coordinates. */
+export interface Rect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** The marquee's box, from the press and the pointer — either drag direction. */
+export function rectOf(a: { x: number; y: number }, b: { x: number; y: number }): Rect {
+  return {
+    left: Math.min(a.x, b.x),
+    top: Math.min(a.y, b.y),
+    right: Math.max(a.x, b.x),
+    bottom: Math.max(a.y, b.y),
+  };
+}
+
+function overlaps(a: Rect, b: DOMRect): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+/**
+ * Box-draw multi-select (§B.2): every creature Forge OFFERED whose box the
+ * marquee touched, each sent as its own `selectCard`.
+ *
+ * `boardInteraction` is consulted once per id, inside `selectCard`, so an id
+ * Forge did not offer cannot leave however the marquee was drawn — and an id
+ * whose offer disappears part-way through the sweep (Forge answering between
+ * two frames) stops there rather than being forced out. Returns what was
+ * actually sent, in DOM order, so a caller can say what happened.
+ */
+export function commitMarquee(match: LiveMatch, rect: Rect, root: ParentNode): number[] {
+  const offered = boardInteraction(match).selectable;
+  const sent: number[] = [];
+  for (const { id, el } of cardElements(root)) {
+    if (!offered.has(id)) continue;
+    if (!overlaps(rect, el.getBoundingClientRect())) continue;
+    if (selectCard(match, id)) sent.push(id);
+  }
+  return sent;
+}
+
+export type { DropTarget };
