@@ -79,6 +79,29 @@ export function installGestures(options: GestureOptions): GestureHandle {
     node instanceof Element && (node.closest('.board') !== null || node.closest('[data-zone]') !== null);
 
   /**
+   * The press began on something the BROWSER will drag natively.
+   *
+   * Lane A's arrange gesture (§A.1) makes every card on the viewer's own
+   * battlefield `draggable="true"` and hangs HTML5 `dragstart`/`drop` on it
+   * (`Board.tsx:644,658-662`). That press and this layer's overlap, and the
+   * expensive half is a card Forge did NOT offer while a selection is open: it
+   * is draggable, so the native drag runs, and the source-less pointing gesture
+   * below would run too — one press that rearranges the battlefield AND sends
+   * `selectCard` for whatever it was released over. So a press that started on a
+   * natively-draggable element starts no gesture of ours.
+   *
+   * It costs no legal drag source. The card branch above returns first for
+   * anything `boardInteraction` offered, and lane A's own half of the fix makes
+   * an offered card not `draggable` at all — belt and braces, and either one
+   * alone is enough.
+   */
+  const nativelyDraggable = (node: EventTarget | null): boolean => {
+    if (!(node instanceof Element)) return false;
+    const found = node.closest('[draggable="true"]');
+    return found !== null && canvas.contains(found);
+  };
+
+  /**
    * The tail of the CLICK-targeting arrow (§B.4), or null when there is nothing
    * to draw from.
    *
@@ -163,6 +186,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     if (!inside(event.target)) return;
+    // Lane A's arrange gesture owns this press; see `nativelyDraggable`. Placed
+    // before BOTH fallbacks: the box-draw has the same twin — a marquee started
+    // on a draggable permanent would rearrange the battlefield and declare
+    // attackers in one gesture.
+    if (nativelyDraggable(event.target)) return;
     if (declaringAttackers(match)) {
       marquee = { press: at, at, moved: false };
       hover = null;

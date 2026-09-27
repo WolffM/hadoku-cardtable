@@ -190,3 +190,68 @@ it is in no lane's file list, so it is handed back rather than edited here.
 - `apps/ui/src/play/Board.tsx` had live type errors throughout this lane (lane
   A's in-flight `boardPT` / `Arranging` work) and `apps/ui/src/play/inspect/index.test.ts`
   had one too (`BoardCard` gained fields). Reported, not fixed.
+
+---
+
+## Follow-up after `94a9a0e` — the press is partitioned with lane A's arrange gesture
+
+Lane A's §A.1 arrange gesture makes every card on the viewer's own battlefield
+`draggable="true"` with HTML5 `dragstart`/`dragover`/`drop` on the `<li>`
+(`Board.tsx:644,658-662`). That press and `install.ts`'s `onPointerDown`
+overlapped in two places. Lane A owns the first (an OFFERED card becomes
+non-draggable: `draggable = arranging !== undefined && row !== undefined &&
+!selectable`). This is the other half.
+
+### the change, in `gestures/install.ts` only
+
+A new `nativelyDraggable(node)` helper — walk up from `event.target` for
+`[draggable="true"]` and require it to be inside `canvas` — and one guard:
+
+```ts
+if (!inside(event.target)) return;
+if (nativelyDraggable(event.target)) return;   // lane A's arrange gesture owns this press
+if (declaringAttackers(match)) { /* box-draw */ }
+…
+if (match.selectables === null) return;
+drag = { source: null, … };                    // the source-less pointing gesture
+```
+
+**The card-drag branch above it is untouched and still wins on an offered card**
+— `targetUnder` returns a card only when `boardInteraction` offered it, and that
+branch returns before the guard is reached. So the guard can never cost a legal
+drag source, and with lane A's half in place such an element is by construction
+never one Forge offered. Either half alone closes the bug; both is the point.
+
+**One stated widening.** The guard sits before BOTH fallback branches, not only
+before the `source: null` one, because the box-draw has the same twin: a marquee
+started on a draggable permanent would rearrange the battlefield AND declare
+attackers in one press. The zone `<ul>` is not draggable, so a box-draw on empty
+table space is unaffected — pinned by a test.
+
+### verified
+
+| claim | command | result |
+| --- | --- | --- |
+| both suites green | `npx vitest run apps/ui/src/play/live/match.test.ts apps/ui/src/play/live/gestures` | **exit 0** — **104 passed** (match.test.ts 70, gestures.test.ts 34; 5 new cases) |
+| typecheck | `npx tsc --noEmit -p apps/ui/tsconfig.json` | **exit 0** |
+
+The five new cases pin the partition from both sides: an offered card is still
+this layer's *even when the element is draggable*; a non-offered draggable card
+starts nothing and sends nothing on release (proven against a barrier); a
+draggable card starts no box-draw either; and empty table space still starts both
+the box-draw and the source-less pointing gesture. Each sets `draggable="true"`
+by hand rather than waiting for lane A, so the partition is pinned whichever
+order the two halves land in.
+
+### mutation-tested
+
+| control | mutation | reverted | restored |
+| --- | --- | --- | --- |
+| a non-offered draggable card starts no gesture and sends nothing | remove `if (nativelyDraggable(event.target)) return;` | **1 failed (exit 1)** | **1 passed (exit 0)** |
+| …and its box-draw twin | same mutation | **1 failed (exit 1)** | **1 passed (exit 0)** |
+
+`install.ts` restored and confirmed byte-identical (`diff -q`) before the final run.
+
+### unchanged, on lane C's request
+`data-gesture-canvas` keeps its name; nothing in `gestures.css` names `.live` or
+`.board`, so lane C's `.live .board { touch-action: none }` stands alone.
