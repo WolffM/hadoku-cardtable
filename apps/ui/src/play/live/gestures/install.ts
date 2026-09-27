@@ -39,7 +39,7 @@
  * `selectPlayer`, which re-check Forge's CURRENT offer. A gesture can pick the
  * wrong thing; it cannot put an id on the wire that Forge did not name.
  */
-import { boardInteraction, declaringAttackers, subscribe } from '../match.ts';
+import { boardInteraction, declaringAttackers, declaringCombat, subscribe } from '../match.ts';
 import { clearArrow, drawArrow } from './arrow.ts';
 import { commitDrag, commitMarquee, rectOf, type Rect } from './commit.ts';
 import { applyIntents, clearIntents } from './intent.ts';
@@ -85,10 +85,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * `selectCard` for whatever it was released over. So a press that started on a
    * natively-draggable element starts no gesture of ours.
    *
-   * It costs no legal drag source. The card branch above returns first for
-   * anything `boardInteraction` offered, and lane A's own half of the fix makes
-   * an offered card not `draggable` at all — belt and braces, and either one
-   * alone is enough.
+   * ## It stands down during combat declaration, and `onDragStart` says why
+   *
+   * Lane A's own half stands arranging down while Forge has an OPEN SELECTION
+   * (`LiveClickables.selectionOpen`). **Forge publishes no selection during
+   * declare-attackers or declare-blockers** — `../match.ts`'s `declaringCombat`
+   * carries the call sites — so in those two moments the viewer's own creatures
+   * stay natively draggable, and a guard that stood down there would hand the
+   * attack and the block gestures to the arrange gesture: §B.2 and §B.3 gone. So
+   * the guard yields to `declaringCombat`, and `onDragStart` cancels the native
+   * drag for exactly the presses this layer claimed.
    */
   const nativelyDraggable = (node: EventTarget | null): boolean => {
     if (!(node instanceof Element)) return false;
@@ -170,6 +176,22 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // Left button only: a right-click is Forge's own menu on the desktop and
     // is not this gesture's to take.
     if (event.button !== 0) return;
+    /*
+     * Lane A's arrange gesture owns a press on a natively-draggable element —
+     * EVEN one Forge offered. At ordinary priority Forge's actionable set names
+     * most of a player's own permanents ("you could"), and claiming those presses
+     * is what turned `e2e/table-fit.spec.ts` red. A CLICK still plays the card,
+     * because the slop keeps this layer out of one; what is given up is
+     * drag-to-play on a card the player can also rearrange.
+     *
+     * The exception is combat declaration, where a press on one's own creature IS
+     * the answer Forge is waiting for. See `nativelyDraggable`.
+     *
+     * Before EVERY branch, so the box-draw has it too: a marquee started on a
+     * draggable permanent would otherwise rearrange the battlefield and declare
+     * attackers in one press.
+     */
+    if (nativelyDraggable(event.target) && !declaringCombat(match)) return;
     const at = { x: event.clientX, y: event.clientY };
     const offered = boardInteraction(match);
     const under = targetUnder(event.target, offered);
@@ -181,11 +203,6 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     if (!inside(event.target)) return;
-    // Lane A's arrange gesture owns this press; see `nativelyDraggable`. Placed
-    // before BOTH fallbacks: the box-draw has the same twin — a marquee started
-    // on a draggable permanent would rearrange the battlefield and declare
-    // attackers in one gesture.
-    if (nativelyDraggable(event.target)) return;
     if (declaringAttackers(match)) {
       marquee = { press: at, at, moved: false };
       hover = null;
@@ -237,7 +254,25 @@ export function installGestures(options: GestureOptions): GestureHandle {
     paint();
   }
 
+  /**
+   * This layer claimed the press, so the browser's native drag must not have it.
+   *
+   * **There is no `pointerup` after a `dragstart`.** Once the native drag begins
+   * the browser delivers drag events and ends with `dragend`, so `commitDrag` and
+   * `commitMarquee` would never run and the gesture would silently do nothing.
+   * jsdom does not model that, so only a browser would have caught it — the same
+   * shape as the `e2e/table-fit.spec.ts` red, mirrored.
+   *
+   * Cancelling `dragstart` aborts that one drag and nothing else: a press this
+   * layer did not claim never reaches here with `drag` or `marquee` set, so lane
+   * A's arrange gesture is untouched everywhere it owns the press.
+   */
+  function onDragStart(event: Event): void {
+    if (drag !== null || marquee !== null) event.preventDefault();
+  }
+
   canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('dragstart', onDragStart);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
@@ -266,6 +301,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     dispose(): void {
       live = false;
       canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('dragstart', onDragStart);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);

@@ -26,6 +26,7 @@ import {
   currentAsk,
   declaringAttackers,
   declaringBlockers,
+  declaringCombat,
   isBlockAssignment,
   ingest,
   MAX_RESYNCS_WITHOUT_PROGRESS,
@@ -1308,6 +1309,87 @@ describe('combat, off the state channel: the intent mark and the block target', 
     ]);
     expect(declaringAttackers(m)).toBe(true);
     expect(attackIntents(m).size).toBe(0);
+  });
+
+  /*
+   * `selectionOpen` — lane A's arrange gesture stands down on it, so it has to
+   * mean exactly one thing and keep meaning it.
+   *
+   * The distinction it draws is the one that turned `e2e/table-fit.spec.ts` red:
+   * at ordinary priority Forge's ACTIONABLE set names most of a player's own
+   * permanents, so `selectable` is large and arranging must still work. An OPEN
+   * SELECTION is Forge asking, and that is when arranging stands down.
+   */
+  it('selectionOpen is Forge’s open selection and nothing else — not the actionable set', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    expect(boardInteraction(m).selectionOpen).toBe(false);
+
+    // Priority: plenty offered, and NOT an open selection.
+    await sendAndApply(s, m, [prompt('Priority'), actionable(mine)]);
+    expect(boardInteraction(m).selectable.size).toBe(mine.length);
+    expect(boardInteraction(m).selectionOpen).toBe(false);
+
+    // A selection: open, and it closes with `clearSelectables`.
+    await sendAndApply(s, m, [selectables([mine[0]!], 1, 1)]);
+    expect(boardInteraction(m).selectionOpen).toBe(true);
+    expect(boardInteraction(m).selectionOpen).toBe(m.selectables !== null);
+    await sendAndApply(s, m, [clear()]);
+    expect(boardInteraction(m).selectionOpen).toBe(false);
+  });
+
+  it('selectionOpen survives an ask and a dropped socket: it is about Forge’s input, not about us', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Choose a target'), selectables([mine[0]!], 1, 1)]);
+    expect(boardInteraction(m).selectionOpen).toBe(true);
+
+    // An ask queues in front: nothing is clickable, the selection is still open.
+    await sendAndApply(s, m, [confirmAsk('c-open')]);
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    expect(boardInteraction(m).selectionOpen).toBe(true);
+    expect(answerConfirm(m, 'c-open', true)).toBe(true);
+
+    // And the phase never enters it: combat declaration opens no selection.
+    await sendAndApply(s, m, [clear()]);
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), actionable(mine)]);
+    expect(declaringCombat(m)).toBe(true);
+    expect(boardInteraction(m).selectionOpen).toBe(false);
+  });
+
+  /*
+   * `declaringCombat` — the predicate that partitions the press with lane A's
+   * arrange gesture, and the reason it is not `selectionOpen`.
+   *
+   * `setSelectables` has exactly two game-side call sites,
+   * `InputSelectTargets.java:68` and `InputSelectEntitiesFromList.java:57`.
+   * `InputAttack` and `InputBlock` are neither, so a rule that only stood
+   * arranging down for an open selection would leave the attacker and the
+   * blocker natively draggable — which is §B.2 and §B.3 gone.
+   */
+  it('declaringCombat is the two combat inputs, and neither of them opens a selection', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    expect(declaringCombat(m)).toBe(false);
+
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), actionable(mine)]);
+    expect(declaringAttackers(m)).toBe(true);
+    expect(declaringCombat(m)).toBe(true);
+    expect(m.selectables).toBeNull();
+
+    // The opponent's declare-attackers is not this seat's.
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', them(m).id)]);
+    expect(declaringCombat(m)).toBe(false);
+
+    // Their attack, this seat's block.
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_BLOCKERS', them(m).id)]);
+    expect(declaringBlockers(m)).toBe(true);
+    expect(declaringCombat(m)).toBe(true);
+    expect(m.selectables).toBeNull();
+
+    // And a phase that is neither is neither.
+    await sendAndApply(s, m, [phase('MAIN2', me(m).id)]);
+    expect(declaringCombat(m)).toBe(false);
   });
 
   it('the attackers become offerable while InputBlock is running, and only then', async () => {

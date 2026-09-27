@@ -279,16 +279,27 @@ describe('dragging a card, and the targeter arrow', () => {
     expect(s.clientFrames()).toHaveLength(1);
   });
 
-  it('outside a selection, a drop on the table is the one frame a click sends — and it is not sent twice', async () => {
+  /*
+   * Wave 20's zone drop, and it is asserted from the HAND.
+   *
+   * *"Dragging a land onto the table is #6's whole point"* — and #6 is a card in
+   * hand. Lane A's arrange gesture makes only the viewer's own BATTLEFIELD cards
+   * natively draggable (`row !== undefined`), so a hand card is this layer's
+   * whichever way the two halves land. The battlefield side of the partition has
+   * its own case further down.
+   */
+  it('outside a selection, a hand card dropped on the table is the one frame a click sends — and it is not sent twice', async () => {
     const { s, m, canvas } = await gestureBoard();
-    const mine = mineOf(m).battlefield.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    expect(hand.length).toBeGreaterThan(0);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    expect(cardEl(canvas, hand[0]!).getAttribute('draggable')).toBeNull();
 
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
-    drag(cardEl(canvas, mine[0]!), zone);
+    drag(cardEl(canvas, hand[0]!), zone);
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
   });
 
   it('a press that does not move is still a click, and sends exactly once', async () => {
@@ -430,21 +441,53 @@ describe('dragging a card, and the targeter arrow', () => {
  * !selectable`). Either half alone is enough; both is the point.
  */
 describe('the press is partitioned with lane A’s arrange gesture', () => {
-  it('a card Forge offered is still THIS layer’s, even when it is natively draggable', async () => {
+  it('declaring blockers, the offered creature is THIS layer’s though it stays draggable — and the native drag is cancelled', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    const blocker = mineOf(m).battlefield[0]!.id;
+    s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', theirsOf(m).id));
+    s.send(attackingDelta([theirs[0]!]));
+    await waitFor(() => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    for (const f of notify([prompt('Select a blocker'), actionable([blocker]), highlight([theirs[0]!], true)])) s.send(f);
+    await waitFor(() => expect(m.highlighted!.size).toBe(1));
+    // Forge publishes NO selection in combat declaration, so lane A's rule
+    // (`!selectionOpen`) leaves the blocker draggable. This layer must still win.
+    cardEl(canvas, blocker).setAttribute('draggable', 'true');
+    expect(boardInteraction(m).selectionOpen).toBe(false);
+
+    fireEvent.pointerDown(cardEl(canvas, blocker), { button: 0, clientX: 10, clientY: 10 });
+    // The browser would take every pointer event from here; the layer says no.
+    const started = fireEvent.dragStart(cardEl(canvas, blocker), { bubbles: true, cancelable: true });
+    expect(started).toBe(false); // preventDefault was called
+    fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 200, clientY: 140 });
+    fireEvent.pointerUp(cardEl(canvas, theirs[0]!), { clientX: 200, clientY: 140 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', blocker]]);
+  });
+
+  it('outside combat declaration, arranging wins even on a card Forge offered — and a CLICK still plays it', async () => {
     const { s, m, canvas } = await gestureBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
-    for (const f of notify([prompt('Choose two'), selectables([mine[0]!, mine[1]!], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
-    // Lane A's OLD markup: every own-battlefield card draggable, offered or not.
-    cardEl(canvas, mine[0]!).setAttribute('draggable', 'true');
-    cardEl(canvas, mine[1]!).setAttribute('draggable', 'true');
+    for (const f of notify([prompt('Priority'), actionable([mine[0]!, mine[1]!])])) s.send(f);
+    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(2));
+    // At priority Forge's ACTIONABLE set names most of the viewer's own
+    // permanents — "you could", not "I am asking" — and lane A keeps those
+    // draggable. Claiming the press is what turned `e2e/table-fit.spec.ts` red.
+    expect(cardEl(canvas, mine[0]!).getAttribute('draggable')).toBe('true');
 
-    drag(cardEl(canvas, mine[0]!), cardEl(canvas, mine[1]!));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
-    expect(sent(s)).toEqual([
-      ['selectCard', mine[0]!],
-      ['selectCard', mine[1]!],
-    ]);
+    fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
+    // Nothing claimed, so the native drag is left alone and arranging proceeds.
+    expect(fireEvent.dragStart(cardEl(canvas, mine[0]!), { bubbles: true, cancelable: true })).toBe(true);
+    fireEvent.pointerMove(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
+    expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')).toBeNull();
+    fireEvent.pointerUp(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames()).toHaveLength(0);
+
+    // The affordance is not lost, only the drag: the card's own face still plays it.
+    fireEvent.click(cardEl(canvas, mine[0]!).querySelector('button')!);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
   });
 
   it('a NON-offered draggable card starts no gesture and sends nothing on release', async () => {
@@ -474,21 +517,40 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     expect(sent(s)).toEqual([['selectCard', theirs[0]!]]);
   });
 
-  it('a draggable card starts no box-draw either — one press does not rearrange AND attack', async () => {
+  it('declaring attackers, a box-draw MAY start on a draggable permanent — and the native drag is cancelled', async () => {
     const { s, m, canvas } = await declaringAttackersBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
-    const [offered, dragHandle] = [mine[0]!, mine[1]!];
+    const [offered, from] = [mine[0]!, mine[1]!];
     for (const f of notify([prompt('Declare attackers'), actionable([offered])])) s.send(f);
     await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
-    cardEl(canvas, dragHandle).setAttribute('draggable', 'true');
+    cardEl(canvas, from).setAttribute('draggable', 'true');
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     boxAt(cardEl(canvas, offered), 120, 120);
-    boxAt(cardEl(canvas, dragHandle), 100, 100);
+    boxAt(cardEl(canvas, from), 100, 100);
 
-    fireEvent.pointerDown(cardEl(canvas, dragHandle), { button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerDown(cardEl(canvas, from), { button: 0, clientX: 100, clientY: 100 });
+    expect(fireEvent.dragStart(cardEl(canvas, from), { bubbles: true, cancelable: true })).toBe(false);
     fireEvent.pointerMove(cardEl(canvas, offered), { clientX: 400, clientY: 400 });
-    expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).toBeNull();
+    expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).not.toBeNull();
     fireEvent.pointerUp(cardEl(canvas, offered), { clientX: 400, clientY: 400 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', offered]]);
+  });
+
+  it('outside declare-attackers a draggable permanent starts no box-draw at all', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const mine = mineOf(m).battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
+    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
+    cardEl(canvas, mine[1]!).setAttribute('draggable', 'true');
+    boxAt(overlayOf(canvas), 0, 0, 800, 600);
+    boxAt(cardEl(canvas, mine[0]!), 120, 120);
+    boxAt(cardEl(canvas, mine[1]!), 100, 100);
+
+    fireEvent.pointerDown(cardEl(canvas, mine[1]!), { button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(cardEl(canvas, mine[0]!), { clientX: 400, clientY: 400 });
+    expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).toBeNull();
+    fireEvent.pointerUp(cardEl(canvas, mine[0]!), { clientX: 400, clientY: 400 });
     await new Promise((r) => setTimeout(r, 50));
     expect(s.clientFrames()).toHaveLength(0);
   });

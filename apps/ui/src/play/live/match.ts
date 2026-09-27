@@ -394,6 +394,22 @@ export interface LiveSelectables {
 export interface LiveClickables {
   selectable: ReadonlySet<number>;
   selectablePlayers: ReadonlySet<number>;
+  /**
+   * Forge has an OPEN SELECTION — `setSelectables` without its `clearSelectables`
+   * yet. Exactly `match.selectables !== null`, and nothing else.
+   *
+   * It exists so lane A's arrange gesture (§A.1) can stand down while Forge is
+   * asking without `Board.tsx` reasoning about Forge's inputs itself. It is NOT
+   * the same question as `selectable.has(id)`: at ordinary priority Forge names
+   * most of a player's own permanents through the ACTIONABLE set — *"you could
+   * do something with this"* — and standing arranging down for those is what
+   * turned `e2e/table-fit.spec.ts` red. An open selection is Forge asking.
+   *
+   * It is deliberately independent of whether anything is clickable right now:
+   * a queued ask or a dropped socket makes `selectable` empty while the
+   * selection is still the input Forge is parked on.
+   */
+  selectionOpen: boolean;
 }
 
 /** Forge's two-button bar. `label1` is OK/Play, `label2` is Cancel/Draw. */
@@ -753,7 +769,12 @@ function adoptFullControl(match: LiveMatch, payload: unknown): void {
   notify(match);
 }
 
-const NOTHING: LiveClickables = { selectable: new Set(), selectablePlayers: new Set() };
+const NOTHING = { selectable: new Set<number>(), selectablePlayers: new Set<number>() };
+
+/** Nothing is clickable — but `selectionOpen` is about Forge's input, not about us. */
+function nothingClickable(match: LiveMatch): LiveClickables {
+  return { ...NOTHING, selectionOpen: match.selectables !== null };
+}
 
 /**
  * What the board may click now — see the module header. Exactly what Forge
@@ -793,19 +814,19 @@ const NOTHING: LiveClickables = { selectable: new Set(), selectablePlayers: new 
  */
 export function boardInteraction(match: LiveMatch): LiveClickables {
   const view = match.view;
-  if (view === null || !match.inputLive || !match.connected || match.asks.length > 0) return NOTHING;
+  if (view === null || !match.inputLive || !match.connected || match.asks.length > 0) return nothingClickable(match);
   const selection = match.selectables;
   const named =
     selection === null
       ? union(match.weaklySelectable, match.highlighted, mulliganHand(match.state, view), blockTargets(match, view))
       : selection.cards;
-  if (named === null) return NOTHING;
+  if (named === null) return nothingClickable(match);
   const drawn = cardIdsInView(view);
   const offered = new Set<number>();
   for (const id of named) if (drawn.has(id) && !match.spent.cards.has(id)) offered.add(id);
   const players = new Set<number>();
   if (selection !== null) for (const p of view.players) if (!match.spent.players.has(p.id)) players.add(p.id);
-  return { selectable: offered, selectablePlayers: players };
+  return { selectable: offered, selectablePlayers: players, selectionOpen: selection !== null };
 }
 
 /**
@@ -972,6 +993,27 @@ export function declaringBlockers(match: LiveMatch): boolean {
  */
 function viewerIdOf(view: BoardView): number | null {
   return view.players.find((p) => p.isViewer)?.id ?? null;
+}
+
+/**
+ * This seat is declaring attackers or blockers — the two moments when a press on
+ * one of its OWN battlefield cards is an answer to Forge rather than a tidy-up.
+ *
+ * This is the predicate that partitions the press with lane A's arrange gesture
+ * (§A.1), and it is deliberately NOT `selectionOpen`: **Forge publishes no
+ * selection during combat declaration.** `setSelectables` has exactly two
+ * game-side call sites — `InputSelectTargets.java:68` and
+ * `InputSelectEntitiesFromList.java:57` — and `InputAttack`
+ * (`InputAttack.java:52`, `extends InputSyncronizedBase`) is neither: it
+ * publishes `pushAttackerCandidates` → `setWeaklySelectable` and
+ * `setHighlighted` and nothing more (`:99`, `:292-328`, `:356`). `InputBlock` is
+ * the same (`InputBlock.java:73`). So `match.selectables` is null throughout
+ * both, and a rule that only stood arranging down for an open selection would
+ * leave the attacker and the blocker natively draggable — see
+ * `gestures/install.ts`'s `onDragStart`.
+ */
+export function declaringCombat(match: LiveMatch): boolean {
+  return declaringAttackers(match) || declaringBlockers(match);
 }
 
 /**

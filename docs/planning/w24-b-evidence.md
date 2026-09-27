@@ -255,3 +255,123 @@ order the two halves land in.
 ### unchanged, on lane C's request
 `data-gesture-canvas` keeps its name; nothing in `gestures.css` names `.live` or
 `.board`, so lane C's `.live .board { touch-action: none }` stands alone.
+
+---
+
+## Follow-up 2 — the partition re-cut after `e2e/table-fit.spec.ts` went red
+
+### 1. Does Forge publish an open selection during declare-attackers? **NO.**
+
+Settled from `/home/hadoku/repos/hadoku-cardtable/forge/` (read-only). `setSelectables`
+has exactly **two** game-side call sites:
+
+- `forge-gui/src/main/java/forge/gamemodes/match/input/InputSelectTargets.java:68`
+- `forge-gui/src/main/java/forge/gamemodes/match/input/InputSelectEntitiesFromList.java:57`
+
+(the rest of the tree's hits are the GUI implementations — `CMatchUI.java:683`,
+`MatchController.java:543`, `RemoteClientGuiGame.java:497`,
+`HeadlessNetworkClient.java:468` — plus `GuiChoose.java:276` in the desktop
+client, which is not the game thread.)
+
+`InputAttack` is neither. `InputAttack.java:52` — `class InputAttack extends
+InputSyncronizedBase` — publishes only `updateButtons` (`:70-73`),
+`setHighlighted` (`:292`, `:308-309`, `:321-328`), `pushAttackerCandidates` →
+`setWeaklySelectable` (`:356`), and `clearActionableCards` on stop (`:99-101`).
+`InputBlock` is the same shape (`InputBlock.java:73-90`, `:190-197`).
+
+**So `match.selectables` is null throughout both combat declarations**, and a
+rule that stood arranging down only for an open selection would leave the
+attacker and the blocker natively draggable.
+
+### 2. It WAS shadowed, and here is why jsdom would never have said so
+
+**There is no `pointerup` after a `dragstart`.** Once the browser's native drag
+begins it delivers drag events and ends with `dragend`, so `commitDrag` and
+`commitMarquee` would never run — attack-by-drag (wave 20 and
+`combat-drag.jvm.test.ts`) and §B.3 blocking-by-drag would silently do nothing.
+jsdom models none of this, so the vitest suite would have stayed green: the same
+shape as the table-fit red, mirrored. §B.1 (a click) and §B.4 (`pointermove`
+only) were never at risk.
+
+### the fix, all in this lane's files
+
+**`match.ts`**
+
+- `LiveClickables.selectionOpen: boolean` — **exactly `match.selectables !== null`**,
+  which is what lane A's `BoardInteraction.selectionOpen?` (`Board.tsx:303`) reads.
+  Set on every return path including the two early-outs, so a queued ask or a
+  dropped socket empties `selectable` without closing the selection.
+- `declaringCombat(match)` = `declaringAttackers || declaringBlockers`, with the
+  Forge call sites above written into its header.
+
+**`gestures/install.ts`**
+
+- The `nativelyDraggable` guard moved to the TOP of `onPointerDown`, before every
+  branch including the card branch, and gained `&& !declaringCombat(match)`:
+
+```ts
+if (nativelyDraggable(event.target) && !declaringCombat(match)) return;
+```
+
+- A new `dragstart` listener on the canvas that cancels the native drag for
+  exactly the presses this layer claimed:
+
+```ts
+function onDragStart(event: Event): void {
+  if (drag !== null || marquee !== null) event.preventDefault();
+}
+```
+
+The two halves are symmetric and neither needs the other to be correct: outside
+combat declaration this layer stands down on anything natively draggable, and
+inside it the native drag stands down on anything this layer claimed.
+
+### the capability that changed, deliberately
+
+At ordinary priority, a press-and-drag on the viewer's own BATTLEFIELD card is
+now the arrange gesture's, **even when Forge offered it** — because Forge's
+actionable set names most of a player's own permanents ("you could"), and
+claiming those presses is exactly what turned `table-fit` red. What is given up
+is drag-to-activate a permanent already on the battlefield; a CLICK still plays
+it (the slop keeps this layer out of a click), and that is pinned by a test.
+
+**Wave 20's #6 — *"dragging a land onto the table"* — is unaffected**, because it
+is a card in HAND and lane A only makes own-battlefield cards draggable
+(`row !== undefined`). Its case was re-pointed at the hand, where the gesture
+actually lives, and it asserts the hand card carries no `draggable` at all.
+
+### verified
+
+| claim | command | result |
+| --- | --- | --- |
+| both suites green | `npx vitest run apps/ui/src/play/live/match.test.ts apps/ui/src/play/live/gestures` | **exit 0** — **109 passed** (match.test.ts 73, gestures.test.ts 36) |
+| typecheck | `npx tsc --noEmit -p apps/ui/tsconfig.json` | **exit 0**, zero diagnostics |
+
+New/re-cut cases: declare-blockers claims the offered creature though it stays
+draggable *and* cancels the native drag; outside combat declaration arranging
+wins on an offered card *and* a click still plays it; declare-attackers may
+box-draw from a draggable permanent *and* cancels the native drag; outside it a
+draggable permanent starts no box-draw; wave 20's zone drop re-pointed at the
+hand; `selectionOpen` is the open selection and not the actionable set, and
+survives a queued ask; `declaringCombat` is the two combat inputs and neither
+opens a selection.
+
+### mutation-tested
+
+| control | mutation | reverted | restored |
+| --- | --- | --- | --- |
+| the native drag must not swallow a claimed press | drop `event.preventDefault()` in `onDragStart` | **2 failed (exit 1)** | **2 passed (exit 0)** |
+| arranging must not shadow attack | drop `&& !declaringCombat(match)` | **1 failed (exit 1)** | **1 passed (exit 0)** |
+| …nor the box-draw | same mutation | **1 failed (exit 1)** | **1 passed (exit 0)** |
+| `selectionOpen` is the open selection, not the actionable set | `selectionOpen: offered.size > 0` | **1 failed (exit 1)** | **1 passed (exit 0)** |
+
+`install.ts` and `match.ts` restored and confirmed byte-identical (`diff -q`).
+
+### still open, and not this lane's to decide
+
+An untapped land at priority is both *"playable"* and *"the thing I want to
+move"*. The default above resolves it in arranging's favour on the battlefield,
+which is the operator-visible choice the table-fit red already forced. If
+drag-to-activate is wanted back, the discriminator has to be one the player
+controls — a drag handle on the card for arranging, or a modifier key — and both
+live in lane A's markup.
