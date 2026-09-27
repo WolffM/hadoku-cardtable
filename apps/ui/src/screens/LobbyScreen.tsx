@@ -40,10 +40,11 @@ export interface LobbyScreenProps {
 export function LobbyScreen({ rooms }: LobbyScreenProps) {
   return (
     <div className="shell" data-testid="lobby">
-      <header className="shell__head">
-        <h1 className="shell__title">Cardtable</h1>
-      </header>
-
+      {/* No title here. The fleet's AppHeader already says "Card Table" at the
+          top of every route, from the catalogue (`app-name.ts`), and a second
+          one in the page said it twice — operator, 2026-09-27. The other
+          screens' `shell__head` earns its place by naming the ROOM or the
+          deck; the lobby has nothing to add that the header has not said. */}
       <main className="front">
         <RoomList client={rooms} />
       </main>
