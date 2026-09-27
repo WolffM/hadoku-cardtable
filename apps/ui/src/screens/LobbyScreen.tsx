@@ -1,38 +1,36 @@
 /*
- * The front door: a list of rooms.
+ * The front door: a list of rooms. One door, and this is it.
  *
  * The operator's spec (2026-09-19): *"players go to cardtable and all they see
  * on the front page is a list of rooms and they can either join a room or
- * create a new one."* So the room list (`../rooms/RoomList.tsx`) is the first
- * and largest thing here, and a room is where a game is set up — each player
- * loads their own deck inside it.
+ * create a new one."* So the room list (`../rooms/RoomList.tsx`) is the only
+ * thing here, and a room is where a game is set up — its members ready up
+ * inside it, and what readiness leads to is the room's game type.
  *
- * ## What is gone
+ * ## What is gone, and why nothing replaces it
  *
- * The "Play constructed" button to `#/play`. That screen had one person pick
+ * The "Play constructed" button to `#/play`: that screen had one person pick
  * BOTH players' decks, because `POST /api/play/matches` takes two decks in one
- * call; the operator rejected it. Rooms replace it.
+ * call, and the operator rejected it.
  *
- * ## What stays, secondary
+ * The draft-pods section — "Start a pod" and "Join a pod or a match" — with
+ * wave 23. It existed because a draft was not a room: the id was minted in the
+ * browser and the pod dealt itself the instant a socket connected. The operator
+ * on seeing it: *"why do we have 'start a pod' as a button but we also have
+ * 'game type' selector at the top? … only one entrypoint."* A draft is a room
+ * now, so the create form's `draft` game type is the way to start one.
  *
- * Draft pods. Draft rooms are not built yet, and until they are the draft half
- * of the product must stay reachable: start a pod, or paste a pod or match
- * link into the join box. The box is left visible rather than folded into a
- * closed `<details>`, because a collapsed input is one Playwright cannot fill.
- *
- * ## The pod id is minted here and nowhere else
- *
- * A draft room is created on demand: the server's `join` handler calls
- * `rooms.open(draftId)` (`apps/server/src/room/socket.ts`). So "start a pod" is
- * "mint an id and join it", and the invite link is this same page at
- * `#/draft/<id>`.
+ * The join box accepted a pasted invite link or a bare id. The room list
+ * answers that need: an invite link is `#/room/<id>`, and entering a room joins
+ * it — `ConstructedScreen`'s table poll joins once on a refused read (its
+ * "Entering a room joins it" comment has the live incident that put it there).
+ * So a friend with a link clicks it, and a friend without one finds the room in
+ * the list.
  */
-
-import { useState } from 'react';
 
 import { RoomList } from '../rooms/RoomList.tsx';
 import type { RoomsClient } from '../rooms/api.ts';
-import { joinRouteFromInput, mintDraftId, navigate } from './route.ts';
+import { navigate } from './route.ts';
 
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */
@@ -40,23 +38,6 @@ export interface LobbyScreenProps {
 }
 
 export function LobbyScreen({ rooms }: LobbyScreenProps) {
-  const [joinInput, setJoinInput] = useState('');
-  const [joinError, setJoinError] = useState<string | null>(null);
-
-  const start = (): void => {
-    navigate({ kind: 'draft', draftId: mintDraftId() });
-  };
-
-  const join = (): void => {
-    const route = joinRouteFromInput(joinInput);
-    if (route === null) {
-      setJoinError('That does not look like a pod link, a match link, or a pod id.');
-      return;
-    }
-    setJoinError(null);
-    navigate(route);
-  };
-
   return (
     <div className="shell" data-testid="lobby">
       <header className="shell__head">
@@ -65,51 +46,6 @@ export function LobbyScreen({ rooms }: LobbyScreenProps) {
 
       <main className="front">
         <RoomList client={rooms} />
-
-        <section className="pods" data-testid="draft-pods" aria-labelledby="draft-pods-title">
-          <h2 id="draft-pods-title" className="pods__title">
-            Draft pods
-          </h2>
-          <div className="lobby">
-            <div className="lobby__card">
-              <h3>Start a pod</h3>
-              <button type="button" className="lobby__go" data-testid="start-pod" onClick={start}>
-                Start a pod
-              </button>
-            </div>
-
-            <div className="lobby__card">
-              <h3>Join a pod or a match</h3>
-              <form
-                className="lobby__form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  join();
-                }}
-              >
-                <label htmlFor="join-id">Link or pod id</label>
-                <input
-                  id="join-id"
-                  data-testid="join-id"
-                  value={joinInput}
-                  placeholder="amber-lantern-k7q4"
-                  spellCheck={false}
-                  autoComplete="off"
-                  onChange={(e) => {
-                    setJoinInput(e.target.value);
-                    setJoinError(null);
-                  }}
-                />
-                <button type="submit">Join</button>
-              </form>
-              {joinError !== null && (
-                <p className="lobby__error" role="alert" data-testid="join-error">
-                  {joinError}
-                </p>
-              )}
-            </div>
-          </div>
-        </section>
       </main>
 
       <footer className="shell__foot">

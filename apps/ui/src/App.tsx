@@ -8,25 +8,31 @@
  * diagnosis is that the harness was the front door. It is not deleted; it moved
  * to `#/debug` and is `DebugHarness`.
  *
- * What is here now is a switch over the hash. Seven routes, no router
- * dependency, no server change: see `screens/route.ts` for why the hash and not
- * the path.
+ * What is here now is a switch over the hash. No router dependency, no server
+ * change: see `screens/route.ts` for why the hash and not the path.
  *
- *   `#/`                 `LobbyScreen` — start a pod, or join one
- *   `#/draft/<draftId>`  `PodScreen`   — the invite link, the seats, the draft
+ *   `#/`                 `LobbyScreen` — the room list, the one front door
+ *   `#/room/<roomId>`    `ConstructedScreen` — a room: its lobby, then its game
+ *   `#/draft/<draftId>`  LEGACY — redirected to `#/room/<draftId>`, renders nothing
  *   `#/deck/<draftId>`   `DeckScreen`
  *   `#/play`             `ConstructedScreen` — pick a format and a deck
  *   `#/match/<matchId>`  `MatchScreen` — the invite link and the live board
- *   `#/room/<roomId>`    `ConstructedScreen` — a lobby room: each player's own deck
  *   `#/debug`            `DebugHarness` — the old front door
  *
  * An unknown hash renders the lobby, which is a screen that explains itself.
  *
- * `transport` exists so a test can drive the lobby into a real pod without a
- * server: it is threaded to `PodScreen` and to nothing else, and production
- * never passes it, so the default — a same-origin socket.io connection — is
- * what ships.
+ * `#/draft/<id>` has no screen of its own since wave 23 made a draft a room:
+ * `PodScreen` is content `ConstructedScreen` renders once a draft room starts,
+ * and the draft id IS the room id. The route survives only so a link somebody
+ * was already sent keeps working — see `LegacyDraftRedirect` below.
+ *
+ * `transport` exists so a test can drive a draft without a server: it is
+ * threaded to `ConstructedScreen` as `makeTransport` and to nothing else, and
+ * production never passes it, so the default — a same-origin socket.io
+ * connection — is what ships.
  */
+
+import { useEffect } from 'react';
 
 import { AppHeader } from '@wolffm/task-ui-components';
 import { ConstructedScreen } from './screens/ConstructedScreen.tsx';
@@ -34,8 +40,7 @@ import { DebugHarness } from './screens/DebugHarness.tsx';
 import { DeckScreen } from './screens/DeckScreen.tsx';
 import { LobbyScreen } from './screens/LobbyScreen.tsx';
 import { MatchScreen } from './screens/MatchScreen.tsx';
-import { PodScreen } from './screens/PodScreen.tsx';
-import { useRoute } from './screens/route.ts';
+import { navigate, useRoute } from './screens/route.ts';
 import { AppChrome } from './chrome/AppChrome.tsx';
 import { RoomShell, useWhoami } from './room/RoomShell.tsx';
 import type { DraftTransport } from './draft/socket.ts';
@@ -50,9 +55,11 @@ export interface AppProps {
  * The watchparty room this route belongs in, or null for the routes that are
  * not a shared place: the lobby, the format picker and the debug harness.
  *
- * A pod and its deck screen share one room on purpose — it is the same people
- * either side of the draft finishing, and making them rejoin a new room to
- * build a deck would drop the conversation they were having about it.
+ * A draft room and its deck screen share one watchparty room on purpose — it is
+ * the same people either side of the draft finishing, and making them rejoin a
+ * new room to build a deck would drop the conversation they were having about
+ * it. The legacy `draft` route maps to the same id the `room` route does, so
+ * redirecting one to the other does not tear down and rebuild the chrome.
  */
 function roomIdFor(route: ReturnType<typeof useRoute>): string | null {
   switch (route.kind) {
@@ -68,6 +75,26 @@ function roomIdFor(route: ReturnType<typeof useRoute>): string | null {
   }
 }
 
+/**
+ * `#/draft/<id>` → `#/room/<id>`, and nothing on screen in between.
+ *
+ * A draft id and its room id are one id now, so the whole translation is the
+ * redirect. It is an effect rather than a render-time `navigate` because
+ * navigating during render mutates `location` and notifies subscribers while
+ * React is rendering them; the effect fires immediately after the empty commit,
+ * so nothing flashes.
+ *
+ * A pod id that was never a room lands on the room screen's own "no such room".
+ * That is the honest answer: the pod it named was in a server's memory and is
+ * gone, and pretending otherwise would deal an empty table.
+ */
+function LegacyDraftRedirect({ draftId }: { draftId: string }) {
+  useEffect(() => {
+    navigate({ kind: 'room', roomId: draftId });
+  }, [draftId]);
+  return null;
+}
+
 function Screen({ transport }: AppProps) {
   const route = useRoute();
 
@@ -75,7 +102,7 @@ function Screen({ transport }: AppProps) {
     case 'debug':
       return <DebugHarness />;
     case 'draft':
-      return <PodScreen draftId={route.draftId} makeTransport={transport} />;
+      return <LegacyDraftRedirect draftId={route.draftId} />;
     case 'deck':
       return <DeckScreen draftId={route.draftId} />;
     case 'play':
@@ -83,7 +110,7 @@ function Screen({ transport }: AppProps) {
     case 'match':
       return <MatchScreen matchId={route.matchId} />;
     case 'room':
-      return <ConstructedScreen roomId={route.roomId} />;
+      return <ConstructedScreen roomId={route.roomId} makeTransport={transport} />;
     case 'lobby':
       return <LobbyScreen />;
   }

@@ -1,5 +1,5 @@
 /*
- * Hash routing, and the two pure functions the lobby is built out of.
+ * Hash routing, and the two pure functions the app's links are built out of.
  *
  * ## Why the hash and not the path
  *
@@ -12,24 +12,40 @@
  *
  * ## The routes
  *
- *   `#/`                 the lobby — start a pod, or join one
- *   `#/draft/<draftId>`  a pod: the invite link, who is seated, and the draft
+ *   `#/`                 the lobby — the list of rooms, and the only front door
+ *   `#/room/<roomId>`    a room: who is here, readiness, and the game it is for
+ *   `#/draft/<draftId>`  LEGACY — redirects to `#/room/<draftId>`. See below.
  *   `#/deck/<draftId>`   the deck built out of that draft's pool
  *   `#/play`             constructed: pick a format and a deck, start a match
  *   `#/match/<matchId>`  a match: the invite link for the other seat, and the board
  *   `#/debug`            the developer harness that used to be the front door
  *
  * An unrecognised hash is the lobby. That is deliberate: a mistyped invite link
- * lands somewhere that explains itself and offers a join box, rather than on an
- * error page that offers nothing.
+ * lands on the room list, which offers a way in, rather than on an error page
+ * that offers nothing.
+ *
+ * ## `#/draft/<id>` is a legacy alias, and that is all it is
+ *
+ * Wave 23 made a draft a room: the room list is the one front door, the server
+ * mints the id, and `#/room/<id>` is what an invite link says. The client used
+ * to mint `adjective-noun-suffix` pod ids here and hand them out in links, so
+ * those links exist in people's chat windows. `parseRoute` and `routeHash` keep
+ * the draft route so `App.tsx` can redirect it to `#/room/<draftId>` — the draft
+ * id and the room id are now one id, so the redirect is the whole translation.
+ * A link to a pod id that was never a room lands on the room screen's own "no
+ * such room", which is the honest answer. `DeckScreen`'s "back to the pod" goes
+ * through the same alias for the same reason.
+ *
+ * Nothing mints an id here any more, and nothing parses a pasted link: the join
+ * box those served is gone with the pod section (`LobbyScreen.tsx`).
  *
  * ## Everything here that can be pure, is
  *
- * `parseRoute`, `routeHash`, `inviteUrl`, `draftIdFromInput` and `mintDraftId`
- * take their inputs as arguments and touch no globals, so the interesting
- * behaviour — what a pasted link means, what an invite URL looks like under the
- * `/cardtable/` prefix — is testable without a DOM. Only `navigate`,
- * `subscribeToHash` and `currentHash` know `window` exists.
+ * `parseRoute`, `routeHash` and `routeUrl` take their inputs as arguments and
+ * touch no globals, so the interesting behaviour — what a mangled hash means,
+ * what an invite URL looks like under the `/cardtable/` prefix — is testable
+ * without a DOM. Only `navigate`, `subscribeToHash` and `currentHash` know
+ * `window` exists.
  */
 
 import { useMemo, useSyncExternalStore } from 'react';
@@ -37,6 +53,7 @@ import { useMemo, useSyncExternalStore } from 'react';
 /** Where the app is. The single source of truth for what gets rendered. */
 export type Route =
   | { kind: 'lobby' }
+  /** LEGACY. `App.tsx` redirects it to `room`; nothing renders it. See the header. */
   | { kind: 'draft'; draftId: string }
   | { kind: 'deck'; draftId: string }
   | { kind: 'play' }
@@ -45,7 +62,7 @@ export type Route =
   | { kind: 'debug' };
 
 /**
- * `#/draft/friday-cube` → `{ kind: 'draft', draftId: 'friday-cube' }`.
+ * `#/room/r-1a2b3c` → `{ kind: 'room', roomId: 'r-1a2b3c' }`.
  *
  * Tolerant on the way in — a missing `#`, a missing leading `/`, a trailing
  * `/`, and percent-encoding are all accepted — because this parses a string a
@@ -115,158 +132,15 @@ export function routeHash(route: Route): string {
  *
  * Built from `origin` + `pathname` rather than from `href`, because `href`
  * carries whatever hash is already on it and the result would compound —
- * `…/cardtable/#/#/draft/x`. Takes the location as an argument so the
+ * `…/cardtable/#/#/room/x`. Takes the location as an argument so the
  * `/cardtable/` prefix case is a test and not a deployment surprise.
+ *
+ * Any route: a room's invite link is `routeUrl({ kind: 'room', roomId }, …)`
+ * and a match's is the same call with `{ kind: 'match', matchId }`. There is no
+ * `inviteUrl` any more — one function, and the caller says what it is linking to.
  */
-export function inviteUrl(draftId: string, location: { origin: string; pathname: string }): string {
-  return routeUrl({ kind: 'draft', draftId }, location);
-}
-
-/** The same, for any route — a match's invite link is `routeUrl({ kind: 'match', … })`. */
 export function routeUrl(route: Route, location: { origin: string; pathname: string }): string {
   return `${location.origin}${location.pathname}${routeHash(route)}`;
-}
-
-/**
- * What someone pasted into the join box, as a draft id.
- *
- * Accepts a whole invite URL, a bare `#/draft/x`, or just the id, because all
- * three are things a person will paste and only one of them is what we asked
- * for. Returns null when there is no id in it — the caller shows that as "that
- * does not look like a pod link" rather than joining something arbitrary.
- */
-export function draftIdFromInput(input: string): string | null {
-  const text = input.trim();
-  if (text === '') return null;
-
-  const hashAt = text.indexOf('#');
-  if (hashAt !== -1) {
-    const route = parseRoute(text.slice(hashAt));
-    return route.kind === 'draft' || route.kind === 'deck' ? route.draftId : null;
-  }
-
-  // A bare id. Anything with whitespace or a slash in it is a mangled link, not
-  // an id, and joining it would silently open an empty pod nobody else is in.
-  if (/[\s/?#]/.test(text)) return null;
-  return decodeSegment(text) || null;
-}
-
-/**
- * The shape the match server mints (`apps/server/src/play/match.ts`,
- * `newMatchId`): `m-` and twelve hex digits. Only consulted for a BARE id; a
- * pasted link says what it is by its path. No pod id can take this shape —
- * `mintDraftId` writes adjective-noun-suffix.
- */
-const BARE_MATCH_ID = /^m-[0-9a-f]{12}$/;
-
-/**
- * What someone pasted into the lobby's join box, as the place to go: a pod or
- * a match. The same box joins both, because a person with a link should not
- * have to know which kind it is.
- */
-export function joinRouteFromInput(input: string): Route | null {
-  const text = input.trim();
-  const hashAt = text.indexOf('#');
-  if (hashAt !== -1) {
-    const route = parseRoute(text.slice(hashAt));
-    if (route.kind === 'match') return route;
-  } else if (BARE_MATCH_ID.test(text)) {
-    return { kind: 'match', matchId: text };
-  }
-  const draftId = draftIdFromInput(text);
-  return draftId === null ? null : { kind: 'draft', draftId };
-}
-
-/* ── minting a pod id ────────────────────────────────────────────────── */
-
-/**
- * The id is the seed AND the room key (`draftRooms.ts` — "the id IS the seed"),
- * so two pods minting the same id would deal the same cards *and* sit in the
- * same room. Hence real entropy rather than a counter, and hence words: the
- * thing gets read aloud and typed into the join box.
- */
-const ADJECTIVES = [
-  'amber',
-  'brisk',
-  'copper',
-  'dusty',
-  'eager',
-  'frosty',
-  'golden',
-  'hollow',
-  'iron',
-  'jolly',
-  'kindly',
-  'lucky',
-  'misty',
-  'noble',
-  'olive',
-  'plucky',
-  'quiet',
-  'rusty',
-  'silver',
-  'tidy',
-  'umber',
-  'velvet',
-  'wily',
-  'zesty',
-];
-
-const NOUNS = [
-  'anvil',
-  'badger',
-  'comet',
-  'delta',
-  'ember',
-  'falcon',
-  'grotto',
-  'harbor',
-  'island',
-  'jetty',
-  'kettle',
-  'lantern',
-  'meadow',
-  'nettle',
-  'orchard',
-  'pebble',
-  'quarry',
-  'ribbon',
-  'summit',
-  'thicket',
-  'urchin',
-  'valley',
-  'willow',
-  'zephyr',
-];
-
-/** No vowels and no look-alikes: this gets read off a screen and retyped. */
-const SUFFIX = [...'bcdfghjkmnpqrstvwxz23456789'];
-
-/**
- * A uniform [0,1) from `crypto`, never `Math.random`.
- *
- * Not because a pod id is a secret — it is not — but because `Math.random` is
- * banned in the draft engine for determinism, and the id *is* the engine's
- * seed. One rule, one place, no exception to remember.
- */
-function secureRandom(): number {
-  const buf = new Uint32Array(1);
-  globalThis.crypto.getRandomValues(buf);
-  return buf[0] / 2 ** 32;
-}
-
-/**
- * `amber-lantern-k7q4`. Readable, sayable, and ~10^7 wide before the words
- * even count, which is plenty for a friend group and cheap to widen.
- *
- * `rand` is injectable so the shape can be asserted against a pinned source
- * instead of being sampled and hoped about.
- */
-export function mintDraftId(rand: () => number = secureRandom): string {
-  const pick = <T>(xs: readonly T[]): T =>
-    xs[Math.min(xs.length - 1, Math.floor(rand() * xs.length))];
-  const suffix = Array.from({ length: 4 }, () => pick(SUFFIX)).join('');
-  return `${pick(ADJECTIVES)}-${pick(NOUNS)}-${suffix}`;
 }
 
 /* ── the browser half ────────────────────────────────────────────────── */
