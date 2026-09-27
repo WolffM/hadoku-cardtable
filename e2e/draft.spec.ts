@@ -1,19 +1,50 @@
 /**
- * Two humans, one draft, end to end.
+ * Two humans, one draft, end to end — through the ONE front door.
  *
  * Two independent browser contexts — separate cookie jars, separate
  * identities, separate sockets — drive the real UI bundle against the real
- * built server through a whole pod: join by invite link, pick, pass, wheel,
- * refresh mid-draft, finish. Every draft envelope each context receives is
- * captured as raw text (websocket frames AND long-polling bodies; see
- * `frames.ts`) and checked by `isolation.ts`.
+ * built server through a whole pod. The entry path is the product's only one
+ * (w23): alice makes a **draft room** with the front page's create form, bob
+ * finds that room in the **room list** and enters it, both mark themselves
+ * ready, and only then is a pack dealt — with bots in whatever seats are still
+ * empty. Then: pick, pass, wheel, refresh mid-draft, finish. Every draft
+ * envelope each context receives is captured as raw text (websocket frames AND
+ * long-polling bodies; see `frames.ts`) and checked by `isolation.ts`.
  *
- * Deterministic by construction: a fixed pod id (the id IS the engine's seed),
- * a fixed pick rule (the lowest card id in the pack), picks paced under the
- * server's rate limit, and every wait keyed on the SERVER's confirmation of a
- * pick rather than on a timer. The two contexts interleave differently from
- * run to run; the pools they end with do not, and the run prints a digest of
- * them so that can be checked.
+ * ## The readiness gate is asserted at the SERVER, not only on screen
+ *
+ * "Joining deals nothing" is a claim about the room record, so it is checked
+ * against `GET /api/rooms/:id`: bob is a member, alice is ready, bob is not,
+ * and `draftStartedAt` is still null. Markup belongs to the room screen and can
+ * be restyled; that field is the gate itself.
+ *
+ * ## What is NOT fixed any more, and what still is
+ *
+ * The room id is **server-minted** (`r-<hex>`, `lobby.ts` `mintRoomId`) and the
+ * id IS the engine's seed, so the pools differ from run to run. Nothing here
+ * asserts a pinned pool — the digests are REPORTED in `summary.json` and
+ * nothing more, exactly as before.
+ *
+ * **Which browser gets which seat is a race**: both sockets connect the instant
+ * the draft is dealt, so each player's seat is read off the wire
+ * (`viewer.seatId`) and everything keyed on a seat — the tally, the refresh
+ * check, `checkIsolation`'s `SeatLog` — is keyed on that. What is NOT a race is
+ * the PAIR of seats: `createDraft({ humans: [] })` pads all eight seats with
+ * bots, so `seatParticipant` (rooms-protocol `seats.js`) reaches its last
+ * resort — the lowest bot's seat — for every arrival, and the two humans land
+ * in seats 0 and 1. That is asserted, and it is what lets the wheel assertions
+ * below still compare two ADJACENT seats.
+ *
+ * Still deterministic: the pick rule (the lowest card id in the pack), the
+ * pacing under the server's rate limit, and every wait keyed on the SERVER's
+ * confirmation of a pick rather than on a timer.
+ *
+ * ## The room list persists across runs, on purpose
+ *
+ * The harness leaves `CARDTABLE_ROOMS_DIR` unset, so the lobby's store lives
+ * under `e2e/.run/data/` and yesterday's rooms are still listed. Every lookup
+ * here is by the `data-room-id` of the room this run created — never by
+ * position in the list, and never by name alone.
  *
  * What is written to `e2e/.run/` (gitignored): each context's full capture,
  * the server's structured log, and a summary. Text only — `.gitignore`
@@ -34,7 +65,8 @@ import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 test.describe.configure({ mode: 'serial' });
 
 const RUN_DIR = resolve(import.meta.dirname, '.run');
-const DRAFT_ID = 'e2e-two-friends';
+/** What `lobby.ts` mints. The pod id is this, so nothing about it is pinned. */
+const ROOM_ID = /^r-[0-9a-f]{12}$/;
 const PACKS = 3;
 const PACK_SIZE = 15;
 const PICKS = PACKS * PACK_SIZE;
@@ -45,6 +77,8 @@ const REFRESH_AFTER = 20;
 const PICK_INTERVAL_MS = 1_600;
 /** Hosts a card image may come from (CLAUDE.md, D15). Blocked in the test. */
 const ART_HOSTS = new Set(['cdn.hadoku.me', 'cards.scryfall.io']);
+/** A room poll or a socket handshake sits between a click and the next screen. */
+const UI_TIMEOUT = 30_000;
 
 /* ── the shapes read off the wire ────────────────────────────────────── */
 
@@ -70,6 +104,14 @@ interface Msg {
   type: 'state' | 'update' | 'error';
   view?: View;
   error?: { code: string; detail?: string };
+}
+
+/** The room as the lobby describes it. The readiness gate lives in these two fields. */
+interface RoomWire {
+  id: string;
+  gameType: string;
+  draftStartedAt: string | null;
+  members: { id: string; name: string; ready: boolean }[];
 }
 
 /* ── one person at the table ─────────────────────────────────────────── */
@@ -168,6 +210,104 @@ function latestView(p: Player): View | null {
 function seatViewer(view: View) {
   if (view.viewer.kind !== 'seat') throw new Error(`expected a seat view, got ${view.viewer.kind}`);
   return view.viewer;
+}
+
+/** The occupant of one seat, found by seat id rather than by array position. */
+function occupantAt(view: View, seat: number): Seat['occupant'] {
+  const row = view.seats.find((s) => s.id === seat);
+  if (row === undefined) throw new Error(`the view has no seat ${seat}`);
+  return row.occupant;
+}
+
+/**
+ * The seat the SERVER put this browser in.
+ *
+ * Both sockets connect the instant the draft is dealt, so who gets seat 0 is a
+ * race and nothing here may assume it. This is the one source of truth for it.
+ */
+async function seatFromWire(p: Player): Promise<number> {
+  await expect
+    .poll(
+      () => {
+        const v = latestView(p);
+        return v !== null && v.viewer.kind === 'seat';
+      },
+      { message: `${p.name}: the server names a seat for them`, timeout: UI_TIMEOUT },
+    )
+    .toBe(true);
+  const v = latestView(p);
+  if (v === null) throw new Error(`${p.name}: no view after the seat poll`);
+  return seatViewer(v).seatId;
+}
+
+/* ── the front door ──────────────────────────────────────────────────── */
+
+/** The room record, straight from the lobby. Not the markup: the gate itself. */
+async function roomState(p: Player, roomId: string): Promise<RoomWire> {
+  const res = await p.context.request.get(`${EDGE_ORIGIN}${PREFIX}/api/rooms/${roomId}`);
+  expect(res.status(), `${p.name}: GET /api/rooms/${roomId}`).toBe(200);
+  return (await res.json()) as RoomWire;
+}
+
+/** The hash a person could copy, once the app has navigated to the room. */
+async function roomIdFromHash(page: Page): Promise<string> {
+  await page.waitForFunction(() => /^#\/room\/[a-z0-9-]+$/.test(window.location.hash), null, {
+    timeout: UI_TIMEOUT,
+  });
+  const hash = await page.evaluate(() => window.location.hash);
+  return hash.replace('#/room/', '');
+}
+
+/**
+ * Make a draft room the way a person does: the front page's create form.
+ *
+ * `selectOption('draft')` is itself the assertion that the draft game type is
+ * selectable — Playwright refuses a disabled option — which is the one line of
+ * `GAME_TYPES` that used to read "coming soon".
+ */
+async function createDraftRoom(p: Player, name: string): Promise<string> {
+  await p.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
+  await expect(p.page.getByTestId('room-create')).toBeVisible();
+
+  // ONE front door. The pod button and the paste-an-id box are gone, and this
+  // is the spec that would notice them coming back.
+  await expect(p.page.getByTestId('draft-pods')).toHaveCount(0);
+  await expect(p.page.getByTestId('start-pod')).toHaveCount(0);
+  await expect(p.page.getByTestId('join-id')).toHaveCount(0);
+
+  await p.page.getByTestId('room-create-name').fill(name);
+  await p.page.getByTestId('room-create-type').selectOption('draft');
+  // Our table, not a streamed Forge — spelled out so a change of default
+  // cannot quietly turn this into a stream test.
+  await p.page.getByTestId('room-create-mode-builtin').check();
+  await p.page.getByTestId('room-create-submit').click();
+
+  const id = await roomIdFromHash(p.page);
+  expect(id, 'the room id is server-minted').toMatch(ROOM_ID);
+  return id;
+}
+
+/**
+ * Enter a room FROM THE LIST — §D's "from the room list alone".
+ *
+ * The list accumulates across runs (see the header), so the row is located by
+ * the id this run created.
+ */
+async function enterFromList(p: Player, roomId: string, roomName: string): Promise<void> {
+  await p.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
+  const row = p.page.locator(`[data-testid="room-row"][data-room-id="${roomId}"]`);
+  await expect(row).toBeVisible({ timeout: UI_TIMEOUT });
+  await expect(row.getByTestId('room-name')).toHaveText(roomName);
+  // The list says what game it is before anybody commits to entering.
+  await expect(row.getByTestId('room-type')).toHaveText('Draft');
+  await row.getByTestId('room-enter').click();
+  expect(await roomIdFromHash(p.page), `${p.name} entered ${roomId}`).toBe(roomId);
+}
+
+/** The room's lobby phase: a Ready control, and no pack anywhere. */
+async function expectLobbyNotPod(p: Player): Promise<void> {
+  await expect(p.page.getByTestId('ready-toggle')).toBeVisible({ timeout: UI_TIMEOUT });
+  await expect(p.page.getByTestId('pod')).toHaveCount(0);
 }
 
 const byCardId = (a: string, b: string): number => Number(a.slice(1)) - Number(b.slice(1)) || a.localeCompare(b);
@@ -313,34 +453,119 @@ test('the friend gate still bites: no session, no page and no socket', async ({ 
   await alice.close();
 });
 
-test('two friends draft a whole pod: join, pick, pass, wheel, refresh, finish — and each sees only their own cards', async ({
+test('two friends draft a whole pod from the room list: ready, pick, pass, wheel, refresh, finish — and each sees only their own cards', async ({
   browser,
 }) => {
   const alice = await join(browser, 'alice');
   const bob = await join(browser, 'bob');
 
-  // ── join: alice through the lobby's join box, bob through her invite link.
-  await alice.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
-  await alice.page.getByTestId('join-id').fill(DRAFT_ID);
-  await alice.page.getByRole('button', { name: 'Join', exact: true }).click();
-  await expect(alice.page.getByTestId('pod-tally')).toContainText('you are seat 0');
-  const invite = await alice.page.getByTestId('invite-url').inputValue();
-  expect(invite).toBe(`${EDGE_ORIGIN}${PREFIX}/#/draft/${DRAFT_ID}`);
+  /* ── the front door: a draft room, made with the create form ─────── */
 
-  await bob.page.goto(invite);
-  await expect(bob.page.getByTestId('pod-tally')).toContainText('2 people · 6 bots of 8 seats · you are seat 1');
-  await expect(alice.page.getByTestId('pod-tally')).toContainText('2 people · 6 bots of 8 seats · you are seat 0');
+  const roomName = `e2e draft ${Date.now()}`;
+  const roomId = await createDraftRoom(alice, roomName);
+
+  // Entering a draft room deals NOTHING. Both halves of that: the screen shows
+  // a lobby with a Ready control, and the room record has no draft.
+  await expectLobbyNotPod(alice);
+  const created = await roomState(alice, roomId);
+  expect(created.gameType).toBe('draft');
+  expect(created.draftStartedAt, 'creating a draft room does not deal a draft').toBeNull();
+
+  /* ── bob arrives from the room list, and from nowhere else ────────── */
+
+  await enterFromList(bob, roomId, roomName);
+  await expectLobbyNotPod(bob);
+
+  // Bob is a MEMBER before anybody readies. That ordering is load-bearing:
+  // "every member ready" with one member would start the draft against seven
+  // bots, and the "only alice ready" check below would be testing nothing.
+  await expect
+    .poll(async () => (await roomState(alice, roomId)).members.length, {
+      message: 'the lobby has both members',
+      timeout: UI_TIMEOUT,
+    })
+    .toBe(2);
+
+  /* ── the readiness gate: one ready is not enough ──────────────────── */
+
+  await alice.page.getByTestId('ready-toggle').click();
+  await expect
+    .poll(async () => (await roomState(alice, roomId)).members.filter((m) => m.ready).length, {
+      message: 'the lobby records alice ready',
+      timeout: UI_TIMEOUT,
+    })
+    .toBe(1);
+
+  const halfway = await roomState(alice, roomId);
+  expect(halfway.draftStartedAt, 'one ready member of two does not deal a draft').toBeNull();
+  await expect(alice.page.getByTestId('pod')).toHaveCount(0);
+  await expect(bob.page.getByTestId('pod')).toHaveCount(0);
+
+  /* ── both ready: the pack appears, with bots in the empty seats ───── */
+
+  await bob.page.getByTestId('ready-toggle').click();
+  await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
+  await expect(bob.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
+  expect((await roomState(alice, roomId)).draftStartedAt, 'every member ready deals the draft').not.toBeNull();
+
+  // Which seat each browser got is a race; that they are BOTH here is not.
+  const aliceSeat = await seatFromWire(alice);
+  const bobSeat = await seatFromWire(bob);
+  expect(aliceSeat).not.toBe(bobSeat);
+
+  await expect(alice.page.getByTestId('pod-tally')).toContainText(
+    `2 people · 6 bots of 8 seats · you are seat ${aliceSeat}`,
+    { timeout: UI_TIMEOUT },
+  );
+  await expect(bob.page.getByTestId('pod-tally')).toContainText(
+    `2 people · 6 bots of 8 seats · you are seat ${bobSeat}`,
+    { timeout: UI_TIMEOUT },
+  );
+
+  // §C's "an invite link still works": the pod's invite is the ROOM's url —
+  // the same url alice's mid-draft refresh reloads below, which is the
+  // end-to-end proof that following it lands you back in your seat.
+  expect(await alice.page.getByTestId('invite-url').inputValue()).toBe(
+    `${EDGE_ORIGIN}${PREFIX}/#/room/${roomId}`,
+  );
+
+  // Alice's view must have caught bob's arrival before the seat table is read.
+  await expect
+    .poll(
+      () => {
+        const v = latestView(alice);
+        return v === null ? -1 : v.seats.filter((s) => s.occupant?.kind === 'human').length;
+      },
+      { message: 'alice sees both humans seated', timeout: UI_TIMEOUT },
+    )
+    .toBe(2);
 
   const opening = latestView(alice);
-  if (opening === null) throw new Error('alice has no view after joining');
+  if (opening === null) throw new Error('alice has no view after the draft started');
   expect(opening.seats).toHaveLength(SEATS);
-  const aliceId = opening.seats[0].occupant;
-  const bobId = opening.seats[1].occupant;
+
+  // Carried over from the fixed-seat version, and still guaranteed: the humans
+  // hold the two LOWEST seats. The draft is dealt with `humans: []`, so all
+  // eight seats are bots and `seatParticipant` reaches its last resort — the
+  // lowest bot's seat — for each arrival (rooms-protocol `seats.js`: step 2
+  // finds no empty seat and step 3 no room to grow). So the pair is {0,1};
+  // only which browser is which varies.
+  const humanSeats = opening.seats.filter((s) => s.occupant?.kind === 'human').map((s) => s.id);
+  expect(humanSeats, 'the two humans hold the two lowest seats').toEqual([0, 1]);
+  expect([aliceSeat, bobSeat].sort((x, y) => x - y)).toEqual(humanSeats);
+  // …and therefore they are neighbours around the ring of eight, which is what
+  // the wheel assertions at the bottom compare.
+  const gap = (bobSeat - aliceSeat + SEATS) % SEATS;
+  expect(gap === 1 || gap === SEATS - 1, 'the two humans sit in adjacent seats').toBe(true);
+
+  const aliceId = occupantAt(opening, aliceSeat);
+  const bobId = occupantAt(opening, bobSeat);
   expect(aliceId?.kind).toBe('human');
   expect(bobId?.kind).toBe('human');
   expect(aliceId).not.toEqual(bobId);
 
-  // ── pick, with a refresh in the middle of alice's draft.
+  /* ── pick, with a refresh in the middle of alice's draft ──────────── */
+
   const refresh: { before?: { seat: number; pool: string[] }; after?: { seat: number; pool: string[] }; guarded?: unknown[] } =
     {};
 
@@ -355,10 +580,13 @@ test('two friends draft a whole pod: join, pick, pass, wheel, refresh, finish �
 
         await alice.page.reload();
 
-        // The first thing the new page is told is a full snapshot.
+        // The first thing the new page is told is a full snapshot. It comes
+        // after a room poll now — the pod is inside the room screen — so this
+        // waits longer than it used to.
         await expect
           .poll(() => received(alice).slice(mark).some((m) => m.type === 'state'), {
             message: 'alice gets a snapshot after the refresh',
+            timeout: UI_TIMEOUT,
           })
           .toBe(true);
         const snap = received(alice)
@@ -370,16 +598,20 @@ test('two friends draft a whole pod: join, pick, pass, wheel, refresh, finish �
 
         // The seat is held and the pool is intact — in the payload and on screen.
         expect(refresh.after.seat).toBe(refresh.before.seat);
+        expect(refresh.after.seat).toBe(aliceSeat);
         expect(refresh.after.pool).toEqual(refresh.before.pool);
-        expect(v.seats[0].occupant).toEqual(aliceId);
+        expect(occupantAt(v, aliceSeat)).toEqual(aliceId);
         await expect(alice.page.getByTestId('pool-count')).toHaveText(String(REFRESH_AFTER));
-        await expect(alice.page.getByTestId('pod-tally')).toContainText('2 people · 6 bots of 8 seats · you are seat 0');
+        await expect(alice.page.getByTestId('pod-tally')).toContainText(
+          `2 people · 6 bots of 8 seats · you are seat ${aliceSeat}`,
+        );
       },
     }),
     draftAll(bob),
   ]);
 
-  // ── finish.
+  /* ── finish ──────────────────────────────────────────────────────── */
+
   for (const p of [alice, bob]) {
     await expect(p.page.locator('.pod__done h1')).toHaveText('Draft complete');
     await Promise.all(p.pending);
@@ -399,7 +631,8 @@ test('two friends draft a whole pod: join, pick, pass, wheel, refresh, finish �
     expect(errors, `${p.name}: the server refused nothing`).toEqual([]);
   }
 
-  // ── pass and wheel, read off the wire.
+  /* ── pass and wheel, read off the wire ───────────────────────────── */
+
   const aOffers = offers(alice);
   const bOffers = offers(bob);
   const directions: string[] = [];
@@ -423,8 +656,10 @@ test('two friends draft a whole pod: join, pick, pass, wheel, refresh, finish �
     }
   }
   for (let round = 0; round < PACKS; round++) {
-    // Seats 0 and 1 are neighbours, so one of them hands the other its pack
-    // after every pick — and which one flips with the pass direction.
+    // The two humans are neighbours (asserted above), so one of them hands the
+    // other its pack after every pick — and which one flips with the pass
+    // direction. Deliberately measured rather than derived from a seat number:
+    // it holds for whichever of the pair each browser landed in.
     let aToB = 0;
     let bToA = 0;
     for (let k = round * PACK_SIZE; k < (round + 1) * PACK_SIZE - 1; k++) {
@@ -437,10 +672,13 @@ test('two friends draft a whole pod: join, pick, pass, wheel, refresh, finish �
   expect(directions[0]).not.toMatch(/^mixed/);
   expect(directions).toEqual([directions[0], directions[0] === 'alice→bob' ? 'bob→alice' : 'alice→bob', directions[0]]);
 
-  // ── isolation, over every envelope either browser received.
+  /* ── isolation, over every envelope either browser received ──────── */
+
+  // The seats come off the wire, so a run in which bob got seat 0 is checked
+  // against bob's real seat rather than failing rule 2 on a hardcoded one.
   const logs: SeatLog[] = [
-    { name: 'alice', seat: 0, envelopes: envelopesOf(alice.captures) },
-    { name: 'bob', seat: 1, envelopes: envelopesOf(bob.captures) },
+    { name: 'alice', seat: aliceSeat, envelopes: envelopesOf(alice.captures) },
+    { name: 'bob', seat: bobSeat, envelopes: envelopesOf(bob.captures) },
   ];
   const report = checkIsolation(logs);
 
@@ -462,7 +700,10 @@ test('two friends draft a whole pod: join, pick, pass, wheel, refresh, finish �
     writeFileSync(resolve(RUN_DIR, `${p.name}.captures.json`), JSON.stringify(p.captures));
   }
   const summary = {
-    draftId: DRAFT_ID,
+    // The room id IS the pod id and the engine's seed, and it is minted per
+    // run — so the pools below differ every run. Reported, never asserted.
+    roomId,
+    seats: { alice: aliceSeat, bob: bobSeat },
     isolation: report,
     pools: { alice: digest(alice.picks), bob: digest(bob.picks) },
     passDirections: directions,

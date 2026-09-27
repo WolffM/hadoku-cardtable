@@ -3,9 +3,12 @@
 PR-2 had been "built end to end, unproven with two people" for four waves. This
 directory is the proof. Two independent Chromium contexts, with separate cookie
 jars, identities and sockets, drive the **built** UI bundle against the
-**built** server through a whole draft: join by invite link, pick, pass, wheel,
-refresh mid-draft, finish. Every draft envelope each browser receives is
-captured as raw text and checked for isolation.
+**built** server through a whole draft — entering it the way a person does
+since w23: one friend makes a **draft room** on the front page, the other finds
+that room in the **room list** and enters it, both mark themselves ready, and
+only then is the first pack dealt. Then pick, pass, wheel, refresh mid-draft,
+finish. Every draft envelope each browser receives is captured as raw text and
+checked for isolation.
 
 It is a measurement. It changes no product code.
 
@@ -61,6 +64,12 @@ browser ctx "bob"   ─┘        │
 - The bundle is served from a temp copy. That stops a concurrent `vite build`
   from emptying `dist/` mid-run. It also works around `send`, which 404s any
   path with a dot-directory in it, such as `.claude/worktrees/…` (see Findings).
+- **The room list persists between runs.** `harness.ts` leaves
+  `CARDTABLE_ROOMS_DIR` unset, so the lobby's store lands under
+  `e2e/.run/data/rooms` and yesterday's rooms are still listed today. Nothing is
+  wrong with that — but it is why every lookup in the specs is by the
+  `data-room-id` of the room that run created, and never by a row's position or
+  by name alone.
 
 ## What is asserted
 
@@ -68,25 +77,52 @@ browser ctx "bob"   ─┘        │
 headers get a 404 through the edge, and a 404 when sent straight to the server
 around it. A socket.io namespace connect gets `44{"message":"not found"}` with
 no session and with an unknown one, and `40{"sid":…}` as alice. `/api/whoami`
-as alice returns `{userId:"e2e-alice", tier:"friend"}`.
+as alice returns `{userId:"e2e-alice-id", tier:"friend"}` — the id, not the
+display name, which is `e2e-alice` (`identities.ts`).
 
 **The draft** (test 2):
 
-- **Join.** Alice joins through the lobby's join box. Bob opens the invite link
-  she was shown. Both see `2 people · 6 bots of 8 seats`, alice as seat 0 and
-  bob as seat 1, with distinct participant ids.
+- **The door.** There is one, and this is the spec that drives it. Alice makes a
+  draft room with the front page's create form (`room-create-type` = `draft`)
+  and lands on `#/room/<id>`; the old "Start a pod" button and paste-an-id box
+  are asserted **absent**. Bob opens the front page and enters that same room
+  from the **room list**, located by its `data-room-id`. Neither of them ever
+  types or pastes an id. The pod's `invite-url` is the room's own url, which is
+  what keeps "an invite link still works" honest — and alice's mid-draft reload
+  of that url is the end-to-end proof that following it lands you back in your
+  seat.
+- **The readiness gate.** Joining deals nothing. With bob already a member and
+  only alice ready, `GET /api/rooms/:id` still reports `draftStartedAt: null`
+  and neither page shows a pod. Both ready → the pod appears, `2 people · 6 bots
+  of 8 seats`, with distinct participant ids. The gate is asserted on the room
+  **record** as well as on screen, because the record is the gate; markup
+  belongs to the room screen and can be restyled.
+- **Seats are read off the wire.** The room id is server-minted (`r-<hex>`) and
+  the id IS the engine's seed, so the pools differ from run to run. Both sockets
+  connect the instant the draft is dealt, so which browser gets seat 0 is a
+  race: each player's seat comes from `viewer.seatId`, and the tally, the
+  refresh check and the isolation report are all keyed on that rather than on a
+  hardcoded 0 and 1. What is **not** a race is the pair of seats. The draft is
+  dealt with no humans, so all eight seats hold a bot, and `seatParticipant`
+  (`@wolffm/rooms-protocol`, `seats.js`) therefore reaches its last resort — the
+  lowest bot's seat — for every arrival. The two humans are always in seats 0
+  and 1. That is asserted, and it is what keeps them adjacent for the pass check
+  below.
 - **Pick.** Before every pick, the pack on screen must equal the pack in the
   latest envelope. The driver takes the lowest card id, then waits for the
   server's own envelope confirming the pick before it looks at anything else.
-- **Pass.** Seats 0 and 1 are neighbours. After every pick, one of them hands
-  the other exactly its pack minus the card taken, read off the wire. Which one
-  does the handing must flip each pack (left, right, left).
+- **Pass.** The two humans are neighbours (above), so after every pick one of
+  them hands the other exactly its pack minus the card taken, read off the wire.
+  Which one does the handing is **measured** rather than derived from a seat
+  number — so it holds whichever of the pair each browser landed in — and it
+  must flip each pack (left, right, left).
 - **Wheel.** A seat's pack at pick k+8 is a subset of its pack at pick k. It is
   exactly 8 cards smaller and no longer holds the card taken at k.
-- **Refresh.** After pick 20, alice's page reloads. The first `state` snapshot
-  after the reload must name the same seat and exactly the same 20-card pool.
-  The UI's pool count must read 20, and bob's view must seat the same
-  participant.
+- **Refresh.** After pick 20, alice's page reloads — the room url, which is also
+  the invite url. The first `state` snapshot after the reload must name the same
+  seat she already had and exactly the same 20-card pool. The UI's pool count
+  must read 20, the tally must still name her seat, and that seat in the
+  snapshot must still hold the same participant id.
 - **Finish.** Each server pool is 45 cards, equal to the cards that browser
   clicked, in click order. The "Draft complete" list shows exactly those names.
   The server refused no pick: no `error` envelope at all.
@@ -98,6 +134,14 @@ as alice returns `{userId:"e2e-alice", tier:"friend"}`.
 Evidence goes to `e2e/.run/`, which is gitignored and text only:
 `{alice,bob}.captures.json` (every raw frame), `server.jsonl` (the server's
 structured log) and `summary.json`.
+
+`summary.json` changed with the new door. The old fixed `draftId` key is now
+**`roomId`** — the server-minted room id, which is the pod id and the engine's
+seed — and there is a new **`seats`** key recording which seat each browser
+actually got, so a run can be read back without guessing. `pools` still holds a
+digest per player, and it is still **reported and never asserted**: the seed is
+now different every run, so a pinned digest would fail by design. If the seat
+assertions ever go red, `seats` is the first field to read.
 
 ## The isolation check
 
@@ -130,10 +174,12 @@ FAIL:
 | alice's frame addressed to seat 1 | FAIL | `view is for seat 1, expected 0` |
 | alice's log empty | FAIL | `alice: received no draft envelopes at all` |
 
-On the full live run it examines 276 envelopes, 8,355 card objects, 92
-same-cursor pairs and 6,225 raw-token probes, and finds 0 violations. The spec
-also asserts minimums on those counts, so a check that looked at nothing cannot
-pass.
+On the full live run it examined 276 envelopes, 8,355 card objects, 92
+same-cursor pairs and 6,225 raw-token probes, and found 0 violations. Those
+figures were measured under the old fixed-seed door and drift from run to run
+now that the seed is minted per run; they are a sense of scale, not expected
+values. What the spec asserts is **minimums** on those counts (90 views, 45
+pairs, at least one probe), so a check that looked at nothing cannot pass.
 
 ## Findings
 
@@ -142,27 +188,44 @@ is not a failure; the other three are worth an owner's attention.
 
 1. **Two people can draft a whole pod, and neither sees the other's cards.** The
    2 people + 6 bots pod runs to 45 picks each. Isolation holds over every
-   envelope received. The seat and pool survive a refresh. The final pools are
-   identical across runs (digests `2a2131959181e76f` / `2efa3f8728daeed8`).
-2. **Every round is a gap followed by a resync.** A human pick that completes a
-   round lets the bots pick at once (`runBots` in
-   `apps/server/src/room/socket.ts`). That advances `seq` once per bot pick, but
-   the room emits one update. So every browser classifies that update as a
-   `gap`, drops it, and requests a snapshot. Measured: `serverPicks: 90`,
-   `serverResyncs: 90`, 45 resync requests from each browser (one per round) in
-   `summary.json`. In the server log: `pick … botPicks:6 seq:10`, then
-   `resync have:{seq:3} at:{seq:18}`. The draft still completes. But the
-   rarely-taken recovery path is the path every round takes, and each round
-   costs an extra round trip before the next pack renders. This is not fixed
-   here: this lane changes no product code.
+   envelope received. The seat and pool survive a refresh. Since w23 they reach
+   the pod through the room list and a readiness gate, and the pod is no longer
+   dealt until both have readied.
+
+   **The pools are no longer identical across runs, and that is the new door's
+   doing, not a regression.** The pod id used to be the fixed `e2e-two-friends`,
+   so the digests were stable (`2a2131959181e76f` / `2efa3f8728daeed8` in the
+   runs that were measured). The room id is now minted per run and the id IS the
+   seed, so every run deals a different draft. Nothing asserted those digests
+   then and nothing does now — `summary.json` reports them. What replaced that
+   determinism as the guard against a run that proves nothing is the minimums on
+   the isolation counts (below) and the 45-picks-each pool assertions.
+2. **Every round used to be a gap followed by a resync — FIXED, and this run is
+   the proof.** A human pick that completes a round lets the bots pick at once
+   (`runBots` in `apps/server/src/room/socket.ts`). That advances `seq` once per
+   bot pick while the room emits one update, so every browser used to classify
+   that update as a `gap`, drop it, and request a snapshot. Measured then:
+   `serverPicks: 90`, `serverResyncs: 90`, 45 resync requests from each browser.
+   In the server log: `pick … botPicks:6 seq:10`, then
+   `resync have:{seq:3} at:{seq:18}`.
+
+   `fe17cfd` ("a full-state update says so, and a seq jump on one no longer
+   costs a resync") closed it. Measured again on 2026-09-27, after w23's
+   rewrite: **`serverPicks: 90`, `serverResyncs: 0`, and `resyncsRequested`
+   `{alice: 0, bob: 0}`** — with the bot batching unchanged (45 of the 90 `pick`
+   lines still carry `botPicks: 6`). So the batching was never the defect; the
+   gap classification was, and the recovery path is now rarely taken as
+   intended. The counts are still reported in `summary.json` rather than
+   asserted, so a regression here would show up as a number, not a red.
 3. **A real refresh does NOT exercise the `leaveRoom` guard.** In Chromium on
    loopback, the old socket's close lands 36 ms before the new socket joins:
    `disconnected … transport close guarded:false`, then `join seat:0
    changed:true`. The seat is held by the reservation, not by the guard. For
-   about 80 ms bob sees seat 0 empty (one update, seq 190, with `occupant:
-   null`). The guard (`draftRooms.test.ts` "the refresh hazard") is still
-   covered only by its unit test. The ordering it protects against did not
-   occur here.
+   about 80 ms the other browser sees the refreshing player's seat empty (one
+   update, seq 190, with `occupant: null`) — seat 0 in the run quoted here,
+   though which seat that is now varies per run. The guard
+   (`draftRooms.test.ts` "the refresh hazard") is still covered only by its unit
+   test. The ordering it protects against did not occur here.
 4. **Minor, dev-only: `/health` is green while every page 404s.** This happens
    when the server runs from any path with a dot-directory in it, which includes
    every agent worktree (`.claude/worktrees/…`). express's `sendFile`/`static`
@@ -180,69 +243,28 @@ Two other things are worth knowing:
   after the upgrade. One run delivered one envelope in a polling body. The
   polling parser is exercised by `isolation.test.ts` either way.
 
-## Out-of-lane changes the manager must apply
+## The wiring, applied
 
-Everything above lives in `e2e/**`. Wiring it into the repo needs these:
+This directory arrived with a list of changes outside `e2e/**` that it needed
+before `pnpm e2e` would run at all: an `e2e` entry in `pnpm-workspace.yaml`, the
+root `e2e` script, the lockfile's `e2e` importer, an `e2e/**/*.ts` glob in the
+relaxed eslint block, and the browser-install plus spec steps in CI. **All of it
+is applied** — `pnpm-workspace.yaml`, the root `package.json` `scripts.e2e`,
+`eslint.config.js` and `.github/workflows/ci.yml` carry it today, which is why
+`pnpm e2e` and `eslint .` both work from a clean checkout. Read those four files
+for the current truth; the diffs that used to be quoted here were a to-do list,
+and keeping them would have read as pending work that is in fact done.
 
-**`pnpm-workspace.yaml`**
+Three consequences of that wiring are still worth knowing, because nothing else
+states them:
 
-```diff
- packages:
-   - 'apps/*'
-   - 'packages/*'
-+  - 'e2e'
-```
-
-**`package.json`** (root), under `scripts`:
-
-```diff
--    "build": "pnpm -r --if-present run build"
-+    "build": "pnpm -r --if-present run build",
-+    "e2e": "pnpm --filter @hadoku/ui build && pnpm --filter @hadoku/server build && pnpm --filter @hadoku/e2e test"
-```
-
-**`pnpm-lock.yaml`**: run `pnpm install` with the two changes above. The
-expected delta against `HEAD`'s lockfile was measured with `pnpm install
---lockfile-only` on a copy. It is +54 lines: an `e2e` importer
-(`@playwright/test 1.62.1`, `@types/node ^24.10.1 → 24.13.3`, `typescript ^5.9.3
-→ 5.9.3`), plus `@playwright/test`, `playwright` and `playwright-core` 1.62.1
-and optional `fsevents 2.3.2`. 1.62.1 was published 2026-07-30, so it clears
-`minimumReleaseAge`.
-
-**`eslint.config.js`**: `eslint .` currently lints only `e2e/isolation.test.ts`
-(through `**/*.test.ts`). Add the rest to the relaxed tests/harness block:
-
-```diff
-       'scripts/**/*.{ts,js,mjs,cjs}',
-+      'e2e/**/*.ts',
-     ],
-```
-
-With that config, every file in `e2e/` lints with 0 errors and 0 warnings.
-
-The root `typecheck` then picks up `@hadoku/e2e`'s `typecheck`
-(`tsc --noEmit -p tsconfig.json`) through `pnpm -r --if-present`. It passes. That
-was checked with this `tsconfig.json`, but with `@playwright/test` resolved
-from an install outside the tree, because it is not installed here yet.
-Root `vitest` does not collect `isolation.test.ts`: it uses `node:test`, and
-the vitest config includes only `apps/*/src` and `packages/*/src`.
-
-**`.github/workflows/ci.yml`**, after "Build the bundle":
-
-```yaml
-      - name: Build the server
-        run: pnpm --filter @hadoku/server build
-
-      # Idempotent. On the self-hosted runner the browser is cached in
-      # ~/.cache/ms-playwright and this is a no-op. No --with-deps (D14).
-      - name: E2E — browser
-        run: pnpm --filter @hadoku/e2e exec playwright install chromium
-
-      - name: E2E — two friends draft one pod
-        run: pnpm --filter @hadoku/e2e test
-```
-
-So CI **does** need a browser-install step, though it costs nothing once the
-cache is warm. The run adds about 1.5 minutes, well inside the job's 20-minute
-timeout. The ports are fixed by default, so if two CI jobs can share a runner
-host, give them distinct `CARDTABLE_E2E_*_PORT` values.
+- **CI does need a browser-install step** (`playwright install chromium`, no
+  `--with-deps`, per D14). It is idempotent and a no-op once
+  `~/.cache/ms-playwright` is warm.
+- **The ports are fixed by default** (19108 edge, 19008 server). Two runs
+  sharing a host must be given distinct `CARDTABLE_E2E_EDGE_PORT` /
+  `CARDTABLE_E2E_SERVER_PORT` values — which is a live hazard on this machine,
+  where the play e2e and parallel agent waves bind neighbouring ports.
+- Root `vitest` does not collect `isolation.test.ts`: it uses `node:test`, and
+  the vitest config includes only `apps/*/src` and `packages/*/src`. The root
+  `typecheck` does pick up `@hadoku/e2e`'s own `tsc --noEmit`.

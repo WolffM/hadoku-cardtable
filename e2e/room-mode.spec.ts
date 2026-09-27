@@ -18,6 +18,15 @@
  * cardtable app inside itself and call it a stream. The waiting line being
  * there is the proof that it did not.
  *
+ * ## Both game types, one form
+ *
+ * Since w23 the room list is the only front door, so this create form is the
+ * only place a draft is started from — the "Start a pod" button and the
+ * paste-an-id box are gone. The draft option is therefore selectable and
+ * plainly labelled, which is asserted beside the mode choice below; what
+ * happens after you pick it is `e2e/draft.spec.ts`'s whole subject. The rooms
+ * made here stay `constructed-1v1`, because client mode is what they are about.
+ *
  * ## The seat's probe is aborted in the browser, deliberately
  *
  * Touching `/stream/<roomKey>/<seat>/` for a streamed room is what makes the
@@ -110,6 +119,14 @@ async function createRoom(f: Friend, name: string, mode: 'builtin' | 'streamed')
   await expect(f.page.getByTestId('room-create-mode-streamed')).not.toBeChecked();
   await expect(f.page.getByTestId('room-create-mode')).toContainText('Our table');
   await expect(f.page.getByTestId('room-create-mode')).toContainText('Forge’s full client');
+
+  // Both game types are pickable now (w23): a draft is a room like any other,
+  // so the draft option is no longer disabled and no longer says "coming soon".
+  // `e2e/draft.spec.ts` is what drafts through it; this is the form's own proof
+  // that the door is open, next to the modes it already checks.
+  const draftOption = f.page.locator('[data-testid="room-create-type"] option[value="draft"]');
+  await expect(draftOption).not.toBeDisabled();
+  await expect(draftOption).toHaveText('Draft');
 
   await f.page.getByTestId('room-create-name').fill(name);
   await f.page.getByTestId('room-create-type').selectOption('constructed-1v1');
