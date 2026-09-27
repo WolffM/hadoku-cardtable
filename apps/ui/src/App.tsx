@@ -122,19 +122,16 @@ export function App({ transport }: AppProps) {
           <h1 className="cardtable-chrome__home-name">{__HADOKU_APP_NAME__}</h1>
         </a>
       }
-      // The viewer's real name, in the bar. The fleet's usual answer is that
-      // identity lives inside the gear's popout and nowhere else — but the
-      // thing the operator actually reported was `anon` where their name goes,
-      // so it is shown in the one slot `AppHeader` leaves open for the app.
-      // It renders only when the fleet HAS a name for them: a blank is honest,
-      // a sentinel is what we are removing.
-      status={
-        viewer?.name == null ? undefined : (
-          <span className="cardtable-chrome__who" data-testid="chrome-who">
-            {viewer.name}
-          </span>
-        )
-      }
+      // NO `status`. The viewer's name used to render here, and that was a
+      // deliberate break with the fleet's convention — identity lives in the
+      // gear's popout and nowhere else. The justification was that the
+      // operator had reported seeing `anon` where their name belongs, but the
+      // fix for a WRONG name was to make the name right (the edge now injects
+      // `X-User-Name`, wave 22), not to move it somewhere the fleet does not
+      // put it. Operator, 2026-09-27: *"name 'Bella' should not show at the
+      // top, that shows in the settings menu. why'd you break protocol with
+      // this? this is not the standard header."* Do not reinstate it.
+      //
       // Identity the page already knows, so the popout does not re-resolve it.
       // `ConnectedSettings` otherwise calls its own `whoami()` against
       // `/session/whoami`, which is a second identity path to the same fact.

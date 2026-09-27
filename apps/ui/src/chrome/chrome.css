@@ -145,16 +145,6 @@
   font: inherit;
 }
 
-/* The viewer's name, in AppHeader's `status` slot. */
-.cardtable-chrome__who {
-  color: var(--color-text-secondary);
-  font-size: var(--hdk-text-sm);
-  max-width: 24ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /*
  * The table is a dark island inside a themed page, deliberately.
  *
