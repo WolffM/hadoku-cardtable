@@ -227,14 +227,14 @@
  *     `data-attack-intent`; this lane's own attributes are `data-arrange-reset`,
  *     `data-pile-size`, `data-pile-depth`, `data-attached` and `data-pt*`;
  *
- *     **`draggable` and `data-selectable` are mutually exclusive, and that is
- *     the seam, not a detail.** A `draggable="true"` element starts the
- *     browser's native drag from the same press the interaction lane starts a
- *     targeter drag on, and that lane starts one over any card Forge is
- *     offering — so an offered card that was also draggable would fire both
- *     gestures at once. A card Forge offers is never draggable here
- *     (`CardOnBoard`), which means a natively-draggable element is by
- *     construction never one Forge offered;
+ *     **A card Forge is ASKING ABOUT is never `draggable`, and that is the
+ *     seam, not a detail.** A `draggable="true"` element starts the browser's
+ *     native drag from the same press the interaction lane starts a targeter
+ *     drag on, so a card that was both would fire both gestures at once. The
+ *     condition is `interaction.selectionOpen && selectable` — an OPEN
+ *     SELECTION, not merely Forge's actionable set, whose own docs are on
+ *     `BoardInteraction.selectionOpen`. So a natively-draggable element is
+ *     never a card an open selection is waiting on;
  *   - `data-board-overlay` is a positioned root covering the canvas exactly,
  *     at the board's top level, for those lanes to render into. This file adds
  *     no pointer handler to it and draws nothing in it.
@@ -273,6 +273,56 @@ export interface BoardInteraction {
   selectable: ReadonlySet<number>;
   /** Player ids Forge currently says are selectable. */
   selectablePlayers: ReadonlySet<number>;
+  /**
+   * Forge has an OPEN SELECTION: a question on the table that a click is an
+   * ANSWER to.
+   *
+   * This is not the same claim as `selectable`, and the difference is the whole
+   * reason the field exists. `selectable` carries two states Forge keeps apart
+   * and the wire used to flatten here:
+   *
+   *   - **an offer** — `setSelectables(cards, min, max)`, published by exactly
+   *     two inputs in all of Forge, both of them selection inputs
+   *     (`InputSelectEntitiesFromList.java:57`, `InputSelectTargets.java:68`).
+   *     *"I am asking, and a click on one of these is the answer."*
+   *   - **actionable** — `setWeaklySelectable`, published at priority, during a
+   *     mana payment, and while declaring attackers or blockers
+   *     (`PlayerControllerHuman.pushActionableCards`). *"You COULD do something
+   *     with this."* On your own turn that is most of your own permanents.
+   *
+   * The board must not reason about Forge's inputs, so it is told which of the
+   * two is live rather than inferring it from set membership. **Absent means no
+   * selection is open** — the safe default, and the state every fixture and
+   * `live/parity.test.ts` render in.
+   *
+   * What it is FOR: a card Forge is asking about is Forge's, so the arrangement
+   * stands down on it (`CardOnBoard`). Merely actionable is not asking, and
+   * gating the arrangement on that killed free placement for most of a game —
+   * which is what `e2e/table-fit.spec.ts` red on, correctly.
+   */
+  selectionOpen?: boolean;
+  /**
+   * This seat is declaring attackers, so its own CREATURES belong to the
+   * interaction lane's attack gesture and the arrangement stands down on them.
+   *
+   * This exists because `selectionOpen` does NOT cover it and cannot be made to.
+   * Forge publishes an open selection from exactly two inputs, both of them
+   * selection inputs; `InputAttack` publishes none — it calls `updateButtons`
+   * and, on stop, `clearActionableCards` (`InputAttack.java:87-101`), so its
+   * creatures arrive as Forge's ACTIONABLE set with no selection open. Without
+   * this field they would be `draggable`, and the interaction lane's pointer
+   * layer stands down on any natively-draggable element — so arranging would
+   * shadow attacking for the whole step.
+   *
+   * Only the viewer's own creatures stand down (by the card's own type line, not
+   * by which lane the player has dragged it into): lands and everything else
+   * stay arrangeable, because no gesture of the other lane starts on them here.
+   *
+   * **Absent means not declaring attackers** — the safe default, and the state
+   * every fixture renders in. The fact itself is structured state, not prose:
+   * phase `COMBAT_DECLARE_ATTACKERS` and this seat is the active player.
+   */
+  declaringAttackers?: boolean;
   /** A card was clicked. Only ever called for an id in `selectable`. */
   onSelectCard(cardId: number): void;
   onSelectPlayer(playerId: number): void;
@@ -651,25 +701,37 @@ function CardOnBoard({
 
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
   /*
-   * A card Forge is OFFERING belongs to Forge, and `!selectable` is what says so
-   * to the pointer.
+   * A card Forge is ASKING ABOUT belongs to Forge, and that — not "actionable" —
+   * is what the arrangement stands down on.
    *
-   * Without it the two gestures on this board are not exclusive and both fire on
-   * one press. The interaction lane starts its targeter drag on `pointerdown`
-   * over any card in `interaction.selectable` (`live/gestures/install.ts`), and a
-   * `draggable="true"` element ALSO starts the browser's own HTML5 drag from the
-   * same press — so a press-and-move on an offered card on your own battlefield
-   * would both rearrange the board and send a `selectCard` on release. That is
-   * worst on exactly the cards that matter most: your own lands during a payment,
-   * your own creatures while something is targeting.
+   * Why it has to stand down at all: the two gestures on this board are not
+   * exclusive on their own. The interaction lane starts its targeter drag on
+   * `pointerdown` over a card in `interaction.selectable`
+   * (`live/gestures/install.ts`), and a `draggable="true"` element ALSO starts
+   * the browser's own HTML5 drag from the same press — so one press would both
+   * rearrange the board and send a `selectCard` on release.
    *
-   * So arranging is what you do with a card Forge is not asking about, which is
-   * the wave's "Forge decides, we render its answer" rule applied to a gesture
-   * rather than to a rule. Both gestures keep working, and neither has to guess
-   * what the other is doing: the attribute the browser reads is the same fact the
-   * pointer lane tests.
+   * Why the condition is `selectionOpen && selectable` and not `selectable`:
+   * `selectable` also carries Forge's ACTIONABLE set (`setWeaklySelectable`),
+   * which on your own turn is most of your own lands and creatures. Gating on
+   * that made the board unarrangeable for most of a game — the opposite of
+   * *"i dont want these snapping zones… put cards wherever they want"*, and
+   * `e2e/table-fit.spec.ts` red on it: a permanent it dragged between rows was
+   * not `draggable`, so `dragstart` never fired and the card did not move. An
+   * actionable highlight is Forge saying "you could", not "I am asking".
+   *
+   * So: arranging is what you do with a card Forge is not asking about. Both
+   * gestures keep working, and neither has to guess what the other is doing —
+   * the attribute the browser reads is the same fact the pointer lane tests.
    */
-  const draggable = arranging !== undefined && row !== undefined && !selectable;
+  const inOpenSelection = selectable && interaction?.selectionOpen === true;
+  /*
+   * The other lane's gesture that starts on a card of your own: the attack
+   * declaration. Forge publishes no open selection for it, so `selectionOpen`
+   * cannot cover this and the fact is carried separately — see the field.
+   */
+  const itsAttackToDeclare = interaction?.declaringAttackers === true && rowFor(entry) === 'creatures';
+  const draggable = arranging !== undefined && row !== undefined && !inOpenSelection && !itsAttackToDeclare;
   const above = pile === undefined ? [] : pile.slice(1);
 
   return (

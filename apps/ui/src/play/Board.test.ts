@@ -344,12 +344,19 @@ describe('hidden information', () => {
 
 /* ── what Forge says is clickable ──────────────────────────────────────── */
 
-function spyInteraction(selectable: number[], selectablePlayers: number[] = []) {
+/**
+ * `selectionOpen` defaults to FALSE here on purpose: that is the field's own
+ * default, and it is the state Forge is in at priority, during a payment and
+ * while declaring attackers or blockers — which is most of a game. The tests
+ * that care about an open selection pass `true` explicitly.
+ */
+function spyInteraction(selectable: number[], selectablePlayers: number[] = [], selectionOpen = false) {
   const onSelectCard = vi.fn<(id: number) => void>();
   const onSelectPlayer = vi.fn<(id: number) => void>();
   const interaction: BoardInteraction = {
     selectable: new Set(selectable),
     selectablePlayers: new Set(selectablePlayers),
+    selectionOpen,
     onSelectCard,
     onSelectPlayer,
   };
@@ -1077,19 +1084,15 @@ describe('drag to arrange (#10)', () => {
   it('sends nothing to the engine: no selection, no reply, only the view moved', () => {
     const view = boardFromFixture(fixture);
     /*
-     * The senders are armed — every card of the viewer's HAND and both players
-     * are offered, so a stray call would land — but the cards being DRAGGED are
-     * ones Forge is not offering, because an offered card is not draggable at
-     * all (see "draggable and selectable are mutually exclusive"). Offering the
-     * cards under the drag would make this test pass by doing nothing.
+     * The senders are armed on the very cards being dragged — Forge's ACTIONABLE
+     * set, which is the state at priority and the one the arrangement now stays
+     * alive through — plus both players. So a stray call would land on exactly
+     * the ids under the drag, and the drag still happens.
      */
-    const me = view.players.find((p) => p.isViewer)!;
-    const { interaction, onSelectCard, onSelectPlayer } = spyInteraction(
-      me.hand!.map((c) => c.id),
-      [0, 1],
-    );
+    const { interaction, onSelectCard, onSelectPlayer } = spyInteraction([8, 24], [0, 1]);
     const { container, rowIds } = renderBoard(view, interaction);
-    expect(container.querySelectorAll('[data-selectable]').length, 'the senders really are armed').toBeGreaterThan(0);
+    expect(container.querySelector<HTMLElement>('[data-card-id="8"]')!.dataset.selectable, 'armed on 8').toBe('true');
+    expect(container.querySelector<HTMLElement>('[data-card-id="8"]')!.getAttribute('draggable'), 'and still draggable').toBe('true');
     drag(container, 8, { card: 24 });
     drag(container, 24, { row: 'artifacts' });
     expect(rowIds(0, 'artifacts')).toEqual([24]);
@@ -1289,16 +1292,18 @@ describe('drag to stack (#1, #19)', () => {
     const view = boardFromFixture(fixture);
     const me = view.players.find((p) => p.isViewer)!;
     /*
-     * Armed with every card the viewer's HAND holds and both players — not with
-     * the battlefield cards under the drag, which Forge offering would make
-     * undraggable and this test vacuous.
+     * Armed on every card of the viewer's own battlefield — Forge's ACTIONABLE
+     * set, no selection open, which is the state at priority — and both players.
+     * So every id under every gesture below is one a stray sender call would
+     * land on, and every one of them is still draggable.
      */
     const { interaction, onSelectCard, onSelectPlayer } = spyInteraction(
-      me.hand!.map((c) => c.id),
+      me.battlefield.map((c) => c.id),
       view.players.map((p) => p.id),
     );
     const { container, getByLabelText } = renderBoard(view, interaction);
-    expect(container.querySelectorAll('[data-selectable]').length, 'the senders really are armed').toBeGreaterThan(0);
+    expect(container.querySelectorAll('.board-card[data-selectable]').length, 'the senders really are armed').toBe(5);
+    expect(container.querySelectorAll('.seat[data-viewer] .board-card[draggable="true"]'), 'and all of them draggable').toHaveLength(5);
     dragOnto(container, 24, 8, 'top');
     dragOnto(container, 6, 8, 'bottom');
     dragOnto(container, 25, 24, 'middle');
@@ -1461,62 +1466,109 @@ describe('drag to stack (#1, #19)', () => {
   });
 });
 
-/* ── a card Forge is offering belongs to Forge, not to the arrangement ── */
+/* ── a card Forge is ASKING ABOUT belongs to Forge, not to the arrangement ── */
 
 /**
- * The two gestures on this board must not both fire on one press.
+ * The two gestures on this board must not both fire on one press, and the line
+ * between them is an OPEN SELECTION — not Forge's actionable set.
  *
- * The interaction lane starts its targeter drag on `pointerdown` over any card
- * in `interaction.selectable`; a `draggable="true"` element starts the BROWSER's
- * own HTML5 drag from the same press. An offered card that was also draggable
- * would therefore rearrange the board and send a `selectCard` from one gesture —
- * worst on your own lands during a payment and your own creatures while
- * something is targeting, which is exactly where both lanes are live at once.
+ * The interaction lane starts its targeter drag on `pointerdown` over a card in
+ * `interaction.selectable`; a `draggable="true"` element starts the BROWSER's own
+ * HTML5 drag from the same press, so a card that was both would rearrange the
+ * board and send a `selectCard` from one gesture.
  *
- * So `draggable` and `data-selectable` are mutually exclusive, and the assertions
- * below are on the ATTRIBUTE because that is what the browser reads.
+ * The first cut at this gated on `selectable` alone and was wrong, which the real
+ * e2e caught: `selectable` also carries `setWeaklySelectable`, Forge's
+ * ACTIONABLE set, which on your own turn is most of your own permanents — so
+ * arranging was dead for most of a game and `e2e/table-fit.spec.ts` red with a
+ * permanent that would not move between rows. `selectionOpen` is the narrow
+ * fact, and every assertion below is on the ATTRIBUTE because that is what the
+ * browser reads.
  */
-describe('draggable and selectable are mutually exclusive', () => {
+describe('an OPEN SELECTION stands the arrangement down; merely actionable does not', () => {
   const view = boardFromFixture(fixture);
   const me = view.players.find((p) => p.isViewer)!;
   const lands = [8, 24, 6, 25];
+  const card = (container: HTMLElement, id: number) =>
+    container.querySelector<HTMLElement>(`.seat[data-viewer] [data-card-id="${id}"]`)!;
 
-  it('a card Forge offers is NOT draggable; one it does not offer on your own battlefield IS', () => {
-    // Forge offers two of the viewer's four lands. Nothing else changes.
-    const offered = [8, 6];
-    const { interaction } = spyInteraction(offered);
+  /*
+   * The distinction this whole block exists for, and it is Forge's own:
+   *
+   *   - `setSelectables` — **exactly two call sites in all of Forge**, both
+   *     selection inputs (`InputSelectEntitiesFromList.java:57`,
+   *     `InputSelectTargets.java:68`). Forge is ASKING.
+   *   - `setWeaklySelectable` — priority, mana payment, declare attackers,
+   *     declare blockers (`PlayerControllerHuman.pushActionableCards`). Forge is
+   *     saying you COULD. On your own turn that is most of your own permanents.
+   *
+   * Both reach the board in `interaction.selectable`; only the first sets
+   * `selectionOpen`. Gating the arrangement on the second killed free placement
+   * for most of a game, and `e2e/table-fit.spec.ts` red on exactly that.
+   */
+
+  it('an ACTIONABLE card on your own battlefield is still draggable — the e2e red', () => {
+    // Forge's actionable set at priority: every permanent with something to do.
+    // No selection is open, so `selectionOpen` is false, which is its default.
+    const { interaction } = spyInteraction(me.battlefield.map((c) => c.id));
+    const { container, seat } = renderBoard(view, interaction);
+    expect(container.querySelectorAll('.board-card[data-selectable]').length, 'Forge really did offer them').toBe(5);
+    expect(
+      seat(0).querySelectorAll('.board-card[draggable="true"]'),
+      'all five stay arrangeable: actionable is not a question',
+    ).toHaveLength(5);
+    // And the drag really works, which is what the e2e was asserting.
+    const { rowIds } = renderBoard(view, interaction);
+    expect(rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
+  });
+
+  it('a card in an OPEN SELECTION is NOT draggable; the rest of the board still is', () => {
+    const chosen = [8, 6];
+    const { interaction } = spyInteraction(chosen, [], true);
     const { container } = renderBoard(view, interaction);
-    const card = (id: number) => container.querySelector<HTMLElement>(`.seat[data-viewer] [data-card-id="${id}"]`)!;
 
-    for (const id of offered) {
-      expect(card(id).dataset.selectable, `card ${id} is offered`).toBe('true');
-      expect(card(id).hasAttribute('draggable'), `card ${id} is Forge’s, not the arrangement’s`).toBe(false);
+    for (const id of chosen) {
+      expect(card(container, id).dataset.selectable, `card ${id} is what Forge is asking about`).toBe('true');
+      expect(card(container, id).hasAttribute('draggable'), `card ${id} is Forge’s while it asks`).toBe(false);
     }
-    for (const id of lands.filter((l) => !offered.includes(l))) {
-      expect(card(id).dataset.selectable, `card ${id} is not offered`).toBeUndefined();
-      expect(card(id).getAttribute('draggable'), `card ${id} is still yours to arrange`).toBe('true');
+    for (const id of lands.filter((l) => !chosen.includes(l))) {
+      expect(card(container, id).dataset.selectable, `card ${id} is not in the selection`).toBeUndefined();
+      expect(card(container, id).getAttribute('draggable'), `card ${id} is still yours to arrange`).toBe('true');
     }
-    // And the creature, which Forge is not offering either.
-    expect(card(21).getAttribute('draggable')).toBe('true');
-
-    // Said once more as a set, so a card cannot be both however it got there.
+    expect(card(container, 21).getAttribute('draggable'), 'and the creature').toBe('true');
+    // No card is ever both, however it got there.
     for (const el of container.querySelectorAll<HTMLElement>('.board-card')) {
       expect(
         el.hasAttribute('draggable') && el.hasAttribute('data-selectable'),
-        `card ${el.dataset.cardId} is both draggable and selectable`,
+        `card ${el.dataset.cardId} is both draggable and in the selection`,
       ).toBe(false);
     }
   });
 
-  it('with every card offered, nothing on the board is draggable', () => {
-    const { interaction } = spyInteraction(me.battlefield.map((c) => c.id));
+  it('with a selection open over the whole battlefield, nothing is draggable', () => {
+    const { interaction } = spyInteraction(me.battlefield.map((c) => c.id), [], true);
     const { container } = renderBoard(view, interaction);
-    expect(container.querySelectorAll('.board-card[draggable]'), 'the whole board is Forge’s').toHaveLength(0);
+    expect(container.querySelectorAll('.board-card[draggable]'), 'the whole board is Forge’s while it asks').toHaveLength(0);
     // Regroup is ours and is not Forge's to disable: it answers nothing.
     expect(container.querySelectorAll('[data-arrange-reset]')).toHaveLength(1);
   });
 
-  it('with nothing offered, every card of your own battlefield is draggable', () => {
+  it('defaults to no selection open when the field is absent', () => {
+    // The safe default, and the state every fixture and `live/parity.test.ts`
+    // render in: an interaction that never mentions `selectionOpen` leaves the
+    // board fully arrangeable.
+    const interaction: BoardInteraction = {
+      selectable: new Set(me.battlefield.map((c) => c.id)),
+      selectablePlayers: new Set(),
+      onSelectCard: () => undefined,
+      onSelectPlayer: () => undefined,
+    };
+    expect('selectionOpen' in interaction, 'the field really is absent').toBe(false);
+    const { seat } = renderBoard(view, interaction);
+    expect(seat(0).querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
+  });
+
+  it('with nothing offered at all, every card of your own battlefield is draggable', () => {
     const { interaction } = spyInteraction([]);
     const { container, seat } = renderBoard(view, interaction);
     expect(seat(0).querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
@@ -1524,12 +1576,13 @@ describe('draggable and selectable are mutually exclusive', () => {
     expect(container.querySelectorAll('[data-selectable]')).toHaveLength(0);
   });
 
-  it('holds for a card inside a pile: the offered member is not draggable, the base is', () => {
+  it('holds for a card inside a pile: the selected member is not draggable, the base is', () => {
     /*
-     * The pile is built FIRST, while Forge is offering nothing — an offered card
-     * cannot be dragged onto anything, which is the rule under test. Then Forge
-     * offers the member, and the board is re-rendered: the arrangement is in the
-     * module store and survives the remount, so the same pile is redrawn.
+     * The pile is built FIRST, with no selection open — a card an open selection
+     * holds cannot be dragged onto anything, which is the rule under test. Then
+     * Forge asks about the member and the board is re-rendered: the arrangement
+     * is in the module store and survives the remount, so the same pile is
+     * redrawn.
      */
     const built = renderBoard(view);
     const base = built.container.querySelector<HTMLElement>('[data-card-id="8"]')!;
@@ -1546,15 +1599,76 @@ describe('draggable and selectable are mutually exclusive', () => {
     ).not.toBeNull();
 
     cleanup();
-    const { interaction } = spyInteraction([24]);
+    const { interaction } = spyInteraction([24], [], true);
     const { container } = renderBoard(view, interaction);
     const stacked = container.querySelector<HTMLElement>('[data-card-id="8"]')!;
     const member = container.querySelector<HTMLElement>('[data-card-id="8"] > .board-card__pile > [data-card-id="24"]');
     expect(member, 'the pile survived the remount').not.toBeNull();
-    expect(member!.dataset.selectable, 'and Forge is offering the member').toBe('true');
+    expect(member!.dataset.selectable, 'and Forge is asking about the member').toBe('true');
     expect(member!.hasAttribute('draggable'), 'so it is not draggable, pile or no pile').toBe(false);
-    expect(stacked.dataset.selectable, 'the base is not offered').toBeUndefined();
+    expect(stacked.dataset.selectable, 'the base is not in the selection').toBeUndefined();
     expect(stacked.getAttribute('draggable'), 'and stays draggable').toBe('true');
+  });
+
+  /*
+   * The other half, and it is NOT covered by `selectionOpen` — established from
+   * Forge rather than assumed. `setSelectables` has exactly two call sites in all
+   * of Forge, both selection inputs; `InputAttack` publishes none of them (it
+   * calls `updateButtons` and `clearActionableCards`, `InputAttack.java:87-101`).
+   * So during declare-attackers the seat's creatures arrive as Forge's ACTIONABLE
+   * set with NO selection open — and the interaction lane's pointer layer stands
+   * down on any natively-draggable element, so a draggable creature here means
+   * you cannot attack with it.
+   */
+  it('stands down on your own CREATURES while you are declaring attackers, and on nothing else', () => {
+    const { interaction } = spyInteraction(me.battlefield.map((c) => c.id));
+    interaction.declaringAttackers = true;
+    const { container, seat } = renderBoard(view, interaction);
+    // The creature is the attack gesture's; the four lands are still yours.
+    expect(card(container, 21).hasAttribute('draggable'), 'the creature is the attack gesture’s').toBe(false);
+    for (const id of lands) {
+      expect(card(container, id).getAttribute('draggable'), `land ${id} is still arrangeable`).toBe('true');
+    }
+    expect(seat(0).querySelectorAll('.board-card[draggable="true"]')).toHaveLength(4);
+    // Forge is still offering the creature — the stand-down is about the
+    // gesture, not about what may be clicked.
+    expect(card(container, 21).dataset.selectable).toBe('true');
+  });
+
+  it('is by the creature’s own type line, not by the lane the player dragged it into', () => {
+    // A creature the player has moved into the lands lane is still a creature,
+    // and still the attack gesture's while attackers are being declared.
+    const built = renderBoard(view);
+    const lane = built.container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="lands"]')!;
+    fireEvent.dragStart(built.container.querySelector<HTMLElement>('[data-card-id="21"]')!);
+    fireEvent.dragOver(lane);
+    fireEvent.drop(lane);
+    expect(built.rowIds(0, 'lands'), 'the creature is in the lands lane now').toEqual([8, 24, 6, 25, 21]);
+
+    cleanup();
+    const { interaction } = spyInteraction([]);
+    interaction.declaringAttackers = true;
+    const { container } = renderBoard(view, interaction);
+    expect(card(container, 21).hasAttribute('draggable'), 'still the attack gesture’s').toBe(false);
+    expect(card(container, 8).getAttribute('draggable'), 'the lands beside it are not').toBe('true');
+  });
+
+  it('defaults to not declaring attackers when the field is absent', () => {
+    const { interaction } = spyInteraction(me.battlefield.map((c) => c.id));
+    expect(interaction.declaringAttackers, 'the field really is absent').toBeUndefined();
+    const { seat } = renderBoard(view, interaction);
+    expect(seat(0).querySelectorAll('.board-card[draggable="true"]'), 'every permanent, creature included').toHaveLength(5);
+  });
+
+  it('an actionable card is still draggable even while a selection is open elsewhere', () => {
+    // `boardInteraction`'s contract: with a selection open, `selectable` IS the
+    // selection and the actionable set is not in it. So a card outside the
+    // selection is arrangeable even mid-question — the arrangement never leaves
+    // the browser, so there is no reason it should not be.
+    const { interaction } = spyInteraction([8], [], true);
+    const { container } = renderBoard(view, interaction);
+    expect(card(container, 8).hasAttribute('draggable')).toBe(false);
+    expect(container.querySelectorAll('.board-card[draggable="true"]')).toHaveLength(4);
   });
 });
 

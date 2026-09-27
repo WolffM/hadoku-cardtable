@@ -468,3 +468,126 @@ board and `draggable` is exactly what it was. Measured on the rendered markup:
 `draggable="true"` appears **5** times (the viewer's five permanents, as before)
 and `data-selectable` **0** times. The ledger above stands with no new entry:
 `34052 → 34754`, all +702 of it the three P/T badges.
+
+---
+
+## Second addendum — the stand-down is an OPEN SELECTION, not "actionable"
+
+The first addendum's rule was too blunt and the real e2e caught it: a permanent
+`e2e/table-fit.spec.ts` dragged between rows was not `draggable`, so `dragstart`
+never fired, `carried.current` stayed null and the card did not move.
+
+**Why it was wrong.** `interaction.selectable` flattens two claims Forge keeps
+apart, and only one of them is a question:
+
+| Forge method | who publishes it | what it means |
+| --- | --- | --- |
+| `setSelectables(cards, min, max)` | **exactly two call sites in all of Forge**, both selection inputs — `InputSelectEntitiesFromList.java:57`, `InputSelectTargets.java:68` | *"I am asking, and a click on one of these is the answer."* |
+| `setWeaklySelectable(cards)` | priority, mana payment, declare attackers, declare blockers, via `PlayerControllerHuman.pushActionableCards` (`:1543-1617`) and `pushBlockerCandidates` (`:1621-1646`) | *"You COULD do something with this."* |
+
+Verified by grepping the vendored Forge for both, read-only. On your own turn the
+actionable set is most of your own lands and creatures, so gating the arrangement
+on it killed free placement for most of a game — the opposite of *"i dont want
+these snapping zones… put cards wherever they want"*. **An actionable highlight is
+Forge saying "you could", not "I am asking".**
+
+**The narrowing**, in `Board.tsx`:
+
+```ts
+const inOpenSelection = selectable && interaction?.selectionOpen === true;
+```
+
+`BoardInteraction.selectionOpen?: boolean` is a new, optional, documented field.
+The board is TOLD which of the two states is live rather than inferring it from
+set membership, because this file may not start reasoning about Forge's inputs.
+**Absent means no selection is open** — the safe default, and the state every
+fixture and `live/parity.test.ts` render in.
+
+### The shadowing half: `selectionOpen` does NOT cover declare-attackers
+
+Established, not assumed. **Forge publishes no open selection while attackers are
+declared.** `setSelectables` has the two call sites above and `InputAttack` is
+neither of them; all it publishes is `updateButtons`
+(`InputAttack.java:87-95`), and `onStop` calls `clearActionableCards`
+(`:98-101`). So `match.selectables` is null through the whole step and its
+creatures arrive as the ACTIONABLE set.
+
+Left alone, that is a real regression of §B, not a cosmetic nit: the interaction
+lane's pointer layer stands down on any natively-draggable element, so a
+`draggable` creature during declare-attackers means **you cannot attack with it**
+— and "attackers can be declared by box-draw" is one of the wave's done-whens.
+
+So a second optional field carries the fact:
+
+```ts
+const itsAttackToDeclare = interaction?.declaringAttackers === true && rowFor(entry) === 'creatures';
+```
+
+- **Only creatures**, and by the card's OWN type line rather than the lane the
+  player has dragged it into — lands and everything else stay arrangeable,
+  because no gesture of the other lane starts on them here.
+- **Absent means not declaring attackers.** Safe default, and what every fixture
+  renders in.
+- The fact is structured state, never prose: phase `COMBAT_DECLARE_ATTACKERS`
+  and this seat is the active player — which is exactly what lane B's exported
+  `declaringAttackers(match)` already computes (`match.ts:957-960`).
+
+### What has to be set, and where
+
+Both fields default safe, so nothing breaks unset; both are inert until filled.
+One place fills both — `apps/ui/src/play/live/LiveBoard.tsx:516-521` (lane C),
+from values lane B already exports:
+
+```ts
+const interaction: BoardInteraction = {
+  ...offered,
+  selectionOpen: match.selectables !== null,   // the narrow fact, from match.ts
+  declaringAttackers: declaringAttackers(match), // already exported by match.ts:957
+  onSelectCard: (cardId) => selectCard(match, cardId),
+  onSelectPlayer: (playerId) => selectPlayer(match, playerId),
+};
+```
+
+`declaringAttackers` is already imported in that file's neighbourhood for lane
+B's gesture install; `match.selectables` is a public field of `LiveMatch`
+(`match.ts:441`). Nothing under `live/` was edited from this lane.
+
+**Residual risk to state plainly:** until `declaringAttackers` is filled, a
+creature is draggable during that step and arranging shadows attacking. Until
+`selectionOpen` is filled, the board is fully arrangeable at all times — which is
+the operator's requirement and the e2e's expectation, so the unset state is the
+*safe* one and the field only ever takes affordance away.
+
+### Verification of the second addendum
+
+| claim | command | result |
+| --- | --- | --- |
+| this lane's suites | `npx vitest run apps/ui/src/play/Board.test.ts apps/ui/src/play/adapter.test.ts apps/ui/src/play/fold.test.ts` | **exit 0** — **124 passed** (Board **90**, adapter 25, fold 9) |
+| parity, LiveBoard, inspector | `npx vitest run apps/ui/src/play/live/parity.test.ts apps/ui/src/play/live/LiveBoard.test.ts apps/ui/src/play/inspect/index.test.ts` | **exit 0** — **88 passed** (parity 2, inspect 17, LiveBoard 69) |
+| the UI typechecks | `npx tsc --noEmit -p apps/ui/tsconfig.json` | **exit 0**, no diagnostics |
+
+| control | mutation | reverted | restored |
+| --- | --- | --- | --- |
+| **e1.** an open selection stands the arrangement down | `inOpenSelection = false` | **exit 1 — 4 failed** | **exit 0 — 7 passed** |
+| **e2.** merely actionable does NOT (the e2e red, as a unit test) | `inOpenSelection = selectable` — the blunt rule restored | **exit 1 — 2 failed** (`an ACTIONABLE card on your own battlefield is still draggable — the e2e red`, `defaults to no selection open when the field is absent`) | **exit 0 — 7 passed** |
+| **f.** the attack declaration stands it down on creatures | `itsAttackToDeclare = false` | **exit 1 — 2 failed** (`stands down on your own CREATURES…`, `is by the creature's own type line…`) | **exit 0 — 10 passed** |
+
+`Board.tsx` was byte-compared against its pre-mutation copy after every restore —
+identical each time. **e2 is the important one:** it holds the e2e's red as a unit
+test, so the blunt rule cannot come back without a red in this file first.
+
+### The parity pin did NOT move
+
+`apps/ui/src/play/live/parity.test.ts` now **passes** at the pin the manager
+recorded with commit `3db801c`:
+
+```
+BASELINE_SHA256 = db9c44404304ea26ae008f8f5d77b52187fa33170e8fb445544c52a5e131f25b
+BASELINE_LENGTH = 34754
+```
+
+Nothing to re-record and no new ledger entry. Structural, not luck:
+`parity.test.ts` renders `<Board view={…} />` with **no `interaction` prop**, so
+both new fields are absent, both default to "no", and `draggable` is exactly what
+it was — the same five occurrences measured in the first addendum. The ledger
+stands at `34052 → 34754`, +702, all three P/T badges.
