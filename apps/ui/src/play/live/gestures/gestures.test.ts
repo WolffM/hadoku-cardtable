@@ -122,6 +122,39 @@ const notify = (raw: unknown[]): ServerFrame[] => raw.map((r) => parseServerFram
 
 const prompt = (message: string) =>
   parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null });
+/** A prompt that names the ability it is about — what `InputPayMana` announces itself with. */
+const promptFor = (message: string, cardId: number) =>
+  parseServerFrame({
+    kind: 'notify',
+    method: 'showPromptMessage',
+    player: { kind: 'player', id: 0 },
+    message,
+    card: { kind: 'card', id: cardId },
+  });
+/** `InputPayMana`'s bar: `lblAuto` in button 1. `enable1` is the auto-pay offer, not the input. */
+const autoBar = (enable1: boolean) =>
+  parseServerFrame({
+    kind: 'notify',
+    method: 'updateButtons',
+    owner: { kind: 'player', id: 0 },
+    label1: 'Auto',
+    label2: 'Cancel',
+    enable1,
+    enable2: true,
+    focus1: enable1,
+  });
+/** Any other input's bar — a priority window's. */
+const okBar = () =>
+  parseServerFrame({
+    kind: 'notify',
+    method: 'updateButtons',
+    owner: { kind: 'player', id: 0 },
+    label1: 'OK',
+    label2: 'Cancel',
+    enable1: true,
+    enable2: true,
+    focus1: true,
+  });
 const actionable = (ids: number[]) =>
   parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
 const selectables = (ids: number[], min: number, max: number) =>
@@ -535,6 +568,108 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     fireEvent.pointerUp(cardEl(canvas, offered), { clientX: 400, clientY: 400 });
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectCard', offered]]);
+  });
+
+  /*
+   * The mana payment, and it is the other half of the same axis as combat.
+   *
+   * `e2e/play.spec.ts:970-972` pays for a spell it just cast by dragging a land
+   * ALREADY on the battlefield; `e2e/table-fit.spec.ts` drags an equally-offered
+   * land between rows to ARRANGE it. Only "which input is Forge parked on" tells
+   * them apart, and `payingMana` reads that off the prompt's own card plus the
+   * payment input's button label — never off the prompt's prose.
+   */
+  it('during a payment, an offered battlefield land is THIS layer’s though it stays draggable — and the native drag is cancelled', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const land = mineOf(m).battlefield[0]!.id;
+    // Forge's payment input: the bar first (it is emitted before the prompt), then
+    // the prompt naming the ability paid for, then what can pay.
+    for (const f of [autoBar(true), promptFor('Pay {1}{U}', land), actionable([land])]) s.send(f);
+    await waitFor(() => expect(boardInteraction(m).selectable.has(land)).toBe(true));
+    expect(cardEl(canvas, land).getAttribute('draggable')).toBe('true');
+
+    // Lane A's own `dragstart` must not run either: a cancelled `dragstart`
+    // fires no `dragend`, so its `arranging.start()` would never be balanced.
+    let laneA = 0;
+    cardEl(canvas, land).addEventListener('dragstart', () => {
+      laneA += 1;
+    });
+    fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 });
+    expect(fireEvent.dragStart(cardEl(canvas, land), { bubbles: true, cancelable: true })).toBe(false);
+    expect(laneA).toBe(0);
+    const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
+    fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
+    fireEvent.pointerUp(zone, { clientX: 200, clientY: 140 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', land]]);
+  });
+
+  it('a payment whose cost cannot be auto-paid is still a payment — the Auto bar is disabled and the drag still pays', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const land = mineOf(m).battlefield[0]!.id;
+    // `InputPayMana.java:391` — the input's FIRST bar, Auto present and disabled.
+    // Tapping sources by hand is exactly what this window is for.
+    for (const f of [autoBar(false), promptFor('Pay {7}', land), actionable([land])]) s.send(f);
+    await waitFor(() => expect(boardInteraction(m).selectable.has(land)).toBe(true));
+
+    drag(cardEl(canvas, land), canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', land]]);
+  });
+
+  /**
+   * THE STALE-BAR CASE (lane E's hazard). Forge emits `updateButtons` BEFORE
+   * `showPromptMessage`, so an `Auto` bar can outlive the payment that set it. A
+   * press under a stale bar must arrange, not pay — `table-fit` drags an offered
+   * land with hands paused mid-game, which is exactly when the last bar is stale.
+   */
+  it('a STALE Auto bar does not make this layer claim the press: the prompt, not the bar, says which input is live', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const land = mineOf(m).battlefield[0]!.id;
+    for (const f of [autoBar(true), promptFor('Pay {1}{U}', land), actionable([land])]) s.send(f);
+    await waitFor(() => expect(m.promptCard).toBe(land));
+
+    // The payment ends and priority comes back. Forge's next PROMPT names no
+    // card; the Auto bar has not been replaced yet.
+    s.send(prompt('Priority'));
+    await waitFor(() => expect(m.promptCard).toBeNull());
+    expect(m.buttons!.label1).toBe('Auto'); // still stale, and still enabled
+    expect(m.buttons!.enable1).toBe(true);
+    expect(boardInteraction(m).selectable.has(land)).toBe(true);
+
+    let laneA = 0;
+    cardEl(canvas, land).addEventListener('dragstart', () => {
+      laneA += 1;
+    });
+    fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 });
+    // Nothing claimed, so lane A's arrange gesture keeps the press — and SEES it.
+    expect(fireEvent.dragStart(cardEl(canvas, land), { bubbles: true, cancelable: true })).toBe(true);
+    expect(laneA).toBe(1);
+    const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
+    fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
+    fireEvent.pointerUp(zone, { clientX: 200, clientY: 140 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames()).toHaveLength(0);
+
+    // A barrier: the click still works, so the refusal was the gesture's and not the wire's.
+    fireEvent.click(cardEl(canvas, land).querySelector('button')!);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', land]]);
+  });
+
+  it('an ordinary priority window with its own bar is arranging’s, land and all', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const land = mineOf(m).battlefield[0]!.id;
+    for (const f of [okBar(), prompt('Priority'), actionable([land])]) s.send(f);
+    await waitFor(() => expect(boardInteraction(m).selectable.has(land)).toBe(true));
+
+    fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 });
+    expect(fireEvent.dragStart(cardEl(canvas, land), { bubbles: true, cancelable: true })).toBe(true);
+    const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
+    fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
+    fireEvent.pointerUp(zone, { clientX: 200, clientY: 140 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames()).toHaveLength(0);
   });
 
   it('outside declare-attackers a draggable permanent starts no box-draw at all', async () => {

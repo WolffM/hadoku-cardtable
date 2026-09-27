@@ -375,3 +375,146 @@ which is the operator-visible choice the table-fit red already forced. If
 drag-to-activate is wanted back, the discriminator has to be one the player
 controls — a drag handle on the card for arranging, or a modifier key — and both
 live in lane A's markup.
+
+---
+
+## Follow-up 3 — drag-to-pay comes back, without re-opening the `table-fit` red
+
+`e2e/play.spec.ts:970-972` pays for a cast spell by dragging a land **already on
+the battlefield**; `e2e/table-fit.spec.ts` drags an equally-offered land between
+rows to **arrange** it. Both cards are in Forge's actionable set, so `selectable`
+cannot separate them. What separates them is which INPUT Forge is parked on — the
+axis follow-up 2 already built for combat declaration.
+
+### the signal: a better one exists on the wire, and we were throwing it away
+
+`showPromptMessage`'s third argument. `IGuiGame.java:77` /
+`ProtocolMethod.java:39` carry a `CardView`; `PlayBridge.java:737-742` already
+sends it (and its `serializeNulls` comment at `:163` names
+`showPromptMessage.card` as the reason that file sets it); forge-wire already
+parses it (`tier-b.ts:241`, `card: CardRefSchema.nullable()`). `match.ts` read
+`frame.message` and dropped the card. It is now `LiveMatch.promptCard`.
+
+Why it is the right one: **it is FRESH.** `InputPayMana.updateMessage` announces
+itself with the ability being paid for — `showMessage(getMessage(),
+saPaidFor.getView())`, `InputPayMana.java:410` — while `InputPassPriority` passes
+none. Lane E measured that Forge emits `updateButtons` BEFORE
+`showPromptMessage` (`InputConfirm.java:107-121`) so the BAR lags and can go
+stale; the prompt cannot, because the next input overwrites `promptCard` in the
+same frame that carries its message. Lane E's captured stale case was *"priority
+prompts under a stale Yes/No bar"* — a priority prompt carries no card, so this
+predicate is false there by construction.
+
+**An even cleaner signal exists and is NOT available:** `showManaPool` /
+`hideManaPool` (`ProtocolMethod.java:47-48`) are called from exactly
+`InputPayMana.java:63` and `:76` — the payment input's start and stop, and
+nothing else in the tree. `PlayBridge.java:1181-1182` implements both as **empty
+methods**, so they never reach our wire, and they are modelled nowhere in
+forge-wire. Wiring them would be a two-line bridge change plus a tier entry, in
+files this lane does not own. **Recommended as the follow-up that would let
+`payingMana` drop to one fact.**
+
+### `payingMana(match)` — four facts, and the one that is load-bearing
+
+```ts
+export function payingMana(match: LiveMatch): boolean {
+  if (!match.inputLive || match.asks.length > 0) return false;   // an input is live, nothing queued in front
+  if (match.selectables !== null) return false;                  // a payment opens no selection
+  if (match.promptCard === null) return false;                   // FRESH: this prompt names an ability
+  return match.buttons !== null && match.buttons.label1 === AUTO_PAY_LABEL;
+}
+```
+
+- `promptCard !== null` — the freshness guard, above.
+- `label1 === 'Auto'` identifies the input. Both of `InputPayMana`'s bars carry it
+  (`:391` at the start, `:405` once a payment exists) and no other input puts it
+  in button 1 — `InputLondonMulligan.java:65` puts `lblAuto` in button **two**. A
+  button label, not a regex over prose, and the practice `auto.ts` already uses.
+- `selectables === null` excludes the other inputs that announce themselves WITH a
+  card (`InputSelectTargets.java:129`, `InputSelectManyBase.java:92-94`), and
+  `InputSelectManyBase` matters because its `updateButtons`
+  (`InputSelectManyBase.java:98`) is the enablement-only overload and leaves
+  whatever labels were standing.
+- `inputLive && asks.length === 0` is the same gate `boardInteraction` uses, so
+  this can never contradict what is clickable.
+
+**`enable1` is deliberately NOT required**, against the suggestion. It means
+*"auto-pay is possible"* — `:405` fires only when `autoPayManaSources != null` —
+not *"the payment input is running"*. A cost that cannot be auto-paid is exactly
+when the player must tap sources by hand, which is the gesture this predicate
+exists to allow, and freshness is carried by `promptCard` rather than by
+enablement. Mutation (k) below is that argument as a test.
+
+### `gestures/install.ts`
+
+```ts
+if (nativelyDraggable(event.target) && !declaringCombat(match) && !payingMana(match)) return;
+```
+
+and `onDragStart` is now a **capture-phase** listener that also stops
+propagation:
+
+```ts
+canvas.addEventListener('dragstart', onDragStart, true);
+function onDragStart(event: Event): void {
+  if (drag === null && marquee === null) return;
+  event.preventDefault();
+  event.stopPropagation();
+}
+```
+
+`preventDefault` alone aborts the browser's drag but still lets lane A's own
+`onDragStart` run — and **a cancelled `dragstart` fires no `dragend`**, so that
+lane's `arranging.end()` would never balance its `arranging.start()` and it would
+be left believing a drag was in flight. Capturing on the canvas runs before any
+handler on the card and before React's root listener, so for a press this layer
+claimed lane A never sees the event at all. Mutation (m) is that.
+
+### lane A and lane C need no change — checked, not assumed
+
+- `Board.tsx:727,734`: `inOpenSelection = selectable && interaction?.selectionOpen === true`,
+  `draggable = arranging !== undefined && row !== undefined && !inOpenSelection && !itsAttackToDeclare`.
+  During a payment `selectionOpen` is false and it is not declare-attackers, so
+  the land stays draggable — which is what `payingMana` is for. **Nothing to change.**
+- `LiveBoard.tsx:540` already fills `declaringAttackers: declaringAttackers(match)`
+  from this lane's export, and `selectionOpen` rides in with the spread
+  (`:518-531`). **Nothing to change.**
+- Lane A's `declaringAttackers` field covers declare-ATTACKERS only. Declare-**blockers**
+  leaves the blocker draggable, so §B.3 still depends on this lane's
+  `declaringCombat` exemption plus the capture-phase cancel. Both halves are load-bearing.
+- Re-ran their suites: `npx vitest run apps/ui/src/play/live/LiveBoard.test.ts apps/ui/src/play/Board.test.ts` → **exit 0, 163 passed.**
+
+### verified
+
+| claim | command | result |
+| --- | --- | --- |
+| both suites green | `npx vitest run apps/ui/src/play/live/match.test.ts apps/ui/src/play/live/gestures` | **exit 0** — **121 passed** (match.test.ts 81, gestures.test.ts 40) |
+| typecheck | `npx tsc --noEmit -p apps/ui/tsconfig.json` | **exit 0**, zero output |
+| lanes A and C unaffected | `npx vitest run apps/ui/src/play/live/LiveBoard.test.ts apps/ui/src/play/Board.test.ts` | **exit 0**, 163 passed |
+
+New cases: a payment claims the offered battlefield land though it stays
+draggable, cancels the native drag, and lane A never sees the `dragstart`; a
+payment whose cost cannot be auto-paid still pays; a **stale Auto bar** does not
+claim the press and lane A DOES see that `dragstart`; an ordinary priority window
+with its own bar is arranging's; `promptCard` is set and overwritten by every
+prompt and travels with the prompt across a snapshot; `payingMana` is false for a
+stale bar, a selection, a dead input, a queued ask and a priority window.
+
+### mutation-tested
+
+| control | mutation | reverted | restored |
+| --- | --- | --- | --- |
+| a payment claims the press (the `play.spec` red) | drop `&& !payingMana(match)` | **1 failed**, and the disabled-Auto case **1 failed** | **1 passed** each |
+| the stale bar must not claim it (lane E's hazard) | drop `promptCard === null` | **1 failed** in each suite | **1 passed** in each |
+| `enable1` must not gate the input | require `&& match.buttons.enable1` | **1 failed** | **1 passed** |
+| a selection is not a payment | drop `selectables !== null` | **1 failed** | **1 passed** |
+| lane A must not see a claimed `dragstart` | drop `event.stopPropagation()` | **1 failed** | **1 passed** |
+
+`install.ts` and `match.ts` restored and confirmed byte-identical (`diff -q`).
+
+### still given up, and that is correct
+
+Drag-to-activate at **ordinary priority** — no payment, no combat declaration —
+remains arranging's. `e2e/play.spec.ts`'s own comment expects the fetchland drag
+at priority to send nothing, and `table-fit` needs that press. A click still
+plays the card.

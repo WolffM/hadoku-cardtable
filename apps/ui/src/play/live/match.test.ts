@@ -27,6 +27,7 @@ import {
   declaringAttackers,
   declaringBlockers,
   declaringCombat,
+  payingMana,
   isBlockAssignment,
   ingest,
   MAX_RESYNCS_WITHOUT_PROGRESS,
@@ -1208,6 +1209,140 @@ describe('concede: the wire has always carried it, and now something sends it', 
     expect(s.clientFrames()).toEqual([concedeAct]);
     // The ask is untouched: conceding did not answer it, and did not close it.
     expect(currentAsk(m)!.callId).toBe('c-concede');
+  });
+});
+
+/*
+ * `payingMana` — which INPUT Forge is parked on, and the stale bar it must survive.
+ *
+ * `e2e/play.spec.ts:970-972` pays for a cast spell by dragging a land already on
+ * the battlefield; `e2e/table-fit.spec.ts` drags an equally-offered land between
+ * rows to arrange it. `selectable` cannot tell those apart. What can is the input,
+ * and the trap is that Forge emits `updateButtons` BEFORE `showPromptMessage`
+ * (`InputConfirm.java:107-121`) so the BAR lags and can go stale — which is why
+ * the load-bearing fact here is the PROMPT's own card, not the button.
+ */
+describe('payingMana: the payment input, and not a bar that outlived it', () => {
+  const payBar = (enable1: boolean) =>
+    parseServerFrame({
+      kind: 'notify',
+      method: 'updateButtons',
+      owner: { kind: 'player', id: 0 },
+      label1: 'Auto',
+      label2: 'Cancel',
+      enable1,
+      enable2: true,
+      focus1: enable1,
+    });
+  const promptFor = (message: string, cardId: number) =>
+    parseServerFrame({
+      kind: 'notify',
+      method: 'showPromptMessage',
+      player: { kind: 'player', id: 0 },
+      message,
+      card: { kind: 'card', id: cardId },
+    });
+
+  it('promptCard is Forge’s third argument, and every prompt overwrites it — including with null', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    expect(m.promptCard).toBeNull();
+    await sendAndApply(s, m, [promptFor('Pay {1}{U}', mine[0]!)]);
+    expect(m.promptCard).toBe(mine[0]!);
+    await sendAndApply(s, m, [prompt('Priority')]);
+    expect(m.promptCard).toBeNull();
+  });
+
+  it('promptCard travels with the prompt across a snapshot — a resync mid-payment does not stop the payment', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [payBar(true), promptFor('Pay {1}{U}', mine[0]!)]);
+    expect(m.promptCard).toBe(mine[0]!);
+
+    // `adoptSnapshot` keeps `prompt` and `buttons` on purpose — the server
+    // re-sends exactly those two (`resendAfterSnapshot`) — so the prompt's CARD
+    // belongs with them. Clearing it here would silently stop a payment paying
+    // until Forge happened to speak again.
+    s.lose(sentinel());
+    s.send(sentinel());
+    await until('the resync', () => m.stats.snapshots === 2);
+    expect(m.prompt).toBe('Pay {1}{U}');
+    expect(m.promptCard).toBe(mine[0]!);
+    // …but the input is not live until Forge says so, so nothing is a payment yet.
+    expect(m.inputLive).toBe(false);
+    expect(payingMana(m)).toBe(false);
+    await sendAndApply(s, m, [actionable([mine[0]!])]);
+    expect(payingMana(m)).toBe(true);
+  });
+
+  it('the payment input: the bar names Auto and the prompt names the ability', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    expect(payingMana(m)).toBe(false);
+    await sendAndApply(s, m, [payBar(true), promptFor('Pay {1}{U}', mine[0]!), actionable([mine[0]!])]);
+    expect(payingMana(m)).toBe(true);
+  });
+
+  it('enable1 is the auto-pay OFFER, not the input: a cost that cannot be auto-paid is still a payment', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    // `InputPayMana.java:391` — the input's first bar, Auto present and disabled.
+    // Tapping sources by hand is precisely what this window is for, so gating on
+    // `enable1` would refuse the gesture exactly when it is needed most.
+    await sendAndApply(s, m, [payBar(false), promptFor('Pay {7}', mine[0]!), actionable([mine[0]!])]);
+    expect(m.buttons!.enable1).toBe(false);
+    expect(payingMana(m)).toBe(true);
+  });
+
+  it('THE STALE BAR: an Auto bar that outlived its payment is not a payment', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [payBar(true), promptFor('Pay {1}{U}', mine[0]!), actionable([mine[0]!])]);
+    expect(payingMana(m)).toBe(true);
+
+    // Priority comes back. Its PROMPT names no card; the bar has not caught up.
+    await sendAndApply(s, m, [prompt('Priority')]);
+    expect(m.buttons!.label1).toBe('Auto');
+    expect(m.buttons!.enable1).toBe(true);
+    expect(payingMana(m)).toBe(false);
+  });
+
+  it('a selection is not a payment, however it announces itself', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    // `InputSelectTargets` / `InputSelectManyBase` also name a card
+    // (`InputSelectTargets.java:129`, `InputSelectManyBase.java:92-94`), and the
+    // latter's `updateButtons` overload sets only enablement, so an Auto label can
+    // still be standing. A payment opens no selection, so this is excluded.
+    await sendAndApply(s, m, [payBar(true), promptFor('Choose a target', mine[0]!), selectables([mine[1]!], 1, 1)]);
+    expect(m.promptCard).toBe(mine[0]!);
+    expect(m.buttons!.label1).toBe('Auto');
+    expect(payingMana(m)).toBe(false);
+  });
+
+  it('no live input, or a question queued in front of it, is not a payment either', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [payBar(true), promptFor('Pay {1}{U}', mine[0]!), actionable([mine[0]!])]);
+    expect(payingMana(m)).toBe(true);
+
+    // An ask queues in front: nothing on the board is clickable, so nothing here
+    // may claim a press either — the same gate `boardInteraction` uses.
+    await sendAndApply(s, m, [confirmAsk('c-pay')]);
+    expect(payingMana(m)).toBe(false);
+    expect(answerConfirm(m, 'c-pay', true)).toBe(true);
+
+    // And `clearSelectables` ends the input outright.
+    await sendAndApply(s, m, [clear()]);
+    expect(m.inputLive).toBe(false);
+    expect(payingMana(m)).toBe(false);
+  });
+
+  it('a priority window with its own bar is not a payment, card or no card', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [bar(true), prompt('Priority'), actionable([mine[0]!])]);
+    expect(payingMana(m)).toBe(false);
   });
 });
 

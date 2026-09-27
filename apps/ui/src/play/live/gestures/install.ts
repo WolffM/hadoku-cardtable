@@ -39,7 +39,7 @@
  * `selectPlayer`, which re-check Forge's CURRENT offer. A gesture can pick the
  * wrong thing; it cannot put an id on the wire that Forge did not name.
  */
-import { boardInteraction, declaringAttackers, declaringCombat, subscribe } from '../match.ts';
+import { boardInteraction, declaringAttackers, declaringCombat, payingMana, subscribe } from '../match.ts';
 import { clearArrow, drawArrow } from './arrow.ts';
 import { commitDrag, commitMarquee, rectOf, type Rect } from './commit.ts';
 import { applyIntents, clearIntents } from './intent.ts';
@@ -95,6 +95,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * attack and the block gestures to the arrange gesture: §B.2 and §B.3 gone. So
    * the guard yields to `declaringCombat`, and `onDragStart` cancels the native
    * drag for exactly the presses this layer claimed.
+   *
+   * It yields to `payingMana` for the same reason and from the same kind of fact:
+   * `e2e/play.spec.ts:970-972` pays for a cast spell by dragging a land ALREADY
+   * on the battlefield, and a payment opens no selection either, so that land is
+   * natively draggable too.
    */
   const nativelyDraggable = (node: EventTarget | null): boolean => {
     if (!(node instanceof Element)) return false;
@@ -184,14 +189,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
      * because the slop keeps this layer out of one; what is given up is
      * drag-to-play on a card the player can also rearrange.
      *
-     * The exception is combat declaration, where a press on one's own creature IS
-     * the answer Forge is waiting for. See `nativelyDraggable`.
+     * The exceptions are the two inputs where a press on one's own battlefield
+     * card IS the answer Forge is waiting for: combat declaration, and a mana
+     * payment. Both are read off which input Forge is parked on, never off its
+     * prose — see `../match.ts`'s `declaringCombat` and `payingMana`.
      *
      * Before EVERY branch, so the box-draw has it too: a marquee started on a
      * draggable permanent would otherwise rearrange the battlefield and declare
      * attackers in one press.
      */
-    if (nativelyDraggable(event.target) && !declaringCombat(match)) return;
+    if (nativelyDraggable(event.target) && !declaringCombat(match) && !payingMana(match)) return;
     const at = { x: event.clientX, y: event.clientY };
     const offered = boardInteraction(match);
     const under = targetUnder(event.target, offered);
@@ -266,13 +273,23 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * Cancelling `dragstart` aborts that one drag and nothing else: a press this
    * layer did not claim never reaches here with `drag` or `marquee` set, so lane
    * A's arrange gesture is untouched everywhere it owns the press.
+   *
+   * **In the CAPTURE phase, and it also stops propagation.** `preventDefault`
+   * alone aborts the browser's drag but still lets lane A's own `onDragStart`
+   * run — and a `dragstart` that was cancelled fires no `dragend`, so that
+   * lane's `arranging.end()` would never balance its `arranging.start()` and it
+   * would be left believing a drag was in flight. Capturing on the canvas runs
+   * before any handler on the card and before React's own root listener, so for
+   * a press this layer claimed lane A never sees the event at all.
    */
   function onDragStart(event: Event): void {
-    if (drag !== null || marquee !== null) event.preventDefault();
+    if (drag === null && marquee === null) return;
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   canvas.addEventListener('pointerdown', onPointerDown);
-  canvas.addEventListener('dragstart', onDragStart);
+  canvas.addEventListener('dragstart', onDragStart, true);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
@@ -301,7 +318,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     dispose(): void {
       live = false;
       canvas.removeEventListener('pointerdown', onPointerDown);
-      canvas.removeEventListener('dragstart', onDragStart);
+      canvas.removeEventListener('dragstart', onDragStart, true);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);

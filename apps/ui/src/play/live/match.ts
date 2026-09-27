@@ -452,6 +452,19 @@ export interface LiveMatch {
    * stores and replays both on join (`match.ts`'s `resendAfterSnapshot`).
    */
   prompt: string | null;
+  /**
+   * The CARD `showPromptMessage` named, or null — Forge's third argument
+   * (`IGuiGame.java:77`, `ProtocolMethod.java:39`), on our wire since the bridge
+   * was written (`PlayBridge.java:737-742`, and `serializeNulls` there exists
+   * precisely so this key survives as a null).
+   *
+   * We parsed it and threw it away until wave 24. It is the one part of an input's
+   * announcement that is FRESH: it arrives with the prompt, in the same frame,
+   * whereas Forge's button bar is emitted BEFORE the prompt and so lags it — lane
+   * E measured a priority prompt arriving under a stale Yes/No bar against the
+   * real jar. `payingMana` is built on that difference.
+   */
+  promptCard: number | null;
   buttons: LiveButtons | null;
   /** Forge's current selection, from `setSelectables`. Null: none is open. */
   selectables: LiveSelectables | null;
@@ -598,6 +611,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     view: null,
     asks: [],
     prompt: null,
+    promptCard: null,
     buttons: null,
     selectables: null,
     weaklySelectable: null,
@@ -993,6 +1007,64 @@ export function declaringBlockers(match: LiveMatch): boolean {
  */
 function viewerIdOf(view: BoardView): number | null {
   return view.players.find((p) => p.isViewer)?.id ?? null;
+}
+
+/**
+ * `InputPayMana`'s label for button 1 (`lblAuto`). Lane E's `auto.ts` keys
+ * `autoPayReason` on the same string; this is the repo's existing practice for
+ * this exact fact, and it is a BUTTON LABEL rather than a regex over prompt
+ * prose — §0b's rule forbids the latter, not the former.
+ */
+export const AUTO_PAY_LABEL = 'Auto';
+
+/**
+ * Forge is parked on a MANA PAYMENT — so a press on one of this seat's own
+ * battlefield cards is "tap this to pay", not "tidy the battlefield".
+ *
+ * ## Why this exists
+ *
+ * `e2e/play.spec.ts:970-972` pays for a spell it just cast by dragging a land
+ * that is ALREADY on the battlefield, and `e2e/table-fit.spec.ts` drags an
+ * equally-offered land between rows to ARRANGE it. Both cards are in Forge's
+ * actionable set, so "is it offered" cannot separate them. What separates them is
+ * which input Forge is parked on — the same axis `declaringCombat` uses.
+ *
+ * ## Four facts, and why each one is here
+ *
+ *  - **`promptCard !== null`** is the load-bearing one, and it is the FRESH one.
+ *    `InputPayMana.updateMessage` announces itself with the ability being paid
+ *    for — `showMessage(getMessage(), saPaidFor.getView())`, `InputPayMana.java:410`
+ *    — while `InputPassPriority` passes no card at all. Lane E measured that
+ *    Forge's button bar is emitted BEFORE the prompt and therefore LAGS it
+ *    (`InputConfirm.java:107-121`), so a lingering `Auto` bar can outlive its
+ *    input; the prompt cannot, because the next input overwrites `promptCard`
+ *    with its own value in the same frame that carries its message. **This is the
+ *    guard against the stale bar**, and its test says so.
+ *  - **`buttons.label1 === AUTO_PAY_LABEL`** identifies the input. Both of
+ *    `InputPayMana`'s bars carry it — `:391` at the start and `:405` once a
+ *    payment exists — and no other input puts it in label 1
+ *    (`InputLondonMulligan.java:65` puts `lblAuto` in label TWO).
+ *  - **`selectables === null`.** `InputPayMana` is not one of `setSelectables`'
+ *    two call sites, so a payment never opens a selection. This is what excludes
+ *    the other inputs that announce themselves WITH a card —
+ *    `InputSelectTargets.java:129`, `InputSelectManyBase.java:92-94` — and
+ *    `InputSelectManyBase` matters because its `updateButtons`
+ *    (`InputSelectManyBase.java:98`) is the enablement-only overload and leaves
+ *    whatever labels were there before.
+ *  - **an input is live and nothing is queued in front of it**, the same gate
+ *    `boardInteraction` uses, so this can never contradict what is clickable.
+ *
+ * `enable1` is deliberately NOT required. It means *"auto-pay is possible"*
+ * (`:405` fires only when `autoPayManaSources != null`), not *"the payment input
+ * is running"* — and a cost that CANNOT be auto-paid is exactly the case where
+ * the player must tap sources by hand, which is the gesture this predicate
+ * exists to allow. Freshness is carried by `promptCard`, not by enablement.
+ */
+export function payingMana(match: LiveMatch): boolean {
+  if (!match.inputLive || match.asks.length > 0) return false;
+  if (match.selectables !== null) return false;
+  if (match.promptCard === null) return false;
+  return match.buttons !== null && match.buttons.label1 === AUTO_PAY_LABEL;
 }
 
 /**
@@ -1444,6 +1516,9 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
   if (INPUT_FRAMES.has(frame.method)) unspend(match);
   if (frame.kind === 'notify' && frame.method === 'showPromptMessage') {
     match.prompt = typeof frame.message === 'string' ? frame.message : null;
+    // Overwritten by EVERY prompt, including with null. That is what makes it
+    // fresh: see the field's note, and `payingMana`.
+    match.promptCard = frame.card === null ? null : frame.card.id;
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'updateButtons') {
     match.buttons = {
@@ -1522,6 +1597,7 @@ function discardLocal(match: LiveMatch): void {
   match.view = null;
   match.asks = [];
   match.prompt = null;
+  match.promptCard = null;
   match.buttons = null;
   match.selectables = null;
   match.weaklySelectable = null;
