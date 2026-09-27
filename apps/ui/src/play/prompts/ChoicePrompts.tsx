@@ -19,14 +19,16 @@ import { useState } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
-import { PromptShell, promptCardTile } from './PromptShell.tsx';
-import { plainRulesText, refName } from './lookup.ts';
+import { PromptShell, promptTileFor } from './PromptShell.tsx';
+import { plainRulesText, refName, type PromptLookup } from './lookup.ts';
 import {
   abilityProblems,
   choiceBounds,
   chooseEntitiesProblems,
   chooseSingleProblems,
   getChoicesProblems,
+  searchRows,
+  type SearchRow,
 } from './rules.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
 import type { CardRef, EntityRef } from '@hadoku/forge-wire';
@@ -59,11 +61,41 @@ function boundsText(min: number, max: number): string {
  * by that value — see the DOM contract at `Board.tsx`). The input that chooses
  * it is rendered by the caller inside the same `<label>`.
  */
-function ChoiceTile({ cardRef, name }: { cardRef: CardRef; name: string }) {
-  return <CardTile card={promptCardTile(cardRef.id, name)} />;
+function ChoiceTile({ cardRef, lookup, label }: { cardRef: CardRef; lookup: PromptLookup; label?: string }) {
+  return <CardTile card={promptTileFor(lookup, cardRef.id, label)} />;
 }
 
-export function GetChoicesPrompt({ ask, onAnswer }: PromptProps<'getChoices'>) {
+/**
+ * The face of one row in a choosing list: a card is a tile, a player is their
+ * name plus the `player` tag, anything else is the words `lookup` has for it.
+ */
+function RowFace({ entity, lookup }: { entity: EntityRef; lookup: PromptLookup }) {
+  if (entity.kind === 'card') return <ChoiceTile cardRef={entity} lookup={lookup} />;
+  return (
+    <>
+      {refName(lookup, entity)}
+      {entity.kind === 'player' && <span className="prompt__tag">player</span>}
+    </>
+  );
+}
+
+/**
+ * A row Forge did NOT offer: drawn, in its place, and not selectable.
+ *
+ * Two signals, never colour alone: no tick (so no border can light up) and the
+ * word Forge's own frame implies — it was revealed, not offered. `data-choosable`
+ * is what `prompts.css` dims and what `search.jvm.test.ts` reads.
+ */
+function UnofferedRow({ row, lookup }: { row: SearchRow; lookup: PromptLookup }) {
+  return (
+    <span className="prompt__tile" data-testid="prompt-unoffered">
+      <RowFace entity={row.ref} lookup={lookup} />
+      <span className="prompt__tag">not offered</span>
+    </span>
+  );
+}
+
+export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoices'>) {
   const bounds = choiceBounds(ask.min, ask.max);
   const known = new Set(ask.choices.map((c) => c.key));
   const [chosen, setChosen] = useState<string[]>(() => ask.selected.filter((k) => known.has(k)));
@@ -87,7 +119,7 @@ export function GetChoicesPrompt({ ask, onAnswer }: PromptProps<'getChoices'>) {
             <li key={c.key} data-card-id={cardRef !== null ? cardRef.id : undefined}>
               {bounds.max === 0 ? (
                 <span className="prompt__tile" data-testid="prompt-choice">
-                  {cardRef !== null ? <ChoiceTile cardRef={cardRef} name={name} /> : name}
+                  {cardRef !== null ? <ChoiceTile cardRef={cardRef} lookup={lookup} label={name} /> : name}
                 </span>
               ) : (
                 <label>
@@ -98,7 +130,7 @@ export function GetChoicesPrompt({ ask, onAnswer }: PromptProps<'getChoices'>) {
                     checked={chosen.includes(c.key)}
                     onChange={() => setChosen((prev) => toggle(prev, c.key, bounds.max === 1))}
                   />
-                  {cardRef !== null ? <ChoiceTile cardRef={cardRef} name={name} /> : name}
+                  {cardRef !== null ? <ChoiceTile cardRef={cardRef} lookup={lookup} label={name} /> : name}
                 </label>
               )}
             </li>
@@ -117,7 +149,10 @@ export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<
     assertAnswerable('chooseSingleEntityForEffect', problems);
     onAnswer(checkedReply('chooseSingleEntityForEffect', reply));
   };
-  const anyCards = ask.optionList.some((r) => r.kind === 'card');
+  // Choosable first, in Forge's order; then what Forge only revealed. One grid,
+  // not two — §D.2. `rules.ts` owns the order and the flag.
+  const rows = searchRows(ask);
+  const anyCards = rows.some((r) => r.ref.kind === 'card');
 
   return (
     <PromptShell
@@ -129,26 +164,27 @@ export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<
     >
       <DelayedRevealNote reveal={ask.delayedReveal} lookup={lookup} />
       <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>
-        {ask.optionList.map((ref, i) => (
-          <li key={`${ref.kind}:${ref.id}`} data-card-id={ref.kind === 'card' ? ref.id : undefined}>
-            <label>
-              <input
-                type="radio"
-                name="prompt-single"
-                data-testid="prompt-choice"
-                data-ref={`${ref.kind}:${ref.id}`}
-                checked={chosen === i}
-                onChange={() => setChosen(i)}
-              />
-              {ref.kind === 'card' ? (
-                <ChoiceTile cardRef={ref} name={refName(lookup, ref)} />
-              ) : (
-                <>
-                  {refName(lookup, ref)}
-                  {ref.kind === 'player' && <span className="prompt__tag">player</span>}
-                </>
-              )}
-            </label>
+        {rows.map((row) => (
+          <li
+            key={`${row.ref.kind}:${row.ref.id}`}
+            data-card-id={row.ref.kind === 'card' ? row.ref.id : undefined}
+            data-choosable={row.choosable ? undefined : 'false'}
+          >
+            {row.option === null ? (
+              <UnofferedRow row={row} lookup={lookup} />
+            ) : (
+              <label>
+                <input
+                  type="radio"
+                  name="prompt-single"
+                  data-testid="prompt-choice"
+                  data-ref={`${row.ref.kind}:${row.ref.id}`}
+                  checked={chosen === row.option}
+                  onChange={() => setChosen(row.option)}
+                />
+                <RowFace entity={row.ref} lookup={lookup} />
+              </label>
+            )}
           </li>
         ))}
       </ul>
@@ -170,25 +206,36 @@ export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'cho
     assertAnswerable('chooseEntitiesForEffect', problems);
     onAnswer(checkedReply('chooseEntitiesForEffect', reply));
   };
-  const anyCards = ask.optionList.some((r) => r.kind === 'card');
+  // Choosable first, then what Forge only revealed — the same one grid §D.2
+  // gives the single-choice prompt.
+  const rows = searchRows(ask);
+  const anyCards = rows.some((r) => r.ref.kind === 'card');
 
   return (
     <PromptShell method="chooseEntitiesForEffect" title={ask.title} problems={problems} onSubmit={submit}>
       <DelayedRevealNote reveal={ask.delayedReveal} lookup={lookup} />
       <p className="prompt__hint">{boundsText(bounds.min, bounds.max)}</p>
       <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>
-        {ask.optionList.map((ref, i) => (
-          <li key={`${ref.kind}:${ref.id}`} data-card-id={ref.kind === 'card' ? ref.id : undefined}>
-            <label>
-              <input
-                type="checkbox"
-                data-testid="prompt-choice"
-                data-ref={`${ref.kind}:${ref.id}`}
-                checked={chosen.includes(i)}
-                onChange={() => setChosen((prev) => toggle(prev, i, bounds.max === 1))}
-              />
-              {ref.kind === 'card' ? <ChoiceTile cardRef={ref} name={refName(lookup, ref)} /> : refName(lookup, ref)}
-            </label>
+        {rows.map((row) => (
+          <li
+            key={`${row.ref.kind}:${row.ref.id}`}
+            data-card-id={row.ref.kind === 'card' ? row.ref.id : undefined}
+            data-choosable={row.choosable ? undefined : 'false'}
+          >
+            {row.option === null ? (
+              <UnofferedRow row={row} lookup={lookup} />
+            ) : (
+              <label>
+                <input
+                  type="checkbox"
+                  data-testid="prompt-choice"
+                  data-ref={`${row.ref.kind}:${row.ref.id}`}
+                  checked={chosen.includes(row.option)}
+                  onChange={() => setChosen((prev) => toggle(prev, row.option!, bounds.max === 1))}
+                />
+                <RowFace entity={row.ref} lookup={lookup} />
+              </label>
+            )}
           </li>
         ))}
       </ul>
@@ -232,10 +279,15 @@ export function GetAbilityToPlayPrompt({ ask, onAnswer, lookup }: PromptProps<'g
 }
 
 /**
- * `DelayedReveal`: cards the effect will show afterwards (a search, say).
- * Forge's desktop reveals them first (`CMatchUI.java:1335-1337`); this draws
- * them as the same tiles a choice draws, above the choice — the same
- * information without a second modal, and never a joined text list.
+ * `DelayedReveal`: the CAPTION of a search — Forge's own words for what the
+ * seat is looking at, and whose zone it came from.
+ *
+ * It used to draw the revealed cards as a second grid of its own, above the
+ * options, so a fetchland showed the whole library once un-pickable and then
+ * its Islands and Mountains again below — the operator's *"library search"*
+ * complaint (#3) was exactly that shape. The cards now live in the ONE grid the
+ * prompt draws, choosable first (`rules.ts` `searchRows`), so this is the line
+ * that names the pile and nothing more.
  */
 function DelayedRevealNote({
   reveal,
@@ -246,22 +298,11 @@ function DelayedRevealNote({
 }) {
   if (reveal === null) return null;
   return (
-    <div className="prompt__reveal" data-testid="prompt-reveal">
-      <p>
-        {reveal.messagePrefix}{' '}
-        <span className="prompt__tag">
-          from {refName(lookup, reveal.owner)}&rsquo;s {reveal.zones.join(', ')}
-        </span>
-      </p>
-      <ul className="prompt__cards prompt__cards--reveal">
-        {reveal.cards.map((cardRef) => (
-          <li key={cardRef.id} data-card-id={cardRef.id}>
-            <span className="prompt__tile">
-              <ChoiceTile cardRef={cardRef} name={refName(lookup, cardRef)} />
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <p className="prompt__reveal" data-testid="prompt-reveal">
+      {reveal.messagePrefix}{' '}
+      <span className="prompt__tag">
+        from {refName(lookup, reveal.owner)}&rsquo;s {reveal.zones.join(', ')}
+      </span>
+    </p>
   );
 }

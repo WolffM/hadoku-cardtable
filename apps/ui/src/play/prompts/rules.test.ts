@@ -25,6 +25,7 @@ import {
   moveItem,
   optionDialogProblems,
   orderProblems,
+  searchRows,
   sideboardProblems,
   zoneReplyProblems,
   zonesOpened,
@@ -175,6 +176,104 @@ describe('autoAnswer', () => {
     ]) {
       expect(autoAnswer(ask), ask.method).toBeNull();
     }
+  });
+
+  /*
+   * Wave 24 §D.5 — a REVEAL is not answered here, and these are the guards that
+   * keep it that way.
+   *
+   * `reveal(message, items)` IS `getChoices(message, -1, -1, items)`
+   * (`AbstractGuiGame.java:785-788`), so a reveal has exactly one legal reply
+   * and looks like the easiest auto-answer in the file. Answering it would
+   * delete the information: `answerAsk` closes the ask at once
+   * (`../live/match.ts`'s `answerAsk` closes it before sending) and
+   * `../live/LiveBoard.tsx` draws nothing for an ask that answers itself. A shortcut may remove a question, never
+   * information.
+   */
+  it('never answers a reveal — a getChoices with max <= 0 keeps its OK', () => {
+    const reveal = asksFor('getChoices').find((a) => a.max < 0)!;
+    expect(reveal.min).toBeLessThan(0);
+    expect(autoAnswer(reveal)).toBeNull();
+    // And the same ask with Forge's other display-only bound.
+    expect(autoAnswer({ ...reveal, min: 0, max: 0 })).toBeNull();
+    // A one-card reveal is still a reveal, not a question with one answer.
+    expect(autoAnswer({ ...reveal, choices: [reveal.choices[0]!] })).toBeNull();
+  });
+
+  it('never answers a confirm, not even a one-button one — declining is the player’s', () => {
+    // `confirmPayment` reaches a seat as a question with two buttons
+    // (`HumanCostDecision.java:1515-1535` → `InputConfirm`), and a "no" aborts
+    // the activation (`visit(CostPayLife)`, `HumanCostDecision.java:733-740`).
+    // That is a real decline, and nothing here answers it for the player.
+    expect(autoAnswer(askFor('confirm'))).toBeNull();
+    expect(autoAnswer(asksFor('confirm').find((a) => a.options.length === 1)!)).toBeNull();
+  });
+
+  it('never answers a manipulateCardList with one destination — a pile is information', () => {
+    const ask = askFor('manipulateCardList');
+    expect(autoAnswer({ ...ask, toTop: false, toBottom: true })).toBeNull();
+    expect(autoAnswer({ ...ask, manipulable: [] })).toBeNull();
+  });
+});
+
+/*
+ * §D.2 — a search's rows come from Forge's two lists and from nothing else.
+ */
+describe('searchRows', () => {
+  const base = askFor('chooseSingleEntityForEffect');
+  const searchAsk = (options: readonly number[], revealed: readonly number[]) => ({
+    ...base,
+    optionList: options.map((id) => card(id)),
+    delayedReveal: {
+      cards: revealed.map((id) => card(id)),
+      zones: ['Library' as const],
+      owner: player(0),
+      messagePrefix: 'Looking at cards in',
+    },
+  });
+
+  it('puts the options first, in Forge’s order, then what was only revealed', () => {
+    const rows = searchRows(searchAsk([67, 99], [21, 67, 99, 2]));
+    expect(rows.map((r) => [r.ref.id, r.choosable, r.option])).toEqual([
+      [67, true, 0],
+      [99, true, 1],
+      [21, false, null],
+      [2, false, null],
+    ]);
+  });
+
+  it('never draws a card twice, however the two lists overlap', () => {
+    const rows = searchRows(searchAsk([67], [67, 67, 99]));
+    expect(rows.map((r) => r.ref.id)).toEqual([67, 99]);
+  });
+
+  it('is exactly the options when there is no reveal', () => {
+    expect(searchRows(base).map((r) => [r.ref, r.choosable])).toEqual(base.optionList.map((r) => [r, true]));
+  });
+
+  it('is exactly the reveal when Forge offered nothing', () => {
+    const rows = searchRows(searchAsk([], [21, 67]));
+    expect(rows.map((r) => [r.ref.id, r.choosable, r.option])).toEqual([
+      [21, false, null],
+      [67, false, null],
+    ]);
+  });
+
+  it('carries only ids the ask itself named', () => {
+    const ask = searchAsk([67, 99], [21, 67]);
+    const carried = new Set([...ask.optionList, ...ask.delayedReveal.cards].map((r) => `${r.kind}:${r.id}`));
+    for (const row of searchRows(ask)) expect(carried.has(`${row.ref.kind}:${row.ref.id}`)).toBe(true);
+    expect(searchRows(ask)).toHaveLength(carried.size);
+  });
+
+  it('keeps a player option choosable — a reveal is cards, the options need not be', () => {
+    const ask = { ...searchAsk([67], [67, 99]), optionList: [player(1), card(67)] };
+    const rows = searchRows(ask);
+    expect(rows.map((r) => [r.ref.kind, r.ref.id, r.choosable])).toEqual([
+      ['player', 1, true],
+      ['card', 67, true],
+      ['card', 99, false],
+    ]);
   });
 });
 

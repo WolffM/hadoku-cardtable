@@ -28,6 +28,18 @@ import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from '
 
 export interface PromptCardFacts {
   name: string;
+  /**
+   * Forge's `SetCode` for the face on show — the other half of the art-id key.
+   *
+   * `adapter.ts` resolves a board card's art with `Name` + `SetCode`
+   * (`scryfallIdFor(artIds, name, card.setCode)`), and a prompt tile used to
+   * resolve with the name alone, so a prompt could draw a different printing
+   * from the board for the same card (or nothing, where only the exact
+   * printing has a row). Carrying the set code here is what makes
+   * `PromptShell`'s `promptCardTile` use **the same** key the board uses —
+   * wave 24 §D.3. Empty when the wire did not carry one.
+   */
+  setCode: string;
   /** Forge's `CardView.getLethalDamage()` — toughness minus damage already marked. */
   lethalDamage: number | null;
   /** Current loyalty, for a planeswalker; `null` otherwise. */
@@ -97,6 +109,7 @@ export function lookupFromState(state: WireState): PromptLookup {
       const loyalty = loyaltyText === null ? null : Number.parseInt(loyaltyText, 10);
       return {
         name: readStr(face, 'Name') ?? readStr(view, 'Name') ?? `card #${id}`,
+        setCode: readStr(face, 'SetCode') ?? '',
         lethalDamage: readInt(view, 'LethalDamage'),
         loyalty: loyalty !== null && Number.isFinite(loyalty) ? loyalty : null,
         keywords: readKeywords(face),

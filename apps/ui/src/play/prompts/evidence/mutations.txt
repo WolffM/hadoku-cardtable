@@ -45,3 +45,97 @@ Tests  2 failed | 130 passed (132)
 Test Files  9 passed (9)
 Tests  132 passed (132)
 exit 0
+
+# ── Wave 24 lane D (2026-09-26) — the search view and the auto-answer guards ──
+#
+# Same method, same harness. Each mutation edits ONE file under
+# apps/ui/src/play/prompts/, then
+#   flock -x /tmp/claude-1000/w24.lock npx vitest run apps/ui/src/play/prompts
+# records the exit code and the failing tests, copies the original back and
+# `cmp`s it (identical in every case below).
+#
+# Baseline and restored, both: Test Files 9 passed | 1 skipped (10)
+#                              Tests 168 passed | 1 skipped (169), exit 0
+# (The 1 skipped is search.jvm.test.ts, which needs CARDTABLE_FORGE_JAR.)
+
+## hidden-info-fabricated-row  (rules.ts)
+# searchRows: 'rows.push({ ref, option: null, choosable: false })'
+#          -> 'rows.push({ ref: { kind: "card", id: ref.id + 1 }, option: null, choosable: false })'
+# i.e. the search view draws a card id the ask never carried.
+exit 1
+Tests  9 failed | 159 passed | 1 skipped (169)
+× searchRows > puts the options first, in Forge's order, then what was only revealed
+× searchRows > never draws a card twice, however the two lists overlap
+× searchRows > is exactly the reveal when Forge offered nothing
+× searchRows > carries only ids the ask itself named
+× searchRows > keeps a player option choosable — a reveal is cards, the options need not be
+× a library search > puts what Forge offered first and draws the rest present but not selectable
+× a library search > draws EXACTLY the ids the ask carried — never one the lookup happens to know
+× a library search > resolves art through the same Name|SET key the board uses
+× a library search > a reveal with no options at all is still drawn, every card, none of them pickable
+restored: identical
+
+## choosable-inverted  (rules.ts)
+# searchRows: the two 'choosable:' flags swapped — the options become the
+# un-pickable rows and the revealed-only cards become pickable. This is
+# "invert Forge's own answer".
+exit 1
+Tests  7 failed | 161 passed | 1 skipped (169)
+× searchRows > puts the options first, in Forge's order, then what was only revealed
+× searchRows > is exactly the options when there is no reveal
+× searchRows > is exactly the reveal when Forge offered nothing
+× searchRows > keeps a player option choosable — a reveal is cards, the options need not be
+× chooseEntitiesForEffect > captions the reveal and draws its cards in the ONE grid, answering the refs chosen in offer order
+× a library search > puts what Forge offered first and draws the rest present but not selectable
+× a library search > a reveal with no options at all is still drawn, every card, none of them pickable
+restored: identical
+
+## reveal-auto-answered  (rules.ts)
+# autoAnswer: a line added ahead of the method guard that answers a reveal
+#   'if (ask.method === "getChoices" && ask.max <= 0) return { … why: "revealed" };'
+# — the change §D.5 looks like it wants and that would delete the information.
+exit 1
+Tests  1 failed | 167 passed | 1 skipped (169)
+× autoAnswer > never answers a reveal — a getChoices with max <= 0 keeps its OK
+restored: identical
+
+## confirm-auto-answered  (rules.ts)
+# autoAnswer: the same shape, for `confirm` — the ask a cost confirm arrives as
+# when Forge's frame makes it one, where a "no" aborts the activation.
+exit 1
+Tests  2 failed | 166 passed | 1 skipped (169)
+× autoAnswer > answers only getAbilityToPlay: everything else with one legal reply is the server's
+× autoAnswer > never answers a confirm, not even a one-button one — declining is the player's
+restored: identical
+
+## two-abilities-auto-answered  (rules.ts)
+# autoAnswer: 'if (ask.abilities.length !== 1) return null' -> '< 1'
+# i.e. a two-ability offer — a genuine choice — answered for the player.
+exit 1
+Tests  1 failed | 167 passed | 1 skipped (169)
+× autoAnswer > asks when there are two abilities: that is a real choice
+restored: identical
+
+## unoffered-becomes-selectable  (ChoicePrompts.tsx)
+# ChooseSingleEntityPrompt: 'row.option === null ? <UnofferedRow …> : <label>…'
+#                        -> 'false ? …' — every revealed row gets a tick.
+exit 1
+Tests  3 failed | 165 passed | 1 skipped (169)
+× a library search > puts what Forge offered first and draws the rest present but not selectable
+× a library search > answers only an offered ref — the revealed-only card can never be sent
+× a library search > a reveal with no options at all is still drawn, every card, none of them pickable
+restored: identical
+
+## art-key-drops-setcode  (PromptShell.tsx)
+# promptCardTile: 'scryfallIdFor(KNOWN_ART_IDS, name, setCode)'
+#              -> 'scryfallIdFor(KNOWN_ART_IDS, name, "")' — the pre-wave-24
+# behaviour, where a prompt tile could draw a different printing than the board.
+exit 1
+Tests  1 failed | 167 passed | 1 skipped (169)
+× a prompt tile and the board resolve the same printing > uses Name|SET, not the bare name, for a card whose printings differ
+restored: identical
+
+## restored (all three files cmp identical to their saved copies)
+Test Files  9 passed | 1 skipped (10)
+Tests  168 passed | 1 skipped (169)
+exit 0

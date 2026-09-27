@@ -54,10 +54,6 @@
   overflow-wrap: anywhere;
 }
 
-/* The reveal is a note plus the tiles it names (`prompt__cards--reveal`). */
-.prompt__reveal p {
-  margin: 0 0 4px;
-}
 
 .prompt__list,
 .prompt__amounts {
@@ -113,10 +109,6 @@
   gap: 6px;
 }
 
-.prompt__cards--reveal {
-  --card-w: 5rem;
-}
-
 .prompt__cards > li {
   display: flex;
   flex-direction: column;
@@ -147,6 +139,32 @@
 .prompt__cards > li[data-movable] {
   border-color: var(--accent);
   cursor: pointer;
+}
+
+/*
+ * A row the ask REVEALED but did not offer (wave 24 §D.2).
+ *
+ * Forge sends the two lists — the filtered options and the whole pile it is
+ * showing (`rules.ts` `searchRows`) — and this is the "present but visibly not
+ * selectable" half. Three signals, so colour is never the only one: it is
+ * dimmed, it has no tick and therefore can never grow the chosen border, and it
+ * carries the word `not offered`. There is nothing in the row to click, so a
+ * click that appeared to do nothing cannot happen.
+ *
+ * It is NOT `display: none` and never will be — the whole point of the row is
+ * that the seat sees what Forge showed it.
+ */
+.prompt__cards > li[data-choosable='false'],
+.prompt__list > li[data-choosable='false'] {
+  opacity: 0.55;
+  border-style: dashed;
+  cursor: default;
+}
+
+.prompt__cards > li[data-choosable='false'] {
+  /* Already after the offered rows in the DOM; this keeps a dimmed tile from
+     stretching taller than the ones beside it. */
+  align-self: start;
 }
 
 /*

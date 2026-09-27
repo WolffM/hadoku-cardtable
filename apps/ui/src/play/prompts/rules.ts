@@ -147,6 +147,56 @@ export function abilityProblems(
   return ask.abilities.some((a) => a.id === reply.id) ? [] : [`ability #${reply.id} was not offered`];
 }
 
+/* ── A search: what is choosable, and what is only being looked at ───── */
+
+/**
+ * One row of a search view: an entity the ask carried, and whether **Forge**
+ * offered it.
+ *
+ * Wave 24 §D.2, the operator: *"library search: valid targets at top, rest
+ * greyed"*. The two lists that say so are already in one ask, and both come
+ * from `ChangeZoneEffect`'s search
+ * (`forge-game/src/main/java/forge/game/ability/effects/ChangeZoneEffect.java`):
+ *
+ *   - `optionList` is Forge's `fetchList`, already filtered by the ability's
+ *     `ChangeType` (`:1096-1099`) — a Scalding Tarn's Islands and Mountains
+ *     and nothing else. **These and only these may be answered.**
+ *   - `delayedReveal.cards` is `toReveal`: the WHOLE library (`:1047-1052`),
+ *     captioned "<source> - Looking at cards in …" (`:1062`).
+ *
+ * So "choosable" is never a rule of ours — it is membership in the list Forge
+ * sent as the options. A revealed card that is not in it is drawn, in Forge's
+ * own order, and cannot be picked. Nothing is invented and nothing is hidden:
+ * every row is an id this seat was sent in this ask.
+ *
+ * `option` is the index into `optionList`, so a component answers with
+ * `ask.optionList[option]` and the reply is byte-identical to what it was
+ * before this view existed.
+ */
+export interface SearchRow {
+  ref: ReplyOf<'chooseEntitiesForEffect'>[number];
+  /** Its index in `optionList`, or `null` when Forge did not offer it. */
+  option: number | null;
+  /** Forge's own answer. Exactly `option !== null`. */
+  choosable: boolean;
+}
+
+export function searchRows(
+  ask: AskOf<'chooseSingleEntityForEffect'> | AskOf<'chooseEntitiesForEffect'>,
+): SearchRow[] {
+  const rows: SearchRow[] = ask.optionList.map((ref, option) => ({ ref, option, choosable: true }));
+  const drawn = new Set(ask.optionList.map(refKey));
+  for (const ref of ask.delayedReveal?.cards ?? []) {
+    const key = refKey(ref);
+    // A reveal can name a card the options already hold, and Forge's own
+    // `toReveal` can repeat one (two zones concatenated). Each entity draws once.
+    if (drawn.has(key)) continue;
+    drawn.add(key);
+    rows.push({ ref, option: null, choosable: false });
+  }
+  return rows;
+}
+
 /* ── Zones ───────────────────────────────────────────────────────────── */
 
 /** `CMatchUI.FLOATING_ZONE_TYPES` (CMatchUI.java:150-152). */
@@ -467,6 +517,33 @@ export function sideboardProblems(ask: AskOf<'sideboard'>, reply: ReplyOf<'sideb
  * `InputPayMana.onCardSelected` for a land, which plays a lone mana ability
  * itself and only asks for two or more (`InputPayMana.java:101-106`) — so the
  * player has already said what they want.
+ *
+ * ## Why a REVEAL is still not answered here (wave 24 §D.5)
+ *
+ * The operator asked for a reveal that *"shows both players at once and needs
+ * no OK"*. A reveal is `getChoices` with `min === max === -1`
+ * (`AbstractGuiGame.java:785-788`: `reveal(message, items)` IS
+ * `getChoices(message, -1, -1, items)`), reached from
+ * `PlayerControllerHuman.reveal` (`PlayerControllerHuman.java:933-972`), and it
+ * has exactly one legal reply — the empty list. So it looks like the easiest
+ * auto-answer in the file, and it is refused on purpose:
+ *
+ * **answering it here would delete the information.** `answerAsk` closes the
+ * ask the instant the reply is sent (`../live/match.ts`'s `answerAsk`, which
+ * calls `closeAsk` before it sends) and `../live/LiveBoard.tsx` draws nothing at
+ * all for an ask that answers itself (`const ask = auto === null ? pending : null`) — so the revealed cards would never reach a screen. A
+ * shortcut may remove a question, never information (`apps/server/src/play/auto.ts`
+ * says the same thing about the same ask).
+ *
+ * What would make it safe is a surface that outlives the ask, and the data for
+ * one is already on the wire and unread: `TrackableProperty.RevealedCardsCollection`
+ * (`forge-game/src/main/java/forge/trackable/TrackableProperty.java:48`), which
+ * `PlayerControllerHuman.reveal` fills through `getGui().updateRevealedCards`
+ * (`:970`, `AbstractGuiGame.java:252-260`) and `apps/ui/src/play/adapter.ts`
+ * does not read. Until something draws that, the reveal keeps its OK. The
+ * "both players" half needs nothing from us: `reveal` is called on each
+ * player's own controller by the effect, so a seat is asked **only when Forge
+ * revealed to it** — the UI never decides to share.
  */
 export type AutoAnswer = {
   method: 'getAbilityToPlay';

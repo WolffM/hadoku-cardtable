@@ -23,7 +23,7 @@ import { useState, type DragEvent } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
-import { PromptShell, promptCardTile } from './PromptShell.tsx';
+import { PromptShell, promptTileFor } from './PromptShell.tsx';
 import { plainRulesText, refName } from './lookup.ts';
 import { moveItem, orderProblems } from './rules.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
@@ -58,7 +58,7 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
   /** One item's face: the tile when the item is a card, the words otherwise. */
   const face = (key: string) => {
     const id = cardIdOf.get(key);
-    if (id !== undefined) return <CardTile card={promptCardTile(id, labelOf.get(key)!)} />;
+    if (id !== undefined) return <CardTile card={promptTileFor(lookup, id, labelOf.get(key)!)} />;
     return <span className="prompt__item">{labelOf.get(key)}</span>;
   };
 

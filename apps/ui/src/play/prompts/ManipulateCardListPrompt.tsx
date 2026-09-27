@@ -53,7 +53,7 @@ import { useState, type DragEvent } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
-import { PromptShell, promptCardTile } from './PromptShell.tsx';
+import { PromptShell, promptTileFor } from './PromptShell.tsx';
 import { refName } from './lookup.ts';
 import { manipulateProblems, moveItem } from './rules.ts';
 import { assertAnswerable, checkedReply, type AskOf, type PromptProps } from './types.ts';
@@ -191,7 +191,7 @@ export function ManipulateCardListPrompt({ ask, onAnswer, lookup }: PromptProps<
           // this whole file is about, so it is not drawn.
           const clickable = canMove && ends.length > 0;
           const name = refName(lookup, card);
-          const tile = <CardTile card={promptCardTile(card.id, name)} />;
+          const tile = <CardTile card={promptTileFor(lookup, card.id)} />;
           return (
             <li
               key={card.id}

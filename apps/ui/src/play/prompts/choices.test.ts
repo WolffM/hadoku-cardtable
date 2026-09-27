@@ -20,6 +20,7 @@ import { askFor, asksFor } from './fixtures.ts';
 import { EMPTY_LOOKUP, type PromptLookup } from './lookup.ts';
 import { expectWireReply, mountPrompt } from './testing.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
+import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import poolData from '../../draft/pool.json' with { type: 'json' };
 
 afterEach(cleanup);
@@ -29,13 +30,13 @@ const labels = (els: HTMLElement[]) => els.map((e) => e.closest('li')!.textConte
 /** Three real pool cards — the art-id table knows every one of them. */
 const POOL = (() => {
   const seen = new Set<string>();
-  const unique: { name: string; scryfallId: string }[] = [];
-  for (const c of (poolData as { cards: { name: string; scryfallId?: string }[] }).cards) {
+  const unique: { name: string; setCode: string; scryfallId: string }[] = [];
+  for (const c of (poolData as { cards: { name: string; setCode: string; scryfallId?: string }[] }).cards) {
     // First occurrence per name: that is the row the art-id index keeps, so
     // the tile's art is this printing's art, not a duplicate's.
     if (c.scryfallId === undefined || c.scryfallId === '' || seen.has(c.name)) continue;
     seen.add(c.name);
-    unique.push({ name: c.name, scryfallId: c.scryfallId });
+    unique.push({ name: c.name, setCode: c.setCode, scryfallId: c.scryfallId });
     if (unique.length === 3) break;
   }
   return unique;
@@ -49,7 +50,7 @@ const poolLookup: PromptLookup = {
     const hit = POOL[id - POOL_ID_BASE];
     return hit === undefined
       ? undefined
-      : { name: hit.name, lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false };
+      : { name: hit.name, setCode: hit.setCode, lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false };
   },
 };
 
@@ -168,24 +169,30 @@ describe('chooseSingleEntityForEffect', () => {
 });
 
 describe('chooseEntitiesForEffect', () => {
-  it('shows the delayed reveal as tiles and answers the refs chosen, in offer order', () => {
+  it('captions the reveal and draws its cards in the ONE grid, answering the refs chosen in offer order', () => {
     const { getAllByTestId, getByTestId, answers, submit } = mountPrompt(
       'chooseEntitiesForEffect',
       askFor('chooseEntitiesForEffect'),
     );
+    // The reveal is now the CAPTION only (§D.2): Forge's words for the pile,
+    // and no second grid of its own.
     const reveal = getByTestId('prompt-reveal');
     expect(reveal.textContent).toContain('Looking at:');
+    expect(reveal.querySelectorAll('.card')).toHaveLength(0);
     // Match on the VALUE, not the attribute: `CardTile` stamps its own
-    // `data-card-id` in the `w<forge id>` namespace (`Board.tsx`, `adapter.ts:317`),
+    // `data-card-id` in the `w<forge id>` namespace (`Board.tsx`, `adapter.ts`'s `toBoardCard`),
     // so a bare `[data-card-id]` selector also picks up the tile's own nested
-    // element — that duplication is expected, not a bug. Only the wrapper
-    // `<li>`s carry the bare forge id.
-    const revealed = [...reveal.querySelectorAll<HTMLElement>(':scope > ul > li[data-card-id]')];
-    expect(revealed.map((li) => li.dataset.cardId)).toEqual(['20', '11', '2']);
-    expect(reveal.querySelectorAll('.card')).toHaveLength(3);
-    // Never one line joining the names: each revealed card is its own tile.
-    expect(reveal.textContent).not.toContain('Fire Urchin, Rubblebelt Boar, Ral’s Staticaster');
-    expect(reveal.textContent).not.toContain("Fire Urchin, Rubblebelt Boar, Ral's Staticaster");
+    // element. Only the wrapper `<li>`s carry the bare forge id.
+    const grid = getByTestId('prompt-cards');
+    const tiles = [...grid.querySelectorAll<HTMLElement>(':scope > li')];
+    // This fixture's reveal names exactly its options, so every row is
+    // choosable and nothing is drawn twice.
+    expect(tiles.map((li) => li.dataset.cardId)).toEqual(['20', '11', '2']);
+    expect(tiles.map((li) => li.dataset.choosable)).toEqual([undefined, undefined, undefined]);
+    expect(grid.querySelectorAll('.card')).toHaveLength(3);
+    // Never one line joining the names: each card is its own tile.
+    expect(grid.textContent).not.toContain('Fire Urchin, Rubblebelt Boar, Ral’s Staticaster');
+    expect(grid.textContent).not.toContain("Fire Urchin, Rubblebelt Boar, Ral's Staticaster");
     const boxes = getAllByTestId('prompt-choice');
     fireEvent.click(boxes[2]!);
     fireEvent.click(boxes[0]!);
@@ -237,5 +244,156 @@ describe('getAbilityToPlay', () => {
     const ask = askFor('getAbilityToPlay');
     const { getAllByTestId } = mountPrompt('getAbilityToPlay', ask, EMPTY_LOOKUP);
     expect(getAllByTestId('prompt-choice').map((b) => b.textContent)).toEqual(['ability #9001', 'ability #9002']);
+  });
+});
+
+/*
+ * Wave 24 §D.2 and §D.3 — a library search.
+ *
+ * Forge sends one ask carrying two lists: `optionList`, the cards that may be
+ * chosen (already filtered by the ability's `ChangeType`,
+ * `ChangeZoneEffect.java:1096-1099`), and `delayedReveal.cards`, the whole pile
+ * it is showing (`:1047-1052`). These hold that the prompt sorts and greys by
+ * THAT and nothing else, and that it never draws a card the ask did not carry.
+ *
+ * The same ask, against the real jar, is `./search.jvm.test.ts`.
+ */
+describe('a library search', () => {
+  /** Two of the pool cards choosable, one revealed-only: Forge's own two lists. */
+  const searchAsk = () => ({
+    ...askFor('chooseSingleEntityForEffect'),
+    optionList: [
+      { kind: 'card' as const, id: POOL_ID_BASE + 1 },
+      { kind: 'card' as const, id: POOL_ID_BASE + 2 },
+    ],
+    delayedReveal: {
+      cards: [
+        { kind: 'card' as const, id: POOL_ID_BASE },
+        { kind: 'card' as const, id: POOL_ID_BASE + 1 },
+        { kind: 'card' as const, id: POOL_ID_BASE + 2 },
+      ],
+      zones: ['Library' as const],
+      owner: { kind: 'player' as const, id: 0 },
+      messagePrefix: 'Scalding Tarn - Looking at cards in',
+    },
+  });
+
+  it("puts what Forge offered first and draws the rest present but not selectable", () => {
+    const { getByTestId } = mountPrompt('chooseSingleEntityForEffect', searchAsk(), poolLookup);
+    const tiles = [...getByTestId('prompt-cards').querySelectorAll<HTMLElement>(':scope > li')];
+    // Choosable first, in Forge's order; the revealed-only card last.
+    expect(tiles.map((li) => li.dataset.cardId)).toEqual([
+      String(POOL_ID_BASE + 1),
+      String(POOL_ID_BASE + 2),
+      String(POOL_ID_BASE),
+    ]);
+    expect(tiles.map((li) => li.dataset.choosable)).toEqual([undefined, undefined, 'false']);
+    // Present — a tile, named — and with no control at all to click.
+    const last = tiles[2]!;
+    expect(last.querySelector('.card')).not.toBeNull();
+    expect(last.textContent).toContain(POOL[0]!.name);
+    expect(last.querySelector('input')).toBeNull();
+    // The non-colour signal, so greying is never the only thing said.
+    expect(last.textContent).toContain('not offered');
+    // Exactly one tick per OFFERED row, and no more.
+    expect(getByTestId('prompt-cards').querySelectorAll('input[data-testid="prompt-choice"]')).toHaveLength(2);
+  });
+
+  it('answers only an offered ref — the revealed-only card can never be sent', () => {
+    const { getAllByTestId, answers, submit } = mountPrompt('chooseSingleEntityForEffect', searchAsk(), poolLookup);
+    const radios = getAllByTestId('prompt-choice');
+    expect(radios).toHaveLength(2);
+    fireEvent.click(radios[1]!);
+    fireEvent.click(submit());
+    expect(answers).toEqual([{ kind: 'card', id: POOL_ID_BASE + 2 }]);
+    expectWireReply('chooseSingleEntityForEffect', answers[0]);
+  });
+
+  it('draws EXACTLY the ids the ask carried — never one the lookup happens to know', () => {
+    const ask = searchAsk();
+    const { getByTestId } = mountPrompt('chooseSingleEntityForEffect', ask, poolLookup);
+    const carried = new Set([...ask.optionList, ...ask.delayedReveal.cards].map((r) => String(r.id)));
+    const drawn = [...getByTestId('prompt-cards').querySelectorAll<HTMLElement>(':scope > li')].map(
+      (li) => li.dataset.cardId!,
+    );
+    // The hidden-information control: every row is an id THIS ask carried, and
+    // the lookup (which knows a third card the ask never named) adds nothing.
+    expect(new Set(drawn)).toEqual(carried);
+    expect(drawn).toHaveLength(carried.size);
+  });
+
+  it('resolves art through the same Name|SET key the board uses', () => {
+    const { getByTestId } = mountPrompt('chooseSingleEntityForEffect', searchAsk(), poolLookup);
+    const tiles = [...getByTestId('prompt-cards').querySelectorAll<HTMLElement>(':scope > li')];
+    const order = [POOL[1]!, POOL[2]!, POOL[0]!];
+    for (const [i, li] of tiles.entries()) {
+      const img = li.querySelector<HTMLImageElement>('img.card__art');
+      expect(img, order[i]!.name).not.toBeNull();
+      expect(img!.getAttribute('src')).toBe(cardImageUrl(order[i]!.scryfallId));
+      // Including the revealed-only row: what Forge showed the seat, it can see.
+      expect(scryfallIdFor(KNOWN_ART_IDS, order[i]!.name, order[i]!.setCode)).toBe(order[i]!.scryfallId);
+    }
+  });
+
+  it('a reveal with no options at all is still drawn, every card, none of them pickable', () => {
+    const ask = { ...searchAsk(), optionList: [] as never[] };
+    const { container } = mountPrompt('chooseSingleEntityForEffect', ask, poolLookup);
+    const tiles = [...container.querySelectorAll<HTMLElement>('ul > li[data-card-id]')];
+    expect(tiles.map((li) => li.dataset.cardId)).toEqual([
+      String(POOL_ID_BASE),
+      String(POOL_ID_BASE + 1),
+      String(POOL_ID_BASE + 2),
+    ]);
+    expect(tiles.every((li) => li.dataset.choosable === 'false')).toBe(true);
+    expect(container.querySelectorAll('input')).toHaveLength(0);
+  });
+});
+
+/*
+ * Wave 24 §D.3 — a prompt tile resolves art with the SAME key the board uses.
+ *
+ * `adapter.ts` resolves a board card as `scryfallIdFor(index, name, setCode)`;
+ * a prompt tile used to pass `''` for the set code and so could only ever hit
+ * the table's bare-name row. Measured over the committed table, **1396 of its
+ * `Name|SET` keys name a different printing from their own bare-name row** — so
+ * for those cards the prompt drew one printing and the board another, for the
+ * same physical card. `PromptCardFacts.setCode` closes that.
+ *
+ * The case is derived from the table rather than hardcoded, so the guard cannot
+ * rot into a tautology when the table is regenerated.
+ */
+describe('a prompt tile and the board resolve the same printing', () => {
+  /** A card whose exact printing and whose bare name name DIFFERENT ids. */
+  const divergent = (() => {
+    for (const [key, keyed] of KNOWN_ART_IDS) {
+      if (!key.includes('|')) continue;
+      const name = key.slice(0, key.lastIndexOf('|'));
+      const setCode = key.slice(key.lastIndexOf('|') + 1);
+      if (setCode === '') continue;
+      const bare = KNOWN_ART_IDS.get(name);
+      if (bare !== undefined && bare !== keyed) return { name, setCode, keyed, bare };
+    }
+    return null;
+  })();
+
+  it('uses Name|SET, not the bare name, for a card whose printings differ', () => {
+    expect(divergent, 'the art-id table has a printing that differs from its bare-name row').not.toBeNull();
+    const { name, setCode, keyed, bare } = divergent!;
+    const id = 5150;
+    const lookup: PromptLookup = {
+      ...EMPTY_LOOKUP,
+      card: (cardId) =>
+        cardId === id
+          ? { name, setCode, lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false }
+          : undefined,
+    };
+    const ask = { ...askFor('chooseSingleEntityForEffect'), optionList: [{ kind: 'card' as const, id }] };
+    const { container } = mountPrompt('chooseSingleEntityForEffect', ask, lookup);
+    const img = container.querySelector<HTMLImageElement>('img.card__art');
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute('src')).toBe(cardImageUrl(keyed));
+    expect(img!.getAttribute('src')).not.toBe(cardImageUrl(bare));
+    // And it is the id the board would have put on its own tile.
+    expect(scryfallIdFor(KNOWN_ART_IDS, name, setCode)).toBe(keyed);
   });
 });
