@@ -622,7 +622,9 @@ describe('shutdown', () => {
 		// The replay host's Forge dies with this process — it has no `handOver` —
 		// so this match is in the `ended` half and its seats are owed words.
 		const outcome = h.handle.shutdown('The server is restarting for a deploy.');
-		expect(outcome).toEqual({ handed: [], ended: [matchId] });
+		// `reaped` is empty because a `ReplayHost` factory has no `reapOnExit` — it
+		// runs no JVM to reap. `host.test.ts` is where that half is proved.
+		expect(outcome).toEqual({ handed: [], ended: [matchId], reaped: { killed: [], kept: [], left: [] } });
 
 		await waitUntil(() => alice.frames.length > mark.alice && bob.frames.length > mark.bob, 'the ending notice at both seats');
 		for (const [peer, from] of [
@@ -643,5 +645,34 @@ describe('shutdown', () => {
 		});
 		expect(res.status).toBe(503);
 		expect((await res.json()) as { error: string }).toEqual({ error: 'The server is restarting for a deploy.' });
+	});
+
+	/**
+	 * The half lane U found missing. `MatchRegistry.handOver` only CONSIDERS a
+	 * match that is `starting` or `running`, so a game that had already finished —
+	 * status `over`, where it waits out `overGraceMs`, ten minutes — was in
+	 * neither the handed list nor the ending list, and `shutdown` never called
+	 * `stop()` on it. Its Forge JVM was therefore never even TOLD to go, which is
+	 * why the record lane S found carried no `orphanedAt`: the server had neither
+	 * handed it over nor asked it to stop.
+	 */
+	it("stops a match that had already FINISHED, which handOver() does not even consider — it was the leak's first half", async () => {
+		const h = await boot();
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const host = h.hosts[0] as ReplayHost;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		await alice.request('forge:join', { matchId });
+
+		host.push({ t: 'gameover', winner: 'Seat 1' });
+		await waitUntil(() => h.handle.matches.get(matchId)?.status === 'over', 'the game to finish');
+		expect(host.stopped).toBe(false);
+
+		const outcome = h.handle.shutdown('The server is restarting for a deploy.');
+		expect(outcome.handed).toEqual([]);
+		expect(outcome.ended).toEqual([matchId]);
+		// The point: something asked its host to stop. Before lane U nothing did.
+		expect(host.stopped).toBe(true);
+		expect(h.handle.matches.get(matchId)?.status).toBe('stopped');
 	});
 });

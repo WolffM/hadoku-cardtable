@@ -162,6 +162,47 @@
  * A `--spare` JVM is never re-attached — it holds no game — and is killed at
  * boot from its own `jvm.json`.
  *
+ * ## Going down: what must die before we do (Wave 22, lane U)
+ *
+ * A match that is handed over outlives us on purpose. **Everything else must
+ * not**, and until lane U nothing made sure of it. Two holes, both real:
+ *
+ * 1. **It was never told.** `MatchRegistry.handOver` only considers a match
+ *    that is `starting` or `running` (`match.ts`), so a game that FINISHED
+ *    during the run — status `over`, and it stays there for `overGraceMs`,
+ *    which is **ten minutes** (`socket.ts`) — was in neither the handed half
+ *    nor the ending half. Nobody stopped it, which is why the leaked JVM lane S
+ *    found had no `orphanedAt` in its record: the server had not handed it over
+ *    *and* had not asked it to stop. `socket.ts`'s `shutdown` now ends every
+ *    match it is not handing over, whatever status it ended in — the status a
+ *    match stopped in is not its JVM's business.
+ * 2. **And being told is not enough, because the bridge is slow.** Measured on
+ *    this host against a real match JVM (lane U, `forge.jar`):
+ *
+ *        {"t":"stop"} → gone    9355 ms   the bridge closes its clients and
+ *                                         stops Netty before `halt(0)`
+ *        SIGTERM      → gone    4322 ms   Forge's own shutdown hooks
+ *        SIGKILL      → gone       0 ms
+ *        {"t":"stop"} → gone     314 ms   an idle warm SPARE: `halt(0)` at once
+ *
+ *    `stopGraceMs` is 5 s, `SHUTDOWN_DEADLINE_MS` is 5 s, and pm2 SIGKILLs US
+ *    after `kill_timeout` (1.6 s). There is no budget in which a polite stop or
+ *    a SIGTERM can finish, so waiting for one is not a tighter deadline — it is
+ *    a deploy that hangs and then loses the JVM anyway. It is also why the
+ *    escalation in `stop()` cannot be the answer here: both its timers are
+ *    `unref`'d and the process is gone about a millisecond later.
+ *
+ * So `reapOnExit()` is the last word, and it is **synchronous and immediate**:
+ * SIGKILL every JVM this process still holds and did not hand over, then
+ * confirm it is gone and remove its run directory. It costs a deploy nothing —
+ * there is no grace to spend — and `SHUTDOWN_DEADLINE_MS` is untouched.
+ *
+ * The pid it signals is confirmed the way `orphans()` confirms one, through
+ * `/proc/<pid>/cwd`: a recycled pid is some other program, and the one thing
+ * this must never do is kill a stranger's JVM. A JVM whose kill did not take
+ * keeps its directory, because it is still standing in it and the next boot's
+ * sweep needs that to spare, find or end it.
+ *
  * ## The line protocol
  *
  * `bridge/PlayBridge.java` writes one JSON object per line on stdout and reads
@@ -327,7 +368,24 @@ export type MatchHostFactory = ((matchId: string, spec: MatchSpec, events: HostE
 	attach?(record: JvmRecord, events: HostEvents): MatchHost;
 	/** Leave every live match running for the next process (SIGTERM). */
 	handOverAll?(): void;
+	/**
+	 * The last word before `process.exit`: kill every JVM this process still
+	 * holds and did not hand over. Synchronous, immediate, and idempotent — see
+	 * "Going down" in the module header. Absent on a factory whose hosts die with
+	 * this process anyway (the replay host in the tests).
+	 */
+	reapOnExit?(): ReapResult;
 };
+
+/** What `reapOnExit` did, by JVM id, for the shutdown log. */
+export interface ReapResult {
+	/** Confirmed gone because we killed them, and their run directories removed. */
+	killed: string[];
+	/** Already gone, or already handed over. Nothing to do and nothing owed. */
+	kept: string[];
+	/** Still running after the kill. A leak, said out loud — the boot sweep is the next chance. */
+	left: string[];
+}
 
 /** See "The ceiling" in the module header. Also `PlayDeps.maxMatches`'s default. */
 export const MAX_CONCURRENT_MATCHES = 2;
@@ -548,6 +606,50 @@ function pidIsStandingIn(pid: number, run: string): boolean | null {
 		return null;
 	}
 	return cwd === run;
+}
+
+/**
+ * `pidIsStandingIn`, tolerant of a work dir reached through a symlink: `/proc`
+ * answers with the resolved path and `stageRunDir` did not resolve one, so the
+ * two spellings can differ. `sweepRunDirs` avoids this by resolving `workDir`
+ * itself; a JVM holding its own `run` string has to ask both ways.
+ */
+function pidIsStandingInRun(pid: number, run: string): boolean {
+	if (pidIsStandingIn(pid, run) === true) return true;
+	let resolved: string;
+	try {
+		resolved = realpathSync(run);
+	} catch {
+		return false;
+	}
+	return resolved !== run && pidIsStandingIn(pid, resolved) === true;
+}
+
+/**
+ * Alive, and not a zombie waiting to be reaped. A zombie still answers signal 0
+ * — it has a pid until its parent collects it — so `/proc/<pid>/stat` is what
+ * decides. `e2e/play.spec.ts` asks the same question the same way, on purpose:
+ * the contract it checks and the code that keeps it should not disagree about
+ * what "still running" means.
+ */
+function pidIsRunning(pid: number): boolean {
+	try {
+		return !readFileSync(`/proc/${pid}/stat`, 'utf8').includes(') Z ');
+	} catch {
+		return false; // no /proc entry: it has exited
+	}
+}
+
+/** How long `reapOnExit` will spin waiting for a SIGKILL to land. Measured at 0 ms. */
+const REAP_CONFIRM_MS = 100;
+
+/**
+ * Block this thread for `ms`. Only ever used by `reapOnExit`, which runs with
+ * `process.exit` a statement or two away: the JVM's death has to be confirmed
+ * before we stop existing, and there is no later tick in which to confirm it.
+ */
+function sleepSync(ms: number): void {
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 /**
@@ -871,7 +973,9 @@ class BridgeJvm {
 	exited = false;
 	private stopping = false;
 	/** Handed to the next server: do not kill it, do not settle its run dir. */
-	private handedOver = false;
+	handedOver = false;
+	/** `reapOnExit` SIGKILLed it on our way out. That exit is a deploy, not a crash. */
+	private reapedOnExit = false;
 	/** How it ended, set on exit and consumed when the run dir is settled. */
 	private ending: 'clean' | { reason: string; code: number | null; signal: NodeJS.Signals | null } | null = null;
 	private readonly killTimers: NodeJS.Timeout[] = [];
@@ -1015,8 +1119,10 @@ class BridgeJvm {
 		// Clean is only a stop we asked for that the bridge finished itself (`halt(0)`).
 		// One that took our SIGTERM/SIGKILL hung, and is kept like any crash. An
 		// ATTACHED JVM has no exit code to read — nobody waited on it — so a stop we
-		// asked for is taken at its word.
-		const finishedItself = this.child === null ? true : how.code === 0 && how.signal === null;
+		// asked for is taken at its word. A JVM `reapOnExit` killed is clean too: no
+		// polite stop fits a deploy (see "Going down"), so the signal is the design
+		// and a crash record of every finished game at every restart is only noise.
+		const finishedItself = this.reapedOnExit || (this.child === null ? true : how.code === 0 && how.signal === null);
 		this.ending = this.stopping && finishedItself ? 'clean' : { reason, ...how };
 		live.delete(this);
 		for (const t of this.killTimers) clearTimeout(t);
@@ -1215,6 +1321,84 @@ class BridgeJvm {
 			// ESRCH — it went on its own, which the watcher will notice.
 		}
 	}
+
+	/**
+	 * Last rites: this process is going down and this JVM is NOT being handed
+	 * over, so it has to be gone before we are. See "Going down" for why the
+	 * answer is SIGKILL and nothing gentler — a polite `stop` takes ~9.3 s on a
+	 * real match and a SIGTERM ~4.3 s, and pm2 SIGKILLs us after 1.6 s.
+	 *
+	 * `'gone'` means confirmed dead and the run directory removed; `'kept'` that
+	 * it was already gone and its directory already settled; `'left'` that the
+	 * kill did not take, which is said out loud and leaves the directory alone —
+	 * it is still that JVM's cwd, and the next boot's sweep needs it to spare,
+	 * find or end it. Idempotent, and a pid that has already exited is not an
+	 * error: it is the outcome.
+	 *
+	 * It does NOT ask again. `PlayHandle.shutdown` already asked through
+	 * `Match.stop()`, the answer measurably cannot arrive in time, and a second
+	 * `writeSync` into a fifo whose reader is wedged is the one thing here that
+	 * could hang a deploy.
+	 */
+	reapNow(): 'gone' | 'kept' | 'left' {
+		if (this.handedOver) return 'kept';
+		if (this.exited) return 'kept';
+		this.stopping = true;
+		this.reapedOnExit = true;
+		// Only signal something that is actually there: a pid that has already gone
+		// has no `/proc/<pid>/cwd` to confirm, and a refusal logged for it would
+		// read like the pid-reuse guard firing when nothing was in question.
+		if (pidIsRunning(this.pid)) this.killConfirmed();
+		const deadline = Date.now() + REAP_CONFIRM_MS;
+		while (pidIsRunning(this.pid) && Date.now() < deadline) sleepSync(5);
+		if (pidIsRunning(this.pid)) {
+			this.log({ evt: 'jvm-reap-failed', id: this.id, pid: this.pid, run: this.run, afterMs: REAP_CONFIRM_MS });
+			return 'left';
+		}
+		this.log({ evt: 'jvm-reaped', id: this.id, pid: this.pid, run: this.run });
+		// Its end is accounted for here rather than left to an `exit` event that
+		// `process.exit` will pre-empt, so nothing reports it twice and the run dir
+		// is settled once. Nobody is told — `events.exit` would reach a `Match` in a
+		// process that is already gone.
+		this.exited = true;
+		live.delete(this);
+		for (const t of this.killTimers) clearTimeout(t);
+		if (this.watch !== null) clearInterval(this.watch);
+		this.child?.removeAllListeners('exit');
+		this.child?.removeAllListeners('error');
+		this.io.close();
+		try {
+			// Confirmed gone, so the directory is nobody's cwd, and nothing re-attaches
+			// to a match that is not being handed over. Remove it whole, as a clean stop
+			// would: left behind it is `RUN_DIR_FRESH_MS`-fresh at the next boot, so that
+			// sweep spares it and it survives to the one after.
+			rmSync(this.run, { recursive: true, force: true });
+			this.log({ evt: 'run-dir-removed', id: this.id, run: this.run });
+		} catch (err) {
+			this.log({ evt: 'run-dir-settle-failed', id: this.id, run: this.run, error: (err as Error).message });
+		}
+		return 'gone';
+	}
+
+	/**
+	 * SIGKILL, having first confirmed the pid is the process standing in THIS run
+	 * directory — the `/proc/<pid>/cwd` check `orphans()` makes, for the reason
+	 * `orphans()` makes it: a recycled pid is some other program, and this is the
+	 * one path in this file that kills on the way out with nothing left to catch
+	 * a mistake. A spawned child is checked too, not just an attached one: both
+	 * are addressed by pid in the end, and `child.kill` would be no safer.
+	 */
+	private killConfirmed(): void {
+		if (!pidIsStandingInRun(this.pid, this.run)) {
+			this.log({ evt: 'jvm-reap-refused', id: this.id, pid: this.pid, run: this.run, why: 'that pid is not the process standing in this run dir' });
+			return;
+		}
+		try {
+			process.kill(this.pid, 'SIGKILL');
+		} catch {
+			// ESRCH — it went between the check and here, which is the outcome we wanted.
+		}
+	}
 }
 
 export interface JvmPoolOptions {
@@ -1236,6 +1420,7 @@ export type JvmHostFactory = MatchHostFactory & {
 	orphans(): JvmRecord[];
 	attach(record: JvmRecord, events: HostEvents): MatchHost;
 	handOverAll(): string[];
+	reapOnExit(): ReapResult;
 };
 
 function defaultHostLog(entry: Record<string, unknown>): void {
@@ -1260,6 +1445,14 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	 * if nobody claims them, so a caller that ignores `orphans()` leaks nothing.
 	 */
 	const pending = new Map<string, JvmRecord>();
+	/**
+	 * JVMs this pool has asked to stop and not yet seen exit. `close()` forgets
+	 * the spare — so its death is not counted as a spare that failed — and this is
+	 * what still remembers it, because a spare takes ~314 ms to `halt(0)` and
+	 * `reapOnExit` has to be able to insist on one that is still going. Emptied by
+	 * `hooks.exit`.
+	 */
+	const doomed = new Set<BridgeJvm>();
 	let claimDeadline: NodeJS.Timeout | null = null;
 	let spare: BridgeJvm | null = null;
 	let spareFailures = 0;
@@ -1272,6 +1465,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			poolLog({ evt: 'spare-warm', id: jvm.id, pid: jvm.pid, bootMs });
 		},
 		exit(jvm: BridgeJvm, reason: string) {
+			doomed.delete(jvm);
 			if (jvm === spare) {
 				spare = null;
 				spareFailures += 1;
@@ -1334,10 +1528,14 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		closed = true;
 		if (retry !== null) clearTimeout(retry);
 		if (claimDeadline !== null) clearTimeout(claimDeadline);
-		// Forget it first, so its exit is not counted as a spare that died.
+		// Forget it first, so its exit is not counted as a spare that died — but not
+		// entirely: `doomed` keeps it reachable for `reapOnExit`.
 		const idle = spare;
 		spare = null;
-		idle?.stop();
+		if (idle !== null) {
+			doomed.add(idle);
+			idle.stop();
+		}
 	};
 	factory.spare = () => (spare === null ? 'none' : spare.warm ? 'warm' : 'booting');
 
@@ -1373,6 +1571,46 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		spare = null;
 		idle?.stop();
 		return handed;
+	};
+
+	/**
+	 * The last word before `process.exit`. See "Going down" in the module header:
+	 * every JVM still here that was not handed over is killed now, because no
+	 * polite stop fits a deploy's budget and an `unref`'d timer in a process that
+	 * is about to exit is not a plan.
+	 *
+	 * It asks the JVM pool, not the match statuses. The bug this fixes was a
+	 * status filter deciding a JVM's fate — a game that had FINISHED was neither
+	 * handed over nor ended, so nothing stopped it — and the fix is that the only
+	 * question asked here is the one that matters: did we hand this one over?
+	 *
+	 * The orphans from an EARLIER server (`pending`) are deliberately untouched:
+	 * they already carry an `orphanedAt`, the next process is offered them again,
+	 * and killing them here would end a match across two restarts that survived
+	 * one.
+	 */
+	factory.reapOnExit = (): ReapResult => {
+		closed = true;
+		if (retry !== null) clearTimeout(retry);
+		if (claimDeadline !== null) clearTimeout(claimDeadline);
+		if (spare !== null) {
+			doomed.add(spare);
+			spare = null;
+		}
+		const result: ReapResult = { killed: [], kept: [], left: [] };
+		const targets = new Set<BridgeJvm>([...serving, ...doomed]);
+		for (const jvm of targets) {
+			const fate = jvm.reapNow();
+			if (fate === 'gone') result.killed.push(jvm.id);
+			else if (fate === 'left') result.left.push(jvm.id);
+			else result.kept.push(jvm.id);
+			if (fate !== 'left') {
+				serving.delete(jvm);
+				doomed.delete(jvm);
+			}
+		}
+		poolLog({ evt: 'jvms-reaped', ...result });
+		return result;
 	};
 
 	if (options.sweep ?? true) {

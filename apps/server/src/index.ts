@@ -436,6 +436,10 @@ if (roomStreams !== null) {
 //      on disk (`host.ts`, "A match outlives its server"), and the next process
 //      re-attaches and replays it. A match that CANNOT be left running has its
 //      seats told so in words instead — the honest half of the same fix.
+//   2a. And kill the JVM of every match we are NOT leaving running, before we
+//      go. Lane U: a game that FINISHED during the run was neither handed over
+//      nor stopped, and `{"t":"stop"}` takes ~9.3 s on a real match anyway, so
+//      an `-Xmx1g` Forge JVM survived every restart. `host.ts`, "Going down".
 //   3. Let the clients go: no new upgrades, existing sockets closed. The client
 //      already survives a dropped socket; what it could not survive was the
 //      match ceasing to exist.
@@ -458,7 +462,9 @@ function shutdown(signal: string): void {
 		console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable', ...entry }));
 	say({ evt: 'shutdown-begin', signal });
 
-	let outcome: { handed: string[]; ended: string[] } = { handed: [], ended: [] };
+	// Spelled through `PlayHandle` rather than importing `ReapResult`: the barrel
+	// `./play/index.js` is not this lane's to widen, and this is the same type.
+	let outcome: ReturnType<PlayHandle['shutdown']> = { handed: [], ended: [], reaped: { killed: [], kept: [], left: [] } };
 	try {
 		outcome = play?.shutdown(SHUTDOWN_WORDS) ?? outcome;
 	} catch (err) {
@@ -466,6 +472,11 @@ function shutdown(signal: string): void {
 		say({ evt: 'shutdown-matches-failed', error: (err as Error).message });
 	}
 	say({ evt: 'shutdown-matches', handed: outcome.handed, ended: outcome.ended });
+	// What is left of Forge. `killed` is the leak wave 22 lane U closed: a game
+	// that finished during the run was neither handed over nor stopped, so its
+	// `-Xmx1g` JVM sat there until the next boot swept it. `left` would be that
+	// leak still happening and is the line to grep for if it ever comes back.
+	say({ evt: 'shutdown-jvms', ...outcome.reaped });
 
 	const finish = (why: string): void => {
 		say({ evt: 'shutdown-done', signal, why, ms: Date.now() - startedAt, handed: outcome.handed.length, ended: outcome.ended.length });

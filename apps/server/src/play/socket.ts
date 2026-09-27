@@ -79,7 +79,7 @@ import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { CONFIG } from '../config.js';
 import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
 import { identityFromHeaders, participantHandle } from '../room/identity.js';
-import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec } from './host.js';
+import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { createMatchRegistry, type Match, type MatchRegistry } from './match.js';
 import {
 	fullControlEcho,
@@ -140,9 +140,11 @@ export interface PlayHandle {
 	/**
 	 * SIGTERM. Stop accepting new matches, leave every live one running for the
 	 * next process, and tell the seats of any that cannot be left running.
-	 * Returns what happened, for the shutdown log.
+	 * Returns what happened, for the shutdown log — `reaped` is the JVMs this
+	 * process killed on the way out, which is the half nothing did before wave 22
+	 * lane U (see `host.ts`, "Going down").
 	 */
-	shutdown(reason: string): { handed: string[]; ended: string[] };
+	shutdown(reason: string): { handed: string[]; ended: string[]; reaped: ReapResult };
 }
 
 /**
@@ -587,14 +589,27 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			matches.stopAll();
 			deps.host?.close?.();
 		},
-		shutdown(reason: string): { handed: string[]; ended: string[] } {
+		shutdown(reason: string): { handed: string[]; ended: string[]; reaped: ReapResult } {
 			draining = reason;
 			const { handed, ending } = matches.handOver();
-			for (const match of ending) match.serverStopping(reason);
-			for (const match of ending) match.stop();
+			// `MatchRegistry.handOver` only CONSIDERS a match that is `starting` or
+			// `running`, so one that had already finished — status `over`, where it sits
+			// for `overGraceMs`, ten minutes below — was in neither list, and nothing
+			// stopped it. That is the leak lane S found: a Forge JVM outliving the
+			// server with no `orphanedAt`, so no successor would adopt it either.
+			// Whatever we are not handing over we are ending, whatever status it ended
+			// in; the status a match stopped in is not its JVM's business.
+			const kept = new Set<Match>([...handed, ...ending]);
+			const ended = [...ending, ...matches.active().filter((m) => !kept.has(m))];
+			for (const match of ended) match.serverStopping(reason);
+			for (const match of ended) match.stop();
 			// The spare holds no game, so it is stopped either way.
 			deps.host?.close?.();
-			return { handed: handed.map((m) => m.id), ended: ending.map((m) => m.id) };
+			// And then the last word, because asking is measurably not enough: a real
+			// match's JVM takes ~9.3 s to honour `{"t":"stop"}` and this process has
+			// about a millisecond left. See `host.ts`, "Going down".
+			const reaped = deps.host?.reapOnExit?.() ?? { killed: [], kept: [], left: [] };
+			return { handed: handed.map((m) => m.id), ended: ended.map((m) => m.id), reaped };
 		},
 	};
 }

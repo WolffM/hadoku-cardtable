@@ -6,7 +6,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -33,6 +33,7 @@ import {
 	type JvmRecord,
 	type MatchHost,
 	type MatchSpec,
+	type ReapResult,
 } from './host.js';
 
 const FAKE = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-bridge.mjs');
@@ -583,4 +584,159 @@ describe('the boot sweep and a live directory it can identify', () => {
 			s.kill();
 		}
 	});
+});
+
+/*
+ * ── Going down: what must die before we do (Wave 22, lane U) ─────────────
+ *
+ * The wave made a LIVE match outlive its server on purpose. This is the other
+ * half of that bargain: everything the server did NOT hand over has to be gone
+ * before the server is. Both halves are asserted off the SAME `reapOnExit()`
+ * call on the SAME pool, so a pass cannot be a mix-up about which JVM is which.
+ */
+describe('going down: what must die before we do', () => {
+	/**
+	 * A stand-in for a bridge that will not go quietly — which, on a deploy's
+	 * timescale, is what the real one measurably IS. Lane U timed a live match
+	 * JVM on this host: `{"t":"stop"}` → gone in **9355 ms**, SIGTERM → gone in
+	 * **4322 ms**, SIGKILL → gone in **0 ms**, with pm2 SIGKILLing the server
+	 * after `kill_timeout` (1.6 s). So this one ignores the stop line and ignores
+	 * SIGTERM, and only an insisting shutdown ends it. `fake-bridge.mjs` exits on
+	 * `stop`, which would go green whether anything insisted or not.
+	 */
+	const javaDeaf = join(scratch, 'java-deaf');
+	writeFileSync(javaDeaf, `#!/bin/sh\nexec "${process.execPath}" -e 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000);'\n`);
+	chmodSync(javaDeaf, 0o755);
+
+	const ENDED = 'm-0000000000c1';
+	const HANDED = 'm-0000000000c2';
+
+	/** Alive and not a zombie: the question `host.ts` and `e2e/play.spec.ts` both ask of `/proc`. */
+	function running(pid: number): boolean {
+		try {
+			return !readFileSync(`/proc/${pid}/stat`, 'utf8').includes(') Z ');
+		} catch {
+			return false; // no /proc entry: it has exited
+		}
+	}
+
+	const strays: number[] = [];
+	afterEach(() => {
+		for (const pid of strays.splice(0)) {
+			try {
+				process.kill(pid, 'SIGKILL');
+			} catch {
+				// Already gone, which is what we wanted.
+			}
+		}
+	});
+
+	interface Deaf {
+		host: MatchHost;
+		pid: number;
+		run: string;
+		events: Recorder;
+	}
+
+	/** One cold match on a JVM that answers nothing. It never says `ready`; it only exists. */
+	async function deafMatch(pool: JvmHostFactory, matchId: string): Promise<Deaf> {
+		const events = recorder();
+		const host = pool(matchId, SPEC, events);
+		await waitUntil(() => events.logs.some((l) => l.evt === 'jvm-spawned'), `${matchId} to be spawned`);
+		const spawned = events.logs.find((l) => l.evt === 'jvm-spawned') as { pid: number; run: string };
+		strays.push(spawned.pid);
+		// `/bin/sh` execs into it, so wait until the process that holds the pid is
+		// the one standing in the run dir — which is what the kill confirms against.
+		await waitUntil(() => {
+			try {
+				return readlinkSync(`/proc/${spawned.pid}/cwd`) === spawned.run;
+			} catch {
+				return false;
+			}
+		}, `${matchId} to be standing in its run dir`);
+		return { host, pid: spawned.pid, run: spawned.run, events };
+	}
+
+	/**
+	 * Exactly what `PlayHandle.shutdown` does, in its order: hand over the match
+	 * that can outlive us, ask the one that cannot to stop — and then reap, which
+	 * is the step that did not exist.
+	 */
+	async function shutdownWith(matchIds: { handed: string; ended: string }): Promise<{ handed: Deaf; ended: Deaf; reaped: ReapResult }> {
+		const workDir = mkdtempSync(join(scratch, 'reap-'));
+		const pool = jvmHostFactory({ ...config, java: javaDeaf, workDir }, { spare: false, log: () => undefined });
+		pools.push(pool);
+		const handed = await deafMatch(pool, matchIds.handed);
+		const ended = await deafMatch(pool, matchIds.ended);
+		handed.host.remember?.({ epoch: 'e-1', owners: ['p-alice', 'p-bob'] });
+		expect(handed.host.handOver?.()).toBe(true);
+		ended.host.stop();
+		// Asked, and still there: a polite stop is not a guarantee, which is the
+		// whole reason the step below exists.
+		expect(running(ended.pid)).toBe(true);
+		return { handed, ended, reaped: pool.reapOnExit() };
+	}
+
+	it('an ENDED match is gone once the shutdown path has run — nothing else was going to end it, and asking is not enough', async () => {
+		const { ended, reaped } = await shutdownWith({ handed: HANDED, ended: ENDED });
+		expect(reaped.killed).toEqual([ENDED]);
+		expect(reaped.left).toEqual([]);
+		expect(running(ended.pid)).toBe(false);
+		// And its run directory goes with it, so no successor is offered a finished
+		// game and the next boot's `RUN_DIR_FRESH_MS` window has nothing to spare.
+		expect(existsSync(ended.run)).toBe(false);
+	}, 20_000);
+
+	it('a HANDED-OVER match is still alive after that same reap, standing in its run dir with its orphanedAt', async () => {
+		const { handed, reaped } = await shutdownWith({ handed: HANDED, ended: ENDED });
+		// Deliberately says nothing about the OTHER JVM's fate: that is the test
+		// above, and these two must be able to fail separately or neither of them
+		// tells you which half broke.
+		expect(reaped.killed).not.toContain(HANDED);
+		expect(running(handed.pid)).toBe(true);
+		// Re-attachable, asked the way `orphans()` asks it.
+		expect(readlinkSync(`/proc/${handed.pid}/cwd`)).toBe(handed.run);
+		const record = readJvmRecord(handed.run) as JvmRecord;
+		expect(record.orphanedAt).toEqual(expect.any(String));
+		expect([record.pid, record.epoch, record.owners]).toEqual([handed.pid, 'e-1', ['p-alice', 'p-bob']]);
+	}, 20_000);
+
+	it('refuses to signal a pid that is not the process standing in that run dir, and says the JVM was LEFT', async () => {
+		const workDir = mkdtempSync(join(scratch, 'reap-guard-'));
+		const pool = jvmHostFactory({ ...config, java: javaDeaf, workDir }, { spare: false, log: () => undefined });
+		pools.push(pool);
+		const jvm = await deafMatch(pool, 'm-0000000000c3');
+
+		// Move the directory and that pid is standing somewhere else — which is
+		// exactly what a RECYCLED pid looks like, and the one case where signalling
+		// it would kill a stranger's process.
+		renameSync(jvm.run, `${jvm.run}-moved`);
+		expect(pool.reapOnExit()).toMatchObject({ killed: [], left: ['m-0000000000c3'] });
+		expect(running(jvm.pid)).toBe(true);
+		expect(jvm.events.logs.filter((l) => l.evt === 'jvm-reap-refused').map((l) => l.pid)).toEqual([jvm.pid]);
+
+		// Put it back and the same call ends it: the refusal is about identity, not
+		// about giving up, and `reapOnExit` is idempotent.
+		renameSync(`${jvm.run}-moved`, jvm.run);
+		expect(pool.reapOnExit()).toMatchObject({ killed: ['m-0000000000c3'], left: [] });
+		expect(running(jvm.pid)).toBe(false);
+	}, 20_000);
+
+	it('reaps the idle spare too, even after close() has forgotten it — it holds no game and must not outlive us', async () => {
+		const workDir = mkdtempSync(join(scratch, 'reap-spare-'));
+		const pool = jvmHostFactory({ ...config, java: javaDeaf, workDir }, { log: () => undefined });
+		pools.push(pool);
+		await waitUntil(() => readdirSync(workDir).some((d) => d.startsWith('spare-')), 'the spare to be staged');
+		const dir = readdirSync(workDir).find((d) => d.startsWith('spare-')) as string;
+		const spare = readJvmRecord(join(workDir, dir)) as JvmRecord;
+		strays.push(spare.pid);
+		await waitUntil(() => running(spare.pid), 'the spare to be running');
+
+		pool.close();
+		// A real spare takes ~314 ms to `halt(0)`; this one never will.
+		expect(running(spare.pid)).toBe(true);
+		expect(pool.reapOnExit().killed).toEqual([spare.matchId]);
+		expect(running(spare.pid)).toBe(false);
+		expect(existsSync(join(workDir, dir))).toBe(false);
+	}, 20_000);
 });
