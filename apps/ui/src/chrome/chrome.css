@@ -104,15 +104,19 @@
 }
 
 /*
- * The match route, for the same reason `live.css` zeroes the bottom margin
- * there: *"This module can NEVER require a scroll bar"* — the chrome is pinned
- * to `100dvh` and every pixel above the board comes off the board. The inline
- * buffer stays; the vertical one goes. Keyed exactly the way `live.css` keys its
- * pair, and owned HERE, so the match route asks for nothing new.
+ * The header does NOT move between routes.
+ *
+ * This used to zero `margin-top` on the match route, to give the board back
+ * the 2rem — the chrome is pinned to `100dvh` and every pixel above the table
+ * comes off it. The operator overruled that trade on 2026-09-27: *"match
+ * screen should be the same as lobby screen, the top bar shouldn't move. i
+ * understand it hurts the vertical space a bit, thats okay."* A header that
+ * jumps when you enter a match is worse than a slightly shorter table.
+ *
+ * `margin-bottom` stays zeroed by `live.css` on this route: that tightens the
+ * gap BELOW the bar without moving the bar itself, so it costs nothing the
+ * operator asked for and keeps the board what space remains.
  */
-.cardtable-chrome:has(.shell--match) > .app-header {
-  margin-top: 0;
-}
 
 /*
  * "Card Table", top-left, is the way back to the entry page — the operator,
