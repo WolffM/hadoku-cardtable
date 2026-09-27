@@ -415,7 +415,11 @@ how the second half of this was found. Two things fixed it:
    every captured priority window deterministically and is mutation-tested
    (2 of 76).
 2. **Seed 7**, which casts Squadron Hawk and resolves it with no button press,
-   verified over repeated runs.
+   verified over repeated runs. **— CORRECTED 2026-09-27: the seed does not
+   fix the deal.** `MyRandom.setRandom` is called only by `SimulateMatch`, not
+   by our bridge, so three runs give three deals and this check is still
+   reachable-by-luck. What makes it stable is item 1, the split assertion, not
+   the seed. See wave 22's close.
 
 ### Open: `board-play.jvm.test.ts` times out at 120 s
 
@@ -444,6 +448,70 @@ same machine — the exact collision `ci-runner-shares-e2e-ports` warns about. I
 was not the cause this time (the quiet-host rerun failed identically), but it
 cost a round of diagnosis. Check `gh run list` before AND after starting a
 local e2e, not only before.
+
+## Verified this pass (2026-09-27 — tracker, closing Wave 22)
+
+**Landed to `fee59ea`, apps 0.18.0.** Both CI jobs green, health 200, deploy
+confirmed, worktree and branch gone. Tracker's own `pnpm check` green; lane
+lists had been re-intersected at `ad6dc0f` before dispatch.
+
+**The wave found and fixed a regression it had itself introduced**, and said
+so rather than hiding it: lane E's hand-over removed the old
+`process.on('exit')` SIGKILL, which had been brutally killing live matches —
+correct to remove — but it had ALSO been the only thing reaping FINISHED ones,
+so every completed game leaked a ~1 GB JVM until the next boot. Worse
+precisely because this wave makes restarts rarer. Lane S found it, lane U
+closed it. **Verified live by the tracker:** four `forge.jar` processes on the
+host, and all four are legitimate — one warm spare (child of the server) and
+two inside the friend-demo bench containers, up 5 days. No orphans.
+
+### Correction: the shuffle seed does NOT fix the deal — my board entry was wrong
+
+Wave 20's close recorded *"seed 7, which casts Squadron Hawk and resolves it
+with no button press, verified over repeated runs"*, and wave 21 built on it.
+The w22 manager reports three runs giving three different deals, which
+contradicts that.
+
+**They are right.** `MyRandom.setRandom(new Random(seed))` — the call that
+actually seeds Forge's shuffles — exists in
+`forge-gui-desktop/.../view/SimulateMatch.java:89`, the AI-vs-AI simulator
+invoked with `-s`. **Our bridge path is not that arm.** `MatchSpec.seed` is
+forwarded into the JVM's config by `bridgeConfig` and the bridge evidently
+never applies it to Forge's RNG, so the seed has been decorative for our
+matches all along. What I actually observed in w20 — two seeded runs casting
+different cards — I attributed to test timing; the deal was changing too and I
+did not check.
+
+**Consequence:** `e2e/play.spec.ts`'s unattended-resolve check is still
+reachable-by-luck, exactly as it was before the seeding work. The mitigation
+that IS doing the work is the split assertion (a cast that misbehaves fails; a
+scenario that never occurred reports `UNPROVEN` and does not) — that part
+stands and is why CI is not flaky on it now. `apps/server/src/play/README.md`'s
+claim that the seed drives `MyRandom` should be re-read against the bridge
+before anyone relies on it again.
+
+**Settles it:** make the bridge call `MyRandom.setRandom` from the config's
+seed, then run the same seed twice and diff the opening hands. Until then, no
+test may claim a deterministic deal.
+
+### Follow-ups the wave deliberately did not take — all on the board now
+
+| finding | why it matters |
+| --- | --- |
+| `resendAfterSnapshot` re-sends says + prompt + buttons but **not `setSelectables`** (`match.ts:485-493`) | a refresh mid-selection leaves a seat holding a prompt it cannot answer. **Pre-existing and found independently twice** — that is the signal it is real |
+| `transport.ts:198-200` comment falsified by lane R; `:156-159` documents `MatchSnapshot.cursor` as a reading the server header explicitly warns against | a wrong explanation is worse than none — it is what the next lane will trust |
+| `routes.ts` `legalIn[]` does 49 round trips per era | the era filter lane B just shipped rides on this |
+| `bot.ts:142-143`, `engine.ts:215,:244` unguarded casts | same family as the `view.ts:38` crash lane H fixed |
+| E's match-gone sentence is not rendered anywhere yet | the words exist; nothing shows them |
+
+### On the runtimes, and the manager's own account
+
+Lane R spent 84 minutes on two lines, *"mostly permission-denial churn"* —
+worth fixing, and it is a harness cost rather than a lane failure. Lane S's
+147 minutes bought the CI blocker and the JVM leak, which is a fair trade;
+the manager's own proposal — cap the e2e lane's runs and report earlier —
+is the right correction, since **7 real Forge matches is the floor** for that
+lane and floors should be stated before dispatch, not discovered.
 
 ## Verified this pass (2026-09-25 — tracker, closing Wave 20)
 
