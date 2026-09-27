@@ -1,20 +1,25 @@
 /*
- * A pod: `#/draft/<draftId>`.
+ * A pod, as the second phase of a draft ROOM.
  *
- * This is the route an invite link points at, and it is the SOCKET source —
- * the engine runs on the server and this browser renders what it is sent. The
- * in-process engine is still there and still useful, but it is a solo game
- * against bots, so it belongs behind `#/debug` rather than behind a link you
- * sent a friend.
+ * This is the SOCKET source — the engine runs on the server and this browser
+ * renders what it is sent. The in-process engine is still there and still
+ * useful, but it is a solo game against bots, so it belongs behind `#/debug`
+ * rather than behind a link you sent a friend.
  *
- * ## Joining is the whole protocol
+ * ## Mounting this no longer creates anything (w23)
  *
- * There is no "create pod" call. The server's `join` handler opens the room if
- * it is not open yet (`apps/server/src/room/socket.ts` → `rooms.open`), deals
- * the draft on first open, and seats the joiner — humans evict bots. So
- * mounting this screen with an id nobody has used yet creates the pod, and
- * mounting it with an id a friend sent joins theirs. Same code, same effect,
- * no branch.
+ * It used to: `#/draft/<id>` was its own route, the id was minted in the
+ * browser, and the server's `join` handler opened the room and dealt the draft
+ * on first connect — so every seat nobody had taken was a bot by the time the
+ * second person arrived. The operator, of the button that did that: *"old
+ * cruft that seems to auto-start with all bots"*.
+ *
+ * So a draft is a room now. `ConstructedScreen` renders this only once the
+ * ROOM's `draftStartedAt` is set, `draftId` IS the room's own id, and the
+ * server refuses a `join` for a room whose draft has not started
+ * (`apps/server/src/room/socket.ts`). Joining deals nothing; the room's
+ * readiness gate is what deals, and the bots fill whatever seats are still
+ * empty at that instant.
  *
  * ## Everything on the status bar comes off the server's own snapshot
  *
@@ -27,8 +32,9 @@
  * ## The transport is injectable
  *
  * `startDraft` defaults to a real same-origin socket.io connection. A test
- * passes a stub, the same way `socket.test.ts` does, so the lobby can be driven
- * end to end without a server and without an open handle.
+ * passes a stub, the same way `socket.test.ts` does, so the pod can be driven
+ * end to end without a server and without an open handle. `ConstructedScreen`
+ * threads it through under the same name.
  */
 
 import { useEffect, useMemo, useReducer, useState } from 'react';
@@ -48,9 +54,10 @@ import {
 import { initialState, type TableState } from '../draft/table.ts';
 import { DraftScreen } from '../components/DraftScreen.tsx';
 import type { PackLayout } from '../components/PackView.tsx';
-import { inviteUrl, navigate } from './route.ts';
+import { navigate, routeUrl } from './route.ts';
 
 export interface PodScreenProps {
+  /** The ROOM's id. The draft runs against it, and the invite link points at it. */
   draftId: string;
   /** Tests pass a stub. Production leaves it undefined and gets socket.io. */
   makeTransport?: () => DraftTransport;
@@ -96,8 +103,16 @@ export function PodScreen({ draftId, makeTransport }: PodScreenProps) {
     };
   }, [draftId, makeTransport]);
 
+  /**
+   * The invite is the ROOM's url, not a pod's.
+   *
+   * There is no pod route any more, and `#/room/<id>` is the link that works in
+   * both phases: before the draft is dealt it lands a friend in the lobby where
+   * they can ready up, and after it is dealt it lands them in this pod, where
+   * they evict a bot. One link, whenever it is clicked.
+   */
   const link = useMemo(
-    () => inviteUrl(draftId, globalThis.location ?? { origin: '', pathname: '' }),
+    () => routeUrl({ kind: 'room', roomId: draftId }, globalThis.location ?? { origin: '', pathname: '' }),
     [draftId],
   );
 

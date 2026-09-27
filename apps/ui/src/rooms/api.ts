@@ -23,6 +23,21 @@
  * table for a room that turns out to be streamed is a wrong-looking screen,
  * while rendering stream frames for a room nobody provisioned containers for
  * is a page of dead iframes pointed at a route that does not exist.
+ *
+ * ## Readiness is the ROOM's, and a draft is what it starts (w23)
+ *
+ * A draft used to be a separate object with a client-minted id, dealt the
+ * moment a socket connected. It is a room now, so two fields carry the whole
+ * difference: `RoomMember.ready`, which every member has to set before the
+ * draft is dealt, and `RoomView.draftStartedAt`, which is null for the whole
+ * lobby phase and an ISO string once the server has dealt the pod.
+ *
+ * Both are parsed the same defensive direction as `clientMode`: a server that
+ * predates them sends neither, `ready` reads as `false` and `draftStartedAt` as
+ * `null`, so an older server's room renders as a lobby nobody has readied in
+ * rather than as a pod with no cards behind it. `draftStartedAt` is also never
+ * restored from disk (`lobby.ts`), which is why a restart mid-draft puts the
+ * room back in this state and the room screen says so in words.
  */
 
 import { apiBase } from '../screens/tables.ts';
@@ -40,6 +55,8 @@ export interface RoomMember {
   id: string;
   name: string;
   joinedAt: string;
+  /** The room's readiness, which is what a draft starts on. Missing ⇒ false. */
+  ready: boolean;
 }
 
 export interface RoomView {
@@ -54,13 +71,18 @@ export interface RoomView {
   locked: boolean;
   members: RoomMember[];
   matchId: string | null;
+  /**
+   * When the draft was dealt, or null for the whole lobby phase. Never
+   * restored from disk, so a restart mid-draft reads as null here.
+   */
+  draftStartedAt: string | null;
   createdAt: string;
 }
 
 /** The types the create form offers, and whether this build can play them. */
 export const GAME_TYPES: readonly { value: GameType; label: string; ready: boolean }[] = [
   { value: 'constructed-1v1', label: 'Constructed 1v1', ready: true },
-  { value: 'draft', label: 'Draft (coming soon)', ready: false },
+  { value: 'draft', label: 'Draft', ready: true },
 ];
 
 export function gameTypeLabel(gameType: string): string {
@@ -164,9 +186,12 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 function parseMember(v: unknown): RoomMember | null {
   if (!isRecord(v)) return null;
-  const { id, name, joinedAt } = v;
+  const { id, name, joinedAt, ready } = v;
   if (typeof id !== 'string' || typeof name !== 'string') return null;
-  return { id, name, joinedAt: typeof joinedAt === 'string' ? joinedAt : '' };
+  // `ready === true` and nothing else: an absent flag, a string, a 1 all read
+  // as not ready, so the only way to be counted towards a draft start is for
+  // the server to have said so in a boolean.
+  return { id, name, joinedAt: typeof joinedAt === 'string' ? joinedAt : '', ready: ready === true };
 }
 
 /**
@@ -184,7 +209,7 @@ function parseClientMode(v: unknown): ClientMode {
 /** A RoomView, or null when the body is not one. */
 export function parseRoomView(v: unknown): RoomView | null {
   if (!isRecord(v)) return null;
-  const { id, name, creator, leader, gameType, clientMode, locked, members, matchId, createdAt } = v;
+  const { id, name, creator, leader, gameType, clientMode, locked, members, matchId, draftStartedAt, createdAt } = v;
   if (typeof id !== 'string' || !ROOM_ID.test(id)) return null;
   if (typeof name !== 'string' || typeof gameType !== 'string' || typeof locked !== 'boolean') return null;
   if (!Array.isArray(members)) return null;
@@ -198,6 +223,7 @@ export function parseRoomView(v: unknown): RoomView | null {
     locked,
     members: members.map(parseMember).filter((m): m is RoomMember => m !== null),
     matchId: typeof matchId === 'string' ? matchId : null,
+    draftStartedAt: typeof draftStartedAt === 'string' ? draftStartedAt : null,
     createdAt: typeof createdAt === 'string' ? createdAt : '',
   };
 }
@@ -212,6 +238,16 @@ export type JoinOutcome =
   | { ok: false; reason: 'error'; message: string };
 
 export type CreateOutcome = { ok: true; room: RoomView } | { ok: false; message: string };
+
+/**
+ * A room the server changed, or the sentence it refused with.
+ *
+ * One shape for both writes, because a person reading the screen needs the same
+ * thing from either: the room as it now is, or words. The refusal is the
+ * server's own — `start` answers 409 with a sentence for "this room does not
+ * play draft" and for "somebody is not ready" — so nothing here paraphrases it.
+ */
+export type RoomOutcome = { ok: true; room: RoomView } | { ok: false; message: string };
 
 export interface CreateRequest {
   name: string;
@@ -236,6 +272,15 @@ export interface RoomsClient {
   get(roomId: string): Promise<RoomView | null>;
   create(req: CreateRequest): Promise<CreateOutcome>;
   join(roomId: string, password?: string): Promise<JoinOutcome>;
+  /** Your own readiness in this room. The server resolves who you are. */
+  ready(roomId: string, ready: boolean): Promise<RoomOutcome>;
+  /**
+   * Deal the draft. Any member may ask — like constructed, where either browser
+   * may start the match and the server answers one start to both — and asking
+   * twice is not an error: a room whose draft has already started answers with
+   * its view.
+   */
+  start(roomId: string): Promise<RoomOutcome>;
 }
 
 async function bodyOf(res: Response): Promise<unknown> {
@@ -264,6 +309,26 @@ const JSON_HEADERS = { 'content-type': 'application/json' };
 
 export function roomsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base: string = defaultApiBase()): RoomsClient {
   const url = (path: string): string => `${base}rooms${path}`;
+
+  /** The two room writes that answer with the room. Same shape, same refusals. */
+  const write = async (path: string, payload: unknown, whatFailed: string): Promise<RoomOutcome> => {
+    let res: Response;
+    try {
+      res = await fetchImpl(url(path), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: JSON_HEADERS,
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      return { ok: false, message: 'Could not reach the server.' };
+    }
+    const body = await bodyOf(res);
+    if (!res.ok) return { ok: false, message: `${whatFailed}: ${serverMessage(body, res.status)}.` };
+    const room = parseRoomView(body);
+    if (room === null) return { ok: false, message: 'The server answered with something that is not a room.' };
+    return { ok: true, room };
+  };
 
   return {
     async list() {
@@ -336,6 +401,14 @@ export function roomsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
       const room = parseRoomView(body);
       if (room === null) return { ok: false, reason: 'error', message: 'The server answered the join with something that is not a room.' };
       return { ok: true, room };
+    },
+
+    ready(roomId, ready) {
+      return write(`/${encodeURIComponent(roomId)}/ready`, { ready }, 'Could not change your readiness');
+    },
+
+    start(roomId) {
+      return write(`/${encodeURIComponent(roomId)}/start`, {}, 'Could not start the draft');
     },
   };
 }

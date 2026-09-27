@@ -16,6 +16,15 @@
  * as of 2011-07-01, for four Jace, the Mind Sculptor and four Stoneforge
  * Mystic.
  *
+ * ## And the room's OTHER game (w23)
+ *
+ * The same screen renders a draft room: a lobby with a readiness gate, then the
+ * pod. Those tests are `describe('a draft room')` below, and they are the proof
+ * of the gate — nothing is dealt until every member is ready, and the draft is
+ * asked for exactly once when they are. The constructed suites above are the
+ * proof of the other half: `constructed-1v1` does not change, so not one of
+ * their assertions moved to make room for the branch.
+ *
  * `.test.ts` + `createElement`, and the jsdom pragma on line 1, for the reasons
  * `lobby.test.ts` gives.
  */
@@ -28,7 +37,6 @@ import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import { ConstructedScreen } from './ConstructedScreen.tsx';
-import { LobbyScreen } from './LobbyScreen.tsx';
 import { parseRoute } from './route.ts';
 import { roomsClient, type ClientMode, type RoomView } from '../rooms/api.ts';
 import { apiBase, tablesClient, type Fetch, type RoomPlayer, type SeatChoice, type Verdict } from './tables.ts';
@@ -123,8 +131,14 @@ interface Table {
   matchId: string | null;
   /** What `GET /api/rooms/:id` says this room is. Absent ⇒ the field is not sent at all. */
   clientMode?: ClientMode;
+  /** What the room PLAYS. Absent ⇒ `constructed-1v1`, which is every test above. */
+  gameType?: string;
+  /** Set once the server has dealt a draft room's pod. */
+  draftStartedAt?: string | null;
   /** Who the ROOM says is in it — a streamed room's seats come from here. */
-  members?: { id: string; name: string }[];
+  members?: { id: string; name: string; ready?: boolean }[];
+  /** `POST /api/rooms/:id/ready` and `…/start` refuse with this sentence. */
+  refuseRoomWrite?: { status: number; error: string };
   /** The room record read fails, while the table read still works. */
   roomUnreadable?: boolean;
   /** 404 for both "no such room" and "you are not in it", as the server does. */
@@ -145,8 +159,9 @@ function stubServer(table: Table) {
   const calls: Call[] = [];
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  const gameType = table.gameType ?? 'constructed-1v1';
   const view = () => ({
-    room: { id: ROOM, name: 'Friday night', gameType: 'constructed-1v1', matchId: table.matchId, seats: 2 },
+    room: { id: ROOM, name: 'Friday night', gameType, matchId: table.matchId, seats: 2 },
     you: { player: table.players.some((p) => p.you) },
     players: table.players.map((p, seat) => ({ ...p, seat })),
   });
@@ -160,11 +175,16 @@ function stubServer(table: Table) {
     name: 'Friday night',
     creator: 'user-alice',
     leader: 'user-alice',
-    gameType: 'constructed-1v1',
+    gameType,
     ...(table.clientMode === undefined ? {} : { clientMode: table.clientMode }),
     locked: false,
-    members: (table.members ?? [{ id: 'p-alice', name: 'user-alice' }]).map((m) => ({ ...m, joinedAt: '' })),
+    members: (table.members ?? [{ id: 'p-alice', name: 'user-alice' }]).map((m) => ({
+      ...m,
+      ready: m.ready === true,
+      joinedAt: '',
+    })),
     matchId: table.matchId,
+    draftStartedAt: table.draftStartedAt ?? null,
     createdAt: '2026-09-19T00:00:00.000Z',
   });
   const verdictFor = (choice: SeatChoice): Verdict => {
@@ -180,6 +200,35 @@ function stubServer(table: Table) {
     calls.push({ url, method: init?.method ?? 'GET', body });
     if (url.endsWith(`/api/rooms/${ROOM}`)) {
       return table.roomUnreadable === true ? json(503, { error: 'rooms are restarting' }) : json(200, roomRecord());
+    }
+    /*
+     * The ROOM's own writes, as `http/rooms.ts` answers them. They are NOT the
+     * table's: `/api/rooms/:id/ready` is a member's readiness in the room, and
+     * `/api/tables/rooms/:id/ready` below is readiness with a deck — which is
+     * why a draft room must never reach the second one.
+     */
+    if (url.endsWith(`/api/rooms/${ROOM}/ready`)) {
+      if (table.refuseRoomWrite !== undefined) {
+        return json(table.refuseRoomWrite.status, { error: table.refuseRoomWrite.error });
+      }
+      const want = (body as { ready: boolean }).ready;
+      table.members = (table.members ?? [{ id: 'p-alice', name: 'user-alice' }]).map((m) =>
+        m.id === 'p-alice' ? { ...m, ready: want } : m,
+      );
+      return json(200, roomRecord());
+    }
+    /* Joining a room makes you a member — which is what makes the table read
+       below start working. `missing` is exactly the refusal that triggers it. */
+    if (url.endsWith(`/api/rooms/${ROOM}/join`)) {
+      table.missing = false;
+      return json(200, roomRecord());
+    }
+    if (url.endsWith(`/api/rooms/${ROOM}/start`)) {
+      if (table.refuseRoomWrite !== undefined) {
+        return json(table.refuseRoomWrite.status, { error: table.refuseRoomWrite.error });
+      }
+      table.draftStartedAt = '2026-09-26T10:00:00.000Z';
+      return json(200, roomRecord());
     }
     if (url.endsWith('/tables/formats')) return json(200, { formats: FORMATS });
     if (url.endsWith('/tables/decks')) return json(200, { decks: DECKS });
@@ -475,6 +524,8 @@ describe('a room’s table', () => {
         // renders the builtin table — which is what these tests then drive.
         get: async (): Promise<RoomView | null> => null,
         create: async () => ({ ok: false as const, message: 'not used' }),
+        ready: async () => ({ ok: false as const, message: 'not used' }),
+        start: async () => ({ ok: false as const, message: 'not used' }),
         join: async (roomId: string, password?: string) => {
           joins.push(roomId);
           passwords.push(password);
@@ -493,6 +544,7 @@ describe('a room’s table', () => {
                   locked: false,
                   members: [],
                   matchId: null,
+                  draftStartedAt: null,
                   createdAt: '2026-09-19T00:00:00.000Z',
                 },
               }
@@ -755,14 +807,191 @@ describe('the deck picker', () => {
   });
 });
 
-describe('the lobby reaches a match', () => {
-  it('joins a match from the same box that joins a pod', () => {
-    render(createElement(LobbyScreen));
-    fireEvent.change(screen.getByTestId('join-id'), {
-      target: { value: 'https://hadoku.me/cardtable/#/match/m-0123456789ab' },
+/* ── a draft room (w23 §B) ───────────────────────────────────────────── */
+
+/*
+ * The branch this screen never had. A room created with `gameType: 'draft'`
+ * used to land its members on the constructed deck picker — the game-type
+ * selector promised something the room screen did not deliver, which is the
+ * defect behind the operator's *"just completely get rid of the 'start a pod'
+ * button"*. Two phases now, both here: the room's lobby, then the pod.
+ *
+ * The pod's own drafting is `e2e/draft.spec.ts`'s to prove against a real
+ * server; what these assert is the gate in front of it.
+ */
+describe('a draft room', () => {
+  /** Three methods and no server: enough for `PodScreen` to mount and connect. */
+  const stubTransport = () => ({ on: () => {}, emit: () => {}, disconnect: () => {} });
+
+  const members = (...ready: boolean[]) =>
+    ready.map((r, i) => ({ id: i === 0 ? 'p-alice' : `p-${i}`, name: i === 0 ? 'user-alice' : `user-${i}`, ready: r }));
+
+  async function mountDraft(table: Partial<Table> = {}) {
+    const server = stubServer({ players: [], matchId: null, gameType: 'draft', members: members(false), ...table });
+    render(
+      createElement(ConstructedScreen, {
+        client: server.client,
+        rooms: server.rooms,
+        roomId: ROOM,
+        pollMs: 10,
+        makeTransport: stubTransport,
+      }),
+    );
+    return server;
+  }
+
+  it('shows the room’s lobby and NOT a pack: nothing is dealt before everyone is ready', async () => {
+    const server = await mountDraft({ members: members(false, false) });
+    await screen.findByTestId('draft-lobby');
+
+    // Who is here, and who is ready — off the ROOM's record, not the table's.
+    expect(screen.getAllByTestId(/^draft-member-\d+$/)).toHaveLength(2);
+    expect(screen.getByTestId('draft-member-0').textContent).toContain('user-alice');
+    expect(screen.getByTestId('draft-member-0-ready').textContent).toBe('not ready');
+    expect(screen.getByTestId('draft-member-0-ready').dataset.mark).toBe('ring');
+    expect(screen.getByTestId('draft-state').textContent).toBe('Waiting for user-alice and user-1.');
+
+    // No pack, no pod, no seats: the draft does not exist yet.
+    expect(screen.queryByTestId('pod')).toBeNull();
+    expect(screen.queryByTestId('pod-seats')).toBeNull();
+    expect(screen.queryByTestId('pod-waiting')).toBeNull();
+
+    // And none of the constructed table's furniture either.
+    expect(screen.queryByTestId('deck-mine')).toBeNull();
+    expect(screen.queryByTestId('format')).toBeNull();
+    expect(screen.queryByTestId('room-players')).toBeNull();
+
+    // The per-deck legality sweep — one `POST /tables/check` per deck per era,
+    // the expensive half — never runs. (The two catalogue GETs start at mount,
+    // before the room's own type is known, and their answer is discarded rather
+    // than delaying the picker for every constructed room; see the effect.)
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
     });
-    fireEvent.submit(screen.getByTestId('join-id').closest('form') as HTMLFormElement);
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: 'm-0123456789ab' });
+    expect(server.calls.filter((c) => c.url.endsWith('/tables/check'))).toHaveLength(0);
+    // Nor is a single table write made: `routes.ts` answers 409 to all of them.
+    expect(server.calls.filter((c) => c.url.includes('/tables/rooms/') && c.method !== 'GET')).toHaveLength(0);
+    expect(server.calls.filter((c) => c.url.endsWith('/play/matches'))).toHaveLength(0);
+  });
+
+  it('states the two rules the operator would otherwise have to guess', async () => {
+    await mountDraft();
+    const rule = (await screen.findByTestId('draft-rule')).textContent ?? '';
+    expect(rule).toContain('every member of this room is ready');
+    expect(rule).toContain('eight');
+    expect(rule).toMatch(/bots/i);
+    // §1.6: the draft is in memory, so it cannot outlive the process, and the
+    // room says that rather than coming back to an empty table.
+    expect(screen.getByTestId('draft-restart-note').textContent).toContain('does not survive a restart');
+  });
+
+  it('readies YOU through the room’s route, and says so in the list', async () => {
+    const server = await mountDraft({ members: members(false, false) });
+    const toggle = (await screen.findByTestId('ready-toggle')) as HTMLButtonElement;
+    expect(toggle.textContent).toBe('Ready');
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+
+    expect(lastCall(server.calls, `/api/rooms/${ROOM}/ready`)).toEqual({
+      url: `/cardtable/api/rooms/${ROOM}/ready`,
+      method: 'POST',
+      body: { ready: true },
+    });
+    // The room's own route, never the table's.
+    expect(server.calls.filter((c) => c.url.endsWith(`/tables/rooms/${ROOM}/ready`))).toHaveLength(0);
+    await waitFor(() => expect(screen.getByTestId('draft-member-0-ready').textContent).toBe('ready'));
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).textContent).toBe('Stand down');
+
+    // Standing down again is the same route with the other boolean.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('ready-toggle'));
+    });
+    expect(lastCall(server.calls, `/api/rooms/${ROOM}/ready`)?.body).toEqual({ ready: false });
+  });
+
+  it('starts the draft exactly once when every member is ready, and only then', async () => {
+    // One member still not ready: nothing is asked for, however long it polls.
+    const server = await mountDraft({ members: members(true, false) });
+    await screen.findByTestId('draft-lobby');
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 80)); // eight poll intervals
+    });
+    expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toHaveLength(0);
+    expect(screen.queryByTestId('pod')).toBeNull();
+
+    // The other browser readies up; this one learns it from the poll and deals.
+    server.table.members = members(true, true);
+    await waitFor(() => expect(screen.queryByTestId('pod')).not.toBeNull());
+    const starts = server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`));
+    expect(starts).toHaveLength(1);
+    expect(starts[0]).toEqual({ url: `/cardtable/api/rooms/${ROOM}/start`, method: 'POST', body: {} });
+
+    // And the poll does not ask again now that it has started.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 80));
+    });
+    expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toHaveLength(1);
+  });
+
+  it('renders the pod, with every hook it had as its own route, once draftStartedAt is set', async () => {
+    await mountDraft({ draftStartedAt: '2026-09-26T10:00:00.000Z', members: members(true) });
+    await screen.findByTestId('pod');
+
+    expect(screen.getByTestId('pod-seats')).toBeTruthy();
+    expect(screen.getByTestId('pod-waiting')).toBeTruthy();
+    expect(screen.getByTestId('copy-invite')).toBeTruthy();
+    // The invite is the ROOM's url — there is no pod route to point at.
+    const invite = screen.getByTestId('invite-url') as HTMLInputElement;
+    expect(invite.value.endsWith(`#/room/${ROOM}`)).toBe(true);
+    expect(invite.value).not.toContain('#/draft/');
+
+    // The lobby phase is gone, and the constructed table never appeared.
+    expect(screen.queryByTestId('draft-lobby')).toBeNull();
+    expect(screen.queryByTestId('deck-mine')).toBeNull();
+  });
+
+  it('says what the server refused, and asks again only when told to', async () => {
+    const server = await mountDraft({
+      members: members(true, true),
+      refuseRoomWrite: { status: 409, error: 'this room plays constructed-1v1, not draft' },
+    });
+    const refused = await screen.findByTestId('draft-error');
+    expect(refused.textContent).toContain('this room plays constructed-1v1, not draft');
+    expect(screen.queryByTestId('pod')).toBeNull();
+
+    // One attempt, not one per poll.
+    const attempts = () => server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`)).length;
+    const once = attempts();
+    expect(once).toBe(1);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
+    expect(attempts()).toBe(once);
+
+    // Told to, it asks again — and this time the server deals.
+    server.table.refuseRoomWrite = undefined;
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('draft-retry'));
+    });
+    await waitFor(() => expect(screen.queryByTestId('pod')).not.toBeNull());
+  });
+
+  it('still joins the room it was opened on, so a draft invite link works', async () => {
+    // The table poll is what joins you (`routes.ts` answers a non-member the
+    // same 404 as a missing room), and a draft room needs that as much as a
+    // constructed one: the invite link is the only way a friend gets in. This
+    // is why the table poll is NOT switched off for a draft room.
+    const server = await mountDraft({ missing: true });
+    await waitFor(() =>
+      expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/join`))).toHaveLength(1),
+    );
+    expect(lastCall(server.calls, `/api/rooms/${ROOM}/join`)?.method).toBe('POST');
+    // And the read that followed it is the one that matters: the lobby appears.
+    await screen.findByTestId('draft-lobby');
+    expect(screen.queryByTestId('room-missing')).toBeNull();
   });
 });
 
@@ -867,6 +1096,25 @@ describe('a builtin room is what it has always been', () => {
     expect(screen.queryByTestId('room-streams')).toBeNull();
     expect(screen.queryByTestId('stream-seat')).toBeNull();
     expect(screen.getByTestId('deck-mine')).toBeTruthy();
+  });
+
+  it('shows none of the draft furniture, and asks for no room write of its own', async () => {
+    // The other half of the branch: `constructed-1v1` must be what it was, and
+    // the draft lobby must not leak into it.
+    const server = await mountRoom({ players: [opponent()], matchId: null });
+    expect(screen.queryByTestId('draft-lobby')).toBeNull();
+    expect(screen.queryByTestId('draft-members')).toBeNull();
+    expect(screen.queryByTestId('draft-rule')).toBeNull();
+    expect(screen.queryByTestId('draft-restart-note')).toBeNull();
+    expect(screen.queryByTestId('pod')).toBeNull();
+    // The one shared id belongs to the deck picker's own toggle here.
+    expect(screen.getByTestId('ready-toggle').closest('section')).toBe(
+      screen.getByTestId('deck-mine').closest('section'),
+    );
+    // The room's readiness and start routes are the draft's; this path uses the
+    // table's, and asks neither of the new ones.
+    expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/ready`))).toHaveLength(0);
+    expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toHaveLength(0);
   });
 
   it('is what a server that never heard of the field gets: no clientMode, still our table', async () => {

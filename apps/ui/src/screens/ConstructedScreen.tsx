@@ -1,6 +1,48 @@
 /*
- * The constructed table, inside a room: YOUR deck, their state, and the match
- * the server starts once both of you are ready.
+ * A room, and what it plays: a constructed table, or a draft.
+ *
+ * The room screen is the only screen a room has. `constructed-1v1` is the table
+ * below — YOUR deck, their state, and the match the server starts once both of
+ * you are ready — and `draft` is a lobby with a readiness gate that becomes a
+ * pod. Which one is drawn comes off the ROOM's own record (`rooms.get`), never
+ * off the table.
+ *
+ * ## The draft branch, and why it is here rather than on a route of its own (w23)
+ *
+ * It used to be a route of its own: `#/draft/<id>`, a client-minted id, and a
+ * server that dealt the draft the moment a socket connected. The operator, of
+ * the button that opened it: *"old cruft that seems to auto-start with all
+ * bots"*, and of what should happen instead: *"it should go to a room first and
+ * only after everyone clicks ready should it actually start the draft"*. So
+ * there is one door and one id. A room created with `gameType: 'draft'` shows:
+ *
+ *   `draftStartedAt === null`  the room's lobby — who is here, who is ready,
+ *                              and a Ready toggle. No cards exist yet.
+ *   `draftStartedAt !== null`  the pod (`PodScreen`), against the room's id.
+ *
+ * Every member ready is the gate, and either browser may ask the server to deal
+ * — the same shape constructed's start already has, guarded by the same kind of
+ * ref so a poll cannot ask twice.
+ *
+ * **A draft room does not touch the tables API.** `http/routes.ts` answers 409
+ * to `PUT …/deck`, `POST …/ready` and the room start for anything that is not
+ * `constructed-1v1`, so none of them is called and the formats, decks and
+ * legality sweep are not loaded either. The table POLL still runs, because its
+ * join-on-refusal (below) is what turns following an invite link into
+ * membership, and a draft room needs that as much as a constructed one —
+ * `GET /api/tables/rooms/:roomId` is the one table route that is not gated.
+ *
+ * ## Whose Ready toggle it is, which the wire does not say
+ *
+ * `RoomView.members` carries no `you`: a member's id is a hashed participant id
+ * the browser cannot derive, and the display name is not unique (an unnamed key
+ * is "friend"). The constructed table gets `you` because the SERVER computes it
+ * (`routes.ts` `tableView`), and there is no equivalent on the room record. So
+ * the toggle's own label is a latch set by the answer to our own `ready` call,
+ * and the members list beside it is the room's authority on who is ready. The
+ * cost is exact and small: reload mid-lobby while already ready and the button
+ * reads "Ready" until you press it, which re-sends the readiness you already
+ * had. Nothing about the room is ever mis-stated, and nothing starts early.
  *
  * The operator's flow (`docs/handoff/w13.md`): a room list, a room, a game
  * type, then *"once both players have a valid deck loaded the game can be
@@ -65,6 +107,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { navigate } from './route.ts';
+import { PodScreen } from './PodScreen.tsx';
+import type { DraftTransport } from '../draft/socket.ts';
 import {
   roomsClient,
   streamPath,
@@ -104,6 +148,11 @@ export interface ConstructedScreenProps {
   streamFetch?: Fetch;
   /** Where `Random` gets its number. Tests pin it; production passes nothing. */
   rand?: () => number;
+  /**
+   * The draft pod's transport, threaded to `PodScreen` once a draft room has
+   * started. Tests pass a stub; production passes nothing and gets socket.io.
+   */
+  makeTransport?: () => DraftTransport;
 }
 
 /** How often a seat that has no stream yet asks again. */
@@ -122,6 +171,7 @@ export function ConstructedScreen({
   rooms,
   streamFetch,
   rand = secureRandom,
+  makeTransport,
 }: ConstructedScreenProps) {
   const client = useMemo(() => given ?? tablesClient(), [given]);
   return roomId === undefined ? (
@@ -134,6 +184,7 @@ export function ConstructedScreen({
       rooms={rooms}
       streamFetch={streamFetch}
       rand={rand}
+      makeTransport={makeTransport}
     />
   );
 }
@@ -145,6 +196,7 @@ function RoomTableScreen({
   rooms: givenRooms,
   streamFetch,
   rand,
+  makeTransport,
 }: {
   client: TablesClient;
   roomId: string;
@@ -152,6 +204,7 @@ function RoomTableScreen({
   rooms?: RoomsClient;
   streamFetch?: Fetch;
   rand: () => number;
+  makeTransport?: () => DraftTransport;
 }) {
   const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -196,8 +249,50 @@ function RoomTableScreen({
   const [resolved, setResolved] = useState(false);
   /** Latched on the first read. A room does not change mode under its players. */
   const modeRef = useRef<ClientMode | null>(null);
+  /**
+   * Your own readiness in a DRAFT room, as far as this browser knows it. The
+   * room record says who is ready but not which member you are (see the header),
+   * so this is the answer to our own `ready` call and nothing else.
+   */
+  const [iAmReady, setIAmReady] = useState(false);
+  /** A refusal from `ready` or `start`, in the server's own words. */
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [dealing, setDealing] = useState(false);
+  /** A deal is in flight or was refused: not asked again on every poll. */
+  const askedDeal = useRef(false);
+  /** Bumped by Try again, which is the only thing that re-asks by hand. */
+  const [dealAttempt, setDealAttempt] = useState(0);
 
+  /**
+   * The room's game type, live rather than latched.
+   *
+   * Unlike `clientMode` — fixed at create — the leader may change the game type
+   * while the room is in its lobby, and the server refuses the change once a
+   * draft has started (`PATCH /api/rooms/:id` → 409) and clears every ready flag
+   * when it allows it. So the screen follows it; latching would leave the room
+   * drawing the game it was created as.
+   *
+   * A room record that could not be read leaves this false, which draws the
+   * constructed table — the same direction `parseRoomView` defaults in, and the
+   * behaviour every room had before there was a draft branch.
+   */
+  const draftRoom = view?.gameType === 'draft';
+  const draftStartedAt = view?.draftStartedAt ?? null;
+  const members = view?.members ?? [];
+  const allReady = members.length > 0 && members.every((m) => m.ready);
+
+  // The formats and the decks — for a constructed table only. A draft room has
+  // no deck to hold, and `routes.ts` refuses every table write it could make.
+  //
+  // NOT gated on the room record having answered. The catalogue read starts at
+  // mount, as it always has, because holding it back until `rooms.get` answers
+  // would put the deck picker a round trip later for EVERY constructed room to
+  // save a draft room two cached GETs. What the guard does instead is discard
+  // the answer: `draftRoom` flipping true re-runs this, the previous run's
+  // cleanup clears `live`, and `loaded` stays null — so no picker is assembled
+  // and the per-deck legality sweep (`picking`, below) never runs at all.
   useEffect(() => {
+    if (draftRoom) return;
     let live = true;
     Promise.all([client.formats(), client.decks()])
       .then(([formats, decks]) => {
@@ -214,7 +309,7 @@ function RoomTableScreen({
     return () => {
       live = false;
     };
-  }, [client]);
+  }, [client, draftRoom]);
 
   // The room's table, polled. One read now, then one every `pollMs`.
   //
@@ -235,6 +330,13 @@ function RoomTableScreen({
   // Only once, and only for a refusal. A locked room refuses the join too, and
   // retrying that on a 1.5 s timer is a rate-limit trip and a password
   // guessing loop nobody asked for.
+  //
+  // **A draft room runs this too**, and that is the whole reason the poll is not
+  // switched off for one: the join-on-refusal here is what makes an invite link
+  // a membership, and a draft room's invite link is the only link there is. The
+  // table it reads back is empty for a draft room — nobody loads a deck — but
+  // `GET /api/tables/rooms/:roomId` is not game-type gated, so the read is a
+  // real answer and the join is a real join.
   useEffect(() => {
     let live = true;
     let joined = false;
@@ -325,7 +427,8 @@ function RoomTableScreen({
   const bothReady = players.length === 2 && players.every((p) => p.ready && p.legal);
   const streamed = modeRef.current === 'streamed';
   /** Whether the deck card is on the screen at all: nothing below asks for it otherwise. */
-  const picking = !streamed && resolved && locked === null && table !== null && !spectating && loaded !== null;
+  const picking =
+    !streamed && !draftRoom && resolved && locked === null && table !== null && !spectating && loaded !== null;
 
   // Which decks this era offers. One sweep per era, remembered — see
   // `legalDecksIn`. Gated on the card being drawn, so a streamed room, a
@@ -376,8 +479,10 @@ function RoomTableScreen({
   }, [matchId]);
 
   // Both ready: either browser may ask, and the server answers one match to both.
+  // A draft room never reaches this — it seats nobody at the table — and says so
+  // explicitly, because `startRoom` is one of the calls `routes.ts` 409s for it.
   useEffect(() => {
-    if (!bothReady || matchId !== null || mine === null || asked.current) return;
+    if (draftRoom || !bothReady || matchId !== null || mine === null || asked.current) return;
     asked.current = true;
     setStarting(true);
     client
@@ -394,7 +499,43 @@ function RoomTableScreen({
         setStartRefusal(err instanceof Error ? err.message : String(err));
         setStarting(false);
       });
-  }, [bothReady, matchId, mine, client, roomId]);
+  }, [draftRoom, bothReady, matchId, mine, client, roomId]);
+
+  /*
+   * Every member ready: deal the draft.
+   *
+   * Either browser may ask and the server deals once — `startDraft` is
+   * idempotent, so a room whose draft has already started answers with its view
+   * rather than an error. The ref is what stops the 1.5 s poll asking again
+   * while one ask is in flight or has been refused; losing unanimity clears it,
+   * so the next time everyone is ready the draft is asked for again rather than
+   * the room sitting on a stale refusal for ever.
+   */
+  useEffect(() => {
+    if (!draftRoom || draftStartedAt !== null || locked !== null) return;
+    if (!allReady) {
+      askedDeal.current = false;
+      return;
+    }
+    if (askedDeal.current) return;
+    askedDeal.current = true;
+    setDealing(true);
+    rooms
+      .start(roomId)
+      .then((outcome) => {
+        if (outcome.ok) {
+          setView(outcome.room);
+          setDraftError(null);
+        } else {
+          setDraftError(outcome.message);
+        }
+        setDealing(false);
+      })
+      .catch((err: unknown) => {
+        setDraftError(err instanceof Error ? err.message : String(err));
+        setDealing(false);
+      });
+  }, [draftRoom, draftStartedAt, locked, allReady, dealAttempt, rooms, roomId]);
 
   // Your own choice, as the server holds it: the picker opens where you left it.
   useEffect(() => {
@@ -458,20 +599,59 @@ function RoomTableScreen({
       .finally(() => setBusy(false));
   };
 
+  /**
+   * Readiness in a DRAFT room, which is the room's own and not the table's.
+   *
+   * `POST /api/rooms/:id/ready`, not `POST /api/tables/rooms/:id/ready` — the
+   * second answers 409 for anything that is not a constructed room, and it is
+   * about a deck this room has nobody holding.
+   */
+  const setDraftReady = (ready: boolean): void => {
+    setBusy(true);
+    setDraftError(null);
+    rooms
+      .ready(roomId, ready)
+      .then((outcome) => {
+        if (!outcome.ok) {
+          setDraftError(outcome.message);
+          return;
+        }
+        setView(outcome.room);
+        setIAmReady(ready);
+      })
+      .catch((err: unknown) => setDraftError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setBusy(false));
+  };
+
+  /*
+   * The pod: the draft room's second phase, and the whole screen while it lasts.
+   *
+   * Not nested inside the room chrome below. The pod has a status bar of its own
+   * carrying the room's id, the cube, the seats and the invite link, so putting
+   * it inside `.lobby` — a grid of 300px cards — would squeeze the table it
+   * draws and say the room's name twice. A locked room is asked for its password
+   * first: the form for that is in the body below.
+   */
+  if (!streamed && draftRoom && draftStartedAt !== null && locked === null) {
+    return <PodScreen draftId={roomId} makeTransport={makeTransport} />;
+  }
+
   return (
     <div className="shell" data-testid="constructed">
       <header className="shell__head">
         <h1 className="shell__title" data-testid="room-name">
           {streamed ? (view?.name ?? roomId) : (table?.room.name ?? roomId)}
         </h1>
-        {/* The header states which client this room is, so nobody who followed
-            a link has to work it out from what is drawn below. A builtin room
-            says exactly what it has always said — that sentence already names
-            our table — so the only new words are the streamed room's. */}
+        {/* The header states what this room is, so nobody who followed a link
+            has to work it out from what is drawn below. A builtin constructed
+            room says exactly what it has always said — that sentence already
+            names our table. */}
         <p className="shell__sub" data-testid="room-client-mode">
           {streamed
             ? 'Forge’s full client'
-            : 'Constructed 1v1'}
+            : draftRoom
+              ? 'Draft'
+              : 'Constructed 1v1'}
         </p>
       </header>
 
@@ -521,13 +701,33 @@ function RoomTableScreen({
             {tableError}
           </p>
         )}
-        {loadError !== null && (
+        {/* The draft room's first phase. Nothing below this is drawn for it:
+            there is no deck to hold, no seat at a constructed table, and every
+            table write it could make is a 409. */}
+        {locked === null && draftRoom && (
+          <DraftLobby
+            members={members}
+            iAmReady={iAmReady}
+            allReady={allReady}
+            dealing={dealing}
+            busy={busy}
+            error={draftError}
+            onReady={setDraftReady}
+            onRetry={() => {
+              askedDeal.current = false;
+              setDraftError(null);
+              setDealAttempt((n) => n + 1);
+            }}
+          />
+        )}
+
+        {!draftRoom && loadError !== null && (
           <p className="lobby__error" role="alert" data-testid="tables-load-error">
             Could not load the formats and decks: {loadError}
           </p>
         )}
 
-        {table !== null && (
+        {!draftRoom && table !== null && (
           <>
             <section className="lobby__card">
               <h2>At the table</h2>
@@ -648,6 +848,124 @@ function RoomTableScreen({
       </footer>
     </div>
   );
+}
+
+/* ── a draft room, before the cards exist ─────────────────────────────── */
+
+/**
+ * The draft room's lobby: who is here, who is ready, and the two rules a person
+ * would otherwise have to guess.
+ *
+ * Both rules are written on the screen on purpose. *"Every member ready, then
+ * bots take the rest of the eight seats"* is the operator's own design and the
+ * difference between this and the pod button it replaced, which auto-started
+ * against seven bots. *"A draft does not survive a restart"* is true of the
+ * server as built — the deal is in memory and `draftStartedAt` is never restored
+ * — and a room that silently came back to an empty table would look like a bug
+ * rather than the honest answer.
+ *
+ * The toggle carries `ready-toggle`, the same id the constructed table's does:
+ * one room plays one game, so exactly one of the two is ever on the screen.
+ *
+ * Nothing here draws a mana symbol, a set symbol, a tap symbol or a card frame.
+ */
+function DraftLobby({
+  members,
+  iAmReady,
+  allReady,
+  dealing,
+  busy,
+  error,
+  onReady,
+  onRetry,
+}: {
+  members: RoomMember[];
+  iAmReady: boolean;
+  allReady: boolean;
+  dealing: boolean;
+  busy: boolean;
+  error: string | null;
+  onReady: (ready: boolean) => void;
+  onRetry: () => void;
+}) {
+  return (
+    <section className="lobby__card" data-testid="draft-lobby">
+      <h2>In the room</h2>
+      <ul className="draft__members" data-testid="draft-members">
+        {members.length === 0 ? (
+          <li className="draft__member draft__member--empty" data-testid="draft-nobody">
+            Nobody has joined yet.
+          </li>
+        ) : (
+          members.map((member, i) => (
+            <li key={member.id} className="draft__member" data-testid={`draft-member-${i}`}>
+              <strong className="tables__who">{member.name}</strong>
+              <StatusPill
+                kind="ready"
+                testId={`draft-member-${i}-ready`}
+                state={member.ready ? 'yes' : 'no'}
+                mark={member.ready ? 'tick' : 'ring'}
+                label={member.ready ? 'ready' : 'not ready'}
+              />
+            </li>
+          ))
+        )}
+      </ul>
+
+      <p className="lobby__note" data-testid="draft-state">
+        {draftStateText(members, dealing)}
+      </p>
+
+      <button
+        type="button"
+        className="lobby__go"
+        data-testid="ready-toggle"
+        aria-pressed={iAmReady}
+        disabled={busy || dealing || members.length === 0}
+        onClick={() => onReady(!iAmReady)}
+      >
+        {iAmReady ? 'Stand down' : 'Ready'}
+      </button>
+
+      {error !== null && (
+        <div className="lobby__error" role="alert" data-testid="draft-error">
+          <p>{error}</p>
+          {/* Only while everyone still is ready: a refusal because somebody
+              stood down between polls fixes itself when they ready again, and
+              the deal is asked for on its own then. */}
+          {allReady && (
+            <button type="button" data-testid="draft-retry" onClick={onRetry}>
+              Try again
+            </button>
+          )}
+        </div>
+      )}
+
+      <p className="lobby__note" data-testid="draft-rule">
+        The draft deals when every member of this room is ready. Bots take whatever is left of the eight
+        seats at that moment — never before, so nobody who has not readied is played for.
+      </p>
+      <p className="lobby__note" data-testid="draft-restart-note">
+        A draft does not survive a restart of the server. The room comes back to this lobby, with its ready
+        marks, rather than to an empty table.
+      </p>
+    </section>
+  );
+}
+
+/** Who the draft is waiting on, in one line. Names, because none of them is "you". */
+function draftStateText(members: RoomMember[], dealing: boolean): string {
+  if (dealing) return 'Dealing the draft…';
+  if (members.length === 0) return 'Waiting for someone to join.';
+  const waiting = members.filter((m) => !m.ready).map((m) => m.name);
+  if (waiting.length === 0) return 'Everyone is ready.';
+  return `Waiting for ${listOf(waiting)}.`;
+}
+
+/** `a`, `a and b`, `a, b and c`. */
+function listOf(names: string[]): string {
+  if (names.length <= 2) return names.join(' and ');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
 /* ── the streamed room's face ─────────────────────────────────────────── */

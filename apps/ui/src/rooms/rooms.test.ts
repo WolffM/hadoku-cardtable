@@ -21,6 +21,7 @@ import { LobbyScreen } from '../screens/LobbyScreen.tsx';
 import { parseRoute } from '../screens/route.ts';
 import {
   clientModeLabel,
+  GAME_TYPES,
   parseRoomView,
   roomsClient,
   streamPath,
@@ -42,8 +43,9 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   gameType: 'constructed-1v1',
   clientMode: 'builtin',
   locked: false,
-  members: [{ id: 'http-a', name: 'alice', joinedAt: '2026-09-19T00:00:00.000Z' }],
+  members: [{ id: 'http-a', name: 'alice', joinedAt: '2026-09-19T00:00:00.000Z', ready: false }],
   matchId: null,
+  draftStartedAt: null,
   createdAt: '2026-09-19T00:00:00.000Z',
   ...over,
 });
@@ -54,8 +56,8 @@ const LOCKED = room({
   name: 'Siblings keep out',
   locked: true,
   members: [
-    { id: 'http-b', name: 'bob', joinedAt: '' },
-    { id: 'http-c', name: 'carol', joinedAt: '' },
+    { id: 'http-b', name: 'bob', joinedAt: '', ready: false },
+    { id: 'http-c', name: 'carol', joinedAt: '', ready: false },
   ],
 });
 
@@ -192,14 +194,143 @@ describe('the list', () => {
     expect(parseRoomView({ ...OPEN, id: 'Not An Id!' })).toBeNull();
     expect(parseRoomView(OPEN)).toEqual(OPEN);
   });
+});
 
-  it('does not give a room button the accessible name the draft join box uses', async () => {
-    const { client } = server([OPEN, LOCKED]);
+/* ── readiness and the draft's start (w23) ───────────────────────────── */
+
+describe('the room’s readiness', () => {
+  it('reads a member’s ready flag only from a boolean true, so an older server is not ready', () => {
+    const withReady = { ...OPEN, members: [{ id: 'http-a', name: 'alice', joinedAt: '', ready: true }] };
+    expect(parseRoomView(withReady)?.members[0].ready).toBe(true);
+
+    // The shape a server that predates the field sends: no flag at all.
+    const older: Record<string, unknown> = { ...OPEN, members: [{ id: 'http-a', name: 'alice', joinedAt: '' }] };
+    expect(parseRoomView(older)?.members[0].ready).toBe(false);
+    for (const near of ['true', 'yes', 1, {}, null, undefined]) {
+      const odd = { ...OPEN, members: [{ id: 'http-a', name: 'alice', joinedAt: '', ready: near }] };
+      expect(parseRoomView(odd)?.members[0].ready).toBe(false);
+    }
+  });
+
+  it('reads draftStartedAt as a string or null, and nothing else — a missing one is the lobby', () => {
+    expect(parseRoomView({ ...OPEN, draftStartedAt: '2026-09-26T10:00:00.000Z' })?.draftStartedAt).toBe(
+      '2026-09-26T10:00:00.000Z',
+    );
+    const older: Record<string, unknown> = { ...OPEN };
+    delete older.draftStartedAt;
+    expect('draftStartedAt' in older).toBe(false);
+    expect(parseRoomView(older)?.draftStartedAt).toBeNull();
+    for (const near of [0, 1758880000000, true, {}, null]) {
+      expect(parseRoomView({ ...OPEN, draftStartedAt: near })?.draftStartedAt).toBeNull();
+    }
+  });
+
+  it('says which rooms are already drafting, and says nothing about the ones that are not', async () => {
+    const dealing = room({
+      id: 'r-cube',
+      name: 'Cube night',
+      gameType: 'draft',
+      draftStartedAt: '2026-09-26T10:00:00.000Z',
+    });
+    const waiting = room({ id: 'r-lobby', name: 'Cube later', gameType: 'draft' });
+    const { client } = server([dealing, waiting, OPEN]);
     mount(client);
-    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(2));
-    // `e2e/draft.spec.ts` clicks getByRole('button', { name: 'Join', exact: true }).
-    expect(screen.getAllByRole('button', { name: 'Join' })).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Enter Friday night' })).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(3));
+
+    expect(within(rowFor('r-cube')).getByTestId('room-drafting').textContent).toBe('drafting');
+    expect(within(rowFor('r-cube')).getByTestId('room-type').textContent).toBe('Draft');
+    // A draft room still in its lobby, and a constructed room, say nothing.
+    expect(within(rowFor('r-lobby')).queryByTestId('room-drafting')).toBeNull();
+    expect(within(rowFor('r-open')).queryByTestId('room-drafting')).toBeNull();
+  });
+
+  it('offers draft as a game type a person can actually pick', () => {
+    // It used to be `Draft (coming soon)` and disabled, which is what made the
+    // deleted "Start a pod" button the only way to draft.
+    const draft = GAME_TYPES.find((t) => t.value === 'draft');
+    expect(draft).toEqual({ value: 'draft', label: 'Draft', ready: true });
+    expect(GAME_TYPES.every((t) => t.ready)).toBe(true);
+  });
+});
+
+/* ── the two room writes a draft room makes ──────────────────────────── */
+
+describe('the room writes', () => {
+  /** Just the two new routes, so the URL and the body are the assertion. */
+  function writes(answer: (path: string) => Response) {
+    const calls: Call[] = [];
+    const fetchImpl: Fetch = async (url, init) => {
+      const method = init?.method ?? 'GET';
+      calls.push({ url, method, body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined });
+      return answer(url.replace('/cardtable/api/', ''));
+    };
+    return { calls, client: roomsClient(fetchImpl, '/cardtable/api/') };
+  }
+
+  it('sends readiness to the ROOM’s own route, not the table’s, and answers with the room', async () => {
+    const readied = room({
+      id: 'r-cube',
+      name: 'Cube night',
+      gameType: 'draft',
+      members: [{ id: 'http-a', name: 'alice', joinedAt: '', ready: true }],
+    });
+    const { calls, client } = writes(() => json(200, readied));
+
+    const outcome = await client.ready('r-cube', true);
+    expect(outcome).toEqual({ ok: true, room: readied });
+    expect(calls).toEqual([
+      { url: '/cardtable/api/rooms/r-cube/ready', method: 'POST', body: { ready: true } },
+    ]);
+    // Standing down is the same route with the other boolean.
+    await client.ready('r-cube', false);
+    expect(calls[1].body).toEqual({ ready: false });
+    // And it is never the tables API, which 409s for a draft room.
+    expect(calls.every((c) => !c.url.includes('/tables/'))).toBe(true);
+  });
+
+  it('asks the room to start the draft, with an empty body, and reads back draftStartedAt', async () => {
+    const started = room({
+      id: 'r-cube',
+      name: 'Cube night',
+      gameType: 'draft',
+      draftStartedAt: '2026-09-26T10:00:00.000Z',
+      members: [{ id: 'http-a', name: 'alice', joinedAt: '', ready: true }],
+    });
+    const { calls, client } = writes(() => json(200, started));
+
+    const outcome = await client.start('r-cube');
+    expect(outcome.ok && outcome.room.draftStartedAt).toBe('2026-09-26T10:00:00.000Z');
+    expect(calls).toEqual([{ url: '/cardtable/api/rooms/r-cube/start', method: 'POST', body: {} }]);
+  });
+
+  it('hands back the server’s own refusal, in its words, for both writes', async () => {
+    const refused = writes(() => json(409, { error: 'somebody in this room is not ready yet' }));
+    const start = await refused.client.start('r-cube');
+    expect(start).toEqual({ ok: false, message: 'Could not start the draft: somebody in this room is not ready yet.' });
+
+    const missing = writes(() => json(404, { error: 'no room with that id and password' }));
+    expect(await missing.client.ready('r-gone', true)).toEqual({
+      ok: false,
+      message: 'Could not change your readiness: no room with that id and password.',
+    });
+
+    // A status with no readable body still says something a person can act on.
+    const mute = writes(() => new Response('', { status: 403 }));
+    expect(await mute.client.start('r-cube')).toEqual({
+      ok: false,
+      message: 'Could not start the draft: the server answered HTTP 403.',
+    });
+
+    // A 200 that is not a room is a failure, not a room-shaped guess.
+    const nonsense = writes(() => json(200, { fine: true }));
+    expect(await nonsense.client.ready('r-cube', true)).toEqual({
+      ok: false,
+      message: 'The server answered with something that is not a room.',
+    });
+
+    // And an unreachable server is said in words rather than thrown.
+    const offline = roomsClient(() => Promise.reject(new Error('offline')), '/cardtable/api/');
+    expect(await offline.start('r-cube')).toEqual({ ok: false, message: 'Could not reach the server.' });
   });
 });
 
@@ -297,13 +428,16 @@ describe('creating a room', () => {
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
-  it('omits an empty password, and offers draft only as not-yet-available', async () => {
+  it('omits an empty password, and offers draft as a type that can be chosen', async () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
 
-    const draft = within(screen.getByTestId('room-create-type')).getByRole('option', { name: /Draft/ }) as HTMLOptionElement;
-    expect(draft.disabled).toBe(true);
+    // This option used to be disabled and labelled "coming soon", so the only
+    // way to draft was the pod button w23 deletes. It is a room now.
+    const draft = within(screen.getByTestId('room-create-type')).getByRole('option', { name: 'Draft' }) as HTMLOptionElement;
+    expect(draft.disabled).toBe(false);
+    expect(draft.value).toBe('draft');
 
     fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Open table' } });
     await act(async () => {
@@ -314,6 +448,26 @@ describe('creating a room', () => {
       gameType: 'constructed-1v1',
       clientMode: 'builtin',
     });
+  });
+
+  it('makes a DRAFT room from the same form, and lands in it — the only door there is', async () => {
+    const { client, calls } = server([]);
+    mount(client);
+    await screen.findByTestId('rooms-empty');
+
+    fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Cube night' } });
+    fireEvent.change(screen.getByTestId('room-create-type'), { target: { value: 'draft' } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('room-create-submit'));
+    });
+
+    expect(calls.find((c) => c.method === 'POST')).toEqual({
+      url: '/cardtable/api/rooms',
+      method: 'POST',
+      body: { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' },
+    });
+    // `#/room/<id>`, not `#/draft/<id>`: the room is the pod.
+    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
   it('offers the two clients before the room is made, with our table preselected, and sends the pick', async () => {

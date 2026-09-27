@@ -711,6 +711,45 @@
   cursor: default;
 }
 
+/* ── a draft room's lobby, before the cards exist ────────────────────── */
+
+/*
+ * The members of a draft room, one row each: the name, and whether they are
+ * ready. The same row shape as the constructed table's seats, minus the two
+ * cells a draft has nothing to put in — there is no deck and no format until
+ * the draft has been drafted.
+ *
+ * `deck-ready` is named here as well as in `.tables__row` because that is the
+ * area `.pill--ready` is placed in; a row that did not name it would auto-place
+ * the pill and the column would wander between the two screens.
+ */
+.draft__members {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.draft__member {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'who deck-ready';
+  align-items: center;
+  gap: 0.2rem 0.75rem;
+  padding: 0.45rem 0.7rem;
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+}
+
+.draft__member--empty {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'who';
+  color: var(--color-text-secondary);
+  border-style: dashed;
+}
+
 /* ── a streamed room: one screen per seat ────────────────────────────── */
 
 /* `.lobby` is an auto-fit grid of 300px cards; a wall of live screens wants
