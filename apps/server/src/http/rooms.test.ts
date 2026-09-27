@@ -205,6 +205,9 @@ describe('POST /api/rooms', () => {
 		expect(room.clientMode).toBe('builtin');
 		expect(room.locked).toBe(false);
 		expect(room.matchId).toBeNull();
+		// A new room is in its lobby phase and nobody has readied.
+		expect(room.draftStartedAt).toBeNull();
+		expect(room.members.map((m) => m.ready)).toEqual([false]);
 		expect(room.leader).toBe(room.creator);
 		expect(room.members).toHaveLength(1);
 		expect(room.members[0].id).toBe(room.creator);
@@ -216,6 +219,7 @@ describe('POST /api/rooms', () => {
 			'clientMode',
 			'createdAt',
 			'creator',
+			'draftStartedAt',
 			'gameType',
 			'id',
 			'leader',
@@ -224,7 +228,7 @@ describe('POST /api/rooms', () => {
 			'members',
 			'name',
 		]);
-		expect(Object.keys(room.members[0]).sort()).toEqual(['id', 'joinedAt', 'name']);
+		expect(Object.keys(room.members[0]).sort()).toEqual(['id', 'joinedAt', 'name', 'ready']);
 
 		// The verbatim body, for the lanes coding against it.
 		if (process.env.CARDTABLE_ROOMVIEW_OUT) {
@@ -743,5 +747,160 @@ describe('the lobby', () => {
 		// The reason names what was wrong, never the bytes — which held the hash.
 		expect(JSON.stringify(quarantined)).not.toContain(secret.hash.slice(0, 16));
 		expect(readdirSync(join(dir, 'quarantine')).some((f) => f.endsWith('.json'))).toBe(true);
+	});
+});
+
+/* ── readiness and the start, over the wire ──────────────────────────── */
+
+describe('POST /api/rooms/:id/ready', () => {
+	it('sets a member’s flag and returns the whole room', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+
+		const res = await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: true } });
+		expect(res.status).toBe(200);
+		const after = res.json() as import('../room/lobby.ts').RoomView;
+		expect(after.members.map((m) => [m.name, m.ready])).toEqual([
+			['user-alice', false],
+			['user-bob', true],
+		]);
+		// Standing down again is the same route.
+		const down = await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: false } });
+		expect((down.json() as import('../room/lobby.ts').RoomView).members.map((m) => m.ready)).toEqual([false, false]);
+	});
+
+	it('answers a non-member with the SAME 404 as a missing room and a malformed id', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+
+		// carol is friend tier and can SEE the room in the list. She is not a
+		// member of it, and the answer must not tell her the difference between
+		// that and a room that does not exist — a 403 here would be an oracle.
+		const nonMember = await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'carol', body: { ready: true } });
+		const missing = await call(h, 'POST', '/api/rooms/r-000000000000/ready', { as: 'carol', body: { ready: true } });
+		const malformed = await call(h, 'POST', '/api/rooms/NOT_AN_ID/ready', { as: 'carol', body: { ready: true } });
+		expect([nonMember.status, missing.status, malformed.status]).toEqual([404, 404, 404]);
+		// Byte-identical, not merely equal-looking.
+		expect(nonMember.text).toBe(missing.text);
+		expect(nonMember.text).toBe(malformed.text);
+		expect(nonMember.json()).toEqual(roomsMod.NO_MATCH);
+		// And nothing was written: alice is still the only member, still not ready.
+		expect(
+			((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).members,
+		).toHaveLength(1);
+	});
+
+	it('allow-lists its body, and refuses a caller the edge could not name', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		const cases: Array<[unknown, string]> = [
+			[{}, 'ready must be a boolean'],
+			[{ ready: 'yes' }, 'ready must be a boolean'],
+			[{ ready: 1 }, 'ready must be a boolean'],
+			[{ ready: true, sneaky: 1 }, 'unknown field(s): sneaky'],
+			[{ ready: true, clientMode: 'streamed' }, 'unknown field(s): clientMode'],
+			[[], 'body must be a JSON object'],
+		];
+		for (const [body, error] of cases) {
+			const res = await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body });
+			expect(res.status, JSON.stringify(body)).toBe(400);
+			expect(res.json()).toEqual({ error });
+		}
+		expect(((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).members[0].ready).toBe(false);
+
+		const ghost = await call(h, 'POST', `/api/rooms/${room.id}/ready`, {
+			headers: anonymousHeaders(),
+			body: { ready: true },
+		});
+		expect(ghost.status).toBe(403);
+		expect((ghost.json() as { error: string }).error).toContain('the edge did not name you');
+	});
+});
+
+describe('POST /api/rooms/:id/start', () => {
+	it('starts the draft once every member is ready, for either member, idempotently', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
+
+		// Bob has not readied: 409 with a sentence, not a 4xx a screen has to guess at.
+		const early = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' });
+		expect(early.status).toBe(409);
+		expect((early.json() as { error: string }).error).toContain('ready');
+		expect(((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).draftStartedAt).toBeNull();
+
+		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: true } });
+		// Bob is not the leader, and starts it anyway: any member may ask.
+		const started = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'bob' });
+		expect(started.status).toBe(200);
+		const at = (started.json() as import('../room/lobby.ts').RoomView).draftStartedAt;
+		expect(typeof at).toBe('string');
+
+		// Both browsers ask; the server answers one draft to both.
+		const again = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' });
+		expect(again.status).toBe(200);
+		expect((again.json() as import('../room/lobby.ts').RoomView).draftStartedAt).toBe(at);
+	});
+
+	it('refuses a constructed room with 409, a non-member with 404, and a body it did not ask for', async () => {
+		const h = await openApp(await tempDir());
+		const table = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${table.id}/ready`, { as: 'alice', body: { ready: true } });
+
+		const wrongGame = await call(h, 'POST', `/api/rooms/${table.id}/start`, { as: 'alice' });
+		expect(wrongGame.status).toBe(409);
+		expect((wrongGame.json() as { error: string }).error).toContain('not playing a draft');
+
+		const nonMember = await call(h, 'POST', `/api/rooms/${table.id}/start`, { as: 'carol' });
+		expect(nonMember.status).toBe(404);
+		expect(nonMember.json()).toEqual(roomsMod.NO_MATCH);
+		expect((await call(h, 'POST', '/api/rooms/r-000000000000/start', { as: 'carol' })).text).toBe(nonMember.text);
+
+		const withBody = await call(h, 'POST', `/api/rooms/${table.id}/start`, { as: 'alice', body: { gameType: 'draft' } });
+		expect(withBody.status).toBe(400);
+		expect(withBody.json()).toEqual({ error: 'unknown field(s): gameType' });
+	});
+});
+
+describe('PATCH /api/rooms/:id while a draft is running', () => {
+	it('answers 409 and changes nothing — the pod is dealt against this room’s id', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' })).status).toBe(200);
+
+		const patched = await call(h, 'PATCH', `/api/rooms/${room.id}`, {
+			as: 'alice',
+			body: { gameType: 'constructed-1v1' },
+		});
+		expect(patched.status).toBe(409);
+		expect((patched.json() as { error: string }).error).toContain('drafting');
+		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
+		expect(after.gameType).toBe('draft');
+		expect(after.draftStartedAt).not.toBeNull();
+	});
+
+	it('clears every ready flag when the game type does change', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
+		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: true } });
+
+		const patched = await call(h, 'PATCH', `/api/rooms/${room.id}`, {
+			as: 'alice',
+			body: { gameType: 'constructed-1v1' },
+		});
+		expect(patched.status).toBe(200);
+		expect((patched.json() as import('../room/lobby.ts').RoomView).members.map((m) => m.ready)).toEqual([false, false]);
 	});
 });

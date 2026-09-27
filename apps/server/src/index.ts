@@ -263,6 +263,23 @@ app.get(/.*/, (_req: Request, res: Response, next: NextFunction) => {
 	sendIndex(res, INDEX_HTML, (err) => err && next(err));
 });
 
+// ── Rooms ───────────────────────────────────────────────────────────────────
+// The room list the front page shows, and the per-player state a table reads.
+// Persisted, because this repo redeploys several times a day and an in-memory
+// room would take its members and its password with it every time. `data/` is
+// gitignored, so a `git pull` deploy leaves it alone; e2e sets CARDTABLE_LOG_DIR
+// and therefore gets its own directory rather than production's.
+//
+// **Above the draft socket, and it has to be.** The socket's readiness gate is
+// a lobby read: a `join` deals a pod only for a room whose draft the lobby says
+// has started (wave 23, `room/socket.ts`), so `attachDraftSocket` takes the
+// lobby as a required dep and cannot be wired before it exists.
+const lobby = await openLobby({
+	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
+	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
+});
+attachRooms(api, { lobby });
+
 // ── The draft room ───────────────────────────────────────────────────────────
 // The cube the pod is dealt from. Read once at boot, like the base-path check
 // and for the same reason: a synchronous read of a 280 kB file does not belong
@@ -307,19 +324,7 @@ const draftRooms = poolLoad.ok
 			onDeferredChange: (room) => emitDraftUpdate(io, room, draftPolicy),
 		})
 	: null;
-attachDraftSocket(io, { rooms: draftRooms, minTier: CONFIG.minTier });
-
-// ── Rooms ───────────────────────────────────────────────────────────────────
-// The room list the front page shows, and the per-player state a table reads.
-// Persisted, because this repo redeploys several times a day and an in-memory
-// room would take its members and its password with it every time. `data/` is
-// gitignored, so a `git pull` deploy leaves it alone; e2e sets CARDTABLE_LOG_DIR
-// and therefore gets its own directory rather than production's.
-const lobby = await openLobby({
-	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
-	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
-});
-attachRooms(api, { lobby });
+attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier });
 
 // ── Rooms are not immortal ───────────────────────────────────────────────────
 // `create` had no opposite for its whole life: no leave, no close, no expiry,

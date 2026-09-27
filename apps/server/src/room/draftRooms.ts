@@ -167,7 +167,15 @@ export interface DraftParams {
 	disconnectGraceMs: number;
 }
 
-/** A standard pod: eight seats, three fifteen-card packs, a two-minute hold. */
+/**
+ * A standard pod: eight seats, three fifteen-card packs, a two-minute hold.
+ *
+ * **Eight seats, always.** A draft room does not choose its seat count and
+ * nothing in the UI offers one (wave 23): the room has however many humans
+ * readied, the pod has eight seats, and the seats nobody claimed are bots. That
+ * reconciliation is `createDraft(… humans: [])` plus eviction on connect — see
+ * `build` below — so a room of one and a room of eight are the same code path.
+ */
 export const DEFAULT_PARAMS: DraftParams = {
 	seatCount: 8,
 	packCount: 3,
@@ -193,7 +201,14 @@ export interface DraftRoomsOptions {
 export interface DraftRooms {
 	readonly cube: CubeMeta;
 	readonly params: DraftParams;
-	/** Get or create the room for a draft. Creating one deals the whole draft. */
+	/**
+	 * Get or create the room for a draft. Creating one deals the whole draft.
+	 *
+	 * So the CALLER decides when a draft begins, and there is exactly one: the
+	 * socket's `join`, which refuses unless the lobby says that room's draft has
+	 * been started (`room/socket.ts`'s readiness gate). Calling this for an
+	 * arbitrary id is what the deleted "Start a pod" button did.
+	 */
 	open(draftId: string): DraftRoom;
 	/** The room for a draft that already exists, or undefined. */
 	find(draftId: string): DraftRoom | undefined;
@@ -248,8 +263,11 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			seatCount: params.seatCount,
 			packCount: params.packCount,
 			packSize: params.packSize,
-			// Nobody is seated at creation. Humans arrive over the socket and
-			// evict a bot, which `seatParticipant` does for them.
+			// Nobody is seated at creation: all eight seats are bots, and every
+			// human who connects evicts one. That is how "bots fill the seats
+			// nobody took, at the instant the draft starts" is implemented —
+			// nothing counts humans, because the draft is not built until the
+			// room starts it and a seat is taken by arriving.
 			humans: [],
 			reservationTtlMs: params.reservationTtlMs,
 		});

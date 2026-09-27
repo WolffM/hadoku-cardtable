@@ -32,6 +32,20 @@ import {
 	type RoomView,
 } from './lobby.ts';
 
+const CAROL = { id: 'fk:3333333333333333', name: 'user-carol' };
+
+/** A draft room with `members` in it, all of them ready, and its draft started. */
+async function startedDraft(lobby: Lobby, members: Array<{ id: string; name: string }> = [ALICE]): Promise<string> {
+	const made = lobby.create(members[0], { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+	expect(made.ok).toBe(true);
+	if (!made.ok) throw new Error(made.reason);
+	for (const member of members.slice(1)) expect(lobby.join(made.room.id, member).ok).toBe(true);
+	for (const member of members) expect(lobby.setReady(made.room.id, member.id, true)).toBe(true);
+	const started = lobby.startDraft(made.room.id, members[0].id);
+	expect(started.ok).toBe(true);
+	return made.room.id;
+}
+
 const ALICE = { id: 'fk:1111111111111111', name: 'user-alice' };
 const BOB = { id: 'fk:2222222222222222', name: 'user-bob' };
 
@@ -144,6 +158,11 @@ describe('a room stored before clientMode existed', () => {
 		expect(lobby.get('r-aaaaaaaaaaaa')?.name).toBe('Kitchen table');
 		expect(lobby.get('r-aaaaaaaaaaaa')?.gameType).toBe('constructed-1v1');
 		expect(lobby.get('r-aaaaaaaaaaaa')?.members.map((m) => m.name)).toEqual([ALICE.name]);
+		// The wave-23 fields are additive too: a member blob of `null` is not
+		// ready, and a room-level blob with no `draftStartedAt` is in its lobby.
+		expect(Object.keys(legacyApp())).not.toContain('draftStartedAt');
+		expect(lobby.get('r-aaaaaaaaaaaa')?.members.map((m) => m.ready)).toEqual([false]);
+		expect(lobby.get('r-aaaaaaaaaaaa')?.draftStartedAt).toBeNull();
 	});
 
 	it('is rewritten WITH the field once anything touches it, and still reads builtin', async () => {
@@ -280,5 +299,181 @@ describe('a restored room is never still playing', () => {
 		expect(room?.matchId, 'a room claimed to be playing a match that cannot exist').toBeNull();
 		// The list is what the front page reads, so assert it there too.
 		expect(lobby.list()[0]?.matchId).toBeNull();
+	});
+});
+
+/* ── readiness, which is what a draft starts on ──────────────────────── */
+
+describe('Lobby.setReady', () => {
+	it('persists a member’s flag, reads it back, and refuses a non-member', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		const id = made.room.id;
+		// A new member starts not ready, and says so in the view every client reads.
+		expect(made.room.members.map((m) => m.ready)).toEqual([false]);
+
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.setReady(id, ALICE.id, true)).toBe(true);
+		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true, false]);
+
+		// Nobody who is not a member of this room may set a flag in it, and
+		// neither may anyone against a room that does not exist.
+		expect(lobby.setReady(id, CAROL.id, true)).toBe(false);
+		expect(lobby.setReady('r-000000000000', ALICE.id, true)).toBe(false);
+		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true, false]);
+
+		// It is a flag, not a latch.
+		expect(lobby.setReady(id, ALICE.id, false)).toBe(true);
+		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([false, false]);
+
+		// And it survives a restart: a deploy mid-lobby does not make everybody
+		// click again.
+		expect(lobby.setReady(id, BOB.id, true)).toBe(true);
+		const second = await openLobby({ dir });
+		expect(second.get(id)?.members.map((m) => [m.name, m.ready])).toEqual([
+			[ALICE.name, false],
+			[BOB.name, true],
+		]);
+	});
+});
+
+describe('Lobby.startDraft', () => {
+	it('refuses all four ways: no room, not a member, not a draft, not everyone ready', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		expect(lobby.startDraft('r-000000000000', ALICE.id)).toEqual({ ok: false, reason: 'no-room' });
+
+		const draft = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		const table = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(draft.ok && table.ok).toBe(true);
+		if (!draft.ok || !table.ok) return;
+
+		// Not a member. CAROL never joined.
+		expect(lobby.startDraft(draft.room.id, CAROL.id)).toEqual({ ok: false, reason: 'not-member' });
+		// Not a draft. A constructed room starts through the tables API.
+		expect(lobby.setReady(table.room.id, ALICE.id, true)).toBe(true);
+		expect(lobby.startDraft(table.room.id, ALICE.id)).toEqual({ ok: false, reason: 'not-draft' });
+		// Nobody ready at all.
+		expect(lobby.startDraft(draft.room.id, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
+		// One of two ready is not "everyone": BOB has not said yes.
+		expect(lobby.join(draft.room.id, BOB).ok).toBe(true);
+		expect(lobby.setReady(draft.room.id, ALICE.id, true)).toBe(true);
+		expect(lobby.startDraft(draft.room.id, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
+		// None of those refusals started anything.
+		expect(lobby.get(draft.room.id)?.draftStartedAt).toBeNull();
+
+		expect(lobby.setReady(draft.room.id, BOB.id, true)).toBe(true);
+		const started = lobby.startDraft(draft.room.id, BOB.id);
+		expect(started.ok).toBe(true);
+		// ANY member may start it, not only the leader: both browsers ask and the
+		// server answers one start to both.
+		if (!started.ok) return;
+		expect(typeof started.room.draftStartedAt).toBe('string');
+	});
+
+	it('starts for one member who readied alone — "everyone" is every member, and one is enough', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const id = await startedDraft(lobby, [ALICE]);
+		const room = lobby.get(id);
+		expect(room?.members).toHaveLength(1);
+		expect(Date.parse(String(room?.draftStartedAt))).not.toBeNaN();
+	});
+
+	it('is idempotent: a second call answers ok and does not re-stamp the start', async () => {
+		let clock = 1_800_000_000_000;
+		const lobby = await openLobby({ dir: await tempDir(), now: () => clock });
+		const id = await startedDraft(lobby, [ALICE, BOB]);
+		const first = lobby.get(id)?.draftStartedAt;
+
+		clock += 60_000;
+		const again = lobby.startDraft(id, BOB.id);
+		expect(again.ok).toBe(true);
+		if (!again.ok) return;
+		expect(again.room.draftStartedAt).toBe(first);
+
+		// Even after somebody stands down mid-draft, which is what makes the
+		// idempotence check have to come BEFORE the readiness check.
+		expect(lobby.setReady(id, BOB.id, false)).toBe(true);
+		const third = lobby.startDraft(id, ALICE.id);
+		expect(third.ok).toBe(true);
+		if (!third.ok) return;
+		expect(third.room.draftStartedAt).toBe(first);
+	});
+});
+
+describe('Lobby.setGameType and readiness', () => {
+	it('clears every ready flag, because readiness is readiness for a particular game', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		expect(lobby.setReady(made.room.id, ALICE.id, true)).toBe(true);
+		expect(lobby.setReady(made.room.id, BOB.id, true)).toBe(true);
+
+		const switched = lobby.setGameType(made.room.id, ALICE.id, 'constructed-1v1');
+		expect(switched.ok).toBe(true);
+		if (!switched.ok) return;
+		// Including the leader who made the change.
+		expect(switched.room.members.map((m) => m.ready)).toEqual([false, false]);
+		expect(lobby.get(made.room.id)?.members.map((m) => m.ready)).toEqual([false, false]);
+		// Cleared on disk too, not only in memory.
+		const second = await openLobby({ dir });
+		expect(second.get(made.room.id)?.members.map((m) => m.ready)).toEqual([false, false]);
+	});
+
+	it('refuses to change the game type while a draft is running', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const id = await startedDraft(lobby, [ALICE]);
+		expect(lobby.setGameType(id, ALICE.id, 'constructed-1v1')).toEqual({ ok: false, reason: 'draft-started' });
+		// The room is untouched: still a draft, still started, still ready.
+		expect(lobby.get(id)?.gameType).toBe('draft');
+		expect(lobby.get(id)?.draftStartedAt).not.toBeNull();
+		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true]);
+	});
+});
+
+/* ── a live draft is not swept, and does not survive a restart ───────── */
+
+describe('a draft that has started', () => {
+	it('is spared by the sweep, however long the lobby has sat untouched', async () => {
+		const dir = await tempDir();
+		let clock = 4_000_000_000_000;
+		const lobby = await openLobby({ dir, now: () => clock });
+		const drafting = await startedDraft(lobby, [ALICE]);
+		const idle = lobby.create(BOB, { name: 'nobody here', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(idle.ok).toBe(true);
+		if (!idle.ok) return;
+
+		// A pod runs for the better part of an hour with nobody touching the
+		// lobby; a forty-minute draft is well inside the window, so push the
+		// clock past it entirely.
+		clock += ROOM_IDLE_MS + 1;
+		expect(lobby.sweep()).toEqual([idle.room.id]);
+		expect(lobby.list().map((r) => r.id)).toEqual([drafting]);
+		expect(lobby.get(drafting)?.draftStartedAt).not.toBeNull();
+	});
+
+	it('is back in its lobby phase after a restart, with the ready flags intact', async () => {
+		const dir = await tempDir();
+		const first = await openLobby({ dir });
+		const id = await startedDraft(first, [ALICE, BOB]);
+		expect(first.get(id)?.draftStartedAt).not.toBeNull();
+
+		// The draft itself lives in this process's memory (`draftRooms.ts` keeps
+		// nothing on disk), so a restored `draftStartedAt` would point at a pod
+		// that cannot exist — the same mistake `matchId` used to make. The room
+		// comes back as a lobby everybody is already ready in.
+		const second = await openLobby({ dir });
+		expect(second.get(id)?.draftStartedAt).toBeNull();
+		expect(second.get(id)?.members.map((m) => m.ready)).toEqual([true, true]);
+		expect(second.get(id)?.gameType).toBe('draft');
+		// And now it is sweepable again, so sparing a live draft cannot make a
+		// room immortal.
+		const third = await openLobby({ dir, now: () => Date.now() + ROOM_IDLE_MS + 1 });
+		expect(third.sweep()).toEqual([id]);
 	});
 });

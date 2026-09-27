@@ -23,10 +23,14 @@
  * socket rooms (`CoreRoomState`) and its debounce is the thing we do not want.
  *
  * The snapshot's `members` are the room's members, and each member's `app` blob
- * is lane C's per-player state (deck choice, ready) — which is exactly what that
+ * carries two things: the room's own readiness flag (`ready`, what a draft
+ * starts on) and the constructed table's per-player state blob (deck choice and
+ * its own ready flag, written by `http/routes.ts`) — which is exactly what that
  * field is for. The room-level `app` blob carries name, leader, game type,
- * client mode and match id, plus the password's salt and scrypt hash. A room
- * written before `clientMode` existed has no such key and reads back `builtin`.
+ * client mode, match id and `draftStartedAt`, plus the password's salt and
+ * scrypt hash. A room written before `clientMode` existed has no such key and
+ * reads back `builtin`; one written before `ready`/`draftStartedAt` existed
+ * reads back `false` and `null`.
  *
  * ## The password is privacy between friends, not authentication
  *
@@ -66,7 +70,13 @@ import {
 import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
 
 export type GameType = 'constructed-1v1' | 'draft';
-/** Every game type a room may be set to. `draft` is accepted as a value; nothing builds it yet. */
+/**
+ * Every game type a room may be set to.
+ *
+ * A `draft` room is a room like any other: it has members, a leader and a
+ * readiness flag per member, and `startDraft` is what turns it into a live pod
+ * (wave 23). Nothing is dealt before that call — see `room/socket.ts`.
+ */
 export const GAME_TYPES: readonly GameType[] = ['constructed-1v1', 'draft'];
 export const DEFAULT_GAME_TYPE: GameType = 'constructed-1v1';
 
@@ -94,6 +104,16 @@ export interface RoomMember {
 	/** `userIdOf(req)` — the same string `/api/whoami` returns as `userId`. */
 	name: string;
 	joinedAt: string;
+	/**
+	 * The ROOM's readiness, which is what a draft starts on.
+	 *
+	 * Not the constructed table's ready flag: that one lives in the player-state
+	 * blob beside the deck choice (`http/routes.ts`), because it means "my deck
+	 * is loaded and legal" and is refused without one. This one means "I am
+	 * ready for this room to begin" and needs no deck. A room switching game
+	 * type clears it — see `setGameType`.
+	 */
+	ready: boolean;
 }
 
 /** The PUBLIC shape. Every response body that carries a room uses exactly this. */
@@ -109,6 +129,16 @@ export interface RoomView {
 	locked: boolean;
 	members: RoomMember[];
 	matchId: string | null;
+	/**
+	 * ISO string once the draft has been dealt; null in the lobby phase.
+	 *
+	 * Never restored across a restart, for the same reason `matchId` is not: the
+	 * draft itself is in this process's memory (`room/draftRooms.ts` keeps no
+	 * disk state), so a room that came back claiming to be mid-draft would show
+	 * an empty table. A restart puts the room back in its lobby with its ready
+	 * flags intact instead, and the UI says so in words.
+	 */
+	draftStartedAt: string | null;
 	createdAt: string;
 }
 
@@ -141,7 +171,11 @@ export type JoinResult =
 
 export type SetGameTypeResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' };
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' };
+
+export type StartDraftResult =
+	| { ok: true; room: RoomView }
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-ready' };
 
 /**
  * How long a room may sit untouched before the lobby forgets it.
@@ -168,16 +202,46 @@ export interface Lobby {
 	playerState(roomId: string, memberId: string): unknown;
 	/** false when there is no such room or memberId is not a member. Persisted. */
 	setPlayerState(roomId: string, memberId: string, state: unknown): boolean;
+	/** false when there is no such room or the caller is not a member. Persisted. */
+	setReady(roomId: string, memberId: string, ready: boolean): boolean;
+	/**
+	 * Deal the room's draft: the point at which a draft room stops being a lobby.
+	 *
+	 * Requires the room to exist, the caller to be a member, the game type to be
+	 * `draft`, and EVERY member to be ready (with at least one member). Any
+	 * member may call it — like constructed, where either browser may ask and
+	 * the server answers one start to both — so it is idempotent: a room whose
+	 * draft has already started answers `ok` with its view and changes nothing.
+	 *
+	 * It does not build the draft. It records that the room started one; the
+	 * socket refuses to open a pod for a room where this is null, and the engine
+	 * deals the pod on the first `join` after it (`room/socket.ts`). That is why
+	 * bots exist only from the instant the draft is dealt: nothing counts seats
+	 * at this call, `createDraft` fills all eight with bots and each human who
+	 * connects evicts one.
+	 */
+	startDraft(roomId: string, callerId: string): StartDraftResult;
 	/** false when there is no such room. Persisted. */
 	setMatch(roomId: string, matchId: string | null): boolean;
 	create(caller: Caller, input: CreateRoomInput): CreateResult;
 	/** Idempotent for an existing member, who needs no password again. */
 	join(roomId: string, caller: Caller, password?: string): JoinResult;
-	/** Leader only. Changes the game type and NOTHING else — a room's `clientMode` is immutable. */
+	/**
+	 * Leader only. Changes the game type and NOTHING else — a room's `clientMode`
+	 * is immutable. Every member's `ready` is cleared: readiness is readiness for
+	 * a particular game, so changing the game invalidates it. Refused with
+	 * `draft-started` while a draft is running.
+	 */
 	setGameType(roomId: string, callerId: string, gameType: GameType): SetGameTypeResult;
 	/**
 	 * Forget every room untouched for longer than `idleMs`, on disk as well as
 	 * in memory. Returns the ids dropped, for the caller's log.
+	 *
+	 * A room whose draft has STARTED is never dropped: a pod runs for the better
+	 * part of an hour without anybody touching the lobby, and reaping it would
+	 * take the draft with it. That cannot make a room immortal, because
+	 * `draftStartedAt` is not restored — the next restart puts the room back in
+	 * its lobby, and it ages out from there.
 	 */
 	sweep(idleMs?: number): string[];
 }
@@ -231,6 +295,7 @@ interface MemberRecord {
 	name: string;
 	joinedAt: number;
 	state: unknown;
+	ready: boolean;
 }
 
 interface RoomRecord {
@@ -241,6 +306,8 @@ interface RoomRecord {
 	gameType: GameType;
 	clientMode: ClientMode;
 	matchId: string | null;
+	/** ms since epoch once the draft was dealt; null in the lobby phase. */
+	draftStartedAt: number | null;
 	createdAt: number;
 	/** Last mutation, in ms. What `sweep` ages a room out on. */
 	updatedAt: number;
@@ -255,12 +322,20 @@ interface StoredApp {
 	gameType: GameType;
 	clientMode: ClientMode;
 	matchId: string | null;
+	/**
+	 * Written, and deliberately read back as null (see `openLobby`). It is here
+	 * so a snapshot on disk says whether that room was mid-draft when the
+	 * process died — the log line of the last write — and so the codec refuses a
+	 * record whose value is not a number rather than silently ignoring it.
+	 */
+	draftStartedAt: number | null;
 	secret: Secret | null;
 }
 
 /**
- * Not bumped for `clientMode`. The field is additive and is read with a
- * default, so a record written before it existed decodes without a migration —
+ * Not bumped for `clientMode`, and not bumped for `ready`/`draftStartedAt`
+ * either. Each is additive and is read with a default — `builtin`, `false`,
+ * `null` — so a record written before it existed decodes without a migration,
  * and a bump would imply one that does not exist. `deserialize` gets the stored
  * version anyway if a real migration ever needs it.
  */
@@ -301,6 +376,12 @@ const appCodec: AppCodec<StoredApp> = {
 			throw new Error('app.clientMode is not a known client mode');
 		}
 		if (a.matchId !== null && typeof a.matchId !== 'string') throw new Error('app.matchId is invalid');
+		// Absent is a room written before wave 23, which is every room that
+		// existed then and no room that was mid-draft. Present and not a number
+		// is a record this build does not understand.
+		if (a.draftStartedAt !== undefined && a.draftStartedAt !== null && typeof a.draftStartedAt !== 'number') {
+			throw new Error('app.draftStartedAt is not a number');
+		}
 		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
 		return {
 			name: a.name,
@@ -309,6 +390,7 @@ const appCodec: AppCodec<StoredApp> = {
 			gameType: a.gameType,
 			clientMode: a.clientMode === undefined ? DEFAULT_CLIENT_MODE : a.clientMode,
 			matchId: a.matchId as string | null,
+			draftStartedAt: a.draftStartedAt === undefined ? null : (a.draftStartedAt as number | null),
 			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
 		};
 	},
@@ -329,8 +411,10 @@ function viewOf(room: RoomRecord, locked: boolean): RoomView {
 			id: m.id,
 			name: m.name,
 			joinedAt: new Date(m.joinedAt).toISOString(),
+			ready: m.ready,
 		})),
 		matchId: room.matchId,
+		draftStartedAt: room.draftStartedAt === null ? null : new Date(room.draftStartedAt).toISOString(),
 		createdAt: new Date(room.createdAt).toISOString(),
 	};
 }
@@ -347,6 +431,12 @@ function mintRoomId(): string {
 function unboxState(app: unknown): unknown {
 	if (typeof app !== 'object' || app === null || !('state' in app)) return undefined;
 	return (app as { state: unknown }).state;
+}
+
+/** Anything but a stored `true` is not ready — including a member blob from before the field. */
+function unboxReady(app: unknown): boolean {
+	if (typeof app !== 'object' || app === null) return false;
+	return (app as { ready?: unknown }).ready === true;
 }
 
 // ── the lobby ────────────────────────────────────────────────────────────────
@@ -396,8 +486,14 @@ class FileLobby implements Lobby {
 				joinedAt: m.joinedAt,
 				lastSeen: m.joinedAt,
 				name: m.name,
-				// Boxed, so a state of `null` survives a restart as `null`.
-				app: m.state === undefined ? null : { state: structuredClone(m.state) },
+				// Boxed, so a state of `null` survives a restart as `null`, and
+				// `ready` rides the same blob — it is per-member state like the
+				// deck choice. A member with neither still writes `null`, which
+				// is byte-for-byte what a pre-wave-23 room wrote.
+				app:
+					m.state === undefined && !m.ready
+						? null
+						: { state: structuredClone(m.state), ready: m.ready },
 			};
 			return member;
 		});
@@ -408,6 +504,7 @@ class FileLobby implements Lobby {
 			gameType: room.gameType,
 			clientMode: room.clientMode,
 			matchId: room.matchId,
+			draftStartedAt: room.draftStartedAt,
 			secret: this.#secrets.get(room.id) ?? null,
 		};
 		const snapshot: RoomSnapshot = {
@@ -478,9 +575,10 @@ class FileLobby implements Lobby {
 			gameType: input.gameType,
 			clientMode: input.clientMode,
 			matchId: null,
+			draftStartedAt: null,
 			createdAt: now,
 			updatedAt: now,
-			members: [{ id: caller.id, name: caller.name, joinedAt: now, state: undefined }],
+			members: [{ id: caller.id, name: caller.name, joinedAt: now, state: undefined, ready: false }],
 		};
 		this.#rooms.set(id, room);
 		if (input.password !== undefined && input.password !== '') {
@@ -508,17 +606,56 @@ class FileLobby implements Lobby {
 		if (secret !== undefined && !passwordMatches(secret, password ?? '')) {
 			return { ok: false, reason: 'no-match' };
 		}
-		room.members.push({ id: caller.id, name: caller.name, joinedAt: this.#now(), state: undefined });
+		room.members.push({ id: caller.id, name: caller.name, joinedAt: this.#now(), state: undefined, ready: false });
 		this.#persist(room);
 		this.#log({ event: 'room-joined', roomId, members: room.members.length });
 		return { ok: true, room: this.#view(room), alreadyMember: false };
+	}
+
+	setReady(roomId: string, memberId: string, ready: boolean): boolean {
+		const room = this.#rooms.get(roomId);
+		const member = room?.members.find((m) => m.id === memberId);
+		if (room === undefined || member === undefined) return false;
+		member.ready = ready;
+		this.#persist(room);
+		this.#log({ event: 'room-ready', roomId, ready });
+		return true;
+	}
+
+	startDraft(roomId: string, callerId: string): StartDraftResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!room.members.some((m) => m.id === callerId)) return { ok: false, reason: 'not-member' };
+		// Idempotent, and checked BEFORE readiness: the two browsers both ask, and
+		// the second one arrives after the first member's flags may already have
+		// been cleared by a leave. A room that has started has started.
+		if (room.draftStartedAt !== null) return { ok: true, room: this.#view(room) };
+		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
+		// "Everyone" is every member of the room, and there must be at least one.
+		// One member who readies alone drafts against seven bots — that is what
+		// the pod did before it was a room, and it is kept.
+		if (room.members.length === 0 || room.members.some((m) => !m.ready)) {
+			return { ok: false, reason: 'not-ready' };
+		}
+		room.draftStartedAt = this.#now();
+		this.#persist(room);
+		this.#log({ event: 'room-draft-started', roomId, members: room.members.length });
+		return { ok: true, room: this.#view(room) };
 	}
 
 	setGameType(roomId: string, callerId: string, gameType: GameType): SetGameTypeResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
+		// The draft is dealt against this room's id and is already being played.
+		// Switching the game under it would leave a live pod in a room that says
+		// it is playing constructed, and nothing would ever close the pod.
+		if (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };
 		room.gameType = gameType;
+		// Readiness is readiness for a particular game: a member who readied for
+		// a draft has not agreed to a constructed match. Cleared for everyone,
+		// including the leader making the change.
+		for (const member of room.members) member.ready = false;
 		this.#persist(room);
 		this.#log({ event: 'room-game-type', roomId, gameType });
 		return { ok: true, room: this.#view(room) };
@@ -529,6 +666,11 @@ class FileLobby implements Lobby {
 		const dropped: string[] = [];
 		for (const [id, room] of this.#rooms) {
 			if (room.updatedAt > cutoff) continue;
+			// A pod in progress. Nobody touches the lobby for the forty minutes a
+			// draft takes, and the room is the pod's container — reaping it would
+			// end the game. `draftStartedAt` dies with the process, so this cannot
+			// keep a room alive past the next restart.
+			if (room.draftStartedAt !== null) continue;
 			this.#rooms.delete(id);
 			this.#secrets.delete(id);
 			dropped.push(id);
@@ -588,6 +730,10 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 				name: m.name ?? 'anon',
 				joinedAt: m.joinedAt,
 				state: unboxState(m.app),
+				// Kept across the restart, unlike the draft itself: the room comes
+				// back in its lobby phase with everybody still ready, which is one
+				// click from starting again rather than four.
+				ready: unboxReady(m.app),
 			}));
 			lobby.restore(
 				{
@@ -603,6 +749,13 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// `matchId` advertised "playing" for ever, pointing at a game
 					// that died days earlier — which is what the operator found.
 					matchId: null,
+					// **Never restored either, and for the same reason.** A draft
+					// lives in `room/draftRooms.ts`'s in-memory registry, which
+					// this process did not inherit — `open` would deal a brand new
+					// draft over the top of whatever was played. So a restart puts
+					// the room back in its lobby phase; the UI says a draft does
+					// not survive a restart rather than showing an empty table.
+					draftStartedAt: null,
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched
 					// by the process that wrote it. `decoded` does not carry it.

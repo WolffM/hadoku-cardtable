@@ -8,6 +8,15 @@
  * two sockets in one room receive different bytes, because in a stub there are
  * no bytes and no handshake.
  *
+ * ## The lobby is real, because the readiness gate is a lobby read
+ *
+ * A `join` is admitted only for a room the lobby says is a `draft` whose draft
+ * has STARTED (wave 23), so every test here runs against a real `openLobby` over
+ * a temp directory, with three real rooms in it: a started draft (what the
+ * drafting tests join), a draft still in its lobby, and a constructed room. A
+ * stub lobby would let the gate agree with the test's idea of the rules instead
+ * of with the lobby's.
+ *
  * ## The leak assertion is positional, not nominal
  *
  * `apps/ui/src/draft/hiddenInfo.ts` is the existing in-repo example of this
@@ -26,11 +35,13 @@
  * would refuse fails here rather than in production.
  */
 
+import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { dirname, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import { roleOf, seatOf } from '@wolffm/rooms-protocol';
@@ -47,11 +58,11 @@ import {
 } from '@hadoku/shared';
 
 import type { DraftRoom, DraftRooms } from './draftRooms.js';
+import type { Lobby } from './lobby.js';
 import type { CubePool } from './pool.js';
 
 const POOL_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
 const EDGE_SECRET = 'test-edge-auth-secret';
-const DRAFT_ID = 'pod-socket-1';
 
 /*
  * `config.ts` reads the environment once, at module load, so the secret has to
@@ -62,7 +73,18 @@ const DRAFT_ID = 'pod-socket-1';
  */
 let socketMod: typeof import('./socket.ts');
 let roomsMod: typeof import('./draftRooms.ts');
+let lobbyMod: typeof import('./lobby.ts');
 let pool: CubePool;
+
+/** The room that owns the draft every drafting test joins. `r-<hex>`, minted by the lobby. */
+let startedRoomId = '';
+/** A draft room whose members have NOT all readied: the gate's own case. */
+let pendingRoomId = '';
+/** A room playing constructed. Nothing here may ever be dealt a pod for it. */
+let constructedRoomId = '';
+
+/** The lobby's member, and the caller that starts the draft. Durable, so `create` accepts it. */
+const OWNER = { id: 'fk:1111111111111111', name: 'user-owner' };
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
@@ -70,6 +92,7 @@ beforeAll(async () => {
 	vi.resetModules();
 	socketMod = await import('./socket.ts');
 	roomsMod = await import('./draftRooms.ts');
+	lobbyMod = await import('./lobby.ts');
 	const poolMod = await import('./pool.ts');
 	const load = poolMod.loadPool(POOL_FILE);
 	if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
@@ -81,6 +104,8 @@ beforeAll(async () => {
 interface Harness {
 	port: number;
 	rooms: DraftRooms;
+	/** The real lobby the gate reads. Its three rooms are the module-level ids. */
+	lobby: Lobby;
 	io: SocketIOServer;
 	http: HttpServer;
 	/**
@@ -98,10 +123,36 @@ interface Harness {
 }
 
 const openPeers: ClientSocket[] = [];
+/** Every temp lobby directory this file made, removed once at the end. */
+const dirs: string[] = [];
 let harness: Harness | null = null;
+
+/** Three rooms in a real lobby: a started draft, a draft still in its lobby, a constructed room. */
+async function bootLobby(): Promise<Lobby> {
+	const dir = await mkdtemp(join(tmpdir(), 'cardtable-socket-test-'));
+	dirs.push(dir);
+	const lobby = await lobbyMod.openLobby({ dir });
+	const make = (name: string, gameType: 'draft' | 'constructed-1v1'): string => {
+		const made = lobby.create(OWNER, { name, gameType, clientMode: 'builtin' });
+		if (!made.ok) throw new Error(`the lobby refused to create ${name}: ${made.reason}`);
+		return made.room.id;
+	};
+	startedRoomId = make('pod-socket-started', 'draft');
+	pendingRoomId = make('pod-socket-pending', 'draft');
+	constructedRoomId = make('table-socket', 'constructed-1v1');
+
+	// Only the first one is started, through the lobby's own rules: every member
+	// ready, then `startDraft`. Nothing here sets `draftStartedAt` by hand.
+	if (!lobby.setReady(startedRoomId, OWNER.id, true)) throw new Error('the lobby refused a ready flag');
+	const started = lobby.startDraft(startedRoomId, OWNER.id);
+	if (!started.ok) throw new Error(`the lobby refused to start the draft: ${started.reason}`);
+	if (lobby.get(pendingRoomId)?.draftStartedAt !== null) throw new Error('the pending room started itself');
+	return lobby;
+}
 
 async function boot(deps: { rateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } } = {}): Promise<Harness> {
 	const rooms = roomsMod.createDraftRooms({ pool: pool.cards, cube: pool.meta });
+	const lobby = await bootLobby();
 	const http = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });
 	// Collected, not printed: nothing reaches the test output, and the one line
@@ -109,6 +160,7 @@ async function boot(deps: { rateLimit?: { capacity: number; refillAmount: number
 	const lines: Array<Record<string, unknown>> = [];
 	const handle = socketMod.attachDraftSocket(io, {
 		rooms,
+		lobby,
 		minTier: 'friend',
 		log: (line) => {
 			lines.push(line);
@@ -120,6 +172,7 @@ async function boot(deps: { rateLimit?: { capacity: number; refillAmount: number
 	return {
 		port,
 		rooms,
+		lobby,
 		io,
 		http,
 		lines,
@@ -263,7 +316,7 @@ function cardsSeenBy(peer: Peer): DraftCard[] {
 	return out;
 }
 
-async function joinAndSettle(peer: Peer, draftId = DRAFT_ID): Promise<void> {
+async function joinAndSettle(peer: Peer, draftId: string = startedRoomId): Promise<void> {
 	const before = peer.received.length;
 	peer.send(joinDraft(draftId));
 	await waitUntil(() => peer.received.length > before, `${peer.id} to be seated`);
@@ -279,14 +332,18 @@ afterEach(async () => {
 	harness = null;
 });
 
+afterAll(async () => {
+	for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
+});
+
 function live(): Harness {
 	if (harness === null) throw new Error('no harness');
 	return harness;
 }
 
 function room(): DraftRoom {
-	const found = live().rooms.find(DRAFT_ID);
-	if (found === undefined) throw new Error(`no room for ${DRAFT_ID}`);
+	const found = live().rooms.find(startedRoomId);
+	if (found === undefined) throw new Error(`no room for ${startedRoomId}`);
 	return found;
 }
 
@@ -320,19 +377,109 @@ describe('the handshake inherits the friend gate', () => {
 	});
 });
 
+/* ── The readiness gate ──────────────────────────────────────────────── */
+
+/*
+ * The control this wave exists for. `case 'join'` used to be
+ * `rooms.open(msg.draftId)`: the first socket to name any id was dealt a whole
+ * eight-seat pod against it and every seat nobody had taken was a bot. So the
+ * assertion is not only "an error came back" — it is that NO DRAFT EXISTS
+ * afterwards and that the socket was shown no cards at all, because that is what
+ * a reverted gate would break.
+ */
+describe('a join against a draft that has not started', () => {
+	it('is refused and deals NOTHING — no draft is built and no card is sent', async () => {
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		// The lobby really has this room, and it really is a draft: the refusal
+		// below is about readiness and nothing else.
+		expect(live().lobby.get(pendingRoomId)?.gameType).toBe('draft');
+		expect(live().lobby.get(pendingRoomId)?.draftStartedAt).toBeNull();
+
+		alice.send(joinDraft(pendingRoomId));
+		await waitUntil(() => alice.received.length > 0, 'the refusal');
+
+		expect(errors(alice)).toEqual([
+			{ code: 'unknown-draft', detail: 'that draft has not started yet' },
+		]);
+		// Nothing but the refusal reached this socket.
+		expect(alice.received.map((m) => m.type)).toEqual(['error']);
+		expect(lastView(alice)).toBeNull();
+		expect(cardsSeenBy(alice)).toEqual([]);
+		// And no pod was dealt, for this id or any other. THIS is the assertion
+		// that fails if the gate is removed.
+		expect(live().rooms.find(pendingRoomId)).toBeUndefined();
+		expect(live().rooms.all()).toEqual([]);
+		// The refusal is logged with its reason, for the operator reading stdout.
+		expect(live().lines.filter((l) => l.evt === 'join-refused')).toEqual([
+			{ evt: 'join-refused', participantId: expect.any(String), draftId: pendingRoomId, reason: 'not-started' },
+		]);
+	});
+
+	it('is refused for a room playing constructed, and for an id that is no room at all', async () => {
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		alice.send(joinDraft(constructedRoomId));
+		await waitUntil(() => errors(alice).length > 0, 'the constructed refusal');
+		expect(errors(alice)[0]).toEqual({ code: 'unknown-draft', detail: 'that room is not playing a draft' });
+
+		alice.send(joinDraft('kindly-willow-6kgg'));
+		await waitUntil(() => errors(alice).length > 1, 'the no-room refusal');
+		expect(errors(alice)[1]).toEqual({ code: 'unknown-draft', detail: 'no room with that id' });
+
+		// A client-minted pod id is exactly the shape the deleted "Start a pod"
+		// button used to hand out, and it buys nothing now.
+		expect(live().rooms.all()).toEqual([]);
+		expect(live().lines.filter((l) => l.evt === 'join-refused').map((l) => l.reason)).toEqual([
+			'not-draft',
+			'no-room',
+		]);
+	});
+
+	it('becomes a pod the moment the LOBBY says the draft started, on the same id', async () => {
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		alice.send(joinDraft(pendingRoomId));
+		await waitUntil(() => errors(alice).length > 0, 'the refusal');
+
+		// The room starts through the lobby's own rules — every member ready,
+		// then `startDraft` — and nothing about the socket changed.
+		expect(live().lobby.setReady(pendingRoomId, OWNER.id, true)).toBe(true);
+		expect(live().lobby.startDraft(pendingRoomId, OWNER.id).ok).toBe(true);
+
+		alice.send(joinDraft(pendingRoomId));
+		await waitUntil(() => lastView(alice) !== null, 'the pod');
+		const view = lastView(alice);
+		expect(view?.draftId).toBe(pendingRoomId);
+		expect(view?.viewer.kind).toBe('seat');
+		// One id, not two: the pod's id IS the room's, server-minted.
+		expect(pendingRoomId).toMatch(/^r-[0-9a-f]{12}$/);
+		expect(live().rooms.find(pendingRoomId)?.roomId).toBe(pendingRoomId);
+	});
+
+	it('seats a human into a pod whose other seven seats are bots, and only then', async () => {
+		// Bots exist from the instant the draft is dealt and never before: the
+		// eight-seat table does not exist at all until the room starts it.
+		expect(live().rooms.find(startedRoomId)).toBeUndefined();
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		const view = lastView(alice);
+		expect(view?.seats).toHaveLength(8);
+		expect(view?.seats.filter((seat) => seat.occupant?.kind === 'bot')).toHaveLength(7);
+		expect(view?.seats.filter((seat) => seat.occupant?.kind === 'human')).toHaveLength(1);
+	});
+});
+
 /* ── Identity ────────────────────────────────────────────────────────── */
 
 describe('identity comes from the edge, never from the client', () => {
 	it('refuses a message that carries a participantId', async () => {
 		const alice = await connect(live().port, edgeHeaders('alice'));
-		alice.send({ type: 'join', draftId: DRAFT_ID, participantId: 'fk:0000000000000000' });
+		alice.send({ type: 'join', draftId: startedRoomId, participantId: 'fk:0000000000000000' });
 		await waitUntil(() => alice.received.length > 0, 'a rejection');
 
 		expect(errors(alice)).toHaveLength(1);
 		expect(errors(alice)[0]?.code).toBe('malformed-message');
 		expect(errors(alice)[0]?.detail).toContain('participantId');
 		// And nothing happened: the join did not go through under any identity.
-		expect(live().rooms.find(DRAFT_ID)).toBeUndefined();
+		expect(live().rooms.find(startedRoomId)).toBeUndefined();
 	});
 
 	it('refuses junk without closing the socket', async () => {
@@ -377,7 +524,7 @@ describe('two sockets in one room', () => {
 		// she has a pool and a 14-card pack while bob still has 15.
 		const taken = aliceView.viewer.pack[0];
 		if (taken === undefined) throw new Error('an opening pack should not be empty');
-		alice.send(pickCard(DRAFT_ID, taken.cardId));
+		alice.send(pickCard(startedRoomId, taken.cardId));
 		await waitUntil(() => lastView(bob)?.seq !== bobView.seq, "bob to see alice's pick");
 
 		const aliceCards = cardsSeenBy(alice);
@@ -425,7 +572,7 @@ describe('two sockets in one room', () => {
 		await joinAndSettle(alice);
 		// Leaving releases the seat; they stay connected as a spectator.
 		const before = alice.received.length;
-		alice.send(leaveDraft(DRAFT_ID));
+		alice.send(leaveDraft(startedRoomId));
 		await waitUntil(() => alice.received.length > before, 'the spectator payload');
 
 		const view = lastView(alice);
@@ -451,7 +598,7 @@ describe('an out-of-turn pick', () => {
 		const taken = opening.viewer.pack[0];
 		if (taken === undefined) throw new Error('an opening pack should not be empty');
 
-		alice.send(pickCard(DRAFT_ID, taken.cardId));
+		alice.send(pickCard(startedRoomId, taken.cardId));
 		await waitUntil(() => (lastView(alice)?.seq ?? 0) > opening.seq, 'the pick to land');
 		const afterPick = lastView(alice);
 		if (afterPick?.viewer.kind !== 'seat') throw new Error('alice should still be seated');
@@ -461,7 +608,7 @@ describe('an out-of-turn pick', () => {
 		// again is out of turn.
 		const second = afterPick.viewer.pack[0];
 		if (second === undefined) throw new Error('the pack should still have cards');
-		alice.send(pickCard(DRAFT_ID, second.cardId));
+		alice.send(pickCard(startedRoomId, second.cardId));
 		await waitUntil(() => errors(alice).length > 0, 'the rejection');
 
 		expect(errors(alice)).toHaveLength(1);
@@ -485,10 +632,10 @@ describe('an out-of-turn pick', () => {
 		const card = view.viewer.pack[0];
 		if (card === undefined) throw new Error('an opening pack should not be empty');
 
-		alice.send(leaveDraft(DRAFT_ID));
+		alice.send(leaveDraft(startedRoomId));
 		await waitUntil(() => lastView(alice)?.viewer.kind === 'spectator', 'the seat release');
 
-		alice.send(pickCard(DRAFT_ID, card.cardId));
+		alice.send(pickCard(startedRoomId, card.cardId));
 		await waitUntil(() => errors(alice).length > 0, 'the rejection');
 		expect(errors(alice)[0]?.code).toBe('not-seated');
 	});
@@ -524,7 +671,7 @@ describe('the step after a pick', () => {
 		const bobBefore = bob.received.length;
 		const bobSeqBefore = lastView(bob)?.seq ?? 0;
 
-		alice.send(pickCard(DRAFT_ID, taken.cardId));
+		alice.send(pickCard(startedRoomId, taken.cardId));
 		await waitUntil(
 			() => alice.received.length > aliceBefore && bob.received.length > bobBefore,
 			'the pick step to reach both seats',
@@ -566,7 +713,7 @@ describe('a disconnect and a reconnect inside the reservation TTL', () => {
 		if (view?.viewer.kind !== 'seat') throw new Error('alice should be seated');
 		const taken = view.viewer.pack[0];
 		if (taken === undefined) throw new Error('an opening pack should not be empty');
-		alice.send(pickCard(DRAFT_ID, taken.cardId));
+		alice.send(pickCard(startedRoomId, taken.cardId));
 		await waitUntil(() => (lastView(alice)?.seq ?? 0) > view.seq, 'the pick to land');
 
 		const aliceId = alice.id;
@@ -618,7 +765,7 @@ describe('a browser refresh', () => {
 
 		// And the surviving tab agrees, over the wire.
 		const before = second.received.length;
-		second.send(resyncRequest(DRAFT_ID, null));
+		second.send(resyncRequest(startedRoomId, null));
 		await waitUntil(() => second.received.length > before, 'the resync answer');
 		const view = lastView(second);
 		expect(view?.viewer.kind).toBe('seat');
@@ -654,7 +801,7 @@ describe('a browser refresh', () => {
 
 		const disconnects = live().lines.filter((l) => l.evt === 'disconnected');
 		expect(disconnects).toHaveLength(1);
-		expect(disconnects[0]).toMatchObject({ participantId, draftId: DRAFT_ID, guarded: true });
+		expect(disconnects[0]).toMatchObject({ participantId, draftId: startedRoomId, guarded: true });
 		// The seat did not move, which is exactly why the flag has to exist.
 		expect(seatOf(room().seats, participantId)).toBe(0);
 	});
@@ -692,10 +839,10 @@ describe('picks are rate limited per participant', () => {
 		const second = view.viewer.pack[1];
 		if (first === undefined || second === undefined) throw new Error('need two cards');
 
-		alice.send(pickCard(DRAFT_ID, first.cardId));
+		alice.send(pickCard(startedRoomId, first.cardId));
 		await waitUntil(() => (lastView(alice)?.seq ?? 0) > view.seq, 'the first pick');
 
-		alice.send(pickCard(DRAFT_ID, second.cardId));
+		alice.send(pickCard(startedRoomId, second.cardId));
 		await waitUntil(() => errors(alice).length > 0, 'the rate limit');
 		// The limiter runs BEFORE the engine, so this is `rate-limited` and not
 		// the `already-picked` the engine would have said.
@@ -712,7 +859,7 @@ describe('picks are rate limited per participant', () => {
 		if (view?.viewer.kind !== 'seat') throw new Error('alice should be seated');
 		const card = view.viewer.pack[0];
 		if (card === undefined) throw new Error('an opening pack should not be empty');
-		alice.send(pickCard(DRAFT_ID, card.cardId));
+		alice.send(pickCard(startedRoomId, card.cardId));
 		await waitUntil(() => (lastView(alice)?.seq ?? 0) > view.seq, 'the first pick');
 
 		const staleId = alice.id;
@@ -727,7 +874,7 @@ describe('picks are rate limited per participant', () => {
 		if (restored?.viewer.kind !== 'seat') throw new Error('alice should be seated again');
 		const next = restored.viewer.pack[0];
 		if (next === undefined) throw new Error('the pack should still have cards');
-		back.send(pickCard(DRAFT_ID, next.cardId));
+		back.send(pickCard(startedRoomId, next.cardId));
 		await waitUntil(() => errors(back).length > 0, 'the rate limit');
 		expect(errors(back)[0]?.code).toBe('rate-limited');
 	});

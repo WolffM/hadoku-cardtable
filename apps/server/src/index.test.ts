@@ -9,6 +9,15 @@
  * does `GET /` answer. The assertion is the invariant, not a pair of
  * expected strings: `/health` is `healthy` exactly when the page is a 200.
  *
+ * ## It is also the proof that the wiring ORDER holds
+ *
+ * `index.ts` is one top-level module: `attachDraftSocket` takes the lobby as a
+ * required dep (wave 23's readiness gate), so `openLobby` has to be evaluated
+ * above it. If it is not, `const lobby` is read in its temporal dead zone and the
+ * module throws a ReferenceError before anything listens — which is exactly what
+ * `boot` reports as "server exited N before listening". There is no separate
+ * assertion for the order because a booted server IS the assertion.
+ *
  * Never the live service: every port is ephemeral and every path is a temp dir.
  */
 

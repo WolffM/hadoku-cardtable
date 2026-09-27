@@ -45,6 +45,7 @@ import { pick as enginePick } from '@hadoku/draft';
 
 import {
 	createDraftRooms,
+	DEFAULT_PARAMS,
 	joinDraftRoom,
 	leaveDraftRoom,
 	releaseSeat,
@@ -127,6 +128,22 @@ describe('opening a draft room', () => {
 		expect(state.seatCount).toBe(8);
 		expect(humanSeats(room.seats)).toEqual([]);
 		for (let s = 0; s < 8; s++) expect(occupantOf(room.seats, s)?.kind).toBe('bot');
+	});
+
+	it('is eight seats whatever the room holds, and nobody chooses otherwise', () => {
+		// The wave-23 answer, written down where it is enforced: the leader does
+		// not pick a seat count, so a pod dealt for a room of one looks exactly
+		// like a pod dealt for a room of eight and the difference is how many
+		// bots get evicted.
+		expect(DEFAULT_PARAMS.seatCount).toBe(8);
+		const r = rooms();
+		expect(r.params.seatCount).toBe(8);
+		for (const id of ['pod-of-one', 'pod-of-eight']) {
+			const room = r.open(id);
+			expect(stateOf(room).seatCount).toBe(8);
+			expect(seatRows(room.seats)).toHaveLength(8);
+			expect(humanSeats(room.seats)).toEqual([]);
+		}
 	});
 
 	it('is idempotent — the same id is the same draft, dealt once', () => {

@@ -10,7 +10,22 @@
  *   POST  /api/rooms            { name, gameType?, clientMode?, password? } → 201 RoomView
  *   GET   /api/rooms/:id        → 200 RoomView | 404
  *   POST  /api/rooms/:id/join   { password? }                   → 200 RoomView | 404 | 429
- *   PATCH /api/rooms/:id        { gameType }                    → 200 RoomView | 403 | 404
+ *   POST  /api/rooms/:id/ready  { ready }                       → 200 RoomView | 400 | 403 | 404
+ *   POST  /api/rooms/:id/start  {} or no body                   → 200 RoomView | 403 | 404 | 409
+ *   PATCH /api/rooms/:id        { gameType }                    → 200 RoomView | 403 | 404 | 409
+ *
+ * ## `ready` and `start` are the room's own, not the table's
+ *
+ * `/api/tables/rooms/:id/ready` (`http/routes.ts`) is the CONSTRUCTED table's
+ * ready: it means "my deck is loaded and legal" and is refused without a deck.
+ * This one is the ROOM's, it needs no deck, and it is what a draft starts on.
+ * A draft room never touches the tables API at all.
+ *
+ * `start` may be called by any member, not only the leader — like constructed,
+ * where either browser asks and the server answers one start to both — and it is
+ * idempotent, so two browsers racing is one draft. A PATCH of the game type is
+ * refused with 409 once a draft is running: the pod is dealt against this room's
+ * id and is already being played.
  *
  * ## `clientMode` is a create-only field
  *
@@ -25,8 +40,9 @@
  * ## A wrong password and a missing room are the same answer
  *
  * Both are `404` with the byte-identical `NO_MATCH` body, as is a room id that is
- * not even well-formed. A 404-vs-403 split would tell an enumerator which ids
- * exist. (The list shows every room to every friend anyway — this is about not
+ * not even well-formed, and so is a caller who is not a member of the room they
+ * are trying to ready up in. A 404-vs-403 split would tell an enumerator which
+ * ids exist. (The list shows every room to every friend anyway — this is about not
  * building an oracle, not about hiding the list.)
  *
  * ## Ephemeral callers can look but not create or join
@@ -47,6 +63,7 @@
 import { randomUUID } from 'node:crypto';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
+import { isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { userNameOf } from '../edge-auth.js';
 import { identityFromHeaders } from '../room/identity.js';
 import {
@@ -181,6 +198,26 @@ function parseJoin(body: unknown): Parsed<{ password: string | undefined }> {
 	return { ok: true, value: { password: password.value } };
 }
 
+/** Same allow-list discipline as the others: `{ ready: boolean }` and nothing else. */
+function parseReady(body: unknown): Parsed<{ ready: boolean }> {
+	const o = asObject(body);
+	if (o === null) return { ok: false, error: 'body must be a JSON object' };
+	const extra = unknownKeys(o, ['ready']);
+	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
+	if (typeof o.ready !== 'boolean') return { ok: false, error: 'ready must be a boolean' };
+	return { ok: true, value: { ready: o.ready } };
+}
+
+/** A start carries nothing. No body at all is the same as `{}`. */
+function parseStart(body: unknown): Parsed<Record<string, never>> {
+	if (body === undefined) return { ok: true, value: {} };
+	const o = asObject(body);
+	if (o === null) return { ok: false, error: 'body must be a JSON object' };
+	const extra = unknownKeys(o, []);
+	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
+	return { ok: true, value: {} };
+}
+
 function parsePatch(body: unknown): Parsed<{ gameType: GameType }> {
 	const o = asObject(body);
 	if (o === null) return { ok: false, error: 'body must be a JSON object' };
@@ -201,8 +238,13 @@ function noMatch(res: Response): void {
 	res.status(404).json(NO_MATCH);
 }
 
-function notDurable(res: Response): void {
-	res.status(403).json({ error: 'the edge did not name you, so you cannot create or join a room' });
+/**
+ * The verb is the caller's, because the sentence is read by a person. Create and
+ * join keep the wording they have always had; `ready` and `start` are not
+ * creating anything, so they say what they actually are.
+ */
+function notDurable(res: Response, verb = 'create or join'): void {
+	res.status(403).json({ error: `the edge did not name you, so you cannot ${verb} a room` });
 }
 
 export function attachRooms(api: Router, deps: RoomsDeps): void {
@@ -262,6 +304,42 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		res.json(result.room);
 	});
 
+	rooms.post('/:id/ready', (req: Request, res: Response) => {
+		const parsed = parseReady(req.body);
+		if (!parsed.ok) return badRequest(res, parsed.error);
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
+		const id = String(req.params.id);
+		// A non-member is the same 404 as a room that does not exist. There is no
+		// join-by-readying: entering a room is what makes someone a member.
+		if (!ROOM_ID_RE.test(id) || !lobby.setReady(id, caller.id, parsed.value.ready)) return noMatch(res);
+		const room = lobby.get(id);
+		if (room === undefined) return noMatch(res);
+		res.json(room);
+	});
+
+	rooms.post('/:id/start', (req: Request, res: Response) => {
+		const parsed = parseStart(req.body);
+		if (!parsed.ok) return badRequest(res, parsed.error);
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id)) return noMatch(res);
+		const result = lobby.startDraft(id, caller.id);
+		if (!result.ok) {
+			// `not-member` is deliberately the same answer as `no-room`.
+			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
+			// A sentence, because the room screen shows it to whoever clicked.
+			return res.status(409).json({
+				error:
+					result.reason === 'not-draft'
+						? 'this room is not playing a draft'
+						: 'everyone in the room has to be ready before the draft starts',
+			});
+		}
+		res.json(result.room);
+	});
+
 	rooms.patch('/:id', (req: Request, res: Response) => {
 		const parsed = parsePatch(req.body);
 		if (!parsed.ok) return badRequest(res, parsed.error);
@@ -270,6 +348,9 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const result = lobby.setGameType(id, callerOf(req).id, parsed.value.gameType);
 		if (!result.ok) {
 			if (result.reason === 'no-room') return noMatch(res);
+			if (result.reason === 'draft-started') {
+				return res.status(409).json({ error: 'this room is drafting; the game type cannot change now' });
+			}
 			return res.status(403).json({ error: 'only the room leader can change the game type' });
 		}
 		res.json(result.room);

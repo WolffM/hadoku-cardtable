@@ -25,6 +25,31 @@
  * the same reason `base-path.ts` exists, and the reason setting a path here
  * would break it.
  *
+ * ## A join does not start a draft — the lobby decides that
+ *
+ * `case 'join'` used to be `rooms.open(msg.draftId)`: the first socket to name
+ * any id dealt a whole eight-seat pod against it, every seat nobody had taken
+ * was a bot, and the draft was live before the second friend had finished
+ * loading the page. That is the auto-starting pod the operator asked to be rid
+ * of (wave 23).
+ *
+ * So the lobby is consulted FIRST. A `join` is admitted only for a room that
+ * exists, whose `gameType` is `draft`, and whose `draftStartedAt` is not null —
+ * which is set by `POST /api/rooms/:id/start`, and only once every member of the
+ * room is ready. Anything else is `unknown-draft` and deals nothing.
+ *
+ * **This is the readiness gate, and it is at the server.** A client cannot reach
+ * a pod by holding an id: joining a draft room that has not started deals no
+ * cards whatever the browser does, so the gate does not depend on any screen
+ * getting it right. `lobby` is therefore a REQUIRED dep and not an optional one
+ * — two behaviours behind a `?` is how the socket path and the HTTP path come to
+ * disagree, which is the bug `edge-auth.ts`'s header is written about.
+ *
+ * Bots are still every seat the pod opens with. The difference is WHEN: the
+ * draft is not built until the room starts it, so the seats a human has not
+ * claimed are filled at that instant rather than at connect time, and nobody who
+ * has not readied is ever standing in for a bot mid-decision.
+ *
  * ## One event name per direction
  *
  * `DRAFT_CHANNEL.clientToServer` is the only thing a client may emit, so there
@@ -93,6 +118,7 @@ import {
 	type EmitLog,
 } from './emit.js';
 import { identityFromHeaders } from './identity.js';
+import type { Lobby } from './lobby.js';
 
 /**
  * Picks per participant, not per socket.
@@ -123,6 +149,12 @@ export const NO_DRAFT_CURSOR: WireCursor = { epoch: 'no-draft', seq: 1 };
 export interface DraftSocketDeps {
 	/** Null when the cube pool did not load; every join then answers unknown-draft. */
 	rooms: DraftRooms | null;
+	/**
+	 * The room list. REQUIRED: it is what says whether a draft has been started,
+	 * and a socket layer that could run without it would be a second answer to
+	 * "may this person be dealt cards". See the module header.
+	 */
+	lobby: Lobby;
 	/** The tier floor. `CONFIG.minTier` in production. */
 	minTier: string;
 	log?: EmitLog;
@@ -168,6 +200,20 @@ function emitPickStep(io: SocketIOServer, room: DraftRoom, policy: EmitPolicy): 
 	);
 }
 
+/** Why a `join` was refused. Logged verbatim; `e2e/draft.spec.ts` may read it. */
+type JoinRefusal = 'no-room' | 'not-draft' | 'not-started';
+
+/**
+ * What the client is told. The CODE is `unknown-draft` in all three cases — a
+ * client holding an id it cannot use is in the same position whichever reason it
+ * is — and the detail is a sentence for whoever is looking at the screen.
+ */
+const REFUSAL_DETAIL: Record<JoinRefusal, string> = {
+	'no-room': 'no room with that id',
+	'not-draft': 'that room is not playing a draft',
+	'not-started': 'that draft has not started yet',
+};
+
 export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): DraftSocketHandle {
 	const log = deps.log ?? defaultLog;
 	const policy = draftEmitPolicy(log);
@@ -189,6 +235,23 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		}
 		next();
 	});
+
+	/**
+	 * Why this `join` may not be dealt a pod, or null to admit it.
+	 *
+	 * Membership is deliberately NOT checked. A friend who opens an invite link
+	 * after the draft started is joined to the room by the room screen's own poll
+	 * and then connects here; requiring membership first would make the seat they
+	 * take depend on two requests landing in order. What the gate protects is the
+	 * DEALING of a draft, and the lobby has already decided that.
+	 */
+	function joinRefusal(draftId: string): JoinRefusal | null {
+		const room = deps.lobby.get(draftId);
+		if (room === undefined) return 'no-room';
+		if (room.gameType !== 'draft') return 'not-draft';
+		if (room.draftStartedAt === null) return 'not-started';
+		return null;
+	}
 
 	io.on('connection', (socket) => {
 		const tier = handshakeTier(socket.request.headers);
@@ -245,6 +308,14 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 
 			switch (msg.type) {
 				case 'join': {
+					// The gate. A draft room that has not been started deals
+					// NOTHING, so a bare id is not a pod and never was one.
+					const refusal = joinRefusal(msg.draftId);
+					if (refusal !== null) {
+						log({ evt: 'join-refused', participantId, draftId: msg.draftId, reason: refusal });
+						reject(null, 'unknown-draft', REFUSAL_DETAIL[refusal]);
+						return;
+					}
 					const room = rooms.open(msg.draftId);
 					const outcome = joinDraftRoom(room, socket.id, participantId, tier);
 					log({
