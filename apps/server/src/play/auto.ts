@@ -1,131 +1,83 @@
 /**
- * Questions with one answer, and stops with nothing to do.
+ * Whether the player is interrupted — as a POLICY, not as a pile of branches.
  *
- * Wave 19, lane C. Everything here is a **pure** decision over one frame or one
- * seat's latest notes; `match.ts` is what acts on it, and `fullControl` on a
- * seat turns the whole file off for that seat.
+ * Wave 19 lane C wrote this file; waves 20 and 22 each answered a new operator
+ * request by adding a regex over Forge's prose and a branch beside it. Wave 24
+ * §E replaces that with a model, under the operator's own rule (2026-09-27):
  *
- * ## The rule the whole file obeys
+ * > *"it's super important that we dont bandaid fix these things, especially the
+ * > shortcutting logic. this is gonna keep stacking higher … its gonna get super
+ * > messy if we handroll too much of this in custom if statements."*
  *
- * **We implement no rules.** Every decision below is either
+ * ## The model, in four parts
  *
- *  - a case where *Forge itself* left exactly one possibility (a one-element
- *    option list, a `min === max === list.length` bound), so answering is
- *    arithmetic rather than judgement; or
- *  - a case Forge's **own** client already decides the same way, cited.
+ * 1. **A stop preference** is a named field of {@link StopPolicy}. Every field
+ *    is either a Forge `FPref.YIELD_*` value or a Forge `skipPhases` set, so the
+ *    whole policy can be handed to Forge verbatim — {@link toYieldUpdates} is
+ *    that translation, and it emits nothing but `YieldUpdate` arms Forge's own
+ *    `YieldController.apply` already consumes
+ *    (`forge-gui/.../gamemodes/match/YieldController.java:365-393`).
+ * 2. **{@link PromptFacts} are structured facts** about one window: a
+ *    `PhaseType`, whose turn it is, whether the stack is empty, Forge's
+ *    actionable multiset, the cost being paid. No prose.
+ * 3. **{@link readPromptFacts} is the ONE named adapter.** It is the only place
+ *    in this file — and the only place above the wire — that reads Forge's
+ *    human-readable prompt. It exists because the bridge does not yet send these
+ *    facts structurally; see "What the next wave must add" below. **Nothing
+ *    above it matches a string.**
+ * 4. **{@link decideStop} and {@link decidePay} are pure over facts and the
+ *    policy.** They contain no pattern, no card name and no phase spelling. A
+ *    new shortcut request is a new POLICY VALUE, not a new branch here.
  *
- * Nothing here decides what is legal. Where the choice is real — `confirm`,
- * damage assignment, two mana abilities that both pay — the ask goes to the
- * player untouched. And where an ask is not a question at all but a REVEAL
- * (`getChoices` with `max <= 0`, `manipulateCardList` with nothing movable),
- * it also stays: a shortcut may remove a question, never information.
+ * `autoPassReason` and `autoPayReason` keep their names and signatures because
+ * `match.ts` calls them and this lane does not own `match.ts`; each is now three
+ * lines — read the facts, ask the policy.
  *
- * ## Auto-answer (`onlyAnswer`)
+ * ## Full control is a POLICY, not a bypass
  *
- * The rules are bounds arithmetic: a list where every option must be taken, a
- * single option with a floor of one, one arrangement with no slack. Each is a
- * case where Forge left exactly one legal reply, so answering it is arithmetic
- * rather than judgement — and a REVEAL is never answered even when it has one
- * (`getChoices` with `max <= 0`), because dismissing it would take information
- * off the screen.
+ * {@link FULL_CONTROL_POLICY} makes every phase a stop phase, refuses to pass a
+ * stack window, refuses to pass for want of actions, asks every payment and
+ * answers no bounds ask. `match.ts` also gates on the seat's `fullControl` flag,
+ * so the escape hatch holds at both levels, and `toYieldUpdates` of it emits the
+ * frames that CLEAR Forge's yields (`clearMarker`, `stackYield false`,
+ * `setAutoPassUntilEndOfTurn false`, `setDisableYields true`, and `skipPhase
+ * false` for all thirteen phases on every player) — item 5's "it clears the
+ * yields, so every stop comes back", as data.
  *
- * The operator's *"choosing what color mana to add when tapping land"* (#7)
- * turns out to be already Forge's to answer, not ours: a basic land is never a
- * question (`InputPayMana.java:102-106` plays the only ability without
- * asking), two colours on a dual IS a real question, and Forge's auto-tap pays
- * without consulting anyone. What our capture actually carried was nine
- * one-ability `getAbilityToPlay` asks from CLICKING a card — see the note on
- * the switch below for why those stay.
+ * ## The rule the whole file still obeys
  *
- * ## Auto-pass (`autoPassReason`)
+ * **We implement no rules.** Every decision is either a case where *Forge
+ * itself* left exactly one possibility, or a case Forge's own client decides the
+ * same way, cited. Nothing here decides what is legal. And where an ask is not a
+ * question at all but a REVEAL, it stays: a shortcut may remove a question,
+ * never information.
  *
- * Forge answers "does this seat have a legal action right now" itself, and
- * since lane B's `setWeaklySelectable` the answer is on our wire:
- * `PlayerControllerHuman.chooseSpellAbilityToPlay` runs
- * `AvailableActions.collectActionable` at every priority and
- * `pushActionableCards` pushes the result (`PlayerControllerHuman.java:1658-1670`,
- * `:1550-1590`), so a priority stop where the seat can do nothing arrives as
- * `setWeaklySelectable { cards: [] }`. An **empty** set is Forge saying "nothing";
- * `clearWeaklySelectable` is Forge saying "no answer", and we never pass on that.
+ * **When in doubt the player is asked.** A stop they did not want is an
+ * annoyance; a stop they did not get is a lost game. Every unclassified window
+ * is a stop.
  *
- * So: priority, for this seat, OK enabled, no ask open, and Forge's actionable
- * set present and empty → pass.
+ * ## What the next wave must add, outside this lane
  *
- * ### Wave 20 refined it twice, from the operator's second session
- *
- * **The stack flows (#5).** The `Stack: Empty` requirement is GONE. A priority
- * window with a spell on the stack and nothing this seat can do is exactly the
- * window that made a creature need two humans to click OK — *"ridiculous. just
- * resolve it"*. Passing it changes nothing about WHEN the stack resolves:
- * resolution still needs successive passes under Forge's rules. What changes is
- * that a pass with no legal action behind it is sent without asking.
- *
- * **Turns stop (#7).** *"dont auto-pass peoples turns"*. Entry to your OWN main
- * phase — you hold priority, the turn is yours, and the stack is empty — is
- * always a stop, whatever Forge says is actionable. That is the one place the
- * file does not read Forge's answer, and it is not a rule about the game: it is
- * where the player is entitled to look at the board. `Priority: X` and
- * `Turn: N (X)` naming the same player is how the message says "your turn"
- * (`InputBase.java:134-136`); `Phase: Main phase, …` is `PhaseType.MAIN1` /
- * `MAIN2`'s `nameForUi` (`en-US.properties:2483,2490`).
- *
- * The two compose: your own main phase stops, and a window in it with something
- * ON the stack is a stack window, not an entry, so a creature you just cast
- * still resolves without a click.
- *
- * **A consequence worth knowing about.** When both seats pass immediately, an
- * uncontested spell's passage through the stack can be coalesced away before
- * either browser is told: measured over a whole recorded game in
- * `e2e/play.spec.ts`, one seat was sent no GameView `Stack`, no card in the
- * `Stack` zone, and no `… to Resolve.` prompt at all — the card went from hand
- * to battlefield in one delta. That is the operator's *"just resolve it"* taken
- * to its limit, and it is why the e2e proof counts BUTTONS rather than watching
- * the stack. A board that wants to SHOW the spell resolving cannot rely on the
- * stack being observable.
- *
- * ## Auto-pay (`autoPayReason`)
- *
- * Forge's payment input owns a button of its own: `InputPayMana.updateButtons`
- * labels button 1 **"Auto"** (`lblAuto`, `en-US.properties:518`) and enables it
- * only once `ensureAutoPayManaSources` has found sources that can pay the
- * remaining cost (`InputPayMana.java:397-407,436-449`). Pressing it runs
- * `ComputerUtilMana.payManaCost` — **Forge's own payer**, not ours
- * (`InputPayMana.java:580-592`).
- *
- * So "a payment with exactly one legal payment answers itself" (#6, *"Preordain
- * asks how to tap lands with ONE land in play"*) is: the payment prompt is up,
- * Forge's Auto is enabled, and Forge named exactly ONE source to pay from. One
- * source is one payment, and pressing Auto is Forge choosing how to tap it.
- *
- * In payment mode the actionable set is every card of this seat's with a
- * playable mana ability (`PlayerControllerHuman.pushActionableCards`, payment
- * branch), so its size is the number of sources the seat could click. Two
- * sources are a real choice of which to tap and stay a stop.
- *
- * **Deliberately narrower than it could be.** Forge also computes the exact
- * plan Auto would use (`getAutoTapPreviewViews`) and `pushActionableCards`
- * raises those cards to weight 2 by sending them twice — which would settle
- * "every source Forge offers is one Auto would tap" for two sources as well.
- * That weighting is not on our wire: `UI_SHOW_AUTOTAP_PREVIEW` is off in
- * `PlayBridge.bootForge` (only `UI_SHOW_ACTIONABLE_HIGHLIGHTS` is set), so the
- * set arrives unweighted and one source is all we can prove. Turning the
- * preview on is how this widens, and it is a change to the bridge, not here.
- *
- * Without this, item 6 plays out as: the seat clicks its one land, and because
- * a dual land has two mana abilities that both `canPlay`,
- * `InputPayMana.onCardSelected` asks `getAbilityToPlay` with two
- * (`InputPayMana.java:101-106`) — "choose ability to play", for a tap with one
- * possible outcome. Pressing Auto first means the land is never clicked and the
- * question never exists.
- *
- * The prompt text is Forge's own (`InputBase.getTurnPhasePriorityMessage`,
- * `InputBase.java:130-152`) and the bridge pins the language to `en-US`
- * (`PlayBridge.java:1342`), so matching `Priority:` / `Stack:` / `Empty` is
- * reading Forge's answer, not guessing at one. A locale change would stop the
- * auto-pass rather than mis-fire it: no match, no pass.
+ * - `apps/server/src/play/bridge/PlayBridge.java` — `act()`'s switch has no
+ *   `sendYieldUpdate` case, so nothing this file computes can reach Forge yet.
+ *   `IGameController.sendYieldUpdate(YieldUpdate)` exists
+ *   (`IGameController.java:84-86`) and routes to `applyYieldUpdate`.
+ * - `PlayBridge.java:1172` — `isUiSetToSkipPhase` returns a hardcoded `false`,
+ *   and our GUI is not a `RemoteClientGuiGame`, so
+ *   `PlayerControllerHuman.isUiSetToSkipPhase` asks the GUI rather than the
+ *   `YieldController`. Until that delegates to
+ *   `getYieldController().isSkippingPhase(turnPlayer, phase)`, a `SkipPhase`
+ *   envelope is inert on our bridge.
+ * - `apps/server/src/play/match.ts` — a per-seat `StopPolicy`, the act that
+ *   ships `toYieldUpdates` on `openView`, and a `lastAnsweredAsk` note on
+ *   `SeatNotes` (see {@link StopPolicy.costConfirm}).
+ * - `packages/forge-wire/src/{envelope,examples,index}.ts` — `sendYieldUpdate`
+ *   is modelled in `tier-b.ts` (`SendYieldUpdateSchema`) but is deliberately NOT
+ *   in `TIER_B_METHODS`: `envelope.test.ts` pins the census at 23 Tier B methods
+ *   and 41 required, and that file is not this lane's.
  */
 
-import { REPLY_SCHEMAS, type ServerFrame } from '@hadoku/forge-wire';
+import { PHASE_TYPES, REPLY_SCHEMAS, type PhaseType, type ServerFrame, type YieldUpdate } from '@hadoku/forge-wire';
 
 /** An ask that admits exactly one answer, and why. */
 export interface AutoAnswer {
@@ -144,29 +96,160 @@ function ok(callId: string, method: string, result: unknown, why: string): AutoA
 	return { callId, method, result, why };
 }
 
+/* ── The policy: every stop preference, in one place ──────────────────── */
+
+/**
+ * How a payment with no real choice in it is handled.
+ *
+ * `'auto'` presses Forge's own Auto button, so `ComputerUtilMana.payManaCost`
+ * — Forge's payer, not ours — decides how the sources are tapped
+ * (`InputPayMana.java:580-592`).
+ */
+export type PaymentPreference = 'ask' | 'auto';
+
+/** Where {@link StopPolicy.skipNonStopPhases} applies. */
+export type SkipScope = 'never' | 'theirTurn' | 'always';
+
+/**
+ * The player's stop preferences. **This is the model.**
+ *
+ * Each field names a Forge concept, and {@link toYieldUpdates} maps it to the
+ * `YieldUpdate` arm that carries it:
+ *
+ * | field | Forge |
+ * | --- | --- |
+ * | `stopOnMyTurn` / `stopOnTheirTurn` | the COMPLEMENT of `YieldController.skipPhases` (`YieldController.java:105-113`), carried by `YieldUpdate.SkipPhase` |
+ * | `skipNonStopPhases` | whether a `skipPhases` set is sent at all |
+ * | `passWhenNothingToDo` | `FPref.YIELD_AUTO_PASS_NO_ACTIONS` — APINA, `YieldController.isAutoPassingNoActions` (`:569-573`) |
+ * | `interruptsRestoreStops` | `FPref.YIELD_AUTO_PASS_RESPECTS_INTERRUPTS` (`:507-518`) |
+ * | `passStackWindows` | `YieldController.setAutoPassUntilStackEmpty` as a standing preference, carried by `YieldUpdate.StackYield` |
+ * | `unambiguousPayment` | `FPref.UI_SHOW_AUTOTAP_PREVIEW` — the pref that puts Forge's own auto-tap PLAN on our wire, which is what makes "unambiguous" provable |
+ * | `costConfirm` | `AutoYieldStore` per-ability auto-yield, `YieldUpdate.SetDisableYields` / `CardAutoYield` |
+ * | `answerOneAnswerAsks` | ours: the bounds arithmetic in {@link onlyAnswer} |
+ */
+export interface StopPolicy {
+	/** Phases the player wants priority in on their OWN turn, with an empty stack. */
+	readonly stopOnMyTurn: readonly PhaseType[];
+	/** Phases the player wants priority in on any OTHER player's turn. */
+	readonly stopOnTheirTurn: readonly PhaseType[];
+	/**
+	 * Whether a phase outside the stop sets is passed **regardless of what the
+	 * seat could do there** — Forge's `skipPhases`, and the whole of item #20.
+	 *
+	 * `'never'` is wave 20's behaviour: only a window Forge itself said is empty
+	 * is passed. `'theirTurn'` and `'always'` are Arena's model.
+	 */
+	readonly skipNonStopPhases: SkipScope;
+	/** Pass a window where Forge named nothing actionable (APINA). */
+	readonly passWhenNothingToDo: boolean;
+	/** An interrupt (an opponent's spell, an attack, a reveal) restores the stops. */
+	readonly interruptsRestoreStops: boolean;
+	/** Pass a priority window with something ON the stack and nothing to do (#5). */
+	readonly passStackWindows: boolean;
+	/** How a payment Forge can settle with no choice left is handled (#6, #22). */
+	readonly unambiguousPayment: PaymentPreference;
+	/**
+	 * Whether a cost confirm on an activation the player themselves chose is put
+	 * to them (#16).
+	 *
+	 * `'ask'` is the only value this file can act on today, and that is a finding
+	 * rather than a preference: Forge asks through `InputConfirm`
+	 * (`HumanCostDecision.java:1295-1301` → `PlayerControllerHuman.confirmPayment`
+	 * `:2061-2080` → `InputConfirm.confirm`), which reaches us as a
+	 * `showPromptMessage` with `card: null` plus a Yes/No `updateButtons` — the
+	 * `CostPart` and the `SpellAbility` are both dropped at that seam. Nothing on
+	 * our wire tells a cost confirm apart from an OPTIONAL-TRIGGER confirm, which
+	 * is a real game choice, so the window stays a stop. See the evidence doc.
+	 */
+	readonly costConfirm: 'ask' | 'accept';
+	/** Whether an ask Forge left exactly one legal reply to is answered (w19). */
+	readonly answerOneAnswerAsks: boolean;
+}
+
+/**
+ * What a seat gets. **Behaviour-identical to wave 20 and 22**, on purpose: the
+ * suites outside this lane (`e2e/play.spec.ts`,
+ * `apps/ui/src/play/live/*.jvm.test.ts`) assert against it and this lane cannot
+ * run them. {@link ARENA_STOP_POLICY} is the value that changes it, and
+ * adopting it is a one-word edit here.
+ */
+export const DEFAULT_STOP_POLICY: StopPolicy = {
+	// #7, wave 20: *"dont auto-pass peoples turns"* — the entry to your own main
+	// phase is where the player is entitled to look at the board.
+	stopOnMyTurn: ['MAIN1', 'MAIN2'],
+	stopOnTheirTurn: [],
+	skipNonStopPhases: 'never',
+	passWhenNothingToDo: true,
+	interruptsRestoreStops: true,
+	// #5, wave 20: *"ridiculous. just resolve it"*.
+	passStackWindows: true,
+	// #6, wave 20: *"Preordain asks how to tap lands with ONE land in play"*.
+	unambiguousPayment: 'auto',
+	costConfirm: 'ask',
+	answerOneAnswerAsks: true,
+};
+
+/**
+ * Item #20 — *"stopping at every priority point when there is something to
+ * do"* — as a POLICY VALUE, which is the whole point of the model.
+ *
+ * Arena's own stop set: your main phases and your declare-attackers step; the
+ * opponent's declare-blockers step and end step. Every other phase is passed
+ * whether or not the seat could have done something there, which is what stops
+ * a held instant turning every step of the opponent's turn into a click.
+ *
+ * Not the default, and the reason is recorded rather than hidden: turning it on
+ * changes what `e2e/play.spec.ts` and `apps/ui/src/play/live/*.jvm.test.ts`
+ * observe, and wave 24 lane E may edit none of those three.
+ */
+export const ARENA_STOP_POLICY: StopPolicy = {
+	...DEFAULT_STOP_POLICY,
+	stopOnMyTurn: ['MAIN1', 'MAIN2', 'COMBAT_DECLARE_ATTACKERS'],
+	stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'],
+	skipNonStopPhases: 'always',
+};
+
+/**
+ * The escape hatch, exact: every stop comes back.
+ *
+ * Every phase on every turn is a stop phase, a stack window is not passed, a
+ * window with nothing to do is not passed, a payment is not pressed and an ask
+ * with one legal reply is still asked.
+ */
+export const FULL_CONTROL_POLICY: StopPolicy = {
+	stopOnMyTurn: PHASE_TYPES,
+	stopOnTheirTurn: PHASE_TYPES,
+	skipNonStopPhases: 'never',
+	passWhenNothingToDo: false,
+	interruptsRestoreStops: true,
+	passStackWindows: false,
+	unambiguousPayment: 'ask',
+	costConfirm: 'ask',
+	answerOneAnswerAsks: false,
+};
+
+/* ── Asks Forge left one legal reply to ──────────────────────────────── */
+
 /**
  * The single answer this ask admits, or null when the choice is real.
  *
  * Read each case as "Forge left one possibility", never as "this is the good
  * play". `confirm`, `showConfirmDialog`, `showInputDialog`, the two assignments
- * and `sideboard` are never auto-answered: each is a real question.
+ * and `sideboard` are never auto-answered: each is a real question. There is no
+ * prose in here and there never was — the rules are bounds arithmetic.
  *
- * `getAbilityToPlay` is not here, and wave 20 did not move it here. A
- * one-ability offer of it IS answered now — item 4, *"one choice shouldn't
- * require this dialog at all"* — but on the BROWSER side, by `autoAnswer` in
- * `apps/ui/src/play/prompts/rules.ts`. The reason is the one w19 gave for
- * excluding it: the shortcut must be able to SAY what it played, and the offer's
- * label is resolved on that side (`lookup.ts`'s `withAbilityLabels`, over the
- * `label` the bridge now sends — four of four carried one in wave 20's capture,
- * `fixtures/w20-turn-flow.json`). Keeping the case in ONE place means keeping it
- * there rather than in both.
- *
- * Payment never produces a one-ability offer anyway: `InputPayMana.activateCard`
- * plays a single mana ability without asking (`InputPayMana.java:101-106`) and
- * only calls `getAbilityToPlay` for two or more — which is item 6, and which
- * `autoPayReason` removes by pressing Auto before the land is ever clicked.
+ * `getAbilityToPlay` is not here. A one-ability offer of it IS answered, but on
+ * the BROWSER side, by `autoAnswer` in `apps/ui/src/play/prompts/rules.ts`,
+ * because the shortcut must be able to SAY what it played and the offer's label
+ * is resolved on that side. Keeping the case in ONE place means keeping it
+ * there. Payment never produces a one-ability offer anyway:
+ * `InputPayMana.activateCard` plays a single mana ability without asking
+ * (`InputPayMana.java:101-106`) and only calls `getAbilityToPlay` for two or
+ * more — which is #6, and which {@link decidePay} removes by pressing Auto
+ * before the land is ever clicked.
  */
-export function onlyAnswer(frame: ServerFrame): AutoAnswer | null {
+export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP_POLICY): AutoAnswer | null {
+	if (!policy.answerOneAnswerAsks) return null;
 	if (frame.kind !== 'ask') return null;
 	const callId = frame.callId;
 	switch (frame.method) {
@@ -214,7 +297,9 @@ export function onlyAnswer(frame: ServerFrame): AutoAnswer | null {
 	}
 }
 
-/** What a seat was last told, as far as the auto-pass is concerned. */
+/* ── What a seat was last told ───────────────────────────────────────── */
+
+/** What a seat was last told, as far as the stop decisions are concerned. */
 export interface SeatNotes {
 	/** This seat's Forge `PlayerView` id, once `openView` has named it. */
 	playerId: number | null;
@@ -223,93 +308,97 @@ export interface SeatNotes {
 	/** The latest `updateButtons` for this seat. */
 	buttons: ServerFrame | null;
 	/**
-	 * Forge's actionable set from `setWeaklySelectable`: a set (possibly empty)
-	 * is an answer, `null` is "Forge has not said" (never said, or cleared).
+	 * Forge's actionable MULTISET from `setWeaklySelectable`: a set (possibly
+	 * empty) is an answer, `null` is "Forge has not said" (never said, or
+	 * cleared). Duplicates are Forge's own weighting and are load-bearing — see
+	 * {@link PromptFacts.plannedSources}.
 	 */
 	actionable: readonly number[] | null;
 	/** Asks this seat has open. A seat with a question is not idle. */
 	openAsks: number;
 }
 
+/* ── The structured facts the decisions are made on ──────────────────── */
+
+/** Which of Forge's inputs this seat is sitting in, as far as we can tell. */
+export type StopWindow = 'priority' | 'payment' | 'other';
+
+/**
+ * One window, as facts. **No prose, no spellings, no card names.**
+ *
+ * This is what {@link decideStop} and {@link decidePay} see, and it is what a
+ * bridge that sent structured frames would send directly.
+ */
+export interface PromptFacts {
+	/** Forge's input, classified. `'other'` is always a stop. */
+	readonly window: StopWindow;
+	/** Forge's own `PhaseType`, never its display spelling. Null when unknown. */
+	readonly phase: PhaseType | null;
+	/**
+	 * The phase as Forge's UI spells it. **For the line the seat is shown, never
+	 * for a decision** — `decideStop` returns it, it does not read it.
+	 */
+	readonly phaseLabel: string | null;
+	/** The priority player and the turn player are the same: it is this seat's turn. */
+	readonly myTurn: boolean;
+	readonly stackEmpty: boolean;
+	/** Both the prompt and the buttons are addressed to this seat's own player. */
+	readonly mine: boolean;
+	/** Forge's button 1 is live — the button a pass or a payment would press. */
+	readonly confirmLive: boolean;
+	/** The mana cost this payment is for, verbatim in Forge's braces. */
+	readonly cost: string | null;
+	/** This payment offers a NON-mana alternative (life), so it has two answers. */
+	readonly alternativePayment: boolean;
+	/** The distinct cards Forge said this seat could click. Null is "has not said". */
+	readonly sources: readonly number[] | null;
+	/**
+	 * The subset Forge's OWN auto-tap plan names.
+	 *
+	 * `pushActionableCards` raises a planned card to strength 2 by sending it
+	 * twice (`PlayerControllerHuman.java:1580-1589`), gated on
+	 * `FPref.UI_SHOW_AUTOTAP_PREVIEW`. So a repeat in the multiset is Forge
+	 * saying "Auto would tap this one" — which is what makes a two-source
+	 * payment provably unambiguous (#22). With the pref off nothing repeats and
+	 * this is empty, which costs only the wider case.
+	 */
+	readonly plannedSources: readonly number[];
+	/** Asks this seat has open. */
+	readonly openAsks: number;
+}
+
+/* ── THE ONE ADAPTER ─────────────────────────────────────────────────── */
+
 /*
- * `Priority: …`, `Turn: N (…)`, `Phase: …`, `Stack: Empty`, as
- * `InputBase.getTurnPhasePriorityMessage` writes them (`InputBase.java:130-152`)
- * with the bridge's language pinned to `en-US` (`PlayBridge.java:1390`). A
- * locale change stops the shortcuts rather than mis-firing them: no match, no
- * pass.
+ * Everything from here to the end of `readPromptFacts` reads Forge's
+ * human-readable prompt, and it is the ONLY code in this file that does.
+ *
+ * `Priority: …`, `Turn: N (…)`, `Phase: …`, `Stack: Empty` are
+ * `InputBase.getTurnPhasePriorityMessage` (`InputBase.java:130-152`), with the
+ * bridge's language pinned to `en-US` (`PlayBridge.java:1432`). A locale change
+ * stops the shortcuts rather than mis-firing them: no match, no facts, every
+ * window a stop.
  *
  * `Turn:` may carry a day/night marker after the bracket (`  [Day]`), so the
  * owner is read out of the brackets rather than to end of line. `Priority:` is
  * anchored at the START of the message, not per line: Forge writes it first and
  * nowhere else, and a stack description that happened to contain the word must
  * not read as one.
+ *
+ * **This adapter is a stand-in for a bridge that does not yet speak facts.**
+ * When `PlayBridge` carries `sendYieldUpdate` and delegates
+ * `isUiSetToSkipPhase` to the `YieldController`, Forge decides and every pattern
+ * below stops being consulted. Nothing new belongs here: a new shortcut is a
+ * field of {@link StopPolicy}.
  */
+
 const PRIORITY = /^Priority: ([^\n]*)/;
 const TURN_OWNER = /^Turn: \d+ \(([^)]*)\)/m;
 const STACK_EMPTY = /^Stack: Empty$/m;
-const MAIN_PHASE = /^Phase: Main phase/m;
-const PHASE = /^Phase: (.+)$/m;
+const PHASE_LINE = /^Phase: (.+)$/m;
 
-/**
- * "You hold priority, in your own main phase, with an empty stack" — the entry
- * to a turn's main phase, which is never passed for the player (#7).
- *
- * The priority line names its recipient (`InputPassPriority`'s owner IS the
- * priority player; everyone else is told "Waiting for …"), so the two names
- * matching is the message saying the turn is this seat's.
- */
-export function isOwnMainPhaseEntry(message: string): boolean {
-	if (!MAIN_PHASE.test(message)) return false;
-	if (!STACK_EMPTY.test(message)) return false;
-	const priority = PRIORITY.exec(message)?.[1];
-	const owner = TURN_OWNER.exec(message)?.[1];
-	return priority !== undefined && owner !== undefined && priority === owner;
-}
-
-/**
- * The phase this seat would be passing, or null when it must be asked.
- *
- * Null is the safe answer and every doubt returns it: a stop the player did not
- * want is an annoyance, a stop they did not get is a lost game.
- */
-export function autoPassReason(notes: SeatNotes): string | null {
-	if (notes.openAsks > 0) return null;
-	if (notes.playerId === null) return null;
-	const prompt = notes.prompt;
-	const buttons = notes.buttons;
-	if (prompt === null || prompt.method !== 'showPromptMessage') return null;
-	if (buttons === null || buttons.method !== 'updateButtons') return null;
-	// Both must be addressed to this seat's own player, and OK must be live.
-	if (prompt.player.id !== notes.playerId || buttons.owner.id !== notes.playerId) return null;
-	if (buttons.enable1 !== true) return null;
-	if (!PRIORITY.test(prompt.message)) return null;
-	// A turn is never auto-passed (#7). Nothing below this line can override it.
-	if (isOwnMainPhaseEntry(prompt.message)) return null;
-	// Forge has not answered "what can this seat do" — never pass on silence.
-	if (notes.actionable === null || notes.actionable.length > 0) return null;
-	return PHASE.exec(prompt.message)?.[1] ?? 'priority';
-}
-
-/** Forge's braces are a WotC symbol set; our own text says the letters (`lookup.ts` `plainRulesText`). */
-export function plainCost(cost: string): string {
-	return cost.replace(/\{T\}/g, 'Tap').replace(/\{Q\}/g, 'Untap').replace(/\{([^}]{1,5})\}/g, '$1');
-}
-
-/** `Pay Mana Cost: {U}` — Forge's own payment line (`InputPayMana.java`, `lblPayManaCost`). */
+/** `Pay Mana Cost: {U}` — Forge's own payment line (`en-US.properties:1797`). */
 const PAY_MANA = /^Pay Mana Cost: (.+)$/m;
-
-/** The cost this prompt is asking for, or null when it is not a payment prompt. */
-export function paymentCost(message: string): string | null {
-	return PAY_MANA.exec(message)?.[1]?.trim() ?? null;
-}
-
-/**
- * Forge's own word for button 1 of the payment input
- * (`InputPayMana.updateButtons` → `lblAuto`, `en-US.properties:518`). Enabled
- * only when `ensureAutoPayManaSources` found a payment, so the label and the
- * enabled flag together are Forge saying "this cost can be paid automatically".
- */
-const AUTO_BUTTON = 'Auto';
 
 /**
  * Life is a second way to pay, and it is not a mana source
@@ -319,30 +408,333 @@ const AUTO_BUTTON = 'Auto';
 const LIFE_INSTEAD = /^Click on your life total to pay life for /m;
 
 /**
- * The cost this seat's payment answers itself, or null when it must be asked.
- *
- * See the module header. One source is one payment; the press is Forge's own
- * Auto button, so `ComputerUtilMana` — not this file — decides how that source
- * is tapped. Null on every doubt.
+ * Forge's own word for button 1 of the payment input
+ * (`InputPayMana.updateButtons` → `lblAuto`, `en-US.properties:518`). Enabled
+ * only once `ensureAutoPayManaSources` has found a payment
+ * (`InputPayMana.java:402-407`), so the label and the enabled flag together are
+ * Forge saying "this cost can be paid automatically".
  */
-export function autoPayReason(notes: SeatNotes): string | null {
-	if (notes.openAsks > 0) return null;
-	if (notes.playerId === null) return null;
+const AUTO_BUTTON = 'Auto';
+
+/**
+ * `PhaseType.nameForUi` → the constant, for all thirteen phases.
+ *
+ * `PhaseType.java:16-28` names each constant's localizer key and
+ * `en-US.properties:2480-2492` gives each key's English. This table is the exact
+ * inverse of those two, and it is what turns the one place that reads a phase
+ * SPELLING into a place that produces a Forge enum — so no decision below ever
+ * compares a string.
+ */
+export const PHASE_BY_UI_NAME: Readonly<Record<string, PhaseType>> = {
+	'Untap step': 'UNTAP',
+	'Upkeep step': 'UPKEEP',
+	'Draw step': 'DRAW',
+	'Main phase, precombat': 'MAIN1',
+	'Beginning of Combat Step': 'COMBAT_BEGIN',
+	'Declare Attackers Step': 'COMBAT_DECLARE_ATTACKERS',
+	'Declare Blockers Step': 'COMBAT_DECLARE_BLOCKERS',
+	'First Strike Damage Step': 'COMBAT_FIRST_STRIKE_DAMAGE',
+	'Combat Damage Step': 'COMBAT_DAMAGE',
+	'End of Combat Step': 'COMBAT_END',
+	'Main phase, postcombat': 'MAIN2',
+	'End step': 'END_OF_TURN',
+	'Cleanup step': 'CLEANUP',
+};
+
+/** What a window with nothing known about it looks like: every field says "ask". */
+const UNKNOWN_WINDOW: PromptFacts = {
+	window: 'other',
+	phase: null,
+	phaseLabel: null,
+	myTurn: false,
+	stackEmpty: false,
+	mine: false,
+	confirmLive: false,
+	cost: null,
+	alternativePayment: false,
+	sources: null,
+	plannedSources: [],
+	openAsks: 0,
+};
+
+/** Ids that appear more than once in Forge's weighted multiset, deduplicated. */
+function repeated(ids: readonly number[]): number[] {
+	const seen = new Set<number>();
+	const twice = new Set<number>();
+	for (const id of ids) {
+		if (seen.has(id)) twice.add(id);
+		seen.add(id);
+	}
+	return [...twice];
+}
+
+/**
+ * Forge's frames for this seat, as {@link PromptFacts}. **The only prose reader.**
+ *
+ * Returns {@link UNKNOWN_WINDOW}'s shape whenever it cannot tell — which reads
+ * as "ask the player" at every decision below.
+ */
+export function readPromptFacts(notes: SeatNotes): PromptFacts {
 	const prompt = notes.prompt;
 	const buttons = notes.buttons;
-	if (prompt === null || prompt.method !== 'showPromptMessage') return null;
-	if (buttons === null || buttons.method !== 'updateButtons') return null;
-	if (prompt.player.id !== notes.playerId || buttons.owner.id !== notes.playerId) return null;
-	// Forge's Auto, live. A priority window's button 1 is "OK", never this.
-	if (buttons.enable1 !== true || buttons.label1 !== AUTO_BUTTON) return null;
-	const cost = paymentCost(prompt.message);
-	if (cost === null) return null;
-	if (LIFE_INSTEAD.test(prompt.message)) return null;
-	// Forge has not said what can pay — never press on silence.
-	if (notes.actionable === null) return null;
-	const sources = new Set(notes.actionable);
-	if (sources.size !== 1) return null;
-	return cost;
+	if (prompt === null || prompt.method !== 'showPromptMessage') return { ...UNKNOWN_WINDOW, openAsks: notes.openAsks };
+	if (buttons === null || buttons.method !== 'updateButtons') return { ...UNKNOWN_WINDOW, openAsks: notes.openAsks };
+
+	const message = prompt.message;
+	const mine =
+		notes.playerId !== null && prompt.player.id === notes.playerId && buttons.owner.id === notes.playerId;
+
+	const priority = PRIORITY.exec(message)?.[1];
+	const owner = TURN_OWNER.exec(message)?.[1];
+	const phaseLabel = PHASE_LINE.exec(message)?.[1] ?? null;
+	const cost = PAY_MANA.exec(message)?.[1]?.trim() ?? null;
+
+	// A payment window is Forge's payment input: it names a mana cost AND its
+	// button 1 is Forge's own Auto. A priority window's button 1 is "OK".
+	const window: StopWindow =
+		cost !== null && buttons.label1 === AUTO_BUTTON ? 'payment' : priority !== undefined ? 'priority' : 'other';
+
+	const all = notes.actionable;
+	return {
+		window,
+		phase: phaseLabel === null ? null : (PHASE_BY_UI_NAME[phaseLabel] ?? null),
+		phaseLabel,
+		myTurn: priority !== undefined && owner !== undefined && priority === owner,
+		stackEmpty: STACK_EMPTY.test(message),
+		mine,
+		confirmLive: buttons.enable1 === true,
+		cost,
+		alternativePayment: LIFE_INSTEAD.test(message),
+		sources: all === null ? null : [...new Set(all)],
+		plannedSources: all === null ? [] : repeated(all),
+		openAsks: notes.openAsks,
+	};
+}
+
+/* ── The decisions: pure over facts and the policy ───────────────────── */
+
+/** Whether the player asked to hold priority in this phase on this turn. */
+export function isStopPhase(policy: StopPolicy, facts: PromptFacts): boolean {
+	if (facts.phase === null) return false;
+	const stops = facts.myTurn ? policy.stopOnMyTurn : policy.stopOnTheirTurn;
+	return stops.includes(facts.phase);
+}
+
+/** Whether a phase outside the stop sets is skipped outright on this turn. */
+function skipsThisTurn(policy: StopPolicy, facts: PromptFacts): boolean {
+	if (policy.skipNonStopPhases === 'always') return true;
+	if (policy.skipNonStopPhases === 'theirTurn') return !facts.myTurn;
+	return false;
+}
+
+/**
+ * The phase label to pass, or null when the player must be asked.
+ *
+ * Pure. There is no pattern in here and no phase spelling: every branch reads a
+ * {@link PromptFacts} field or a {@link StopPolicy} field. Null is the safe
+ * answer and every doubt returns it.
+ */
+export function decideStop(facts: PromptFacts, policy: StopPolicy): string | null {
+	// A seat with a question open is not idle, and a window that is not this
+	// seat's, or whose button is dead, is not ours to press.
+	if (facts.openAsks > 0) return null;
+	if (!facts.mine) return null;
+	if (!facts.confirmLive) return null;
+	// Anything we could not classify — a mulligan, a confirm, a declare step — is
+	// a stop. This is where "when in doubt, ask" lives.
+	if (facts.window !== 'priority') return null;
+
+	if (facts.stackEmpty) {
+		// The phase the player asked to hold priority in. Nothing below overrides it.
+		if (isStopPhase(policy, facts)) return null;
+		// Forge's `skipPhases`: a phase outside the stop set goes past whatever the
+		// seat could have done there (#20).
+		if (skipsThisTurn(policy, facts)) return facts.phaseLabel ?? 'priority';
+	} else if (!policy.passStackWindows) {
+		return null;
+	}
+
+	if (!policy.passWhenNothingToDo) return null;
+	// Forge has not answered "what can this seat do" — never pass on silence. An
+	// EMPTY set is Forge saying "nothing"; `clearWeaklySelectable` is "no answer".
+	if (facts.sources === null || facts.sources.length > 0) return null;
+	return facts.phaseLabel ?? 'priority';
+}
+
+/**
+ * The cost to settle by pressing Forge's own Auto, or null when the player must
+ * choose. Pure, as above.
+ *
+ * Two shapes count as "no choice left", and both are Forge's own arithmetic:
+ *
+ *  - **One source.** One source is one payment (#6).
+ *  - **Every source Forge offered is one Forge's auto-tap plan would tap** (#22,
+ *    *"Stoneforge Mystic waited for a click on Plains when there was only one
+ *    way to pay"* — `{1}{W}` off two lands is two sources and one assignment).
+ *    A source left OUT of the plan means the plan had a choice to make, and that
+ *    choice is the player's.
+ */
+export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null {
+	if (facts.openAsks > 0) return null;
+	if (!facts.mine) return null;
+	if (facts.window !== 'payment') return null;
+	if (!facts.confirmLive) return null;
+	if (facts.cost === null) return null;
+	if (facts.alternativePayment) return null;
+	if (policy.unambiguousPayment !== 'auto') return null;
+	if (facts.sources === null || facts.sources.length === 0) return null;
+	if (facts.sources.length === 1) return facts.cost;
+	if (facts.plannedSources.length === 0) return null;
+	const planned = new Set(facts.plannedSources);
+	return facts.sources.every((id) => planned.has(id)) ? facts.cost : null;
+}
+
+/* ── What `match.ts` calls ───────────────────────────────────────────── */
+
+/**
+ * The phase this seat would be passing, or null when it must be asked.
+ *
+ * Kept for `match.ts`, which this lane does not own. Read the facts, ask the
+ * policy — there is nothing else in here.
+ */
+export function autoPassReason(notes: SeatNotes, policy: StopPolicy = DEFAULT_STOP_POLICY): string | null {
+	return decideStop(readPromptFacts(notes), policy);
+}
+
+/** The cost this seat's payment answers itself, or null when it must be asked. */
+export function autoPayReason(notes: SeatNotes, policy: StopPolicy = DEFAULT_STOP_POLICY): string | null {
+	return decidePay(readPromptFacts(notes), policy);
+}
+
+/**
+ * "You hold priority, in your own main phase, with an empty stack" — the entry
+ * to a turn's main phase, which {@link DEFAULT_STOP_POLICY} never passes (#7).
+ *
+ * Kept because `auto.jvm.test.ts` counts those windows with it. It is now a
+ * question about the POLICY rather than a rule of its own: a main phase is a
+ * stop because `stopOnMyTurn` says so.
+ */
+export function isOwnMainPhaseEntry(message: string, policy: StopPolicy = DEFAULT_STOP_POLICY): boolean {
+	const facts = readPromptFacts({
+		playerId: 0,
+		prompt: {
+			kind: 'notify',
+			method: 'showPromptMessage',
+			player: { kind: 'player', id: 0 },
+			message,
+			card: null,
+		} as ServerFrame,
+		buttons: {
+			kind: 'notify',
+			method: 'updateButtons',
+			owner: { kind: 'player', id: 0 },
+			label1: 'OK',
+			label2: '',
+			enable1: true,
+			enable2: false,
+			focus1: true,
+		} as ServerFrame,
+		actionable: null,
+		openAsks: 0,
+	});
+	return facts.window === 'priority' && facts.stackEmpty && isStopPhase(policy, facts);
+}
+
+/* ── The policy as Forge's own frames ────────────────────────────────── */
+
+/** A `PlayerRefSchema` value — `{ kind: 'player', id }`. */
+export interface PlayerRef {
+	readonly kind: 'player';
+	readonly id: number;
+}
+
+/** The seat a policy is being declared for, and the other players at the table. */
+export interface YieldSeat {
+	readonly me: PlayerRef;
+	readonly others: readonly PlayerRef[];
+}
+
+/**
+ * The policy as `YieldUpdate` frames — **Forge's state, not ours**.
+ *
+ * Every frame is an arm of Forge's own sealed `YieldUpdate`
+ * (`YieldUpdate.java:16-58`) and is applied by `YieldController.apply`
+ * (`:365-393`), so pushing this is how the player's preferences become the
+ * thing FORGE decides from. The order matters: the transient yields are cleared
+ * first, then the standing preferences, then the per-phase skips.
+ *
+ * `costConfirm` maps only as far as `setDisableYields`: Forge's
+ * `confirmPayment` does not consult the auto-yield store at all (unlike
+ * `confirmTrigger`, which does — `PlayerControllerHuman.confirmTrigger` reads
+ * `getTriggerDecision(wrapper.yieldKey())`), so there is no arm that carries
+ * "stop asking me to sacrifice the land I just tapped". That is #16's finding.
+ *
+ * Nothing calls this yet, and that is the honest state of the lane: the bridge
+ * has no `sendYieldUpdate` act. The frames are pinned against the wire schema
+ * in `packages/forge-wire/src/tier-b.test.ts` and against Forge's arm list in
+ * `auto.test.ts`.
+ */
+export function toYieldUpdates(policy: StopPolicy, seat: YieldSeat): YieldUpdate[] {
+	const out: YieldUpdate[] = [];
+
+	// Clear every transient yield first: a policy push is a full reset, and this
+	// is what makes FULL_CONTROL_POLICY "clears the yields, so every stop comes
+	// back" (`YieldController.clearActiveYieldAndDispatch`, `:406-428`).
+	out.push({ update: 'clearMarker', player: seat.me });
+	out.push({ update: 'stackYield', player: seat.me, active: false, respectsInterrupts: false });
+	out.push({ update: 'setAutoPassUntilEndOfTurn', player: seat.me, active: false });
+	out.push({ update: 'setDisableYields', disabled: policy.costConfirm === 'ask' });
+
+	// The standing preferences. `YieldController.getStringPref` reads an override
+	// before FModel (`:90-93`), so a `setYieldPref` wins on the host's proxy.
+	const pref = (name: string, value: string): YieldUpdate => ({ update: 'setYieldPref', pref: name, value });
+	out.push(pref('YIELD_AUTO_PASS_NO_ACTIONS', String(policy.passWhenNothingToDo)));
+	out.push(pref('YIELD_AUTO_PASS_RESPECTS_INTERRUPTS', String(policy.interruptsRestoreStops)));
+	// #22's enabler: with the preview on, `pushActionableCards` sends the cards
+	// Forge's own Auto would tap TWICE, which is what makes a two-source payment
+	// provably unambiguous (`PlayerControllerHuman.java:1580-1589`).
+	out.push(pref('UI_SHOW_AUTOTAP_PREVIEW', String(policy.unambiguousPayment === 'auto')));
+
+	// The per-phase skips: the complement of the stop sets, one frame per
+	// (turn player, phase) pair, exactly as `YieldUpdate.SkipPhase` carries it.
+	const scope = policy.skipNonStopPhases;
+	const sides: { player: PlayerRef; stops: readonly PhaseType[]; skipping: boolean }[] = [
+		{ player: seat.me, stops: policy.stopOnMyTurn, skipping: scope === 'always' },
+		...seat.others.map((player) => ({
+			player,
+			stops: policy.stopOnTheirTurn,
+			skipping: scope === 'always' || scope === 'theirTurn',
+		})),
+	];
+	for (const side of sides) {
+		for (const phase of PHASE_TYPES) {
+			out.push({
+				update: 'skipPhase',
+				turnPlayer: side.player,
+				phase,
+				skip: side.skipping && !side.stops.includes(phase),
+			});
+		}
+	}
+	return out;
+}
+
+/* ── What a cast paid ────────────────────────────────────────────────── */
+
+/** Forge's braces are a WotC symbol set; our own text says the letters (`lookup.ts` `plainRulesText`). */
+export function plainCost(cost: string): string {
+	return cost.replace(/\{T\}/g, 'Tap').replace(/\{Q\}/g, 'Untap').replace(/\{([^}]{1,5})\}/g, '$1');
+}
+
+/**
+ * The cost this prompt is asking for, or null when it is not a payment prompt.
+ *
+ * `match.ts` uses this to track a payment's lifetime (#8), which is a record of
+ * what happened rather than a decision about whether to interrupt — so it reads
+ * the same line the adapter does, through the adapter's own pattern.
+ */
+export function paymentCost(message: string): string | null {
+	return PAY_MANA.exec(message)?.[1]?.trim() ?? null;
 }
 
 /** One payment, while it is being made. */

@@ -23,11 +23,14 @@ import { CLIENT_FRAME_EXAMPLES, SERVER_FRAME_EXAMPLES } from './examples.ts';
 import { malformedTable } from './malformed.ts';
 import { safeParseClientFrame, safeParseServerFrame } from './envelope.ts';
 import {
+  ApplyYieldUpdateSchema,
   OpenZonesSchema,
   SelectPlayerSchema,
+  SendYieldUpdateSchema,
   SetHighlightedSchema,
   SetSelectablesSchema,
   SideboardSchema,
+  TIER_B_CLIENT_FRAMES,
   TIER_B_METHODS,
   YieldUpdateSchema,
 } from './tier-b.ts';
@@ -107,33 +110,41 @@ describe('Tier B — a reference’s kind is load-bearing', () => {
   });
 });
 
-describe('Tier B — YieldUpdate’s twelve arms', () => {
-  const arms: ReadonlyArray<Record<string, unknown>> = [
-    { update: 'setMarker', phaseOwner: { kind: 'player', id: 1 }, phase: 'MAIN1', atOrPastAtClick: true },
-    { update: 'clearMarker', player: { kind: 'player', id: 1 } },
-    { update: 'stackYield', player: { kind: 'player', id: 1 }, active: true, respectsInterrupts: false },
-    { update: 'setAutoPassUntilEndOfTurn', player: { kind: 'player', id: 1 }, active: false },
-    { update: 'cardAutoYield', cardKey: 'Lightning Bolt', active: true },
-    { update: 'triggerDecision', storageKey: 'k', decision: 'ACCEPT' },
-    { update: 'setDisableYields', disabled: true },
-    { update: 'setDisableTriggers', disabled: false },
-    { update: 'skipPhase', turnPlayer: { kind: 'player', id: 1 }, phase: 'UPKEEP', skip: true },
-    { update: 'setYieldPref', pref: 'UI_AUTO_DECISION_MODE', value: 'true' },
-    {
-      update: 'seedFromClient',
-      snapshot: {
-        cardYields: ['a'],
-        abilityYields: [],
-        cardTriggerDecisions: [{ key: 'a', decision: 'DECLINE' }],
-        abilityTriggerDecisions: [],
-        autoYieldsDisabled: false,
-        autoTriggersDisabled: false,
-        skipPhases: [{ player: { kind: 'player', id: 1 }, phases: ['CLEANUP'] }],
-        prefOverrides: [{ pref: 'UI_AUTO_DECISION_MODE', value: 'false' }],
-      },
+/**
+ * Forge's twelve permitted `YieldUpdate` records, one example each. Module-level
+ * because BOTH directions carry them: `applyYieldUpdate` (S→C) and, since wave
+ * 24, `sendYieldUpdate` (C→S). A thirteenth arm must fail in both places, which
+ * is what keeps the "closed" claim honest rather than half-checked.
+ */
+const YIELD_ARMS: ReadonlyArray<Record<string, unknown>> = [
+  { update: 'setMarker', phaseOwner: { kind: 'player', id: 1 }, phase: 'MAIN1', atOrPastAtClick: true },
+  { update: 'clearMarker', player: { kind: 'player', id: 1 } },
+  { update: 'stackYield', player: { kind: 'player', id: 1 }, active: true, respectsInterrupts: false },
+  { update: 'setAutoPassUntilEndOfTurn', player: { kind: 'player', id: 1 }, active: false },
+  { update: 'cardAutoYield', cardKey: 'Lightning Bolt', active: true },
+  { update: 'triggerDecision', storageKey: 'k', decision: 'ACCEPT' },
+  { update: 'setDisableYields', disabled: true },
+  { update: 'setDisableTriggers', disabled: false },
+  { update: 'skipPhase', turnPlayer: { kind: 'player', id: 1 }, phase: 'UPKEEP', skip: true },
+  { update: 'setYieldPref', pref: 'UI_AUTO_DECISION_MODE', value: 'true' },
+  {
+    update: 'seedFromClient',
+    snapshot: {
+      cardYields: ['a'],
+      abilityYields: [],
+      cardTriggerDecisions: [{ key: 'a', decision: 'DECLINE' }],
+      abilityTriggerDecisions: [],
+      autoYieldsDisabled: false,
+      autoTriggersDisabled: false,
+      skipPhases: [{ player: { kind: 'player', id: 1 }, phases: ['CLEANUP'] }],
+      prefOverrides: [{ pref: 'UI_AUTO_DECISION_MODE', value: 'false' }],
     },
-    { update: 'clearAbilityOrders' },
-  ];
+  },
+  { update: 'clearAbilityOrders' },
+];
+
+describe('Tier B — YieldUpdate’s twelve arms', () => {
+  const arms = YIELD_ARMS;
 
   it('covers all twelve permitted records', () => {
     expect(arms).toHaveLength(12);
@@ -157,6 +168,73 @@ describe('Tier B — YieldUpdate’s twelve arms', () => {
         skip: true,
       }).success,
     ).toBe(false);
+  });
+});
+
+/*
+ * `sendYieldUpdate` — the client→server half of the yield model (wave 24 §E).
+ *
+ * `ProtocolMethod.java:101` declares it `Mode.CLIENT, Void.TYPE,
+ * YieldUpdate.class` and `IGameController.java:84-86` routes it straight to
+ * `applyYieldUpdate`, so it is an `act` carrying the SAME twelve-arm payload as
+ * the notify. Everything below says that in a way a later "tidy" cannot quietly
+ * narrow: the arms are closed in this direction too, the kind is an act and not
+ * a notify, and the method name is the one Forge looks up.
+ *
+ * It is NOT in the tier's census arrays, and that boundary gets an assertion of
+ * its own rather than a comment — see the module header in `tier-b.ts` for the
+ * five edits that would move it in.
+ */
+describe('sendYieldUpdate — the same twelve arms, the other way', () => {
+  const frame = (update: unknown) => ({ kind: 'act', method: 'sendYieldUpdate', update });
+
+  it('carries every one of Forge’s twelve arms', () => {
+    for (const arm of YIELD_ARMS) {
+      const result = SendYieldUpdateSchema.safeParse(frame(arm));
+      expect(result.success ? null : result.error.issues, String(arm.update)).toBeNull();
+    }
+  });
+
+  it('refuses a thirteenth arm in this direction too — the union is closed both ways', () => {
+    expect(SendYieldUpdateSchema.safeParse(frame({ update: 'setEverything' })).success).toBe(false);
+    expect(ApplyYieldUpdateSchema.safeParse({
+      kind: 'notify',
+      method: 'applyYieldUpdate',
+      update: { update: 'setEverything' },
+    }).success).toBe(false);
+  });
+
+  it('is an act, not a notify: a Mode.CLIENT method returns void and never blocks', () => {
+    // ProtocolMethod.java:84-86 — "these should all return void, to avoid
+    // awkward situations in which client and server wait for one another".
+    expect(SendYieldUpdateSchema.safeParse({ ...frame(YIELD_ARMS[0]), kind: 'notify' }).success).toBe(false);
+    expect(SendYieldUpdateSchema.safeParse({ ...frame(YIELD_ARMS[0]), kind: 'ask', callId: 'c-1' }).success).toBe(false);
+  });
+
+  it('is named for the ProtocolMethod, because Forge looks it up by name', () => {
+    expect(SendYieldUpdateSchema.safeParse({ ...frame(YIELD_ARMS[0]), method: 'applyYieldUpdate' }).success).toBe(false);
+  });
+
+  it('refuses a field nobody agreed to, and a missing payload', () => {
+    expect(SendYieldUpdateSchema.safeParse({ ...frame(YIELD_ARMS[0]), player: { kind: 'player', id: 1 } }).success).toBe(false);
+    expect(SendYieldUpdateSchema.safeParse({ kind: 'act', method: 'sendYieldUpdate' }).success).toBe(false);
+  });
+
+  it('shares the payload with applyYieldUpdate — a direction is not a shape', () => {
+    for (const arm of YIELD_ARMS) {
+      expect(SendYieldUpdateSchema.safeParse(frame(arm)).success).toBe(true);
+      expect(
+        ApplyYieldUpdateSchema.safeParse({ kind: 'notify', method: 'applyYieldUpdate', update: arm }).success,
+      ).toBe(true);
+    }
+  });
+
+  it('is deliberately outside the census — and this is the boundary, recorded', () => {
+    // `envelope.test.ts` pins TIER_B_METHODS at 23 and REQUIRED_METHODS at 41,
+    // and `examples.ts` would need an entry. Wave 24 lane E owns neither file.
+    expect(TIER_B_METHODS as readonly string[]).not.toContain('sendYieldUpdate');
+    expect(TIER_B_CLIENT_FRAMES).toHaveLength(3);
+    expect(TIER_B_METHODS).toHaveLength(23);
   });
 });
 

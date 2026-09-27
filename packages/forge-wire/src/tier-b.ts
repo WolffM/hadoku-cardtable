@@ -82,10 +82,25 @@
  * (`update`); Java's maps are keyed by `PlayerView` and `FPref`, which are not
  * JSON object keys, so every map is an array of pairs.
  *
- * Note that `sendYieldUpdate` — the client→server counterpart
- * (ProtocolMethod.java:101, IGameController.java:95-97) — is NOT in lane F's
- * required 38, so it is not modelled here. That is lane F's call, kept rather
- * than quietly widened; see the count test in `envelope.test.ts`.
+ * ## `sendYieldUpdate` is modelled, and is deliberately NOT in the census
+ *
+ * Wave 24 lane E. `sendYieldUpdate` — the client→server counterpart
+ * (ProtocolMethod.java:101 `Mode.CLIENT, Void.TYPE, YieldUpdate.class`,
+ * IGameController.java:84-86) — is how a client tells Forge what it wants to
+ * stop for. It is the frame the whole yield model travels on, and until wave 24
+ * it existed nowhere but this comment.
+ *
+ * `SendYieldUpdateSchema` is below, beside `ApplyYieldUpdateSchema`, over the
+ * same `YieldUpdateSchema`. It is **not** in `TIER_B_METHODS` and **not** in
+ * `TIER_B_CLIENT_FRAMES`, because `envelope.test.ts` pins the census — 23 Tier B
+ * methods, 41 required, 38 examples — and wave 24 lane E owns neither that file
+ * nor `examples.ts`, `index.ts` or `envelope.ts`. Adding it to the union is four
+ * edits in three files this lane may not make, so the schema lands here and the
+ * wiring is named as the next wave's: `TIER_B_METHODS` 23→24,
+ * `TIER_B_CLIENT_FRAMES` 3→4, `CLIENT_FRAME_EXAMPLES.sendYieldUpdate`, the
+ * `index.ts` re-export, and `envelope.test.ts`'s three counts. It is not lane
+ * F's exclusion any more — it is a file boundary, and the exclusion is recorded
+ * rather than quietly widened.
  */
 
 import { z } from 'zod';
@@ -309,6 +324,32 @@ export const RestoreOldZonesSchema = z.strictObject({
 export const ApplyYieldUpdateSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('applyYieldUpdate'),
+  update: YieldUpdateSchema,
+});
+
+/**
+ * `void sendYieldUpdate(YieldUpdate update)` — IGameController.java:84-86,
+ * `ProtocolMethod.java:101` (`Mode.CLIENT, Void.TYPE, YieldUpdate.class`).
+ *
+ * The client→server half of the yield model: the frame a browser sends to tell
+ * Forge what it wants to stop for. An `act`, not an `ask` — `Mode.CLIENT`
+ * methods return void by Forge's own rule, and `IGameController`'s default
+ * implementation routes straight to `applyYieldUpdate` on the receiving
+ * controller's `YieldController`.
+ *
+ * It carries exactly the same twelve-arm payload as its server→client
+ * counterpart: the union is Forge's one sealed `YieldUpdate`, and a direction is
+ * not a shape. Nothing on this side narrows it — `SeedFromClient` is the arm a
+ * client sends and `ClearMarker` is one Forge sends back, but both are legal
+ * both ways, and `YieldController.apply` no-ops on a variant it does not expect
+ * rather than refusing it (`YieldController.java:359-393`).
+ *
+ * **Not in `TIER_B_METHODS` or `TIER_B_CLIENT_FRAMES`** — see the module header
+ * for why, and for the five edits that put it there.
+ */
+export const SendYieldUpdateSchema = z.strictObject({
+  kind: z.literal('act'),
+  method: z.literal('sendYieldUpdate'),
   update: YieldUpdateSchema,
 });
 

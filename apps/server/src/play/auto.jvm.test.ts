@@ -31,12 +31,45 @@
  * happen within two turns; the driver is deliberately crude (play a land, cast
  * the first spell it can afford, press OK) because what is asserted is what
  * FORGE was asked and what the seat was told, not the quality of the play.
+ *
+ * ## Wave 24 §E added a second scenario: the two windows the model must explain
+ *
+ * The second test below is a DIAGNOSIS, and it exists because the two requests
+ * it covers look identical in prose and are completely different in the frame:
+ *
+ *  - **#16** *"tapping Evolving Wilds asks whether to sacrifice — ridiculous
+ *    question"*. The claim under test is the frame's SHAPE: Forge asks through
+ *    `InputConfirm`, so what reaches a seat is a prose `showPromptMessage` with
+ *    `card: null` plus a Yes/No `updateButtons` — no ask, no cost, no reference
+ *    to the ability being paid for. That is why no rule can tell it apart from an
+ *    optional-trigger confirm, which IS a real game choice.
+ *  - **#22** *"Stoneforge Mystic waited for a click on Plains when there was
+ *    only one way to pay"*. Stoneforge's ability costs `{1}{W}, {T}`
+ *    (`cardsfolder/s/stoneforge_mystic.txt`), so it is two mana off two lands:
+ *    TWO sources and one assignment. The claim under test is that the multiset
+ *    Forge sends carries no weighting — `UI_SHOW_AUTOTAP_PREVIEW` defaults to
+ *    `"false"` (`ForgePreferences.java:101`) and the bridge does not set it — so
+ *    `plannedSources` is empty and the payment correctly stays a stop.
+ *
+ * Both are recorded as data (`CARDTABLE_PLAY_DUMP`) and summarised into
+ * `docs/planning/w24-e-evidence.md`.
  */
 
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
 
-import { isOwnMainPhaseEntry } from './auto.js';
+import {
+	DEFAULT_STOP_POLICY,
+	FULL_CONTROL_POLICY,
+	decidePay,
+	decideStop,
+	isOwnMainPhaseEntry,
+	readPromptFacts,
+	type PromptFacts,
+	type SeatNotes,
+} from './auto.js';
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine } from './host.js';
 import { createMatchRegistry } from './match.js';
 import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
@@ -399,6 +432,352 @@ describe.skipIf(!available.ok)(title, () => {
 							? ask.sourceChoices.length + ask.destChoices.length
 							: 0;
 				expect(refs, `${ask.method} carried ${refs} entries`).toBeLessThanOrEqual(8);
+			}
+
+			expect(match.invalidFrames).toBe(0);
+			match.stop();
+			jvm.close();
+			await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
+			expect(liveJvmCount()).toBe(0);
+		},
+		300_000,
+	);
+	/*
+	 * Wave 24 §E — the diagnosis run. One match, two windows, both recorded.
+	 *
+	 * Deck: Evolving Wilds (the #16 card), Plains (the basic it fetches, and the
+	 * #22 source the operator clicked) and Stoneforge Mystic (the #22 spell, whose
+	 * ability costs `{1}{W}, {T}`). Nothing else, so the two windows are reached
+	 * within a few turns without a driver that can play Magic.
+	 */
+	it(
+		'records what #16 and #22 actually carry: a prose Yes/No with no cost, and a two-source payment with no plan',
+		async () => {
+			if (!available.ok) return;
+			const raw: BridgeLine[] = [];
+			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
+			const logs: Record<string, unknown>[] = [];
+			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+
+			/*
+			 * One row per PROMPT seat 0 was shown, carrying the buttons and Forge's
+			 * multiset as they stood when that prompt arrived.
+			 *
+			 * Anchored on the prompt, not on the buttons, and the first run of this
+			 * test is why: `InputConfirm.showMessage` calls `updateButtons` and THEN
+			 * `showMessage` (`InputConfirm.java:107-121`), exactly as
+			 * `InputPayMana.updateMessage` does, so a row opened on the buttons
+			 * carries the PREVIOUS window's message — it recorded
+			 * `Priority: A … Main phase, postcombat` with a `Yes`/`No` bar. Wave 19
+			 * learned this on the payment input and wave 20 had to relearn it; the
+			 * prompt is the frame that identifies a window.
+			 */
+			interface Row {
+				message: string;
+				card: unknown;
+				label1: string;
+				label2: string;
+				enable1: boolean;
+				enable2: boolean;
+				actionable: number[] | null;
+			}
+			const rows: Row[] = [];
+			const live = { prompt: null as ServerFrame | null, buttons: null as ServerFrame | null, actionable: null as number[] | null };
+			const notes = [0, 1].map(() => ({ prompt: '', ok: false }));
+
+			function record(): void {
+				const p = live.prompt;
+				const b = live.buttons;
+				if (p === null || b === null || p.method !== 'showPromptMessage' || b.method !== 'updateButtons') return;
+				const row: Row = {
+					message: p.message,
+					card: p.card,
+					label1: b.label1,
+					label2: b.label2,
+					enable1: b.enable1,
+					enable2: b.enable2,
+					actionable: live.actionable === null ? null : [...live.actionable],
+				};
+				const prev = rows[rows.length - 1];
+				if (prev !== undefined && JSON.stringify(prev) === JSON.stringify(row)) return;
+				rows.push(row);
+			}
+
+			const registry = createMatchRegistry({
+				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
+				log: (e) => logs.push(e),
+				askTimeoutMs: 120_000,
+				overGraceMs: 60_000,
+				emit: (_m, seat, envelope) => {
+					sent.push({ seat, envelope });
+					const f = envelope.frame;
+					if (f.method === 'showPromptMessage') notes[seat]!.prompt = f.message;
+					else if (f.method === 'updateButtons') notes[seat]!.ok = f.enable1;
+					if (seat !== 0) return;
+					if (f.method === 'setWeaklySelectable') live.actionable = f.cards.map((c) => c.id);
+					else if (f.method === 'clearWeaklySelectable') live.actionable = null;
+					else if (f.method === 'showPromptMessage') { live.prompt = f; record(); }
+					else if (f.method === 'updateButtons') live.buttons = f;
+				},
+			});
+
+			const cards = ['14 Evolving Wilds', '14 Plains', '12 Stoneforge Mystic'];
+			const match = registry.create({
+				seed: 20260926,
+				seats: [
+					{ name: 'A', ai: false, deck: deck('Lane E A', cards) },
+					{ name: 'B', ai: false, deck: deck('Lane E B', cards) },
+				],
+			});
+			expect(await match.whenRunning(120_000)).toEqual({ ok: true });
+
+			const answered = new Set<string>();
+			const acted = new Set<string>();
+
+			function stateOf(seat: number): Map<string, WireObj> {
+				return foldFrames(
+					sent
+						.filter((x) => x.seat === seat && x.envelope.frame.kind === 'notify')
+						.map((x) => x.envelope.frame as unknown as StateFrame)
+						.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
+				);
+			}
+
+			function zone(seat: number, name: 'Hand' | 'Battlefield'): { id: number; name: string; tapped: boolean; land: boolean }[] {
+				const state = stateOf(seat);
+				const player = state.get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1));
+				return ids(player, name).map((id) => {
+					const view = state.get(keyOf(TYPE.card, id));
+					const current = view?.CurrentState as { v?: number } | undefined;
+					const face = state.get(keyOf(TYPE.cardState, id * 16 + (current?.v ?? 0)));
+					const type = face?.Type as { core?: string[] } | undefined;
+					return {
+						id,
+						name: str(face, 'Name') ?? str(view, 'Name') ?? `#${id}`,
+						tapped: (view?.Tapped as { v?: boolean } | undefined)?.v === true,
+						land: type?.core?.includes('Land') === true,
+					};
+				});
+			}
+
+			/** Answer whatever reaches the browser plainly — the point is that it round-trips. */
+			function answerAsks(): void {
+				for (const { seat, envelope } of sent) {
+					const f = envelope.frame as ServerFrame & Record<string, unknown>;
+					if (f.kind !== 'ask' || answered.has(f.callId as string)) continue;
+					const callId = f.callId as string;
+					answered.add(callId);
+					let result: unknown;
+					switch (f.method) {
+						case 'confirm':
+						case 'showConfirmDialog':
+						case 'openZones':
+							result = true;
+							break;
+						case 'showOptionDialog':
+							result = 0;
+							break;
+						case 'showInputDialog':
+							result = '0';
+							break;
+						case 'getChoices': {
+							const keys = (f.choices as { key: string }[]).map((c) => c.key);
+							result = (f.min as number) > 0 && keys[0] !== undefined ? [keys[0]] : [];
+							break;
+						}
+						case 'getAbilityToPlay':
+							result = (f.abilities as unknown[])[0] ?? null;
+							break;
+						case 'chooseSingleEntityForEffect':
+							result = (f.optionList as unknown[])[0] ?? null;
+							break;
+						case 'chooseEntitiesForEffect':
+							result = (f.min as number) > 0 ? [(f.optionList as unknown[])[0]] : [];
+							break;
+						case 'manipulateCardList':
+							result = f.cards;
+							break;
+						case 'order':
+							result = { ordered: (f.destChoices as { key: string }[]).map((c) => c.key), rememberDecision: false };
+							break;
+						case 'assignCombatDamage':
+						case 'assignGenericAmount':
+							result = [];
+							break;
+						default:
+							result = null;
+					}
+					const reply = ClientFrameSchema.parse({ kind: 'reply', callId, method: f.method, result });
+					expect(match.fromClient(seat, reply), `${f.method} ${callId}`).toEqual({ ok: true });
+				}
+			}
+
+			const OK = ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' });
+			const select = (id: number) =>
+				ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null });
+
+			/*
+			 * A Yes/No bar is Forge's `InputConfirm` (`InputConfirm.java:51,108`:
+			 * `lblYes` / `lblNo`). TWO kinds of row wear one, and the second is a
+			 * finding of this run rather than something it went looking for:
+			 *
+			 *  - the confirm's own prompt, which is the #16 window; and
+			 *  - a PRIORITY prompt that arrived while the bar was still Yes/No,
+			 *    because Forge replaces the message before it replaces the buttons.
+			 *
+			 * So `label1` cannot classify a priority window, and the adapter does not
+			 * use it for one — only for the payment input, whose own label is `Auto`.
+			 */
+			const yesNoRows = (): Row[] => rows.filter((r) => r.label1 === 'Yes' && r.label2 === 'No');
+			const sacrificeRows = (): Row[] => yesNoRows().filter((r) => !r.message.startsWith('Priority: '));
+			const staleBarRows = (): Row[] => yesNoRows().filter((r) => r.message.startsWith('Priority: '));
+			const paymentRows = (): Row[] => rows.filter((r) => r.label1 === 'Auto' && r.enable1);
+			const twoSourceRows = (): Row[] => paymentRows().filter((r) => r.actionable !== null && new Set(r.actionable).size >= 2);
+
+			const names = ['A', 'B'];
+			const deadline = Date.now() + 200_000;
+			while (Date.now() < deadline && (sacrificeRows().length === 0 || twoSourceRows().length === 0)) {
+				answerAsks();
+				for (const seat of [0, 1]) {
+					const n = notes[seat]!;
+					const me = names[seat]!;
+					const turn = /Turn: (\d+) \(([^)]*)\)/.exec(n.prompt);
+					const myMain =
+						n.prompt.startsWith(`Priority: ${me}`) && /Stack: Empty/.test(n.prompt) && /Phase: Main/.test(n.prompt) && turn?.[2] === me;
+					if (myMain && seat === 0) {
+						const key = `${turn?.[1]}:${n.prompt.includes('precombat') ? 'pre' : 'post'}`;
+						const hand = zone(0, 'Hand');
+						const board = zone(0, 'Battlefield');
+						const untapped = board.filter((c) => c.land && !c.tapped);
+						// A Stoneforge cast is the #22 window, and it needs two untapped lands.
+						const mystic = hand.find((c) => c.name === 'Stoneforge Mystic');
+						if (mystic !== undefined && untapped.length >= 2 && twoSourceRows().length === 0 && !acted.has(`${key}:cast`)) {
+							acted.add(`${key}:cast`);
+							match.fromClient(0, select(mystic.id));
+							continue;
+						}
+						// An Evolving Wilds on the battlefield is the #16 window.
+						const wilds = board.find((c) => c.name === 'Evolving Wilds' && !c.tapped);
+						if (wilds !== undefined && sacrificeRows().length === 0 && !acted.has(`${key}:wilds`)) {
+							acted.add(`${key}:wilds`);
+							match.fromClient(0, select(wilds.id));
+							continue;
+						}
+						// Otherwise take the land drop, preferring a Plains once the
+						// sacrifice window has been seen (Stoneforge needs real mana).
+						const land = sacrificeRows().length === 0
+							? (hand.find((c) => c.name === 'Evolving Wilds') ?? hand.find((c) => c.land))
+							: (hand.find((c) => c.name === 'Plains') ?? hand.find((c) => c.land));
+						if (land !== undefined && !acted.has(`${key}:land`)) {
+							acted.add(`${key}:land`);
+							match.fromClient(0, select(land.id));
+							continue;
+						}
+					}
+					if (n.ok) match.fromClient(seat, OK);
+				}
+				await new Promise((r) => setTimeout(r, 120));
+			}
+			await new Promise((r) => setTimeout(r, 1500));
+			answerAsks();
+
+			const dumpDir = process.env.CARDTABLE_PLAY_DUMP;
+			if (dumpDir !== undefined) {
+				mkdirSync(dumpDir, { recursive: true });
+				writeFileSync(join(dumpDir, `w24-e-windows-${Date.now()}.json`), JSON.stringify({ rows, says: logs.filter((l) => l.evt === 'auto-passed' || l.evt === 'auto-paid') }, null, 1));
+			}
+
+			const notesFrom = (row: Row): SeatNotes => ({
+				playerId: match.seats[0]!.playerId,
+				prompt: {
+					kind: 'notify',
+					method: 'showPromptMessage',
+					player: { kind: 'player', id: match.seats[0]!.playerId ?? -1 },
+					message: row.message,
+					card: row.card,
+				} as ServerFrame,
+				buttons: {
+					kind: 'notify',
+					method: 'updateButtons',
+					owner: { kind: 'player', id: match.seats[0]!.playerId ?? -1 },
+					label1: row.label1,
+					label2: row.label2,
+					enable1: row.enable1,
+					enable2: row.enable2,
+					focus1: true,
+				} as ServerFrame,
+				actionable: row.actionable,
+				openAsks: 0,
+			});
+
+			console.log(
+				`[lane-e] ${rows.length} (prompt, buttons) rows; ${sacrificeRows().length} Yes/No confirms, ` +
+					`${paymentRows().length} live payments, ${twoSourceRows().length} of them with two or more sources`,
+			);
+
+			/*
+			 * #16 — what the sacrifice confirm carries. Non-vacuity first: a sweep
+			 * over no confirm proves nothing.
+			 */
+			expect(sacrificeRows().length, `no Yes/No confirm happened: ${JSON.stringify(rows.map((r) => r.label1))}`).toBeGreaterThan(0);
+			for (const row of sacrificeRows()) {
+				expect(row.message, row.message).toBe('Sacrifice Evolving Wilds?');
+				console.log(`[lane-e] #16 confirm: ${JSON.stringify({ message: row.message, card: row.card, label1: row.label1, label2: row.label2, enable2: row.enable2 })}`);
+				// Forge offers the decline: button 2 is live, and pressing it aborts
+				// the activation (`HumanCostDecision.java:1295-1301` returns null).
+				expect(row.enable1).toBe(true);
+				expect(row.enable2).toBe(true);
+				// And the frame carries NOTHING that names what is being paid for:
+				// no card reference, no cost, not even an ask id.
+				expect(row.card).toBeNull();
+				const facts: PromptFacts = readPromptFacts(notesFrom(row));
+				expect(facts.window).toBe('other');
+				expect(facts.cost).toBeNull();
+				expect(facts.phase).toBeNull();
+				// So it is a stop, under every policy. That is #16's finding.
+				expect(decideStop(facts, DEFAULT_STOP_POLICY)).toBeNull();
+				expect(decidePay(facts, DEFAULT_STOP_POLICY)).toBeNull();
+				expect(decideStop(facts, FULL_CONTROL_POLICY)).toBeNull();
+			}
+
+			/*
+			 * The lag, recorded: a priority prompt whose bar is still the confirm's.
+			 * It is classified as the priority window it is, NOT as a confirm — which
+			 * is the whole reason the adapter reads `label1` only for the payment
+			 * input. This run produced some; if a later one does not, the claim is
+			 * reported as unexercised rather than turned into a red.
+			 */
+			if (staleBarRows().length === 0) {
+				console.warn('[lane-e] DID NOT HAPPEN: no priority prompt arrived while the Yes/No bar was still up.');
+			} else {
+				console.log(`[lane-e] ${staleBarRows().length} priority prompts arrived under a stale Yes/No bar`);
+				for (const row of staleBarRows()) {
+					expect(readPromptFacts(notesFrom(row)).window).toBe('priority');
+				}
+			}
+
+			/*
+			 * #22 — a two-source payment, and the weighting that is not on our wire.
+			 */
+			expect(twoSourceRows().length, `no payment offered two sources: ${JSON.stringify(paymentRows().map((r) => r.actionable))}`).toBeGreaterThan(0);
+			for (const row of twoSourceRows()) {
+				const facts: PromptFacts = readPromptFacts(notesFrom(row));
+				console.log(
+					`[lane-e] #22 payment: cost=${String(facts.cost)} sources=${JSON.stringify(facts.sources)} planned=${JSON.stringify(facts.plannedSources)}`,
+				);
+				expect(facts.window).toBe('payment');
+				expect(facts.cost).not.toBeNull();
+				expect(facts.sources!.length).toBeGreaterThan(1);
+				// `UI_SHOW_AUTOTAP_PREVIEW` defaults false and the bridge does not set
+				// it, so Forge's own auto-tap plan never reaches us and the payment
+				// correctly stays a stop. Flipping that pref is what closes #22.
+				expect(facts.plannedSources).toEqual([]);
+				expect(decidePay(facts, DEFAULT_STOP_POLICY)).toBeNull();
+				// The same row WITH Forge's weighting is one payment — the wire shape
+				// the pref produces, asserted here so the fix has a test waiting.
+				const weighted = readPromptFacts({ ...notesFrom(row), actionable: [...row.actionable!, ...new Set(row.actionable!)] });
+				expect(new Set(weighted.plannedSources)).toEqual(new Set(weighted.sources));
+				expect(decidePay(weighted, DEFAULT_STOP_POLICY)).toBe(facts.cost);
 			}
 
 			expect(match.invalidFrames).toBe(0);
