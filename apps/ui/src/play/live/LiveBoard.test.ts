@@ -423,253 +423,15 @@ describe('clicking a card on the live board', () => {
 });
 
 /*
- * Dragging, and the targeter arrow (Wave 19 §B items 2 and 3).
+ * Dragging, box-drawing and the targeter arrow are NOT here any more.
  *
- * Every assertion here is about WHAT WAS SENT — the frames that left through
- * `selectCard` / `selectPlayer` and reached the replay server — not about what
- * was drawn. The arrow has two assertions of its own and they are about
- * existence and snapping, because a picture is not a proof that the right
- * thing happened.
- *
- * The overlay root is lane A's (`[data-board-overlay]`). These tests add one
- * by hand where they need it, and the case that does NOT is the guard: with no
- * overlay the arrow is not drawn and the drag still sends.
- *
- * jsdom has no layout, so every `getBoundingClientRect` is zeroes and the
- * arrow's geometry is all 0 — which is why nothing here asserts a coordinate.
- * What it does assert is which element the arrow snapped to, and that is read
- * off the DOM, not off a number.
+ * Wave 24 re-homed the whole pointer layer into `./gestures/` (lane B's, and
+ * framework-free), and the tests that asserted what a drag put on the WIRE went
+ * with it. What is left of that layer in this component is one effect that
+ * installs it on `.live` and disposes it, which is what "the frame installs the
+ * gesture layer" below asserts — everything else about a drag is now provable
+ * without React.
  */
-describe('dragging a card, and the targeter arrow', () => {
-  function notify(raw: unknown[]) {
-    return raw.map((r) => parseServerFrame(r));
-  }
-  const prompt = (message: string) =>
-    parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null });
-  const actionable = (ids: number[]) =>
-    parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
-  const selectables = (ids: number[], min: number, max: number) =>
-    parseServerFrame({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max });
-
-  /**
-   * Lane A's overlay root. It is theirs to render, so this looks for it and
-   * only falls back to one of its own if the contract is not met yet — which
-   * keeps these cases independent of their landing order.
-   */
-  function overlayOf(container: HTMLElement): HTMLElement {
-    const found = container.querySelector<HTMLElement>('[data-board-overlay]');
-    if (found !== null) return found;
-    const made = document.createElement('div');
-    made.setAttribute('data-board-overlay', '');
-    container.querySelector('.live')!.appendChild(made);
-    return made;
-  }
-
-  const cardEl = (c: HTMLElement, id: number) => c.querySelector<HTMLElement>(`[data-board-card="${id}"]`)!;
-  const faceEl = (c: HTMLElement, id: number) => c.querySelector<HTMLElement>(`[data-player-face][data-player-id="${id}"]`)!;
-
-  /** Press on `from`, move over `over`, release there. Past the slop, so it is a drag. */
-  function drag(from: HTMLElement, over: HTMLElement): void {
-    fireEvent.pointerDown(from, { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(over, { clientX: 200, clientY: 140 });
-    fireEvent.pointerUp(over, { clientX: 200, clientY: 140 });
-  }
-
-  /** What actually left this client, as `[method, id]` pairs. The whole point of these tests. */
-  const sent = (s: ReplayServer): unknown[] =>
-    s.clientFrames().map((f) => {
-      if (!f.ok || f.value.kind !== 'act') return f;
-      const act = f.value;
-      if (act.method === 'selectCard') return ['selectCard', act.card.id];
-      if (act.method === 'selectPlayer') return ['selectPlayer', act.player.id];
-      return [act.method];
-    });
-
-  it('a drag from a card Forge offered onto the opponent’s seat sends selectCard then selectPlayer', async () => {
-    const { s, m, container } = await liveBoard();
-    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    const [source, other] = [mine[0]!, mine[1]!];
-    // A selection Forge wants TWO of, so the source is sent as well as the drop.
-    for (const f of notify([prompt('Choose two'), selectables([source, other], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
-
-    drag(cardEl(container, source), faceEl(container, 1));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
-    expect(sent(s)).toEqual([
-      ['selectCard', source],
-      ['selectPlayer', 1],
-    ]);
-  });
-
-  it('a drag from one offered card onto another sends both, in order', async () => {
-    const { s, m, container } = await liveBoard();
-    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    const [source, target] = [mine[0]!, mine[1]!];
-    for (const f of notify([prompt('Choose two'), selectables([source, target], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
-
-    drag(cardEl(container, source), cardEl(container, target));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
-    expect(sent(s)).toEqual([
-      ['selectCard', source],
-      ['selectCard', target],
-    ]);
-  });
-
-  it('Forge wants ONE thing: the drop is what the player pointed at, and it is the only frame sent', async () => {
-    const { s, m, container } = await liveBoard();
-    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    const [source, target] = [mine[0]!, mine[1]!];
-    for (const f of notify([prompt('Choose a target'), selectables([source, target], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables!.max).toBe(1));
-
-    drag(cardEl(container, source), cardEl(container, target));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(sent(s)).toEqual([['selectCard', target]]);
-  });
-
-  it('a drag of a card Forge did not offer does nothing and says nothing', async () => {
-    const { s, m, container } = await liveBoard();
-    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    const theirs = m.view!.players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
-    for (const f of notify([prompt('Choose a target'), selectables([mine[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
-
-    // The opponent's card is not offered — dragged to the stack (the one
-    // zone no seat owns, so nothing is under it) or off the board entirely,
-    // it sends nothing. A drop inside a seat WOULD point at that player;
-    // that is the pointing gesture, and it has its own test below.
-    const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
-    drag(cardEl(container, theirs[0]!), stack);
-    drag(cardEl(container, theirs[0]!), document.body);
-    expect(m.lastError).toBeNull();
-    expect(container.querySelector('[data-testid="live-error"]')).toBeNull();
-    expect(s.clientFrames()).toHaveLength(0);
-
-    // Proven against a barrier: the next legitimate act must be the FIRST
-    // frame the server sees, so a refused drag cannot be hiding behind a wire.
-    fireEvent.click(cardEl(container, mine[0]!).querySelector('button')!);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
-  });
-
-  it('inside a selection, an offered card dropped where nothing is offered is used — a spell drags out of its own target ask', async () => {
-    const { s, m, container } = await liveBoard();
-    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    const theirs = m.view!.players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
-    // Forge is asking for a target (the spell's own ask) and has named the
-    // spell among the candidates. The drag lands on an unoffered card in a
-    // zone — `targetUnder` stops at that card and names nothing — so the drop
-    // is the card's own click: one selectCard for the source, nothing else.
-    for (const f of notify([prompt('Choose a target'), selectables([mine[0]!, mine[1]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
-
-    drag(cardEl(container, mine[0]!), cardEl(container, theirs[0]!));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
-
-    // And a drop outside every zone still does nothing and says nothing.
-    drag(cardEl(container, mine[1]!), document.body);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(1);
-  });
-
-  it('outside a selection, a drop on the table is the one frame a click sends — and it is not sent twice', async () => {
-    const { s, m, container } = await liveBoard();
-    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-
-    const zone = container.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
-    drag(cardEl(container, mine[0]!), zone);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
-  });
-
-  it('a press that does not move is still a click, and sends exactly once', async () => {
-    const { s, m, container } = await liveBoard();
-    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-
-    const face = cardEl(container, mine[0]!).querySelector<HTMLButtonElement>('button')!;
-    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(face, { clientX: 12, clientY: 11 });
-    fireEvent.pointerUp(face, { clientX: 12, clientY: 11 });
-    fireEvent.click(face);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
-  });
-
-  it('the arrow is drawn into lane A’s overlay and snaps to the legal target under the pointer', async () => {
-    const { s, m, container } = await liveBoard();
-    const overlay = overlayOf(container);
-    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    const theirs = m.view!.players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
-    for (const f of notify([prompt('Choose a target'), selectables([mine[0]!, mine[1]!], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
-
-    expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull();
-    fireEvent.pointerDown(cardEl(container, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
-    // Over nothing in particular: the arrow follows the pointer, unsnapped.
-    fireEvent.pointerMove(cardEl(container, theirs[0]!), { clientX: 120, clientY: 90 });
-    const arrow = await waitFor(() => overlay.querySelector<SVGElement>('[data-testid="targeter"]')!);
-    expect(arrow.dataset.source).toBe(String(mine[0]));
-    expect(arrow.dataset.target).toBeUndefined();
-    expect(arrow.dataset.snapped).toBeUndefined();
-    expect(arrow.querySelector('line')).not.toBeNull();
-    expect(arrow.querySelector('polygon')).not.toBeNull();
-
-    // Over a card Forge DID offer: it snaps.
-    fireEvent.pointerMove(cardEl(container, mine[1]!), { clientX: 200, clientY: 140 });
-    await waitFor(() => expect(overlay.querySelector<SVGElement>('[data-testid="targeter"]')!.dataset.target).toBe(`card:${mine[1]}`));
-    expect(overlay.querySelector<SVGElement>('[data-testid="targeter"]')!.dataset.snapped).toBe('true');
-
-    fireEvent.pointerUp(cardEl(container, mine[1]!), { clientX: 200, clientY: 140 });
-    await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull());
-    expect(sent(s)).toEqual([
-      ['selectCard', mine[0]!],
-      ['selectCard', mine[1]!],
-    ]);
-  });
-
-  it('with no overlay root the arrow is not drawn, and the drag still sends', async () => {
-    const { s, m, container } = await liveBoard();
-    // Lane A owns the overlay; a board drawn without one must still be
-    // playable, so take it away and drive the same gesture.
-    container.querySelector('[data-board-overlay]')?.remove();
-    expect(container.querySelector('[data-board-overlay]')).toBeNull();
-    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    for (const f of notify([prompt('Choose two'), selectables([mine[0]!, mine[1]!], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
-
-    fireEvent.pointerDown(cardEl(container, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(cardEl(container, mine[1]!), { clientX: 200, clientY: 140 });
-    expect(document.querySelector('[data-testid="targeter"]')).toBeNull();
-    fireEvent.pointerUp(cardEl(container, mine[1]!), { clientX: 200, clientY: 140 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
-    expect(sent(s)).toEqual([
-      ['selectCard', mine[0]!],
-      ['selectCard', mine[1]!],
-    ]);
-  });
-
-  it('a pointing gesture inside a selection needs no source: the drop alone is sent', async () => {
-    const { s, m, container } = await liveBoard();
-    const theirs = m.view!.players.find((p) => !p.isViewer)!.battlefield.map((c) => c.id);
-    // Forge offers only the opponent's creature — nothing of the viewer's to
-    // drag from, which is the ordinary shape of a targeting input.
-    for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
-
-    const stack = container.querySelector<HTMLElement>('[data-zone="stack"]') ?? container.querySelector<HTMLElement>('.board')!;
-    fireEvent.pointerDown(stack, { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(faceEl(container, 1), { clientX: 200, clientY: 140 });
-    fireEvent.pointerUp(faceEl(container, 1), { clientX: 200, clientY: 140 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(sent(s)).toEqual([['selectPlayer', 1]]);
-  });
-});
 
 /*
  * The says, the full-control toggle, and the ability label — Wave 19's §C
@@ -1112,10 +874,16 @@ describe('Leave is with the match controls', () => {
     // is never a misclick on Forge's answer.
     expect(bar.firstElementChild).toBe(leave);
     expect(container.querySelector('.board')!.contains(leave)).toBe(false);
-    // And the bar is still a sibling of the board, drawn after it: the chrome
-    // is around the canvas, not in it.
+    // And the cluster is still a sibling of the board, drawn after it: the
+    // chrome is around the canvas, not in it. Wave 24 added the phase rail
+    // between them, and it is a sibling for the same reason.
     const live = container.querySelector('.live')!;
-    expect([...live.children].map((el) => el.className)).toEqual(['live__status', 'board', 'live__buttons']);
+    expect([...live.children].map((el) => el.className)).toEqual([
+      'live__status',
+      'board',
+      'live__phases',
+      'live__buttons',
+    ]);
   });
 
   it('a keyboard reaches it, and a press leaves', async () => {
@@ -1176,5 +944,330 @@ describe('Leave is with the match controls', () => {
       '.live .card__rules',
       '.live .board',
     ]);
+  });
+});
+
+/*
+ * ── Wave 24 §C: the frame gets out of the way ─────────────────────────────
+ *
+ * Four items, and three of them are about LAYOUT, which jsdom has none of. So
+ * each is split the only honest way:
+ *
+ *  - what is in the DOM and what it is a sibling of, asserted here;
+ *  - what BOX it gets, asserted on `live.css`'s own declarations here (the
+ *    source is the truth about the rule; jsdom applies no stylesheet at all,
+ *    so `getComputedStyle` would agree with any rule whatsoever) and measured
+ *    for real, on every animation frame of a live match, by
+ *    `e2e/table-fit.spec.ts`.
+ *
+ * Concede is the exception and is asserted end to end, because it is a safety
+ * control: what reaches the WIRE is the whole claim.
+ */
+
+/**
+ * `live.css` as text. Shared by the rule assertions below and by the canvas
+ * guard above it.
+ */
+const liveCss = (): string => readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'live.css'), 'utf8');
+
+/** One rule's declarations, by its selector, comments stripped and whitespace collapsed. */
+function declarations(css: string, selector: string): string {
+  for (const rule of css.split('}')) {
+    const at = rule.indexOf('{');
+    if (at < 0) continue;
+    const clean = (s: string) =>
+      s
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (clean(rule.slice(0, at)) === selector) return clean(rule.slice(at + 1));
+  }
+  throw new Error(`live.css has no rule for ${selector}`);
+}
+
+/*
+ * §C.1 — the control bar stops being a bar.
+ *
+ * The operator accepted its CONTENTS and rejected its SHAPE. So the contents
+ * are asserted to be all still there, in ONE container, and the shape is
+ * asserted to be a corner cluster out of the flex flow.
+ *
+ * `e2e/table-fit.spec.ts` is the other half and it is strict: *"once the board
+ * is drawn, `live-buttons` has a nonzero box that lies inside the viewport,
+ * with `live-button-ok`, `live-button-cancel` and `live-says` in it, and that
+ * box is at the SAME place and size in every frame at a given window size — a
+ * fixed home, not a bar on demand."* Every fixed track below is that sentence.
+ */
+describe('the controls are a cluster over the board, not a bar under it', () => {
+  it('is ONE container, and the three things the fit spec looks for are inside it', async () => {
+    const { container, getByTestId } = await liveBoard();
+    const cluster = getByTestId('live-buttons');
+    // The spec queries `live-buttons` and then looks INSIDE it for all three,
+    // so a second container, or one of these drawn as a sibling, is a red e2e.
+    expect(container.querySelectorAll('[data-testid="live-buttons"]')).toHaveLength(1);
+    for (const id of ['live-button-ok', 'live-button-cancel', 'live-says']) {
+      expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
+    }
+    // And the rest of the contents the operator accepted.
+    for (const id of ['live-leave', 'live-log', 'live-full-control', 'live-concede']) {
+      expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
+    }
+  });
+
+  it('is out of the flow in the bottom-right corner, so the table has the height back', () => {
+    const decls = declarations(liveCss(), '.live__buttons');
+    expect(decls).toContain('position: absolute');
+    expect(decls).toContain('right: 6px');
+    expect(decls).toContain('bottom: 6px');
+    expect(decls).toContain('width: var(--live-controls-w)');
+    expect(decls).toContain('height: var(--live-controls-h)');
+    // No full-width bar remains: the token that gave the row under the canvas
+    // its height is gone from the file, not merely unused.
+    expect(liveCss()).not.toContain('--live-bar-h');
+  });
+
+  it('every slot in it is a fixed track, so one window size can never see two boxes', () => {
+    const css = liveCss();
+    const cluster = declarations(css, '.live__buttons');
+    // A track sized by its content is exactly how the box changes between
+    // frames — a longer say, a longer button label from Forge.
+    expect(cluster).toContain('grid-template-columns: repeat(6, 1fr)');
+    expect(cluster).toContain('grid-template-rows: 34px 34px 30px minmax(26px, 1fr)');
+    // So what overflows scrolls or clips inside its own slot.
+    expect(declarations(css, '.live__says')).toContain('overflow: auto');
+    expect(declarations(css, '.live__log')).toContain('overflow: hidden');
+    expect(declarations(css, '.live__buttons button')).toContain('text-overflow: ellipsis');
+    // The sizes resolve on `.live` itself, so the dev harness — which mounts it
+    // with no shell — gets a fixed box too. A `var()` with no value is an
+    // invalid declaration and the cluster would fall back to content size.
+    const live = declarations(css, '.live');
+    for (const token of ['--live-controls-h:', '--live-controls-w:', '--live-rail-w:']) {
+      expect(live, `${token} is defined on .live`).toContain(token);
+    }
+  });
+
+  /*
+   * The invariant two other things rest on, and it was wrong once.
+   *
+   * `--live-controls-h` is the cluster's `height` AND what the prompt host
+   * subtracts to find the room above it. The cluster's tracks are pixels, so
+   * the token has to be their sum. It was `9.75rem`, which is that sum at a
+   * 16px root font size and nothing else — measured in Chrome, the tracks that
+   * need 153px got 136px at a 14px root and 195px at 20px. So the token is
+   * pixels, and this adds them up rather than trusting a literal.
+   */
+  it('the height token is the exact sum of the cluster’s own tracks, in pixels', () => {
+    const css = liveCss();
+    const cluster = declarations(css, '.live__buttons');
+    const rows = /grid-template-rows: ([^;]+);/.exec(cluster)?.[1];
+    expect(rows, 'the cluster declares explicit rows').toBeDefined();
+    // `minmax(26px, 1fr)` contributes its 26px floor; nothing here is content-sized.
+    const tracks = [...rows!.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
+    expect(tracks).toEqual([34, 34, 30, 26]);
+    const padY = Number(/padding: (\d+)px/.exec(cluster)?.[1]);
+    const gap = Number(/gap: (\d+)px/.exec(cluster)?.[1]);
+    const token = Number(/--live-controls-h: (\d+)px/.exec(declarations(css, '.live'))?.[1]);
+    const border = 1;
+    expect(
+      tracks.reduce((a, b) => a + b, 0) + gap * (tracks.length - 1) + padY * 2 + border * 2,
+      'padding + border + rows + gaps === --live-controls-h',
+    ).toBe(token);
+  });
+});
+
+/*
+ * §C.2 — a vertical phase indicator.
+ *
+ * Presentation only: every value here is read back off the same `match.view`
+ * the turn bar draws, and the test asserts they agree rather than asserting a
+ * literal — a fixture whose turn changes must not need this file edited.
+ */
+describe('the phase reads down the side', () => {
+  const steps = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.live__step')];
+
+  it('draws Forge’s thirteen steps and names only the one the game is on', async () => {
+    const { container, getByTestId } = await liveBoard();
+    const all = steps(container);
+    expect(all).toHaveLength(13);
+    const current = all.filter((el) => el.hasAttribute('data-current'));
+    expect(current).toHaveLength(1);
+    // The same phase the turn bar says, and our own word for it.
+    expect(current[0]!.dataset.phase).toBe('MAIN1');
+    expect(current[0]!.getAttribute('aria-current')).toBe('step');
+    expect(current[0]!.textContent).toBe(getByTestId('phase').textContent);
+    // A turn in progress: the steps before it are past, the ones after are not.
+    const at = all.indexOf(current[0]!);
+    expect(all.slice(0, at).every((el) => el.hasAttribute('data-past'))).toBe(true);
+    expect(all.slice(at).some((el) => el.hasAttribute('data-past'))).toBe(false);
+  });
+
+  it('every step keeps its name for a screen reader, drawn or not', async () => {
+    const { container } = await liveBoard();
+    expect(steps(container).map((el) => el.textContent)).toEqual([
+      'Untap',
+      'Upkeep',
+      'Draw',
+      'Main 1',
+      'Beginning of combat',
+      'Declare attackers',
+      'Declare blockers',
+      'First-strike damage',
+      'Combat damage',
+      'End of combat',
+      'Main 2',
+      'End step',
+      'Cleanup',
+    ]);
+  });
+
+  it('says which turn and whose, off the view and nothing else', async () => {
+    const { m, getByTestId } = await liveBoard();
+    const view = m.view!;
+    const active = view.players.find((p) => p.id === view.activePlayerId);
+    const whose = active === undefined ? 'nobody' : active.isViewer ? 'yours' : 'theirs';
+    expect(getByTestId('live-phases').dataset.whose).toBe(whose);
+    expect(getByTestId('live-turn').textContent).toBe(`${view.turn}${whose}`);
+  });
+
+  it('is out of flow beside the canvas and takes no pointer events, so it moves and blocks nothing', async () => {
+    const { container, getByTestId } = await liveBoard();
+    const rail = getByTestId('live-phases');
+    expect(container.querySelector('.board')!.contains(rail)).toBe(false);
+    const decls = declarations(liveCss(), '.live__phases');
+    expect(decls).toContain('position: absolute');
+    expect(decls).toContain('pointer-events: none');
+    // Under lane A's overlay root (z 2), so the inspector's enlarged card still
+    // comes out on top of the rail rather than behind it.
+    expect(decls).toContain('z-index: 1');
+  });
+});
+
+/*
+ * §C.3 — a prompt belongs where the player is looking.
+ *
+ * Teetering Peaks' ask *"appeared as text at the bottom of the screen"*. Where
+ * it sits is this lane's; what it looks like inside is lane D's.
+ */
+describe('a prompt belongs where the player is looking', () => {
+  it('the host is the room ABOVE the controls, with the sheet centred in it', () => {
+    const decls = declarations(liveCss(), '.live__prompt');
+    expect(decls).toContain('inset: 0 8px calc(var(--live-controls-h) + 16px)');
+    expect(decls).toContain('align-items: center');
+    expect(decls).toContain('justify-content: center');
+    // Not pinned to an edge any more — that was the bug.
+    expect(decls).not.toContain('bottom:');
+    // The host now covers the board, so it must not swallow the table's clicks;
+    // the sheet takes them back.
+    expect(decls).toContain('pointer-events: none');
+    expect(declarations(liveCss(), '.live__prompt > .prompt, .live__prompt > .confirm')).toContain(
+      'pointer-events: auto',
+    );
+  });
+
+  it('an open prompt is a sibling of the board, drawn last — nothing in the canvas moves for it', async () => {
+    const { s, container, getByTestId } = await liveBoard();
+    s.send(confirmAsk('c-centre', true));
+    await waitFor(() => getByTestId('live-prompt'));
+    expect([...container.querySelector('.live')!.children].map((el) => el.className)).toEqual([
+      'live__status',
+      'board',
+      'live__phases',
+      'live__buttons',
+      'live__prompt',
+    ]);
+    expect(container.querySelector('.board')!.contains(getByTestId('live-prompt'))).toBe(false);
+  });
+});
+
+/*
+ * §C.4 — Concede.
+ *
+ * `concede` has been on the wire since the beginning and has never had a
+ * button. It is destructive and irreversible, so every assertion here is about
+ * what did or did not reach the WIRE: the button sends nothing, cancel sends
+ * nothing, and the confirmation's own yes is the one and only path.
+ */
+describe('Concede asks first', () => {
+  it('the button sends NOTHING — it opens a confirmation', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const button = getByTestId('live-concede') as HTMLButtonElement;
+    expect(getByTestId('live-buttons').contains(button)).toBe(true);
+    expect(queryByTestId('live-concede-ask')).toBeNull();
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(button);
+    const ask = await waitFor(() => getByTestId('live-concede-ask'));
+    // The claim: pressing Concede put nothing on the wire.
+    expect(s.clientFrames()).toEqual([]);
+    expect(m.stats.replies).toBe(0);
+    expect(ask.querySelector('[role="alertdialog"]')).not.toBeNull();
+    expect(ask.textContent).toContain('You lose this game.');
+    // The safe button has the focus: Enter on a dialog nobody read must not end
+    // the game.
+    expect(document.activeElement).toBe(getByTestId('live-concede-no'));
+  });
+
+  it('cancel closes it and sends nothing', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    fireEvent.click(getByTestId('live-concede'));
+    await waitFor(() => getByTestId('live-concede-ask'));
+    fireEvent.click(getByTestId('live-concede-no'));
+    await waitFor(() => expect(queryByTestId('live-concede-ask')).toBeNull());
+    expect(s.clientFrames()).toEqual([]);
+    expect(m.stats.replies).toBe(0);
+  });
+
+  it('escape is cancel, and sends nothing', async () => {
+    const { s, getByTestId, queryByTestId } = await liveBoard();
+    fireEvent.click(getByTestId('live-concede'));
+    const ask = await waitFor(() => getByTestId('live-concede-ask'));
+    fireEvent.keyDown(ask, { key: 'Escape' });
+    await waitFor(() => expect(queryByTestId('live-concede-ask')).toBeNull());
+    expect(s.clientFrames()).toEqual([]);
+  });
+
+  it('the confirmation’s own yes is the one thing that reaches the wire, exactly once', async () => {
+    const { s, getByTestId, queryByTestId } = await liveBoard();
+    fireEvent.click(getByTestId('live-concede'));
+    await waitFor(() => getByTestId('live-concede-ask'));
+    fireEvent.click(getByTestId('live-concede-yes'));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(s.clientFrames()[0]).toEqual({ ok: true, value: { kind: 'act', method: 'concede' } });
+    // And it closes, so it cannot be conceded twice.
+    await waitFor(() => expect(queryByTestId('live-concede-ask')).toBeNull());
+    expect(s.clientFrames()).toHaveLength(1);
+  });
+
+  it('is pressable with a question open — giving up is not an answer to it', async () => {
+    const { s, getByTestId, queryByTestId } = await liveBoard();
+    s.send(confirmAsk('c-conc', true));
+    await waitFor(() => getByTestId('confirm-dialog'));
+    expect((getByTestId('live-concede') as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(getByTestId('live-concede'));
+    await waitFor(() => getByTestId('live-concede-ask'));
+    // Its own dialog, not Forge's: `ConfirmDialog` is for a `showConfirmDialog`
+    // frame with a callId, and there is no such frame behind this one. Forge's
+    // is still the only `confirm-dialog` on the page.
+    expect(queryByTestId('confirm-dialog')!.dataset.callId).toBe('c-conc');
+    expect(document.querySelectorAll('[data-testid="confirm-dialog"]')).toHaveLength(1);
+  });
+});
+
+/*
+ * The pointer layer's handover (wave 24, lanes B and C).
+ *
+ * The drag, the slop, the arrow and every test that asserted what they sent are
+ * lane B's now, in `./gestures/`. What is left here is the install, and this is
+ * the proof it is all that is left — a component that grew a pointer handler
+ * back would pass every other test in this file.
+ */
+describe('the frame installs the gesture layer and owns none of it', () => {
+  it('one effect, and nothing about a drag in the component', () => {
+    const src = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'LiveBoard.tsx'), 'utf8');
+    expect(src).toContain('installGestures({ canvas, match })');
+    expect(src).toContain('handle.dispose()');
+    for (const gone of ['commitDrag', 'DRAG_SLOP_PX', 'onPointerDown', 'pointermove', 'pointerup', 'createPortal']) {
+      expect(src, `${gone} is ./gestures/'s now`).not.toContain(gone);
+    }
   });
 });

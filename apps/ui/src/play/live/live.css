@@ -13,20 +13,33 @@
  * it takes what is left and no more:
  *
  *   chrome (100dvh) → header · content → [watchparty's room frame] →
- *   .shell--match (100%) → .live (flex 1) → board (flex 1) · button bar (fixed,
- *   and Leave is in it).
+ *   .shell--match (100%) → .live (flex 1) → board (flex 1).
  *
  * `height: 100%` on the shell is what makes both parents work: watchparty's
  * `.wp-room-chrome-frame__content` is a stretched flex item (a definite
  * height, and `overflow: auto` — a scrollbar of its own if we overflow it),
  * and without the room the shell is the content box's own flex child.
  *
+ * ## Everything but the table is out of flow (wave 24 §C.1)
+ *
+ * The board is the ONLY thing in `.live`'s flex flow that takes height. The
+ * controls, the phase rail, the prompt sheet and the concede confirmation are
+ * all absolutely positioned inside `.live`, so the table gets the whole box:
+ * the bar the operator called ugly used to eat 3.25rem of it under the canvas
+ * and now sits over the board's bottom-right corner instead.
+ *
  * ## Nothing comes and goes
  *
- * The button bar is always drawn (`LiveBoard.tsx`) and has a fixed height
- * here, so the board above it never moves when Forge starts or stops asking.
- * A prompt is an overlay pinned above the bar, bounded by the match's own
- * box: it covers part of the board while it is open and pushes nothing.
+ * The control cluster is always drawn (`LiveBoard.tsx`) and has a FIXED width
+ * and height here, with a fixed slot for each thing in it. That is measured:
+ * `e2e/table-fit.spec.ts` reads `live-buttons`'s box on every animation frame
+ * of a real match and fails if a window size ever saw two different boxes —
+ * *"a fixed home, not a bar on demand"*. So no slot in it may be sized by its
+ * content; a longer say scrolls inside its own slot.
+ *
+ * The prompt is an overlay centred in the room ABOVE the cluster, bounded by
+ * the match's own box: it covers part of the board while it is open, never
+ * reaches the cluster's home, and pushes nothing.
  */
 
 .cardtable-chrome:has(.shell--match) {
@@ -42,8 +55,6 @@
 /* `.shell.` because `screens.css`'s `.shell` padding is otherwise the later
    rule of the same weight. */
 .shell.shell--match {
-  --live-bar-h: 3.25rem;
-
   height: 100%;
   min-height: 0;
   max-width: none;
@@ -54,9 +65,35 @@
   overflow: clip;
 }
 
-/* On the match screen the shell sizes this; mounted bare (the live dev
-   harness), it takes the window. */
+/*
+ * On the match screen the shell sizes this; mounted bare (the live dev
+ * harness), it takes the window.
+ *
+ * The three sizes every overlay in this file is placed against live HERE and
+ * not on the shell, so the dev harness — which mounts `.live` with no shell
+ * around it — resolves them too. A `var()` with no value is an invalid
+ * declaration, and the cluster would have fallen back to a content-sized box:
+ * exactly the "two boxes at one window size" the fit spec fails on.
+ *
+ * The cluster's two sizes are in PIXELS and not rems, and that is not a style
+ * preference. `--live-controls-h` is the cluster's `height`, and the cluster's
+ * grid tracks are pixels (they must be — see its own rule), so the two have to
+ * be the same number or the cluster does not fit its own box. `9.75rem` was
+ * that number at a 16px root font size and nothing else: measured in Chrome,
+ * the same tracks that need 153px were given 136px at a 14px root (the bottom
+ * row clipped) and 195px at a 20px root (39px of dead space under it). The
+ * prompt host is then placed by subtracting this same token, so a token that is
+ * not the real height is also how a centred sheet ends up over the cluster.
+ *
+ *   6 + 6 padding + 1 + 1 border + (34 + 34 + 30 + 26) rows + 3 × 5 gaps = 153
+ *
+ * That arithmetic is asserted in `LiveBoard.test.ts`, off this file's own text.
+ */
 .live {
+  --live-controls-h: 153px;
+  --live-controls-w: 288px;
+  --live-rail-w: 2rem;
+
   height: 100dvh;
   position: relative;
   flex: 1 1 0;
@@ -137,56 +174,84 @@
 }
 
 /*
- * Forge's button bar. Not a prompt component — see `LiveBoard.tsx`: these
- * arrive as `notify` frames with no callId, and before this existed every
- * match sat at Turn 0 because the coin toss had nowhere to draw.
+ * Forge's controls. Not a prompt component — see `LiveBoard.tsx`: these arrive
+ * as `notify` frames with no callId, and before this existed every match sat at
+ * Turn 0 because the coin toss had nowhere to draw.
  *
- * One fixed-height row: what Forge says on the left, OK and Cancel on the
- * right. Forge's message is a few short lines ("Priority: …", "Turn: …",
- * "Phase: …", "Stack: …"), so it flows into columns two lines tall rather
- * than making the bar taller; a message longer than that scrolls inside the
- * bar, never the page.
+ * §C.1: a cluster in the bottom-right corner, over the board, and out of the
+ * flex flow — the operator accepted its contents and rejected its shape. Four
+ * rows: what Forge says, what the server said, Forge's two answers, and the two
+ * controls that are not answers (Leave and Concede) on a row of their own.
+ *
+ * **Every track is a fixed length**, columns and rows both, and that is the
+ * requirement rather than the taste: `e2e/table-fit.spec.ts` records this box
+ * on every frame of a real match and fails a window size that ever saw two.
+ * `height` is set from the token as well, so even a child that overflows its
+ * row cannot change the box — it scrolls inside its own slot instead.
  */
 .live__buttons {
-  flex: none;
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 8px;
-  height: var(--live-bar-h);
+  position: absolute;
+  z-index: 4;
+  right: 6px;
+  bottom: 6px;
+  width: var(--live-controls-w);
+  height: var(--live-controls-h);
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: 34px 34px 30px minmax(26px, 1fr);
+  grid-template-areas:
+    'says says says says says says'
+    'log log log log log log'
+    'ok ok ok cancel cancel cancel'
+    'leave leave full full conc conc';
+  gap: 5px;
   margin: 0;
-  padding: 0 10px;
+  padding: 6px 7px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-raised);
   color: var(--ink);
 }
 
+/*
+ * What Forge is waiting on. Its own slot, two lines tall, always: Forge's
+ * message is a few short lines ("Priority: …", "Turn: …", "Phase: …",
+ * "Stack: …") and a longer one scrolls in here rather than resizing the
+ * cluster.
+ */
 .live__says {
-  flex: 1 1 auto;
+  grid-area: says;
   min-width: 0;
-  height: 2.6em;
+  min-height: 0;
   margin: 0;
-  column-width: 15rem;
-  column-gap: 1.5rem;
-  column-fill: auto;
   overflow: auto;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.3;
   white-space: pre-line;
   scrollbar-width: thin;
 }
 
 .live__buttons button {
-  flex: none;
-  min-width: 6.5rem;
-  padding: 6px 14px;
+  min-width: 0;
+  padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--bg-card);
   color: var(--ink);
   font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
+}
+
+.live__ok {
+  grid-area: ok;
+}
+
+.live__cancel {
+  grid-area: cancel;
 }
 
 .live__buttons button:hover:not(:disabled) {
@@ -199,38 +264,54 @@
 }
 
 /*
- * The prompt: an overlay above the button bar, inside the match's box. The
- * board it asks about stays visible above it, it never covers the bar's home,
- * and it is capped at the room between the turn bar and the bar — so however
- * long a card list is, it scrolls inside the sheet.
+ * The prompt: an overlay CENTRED in the room above the control cluster, inside
+ * the match's box (§C.3). Teetering Peaks' ask arrived as text along the bottom
+ * of the screen — *"it should be centred"* — and the middle of the table is
+ * where the player is already looking.
+ *
+ * The host is the whole region rather than a box at one edge, and the sheet is
+ * centred in it. Two things fall out of that and both are load-bearing:
+ *
+ *  - the region STOPS above the cluster (`bottom` is the cluster's height plus
+ *    a gap), so a centred sheet can never reach the cluster's home. The fit
+ *    spec asserts exactly that — *"an open prompt lies inside the viewport and
+ *    above the bar"* — and a host that filled `.live` would fail it for a tall
+ *    sheet;
+ *  - the host covers the board, so it takes NO pointer events and the sheet
+ *    inside it takes them back. Otherwise an open prompt would swallow every
+ *    click on the table around it.
+ *
+ * What the prompt looks like inside is lane D's (`../prompts/prompts.css`);
+ * this file places it and caps it.
  */
 .live__prompt {
   position: absolute;
   z-index: 3;
-  left: 50%;
-  bottom: calc(var(--live-bar-h) + 8px);
-  width: min(44rem, calc(100% - 16px));
-  /*
-   * The cap is in VIEWPORT units, not per cent.
-   *
-   * A percentage max-height resolves against the containing block only while
-   * that block's height is definite, and `.live`'s is not: it is `flex: 1 1 0`
-   * in the shell, so its used height is whatever the flex algorithm hands it,
-   * which is in turn whatever this sheet made the shell. That is a loop, and
-   * wave 20's card grids are the first prompts tall enough to close it — the
-   * sheet grew, the shell grew with it, the cap grew with the shell, and
-   * `e2e/table-fit.spec.ts` saw the match shell overflow its box (1063h > 719h)
-   * with `.prompt__actions` hanging out of the bottom.
-   *
-   * `dvh` is definite whatever any ancestor does, so the sheet can never be
-   * taller than the window and can never be what makes the shell taller than
-   * it. The board's own overflow in the same runs went with it: it was the
-   * shell growing, not the board.
-   */
-  max-height: calc(100dvh - var(--live-bar-h) - 3rem);
+  inset: 0 8px calc(var(--live-controls-h) + 16px);
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
   display: flex;
   flex-direction: column;
-  translate: -50% 0;
+  /*
+   * There is no `max-height` here any more, and its absence is deliberate.
+   *
+   * It used to cap the host in `dvh`, because the host was anchored to ONE edge
+   * and its height came from its content: a percentage cap resolves against the
+   * containing block only while that block's height is definite, `.live`'s was
+   * not (`flex: 1 1 0`, so its used height was whatever the sheet made the
+   * shell), and wave 20's card grids closed that loop — the sheet grew, the
+   * shell grew with it, the cap grew with the shell, and `e2e/table-fit.spec.ts`
+   * saw the match shell overflow its box (1063h > 719h) with
+   * `.prompt__actions` hanging out of the bottom.
+   *
+   * Both insets now give the host a used height outright, so there is no
+   * content to loop through and nothing to cap. And a cap here would be worse
+   * than useless: with `top`, `bottom` AND a `max-height` the box is
+   * over-constrained, `top` wins, `bottom` is ignored — so a window where the
+   * cap bit would put the host's bottom edge back down over the cluster, which
+   * is the one thing this placement exists to prevent.
+   */
 }
 
 /*
@@ -251,6 +332,10 @@
  */
 .live__prompt > .prompt,
 .live__prompt > .confirm {
+  /* The host is `pointer-events: none` (see above); the sheet is the part a
+     person uses, so it takes them back. */
+  pointer-events: auto;
+  width: min(44rem, 100%);
   max-width: none;
   min-height: 0;
   flex: 0 1 auto;
@@ -325,52 +410,20 @@
 }
 
 /*
- * The targeter arrow, and the drag that draws it (`LiveBoard.tsx`).
+ * The targeter arrow, the marquee and the grabbing cursor are NOT here.
  *
- * Ours, drawn: a tapered shaft and a plain triangular head. No card frame, no
- * mana symbol, no tap symbol — nothing of WotC's, here or anywhere
- * (`CLAUDE.md`). The palette is `styles.css`'s accent, so the arrow reads as
- * the same affordance a selectable card's outline does.
+ * Wave 24 moved the pointer layer into `./gestures/`, and its look went with it
+ * (`gestures/gestures.css`): that file owns `.targeter`, `.targeter__shaft`,
+ * `.targeter__head` and the `[data-gesture-canvas][data-dragging]` cursor,
+ * which this file used to duplicate. One look, one owner.
  *
- * It renders into lane A's overlay root and fills it exactly, which is why it
- * takes no size of its own: the overlay covers the canvas, the SVG covers the
- * overlay, and every coordinate `LiveBoard` computes is in that box. It never
- * takes the pointer — if it did, it would become the element under the cursor
- * and the drop would land on the arrow instead of the target.
- *
- * `overflow: visible` because the head is drawn at the tip: a snap to a card
- * flush against the canvas edge would otherwise be clipped in half.
+ * What stays here is the one declaration that is about the TABLE rather than
+ * about a gesture: a drag must not scroll or select. The table never scrolls
+ * (`board.css`), so taking the touch gesture costs nothing — and this is one of
+ * the four canvas-reaching selectors the guard in `LiveBoard.test.ts` allows.
  */
-.targeter {
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.targeter__shaft {
-  stroke: var(--accent);
-  stroke-width: 3;
-  stroke-linecap: round;
-  opacity: 0.85;
-}
-
-.targeter__head {
-  fill: var(--accent);
-}
-
-/* A drag is a drag, not a text selection, and not a scroll. The table never
-   scrolls (`board.css`), so taking the touch gesture costs nothing. */
 .live .board {
   touch-action: none;
-}
-
-.live[data-dragging] {
-  user-select: none;
-  cursor: grabbing;
 }
 
 /*
@@ -378,22 +431,24 @@
  * auto-passed, what a cast paid (`LiveBoard.tsx`). A state, not prose, so it
  * is one quiet column of lines beside the prompt, never a panel of its own.
  *
- * The slot is ALWAYS two lines tall and always this wide, empty or full: the
- * bar must not change shape when a say arrives ("nothing comes and goes").
- * Lines are pinned to the BOTTOM so the newest is always the bottom line —
- * one say does not shift two says up a row — and each line ellipsizes rather
- * than wraps, because a wrapped line is a taller bar.
+ * The slot is its own grid row and is ALWAYS that row's height, empty or full:
+ * the cluster must not change shape when a say arrives ("nothing comes and
+ * goes"). Lines are pinned to the BOTTOM so the newest is always the bottom
+ * line — one say does not shift two says up a row — and each line ellipsizes
+ * rather than wraps, because a wrapped line would want a taller row.
  */
 .live__log {
-  flex: 0 0 11rem;
+  grid-area: log;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  height: 2.6em;
+  min-width: 0;
+  min-height: 0;
   margin: 0;
+  padding: 0;
   overflow: hidden;
   list-style: none;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.3;
   color: var(--ink-dim);
 }
@@ -410,9 +465,9 @@
  * the bar's own state already use, so "on" reads as one affordance everywhere.
  */
 .live__buttons .live__toggle {
-  min-width: 0;
-  padding: 6px 10px;
-  font-size: 12.5px;
+  grid-area: full;
+  padding: 4px 6px;
+  font-size: 11.5px;
 }
 
 .live__buttons .live__toggle[aria-pressed='true'] {
@@ -421,22 +476,217 @@
 }
 
 /*
- * Leave (§F.1). Quiet and narrow like the toggle — it is the one control in
- * the bar that is not about the game — and at the opposite end from OK and
- * Cancel, so reaching for it is never a misclick on Forge's answer. It is a
- * child of the bar, whose height is fixed above, so it changes no canvas box.
+ * Leave (§F.1). Quiet and narrow like the toggle, and on the row BELOW OK and
+ * Cancel with Concede beside it: those two are the controls that are not
+ * answers to Forge, and a row of their own is what keeps reaching for one from
+ * being a misclick on the other. Both are children of the cluster, whose box is
+ * fixed above, so neither changes a canvas box.
  *
  * `data-urgent` is the gone match: the state line says `Match gone.` and this
  * is the thing to do about it, in the same colour, because a state with nowhere
  * to act on it is just prose.
  */
 .live__buttons .live__leave {
-  min-width: 0;
-  padding: 6px 10px;
-  font-size: 12.5px;
+  grid-area: leave;
+  padding: 4px 6px;
+  font-size: 11.5px;
 }
 
 .live__buttons .live__leave[data-urgent] {
   border-color: var(--warn);
   color: var(--warn);
+}
+
+/*
+ * Concede (§C.4), beside Leave. Destructive, so it reads as the quietest thing
+ * in the cluster until it is reached for: `--ink-dim` at rest, the warning
+ * colour on hover and while its confirmation is open. It sends nothing — the
+ * dialog below is the only path to the wire (`LiveBoard.tsx`).
+ */
+.live__buttons .live__concede {
+  grid-area: conc;
+  padding: 4px 6px;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+
+.live__buttons .live__concede:hover:not(:disabled),
+.live__buttons .live__concede[aria-expanded='true'] {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+/*
+ * A confirmation this component asked, not one Forge is waiting on: today that
+ * is Concede's, and the host is centred over the whole match box rather than
+ * over the room above the cluster, because it is the one thing on screen that
+ * matters while it is up. Above the prompt sheet (z 3) for the same reason.
+ *
+ * Same `pointer-events` split as the prompt host: none on the host so the board
+ * around it is not swallowed, back on for the dialog itself.
+ */
+.live__ask {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.live__ask > .confirm {
+  pointer-events: auto;
+  width: min(24rem, calc(100% - 32px));
+  /* The warning colour, not the accent: `.confirm`'s own border is the accent,
+     which in this file means "the affordance you want". This is not that. */
+  border-color: var(--warn);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 45%);
+}
+
+.live__ask .live__danger {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+/*
+ * The phase rail (§C.2): which phase, which step, whose turn, down the side.
+ *
+ * Out of flow and `pointer-events: none`, which is what makes it legal here —
+ * the canvas is static (w19, absolute) and an overlay cannot move a grid track,
+ * so the rail changes no box the fit spec measures and can never become the
+ * element under the pointer.
+ *
+ * `z-index: 1` puts it over the table's own cards (they are positioned with
+ * `z-index: auto`, which paints below any positive layer) and UNDER lane A's
+ * overlay root at z 2 — so the inspector's enlarged card still comes out on
+ * top of the rail, which is the operator's #4 in the other direction.
+ *
+ * It is two rems wide because the step NAMES hang out of it to the right, over
+ * the board, rather than being wrapped or truncated inside it: only the current
+ * step draws its name, and "Declare attackers" does not fit in a rail narrow
+ * enough to be worth having.
+ */
+.live__phases {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 2px;
+  width: var(--live-rail-w);
+  translate: 0 -50%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  pointer-events: none;
+}
+
+/* Whose turn, and which one. The number is the only number here, and it is
+   Forge's own turn counter — nothing is chosen by it. */
+.live__turn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+  line-height: 1.05;
+}
+
+.live__turn-n {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.live__turn-who {
+  font-size: 8px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.live__phases[data-whose='yours'] .live__turn-n {
+  color: var(--accent);
+}
+
+.live__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Positioned, because the name is placed against this row's own box. */
+.live__step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 5px;
+}
+
+/*
+ * The mark. Its BOX is the same on every row — the current one is scaled up
+ * from the same box rather than being a bigger one — so the rail's width and
+ * the rows' positions never depend on where the game is.
+ *
+ * Three signals distinguish the current step, because colour may not be the
+ * only one (`docs/handoff/w24.md` §1): the mark's length, the name being drawn
+ * at all, and `aria-current="step"` in the markup.
+ */
+.live__mark {
+  flex: none;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ink-dim);
+  opacity: 0.3;
+  scale: 0.45 1;
+}
+
+.live__step[data-past] .live__mark {
+  opacity: 0.55;
+}
+
+.live__step[data-current] .live__mark {
+  height: 5px;
+  background: var(--accent);
+  opacity: 1;
+  scale: 1 1;
+}
+
+/* A turn's structure: a gap where one phase ends and the next begins, so a
+   column of thirteen steps reads as five phases. */
+.live__step[data-group-start]:not(:first-child) {
+  margin-top: 4px;
+}
+
+/*
+ * The current step says its name, beside the rail and over the board. Every
+ * OTHER step keeps its name in the accessible tree and draws nothing: a screen
+ * reader still reads the whole turn, with `aria-current` saying where the game
+ * is, and the table is not covered in thirteen labels.
+ */
+.live__step-name {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 4px);
+  translate: 0 -50%;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--accent);
+}
+
+.live__step:not([data-current]) .live__step-name {
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  translate: none;
+  overflow: hidden;
+  clip-path: inset(50%);
 }

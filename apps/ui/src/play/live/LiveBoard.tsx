@@ -45,53 +45,19 @@
  * callbacks go to `selectCard` / `selectPlayer`, which check the CURRENT state
  * again before sending anything.
  *
- * ## Dragging, and the targeter arrow
+ * ## The pointer belongs to the gesture layer
  *
- * The operator, 2026-09-24: *"i need like a targeter arrow that helps me pick
- * a target, and i dont even know how to select the opponent"*, and *"cards are
- * not dragable"*. Both are one gesture, handled here, and **neither invents a
- * wire method**: a drag ends in the same `selectCard` / `selectPlayer` senders
- * a click uses, and the click path is untouched.
+ * Dragging a card, box-drawing over attackers, the targeter arrow: none of it
+ * is in this file. It lives in `./gestures/` — framework-free, delegated from
+ * this component's own root — and this component's whole part in it is one
+ * effect that installs it on the canvas and disposes it when the match handle
+ * changes (`installGestures`, `GestureHandle`).
  *
- * The gesture is delegated from `.live` itself rather than from a wrapper,
- * because `live.css` styles `.live > .board` directly and an extra element
- * between them would silently change the table's layout. It listens on
- * `window` for the move and the release (no pointer capture), so the event's
- * own `target` is the element under the pointer — jsdom has no
- * `elementFromPoint`, and a captured pointer would report the source anyway.
- *
- *  - **It starts** on a card `boardInteraction` offers. While a selection is
- *    live it also starts on anything else on the table, with no source: that
- *    is the pure pointing gesture, drag from the spell to the thing you mean.
- *  - **It draws** an arrow into lane A's overlay root, `[data-board-overlay]`,
- *    in that element's own coordinates. If the overlay is absent NOTHING is
- *    drawn and the gesture still works — the arrow is guidance, not the
- *    mechanism.
- *  - **It snaps** to whatever legal target is under the pointer: an offered
- *    card, or an offered player's face. A STACK ITEM is neither, on purpose:
- *    it carries `data-source-card` rather than `data-card-id` (lane A's note
- *    in `Board.tsx` — an ability on the stack whose card is still in play
- *    would otherwise name that id twice), so the id would not anchor the arrow
- *    to the thing the pointer is actually over. Stack items stay click-only,
- *    and `Board` still draws them as buttons when Forge offers their source.
- * A drag needs no click suppression, and does not do any: a browser fires the
- * trailing `click` only when the press and the release share an element, which
- * is the drop-on-the-source case — and that has already sent `selectCard`, so
- * the source is `spent` and the click sends nothing (`./match.ts`). A press
- * that never passed the slop is a plain click and the gesture stays out of it.
- *
- *  - **On release** it sends, and what it sends is Forge's answer:
- *      · dropped on the source itself → `selectCard(source)`, a click;
- *      · dropped on another legal target → `selectCard(source)` then the
- *        target's send — EXCEPT while a selection whose `max` is one is live,
- *        where Forge wants a single thing and the drop is the thing the player
- *        pointed at, so only the target is sent. `max` is Forge's own number
- *        (`setSelectables`), not a rule of ours;
- *      · dropped on no target, outside a selection, but inside a zone →
- *        `selectCard(source)`. The single frame the card's own face sends: it
- *        is the card being used, which is all the priority input takes.
- *        Dragging a land onto the table is #6's whole point.
- *      · anything else → nothing, and nothing said.
+ * Wave 24 moved it out: it was ~280 lines of pointer state in a component
+ * whose job is the FRAME, and the frame is what this file is now. The seam is
+ * the element, not a prop — the gesture layer is handed `.live` itself and
+ * finds the board, the cards and lane A's overlay root under it. So nothing
+ * here knows what a drop means, and nothing there knows React.
  *
  * ## The says, and the full-control toggle
  *
@@ -99,8 +65,9 @@
  * "auto-passed Upkeep step", "paid U — Volcanic Island" — because an
  * auto-pass nobody can see is indistinguishable from a board that froze
  * (§C.2), and a cast that shows no payment looks free (#8). Those arrive as
- * Tier-A `message` notifies; `match.says` holds the last few and the bar
- * draws the newest two, always in a slot of its own so the table never moves
+ * Tier-A `message` notifies; `match.says` holds the last few and the control
+ * cluster draws the newest two, always in a slot of its own so the table never
+ * moves
  * ("nothing comes and goes"). A say is a state, not prose — it is rendered
  * exactly as sent, braces said in words like every other rules text.
  *
@@ -111,20 +78,63 @@
  * anything Forge is waiting on, so it is pressable at ANY time — before the
  * first prompt is exactly when a player wants "ask me everything".
  *
- * ## The button bar never comes and goes
+ * ## The controls are a cluster over the board, not a bar under it
  *
- * It is drawn in every frame, with the same children, so the table does not
- * jump when Forge asks or stops asking. A button is disabled unless Forge
- * enabled it AND no question is open; `pressButton` refuses the same cases, so
- * a disabled button that is somehow pressed still sends nothing. With no bar
- * from Forge yet, the buttons carry neutral labels.
+ * The operator, 2026-09-26: the bar's CONTENTS are right and its SHAPE is
+ * wrong — *"the bottom control bar is ugly"*, and full control *"may live
+ * bottom-right, over the board"* (§C.1). So `live__buttons` is out of the flex
+ * flow entirely: it is absolutely positioned in the bottom-right corner of
+ * `.live`, and the row it used to occupy is the table's now.
  *
- * **Leave is in that bar** (wave 22 §F.1). It was a link in the shell's footer,
- * under the table — the operator: *"'Leave the match' button is in a really
- * weird spot, why is it below the game canvas?"*. It is a real `<button>` at
- * the far end of the bar from OK and Cancel, so it is one tab stop and never a
- * misclick on Forge's answer. It changes no canvas box: the bar's height is
- * fixed in `live.css` and Leave is a child of the bar.
+ * What did NOT change, because `e2e/table-fit.spec.ts` measures it on every
+ * animation frame of a real match: it is still ONE container, still drawn in
+ * every frame with the same children, and its box is still the same box at a
+ * given window size — *"a fixed home, not a bar on demand"*. That is why its
+ * width and height are fixed in `live.css` and every slot inside it is fixed
+ * too: a longer say scrolls inside its own slot and moves nothing. A cluster
+ * that appeared when Forge asked would fail that spec, and it would be the
+ * *"appearing and disappearing"* the operator called ugly in the first place.
+ *
+ * A button is disabled unless Forge enabled it AND no question is open;
+ * `pressButton` refuses the same cases, so a disabled button that is somehow
+ * pressed still sends nothing. With no bar from Forge yet, the buttons carry
+ * neutral labels.
+ *
+ * **Leave and Concede are in it** (wave 22 §F.1, wave 24 §C.4), on the row
+ * BELOW OK and Cancel. They are the two controls that are not answers to
+ * Forge, and giving them their own row is what keeps a reach for one from
+ * being a misclick on the other.
+ *
+ * ## Concede asks first
+ *
+ * `concede` has been on the wire since the beginning and has never had a
+ * button (§C.4). It ends the game and nothing undoes it, so the button does
+ * not send: it opens a confirmation, and only that confirmation's own yes
+ * calls `concede` (`./match.ts`'s sender — this file adds none). Cancel closes
+ * it and sends nothing. `conceding` is local state and not a `LiveMatch`
+ * field, because it is a question this component asked, not one Forge is
+ * parked on.
+ *
+ * It is deliberately NOT `ConfirmDialog`: that component takes a `ConfirmAsk`
+ * — a `showConfirmDialog` frame off the wire, with a callId Forge is waiting
+ * on — and there is no such frame here. Synthesising one would put a fake wire
+ * ask in the type and a second `confirm-dialog` on the page. So this reuses
+ * that dialog's LOOK (`.confirm`, styled in `live.css`) and none of its
+ * plumbing.
+ *
+ * ## The phase reads down the side
+ *
+ * §C.2: which phase, which step, whose turn, at a glance. `PhaseRail` draws
+ * Forge's thirteen `PhaseType` steps as a column at the left edge, grouped the
+ * way a turn is, with the step the game is on named and the rest as marks.
+ * Presentation only — every value comes off `match.view`, which already
+ * carried all three, and nothing new goes on the wire.
+ *
+ * The current step is marked three ways, because colour may not be the only
+ * signal: it is the only one that says its name, its mark is the long one, and
+ * it carries `aria-current="step"`. The rail is out of flow and takes no
+ * pointer events, so it changes no canvas box (the static-canvas rule) and can
+ * never be the thing under the cursor.
  *
  * ## One state, one line
  *
@@ -150,29 +160,22 @@
  * new wire shape changes.
  */
 
-import {
-  Component,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from 'react';
-import { createPortal } from 'react-dom';
+import { Component, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
+import { PHASE_LABEL, type BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction } from '../Board.tsx';
 import { lookupFromState, plainRulesText, withAbilityLabels } from '../prompts/lookup.ts';
 import { autoAnswer } from '../prompts/rules.ts';
 import { isPromptMethod, PromptFor, type AskOf, type PromptMethod } from '../prompts/index.ts';
 import { navigate } from '../../screens/route.ts';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
+import { installGestures } from './gestures/index.ts';
 import {
   abortAsk,
   answerAsk,
   answerConfirm,
   boardInteraction,
+  concede,
   currentAsk,
   noteAutoAnswered,
   pressButton,
@@ -181,7 +184,6 @@ import {
   setFullControl,
   subscribe,
   type LiveAsk,
-  type LiveClickables,
   type LiveMatch,
 } from './match.ts';
 import './live.css';
@@ -336,175 +338,138 @@ function abilityLabelsOf(ask: LiveAsk): Record<number, string> {
   return out;
 }
 
-/** How many of the held says the bar draws. The slot is always this tall. */
+/** How many of the held says the control cluster draws. The slot is always this tall. */
 export const SAYS_SHOWN = 2;
 
-/* ── The drag gesture and the targeter arrow ─────────────────────────── */
+/* ── The phase, down the side (§C.2) ─────────────────────────────────── */
 
 /**
- * How far the pointer must travel before a press is a DRAG rather than a
- * click. Below it the card's own button handles the click, exactly as before.
+ * Forge's `PhaseType` constants in turn order, grouped the way a turn is.
+ *
+ * The constant names are Forge's (`PhaseType.java:16-28`) and the words for
+ * them are `PHASE_LABEL`'s, in `../adapter.ts` — this lane draws them and
+ * renames none. The GROUPS are the turn's own structure, and they are what
+ * makes a column of thirteen readable at a glance: a gap between groups, and
+ * only the step the game is on says its name.
  */
-export const DRAG_SLOP_PX = 6;
+const PHASE_ORDER: ReadonlyArray<{ phase: string; group: string }> = [
+  { phase: 'UNTAP', group: 'begin' },
+  { phase: 'UPKEEP', group: 'begin' },
+  { phase: 'DRAW', group: 'begin' },
+  { phase: 'MAIN1', group: 'main1' },
+  { phase: 'COMBAT_BEGIN', group: 'combat' },
+  { phase: 'COMBAT_DECLARE_ATTACKERS', group: 'combat' },
+  { phase: 'COMBAT_DECLARE_BLOCKERS', group: 'combat' },
+  { phase: 'COMBAT_FIRST_STRIKE_DAMAGE', group: 'combat' },
+  { phase: 'COMBAT_DAMAGE', group: 'combat' },
+  { phase: 'COMBAT_END', group: 'combat' },
+  { phase: 'MAIN2', group: 'main2' },
+  { phase: 'END_OF_TURN', group: 'end' },
+  { phase: 'CLEANUP', group: 'end' },
+];
 
-/** What the pointer is over, when Forge has offered it. */
-type DropTarget = { kind: 'card'; id: number } | { kind: 'player'; id: number };
-
-interface DragState {
-  /** The card the gesture started on. Null: a pointing gesture inside a selection. */
-  source: number | null;
-  /**
-   * Where the pointer went down, in client coordinates. The slop is measured
-   * from HERE and not from `from`: a press near a card's edge is already
-   * several pixels from its centre, and measuring from the centre would call
-   * that press a drag before the pointer had moved at all.
-   */
-  press: { x: number; y: number };
-  /** Where the arrow starts, in client coordinates: the source's centre. */
-  from: { x: number; y: number };
-  /** Where the pointer is, in client coordinates. */
-  at: { x: number; y: number };
-  target: DropTarget | null;
-  /** The pointer has travelled past `DRAG_SLOP_PX`. */
-  moved: boolean;
-}
-
-function centreOf(el: Element): { x: number; y: number } {
-  const r = el.getBoundingClientRect();
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+/**
+ * Whose turn it is, in the one word the rail has room for.
+ *
+ * `nobody` is the honest answer before the first turn and after the last: the
+ * view carries no active player then, and the rail says so rather than picking
+ * a seat.
+ */
+export function whoseTurn(view: BoardView): 'yours' | 'theirs' | 'nobody' {
+  const active = view.players.find((p) => p.id === view.activePlayerId);
+  if (active === undefined) return 'nobody';
+  return active.isViewer ? 'yours' : 'theirs';
 }
 
 /**
- * A card's box. `data-board-card` first, `data-card-id` (lane A's name, same
- * value on the same element) second. Both are on the `<li>`, so either finds
- * the whole card rather than something inside it.
+ * The phase rail. Presentation only — turn, step and whose turn all come off
+ * the view that was already on screen (see the module header).
+ *
+ * A step before the current one carries `data-past`, so the column reads as a
+ * turn in progress rather than a menu. A phase Forge sends that is not one of
+ * the thirteen leaves nothing current: `PHASE_LABEL` has no word for it either,
+ * and inventing one here would be this lane guessing at the engine.
  */
-function cardBox(root: ParentNode, id: number): Element | null {
-  return root.querySelector(`[data-board-card="${id}"]`) ?? root.querySelector(`[data-card-id="${id}"]`);
-}
-
-/** A player's face. Lane A's `data-player-face`, with the seat section as the fallback. */
-function faceBox(root: ParentNode, id: number): Element | null {
+function PhaseRail({ view }: { view: BoardView }) {
+  const at = PHASE_ORDER.findIndex((p) => p.phase === view.phase);
+  const whose = whoseTurn(view);
   return (
-    root.querySelector(`[data-player-face][data-player-id="${id}"]`) ??
-    root.querySelector(`[data-testid="player"][data-player-id="${id}"]`)
+    <div className="live__phases" data-testid="live-phases" data-whose={whose} data-phase={view.phase ?? ''}>
+      <p className="live__turn" data-testid="live-turn">
+        <span className="live__turn-n">{view.turn}</span>
+        <span className="live__turn-who">{whose}</span>
+      </p>
+      <ol className="live__steps" aria-label="Phase">
+        {PHASE_ORDER.map(({ phase, group }, i) => (
+          <li
+            key={phase}
+            className="live__step"
+            data-phase={phase}
+            data-group={group}
+            data-current={i === at ? '' : undefined}
+            data-past={at >= 0 && i < at ? '' : undefined}
+            data-group-start={i === 0 || PHASE_ORDER[i - 1]!.group !== group ? '' : undefined}
+            aria-current={i === at ? 'step' : undefined}
+          >
+            <span className="live__mark" aria-hidden="true" />
+            <span className="live__step-name">{PHASE_LABEL[phase] ?? phase}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 
-function boxOf(root: ParentNode, target: DropTarget): Element | null {
-  return target.kind === 'card' ? cardBox(root, target.id) : faceBox(root, target.id);
-}
-
-/** A board id: digits only. See `boardId` on why that matters. */
-const BOARD_ID = /^\d+$/;
+/* ── Concede, behind a confirmation (§C.4) ───────────────────────────── */
 
 /**
- * An id attribute's value, when it is one of OUR ids.
+ * The confirmation Concede opens. It sends nothing itself: `onConcede` is the
+ * only path to `concede`, and `onCancel` is the only other way out.
  *
- * `CardTile` (`Board.tsx`'s own note) draws a `data-card-id` of its own in the
- * DRAFT's namespace — `w<forge id>` — and it is a descendant of the board
- * card's `<li>`. A walk up from a pointer event meets the tile first, so an id
- * that is not a plain integer means "not this lane's attribute, keep walking"
- * rather than "a card Forge did not offer".
+ * `role="alertdialog"` with the safe button focused: Enter on a dialog nobody
+ * read must not end the game. Escape is the same as Cancel, which is what a
+ * dialog is expected to do and costs one handler.
  */
-function boardId(el: Element, ...names: string[]): number | null {
-  for (const name of names) {
-    const raw = el.getAttribute(name);
-    if (raw !== null && BOARD_ID.test(raw)) return Number(raw);
-  }
-  return null;
-}
-
-/**
- * The nearest thing under `node` that Forge has offered, or null.
- *
- * Nearest wins, walking up: a card inside a seat section is the card, not the
- * seat. A card or face Forge did NOT offer stops the walk — dropping on an
- * inert thing is not a drop on whatever contains it.
- */
-function targetUnder(node: EventTarget | null, offered: LiveClickables): DropTarget | null {
-  let el = node instanceof Element ? node : null;
-  while (el !== null) {
-    const cardId = boardId(el, 'data-board-card', 'data-card-id');
-    if (cardId !== null) {
-      return offered.selectable.has(cardId) ? { kind: 'card', id: cardId } : null;
-    }
-    if (el.hasAttribute('data-player-face') || el.getAttribute('data-testid') === 'player') {
-      const id = boardId(el, 'data-player-id');
-      return id !== null && offered.selectablePlayers.has(id) ? { kind: 'player', id } : null;
-    }
-    el = el.parentElement;
-  }
-  return null;
-}
-
-/** Everything a release can mean. Exported for `./LiveBoard.test.ts`; see the module header. */
-export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget | null): void {
-  const offered = boardInteraction(match);
-  const source = drag.source !== null && offered.selectable.has(drag.source) ? drag.source : null;
-  const target = targetUnder(node, offered);
-
-  if (target === null) {
-    // Nothing Forge named is under the pointer. A drop inside a zone is the
-    // card being used — the same single frame its own face sends — whenever
-    // Forge currently offers it, selection open or not: `source` is null for
-    // a card Forge did not name, and `selectCard` re-checks the offer before
-    // anything leaves, so this can never invent an affordance. A drop
-    // outside every zone does nothing and says nothing.
-    if (source === null) return;
-    if (!(node instanceof Element) || node.closest('[data-zone]') === null) return;
-    selectCard(match, source);
-    return;
-  }
-  if (target.kind === 'card' && target.id === source) {
-    selectCard(match, source);
-    return;
-  }
-  // Forge's own `max`: one thing wanted, so the drop is the thing meant.
-  const single = match.selectables !== null && match.selectables.max <= 1;
-  if (source !== null && !single && !selectCard(match, source)) return;
-  if (target.kind === 'card') selectCard(match, target.id);
-  else selectPlayer(match, target.id);
-}
-
-/**
- * The arrow. Ours: a tapered shaft and a plain head, no card frame, no mana
- * symbol, no tap symbol — nothing of WotC's (`CLAUDE.md`).
- *
- * Drawn in the overlay's own coordinates, so it is correct wherever lane A
- * puts the overlay, and `pointer-events: none` throughout so it can never
- * become the thing under the pointer.
- */
-function Targeter({ overlay, drag, root }: { overlay: HTMLElement; drag: DragState; root: ParentNode }) {
-  const box = overlay.getBoundingClientRect();
-  const snap = drag.target === null ? null : boxOf(root, drag.target);
-  const tip = snap === null ? drag.at : centreOf(snap);
-  const x1 = drag.from.x - box.left;
-  const y1 = drag.from.y - box.top;
-  const x2 = tip.x - box.left;
-  const y2 = tip.y - box.top;
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  const head = 13;
-  const spread = 0.42;
-  const points = [
-    `${x2},${y2}`,
-    `${x2 - head * Math.cos(angle - spread)},${y2 - head * Math.sin(angle - spread)}`,
-    `${x2 - head * Math.cos(angle + spread)},${y2 - head * Math.sin(angle + spread)}`,
-  ].join(' ');
-
-  return createPortal(
-    <svg
-      className="targeter"
-      data-testid="targeter"
-      data-source={drag.source ?? undefined}
-      data-target={drag.target === null ? undefined : `${drag.target.kind}:${drag.target.id}`}
-      data-snapped={snap === null ? undefined : true}
-      aria-hidden="true"
+function ConcedeAsk({ onConcede, onCancel }: { onConcede: () => void; onCancel: () => void }) {
+  const titleId = useId();
+  const messageId = useId();
+  return (
+    <div
+      className="live__ask"
+      data-testid="live-concede-ask"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onCancel();
+      }}
     >
-      <line className="targeter__shaft" x1={x1} y1={y1} x2={x2} y2={y2} />
-      <polygon className="targeter__head" points={points} />
-    </svg>,
-    overlay,
+      <section className="confirm" role="alertdialog" aria-labelledby={titleId} aria-describedby={messageId}>
+        <h2 className="confirm__title" id={titleId}>
+          Concede
+        </h2>
+        <p className="confirm__message" id={messageId}>
+          You lose this game.
+        </p>
+        <div className="confirm__actions">
+          <button
+            type="button"
+            className="button confirm__button"
+            data-testid="live-concede-no"
+            data-default
+            autoFocus
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="button confirm__button live__danger"
+            data-testid="live-concede-yes"
+            onClick={onConcede}
+          >
+            Concede
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -556,80 +521,29 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
   };
 
   const rootRef = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<DragState | null>(null);
-  // The live handle: window listeners are registered once per gesture and must
-  // see the CURRENT drag, not the one they closed over.
-  const dragRef = useRef<DragState | null>(null);
+  /*
+   * Concede's confirmation is open. Local state, not a `LiveMatch` field: it
+   * is this component's own question, nothing on the wire is waiting on it,
+   * and a resync must not answer it.
+   */
+  const [conceding, setConceding] = useState(false);
 
-  // Lane A's overlay root, looked up after every render: it is not ours to
-  // render, it may not exist at all, and when it does not the arrow is simply
-  // not drawn. Same-value writes are dropped, so this does not loop.
-  const [overlay, setOverlay] = useState<HTMLElement | null>(null);
-  useLayoutEffect(() => {
-    const found = rootRef.current?.querySelector<HTMLElement>('[data-board-overlay]') ?? null;
-    setOverlay((previous) => (previous === found ? previous : found));
-  });
-
-  function update(next: DragState | null): void {
-    dragRef.current = next;
-    setDrag(next);
-  }
-
-  useLayoutEffect(() => {
-    if (drag === null) return undefined;
-    const move = (event: PointerEvent): void => {
-      const held = dragRef.current;
-      if (held === null) return;
-      const at = { x: event.clientX, y: event.clientY };
-      const moved = held.moved || Math.hypot(at.x - held.press.x, at.y - held.press.y) >= DRAG_SLOP_PX;
-      update({ ...held, at, moved, target: targetUnder(event.target, boardInteraction(match)) });
-    };
-    const up = (event: PointerEvent): void => {
-      const held = dragRef.current;
-      update(null);
-      if (held === null || !held.moved) return;
-      commitDrag(match, held, event.target);
-    };
-    const cancel = (): void => update(null);
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', cancel);
-    return () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', cancel);
-    };
-  }, [drag === null, match]);
-
-  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
-    // Left button only: a right-click is Forge's own menu on the desktop and
-    // is not this gesture's to take.
-    if (event.button !== 0) return;
-    const at = { x: event.clientX, y: event.clientY };
-    const under = targetUnder(event.target, offered);
-    if (under !== null && under.kind === 'card') {
-      const box = rootRef.current === null ? null : cardBox(rootRef.current, under.id);
-      update({ source: under.id, press: at, from: box === null ? at : centreOf(box), at, target: under, moved: false });
-      return;
-    }
-    // Inside a selection the gesture may start anywhere on the table: the
-    // spell doing the targeting is not itself one of Forge's choices, so
-    // there is often no offered card to drag FROM.
-    if (match.selectables === null) return;
-    if (!(event.target instanceof Element) || event.target.closest('.board') === null) return;
-    update({ source: null, press: at, from: at, at, target: under, moved: false });
-  }
+  /*
+   * The pointer layer is lane B's (`./gestures/`), and the element is the whole
+   * contract: `installGestures` is handed `.live` and finds the board, the
+   * cards and lane A's overlay root under it. No `onChange` — the board redraws
+   * off `match.revision` above, and the arrow is drawn in the overlay by the
+   * gesture layer itself, so there is nothing here for a callback to do.
+   */
+  useEffect(() => {
+    const canvas = rootRef.current;
+    if (canvas === null) return undefined;
+    const handle = installGestures({ canvas, match });
+    return () => handle.dispose();
+  }, [match]);
 
   return (
-    <div
-      className="live"
-      ref={rootRef}
-      onPointerDown={onPointerDown}
-      data-dragging={drag !== null && drag.moved ? true : undefined}
-    >
-      {overlay !== null && drag !== null && drag.moved && (
-        <Targeter overlay={overlay} drag={drag} root={rootRef.current ?? document} />
-      )}
+    <div className="live" ref={rootRef}>
       {/*
        * `data-live-line` marks every row of text this component draws about
        * itself, so a test can count them: three at once was the bug.
@@ -653,11 +567,20 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
         </p>
       )}
       {match.view !== null && <Board view={match.view} interaction={interaction} />}
+      {/* Out of flow, over the board's left edge: it moves no canvas box. */}
+      {match.view !== null && <PhaseRail view={match.view} />}
+      {/*
+       * The control cluster (§C.1). One container, every frame, the same
+       * children and the same box — `e2e/table-fit.spec.ts` measures all four
+       * on every animation frame of a real match. `live.css` pins it in the
+       * bottom-right corner over the board; it is in no flex flow and costs
+       * the table no height.
+       */}
       <div className="live__buttons" data-testid="live-buttons">
         {/*
-         * Leave: the match's own control, at the far end from Forge's answers.
+         * Leave: the match's own control, on the row below Forge's answers.
          * Not a link, because leaving is an action on this match and not a
-         * place — and a button is the tab stop a person expects in a bar.
+         * place — and a button is the tab stop a person expects.
          */}
         <button
           type="button"
@@ -676,8 +599,8 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
         </p>
         {/*
          * The says, newest at the bottom. Always rendered, always two lines
-         * tall: an empty log is an empty slot, never a bar that changed shape.
-         * Brace notation is said in words, as every other rules text is.
+         * tall: an empty log is an empty slot, never a cluster that changed
+         * shape. Brace notation is said in words, as every other rules text is.
          */}
         <ul className="live__log" data-testid="live-log" aria-label="Said">
           {match.says.slice(-SAYS_SHOWN).map((line, i) => (
@@ -695,6 +618,7 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
         </button>
         <button
           type="button"
+          className="live__ok"
           data-testid="live-button-ok"
           disabled={ask !== null || bar === null || !bar.enable1}
           onClick={() => pressButton(match, 'ok')}
@@ -703,11 +627,26 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
         </button>
         <button
           type="button"
+          className="live__cancel"
           data-testid="live-button-cancel"
           disabled={ask !== null || bar === null || !bar.enable2}
           onClick={() => pressButton(match, 'cancel')}
         >
           {bar === null || bar.label2 === '' ? 'Cancel' : bar.label2}
+        </button>
+        {/*
+         * Concede (§C.4). It sends NOTHING: it opens the confirmation, and only
+         * that dialog's own yes reaches `concede`. Pressable with a question
+         * open, like Leave — giving up is not an answer to what Forge asked.
+         */}
+        <button
+          type="button"
+          className="live__concede"
+          data-testid="live-concede"
+          aria-expanded={conceding}
+          onClick={() => setConceding(true)}
+        >
+          Concede
         </button>
       </div>
       {ask !== null && (
@@ -723,6 +662,15 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
             <LivePrompt match={match} ask={ask} />
           </PromptBoundary>
         </div>
+      )}
+      {conceding && (
+        <ConcedeAsk
+          onConcede={() => {
+            concede(match);
+            setConceding(false);
+          }}
+          onCancel={() => setConceding(false)}
+        />
       )}
     </div>
   );
