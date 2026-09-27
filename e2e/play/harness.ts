@@ -427,7 +427,41 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
       await exited;
       clearTimeout(killed);
     }
-    serverLog.end();
+    /*
+     * The server's LAST lines must be on disk before `stop()` returns, and this
+     * is not housekeeping — it decides a verdict.
+     *
+     * `play.spec.ts`'s `jvmFates` asks this very file which JVMs the server
+     * handed over on its way out. Those lines are the last things it writes, and
+     * `exit` on the child says nothing about whether its stdout has drained
+     * through the pipe into the file. Read one moment too early, the file is
+     * missing `jvm-handed-over` for a match that WAS handed over — and the fate
+     * of a live JVM with no hand-over line is the fault "the server did not hand
+     * it over, yet it is still running". Seen exactly once, 2026-09-26, on a JVM
+     * whose own `jvm.json` carried the match id the reaper then reported: lane
+     * E's `handOverAll` is unconditional, so a live match at shutdown HAS been
+     * handed over and the line existed — this file just had not got it yet.
+     *
+     * So: wait for both streams to end, then for the log's own `close`.
+     */
+    await Promise.all(
+      [server.stdout, server.stderr].map(
+        (s) => new Promise<void>((r) => (s === null || s.readableEnded ? r() : s.once('end', () => r()))),
+      ),
+    );
+    await new Promise<void>((r) => {
+      if (serverLog.closed) {
+        r();
+        return;
+      }
+      // Listener first, then `end()`: `close` can be emitted synchronously
+      // enough that attaching afterwards would wait for an event already gone.
+      // `error` resolves too — a log we cannot finish is not a reason to hang
+      // teardown before the reaper has run.
+      serverLog.once('close', () => r());
+      serverLog.once('error', () => r());
+      serverLog.end();
+    });
     rmSync(webDir, { recursive: true, force: true });
     // Only now: while the server was up, the JVMs it means to keep are exactly
     // what this would have killed.

@@ -252,6 +252,9 @@ async function offeredIn(f: Friend, zone: 'hand' | 'battlefield'): Promise<{ id:
   }, zone);
 }
 
+/** Ids in one order both sides can be read in. See the battlefield note in "the board agrees with the server". */
+const byId = (ids: readonly number[]): number[] => ids.slice().sort((a, b) => a - b);
+
 /**
  * Click an offered card when a CARD is the only thing Forge will take from this
  * seat — and do nothing at all otherwise.
@@ -278,22 +281,50 @@ async function offeredIn(f: Friend, zone: 'hand' | 'battlefield'): Promise<{ id:
  * `pressOk`, which asks for `:enabled` and finds nothing. The budget then
  * expired and the run failed at turn 4 of a wanted 5.
  *
- * ## Why this is not a loosened test
+ * ## What it keys on, and why "no pressable button" was NOT enough
+ *
+ * The trigger is **Forge's own words for this one input**, and that is a
+ * correction, not a belt. The first version fired on the STATE — no enabled OK,
+ * no enabled Cancel, something offered in hand — and that state is reachable in
+ * the middle of an ordinary cast. So in the drag section it answered, with a
+ * CLICK, the very lands and spells that section exists to play by DRAGGING: a
+ * card consumed by `selectCard` is a card the drag never gets to drop, so
+ * `wantLand()`/`wantSpell()` could never be satisfied and the loop burned its
+ * whole budget while the game raced on. Measured on the manager's gate run:
+ * turn **104**, 51 `selectCard` acts per seat, every `forcedCards` entry
+ * `"where":"drag"` and among them a Squadron Hawk and a Sword of Feast and
+ * Famine — the drag section's own quarry. The opposite failure to the wedge,
+ * from the same helper.
+ *
+ * `FORCED_DISCARD` is therefore pinned to the message
+ * `chooseCardsToDiscardToMaximumHandSize` sets at
+ * `PlayerControllerHuman.java:1744-1745`, which is
+ * `lblSelectCardsToDiscardHandDownMaximum` —
+ * *"Select {0} card(s) to discard to bring your hand down to the maximum of {1}
+ * cards."* — at `forge-gui/res/languages/en-US.properties:1574`. One string,
+ * one call site, vendored and pinned. `live-says` renders `match.prompt`
+ * (`LiveBoard.tsx:674`), which is the CURRENT `showPromptMessage` and not the
+ * says feed, so this cannot match on something stale. At priority the prompt is
+ * `Priority: …`; during payment it is `Pay Mana Cost`; neither can match, so the
+ * cast hunt and the drag section are now untouchable from here.
+ *
+ * ## Why this is still not a loosened test
  *
  * It presses no button, answers no ask and invents no affordance: it clicks a
- * card the BOARD already offered, which is a card Forge itself named. And it
- * fires only in the state that has no alternative — no pressable button, and a
- * prompt that is not "Waiting…" (the same guard `play/hands.ts` makes, because
- * a seat waiting on its opponent can still be holding a stale offer). At
- * priority OK is enabled, so this never touches the cast hunt below.
+ * card the BOARD already offered, which is a card Forge itself named, in the one
+ * published state where Forge will take nothing else. The button check stays as
+ * the second condition — if either button is live the seat is not forced, and
+ * this must not pre-empt it.
  *
  * Returns the card it clicked once the `selectCard` has crossed, else null.
  */
+const FORCED_DISCARD = /to discard to bring your hand down to the maximum/;
+
 async function clickForcedCard(f: Friend): Promise<{ id: number; name: string } | null> {
+  const says = (await f.page.getByTestId('live-says').textContent()) ?? '';
+  if (!FORCED_DISCARD.test(says)) return null;
   const pressable = await f.page.locator('[data-testid="live-button-ok"]:enabled, [data-testid="live-button-cancel"]:enabled').count();
   if (pressable > 0) return null;
-  const says = (await f.page.getByTestId('live-says').textContent()) ?? '';
-  if (/^\s*Waiting/.test(says)) return null;
   const offered = await offeredIn(f, 'hand');
   const pick = offered[0];
   if (pick === undefined) return null;
@@ -871,6 +902,20 @@ test(LIVE_TITLE, async ({ browser }) => {
     const dragDeadline = Date.now() + DRAG_BUDGET_MS;
     const wantLand = () => !dragged.some((d) => /Land/.test(d.type));
     const wantSpell = () => !dragged.some((d) => !/Land/.test(d.type));
+    /**
+     * Consecutive passes on which this seat dragged nothing out of hand, per seat.
+     *
+     * It gates the OK press for the reason the flow loop below already gives in
+     * full: Wave 20 makes a seat's own main phase a stop the server never
+     * passes, and that stop is the ONE window in which Forge offers this hand
+     * anything — so pressing the moment the bar lights up passes the window
+     * before the board has drawn what is in it. This loop used to press on the
+     * first enabled OK it saw, and a deal whose only spell needed three lands
+     * therefore never got to drag one: measured 2026-09-26, `turn 58` reached
+     * inside the 180 s budget with a single land dragged and no spell ever
+     * offered. Racing the game forward is not the same as playing it.
+     */
+    const idle = new Map<string, number>();
 
     while (wantLand() || wantSpell()) {
       if (Date.now() > dragDeadline) {
@@ -883,9 +928,10 @@ test(LIVE_TITLE, async ({ browser }) => {
       for (const f of [alice, bob]) {
         // Anything Forge ASKS is still answered by the board, by clicking.
         await answerPrompt(f.page);
-        // And a seat Forge has left with nothing BUT a card to click stops the
-        // whole game, which this budget would otherwise blame on the drag. See
-        // `clickForcedCard`.
+        // The cleanup discard stops the whole game, and this budget would
+        // otherwise blame the drag for it. It can only ever fire on Forge's own
+        // discard prompt, so it cannot consume a card this loop is trying to
+        // drag — that regression is written up in `clickForcedCard`.
         const forced = await clickForcedCard(f);
         if (forced !== null) {
           forcedCards.push({ name: f.name, id: forced.id, card: forced.name, where: 'drag' });
@@ -895,6 +941,7 @@ test(LIVE_TITLE, async ({ browser }) => {
         // A land first, then anything that is not one.
         const pick = wantLand() ? inHand.find((c) => /Land/.test(c.type)) : inHand.find((c) => !/Land/.test(c.type));
         if (pick !== undefined) {
+          idle.set(f.name, 0);
           const before = cardActsFrom(f).length;
           await dragToBattlefield(f, pick.id);
           // The affordance can go stale under the gesture; `dragLanded` retries
@@ -921,6 +968,13 @@ test(LIVE_TITLE, async ({ browser }) => {
         // mana payment wants OK ("Auto"), which is what the press below sends.
         const paying = await offeredIn(f, 'battlefield');
         if (paying.length > 0 && dragged.length > 0) await dragToBattlefield(f, paying[0]!.id);
+        // This pass dragged nothing out of hand, so it made no progress — and
+        // that, NOT "a button is live", is what earns a pass. A payment drag
+        // deliberately does not reset the count: it is offered again the moment
+        // it lands, which is exactly how the fetchland spin above never ended.
+        const quiet = (idle.get(f.name) ?? 0) + 1;
+        idle.set(f.name, quiet);
+        if (quiet < 4) continue;
         // The bar flips with the auto-passes, so an OK seen enabled can be
         // disabled before the click lands. Best effort with a short leash:
         // a missed press costs one 250 ms pass, and the server presses the
@@ -1007,9 +1061,9 @@ test(LIVE_TITLE, async ({ browser }) => {
     while (unattended === null && Date.now() < flowDeadline) {
       if ((await alice.page.locator('.board__over').count()) > 0) break;
       for (const f of [alice, bob]) await answerPrompt(f.page);
-      // BOTH seats, not only the one this section is measuring: a seat Forge has
-      // left with nothing but a card to click stops the whole game, and the
-      // cleanup discard puts seat 2 there every time its hand passes 7. See
+      // BOTH seats, not only the one this section is measuring: the cleanup
+      // discard leaves a seat nothing but a card to click, which stops the whole
+      // game, and it puts seat 2 there every time its hand passes 7. See
       // `clickForcedCard`.
       for (const f of [alice, bob]) {
         const forced = await clickForcedCard(f);
@@ -1298,7 +1352,26 @@ test(LIVE_TITLE, async ({ browser }) => {
           zones: Object.fromEntries(
             ['battlefield', 'graveyard', 'exile', 'hand'].map((z) => [
               z,
-              Array.from(p.querySelectorAll(`[data-zone="${z}"] [data-board-card]`)).map((c) => Number(c.getAttribute('data-board-card'))),
+              (() => {
+                const ids = Array.from(p.querySelectorAll(`[data-zone="${z}"] [data-board-card]`)).map((c) =>
+                  Number(c.getAttribute('data-board-card')),
+                );
+                // The battlefield is drawn as FOUR labelled rows — lands,
+                // artifacts, creatures, other — and a card's row comes from its
+                // own type line (`Board.tsx` "The battlefield reads like a
+                // table", `BOARD_ROWS`, `rowFor`), on top of whatever the player
+                // arranged. So its DOM order is deliberately NOT the view's flat
+                // order, and comparing the two passed only while a deal happened
+                // to deal them already grouped: this run drew 10,2,48,19 against
+                // a view that listed 10,48,2,19 — the same four cards, one of
+                // them simply in a different row. Which cards are in which zone
+                // is the claim here, so both sides are read by id. That the rows
+                // themselves are right is `e2e/table-fit.spec.ts`'s measurement,
+                // and the exact, ORDERED agreement is asserted just above this,
+                // where the browser's folded objects must deep-equal the
+                // server's.
+                return z === 'battlefield' ? ids.slice().sort((a, b) => a - b) : ids;
+              })(),
             ]),
           ),
         }));
@@ -1318,7 +1391,7 @@ test(LIVE_TITLE, async ({ browser }) => {
             hand: `hand ${p.handCount}`,
             library: `library ${p.libraryCount}`,
             zones: {
-              battlefield: p.battlefield.map((c) => c.id),
+              battlefield: byId(p.battlefield.map((c) => c.id)),
               graveyard: p.graveyard.map((c) => c.id),
               exile: p.exile.map((c) => c.id),
               hand: (p.hand ?? []).map((c) => c.id),
@@ -1406,6 +1479,11 @@ test(LIVE_TITLE, async ({ browser }) => {
     // reaper is held back until it has — and then run, before any expect
     // below can throw past it.
     await stack.stop({ reap: false });
+    // The server's own account of its exit, kept beside the fates: which matches
+    // it HANDED OVER and which it ENDED. A fate that faults is read against this
+    // line, so the report says which of the two paths produced it instead of
+    // leaving the next reader to infer it from an overwritten log.
+    summary.serverShutdown = serverLog(stack).filter((l) => typeof l.evt === 'string' && l.evt.startsWith('shutdown-'));
     const fates = await jvmFates(stack);
     summary.jvmFates = fates;
     summary.jvmsLeft = fates.filter((f) => f.alive).map((f) => f.pid);
@@ -1486,6 +1564,26 @@ async function jvmFates(stack: PlayStack): Promise<JvmFate[]> {
     (l) => (l.evt === 'jvm-spawned' || l.evt === 'jvm-attached') && typeof l.pid === 'number' && typeof l.run === 'string',
   );
   const handed = new Set(log.filter((l) => l.evt === 'jvm-handed-over' && typeof l.pid === 'number').map((l) => l.pid as number));
+  /*
+   * The matches the server ENDED on its way out rather than handing over —
+   * `shutdown-matches` (`apps/server/src/index.ts:468`). `Match.handOver`
+   * refuses a match whose status is no longer `starting`/`running`
+   * (`play/match.ts`), so a game that FINISHED during the run lands here, is
+   * sent the bridge's own `{t:'stop'}` and is then left to the SIGTERM/SIGKILL
+   * escalation in `BridgeJvm.stop` — timers at `stopGraceMs` and twice it
+   * (`play/host.ts:1199-1200`), both `unref`'d, inside a process that
+   * `process.exit(0)`s within `SHUTDOWN_DEADLINE_MS` (5 s,
+   * `index.ts:448,471`). Neither timer can ever fire. So this JVM is asked once,
+   * politely, and nothing insists — which is why it can still be running when
+   * the contract below says it should be gone. Naming it in the fault is what
+   * tells a reader that they are looking at that path and not at a hand-over
+   * that failed.
+   */
+  const endedAtShutdown = new Set(
+    log
+      .filter((l) => l.evt === 'shutdown-matches' && Array.isArray(l.ended))
+      .flatMap((l) => (l.ended as unknown[]).filter((id): id is string => typeof id === 'string')),
+  );
   /** Alive, and not a zombie waiting to be reaped. */
   const running = (pid: number): boolean => {
     try {
@@ -1519,7 +1617,14 @@ async function jvmFates(stack: PlayStack): Promise<JvmFate[]> {
     const faults: string[] = [];
     if (!handedOver) {
       // Not handed over: the server stopped it, so it must be gone.
-      if (alive) faults.push(`the server did not hand it over, yet it is still running (run ${run})`);
+      if (alive) {
+        const why =
+          record !== null && endedAtShutdown.has(record.matchId)
+            ? `the server ENDED it at shutdown (shutdown-matches ended: ${record.matchId}) and it is STILL RUNNING: ` +
+              `nothing insisted — see the note on endedAtShutdown, and ${JVM_RECORD_FILE} carries no orphanedAt, so no later server will take it back either`
+            : 'the server did not hand it over, yet it is still running';
+        faults.push(`${why} (run ${run})`);
+      }
     } else if (!alive) {
       faults.push('the server handed it over, so a later server should be able to take it back — but it is gone');
     } else if (record === null) {
