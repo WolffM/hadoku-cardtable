@@ -902,6 +902,25 @@ test(LIVE_TITLE, async ({ browser }) => {
     const dragDeadline = Date.now() + DRAG_BUDGET_MS;
     const wantLand = () => !dragged.some((d) => /Land/.test(d.type));
     const wantSpell = () => !dragged.some((d) => !/Land/.test(d.type));
+
+    /**
+     * How many times a drag was actually ATTEMPTED, per kind — which is the
+     * difference between the two failures this check can see.
+     *
+     * The budget running out means one of two things and only one is a bug:
+     * either we dragged and nothing moved (the affordance is broken — exactly
+     * the regression that reached production for 35 minutes on 2026-09-27), or
+     * the game never offered a land and a spell to drag inside the budget,
+     * which is the DEAL's doing and proves nothing either way. The deal is not
+     * seeded — `MatchSpec.seed` reaches the JVM, but Forge's `MyRandom` is
+     * seeded only by `SimulateMatch`, never by our bridge — so the second case
+     * is reachable on any run, and it red main on `9894b66`, a commit that
+     * removed an `<h1>` from the lobby.
+     *
+     * Mutation-tested: forcing every drag to land nothing still fails here,
+     * with "the drag affordance is broken".
+     */
+    const attempts = { land: 0, spell: 0 };
     /**
      * Consecutive passes on which this seat dragged nothing out of hand, per seat.
      *
@@ -919,10 +938,28 @@ test(LIVE_TITLE, async ({ browser }) => {
 
     while (wantLand() || wantSpell()) {
       if (Date.now() > dragDeadline) {
-        throw new Error(
-          `within ${DRAG_BUDGET_MS} ms no land and no spell were played by DRAGGING: ${JSON.stringify(dragged)}; ` +
-            `turn ${await alice.page.getByTestId('turn').textContent()}`,
+        const turn = await alice.page.getByTestId('turn').textContent();
+        const missing = ([['land', wantLand()], ['spell', wantSpell()]] as const)
+          .filter(([, want]) => want)
+          .map(([kind]) => kind);
+        // Tried and nothing moved: the affordance is broken, and this is the
+        // assertion worth having.
+        const tried = missing.filter((kind) => attempts[kind] > 0);
+        if (tried.length > 0) {
+          throw new Error(
+            `dragged ${tried.map((k) => `${String(attempts[k])}x ${k}`).join(', ')} and none of them moved — ` +
+              `the drag affordance is broken. landed: ${JSON.stringify(dragged)}; turn ${String(turn)}`,
+          );
+        }
+        // Never offered one: the scenario did not happen, so it proves
+        // nothing. Reported loudly and NOT failed — a check whose
+        // precondition the shuffle grants fails on luck, which is what this
+        // one just did.
+        console.warn(
+          `[play] UNPROVEN: the game never offered ${missing.join(' or ')} to drag within ${DRAG_BUDGET_MS} ms, ` +
+            `so drag-to-play was not exercised for ${missing.join('/')}. landed: ${JSON.stringify(dragged)}; turn ${String(turn)}`,
         );
+        break;
       }
       if ((await alice.page.locator('.board__over').count()) > 0) throw new Error('the game ended before a card was dragged');
       for (const f of [alice, bob]) {
@@ -939,8 +976,10 @@ test(LIVE_TITLE, async ({ browser }) => {
         }
         const inHand = await offeredIn(f, 'hand');
         // A land first, then anything that is not one.
-        const pick = wantLand() ? inHand.find((c) => /Land/.test(c.type)) : inHand.find((c) => !/Land/.test(c.type));
+        const kind = wantLand() ? 'land' : 'spell';
+        const pick = kind === 'land' ? inHand.find((c) => /Land/.test(c.type)) : inHand.find((c) => !/Land/.test(c.type));
         if (pick !== undefined) {
+          attempts[kind] += 1;
           idle.set(f.name, 0);
           const before = cardActsFrom(f).length;
           await dragToBattlefield(f, pick.id);
