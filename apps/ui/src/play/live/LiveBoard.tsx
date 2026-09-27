@@ -177,6 +177,7 @@ import {
   boardInteraction,
   concede,
   currentAsk,
+  declaringAttackers,
   noteAutoAnswered,
   pressButton,
   selectCard,
@@ -515,7 +516,28 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
   const alert = status === 'live' ? match.lastError : null;
   const offered = boardInteraction(match);
   const interaction: BoardInteraction = {
+    /*
+     * `selectionOpen` rides in with the spread: `LiveClickables` already
+     * carries it (`boardInteraction` sets it to `match.selectables !== null`),
+     * so naming it again here would be one more place for the two to drift.
+     */
     ...offered,
+    /*
+     * `declaringAttackers` does NOT ride in, and cannot: `boardInteraction` is
+     * about what Forge OFFERED, and this is about which input Forge is parked
+     * on. Forge publishes an open selection from exactly two call sites, both
+     * selection inputs (`InputSelectEntitiesFromList.java:57`,
+     * `InputSelectTargets.java:68`); `InputAttack` is neither, so its creatures
+     * arrive as the ACTIONABLE set with no selection open and `selectionOpen`
+     * is false throughout the step. Lane A's arrangement needs to stand down on
+     * the viewer's own creatures anyway, or it shadows the attack gesture for
+     * the whole of it — and lane B derives the fact from structured state
+     * (`view.phase` and `view.activePlayerId`), never from prompt text (§0b).
+     *
+     * This component computes neither fact. It is the one place both can be
+     * read off the same `LiveMatch` handle, so it is where they are handed over.
+     */
+    declaringAttackers: declaringAttackers(match),
     onSelectCard: (cardId) => selectCard(match, cardId),
     onSelectPlayer: (playerId) => selectPlayer(match, playerId),
   };

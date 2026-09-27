@@ -8,19 +8,23 @@
  * outside React's `act` — `waitFor` is what makes that legitimate.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createElement, type ComponentType } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame } from '@hadoku/forge-wire';
 
+import type { BoardInteraction } from '../Board.tsx';
+import type { BoardView } from '../adapter.ts';
+import { deltaKey, WireType } from '../wire.ts';
 import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
 import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
 import { isMatchGone, LiveBoard, liveStatus, refusalOf, type LiveStatus } from './LiveBoard.tsx';
 import {
   answerAsk,
+  boardInteraction,
   closeMatch,
   currentAsk,
   pressButton,
@@ -32,6 +36,26 @@ import {
 } from './match.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, type ReplayServer } from './replay-server.ts';
 import { parseMatchAck } from './transport.ts';
+
+/*
+ * `Board` is mocked to CAPTURE the props it is handed and then render the real
+ * component. Two things need that and nothing else in this file is affected:
+ * the interaction contract lane A reads (`selectionOpen`, `declaringAttackers`)
+ * is a set of BOOLEANS, and asserting them off the DOM would be asserting what
+ * lane A drew rather than what this component handed over. Every other case
+ * here still renders the real board, because the wrapper delegates to it.
+ */
+const captured = vi.hoisted(() => ({ interaction: null as BoardInteraction | null }));
+vi.mock('../Board.tsx', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../Board.tsx')>();
+  return {
+    ...actual,
+    Board: (props: { view: BoardView; interaction: BoardInteraction }) => {
+      captured.interaction = props.interaction;
+      return createElement(actual.Board, props);
+    },
+  };
+});
 
 let server: ReplayServer | null = null;
 let match: LiveMatch | null = null;
@@ -1271,3 +1295,144 @@ describe('the frame installs the gesture layer and owns none of it', () => {
     }
   });
 });
+
+/*
+ * The two fields lane A reads off `BoardInteraction`, and why this component is
+ * where they are filled.
+ *
+ * `e2e/table-fit.spec.ts` went red on a real match because the arrangement stood
+ * down whenever a card was `selectable`, and outside an open selection
+ * `selectable` is Forge's ACTIONABLE set — most of a player's own permanents on
+ * their own turn. The fix splits the two states, and the split rests on a fact
+ * from Forge's own source: `setSelectables` has exactly two call sites in all of
+ * Forge (`InputSelectEntitiesFromList.java:57`, `InputSelectTargets.java:68`),
+ * and `InputAttack` / `InputBlock` are neither. So Forge publishes NO open
+ * selection while attackers or blockers are declared, and *"a selection is
+ * open"* and *"a card is actionable"* are genuinely different states.
+ *
+ * Neither fact is computed here. `selectionOpen` arrives on `LiveClickables`
+ * from `boardInteraction`, so it rides in with the spread and is NOT named
+ * twice; `declaringAttackers` is lane B's function over `view.phase` and
+ * `view.activePlayerId`. This component is only the one place both can be read
+ * off the same handle, so these cases assert the HANDOVER — what reached
+ * `Board`, off the props it was called with.
+ */
+describe('what the board is told about Forge’s input', () => {
+  const GAME_KEY = String(deltaKey(WireType.Game, 1));
+  const notify = (raw: unknown) => parseServerFrame(raw);
+  const selectables = (ids: number[], min: number, max: number) =>
+    notify({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max });
+  const actionable = (ids: number[]) =>
+    notify({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
+  const prompt = (message: string) =>
+    notify({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null });
+  /** A Game delta: the phase, and whose turn it is. Forge's own structured facts. */
+  const phase = (m: LiveMatch, name: string, playerTurn: number) =>
+    notify({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: {
+          seq: m.view!.seq + 1,
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: {},
+          objectDeltas: {
+            [GAME_KEY]: {
+              _type: WireType.Game,
+              _id: 1,
+              Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
+              PlayerTurn: { t: 'int', v: playerTurn },
+            },
+          },
+          events: [],
+        },
+      },
+    });
+
+  it('no selection open and not declaring attackers, at rest', async () => {
+    const { m } = await liveBoard();
+    await waitFor(() => expect(captured.interaction).not.toBeNull());
+    expect(captured.interaction!.selectionOpen).toBe(false);
+    expect(captured.interaction!.declaringAttackers).toBe(false);
+    expect(m.selectables).toBeNull();
+  });
+
+  it('an open selection is passed through as one — and it is the SPREAD that carries it, not a second copy', async () => {
+    const { s, m, container } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    expect(captured.interaction!.selectionOpen).toBe(false);
+
+    for (const f of [prompt('Choose one'), selectables([mine[0]!], 1, 1)]) s.send(f);
+    // Wait on the STATE and on a settled RENDER, never on the field under test —
+    // a `waitFor` on the assertion itself passes on any transient that happens to
+    // satisfy it, which is how an inverted field got past an earlier version of
+    // the case below.
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"] button`)).not.toBeNull());
+    expect(captured.interaction!.selectionOpen).toBe(true);
+    // Exactly `match.selectables !== null`, which is also what `boardInteraction`
+    // put on `LiveClickables` — one source, so the two can never disagree.
+    expect(captured.interaction!.selectionOpen).toBe(m.selectables !== null);
+    expect(boardInteraction(m).selectionOpen).toBe(true);
+    expect(captured.interaction!.declaringAttackers).toBe(false);
+
+    s.send(notify({ kind: 'notify', method: 'clearSelectables' }));
+    await waitFor(() => expect(m.selectables).toBeNull());
+    await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"] button`)).toBeNull());
+    expect(captured.interaction!.selectionOpen).toBe(false);
+  });
+
+  /*
+   * THE REGRESSION, stated as the state it is about: Forge names most of this
+   * seat's own permanents at ordinary priority, so `selectable` is large while
+   * NOTHING is being asked. A board told "a selection is open" here is a board
+   * whose arrangement stands down for most of a game.
+   */
+  it('actionable is not asking: a full selectable set with no selection open', async () => {
+    const { s, m } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    for (const f of [prompt('Priority: you'), actionable(mine)]) s.send(f);
+    await waitFor(() => expect(captured.interaction!.selectable.size).toBe(mine.length));
+    expect(mine.length).toBeGreaterThan(1);
+    expect(captured.interaction!.selectionOpen).toBe(false);
+    expect(m.selectables).toBeNull();
+  });
+
+  /*
+   * Every wait here is on the VIEW and on the rail's own rendered attributes —
+   * never on `declaringAttackers` itself. An earlier version waited on the field,
+   * and an inverted field passed: inverted, it is already `true` at rest, so the
+   * first wait was satisfied before any delta arrived and the case never saw the
+   * state it was about. Waiting on the thing under test is how a mutant survives.
+   */
+  it('declaring attackers is told separately, because Forge opens no selection for it', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    const mine = me.battlefield.map((c) => c.id);
+    // At rest — Main 1, and nobody is declaring anything.
+    expect(getByTestId('live-phases').dataset.phase).toBe('MAIN1');
+    expect(captured.interaction!.declaringAttackers).toBe(false);
+
+    for (const f of [phase(m, 'COMBAT_DECLARE_ATTACKERS', me.id), prompt('Declare attackers'), actionable(mine)]) {
+      s.send(f);
+    }
+    await waitFor(() => expect(m.view!.phase).toBe('COMBAT_DECLARE_ATTACKERS'));
+    await waitFor(() => expect(getByTestId('live-phases').dataset.phase).toBe('COMBAT_DECLARE_ATTACKERS'));
+    expect(getByTestId('live-phases').dataset.whose).toBe('yours');
+    expect(captured.interaction!.declaringAttackers).toBe(true);
+    // And it is NOT a selection: `InputAttack` publishes none.
+    expect(captured.interaction!.selectionOpen).toBe(false);
+    expect(m.selectables).toBeNull();
+
+    // The same step, but the OTHER seat is the one declaring.
+    s.send(phase(m, 'COMBAT_DECLARE_ATTACKERS', them.id));
+    await waitFor(() => expect(m.view!.activePlayerId).toBe(them.id));
+    await waitFor(() => expect(getByTestId('live-phases').dataset.whose).toBe('theirs'));
+    expect(getByTestId('live-phases').dataset.phase).toBe('COMBAT_DECLARE_ATTACKERS');
+    expect(captured.interaction!.declaringAttackers).toBe(false);
+    expect(captured.interaction!.selectionOpen).toBe(false);
+  });
+});
+

@@ -350,3 +350,81 @@ Both mutated files were restored by checksum
   touched.
 - `.playwright-mcp/` appeared in the worktree from this lane's browser runs and
   was removed. The tree holds only the three owned files plus this document.
+
+---
+
+# Addendum — the two interaction fields (after a7b8d9a)
+
+`e2e/table-fit.spec.ts` went red on a real match: dragging a land between rows
+did nothing, because the arrangement stood down whenever a card was
+`selectable`, and outside an open selection `selectable` is Forge's ACTIONABLE
+set — most of a player's own permanents on their own turn. Lane A split
+`BoardInteraction` into two optional fields; this component is the only place
+both can be read off one `LiveMatch`, so it is where they are filled.
+
+The load-bearing fact, settled by lanes A and B and verified by the manager:
+`setSelectables` has exactly two call sites in all of Forge
+(`InputSelectEntitiesFromList.java:57`, `InputSelectTargets.java:68`), and
+`InputAttack` / `InputBlock` are neither. So Forge publishes NO open selection
+while attackers or blockers are declared, and *"a selection is open"* and
+*"a card is actionable"* are different states.
+
+## What changed, and what did NOT
+
+**`selectionOpen` is NOT named here.** `LiveClickables` already carries it —
+`boardInteraction` returns `selectionOpen: selection !== null`
+(`match.ts:789`) — so it rides in with `...offered`. Naming it again would be a
+second place for the two to drift. Checked against `match.ts` on disk, not
+against the transcription.
+
+**`declaringAttackers` IS named here**, as
+`declaringAttackers: declaringAttackers(match)` (lane B's export over
+`view.phase` and `view.activePlayerId` — structured state, never prompt text,
+§0b). It cannot ride in on `LiveClickables`: `boardInteraction` is about what
+Forge OFFERED, and this is about which input Forge is parked on.
+
+Four cases in `LiveBoard.test.ts` assert the handover off the props `Board` was
+CALLED with, not off the DOM: `Board` is wrapped by a `vi.mock` that captures
+`props.interaction` and then renders the real component, so the other 69 cases
+still exercise the real board.
+
+## A test that passed a mutation, and why
+
+The first version of the declare-attackers case did
+`await waitFor(() => expect(captured.interaction!.declaringAttackers).toBe(true))`.
+Inverting the field **did not fail it**: inverted, the field is already `true`
+at rest, so the wait was satisfied before any delta arrived and the case never
+reached the state it was about. Waiting on the thing under test is how a mutant
+survives.
+
+Rewritten: every wait is on `match.view` and on the phase rail's own rendered
+attributes (`data-phase`, `data-whose`) — a settled render, independent of the
+field — and the field is then asserted with a plain `expect`. The at-rest value
+is asserted first, so an inverted field fails on line one.
+
+## Verification
+
+| claim | command | result |
+| --- | --- | --- |
+| suite green | `npx vitest run apps/ui/src/play/live/LiveBoard.test.ts; echo $?` | **exit 0**, 73 passed / 73 |
+| typecheck | `npx tsc --noEmit -p apps/ui/tsconfig.json; echo $?` | **exit 0** |
+| lint | `npx eslint …/LiveBoard.tsx …/LiveBoard.test.ts; echo $?` | **exit 0** |
+
+## Mutation-tested
+
+| mutation | reverted | restored |
+| --- | --- | --- |
+| `declaringAttackers` line deleted | **1 failed** / 72 skipped, exit 1 (`expected undefined to be false`) | **1 passed**, exit 0 |
+| `declaringAttackers` inverted | **1 failed** / 72 skipped, exit 1 (`expected true to be false`) | **1 passed**, exit 0 |
+| `selectionOpen` overridden to `offered.selectable.size > 0` (the original regression) | **1 failed**, exit 1 (`expected true to be false`) | **1 passed**, exit 0 |
+| `selectionOpen` overridden to constant `false` | **1 failed**, exit 1 (`expected false to be true`) | **1 passed**, exit 0 |
+| `selectionOpen` overridden to constant `true` | **1 failed**, exit 1 (`expected true to be false`) | **1 passed**, exit 0 |
+
+`LiveBoard.tsx` restored by checksum each time (`38f9cb64…`).
+
+## Now settled that this doc had as unverified
+
+The manager's own runs: `e2e/play.spec.ts` passes (2 tests, 49.5s) and
+`combat-drag.jvm.test.ts` passes (1 test, 16.7s) against real Forge. Only
+table-fit's arrangement assertion was red, and that is what this addendum
+fixes. `e2e/table-fit.spec.ts` itself remains the manager's run.
