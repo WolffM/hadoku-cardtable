@@ -39,12 +39,7 @@
  * `selectPlayer`, which re-check Forge's CURRENT offer. A gesture can pick the
  * wrong thing; it cannot put an id on the wire that Forge did not name.
  */
-import {
-  boardInteraction,
-  declaringAttackers,
-  subscribe,
-  type LiveMatch,
-} from '../match.ts';
+import { boardInteraction, declaringAttackers, subscribe } from '../match.ts';
 import { clearArrow, drawArrow } from './arrow.ts';
 import { commitDrag, commitMarquee, rectOf, type Rect } from './commit.ts';
 import { applyIntents, clearIntents } from './intent.ts';
