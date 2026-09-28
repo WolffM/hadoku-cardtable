@@ -75,6 +75,23 @@ if (!existsSync(SERVER_JS) || !existsSync(resolve(BUILT_WEB_DIR, 'index.html')))
  *    it is still worth knowing that /health cannot see it.
  */
 const WEB_DIR = mkdtempSync(join(tmpdir(), 'cardtable-e2e-web-'));
+// Registered HERE rather than beside `shutdown()` below, because the very next
+// line can `die()` and every `die()` is a `process.exit(1)`.
+//
+// `shutdown()` already removed WEB_DIR, but only from SIGTERM and SIGINT. Every
+// other way this process ends — all six `die()` call sites, an uncaught throw,
+// or simply running to completion — left the directory behind, which is how 366
+// `cardtable-e2e-web-*` directories reached /tmp on hokon by 2026-09-28 (part of
+// a 421,879-entry pile that made `du -sm /tmp/*` fail with E2BIG). 'exit' covers
+// all of those, fires after `shutdown()`'s own removal, and `force: true` makes
+// the second pass a no-op.
+process.on('exit', () => {
+  try {
+    rmSync(WEB_DIR, { recursive: true, force: true });
+  } catch {
+    // best effort — a temp dir that will not delete is not worth a red run
+  }
+});
 if (WEB_DIR.split('/').some((seg) => seg.startsWith('.'))) {
   die(`the temp dir ${WEB_DIR} has a dot segment too; set TMPDIR to a path without one`);
 }
