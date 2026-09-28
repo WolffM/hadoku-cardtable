@@ -234,3 +234,32 @@ instruments a future red needs (`probeWindows`, `refreshBoard`, a
 
 The recipe for reproducing any of this is §0 plus 16 burners. On an idle host it
 will not fail, which is exactly why it sat undiagnosed for a wave.
+
+## 7. Mutation-tested, on `e2e/play.spec.ts` itself, under 16 burners
+
+Both fixes were reverted in turn and the spec re-run under the same load. The
+restored spec is the `fix40`–`fix45` row.
+
+| spec | runs | red | what it reported |
+| --- | --- | --- | --- |
+| **restored** (both fixes) | 6 | **0** | — |
+| **mutation A** — both `noPreview(…)` calls removed, `.catch` kept | 3 | **2** | `expect(boardAfter).toBe(boardBefore)`, the five preview lines |
+| **mutation B** — A, plus the `.catch` removed (wave 26's exact shape) | 3 | **3** | `apiRequestContext.post: Request context disposed.` at the probe |
+
+Mutation B reproduces wave 26's red **and both of its side effects**, checked
+rather than assumed:
+
+- **No evidence file.** Each of B's three runs left a `play-summary.json` whose
+  `matchId` is `m-fdd726175317` — the *previous* run's match. The `finally` never
+  reached the write. Mutation A's reds, by contrast, wrote a summary whose
+  `matchId` is their own.
+- **A leaked Forge JVM per run.** After B's three runs, three `-Xmx1g` bridge
+  JVMs were still alive, standing in `e2e/.run/play-work/stack-{qv0Hqs,bhqGCK,OBtjZQ}/spare-*`,
+  their timestamps matching B's three runs one for one. `stack.reap()` is two
+  statements past the abort. Killed by hand (SIGTERM is ignored; the harness's
+  own `reapJvms` correctly uses SIGKILL).
+
+That is the same signature the wave-26 tracker found on the host at close and
+attributed to a cancelled CI run. A cancelled job does leak this way — but so
+did every masked red of this spec, and that is now fixed rather than tidied up
+after.
