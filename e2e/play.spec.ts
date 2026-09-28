@@ -904,22 +904,33 @@ test(LIVE_TITLE, async ({ browser }) => {
     const wantSpell = () => !dragged.some((d) => !/Land/.test(d.type));
 
     /**
-     * How many times a drag was actually ATTEMPTED, per kind — which is the
-     * difference between the two failures this check can see.
+     * Every drag this loop ran that committed NOTHING, with what the board was
+     * showing at the time — which is the difference between the two failures
+     * this check can see.
      *
-     * The budget running out means one of two things and only one is a bug:
-     * either we dragged and nothing moved (the affordance is broken — exactly
-     * the regression that reached production for 35 minutes on 2026-09-27), or
-     * the game never offered a land and a spell to drag inside the budget,
-     * which is the DEAL's doing and proves nothing either way. The deal is not
-     * seeded — `MatchSpec.seed` reaches the JVM, but Forge's `MyRandom` is
-     * seeded only by `SimulateMatch`, never by our bridge — so the second case
-     * is reachable on any run, and it red main on `9894b66`, a commit that
-     * removed an `<h1>` from the lobby.
+     * The budget running out means one of two things and only one is a bug.
+     * Either the board offered a card, the gesture ran, and no act left the
+     * browser — the affordance is broken, which is the operator's own report
+     * (*"cards are not dragable"*) and the regression that reached production
+     * for 35 minutes on 2026-09-27. Or the game never offered this kind of card
+     * at all, which is the deal's doing and proves nothing either way.
+     *
+     * The DEAL IS FIXED (`e2e/playSeed.ts`), so neither case is luck any more:
+     * both are reproducible from the seed, and a red here is a fact about this
+     * game rather than about this run.
+     *
+     * What each silent drag was LOOKING AT is recorded, because a count cannot
+     * tell the two apart and once read like the wrong one. The first seeded run
+     * failed with "dragged 26x spell and none of them moved"; alice's hand held
+     * six lands and one Preordain, she had a single Plains in play, and the
+     * count had no way to say that the card the board kept offering was one she
+     * could not pay for. The gesture was fine. The loop was not playing her
+     * lands.
      *
      * Mutation-tested: forcing every drag to land nothing still fails here,
      * with "the drag affordance is broken".
      */
+    const silent: { name: string; card: string; kind: string; prompt: string }[] = [];
     const attempts = { land: 0, spell: 0 };
     /**
      * Consecutive passes on which this seat dragged nothing out of hand, per seat.
@@ -946,9 +957,13 @@ test(LIVE_TITLE, async ({ browser }) => {
         // assertion worth having.
         const tried = missing.filter((kind) => attempts[kind] > 0);
         if (tried.length > 0) {
+          // The last few are enough to read, and they are the ones nearest the
+          // state the board was actually in when the budget ran out.
+          const looking = silent.filter((d) => tried.includes(d.kind as 'land' | 'spell')).slice(-6);
           throw new Error(
             `dragged ${tried.map((k) => `${String(attempts[k])}x ${k}`).join(', ')} and none of them moved — ` +
-              `the drag affordance is broken. landed: ${JSON.stringify(dragged)}; turn ${String(turn)}`,
+              `the drag affordance is broken. landed: ${JSON.stringify(dragged)}; turn ${String(turn)}; ` +
+              `the last silent drags were looking at ${JSON.stringify(looking)}`,
           );
         }
         // Never offered one: the scenario did not happen, so it proves
@@ -975,9 +990,25 @@ test(LIVE_TITLE, async ({ browser }) => {
           continue;
         }
         const inHand = await offeredIn(f, 'hand');
-        // A land first, then anything that is not one.
-        const kind = wantLand() ? 'land' : 'spell';
-        const pick = kind === 'land' ? inHand.find((c) => /Land/.test(c.type)) : inHand.find((c) => !/Land/.test(c.type));
+        /*
+         * A land whenever one is offered, and a spell only when none is.
+         *
+         * Not "one land, then spells". Forge offers the land drop at most once a
+         * turn, so this is the seat playing its mana out at the only rate the
+         * rules allow — and without it the loop stopped at ONE land in play and
+         * stayed there, which in a control deck means nothing in hand is ever
+         * castable. Seed 7 deals alice six lands and a Preordain: with one
+         * Plains down and no second land ever played, {U} never came, and the
+         * spell half of this check could only ever have passed on a deal that
+         * handed it a one-mana play in the opening hand. That is the luck the
+         * seed was supposed to remove, one level further in.
+         *
+         * Every land dragged is recorded, and the per-card assertions below
+         * re-check each one, so the extra drags are evidence rather than noise.
+         */
+        const landPick = inHand.find((c) => /Land/.test(c.type));
+        const pick = landPick ?? inHand.find((c) => !/Land/.test(c.type));
+        const kind = landPick === undefined ? 'spell' : 'land';
         if (pick !== undefined) {
           attempts[kind] += 1;
           idle.set(f.name, 0);
@@ -988,6 +1019,13 @@ test(LIVE_TITLE, async ({ browser }) => {
           // read board, until the budget runs out.
           if (await dragLanded(f, before, pick.id, pick.name, 6_000)) {
             dragged.push({ name: f.name, id: pick.id, card: pick.name, type: pick.type, where: 'hand' });
+          } else {
+            // Nothing crossed. What the board was showing is the difference
+            // between a stale offer and a broken one, and a count cannot say.
+            // `live-says` is Forge's own prompt line (`match.prompt`), which is
+            // what says whether this seat was at a stop or mid auto-pass.
+            const prompt = (await f.page.getByTestId('live-says').textContent().catch(() => null)) ?? '(no prompt)';
+            silent.push({ name: f.name, card: pick.name, kind, prompt });
           }
           continue;
         }
