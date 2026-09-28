@@ -93,6 +93,11 @@
  * the server applies at create, and deliberately not `formats[0]`, which is
  * 2011-02-13 and is where every room used to open.
  *
+ * Each option also says what COLOUR its deck is (wave 27 §D), folded out of the
+ * deck's own card list by the one fold `DeckView.tsx` exports — see
+ * {@link deckOptions} for where the costs come from and {@link optionLabel} for
+ * why the option says `WU` in letters while the symbols sit beside the control.
+ *
  * ## Waiting for the other person is the job
  *
  * Both players' state — chosen, legal, ready — is polled from the room
@@ -127,10 +132,17 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { basicLand, mainDeckSize, moveToMain, setBasicLand, type Deck } from '@hadoku/deck';
+import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
 import { navigate } from './route.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { SetSymbol } from '../components/ManaPip.tsx';
+import {
+  DeckColors,
+  deckColorsByName,
+  mainDeckColors,
+  type DeckColor,
+} from '../components/DeckView.tsx';
 import { cardIndex, mainSummary } from '../deck/build.ts';
 import { deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
 import { closeDraft, startDraft, type DraftTransport, type SocketDraft } from '../draft/socket.ts';
@@ -195,6 +207,46 @@ type Loaded = { formats: TableFormat[]; decks: TableDeck[] };
  * not hold is shown as its bare id rather than blank — the room said it, and a
  * value the screen cannot expand is still the value.
  */
+/**
+ * One row of the deck dropdown: what it sends, what it reads, what colour it is.
+ *
+ * The colours are folded once, here, and used twice — in the option's own text
+ * and in the pips beside the control — so the letters and the symbols cannot
+ * disagree with each other either.
+ */
+interface DeckOption {
+  value: string;
+  label: string;
+  colors: readonly DeckColor[];
+}
+
+/**
+ * An option's visible text: the deck's name, then its colours as letters.
+ *
+ * **Letters, and not pips, and that is not a shortcut.** `<option>` has a
+ * text-only content model: a `<span>` put inside one by React stays in the DOM
+ * but a browser draws only the option's text, so `::before`-driven font glyphs
+ * — which is what every symbol in this app is since D20 — render as nothing at
+ * all. A test that counted pip elements inside an `<option>` would pass against
+ * a dropdown that shows a player nothing.
+ *
+ * The control stays a `<select>` for a second reason: six specs drive it with
+ * Playwright's `selectOption` (`play`, `table-fit`, `arrow`, `room-mode`,
+ * `streamed-live`), and a listbox of divs would break every one of them.
+ *
+ * So the dropdown says `WU` — which is how mtgtop8, every decklist site and
+ * every player writes a deck's colours — and the SYMBOLS are rendered beside the
+ * control, where markup is allowed, for whichever deck is chosen. Letters also
+ * happen to be the accessible half: an `<option>`'s colour cannot be styled
+ * portably, so colour could never have been the signal here.
+ *
+ * A colourless deck gets no suffix rather than a `—`: there is nothing to say,
+ * and an em dash beside a deck name reads like a missing value.
+ */
+function optionLabel(option: DeckOption): string {
+  return option.colors.length === 0 ? option.label : `${option.label} · ${option.colors.join('')}`;
+}
+
 function poolLabel(formats: readonly TableFormat[], id: string): string {
   const found = formats.find((f) => f.id === id);
   return found === undefined ? id : `${found.id} — ${found.name}`;
@@ -705,19 +757,58 @@ function RoomTableScreen({
    *
    * One list for two kinds of pool, because the control is one control: an era
    * offers the library decks legal in it, a pod offers the cards you drafted, and
-   * both are `{ value, label }` rows the same `<select>` renders. Null keeps the
+   * both are {@link DeckOption} rows the same `<select>` renders. Null keeps the
    * select disabled — an option list assembled before the answer would offer
    * decks the pool does not have — and for a pod the answer is the pod's, which
    * arrives over the socket rather than over HTTP.
+   *
+   * ## The colours, and the ONE fold they come from
+   *
+   * Operator, wave 26: *"decks should have their corresponding mana symbols."*
+   * Wave 26 §D drew them in `DeckView` and `DeckBuilder` and exported the fold
+   * so a third screen could not invent a second one — which is what this is.
+   * Both arms call into `DeckView.tsx`:
+   *
+   *   - a LIBRARY deck is a list of names (`TableDeck.main`), so it folds
+   *     through `deckColorsByName` against `LIBRARY_CARD_COSTS` — the cost of
+   *     every card the library plays, sliced out of the same
+   *     `decks/pools/*.generated.json` the fixtures are and shipped as 10 KB of
+   *     data because a browser has no filesystem and `GET /api/tables/decks`
+   *     sends names without costs.
+   *   - a DRAFTED pool is a `Deck` of real cards, so it folds through
+   *     `mainDeckColors`, which is the same fold plus the basics.
+   *
+   * The MAINDECK only, both times, and `DeckView`'s head does the same: a
+   * sideboard is not what you are playing. Get this wrong and two screens
+   * disagree about what colour a deck is, which is the failure wave 26's single
+   * export exists to prevent.
    */
-  const deckOptions = useMemo<{ value: string; label: string }[] | null>(() => {
+  const deckOptions = useMemo<DeckOption[] | null>(() => {
     if (pod !== null) {
       if (!podAnswered) return null;
       if (draftedDeck === null) return [];
-      return [{ value: DRAFTED_DECK, label: `Your drafted pool — ${mainDeckSize(draftedDeck)} cards` }];
+      return [
+        {
+          value: DRAFTED_DECK,
+          label: `Your drafted pool — ${mainDeckSize(draftedDeck)} cards`,
+          colors: mainDeckColors(draftedDeck, cardIndex(myPool ?? [])),
+        },
+      ];
     }
-    return offered === null ? null : offered.map((d) => ({ value: d.id, label: d.name }));
-  }, [pod, podAnswered, draftedDeck, offered]);
+    return offered === null
+      ? null
+      : offered.map((d) => ({
+          value: d.id,
+          label: d.name,
+          colors: deckColorsByName(
+            d.main.map((line) => line.name),
+            LIBRARY_CARD_COSTS,
+          ),
+        }));
+  }, [pod, podAnswered, draftedDeck, myPool, offered]);
+
+  /** The chosen row, so the pips beside the control are the chosen deck's. */
+  const chosenOption = (deckOptions ?? []).find((o) => o.value === deckId) ?? null;
 
   // A deck the new pool does not offer is no longer chosen. The `PUT` under the
   // new rules has already gone (the re-send below), so its verdict is on the
@@ -1178,11 +1269,27 @@ function RoomTableScreen({
                     </option>
                     <option value={RANDOM_DECK}>Random</option>
                     {(deckOptions ?? []).map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
+                      /* `data-colors` is the machine-readable half of the same
+                         fold the text carries — see `optionLabel` for why the
+                         text is letters and the symbols are below. */
+                      <option key={o.value} value={o.value} data-colors={o.colors.join('')}>
+                        {optionLabel(o)}
                       </option>
                     ))}
                   </select>
+                  {/* The chosen deck's colours as SYMBOLS, from wave 26 §D's own
+                      component, here because an `<option>` cannot hold one.
+                      `Random` has not rolled yet and has no colours to show. */}
+                  {chosenOption !== null && (
+                    <p className="lobby__note" data-testid="deck-mine-colors">
+                      <DeckColors
+                        colors={chosenOption.colors}
+                        label={`your deck's colours: ${
+                          chosenOption.colors.length === 0 ? 'colourless' : chosenOption.colors.join(' ')
+                        }`}
+                      />
+                    </p>
+                  )}
                   <DeckSource deck={(offered ?? []).find((d) => d.id === deckId)} />
                   {/* Why the dropdown has nothing in it, when it has nothing in it.
                       A pool is hidden information until the draft is over, so the

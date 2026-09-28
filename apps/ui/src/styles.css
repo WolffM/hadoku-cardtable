@@ -10,12 +10,19 @@
  *   1. No card images and no card art. There is not a single `url()` in this
  *      file and there must never be one pointing at a card.
  *   2. No WotC trade dress. A card is a flat panel with a colour stripe, not a
- *      frame; mana pips are circles with letters, not the printed symbols; the
- *      tap symbol is the word TAP. Rarity is a letter, not a gem.
+ *      frame. Rarity is a letter, not a gem.
+ *
+ * ~~Mana pips are circles with letters, not the printed symbols; the tap symbol
+ * is the word TAP.~~ **Repealed by D20 (operator, 2026-09-27):** *"naw we're not
+ * drawing our own"*. The symbols are Keyrune's and Mana's, imported at the top
+ * of this file and rendered by `components/ManaPip.tsx`; the 16 rules that drew
+ * our own discs were deleted in wave 27 §D and the note where they were says
+ * what each one was doing. Still forbidden, and NOT loosened by D20: the WotC
+ * logo, the Magic wordmark, card frames.
  *
  * The palette is dark because a draft is read for forty-five minutes at a
- * stretch, and the colour-pie hues are desaturated well away from the printed
- * ones so a pip reads as ours at a glance.
+ * stretch, and the colour-pie hues — still used for a card's identity stripe —
+ * are desaturated well away from the printed ones.
  */
 
 :root {
@@ -534,57 +541,59 @@ button {
   flex-shrink: 0;
 }
 
-.pip {
+/*
+ * The 16 pre-D20 `.pip` rules that used to be here are GONE (wave 27 §D).
+ *
+ * They drew our own pips: a 16px grey disc with a 9px letter in it, a wide
+ * capsule, six colour fills, a diagonally split hybrid and a dashed Phyrexian
+ * ring — because "no WotC trademarks in the UI" was absolute under D13. **D20
+ * (operator, 2026-09-27) repealed that**: *"naw we're not drawing our own"*, and
+ * `ManaPip.tsx` has rendered Mana's `ms ms-<x> ms-cost` glyph ever since.
+ *
+ * Two of them were still reachable and neither was doing what it looked like:
+ *
+ *   - `.pip` and `.pip--symbol` were cancelled in the component, by wave 26 §C's
+ *     `display: contents` + `font-size: inherit` shim, written for exactly this
+ *     deletion. A box that generates no box has no width, height, radius or
+ *     background, and `.ms`'s `font` shorthand and `.ms-cost`'s own `color`
+ *     beat the two properties that would otherwise have inherited into the
+ *     glyph. **`ManaPip.tsx`'s `PIP_SHIM` can go with this**, but that file is
+ *     owned by nobody this wave, so it is a hand-back and not a change here.
+ *   - `.pip--wide` still styled the no-glyph fallback, which is the one thing
+ *     those rules were genuinely doing — see `.pip--unknown` below.
+ *
+ * The other fourteen matched nothing the app renders. `.cost` above stays: it is
+ * the row the glyphs sit in, and `DeckView`'s `DeckColors` uses it too.
+ */
+
+/*
+ * A token the fonts have no glyph for, printed as itself in a capsule.
+ *
+ * `ManaPip.tsx`: *"a cost that silently drops a symbol is worse than an ugly
+ * one"*, so an unrecognised token comes out as its own text rather than as an
+ * empty box. It used to get its capsule from `.pip` + `.pip--wide` by accident;
+ * this rule is the same capsule, on the one class that means it, so deleting
+ * fourteen dead rules does not quietly leave a bare word in a row of discs. The
+ * declarations are the union of what those two gave it — identical computed
+ * style, which `/tmp/claude-1000/w27/D-pip` measured in a real browser.
+ */
+.pip--unknown {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
+  width: auto;
+  min-width: 16px;
   height: 16px;
-  border-radius: 50%;
+  padding: 0 4px;
+  border-radius: 8px;
   background: var(--c-generic);
   color: #14161a;
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
+  letter-spacing: 0.04em;
   vertical-align: -3px;
   flex-shrink: 0;
-}
-
-.pip--wide {
-  width: auto;
-  min-width: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  letter-spacing: 0.04em;
-}
-
-.pip--white { background: var(--c-white); }
-.pip--blue { background: var(--c-blue); }
-.pip--black { background: var(--c-black); color: #e6e9ee; }
-.pip--red { background: var(--c-red); }
-.pip--green { background: var(--c-green); }
-.pip--generic { background: var(--c-generic); color: #e6e9ee; }
-
-/* Hybrid: the two halves, split diagonally. Our own treatment. */
-.pip--split {
-  width: auto;
-  min-width: 22px;
-  padding: 0 3px;
-  border-radius: 8px;
-}
-
-.pip--split-white { background-image: linear-gradient(135deg, transparent 50%, var(--c-white) 50%); }
-.pip--split-blue { background-image: linear-gradient(135deg, transparent 50%, var(--c-blue) 50%); }
-.pip--split-black { background-image: linear-gradient(135deg, transparent 50%, var(--c-black) 50%); }
-.pip--split-red { background-image: linear-gradient(135deg, transparent 50%, var(--c-red) 50%); }
-.pip--split-green { background-image: linear-gradient(135deg, transparent 50%, var(--c-green) 50%); }
-.pip--split-generic { background-image: linear-gradient(135deg, transparent 50%, var(--c-generic) 50%); }
-
-/* Phyrexian: a dashed ring. NOT the printed glyph. */
-.pip--phyrexian {
-  box-shadow: 0 0 0 1px var(--bg-card), 0 0 0 2px currentColor;
-  outline: 1px dashed var(--ink-dim);
-  outline-offset: 1px;
 }
 
 /* ── pool ──────────────────────────────────────────────────────────── */

@@ -359,3 +359,28 @@ export function libraryDeckPaths(library: readonly LibraryCollection[] = LIBRARY
 export function poolFixturePath(date: string): string {
   return `${DECKS_ROOT}/pools/standard-${date}.generated.json`;
 }
+
+/**
+ * Every date a pool is frozen for, which is every date a fixture file exists
+ * for. `build-pool-fixture.ts`'s header says why each one is here.
+ *
+ * Here rather than in that script because two OTHER things now read the list —
+ * `build-deck-costs.ts` and the drift guard in `library.test.ts` — and that
+ * script cannot be imported for it: it loads the 183 MB corpus at module scope.
+ * A list of committed files belongs beside the function that names them anyway.
+ *
+ * Eight of the nine are collection dates (`LIBRARY`); `2011-07-01` is the
+ * Jace/Stoneforge ban pool, which no collection is filed under and which exists
+ * so the library has a pool its own decks FAIL in.
+ */
+export const POOL_FIXTURE_DATES: readonly string[] = [
+  '2011-02-13',
+  '2011-05-14',
+  '2011-07-01',
+  '2011-08-14',
+  '2011-10-30',
+  '2011-11-20',
+  '2012-02-12',
+  '2012-06-16',
+  '2012-08-11',
+];

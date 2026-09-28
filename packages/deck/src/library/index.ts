@@ -13,12 +13,17 @@
  *      a `FormatPool`. This is what makes the tests hermetic: the 183 MB corpus
  *      is gitignored and absent in CI, so the pool is computed once against the
  *      real cards and committed under `decks/pools/`.
- *   4. `library.test.ts` — the standing check, against those fixtures.
+ *   4. `deck-costs.generated.ts` — the cost of every card the library plays,
+ *      sliced out of those fixtures so a browser can fold a deck's colours
+ *      without them. Generated; `library.test.ts` re-derives it and fails on
+ *      any drift.
+ *   5. `library.test.ts` — the standing check, against those fixtures.
  *
- * And three node scripts that nothing imports, each with its own header:
- * `build-library.ts` (transcribes the decks from their source),
- * `build-pool-fixture.ts` (freezes the pools from the real corpus) and
- * `validate-library.ts` (the real-corpus measurement, run by hand).
+ * And four node scripts that nothing imports at runtime, each with its own
+ * header: `build-library.ts` (transcribes the decks from their source),
+ * `build-pool-fixture.ts` (freezes the pools from the real corpus),
+ * `build-deck-costs.ts` (slices the cost map out of those, no corpus needed)
+ * and `validate-library.ts` (the real-corpus measurement, run by hand).
  *
  * Nothing exported here imports `@hadoku/carddata/formats`. That subpath is
  * node-only — `standard.ts:69` imports `resolve.ts`, which imports `node:fs`,
@@ -30,6 +35,7 @@
 export {
   DECKS_ROOT,
   LIBRARY,
+  POOL_FIXTURE_DATES,
   PT_PARIS_2011_STANDARD,
   deckPath,
   libraryDeckPaths,
@@ -37,6 +43,20 @@ export {
   type LibraryCollection,
   type LibraryEntry,
 } from './catalog.ts';
+
+/**
+ * The cost of every card the library plays, for a caller with no filesystem.
+ *
+ * Generated from the same `decks/pools/*.generated.json` the fixtures are, by
+ * `build-deck-costs.ts`, and 10 KB rather than the 913 KB the nine whole
+ * fixtures are. It exists because the room screen's deck dropdown folds a
+ * library deck's colours in the BROWSER, where `readFileSync` is not a thing
+ * and `GET /api/tables/decks` sends card names without costs.
+ *
+ * Hand it to `DeckView.tsx`'s `deckColorsByName` — the one exported fold — in
+ * place of a fixture's own `manaCost`. The two are the same data.
+ */
+export { LIBRARY_CARD_COSTS } from './deck-costs.generated.ts';
 
 export {
   LIBRARY_PROVENANCE_KEY,

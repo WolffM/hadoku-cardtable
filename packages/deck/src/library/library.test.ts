@@ -25,6 +25,7 @@ import { poolNameKeys } from '../format.ts';
 import { writePrebuiltDeck } from '../prebuilt.ts';
 import {
   LIBRARY,
+  POOL_FIXTURE_DATES,
   PT_PARIS_2011_STANDARD,
   deckPath,
   libraryDeckPaths,
@@ -32,6 +33,8 @@ import {
   type LibraryCollection,
   type LibraryEntry,
 } from './catalog.ts';
+import { deckCostsModule, libraryCardCosts, libraryCardNames } from './build-deck-costs.ts';
+import { LIBRARY_CARD_COSTS } from './deck-costs.generated.ts';
 import {
   LibraryDeckError,
   libraryIssues,
@@ -502,5 +505,60 @@ describe('double-faced cards are named by their front face', () => {
     // A card that is genuinely not in the format stays out, so the widening
     // above is a front-face rule and not a hole.
     expect(pool.legal.has('Jace, the Mind Sculptor')).toBe(false);
+  });
+});
+
+/*
+ * The cost map the browser gets, checked against the fixtures it came from.
+ *
+ * `deck-costs.generated.ts` is a SECOND COPY of costs that are already in
+ * `decks/pools/*.generated.json`, and `catalog.ts`' own rule is that a second
+ * copy of a fact is a copy free to drift invisibly. This is what buys the
+ * exception: the map is re-derived here from the fixtures and the `.dck` files
+ * on every run, and compared as TEXT, so regenerating is the only way to change
+ * it and forgetting to regenerate is red.
+ *
+ * It exists because the room screen's deck dropdown folds a library deck's
+ * colours in the browser, which has no `readFileSync` and is sent card names
+ * without costs (`GET /api/tables/decks`).
+ */
+describe('the library cost map a browser is handed', () => {
+  it('is exactly what build-deck-costs.ts would write now', () => {
+    expect(deckCostsModule(libraryCardCosts())).toBe(
+      read('packages/deck/src/library/deck-costs.generated.ts'),
+    );
+  });
+
+  it('is the fixtures unchanged, not a re-computation of them', () => {
+    // Every entry must be byte-identical to the frozen pool's own string, in at
+    // least one pool. A cost invented here would fold to the wrong colours.
+    const fixtures = POOL_FIXTURE_DATES.map((d) => fixture(d));
+    for (const [name, cost] of Object.entries(LIBRARY_CARD_COSTS)) {
+      const seen = fixtures.map((f) => f.manaCost[name]).filter((c) => c !== undefined);
+      expect(seen.length, `${name} is in no frozen pool`).toBeGreaterThan(0);
+      expect(new Set(seen), `${name} disagrees between pools`).toEqual(new Set([cost]));
+    }
+  });
+
+  it('covers every card the library plays that has a cost, and no land', () => {
+    const played = libraryCardNames();
+    // Absence means "no coloured pip", so a name absent from the map must be
+    // absent from every pool's cost map too — otherwise the dropdown silently
+    // drops a colour the deck is playing.
+    const fixtures = POOL_FIXTURE_DATES.map((d) => fixture(d));
+    const missing = [...played].filter(
+      (n) => LIBRARY_CARD_COSTS[n] === undefined && fixtures.some((f) => f.manaCost[n] !== undefined),
+    );
+    expect(missing).toEqual([]);
+    // And nothing in the map that no deck plays: this is the library's slice,
+    // not the pool's, and 296 of 342 names is the whole point of its size.
+    expect(Object.keys(LIBRARY_CARD_COSTS).filter((n) => !played.has(n))).toEqual([]);
+  });
+
+  it('is small enough to ship, which is why it is a slice and not the pools', () => {
+    const map = read('packages/deck/src/library/deck-costs.generated.ts').length;
+    const pools = POOL_FIXTURE_DATES.reduce((n, d) => n + read(poolFixturePath(d)).length, 0);
+    expect(map).toBeLessThan(20_000);
+    expect(pools).toBeGreaterThan(20 * map);
   });
 });

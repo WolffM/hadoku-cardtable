@@ -55,7 +55,7 @@ import {
   type PrintingIndex,
 } from '@hadoku/carddata/formats';
 
-import { poolFixturePath } from './catalog.ts';
+import { POOL_FIXTURE_DATES, poolFixturePath } from './catalog.ts';
 import { fixtureFromStandardPool } from './pool-fixture.ts';
 
 /** `packages/deck/src/library` → the repo root. */
@@ -76,18 +76,14 @@ const DEFAULT_CARDS = join(REPO_ROOT, 'packages', 'carddata', 'data', 'cards.jso
 type IndexedCard =
   Parameters<typeof buildPrintingIndex>[0] extends Iterable<infer T> ? T : never;
 
-/** The dates frozen. See the header for why each one is here. */
-export const FIXTURE_DATES: readonly string[] = [
-  '2011-02-13',
-  '2011-05-14',
-  '2011-07-01',
-  '2011-08-14',
-  '2011-10-30',
-  '2011-11-20',
-  '2012-02-12',
-  '2012-06-16',
-  '2012-08-11',
-];
+/**
+ * The dates frozen. See the header for why each one is here.
+ *
+ * The list itself moved to `catalog.ts` when `build-deck-costs.ts` and
+ * `library.test.ts` started needing it: this module loads the 183 MB corpus at
+ * import time, so nothing can import a constant from it.
+ */
+export const FIXTURE_DATES = POOL_FIXTURE_DATES;
 
 function arg(name: string): string | null {
   const prefix = `--${name}=`;

@@ -39,8 +39,16 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { DRAFT_CHANNEL, stateMessage, type DraftCard, type DraftView } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
 import { BASIC_LAND_NAMES, deckFromDeckFile, mainDeckSize } from '@hadoku/deck';
+import {
+  LIBRARY,
+  LIBRARY_CARD_COSTS,
+  deckPath,
+  poolFixturePath,
+  type LibraryCollection,
+} from '@hadoku/deck/library';
 
 import { ConstructedScreen, DRAFTED_BASICS, DRAFTED_DECK, draftedDeckOf } from './ConstructedScreen.tsx';
+import { deckColorsByName } from '../components/DeckView.tsx';
 import { parseRoute } from './route.ts';
 import poolJson from '../draft/pool.json';
 import { dckTextOf } from '../draft/deckFromPool.ts';
@@ -55,6 +63,7 @@ import {
   type Fetch,
   type RoomPlayer,
   type SeatChoice,
+  type TableDeck,
   type Verdict,
 } from './tables.ts';
 
@@ -188,6 +197,15 @@ interface Table {
    * `newestFormat` fallback still lands on the newest frozen era.
    */
   pods?: { id: string; cards: number }[];
+  /**
+   * What `GET /tables/decks` offers. Absent ⇒ {@link DECKS}, the two Paris rows
+   * every other suite uses.
+   *
+   * Overridden by the colours suite, which needs the REAL decklists: a deck's
+   * colours are a fold over its own card list, and `DECKS`' one-line stand-ins
+   * play sixty Islands.
+   */
+  decks?: TableDeck[];
 }
 
 /**
@@ -201,6 +219,8 @@ function stubServer(table: Table) {
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   const gameType = table.gameType ?? 'constructed-1v1';
+  /** The library this table's server has. See `Table.decks`. */
+  const decks = (): TableDeck[] => table.decks ?? DECKS;
   table.format ??= FORMATS[0].id;
   const iAmLeader = () => table.leader !== false;
   const view = () => ({
@@ -240,7 +260,7 @@ function stubServer(table: Table) {
   });
   /** One deck against one pool, which is the only question the gate answers. */
   const verdictOf = (deckId: string, formatId: string): Verdict => {
-    const name = DECKS.find((d) => d.id === deckId)?.name ?? '?';
+    const name = decks().find((d) => d.id === deckId)?.name ?? '?';
     const format = FORMATS.find((f) => f.id === formatId);
     if (format?.id === '2011-07-01' && deckId === BEN_STARK) return BANNED;
     return LEGAL(name, format?.name ?? '?');
@@ -315,7 +335,7 @@ function stubServer(table: Table) {
       }));
       return json(200, { formats: [...pods, ...FORMATS] });
     }
-    if (url.endsWith('/tables/decks')) return json(200, { decks: DECKS });
+    if (url.endsWith('/tables/decks')) return json(200, { decks: decks() });
     // One per deck, each time the room's pool moves: how the picker learns
     // which decks that pool offers. UNCHANGED by w25 — `POST /tables/check`
     // still takes a whole seat choice, because it is asked about no room.
@@ -1585,7 +1605,13 @@ describe('a room on a drafted pool', () => {
     // One option, and it is the cards you drafted — not the 60-card library, which
     // no cube pool holds. The label says how big the deck it would load is.
     expect([...select.options].map((o) => o.value)).toEqual(['', RANDOM_DECK, DRAFTED_DECK]);
-    expect([...select.options].at(-1)?.textContent).toBe(`Your drafted pool — ${45 + DRAFTED_BASICS} cards`);
+    // The label says how big the deck it would load is, and then its colours.
+    // `pool.json`'s first 45 cards are the cube's white section, so `W` — and the
+    // basics `draftedDeckOf` adds are Plains for the same reason (wave 27 §D).
+    expect([...select.options].at(-1)?.textContent).toBe(
+      `Your drafted pool — ${45 + DRAFTED_BASICS} cards · W`,
+    );
+    expect([...select.options].at(-1)?.dataset['colors']).toBe('W');
     // And the library sweep never ran: a drafted pool asks the gate nothing.
     expect(server.calls.filter((c) => c.url.endsWith('/tables/check'))).toEqual([]);
 
@@ -1656,5 +1682,169 @@ describe('draftedDeckOf', () => {
     expect(deckBuilt.basics).toEqual([]);
     // Still a legal limited maindeck: 45 is over the floor on its own.
     expect(mainDeckSize(deckBuilt)).toBe(45);
+  });
+});
+
+/*
+ * The deck dropdown shows its colours — wave 27 §D, and the other half of the
+ * operator's wave-26 ask: *"decks should have their corresponding mana
+ * symbols."*
+ *
+ * ## Real decklists, because a deck's colours are a fold over its own card list
+ *
+ * Every other suite in this file offers `DECKS`, whose maindeck is one line of
+ * sixty Islands — enough to prove a `PUT` went out, useless for a colour. So
+ * this one hands the stub the REAL `.dck` files, read off disk exactly as the
+ * server reads them, and the two decks are the two `DeckView.test.ts` chose for
+ * the two facts that are hard:
+ *
+ *   - **Matthew Costa's UW Delver** is two colours, and its white is four
+ *     Geists of Saint Traft — while it also plays two Gut Shots, which Scryfall
+ *     calls red and which cost `{R/P}`. Two pips, not three.
+ *   - **Nick Marriott's Mono Green Infect** is one colour, and five of its
+ *     cards (Gut Shot, Mental Misstep, Apostle's Blessing, Gitaxian Probe,
+ *     Mutagenic Growth) are not green. One pip, not four.
+ *
+ * ## What "one fold" means here, and why it is asserted rather than trusted
+ *
+ * The screen never folds anything itself: it calls `DeckView.tsx`'s
+ * `deckColorsByName` against `@hadoku/deck/library`'s `LIBRARY_CARD_COSTS`. So
+ * the risk is not a wrong fold, it is a wrong MAP — a shipped slice that has
+ * drifted from `decks/pools/*.generated.json` would colour a deck differently
+ * here than `DeckView` colours it, which is exactly the disagreement wave 26
+ * exported one fold to prevent. Each case therefore recomputes the answer from
+ * the frozen pool's own `manaCost` and asserts the dropdown matches it.
+ * (`packages/deck`'s `library.test.ts` guards the map itself, byte for byte.)
+ */
+describe('the deck dropdown shows its colours', () => {
+  /** `apps/ui/src/screens` → the repo root, as `DeckView.test.ts` does it. */
+  const ROOT = resolve(import.meta.dirname ?? 'apps/ui/src/screens', '..', '..', '..', '..');
+  const readRepo = (repoPath: string): string => readFileSync(resolve(ROOT, repoPath), 'utf8');
+
+  const collectionOf = (id: string): LibraryCollection => {
+    const found = LIBRARY.find((c) => c.id === id);
+    if (found === undefined) throw new Error(`no collection ${id}`);
+    return found;
+  };
+
+  /** A real library deck, in the shape `GET /tables/decks` sends it. */
+  function realDeck(collectionId: string, file: string): TableDeck {
+    const collection = collectionOf(collectionId);
+    const entry = collection.decks.find((d) => d.file === file);
+    if (entry === undefined) throw new Error(`no ${file} in ${collectionId}`);
+    const parsed = parseDck(readRepo(deckPath(collection, entry)));
+    // Every library deck names itself — `library.test.ts` refuses one that does
+    // not — so a null here is a broken file, not a case to tolerate.
+    if (parsed.name === null) throw new Error(`${file} has no [metadata] Name`);
+    const lines = (section: string) =>
+      (parsed.sections.get(section) ?? []).map((e) => ({ count: e.count, name: e.card.name }));
+    return {
+      id: entry.id,
+      collection: collection.id,
+      name: parsed.name,
+      format: collection.format,
+      date: collection.date,
+      provenance: 'Transcribed from mtgtop8.',
+      citation: collection.source,
+      main: lines('main'),
+      sideboard: lines('sideboard'),
+    };
+  }
+
+  const UW_DELVER = realDeck('pt-dark-ascension-2012-standard', '6-matthew-costa-uw-delver.dck');
+  const MONO_GREEN = realDeck('scg-kansas-city-2012-standard', '2-nick-marriott-mono-green-infect.dck');
+
+  /** The same answer, from the frozen pool rather than from the shipped slice. */
+  function fromTheFixture(deck: TableDeck): string {
+    const fixture = JSON.parse(readRepo(poolFixturePath(deck.date))) as {
+      manaCost: Record<string, string>;
+    };
+    return deckColorsByName(
+      deck.main.map((l) => l.name),
+      fixture.manaCost,
+    ).join('');
+  }
+
+  const option = (select: HTMLSelectElement, value: string): HTMLOptionElement => {
+    const found = [...select.options].find((o) => o.value === value);
+    if (found === undefined) throw new Error(`no option ${value}`);
+    return found;
+  };
+
+  async function mountWithRealDecks(): Promise<HTMLSelectElement> {
+    await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, MONO_GREEN] });
+    return deckSelect();
+  }
+
+  /** The pips beside the control: one `<span data-color>` per colour, in WUBRG order. */
+  const pips = (): { color: string; glyph: string }[] =>
+    [...screen.getByTestId('deck-mine-colors').querySelectorAll('.deckcolors__pip')].map((el) => ({
+      color: el.getAttribute('data-color') ?? '',
+      glyph: el.querySelector('i')?.className ?? '',
+    }));
+
+  it('a two-colour deck carries two colours, and a mono-colour deck one', async () => {
+    const select = await mountWithRealDecks();
+
+    const two = option(select, UW_DELVER.id);
+    expect(two.dataset['colors']).toBe('WU');
+    expect(two.textContent).toBe(`${UW_DELVER.name} · WU`);
+
+    const one = option(select, MONO_GREEN.id);
+    expect(one.dataset['colors']).toBe('G');
+    expect(one.textContent).toBe(`${MONO_GREEN.name} · G`);
+
+    // Not a second fold, and not a second map: the shipped slice the screen
+    // reads and the frozen pool it was cut from say the same thing, through the
+    // same exported fold.
+    const byMap = (d: TableDeck) =>
+      deckColorsByName(
+        d.main.map((l) => l.name),
+        LIBRARY_CARD_COSTS,
+      ).join('');
+    expect(byMap(UW_DELVER)).toBe('WU');
+    expect(byMap(MONO_GREEN)).toBe('G');
+    expect(fromTheFixture(UW_DELVER)).toBe('WU');
+    expect(fromTheFixture(MONO_GREEN)).toBe('G');
+  });
+
+  it('draws them as the D20 font pips, two for the two-colour deck and one for the mono', async () => {
+    await mountWithRealDecks();
+    // Nothing chosen yet: no pips to draw, and no empty row where they will be.
+    expect(screen.queryByTestId('deck-mine-colors')).toBeNull();
+
+    await pick(UW_DELVER.id);
+    expect(pips()).toEqual([
+      { color: 'W', glyph: 'ms ms-w ms-cost' },
+      { color: 'U', glyph: 'ms ms-u ms-cost' },
+    ]);
+
+    await pick(MONO_GREEN.id);
+    expect(pips()).toEqual([{ color: 'G', glyph: 'ms ms-g ms-cost' }]);
+  });
+
+  it('says the colours in words too, because an option cannot be coloured', async () => {
+    const select = await mountWithRealDecks();
+    await pick(UW_DELVER.id);
+    // Colour is never the only signal: the letters are in the option's own text
+    // and the pips carry an accessible name. An `<option>`'s own colour cannot
+    // be styled portably, so this is the only place either could live.
+    expect(within(screen.getByTestId('deck-mine-colors')).getByLabelText("your deck's colours: W U")).toBeTruthy();
+    expect(option(select, UW_DELVER.id).textContent).toContain('WU');
+  });
+
+  it('a deck with no coloured card in it says colourless rather than nothing', async () => {
+    // `DECKS`' stand-in plays sixty Islands, which is the real shape of this
+    // case: a land contributes no cost, and absence from the map is what
+    // `deckColorsByName` reads as "no coloured pip".
+    const select = await (async () => {
+      await mountRoom({ players: [], matchId: null });
+      return deckSelect();
+    })();
+    expect(option(select, BEN_STARK).dataset['colors']).toBe('');
+    expect(option(select, BEN_STARK).textContent).toBe('Mystic Caw Go (Ben Stark)');
+    await pick(BEN_STARK);
+    expect(pips()).toEqual([]);
+    expect(screen.getByTestId('deck-mine-colors').textContent).toBe('colourless');
   });
 });
