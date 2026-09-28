@@ -420,11 +420,17 @@
 
 /* The leader's own cell in a draft room's member row. Named for the same reason
    `deck-ready` is: an unnamed pill would be auto-placed and the column would
-   wander between the two rows. On the constructed card the pill is not in a
-   grid at all, so it keeps its own width. */
+   wander between the two rows. */
 .pill--leader {
   grid-area: leader;
   justify-self: start;
+}
+
+/* And the same pill on the constructed card, which is a flex COLUMN — a flex
+   item's default `align-self: stretch` would blow an inline-flex pill out to
+   the full width of the card and draw a 300px lozenge round two words. */
+.lobby__card > .pill {
+  align-self: flex-start;
 }
 
 /*

@@ -999,6 +999,9 @@ describe('the table’s pool', () => {
     // And the quietest colouring in the file is its own state, so the two
     // pass/fail colourings still mean exactly what they meant.
     expect(SCREENS_CSS).toMatch(/\.pill\[data-state='leader'\] \{[^}]*border-style: dotted;/);
+    // The card is a flex COLUMN, where a flex item stretches by default — an
+    // inline-flex pill left to that is a 300px lozenge round two words.
+    expect(SCREENS_CSS).toMatch(/\.lobby__card > \.pill \{[^}]*align-self: flex-start;/);
   });
 
   it('names the leader without “(you)” to everybody else', async () => {
