@@ -8,9 +8,16 @@
  * (488 × 680, Scryfall's `normal`), for text tiles too, so a row of cards is
  * one height whether or not a given card has art.
  *
- * Our chrome only: no frames, no mana or tap symbols, no Magic card back, and
- * a player is a circle and a bust we drew rather than an avatar we fetched.
- * The art `<img>` itself is `styles.css`'s `.card__art`, unfiltered.
+ * Our chrome only: no card frames, no Magic card back, and a player is a circle
+ * and a bust we drew rather than an avatar we fetched. The art `<img>` itself is
+ * `styles.css`'s `.card__art`, unfiltered.
+ *
+ * Mana, tap and set SYMBOLS are no longer ours and are not styled here: D20
+ * (operator, 2026-09-27) ships them from the Mana and Keyrune fonts, and
+ * `components/ManaPip.tsx` emits the vendored `ms-…` / `ss-…` classes that
+ * `styles.css` imports. They size off the inherited `font-size`, so a board card
+ * shrinking `--card-w` shrinks its pips with it and this file needs no rule for
+ * them. See `docs/LICENSING.md` §3.2 before changing what ships.
  */
 
 .board-card {

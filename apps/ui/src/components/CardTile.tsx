@@ -4,14 +4,20 @@ import { memo, useMemo } from 'react';
  *
  * ## What this deliberately is not
  *
- * The chrome we draw is not a Magic card frame. No beveled border, no set
- * symbol, no rarity gem, no type icon — the trademark rule is untouched and
- * absolute, and the cheapest way to stay on the right side of it is a layout
- * that could not be mistaken for the printed object: a flat panel, name and cost
- * on one row, type line, rules text, and a stat badge. Colour identity shows as
- * a stripe down the leading edge, which is ours.
+ * The chrome we draw is not a Magic card frame. No beveled border, no type icon,
+ * and the frame itself is still forbidden outright (D20 did not loosen that, nor
+ * the WotC logo or the Magic wordmark): the layout could not be mistaken for the
+ * printed object — a flat panel, name and cost on one row, type line, rules
+ * text, and a stat badge. Colour identity shows as a stripe down the leading
+ * edge, which is ours.
  *
- * Rarity is a letter, not a gem: `C U R M S`.
+ * **Symbols are the fonts' now.** D20 (operator, 2026-09-27) — *"naw we're not
+ * drawing our own"* — so the cost, the inline `{T}` in rules text and the set
+ * symbol in the print line all come from Mana and Keyrune through `ManaPip.tsx`.
+ * See `docs/LICENSING.md` §3.2; the two packs are not the same position.
+ *
+ * Rarity is still a letter, not a gem: `C U R M S`. Keyrune can recolour a set
+ * symbol by rarity and we do not use that — colour would be the only signal.
  *
  * ## The text tile is the card; the art covers it
  *
@@ -28,7 +34,7 @@ import { memo, useMemo } from 'react';
  */
 
 import type { DraftCard } from '../draft/types.ts';
-import { ManaCost, ManaPip } from './ManaPip.tsx';
+import { ManaCost, ManaPip, SetSymbol } from './ManaPip.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
 
 const RARITY_LETTER: Record<string, string> = {
@@ -44,6 +50,12 @@ const RARITY_LETTER: Record<string, string> = {
  * pips as the cost. Without this an activated ability reads `{R}, {T}, Exile…`
  * with literal braces, which is the one place a text-only card actually gets
  * harder to read than a printed one.
+ *
+ * `{T}` has no special case any more. It used to be spelled out as the word TAP,
+ * because the tap symbol was a mark we would not reproduce; D20 ships it from
+ * Mana (`ms-tap`) like every other symbol, so it goes through `ManaPip` too. The
+ * board's own text still writes TAP as a word (`play/Board.tsx`) — that is a
+ * different renderer and a different lane.
  */
 function RulesLine({ line }: { line: string }) {
   const pieces = line.split(/(\{[^}]{1,5}\})/g).filter((p) => p !== '');
@@ -52,14 +64,6 @@ function RulesLine({ line }: { line: string }) {
       {pieces.map((piece, i) => {
         const symbol = /^\{([^}]{1,5})\}$/.exec(piece);
         if (!symbol) return <span key={i}>{piece}</span>;
-        if (symbol[1] === 'T') {
-          // The tap symbol is a WotC mark. This is our word for it.
-          return (
-            <span key={i} className="pip pip--generic pip--wide" title="tap">
-              <span className="pip__label">TAP</span>
-            </span>
-          );
-        }
         return <ManaPip key={i} token={symbol[1]} />;
       })}
     </span>
@@ -143,7 +147,10 @@ function CardTileImpl({ card, onPick, disabled = false }: CardTileProps) {
       </span>
       <span className="card__foot">
         <span className="card__print">
-          {card.setCode} {card.collectorNumber}
+          {/* Keyrune's glyph for the set, with the code itself beside it — a set
+              with no glyph still reads as its code. See SetSymbol. */}
+          <SetSymbol code={card.setCode} label={`set ${card.setCode}`} />{' '}
+          {card.collectorNumber}
           <span className="card__rarity" title={card.rarity}>
             {RARITY_LETTER[card.rarity] ?? '?'}
           </span>
