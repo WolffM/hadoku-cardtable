@@ -4,6 +4,51 @@
  *
  * ## The baseline
  *
+ * Re-recorded in Wave 27 for `3bb983d` (lane A: a lane's `flex-grow` stopped
+ * being its PILE count and became the COLUMNS it draws, and `--rows` became one
+ * decision per battlefield instead of one per lane — the budget bug that let a
+ * two-row lane ask for two rows of width and spend one, starving its neighbour
+ * down to 27px cards). That commit does not own this file, so the pin is
+ * re-recorded here immediately after it, as the paragraph below prescribes.
+ * 42233 -> 42286, and every one of the 53 characters is accounted for:
+ *
+ *   +28  the two `<ul class="zone__rows">` gained `style="--cols:N"`. This is
+ *        the fix itself: the zone decides `--rows` once, so the zone is where
+ *        the total column count has to be written. CSS could not take it —
+ *        a lane is `contain: size`, so nothing inside one contributes to its
+ *        width, and no selector sums across the four lanes.
+ *   -18  six lanes swapped `style="flex-grow:N"` (11 chars) for
+ *        `style="--cols:N"` (8). The other two lanes' swaps are folded into
+ *        the +28 above, because each is the same tag as its `zone__rows`.
+ *   +17  the viewer's hand list gained `style="--cols:5"`. Graveyards and
+ *        exiles did NOT: they are piles sized by `--pile-w`, so `--cols` there
+ *        would be dead markup — and writing it would have made this delta
+ *        roughly +150 instead of +53.
+ *   +26  four `<span>` wrappers, and these are §A.7: `inOurWords` no longer
+ *        rewrites `{T}` to the literal word `TAP`, so rules text is now split
+ *        into `ManaPip` symbols and `<span>` text pieces. `ms-tap` appears 10
+ *        times both before and after and the word `TAP` zero times both times —
+ *        this fixture's text carries no `{T}` at all, so what the pin sees of
+ *        §A.7 is the span split, not the symbol.
+ *   ─────
+ *   +53  42233 -> 42286, and 28 - 18 + 17 + 26 = 53 exactly.
+ *
+ * Checked the strong way the paragraph below demands, and the answer is
+ * narrower than lane A predicted. Of the five files the pin depends on, only
+ * two moved this wave: `../Board.tsx` (lane A) and `../../components/CardTile.tsx`
+ * (lane F, which wired hover/select sound cues). Reverting `CardTile.tsx` ALONE
+ * leaves 42286 — F moved nothing here, because a cue is an event handler and an
+ * event handler is not markup. Reverting `../Board.tsx` alone makes this test
+ * PASS at 42233. So the whole +53 is lane A's, and `../adapter.ts`,
+ * `../fixtures.ts` and `ManaPip.tsx` did not move.
+ *
+ * Lane D deleted `styles.css`'s 16 pre-D20 `.pip` rules this wave and that is
+ * invisible here, as it must be: Wave 26's note below predicted the
+ * `display: contents` shim would "collapse once that section is gone", but the
+ * shim lives in `ManaPip.tsx`, which no lane owned, so it is still emitted on
+ * every pip. The 2537 characters it costs are still in this number. Deleting
+ * it is a later wave's, and it will move this pin again.
+ *
  * Re-recorded in Wave 26 for `473571d` (lane C: every mana pip, the tap symbol
  * and the set symbols became Keyrune/Mana glyphs under D20) and `f6d15b6`
  * (lane A: the table re-blocked as the operator drew it — four rows with the
@@ -161,8 +206,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = 'ed0ff2971f6d6d054103a509db1264a21cd0d43a38c4e485de8adb09a723bf81';
-const BASELINE_LENGTH = 42233;
+const BASELINE_SHA256 = '02b147b2b22474ae7fcf8a8862628e43280a6b5e9a19aab246f2b23aa9c350e1';
+const BASELINE_LENGTH = 42286;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));
