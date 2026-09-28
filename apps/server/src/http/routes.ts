@@ -34,6 +34,32 @@
  * drops every deck hold and both readiness flags — so the verdict this file
  * holds was always taken in the pool the room is on now.
  *
+ * ## A room's pool is a frozen era OR a DRAFTED pool (wave 26 §F)
+ *
+ * Wave 25 left a hole nobody had noticed: a room's pool was a `FormatId`, a
+ * match against a person starts from a room, and a drafted pool could not be
+ * named as a room's pool — so for a project whose first line is "cube drafting
+ * + Magic play for a private friend group", the two halves had never met. A
+ * room's pool is now either a frozen era's date or `draft:<podId>`
+ * (`room/lobby.ts`'s `draftPoolId` / `draftIdOfPool`), and `roomRules` turns it
+ * into the gate's own `{ kind: 'standard' }` or `{ kind: 'draft' }`.
+ *
+ * **The room owns the POD; each player owns their own 45.** That is the whole
+ * property, and it is why the resolution had to move from the request to the
+ * person. A `{ kind: 'draft' }` rule resolves the pool of one named participant
+ * (`draftPoolForMember`), and `RoomMember.id` is minted by the same
+ * `identityFromHeaders` the draft socket seats people with, so the room already
+ * knows which pool belongs to which of its two players. `startFromRoom`
+ * therefore checks each stored deck in `contextFor(thatPlayer)` — never in the
+ * requester's — so whoever presses start cannot have the other player's deck
+ * measured against their own pool, and cannot learn a card of it either: the
+ * refusal names the player and the pool and never the card.
+ *
+ * What this does NOT do is invent a shared pool. There is no path here that
+ * reads one player's cards for another, and a player with no seat in the pod
+ * gets the gate's own first-person refusal ("you have no seat in draft …")
+ * rather than somebody else's cards.
+ *
  * ## A table belongs to a room, and each player loads their OWN deck
  *
  * Wave 13's inversion (`docs/handoff/w13.md` §C). Before it, one person chose
@@ -47,14 +73,14 @@
  *
  * **A deck is checked when it is loaded AND again at the start, both times
  * against the room's pool.** The re-check is what makes the pool a property of
- * the table rather than of a seat: it is the same pool for both decks and it
+ * the table rather than of a seat: it is the same RULE for both decks and it
  * does not depend on who pressed the button, so it cannot answer two players two
- * different things. That is only true because the rule is the room's — a
- * `{ kind: 'draft' }` rule resolves the pool of whoever made the REQUEST, so a
- * re-check of that would tell the starter "you have no seat in draft …" about a
- * deck that was legal when its owner loaded it. Which is also why a drafted deck
- * is not brought to a room table at all: `POST /api/play/matches` with `seats`
- * against the AI is that path, and it still carries `rules` per seat.
+ * different things. Wave 25 could only say that of a frozen era, because a
+ * `{ kind: 'draft' }` rule resolved the pool of whoever made the REQUEST — so a
+ * re-check would have told the starter "you have no seat in draft …" about a deck
+ * that was legal when its owner loaded it. Wave 26 §F fixed the resolution rather
+ * than banning the pool: the rule is re-checked once PER PLAYER, each in that
+ * player's own context, so a drafted pool is a room's pool like any other.
  *
  * What goes to Forge is the stored text, byte for byte the text the gate
  * validated, so there is still exactly one reader (§C.4).
@@ -100,6 +126,7 @@ import express, { type NextFunction, type Request, type Response, type Router } 
 import type { DraftRooms } from '../room/draftRooms.js';
 import { viewForParticipant } from '../room/draftRooms.js';
 import { identityFromHeaders } from '../room/identity.js';
+import { draftIdOfPool, draftPoolId } from '../room/lobby.js';
 import {
 	checkSeat,
 	parseDeckRef,
@@ -192,22 +219,46 @@ function defaultLog(entry: Record<string, unknown>): void {
 }
 
 /**
- * The caller's own drafted pool, found by their derived identity.
+ * ONE PERSON's drafted pool, by the participant id that person is known by.
  *
- * The socket id argument is only reached when the edge named nobody, and then
- * the id is ephemeral and random, so it matches no seat — which is the right
- * answer for someone the edge could not name.
+ * **This is the function the whole drafted-pool table rests on, and the
+ * argument is why.** A drafted pool belongs to whoever drafted it, so the pool
+ * has to be found by a PERSON and not by a request — otherwise checking two
+ * players' decks at a start would check both against whoever pressed the
+ * button, and the second player's deck would be measured against a pool they
+ * have never seen. `RoomMember.id` is minted by `identityFromHeaders`
+ * (`room/lobby.ts`), which is the same derivation the draft socket seats people
+ * with, so a room member's id IS the pod participant id `viewForParticipant`
+ * takes. The room therefore already knows, for each of its two players, exactly
+ * which pool is theirs.
+ *
+ * `viewForParticipant` stays the only resolver. It answers from `seatOf` — the
+ * seat this participant HOLDS — so a pool is never read out of the seat table's
+ * `remembered` map, which can name a seat somebody else has since taken and
+ * would hand one player another's cards. The cost is stated rather than worked
+ * around: a drafter who is not currently seated in the pod has no pool here,
+ * and the answer says so.
  */
-function draftPoolFor(req: Request, rooms: DraftRooms | null): DraftPoolLookup | null {
+function draftPoolForMember(memberId: string, rooms: DraftRooms | null): DraftPoolLookup | null {
 	if (rooms === null) return null;
 	return (draftId) => {
 		const room = rooms.find(draftId);
 		if (room === undefined) return { ok: false, error: `no draft ${JSON.stringify(draftId)} on this server` };
-		const participant = identityFromHeaders(req.headers, `http-${randomUUID()}`);
-		const view = viewForParticipant(room, participant);
+		const view = viewForParticipant(room, memberId);
 		if (view.viewer.kind !== 'seat') return { ok: false, error: `you have no seat in draft ${JSON.stringify(draftId)}` };
 		return { ok: true, pool: view.viewer.pool };
 	};
+}
+
+/**
+ * The caller, by the derivation lane A mints `RoomMember.id` with.
+ *
+ * The socket id argument is only reached when the edge named nobody, and then
+ * the id is ephemeral and random, so it matches no seat and no member — which
+ * is the right answer for someone the edge could not name.
+ */
+function callerIdOf(req: Request): string {
+	return identityFromHeaders(req.headers, `http-${randomUUID()}`);
 }
 
 /* ── what a room holds for each player ───────────────────────────────── */
@@ -296,24 +347,80 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	const library = deps.library ?? loadTablesLibrary(deps.repoRoot);
 	log({ evt: 'library', formats: library.formats.length, decks: library.decks.length, faults: library.faults });
 
-	const context = (req: Request): GateContext => ({ library, draftPool: draftPoolFor(req, deps.draftRooms) });
+	/**
+	 * The gate, as ONE NAMED PERSON sees it. `contextFor(me)` checks a deck
+	 * against my pool; `contextFor(theOtherPlayer)` against theirs. Nothing here
+	 * takes a request, so there is no way to check somebody else's deck against
+	 * the requester's pool by forgetting to pass an argument.
+	 */
+	const contextFor = (memberId: string): GateContext => ({
+		library,
+		draftPool: draftPoolForMember(memberId, deps.draftRooms),
+	});
+
+	/** The gate as the CALLER sees it: for the routes whose deck is the caller's own. */
+	const context = (req: Request): GateContext => contextFor(callerIdOf(req));
 
 	/* ── the catalog ────────────────────────────────────────────────── */
 
 	const tables = express.Router();
 	tables.use(express.json({ limit: '256kb' }));
 
-	tables.get('/formats', (_req: Request, res: Response) => {
+	/**
+	 * The pods THIS CALLER is seated in, as pools a room can be put on.
+	 *
+	 * A drafted pool is a pool a table can play in, so it is offered in the same
+	 * list and the same shape as a frozen era — one vocabulary for the room
+	 * screen's picker, one `poolLabel`, no second type on the wire. `source` is
+	 * `'draft'`, which is how a client tells the two apart when it cares.
+	 *
+	 * **Caller-scoped, and it is the caller's own seats and nobody else's.** The
+	 * list is built from `viewForParticipant`, so it says nothing about who else
+	 * drafted; `cardCount` is the size of the caller's OWN pool, which is their
+	 * own hidden information, and no card name is in it.
+	 *
+	 * **They go FIRST, not last.** `newestFormat` — on both sides — is
+	 * `formats.at(-1)`, the newest frozen era, and that is the default a new room
+	 * opens on and the fallback a browser uses before the room has answered. A
+	 * pod appended to the end would silently become "the newest pool" for every
+	 * room in the lobby. `effective` is empty for a pod, so first is also where
+	 * the documented "oldest first" ordering puts something with no date.
+	 */
+	function draftedPoolsFor(req: Request): Record<string, unknown>[] {
+		const draftRooms = deps.draftRooms;
+		if (draftRooms === null) return [];
+		const me = callerIdOf(req);
+		const offered: Record<string, unknown>[] = [];
+		for (const room of draftRooms.all()) {
+			const view = viewForParticipant(room, me);
+			if (view.viewer.kind !== 'seat') continue;
+			offered.push({
+				id: draftPoolId(room.roomId),
+				name: `Cube draft ${room.roomId}`,
+				effective: '',
+				sets: [],
+				banned: [],
+				cardCount: view.viewer.pool.length,
+				source: 'draft',
+			});
+		}
+		return offered;
+	}
+
+	tables.get('/formats', (req: Request, res: Response) => {
 		res.json({
-			formats: library.formats.map((f) => ({
-				id: f.id,
-				name: f.fixture.name,
-				effective: f.fixture.effective,
-				sets: f.fixture.sets,
-				banned: f.fixture.banned,
-				cardCount: f.fixture.cards.length,
-				source: f.fixture.source,
-			})),
+			formats: [
+				...draftedPoolsFor(req),
+				...library.formats.map((f) => ({
+					id: f.id,
+					name: f.fixture.name,
+					effective: f.fixture.effective,
+					sets: f.fixture.sets,
+					banned: f.fixture.banned,
+					cardCount: f.fixture.cards.length,
+					source: f.fixture.source,
+				})),
+			],
 		});
 	});
 
@@ -353,9 +460,6 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 
 	const rooms = deps.rooms ?? null;
 
-	/** The caller, by the derivation lane A mints `RoomMember.id` with. */
-	const memberIdOf = (req: Request): string => identityFromHeaders(req.headers, `http-${randomUUID()}`);
-
 	/**
 	 * The room this caller may act in, or null. One answer covers "no such
 	 * room" and "you are not in it": a different one would say which rooms
@@ -365,7 +469,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		if (rooms === null) return null;
 		const room = rooms.get(roomId);
 		if (room === undefined) return null;
-		const me = memberIdOf(req);
+		const me = callerIdOf(req);
 		if (!room.members.some((m) => m.id === me)) return null;
 		return { room, me };
 	}
@@ -390,6 +494,21 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	}
 
 	/**
+	 * The room's pool, in words, as a sentence ABOUT SOMEBODY ELSE can use it.
+	 *
+	 * Not `SeatVerdict.rulesName`: the draft arm writes that in the first person
+	 * (`your pool from …`, because a verdict is only ever shown to the person
+	 * whose deck it is), and the start refusal and the other player's row are
+	 * both third-person. A pool this server does not have is named by its id
+	 * rather than blank — `unknownPool` is what refuses on it.
+	 */
+	function poolName(room: RoomViewLike): string {
+		const draftId = draftIdOfPool(room.format);
+		if (draftId !== null) return `their own pool from ${draftId}`;
+		return library.format(room.format)?.pool.name ?? room.format;
+	}
+
+	/**
 	 * What both players may see: who has chosen what, whether it is legal,
 	 * whether they are ready.
 	 *
@@ -397,7 +516,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * draft verdict names cards the other player did or did not draft, and a
 	 * drafted pool is hidden information until the draft is over — the same
 	 * reason `gate.ts` resolves a pool by the caller's identity and never by a
-	 * seat number.
+	 * seat number. `rulesName` follows the same split: your own is your verdict's
+	 * own words, and somebody else's is the ROOM's pool in the third person.
 	 */
 	function tableView(room: RoomViewLike, me: string): Record<string, unknown> {
 		const players = rooms === null ? [] : playersOf(rooms, room);
@@ -409,6 +529,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// The pool both decks are checked in. The screen shows it, and only the
 				// leader's copy of the screen may change it (`PATCH /api/rooms/:id`).
 				format: room.format,
+				// The pod behind a drafted pool, or null for a frozen era. Derived from
+				// `format` and sent anyway, so a client does not have to know the
+				// spelling of the prefix to draw a table on a drafted pool.
+				draftId: draftIdOfPool(room.format),
 				matchId: liveMatchId(room),
 				seats: TABLE_SEATS,
 			},
@@ -422,7 +546,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				name: p.member.name,
 				you: p.member.id === me,
 				deckName: p.state.verdict.deckName,
-				rulesName: p.state.verdict.rulesName,
+				rulesName: p.member.id === me ? p.state.verdict.rulesName : poolName(room),
 				legal: p.state.verdict.legal,
 				issueCount: p.state.verdict.issues.length,
 				ready: p.state.ready,
@@ -445,11 +569,17 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	}
 
 	/**
-	 * The rules every deck at this room's table is checked against. One pool, both
-	 * seats, whoever is asking.
+	 * The rules every deck at this room's table is checked against.
+	 *
+	 * One RULE, both seats, whoever is asking — and for a drafted pool that rule
+	 * still resolves to two different card lists, because the draft arm resolves
+	 * per person (`draftPoolForMember`). The thing the room owns is the POD, not
+	 * the cards: nobody at this table can be checked against a pod they did not
+	 * draft in, and nobody can be checked against another player's 45.
 	 */
 	function roomRules(room: RoomViewLike): DeckRules {
-		return { kind: 'standard', format: room.format };
+		const draftId = draftIdOfPool(room.format);
+		return draftId === null ? { kind: 'standard', format: room.format } : { kind: 'draft', draftId };
 	}
 
 	/**
@@ -458,10 +588,23 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * a room restored from a build whose pools this one no longer ships, and to a
 	 * server with no `decks/pools` at all — where the lobby says `unavailable`
 	 * rather than inventing a date.
+	 *
+	 * For a DRAFTED pool the missing thing is the pod, and a pod is in memory
+	 * only (`room/draftRooms.ts` keeps no disk state), so this is also the answer
+	 * after a restart — the same 409, the same shape, a sentence naming what is
+	 * gone. Whether the CALLER has a seat in that pod is not asked here: that is
+	 * a fact about a person, it differs between the two players, and the gate's
+	 * own refusal says it in the first person.
 	 */
-	function unknownFormat(room: RoomViewLike, res: Response): boolean {
-		if (library.format(room.format) !== undefined) return false;
-		res.status(409).json({ error: `this room's format ${JSON.stringify(room.format)} is not one this server has` });
+	function unknownPool(room: RoomViewLike, res: Response): boolean {
+		const draftId = draftIdOfPool(room.format);
+		if (draftId === null) {
+			if (library.format(room.format) !== undefined) return false;
+			res.status(409).json({ error: `this room's format ${JSON.stringify(room.format)} is not one this server has` });
+			return true;
+		}
+		if (deps.draftRooms?.find(draftId) !== undefined) return false;
+		res.status(409).json({ error: `this room's draft ${JSON.stringify(draftId)} is not one this server has` });
 		return true;
 	}
 
@@ -491,7 +634,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(400).json({ error: parsed.error });
 			return;
 		}
-		if (unknownFormat(room, res)) return;
+		if (unknownPool(room, res)) return;
 		const seat: SeatRequest = { deck: parsed.deck, rules: roomRules(room) };
 		const players = playersOf(rooms, room);
 		const mine = players.find((p) => p.member.id === me);
@@ -646,18 +789,34 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		//
 		// A guard, not a verdict: the sentence names the PLAYER and the pool and
 		// never the card, because naming somebody else's offending card would
-		// report their deck to whoever pressed the button.
-		if (unknownFormat(room, res)) return;
-		const ctx = context(req);
+		// report their deck to whoever pressed the button. That holds for a drafted
+		// pool too, and matters more there: the whole pool is hidden information
+		// until the draft is over, so a card in the refusal would report what
+		// somebody drafted to whoever pressed start.
+		//
+		// **Each deck in ITS OWN OWNER's context** (`contextFor(player.member.id)`,
+		// not `context(req)`). For a frozen era the two contexts resolve the same
+		// list and the distinction is invisible; for a drafted pool it is the
+		// difference between a working table and a broken one — with the requester's
+		// context, whoever pressed start would have the OTHER player's deck measured
+		// against their own 45 and every card of it would read `plays 1x X but
+		// drafted 0`. The gate's draft arm was always per caller (`gate.ts`, "Why
+		// the draft arm checks only your own pool"); what wave 25 left missing was a
+		// caller for the seat that is not making the request, and a room member's id
+		// is exactly that.
+		if (unknownPool(room, res)) return;
 		for (const player of players) {
-			const verdict = checkSeat({ deck: { dck: player.state.text }, rules: roomRules(room) }, ctx);
+			const verdict = checkSeat(
+				{ deck: { dck: player.state.text }, rules: roomRules(room) },
+				contextFor(player.member.id),
+			);
 			if ('error' in verdict) {
 				res.status(409).json({ error: `this room's table cannot be checked: ${verdict.error}` });
 				return;
 			}
 			if (!verdict.legal) {
 				log({ evt: 'room-start-refused', room: room.id, issues: verdict.issues.length });
-				res.status(422).json({ error: `${player.member.name}'s deck is not legal in ${verdict.rulesName}` });
+				res.status(422).json({ error: `${player.member.name}'s deck is not legal in ${poolName(room)}` });
 				return;
 			}
 		}

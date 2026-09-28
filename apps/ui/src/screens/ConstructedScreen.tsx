@@ -124,11 +124,17 @@
  * It points back at the room list rather than rendering a table with no room.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+
+import { basicLand, mainDeckSize, moveToMain, setBasicLand, type Deck } from '@hadoku/deck';
 
 import { navigate } from './route.ts';
 import { PodScreen } from './PodScreen.tsx';
-import type { DraftTransport } from '../draft/socket.ts';
+import { SetSymbol } from '../components/ManaPip.tsx';
+import { cardIndex, mainSummary } from '../deck/build.ts';
+import { deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
+import { closeDraft, startDraft, type DraftTransport, type SocketDraft } from '../draft/socket.ts';
+import type { DraftCard } from '../draft/types.ts';
 import {
   roomsClient,
   streamPath,
@@ -146,6 +152,7 @@ import {
   pickRandom,
   secureRandom,
   tablesClient,
+  type DeckRef,
   type LegalSweep,
   type RoomPlayer,
   type RoomTable,
@@ -191,6 +198,118 @@ type Loaded = { formats: TableFormat[]; decks: TableDeck[] };
 function poolLabel(formats: readonly TableFormat[], id: string): string {
   const found = formats.find((f) => f.id === id);
   return found === undefined ? id : `${found.id} — ${found.name}`;
+}
+
+/* ── a room on a DRAFTED pool (wave 26 §F) ────────────────────────────── */
+
+/** What makes a room's pool a pod rather than a frozen era. The server's own spelling. */
+const DRAFT_POOL_PREFIX = 'draft:';
+
+/** The option value for "the cards I drafted". Not a library id, like `RANDOM_DECK`. */
+export const DRAFTED_DECK = '__drafted__';
+
+/** Basics in an auto-built limited deck: the limited convention, one number. */
+export const DRAFTED_BASICS = 17;
+
+const BASIC_FOR: Record<'W' | 'U' | 'B' | 'R' | 'G', string> = {
+  W: 'Plains',
+  U: 'Island',
+  B: 'Swamp',
+  R: 'Mountain',
+  G: 'Forest',
+};
+
+/**
+ * The pod behind a room's drafted pool id, or null for a frozen era.
+ *
+ * A MIRROR of the server's `draftIdOfPool` (`apps/server/src/room/lobby.ts`),
+ * including the room-id shape, and it is a mirror rather than a shared function
+ * because the string lives in a server package this browser app does not import.
+ * It is used only to decide what to draw and which pod to open a socket on — the
+ * server re-derives it for every decision that matters, so a browser that read
+ * this wrong would draw the wrong picker and could still not check a deck against
+ * the wrong pool.
+ */
+export function draftPoolPod(poolId: string): string | null {
+  if (!poolId.startsWith(DRAFT_POOL_PREFIX)) return null;
+  const draftId = poolId.slice(DRAFT_POOL_PREFIX.length);
+  return /^[a-z0-9-]{1,40}$/.test(draftId) ? draftId : null;
+}
+
+/**
+ * A playable deck out of a drafted pool, with no choices asked.
+ *
+ * The room screen has a deck DROPDOWN, not a deck builder: `#/deck/<podId>`
+ * is where a pool is refined into forty cards, and duplicating that here would
+ * be a second builder to keep correct. So the one thing this offers is "the cards
+ * I drafted", and it has to be a deck Forge can actually play — which means
+ * lands, because a maindeck of 45 spells and no lands is legal by every rule we
+ * check and unplayable at the table.
+ *
+ * Everything drafted goes in the maindeck (45 ≥ `LIMITED_MIN_MAIN_DECK_SIZE`, and
+ * a card you did not draft has no way in — `newDeck` opens with the pool
+ * sideboarded and only `moveToMain` moves anything), and `DRAFTED_BASICS` basics
+ * are split by the maindeck's own coloured pips. The basics come from the table
+ * rather than the pool, which is what `setBasicLand` is and what the gate's
+ * `splitBasicLands` exempts from the pool check.
+ *
+ * Largest-remainder, not `round` per colour: rounding five shares independently
+ * gives 16 or 18 lands as often as 17, and the deck the person plays should have
+ * the number of lands it says it has.
+ */
+export function draftedDeckOf(draftId: string, pool: readonly DraftCard[]): Deck {
+  let deck = deckFromPool(draftId, pool);
+  for (const entry of [...deck.sideboard]) deck = moveToMain(deck, entry.card, entry.count);
+
+  const { pips } = mainSummary(deck, cardIndex(pool));
+  const colors = Object.keys(BASIC_FOR) as (keyof typeof BASIC_FOR)[];
+  const total = colors.reduce((n, c) => n + pips[c], 0);
+  if (total === 0) return deck;
+
+  const exact = colors.map((c) => ({ color: c, want: (DRAFTED_BASICS * pips[c]) / total }));
+  const counts = new Map(exact.map((e) => [e.color, Math.floor(e.want)]));
+  let left = DRAFTED_BASICS - [...counts.values()].reduce((a, b) => a + b, 0);
+  for (const e of [...exact].sort((a, b) => b.want - Math.floor(b.want) - (a.want - Math.floor(a.want)))) {
+    if (left <= 0) break;
+    counts.set(e.color, (counts.get(e.color) ?? 0) + 1);
+    left -= 1;
+  }
+  for (const [color, count] of counts) {
+    if (count > 0) deck = setBasicLand(deck, basicLand(BASIC_FOR[color]), count);
+  }
+  return deck;
+}
+
+/**
+ * The era's sets, as symbols. Operator: *"constructed selections should show the
+ * set symbols that are in that era."*
+ *
+ * `GET /api/tables/formats` already sends each era's `sets`, so this is C's
+ * `SetSymbol` on that list and nothing more — no host, no image, no WotC file: a
+ * Keyrune glyph with the raw code beside it (D20, `docs/LICENSING.md` §3.2).
+ * A drafted pool has no set list and draws nothing, which is the truth about it:
+ * a cube is not an era.
+ */
+/**
+ * The label on the pool control. Two kinds of pool, two nouns.
+ *
+ * "Matched Standard" is the operator's own words for the frozen eras and it stays
+ * exactly what it was; a room on a pod is not playing Standard and saying so
+ * would be wrong on the screen that sets it.
+ */
+function poolFieldLabel(pod: string | null): string {
+  return pod === null ? 'Matched Standard' : 'Drafted pool';
+}
+
+function PoolSets({ format }: { format: TableFormat | null }) {
+  if (format === null || format.sets.length === 0) return null;
+  return (
+    <p className="lobby__sets" data-testid="pool-sets" data-sets={format.sets.join(' ')}>
+      {format.sets.map((code) => (
+        <SetSymbol key={code} code={code} />
+      ))}
+    </p>
+  );
 }
 
 export function ConstructedScreen({
@@ -331,6 +450,17 @@ function RoomTableScreen({
    * every room used to open (operator, 2026-09-27: newest).
    */
   const poolId = view?.format !== undefined && view.format !== '' ? view.format : newestFormat(loaded?.formats ?? []);
+  /**
+   * The pod this table drafts from, or null for a frozen era (wave 26 §F).
+   *
+   * Everything a drafted pool changes on this screen hangs off this one value:
+   * the deck dropdown offers your own drafted cards instead of the library, the
+   * per-deck legality sweep does not run (the library is not in a cube pool and
+   * asking would be 26 refusals), and the pod's socket is opened below.
+   */
+  const pod = draftPoolPod(poolId);
+  /** The pool's own catalogue row: its name, and for an era its set list. */
+  const poolFormat = loaded?.formats.find((f) => f.id === poolId) ?? null;
 
   // The formats and the decks — for a constructed table only. A draft room has
   // no deck to hold, and `routes.ts` refuses every table write it could make.
@@ -473,6 +603,54 @@ function RoomTableScreen({
     };
   }, [rooms, roomId, pollMs]);
 
+  /*
+   * The pod's socket, for a room on a DRAFTED pool — and it is not only how the
+   * screen learns your cards.
+   *
+   * **Being connected is what makes your pool findable at all.** The gate resolves
+   * a drafted pool through the seat you HOLD (`viewForParticipant`, over `seatOf`),
+   * and a drafter who walks away from `#/deck/<podId>` or the pod screen has their
+   * seat vacated after the disconnect grace — so the server would answer "you have
+   * no seat in draft …" about cards you really did draft. Joining a pod you already
+   * sit in reclaims your remembered seat and answers with your own pool
+   * (`apps/server/src/room/socket.ts`, the `join` case), which is the same thing
+   * `DeckScreen` relies on and says so in its header.
+   *
+   * One socket, only while it is needed: no pod, a draft room (its own screen owns
+   * the pod), or a streamed room, and nothing is opened.
+   */
+  const [draft, setDraft] = useState<SocketDraft | null>(null);
+  const [, draftTicked] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    // `modeRef` rather than the `streamed` binding below: this effect sits above
+    // it, and the ref is the latched answer either way.
+    if (pod === null || draftRoom || modeRef.current === 'streamed') {
+      setDraft(null);
+      return;
+    }
+    const live = startDraft({ draftId: pod, transport: makeTransport?.(), onChange: () => draftTicked() });
+    setDraft(live);
+    return () => {
+      closeDraft(live);
+      setDraft(null);
+    };
+  }, [pod, draftRoom, resolved, makeTransport]);
+
+  /**
+   * Whether the pod has answered AT ALL — which is a different question from
+   * whether it gave you a seat, and the two are different sentences to a person.
+   * `SocketDraft` is mutated in place and re-renders through `draftTicked`, so
+   * this is read every render rather than keyed on the object's identity.
+   */
+  const podAnswered = draft !== null && draft.view !== null;
+  /** The cards YOU drafted, as the pod answered them. Null until it has. */
+  const myPool = draft?.view?.viewer.kind === 'seat' ? draft.view.viewer.pool : null;
+  /** Your drafted pool as a deck Forge can play. Rebuilt only when the pool changes. */
+  const draftedDeck = useMemo(
+    () => (pod === null || myPool === null || myPool.length === 0 ? null : draftedDeckOf(pod, myPool)),
+    [pod, myPool],
+  );
+
   const players = table?.players ?? [];
   const mine = players.find((p) => p.you) ?? null;
   const matchId = table?.room.matchId ?? null;
@@ -489,7 +667,10 @@ function RoomTableScreen({
   // locked room and a spectator ask nothing. The leader moving the pool re-runs
   // it, which is what narrows the dropdown for everybody in the room.
   useEffect(() => {
-    if (!picking || loaded === null || poolId === '') return;
+    // A drafted pool asks nothing: the library is 60-card Standard and a cube pool
+    // holds none of it, so the sweep would be one refusal per deck and would narrow
+    // the list to nothing anyway. `deckOptions` offers your own drafted cards there.
+    if (!picking || loaded === null || poolId === '' || pod !== null) return;
     const cached = sweeps.current.get(poolId);
     if (cached !== undefined) {
       setLegal(cached);
@@ -508,7 +689,7 @@ function RoomTableScreen({
     return () => {
       live = false;
     };
-  }, [picking, loaded, poolId, client]);
+  }, [picking, loaded, poolId, pod, client]);
 
   /** The decks on offer, or null while the pool's answer is still in flight. */
   const offered = useMemo(
@@ -519,14 +700,33 @@ function RoomTableScreen({
     [legal, poolId, loaded],
   );
 
+  /**
+   * What the deck dropdown offers, or null while the answer is in flight.
+   *
+   * One list for two kinds of pool, because the control is one control: an era
+   * offers the library decks legal in it, a pod offers the cards you drafted, and
+   * both are `{ value, label }` rows the same `<select>` renders. Null keeps the
+   * select disabled — an option list assembled before the answer would offer
+   * decks the pool does not have — and for a pod the answer is the pod's, which
+   * arrives over the socket rather than over HTTP.
+   */
+  const deckOptions = useMemo<{ value: string; label: string }[] | null>(() => {
+    if (pod !== null) {
+      if (!podAnswered) return null;
+      if (draftedDeck === null) return [];
+      return [{ value: DRAFTED_DECK, label: `Your drafted pool — ${mainDeckSize(draftedDeck)} cards` }];
+    }
+    return offered === null ? null : offered.map((d) => ({ value: d.id, label: d.name }));
+  }, [pod, podAnswered, draftedDeck, offered]);
+
   // A deck the new pool does not offer is no longer chosen. The `PUT` under the
   // new rules has already gone (the re-send below), so its verdict is on the
   // screen saying which card is the problem; what this does is stop Ready
   // coming back to life over a deck the list no longer contains.
   useEffect(() => {
-    if (offered === null || deckId === '') return;
-    if (!offered.some((d) => d.id === deckId)) setDeckId('');
-  }, [offered, deckId]);
+    if (deckOptions === null || deckId === '') return;
+    if (!deckOptions.some((o) => o.value === deckId)) setDeckId('');
+  }, [deckOptions, deckId]);
 
   // The match the server started — for whoever pressed nothing, too.
   useEffect(() => {
@@ -599,7 +799,10 @@ function RoomTableScreen({
     if (restored.current || mine === null || mine.choice === null) return;
     const { deck } = mine.choice;
     restored.current = true;
+    // A `{ dck }` hold at a room table is a drafted deck — the only thing on this
+    // screen that sends one — so the picker opens on that option rather than blank.
     if ('library' in deck) setDeckId(deck.library);
+    else setDeckId(DRAFTED_DECK);
   }, [mine]);
 
   const apply = (outcome: Awaited<ReturnType<TablesClient['table']>>): void => {
@@ -618,14 +821,28 @@ function RoomTableScreen({
    * server refuses a body that names one — so there is no way for this call to
    * check a deck against anything but what the table is on.
    */
-  const loadDeck = (deck: string): void => {
+  const loadDeckRef = (deck: DeckRef): void => {
     setBusy(true);
     setActionError(null);
     client
-      .loadDeck(roomId, { library: deck })
+      .loadDeck(roomId, deck)
       .then(apply)
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
+  };
+
+  /**
+   * The chosen option as a deck reference.
+   *
+   * `DRAFTED_DECK` is the only value that is not a library id, and it becomes the
+   * `.dck` text of your own drafted pool — the same writer `#/deck/<podId>` uses
+   * (`dckTextOf`), so the server checks and Forge plays the same bytes either
+   * route. Null when the choice cannot be turned into a deck yet, which is a
+   * drafted option before the pod has answered.
+   */
+  const deckRefOf = (value: string): DeckRef | null => {
+    if (value !== DRAFTED_DECK) return { library: value };
+    return draftedDeck === null ? null : { dck: dckTextOf(draftedDeck) };
   };
 
   /**
@@ -635,10 +852,12 @@ function RoomTableScreen({
    * what the dropdown then reads.
    */
   const chooseDeck = (value: string): void => {
-    const chosen = value === RANDOM_DECK ? pickRandom(offered ?? [], rand)?.id : value;
+    const chosen = value === RANDOM_DECK ? pickRandom(deckOptions ?? [], rand)?.value : value;
     if (chosen === undefined || chosen === '') return;
+    const ref = deckRefOf(chosen);
+    if (ref === null) return;
     setDeckId(chosen);
-    loadDeck(chosen);
+    loadDeckRef(ref);
   };
 
   /**
@@ -686,10 +905,12 @@ function RoomTableScreen({
     const before = seenPool.current;
     seenPool.current = poolId;
     if (before === null || before === poolId) return;
-    // `loadDeck` closes over `client` and `roomId`, which are this screen's own
+    // `loadDeckRef` closes over `client` and `roomId`, which are this screen's own
     // props and do not change under it, so it is not a dependency.
-    if (deckId !== '') loadDeck(deckId);
-  }, [picking, poolId, deckId]);
+    if (deckId === '') return;
+    const ref = deckRefOf(deckId);
+    if (ref !== null) loadDeckRef(ref);
+  }, [picking, poolId, deckId, draftedDeck]);
 
   const setReady = (ready: boolean): void => {
     setBusy(true);
@@ -889,8 +1110,15 @@ function RoomTableScreen({
                   {iAmLeader ? (
                     <>
                       <label className="lobby__field" htmlFor="format">
-                        Matched Standard
+                        {poolFieldLabel(pod)}
                       </label>
+                      {/* Two groups, because a room's pool is a frozen era OR a pod
+                          the people in it drafted (wave 26 §F) and the picker is the
+                          one control for both. The pods are the CALLER's own seats —
+                          the server scopes that list, so a leader is never offered a
+                          pod they did not draft in. Drafted pools come first for the
+                          same reason the server sends them first: `newestFormat` is
+                          the last frozen era. */}
                       <select
                         id="format"
                         data-testid="format"
@@ -898,22 +1126,40 @@ function RoomTableScreen({
                         disabled={busy || matchId !== null}
                         onChange={(e) => choosePool(e.target.value)}
                       >
-                        {loaded.formats.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.id} — {f.name}
-                          </option>
-                        ))}
+                        {loaded.formats.some((f) => f.source === 'draft') && (
+                          <optgroup label="Drafted pools">
+                            {loaded.formats
+                              .filter((f) => f.source === 'draft')
+                              .map((f) => (
+                                <option key={f.id} value={f.id}>
+                                  {f.name} — {f.cardCount} cards
+                                </option>
+                              ))}
+                          </optgroup>
+                        )}
+                        <optgroup label="Matched Standard">
+                          {loaded.formats
+                            .filter((f) => f.source !== 'draft')
+                            .map((f) => (
+                              <option key={f.id} value={f.id}>
+                                {f.id} — {f.name}
+                              </option>
+                            ))}
+                        </optgroup>
                       </select>
                     </>
                   ) : (
                     <>
-                      <span className="lobby__field">Matched Standard</span>
+                      <span className="lobby__field">{poolFieldLabel(pod)}</span>
                       <span className="lobby__pool" data-testid="format-fixed" data-format={poolId}>
                         {poolLabel(loaded.formats, poolId)}
                       </span>
                     </>
                   )}
                   <LeaderMark name={leaderMember?.name ?? null} you={iAmLeader} />
+                  {/* The sets the chosen era is made of, as symbols — the operator's
+                      own ask. A drafted pool has none and draws none. */}
+                  <PoolSets format={poolFormat} />
 
                   {/* Only the decks the room's pool offers, and the pool's
                       answer is the gate's. Disabled until it has answered: an
@@ -924,20 +1170,36 @@ function RoomTableScreen({
                     id="deck-mine"
                     data-testid="deck-mine"
                     value={deckId}
-                    disabled={offered === null || matchId !== null}
+                    disabled={deckOptions === null || matchId !== null}
                     onChange={(e) => chooseDeck(e.target.value)}
                   >
                     <option value="" disabled>
                       —
                     </option>
                     <option value={RANDOM_DECK}>Random</option>
-                    {(offered ?? []).map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
+                    {(deckOptions ?? []).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
                       </option>
                     ))}
                   </select>
                   <DeckSource deck={(offered ?? []).find((d) => d.id === deckId)} />
+                  {/* Why the dropdown has nothing in it, when it has nothing in it.
+                      A pool is hidden information until the draft is over, so the
+                      server tells you about your own seat and nobody else's — and
+                      "you drafted in another pod" and "you are not in this one" are
+                      two different things to a person. */}
+                  {pod !== null && deckOptions !== null && deckOptions.length === 0 && (
+                    <p className="lobby__note" data-testid="drafted-none">
+                      You have no seat in pod <strong>{pod}</strong>, so there are no drafted cards to play. Whoever
+                      leads this room chose that pod as its pool.
+                    </p>
+                  )}
+                  {pod !== null && !podAnswered && (
+                    <p className="lobby__note" data-testid="drafted-waiting">
+                      Asking pod <strong>{pod}</strong> for the cards you drafted.
+                    </p>
+                  )}
 
                   {mine?.verdict != null && <VerdictView verdict={mine.verdict} testId="verdict-mine" />}
 

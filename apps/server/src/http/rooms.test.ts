@@ -651,6 +651,36 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		expect([after.gameType, after.format]).toEqual(['constructed-1v1', NEWEST_POOL]);
 	});
 
+	/**
+	 * A drafted pool goes through the same PATCH (wave 26 §F), and a `draft:`
+	 * that names no pod is refused at the door rather than stored.
+	 *
+	 * Whether the pod EXISTS is not this layer's question — it has no draft
+	 * registry — so `draft:r-never-opened` is a 200 here and a 409 from the
+	 * tables layer, which is the same split a frozen era id has always had.
+	 */
+	it('takes a drafted pool, and refuses a draft: that names no pod', async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+
+		const drafted = await call(h, 'PATCH', `/api/rooms/${created.id}`, {
+			as: 'alice',
+			body: { format: 'draft:amber-lantern-k7q4' },
+		});
+		expect(drafted.status).toBe(200);
+		expect((drafted.json() as import('../room/lobby.ts').RoomView).format).toBe('draft:amber-lantern-k7q4');
+
+		for (const format of ['draft:', 'draft:../../etc/passwd', 'draft:Amber-Lantern', 'draft:has space']) {
+			const res = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format } });
+			expect(res.status, format).toBe(400);
+			expect((res.json() as { error: string }).error).toContain('names no pod');
+		}
+		// Nothing moved: the room is still on the pod the one accepted PATCH set.
+		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView;
+		expect(after.format).toBe('draft:amber-lantern-k7q4');
+	});
+
 	it('refuses to move the pool while a draft is running', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))

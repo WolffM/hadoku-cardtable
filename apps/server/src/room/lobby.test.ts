@@ -27,6 +27,8 @@ import { loadTablesLibrary } from '../http/library.ts';
 import {
 	CLIENT_MODES,
 	DEFAULT_CLIENT_MODE,
+	draftIdOfPool,
+	draftPoolId,
 	newestFormat,
 	openLobby,
 	ROOM_IDLE_MS,
@@ -360,6 +362,37 @@ describe('Lobby.setFormat', () => {
 		expect(second.playerState(id, ALICE.id)).toBeUndefined();
 	});
 
+	/**
+	 * A drafted pool is a pool: the leader sets it through the same setter, it
+	 * clears the same holds, and it survives the same restart.
+	 *
+	 * Wave 26 §F. What the lobby knows about it is the string and nothing else —
+	 * the POD is looked up by `http/routes.ts`, which is where the draft registry
+	 * is, so a room can be on a pod this process has never heard of and the lobby
+	 * has no opinion (`unknownPool` answers 409 for that).
+	 */
+	it('moves the pool to a DRAFTED pool, clearing the same holds, and stores it', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		const id = await loadedRoom(lobby);
+		const pool = draftPoolId('amber-lantern-k7q4');
+
+		const moved = lobby.setFormat(id, ALICE.id, pool);
+		expect(moved.ok).toBe(true);
+		if (!moved.ok) return;
+		expect(moved.room.format).toBe(pool);
+		expect(draftIdOfPool(moved.room.format)).toBe('amber-lantern-k7q4');
+		expect(moved.room.members.map((m) => m.ready)).toEqual([false, false]);
+		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
+
+		// And a non-leader still cannot move it, drafted pool or not.
+		expect(lobby.setFormat(id, BOB.id, POOLS[0])).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.get(id)?.format).toBe(pool);
+
+		const second = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		expect(second.get(id)?.format).toBe(pool);
+	});
+
 	it('clears nothing when the pool it is set to is the one the room is on', async () => {
 		const lobby = await openLobby({ dir: await tempDir(), defaultFormat: POOLS[POOLS.length - 1] });
 		const id = await loadedRoom(lobby);
@@ -629,5 +662,39 @@ describe('a draft that has started', () => {
 		// room immortal.
 		const third = await openLobby({ dir, now: () => Date.now() + ROOM_IDLE_MS + 1 });
 		expect(third.sweep()).toEqual([id]);
+	});
+});
+
+/*
+ * A room's pool is a frozen era OR a drafted pool, and one string carries both
+ * (wave 26 §F).
+ *
+ * The discrimination is a colon, and it can never be ambiguous: `ROOM_ID_RE`
+ * allows no colon, so no pod id and no era date can be read as the other. The
+ * validation is the part worth pinning — a stored `draft:` followed by anything
+ * a room id is not resolves to NO pod rather than reaching the draft registry as
+ * a key.
+ */
+describe('a drafted pool id', () => {
+	it('round-trips a pod id and nothing else', () => {
+		expect(draftPoolId('amber-lantern-k7q4')).toBe('draft:amber-lantern-k7q4');
+		expect(draftIdOfPool('draft:amber-lantern-k7q4')).toBe('amber-lantern-k7q4');
+		// A frozen era is not a drafted pool, and every real era id answers so.
+		for (const era of POOLS) expect(draftIdOfPool(era)).toBeNull();
+	});
+
+	it('refuses anything a room id is not, rather than handing it on as a key', () => {
+		for (const bad of [
+			'draft:',
+			'draft:../../etc/passwd',
+			'draft:Amber-Lantern',
+			'draft:has space',
+			'draft:draft:x',
+			`draft:${'x'.repeat(41)}`,
+		]) {
+			expect(draftIdOfPool(bad), bad).toBeNull();
+		}
+		// And a name that merely starts with the word is not a drafted pool either.
+		expect(draftIdOfPool('drafted-2011-07-01')).toBeNull();
 	});
 });

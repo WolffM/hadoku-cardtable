@@ -111,8 +111,26 @@ export const ROOM_ID_RE = /^[a-z0-9-]{1,40}$/;
 /* ── the room's format ───────────────────────────────────────────────────── */
 
 /**
- * The pool a room's table plays in: a `TableFormat.id` from `http/library.ts`,
- * which is the frozen Standard pool's date.
+ * The pool a room's table plays in. Two kinds, one string:
+ *
+ *   `2011-07-01`              a frozen Standard era — a `TableFormat.id` from
+ *                             `http/library.ts`, which is the pool's date
+ *   `draft:amber-lantern-k7q4` a DRAFTED pool — the pod every player at this
+ *                             table drafted from (`draftPoolId`)
+ *
+ * **Why one string rather than a tagged union.** The id travels through the
+ * room snapshot on disk, through `RoomView.format`, through `PATCH
+ * /api/rooms/:id`, and through the browser's `RoomView` — four codecs, none of
+ * which has to learn a second shape while the id stays a string. The
+ * discrimination is `draftIdOfPool`, in one place, and every reader that only
+ * wants "which pool is this room on" keeps working unchanged.
+ *
+ * **A drafted pool is one id and TWO pools.** The era arm resolves to one
+ * frozen list for everybody; the draft arm resolves PER CALLER to the cards
+ * that caller drafted (`http/routes.ts`'s `draftPoolForMember`, over
+ * `viewForParticipant`). That is the whole point — two players at one table
+ * drafted from one pod and hold two different 45-card pools — and it is why a
+ * drafted pool id names the POD and never a pool of cards.
  *
  * **It belongs to the ROOM, not to a seat.** Before wave 25 each player sent
  * their own `rules` with their own deck (`http/routes.ts`, `PUT …/deck`) and the
@@ -138,6 +156,35 @@ export type FormatId = string;
  * which is every checkout and the deploy tree.
  */
 export const NO_FORMAT: FormatId = 'unavailable';
+
+/**
+ * What makes a room's pool a DRAFTED pool rather than a frozen era.
+ *
+ * A colon, because a frozen era id is a date and `ROOM_ID_RE` allows no colon —
+ * so no pod id and no era id can ever be mistaken for the other, and the
+ * discrimination needs no version field.
+ */
+export const DRAFT_POOL_PREFIX = 'draft:';
+
+/** A pod's id as a room's pool id. The one place this string is built. */
+export function draftPoolId(draftId: string): FormatId {
+	return `${DRAFT_POOL_PREFIX}${draftId}`;
+}
+
+/**
+ * The pod behind a drafted pool id, or null when the id is a frozen era.
+ *
+ * The one place the string is taken apart, and it VALIDATES: a pod id is a room
+ * id (wave 23 — one door, one id, so `draftRooms.find` is keyed by the room's
+ * own id), so anything `ROOM_ID_RE` refuses is not a pod and is reported as no
+ * pod at all rather than passed on to be looked up. Without that, a stored
+ * `draft:../../etc` would reach the registry as a key.
+ */
+export function draftIdOfPool(pool: FormatId): string | null {
+	if (!pool.startsWith(DRAFT_POOL_PREFIX)) return null;
+	const draftId = pool.slice(DRAFT_POOL_PREFIX.length);
+	return ROOM_ID_RE.test(draftId) ? draftId : null;
+}
 
 /**
  * The repo root, found by walking up from this module to the first ancestor that

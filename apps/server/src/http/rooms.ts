@@ -14,6 +14,9 @@
  *   POST  /api/rooms/:id/start  {} or no body                   → 200 RoomView | 403 | 404 | 409
  *   PATCH /api/rooms/:id        { gameType } | { format }       → 200 RoomView | 403 | 404 | 409
  *
+ * `format` is a frozen Standard era's date or `draft:<podId>` — a room's pool is
+ * either a frozen era or a drafted pool (wave 26 §F, `room/lobby.ts`).
+ *
  * Every body that carries a room is `RoomView` plus a caller-scoped
  * `you: { leader, ready }` — see "`you` is the caller's own row" below.
  *
@@ -91,8 +94,10 @@ import {
 	CLIENT_MODES,
 	DEFAULT_CLIENT_MODE,
 	DEFAULT_GAME_TYPE,
+	DRAFT_POOL_PREFIX,
 	GAME_TYPES,
 	ROOM_ID_RE,
+	draftIdOfPool,
 	type Caller,
 	type ClientMode,
 	type FormatId,
@@ -241,10 +246,24 @@ function parseStart(body: unknown): Parsed<Record<string, never>> {
 	return { ok: true, value: {} };
 }
 
-/** A format id is any non-blank string; whether it names a pool is the tables layer's answer. */
+/**
+ * A format id is any non-blank string; whether it names a pool THIS server has
+ * is the tables layer's answer (`http/routes.ts`'s `unknownPool`, a 409 about
+ * the room rather than a 400 about the body).
+ *
+ * The one thing checked here is the SHAPE of a drafted pool id (wave 26 §F): a
+ * room's pool may be `draft:<podId>`, and a pod id is a room id, so
+ * `draft:` followed by anything `ROOM_ID_RE` refuses is refused at the door
+ * rather than stored and looked up later. `draftIdOfPool` returns null for it
+ * either way — this makes it a stated 400 instead of a room silently sitting on
+ * a pool that can never resolve.
+ */
 function parseFormat(v: unknown): Parsed<FormatId> {
-	if (typeof v === 'string' && v.trim() !== '') return { ok: true, value: v };
-	return { ok: false, error: 'format must be a format id' };
+	if (typeof v !== 'string' || v.trim() === '') return { ok: false, error: 'format must be a format id' };
+	if (v.startsWith(DRAFT_POOL_PREFIX) && draftIdOfPool(v) === null) {
+		return { ok: false, error: `format must be a format id: ${JSON.stringify(v)} names no pod` };
+	}
+	return { ok: true, value: v };
 }
 
 /** One field, one mutation. `{ gameType }` or `{ format }`, never both and never neither. */

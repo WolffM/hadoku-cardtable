@@ -29,8 +29,10 @@ import type { MatchSpec } from '../play/host.js';
 import type { MatchRegistry } from '../play/match.js';
 import { loadTranscript, replayFactory, type ReplayHost } from '../play/fixtures/transcript.js';
 import { createDraftRooms, joinDraftRoom, stateOf, type DraftRooms } from '../room/draftRooms.js';
+import { draftPoolId } from '../room/lobby.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
+import type { DraftCard } from '@hadoku/shared';
 import { checkSeat, type SeatVerdict } from './gate.js';
 import type { TablesRooms } from './routes.js';
 import { LIBRARY, type LibraryCollection } from '@hadoku/deck/library';
@@ -1221,5 +1223,294 @@ describe('a room table', () => {
 		const res = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice', 'public'));
 		expect(res.status).toBe(404);
 		expect(res.body.error).not.toBe('no such room');
+	});
+});
+
+/* ── a room on a DRAFTED pool: the two halves finally meet (wave 26 §F) ── */
+
+/**
+ * A drafted deck against a FRIEND, which until wave 26 was not a thing the
+ * server could do.
+ *
+ * The hole wave 25 exposed: a room's pool was a `FormatId`, a match against a
+ * person starts from a room, and a drafted pool could not be named as a room's
+ * pool — so "cube drafting + Magic play for a private friend group" had two
+ * halves that never met. The reason it could not be done by simply allowing the
+ * rule was real, and it is what these tests are about: a `{ kind: 'draft' }`
+ * rule resolves ONE PERSON's pool, so a start route that re-checks both decks in
+ * the REQUESTER's context measures the other player's deck against the
+ * requester's 45 and reads every card of it as undrafted.
+ *
+ * The fix is that the room owns the POD and each player owns their own 45:
+ * `routes.ts` re-checks each stored deck in `contextFor(thatPlayer.member.id)`,
+ * and a room member's id is the participant id the pod seated them with.
+ *
+ * Two pools that share no card, so "checked against the wrong player's pool" is
+ * not a subtle difference — it is every card in the deck. The disjointness is
+ * asserted rather than assumed, because the cube being singleton is what makes
+ * it true.
+ */
+describe('a room on a drafted pool', () => {
+	const MEMBERS = [
+		{ id: ALICE, name: 'user-alice' },
+		{ id: BOB, name: 'user-bob' },
+	];
+	const ROOM = 'r-drafted';
+	const POD = 'amber-lantern-k7q4';
+
+	interface Pod {
+		alice: DraftCard[];
+		bob: DraftCard[];
+	}
+
+	/** One row of the table view. Its own copy: the describe above owns its own. */
+	interface Row {
+		seat: number;
+		you: boolean;
+		legal: boolean;
+		rulesName: string;
+		issueCount: number;
+		verdict: { issues: { kind: string; cardName: string | null }[] } | null;
+	}
+	const players = (body: Record<string, unknown>): Row[] => body.players as Row[];
+
+	/**
+	 * One pod, both members seated, each holding 45 cards the other does not.
+	 *
+	 * `swap` seats them with each other's halves — the state a second pod is put
+	 * in so that "the start re-checks, per player" can be caught failing.
+	 */
+	function pod(h: Harness, draftId = POD, swap = false): Pod {
+		const room = h.rooms.open(draftId);
+		const seatA = joinDraftRoom(room, `sock-a-${draftId}`, ALICE, 'friend').seat;
+		const seatB = joinDraftRoom(room, `sock-b-${draftId}`, BOB, 'friend').seat;
+		if (seatA === null || seatB === null) throw new Error('both drafters must be seated');
+		const state = stateOf(room);
+		const cards = state.packs.flat();
+		const first = cards.slice(0, 45);
+		const second = cards.slice(45, 90);
+		const alice = swap ? second : first;
+		const bob = swap ? first : second;
+		state.pools[seatA] = alice;
+		state.pools[seatB] = bob;
+		// The property every assertion below rests on. A cube is singleton, so the
+		// two halves of its packs name no card in common — said out loud, because a
+		// cube that ever stopped being singleton would make these tests pass for
+		// the wrong reason.
+		const names = new Set(alice.map((c) => c.name));
+		expect(bob.filter((c) => names.has(c.name))).toEqual([]);
+		return { alice, bob };
+	}
+
+	/** A 40-card maindeck out of one person's own 45. The browser's own writer. */
+	function built(pool: readonly DraftCard[], draftId = POD): string {
+		let deck = deckFromPool(draftId, pool);
+		for (const card of pool.slice(0, 40)) {
+			const entry = deck.sideboard.find((e) => e.card.name === card.name && e.card.set === (card.setCode || null));
+			if (entry !== undefined) deck = moveToMain(deck, entry.card, 1);
+		}
+		return dckTextOf(deck);
+	}
+
+	const openRoom = (h: Harness, format = draftPoolId(POD)) => h.lobby.open(ROOM, [...MEMBERS], undefined, format);
+	const putDeck = (h: Harness, user: string, dck: string) =>
+		call(h, 'PUT', `/api/tables/rooms/${ROOM}/deck`, { deck: { dck } }, edgeHeaders(user));
+	const setReady = (h: Harness, user: string) =>
+		call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: true }, edgeHeaders(user));
+
+	/**
+	 * THE test. Two people, one pod, one room, two decks from two different 45s,
+	 * and a real match.
+	 *
+	 * The per-caller resolution is what this asserts, and it asserts it where it
+	 * is load-bearing: the start is pressed by ALICE, so a start route that used
+	 * the requester's context would check bob's deck against alice's pool. Every
+	 * card of it would come back `plays 1x X but drafted 0` and the answer would
+	 * be a 422 instead of a 201.
+	 */
+	it('starts a human match with each seat checked against its OWN drafted pool', async () => {
+		const h = await boot();
+		const pools = pod(h);
+		openRoom(h);
+
+		const mine = await putDeck(h, 'alice', built(pools.alice));
+		expect(mine.status).toBe(200);
+		const theirs = await putDeck(h, 'bob', built(pools.bob));
+		expect(theirs.status).toBe(200);
+		// Each verdict is taken in that player's OWN pool, and each says so in the
+		// first person to its own owner.
+		expect(players(mine.body)[0]).toMatchObject({ legal: true, rulesName: `your pool from ${POD}` });
+		expect(players(theirs.body)[1]).toMatchObject({ legal: true, rulesName: `your pool from ${POD}` });
+		// And the room says what pool it is on, without the client having to know
+		// how a drafted pool id is spelled.
+		expect(mine.body.room).toMatchObject({ format: draftPoolId(POD), draftId: POD });
+
+		expect((await setReady(h, 'alice')).status).toBe(200);
+		expect((await setReady(h, 'bob')).status).toBe(200);
+
+		const res = await start(h, { room: ROOM }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
+		expect(res.status).toBe(201);
+		const matchId = res.body.matchId as string;
+
+		// Forge is launched with both drafted decks, each the text its own owner's
+		// pool checked, byte for byte — and the seats are bound to their owners.
+		expect(h.specs).toHaveLength(1);
+		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([built(pools.alice), built(pools.bob)]);
+		expect(h.matches.get(matchId)?.seatOf(ALICE)).toBe(0);
+		expect(h.matches.get(matchId)?.seatOf(BOB)).toBe(1);
+	});
+
+	/**
+	 * The same table, started by the OTHER player. Both directions, because "the
+	 * room's drafted pool resolves to the leader's" and "…to the requester's" are
+	 * two different wrong answers and only one of them is caught by starting as
+	 * the leader. Alice is the leader here (`fakeLobby` makes the first member
+	 * one), so bob pressing start is the case where the leader is neither the
+	 * requester nor the owner of the seat being checked.
+	 */
+	it('starts the same table when the player who is NOT the leader presses start', async () => {
+		const h = await boot();
+		const pools = pod(h);
+		const room = openRoom(h);
+		expect(room.leader).toBe(ALICE);
+		await putDeck(h, 'alice', built(pools.alice));
+		await putDeck(h, 'bob', built(pools.bob));
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		const res = await start(h, { room: ROOM }, '/api/play/matches', 'application/json', edgeHeaders('bob'));
+		expect(res.status).toBe(201);
+		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([built(pools.alice), built(pools.bob)]);
+	});
+
+	/**
+	 * A player cannot load a deck from somebody else's drafted pool.
+	 *
+	 * Bob sends ALICE's deck — the exact text she loaded, which the server has
+	 * just accepted from her — and it is refused for him, by name, because the
+	 * pool his deck is checked against is HIS. There is no field in the body that
+	 * could say otherwise: the pod comes from the room and the person comes from
+	 * the edge headers.
+	 *
+	 * And the refusal is his own to read: alice's row shows him a count and the
+	 * room's pool in the third person, never a card from her 45.
+	 */
+	it('refuses a deck built from the other player’s pool, and names the card to its owner only', async () => {
+		const h = await boot();
+		const pools = pod(h);
+		openRoom(h);
+		expect((await putDeck(h, 'alice', built(pools.alice))).status).toBe(200);
+
+		const stolen = await putDeck(h, 'bob', built(pools.alice));
+		expect(stolen.status).toBe(200);
+		const bobsRow = players(stolen.body)[1];
+		expect(bobsRow).toMatchObject({ you: true, legal: false });
+		// Every card of it, because the two pools share none.
+		expect(bobsRow?.verdict?.issues.length).toBeGreaterThan(0);
+		expect([...new Set(bobsRow?.verdict?.issues.map((i) => i.kind))]).toEqual(['more-copies-than-drafted']);
+		// Named, to HIM: it is his deck, and the cards in it are the ones he sent.
+		expect(bobsRow?.verdict?.issues[0]?.cardName).toBe(pools.alice[0]?.name);
+		// An illegal deck cannot be readied, so it can never reach a start.
+		const refused = await setReady(h, 'bob');
+		expect(refused.status).toBe(422);
+		expect((await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'))).status).toBe(409);
+		expect(h.specs).toEqual([]);
+
+		// What ALICE is told about bob's row: a count, and the pool in the third
+		// person — never his issue list, and never his `.dck`. (Her own row echoes
+		// her own choice back to her, which is what restores her picker; the rule is
+		// about somebody ELSE's row.)
+		const seen = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		const hisRow = players(seen.body)[1];
+		expect(hisRow).toMatchObject({ you: false, legal: false, issueCount: 45, rulesName: `their own pool from ${POD}` });
+		expect(hisRow?.verdict).toBeNull();
+	});
+
+	/**
+	 * The start refusal names the PLAYER and the pool, and never a card.
+	 *
+	 * Reached the way the frozen-era version of this test reaches it: the room's
+	 * pool is moved under two loaded, readied decks — a state the leader's setter
+	 * would never leave behind, because moving the pool drops both holds. That is
+	 * the point. The start does not trust the stored verdicts; it re-checks, once
+	 * per player, in that player's own context.
+	 *
+	 * The second pod holds the same two 45s with the owners SWAPPED, so after the
+	 * move each player's deck is made entirely of cards the other one drafted.
+	 * Bob presses start, and what comes back names alice and the pool with not one
+	 * of her cards in it — which is the whole privacy rule, and it matters more on
+	 * a drafted pool than on a frozen era, because a drafted pool IS the hidden
+	 * information.
+	 */
+	it('refuses a start naming the player and the pool, never a card', async () => {
+		const h = await boot();
+		const pools = pod(h);
+		const room = openRoom(h);
+		await putDeck(h, 'alice', built(pools.alice));
+		await putDeck(h, 'bob', built(pools.bob));
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+
+		const OTHER = 'r-pod-swapped';
+		pod(h, OTHER, true);
+		room.format = draftPoolId(OTHER);
+
+		const refused = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
+		expect(refused.status).toBe(422);
+		expect(refused.body.error).toBe(`user-alice's deck is not legal in their own pool from ${OTHER}`);
+		for (const card of pools.alice.slice(0, 5)) {
+			expect(JSON.stringify(refused.body)).not.toContain(card.name);
+		}
+		expect(refused.body.verdict).toBeUndefined();
+		expect(refused.body.issues).toBeUndefined();
+		expect(h.specs).toEqual([]);
+
+		// Back on the pod both decks were drafted in, the same two holds start.
+		room.format = draftPoolId(POD);
+		expect((await start(h, { room: ROOM }, '/api/play/matches', 'application/json', edgeHeaders('bob'))).status).toBe(201);
+	});
+
+	/** A member of the room who never drafted is told so, in the first person. */
+	it('tells a member with no seat in the pod that they have none', async () => {
+		const h = await boot();
+		const pools = pod(h);
+		h.lobby.open(ROOM, [...MEMBERS, { id: CAROL, name: 'user-carol' }], undefined, draftPoolId(POD));
+		const res = await putDeck(h, 'carol', built(pools.alice));
+		expect(res).toMatchObject({ status: 400, body: { error: `you have no seat in draft ${JSON.stringify(POD)}` } });
+	});
+
+	/**
+	 * A pod this server does not have is a 409 about the ROOM, the same shape a
+	 * missing frozen pool gets. A pod is in memory only, so this is also what a
+	 * room on a drafted pool says after a restart.
+	 */
+	it('answers 409 for a room whose pod this server does not have', async () => {
+		const h = await boot();
+		const pools = pod(h);
+		// A real drafted deck, and a room pointing at a pod that was never opened —
+		// which is every room on a drafted pool after a restart, because a pod lives
+		// in memory only.
+		openRoom(h, draftPoolId('r-no-such-pod'));
+		expect(await putDeck(h, 'alice', built(pools.alice))).toMatchObject({
+			status: 409,
+			body: { error: 'this room\'s draft "r-no-such-pod" is not one this server has' },
+		});
+		expect(h.specs).toEqual([]);
+	});
+
+	/** The leader's picker is offered the pods the CALLER is seated in, and nobody else's. */
+	it('offers the caller’s own pods as pools, newest frozen era still last', async () => {
+		const h = await boot();
+		pod(h);
+		const seen = await call(h, 'GET', '/api/tables/formats', undefined, edgeHeaders('alice'));
+		const formats = seen.body.formats as { id: string; source: string; cardCount: number; sets: string[] }[];
+		expect(formats[0]).toMatchObject({ id: draftPoolId(POD), source: 'draft', cardCount: 45, sets: [] });
+		// `newestFormat` on both sides is `formats.at(-1)`: a pod must never become
+		// the pool a new room opens on.
+		expect(formats.at(-1)?.source).not.toBe('draft');
+		expect(formats.at(-1)?.id).toBe(library.formats.at(-1)?.id);
+
+		// Carol drafted nothing, so she is offered no pod at all.
+		const hers = await call(h, 'GET', '/api/tables/formats', undefined, edgeHeaders('carol'));
+		expect((hers.body.formats as { source: string }[]).filter((f) => f.source === 'draft')).toEqual([]);
 	});
 });
