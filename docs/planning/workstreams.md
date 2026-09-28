@@ -90,6 +90,88 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## Verified this pass (2026-09-27 — tracker, closing Wave 25)
+
+Six lanes, all landed, `f83b300..82ceea1`, one push. **Verified from artifacts.**
+
+- **Deploy is real, not merely published.** The redeploy for `82ceea1` finished
+  `2026-09-28T04:00:36Z` and the process restarted 13 s later at 21:00:49; the
+  deploy tree carries `82ceea1` and both apps at **0.21.0**.
+- **CI run 36375912499** on main's own head: `check` success, `forge-e2e` success.
+- **`pnpm check` re-run by the tracker: 2577 passed / 22 skipped**, matching the
+  manager's number exactly (baseline 2496/20).
+- **Teardown confirmed**: w25 worktree gone, branch `w25` deleted, `forge/` still
+  registered in the deploy tree, no leaked JVMs (the one live bridge is
+  production's own warm spare).
+- **Every lane's headline re-checked in source by the tracker**: A — `PUT …/deck`
+  400s a body carrying `rules` with a message naming who owns the format, and
+  `you.leader` is per-caller; B — `constructed.test.ts` has both "gives the
+  LEADER a control that moves it" and "gives a NON-leader no pool control at
+  all"; C — the cluster is 288×**102** (was ×153) with grid areas
+  `ok/cancel` + `leave/full/conc` and no says or log row, the rail is
+  `right: 2px` and the step name flipped to `right: calc(100% + 4px)`; D — see
+  below; E — the hand takes `arranging.dropInto(e, 'hand')`; F —
+  `promptCardTile(forgeId, name, setCode, label?)` separates identity from
+  display, documented against the `Mox Opal (130)` case.
+
+### The mutation counts the note did not carry — one held, one did not
+
+The wave file required "reverted: N of M fail; restored: M pass" with real counts
+for §D. The closing note carried none, so the tracker ran them:
+
+- **The unpayable-cost cancel arm is guarded.** `decideCancel` forced to
+  `return null` → **4 of 131 fail** in `auto.test.ts`; restored → **131 pass**.
+- **Item 3's silence is NOT guarded.** Re-adding
+  `this.say(s, \`auto-passed ${phase}\`)` beside the log line — putting back the
+  exact notification the operator asked to be removed — leaves
+  `match.test.ts` at **60 passed**. Nothing stops that line coming back, and CI
+  would be green when it did. **Open, and one test closes it.**
+
+### Two claimed reds that were the tracker's own contention
+
+Running all seven `*.jvm.test.ts` in one `vitest run` starts a Forge JVM per file
+in parallel. `flow.jvm.test.ts` came back 7-skipped with a setup timeout and
+`prompts.jvm.test.ts` failed its LEAK CHECK. Re-run one at a time: **flow 7/7
+passed, prompts 3/3 passed.** Both reds were contention. The two most alarming
+signatures in this repo are a leak failure and an `until` timeout, and both were
+mine — the durable lesson is saved, and the manager's jar-gated claim stands.
+
+### Accepted deviation: §C kept `live-says`
+
+The wave file said `live-says` goes. C **moved** it into the collapsed log panel
+and kept the test id, because it is the only place Forge's own message text is
+readable and `e2e/play.spec.ts` — another lane's file — finds it by that name.
+The element is always in the DOM and merely `hidden`, so the corner no longer
+shows prose and a cross-lane spec still works. Better than the brief; recorded
+rather than counted as a miss.
+
+### Left over, and why each is not a failure
+
+- **Item 6 (Galvanic Blast) ships unclosed, correctly.** D measured it against a
+  real Forge instead of guessing: `readPromptFacts` read the `{R}` window as
+  `sources: [16, 57]` resolving to `["Island", "Mountain"]`, so the guard that
+  returned null is the SOURCE COUNT. Forge's payment-mode actionable set is every
+  card in five zones with ANY playable mana ability
+  (`PlayerControllerHuman.java:1533-1535`), so an Island is offered while `{R}`
+  is being paid — and **nothing on this wire tells "one Mountain and one Island
+  for {R}" apart from "two Mountains for {R}"**. Deciding an Island cannot pay red
+  is a rule, and this file implements none. D added the policy value that would
+  close it (`PaymentPreference: 'forgeAuto'`, press Auto whenever Forge's Auto is
+  live) and deliberately did not default it. **That default is an operator
+  decision**, and it is the difference between item 6 closing on a one-line flip
+  and waiting for the bridge work.
+- **Draft-then-play-a-human has no path at all.** Confirmed: a room's pool is a
+  `FormatId`, a human match must start from a room (`routes.ts:731`), and a
+  drafted pool cannot be named as a room's format. A's change — mandated by the
+  wave file — removed the server affordance that could have carried it. **It cost
+  no working feature** (the UI only ever posted `{ room }`, and the deck dropdown
+  only ever offered library decks), but for a project whose first line is *"cube
+  drafting + Magic play for a private friend group"* this is the headline gap.
+  It wants a room pool that can name a drafted pool.
+- **The turn bar and the `Seat 1, live.` status line are still there.** Not a
+  wave-25 miss — the wave file never mandated their removal; the operator's
+  blocking (`board-layout-2026-09-27.md`) did, and that is the next wave.
+
 ## The board's blocking, and the lesson about visual instructions
 
 **`docs/planning/board-layout-2026-09-27.md` is the operator's own layout**, made
