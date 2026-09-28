@@ -20,17 +20,24 @@ import { FileRoomStore, STORE_VERSION, type RoomSnapshot } from '@hadoku/room-st
 import { createSeatTable } from '@wolffm/rooms-protocol';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
+import { loadTablesLibrary } from '../http/library.ts';
 import {
 	CLIENT_MODES,
 	DEFAULT_CLIENT_MODE,
+	newestFormat,
 	openLobby,
 	ROOM_IDLE_MS,
 	type ClientMode,
 	type Lobby,
 	type RoomView,
 } from './lobby.ts';
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+/** The real frozen pools, oldest first (`http/library.ts`). Derived, never restated. */
+const POOLS = loadTablesLibrary(REPO_ROOT).formats.map((f) => f.id);
 
 const CAROL = { id: 'fk:3333333333333333', name: 'user-carol' };
 
@@ -214,9 +221,11 @@ describe('clientMode is immutable once a room exists', () => {
 		expect(lobby.setPlayerState(id, BOB.id, { deck: 'mono-red' })).toBe(true);
 		expect(lobby.setMatch(id, 'match-7')).toBe(true);
 		expect(lobby.setGameType(id, ALICE.id, 'draft').ok).toBe(true);
+		expect(lobby.setFormat(id, ALICE.id, POOLS[0]).ok).toBe(true);
 
 		const after = lobby.get(id);
 		expect(after?.clientMode).toBe<ClientMode>('streamed');
+		expect(after?.format).toBe(POOLS[0]);
 		expect(after?.gameType).toBe('draft');
 		expect(after?.matchId).toBe('match-7');
 
@@ -224,6 +233,151 @@ describe('clientMode is immutable once a room exists', () => {
 		// snapshot that lost or flipped it.
 		const reopened = await openLobby({ dir });
 		expect(reopened.get(id)?.clientMode).toBe('streamed');
+	});
+});
+
+/* ── the room's pool (wave 25 §A) ────────────────────────────────────── */
+
+describe('a room’s format', () => {
+	it('starts on the NEWEST frozen pool, not the oldest', async () => {
+		// The fact under test is the operator's: newest, not `formats[0]`. Both ends
+		// are read off the real pool directory, so a new frozen pool moves this test
+		// instead of failing it.
+		expect(POOLS.length).toBeGreaterThan(1);
+		expect(newestFormat()).toBe(POOLS[POOLS.length - 1]);
+		expect(newestFormat()).not.toBe(POOLS[0]);
+
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		expect(made.room.format).toBe(POOLS[POOLS.length - 1]);
+		// Every body that carries a room carries it, list as well as get.
+		expect(lobby.list().map((r) => r.format)).toEqual([POOLS[POOLS.length - 1]]);
+		expect(lobby.get(made.room.id)?.format).toBe(POOLS[POOLS.length - 1]);
+	});
+
+	it('survives a restart, because the decks it checked survive with it', async () => {
+		const dir = await tempDir();
+		const first = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		const made = first.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		expect(first.setFormat(made.room.id, ALICE.id, POOLS[0]).ok).toBe(true);
+		first.setPlayerState(made.room.id, ALICE.id, { deck: 'held-under-the-old-pool' });
+
+		// A room that came back on a different pool from the one its players loaded
+		// their decks against is the bug this field exists to prevent — and the deck
+		// hold comes back, so the pool has to.
+		const second = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		expect(second.get(made.room.id)?.format).toBe(POOLS[0]);
+		expect(second.playerState(made.room.id, ALICE.id)).toEqual({ deck: 'held-under-the-old-pool' });
+	});
+
+	it('reads back on the newest pool for a record written before the field', async () => {
+		const dir = await tempDir();
+		writeFixtureRoom(dir, 'r-preformat0001', legacyApp());
+		// The fixture really is missing the field — otherwise this proves nothing.
+		expect(Object.keys(legacyApp())).not.toContain('format');
+
+		const lobby = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		expect(lobby.get('r-preformat0001')?.format).toBe(POOLS[POOLS.length - 1]);
+		// And it is written WITH the field once anything touches the room.
+		expect(lobby.setMatch('r-preformat0001', 'm-1')).toBe(true);
+		const second = await openLobby({ dir, defaultFormat: 'a-different-default' });
+		expect(second.get('r-preformat0001')?.format).toBe(POOLS[POOLS.length - 1]);
+	});
+
+	it('quarantines a record whose format is present and not a format id', async () => {
+		for (const [roomId, format] of [
+			['r-badformat0001', 42],
+			['r-badformat0002', ''],
+			['r-badformat0003', null],
+		] as [string, unknown][]) {
+			const dir = await tempDir();
+			writeFixtureRoom(dir, roomId, legacyApp({ format }));
+			const logged: Record<string, unknown>[] = [];
+			const lobby = await openLobby({ dir, log: (e) => void logged.push(e), defaultFormat: POOLS[0] });
+
+			expect(lobby.list(), JSON.stringify(format)).toEqual([]);
+			const quarantined = logged.filter((e) => e.event === 'room-quarantined');
+			expect(quarantined).toHaveLength(1);
+			// The reason names the FIELD, as every other reason here does.
+			expect(String(quarantined[0].reason)).toContain('format');
+		}
+	});
+});
+
+describe('Lobby.setFormat', () => {
+	/** A room with ALICE leading, BOB in it, both ready and both holding a deck. */
+	async function loadedRoom(lobby: Lobby): Promise<string> {
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) throw new Error(made.reason);
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		for (const who of [ALICE, BOB]) {
+			expect(lobby.setReady(made.room.id, who.id, true)).toBe(true);
+			// The table's own ready flag and verdict, in the blob `http/routes.ts`
+			// owns. Opaque here on purpose: this file drops it, it never reads it.
+			expect(lobby.setPlayerState(made.room.id, who.id, { v: 1, ready: true, verdict: { legal: true } })).toBe(true);
+		}
+		return made.room.id;
+	}
+
+	it('refuses a non-leader with not-leader, and changes nothing', async () => {
+		const lobby = await openLobby({ dir: await tempDir(), defaultFormat: POOLS[POOLS.length - 1] });
+		const id = await loadedRoom(lobby);
+
+		expect(lobby.setFormat(id, BOB.id, POOLS[0])).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.setFormat(id, CAROL.id, POOLS[0])).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.setFormat('r-000000000000', ALICE.id, POOLS[0])).toEqual({ ok: false, reason: 'no-room' });
+
+		// The refusals cost the table nothing: same pool, same flags, same holds.
+		expect(lobby.get(id)?.format).toBe(POOLS[POOLS.length - 1]);
+		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true, true]);
+		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1, ready: true, verdict: { legal: true } });
+	});
+
+	it('clears every readiness flag and every deck hold when the pool changes', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		const id = await loadedRoom(lobby);
+
+		const moved = lobby.setFormat(id, ALICE.id, POOLS[0]);
+		expect(moved.ok).toBe(true);
+		if (!moved.ok) return;
+		expect(moved.room.format).toBe(POOLS[0]);
+		// The ROOM's flag, for everybody including the leader who moved it.
+		expect(moved.room.members.map((m) => m.ready)).toEqual([false, false]);
+		// And the TABLE's, which is the whole hold: the deck choice, the verdict and
+		// the checked text were all produced in the pool that just went away.
+		expect(lobby.playerState(id, ALICE.id)).toBeUndefined();
+		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
+		// On disk as well as in memory.
+		const second = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		expect(second.get(id)?.format).toBe(POOLS[0]);
+		expect(second.get(id)?.members.map((m) => m.ready)).toEqual([false, false]);
+		expect(second.playerState(id, ALICE.id)).toBeUndefined();
+	});
+
+	it('clears nothing when the pool it is set to is the one the room is on', async () => {
+		const lobby = await openLobby({ dir: await tempDir(), defaultFormat: POOLS[POOLS.length - 1] });
+		const id = await loadedRoom(lobby);
+
+		const same = lobby.setFormat(id, ALICE.id, POOLS[POOLS.length - 1]);
+		expect(same.ok).toBe(true);
+		// A leader clicking the option that is already selected must not un-ready
+		// the table under everybody.
+		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true, true]);
+		expect(lobby.playerState(id, ALICE.id)).toEqual({ v: 1, ready: true, verdict: { legal: true } });
+	});
+
+	it('refuses to move the pool while a draft is running', async () => {
+		const lobby = await openLobby({ dir: await tempDir(), defaultFormat: POOLS[POOLS.length - 1] });
+		const id = await startedDraft(lobby, [ALICE]);
+		expect(lobby.setFormat(id, ALICE.id, POOLS[0])).toEqual({ ok: false, reason: 'draft-started' });
+		expect(lobby.get(id)?.format).toBe(POOLS[POOLS.length - 1]);
+		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true]);
 	});
 });
 

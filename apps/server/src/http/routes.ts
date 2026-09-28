@@ -12,9 +12,27 @@
  *   GET  /api/tables/decks                 the deck library, with each list
  *   POST /api/tables/check                 `{ deck, rules }` → the verdict, without starting anything
  *   GET  /api/tables/rooms/:roomId         both players' state at a room's table
- *   PUT  /api/tables/rooms/:roomId/deck    `{ deck, rules }` → check MY deck and hold it
+ *   PUT  /api/tables/rooms/:roomId/deck    `{ deck }` → check MY deck in the ROOM's pool and hold it
  *   POST /api/tables/rooms/:roomId/ready   `{ ready }` → I am (not) ready
  *   POST /api/play/matches                 GATED: see below
+ *
+ * `/check` still takes `{ deck, rules }`: it starts nothing and belongs to no
+ * room, and it is what the deck builder and the screen's legality sweep ask.
+ *
+ * ## The POOL belongs to the room, and the leader sets it
+ *
+ * Wave 25 §A. `PUT …/deck` used to take `rules` from each caller and store each
+ * player's OWN rules, and the start route only ever checked a deck against the
+ * rule its own owner had named — so two players could load decks legal in two
+ * different Standard pools and the match started anyway. The pool is now the
+ * ROOM's (`room/lobby.ts`, `RoomView.format`), it is the rules for both seats,
+ * and a body carrying `rules` is refused with 400 rather than accepted and
+ * ignored: that is `http/rooms.ts`'s PATCH discipline, and a caller who thinks
+ * they chose a format has to be told they did not.
+ *
+ * The leader moves the pool (`PATCH /api/rooms/:id { format }`), and moving it
+ * drops every deck hold and both readiness flags — so the verdict this file
+ * holds was always taken in the pool the room is on now.
  *
  * ## A table belongs to a room, and each player loads their OWN deck
  *
@@ -27,13 +45,19 @@
  * the CALLER's slot, found by `identityFromHeaders`, and there is no field in
  * any body that names a member.
  *
- * **The deck is checked when it is loaded, and that verdict is what starts the
- * match.** Not re-checked at start, and deliberately: a `{ kind: 'draft' }`
- * rule resolves the pool of whoever made the request, so re-checking at start
- * would check the other player's deck against the starter's pool — "you have no
- * seat in draft …" for a deck that was legal when its owner loaded it. What
- * goes to Forge is the stored text, byte for byte the text the gate validated,
- * so there is still exactly one reader (§C.4).
+ * **A deck is checked when it is loaded AND again at the start, both times
+ * against the room's pool.** The re-check is what makes the pool a property of
+ * the table rather than of a seat: it is the same pool for both decks and it
+ * does not depend on who pressed the button, so it cannot answer two players two
+ * different things. That is only true because the rule is the room's — a
+ * `{ kind: 'draft' }` rule resolves the pool of whoever made the REQUEST, so a
+ * re-check of that would tell the starter "you have no seat in draft …" about a
+ * deck that was legal when its owner loaded it. Which is also why a drafted deck
+ * is not brought to a room table at all: `POST /api/play/matches` with `seats`
+ * against the AI is that path, and it still carries `rules` per seat.
+ *
+ * What goes to Forge is the stored text, byte for byte the text the gate
+ * validated, so there is still exactly one reader (§C.4).
  *
  * ## The gate sits on play's own route, not beside it
  *
@@ -78,6 +102,7 @@ import { viewForParticipant } from '../room/draftRooms.js';
 import { identityFromHeaders } from '../room/identity.js';
 import {
 	checkSeat,
+	parseDeckRef,
 	parseSeatRequest,
 	parseStartRequest,
 	publicVerdict,
@@ -86,6 +111,7 @@ import {
 	type DeckRules,
 	type DraftPoolLookup,
 	type GateContext,
+	type SeatRequest,
 	type SeatVerdict,
 } from './gate.js';
 import { loadTablesLibrary, type TablesLibrary } from './library.js';
@@ -105,6 +131,10 @@ export interface RoomViewLike {
 	id: string;
 	name: string;
 	gameType: string;
+	/** The room's pool: a `TableFormat.id`, and the rules for BOTH seats. */
+	format: string;
+	/** The one member who may change the room's settings. `you.leader` is this, per caller. */
+	leader: string;
 	members: { id: string; name: string }[];
 	matchId: string | null;
 }
@@ -207,6 +237,30 @@ interface TablePlayerState {
 	ready: boolean;
 	/** When this member first took a seat: the order the two players are in. */
 	seatedAt: number;
+}
+
+/**
+ * `{ deck }`, and nothing else — least of all `rules`.
+ *
+ * A body that names `rules` is refused rather than accepted and ignored: a
+ * caller who believes they chose the pool has to be told they did not, and the
+ * sentence says who did. `gate.ts`'s `parseDeckRef` is what reads the deck, so
+ * `{ library }` and `{ dck }` mean here exactly what they mean everywhere else.
+ */
+function parseDeckBody(raw: unknown): { ok: true; deck: DeckRef } | { ok: false; error: string } {
+	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { ok: false, error: 'body is { deck }' };
+	for (const key of Object.keys(raw as Record<string, unknown>)) {
+		if (key === 'deck') continue;
+		return {
+			ok: false,
+			error:
+				key === 'rules'
+					? "body: unknown field rules — a table's rules are its room's format, which only the room leader changes"
+					: `body: unknown field ${key}`,
+		};
+	}
+	const deck = parseDeckRef((raw as { deck?: unknown }).deck, 'body.deck');
+	return deck.ok ? { ok: true, deck: deck.value } : { ok: false, error: deck.error };
 }
 
 function readPlayerState(raw: unknown): TablePlayerState | null {
@@ -348,8 +402,21 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	function tableView(room: RoomViewLike, me: string): Record<string, unknown> {
 		const players = rooms === null ? [] : playersOf(rooms, room);
 		return {
-			room: { id: room.id, name: room.name, gameType: room.gameType, matchId: liveMatchId(room), seats: TABLE_SEATS },
-			you: { player: players.some((p) => p.member.id === me) },
+			room: {
+				id: room.id,
+				name: room.name,
+				gameType: room.gameType,
+				// The pool both decks are checked in. The screen shows it, and only the
+				// leader's copy of the screen may change it (`PATCH /api/rooms/:id`).
+				format: room.format,
+				matchId: liveMatchId(room),
+				seats: TABLE_SEATS,
+			},
+			// `player` is "I have a deck at this table"; `leader` is "this room's
+			// settings are mine to change". A member can be either, both or neither,
+			// and no client can derive the second one for itself: `room.leader` is a
+			// hashed ParticipantId and nothing tells a caller which id is theirs.
+			you: { player: players.some((p) => p.member.id === me), leader: room.leader === me },
 			players: players.map((p, seat) => ({
 				seat,
 				name: p.member.name,
@@ -377,6 +444,27 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		return true;
 	}
 
+	/**
+	 * The rules every deck at this room's table is checked against. One pool, both
+	 * seats, whoever is asking.
+	 */
+	function roomRules(room: RoomViewLike): DeckRules {
+		return { kind: 'standard', format: room.format };
+	}
+
+	/**
+	 * A room whose pool this server does not have is a 409 about the ROOM, not a
+	 * 400 about the caller's body: nothing the caller sent is wrong. It happens to
+	 * a room restored from a build whose pools this one no longer ships, and to a
+	 * server with no `decks/pools` at all — where the lobby says `unavailable`
+	 * rather than inventing a date.
+	 */
+	function unknownFormat(room: RoomViewLike, res: Response): boolean {
+		if (library.format(room.format) !== undefined) return false;
+		res.status(409).json({ error: `this room's format ${JSON.stringify(room.format)} is not one this server has` });
+		return true;
+	}
+
 	tables.get('/rooms/:roomId', (req: Request, res: Response) => {
 		const found = tableFor(req, String(req.params.roomId));
 		if (found === null) {
@@ -398,26 +486,30 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(409).json({ error: 'the match has already started' });
 			return;
 		}
-		const parsed = parseSeatRequest(req.body, 'body');
+		const parsed = parseDeckBody(req.body);
 		if (!parsed.ok) {
 			res.status(400).json({ error: parsed.error });
 			return;
 		}
+		if (unknownFormat(room, res)) return;
+		const seat: SeatRequest = { deck: parsed.deck, rules: roomRules(room) };
 		const players = playersOf(rooms, room);
 		const mine = players.find((p) => p.member.id === me);
 		if (mine === undefined && players.length >= TABLE_SEATS) {
 			res.status(409).json({ error: 'this table already has two players' });
 			return;
 		}
-		const verdict = checkSeat(parsed.value, context(req));
+		const verdict = checkSeat(seat, context(req));
 		if ('error' in verdict) {
 			res.status(400).json({ error: verdict.error });
 			return;
 		}
 		// A new deck un-readies you: what you readied with is not what you hold.
+		// `choice` keeps the room's rules beside the deck, so the hold records which
+		// pool its verdict was taken in even after the leader moves the room.
 		const state: TablePlayerState = {
 			v: 1,
-			choice: parsed.value,
+			choice: seat,
 			verdict: publicVerdict(verdict),
 			text: verdict.text,
 			ready: false,
@@ -547,14 +639,27 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(409).json({ error: `${waiting.member.name} is not ready yet` });
 			return;
 		}
-		// Unreachable while a deck is checked at load, `ready` refuses an illegal
-		// one and loading a new deck un-readies you — and a guard, not a verdict:
-		// naming another player's offending card here would report their drafted
-		// pool to whoever pressed the button.
-		const illegal = players.find((p) => !p.state.verdict.legal);
-		if (illegal !== undefined) {
-			res.status(422).json({ error: `${illegal.member.name}'s deck is not legal in ${illegal.state.verdict.rulesName}` });
-			return;
+		// BOTH decks against the ROOM's pool, which is what makes the pool a
+		// property of the table: one rule, applied to both seats, independent of who
+		// pressed the button. The stored verdict is not the authority here — it was
+		// taken when its own deck was loaded, and the room can have moved since.
+		//
+		// A guard, not a verdict: the sentence names the PLAYER and the pool and
+		// never the card, because naming somebody else's offending card would
+		// report their deck to whoever pressed the button.
+		if (unknownFormat(room, res)) return;
+		const ctx = context(req);
+		for (const player of players) {
+			const verdict = checkSeat({ deck: { dck: player.state.text }, rules: roomRules(room) }, ctx);
+			if ('error' in verdict) {
+				res.status(409).json({ error: `this room's table cannot be checked: ${verdict.error}` });
+				return;
+			}
+			if (!verdict.legal) {
+				log({ evt: 'room-start-refused', room: room.id, issues: verdict.issues.length });
+				res.status(422).json({ error: `${player.member.name}'s deck is not legal in ${verdict.rulesName}` });
+				return;
+			}
 		}
 		const registry = deps.matches?.() ?? null;
 		if (registry === null) {

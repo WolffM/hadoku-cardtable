@@ -23,8 +23,21 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+
+import { loadTablesLibrary } from './library.ts';
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+/**
+ * The frozen pools, read the way production reads them, so what a room's default
+ * format is asserted AGAINST is the real list rather than a date copied here.
+ * `formats` is oldest first (`library.ts`), so the newest is the last.
+ */
+const POOLS = loadTablesLibrary(REPO_ROOT).formats.map((f) => f.id);
+const NEWEST_POOL = POOLS[POOLS.length - 1];
+const OLDEST_POOL = POOLS[0];
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 const PASSWORD = 'correct-horse-battery-staple-9137';
@@ -209,6 +222,14 @@ describe('POST /api/rooms', () => {
 		expect(room.draftStartedAt).toBeNull();
 		expect(room.members.map((m) => m.ready)).toEqual([false]);
 		expect(room.leader).toBe(room.creator);
+		// The NEWEST frozen pool, which is the operator's choice and the opposite of
+		// what this defaulted to before: `formats[0]` is 2011-02-13, so every room
+		// used to start eighteen months behind the newest pool the server has.
+		expect(room.format).toBe(NEWEST_POOL);
+		expect(room.format).not.toBe(OLDEST_POOL);
+		expect(POOLS.length).toBeGreaterThan(1);
+		// And the creator is told, in their own row, that the room is theirs to set.
+		expect(res.json()).toMatchObject({ you: { leader: true, ready: false } });
 		expect(room.members).toHaveLength(1);
 		expect(room.members[0].id).toBe(room.creator);
 		expect(room.members[0].name).toBe('user-alice');
@@ -220,6 +241,7 @@ describe('POST /api/rooms', () => {
 			'createdAt',
 			'creator',
 			'draftStartedAt',
+			'format',
 			'gameType',
 			'id',
 			'leader',
@@ -227,6 +249,7 @@ describe('POST /api/rooms', () => {
 			'matchId',
 			'members',
 			'name',
+			'you',
 		]);
 		expect(Object.keys(room.members[0]).sort()).toEqual(['id', 'joinedAt', 'name', 'ready']);
 
@@ -533,6 +556,167 @@ describe('PATCH /api/rooms/:id', () => {
 			body: { gameType: 'chess' },
 		});
 		expect(bad.status).toBe(400);
+	});
+});
+
+/* ── the room's pool, and who may move it (wave 25 §A) ───────────────── */
+
+describe('PATCH /api/rooms/:id { format }', () => {
+	it('refuses a non-leader with not-leader and changes nothing', async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
+
+		const byMember = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'bob', body: { format: OLDEST_POOL } });
+		expect(byMember.status).toBe(403);
+		expect((byMember.json() as { error: string }).error).toBe('only the room leader can change the format');
+		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { format: string }).format).toBe(NEWEST_POOL);
+
+		// A friend who is not even in the room gets the same 403 for a room that
+		// exists, and the shared 404 for one that does not.
+		expect((await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'carol', body: { format: OLDEST_POOL } })).status).toBe(403);
+		const missing = await call(h, 'PATCH', '/api/rooms/r-000000000000', { as: 'carol', body: { format: OLDEST_POOL } });
+		expect(missing.status).toBe(404);
+		expect(missing.json()).toEqual(roomsMod.NO_MATCH);
+
+		const byLeader = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format: OLDEST_POOL } });
+		expect(byLeader.status).toBe(200);
+		expect((byLeader.json() as { format: string }).format).toBe(OLDEST_POOL);
+	});
+
+	it('clears both readiness flags and every deck hold when the pool changes', async () => {
+		const dir = await tempDir();
+		const h = await openApp(dir);
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
+		const bob = ((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView)
+			.members[1].id;
+		await call(h, 'POST', `/api/rooms/${created.id}/ready`, { as: 'alice', body: { ready: true } });
+		await call(h, 'POST', `/api/rooms/${created.id}/ready`, { as: 'bob', body: { ready: true } });
+		// The TABLE's ready flag and deck verdict live in the per-member blob
+		// `http/routes.ts` owns. The lobby does not read its shape; it drops it.
+		h.lobby.setPlayerState(created.id, created.creator, { v: 1, ready: true, verdict: { legal: true } });
+		h.lobby.setPlayerState(created.id, bob, { v: 1, ready: true, verdict: { legal: true } });
+
+		const patched = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format: OLDEST_POOL } });
+		expect(patched.status).toBe(200);
+		const after = patched.json() as import('../room/lobby.ts').RoomView;
+		expect(after.format).toBe(OLDEST_POOL);
+		// The room's flag, for everybody including the leader who changed it.
+		expect(after.members.map((m) => m.ready)).toEqual([false, false]);
+		// And the table's, which is the whole hold: a verdict is a verdict in one
+		// pool, and this one was taken in the pool that just went away.
+		expect(h.lobby.playerState(created.id, created.creator)).toBeUndefined();
+		expect(h.lobby.playerState(created.id, bob)).toBeUndefined();
+		// Cleared on disk too, and the new pool came back with the room.
+		const second = await openApp(dir);
+		const restored = (await call(second, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView;
+		expect(restored.format).toBe(OLDEST_POOL);
+		expect(restored.members.map((m) => m.ready)).toEqual([false, false]);
+		expect(second.lobby.playerState(created.id, created.creator)).toBeUndefined();
+	});
+
+	it('changes nothing when the pool it is set to is the one it is on', async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${created.id}/ready`, { as: 'alice', body: { ready: true } });
+		// Selecting the option that is already selected must not un-ready the table.
+		const same = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format: NEWEST_POOL } });
+		expect(same.status).toBe(200);
+		expect((same.json() as import('../room/lobby.ts').RoomView).members.map((m) => m.ready)).toEqual([true]);
+	});
+
+	it('refuses both fields in one body, a blank format, and lands neither half', async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		const cases: Array<[unknown, string]> = [
+			[{ gameType: 'draft', format: OLDEST_POOL }, 'patch one field at a time: gameType or format'],
+			[{ format: '' }, 'format must be a format id'],
+			[{ format: '   ' }, 'format must be a format id'],
+			[{ format: null }, 'format must be a format id'],
+			[{ format: 7 }, 'format must be a format id'],
+			[{ format: OLDEST_POOL, sneaky: true }, 'unknown field(s): sneaky'],
+		];
+		for (const [body, error] of cases) {
+			const res = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body });
+			expect(res.status, JSON.stringify(body)).toBe(400);
+			expect(res.json()).toEqual({ error });
+		}
+		// Neither half of the two-field body landed.
+		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView;
+		expect([after.gameType, after.format]).toEqual(['constructed-1v1', NEWEST_POOL]);
+	});
+
+	it('refuses to move the pool while a draft is running', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' })).status).toBe(200);
+
+		const patched = await call(h, 'PATCH', `/api/rooms/${room.id}`, { as: 'alice', body: { format: OLDEST_POOL } });
+		expect(patched.status).toBe(409);
+		expect((patched.json() as { error: string }).error).toBe('this room is drafting; the format cannot change now');
+		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
+		expect(after.format).toBe(NEWEST_POOL);
+		expect(after.members.map((m) => m.ready)).toEqual([true]);
+	});
+});
+
+/* ── the caller's own row ────────────────────────────────────────────── */
+
+describe('you', () => {
+	it('is true for exactly one member, in the list and in the room', async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
+
+		type Body = import('../room/lobby.ts').RoomView & { you: { leader: boolean; ready: boolean } };
+		const asUser = async (who: string): Promise<Body> =>
+			(await call(h, 'GET', `/api/rooms/${created.id}`, { as: who })).json() as Body;
+
+		expect((await asUser('alice')).you).toEqual({ leader: true, ready: false });
+		expect((await asUser('bob')).you).toEqual({ leader: false, ready: false });
+		// A friend who is not in the room at all is neither.
+		expect((await asUser('carol')).you).toEqual({ leader: false, ready: false });
+		// Exactly one, counted rather than asserted twice.
+		const leaders = ['alice', 'bob', 'carol'].map(async (who) => (await asUser(who)).you.leader);
+		expect((await Promise.all(leaders)).filter(Boolean)).toHaveLength(1);
+
+		// The list carries it too, so the front page needs no second request.
+		const listed = ((await call(h, 'GET', '/api/rooms', { as: 'bob' })).json() as { rooms: Body[] }).rooms;
+		expect(listed.map((r) => r.you)).toEqual([{ leader: false, ready: false }]);
+	});
+
+	it('follows your OWN ready flag, which is what a reload could not tell', async () => {
+		// Wave 23's gap: after a reload the room screen knew somebody was ready and
+		// not whether it was you, so the button relabelled itself and could not
+		// stand down in one click.
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+
+		type You = { leader: boolean; ready: boolean };
+		const readied = await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: true } });
+		// The answer to the ready call is bob's own row.
+		expect((readied.json() as { you: You }).you).toEqual({ leader: false, ready: true });
+		// Alice sees a ready member and is not ready herself — the distinction the
+		// screen could not draw.
+		const alice = (await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'alice' })).json() as {
+			you: You;
+			members: { ready: boolean }[];
+		};
+		expect(alice.you).toEqual({ leader: true, ready: false });
+		expect(alice.members.map((m) => m.ready)).toEqual([false, true]);
+		// And standing down is one click, with the flag to prove it.
+		const down = await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: false } });
+		expect((down.json() as { you: You }).you).toEqual({ leader: false, ready: false });
 	});
 });
 

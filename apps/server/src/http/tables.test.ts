@@ -43,8 +43,20 @@ const CUBE_FILE = resolve(REPO_ROOT, 'apps/ui/src/draft/pool.json');
 
 const BEN_STARK = 'pt-paris-2011-1-ben-stark';
 const PAUL_RIETZL = 'pt-paris-2011-2-paul-rietzl';
+/**
+ * Two more real decks, because a room has ONE pool (wave 25 §A) and a test that
+ * needs one legal deck and one illegal one now needs both of them in the SAME
+ * pool. Both PT Paris decks are illegal after the bans, so the old pairing —
+ * alice illegal in 2011-07-01, bob legal in 2011-02-13 — is no longer a table
+ * that can exist. Derived from the real library, not invented:
+ *   - `AADIL` is legal in 2011-07-01 and BEN_STARK is not (the bans).
+ *   - `EDGAR` is legal in 2011-05-14 and not in 2011-02-13 (a later set).
+ */
+const AADIL = 'scg-orlando-2011-7-aadil-qadir';
+const EDGAR = 'scg-orlando-2011-1-edgar-flores';
 const PT_PARIS = '2011-02-13';
 const AFTER_BANS = '2011-07-01';
+const SCG_ORLANDO = '2011-05-14';
 const PT_DKA = '2012-02-12';
 
 let routesMod: typeof import('./routes.ts');
@@ -225,13 +237,16 @@ interface FakeRoom {
 	id: string;
 	name: string;
 	gameType: string;
+	/** The room's pool: one per table, for both seats. Mutable here, so a test can put a room in a state the leader's setter would never leave it in. */
+	format: string;
+	leader: string;
 	members: { id: string; name: string }[];
 	matchId: string | null;
 	state: Map<string, unknown>;
 }
 
 interface FakeLobby extends TablesRooms {
-	open(id: string, members: { id: string; name: string }[], gameType?: string): FakeRoom;
+	open(id: string, members: { id: string; name: string }[], gameType?: string, format?: string): FakeRoom;
 	room(id: string): FakeRoom | undefined;
 }
 
@@ -242,8 +257,18 @@ function fakeLobby(): FakeLobby {
 		return room !== undefined && room.members.some((m) => m.id === memberId) ? room : undefined;
 	};
 	return {
-		open(id, members, gameType = 'constructed-1v1') {
-			const room: FakeRoom = { id, name: `room ${id}`, gameType, members, matchId: null, state: new Map() };
+		open(id, members, gameType = 'constructed-1v1', format = PT_PARIS) {
+			// The first member is the leader, as `lobby.create` makes the creator one.
+			const room: FakeRoom = {
+				id,
+				name: `room ${id}`,
+				gameType,
+				format,
+				leader: members[0]?.id ?? '',
+				members,
+				matchId: null,
+				state: new Map(),
+			};
 			held.set(id, room);
 			return room;
 		},
@@ -758,9 +783,15 @@ describe('a room table', () => {
 	];
 	const ROOM = 'r-table';
 
-	const openRoom = (h: Harness, gameType?: string) => h.lobby.open(ROOM, [...MEMBERS], gameType);
+	const openRoom = (h: Harness, gameType?: string, format?: string) =>
+		h.lobby.open(ROOM, [...MEMBERS], gameType, format);
 	const putDeck = (h: Harness, user: string, seat: unknown, roomId = ROOM) =>
 		call(h, 'PUT', `/api/tables/rooms/${roomId}/deck`, seat, edgeHeaders(user));
+	/**
+	 * What a browser now sends: the deck, and no rules. The rules are the room's
+	 * format, for both seats, and a body that names them is refused (§A.3).
+	 */
+	const deckBody = (deck: string) => ({ deck: { library: deck } });
 	const setReady = (h: Harness, user: string, ready = true, roomId = ROOM) =>
 		call(h, 'POST', `/api/tables/rooms/${roomId}/ready`, { ready }, edgeHeaders(user));
 	const view = (h: Harness, user: string, roomId = ROOM) =>
@@ -773,6 +804,7 @@ describe('a room table', () => {
 		name: string;
 		you: boolean;
 		deckName: string;
+		rulesName: string;
 		legal: boolean;
 		ready: boolean;
 		issueCount: number;
@@ -782,8 +814,8 @@ describe('a room table', () => {
 
 	/** Both members seated with a legal deck, each choosing only their own. */
 	async function bothLoaded(h: Harness): Promise<void> {
-		expect((await putDeck(h, 'alice', standard(BEN_STARK, PT_PARIS))).status).toBe(200);
-		expect((await putDeck(h, 'bob', standard(PAUL_RIETZL, PT_PARIS))).status).toBe(200);
+		expect((await putDeck(h, 'alice', deckBody(BEN_STARK))).status).toBe(200);
+		expect((await putDeck(h, 'bob', deckBody(PAUL_RIETZL))).status).toBe(200);
 	}
 
 	it('starts the match from the room, each player in the seat their own deck is in', async () => {
@@ -887,10 +919,10 @@ describe('a room table', () => {
 		const outsider = await view(h, 'carol');
 		expect(missing).toEqual({ status: 404, body: { error: 'no such room' } });
 		expect(outsider).toEqual(missing);
-		expect(await call(h, 'PUT', '/api/tables/rooms/r-nope/deck', standard(BEN_STARK, PT_PARIS), edgeHeaders('alice'))).toEqual(
+		expect(await call(h, 'PUT', '/api/tables/rooms/r-nope/deck', deckBody(BEN_STARK), edgeHeaders('alice'))).toEqual(
 			missing,
 		);
-		expect(await putDeck(h, 'carol', standard(BEN_STARK, PT_PARIS))).toEqual(missing);
+		expect(await putDeck(h, 'carol', deckBody(BEN_STARK))).toEqual(missing);
 		expect(await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('carol'))).toEqual(missing);
 		expect(await call(h, 'POST', '/api/play/matches', { room: 'r-nope' }, edgeHeaders('alice'))).toEqual(missing);
 		expect(h.specs).toEqual([]);
@@ -899,8 +931,11 @@ describe('a room table', () => {
 
 	it('blocks only the player whose deck is illegal, naming the card', async () => {
 		const h = await boot();
-		openRoom(h);
-		const loaded = await putDeck(h, 'alice', standard(BEN_STARK, AFTER_BANS));
+		// One pool for the table, and BEN_STARK is the deck the bans cost: alice is
+		// illegal in it and AADIL is legal in the same pool, so the asymmetry under
+		// test is between two decks rather than between two players' formats.
+		openRoom(h, undefined, AFTER_BANS);
+		const loaded = await putDeck(h, 'alice', deckBody(BEN_STARK));
 		expect(loaded.status).toBe(200);
 		expect(players(loaded.body)[0]).toMatchObject({ legal: false, issueCount: 2 });
 		expect(players(loaded.body)[0]?.verdict?.issues.map((i) => i.cardName)).toEqual([
@@ -913,7 +948,7 @@ describe('a room table', () => {
 		expect(refused.body.error).toContain('Jace, the Mind Sculptor');
 
 		// The other player is untouched by it: they load, they ready.
-		expect((await putDeck(h, 'bob', standard(PAUL_RIETZL, PT_PARIS))).status).toBe(200);
+		expect((await putDeck(h, 'bob', deckBody(AADIL))).status).toBe(200);
 		expect((await setReady(h, 'bob')).status).toBe(200);
 
 		const blocked = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
@@ -921,8 +956,9 @@ describe('a room table', () => {
 		expect(blocked.body.error).toContain('user-alice');
 		expect(h.specs).toEqual([]);
 
-		// And a legal deck unblocks it: same player, same room, no restart.
-		expect((await putDeck(h, 'alice', standard(BEN_STARK, PT_PARIS))).status).toBe(200);
+		// And a legal deck unblocks it: same player, same room, same pool — what
+		// changes is the deck, because the pool is not the player's to change.
+		expect((await putDeck(h, 'alice', deckBody(AADIL))).status).toBe(200);
 		expect((await setReady(h, 'alice')).status).toBe(200);
 		expect((await startRoom(h, 'bob')).status).toBe(201);
 	});
@@ -933,7 +969,7 @@ describe('a room table', () => {
 		await bothLoaded(h);
 		await setReady(h, 'alice');
 		await setReady(h, 'bob');
-		const reloaded = await putDeck(h, 'alice', standard(PAUL_RIETZL, PT_PARIS));
+		const reloaded = await putDeck(h, 'alice', deckBody(PAUL_RIETZL));
 		expect(players(reloaded.body).map((p) => p.ready)).toEqual([false, true]);
 		const res = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
 		expect(res).toMatchObject({ status: 409, body: { error: 'user-alice is not ready yet' } });
@@ -944,22 +980,23 @@ describe('a room table', () => {
 		const h = await boot();
 		h.lobby.open(ROOM, [...MEMBERS, { id: CAROL, name: 'user-carol' }]);
 		await bothLoaded(h);
-		const third = await putDeck(h, 'carol', standard(BEN_STARK, PT_PARIS));
+		const third = await putDeck(h, 'carol', deckBody(BEN_STARK));
 		expect(third).toMatchObject({ status: 409, body: { error: 'this table already has two players' } });
 		// There is no field that names a member — a body that invents one is refused.
-		const named = await putDeck(h, 'carol', { ...standard(BEN_STARK, PT_PARIS), member: ALICE });
+		const named = await putDeck(h, 'carol', { ...deckBody(BEN_STARK), member: ALICE });
 		expect(named).toMatchObject({ status: 400, body: { error: 'body: unknown field member' } });
-		// Carol sees the table, as a member of the room who is not playing.
+		// Carol sees the table, as a member of the room who is not playing — and she
+		// is not its leader either, which alice is.
 		const seen = await view(h, 'carol');
-		expect(seen.body.you).toEqual({ player: false });
+		expect(seen.body.you).toEqual({ player: false, leader: false });
 		expect(players(seen.body).map((p) => p.you)).toEqual([false, false]);
 	});
 
 	it('shows the other player’s state without their issues or their .dck', async () => {
 		const h = await boot();
-		openRoom(h);
-		await putDeck(h, 'alice', standard(BEN_STARK, AFTER_BANS));
-		await putDeck(h, 'bob', standard(PAUL_RIETZL, PT_PARIS));
+		openRoom(h, undefined, AFTER_BANS);
+		await putDeck(h, 'alice', deckBody(BEN_STARK));
+		await putDeck(h, 'bob', deckBody(AADIL));
 		const seen = await view(h, 'bob');
 		const [mine, theirs] = [players(seen.body)[1], players(seen.body)[0]];
 		expect(mine).toMatchObject({ you: true, legal: true });
@@ -974,7 +1011,7 @@ describe('a room table', () => {
 	it('refuses a table in a room that is not constructed 1v1', async () => {
 		const h = await boot();
 		h.lobby.open(ROOM, [...MEMBERS], 'draft');
-		const res = await putDeck(h, 'alice', standard(BEN_STARK, PT_PARIS));
+		const res = await putDeck(h, 'alice', deckBody(BEN_STARK));
 		expect(res.status).toBe(409);
 		expect(res.body.error).toContain('constructed-1v1');
 		expect(await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'))).toMatchObject({ status: 409 });
@@ -994,13 +1031,19 @@ describe('a room table', () => {
 	});
 
 	/**
-	 * The hazard the stored verdict exists for: a `draft` rule resolves the pool
-	 * of whoever is making the request. Alice's drafted deck is checked against
-	 * ALICE's pool when she loads it, and BOB presses start — so if the gate
-	 * re-checked at start time, Alice's deck would be checked against Bob's
-	 * (empty) pool and the match would never launch.
+	 * Wave 25 §A, the consequence stated: a drafted deck is not brought to a room
+	 * table at all, because a room table's rules are its room's pool and a drafted
+	 * pool is nobody's format. That path is `POST /api/play/matches` with `seats`
+	 * against the AI, which still carries `rules` per seat — the describe block
+	 * above exercises it, including the refusal of a card the caller did not draft.
+	 *
+	 * The hazard that shape used to carry is why the room's pool had to become the
+	 * rule rather than a per-seat one: a `{ kind: 'draft' }` rule resolves the pool
+	 * of whoever is making the REQUEST, so Bob pressing start would have had
+	 * Alice's deck checked against Bob's (empty) pool. One pool per table, named by
+	 * the room, cannot do that to anybody.
 	 */
-	it('starts a drafted deck the other player pressed start on', async () => {
+	it('refuses a drafted deck at a room table, because the room owns the rules', async () => {
 		const h = await boot();
 		openRoom(h);
 		const draftId = 'amber-lantern-k7q4';
@@ -1017,25 +1060,30 @@ describe('a room table', () => {
 		}
 		const text = dckTextOf(built);
 
-		expect((await putDeck(h, 'alice', { deck: { dck: text }, rules: { kind: 'draft', draftId } })).status).toBe(200);
-		expect((await putDeck(h, 'bob', standard(PAUL_RIETZL, PT_PARIS))).status).toBe(200);
-		await setReady(h, 'alice');
-		await setReady(h, 'bob');
+		const refused = await putDeck(h, 'alice', { deck: { dck: text }, rules: { kind: 'draft', draftId } });
+		expect(refused.status).toBe(400);
+		expect(refused.body.error).toContain('unknown field rules');
+		// Nothing was held: the refusal is whole, so alice is not a player.
+		expect(players((await view(h, 'alice')).body)).toEqual([]);
 
-		// Bob cannot check Alice's deck himself — that is the hazard, stated.
-		const asBob = await call(
+		// The same `.dck`, with no rules, is checked against the ROOM's pool — and
+		// a cube deck is not legal in a Standard pool, which is the honest answer
+		// rather than a pool of the caller's choosing.
+		const asIs = await putDeck(h, 'alice', { deck: { dck: text } });
+		expect(asIs.status).toBe(200);
+		expect(players(asIs.body)[0]).toMatchObject({ legal: false, rulesName: 'Standard (MBS)' });
+
+		// And `/api/tables/check` still takes rules, because it starts nothing and
+		// belongs to no room: this is where a drafted deck is still checked.
+		const checked = await call(
 			h,
 			'POST',
 			'/api/tables/check',
 			{ deck: { dck: text }, rules: { kind: 'draft', draftId } },
-			edgeHeaders('bob'),
+			edgeHeaders('alice'),
 		);
-		expect(asBob).toMatchObject({ status: 400, body: { error: `you have no seat in draft "${draftId}"` } });
-
-		const res = await startRoom(h, 'bob');
-		expect(res.status).toBe(201);
-		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([text, library.deck(PAUL_RIETZL)?.text]);
-		expect(h.matches.get(res.body.matchId as string)?.seatOf(ALICE)).toBe(0);
+		expect(checked).toMatchObject({ status: 200, body: { legal: true } });
+		expect(h.specs).toEqual([]);
 	});
 
 	it('refuses a start before both players have loaded a deck', async () => {
@@ -1043,7 +1091,7 @@ describe('a room table', () => {
 		openRoom(h);
 		const empty = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
 		expect(empty).toMatchObject({ status: 409, body: { error: 'both players have to load a deck first' } });
-		await putDeck(h, 'alice', standard(BEN_STARK, PT_PARIS));
+		await putDeck(h, 'alice', deckBody(BEN_STARK));
 		await setReady(h, 'alice');
 		const alone = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
 		expect(alone.status).toBe(409);
@@ -1064,6 +1112,105 @@ describe('a room table', () => {
 		expect(await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: 'yes' }, edgeHeaders('alice'))).toMatchObject({
 			status: 400,
 		});
+		expect(h.specs).toEqual([]);
+	});
+
+	/* ── the pool is the room's, and the leader's (wave 25 §A) ─────────── */
+
+	it('refuses a PUT deck that carries rules', async () => {
+		const h = await boot();
+		openRoom(h);
+		const refused = await putDeck(h, 'alice', standard(BEN_STARK, AFTER_BANS));
+		expect(refused.status).toBe(400);
+		expect(refused.body.error).toBe(
+			"body: unknown field rules — a table's rules are its room's format, which only the room leader changes",
+		);
+		// Refused WHOLE: no deck was held under the caller's own idea of the format.
+		expect(players((await view(h, 'alice')).body)).toEqual([]);
+		// And `rules` is refused even smuggled in beside a deck that would be fine,
+		// which is what makes this a stated refusal rather than a silent ignore.
+		expect((await putDeck(h, 'alice', { ...deckBody(BEN_STARK), rules: null })).status).toBe(400);
+		expect((await putDeck(h, 'alice', deckBody(BEN_STARK))).status).toBe(200);
+	});
+
+	it('checks the deck against the ROOM’s pool, and says so in the verdict', async () => {
+		const h = await boot();
+		// The same deck, the same body, two rooms on two pools: the verdict follows
+		// the ROOM. Nothing in the request says which pool, because nothing may.
+		h.lobby.open('r-mbs', [...MEMBERS], undefined, PT_PARIS);
+		h.lobby.open('r-bans', [...MEMBERS], undefined, AFTER_BANS);
+
+		const inMbs = await putDeck(h, 'alice', deckBody(BEN_STARK), 'r-mbs');
+		expect(inMbs.status).toBe(200);
+		expect(players(inMbs.body)[0]).toMatchObject({ legal: true, rulesName: 'Standard (MBS)' });
+		expect((inMbs.body.room as { format: string }).format).toBe(PT_PARIS);
+
+		const inBans = await putDeck(h, 'alice', deckBody(BEN_STARK), 'r-bans');
+		expect(inBans.status).toBe(200);
+		expect(players(inBans.body)[0]).toMatchObject({ legal: false, rulesName: 'Standard (2011-07-01)' });
+		expect((inBans.body.room as { format: string }).format).toBe(AFTER_BANS);
+	});
+
+	it('refuses a start when a deck is illegal in the room’s pool though legal in another', async () => {
+		const h = await boot();
+		// Both decks legal in SCG Orlando's pool, both players ready, the match
+		// would start. Then the room is on PT Paris's pool instead — where EDGAR is
+		// not legal and PAUL_RIETZL still is.
+		const room = openRoom(h, undefined, SCG_ORLANDO);
+		expect((await putDeck(h, 'alice', deckBody(EDGAR))).status).toBe(200);
+		expect((await putDeck(h, 'bob', deckBody(PAUL_RIETZL))).status).toBe(200);
+		expect((await setReady(h, 'alice')).status).toBe(200);
+		expect((await setReady(h, 'bob')).status).toBe(200);
+
+		// Set directly, which is a state the leader's setter would never leave
+		// behind — it drops every hold and both ready flags. That is the point: the
+		// start route does not trust the stored verdict, it checks the room's pool.
+		room.format = PT_PARIS;
+		const refused = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
+		expect(refused.status).toBe(422);
+		expect(refused.body.error).toBe("user-alice's deck is not legal in Standard (MBS)");
+		// The card is NOT named: bob pressed start, and what is wrong with alice's
+		// deck is alice's to read.
+		expect(JSON.stringify(refused.body)).not.toContain('Batterskull');
+		expect(refused.body.verdict).toBeUndefined();
+		expect(refused.body.issues).toBeUndefined();
+		expect(h.specs).toEqual([]);
+
+		// Back on the pool both decks are legal in, the same two holds start.
+		room.format = SCG_ORLANDO;
+		expect((await startRoom(h, 'bob')).status).toBe(201);
+	});
+
+	it('tells exactly one member the room is theirs to set: you.leader', async () => {
+		const h = await boot();
+		h.lobby.open(ROOM, [...MEMBERS, { id: CAROL, name: 'user-carol' }]);
+		const seen = await Promise.all([view(h, 'alice'), view(h, 'bob'), view(h, 'carol')]);
+		expect(seen.map((r) => (r.body.you as { leader: boolean }).leader)).toEqual([true, false, false]);
+		// The flag is the room's leader and nothing else: alice leads without a deck.
+		expect(seen.map((r) => r.body.you)).toEqual([
+			{ player: false, leader: true },
+			{ player: false, leader: false },
+			{ player: false, leader: false },
+		]);
+	});
+
+	it('answers 409 for a room whose pool this server does not have', async () => {
+		const h = await boot();
+		const room = openRoom(h, undefined, '1999-01-01');
+		const loaded = await putDeck(h, 'alice', deckBody(BEN_STARK));
+		expect(loaded).toMatchObject({
+			status: 409,
+			body: { error: 'this room\'s format "1999-01-01" is not one this server has' },
+		});
+		// A room that goes unknown UNDER a loaded table refuses the start too, and
+		// with the same sentence: nothing is checked against a pool nobody froze.
+		room.format = PT_PARIS;
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		room.format = 'unavailable';
+		const started = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
+		expect(started).toMatchObject({ status: 409, body: { error: 'this room\'s format "unavailable" is not one this server has' } });
 		expect(h.specs).toEqual([]);
 	});
 

@@ -12,7 +12,10 @@
  *   POST  /api/rooms/:id/join   { password? }                   → 200 RoomView | 404 | 429
  *   POST  /api/rooms/:id/ready  { ready }                       → 200 RoomView | 400 | 403 | 404
  *   POST  /api/rooms/:id/start  {} or no body                   → 200 RoomView | 403 | 404 | 409
- *   PATCH /api/rooms/:id        { gameType }                    → 200 RoomView | 403 | 404 | 409
+ *   PATCH /api/rooms/:id        { gameType } | { format }       → 200 RoomView | 403 | 404 | 409
+ *
+ * Every body that carries a room is `RoomView` plus a caller-scoped
+ * `you: { leader, ready }` — see "`you` is the caller's own row" below.
  *
  * ## `ready` and `start` are the room's own, not the table's
  *
@@ -26,6 +29,24 @@
  * idempotent, so two browsers racing is one draft. A PATCH of the game type is
  * refused with 409 once a draft is running: the pod is dealt against this room's
  * id and is already being played.
+ *
+ * ## `you` is the caller's own row, and the only caller-scoped thing here
+ *
+ * `RoomView.leader` is a hashed ParticipantId and `RoomMember.id` is another
+ * one; nothing told a client WHICH of them was theirs, so the room screen could
+ * not tell that it was the leader and could not tell whether the ready flag it
+ * was drawing was its own. `RoomView` cannot answer that — it has no caller — so
+ * the answer is added here, where the request is: `you.leader` and `you.ready`,
+ * derived from `identityFromHeaders` exactly as every other route derives the
+ * caller. A non-member gets `{ leader: false, ready: false }`, which is the
+ * truth for them, and the list carries one `you` per room for the same reason.
+ *
+ * ## The PATCH takes one field at a time
+ *
+ * `{ gameType }` and `{ format }` are two separate lobby mutations with two
+ * separate refusals, so a body carrying both is a 400 rather than a write that
+ * half-lands. That is the same discipline as the allow-list itself: this file
+ * refuses what it will not honour whole (see `clientMode` below).
  *
  * ## `clientMode` is a create-only field
  *
@@ -74,8 +95,10 @@ import {
 	ROOM_ID_RE,
 	type Caller,
 	type ClientMode,
+	type FormatId,
 	type GameType,
 	type Lobby,
+	type RoomView,
 } from '../room/lobby.js';
 
 /** The single answer for "no such room" and "wrong password". Byte-identical by construction. */
@@ -218,16 +241,51 @@ function parseStart(body: unknown): Parsed<Record<string, never>> {
 	return { ok: true, value: {} };
 }
 
-function parsePatch(body: unknown): Parsed<{ gameType: GameType }> {
+/** A format id is any non-blank string; whether it names a pool is the tables layer's answer. */
+function parseFormat(v: unknown): Parsed<FormatId> {
+	if (typeof v === 'string' && v.trim() !== '') return { ok: true, value: v };
+	return { ok: false, error: 'format must be a format id' };
+}
+
+/** One field, one mutation. `{ gameType }` or `{ format }`, never both and never neither. */
+type PatchBody = { gameType: GameType } | { format: FormatId };
+
+function parsePatch(body: unknown): Parsed<PatchBody> {
 	const o = asObject(body);
 	if (o === null) return { ok: false, error: 'body must be a JSON object' };
 	// The allow-list is the refusal: `clientMode` is not on it, so a PATCH
 	// carrying it is a 400 rather than a write nobody notices. See the header.
-	const extra = unknownKeys(o, ['gameType']);
+	const extra = unknownKeys(o, ['gameType', 'format']);
 	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
+	// Two fields is refused rather than applied in some order: each has its own
+	// refusal, and a body whose halves disagree must not half-land.
+	if (o.gameType !== undefined && o.format !== undefined) {
+		return { ok: false, error: 'patch one field at a time: gameType or format' };
+	}
+	if (o.format !== undefined) {
+		const format = parseFormat(o.format);
+		return format.ok ? { ok: true, value: { format: format.value } } : format;
+	}
 	const gameType = parseGameType(o.gameType);
 	if (!gameType.ok) return gameType;
 	return { ok: true, value: { gameType: gameType.value } };
+}
+
+/**
+ * The room, as this caller is told it: the public `RoomView` plus their own row.
+ *
+ * `you.leader` is the flag the room screen could not compute for itself, and
+ * `you.ready` is the ROOM's ready flag for this caller — the one wave 23's room
+ * screen had to guess at after a reload, which is why a reload while ready
+ * relabelled the button and could not stand down in one click.
+ */
+export interface RoomBody extends RoomView {
+	you: { leader: boolean; ready: boolean };
+}
+
+function roomBody(room: RoomView, callerId: string): RoomBody {
+	const mine = room.members.find((m) => m.id === callerId);
+	return { ...room, you: { leader: room.leader === callerId, ready: mine?.ready === true } };
 }
 
 function badRequest(res: Response, error: string): void {
@@ -258,23 +316,27 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 
 	const rooms = Router();
 
-	rooms.get('/', (_req: Request, res: Response) => {
-		res.json({ rooms: lobby.list() });
+	rooms.get('/', (req: Request, res: Response) => {
+		// One `you` per room: the front page says which rooms you lead and which
+		// you have already readied in, without a second request per room.
+		const me = callerOf(req).id;
+		res.json({ rooms: lobby.list().map((room) => roomBody(room, me)) });
 	});
 
 	rooms.post('/', (req: Request, res: Response) => {
 		const parsed = parseCreate(req.body);
 		if (!parsed.ok) return badRequest(res, parsed.error);
-		const result = lobby.create(callerOf(req), parsed.value);
+		const caller = callerOf(req);
+		const result = lobby.create(caller, parsed.value);
 		if (!result.ok) return notDurable(res);
-		res.status(201).json(result.room);
+		res.status(201).json(roomBody(result.room, caller.id));
 	});
 
 	rooms.get('/:id', (req: Request, res: Response) => {
 		const id = String(req.params.id);
 		const room = ROOM_ID_RE.test(id) ? lobby.get(id) : undefined;
 		if (room === undefined) return noMatch(res);
-		res.json(room);
+		res.json(roomBody(room, callerOf(req).id));
 	});
 
 	rooms.post('/:id/join', (req: Request, res: Response) => {
@@ -285,7 +347,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		// A member re-entering needs no password and spends no token.
 		if (ROOM_ID_RE.test(id) && lobby.isMember(id, caller.id)) {
 			const again = lobby.join(id, caller);
-			if (again.ok) return res.json(again.room);
+			if (again.ok) return res.json(roomBody(again.room, caller.id));
 		}
 		// Spent BEFORE the room is looked up, so a 429 says nothing about whether
 		// the room exists either.
@@ -301,7 +363,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 			log({ event: 'room-join-refused', reason: 'no-match' });
 			return noMatch(res);
 		}
-		res.json(result.room);
+		res.json(roomBody(result.room, caller.id));
 	});
 
 	rooms.post('/:id/ready', (req: Request, res: Response) => {
@@ -315,7 +377,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!ROOM_ID_RE.test(id) || !lobby.setReady(id, caller.id, parsed.value.ready)) return noMatch(res);
 		const room = lobby.get(id);
 		if (room === undefined) return noMatch(res);
-		res.json(room);
+		res.json(roomBody(room, caller.id));
 	});
 
 	rooms.post('/:id/start', (req: Request, res: Response) => {
@@ -337,7 +399,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 						: 'everyone in the room has to be ready before the draft starts',
 			});
 		}
-		res.json(result.room);
+		res.json(roomBody(result.room, caller.id));
 	});
 
 	rooms.patch('/:id', (req: Request, res: Response) => {
@@ -345,15 +407,22 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!parsed.ok) return badRequest(res, parsed.error);
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.setGameType(id, callerOf(req).id, parsed.value.gameType);
+		const me = callerOf(req).id;
+		// Two settings, one leader, one refusal shape. The noun in each sentence is
+		// the setting the caller asked for, because the room screen shows it.
+		const what = 'format' in parsed.value ? 'format' : 'game type';
+		const result =
+			'format' in parsed.value
+				? lobby.setFormat(id, me, parsed.value.format)
+				: lobby.setGameType(id, me, parsed.value.gameType);
 		if (!result.ok) {
 			if (result.reason === 'no-room') return noMatch(res);
 			if (result.reason === 'draft-started') {
-				return res.status(409).json({ error: 'this room is drafting; the game type cannot change now' });
+				return res.status(409).json({ error: `this room is drafting; the ${what} cannot change now` });
 			}
-			return res.status(403).json({ error: 'only the room leader can change the game type' });
+			return res.status(403).json({ error: `only the room leader can change the ${what}` });
 		}
-		res.json(result.room);
+		res.json(roomBody(result.room, me));
 	});
 
 	api.use('/rooms', rooms);

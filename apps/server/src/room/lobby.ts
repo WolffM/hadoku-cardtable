@@ -27,10 +27,11 @@
  * starts on) and the constructed table's per-player state blob (deck choice and
  * its own ready flag, written by `http/routes.ts`) — which is exactly what that
  * field is for. The room-level `app` blob carries name, leader, game type,
- * client mode, match id and `draftStartedAt`, plus the password's salt and
- * scrypt hash. A room written before `clientMode` existed has no such key and
- * reads back `builtin`; one written before `ready`/`draftStartedAt` existed
- * reads back `false` and `null`.
+ * client mode, format, match id and `draftStartedAt`, plus the password's salt
+ * and scrypt hash. A room written before `clientMode` existed has no such key
+ * and reads back `builtin`; one written before `ready`/`draftStartedAt` existed
+ * reads back `false` and `null`; one written before `format` existed reads back
+ * on the newest frozen pool.
  *
  * ## The password is privacy between friends, not authentication
  *
@@ -57,6 +58,9 @@
  */
 
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
 	FileRoomStore,
 	STORE_VERSION,
@@ -68,6 +72,12 @@ import {
 	type SerializedMember,
 } from '@hadoku/room-store';
 import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
+// A data loader, not a route: `http/library.ts` is what reads `decks/pools`, and
+// the newest frozen pool is a room's default format. Importing it here rather
+// than restating the pool-file convention keeps one reader for that fact; it
+// pulls in no HTTP and closes no cycle (`library.ts` imports only `node:fs`,
+// `node:path` and `@hadoku/deck`).
+import { loadTablesLibrary } from '../http/library.js';
 
 export type GameType = 'constructed-1v1' | 'draft';
 /**
@@ -98,6 +108,79 @@ export const DEFAULT_CLIENT_MODE: ClientMode = 'builtin';
 /** What `roomKeyFor` in the UI accepts, and every id this file mints. */
 export const ROOM_ID_RE = /^[a-z0-9-]{1,40}$/;
 
+/* ── the room's format ───────────────────────────────────────────────────── */
+
+/**
+ * The pool a room's table plays in: a `TableFormat.id` from `http/library.ts`,
+ * which is the frozen Standard pool's date.
+ *
+ * **It belongs to the ROOM, not to a seat.** Before wave 25 each player sent
+ * their own `rules` with their own deck (`http/routes.ts`, `PUT …/deck`) and the
+ * start route only ever checked a deck against the rule its own owner had
+ * named, so two people could load decks legal in two different Standard pools
+ * and the match started anyway. One pool per table is not a new mode; it is the
+ * property the table never had. The leader sets it (`setFormat`), exactly as the
+ * leader sets the game type.
+ *
+ * Whether the id names a pool THIS server has is not decided here: the lobby
+ * stores a room's choice and `http/routes.ts` — which holds the library — is
+ * what refuses a table whose pool it cannot load.
+ */
+export type FormatId = string;
+
+/**
+ * What a room's format says when this server has no frozen pool at all.
+ *
+ * Not a date, deliberately: a made-up date would read like a pool and would be
+ * silently wrong. This id resolves to nothing, so the table routes answer "this
+ * room's format is not one this server has" rather than checking a deck against
+ * a pool nobody froze. It is unreachable wherever `decks/pools` is present,
+ * which is every checkout and the deploy tree.
+ */
+export const NO_FORMAT: FormatId = 'unavailable';
+
+/**
+ * The repo root, found by walking up from this module to the first ancestor that
+ * holds `decks/pools`.
+ *
+ * NOT `dirname(dirname(import.meta.url))`. That expression is right for
+ * `src/index.ts` and `dist/index.js` — each exactly one directory below the
+ * package root — and wrong for this file, which sits two directories down in
+ * `src` and is bundled INTO `dist/index.js` (`esbuild --bundle`, see
+ * `package.json`). The two layouts differ by a level, so a fixed number of
+ * `..`s cannot be right for both; the search is what makes one function right
+ * for dev, for the bundle and for the deploy tree.
+ */
+function repoRootWithPools(from: string): string | null {
+	let dir = dirname(fileURLToPath(from));
+	for (let up = 0; up < 8; up++) {
+		if (existsSync(join(dir, 'decks', 'pools'))) return dir;
+		const parent = dirname(dir);
+		if (parent === dir) break;
+		dir = parent;
+	}
+	return null;
+}
+
+/** Resolved at most once per process: it reads the pool fixtures off disk. */
+let newestFrozen: FormatId | null = null;
+
+/**
+ * The NEWEST frozen pool, which is what a new room starts on.
+ *
+ * `library.formats` is "in date order, oldest first" (`http/library.ts`), so the
+ * newest is the LAST element — `formats[0]` is 2011-02-13 and every room used to
+ * start there. Lazy and memoised, because a lobby that never mints a room and
+ * restores no pre-format record should not read `decks/pools` at all.
+ */
+export function newestFormat(): FormatId {
+	if (newestFrozen !== null) return newestFrozen;
+	const root = repoRootWithPools(import.meta.url);
+	const formats = root === null ? [] : loadTablesLibrary(root).formats;
+	newestFrozen = formats.at(-1)?.id ?? NO_FORMAT;
+	return newestFrozen;
+}
+
 export interface RoomMember {
 	/** A ParticipantId from `identityFromHeaders`. */
 	id: string;
@@ -123,6 +206,15 @@ export interface RoomView {
 	creator: string;
 	leader: string;
 	gameType: GameType;
+	/**
+	 * The room's pool, and the rules BOTH seats' decks are checked against.
+	 *
+	 * Always a concrete id, in every body that carries a room: a new room starts
+	 * on the newest frozen pool and a room stored before this field existed reads
+	 * back on it too, so no client ever has to guess what a room is playing. Only
+	 * the leader changes it (`setFormat`).
+	 */
+	format: FormatId;
 	/** Fixed at create. Every client sees it before joining, from `list()` as well as `get()`. */
 	clientMode: ClientMode;
 	/** Whether a password is set — never the password, never any hash of it. */
@@ -170,6 +262,11 @@ export type JoinResult =
 	| { ok: false; reason: 'no-match' | 'not-durable' };
 
 export type SetGameTypeResult =
+	| { ok: true; room: RoomView }
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' };
+
+/** Deliberately the same three refusals as `SetGameTypeResult`: one leader, one shape. */
+export type SetFormatResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' };
 
@@ -234,6 +331,21 @@ export interface Lobby {
 	 */
 	setGameType(roomId: string, callerId: string, gameType: GameType): SetGameTypeResult;
 	/**
+	 * Leader only. Changes the pool both seats' decks are checked against.
+	 *
+	 * A change DROPS every member's readiness and every member's table state —
+	 * the deck choice, the verdict and the `.dck` text `http/routes.ts` holds in
+	 * the per-member blob. A verdict is a verdict in one pool: what somebody
+	 * readied with is not what this table is now, for the same reason loading a
+	 * new deck un-readies you. The blob stays opaque to this file — it is
+	 * dropped whole, not edited, because every part of it was produced under the
+	 * pool that just went away.
+	 *
+	 * Refused with `draft-started` while a draft is running, like `setGameType`:
+	 * the lobby is not the place to half-change a room a pod is being played in.
+	 */
+	setFormat(roomId: string, callerId: string, format: FormatId): SetFormatResult;
+	/**
 	 * Forget every room untouched for longer than `idleMs`, on disk as well as
 	 * in memory. Returns the ids dropped, for the caller's log.
 	 *
@@ -255,6 +367,13 @@ export interface OpenLobbyOptions {
 	log?: LobbyLog;
 	/** Injected for tests. */
 	now?: () => number;
+	/**
+	 * The pool a room starts on, and what a record written before the field reads
+	 * back as. Defaults to `newestFormat()` — the newest frozen pool, read off
+	 * disk. A caller that already holds a `TablesLibrary` may pass
+	 * `library.formats.at(-1)?.id` instead and save the second read.
+	 */
+	defaultFormat?: FormatId;
 }
 
 // ── the password ─────────────────────────────────────────────────────────────
@@ -304,6 +423,7 @@ interface RoomRecord {
 	creator: string;
 	leader: string;
 	gameType: GameType;
+	format: FormatId;
 	clientMode: ClientMode;
 	matchId: string | null;
 	/** ms since epoch once the draft was dealt; null in the lobby phase. */
@@ -320,6 +440,14 @@ interface StoredApp {
 	creator: string;
 	leader: string;
 	gameType: GameType;
+	/**
+	 * Null ONLY on the way out of `deserialize`, and only for a record written
+	 * before the field existed: `openLobby` turns that into the default. Never
+	 * null on the way in — `#persist` always writes the room's concrete id — so a
+	 * record that stores an explicit `null` is a record this build did not write
+	 * and does not understand, and the codec quarantines it like any other.
+	 */
+	format: FormatId | null;
 	clientMode: ClientMode;
 	matchId: string | null;
 	/**
@@ -333,13 +461,19 @@ interface StoredApp {
 }
 
 /**
- * Not bumped for `clientMode`, and not bumped for `ready`/`draftStartedAt`
- * either. Each is additive and is read with a default — `builtin`, `false`,
- * `null` — so a record written before it existed decodes without a migration,
- * and a bump would imply one that does not exist. `deserialize` gets the stored
- * version anyway if a real migration ever needs it.
+ * Not bumped for `clientMode`, not bumped for `ready`/`draftStartedAt`, and not
+ * bumped for `format`. Each is additive and is read with a default — `builtin`,
+ * `false`, `null`, the newest frozen pool — so a record written before it
+ * existed decodes without a migration, and a bump would imply one that does not
+ * exist. `deserialize` gets the stored version anyway if a real migration ever
+ * needs it.
  */
 const APP_VERSION = 1;
+
+/** Any non-blank string. Whether it names a pool THIS server has is not this file's question. */
+function isFormatId(v: unknown): v is FormatId {
+	return typeof v === 'string' && v.trim() !== '';
+}
 
 function isGameType(v: unknown): v is GameType {
 	return typeof v === 'string' && (GAME_TYPES as readonly string[]).includes(v);
@@ -375,6 +509,11 @@ const appCodec: AppCodec<StoredApp> = {
 		if (a.clientMode !== undefined && !isClientMode(a.clientMode)) {
 			throw new Error('app.clientMode is not a known client mode');
 		}
+		// Absent is a room written before wave 25, which starts on the newest
+		// frozen pool (`openLobby`). Present and not a format id is a record this
+		// build does not understand — including an explicit `null`, which this
+		// build never writes.
+		if (a.format !== undefined && !isFormatId(a.format)) throw new Error('app.format is not a format id');
 		if (a.matchId !== null && typeof a.matchId !== 'string') throw new Error('app.matchId is invalid');
 		// Absent is a room written before wave 23, which is every room that
 		// existed then and no room that was mid-draft. Present and not a number
@@ -388,6 +527,7 @@ const appCodec: AppCodec<StoredApp> = {
 			creator: a.creator,
 			leader: a.leader,
 			gameType: a.gameType,
+			format: a.format === undefined ? null : (a.format as FormatId),
 			clientMode: a.clientMode === undefined ? DEFAULT_CLIENT_MODE : a.clientMode,
 			matchId: a.matchId as string | null,
 			draftStartedAt: a.draftStartedAt === undefined ? null : (a.draftStartedAt as number | null),
@@ -405,6 +545,7 @@ function viewOf(room: RoomRecord, locked: boolean): RoomView {
 		creator: room.creator,
 		leader: room.leader,
 		gameType: room.gameType,
+		format: room.format,
 		clientMode: room.clientMode,
 		locked,
 		members: room.members.map((m) => ({
@@ -460,10 +601,14 @@ class FileLobby implements Lobby {
 	/** Kept apart from the records so no dump of a record can carry them. */
 	#secrets = new Map<string, Secret>();
 
-	constructor(store: FileRoomStore, now: () => number, log: LobbyLog) {
+	/** The pool a room minted here starts on. Resolved by `openLobby`, never read off a room. */
+	#defaultFormat: FormatId;
+
+	constructor(store: FileRoomStore, now: () => number, log: LobbyLog, defaultFormat: FormatId) {
 		this.#store = store;
 		this.#now = now;
 		this.#log = log;
+		this.#defaultFormat = defaultFormat;
 	}
 
 	/** Boot only: install a room decoded from disk. */
@@ -502,6 +647,7 @@ class FileLobby implements Lobby {
 			creator: room.creator,
 			leader: room.leader,
 			gameType: room.gameType,
+			format: room.format,
 			clientMode: room.clientMode,
 			matchId: room.matchId,
 			draftStartedAt: room.draftStartedAt,
@@ -573,6 +719,10 @@ class FileLobby implements Lobby {
 			creator: caller.id,
 			leader: caller.id,
 			gameType: input.gameType,
+			// The NEWEST frozen pool, not `formats[0]`. There is no field for it in
+			// `CreateRoomInput` on purpose: a room is created on the current pool and
+			// the leader moves it from there, so one setting has one mutator.
+			format: this.#defaultFormat,
 			clientMode: input.clientMode,
 			matchId: null,
 			draftStartedAt: null,
@@ -589,6 +739,7 @@ class FileLobby implements Lobby {
 			event: 'room-created',
 			roomId: id,
 			gameType: room.gameType,
+			format: room.format,
 			clientMode: room.clientMode,
 			locked: this.#secrets.has(id),
 		});
@@ -661,6 +812,32 @@ class FileLobby implements Lobby {
 		return { ok: true, room: this.#view(room) };
 	}
 
+	setFormat(roomId: string, callerId: string, format: FormatId): SetFormatResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
+		if (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };
+		// Setting the pool a room is already on changes nothing and clears nothing:
+		// a leader clicking the option that is already selected must not un-ready
+		// the table under everybody.
+		if (room.format === format) return { ok: true, room: this.#view(room) };
+		room.format = format;
+		// BOTH readiness flags, and the deck hold with them. The room's `ready` is
+		// readiness for this table; the table's own ready flag and the deck verdict
+		// live inside the per-member blob `http/routes.ts` owns, and every part of
+		// that blob — the choice, the verdict, the checked `.dck` — was produced
+		// against the pool that just went away. So the blob is dropped whole rather
+		// than edited: this file does not read its shape, and a verdict from another
+		// pool is not a verdict here.
+		for (const member of room.members) {
+			member.ready = false;
+			member.state = undefined;
+		}
+		this.#persist(room);
+		this.#log({ event: 'room-format', roomId, format });
+		return { ok: true, room: this.#view(room) };
+	}
+
 	sweep(idleMs: number = ROOM_IDLE_MS): string[] {
 		const cutoff = this.#now() - idleMs;
 		const dropped: string[] = [];
@@ -698,7 +875,8 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 	const store = new FileRoomStore(opts.dir);
 	const now = opts.now ?? Date.now;
 	const log = opts.log ?? (() => {});
-	const lobby = new FileLobby(store, now, log);
+	const defaultFormat = opts.defaultFormat ?? newestFormat();
+	const lobby = new FileLobby(store, now, log, defaultFormat);
 
 	for (const roomId of await store.list()) {
 		const quarantine = async (reason: string): Promise<void> => {
@@ -742,6 +920,12 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					creator: app.creator,
 					leader: app.leader,
 					gameType: app.gameType,
+					// **Restored, unlike the match and the draft.** A room that came
+					// back on a different pool from the one its players loaded their
+					// decks against is exactly the bug this field exists to prevent:
+					// the decks are restored too (the per-member blob), so the pool
+					// they were checked in has to come back with them.
+					format: app.format ?? defaultFormat,
 					clientMode: app.clientMode,
 					// **Never restored.** A match is a child JVM this process
 					// owns; nothing survives a restart, and this repo restarts on
@@ -772,6 +956,6 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 			throw err;
 		}
 	}
-	log({ event: 'lobby-open', rooms: lobby.list().length });
+	log({ event: 'lobby-open', rooms: lobby.list().length, defaultFormat });
 	return lobby;
 }
