@@ -104,7 +104,16 @@ import {
 	type ServerFrame,
 } from '@hadoku/forge-wire';
 
-import { autoPassReason, autoPayReason, onlyAnswer, paymentCost, paymentLine, type Payment } from './auto.js';
+import {
+	autoCancelReason,
+	autoPassReason,
+	autoPayReason,
+	onlyAnswer,
+	paymentCost,
+	paymentLine,
+	type Payment,
+	type SeatNotes,
+} from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
 import {
@@ -171,13 +180,29 @@ export interface SeatState {
 	 * it asks next; one press per cost is all `autoPayReason` ever earns.
 	 */
 	autoPaid: string | null;
+	/**
+	 * The cost this seat's Cancel was already pressed for (item 7). One press per
+	 * cost, for the same reason {@link SeatState.autoPaid} exists: Forge answers
+	 * the press by ending the input, and a second one would answer the next.
+	 */
+	autoCancelled: string | null;
+	/**
+	 * This seat's open payment was CANCELLED rather than paid — by the player's own
+	 * press or by {@link Match.maybeCancelUnpayable}'s. A cancelled cast paid
+	 * nothing, so `trackPayment` owes it no `paid …` line (item 7).
+	 */
+	paymentCancelled: boolean;
 	/** How many asks were answered for this seat, and how many stops passed. */
 	autoAnswered: number;
 	autoPassed: number;
 	/**
-	 * The last few `message` lines this seat was sent — what was auto-passed,
-	 * what a cast paid. Re-sent after a snapshot so a refresh does not lose the
-	 * only record that a cost was paid.
+	 * The last few `message` lines this seat was sent — what a cast paid, and
+	 * whether full control is on. Re-sent after a snapshot so a refresh does not
+	 * lose the only record that a cost was paid.
+	 *
+	 * An auto-pass is NOT one of them any more (wave 25 §D, item 3): the phase it
+	 * named is on the turn bar and the phase rail already, and the line was ours
+	 * rather than Forge's.
 	 */
 	says: ServerFrame[];
 }
@@ -302,6 +327,8 @@ export class Match {
 			actionable: null,
 			payment: null,
 			autoPaid: null,
+			autoCancelled: null,
+			paymentCancelled: false,
 			autoAnswered: 0,
 			autoPassed: 0,
 			says: [],
@@ -500,6 +527,10 @@ export class Match {
 		if (this.status !== 'running') return { ok: false, error: `match is ${this.status}` };
 		switch (frame.kind) {
 			case 'act':
+				// A Cancel under an open payment ABANDONS it, so the cost was never
+				// paid and `trackPayment` must not report one (item 7). The same note
+				// covers the player's own press and `maybeCancelUnpayable`'s.
+				if (frame.method === 'selectButtonCancel' && s.payment !== null) s.paymentCancelled = true;
 				this.command({ t: 'act', seat, frame });
 				return { ok: true };
 			case 'reply': {
@@ -780,7 +811,12 @@ export class Match {
 		return this.seats[seat]?.fullControl ?? false;
 	}
 
-	/** One observable line to a seat: what was auto-passed, what a cast paid. */
+	/**
+	 * One observable line to a seat: what a cast paid, and whether full control is
+	 * on. **A synthesised Forge frame** — nothing downstream can tell it from one
+	 * Forge sent — so a line added here is a line every client folds. Wave 25 §D,
+	 * item 3 removed the only caller that did not earn that.
+	 */
 	private say(s: SeatState, message: string): void {
 		const frame = { kind: 'notify', method: 'message', message, title: '' } as unknown as ServerFrame;
 		s.says.push(frame);
@@ -788,26 +824,37 @@ export class Match {
 		this.send(s, frame);
 	}
 
-	/**
-	 * Pass a stop the seat cannot act in — and say so. Never silent: an
-	 * auto-pass nobody can see is indistinguishable from a board that froze.
-	 */
-	private maybeAutoPass(s: SeatState): void {
-		if (s.fullControl || s.ai || this.status !== 'running') return;
-		const phase = autoPassReason({
+	/** What this seat was last told, as the stop decisions read it (`auto.ts`). */
+	private notesOf(s: SeatState): SeatNotes {
+		return {
 			playerId: s.playerId,
 			prompt: s.prompt,
 			buttons: s.buttons,
 			actionable: s.actionable,
 			openAsks: s.asks.size,
-		});
+		};
+	}
+
+	/**
+	 * Pass a stop the seat cannot act in — **silently**.
+	 *
+	 * Wave 25 §D, item 3. This used to `say` `auto-passed <phase>`, and the
+	 * operator's verdict on the corner box that carried it, 2026-09-27, was *"i
+	 * mostly hate all the text in the bottom right it's totally useless"*. The line
+	 * was ours, not Forge's — `say` fabricates a Forge frame — and the phase it
+	 * named is on the turn bar and the phase rail already, so it told the seat
+	 * nothing the board was not showing. The LOG entry stays: that is where a pass
+	 * nobody expected gets diagnosed, and it costs the player nothing.
+	 */
+	private maybeAutoPass(s: SeatState): void {
+		if (s.fullControl || s.ai || this.status !== 'running') return;
+		const phase = autoPassReason(this.notesOf(s));
 		if (phase === null) return;
 		s.autoPassed += 1;
 		// Forge clears the set as the input stops; drop ours with it so the next
 		// stop is judged on the next answer rather than on this one.
 		s.actionable = null;
 		this.deps.log({ evt: 'auto-passed', matchId: this.id, seat: s.seat, phase });
-		this.say(s, `auto-passed ${phase}`);
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
 	}
 
@@ -815,17 +862,16 @@ export class Match {
 	 * Press Forge's own Auto for a payment with one source — and say nothing
 	 * extra: `trackPayment` already says what was paid and what tapped, which is
 	 * the whole record either way (#8).
+	 *
+	 * The payment that CANNOT be made is the same shape and is answered here too,
+	 * with the other button (item 7).
 	 */
 	private maybeAutoPay(s: SeatState): void {
 		if (s.fullControl || s.ai || this.status !== 'running') return;
-		const cost = autoPayReason({
-			playerId: s.playerId,
-			prompt: s.prompt,
-			buttons: s.buttons,
-			actionable: s.actionable,
-			openAsks: s.asks.size,
-		});
+		const notes = this.notesOf(s);
+		const cost = autoPayReason(notes);
 		if (cost === null) {
+			this.maybeCancelUnpayable(s, notes);
 			// The payment ended (or never started); the next one earns its press.
 			if (s.payment === null) s.autoPaid = null;
 			return;
@@ -837,19 +883,57 @@ export class Match {
 	}
 
 	/**
+	 * Press Forge's own Cancel for a cost Forge itself says cannot be paid — item
+	 * 7, *"it's confusing i have to click 'cancel' to not pay manaleak when i dont
+	 * even have enough mana"*.
+	 *
+	 * Commanded exactly as the Auto press above is, on the act
+	 * `packages/forge-wire` has carried since wave 17 (`tier-a.ts:51`, `:196`) and
+	 * the browser already sends (`apps/ui/src/play/live/match.ts`). Nothing is
+	 * said: the cast never happened, so there is no cost to account for, and the
+	 * board returning to priority IS the answer.
+	 */
+	private maybeCancelUnpayable(s: SeatState, notes: SeatNotes): void {
+		const cost = autoCancelReason(notes);
+		if (cost === null) {
+			if (s.payment === null) s.autoCancelled = null;
+			return;
+		}
+		if (s.autoCancelled === cost) return;
+		s.autoCancelled = cost;
+		s.paymentCancelled = true;
+		this.deps.log({ evt: 'auto-cancelled', matchId: this.id, seat: s.seat, cost });
+		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonCancel' } });
+	}
+
+	/**
 	 * A cast must never look free (#8). Forge's payment prompt names the cost
 	 * (`Pay Mana Cost: {U}`) and the lands tap under it; both vanish the moment
 	 * the spell is on the stack, so the pair is kept and said once.
+	 *
+	 * The one payment that leaves no line is one that was CANCELLED: the cast was
+	 * rolled back, nothing was paid, and the rule is "a cast must never look free",
+	 * not "every prompt must leave a line".
 	 */
 	private trackPayment(s: SeatState, message: string): void {
 		const cost = paymentCost(message);
 		if (cost !== null) {
-			if (s.payment === null || s.payment.cost !== cost) s.payment = { cost, tapped: [] };
+			if (s.payment === null || s.payment.cost !== cost) {
+				s.payment = { cost, tapped: [] };
+				s.paymentCancelled = false;
+			}
 			return;
 		}
 		const payment = s.payment;
 		s.payment = null;
 		if (payment === null) return;
+		// A cast that was CANCELLED paid nothing (item 7). Saying `paid 1U` for it
+		// would be the opposite of the rule this line exists for: it would make a
+		// cost that was never paid look like one that was.
+		if (s.paymentCancelled) {
+			s.paymentCancelled = false;
+			return;
+		}
 		const state = foldFrames(s.history as unknown as StateFrame[]);
 		for (const card of payment.tapped) card.name = cardName(state, card.id) ?? card.name;
 		this.say(s, paymentLine(payment));

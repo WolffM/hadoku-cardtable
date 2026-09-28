@@ -15,15 +15,17 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { PHASE_TYPES, REPLY_SCHEMAS, YieldUpdateSchema, parseServerFrame, type PhaseType, type ServerFrame } from '@hadoku/forge-wire';
+import { ClientFrameSchema, PHASE_TYPES, REPLY_SCHEMAS, YieldUpdateSchema, parseServerFrame, type PhaseType, type ServerFrame } from '@hadoku/forge-wire';
 
 import {
 	ARENA_STOP_POLICY,
 	DEFAULT_STOP_POLICY,
 	FULL_CONTROL_POLICY,
 	PHASE_BY_UI_NAME,
+	autoCancelReason,
 	autoPassReason,
 	autoPayReason,
+	decideCancel,
 	decidePay,
 	decideStop,
 	isOwnMainPhaseEntry,
@@ -589,7 +591,7 @@ describe('a Match with the shortcuts on (the default)', () => {
 		expect(h.match.seats[1]?.autoAnswered).toBe(1);
 	});
 
-	it('passes a stop with nothing to do, says which one, and presses OK exactly once', () => {
+	it('passes a stop with nothing to do, presses OK exactly once, and says NOTHING (item 3)', () => {
 		const h = harness();
 		const me = playerOf(h, 0);
 		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
@@ -598,7 +600,12 @@ describe('a Match with the shortcuts on (the default)', () => {
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
 			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
 		]);
-		expect(says(h, 0)).toEqual(['auto-passed End of Combat Step']);
+		// Item 3, wave 25 §D: the pass is SILENT. The log keeps it; the seat does
+		// not, because the phase it named is on the turn bar and the phase rail.
+		expect(says(h, 0)).toEqual([]);
+		expect(h.logs.filter((l) => l.evt === 'auto-passed')).toEqual([
+			{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'End of Combat Step' },
+		]);
 		expect(h.match.seats[0]?.autoPassed).toBe(1);
 	});
 
@@ -678,9 +685,11 @@ describe('a Match with the shortcuts on (the default)', () => {
 	it('keeps its lines across a refresh: a snapshot re-sends them before the prompt', () => {
 		const h = harness();
 		const me = playerOf(h, 0);
-		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
+		// The payment line is the one that MUST survive a refresh — it is the only
+		// record that a cost was paid (#8). The auto-pass no longer says anything.
+		push(h, 0, prompt('Preordain.\n\nPay Mana Cost: {U}', me));
 		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
-		push(h, 0, buttons(true, me));
+		expect(says(h, 0)).toEqual(['paid U']);
 		const before = frames(h, 0).length;
 		h.match.resendAfterSnapshot(0);
 		expect(frames(h, 0).slice(before).filter((f) => f.method === 'message')).toHaveLength(1);
@@ -798,6 +807,7 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 		confirmLive: true,
 		cost: null,
 		alternativePayment: false,
+		noWayToPay: false,
 		sources: [],
 		plannedSources: [],
 		openAsks: 0,
@@ -920,6 +930,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			interruptsRestoreStops: true,
 			passStackWindows: true,
 			unambiguousPayment: 'auto',
+			unpayableCost: 'cancel',
 			costConfirm: 'ask',
 			answerOneAnswerAsks: true,
 		});
@@ -1171,5 +1182,254 @@ describe('toYieldUpdates — the policy as Forge’s own YieldUpdate arms', () =
 			const firstSkip = frames.findIndex((f) => f.update === 'skipPhase');
 			expect(firstPref).toBeLessThan(firstSkip);
 		}
+	});
+});
+
+/* ── Wave 25 §D: items 3, 6 and 7 ────────────────────────────────────── */
+
+/**
+ * Item 6, pinned as the MEASUREMENT it is.
+ *
+ * `auto.jvm.test.ts`'s third scenario casts Galvanic Blast for `{R}` off a board
+ * holding one Mountain and one Island, and `readPromptFacts` read that window as
+ *
+ * ```json
+ * {"window":"payment","confirmLive":true,"cost":"{R}","alternativePayment":false,
+ *  "sources":[16,57],"plannedSources":[],"openAsks":0,"mine":true}
+ * ```
+ *
+ * So the guard that returned null is the SOURCE COUNT: `sources` had two entries,
+ * `decidePay`'s one-source arm did not fire, and with no auto-tap plan on the wire
+ * the #22 arm returned null. The cause is not the arithmetic — it is that Forge's
+ * payment-mode actionable set is every card in five zones with a playable mana
+ * ability (`PlayerControllerHuman.java:1533-1535`, `:1565-1573`, `:1594-1599`),
+ * so the Island is in it while `{R}` is being paid.
+ *
+ * Nothing on this wire tells "one Mountain and one Island for `{R}`" (one payment)
+ * apart from "two Mountains for `{R}`" (two): both arrive as two sources and, with
+ * the auto-tap preview on, a one-card plan. Deciding that an Island cannot pay red
+ * is a rule. So the shortcut is a POLICY VALUE — `'forgeAuto'` — and not a branch.
+ */
+describe('item 6 — the guard that asked, and the policy value that stops asking', () => {
+	/** Galvanic Blast's window, as the real Forge run recorded it. */
+	const galvanicBlast = facts({
+		window: 'payment',
+		phase: null,
+		phaseLabel: null,
+		stackEmpty: false,
+		cost: '{R}',
+		sources: [16, 57],
+		plannedSources: [],
+	});
+
+	it('is the source COUNT that asks, and every other guard passed', () => {
+		expect(galvanicBlast.window).toBe('payment');
+		expect(galvanicBlast.confirmLive).toBe(true);
+		expect(galvanicBlast.mine).toBe(true);
+		expect(galvanicBlast.openAsks).toBe(0);
+		expect(galvanicBlast.alternativePayment).toBe(false);
+		expect(galvanicBlast.cost).toBe('{R}');
+		// Two sources, no plan: that is the pair `decidePay` cannot settle.
+		expect(galvanicBlast.sources).toHaveLength(2);
+		expect(galvanicBlast.plannedSources).toEqual([]);
+		expect(decidePay(galvanicBlast, DEFAULT_STOP_POLICY)).toBeNull();
+		// And with one source it always did fire — the arm was never broken.
+		expect(decidePay({ ...galvanicBlast, sources: [16] }, DEFAULT_STOP_POLICY)).toBe('{R}');
+	});
+
+	it('the value that closes it is one word, and it presses Forge’s own Auto', () => {
+		const forgeAuto: StopPolicy = { ...DEFAULT_STOP_POLICY, unambiguousPayment: 'forgeAuto' };
+		expect(decidePay(galvanicBlast, forgeAuto)).toBe('{R}');
+		// It rests on the live Auto and nothing else: Forge saying it found a
+		// payment (`InputPayMana.java:402-407`). A dead one is never pressed.
+		expect(decidePay({ ...galvanicBlast, confirmLive: false }, forgeAuto)).toBeNull();
+		// And it keeps every guard that is not about counting sources.
+		expect(decidePay({ ...galvanicBlast, alternativePayment: true }, forgeAuto)).toBeNull();
+		expect(decidePay({ ...galvanicBlast, openAsks: 1 }, forgeAuto)).toBeNull();
+		expect(decidePay({ ...galvanicBlast, mine: false }, forgeAuto)).toBeNull();
+		expect(decidePay({ ...galvanicBlast, window: 'priority' }, forgeAuto)).toBeNull();
+	});
+
+	it('is NOT the default, and the two-Mountain window is why', () => {
+		// The same facts a genuinely ambiguous payment produces — two sources that
+		// can BOTH pay — are these exact facts. `board-play.jvm.test.ts` step 3
+		// asserts the strict behaviour over a real match, so the default stays
+		// strict and `'forgeAuto'` is opt-in.
+		expect(DEFAULT_STOP_POLICY.unambiguousPayment).toBe('auto');
+		expect(ARENA_STOP_POLICY.unambiguousPayment).toBe('auto');
+	});
+
+	it('full control asks anyway, whatever the payment preference is', () => {
+		expect(FULL_CONTROL_POLICY.unambiguousPayment).toBe('ask');
+		expect(decidePay(galvanicBlast, FULL_CONTROL_POLICY)).toBeNull();
+		expect(decidePay({ ...galvanicBlast, sources: [16] }, FULL_CONTROL_POLICY)).toBeNull();
+	});
+});
+
+/**
+ * Item 7 — the cost Forge itself says cannot be paid. Operator, 2026-09-27:
+ * *"it's confusing i have to click 'cancel' to not pay manaleak when i dont even
+ * have enough mana."*
+ */
+describe('item 7 — a payment Forge left only Cancel for', () => {
+	/** Forge's payment bar with its own Auto DEAD: `ensureAutoPayManaSources` found nothing. */
+	const deadAuto = autoBar(false);
+
+	it('the adapter reads Forge’s dead Auto plus an empty set as "no way to pay"', () => {
+		const read = readPromptFacts(notesFor('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', deadAuto, []));
+		expect(read.window).toBe('payment');
+		expect(read.cost).toBe('{1}{U}');
+		expect(read.confirmLive).toBe(false);
+		expect(read.noWayToPay).toBe(true);
+	});
+
+	it('never reads it off a window that is not Forge’s payment input', () => {
+		// A priority bar with a dead OK is a window that is simply not ours to press.
+		expect(readPromptFacts(notesFor(PRIORITY_MESSAGE, buttons(false), [])).noWayToPay).toBe(false);
+		// A LIVE Auto is Forge saying the cost CAN be paid.
+		expect(readPromptFacts(notesFor('Pay Mana Cost: {U}', autoBar(true), [])).noWayToPay).toBe(false);
+		// Forge naming something clickable means the window still holds an act.
+		expect(readPromptFacts(notesFor('Pay Mana Cost: {1}{U}', deadAuto, [61])).noWayToPay).toBe(false);
+		// And a CLEARED set is "Forge has not said", never "nothing".
+		expect(readPromptFacts(notesFor('Pay Mana Cost: {1}{U}', deadAuto, null)).noWayToPay).toBe(false);
+	});
+
+	it('cancels it, and names the cost it abandoned', () => {
+		const unpayable = facts({ window: 'payment', cost: '{1}{U}', confirmLive: false, noWayToPay: true, stackEmpty: false });
+		expect(decideCancel(unpayable, DEFAULT_STOP_POLICY)).toBe('{1}{U}');
+		// Through the entry point `match.ts` calls, over Forge's own frames.
+		expect(autoCancelReason(notesFor('Mana Leak.\n\nPay Mana Cost: {1}{U}', deadAuto, []))).toBe('{1}{U}');
+	});
+
+	it('leaves LIFE alone: alternativePayment stays in front of it', () => {
+		// A phyrexian cost has a second answer however few lands are out, and
+		// Forge's Auto is dead for that one too.
+		const phyrexian = notesFor(
+			'Pay Mana Cost: {U/P}\nClick on your life total to pay life for phyrexian mana.',
+			deadAuto,
+			[],
+		);
+		expect(readPromptFacts(phyrexian).noWayToPay).toBe(true);
+		expect(readPromptFacts(phyrexian).alternativePayment).toBe(true);
+		expect(autoCancelReason(phyrexian)).toBeNull();
+	});
+
+	it('never cancels a payment Forge can settle, or a window that is not one', () => {
+		const payable = facts({ window: 'payment', cost: '{U}', sources: [61], noWayToPay: false });
+		expect(decideCancel(payable, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideCancel(facts({ window: 'priority', noWayToPay: true }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideCancel(facts({ window: 'other', noWayToPay: true }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideCancel(facts({ window: 'payment', cost: null, noWayToPay: true }), DEFAULT_STOP_POLICY)).toBeNull();
+	});
+
+	it('never cancels while a question is open, or for the other seat', () => {
+		const unpayable = facts({ window: 'payment', cost: '{1}{U}', confirmLive: false, noWayToPay: true });
+		expect(decideCancel({ ...unpayable, openAsks: 1 }, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideCancel({ ...unpayable, mine: false }, DEFAULT_STOP_POLICY)).toBeNull();
+	});
+
+	it('is a POLICY: full control leaves the Cancel to the player', () => {
+		const unpayable = facts({ window: 'payment', cost: '{1}{U}', confirmLive: false, noWayToPay: true });
+		expect(FULL_CONTROL_POLICY.unpayableCost).toBe('ask');
+		expect(decideCancel(unpayable, FULL_CONTROL_POLICY)).toBeNull();
+		expect(decideCancel(unpayable, { ...DEFAULT_STOP_POLICY, unpayableCost: 'ask' })).toBeNull();
+		expect(autoCancelReason(notesFor('Pay Mana Cost: {1}{U}', deadAuto, []), FULL_CONTROL_POLICY)).toBeNull();
+	});
+
+	it('answers no stop and no payment either — Cancel is the only arm it is', () => {
+		const unpayable = facts({ window: 'payment', cost: '{1}{U}', confirmLive: false, noWayToPay: true });
+		expect(decideStop(unpayable, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decidePay(unpayable, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decidePay(unpayable, { ...DEFAULT_STOP_POLICY, unambiguousPayment: 'forgeAuto' })).toBeNull();
+	});
+});
+
+describe('a Match with an unpayable cost in front of it (item 7)', () => {
+	/** Forge's payment input with its own Auto dead and nothing to click. */
+	function unpayable(h: Harness, seat: number): void {
+		const me = playerOf(h, seat);
+		push(h, seat, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
+		push(h, seat, autoBar(false, me));
+		push(h, seat, prompt('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', me));
+	}
+
+	it('presses Forge’s own Cancel, exactly once for that cost, and says nothing', () => {
+		const h = harness();
+		unpayable(h, 0);
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
+			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonCancel' } },
+		]);
+		expect(h.logs.filter((l) => l.evt === 'auto-cancelled')).toEqual([
+			{ evt: 'auto-cancelled', matchId: h.match.id, seat: 0, cost: '{1}{U}' },
+		]);
+		// Forge re-shows the payment prompt after every refresh; a second press
+		// would answer whatever it asks next.
+		push(h, 0, autoBar(false, playerOf(h, 0)));
+		push(h, 0, prompt('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', playerOf(h, 0)));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
+		// The cast never happened, so there is nothing to account for: no line.
+		expect(says(h, 0)).toEqual([]);
+	});
+
+	it('never presses it when Forge’s Auto is live — that is the payment’s business', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Pay Mana Cost: {1}{U}', me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+		expect(h.logs.filter((l) => l.evt === 'auto-cancelled')).toEqual([]);
+	});
+
+	it('full control leaves the Cancel to the player', () => {
+		const h = harness();
+		h.match.setFullControl(0, true);
+		unpayable(h, 0);
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+		expect(h.logs.filter((l) => l.evt === 'auto-cancelled')).toEqual([]);
+	});
+
+	it('is per seat, like every other shortcut', () => {
+		const h = harness();
+		h.match.setFullControl(0, true);
+		unpayable(h, 0);
+		unpayable(h, 1);
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
+			{ t: 'act', seat: 1, frame: { kind: 'act', method: 'selectButtonCancel' } },
+		]);
+	});
+
+	/*
+	 * A cancelled cast paid nothing, and `paid 1U` for it would be the exact
+	 * opposite of the rule that line exists for (#8: a cast must never look free).
+	 */
+	it('leaves no "paid" line behind: a rollback is not a payment', () => {
+		const h = harness();
+		unpayable(h, 0);
+		// Forge rolls the cast back and the seat is at priority again.
+		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), playerOf(h, 0)));
+		expect(says(h, 0)).toEqual([]);
+	});
+
+	it('and the same for the player’s OWN Cancel, which is the same rollback', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		const cancel = ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' });
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Mana Leak.\n\nPay Mana Cost: {1}{U}', me));
+		expect(h.match.fromClient(0, cancel)).toEqual({ ok: true });
+		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
+		expect(says(h, 0)).toEqual([]);
+	});
+
+	it('still says what a payment that FINISHED paid', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Preordain.\n\nPay Mana Cost: {U}', me));
+		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
+		expect(says(h, 0)).toEqual(['paid U']);
 	});
 });

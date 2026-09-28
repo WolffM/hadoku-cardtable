@@ -36,8 +36,9 @@
  * ## Full control is a POLICY, not a bypass
  *
  * {@link FULL_CONTROL_POLICY} makes every phase a stop phase, refuses to pass a
- * stack window, refuses to pass for want of actions, asks every payment and
- * answers no bounds ask. `match.ts` also gates on the seat's `fullControl` flag,
+ * stack window, refuses to pass for want of actions, asks every payment, leaves
+ * a cost Forge cannot pay for the player to cancel, and answers no bounds ask.
+ * `match.ts` also gates on the seat's `fullControl` flag,
  * so the escape hatch holds at both levels, and `toYieldUpdates` of it emits the
  * frames that CLEAR Forge's yields (`clearMarker`, `stackYield false`,
  * `setAutoPassUntilEndOfTurn false`, `setDisableYields true`, and `skipPhase
@@ -71,6 +72,17 @@
  * - `apps/server/src/play/match.ts` — a per-seat `StopPolicy`, the act that
  *   ships `toYieldUpdates` on `openView`, and a `lastAnsweredAsk` note on
  *   `SeatNotes` (see {@link StopPolicy.costConfirm}).
+ * - `apps/server/src/play/host.ts` — `FORGE_PREFERENCES` does not set
+ *   `UI_SHOW_AUTOTAP_PREVIEW`, so Forge's auto-tap PLAN never reaches us and
+ *   {@link PromptFacts.plannedSources} is empty in production. Wave 25 §D
+ *   measured that against a real Forge. Turning it on is a one-line edit there
+ *   and it widens `'auto'` to #22's two-source case; it does NOT close item 6,
+ *   for the reason {@link StopPolicy.unambiguousPayment} records.
+ * - The bridge names no set of "cards that can pay THIS cost". `InputPayMana`
+ *   knows it (`autoPayManaSources`, `InputPayMana.java:438-452`) and Forge's own
+ *   desktop UI reads it through `getActivateAction`; neither is on our wire. That
+ *   set, sent as a payment window's `setSelectables`, is what would let `'auto'`
+ *   answer item 6 without anything here knowing what red mana is.
  * - `packages/forge-wire/src/{envelope,examples,index}.ts` — `sendYieldUpdate`
  *   is modelled in `tier-b.ts` (`SendYieldUpdateSchema`) but is deliberately NOT
  *   in `TIER_B_METHODS`: `envelope.test.ts` pins the census at 23 Tier B methods
@@ -99,13 +111,24 @@ function ok(callId: string, method: string, result: unknown, why: string): AutoA
 /* ── The policy: every stop preference, in one place ──────────────────── */
 
 /**
- * How a payment with no real choice in it is handled.
+ * How much of a mana payment Forge settles for the player.
  *
- * `'auto'` presses Forge's own Auto button, so `ComputerUtilMana.payManaCost`
- * — Forge's payer, not ours — decides how the sources are tapped
- * (`InputPayMana.java:580-592`).
+ * Every value presses Forge's own Auto button and nothing else, so
+ * `ComputerUtilMana.payManaCost` — Forge's payer, not ours — decides how the
+ * sources are tapped (`InputPayMana.java:377-386`). What the values differ on is
+ * WHEN that press is allowed:
+ *
+ *  - `'ask'` — never. Every payment is the player's to click.
+ *  - `'auto'` — only where the wire PROVES nothing was left out: one offered
+ *    source, or Forge's own auto-tap plan accounting for every offered source.
+ *    See {@link decidePay}.
+ *  - `'forgeAuto'` — whenever Forge's own Auto button is live, which is Forge
+ *    saying `getManaSourcesToPayCost` found a payment
+ *    (`InputPayMana.java:402-407`, `:438-452`). This is the value item 6 asks
+ *    for and it is **not** the default; {@link StopPolicy.unambiguousPayment}
+ *    records why.
  */
-export type PaymentPreference = 'ask' | 'auto';
+export type PaymentPreference = 'ask' | 'auto' | 'forgeAuto';
 
 /** Where {@link StopPolicy.skipNonStopPhases} applies. */
 export type SkipScope = 'never' | 'theirTurn' | 'always';
@@ -124,6 +147,7 @@ export type SkipScope = 'never' | 'theirTurn' | 'always';
  * | `interruptsRestoreStops` | `FPref.YIELD_AUTO_PASS_RESPECTS_INTERRUPTS` (`:507-518`) |
  * | `passStackWindows` | `YieldController.setAutoPassUntilStackEmpty` as a standing preference, carried by `YieldUpdate.StackYield` |
  * | `unambiguousPayment` | `FPref.UI_SHOW_AUTOTAP_PREVIEW` — the pref that puts Forge's own auto-tap PLAN on our wire, which is what makes "unambiguous" provable |
+ * | `unpayableCost` | Forge's own `Auto` button being DEAD, which is `ensureAutoPayManaSources` finding no payment (`InputPayMana.java:402-407`) |
  * | `costConfirm` | `AutoYieldStore` per-ability auto-yield, `YieldUpdate.SetDisableYields` / `CardAutoYield` |
  * | `answerOneAnswerAsks` | ours: the bounds arithmetic in {@link onlyAnswer} |
  */
@@ -146,8 +170,32 @@ export interface StopPolicy {
 	readonly interruptsRestoreStops: boolean;
 	/** Pass a priority window with something ON the stack and nothing to do (#5). */
 	readonly passStackWindows: boolean;
-	/** How a payment Forge can settle with no choice left is handled (#6, #22). */
+	/**
+	 * How a payment Forge can settle with no choice left is handled (#6, #22).
+	 *
+	 * `'forgeAuto'` is the value wave 25 §D added and did NOT adopt, and the
+	 * reason is a finding rather than caution. Forge's payment-mode actionable set
+	 * is *every card in five zones with a playable mana ability*
+	 * (`PlayerControllerHuman.pushActionableCards`, the payment branch at
+	 * `:1565-1573`; `cardHasPlayableManaAbility` `:1594-1599`; the zones at
+	 * `:1533-1535`) — **not** the cards that can pay THIS cost. So one Mountain
+	 * and one Island for `{R}` (ONE payment) and two Mountains for `{R}` (TWO)
+	 * reach us as the same facts: two sources, and a one-card plan that leaves one
+	 * of them out. Nothing on this wire tells them apart, and deciding that an
+	 * Island cannot pay red is a rule — which this file implements none of. So the
+	 * strict value stays the default, `'forgeAuto'` is the one-word switch, and
+	 * `apps/ui/src/play/live/board-play.jvm.test.ts` (step 3, two Mountains for
+	 * `{R}`) asserts the strict behaviour and is not this lane's to re-aim.
+	 */
 	readonly unambiguousPayment: PaymentPreference;
+	/**
+	 * What becomes of a cost **Forge itself says cannot be paid** (item 7).
+	 *
+	 * `'cancel'` presses Forge's own Cancel, the only live answer such a window
+	 * has; `'ask'` leaves the player to press it. See {@link decideCancel} and
+	 * {@link PromptFacts.noWayToPay}.
+	 */
+	readonly unpayableCost: 'ask' | 'cancel';
 	/**
 	 * Whether a cost confirm on an activation the player themselves chose is put
 	 * to them (#16).
@@ -185,6 +233,9 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	passStackWindows: true,
 	// #6, wave 20: *"Preordain asks how to tap lands with ONE land in play"*.
 	unambiguousPayment: 'auto',
+	// Item 7, wave 25: *"it's confusing i have to click 'cancel' to not pay
+	// manaleak when i dont even have enough mana"*.
+	unpayableCost: 'cancel',
 	costConfirm: 'ask',
 	answerOneAnswerAsks: true,
 };
@@ -213,8 +264,9 @@ export const ARENA_STOP_POLICY: StopPolicy = {
  * The escape hatch, exact: every stop comes back.
  *
  * Every phase on every turn is a stop phase, a stack window is not passed, a
- * window with nothing to do is not passed, a payment is not pressed and an ask
- * with one legal reply is still asked.
+ * window with nothing to do is not passed, a payment is not pressed, a cost
+ * Forge cannot pay is not cancelled for the player, and an ask with one legal
+ * reply is still asked.
  */
 export const FULL_CONTROL_POLICY: StopPolicy = {
 	stopOnMyTurn: PHASE_TYPES,
@@ -224,6 +276,7 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	interruptsRestoreStops: true,
 	passStackWindows: false,
 	unambiguousPayment: 'ask',
+	unpayableCost: 'ask',
 	costConfirm: 'ask',
 	answerOneAnswerAsks: false,
 };
@@ -350,7 +403,37 @@ export interface PromptFacts {
 	readonly cost: string | null;
 	/** This payment offers a NON-mana alternative (life), so it has two answers. */
 	readonly alternativePayment: boolean;
-	/** The distinct cards Forge said this seat could click. Null is "has not said". */
+	/**
+	 * **Forge says this cost cannot be paid** — item 7.
+	 *
+	 * Forge's payment input enables its own `Auto` button ONLY once
+	 * `ensureAutoPayManaSources` has found a payment for the cost that is left
+	 * (`InputPayMana.updateMessage`, `InputPayMana.java:402-407`, over
+	 * `ComputerUtilMana.getManaSourcesToPayCost` at `:438-452`). So a payment
+	 * window whose Auto is DEAD is Forge saying it found none — and if Forge also
+	 * named nothing for the seat to click (`pushActionableCards` sent an EMPTY
+	 * set, `PlayerControllerHuman.java:1565-1573`), there is nothing the player
+	 * could tap toward it either. Cancel is then the only live answer, and it is
+	 * Forge's own: `updateButtons` leaves button 2 enabled for exactly that
+	 * (`InputPayMana.java:389-395`, `!mandatory`).
+	 *
+	 * False whenever Forge has not said — a cleared set is "no answer", never
+	 * "nothing" — and false while Forge DID offer something clickable, because
+	 * then the window still has an act in it and a shortcut may not remove one.
+	 */
+	readonly noWayToPay: boolean;
+	/**
+	 * The distinct cards Forge said this seat could click. Null is "has not said".
+	 *
+	 * **Not "the cards that can pay this cost".** In a payment window this is
+	 * `pushActionableCards`' payment branch: every card in Hand, Battlefield,
+	 * Graveyard, Exile or Command with ANY playable mana ability
+	 * (`PlayerControllerHuman.java:1533-1535`, `:1565-1573`, `:1594-1599`). An
+	 * Island is in it while `{R}` is being paid. Wave 25 §D measured that against
+	 * a real Forge — one Mountain and one Island for `{R}` arrives as two sources
+	 * — and it is why {@link StopPolicy.unambiguousPayment} cannot close item 6
+	 * from this set alone.
+	 */
 	readonly sources: readonly number[] | null;
 	/**
 	 * The subset Forge's OWN auto-tap plan names.
@@ -452,6 +535,7 @@ const UNKNOWN_WINDOW: PromptFacts = {
 	confirmLive: false,
 	cost: null,
 	alternativePayment: false,
+	noWayToPay: false,
 	sources: null,
 	plannedSources: [],
 	openAsks: 0,
@@ -505,6 +589,7 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		confirmLive: buttons.enable1 === true,
 		cost,
 		alternativePayment: LIFE_INSTEAD.test(message),
+		noWayToPay: window === 'payment' && buttons.enable1 !== true && all !== null && all.length === 0,
 		sources: all === null ? null : [...new Set(all)],
 		plannedSources: all === null ? [] : repeated(all),
 		openAsks: notes.openAsks,
@@ -573,6 +658,11 @@ export function decideStop(facts: PromptFacts, policy: StopPolicy): string | nul
  *    way to pay"* — `{1}{W}` off two lands is two sources and one assignment).
  *    A source left OUT of the plan means the plan had a choice to make, and that
  *    choice is the player's.
+ *
+ * Both shapes are `'auto'`'s, and both read {@link PromptFacts.sources} — which
+ * is Forge's actionable HIGHLIGHT set, not the cards that can pay this cost. That
+ * is item 6's whole story, and `'forgeAuto'` is the value that stops asking about
+ * it; {@link StopPolicy.unambiguousPayment} carries the evidence.
  */
 export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null {
 	if (facts.openAsks > 0) return null;
@@ -581,12 +671,45 @@ export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null
 	if (!facts.confirmLive) return null;
 	if (facts.cost === null) return null;
 	if (facts.alternativePayment) return null;
-	if (policy.unambiguousPayment !== 'auto') return null;
+	if (policy.unambiguousPayment === 'ask') return null;
+	// A live Auto is Forge saying it found a payment for what is left. That alone
+	// is what `'forgeAuto'` presses on; the two shapes below are the narrower
+	// `'auto'`, which presses only where the wire proves nothing was left out.
+	if (policy.unambiguousPayment === 'forgeAuto') return facts.cost;
 	if (facts.sources === null || facts.sources.length === 0) return null;
 	if (facts.sources.length === 1) return facts.cost;
 	if (facts.plannedSources.length === 0) return null;
 	const planned = new Set(facts.plannedSources);
 	return facts.sources.every((id) => planned.has(id)) ? facts.cost : null;
+}
+
+/**
+ * The cost to abandon by pressing Forge's own Cancel, or null when the player
+ * must press it themselves. Pure, as above.
+ *
+ * Item 7, the operator, 2026-09-27: *"it's confusing i have to click 'cancel' to
+ * not pay manaleak when i dont even have enough mana. this is very silly it
+ * should just happen automatically if i dont have enough mana."*
+ *
+ * **Nothing here computes whether the cost can be paid** — that is a rule, and
+ * this file implements none. {@link PromptFacts.noWayToPay} is FORGE's answer:
+ * its own Auto is dead, so `ensureAutoPayManaSources` found no payment
+ * (`InputPayMana.java:402-407`), and it named nothing clickable, so there is no
+ * act in the window either. One live button is left, and taking the only answer
+ * Forge left is what every other decision in this file does.
+ *
+ * {@link PromptFacts.alternativePayment} stays in front of it: a cost payable
+ * with life has a second answer however few lands are out, and Forge's Auto is
+ * dead for that one too (`en-US.properties:1799-1801`).
+ */
+export function decideCancel(facts: PromptFacts, policy: StopPolicy): string | null {
+	if (facts.openAsks > 0) return null;
+	if (!facts.mine) return null;
+	if (facts.window !== 'payment') return null;
+	if (facts.cost === null) return null;
+	if (facts.alternativePayment) return null;
+	if (policy.unpayableCost !== 'cancel') return null;
+	return facts.noWayToPay ? facts.cost : null;
 }
 
 /* ── What `match.ts` calls ───────────────────────────────────────────── */
@@ -604,6 +727,14 @@ export function autoPassReason(notes: SeatNotes, policy: StopPolicy = DEFAULT_ST
 /** The cost this seat's payment answers itself, or null when it must be asked. */
 export function autoPayReason(notes: SeatNotes, policy: StopPolicy = DEFAULT_STOP_POLICY): string | null {
 	return decidePay(readPromptFacts(notes), policy);
+}
+
+/**
+ * The cost this seat's payment abandons itself, or null when it must be asked
+ * (item 7). Read the facts, ask the policy — as above.
+ */
+export function autoCancelReason(notes: SeatNotes, policy: StopPolicy = DEFAULT_STOP_POLICY): string | null {
+	return decideCancel(readPromptFacts(notes), policy);
 }
 
 /**
@@ -693,7 +824,7 @@ export function toYieldUpdates(policy: StopPolicy, seat: YieldSeat): YieldUpdate
 	// #22's enabler: with the preview on, `pushActionableCards` sends the cards
 	// Forge's own Auto would tap TWICE, which is what makes a two-source payment
 	// provably unambiguous (`PlayerControllerHuman.java:1580-1589`).
-	out.push(pref('UI_SHOW_AUTOTAP_PREVIEW', String(policy.unambiguousPayment === 'auto')));
+	out.push(pref('UI_SHOW_AUTOTAP_PREVIEW', String(policy.unambiguousPayment !== 'ask')));
 
 	// The per-phase skips: the complement of the stop sets, one frame per
 	// (turn player, phase) pair, exactly as `YieldUpdate.SkipPhase` carries it.

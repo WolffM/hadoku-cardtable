@@ -6,8 +6,9 @@
  *
  *  - **#7** *"having to confirm through all the phases even when nothing is
  *    playable"* — every priority stop where Forge itself named nothing
- *    actionable is passed, and every pass says which phase it was. A stop where
- *    Forge named something is never passed.
+ *    actionable is passed, and every pass LOGS which phase it was. A stop where
+ *    Forge named something is never passed. (Wave 25 §D, item 3 stopped the pass
+ *    also telling the seat in words; the log is what this run reads.)
  *  - **#8** *"i casted galvanic blast without even having mana?"* — every cast
  *    leaves a `paid …` line naming the cost and the lands that tapped for it.
  *  - **#11/#7** *"having the abilities numbered … is extremely ugly"* — the
@@ -63,6 +64,7 @@ import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
 import {
 	DEFAULT_STOP_POLICY,
 	FULL_CONTROL_POLICY,
+	decideCancel,
 	decidePay,
 	decideStop,
 	isOwnMainPhaseEntry,
@@ -121,7 +123,18 @@ describe.skipIf(!available.ok)(title, () => {
 
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
-				log: (e) => logs.push(e),
+				log: (e) => {
+					logs.push(e);
+					/*
+					 * Wave 25 §D, item 3: an auto-pass no longer SAYS anything, so the
+					 * log entry is the signal — the same moment, the same seat, and the
+					 * only record that survives. This used to watch for the
+					 * `auto-passed <phase>` line the server sent the browser.
+					 */
+					if (e.evt !== 'auto-passed') return;
+					const last = [...stops].reverse().find((x) => x.seat === e.seat);
+					if (last !== undefined) last.passed = true;
+				},
 				askTimeoutMs: 120_000,
 				overGraceMs: 60_000,
 				emit: (_m, seat, envelope) => {
@@ -158,11 +171,6 @@ describe.skipIf(!available.ok)(title, () => {
 						notes[seat]!.ok = f.enable1;
 					} else if (f.method === 'message') {
 						says.push({ seat, message: f.message });
-						// The auto-pass lands right after the buttons that opened the stop.
-						if (f.message.startsWith('auto-passed')) {
-							const last = [...stops].reverse().find((x) => x.seat === seat);
-							if (last !== undefined) last.passed = true;
-						}
 					}
 				},
 			});
@@ -306,7 +314,8 @@ describe.skipIf(!available.ok)(title, () => {
 			answerAsks();
 
 			const asks = sent.filter((x) => x.envelope.frame.kind === 'ask').map((x) => x.envelope.frame);
-			const passed = says.filter((x) => x.message.startsWith('auto-passed'));
+			// Item 3: the pass is silent, so it is counted off the log it still writes.
+			const passed = logs.filter((l) => l.evt === 'auto-passed');
 			const paid = says.filter((x) => x.message.startsWith('paid'));
 			console.log(
 				`[lane-c] ${casts} casts, ${stops.length} priority stops (${stops.filter((s) => s.idle).length} with nothing to do), ` +
@@ -778,6 +787,348 @@ describe.skipIf(!available.ok)(title, () => {
 				const weighted = readPromptFacts({ ...notesFrom(row), actionable: [...row.actionable!, ...new Set(row.actionable!)] });
 				expect(new Set(weighted.plannedSources)).toEqual(new Set(weighted.sources));
 				expect(decidePay(weighted, DEFAULT_STOP_POLICY)).toBe(facts.cost);
+			}
+
+			expect(match.invalidFrames).toBe(0);
+			match.stop();
+			jvm.close();
+			await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
+			expect(liveJvmCount()).toBe(0);
+		},
+		300_000,
+	);
+	/*
+	 * Wave 25 §D — item 6, the diagnosis run. **This is the evidence, not a rule.**
+	 *
+	 * Operator, 2026-09-27: *"there is only one red mana source on my battlefield,
+	 * why is galvanic blast asking me how to pay? that should be automatic."*
+	 * `decidePay` already answers a payment Forge offered exactly ONE source for,
+	 * so one of its guards was returning null and WHICH one is a fact. This run
+	 * gets it: the operator's own card, `{R}` off a board that holds one Mountain
+	 * and one Island.
+	 *
+	 * The deck is Mountain / Island / Galvanic Blast so the board can be built to
+	 * that exact shape in two land drops, and the driver targets the OPPONENT —
+	 * `addTarget` finishes the input the moment the last target is chosen
+	 * (`InputSelectTargets.java:410-414`), so one `selectPlayer` takes the cast
+	 * straight into `InputPayMana`.
+	 */
+	it(
+		'records the window item 6 is: {R} with one red source among two lands',
+		async () => {
+			if (!available.ok) return;
+			const raw: BridgeLine[] = [];
+			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
+			const logs: Record<string, unknown>[] = [];
+			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+
+			/** One row per prompt seat 0 was shown, with the bar and both selectable sets as they stood. */
+			interface Row {
+				message: string;
+				label1: string;
+				label2: string;
+				enable1: boolean;
+				enable2: boolean;
+				/** Forge's weighted actionable multiset (`setWeaklySelectable`), verbatim. */
+				actionable: number[] | null;
+				/** Forge's STRONG selectables (`setSelectables`), verbatim. */
+				selectables: number[] | null;
+			}
+			const rows: Row[] = [];
+			const live = {
+				prompt: null as ServerFrame | null,
+				buttons: null as ServerFrame | null,
+				actionable: null as number[] | null,
+				selectables: null as number[] | null,
+			};
+			const notes = [0, 1].map(() => ({ prompt: '', ok: false }));
+
+			function record(): void {
+				const p = live.prompt;
+				const b = live.buttons;
+				if (p === null || b === null || p.method !== 'showPromptMessage' || b.method !== 'updateButtons') return;
+				const row: Row = {
+					message: p.message,
+					label1: b.label1,
+					label2: b.label2,
+					enable1: b.enable1,
+					enable2: b.enable2,
+					actionable: live.actionable === null ? null : [...live.actionable],
+					selectables: live.selectables === null ? null : [...live.selectables],
+				};
+				const prev = rows[rows.length - 1];
+				if (prev !== undefined && JSON.stringify(prev) === JSON.stringify(row)) return;
+				rows.push(row);
+			}
+
+			const registry = createMatchRegistry({
+				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
+				log: (e) => logs.push(e),
+				askTimeoutMs: 120_000,
+				overGraceMs: 60_000,
+				emit: (_m, seat, envelope) => {
+					sent.push({ seat, envelope });
+					const f = envelope.frame;
+					if (f.method === 'showPromptMessage') notes[seat]!.prompt = f.message;
+					else if (f.method === 'updateButtons') notes[seat]!.ok = f.enable1;
+					if (seat !== 0) return;
+					if (f.method === 'setWeaklySelectable') live.actionable = f.cards.map((c) => c.id);
+					else if (f.method === 'clearWeaklySelectable') live.actionable = null;
+					else if (f.method === 'setSelectables') live.selectables = f.cards.map((c) => c.id);
+					else if (f.method === 'clearSelectables') live.selectables = null;
+					else if (f.method === 'showPromptMessage') { live.prompt = f; record(); }
+					else if (f.method === 'updateButtons') { live.buttons = f; record(); }
+				},
+			});
+
+			const cards = ['20 Mountain', '20 Island', '20 Galvanic Blast'];
+			const match = registry.create({
+				seed: 20260927,
+				seats: [
+					{ name: 'A', ai: false, deck: deck('Lane D A', cards) },
+					{ name: 'B', ai: false, deck: deck('Lane D B', cards) },
+				],
+			});
+			expect(await match.whenRunning(120_000)).toEqual({ ok: true });
+
+			const answered = new Set<string>();
+			const acted = new Set<string>();
+
+			function stateOf(seat: number): Map<string, WireObj> {
+				return foldFrames(
+					sent
+						.filter((x) => x.seat === seat && x.envelope.frame.kind === 'notify')
+						.map((x) => x.envelope.frame as unknown as StateFrame)
+						.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
+				);
+			}
+
+			function zone(seat: number, name: 'Hand' | 'Battlefield'): { id: number; name: string; tapped: boolean; land: boolean }[] {
+				const state = stateOf(seat);
+				const player = state.get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1));
+				return ids(player, name).map((id) => {
+					const view = state.get(keyOf(TYPE.card, id));
+					const current = view?.CurrentState as { v?: number } | undefined;
+					const face = state.get(keyOf(TYPE.cardState, id * 16 + (current?.v ?? 0)));
+					const type = face?.Type as { core?: string[] } | undefined;
+					return {
+						id,
+						name: str(face, 'Name') ?? str(view, 'Name') ?? `#${id}`,
+						tapped: (view?.Tapped as { v?: boolean } | undefined)?.v === true,
+						land: type?.core?.includes('Land') === true,
+					};
+				});
+			}
+
+			function answerAsks(): void {
+				for (const { seat, envelope } of sent) {
+					const f = envelope.frame as ServerFrame & Record<string, unknown>;
+					if (f.kind !== 'ask' || answered.has(f.callId as string)) continue;
+					const callId = f.callId as string;
+					answered.add(callId);
+					let result: unknown;
+					switch (f.method) {
+						case 'confirm':
+						case 'showConfirmDialog':
+						case 'openZones':
+							result = true;
+							break;
+						case 'showOptionDialog':
+							result = 0;
+							break;
+						case 'showInputDialog':
+							result = '0';
+							break;
+						case 'getChoices': {
+							const keys = (f.choices as { key: string }[]).map((c) => c.key);
+							result = (f.min as number) > 0 && keys[0] !== undefined ? [keys[0]] : [];
+							break;
+						}
+						case 'getAbilityToPlay':
+							result = (f.abilities as unknown[])[0] ?? null;
+							break;
+						case 'chooseSingleEntityForEffect':
+							result = (f.optionList as unknown[])[0] ?? null;
+							break;
+						case 'chooseEntitiesForEffect':
+							result = (f.min as number) > 0 ? [(f.optionList as unknown[])[0]] : [];
+							break;
+						case 'manipulateCardList':
+							result = f.cards;
+							break;
+						case 'order':
+							result = { ordered: (f.destChoices as { key: string }[]).map((c) => c.key), rememberDecision: false };
+							break;
+						case 'assignCombatDamage':
+						case 'assignGenericAmount':
+							result = [];
+							break;
+						default:
+							result = null;
+					}
+					const reply = ClientFrameSchema.parse({ kind: 'reply', callId, method: f.method, result });
+					expect(match.fromClient(seat, reply), `${f.method} ${callId}`).toEqual({ ok: true });
+				}
+			}
+
+			const OK = ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' });
+			const select = (id: number) =>
+				ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null });
+			const target = (id: number) =>
+				ClientFrameSchema.parse({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id }, triggerEvent: null });
+
+			/** The payment rows: Forge's own `Auto` bar, live or dead. */
+			const paymentRows = (): Row[] => rows.filter((r) => r.label1 === 'Auto' && /^Pay Mana Cost: /m.test(r.message));
+			/** Item 6's window: `{R}`, with more than one card in Forge's actionable set. */
+			const blastRows = (): Row[] => paymentRows().filter((r) => r.enable1 && r.actionable !== null && new Set(r.actionable).size > 1);
+			/** Item 7's window, if this run happens to produce one: a payment Forge's own Auto is DEAD for. */
+			const deadAutoRows = (): Row[] => paymentRows().filter((r) => !r.enable1);
+
+			const names = ['A', 'B'];
+			/** Set while a Galvanic Blast cast is in flight, so the targeting input is answered once. */
+			let targeted = false;
+			const deadline = Date.now() + 200_000;
+			while (Date.now() < deadline && blastRows().length === 0) {
+				answerAsks();
+				for (const seat of [0, 1]) {
+					const n = notes[seat]!;
+					const me = names[seat]!;
+					const turn = /Turn: (\d+) \(([^)]*)\)/.exec(n.prompt);
+					// The targeting input for the cast in flight: neither a priority
+					// window nor a payment, and it is the one thing seat 0 owes Forge.
+					if (
+						seat === 0 &&
+						!targeted &&
+						acted.has('cast') &&
+						!n.prompt.startsWith('Priority: ') &&
+						!/^Pay Mana Cost: /m.test(n.prompt) &&
+						n.prompt !== ''
+					) {
+						targeted = true;
+						match.fromClient(0, target(match.seats[1]!.playerId ?? -1));
+						continue;
+					}
+					const myMain =
+						n.prompt.startsWith(`Priority: ${me}`) && /Stack: Empty/.test(n.prompt) && /Phase: Main/.test(n.prompt) && turn?.[2] === me;
+					if (myMain && seat === 0) {
+						const key = `${turn?.[1]}:${n.prompt.includes('precombat') ? 'pre' : 'post'}`;
+						const hand = zone(0, 'Hand');
+						const board = zone(0, 'Battlefield');
+						const mountains = board.filter((c) => c.name === 'Mountain');
+						const islands = board.filter((c) => c.name === 'Island');
+						// Exactly the operator's board: ONE red source, and one land that
+						// is not one. Both have a playable mana ability, which is the whole
+						// point — Forge's actionable set is not "can pay this cost".
+						const want = mountains.length === 0 ? 'Mountain' : islands.length === 0 ? 'Island' : null;
+						if (want !== null) {
+							const land = hand.find((c) => c.name === want);
+							if (land !== undefined && !acted.has(`${key}:land`)) {
+								acted.add(`${key}:land`);
+								match.fromClient(0, select(land.id));
+								continue;
+							}
+						} else {
+							const untapped = board.filter((c) => c.land && !c.tapped).length;
+							const blast = hand.find((c) => c.name === 'Galvanic Blast');
+							if (blast !== undefined && untapped >= 2 && !acted.has('cast')) {
+								acted.add('cast');
+								match.fromClient(0, select(blast.id));
+								continue;
+							}
+						}
+					}
+					if (n.ok) match.fromClient(seat, OK);
+				}
+				await new Promise((r) => setTimeout(r, 120));
+			}
+			await new Promise((r) => setTimeout(r, 1500));
+			answerAsks();
+
+			const dumpDir = process.env.CARDTABLE_PLAY_DUMP;
+			if (dumpDir !== undefined) {
+				mkdirSync(dumpDir, { recursive: true });
+				writeFileSync(
+					join(dumpDir, `w25-d-item6-${Date.now()}.json`),
+					JSON.stringify({ rows, paid: logs.filter((l) => l.evt === 'auto-paid' || l.evt === 'auto-passed' || l.evt === 'auto-cancelled') }, null, 1),
+				);
+			}
+
+			const notesFrom = (row: Row): SeatNotes => ({
+				playerId: match.seats[0]!.playerId,
+				prompt: {
+					kind: 'notify',
+					method: 'showPromptMessage',
+					player: { kind: 'player', id: match.seats[0]!.playerId ?? -1 },
+					message: row.message,
+					card: null,
+				} as ServerFrame,
+				buttons: {
+					kind: 'notify',
+					method: 'updateButtons',
+					owner: { kind: 'player', id: match.seats[0]!.playerId ?? -1 },
+					label1: row.label1,
+					label2: row.label2,
+					enable1: row.enable1,
+					enable2: row.enable2,
+					focus1: true,
+				} as ServerFrame,
+				actionable: row.actionable,
+				openAsks: 0,
+			});
+
+			console.log(`[lane-d] ${rows.length} rows, ${paymentRows().length} payment rows, ${blastRows().length} of them item 6's shape`);
+			for (const row of paymentRows()) {
+				console.log(`[lane-d] payment row: ${JSON.stringify({ message: row.message, label1: row.label1, enable1: row.enable1, actionable: row.actionable, selectables: row.selectables })}`);
+				console.log(`[lane-d] readPromptFacts: ${JSON.stringify(readPromptFacts(notesFrom(row)))}`);
+			}
+
+			expect(blastRows().length, `no {R} payment offered more than one card: ${JSON.stringify(paymentRows().map((r) => [r.message, r.actionable]))}`).toBeGreaterThan(0);
+			/*
+			 * The evidence, by NAME. Forge offered two cards for a `{R}` cost: the
+			 * Mountain that can pay it and the Island that cannot. That is item 6 —
+			 * `sources` is Forge's actionable highlight set (every card with a playable
+			 * mana ability, `PlayerControllerHuman.java:1565-1573`), not the cards that
+			 * can pay THIS cost — and it is why `decidePay`'s source-count arm asked.
+			 */
+			const board = new Map(zone(0, 'Battlefield').map((c) => [c.id, c.name]));
+			const forgeAuto = { ...DEFAULT_STOP_POLICY, unambiguousPayment: 'forgeAuto' as const };
+			for (const row of blastRows()) {
+				const facts: PromptFacts = readPromptFacts(notesFrom(row));
+				expect(facts.window).toBe('payment');
+				expect(facts.cost).toBe('{R}');
+				const offered = [...new Set(row.actionable!)].map((id) => board.get(id) ?? `#${id}`).sort();
+				console.log(`[lane-d] item 6: Forge offered ${JSON.stringify(offered)} for ${String(facts.cost)}`);
+				expect(offered).toEqual(['Island', 'Mountain']);
+				// The guard, as it stands: two sources and no auto-tap plan on the wire.
+				expect(facts.sources).toHaveLength(2);
+				expect(facts.plannedSources).toEqual([]);
+				expect(decidePay(facts, DEFAULT_STOP_POLICY)).toBeNull();
+				// And the policy value that stops asking, over the same real frames.
+				expect(decidePay(facts, forgeAuto)).toBe('{R}');
+				expect(decidePay(facts, FULL_CONTROL_POLICY)).toBeNull();
+				// Not an unpayable cost: Forge's Auto is live, so it can be paid.
+				expect(facts.noWayToPay).toBe(false);
+				expect(decideCancel(facts, DEFAULT_STOP_POLICY)).toBeNull();
+			}
+
+			/*
+			 * Item 7, if this run produced one. A payment window whose Auto is DEAD is
+			 * Forge saying it found no payment; whether it also offered nothing to click
+			 * is what decides the Cancel. Reported rather than turned into a red, the
+			 * way this file already reports the claims a run did not exercise.
+			 */
+			if (deadAutoRows().length === 0) {
+				console.warn('[lane-d] DID NOT HAPPEN: no payment window in this run had a dead Auto, so item 7 was not exercised live.');
+			} else {
+				for (const row of deadAutoRows()) {
+					const facts: PromptFacts = readPromptFacts(notesFrom(row));
+					console.log(`[lane-d] item 7: dead Auto, sources=${JSON.stringify(facts.sources)} noWayToPay=${String(facts.noWayToPay)}`);
+					expect(facts.confirmLive).toBe(false);
+					expect(facts.noWayToPay).toBe(facts.sources !== null && facts.sources.length === 0);
+					expect(decideCancel(facts, DEFAULT_STOP_POLICY)).toBe(facts.noWayToPay ? facts.cost : null);
+					// And full control never presses it.
+					expect(decideCancel(facts, FULL_CONTROL_POLICY)).toBeNull();
+				}
 			}
 
 			expect(match.invalidFrames).toBe(0);
