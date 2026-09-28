@@ -115,7 +115,7 @@
  * `play-server.jsonl`, `play-summary.json`.
  */
 
-import { readFileSync, readlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { expect, test, type APIRequestContext, type Locator } from '@playwright/test';
@@ -156,6 +156,40 @@ const LIVE_TITLE = forge.ok
   : `two friends play one Forge match — SKIPPED: ${forge.reason}`;
 
 /* ── reading the captures ────────────────────────────────────────────── */
+
+/*
+ * `CARDTABLE_E2E_PLAY_SHOTS=<dir>` saves one screenshot per named moment, the
+ * first time it happens. Off unless the directory is set, and nothing in the run
+ * depends on it — it is how a person sees the question column that wave 26 §B.1
+ * gave Forge's questions, including a real mana payment in it.
+ *
+ * `*.png` is refused by this repo's `.gitignore` outside `docs/`, so the
+ * directory belongs outside the tree.
+ */
+const SHOTS = process.env.CARDTABLE_E2E_PLAY_SHOTS ?? '';
+const shotsTaken = new Set<string>();
+async function shotOnce(f: Friend, moment: string): Promise<void> {
+  if (SHOTS === '' || shotsTaken.has(moment)) return;
+  shotsTaken.add(moment);
+  mkdirSync(SHOTS, { recursive: true });
+  await f.page.screenshot({ path: resolve(SHOTS, `${moment}-${f.name}.png`) });
+  console.log(`[play] shot ${moment} (${f.name})`);
+}
+
+/**
+ * A payment window is open on this page: the one moment worth a picture.
+ *
+ * It is a poll and it will usually see nothing, and that is wave 26 §E rather
+ * than a bug here: `unambiguousPayment: 'forgeAuto'` means the SERVER presses
+ * Forge's Auto for a cost with one way to pay it, so the window a player would
+ * have answered is never drawn (this spec's own server log records `auto-paid`
+ * for each such cost). What still reaches a person — a cost with a choice, or a
+ * seat running strict or in full control — is what this catches.
+ */
+async function shootPayment(f: Friend): Promise<void> {
+  if (SHOTS === '' || shotsTaken.has('payment')) return;
+  if ((await f.page.getByTestId('live-payment-host').count()) > 0) await shotOnce(f, 'payment');
+}
 
 function inbound(f: Friend): PlayMessage[] {
   return messages(f).filter((m) => m.dir === 'in');
@@ -778,10 +812,38 @@ test(LIVE_TITLE, async ({ browser }) => {
     // must not scroll. The URL still IS the route, which is what this checks.
     expect(alice.page.url()).toBe(`${origin}${PREFIX}/#/match/${matchId}`);
 
-    await expect(alice.page.getByTestId('live-status')).toHaveText('Seat 1, live.', { timeout: 30_000 });
-    await expect(bob.page.getByTestId('live-status')).toHaveText('Seat 2, live.', { timeout: 30_000 });
-    await expect(alice.page.locator('[aria-label="Game board"]')).toBeVisible();
-    await expect(bob.page.locator('[aria-label="Game board"]')).toBeVisible();
+    /*
+     * Live, and the signal is THE RAIL, WITH FORGE'S TURN COUNTER ON IT (wave 26
+     * §B.5: `Seat N, live.` is deleted, and each of the three specs picks its own
+     * signal).
+     *
+     * `live-phases` and the `live-turn-n` inside it are drawn from a `BoardView`
+     * and from nothing else, so this is the same fact the deleted line stood for —
+     * `liveStatus` returned `live` exactly when a seat AND a view had arrived. A
+     * page that merely loaded has no rail, a join that was refused has no rail,
+     * and a seat that was never sent a state has no rail; all three time out here.
+     * The number is asserted as a number so an empty rail cannot satisfy it.
+     *
+     * What it deliberately does NOT wait for is a named PHASE: the match opens at
+     * turn 0 with the coin toss still unanswered, and Forge has entered no phase
+     * yet. That the rail says the same phase the view does is asserted late in the
+     * run instead, against the whole folded view (`the board agrees with the
+     * server`, below).
+     *
+     * The SEAT this page holds is asserted three ways just below, off the wire and
+     * off the server: the snapshot's own `seat`, the room's table, and Forge's
+     * seat→deck mapping. That is the other half of what the deleted line said.
+     */
+    const liveOnPage = async (f: Friend): Promise<void> => {
+      await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible();
+      await expect(f.page.getByTestId('live-phases'), `${f.name}: no phase rail, so no state reached this page`).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(f.page.getByTestId('live-turn-n'), `${f.name}: the rail carries no turn`).toHaveText(/^\d+$/, {
+        timeout: 30_000,
+      });
+    };
+    for (const f of [alice, bob]) await liveOnPage(f);
 
     const firstSnapshot = (f: Friend) => {
       const ack = inbound(f).find((m) => m.kind === 'ack' && isSnapshot(m.msg));
@@ -822,7 +884,7 @@ test(LIVE_TITLE, async ({ browser }) => {
               openAsks: [...asksIn(f).keys()].filter((id) => !answersFrom(f).some((a) => a.callId === id)).length,
               controlsOnPage: await f.page.locator('[data-testid="match"] .live button, [data-testid="match"] .live input, [data-testid="match"] .live select').count(),
               promptOnPage: await f.page.getByTestId('live-prompt').count(),
-              turnOnPage: await f.page.getByTestId('turn').textContent(),
+              turnOnPage: await f.page.getByTestId('live-turn').textContent(),
             },
           ];
         }),
@@ -978,7 +1040,7 @@ test(LIVE_TITLE, async ({ browser }) => {
 
     while (wantLand() || wantSpell()) {
       if (Date.now() > dragDeadline) {
-        const turn = await alice.page.getByTestId('turn').textContent();
+        const turn = await alice.page.getByTestId('live-turn').textContent();
         const missing = ([['land', wantLand()], ['spell', wantSpell()]] as const)
           .filter(([, want]) => want)
           .map(([kind]) => kind);
@@ -1072,6 +1134,7 @@ test(LIVE_TITLE, async ({ browser }) => {
         // with OK ENABLED, 175 seconds, 0 acts out of the browser, turn 1 of a
         // wanted 5. Falling through costs a real payment nothing — Forge's own
         // mana payment wants OK ("Auto"), which is what the press below sends.
+        await shootPayment(f);
         const paying = await offeredIn(f, 'battlefield');
         if (paying.length > 0 && dragged.length > 0) await dragToBattlefield(f, paying[0]!.id);
         // This pass dragged nothing out of hand, so it made no progress — and
@@ -1299,16 +1362,19 @@ test(LIVE_TITLE, async ({ browser }) => {
         // learns which cards the discard will take. The board was sent it live.
         const forced = await clickForcedCard(f);
         if (forced !== null) forcedCards.push({ name: f.name, id: forced.id, card: forced.name, where: 'play' });
+        await shootPayment(f);
       }
     };
-    const turnOnPage = async (): Promise<number> => Number(/Turn (\d+)/.exec((await alice!.page.getByTestId('turn').textContent()) ?? '')?.[1] ?? 0);
+    // `live-turn-n` is Forge's own turn counter and nothing else (§B.2); the row
+    // around it reads "14yours", and `.board__bar`'s "Turn 14" is gone (§A).
+    const turnOnPage = async (): Promise<number> => Number((await alice!.page.getByTestId('live-turn-n').textContent()) ?? 0);
     const deadline = Date.now() + PLAY_BUDGET_MS;
     while (clicked(alice).length === 0 || clicked(bob).length === 0 || (await turnOnPage()) < MIN_TURN) {
       if (Date.now() > deadline) {
         throw new Error(
           `within ${PLAY_BUDGET_MS} ms (turn ${await turnOnPage()}, wanted ${MIN_TURN}), clicked game asks: alice ${clicked(alice).length}, bob ${clicked(bob).length}; ` +
             `all game asks: alice ${JSON.stringify(gameAnswers(alice))}, bob ${JSON.stringify(gameAnswers(bob))}; ` +
-            `turn ${await alice.page.getByTestId('turn').textContent()}; cast: ${JSON.stringify(hands.map((h) => h.cast))}; ` +
+            `turn ${await alice.page.getByTestId('live-turn').textContent()}; cast: ${JSON.stringify(hands.map((h) => h.cast))}; ` +
             `hands: ${hands.map((h) => h.log.slice(-6).join(' | ')).join(' || ')}`,
         );
       }
@@ -1324,7 +1390,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     }
     await quiet([alice, bob], 2_000);
 
-    summary.turnReached = await alice.page.getByTestId('turn').textContent();
+    summary.turnReached = await alice.page.getByTestId('live-turn').textContent();
     summary.gameAnswers = { alice: gameAnswers(alice), bob: gameAnswers(bob) };
     summary.clicks = clicks;
     summary.cast = hands.map((h) => h.cast);
@@ -1354,6 +1420,9 @@ test(LIVE_TITLE, async ({ browser }) => {
     const bobProbe = probe(1, `${PROBE_TEXT}: bob, press the button that is not the default`);
     const bobDialog = bob.page.getByTestId('confirm-dialog');
     await expect(bobDialog).toContainText(`${PROBE_TEXT}: bob`);
+    // A question, in the column §B.1 gave it: the same host a payment is drawn in,
+    // and the one moment in this spec that is guaranteed to have one open.
+    await shotOnce(bob, 'question');
     expect(await bobDialog.locator('[data-answer="no"]').getAttribute('data-default')).toBe('true');
     await bobDialog.locator('[data-answer="yes"]').click();
     const bobAnswer = await bobProbe;
@@ -1371,7 +1440,9 @@ test(LIVE_TITLE, async ({ browser }) => {
     const logMark = serverLog(stack).length;
     const reloadAt = Date.now();
     await alice.page.reload();
-    await expect(alice.page.getByTestId('live-status')).toHaveText('Seat 1, live.', { timeout: 30_000 });
+    // Live again, on the same signal as above: a rejoin that drew a page but was
+    // sent no state back would satisfy anything weaker than this.
+    await liveOnPage(alice);
     await expect(aliceDialog).toContainText(`${PROBE_TEXT}: alice`);
     const callIdAfter = await aliceDialog.getAttribute('data-call-id');
     expect(callIdAfter).toBe(callIdBefore);
@@ -1482,13 +1553,16 @@ test(LIVE_TITLE, async ({ browser }) => {
           ),
         }));
         return {
-          turn: text(document.querySelector('[data-testid="turn"]')),
-          phase: document.querySelector('[data-testid="phase"]')?.getAttribute('data-phase') ?? null,
+          // Both off the phase rail, which is where they live now (§A deleted the
+          // bar, §B.2 owns the rail): the turn number alone, and the phase as
+          // Forge's own constant.
+          turn: text(document.querySelector('[data-testid="live-turn-n"]')),
+          phase: document.querySelector('[data-testid="live-phases"]')?.getAttribute('data-phase') ?? null,
           players: players.sort((a, b) => a.id - b.id),
         };
       });
       const expected = {
-        turn: `Turn ${view.turn}`,
+        turn: String(view.turn),
         phase: view.phase ?? '',
         players: view.players
           .map((p) => ({
@@ -1571,6 +1645,7 @@ test(LIVE_TITLE, async ({ browser }) => {
       const got = handed.filter((l) => l.seat === seat).map((l) => l.callId);
       expect(got, `${f.name}: the server handed every reply to Forge`).toEqual(replies);
     }
+
   } finally {
     for (const h of hands) await h.close();
     for (const f of [alice, bob]) {

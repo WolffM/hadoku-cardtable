@@ -42,9 +42,33 @@
  * and the two rows that held Forge's message and the server's says are the
  * logbook's, on the other side of the board and collapsed by default.
  *
- * The prompt is an overlay centred in the room ABOVE the cluster, bounded by
- * the match's own box: it covers part of the board while it is open, never
- * reaches the cluster's home, and pushes nothing.
+ * ## The blocking is the operator's own (wave 26 §B)
+ *
+ * `docs/planning/board-layout-2026-09-27.md` is a spec made by dragging the real
+ * regions on a 1280×800 canvas, and every overlay placed in this file is one row
+ * of its table. The percentages are the spec; the pixels are that canvas.
+ *
+ * | overlay | the drag | here |
+ * | --- | --- | --- |
+ * | question / payment | 59.4% across, 24% down, 24.1% × 48% | `--live-col-x` / `--live-col-w`, `.live__prompt` |
+ * | phase rail | 8.4% wide, 31% down, 35% tall, right | `--live-rail-w`, `.live__phases` |
+ * | controls | 112 × 84, 67% down, under the rail | `--live-controls-*`, `.live__buttons` |
+ * | log button | 36 × 32, above the rail | `.live__log-button` |
+ *
+ * Two of them are worth saying in words:
+ *
+ *  - **a question has one home.** It used to be centred in the room above the
+ *    cluster, which put it in a different place for every sheet height. It is a
+ *    fixed column now — *"float over the board makes sense"* — so a player looks
+ *    in one place. The column's top third is the STACK's in the operator's
+ *    drawing; `.stack` is drawn inside `Board` and is lane A's, so the tokens
+ *    here describe the whole column and the question takes its lower two thirds.
+ *  - **the right-hand gutter is one column**, and the overlays in it are stacked
+ *    in the order the operator drew them: the log's button, the rail, the
+ *    controls. The drag left ~7% of empty canvas to the right of the rail and the
+ *    controls with the 36px log button alone out in it; this file closes that gap
+ *    and keeps the order, so the gutter is one strip rather than two. The
+ *    reservation on the ROWS underneath is `board.css`'s (lane A, §A.5).
  */
 
 .cardtable-chrome:has(.shell--match) {
@@ -74,7 +98,7 @@
  * On the match screen the shell sizes this; mounted bare (the live dev
  * harness), it takes the window.
  *
- * The three sizes every overlay in this file is placed against live HERE and
+ * The sizes every overlay in this file is placed against live HERE and
  * not on the shell, so the dev harness — which mounts `.live` with no shell
  * around it — resolves them too. A `var()` with no value is an invalid
  * declaration, and the cluster would have fallen back to a content-sized box:
@@ -87,21 +111,41 @@
  * `9.75rem`, which is that number at a 16px root font size and nothing else:
  * measured in Chrome, the same tracks that needed 153px were given 136px at a
  * 14px root (the bottom row clipped) and 195px at a 20px root (39px of dead
- * space under it). The prompt host is then placed by subtracting this same
- * token, so a token that is not the real height is also how a centred sheet ends
- * up over the cluster.
+ * space under it). (The prompt host used to be placed by subtracting this same
+ * token; wave 26 §B.1 gave the question a column of its own, so the token is the
+ * cluster's own business again.)
  *
- * Wave 25 §C took the two text rows out of the cluster (34px each, plus a gap),
- * so the number is 102 where it used to be 153:
+ * Wave 25 §C took the two text rows out of the cluster and wave 26 §B.3 shrank
+ * it to the 112 × 84 the operator drew, with the log's button out of it
+ * altogether — five buttons in three rows, so the number is 84 where wave 25
+ * left 102 and the original bar had 153:
  *
- *   6 + 6 padding + 1 + 1 border + (30 + 26 + 22) rows + 2 × 5 gaps = 102
+ *   4 + 4 padding + 1 + 1 border + (22 + 22 + 22) rows + 2 × 4 gaps = 84
  *
  * That arithmetic is asserted in `LiveBoard.test.ts`, off this file's own text.
+ *
+ * The other tokens are the operator's percentages and stay percentages, so the
+ * blocking holds at any window size: the question's column starts 59.4% across
+ * and is 24.1% wide.
+ *
+ * The rail's is a `max()`, and the floor is the point of it. 8.4% is 108px on the
+ * operator's 1280px canvas, which is what makes all thirteen step names fit — but
+ * a match inside a watchparty ROOM has the chat beside it and `.live` is 944px
+ * wide there, where 8.4% is 79px and "Beginning of combat" truncates. Measured in
+ * a real room at 1280×800 (`e2e/table-fit.spec.ts`'s own screenshots). The
+ * percentage is the proportion the operator drew; 6.75rem is the 108px they drew
+ * it at, and the rail is never narrower than the thing it exists to be read at.
  */
 .live {
-  --live-controls-h: 102px;
-  --live-controls-w: 288px;
-  --live-rail-w: 2rem;
+  --live-controls-h: 84px;
+  --live-controls-w: 112px;
+  --live-rail-w: max(8.4%, 6.75rem);
+  --live-col-x: 59.4%;
+  --live-col-w: 24.1%;
+  /* The gutter the three permanent overlays share, measured from the right edge
+     of `.live`. The log button sits in it at full width; the rail and the
+     controls sit beside it. */
+  --live-gutter: 6px;
 
   height: 100dvh;
   position: relative;
@@ -124,16 +168,23 @@
 
 /*
  * The status line — the ONE line that says which state the match is in
- * (`LiveBoard.tsx`, §F.2). Where it sits depends on whether there is a table
- * under it, and `LiveBoard` says which on `data-perch`:
+ * (`LiveBoard.tsx`, §F.2), and it is **not drawn at all while the match is
+ * live** (wave 26 §B.5): `Seat 1, live.` is deleted, and what replaced it as the
+ * turn indicator is the rail's own `live-turn`.
  *
- *  - `corner`: a board is drawn, so the line rides at the right end of the
- *    board's turn bar (`board.css` leaves that room) and costs the table no
- *    height. This is the `Seat N, live.` case, and the one the canvas measures.
+ * So the five states that remain are the five with no board, and `data-perch` is
+ * down to one interesting case plus one corner case:
+ *
  *  - `table`: there is no board — connecting, waiting, refused, gone — so the
  *    line takes the space the board would have had. It is the same box the
  *    "waiting for the game state" line used to be, which is why nothing moves
  *    when the state resolves.
+ *  - `corner`: a board IS drawn and the state is still not `live`, which now
+ *    means one thing only — a refusal or a gone match arriving on a table that
+ *    was already up. It rides over the TOP of the board, out of flow, so it costs
+ *    the table no height. Centred, because both edges are taken: the turn bar it
+ *    used to ride in is gone (§A), the right-hand end is the overlay gutter's and
+ *    the left is the logbook's. A player whose match just ended has to see this.
  */
 .live__status {
   flex: none;
@@ -146,10 +197,11 @@
 
 .live__status[data-perch='corner'] {
   position: absolute;
-  z-index: 1;
-  top: 12px;
-  right: 18px;
-  max-width: 10.5rem;
+  z-index: 6;
+  top: 6px;
+  left: 50%;
+  translate: -50% 0;
+  max-width: 20rem;
   padding: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -193,33 +245,41 @@
  * Wave 25 §C took its PROSE away and left every control where it was: *"the
  * corner box can still have the full-control toggle and some of the user control
  * like the buttons you had before. but i hate the log, the log must go somewhere
- * else."* So three rows now — Forge's two answers, the three controls that are
- * not answers (Leave, Full control, Concede), and the log's own toggle — and no
- * child of this box is text.
+ * else."*
+ *
+ * Wave 26 §B.3 is the rest of that: 112 × 84, the size the operator drew, and
+ * FIVE buttons in it — Forge's two answers on the top row, the two controls that
+ * act on the match (Full control, Concede) on the second, Leave across the
+ * third. The log's toggle is not in it any more; the operator drew that as its
+ * own 36 × 32 button further up the gutter, which is the same decision as the
+ * size, seen from the other side. It sits directly under the rail, in the same
+ * column, where the drag put it.
  *
  * **Every track is a fixed length**, columns and rows both, and that is the
  * requirement rather than the taste: `e2e/table-fit.spec.ts` records this box
  * on every frame of a real match and fails a window size that ever saw two.
  * `height` is set from the token as well, so even a child that overflows its
- * row cannot change the box — it clips inside its own slot instead.
+ * row cannot change the box — it clips inside its own slot instead. The labels
+ * are wider than a 49px slot, so they ellipsize and each button carries its full
+ * words on a `title`.
  */
 .live__buttons {
   position: absolute;
   z-index: 4;
-  right: 6px;
-  bottom: 6px;
+  top: 67%;
+  right: var(--live-gutter);
   width: var(--live-controls-w);
   height: var(--live-controls-h);
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  grid-template-rows: 30px 26px minmax(22px, 1fr);
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 22px 22px 22px;
   grid-template-areas:
-    'ok ok ok cancel cancel cancel'
-    'leave leave full full conc conc'
-    'log log log log log log';
-  gap: 5px;
+    'ok cancel'
+    'full conc'
+    'leave leave';
+  gap: 4px;
   margin: 0;
-  padding: 6px 7px;
+  padding: 4px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-raised);
@@ -249,13 +309,14 @@
 
 .live__buttons button {
   min-width: 0;
-  padding: 4px 8px;
+  padding: 1px 4px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--bg-card);
   color: var(--ink);
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -280,54 +341,55 @@
 }
 
 /*
- * The prompt: an overlay CENTRED in the room above the control cluster, inside
- * the match's box (§C.3). Teetering Peaks' ask arrived as text along the bottom
- * of the screen — *"it should be centred"* — and the middle of the table is
- * where the player is already looking.
+ * The prompt: **a fixed column, floating over the board** (wave 26 §B.1).
  *
- * The host is the whole region rather than a box at one edge, and the sheet is
- * centred in it. Two things fall out of that and both are load-bearing:
+ * It was centred in the room above the cluster (wave 20 §C.3, *"it should be
+ * centred"*), which was right about not being a line along the bottom and wrong
+ * about where: a centred sheet is in a different place for every sheet height, so
+ * a question about a Mana Leak and a question about which creature to sacrifice
+ * appear in two different parts of the table. The operator drew ONE column for
+ * them — 59.4% across, 24.1% wide, the lower two thirds of it — and chose for it
+ * to float: *"float over the board makes sense"*. The board keeps its widths and
+ * this covers them while a question is open.
  *
- *  - the region STOPS above the cluster (`bottom` is the cluster's height plus
- *    a gap), so a centred sheet can never reach the cluster's home. The fit
- *    spec asserts exactly that — *"an open prompt lies inside the viewport and
- *    above the bar"* — and a host that filled `.live` would fail it for a tall
- *    sheet;
+ * Three things about the box, and all three are load-bearing:
+ *
+ *  - `top` and `height` are both set, so the host's height is DEFINITE and there
+ *    is nothing for a tall sheet to grow. That is the same property the old
+ *    `inset` shorthand bought, and it is why there is no `max-height` here: with
+ *    `top`, `bottom` and a cap the box is over-constrained, `top` wins, `bottom`
+ *    is ignored, and a window where the cap bit would put the bottom edge
+ *    somewhere nobody placed it. Wave 20 measured that as the match shell
+ *    overflowing its box (1063h > 719h) with `.prompt__actions` hanging out.
+ *  - the column CLEARS the gutter horizontally rather than stopping above the
+ *    cluster vertically: it ends at 83.5% and the cluster starts at ~91%. That is
+ *    what `e2e/table-fit.spec.ts` checks — the two boxes must not intersect —
+ *    and it is checked as an intersection now, in both axes, because vertical
+ *    clearance is no longer how this placement earns it.
  *  - the host covers the board, so it takes NO pointer events and the sheet
  *    inside it takes them back. Otherwise an open prompt would swallow every
  *    click on the table around it.
  *
- * What the prompt looks like inside is lane D's (`../prompts/prompts.css`);
- * this file places it and caps it.
+ * The column's TOP THIRD (11.5% to 23%) is the stack's in the operator's drawing
+ * and is not placed here: `.stack` is drawn inside `Board`, which is lane A's
+ * file. `--live-col-x` and `--live-col-w` are the geometry both halves share, so
+ * moving the stack into the column is one rule using two tokens that exist.
+ *
+ * What the prompt looks like inside is `../prompts/prompts.css`'s; this file
+ * places it and caps it.
  */
 .live__prompt {
   position: absolute;
   z-index: 3;
-  inset: 0 8px calc(var(--live-controls-h) + 16px);
+  top: 24%;
+  left: var(--live-col-x);
+  width: var(--live-col-w);
+  height: 48%;
   align-items: center;
   justify-content: center;
   pointer-events: none;
   display: flex;
   flex-direction: column;
-  /*
-   * There is no `max-height` here any more, and its absence is deliberate.
-   *
-   * It used to cap the host in `dvh`, because the host was anchored to ONE edge
-   * and its height came from its content: a percentage cap resolves against the
-   * containing block only while that block's height is definite, `.live`'s was
-   * not (`flex: 1 1 0`, so its used height was whatever the sheet made the
-   * shell), and wave 20's card grids closed that loop — the sheet grew, the
-   * shell grew with it, the cap grew with the shell, and `e2e/table-fit.spec.ts`
-   * saw the match shell overflow its box (1063h > 719h) with
-   * `.prompt__actions` hanging out of the bottom.
-   *
-   * Both insets now give the host a used height outright, so there is no
-   * content to loop through and nothing to cap. And a cap here would be worse
-   * than useless: with `top`, `bottom` AND a `max-height` the box is
-   * over-constrained, `top` wins, `bottom` is ignored — so a window where the
-   * cap bit would put the host's bottom edge back down over the cluster, which
-   * is the one thing this placement exists to prevent.
-   */
 }
 
 /*
@@ -351,7 +413,10 @@
   /* The host is `pointer-events: none` (see above); the sheet is the part a
      person uses, so it takes them back. */
   pointer-events: auto;
-  width: min(44rem, 100%);
+  /* The column IS the width now — 24.1% of the match, about 305px on the
+     operator's own canvas — so the sheet fills it rather than choosing a width
+     of its own. What does not fit scrolls inside the sheet, as it already did. */
+  width: 100%;
   max-width: none;
   min-height: 0;
   flex: 0 1 auto;
@@ -394,8 +459,10 @@
 }
 
 .live__prompt > .confirm {
-  align-self: center;
-  width: min(480px, 100%);
+  align-self: stretch;
+  /* `.confirm`'s own `max-width: 480px` is wider than the column, so it would
+     otherwise be the thing choosing the width. */
+  max-width: none;
 }
 
 /*
@@ -474,17 +541,21 @@
  * shadow the drag gesture on whatever it covers. `z-index: 1` puts it over the
  * table's own cards and under lane A's overlay root at z 2.
  *
- * It is anchored to the bottom with a `max-height` against `.live`, so an
+ * **It opens to the full height of the match** (wave 26 §B.4, the operator's
+ * own): `top` and `bottom` are both set, so the panel is the height of `.live`
+ * less its margins. That is a definite height and not a content one, so an
  * overfull panel clips inside itself rather than growing `.live`'s scroll box —
  * which `e2e/table-fit.spec.ts` would see as the match breaching its own box.
+ * The six pixels top and bottom are what keeps it inside the window, which the
+ * same spec measures on every frame.
  */
 .live__logbook {
   position: absolute;
   z-index: 1;
   left: 6px;
+  top: 6px;
   bottom: 6px;
   width: 15rem;
-  max-height: calc(100% - 12px);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -538,8 +609,6 @@
  */
 .live__buttons .live__toggle {
   grid-area: full;
-  padding: 4px 6px;
-  font-size: 11.5px;
 }
 
 .live__buttons .live__toggle[aria-pressed='true'] {
@@ -560,8 +629,6 @@
  */
 .live__buttons .live__leave {
   grid-area: leave;
-  padding: 4px 6px;
-  font-size: 11.5px;
 }
 
 .live__buttons .live__leave[data-urgent] {
@@ -577,8 +644,6 @@
  */
 .live__buttons .live__concede {
   grid-area: conc;
-  padding: 4px 6px;
-  font-size: 11.5px;
   color: var(--ink-dim);
 }
 
@@ -589,19 +654,45 @@
 }
 
 /*
- * The log's toggle (§C.3), on a row of its own at the bottom of the cluster: it
- * is the quietest control here and the only one that answers nothing at all, so
- * it sits below the row of controls that at least act on the match. Open reads as
- * the accent, the same affordance "on" has everywhere else in this file.
+ * The log's button (wave 26 §B.4): 36 × 32, its own overlay in the gutter, eight
+ * pixels above the rail — which is where the operator drew it, and the reason it
+ * is not in the cluster is that the cluster is 112px wide with five buttons
+ * already in it.
+ *
+ * Its `top` is the rail's own `top` minus its own height and a gap, so the two
+ * can never overlap at any window height. Anchoring it to a percentage of its own
+ * would put it through the rail's head on a short window.
+ *
+ * It is the one overlay in the gutter that a person PRESSES, so it is the one
+ * that keeps its pointer events. Open reads as the accent, the same affordance
+ * "on" has everywhere else in this file.
  */
-.live__buttons .live__logbook-toggle {
-  grid-area: log;
-  padding: 2px 6px;
-  font-size: 11.5px;
+.live__log-button {
+  position: absolute;
+  z-index: 4;
+  top: calc(31% - 40px);
+  right: var(--live-gutter);
+  width: 36px;
+  height: 32px;
+  padding: 1px 2px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg-raised);
   color: var(--ink-dim);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
 }
 
-.live__buttons .live__logbook-toggle[aria-expanded='true'] {
+.live__log-button:hover {
+  border-color: var(--accent);
+}
+
+.live__log-button[aria-expanded='true'] {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -642,13 +733,22 @@
 /*
  * The phase rail (§C.2): which phase, which step, whose turn, down the side.
  *
- * Wave 25 §C.4 moved it to the RIGHT edge — the operator put it there — and the
- * left edge it used to hold is the logbook's now. It was already vertically
- * centred, so the anchor is the only thing that changed, plus the side the
- * current step's NAME hangs out on (see `.live__step-name`). It shares this edge
- * with two things and clears both: the status line is pinned to the top
- * (`top: 12px`) and the control cluster to the bottom (`bottom: 6px`), while this
- * is centred and about 180px tall.
+ * Wave 25 §C.4 moved it to the RIGHT edge — the operator put it there. **Wave 26
+ * §B.2 widened it from 32px to 8.4% of the width** (~108px on the operator's own
+ * canvas) and put the step NAMES inside it. At 32px it could draw marks and the
+ * current step's name only, hanging out over the board, with every other name
+ * clipped; the operator widened it deliberately, so all thirteen are drawn and
+ * the phases are to be read rather than decoded.
+ *
+ * It is placed by the drag's own percentages — 31% down, 35% tall — and the
+ * control cluster starts at 67%, eight pixels under it at 800px tall and
+ * proportionally under it everywhere else. The log's button is eight pixels above
+ * it. The three of them are one strip in the right-hand gutter, in that order.
+ *
+ * The height is DEFINITE, which is what makes the strip hold together: the
+ * cluster's `top` does not depend on how tall thirteen rows happen to be at this
+ * font size. So the steps share it out between themselves (`.live__steps` below)
+ * and the rail clips rather than growing.
  *
  * Out of flow and `pointer-events: none`, which is what makes it legal here —
  * the canvas is static (w19, absolute) and an overlay cannot move a grid track,
@@ -659,26 +759,22 @@
  * `z-index: auto`, which paints below any positive layer) and UNDER lane A's
  * overlay root at z 2 — so the inspector's enlarged card still comes out on
  * top of the rail, which is the operator's #4 in the other direction.
- *
- * It is two rems wide because the step NAMES hang out of it to the left, over
- * the board, rather than being wrapped or truncated inside it: only the current
- * step draws its name, and "Declare attackers" does not fit in a rail narrow
- * enough to be worth having.
  */
 .live__phases {
   position: absolute;
   z-index: 1;
-  top: 50%;
-  right: 2px;
+  top: 31%;
+  right: var(--live-gutter);
   width: var(--live-rail-w);
-  translate: 0 -50%;
+  height: 35%;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 5px 3px;
+  gap: 4px;
+  padding: 4px 2px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-raised);
+  overflow: hidden;
   pointer-events: none;
 }
 
@@ -709,21 +805,39 @@
   color: var(--accent);
 }
 
+/*
+ * The thirteen steps share out whatever the rail's definite height leaves after
+ * the turn row: `flex: 1 1 0` per row, `min-height: 0` so a row can be shorter
+ * than its own text, and `overflow: hidden` on the rail. So the rail's box never
+ * depends on the font size or on where the game is, and a short window shrinks
+ * the rows instead of pushing the cluster down the gutter.
+ */
 .live__steps {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  min-height: 0;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* Positioned, because the name is placed against this row's own box. */
+/*
+ * The row's own budget, and it is measured rather than chosen: at the 108px the
+ * operator drew, a name has 108 − 2 border − 4 padding − 6 mark − 2 gap = 94px,
+ * and the longest of Forge's thirteen — "Beginning of combat", then
+ * "First-strike damage" — need ~92px at 9.5px type. At 10px type with a 9px mark
+ * and wider gutters they needed ~100 and ellipsized, which is the rail doing at
+ * 108px exactly what §B.2 widened it to stop. Measured in Chromium at 1280×800
+ * (`e2e/table-fit.spec.ts`'s own screenshots), not estimated.
+ */
 .live__step {
-  position: relative;
+  flex: 1 1 0;
   display: flex;
   align-items: center;
-  height: 5px;
+  gap: 2px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /*
@@ -732,12 +846,14 @@
  * the rows' positions never depend on where the game is.
  *
  * Three signals distinguish the current step, because colour may not be the
- * only one (`docs/handoff/w24.md` §1): the mark's length, the name being drawn
- * at all, and `aria-current="step"` in the markup.
+ * only one (`docs/handoff/w24.md` §1): the mark's length, the name's weight and
+ * colour, and `aria-current="step"` in the markup. The name being drawn at all
+ * used to be one of them and cannot be any more — every step says its name now
+ * (§B.2), which is the whole point of the wider rail.
  */
 .live__mark {
   flex: none;
-  width: 100%;
+  width: 6px;
   height: 3px;
   border-radius: 2px;
   background: var(--ink-dim);
@@ -756,43 +872,40 @@
   scale: 1 1;
 }
 
-/* A turn's structure: a gap where one phase ends and the next begins, so a
-   column of thirteen steps reads as five phases. */
+/* A turn's structure: a hairline where one phase ends and the next begins, so a
+   column of thirteen steps reads as five phases. It is a border rather than a
+   margin because the rows now share the rail's height between them, and a margin
+   would come out of the text's own room. */
 .live__step[data-group-start]:not(:first-child) {
-  margin-top: 4px;
+  border-top: 1px solid var(--line);
 }
 
 /*
- * The current step says its name, beside the rail and over the board. Every
- * OTHER step keeps its name in the accessible tree and draws nothing: a screen
- * reader still reads the whole turn, with `aria-current` saying where the game
- * is, and the table is not covered in thirteen labels.
+ * **Every step says its name** (§B.2). The rail is 8.4% wide for exactly this
+ * reason, and what was a clipped label hanging over the board is a column of
+ * thirteen words inside the rail.
  *
- * It hangs to the LEFT of the rail (§C.4), because the rail is on the right edge
- * now: a name placed at `left: calc(100% + 4px)` there runs off the window, which
- * is the same bug in the other direction. `right` with `white-space: nowrap` lets
- * the box shrink-wrap the word and grow inwards over the board.
+ * A name longer than the rail ellipsizes instead of wrapping: a wrapped name
+ * would make one row taller than its share, and the rows' heights are what keep
+ * the cluster's `top` off the font size. "First-strike damage" is the one that
+ * needs it.
  */
 .live__step-name {
-  position: absolute;
-  top: 50%;
-  right: calc(100% + 4px);
-  translate: 0 -50%;
-  font-size: 10px;
-  font-weight: 600;
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 9.5px;
+  line-height: 1.1;
   white-space: nowrap;
-  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-dim);
 }
 
-/* `right: auto` explicitly: `left` + `width` + `right` all set is an
-   over-constrained box, and which one the browser drops is not worth relying on. */
-.live__step:not([data-current]) .live__step-name {
-  top: 0;
-  right: auto;
-  left: 0;
-  width: 1px;
-  height: 1px;
-  translate: none;
-  overflow: hidden;
-  clip-path: inset(50%);
+.live__step[data-past] .live__step-name {
+  opacity: 0.7;
+}
+
+.live__step[data-current] .live__step-name {
+  font-weight: 600;
+  color: var(--accent);
 }

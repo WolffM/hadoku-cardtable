@@ -16,12 +16,12 @@ import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react
 import { parseServerFrame } from '@hadoku/forge-wire';
 
 import type { BoardInteraction } from '../Board.tsx';
-import type { BoardView } from '../adapter.ts';
+import { PHASE_LABEL, type BoardView } from '../adapter.ts';
 import { deltaKey, WireType } from '../wire.ts';
 import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
 import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
-import { isMatchGone, LiveBoard, liveStatus, refusalOf, type LiveStatus } from './LiveBoard.tsx';
+import { isMatchGone, LiveBoard, liveStatus, refusalOf, statusText, type LiveStatus } from './LiveBoard.tsx';
 import {
   answerAsk,
   boardInteraction,
@@ -90,7 +90,9 @@ async function liveBoard(playerId = 0) {
   // waiting for the right thing: the assertion below is then about rendering,
   // not about how fast a websocket drained.
   await waitFor(() => expect(m.stats.applied).toBe(frames.length), { timeout: 10_000 });
-  await waitFor(() => expect(utils.getByTestId('turn').textContent).toBe('Turn 14'));
+  // The turn number is the RAIL's: §A deleted `.board__bar`, which carried
+  // `turn`, and `live-turn-n` is Forge's own counter on its own (wave 26 §B.2).
+  await waitFor(() => expect(utils.getByTestId('live-turn-n').textContent).toBe('14'));
   return { s, m, ...utils };
 }
 
@@ -101,6 +103,15 @@ async function liveBoard(playerId = 0) {
  */
 const lines = (container: HTMLElement): string[] =>
   [...container.querySelectorAll('[data-live-line]')].map((el) => el.textContent ?? '');
+
+/**
+ * The step the rail says the game is on. It is the only thing on the page that
+ * names the phase now: §A deleted `.board__bar`, which carried `turn`, `phase`
+ * and `active-player`, and §B.2 widened the rail so the thirteen steps could be
+ * read (`live-turn-n` is the turn number on its own).
+ */
+const currentStep = (container: HTMLElement): HTMLElement | null =>
+  container.querySelector<HTMLElement>('.live__step[data-current] .live__step-name');
 
 describe('the board follows the stream', () => {
   it('waits, then draws the game as the frames arrive', async () => {
@@ -114,14 +125,20 @@ describe('the board follows the stream', () => {
     // line — there is no second "waiting" row under it any more (§F.2).
     await waitFor(() => expect(getByTestId('live-status').textContent).toBe('Seat 1, waiting for the state.'));
     expect(lines(container)).toEqual(['Seat 1, waiting for the state.']);
-    expect(queryByTestId('turn')).toBeNull();
+    // No state, so no rail: the turn indicator arrives with the board.
+    expect(queryByTestId('live-turn-n')).toBeNull();
 
     const frames = fixtureFrames();
     s.send(frames[0]!);
-    await waitFor(() => expect(getByTestId('turn')).toBeTruthy());
+    await waitFor(() => expect(getByTestId('live-turn-n')).toBeTruthy());
     for (const f of frames.slice(1)) s.send(f);
-    await waitFor(() => expect(getByTestId('turn').textContent).toBe('Turn 14'));
-    expect(getByTestId('phase').textContent).toBe('Main 1');
+    await waitFor(() => expect(getByTestId('live-turn-n').textContent).toBe('14'));
+    // And the phase, from the rail's own current step — the bar that used to say
+    // it is gone (§A).
+    expect(currentStep(container)?.textContent).toBe('Main 1');
+    // The line the board drew about itself while it waited is gone now that it is
+    // live (§B.5): there is nothing on the page but the table and its overlays.
+    expect(lines(container)).toEqual([]);
   });
 });
 
@@ -163,10 +180,11 @@ describe('showConfirmDialog', () => {
 
 describe('hidden information, on the live path', () => {
   it('the viewer is the snapshot’s player, and the other hand is a count', async () => {
-    const { container, getByTestId } = await liveBoard(0);
+    const { container, queryByTestId } = await liveBoard(0);
     const viewer = container.querySelector<HTMLElement>('[data-viewer]')!;
     expect(viewer.dataset.playerId).toBe('0');
-    expect(getByTestId('live-status').textContent).toBe('Seat 1, live.');
+    // `Seat 1, live.` is deleted (§B.5); a live board says nothing about itself.
+    expect(queryByTestId('live-status')).toBeNull();
     // Alice's hand, whose names ARE on the wire (Board.test.ts proves that).
     expect(container.textContent).not.toContain('Talon of Pain');
     expect(container.textContent).not.toContain('Electrostatic Bolt');
@@ -224,8 +242,8 @@ describe('the other fourteen prompts, on the live board', () => {
     await waitFor(() => expect(m.stats.snapshots).toBe(1));
     const frames = fixtureFrames();
     for (const f of frames.slice(0, 8)) s.send(f);
-    await waitFor(() => expect(getByTestId('turn')).toBeTruthy());
-    const turnBefore = getByTestId('turn').textContent;
+    await waitFor(() => expect(getByTestId('live-turn-n')).toBeTruthy());
+    const turnBefore = getByTestId('live-turn-n').textContent;
 
     s.send(askFor('getChoices'));
     await waitFor(() => getByTestId('live-prompt'));
@@ -235,8 +253,8 @@ describe('the other fourteen prompts, on the live board', () => {
 
     // The rest of the game arrives with the question open.
     for (const f of frames.slice(8)) s.send(f);
-    await waitFor(() => expect(getByTestId('turn').textContent).toBe('Turn 14'));
-    expect(turnBefore).not.toBe('Turn 14');
+    await waitFor(() => expect(getByTestId('live-turn-n').textContent).toBe('14'));
+    expect(turnBefore).not.toBe('14');
     expect(red().checked).toBe(true);
     expect(getByTestId('live-prompt').dataset.callId).toBe('fx-getChoices');
 
@@ -772,10 +790,25 @@ describe('one state, one line', () => {
     expect(queryByTestId('live-status')!.dataset.perch).toBe('table');
   });
 
-  it('live: the seat and nothing else — the string three playwright specs wait on', async () => {
-    const { m, container, queryByTestId } = await liveBoard();
-    only(container, m, 'live', 'Seat 1, live.');
-    expect(queryByTestId('live-status')!.dataset.perch).toBe('corner');
+  /*
+   * §B.5 — `Seat 1, live.` is DELETED. Operator, 2026-09-27: *"i dont understand
+   * what 'turn bar' and 'seat 1 live' are relevant for so i think these should
+   * just be deleted."*
+   *
+   * So the live state is the one state with no line, and this asserts the whole
+   * page rather than one element: `lines()` is every row of text the board draws
+   * about itself, and it is empty. What a player reads instead is their own table
+   * — and the turn, on the rail.
+   */
+  it('live: NO line at all, and the turn is the rail’s', async () => {
+    const { m, container, queryByTestId, getByTestId } = await liveBoard();
+    expect(liveStatus(m)).toBe('live');
+    expect(statusText(m)).toBeNull();
+    expect(lines(container)).toEqual([]);
+    expect(queryByTestId('live-status')).toBeNull();
+    expect(container.textContent).not.toContain('Seat 1, live.');
+    // The one indicator that replaced it, and it is Forge's own counter.
+    expect(getByTestId('live-turn-n').textContent).toBe(String(m.view!.turn));
   });
 
   it('the seat number is the snapshot’s seat, not a guess — seat 1 is “Seat 2”', () => {
@@ -872,8 +905,9 @@ describe('one state, one line', () => {
       expect(answerAsk(m, 'c-bad', 'showConfirmDialog', 'not a boolean')).toBe(false);
     });
     expect(liveStatus(m)).toBe('live');
+    // The ONE line a live board can draw: the state line above it is gone (§B.5),
+    // so a failure inside a live match is now the only thing that speaks.
     expect(lines(container)).toEqual([
-      'Seat 1, live.',
       'refused to send an answer to showConfirmDialog that fails its wire schema',
     ]);
     expect(getByTestId('live-error')).toBeTruthy();
@@ -902,14 +936,15 @@ describe('Leave is with the match controls', () => {
     expect(container.querySelector('.board')!.contains(leave)).toBe(false);
     // And the cluster is still a sibling of the board, drawn after it: the
     // chrome is around the canvas, not in it. Wave 24 added the phase rail
-    // between them and wave 25 the logbook, and both are siblings for the same
-    // reason.
+    // between them, wave 25 the logbook and wave 26 the log's own button, and all
+    // three are siblings for the same reason. No `live__status`: a live board
+    // draws no line about itself (§B.5).
     const live = container.querySelector('.live')!;
     expect([...live.children].map((el) => el.className)).toEqual([
-      'live__status',
       'board',
       'live__phases',
       'live__logbook',
+      'live__log-button',
       'live__buttons',
     ]);
   });
@@ -1035,9 +1070,19 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // The spec queries `live-buttons` and then looks INSIDE it, so a second
     // container, or one of these drawn as a sibling, is a red e2e.
     expect(container.querySelectorAll('[data-testid="live-buttons"]')).toHaveLength(1);
-    for (const id of ['live-button-ok', 'live-button-cancel', 'live-leave', 'live-full-control', 'live-concede', 'live-log-toggle']) {
+    for (const id of ['live-button-ok', 'live-button-cancel', 'live-leave', 'live-full-control', 'live-concede']) {
       expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
     }
+    /*
+     * The log's toggle is NOT in it any more (§B.4): the operator drew the cluster
+     * at 112 × 84 with five buttons and drew the log as its own 36 × 32 button
+     * further up the gutter. It is still the same disclosure, still naming the
+     * same panel — the box it lives in changed, not what it does.
+     */
+    const log = getByTestId('live-log-toggle');
+    expect(cluster.contains(log)).toBe(false);
+    expect(log.tagName).toBe('BUTTON');
+    expect(log.getAttribute('aria-controls')).toBe(getByTestId('live-logbook').id);
   });
 
   /*
@@ -1057,7 +1102,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     }
     // Every child of the cluster is a button now: nothing in it can be text that
     // grows, which is the other half of "one box at one window size".
-    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON', 'BUTTON', 'BUTTON', 'BUTTON']);
+    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON', 'BUTTON', 'BUTTON']);
     // And both moved into the logbook, which is not inside the cluster.
     const logbook = getByTestId('live-logbook');
     expect(cluster.contains(logbook)).toBe(false);
@@ -1102,21 +1147,38 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     expect(decls).toContain('pointer-events: none');
     // On the LEFT, which is the edge the phase rail vacated (§C.4).
     expect(decls).toContain('left: 6px');
-    // Bounded against `.live`, so an overfull panel clips instead of growing the
-    // match's scroll box — which the fit spec reads as a breach.
-    expect(decls).toContain('max-height: calc(100% - 12px)');
+    /*
+     * §B.4 — it opens to the FULL HEIGHT of the match (the operator's own). Both
+     * insets, so the height is definite and an overfull panel clips inside itself
+     * instead of growing the match's scroll box — which the fit spec reads as a
+     * breach — and the six pixels are what keep it inside the window.
+     */
+    expect(decls).toContain('top: 6px');
+    expect(decls).toContain('bottom: 6px');
+    expect(decls, 'a content cap would make the height indefinite again').not.toContain('max-height');
     expect(decls).toContain('overflow: hidden');
     // Under lane A's overlay root at z 2, like the rail.
     expect(decls).toContain('z-index: 1');
   });
 
-  it('is out of the flow in the bottom-right corner, so the table has the height back', () => {
+  it('is out of the flow in the right-hand gutter under the rail, so the table has the height back', () => {
     const decls = declarations(liveCss(), '.live__buttons');
     expect(decls).toContain('position: absolute');
-    expect(decls).toContain('right: 6px');
-    expect(decls).toContain('bottom: 6px');
+    expect(decls).toContain('right: var(--live-gutter)');
+    /*
+     * §B.3 — it sits DIRECTLY UNDER the rail, in the same column, at the
+     * percentage the operator dragged it to (67% down, against the rail's 31% +
+     * 35%). It is not bottom-anchored any more, and that matters: the rail's
+     * height is definite, so the two boxes cannot drift into each other.
+     */
+    expect(decls).toContain('top: 67%');
+    expect(decls, 'not anchored to the bottom edge any more').not.toContain('bottom:');
     expect(decls).toContain('width: var(--live-controls-w)');
     expect(decls).toContain('height: var(--live-controls-h)');
+    // The size the operator drew: 112 × 84, where wave 25 left 288 × 102.
+    const live = declarations(liveCss(), '.live');
+    expect(live).toContain('--live-controls-w: 112px');
+    expect(live).toContain('--live-controls-h: 84px');
     // No full-width bar remains: the token that gave the row under the canvas
     // its height is gone from the file, not merely unused.
     expect(liveCss()).not.toContain('--live-bar-h');
@@ -1127,14 +1189,15 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     const cluster = declarations(css, '.live__buttons');
     // A track sized by its content is exactly how the box changes between
     // frames — a longer button label from Forge.
-    expect(cluster).toContain('grid-template-columns: repeat(6, 1fr)');
-    expect(cluster).toContain('grid-template-rows: 30px 26px minmax(22px, 1fr)');
+    expect(cluster).toContain('grid-template-columns: repeat(2, 1fr)');
+    expect(cluster).toContain('grid-template-rows: 22px 22px 22px');
     // So what overflows clips inside its own slot.
     expect(declarations(css, '.live__buttons button')).toContain('text-overflow: ellipsis');
     // The row that was sized by Forge's own words is gone from the grid
     // altogether (§C.1); the `log` area that remains is the TOGGLE's, a button.
     expect(cluster, 'no says row in the cluster').not.toContain('says');
-    expect(declarations(css, '.live__buttons .live__logbook-toggle')).toContain('grid-area: log');
+    // And no row for the log either — its button is its own overlay now (§B.4).
+    expect(cluster, 'no log row in the cluster').not.toContain('log');
     // The text is capped in the logbook instead, where the height is not the
     // cluster's to lose.
     expect(declarations(css, '.live__says')).toContain('overflow: auto');
@@ -1143,7 +1206,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // with no shell — gets a fixed box too. A `var()` with no value is an
     // invalid declaration and the cluster would fall back to content size.
     const live = declarations(css, '.live');
-    for (const token of ['--live-controls-h:', '--live-controls-w:', '--live-rail-w:']) {
+    for (const token of ['--live-controls-h:', '--live-controls-w:', '--live-rail-w:', '--live-col-x:', '--live-col-w:', '--live-gutter:']) {
       expect(live, `${token} is defined on .live`).toContain(token);
     }
   });
@@ -1151,14 +1214,17 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
   /*
    * The invariant two other things rest on, and it was wrong once.
    *
-   * `--live-controls-h` is the cluster's `height` AND what the prompt host
-   * subtracts to find the room above it. The cluster's tracks are pixels, so
-   * the token has to be their sum. It was `9.75rem`, which is that sum at a
+   * `--live-controls-h` is the cluster's `height`, and the cluster's tracks are
+   * pixels, so the token has to be their sum. (The prompt host used to subtract it
+   * as well; §B.1 gave the question a column of its own, so the cluster's height
+   * is now this box's business alone — the invariant below is unchanged.) It was `9.75rem`, which is that sum at a
    * 16px root font size and nothing else — measured in Chrome, the tracks that
    * needed 153px got 136px at a 14px root and 195px at 20px. So the token is
    * pixels, and this adds them up rather than trusting a literal.
    *
-   * Wave 25 §C took two 34px text rows and a gap out, so the sum is 102.
+   * Wave 25 §C took two 34px text rows and a gap out, and wave 26 §B.3 shrank the
+   * box to the 112 × 84 the operator drew and moved the log's button out of it, so
+   * the sum is 84.
    */
   it('the height token is the exact sum of the cluster’s own tracks, in pixels', () => {
     const css = liveCss();
@@ -1167,7 +1233,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     expect(rows, 'the cluster declares explicit rows').toBeDefined();
     // `minmax(22px, 1fr)` contributes its 22px floor; nothing here is content-sized.
     const tracks = [...rows!.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
-    expect(tracks).toEqual([30, 26, 22]);
+    expect(tracks).toEqual([22, 22, 22]);
     const padY = Number(/padding: (\d+)px/.exec(cluster)?.[1]);
     const gap = Number(/gap: (\d+)px/.exec(cluster)?.[1]);
     const token = Number(/--live-controls-h: (\d+)px/.exec(declarations(css, '.live'))?.[1]);
@@ -1179,7 +1245,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // And the arithmetic is written out beside the token, so the next reader of
     // the file does not have to run this to see where the number came from.
     expect(css, 'the comment beside the token says the same sum').toContain(
-      '6 + 6 padding + 1 + 1 border + (30 + 26 + 22) rows + 2 × 5 gaps = 102',
+      '4 + 4 padding + 1 + 1 border + (22 + 22 + 22) rows + 2 × 4 gaps = 84',
     );
   });
 });
@@ -1194,23 +1260,33 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
 describe('the phase reads down the side', () => {
   const steps = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.live__step')];
 
-  it('draws Forge’s thirteen steps and names only the one the game is on', async () => {
-    const { container, getByTestId } = await liveBoard();
+  it('draws Forge’s thirteen steps and marks the one the game is on', async () => {
+    const { m, container } = await liveBoard();
     const all = steps(container);
     expect(all).toHaveLength(13);
     const current = all.filter((el) => el.hasAttribute('data-current'));
     expect(current).toHaveLength(1);
-    // The same phase the turn bar says, and our own word for it.
+    // The phase the VIEW is on, and our own word for it. It used to be compared
+    // against the turn bar's `phase`; §A deleted the bar, so the view is the
+    // source both sides used anyway.
     expect(current[0]!.dataset.phase).toBe('MAIN1');
+    expect(m.view!.phase).toBe('MAIN1');
     expect(current[0]!.getAttribute('aria-current')).toBe('step');
-    expect(current[0]!.textContent).toBe(getByTestId('phase').textContent);
+    expect(current[0]!.textContent).toBe(PHASE_LABEL['MAIN1']);
+    expect(currentStep(container)?.textContent).toBe('Main 1');
     // A turn in progress: the steps before it are past, the ones after are not.
     const at = all.indexOf(current[0]!);
     expect(all.slice(0, at).every((el) => el.hasAttribute('data-past'))).toBe(true);
     expect(all.slice(at).some((el) => el.hasAttribute('data-past'))).toBe(false);
   });
 
-  it('every step keeps its name for a screen reader, drawn or not', async () => {
+  /*
+   * §B.2 — every step SAYS its name now. At 32px the rail could draw the current
+   * one only and every other name was clipped; the operator widened it to 8.4% so
+   * the thirteen could be read. The names are `PHASE_LABEL`'s and this lane renames
+   * none of them.
+   */
+  it('every step says its name, all thirteen of them', async () => {
     const { container } = await liveBoard();
     expect(steps(container).map((el) => el.textContent)).toEqual([
       'Untap',
@@ -1236,6 +1312,14 @@ describe('the phase reads down the side', () => {
     const whose = active === undefined ? 'nobody' : active.isViewer ? 'yours' : 'theirs';
     expect(getByTestId('live-phases').dataset.whose).toBe(whose);
     expect(getByTestId('live-turn').textContent).toBe(`${view.turn}${whose}`);
+    /*
+     * The turn number on its own, and the same number on the rail's own dataset:
+     * this is the ONLY turn indicator on the page now that §A has deleted
+     * `.board__bar`, and `e2e/play.spec.ts` and `e2e/table-fit.spec.ts` read both
+     * of these — a number they parsed out of "Turn 14" before.
+     */
+    expect(getByTestId('live-turn-n').textContent).toBe(String(view.turn));
+    expect(getByTestId('live-phases').dataset.turn).toBe(String(view.turn));
   });
 
   it('is out of flow beside the canvas and takes no pointer events, so it moves and blocks nothing', async () => {
@@ -1251,22 +1335,55 @@ describe('the phase reads down the side', () => {
   });
 
   /*
-   * §C.4 — the operator put the rail on the RIGHT. It was already vertically
-   * centred, so the anchor is all that changes here; the part that is easy to
-   * miss is the current step's NAME, which hangs out of the rail and would run
-   * off the window if it still hung to the right.
+   * ── Wave 26 §B, items 1 and 2: the two overlays the operator DREW ─────────
+   *
+   * `docs/planning/board-layout-2026-09-27.md` is a spec made by dragging the real
+   * regions on a 1280×800 canvas, and this is the one case that pins the two
+   * numbers that file is FOR: the question's column and the rail's anchor. Both
+   * are read off `live.css`'s own text, because jsdom applies no stylesheet — the
+   * boxes themselves are measured on every frame of a real match by
+   * `e2e/table-fit.spec.ts`.
+   *
+   * Reverting either one fails here: a question centred in the room above the
+   * cluster has no `left`, and a rail that is 2rem wide against the old anchor has
+   * neither the width token nor the percentage behind it.
    */
-  it('anchors to the right edge, and the current step’s name hangs inwards from it', () => {
+  it('the rail anchors right at 8.4%, and the question has ONE home at 59.4% across', () => {
     const css = liveCss();
+    const live = declarations(css, '.live');
     const rail = declarations(css, '.live__phases');
-    expect(rail).toContain('right: 2px');
+
+    // The rail: the right-hand gutter, and the width the operator widened it to.
+    expect(rail).toContain('right: var(--live-gutter)');
+    expect(rail).toContain('width: var(--live-rail-w)');
+    /*
+     * 8.4% is the proportion the operator drew and 6.75rem is the 108px they drew
+     * it at; the floor is not decoration. In a watchparty ROOM the chat sits beside
+     * the match and `.live` is 944px wide, where 8.4% is 79px and "Beginning of
+     * combat" truncates — which is the one thing §B.2 widened the rail to prevent.
+     */
+    expect(live, 'the rail is 8.4% of the width, and never below the 108px that fits the names').toContain(
+      '--live-rail-w: max(8.4%, 6.75rem)',
+    );
     expect(rail, 'no left anchor is left behind').not.toContain('left:');
-    // Still vertically centred: that was already right and nothing here moves it.
-    expect(rail).toContain('top: 50%');
-    expect(rail).toContain('translate: 0 -50%');
-    const name = declarations(css, '.live__step-name');
-    expect(name).toContain('right: calc(100% + 4px)');
-    expect(name, 'the name does not hang off the right edge of the window').not.toContain('left:');
+    // Its own percentages, which is what makes the cluster's `top: 67%` land
+    // directly under it rather than wherever thirteen rows happened to end.
+    expect(rail).toContain('top: 31%');
+    expect(rail).toContain('height: 35%');
+    expect(rail, 'not centred any more: the gutter is a strip, in the drawn order').not.toContain('translate:');
+
+    // The question: a fixed column, not a sheet centred on whatever height it is.
+    const host = declarations(css, '.live__prompt');
+    expect(host).toContain('left: var(--live-col-x)');
+    expect(host).toContain('width: var(--live-col-w)');
+    expect(host).toContain('top: 24%');
+    expect(host).toContain('height: 48%');
+    expect(live).toContain('--live-col-x: 59.4%');
+    expect(live).toContain('--live-col-w: 24.1%');
+    // The column is where it is so that it CLEARS the gutter, not so that it stops
+    // above the cluster: 59.4% + 24.1% = 83.5%, and the gutter starts past that.
+    expect(59.4 + 24.1, 'the question’s column ends clear of the overlay gutter').toBeLessThan(84.4);
+    expect(host, 'no inset shorthand from the centred placement survives').not.toContain('inset:');
   });
 });
 
@@ -1277,12 +1394,17 @@ describe('the phase reads down the side', () => {
  * it sits is this lane's; what it looks like inside is lane D's.
  */
 describe('a prompt belongs where the player is looking', () => {
-  it('the host is the room ABOVE the controls, with the sheet centred in it', () => {
+  it('the host is a fixed column over the board, with the sheet centred in it', () => {
     const decls = declarations(liveCss(), '.live__prompt');
-    expect(decls).toContain('inset: 0 8px calc(var(--live-controls-h) + 16px)');
+    // Where the column is, is pinned in its own case above (§B items 1 and 2).
+    // What this asserts is the mechanism: a definite box, a centred sheet, and a
+    // host that does not swallow the table's clicks.
+    expect(decls).toContain('top: 24%');
+    expect(decls).toContain('height: 48%');
     expect(decls).toContain('align-items: center');
     expect(decls).toContain('justify-content: center');
-    // Not pinned to an edge any more — that was the bug.
+    // `top` + `height` is what makes the height definite; a `bottom` as well
+    // would over-constrain the box and `bottom` is the one the browser drops.
     expect(decls).not.toContain('bottom:');
     // The host now covers the board, so it must not swallow the table's clicks;
     // the sheet takes them back.
@@ -1296,11 +1418,13 @@ describe('a prompt belongs where the player is looking', () => {
     const { s, container, getByTestId } = await liveBoard();
     s.send(confirmAsk('c-centre', true));
     await waitFor(() => getByTestId('live-prompt'));
+    // No `live__status`: a live board draws no line about itself (§B.5). The log's
+    // button is its own child of `.live` now, not the cluster's (§B.4).
     expect([...container.querySelector('.live')!.children].map((el) => el.className)).toEqual([
-      'live__status',
       'board',
       'live__phases',
       'live__logbook',
+      'live__log-button',
       'live__buttons',
       'live__prompt',
     ]);
@@ -1360,11 +1484,13 @@ describe('a mana payment pops out of the corner', () => {
   it('renders the sheet, with Forge’s own text and Forge’s own two labels', async () => {
     const { getByTestId, queryByTestId } = await payment();
     const sheet = await waitFor(() => getByTestId('live-payment'));
-    // The whole claim: the payment is IN the centred sheet the other questions
-    // use, not in a line in the corner.
+    // The whole claim: the payment is IN the same host the other questions use,
+    // not in a line in the corner — and that host is the fixed column §B.1 gave
+    // every question, so a payment appears where a player has learned to look.
     const host = getByTestId('live-payment-host');
     expect(host.contains(sheet)).toBe(true);
     expect(host.className).toBe('live__prompt');
+    expect(declarations(liveCss(), '.live__prompt')).toContain('left: var(--live-col-x)');
     expect(sheet.textContent).toContain('Pay Mana Cost: 3');
     expect(sheet.textContent).toContain('Mana Leak');
     // Forge's labels, not ours.

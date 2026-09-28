@@ -86,6 +86,45 @@
  * only reason it ever drew fewer. A say is a state, not prose — it is rendered
  * exactly as sent, braces said in words like every other rules text.
  *
+ * ## The overlays have a blocking, and it is the operator's own (wave 26 §B)
+ *
+ * `docs/planning/board-layout-2026-09-27.md` is a spec drawn by dragging the
+ * real regions on a 1280×800 canvas, and four of its five overlays are this
+ * file's. Everything below is that table, in the operator's own percentages:
+ *
+ *  - **a question has ONE home**, a fixed column at 59.4% across and 24.1%
+ *    wide, over the board (*"float over the board makes sense"*). The board
+ *    keeps its widths and the column covers it while a question is open. A
+ *    centred sheet put the same question in a different place every time,
+ *    depending on how tall it was; this one is where the player learned to look.
+ *    The column's TOP THIRD is the stack's — `.stack` is drawn inside `Board`
+ *    and belongs to lane A, so this file reserves the geometry (`--live-col-*`
+ *    in `live.css`) and takes the lower two thirds for the question.
+ *  - **the phase rail is 8.4% wide and every step says its name.** At 32px it
+ *    could draw marks and the current step only, with every other name clipped;
+ *    the operator widened it to ~108px deliberately, so the phases are to be
+ *    READ. It also carries the only turn indicator on the page, because §A
+ *    deleted the turn bar — `live-turn` is what the specs read now.
+ *  - **the controls are 112×84**, five buttons, directly under the rail. Wave 25
+ *    took the prose out; this is the rest of it.
+ *  - **the log is a 36×32 button** of its own, in the gutter above the rail, and
+ *    the panel it opens is the full height of the match. It is out of the
+ *    control cluster entirely: the cluster is five buttons at 112px wide and a
+ *    sixth would not fit, and the operator drew the log's button somewhere else.
+ *
+ * ## Nothing says `Seat 1, live.` any more
+ *
+ * The operator, 2026-09-27: *"i dont understand what 'turn bar' and 'seat 1
+ * live' are relevant for so i think these should just be deleted."* So a LIVE
+ * match draws no line about itself at all — `statusText` returns `null` for that
+ * one state and the element is not rendered.
+ *
+ * The other five states keep the line, and that is not a hedge: in every one of
+ * them there is no board, so the line is the only thing on the page. `Match
+ * gone.` with nothing under it is a player being told what happened; deleting it
+ * would leave them a blank screen with a Leave button. What the operator was
+ * shown, and rejected, was the line on a LIVE table.
+ *
  * ## A payment is a question, so it is drawn as one (wave 25 §C.2)
  *
  * The operator, on a Mana Leak: *"if an effect happens that is necessary, it
@@ -296,13 +335,18 @@ export function liveStatus(match: LiveMatch): LiveStatus {
 }
 
 /**
- * The one line, in the operator's register: a state, and no prose about it.
+ * The one line, in the operator's register: a state, and no prose about it —
+ * and **no line at all for a live match** (wave 26 §B.5).
  *
- * `Seat N, live.` is unchanged because three playwright specs wait on that
- * exact string, and a seat number is the one number here that names something
- * the player can see on the table.
+ * `null` is the `live` case, and it is the whole of the deletion the operator
+ * asked for: *"i dont understand what 'turn bar' and 'seat 1 live' are relevant
+ * for so i think these should just be deleted."* `Seat 1, live.` said nothing a
+ * player could not see by looking at their own table.
+ *
+ * Every other state returns a sentence, because in every other state there is no
+ * board and this line is the only thing on the page. See the module header.
  */
-export function statusText(match: LiveMatch): string {
+export function statusText(match: LiveMatch): string | null {
   // Both seated branches are reached only with a seat; the fallback keeps this
   // total rather than asserting.
   const seat = `Seat ${(match.seat ?? 0) + 1}`;
@@ -314,7 +358,7 @@ export function statusText(match: LiveMatch): string {
     case 'seated-waiting-for-state':
       return `${seat}, waiting for the state.`;
     case 'live':
-      return `${seat}, live.`;
+      return null;
     case 'refused':
       return `Refused: ${refusalOf(match) ?? ''}`;
     case 'match-gone':
@@ -432,14 +476,34 @@ export function whoseTurn(view: BoardView): 'yours' | 'theirs' | 'nobody' {
  * turn in progress rather than a menu. A phase Forge sends that is not one of
  * the thirteen leaves nothing current: `PHASE_LABEL` has no word for it either,
  * and inventing one here would be this lane guessing at the engine.
+ *
+ * **Every step draws its name** (wave 26 §B.2). It used to be the current one
+ * only, because a 32px rail had room for a mark and nothing else; the operator
+ * widened it to 8.4% of the width so that the thirteen could be read, and a rail
+ * that is wide enough for the names and draws none of them is the same rail it
+ * was. The current step is still marked three ways — its mark is the long one,
+ * its name is the accent, and it carries `aria-current="step"`.
+ *
+ * It is also the ONLY turn indicator on the page now that §A has deleted the
+ * turn bar. `live-turn` is the row, and `live-turn-n` is Forge's own turn
+ * counter alone — two ids, because the row reads `14theirs` and a spec that
+ * wants the number should not have to take it apart.
  */
 function PhaseRail({ view }: { view: BoardView }) {
   const at = PHASE_ORDER.findIndex((p) => p.phase === view.phase);
   const whose = whoseTurn(view);
   return (
-    <div className="live__phases" data-testid="live-phases" data-whose={whose} data-phase={view.phase ?? ''}>
+    <div
+      className="live__phases"
+      data-testid="live-phases"
+      data-whose={whose}
+      data-phase={view.phase ?? ''}
+      data-turn={view.turn}
+    >
       <p className="live__turn" data-testid="live-turn">
-        <span className="live__turn-n">{view.turn}</span>
+        <span className="live__turn-n" data-testid="live-turn-n">
+          {view.turn}
+        </span>
         <span className="live__turn-who">{whose}</span>
       </p>
       <ol className="live__steps" aria-label="Phase">
@@ -613,6 +677,8 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
   const ask = auto === null ? pending : null;
   const bar = match.buttons;
   const status = liveStatus(match);
+  /* `null` while the match is live, which is the whole of §B.5. */
+  const statusLine = statusText(match);
   /*
    * The status line is the only line about WHERE the match is. `lastError`
    * draws its own row only while the board is live, where it is a failure
@@ -690,20 +756,27 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
       {/*
        * `data-live-line` marks every row of text this component draws about
        * itself, so a test can count them: three at once was the bug.
-       * `data-perch` is where the line sits — in the turn bar's corner with a
-       * table under it, or in the table's own space when there is none.
+       * `data-perch` is where the line sits — over the board's top-left corner
+       * when there is a table under it, or in the table's own space when there is
+       * none.
+       *
+       * A LIVE match has no line (§B.5): `statusText` returns `null` for that one
+       * state and nothing is rendered. The five states that keep it are the five
+       * with no board, where this line is the whole page.
        */}
-      <p
-        className="live__status"
-        role="status"
-        data-testid="live-status"
-        data-live-line=""
-        data-status={status}
-        data-perch={match.view === null ? 'table' : 'corner'}
-        title={status === 'live' ? undefined : (match.lastError ?? undefined)}
-      >
-        {statusText(match)}
-      </p>
+      {statusLine !== null && (
+        <p
+          className="live__status"
+          role="status"
+          data-testid="live-status"
+          data-live-line=""
+          data-status={status}
+          data-perch={match.view === null ? 'table' : 'corner'}
+          title={match.lastError ?? undefined}
+        >
+          {statusLine}
+        </p>
+      )}
       {alert !== null && (
         <p className="live__error" role="alert" data-testid="live-error" data-live-line="">
           {alert}
@@ -747,12 +820,35 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
         </ul>
       </div>
       {/*
+       * The log's own button (wave 26 §B.4): 36×32, in the right-hand gutter
+       * above the phase rail, and NOT in the control cluster any more.
+       *
+       * The operator drew it there and drew the cluster at 112×84 with five
+       * buttons in it, which is the same decision twice: a sixth control does not
+       * fit in a box that size, and the log is the one control that answers
+       * nothing — not Forge, not the match. It is still a disclosure, with
+       * `aria-expanded` and `aria-controls` naming the panel it opens, and still
+       * pressable at any time for the reason Full control is: it is a preference
+       * about what is on screen.
+       */}
+      <button
+        type="button"
+        className="live__log-button"
+        data-testid="live-log-toggle"
+        aria-expanded={logOpen}
+        aria-controls={logbookId}
+        title="The log"
+        onClick={() => setLogOpen(!logOpen)}
+      >
+        Log
+      </button>
+      {/*
        * The control cluster (§C.1). One container, every frame, the same
        * children and the same box — `e2e/table-fit.spec.ts` measures that box on
        * every animation frame of a real match, and now also fails a frame in
        * which either text row came back into it. `live.css` pins it in the
-       * bottom-right corner over the board; it is in no flex flow and costs
-       * the table no height.
+       * right-hand gutter under the rail, at the 112×84 the operator drew
+       * (wave 26 §B.3); it is in no flex flow and costs the table no height.
        */}
       <div className="live__buttons" data-testid="live-buttons">
         {/*
@@ -765,6 +861,7 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
           className="live__leave"
           data-testid="live-leave"
           data-urgent={status === 'match-gone' ? true : undefined}
+          title="Leave the match"
           onClick={() => {
             if (onLeave !== undefined) onLeave();
             else navigate({ kind: 'lobby' });
@@ -777,6 +874,7 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
           className="live__toggle"
           data-testid="live-full-control"
           aria-pressed={match.fullControl}
+          title="Full control"
           onClick={() => setFullControl(match, !match.fullControl)}
         >
           Full control
@@ -809,25 +907,10 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
           className="live__concede"
           data-testid="live-concede"
           aria-expanded={conceding}
+          title="Concede the game"
           onClick={() => setConceding(true)}
         >
           Concede
-        </button>
-        {/*
-         * The log's toggle (§C.3). A disclosure, not an answer: `aria-expanded`
-         * and `aria-controls` name the panel it opens, and it is pressable at any
-         * time for the same reason Full control is — it is a preference about
-         * what is on screen, not a reply to Forge.
-         */}
-        <button
-          type="button"
-          className="live__logbook-toggle"
-          data-testid="live-log-toggle"
-          aria-expanded={logOpen}
-          aria-controls={logbookId}
-          onClick={() => setLogOpen(!logOpen)}
-        >
-          Log
         </button>
       </div>
       {ask !== null && (

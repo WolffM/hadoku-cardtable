@@ -221,9 +221,33 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string): Promise<s
   await bob.page.waitForURL(matchUrl, { timeout: 120_000 });
   const matchId = matchUrl.exec(alice.page.url())?.[1];
   if (matchId === undefined) throw new Error(`no match id in ${alice.page.url()}`);
-  await expect(alice.page.getByTestId('live-status')).toHaveText('Seat 1, live.', { timeout: 30_000 });
-  await expect(bob.page.getByTestId('live-status')).toHaveText('Seat 2, live.', { timeout: 30_000 });
-  for (const f of [alice, bob]) await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible();
+  /*
+   * Live, and the signal is THE TWO ENDS AN ARROW IS DRAWN BETWEEN (wave 26 §B.5:
+   * `Seat N, live.` is deleted, and each spec picks its own signal).
+   *
+   * Everything below this line aims at something: a card, or a face. So what is
+   * waited on is both faces being on this page's own table, with one of them this
+   * page's own seat — `data-player-face` is what the gesture layer anchors an arrow
+   * on, and `data-viewer` is on the seat only when the snapshot named THIS
+   * client's own player. A page that loaded, or connected without being seated,
+   * satisfies neither; it would instead spend this spec's five-minute forwarding
+   * budget and fail with "Forge never offered alice two cards at once", which says
+   * nothing about the real fault.
+   *
+   * It is deliberately not a wait for CARDS: hands are not dealt until the coin
+   * toss is answered, and answering it is the loop's job below, not this
+   * function's.
+   */
+  for (const f of [alice, bob]) {
+    await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible();
+    await expect(f.page.locator('[data-player-face]'), `${f.name}: both faces are on their table`).toHaveCount(2, {
+      timeout: 30_000,
+    });
+    await expect(
+      f.page.locator('.seat[data-viewer] [data-player-face]'),
+      `${f.name}: one of the faces is their own seat's`,
+    ).toHaveCount(1, { timeout: 30_000 });
+  }
   return matchId;
 }
 

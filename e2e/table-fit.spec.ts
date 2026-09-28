@@ -195,12 +195,18 @@ function installSampler(): void {
         t: Date.now(),
         what,
         size: `${innerWidth}x${innerHeight}`,
-        turn: document.querySelector('[data-testid="turn"]')?.textContent ?? null,
+        // The rail's own row, which reads "14yours": `.board__bar` carried the
+        // turn before wave 26 §A deleted it, and the rail is the only indicator
+        // left (§B.2).
+        turn: document.querySelector('[data-testid="live-turn"]')?.textContent ?? null,
       });
     }
   };
   const inside = (r: DOMRect): boolean =>
     r.width > 0 && r.height > 0 && r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight + 0.5 && r.right <= innerWidth + 0.5;
+  /** Two boxes share pixels. Both axes, because the overlays are a column now. */
+  const overlaps = (a: DOMRect, b: DOMRect): boolean =>
+    a.right > b.left + 0.5 && a.left < b.right - 0.5 && a.bottom > b.top + 0.5 && a.top < b.bottom - 0.5;
 
   const tick = (): void => {
     fit.frames += 1;
@@ -326,7 +332,7 @@ function installSampler(): void {
           const seen = (fit.barBoxes[size] ??= []);
           if (!seen.includes(box)) seen.push(box);
         }
-        for (const zone of Array.from(document.querySelectorAll<HTMLElement>('.seat > [data-zone="battlefield"], .seat[data-viewer] > [data-zone="hand"]'))) {
+        for (const zone of Array.from(document.querySelectorAll<HTMLElement>('.seat [data-zone="battlefield"], .seat[data-viewer] [data-zone="hand"]'))) {
           const kind = zone.dataset.zone ?? '?';
           const count = Number(zone.dataset.count ?? 0);
           if (kind === 'battlefield') fit.maxBattlefield = Math.max(fit.maxBattlefield, count);
@@ -347,15 +353,13 @@ function installSampler(): void {
         if (logbook !== null && !logbook.hidden) {
           const r = logbook.getBoundingClientRect();
           if (!inside(r)) breach('the logbook is not wholly inside the window');
-          if (barBox !== null && r.right > barBox.left + 0.5 && r.bottom > barBox.top + 0.5) {
-            breach('the logbook reaches the control cluster');
-          }
+          if (barBox !== null && overlaps(r, barBox)) breach('the logbook reaches the control cluster');
         }
         const stepName = document.querySelector('.live__step[data-current] .live__step-name');
         if (stepName !== null && !inside(stepName.getBoundingClientRect())) {
           breach('the current step’s name is not wholly inside the window');
         }
-        const turn = document.querySelector('[data-testid="turn"]')?.textContent ?? '';
+        const turn = document.querySelector('[data-testid="live-turn"]')?.textContent ?? '';
         if (turn !== '' && !fit.turns.includes(turn)) fit.turns.push(turn);
         // Forge's own line, read from its new home in the logbook (wave 25 §C):
         // the element moved out of the corner and kept the id it is found by.
@@ -376,7 +380,21 @@ function installSampler(): void {
         fit.promptFrames += 1;
         const r = prompt.getBoundingClientRect();
         if (!inside(r)) breach(`${id} not wholly inside the window`);
-        if (barBox !== null && r.bottom > barBox.top + 0.5) breach(`${id} covers the button bar`);
+        /*
+         * It must not reach the cluster's home. That used to be a check on the
+         * bottom edge alone, because the host was the whole room ABOVE the
+         * cluster; wave 26 §B.1 gave the question a fixed COLUMN at 59.4% across
+         * and the cluster sits in the gutter past 84%, so the two clear each
+         * other sideways and a vertical-only check would fail a layout that is
+         * correct. What the operator asked for is that a question never lands on
+         * the controls, and that is an intersection, in both axes.
+         */
+        if (barBox !== null && overlaps(r, barBox)) breach(`${id} covers the button bar`);
+        // And the log's own button, which is in the same gutter (§B.4).
+        const logButton = document.querySelector('[data-testid="live-log-toggle"]');
+        if (logButton !== null && overlaps(r, logButton.getBoundingClientRect())) {
+          breach(`${id} covers the log button`);
+        }
       }
     }
     requestAnimationFrame(tick);
@@ -405,7 +423,9 @@ async function twoLegalDecks(api: APIRequestContext, origin: string): Promise<{ 
 }
 
 async function turnOf(f: Friend): Promise<number> {
-  return Number(/Turn (\d+)/.exec((await f.page.getByTestId('turn').textContent()) ?? '')?.[1] ?? 0);
+  // `live-turn-n` is Forge's own counter and nothing else, which is why §B.2 gave
+  // it an id of its own: the row around it reads "14yours".
+  return Number((await f.page.getByTestId('live-turn-n').textContent()) ?? 0);
 }
 
 async function samples(f: Friend): Promise<FitSamples> {
@@ -427,8 +447,8 @@ async function fitsNow(f: Friend, moment: string): Promise<Record<string, unknow
       scroll: [page.scrollWidth, page.scrollHeight],
       bar: box('[data-testid="live-buttons"]'),
       prompt: box('[data-testid="live-prompt"]'),
-      turn: document.querySelector('[data-testid="turn"]')?.textContent ?? null,
-      battlefields: Array.from(document.querySelectorAll<HTMLElement>('.seat > [data-zone="battlefield"]')).map((z) => Number(z.dataset.count)),
+      turn: document.querySelector('[data-testid="live-turn"]')?.textContent ?? null,
+      battlefields: Array.from(document.querySelectorAll<HTMLElement>('.seat [data-zone="battlefield"]')).map((z) => Number(z.dataset.count)),
     };
   });
   const where = `${f.name} at ${m.size.join('×')}, ${moment}`;
@@ -455,7 +475,7 @@ interface RowCards {
 async function rowsOf(f: Friend): Promise<RowCards[]> {
   return f.page.evaluate(() =>
     Array.from(
-      document.querySelectorAll<HTMLElement>('.seat[data-viewer] > [data-zone="battlefield"] [data-board-row]'),
+      document.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"] [data-board-row]'),
     ).map((row) => ({
       row: row.dataset.boardRow ?? '?',
       cards: Array.from(row.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li.board-card')).map((c) =>
@@ -476,7 +496,7 @@ async function rowsOf(f: Friend): Promise<RowCards[]> {
  * browser passes it.
  */
 function dragBetweenRows({ cardId, row }: { cardId: number; row: string }): void {
-  const field = document.querySelector('.seat[data-viewer] > [data-zone="battlefield"]');
+  const field = document.querySelector('.seat[data-viewer] [data-zone="battlefield"]');
   if (field === null) throw new Error('no battlefield of your own to arrange');
   // By VALUE: `CardTile` draws its own `data-card-id`, in the `w<id>` namespace.
   const card = field.querySelector<HTMLElement>(`li.board-card[data-card-id="${cardId}"]`);
@@ -497,8 +517,9 @@ function dragBetweenRows({ cardId, row }: { cardId: number; row: string }): void
 async function stateOf(f: Friend): Promise<Record<string, unknown>> {
   return {
     name: f.name,
-    turn: await f.page.getByTestId('turn').textContent(),
-    phase: await f.page.getByTestId('phase').textContent(),
+    turn: await f.page.getByTestId('live-turn').textContent(),
+    // The phase off the rail's own dataset — the bar that used to say it is gone.
+    phase: await f.page.getByTestId('live-phases').getAttribute('data-phase'),
     // Forge's own line, in the logbook now (wave 25 §C) — same id, new home.
     says: await f.page.getByTestId('live-says').textContent(),
     ok: await f.page.getByTestId('live-button-ok').isEnabled(),
@@ -570,9 +591,30 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string, summary: R
   const matchId = matchUrl.exec(alice.page.url())?.[1];
   if (matchId === undefined) throw new Error(`no match id in ${alice.page.url()}`);
   summary.matchId = matchId;
-  await expect(alice.page.getByTestId('live-status')).toHaveText('Seat 1, live.', { timeout: 30_000 });
-  await expect(bob.page.getByTestId('live-status')).toHaveText('Seat 2, live.', { timeout: 30_000 });
-  for (const f of friends) await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible();
+  /*
+   * Live, and the signal is the BOXES this spec exists to measure (wave 26 §B.5:
+   * `Seat N, live.` is deleted, and each spec picks its own signal).
+   *
+   * The sampler reads the viewer's own seat and its two zones on every animation
+   * frame. If this spec ran on a page that never got seated, every one of those
+   * lookups would find nothing, the sampler would measure nothing at all, and the
+   * run would go green having checked no box — which is the one failure a fit spec
+   * cannot afford. So waiting on exactly those elements is what earns the rest of
+   * the run: `data-viewer` is on the seat only when the snapshot named THIS
+   * client's own player, so it cannot be satisfied by a page that merely loaded.
+   */
+  for (const f of friends) {
+    await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible();
+    await expect(f.page.locator('.seat[data-viewer]'), `${f.name}: their own seat is on the table`).toHaveCount(1, {
+      timeout: 30_000,
+    });
+    for (const zone of ['battlefield', 'hand'] as const) {
+      await expect(
+        f.page.locator(`.seat[data-viewer] [data-zone="${zone}"]`),
+        `${f.name}: their own ${zone} is a box the sampler can measure`,
+      ).toHaveCount(1, { timeout: 30_000 });
+    }
+  }
   /*
    * Open the log on both pages (wave 25 §C.3).
    *
@@ -951,7 +993,7 @@ interface CrowdFit {
  * not redraw the zones under the copies.
  */
 function fillCrowd(counts: { battlefield: number; hand: number; backs: number }): Promise<CrowdFit> {
-  const source = Array.from(document.querySelectorAll<HTMLElement>('.seat[data-viewer] > [data-zone="hand"] li.board-card')).filter(
+  const source = Array.from(document.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="hand"] li.board-card')).filter(
     (li) => !li.hasAttribute('data-probe'),
   );
   if (source.length === 0) throw new Error('no dealt hand to copy cards from');
@@ -997,7 +1039,7 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
     const artifacts = Math.max(1, Math.min(2, n - lands - creatures));
     return [lands, artifacts, creatures, Math.max(0, n - lands - creatures - artifacts)];
   };
-  for (const zone of Array.from(document.querySelectorAll<HTMLElement>('.seat > [data-zone="battlefield"]'))) {
+  for (const zone of Array.from(document.querySelectorAll<HTMLElement>('.seat [data-zone="battlefield"]'))) {
     const rows = Array.from(zone.querySelectorAll<HTMLElement>('[data-board-row]'));
     if (rows.length !== 4) throw new Error(`a battlefield has ${rows.length} rows, not 4`);
     const want = share(counts.battlefield);
@@ -1015,7 +1057,7 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
       row.style.flexGrow = String(want[i]);
     });
   }
-  const hand = document.querySelector<HTMLElement>('.seat[data-viewer] > [data-zone="hand"]');
+  const hand = document.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="hand"]');
   if (hand !== null) fillTo(listIn(hand, 'zone__cards'), counts.hand, false);
   const backs = document.querySelector<HTMLElement>('.seat:not([data-viewer]) > [data-zone="hand"] ul.card-backs');
   if (backs !== null && backs.children.length > 0) {
@@ -1152,7 +1194,7 @@ function fillStack(n: number): Promise<StaticShot> {
   if (board === null) throw new Error('no board on the page');
   const list = board.querySelector<HTMLElement>('[data-zone="stack"] > ol.stack__items');
   if (list === null) throw new Error('the stack has no list of its own — an empty stack must still render its slot');
-  const art = document.querySelector<HTMLElement>('.seat[data-viewer] > [data-zone="hand"] li.board-card [data-testid="card"]');
+  const art = document.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="hand"] li.board-card [data-testid="card"]');
   if (art === null) throw new Error('no dealt hand to copy a card from');
 
   for (const el of Array.from(list.querySelectorAll('[data-probe]'))) el.remove();
@@ -1185,7 +1227,8 @@ function fillStack(n: number): Promise<StaticShot> {
         };
         const boxes: Record<string, string> = { board: rect(board) };
         for (const [name, sel] of [
-          ['bar', '.board__bar'],
+          // No `bar`: wave 26 §A deleted `.board__bar`, and the turn it carried is
+          // the phase rail's — an overlay, not a slot on the canvas.
           ['them', '.board__opponents'],
           ['mid', '.board__mid'],
           ['overlay', '[data-board-overlay]'],
@@ -1203,8 +1246,8 @@ function fillStack(n: number): Promise<StaticShot> {
         }
         const surfaces: Record<string, string> = {};
         for (const [name, sel] of [
-          ['battlefield', '.seat[data-viewer] > [data-zone="battlefield"]'],
-          ['hand', '.seat[data-viewer] > [data-zone="hand"]'],
+          ['battlefield', '.seat[data-viewer] [data-zone="battlefield"]'],
+          ['hand', '.seat[data-viewer] [data-zone="hand"]'],
         ] as const) {
           const el = board.querySelector(sel);
           if (el === null) throw new Error(`no ${name} to read a surface from`);
@@ -1227,7 +1270,7 @@ function fillStack(n: number): Promise<StaticShot> {
           prose: board.querySelectorAll('.zone__empty, .zone__hidden, .stack__hint').length,
           faces: { you: rect(ours), them: rect(theirs) },
           rows: Array.from(
-            board.querySelectorAll<HTMLElement>('.seat[data-viewer] > [data-zone="battlefield"] [data-board-row]'),
+            board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"] [data-board-row]'),
           ).map((r) => r.dataset.boardRow ?? '?'),
         });
       }),
@@ -1265,7 +1308,7 @@ test(CROWD_TITLE, async ({ browser }) => {
     await enabledOk(decider).click();
     for (const f of friends) {
       await expect
-        .poll(async () => f.page.locator('.seat[data-viewer] > [data-zone="hand"] li.board-card').count(), {
+        .poll(async () => f.page.locator('.seat[data-viewer] [data-zone="hand"] li.board-card').count(), {
           timeout: 30_000,
           message: `${f.name}: no opening hand was dealt`,
         })
@@ -1284,11 +1327,11 @@ test(CROWD_TITLE, async ({ browser }) => {
         const base = shots[0]!;
         const where = `${f.name} at ${base.size}`;
         console.log(
-          `[table-fit static] ${where}: ${shots.map((s) => `${s.items} on the stack → mid ${s.boxes.mid}, you/battlefield ${s.boxes['you/battlefield']}`).join('; ')}`,
+          `[table-fit static] ${where}: faces you ${base.faces.you} them ${base.faces.them}; ` +
+            shots.map((s) => `${s.items} on the stack → mid ${s.boxes.mid}, you/battlefield ${s.boxes['you/battlefield']}`).join('; '),
         );
         // The board really was measured: every slot, and a face per player.
         expect(Object.keys(base.boxes).sort(), `${where}: every slot measured`).toEqual([
-          'bar',
           'board',
           'face/0',
           'face/1',
@@ -1316,24 +1359,41 @@ test(CROWD_TITLE, async ({ browser }) => {
           expect(Math.min(w!, h!), `${where}: ${id} is worth aiming at`).toBeGreaterThanOrEqual(MIN_FACE_PX);
         }
         /*
-         * The faces anchor the table (item 11): theirs at the top of the
-         * canvas, ours at the bottom, with the stack's band between them. The
-         * operator could not tell the two apart when both sat in that band.
+         * The faces anchor the table (item 11): theirs at the top of the canvas,
+         * ours at the bottom, and neither of them anywhere near the stack. The
+         * operator could not tell the two apart when both sat in the stack's band.
+         *
+         * Wave 26 re-blocked the table and the stack stopped being a BAND: it is
+         * the operator's own column now (`.board__mid`, measured at 59.4% across
+         * and a ninth of the canvas' height — `board-layout-2026-09-27.md`), with
+         * the faces in the ~5.6% left column of each seat. So "above the band" and
+         * "below the band" are not what the geometry says any more, and asserting
+         * them would fail a layout the operator drew. What the complaint was about
+         * survives exactly, as two claims that hold under either blocking: the two
+         * faces do not share space with each other, and neither shares space with
+         * the stack.
          */
         {
           const at = (box: string) => {
             const [left, top, w, h] = box.split(',').map(Number);
-            return { left: left!, top: top!, bottom: top! + h!, mid: top! + h! / 2, width: w! };
+            return { left: left!, top: top!, right: left! + w!, bottom: top! + h!, mid: top! + h! / 2, width: w! };
           };
           const board = at(base.boxes.board!);
-          const mid = at(base.boxes.mid!);
+          const stack = at(base.boxes.mid!);
           const you = at(base.faces.you);
           const them = at(base.faces.them);
           const third = (board.bottom - board.top) / 3;
           expect(them.mid, `${where}: their face is in the top third of the canvas`).toBeLessThan(board.top + third);
           expect(you.mid, `${where}: our face is in the bottom third of the canvas`).toBeGreaterThan(board.bottom - third);
-          expect(them.bottom, `${where}: their face is above the stack's band`).toBeLessThanOrEqual(mid.top);
-          expect(you.top, `${where}: our face is below the stack's band`).toBeGreaterThanOrEqual(mid.bottom);
+          // Opposite ends, with nothing shared: theirs finishes before ours starts.
+          expect(them.bottom, `${where}: their face is wholly above ours`).toBeLessThanOrEqual(you.top);
+          // And neither face shares a pixel with the stack.
+          type Box = ReturnType<typeof at>;
+          const clear = (a: Box, b: Box): boolean =>
+            a.bottom <= b.top || a.top >= b.bottom || a.right <= b.left || a.left >= b.right;
+          for (const [whose, face] of [['their', them], ['our', you]] as const) {
+            expect(clear(face, stack), `${where}: ${whose} face is clear of the stack (${base.boxes.mid})`).toBe(true);
+          }
           // And the grouping is there, in the order it is drawn.
           expect(base.rows, `${where}: the battlefield's rows`).toEqual([...BOARD_ROWS]);
         }
