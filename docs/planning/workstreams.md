@@ -121,11 +121,15 @@ for §D. The closing note carried none, so the tracker ran them:
 
 - **The unpayable-cost cancel arm is guarded.** `decideCancel` forced to
   `return null` → **4 of 131 fail** in `auto.test.ts`; restored → **131 pass**.
-- **Item 3's silence is NOT guarded.** Re-adding
-  `this.say(s, \`auto-passed ${phase}\`)` beside the log line — putting back the
-  exact notification the operator asked to be removed — leaves
-  `match.test.ts` at **60 passed**. Nothing stops that line coming back, and CI
-  would be green when it did. **Open, and one test closes it.**
+- **Item 3's silence is guarded — my first answer here was wrong.** I mutated
+  `match.ts` to re-add `this.say(s, \`auto-passed ${phase}\`)` and ran
+  `match.test.ts`: 60 passed, so I recorded the guard as missing. It is not.
+  The guard lives in `auto.test.ts` — *"passes a stop with nothing to do, presses
+  OK exactly once, and says NOTHING (item 3)"* asserts `says(h, 0)` is empty —
+  and against THAT suite the same mutant gives **1 of 133 fail; restored, 133
+  pass**. The lesson is mine: a mutation test proves nothing about the suite you
+  did not run, and "which suite owns this behaviour" is a question to answer
+  before mutating, not after.
 
 ### Two claimed reds that were the tracker's own contention
 
