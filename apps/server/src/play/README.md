@@ -283,6 +283,7 @@ was answered in 3 ms, and a probe ran alongside it in 4.4 ms.
 | `host.test.ts` (22) | the JVM pool against `fixtures/fake-bridge.mjs` (a child process speaking the bridge's line protocol, no Forge): spare adoption and re-addressing, a still-booting spare, spare off, `close()`, the ceiling counting the spare, the heap cap, a spare that keeps dying, a match's JVM SIGKILLed; the run directory (removed on a clean end, kept and pruned on a crash); the boot sweep against a **fixture** work dir (dead removed; live, fresh, in-bound crash records and anything not ours spared; the record bound; it runs when the pool is made); and Wave 22's re-attach — a JVM still running after the process that started it is gone and naming itself on disk, offered back and replayed into a new match, killed when nobody claims it, handed over on the way out and taken back by a second pool, a live spare ended from its own record, an orphan past `ORPHAN_MAX_MS` ended, and a live dir whose record names a different process left alone | fake bridge — runs in CI |
 | `auto.test.ts` (76) | the shortcuts as rules: every committed prompt fixture stays a question; the bounds cases that answer themselves; `autoPassReason` and `autoPayReason` over typed frames AND over `fixtures/w20-turn-flow.json`'s real windows; the same through a whole `Match` over the replay host; `fullControl` turning all of it off | `apps/ui/src/play/prompts/fixtures/*.json`, `fixtures/w20-turn-flow.json` |
 | `auto.jvm.test.ts` (1) | the same against a real Forge: stops passed only where Forge named nothing, every cast says what it paid, the scry asks about the scried cards; **skips visibly** without a jar | live |
+| `seed.jvm.test.ts` (1) | one seed, one deal: two cold matches on seed 20260918 put both libraries in the same order — the seed reaching Forge's `MyRandom`, measured rather than read off the source; **skips visibly** without a jar | live |
 | `jvm.test.ts` (3) | real matches in real JVMs — fixed decks + seed (cold), and seeded variety **through the warm spare**; then a refresh with a real ask parked in Forge, and a SIGKILL; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
 
 The leak oracle (`fixtures/transcript.ts`, `secretsFor`) is defined from zones
@@ -318,6 +319,14 @@ The JVM runs are now repeatable. The fixed run uses the red run's decks and seed
 The seed drives Forge's `MyRandom` (shuffles, the coin toss) and the precon
 pick. The AI and thread timing are not seeded, so a seed narrows a failure down
 but does not replay it exactly.
+
+**Measured, not argued** (`seed.jvm.test.ts`, 2026-09-27): two cold matches on
+one seed put both libraries in the same order, read as the id lists Forge sends
+each seat. Before that test existed this claim was made twice from reading code
+and was wrong once each way — wave 20 recorded the seed as working on the
+strength of two lucky e2e runs (the variable was on a server that cannot start
+Forge, `e2e/playSeed.ts`), and wave 22 recorded that the bridge never applies it
+at all (`PlayBridge.startMatch` has always called `MyRandom.setRandom`).
 
 ### The JVM test, run for real on this host
 
