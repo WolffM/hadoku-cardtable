@@ -4,6 +4,44 @@
  *
  * ## The baseline
  *
+ * Re-recorded in Wave 26 for `473571d` (lane C: every mana pip, the tap symbol
+ * and the set symbols became Keyrune/Mana glyphs under D20) and `f6d15b6`
+ * (lane A: the table re-blocked as the operator drew it — four rows with the
+ * hands outermost, the piles moved into the left column's lower cell, every
+ * zone panel and caption deleted, the turn bar deleted, a right gutter
+ * reserved for the permanent overlays, and the seat's mana pool drawn for the
+ * first time). NEITHER commit owns this file, so the pin is re-recorded here
+ * immediately after them, as the paragraph below prescribes. 7385 characters
+ * arrived, 34848 -> 42233, and the two lanes are separable:
+ *
+ * +7988  lane C, measured by reverting `../../components/ManaPip.tsx` and
+ *        `CardTile.tsx` alone: 2537 the `display: contents` compatibility shim
+ *        on 59 pips, 3692 the new set symbols, 929 the pip markup itself, and
+ *        830 the hover `title` added to the glyph. The shim is there because
+ *        `styles.css` still carries the pre-D20 `.pip` disc rules and no lane
+ *        this wave owned that file; deleting that section collapses it.
+ *  -603  lane A: -219 the `<header class="board__bar">`, -562 eight
+ *        `<h4 class="zone__head">` (two battlefields, two hands, two
+ *        graveyards, two exiles), -32 the `<div class="zone__gutter">`, +210
+ *        two `<ul class="seat__mana">` at 105 each. The graveyard `<section>`
+ *        moved again and, as in Wave 25, the diff is an insert and a delete of
+ *        the SAME bytes; `zone__regroup` -> `seat__regroup` is the same length.
+ *  ─────
+ * +7385  34848 -> 42233, and 7988 - 603 = 7385 exactly.
+ *
+ * Checked the strong way, and this is worth recording because the first
+ * diagnosis of it was WRONG: reverting only `../Board.tsx` and `../adapter.ts`
+ * leaves 42836, which reads like a pre-existing red and was reported as one.
+ * It is not. Reverting all FOUR files the pin actually depends on —
+ * `../Board.tsx`, `../adapter.ts`, `../../components/CardTile.tsx` and
+ * `ManaPip.tsx` — to `origin/main` makes this test PASS at 34848, which is
+ * what proves the whole delta is this wave's and that `../fixtures.ts` did not
+ * move. `2939301` shipped the font FILES and moved no markup. A revert that
+ * leaves another lane's change in the tree is not a baseline.
+ *
+ * Lane B moved nothing here, as this file's own rule predicts: it renders
+ * `Board` alone, and B owns nothing `Board` imports.
+ *
  * Re-recorded in Wave 25 for `3710618` (lane E: the hand gained the same free
  * arrangement the battlefield has, the graveyard moved under the portrait and
  * its counts, and a claimed press selects no text). That commit does not own
@@ -101,9 +139,14 @@
  * `Board.test.ts` and `fold.test.ts` are the finer-grained net and are not
  * modified by this lane; this is the coarse one that sees every byte.
  *
- * **It renders `Board` and nothing else**, so a failure here is a change to
- * `../Board.tsx`, `../adapter.ts` or `../fixtures.ts` — never to anything under
- * `live/`. Re-recording the two numbers belongs with the commit that makes the
+ * **It renders `Board` and nothing else** — but `Board` is not a leaf, and in
+ * Wave 26 that distinction cost a wrong diagnosis. A failure here is a change
+ * to `../Board.tsx`, `../adapter.ts` or `../fixtures.ts`, OR to anything they
+ * render: `../../components/CardTile.tsx` and, through it,
+ * `../../components/ManaPip.tsx`. Never to anything under `live/`. Before
+ * blaming a commit, revert ALL of those to the last green ref and confirm this
+ * test passes — a revert that leaves a sibling lane's change in the tree
+ * measures both and reads like a pre-existing red. Re-recording the two numbers belongs with the commit that makes the
  * markup change — or, when that commit does not own this file, immediately
  * after it, naming it (as the paragraph above does for `dcb2e60`).
  */
@@ -118,8 +161,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = 'c2a8bb754745f97a2ecc27d8ee13b0bd4cc81aad03e703782f2f4145cf15d32e';
-const BASELINE_LENGTH = 34848;
+const BASELINE_SHA256 = 'ed0ff2971f6d6d054103a509db1264a21cd0d43a38c4e485de8adb09a723bf81';
+const BASELINE_LENGTH = 42233;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

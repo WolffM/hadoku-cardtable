@@ -244,7 +244,7 @@ describe('dismissing', () => {
     const { panel, board, theirCard } = mountBoard();
     hover(theirCard().querySelector('.card')!);
     expect(panel()).not.toBeNull();
-    hover(board.querySelector('.board__bar')!);
+    hover(board.querySelector('.seat__counts')!);
     expect(panel()).toBeNull();
   });
 });
@@ -295,7 +295,7 @@ describe('touch', () => {
     const { panel, board, theirCard } = mountBoard();
     longPress(theirCard().querySelector('.card')!);
     expect(panel()).not.toBeNull();
-    fireEvent.pointerDown(board.querySelector('.board__bar')!, { pointerType: 'touch' });
+    fireEvent.pointerDown(board.querySelector('.seat__counts')!, { pointerType: 'touch' });
     expect(panel()).toBeNull();
   });
 
