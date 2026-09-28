@@ -226,6 +226,28 @@ function isProbe(ask: Frame | undefined): boolean {
   return typeof ask?.message === 'string' && ask.message.startsWith(PROBE_TEXT);
 }
 
+/**
+ * Every ask this browser has been sent and has not replied to or aborted.
+ *
+ * The probe reaches a seat on that seat's ONE client thread
+ * (`PlayBridge.SeatGui.ui` — `BridgeGui`'s whole reason to exist), so an ask
+ * already open on that seat holds the probe behind it and the probe's own text
+ * never reaches the page. That is the first thing to know about a probe that did
+ * not arrive, and it is a property of the moment the probe was raised, so it is
+ * recorded then rather than reconstructed afterwards. See
+ * `docs/planning/wave27-probe-race.md`.
+ */
+function openAsks(f: Friend): { callId: string; method: string; message: string }[] {
+  const answered = new Set(answersFrom(f).map((a) => a.callId));
+  return [...asksIn(f).entries()]
+    .filter(([callId]) => !answered.has(callId))
+    .map(([callId, frame]) => ({
+      callId,
+      method: String(frame.method ?? '?'),
+      message: String(frame.message ?? '').slice(0, 80),
+    }));
+}
+
 /** Replies to asks the GAME raised (not the probe), by method. */
 function gameAnswers(f: Friend): { callId: string; method: string }[] {
   const asks = asksIn(f);
@@ -657,6 +679,12 @@ test(LIVE_TITLE, async ({ browser }) => {
   const stack = await startPlayStack(forge);
   const hands: Hands[] = [];
   const summary: Record<string, unknown> = {};
+  /**
+   * What each browser was holding when each probe was raised. Declared out here
+   * so the `finally` can write it into the evidence even when the try threw
+   * BEFORE the probe was answered — which is the one case anybody reads it in.
+   */
+  const probeWindows: Record<string, unknown>[] = [];
   let alice: Friend | null = null;
   let bob: Friend | null = null;
 
@@ -1411,11 +1439,45 @@ test(LIVE_TITLE, async ({ browser }) => {
       expect(asked.filter((id) => !sent.some((a) => a.callId === id)), `${f.name}: every ask answered`).toEqual([]);
     }
 
-    // ── the probe, to bob: answered AGAINST Forge's default.
-    const probe = (seat: number, message: string) =>
-      alice!.context.request
+    /*
+     * ── the probe, to bob: answered AGAINST Forge's default.
+     *
+     * A probe is raised and left in flight while the spec presses the button that
+     * answers it, so its promise is FLOATING for as long as that takes. A floating
+     * promise that rejects is the single most destructive thing this spec can hold,
+     * and wave 26 held it: `f.context.close()` in the `finally` disposes the
+     * browser context's `APIRequestContext`, which rejects every request still
+     * pending on it (`playwright-core` `APIRequestContext._disposeImpl` →
+     * `Events.Dispose` → `new TargetClosedError('Request context disposed.')`).
+     * Playwright takes that unhandled rejection as the test's error and ABORTS the
+     * test there — inside the `finally`, before `stack.stop()`, before the JVM
+     * reaper, before the summary is written. So the error the reader is shown is
+     * `apiRequestContext.post: Request context disposed.` at THIS line, the real
+     * failure is gone, no evidence file exists, and the stack's Forge JVM is left
+     * running. Wave 26's red (`docs/planning/wave27-probe-race.md`, run A) is
+     * exactly that, and it named a line that had not failed.
+     *
+     * So a probe NEVER rejects: a request that does not come back is DATA, and the
+     * `toMatchObject` below reports it as the probe's own failure. The one thing
+     * this must not do is throw from a promise nobody is awaiting yet.
+     */
+    interface ProbeAnswer {
+      status: number;
+      body: { answer?: boolean; ms?: number; error?: string };
+    }
+    const probe = (seat: number, message: string): Promise<ProbeAnswer> => {
+      probeWindows.push({
+        seat,
+        message,
+        // What each browser was still holding when this probe was raised. A probe
+        // queues behind an ask already open on ITS OWN seat and cannot be drawn.
+        openAsks: { alice: openAsks(alice!), bob: openAsks(bob!) },
+      });
+      return alice!.context.request
         .post(`${origin}${PREFIX}/api/play/matches/${matchId}/probe`, { data: { seat, message }, timeout: 120_000 })
-        .then(async (r) => ({ status: r.status(), body: (await r.json()) as { answer?: boolean; ms?: number; error?: string } }));
+        .then(async (r): Promise<ProbeAnswer> => ({ status: r.status(), body: (await r.json()) as ProbeAnswer['body'] }))
+        .catch((err: unknown): ProbeAnswer => ({ status: 0, body: { error: `the probe request never came back: ${String(err).split('\n')[0]}` } }));
+    };
 
     const bobProbe = probe(1, `${PROBE_TEXT}: bob, press the button that is not the default`);
     const bobDialog = bob.page.getByTestId('confirm-dialog');
@@ -1435,6 +1497,39 @@ test(LIVE_TITLE, async ({ browser }) => {
     const aliceDialog = alice.page.getByTestId('confirm-dialog');
     await expect(aliceDialog).toContainText(`${PROBE_TEXT}: alice`);
     const callIdBefore = await aliceDialog.getAttribute('data-call-id');
+    /*
+     * Take the pointer off the board before the board is read, on BOTH sides.
+     *
+     * `boardBefore` / `boardAfter` is the claim that the same board comes back,
+     * and it is read with `innerText`, which is everything the board currently
+     * DRAWS. The inspector draws inside it: hovering a card clones that card's
+     * tile into lane A's `[data-board-overlay]`, the last element of
+     * `<section class="board">` (`apps/ui/src/play/inspect/index.ts`, wave 20 §D).
+     * A preview is POINTER state, not board state, and a reloaded page has had no
+     * pointer event over it, so it can never have one — the equality was
+     * comparing where the mouse happened to be resting.
+     *
+     * And it does rest on a card: the drag phase above leaves the pointer wherever
+     * its last drop put it, which is over one of the viewer's own permanents. On a
+     * contended host this failed 10 of 15 runs, always here, always the same way
+     * — `boardBefore` carrying a second copy of one battlefield card, the preview,
+     * which the reload cleared. The whole of what was read as "the probe race"
+     * was that, plus a masked error (see the probe helper above);
+     * `docs/planning/wave27-probe-race.md` has the runs.
+     *
+     * So the pointer moves off the board and the preview is asserted GONE at both
+     * moments. The board comparison below stays total — byte for byte, the whole
+     * board, nothing excluded — and an inspector that stopped dismissing fails
+     * here, saying so, instead of surfacing as a diff in the board's text.
+     */
+    const noPreview = async (when: string): Promise<void> => {
+      await alice!.page.mouse.move(0, 0);
+      await expect(
+        alice!.page.locator('[data-board-overlay] [data-inspect]'),
+        `alice: no inspector preview ${when} — the pointer is off the board`,
+      ).toHaveCount(0);
+    };
+    await noPreview('before the reload');
     const boardBefore = await alice.page.locator('[aria-label="Game board"]').innerText();
     const mark = alice.captures.length;
     const logMark = serverLog(stack).length;
@@ -1446,7 +1541,9 @@ test(LIVE_TITLE, async ({ browser }) => {
     await expect(aliceDialog).toContainText(`${PROBE_TEXT}: alice`);
     const callIdAfter = await aliceDialog.getAttribute('data-call-id');
     expect(callIdAfter).toBe(callIdBefore);
+    await noPreview('after the reload');
     const boardAfter = await alice.page.locator('[aria-label="Game board"]').innerText();
+    summary.refreshBoard = { chars: boardAfter.length, same: boardAfter === boardBefore };
     expect(boardAfter).toBe(boardBefore);
     const rejoin = playMessagesSince(alice, mark).find((m) => m.kind === 'ack' && isSnapshot(m.msg));
     if (rejoin === undefined || !isSnapshot(rejoin.msg)) throw new Error('alice got no snapshot after the refresh');
@@ -1647,6 +1744,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     }
 
   } finally {
+    summary.probeWindows = probeWindows;
     for (const h of hands) await h.close();
     for (const f of [alice, bob]) {
       if (f === null) continue;
