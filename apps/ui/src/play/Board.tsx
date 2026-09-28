@@ -133,21 +133,19 @@
  * The operator, 2026-09-26: *"use a vertical bar for showing the players
  * health, avatar, name, hand, library. horizontal space is precious"*. So a
  * seat is no longer a wide header strip over its zones: the avatar, the life
- * on it, the name, the hand count and the library count stack in ONE narrow
- * column at the seat's left edge (`board.css`, `--who-w`), spanning both of
- * the seat's rows. The width that header used to spend on empty strip goes to
- * the battlefield, and the 2.5rem of HEIGHT it cost every seat pays for the
- * horizontal zone and lane labels below.
+ * on it, the name, the mana pool, the hand count and the library count stack in
+ * ONE narrow column at the seat's left edge (`board.css`, `--who-w`). The width
+ * that header used to spend on empty strip goes to the battlefield, and the
+ * 2.5rem of HEIGHT it cost every seat pays for the horizontal lane labels below.
  *
  * **It supersedes the layout of wave 20's face anchoring, not its point.** The
  * operator, 2026-09-25: *"avatar and number looks slick, but confusing which
  * is which"* — so ours still reads as ours. Two things carry that, and both
  * are load-bearing:
  *
- *   - the bar is a grid of two tracks and the AVATAR BLOCK sits in the outer
- *     one: the first row for the opponent (the top of the board) and the last
- *     for the viewer (the bottom). The two faces are still as far apart as the
- *     canvas allows, with the stack's band between them, which is what
+ *   - the AVATAR BLOCK sits in the outer track of the bar: the first for the
+ *     opponent (the top of the board) and the last for the viewer (the bottom).
+ *     The two faces are still as far apart as the canvas allows, which is what
  *     `e2e/table-fit.spec.ts` measures;
  *   - the viewer's seat says so in words — `(you)` beside their name — and in
  *     `data-viewer`, on the seat and on the face.
@@ -155,35 +153,55 @@
  * The counts are the other track, so a flag arriving mid-game ("their turn",
  * "priority") grows the track that has room rather than moving the face.
  *
- * ## The graveyard is in the bar, under the portrait and its counts
+ * ## The table is blocked the way the operator drew it (wave 26 §A)
  *
- * Settled by the operator, 2026-09-27: *the graveyard sits BELOW the portrait
- * and its counts.* So the seat's third column holds EXILE alone and the
- * graveyard is the bar's last track — under the avatar block and the counts for
- * the opponent, and under both for the viewer, whose bar already draws its
- * counts above its portrait. It is a named track (`--grave-h`), like every other
- * track on this board, and it is the one zone that lives inside a
- * `[data-player-bar]`: the bar still carries no `data-zone` of its own, and the
- * set of zones on the board is unchanged — only where one of them sits.
+ * `docs/planning/board-layout-2026-09-27.md` is a spec made by dragging the real
+ * regions on a 1280×800 canvas, and four of its rows are this file's:
  *
- * ## Every label is horizontal
+ *   - **one narrow left column per seat, ~5.6% wide, in TWO cells.** The upper
+ *     cell is the portrait, its life, its name, its MANA POOL and its counts
+ *     (`.seat__who`, still `[data-player-bar]`); the lower cell is the piles
+ *     (`.seat__piles`, the graveyard and exile). The column no longer spans the
+ *     seat's height and the old full-height piles COLUMN beside the battlefield
+ *     is gone — which is what makes "the graveyard is below the portrait"
+ *     (wave 25 §E) fall out of the geometry rather than out of a rule.
+ *   - **four rows, hands outermost**: the opponent's hand, their battlefield, the
+ *     centre line, your battlefield, your hand. The two battlefields face each
+ *     other across the middle and each hand is as far from it as the canvas
+ *     allows, which is also what keeps the two faces apart.
+ *   - **the right end of every row is RESERVED** (`board.css`, `--right-gutter`).
+ *     The phase rail, the controls and the log button are permanent overlays
+ *     floating over that end (`live/live.css`, lane B's), so a card may never
+ *     come to rest under them. Transient overlays — the stack, a question — just
+ *     cover what is beneath.
+ *
+ * ## No zone panels and no zone labels
+ *
+ * The operator, asked directly on 2026-09-27: *"yes drop the zone labels too"*,
+ * and the panel chrome went with the captions. `ZoneShell` draws neither. What a
+ * zone keeps is its accessible name, `data-zone`, `data-owner` and `data-count` —
+ * see `ZoneShell` for why each one is not optional.
+ *
+ * A battlefield's four LANE labels are a different thing and they stay: they name
+ * a grouping this file invented, not a zone the table's own shape identifies.
+ *
+ * ## Every label that is left is horizontal
  *
  * The operator, 2026-09-26: *"vertical words are impossible to read, lets try
- * it differently"*. Nothing on this board is set rotated. A zone's label and a
- * battlefield lane's label are horizontal strips across the top of their own
- * slot, each a FIXED track (`board.css`), so they read straight and still
- * cannot be pushed by what the zone holds. `Board.test.ts` greps the
- * stylesheet for `writing-mode` and `rotate` to keep it that way; the one
- * rotation left on the board is a TAPPED CARD, which is a card turned
- * sideways and not a word (`card.css`).
+ * it differently"*. Nothing on this board is set rotated. A battlefield lane's
+ * label is a horizontal strip across the top of its own lane, a FIXED track
+ * (`board.css`), so it reads straight and still cannot be pushed by what the lane
+ * holds. `Board.test.ts` greps the stylesheet for `writing-mode` and `rotate` to
+ * keep it that way; the one rotation left on the board is a TAPPED CARD, which is
+ * a card turned sideways and not a word (`card.css`).
  *
  * ## No prose
  *
  * The operator, 2026-09-24: *"this text is completely unnecessary: 'Stack 0
  * / empty'"*. There is no empty-state text, no hint and no explanation
- * anywhere on this board. A zone shows its label and its count; when it holds
- * nothing it shows its slot and nothing else. Do not reintroduce a sentence
- * here.
+ * anywhere on this board — and since wave 26 §A a zone shows no label either.
+ * When it holds nothing it shows its slot and nothing else. Do not reintroduce a
+ * sentence here.
  *
  * ## Cards are `CardTile`
  *
@@ -254,8 +272,10 @@
  *   - a battlefield's rows each carry `data-board-row` (`lands`, `artifacts`,
  *     `creatures`, `other`), in that order, and `data-empty` when the row
  *     holds nothing. A draggable card carries `draggable` — on the viewer's own
- *     battlefield and in their own hand — and the viewer's battlefield carries
- *     one `[data-arrange-reset]` control, which resets the whole seat;
+ *     battlefield and in their own hand — and the viewer's SEAT carries one
+ *     `[data-arrange-reset]` control, which resets the whole seat; it used to
+ *     hang off the battlefield's label column, and §A.3 took that column with the
+ *     label;
  *
  *     **A row's `:scope > ul.zone__cards > li.board-card` children are its
  *     PILES, one per visual column** — the bottom card of each. The cards above
@@ -305,16 +325,25 @@
  *
  * ## Layout
  *
- * The opponent on top with their bar's face at its head, a centre band holding
- * the stack, the viewer at the bottom with their hand and their bar's face at
- * its foot. Page layout is `board.css`; how a single card looks is `card.css`,
- * sized from `--card-w` so the layout can shrink cards per zone.
+ * The opponent on top with their hand outermost and their bar's face beside
+ * their battlefield, the viewer at the bottom with their hand outermost and their
+ * bar's face beside theirs — the two battlefields meeting at the centre line.
+ * Page layout is `board.css`; how a single card looks is `card.css`, sized from
+ * `--card-w` so the layout can shrink cards per zone.
  */
 
 import { useEffect, useReducer, useRef, type DragEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
-import { boardPT, type BoardCard, type BoardPlayer, type BoardView, type PTState, type StackEntry } from './adapter.ts';
+import {
+  boardPT,
+  type BoardCard,
+  type BoardPlayer,
+  type BoardView,
+  type PoolColor,
+  type PTState,
+  type StackEntry,
+} from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
 import './board.css';
 import './card.css';
@@ -1003,29 +1032,45 @@ function Zone({
   );
 }
 
-/** A zone's box, its label and its count. What goes inside is the caller's. */
+/**
+ * A zone's slot. **No panel and no caption** — wave 26 §A.3.
+ *
+ * The operator, 2026-09-27, asked directly: *"yes drop the zone labels too"*, and
+ * the panel chrome went with them (`docs/planning/board-layout-2026-09-27.md`).
+ * A zone is identified by WHERE IT IS and what is in it — the hand is the row
+ * nearest you, the graveyard is the pile under your portrait — which is how a
+ * table works and why it needs no captions. So this draws no `<h4>`, no border
+ * and no fill; the fill each row still has is its SURFACE (a battlefield is
+ * sunken, a hand is raised), which is a different instruction of the operator's
+ * and is `board.css`'s.
+ *
+ * Two things survive the deletion and neither is cosmetic:
+ *
+ *   - **the accessible name.** Dropping a visible caption is not dropping the
+ *     zone from the accessibility tree, so the `<section>` keeps
+ *     `aria-label="<owner> <label>"` and `label` is still a required prop for
+ *     exactly that reason;
+ *   - **`data-zone`, `data-owner` and `data-count`.** `e2e/play.spec.ts`,
+ *     `e2e/table-fit.spec.ts` and `e2e/arrow.spec.ts` locate every card through
+ *     `data-zone`, and `data-count` is how a spec reads a zone's size now that
+ *     no element writes it out.
+ */
 function ZoneShell({
   owner,
   ownerSide,
   zone,
   label,
   count,
-  gutter,
   children,
 }: {
   owner: string;
   ownerSide: ZoneOwner;
   zone: string;
+  /** Not drawn — the zone's accessible name. See above. */
   label: string;
   count: number;
-  gutter?: ReactNode;
   children: ReactNode;
 }) {
-  const head = (
-    <h4 className="zone__head">
-      {label} <span className="zone__count">{count}</span>
-    </h4>
-  );
   return (
     <section
       className={`zone zone--${zone}`}
@@ -1034,14 +1079,6 @@ function ZoneShell({
       data-owner={ownerSide}
       data-count={count}
     >
-      {gutter === undefined ? (
-        head
-      ) : (
-        <div className="zone__gutter">
-          {head}
-          {gutter}
-        </div>
-      )}
       {children}
     </section>
   );
@@ -1073,19 +1110,6 @@ function Battlefield({
       zone="battlefield"
       label="Battlefield"
       count={player.battlefield.length}
-      gutter={
-        arranging === undefined ? undefined : (
-          <button
-            type="button"
-            className="zone__regroup"
-            data-arrange-reset=""
-            aria-label="Regroup your battlefield and hand"
-            onClick={arranging.regroup}
-          >
-            Regroup
-          </button>
-        )
-      }
     >
       <ul className="zone__rows">
         {BOARD_ROWS.map((row) => (
@@ -1143,9 +1167,6 @@ function HiddenHand({ player }: { player: BoardPlayer }) {
       data-owner="them"
       data-count={player.handCount}
     >
-      <h4 className="zone__head">
-        Hand <span className="zone__count">{player.handCount}</span>
-      </h4>
       <ul className="card-backs" aria-hidden="true">
         {Array.from({ length: player.handCount }, (_, i) => (
           <li key={i} className="card-back" data-card-back="" />
@@ -1214,6 +1235,64 @@ function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction:
   );
 }
 
+/**
+ * A seat's FLOATING MANA, beside its own portrait — wave 26 §A.6.
+ *
+ * Nothing in this UI drew the pool at all before this wave, and that was the
+ * actual defect behind the operator's report: *"if i tap the lands first then add
+ * mana to my pool, that should also work to pay for the spell"*. It does work —
+ * Forge owns the pool and applies it before asking for the rest — so what was
+ * broken was that a player could not SEE what they were holding.
+ *
+ * It is read off `PlayerView.Mana` by `adapter.ts` (which owns the byte→colour
+ * mapping and the reason it is not the obvious one) and drawn for EVERY seat,
+ * because a mana pool is public information in Magic — unlike a hand, there is
+ * nothing to hide here.
+ *
+ * Drawn with our OWN marks: a letter and a count. Not `ManaPip` — the symbol
+ * component is another lane's file this wave (§C) — and the letter is also the
+ * honest fallback shape, since a pool entry is a count rather than a cost.
+ * Colour is never the only signal: `data-mana` carries the letter, the letter is
+ * drawn, and the whole pool is in the list's accessible name in words.
+ *
+ * Its track is a FIXED one (`--mana-h`, `board.css`), so mana arriving mid-turn
+ * cannot move the portrait above it — the same rule every other track here
+ * obeys. An empty pool draws an empty list in that same box.
+ */
+const MANA_WORD: Readonly<Record<PoolColor, string>> = {
+  W: 'white',
+  U: 'blue',
+  B: 'black',
+  R: 'red',
+  G: 'green',
+  C: 'colourless',
+};
+
+function ManaPool({ player }: { player: BoardPlayer }) {
+  const pool = player.manaPool ?? [];
+  const total = pool.reduce((n, m) => n + m.count, 0);
+  const said = pool.map((m) => `${m.count} ${MANA_WORD[m.color]}`).join(', ');
+  return (
+    <ul
+      className="seat__mana"
+      data-mana-pool=""
+      data-mana-total={total}
+      aria-label={total === 0 ? `${player.name} mana pool` : `${player.name} mana pool: ${said}`}
+    >
+      {pool.map((m) => (
+        <li key={m.color} className="seat__mana-pip" data-mana={m.color} data-mana-count={m.count}>
+          <span className="seat__mana-letter" aria-hidden="true">
+            {m.color}
+          </span>
+          <span className="seat__mana-n" aria-hidden="true">
+            {m.count}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function PlayerArea({
   player,
   interaction,
@@ -1243,11 +1322,19 @@ function PlayerArea({
       aria-label={player.isViewer ? `${player.name} (you)` : player.name}
     >
       {/*
-       * The seat's furniture, in one narrow column at its side: the avatar
-       * with its life, the name, then the counts. Two blocks and two fixed
-       * grid tracks (`board.css`) — the avatar block in the seat's OUTER track
-       * so the two faces stay at opposite ends of the canvas, the counts in the
-       * one that has the slack, so a flag arriving mid-game cannot move a face.
+       * The seat's furniture, in the upper cell of its narrow left column: the
+       * avatar with its life, the name, the mana pool, then the counts — and,
+       * on the viewer's side, the one control on this board that is ours.
+       *
+       * Fixed grid tracks (`board.css`), with the avatar block in the seat's
+       * OUTER track so the two faces stay at opposite ends of the canvas, the
+       * counts in the one that has the slack, so a flag arriving mid-game cannot
+       * move a face, and the pool in a named track of its own for the same
+       * reason.
+       *
+       * The column's LOWER cell is `.seat__piles`, beside the hand — so for the
+       * viewer the portrait is above and the graveyard below it, which is the
+       * operator's own geometry (`board-layout-2026-09-27.md`).
        */}
       <div className="seat__who" data-player-bar="">
         <div className="seat__ident">
@@ -1267,6 +1354,7 @@ function PlayerArea({
             )}
           </h3>
         </div>
+        <ManaPool player={player} />
         <div className="seat__counts">
           <span data-testid="hand-count">hand {player.handCount}</span>
           <span data-testid="library-count">library {player.libraryCount}</span>
@@ -1275,20 +1363,23 @@ function PlayerArea({
           {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
         </div>
         {/*
-         * The graveyard, in the bar and UNDER the portrait and its counts —
-         * settled by the operator, 2026-09-27. It is the last child, so the
-         * viewer's own bar (which draws its counts above its portrait) still
-         * puts it under both. `board.css` gives it the bar's last track,
-         * `--grave-h`, and the bar itself is still not a zone.
+         * Regroup, which lives here now that the battlefield has no label column
+         * to hang it off (§A.3 took the zone's gutter with its caption). This is
+         * also where it belongs: it clears BOTH slots of the seat's arrangement —
+         * the battlefield and the hand — so it is the seat's control and not one
+         * zone's, which its accessible name has said all along.
          */}
-        <Zone
-          owner={player.name}
-          ownerSide={side}
-          zone="graveyard"
-          label="Graveyard"
-          cards={player.graveyard}
-          interaction={interaction}
-        />
+        {arranging !== undefined && (
+          <button
+            type="button"
+            className="seat__regroup"
+            data-arrange-reset=""
+            aria-label="Regroup your battlefield and hand"
+            onClick={arranging.regroup}
+          >
+            Regroup
+          </button>
+        )}
       </div>
 
       <Battlefield
@@ -1298,7 +1389,21 @@ function PlayerArea({
         arranging={arranging}
         arranged={arranged}
       />
+      {/*
+       * The piles, in the LOWER cell of the seat's left column — beside the hand,
+       * which for the viewer puts the graveyard under their own portrait and for
+       * the opponent puts it over theirs (`board-layout-2026-09-27.md`'s
+       * `.seat__piles` rows). Graveyard first: it is the one that fills up.
+       */}
       <div className="seat__piles">
+        <Zone
+          owner={player.name}
+          ownerSide={side}
+          zone="graveyard"
+          label="Graveyard"
+          cards={player.graveyard}
+          interaction={interaction}
+        />
         <Zone owner={player.name} ownerSide={side} zone="exile" label="Exile" cards={player.exile} interaction={interaction} />
       </div>
       {player.hand !== null ? (
@@ -1391,7 +1496,6 @@ function StackView({ stack, interaction }: { stack: readonly StackEntry[]; inter
 export function Board({ view, interaction }: { view: BoardView; interaction?: BoardInteraction }) {
   const viewer = view.players.find((p) => p.isViewer);
   const others = view.players.filter((p) => !p.isViewer);
-  const active = view.players.find((p) => p.id === view.activePlayerId);
 
   /*
    * The inspector, booted and nothing more: it attaches its own listeners by
@@ -1502,15 +1606,6 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
 
   return (
     <section className="board" aria-label="Game board" ref={root}>
-      <header className="board__bar" data-testid="turn-bar">
-        <span data-testid="turn">Turn {view.turn}</span>
-        <span data-testid="phase" data-phase={view.phase ?? ''}>
-          {view.phaseLabel}
-        </span>
-        {active !== undefined && <span data-testid="active-player">{active.name}&rsquo;s turn</span>}
-        {view.gameOver && <span className="board__over">game over</span>}
-      </header>
-
       <div className="board__opponents">
         {others.map((p) => (
           <PlayerArea key={p.id} player={p} interaction={interaction} arranging={undefined} arranged={arranged} />
@@ -1525,7 +1620,20 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
         <PlayerArea player={viewer} interaction={interaction} arranging={arranging} arranged={arranged} />
       )}
 
-      {/* Out of flow, both of them: neither may move a track when it appears. */}
+      {/*
+       * Out of flow, all three of them: none may move a track when it appears.
+       *
+       * `board__over` is the one thing the turn bar carried that is not the
+       * rail's and was not on the operator's delete list — the game ENDING is
+       * not the turn number — so it moved out here instead of going with the
+       * bar. `e2e/play.spec.ts` and `e2e/table-fit.spec.ts` read it in four
+       * places as "the game finished early", and it still answers to `.board__over`.
+       */}
+      {view.gameOver && (
+        <p className="board__over" role="status">
+          game over
+        </p>
+      )}
       {view.missingCardIds.length > 0 && (
         <p className="board__warn" role="alert">
           {view.missingCardIds.length} card(s) named by a zone never arrived: {view.missingCardIds.join(', ')}

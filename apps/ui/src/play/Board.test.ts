@@ -83,13 +83,47 @@ function renderBoard(view: BoardView = boardFromFixture(fixture), interaction?: 
  */
 const forgeButtons = (container: HTMLElement) => container.querySelectorAll('button:not([data-arrange-reset])');
 
-describe('turn and phase', () => {
-  it('shows the turn, the phase and whose turn it is', () => {
-    const { getByTestId } = renderBoard();
-    expect(getByTestId('turn').textContent).toBe('Turn 14');
-    expect(getByTestId('phase').textContent).toBe('Main 1');
-    expect(getByTestId('phase').dataset.phase).toBe('MAIN1');
-    expect(getByTestId('active-player').textContent).toBe('Bob (Capturing)’s turn');
+/**
+ * §A.4. The operator, 2026-09-27: *"i dont understand what 'turn bar' and 'seat 1
+ * live' are relevant for so i think these should just be deleted."* So the bar is
+ * GONE — not hidden, not emptied, not kept behind a `hidden` attribute to keep a
+ * spec quiet. Turn and phase are the phase rail's now (`live/LiveBoard.tsx`,
+ * §B.2, which is wide enough to be read), and `e2e/play.spec.ts`,
+ * `e2e/table-fit.spec.ts` and `e2e/arrow.spec.ts` are re-pointed at `live-turn`
+ * by §B.
+ *
+ * The one thing it carried that is neither the rail's nor on the operator's
+ * delete list is the game ENDING, so `.board__over` survives — out of flow,
+ * beside the missing-card alert, where four e2e assertions still find it.
+ */
+describe('the turn bar is deleted (§A.4)', () => {
+  it('draws no bar, and leaves nothing of it behind under any name', () => {
+    const { container, queryByTestId } = renderBoard();
+    const board = container.querySelector<HTMLElement>('.board')!;
+    expect(board.querySelector('.board__bar'), 'no bar element').toBeNull();
+    expect(board.querySelector('header'), 'and no header of any class').toBeNull();
+    for (const id of ['turn', 'turn-bar', 'phase', 'active-player']) {
+      expect(queryByTestId(id), `no ${id}`).toBeNull();
+    }
+    // Nothing is hidden in its place either: the deletion is a deletion.
+    expect(board.querySelectorAll('[hidden]'), 'nothing hidden stands in for it').toHaveLength(0);
+    expect(board.textContent, 'and the turn number is not written anywhere').not.toContain('Turn 14');
+    // The stylesheet went with it, token and all.
+    expect(BOARD_RULES).not.toContain('.board__bar');
+    expect(BOARD_RULES).not.toContain('--bar-h');
+    expect(declarationIn('.board', 'grid-template-areas'), 'and the board has no bar row').toBe("'them' 'you'");
+  });
+
+  it('keeps the game-over line, out of flow', () => {
+    const base = boardFromFixture(fixture);
+    const { container } = renderBoard({ ...base, gameOver: true });
+    const over = container.querySelector<HTMLElement>('.board__over')!;
+    expect(over, 'the line is drawn when the game is over').not.toBeNull();
+    expect(over.textContent).toBe('game over');
+    expect(declarationIn('.board__over', 'position'), 'and it cannot push a track').toBe('absolute');
+    cleanup();
+    const { container: live } = renderBoard(base);
+    expect(live.querySelector('.board__over'), 'and not while the game runs').toBeNull();
   });
 });
 
@@ -324,8 +358,15 @@ describe('hidden information', () => {
       const { zone, container } = renderBoard(make());
       const hand = zone(1, 'hand');
       expect(hand.dataset.count).toBe('2');
-      // The count is the label, not a sentence: "2 cards, hidden" is gone.
-      expect(hand.textContent).toBe('Hand 2');
+      /*
+       * The count is `data-count` and nothing else now: §A.3 dropped every zone
+       * caption, so the strip holds backs and not one word — neither the old
+       * "2 cards, hidden" sentence nor the "Hand 2" head that replaced it.
+       */
+      expect(hand.textContent).toBe('');
+      expect(hand.querySelector('.zone__head'), 'and no caption either').toBeNull();
+      const them = make().players.find((pl) => !pl.isViewer)!;
+      expect(hand.getAttribute('aria-label'), 'the zone is still named, to a reader').toBe(`${them.name} Hand`);
       expect(hand.querySelectorAll('[data-card-back]')).toHaveLength(2);
       expect(hand.querySelectorAll('[data-board-card], [data-testid="card"], img')).toHaveLength(0);
 
@@ -416,7 +457,12 @@ describe('BoardInteraction', () => {
     const { seat } = renderBoard(view, interaction);
     expect(seat(them.id).dataset.selectable).toBe('true');
     expect(seat(me.id).dataset.selectable).toBeUndefined();
-    expect(seat(me.id).querySelector('[data-player-bar] button')).toBeNull();
+    /*
+     * `Regroup` is in the viewer's own bar since §A.3, and it is OURS: the bar
+     * holds no button that is Forge's while this seat is not selectable.
+     */
+    expect(seat(me.id).querySelector('[data-player-bar] button:not([data-arrange-reset])')).toBeNull();
+    expect(seat(me.id).querySelectorAll('[data-player-bar] [data-arrange-reset]'), 'ours, and one of it').toHaveLength(1);
     fireEvent.click(seat(me.id).querySelector('.seat__name')!);
     // Their bar holds two ways to choose them — the name and the face. This is
     // the name.
@@ -492,6 +538,17 @@ const CARD_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play',
 function withoutComments(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, '');
 }
+
+/**
+ * `board.css`'s DECLARATIONS, with every comment gone.
+ *
+ * Every "this token is gone" assertion below reads this and not `BOARD_CSS`, for
+ * the same reason the rotation grep does: this file discusses the tokens it
+ * deleted — `.board__bar`'s own `padding-right` trick, the `--gutter-w` column
+ * §A.3 removed — and a test the PROSE can satisfy is a test that cannot fail for
+ * the right reason.
+ */
+const BOARD_RULES = withoutComments(BOARD_CSS);
 
 /**
  * One declaration out of a rule in `board.css`, so a regression reads as itself.
@@ -574,16 +631,17 @@ describe('the canvas is static', () => {
     const zones = [...board.querySelectorAll<HTMLElement>('[data-zone]')];
     // 4 zones a seat, both seats, and the stack.
     expect(zones.map((z) => `${z.dataset.owner}/${z.dataset.zone}`)).toEqual([
-      // The graveyard is in the seat's BAR now (the operator, 2026-09-27), so it
-      // comes before the battlefield in the seat's own markup. The set is the
-      // same nine zones it has always been.
-      'them/graveyard',
+      // Both piles are in `.seat__piles` again (§A.2), which is the left column's
+      // LOWER cell now rather than a full-height column of its own — so a seat's
+      // markup reads battlefield, graveyard, exile, hand. The set is the same
+      // nine zones it has always been.
       'them/battlefield',
+      'them/graveyard',
       'them/exile',
       'them/hand',
       'table/stack',
-      'you/graveyard',
       'you/battlefield',
+      'you/graveyard',
       'you/exile',
       'you/hand',
     ]);
@@ -594,63 +652,75 @@ describe('the canvas is static', () => {
   });
 
   it('lays the board and the seats out in named tracks, not in their content', () => {
-    expect(declarationIn('.board', 'grid-template-rows')).toBe('var(--bar-h) minmax(0, 1fr) var(--mid-h) minmax(0, 1.4fr)');
     /*
-     * A seat is two card rows and no head row: the furniture is a vertical bar
-     * in a fixed COLUMN spanning both (§C.3), so nothing about it is sized by
-     * what it holds and the head row's height went to the battlefields.
+     * TWO rows, one to one (§A.1): the bar is deleted and the stack floats, so the
+     * two seats have the canvas between them and the two battlefields come out the
+     * same size on either side of the centre line — 26% each, the operator's own
+     * number (`board-layout-2026-09-27.md`).
      */
-    expect(declarationIn('.board .seat', 'grid-template-columns')).toBe('var(--who-w) minmax(0, 1fr) var(--pile-w)');
-    expect(declarationIn('.board .seat', 'grid-template-rows')).toBe('minmax(0, 4fr) minmax(0, 2.6fr)');
-    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-rows')).toBe('var(--opp-hand-h) minmax(0, 1fr)');
-    expect(BOARD_CSS, 'the head row is gone, token and all').not.toContain('--seat-head-h');
+    expect(declarationIn('.board', 'grid-template-rows')).toBe('minmax(0, 1fr) minmax(0, 1fr)');
     /*
-     * And the bar itself is two fixed tracks with the avatar block in the seat's
+     * A seat is two card rows, no head row and ONE narrow column (§A.2): the
+     * furniture beside the battlefield, the piles beside the hand. Nothing about
+     * it is sized by what it holds.
+     */
+    expect(declarationIn('.board .seat', 'grid-template-columns')).toBe('var(--who-w) minmax(0, 1fr)');
+    expect(declarationIn('.board .seat', 'grid-template-rows')).toBe('minmax(0, 4fr) minmax(0, 2.6fr)');
+    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-rows')).toBe('minmax(0, 2.6fr) minmax(0, 4fr)');
+    expect(BOARD_RULES, 'the head row is gone, token and all').not.toContain('--seat-head-h');
+    expect(BOARD_RULES, 'and so is the opponent-hand strip the fr row replaced').not.toContain('--opp-hand-h');
+    /*
+     * And the bar itself is fixed tracks with the avatar block in the seat's
      * OUTER one — `auto` first for the opponent (the top of the board), `auto`
      * last for the viewer (the bottom). That is what keeps wave 20's faces at
-     * opposite ends of the canvas through §C.3's move, and what
-     * `e2e/table-fit.spec.ts` measures as "their face is in the top third".
+     * opposite ends of the canvas, and what `e2e/table-fit.spec.ts` measures as
+     * "their face is in the top third".
      */
-    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto minmax(0, 1fr) var(--grave-h)');
+    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--mana-h) minmax(0, 1fr)');
     expect(declarationIn('.board .seat[data-viewer] .seat__who', 'grid-template-rows')).toBe(
-      'minmax(0, 1fr) auto var(--grave-h)',
+      'auto minmax(0, 1fr) var(--mana-h) auto',
     );
-    expect(declarationIn('.board .seat[data-viewer] .seat__ident', 'grid-row')).toBe('2');
-    expect(declarationIn('.board .seat[data-viewer] .seat__counts', 'grid-row')).toBe('1');
+    expect(declarationIn('.board .seat[data-viewer] .seat__ident', 'grid-row')).toBe('4');
+    expect(declarationIn('.board .seat[data-viewer] .seat__counts', 'grid-row')).toBe('2');
+    expect(declarationIn('.board .seat[data-viewer] .seat__mana', 'grid-row')).toBe('3');
+    expect(declarationIn('.board .seat[data-viewer] .seat__regroup', 'grid-row')).toBe('1');
+    // The graveyard left the bar entirely, and the bar's track for it with it.
+    expect(BOARD_RULES, 'the bar no longer has a graveyard track').not.toContain('--grave-h');
+    expect(BOARD_RULES).not.toContain('--grave-w');
     /*
-     * The bar's THIRD track is the graveyard, on both sides: below the portrait
-     * and its counts, which the operator settled on 2026-09-27. It is a named
-     * size like every other track here — a pile filling up squeezes its own
-     * strips and never moves the face above it.
+     * The stack FLOATS (settled: *"float over the board makes sense"*), so the
+     * centre band is out of flow and the battlefields meet at the centre line. It
+     * takes the top of the same column the question panel takes the rest of —
+     * lane B's `--live-col-*` tokens, with the operator's own numbers as the
+     * fallback for a board mounted bare.
      */
-    expect(declarationIn('.board .seat__who > .zone--graveyard', 'grid-row')).toBe('3');
-    expect(BOARD_CSS, 'and the track is a token, not a number in three places').toContain('--grave-h:');
-    // The faces left the centre band, so the stack has all of it.
+    expect(declarationIn('.board__mid', 'position')).toBe('absolute');
+    expect(declarationIn('.board__mid', 'left')).toBe('var(--live-col-x, 59.4%)');
+    expect(declarationIn('.board__mid', 'width')).toBe('var(--live-col-w, 24.1%)');
     expect(declarationIn('.board__mid', 'grid-template-columns')).toBe('minmax(0, 1fr)');
-    expect(BOARD_CSS).not.toContain('--faces-w');
-    // The piles column holds EXILE alone now, in one `fr` track: the graveyard
-    // moved into the bar and nothing here is sized by what is in it either way.
+    expect(BOARD_RULES).not.toContain('--faces-w');
+    // The piles cell holds BOTH piles, side by side in two equal `fr` columns and
+    // one `fr` row: neither is ever sized by what is in it.
+    expect(declarationIn('.seat__piles', 'grid-template-columns')).toBe('repeat(2, minmax(0, 1fr))');
     expect(declarationIn('.seat__piles', 'grid-template-rows')).toBe('minmax(0, 1fr)');
-    // The bar spans both of the seat's card rows, on both sides of the table,
-    // so neither zone loses a row to it and both zones keep the same box.
-    expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'who field piles' 'who hand piles'");
-    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-areas')).toBe("'who hand piles' 'who field piles'");
+    // The left column is one cell per seat ROW, mirrored: furniture beside the
+    // battlefield, piles beside the hand, on both sides of the table.
+    expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'who field' 'piles hand'");
+    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-areas')).toBe("'piles hand' 'who field'");
     /*
-     * Every label is horizontal and in a FIXED track (§C.1), and which AXIS it
-     * costs is load-bearing, not taste:
-     *
-     *   - a ZONE's label is a `--gutter-w` COLUMN. A strip across the top would
-     *     make every lane shorter than the slot, and `e2e/table-fit.spec.ts`
-     *     asserts a filled lane is within 4px of the zone's own height.
-     *   - a LANE's label is a `--row-head-h` strip, because a lane is tall and
-     *     narrow and a column there would eat its whole share of the width.
+     * The labels left on the board are a battlefield's four LANE names, and each
+     * is a `--row-head-h` strip across the top of its own lane — a lane is tall
+     * and narrow, and a column there would eat its whole share of the width. The
+     * zone captions and the `--gutter-w` COLUMN they sat in are gone (§A.3), so a
+     * row zone is one column, all of it the cards'.
      *
      * A lane paying in height means `--card-slack` owes that height back, or a
      * two-row lane computes a card taller than the room under its own label and
-     * the lane has to scroll. The hand's label costs no height, so its slack is
-     * the ring and lift alone.
+     * the lane has to scroll. The hand has no label at all, so its slack is the
+     * ring and lift alone.
      */
-    expect(declarationIn('.seat[data-viewer] > .zone--hand', 'grid-template-columns')).toBe('var(--gutter-w) minmax(0, 1fr)');
+    expect(BOARD_RULES, 'no label column, token and all').not.toContain('--gutter-w');
+    expect(declarationIn('.seat[data-viewer] > .zone--hand', 'grid-template-columns')).toBe('minmax(0, 1fr)');
     expect(declarationIn('.seat[data-viewer] > .zone--hand', 'grid-template-rows'), 'no label track over the lanes').toBeUndefined();
     expect(declarationIn('.zone__row', 'grid-template-rows')).toBe('var(--row-head-h) minmax(0, 1fr)');
     expect(declarationIn('.seat[data-viewer] > .zone--hand > .zone__cards', '--card-slack')).toBe('8px');
@@ -669,6 +739,181 @@ describe('the canvas is static', () => {
     expect(declarationIn('.board__warn', 'position')).toBe('absolute');
     expect(declarationIn('.board__overlay', 'position')).toBe('absolute');
     expect(declarationIn('.board__overlay', 'inset')).toBe('0');
+  });
+});
+
+/* ── the table, blocked as the operator drew it (wave 26 §A) ─────────── */
+
+/**
+ * `docs/planning/board-layout-2026-09-27.md` is a spec the operator MADE, by
+ * dragging the real regions on a 1280×800 canvas, and it is the thing this wave
+ * builds to. jsdom does no layout, so what is checkable here is the markup and
+ * the tracks; `e2e/table-fit.spec.ts` measures the boxes in a browser.
+ */
+describe('the table as the operator blocked it (§A)', () => {
+  const view = boardFromFixture(fixture);
+
+  /**
+   * §A.1, and the only structural claim of the five that jsdom can settle: the
+   * rows, top to bottom, with the HANDS OUTERMOST.
+   *
+   * Read off the three `grid-template-areas` declarations rather than asserted as
+   * three separate strings, so the test says the thing the operator said — the
+   * order — and reds if any one of them stops mirroring the others.
+   */
+  const rowsOf = (selector: string): string[] =>
+    (declarationIn(selector, 'grid-template-areas') ?? '')
+      .split("'")
+      .filter((part) => part.trim() !== '')
+      .map((part) => part.trim());
+
+  it('stacks four rows with each hand furthest from the middle', () => {
+    expect(rowsOf('.board'), 'the board: their seat, then ours').toEqual(['them', 'you']);
+    /*
+     * Which of the two CARD areas each row line holds, by name rather than by
+     * position, so the answer is the row order and not an index into whatever
+     * else the line mentions.
+     */
+    const cardRows = (selector: string): string[] =>
+      rowsOf(selector).map((line) => {
+        const names = line.split(/\s+/);
+        return ['field', 'hand'].find((a) => names.includes(a)) ?? '?';
+      });
+    expect([
+      ...cardRows('.board .seat:not([data-viewer])').map((r) => `them/${r}`),
+      ...cardRows('.board .seat').map((r) => `you/${r}`),
+    ]).toEqual(['them/hand', 'them/field', 'you/field', 'you/hand']);
+    // And the two battlefields are the same size, which is what "face each other
+    // across the middle" means for a canvas with nothing in flow between them.
+    expect(declarationIn('.board', 'grid-template-rows')).toBe('minmax(0, 1fr) minmax(0, 1fr)');
+    expect(declarationIn('.board .seat', 'grid-template-rows')).toBe('minmax(0, 4fr) minmax(0, 2.6fr)');
+    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-rows')).toBe('minmax(0, 2.6fr) minmax(0, 4fr)');
+    // The one thing that was between them is out of flow now.
+    expect(declarationIn('.board__mid', 'position')).toBe('absolute');
+  });
+
+  /**
+   * §A.3. The operator, asked directly on 2026-09-27: *"yes drop the zone labels
+   * too"*, and the panel chrome went with them.
+   *
+   * Two halves, because either alone would pass a board that still reads as a
+   * stack of form fields: no zone on the TABLE may draw a head, and every zone
+   * must still be findable — by its accessible name, by `data-zone` and by
+   * `data-count`, which are what three e2e specs locate every card through.
+   */
+  it('draws no zone panel and no zone caption, and keeps every zone findable', () => {
+    const { container, seat } = renderBoard(view);
+    const board = container.querySelector<HTMLElement>('.board')!;
+    const tableZones = [...board.querySelectorAll<HTMLElement>('[data-zone]')].filter((z) => z.closest('.seat') !== null);
+    expect(tableZones, 'four zones a seat, both seats').toHaveLength(8);
+    for (const z of tableZones) {
+      expect(z.querySelector('.zone__head'), `${z.dataset.owner}/${z.dataset.zone} draws no head`).toBeNull();
+      expect(z.querySelector('.zone__gutter'), `${z.dataset.owner}/${z.dataset.zone} has no label column`).toBeNull();
+      // Still named, still addressable: the identity moved out of the caption and
+      // into the attributes and the accessibility tree.
+      expect(z.getAttribute('aria-label'), `${z.dataset.zone} is named to a reader`).toMatch(
+        /^.+ (Battlefield|Hand|Graveyard|Exile)$/,
+      );
+      expect(z.dataset.owner, `${z.dataset.zone} says whose it is`).toMatch(/^(you|them)$/);
+      expect(z.dataset.count, `${z.dataset.zone} says how many`).toMatch(/^\d+$/);
+    }
+    // Nowhere in a seat, not one: `.zone__head` survives on the STACK alone, which
+    // is a floating panel rather than a region of the table (`board.css`).
+    expect(seat(0).querySelectorAll('.zone__head')).toHaveLength(0);
+    expect(seat(1).querySelectorAll('.zone__head')).toHaveLength(0);
+    expect(board.querySelectorAll('.zone__head')).toHaveLength(1);
+    expect(board.querySelector('.zone__head')!.closest('[data-zone]')!.getAttribute('data-zone')).toBe('stack');
+    // And the four zone names are gone from the page's words entirely.
+    for (const word of ['Battlefield', 'Graveyard', 'Exile']) {
+      expect(board.textContent, `${word} is not written on the table`).not.toContain(word);
+    }
+  });
+
+  /**
+   * §A.5. The rail, the controls and the log button are PERMANENT overlays over
+   * the right end of the board (`live/live.css`, lane B's), so a card may never
+   * come to rest under them. `.board__bar { padding-right: 11rem }` was this trick
+   * for the status line; the bar is deleted, so the reservation is on the rows.
+   *
+   * All four card rows, because a card can come to rest in any of them — and one
+   * token, because four hand-written paddings is how three of them end up wrong.
+   */
+  it('reserves the right end of every row for the permanent overlays', () => {
+    expect(declarationIn('.board', '--right-gutter'), 'one token, on the board').toBeDefined();
+    for (const row of [
+      '.seat > .zone--battlefield,\n.seat[data-viewer] > .zone--hand',
+      '.seat > .zone--battlefield',
+      '.seat[data-viewer] > .zone--hand',
+      '.seat:not([data-viewer]) > .zone--hand',
+    ]) {
+      expect(declarationIn(row, 'padding-right'), `${row} reserves it`).toBe('var(--right-gutter)');
+    }
+    // A transient overlay reserves nothing: the stack and the question panel come
+    // and go, so they cover what is under them (the operator, 2026-09-27).
+    expect(declarationIn('.board__mid', 'padding-right'), 'the stack reserves nothing').toBeUndefined();
+  });
+
+  /**
+   * §A.6. Nothing in this UI drew the mana pool at all before wave 26, which is
+   * the defect behind the operator's report — Forge applies the pool to a cost
+   * before it asks for the rest, so the mana worked and was simply invisible.
+   *
+   * Driven from the WIRE rather than a hand-typed view, because the mapping is
+   * where this can go wrong: `PlayerView.updateMana` walks `ManaAtom.MANATYPES`,
+   * whose colourless is 32 — `MagicColor.COLORLESS` is 0 and never appears — and
+   * the committed capture's own keys are `{16, 32, 1, 2, 4, 8}`, all zero.
+   */
+  const withMana = (playerId: number, pool: [number, number][]): BoardView => {
+    const state = new Map(foldPackets(loadPackets(fixture)).state);
+    const key = deltaKey(WireType.Player, playerId);
+    const player = state.get(key)!;
+    state.set(key, {
+      ...player,
+      Mana: { t: 'map', v: pool.map(([b, n]) => [{ t: 'byte', v: b }, { t: 'int', v: n }]) },
+    } as WireObject);
+    return toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
+  };
+
+  it('draws the floating mana a wire state carries, beside that seat’s own portrait', () => {
+    // Two red, one white and one colourless, in ManaAtom's bytes and out of order.
+    const { seat } = renderBoard(withMana(0, [[8, 2], [32, 1], [1, 1], [2, 0]]));
+    const bar = seat(0).querySelector<HTMLElement>('[data-player-bar]')!;
+    const pool = bar.querySelector<HTMLElement>('[data-mana-pool]')!;
+    expect(pool, 'the pool is in the seat’s own bar').not.toBeNull();
+    expect(pool.dataset.manaTotal).toBe('4');
+    // WUBRG then colourless, ours and not the HashMap's; the zero is not a colour.
+    expect([...pool.querySelectorAll<HTMLElement>('[data-mana]')].map((m) => [m.dataset.mana, m.dataset.manaCount])).toEqual([
+      ['W', '1'],
+      ['R', '2'],
+      ['C', '1'],
+    ]);
+    expect(pool.textContent, 'the counts are drawn, not only coloured').toBe('W1R2C1');
+    // Colour is never the only signal: the whole pool is in words to a reader.
+    const mine = view.players.find((p) => p.isViewer)!.name;
+    expect(pool.getAttribute('aria-label')).toBe(`${mine} mana pool: 1 white, 2 red, 1 colourless`);
+    // It is against the portrait — one is the other's sibling in the bar — and it
+    // is NOT a zone, so the set of zones on the board is untouched by it.
+    expect(pool.previousElementSibling!.className).toBe('seat__ident');
+    expect(pool.dataset.zone).toBeUndefined();
+    // And the other seat, whose pool this state left empty, draws the same box
+    // holding nothing: a pool arriving mid-turn may not move a track.
+    const theirs = seat(1).querySelector<HTMLElement>('[data-mana-pool]')!;
+    expect(theirs, 'every seat has the box').not.toBeNull();
+    expect(theirs.dataset.manaTotal).toBe('0');
+    expect(theirs.children).toHaveLength(0);
+    expect(declarationIn('.board .seat', '--mana-h'), 'and the box is a named track').toBeDefined();
+  });
+
+  it('draws no pool at all from the committed capture, whose six colours are all zero', () => {
+    // Read off the fixture, not assumed: every `Mana` in it is six zeroes, so six
+    // pips would be six lies. The box is there; nothing is in it.
+    const { seat } = renderBoard(view);
+    for (const p of view.players) {
+      expect(p.manaPool, `seat ${p.id}'s pool`).toEqual([]);
+      const pool = seat(p.id).querySelector<HTMLElement>('[data-mana-pool]')!;
+      expect(pool.dataset.manaTotal).toBe('0');
+      expect(pool.children, `seat ${p.id} draws no pip`).toHaveLength(0);
+    }
   });
 });
 
@@ -703,26 +948,15 @@ describe('no rotated text (operator, 2026-09-26)', () => {
     expect(tapped.test(withoutComments(CARD_CSS)), 'and it is on the tapped card’s own rule').toBe(true);
   });
 
-  it('draws every zone and lane label horizontally, with its count', () => {
+  it('draws the lane labels that are left horizontally, with their counts', () => {
     const { container, zone } = renderBoard();
     const board = container.querySelector<HTMLElement>('.board')!;
-    // The labels the operator named, by the zones they head. Each is one
-    // element with the label and the count in it, and nothing rotates it.
-    const heads = [
-      [zone(0, 'battlefield').querySelector<HTMLElement>(':scope > .zone__gutter > .zone__head')!, 'Battlefield'],
-      [zone(0, 'hand').querySelector<HTMLElement>(':scope > .zone__head')!, 'Hand'],
-      [zone(0, 'graveyard').querySelector<HTMLElement>(':scope > .zone__head')!, 'Graveyard'],
-      [zone(0, 'exile').querySelector<HTMLElement>(':scope > .zone__head')!, 'Exile'],
-      // Theirs too, hidden hand and all: a count and a label, never a sentence.
-      [zone(1, 'battlefield').querySelector<HTMLElement>(':scope > .zone__head')!, 'Battlefield'],
-      [zone(1, 'hand').querySelector<HTMLElement>(':scope > .zone__head')!, 'Hand'],
-    ] as const;
-    for (const [head, label] of heads) {
-      expect(head, `a head for ${label}`).not.toBeNull();
-      const count = head.closest<HTMLElement>('[data-zone]')!.dataset.count!;
-      expect(head.textContent, `${label}'s head reads label then count`).toBe(`${label} ${count}`);
-    }
-    // And the four lane labels, which were the other rotated words.
+    /*
+     * The ZONE captions the operator named are gone outright (§A.3) rather than
+     * un-rotated, which is the stronger answer to the same complaint. What is left
+     * is a battlefield's four LANE labels — a grouping this board invented — and
+     * they read straight, label then count.
+     */
     expect(
       [...zone(0, 'battlefield').querySelectorAll('.zone__row-head')].map((h) => h.textContent),
       'the battlefield’s four lane labels',
@@ -777,64 +1011,66 @@ describe('the seat’s vertical bar (#9)', () => {
     for (const bar of board.querySelectorAll<HTMLElement>('[data-player-bar]')) {
       expect(bar.dataset.zone, 'a bar is not a zone').toBeUndefined();
       /*
-       * It holds exactly ONE, and only since the operator put it there on
-       * 2026-09-27: the graveyard, at the foot of the bar under the portrait and
-       * its counts. The bar is still not a zone itself, and the set of zones on
-       * the board is unchanged — which is what the list below is for.
+       * And it holds none either, since §A.2 gave the piles the left column's own
+       * lower cell: wave 25 put the graveyard inside the bar to get it under the
+       * portrait, and the operator's geometry gets it there without that.
        */
-      expect([...bar.querySelectorAll<HTMLElement>('[data-zone]')].map((z) => z.dataset.zone)).toEqual(['graveyard']);
+      expect([...bar.querySelectorAll<HTMLElement>('[data-zone]')].map((z) => z.dataset.zone)).toEqual([]);
     }
     expect([...board.querySelectorAll<HTMLElement>('[data-zone]')].map((z) => `${z.dataset.owner}/${z.dataset.zone}`)).toEqual([
-      // The graveyard sits in the bar, so it is first in each seat's markup —
-      // and it is still one of the same nine zones.
-      'them/graveyard',
+      // Battlefield, then the two piles of the left column's lower cell, then the
+      // hand — and still the same nine zones.
       'them/battlefield',
+      'them/graveyard',
       'them/exile',
       'them/hand',
       'table/stack',
-      'you/graveyard',
       'you/battlefield',
+      'you/graveyard',
       'you/exile',
       'you/hand',
     ]);
   });
 
   /**
-   * Settled by the operator, 2026-09-27: *the graveyard sits BELOW the portrait
-   * and its counts.* Two halves, because either alone would pass a board that
-   * still draws it in the old column: the markup has to put it in the bar, last,
-   * and the stylesheet has to give it the track below the other two — on the
-   * viewer's side as well, whose bar draws its counts ABOVE its portrait.
+   * §A.2, and it is the operator's own drag rather than a rule: the left column is
+   * TWO cells — the furniture level with the seat's battlefield, the piles level
+   * with its hand — so for the viewer the graveyard sits under their own portrait
+   * and for the opponent over theirs. Wave 25 §E settled that in words by putting
+   * the graveyard inside the bar; this geometry gets it there without that.
+   *
+   * Three halves, because any one alone would pass a board that still draws it in
+   * the old full-height column: the piles have to be back in `.seat__piles`, the
+   * seat's areas have to put `.seat__piles` in the row the HAND is in, and the
+   * bar's own tracks have to stop reserving anything for a zone.
    */
-  it('puts the graveyard at the foot of the bar, below the portrait and its counts', () => {
+  it('puts the piles in the left column’s lower cell, beside the hand', () => {
     const { seat } = renderBoard(view);
     for (const p of view.players) {
       const bar = seat(p.id).querySelector<HTMLElement>('[data-player-bar]')!;
-      const grave = bar.querySelector<HTMLElement>('[data-zone="graveyard"]')!;
-      expect(grave, `seat ${p.id}'s graveyard is in its bar`).not.toBeNull();
-      expect([...bar.children].map((c) => c.className), `seat ${p.id}'s bar, in order`).toEqual([
-        'seat__ident',
-        'seat__counts',
-        'zone zone--graveyard',
-      ]);
-      expect(bar.lastElementChild, 'and it is the last of them').toBe(grave);
-      expect(seat(p.id).querySelectorAll('[data-zone="graveyard"]'), 'one graveyard, not a copy').toHaveLength(1);
-      // The seat's own column keeps exile, and only exile.
+      expect(bar.querySelector('[data-zone]'), `seat ${p.id}'s bar holds no zone`).toBeNull();
+      expect([...bar.children].map((c) => c.className), `seat ${p.id}'s bar, in order`).toEqual(
+        p.isViewer
+          ? ['seat__ident', 'seat__mana', 'seat__counts', 'seat__regroup']
+          : ['seat__ident', 'seat__mana', 'seat__counts'],
+      );
+      const piles = seat(p.id).querySelector<HTMLElement>('.seat__piles')!;
       expect(
-        [...seat(p.id).querySelectorAll<HTMLElement>('.seat__piles > [data-zone]')].map((z) => z.dataset.zone),
-        `seat ${p.id}'s piles column`,
-      ).toEqual(['exile']);
+        [...piles.querySelectorAll<HTMLElement>(':scope > [data-zone]')].map((z) => z.dataset.zone),
+        `seat ${p.id}'s piles cell`,
+      ).toEqual(['graveyard', 'exile']);
+      expect(seat(p.id).querySelectorAll('[data-zone="graveyard"]'), 'one graveyard, not a copy').toHaveLength(1);
     }
-    // The tracks, so "last child" is also "lowest down". The bar is three tracks
-    // and the graveyard is the third on both sides; the viewer's flip puts its
-    // counts in the first and its portrait in the second.
-    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto minmax(0, 1fr) var(--grave-h)');
-    expect(declarationIn('.board .seat[data-viewer] .seat__who', 'grid-template-rows')).toBe(
-      'minmax(0, 1fr) auto var(--grave-h)',
-    );
-    expect(declarationIn('.board .seat__who > .zone--graveyard', 'grid-row')).toBe('3');
-    expect(declarationIn('.board .seat[data-viewer] .seat__counts', 'grid-row')).toBe('1');
-    expect(declarationIn('.board .seat[data-viewer] .seat__ident', 'grid-row')).toBe('2');
+    /*
+     * The areas, so "in the piles cell" is also "level with the hand" — and the
+     * mirror, so the viewer reads portrait-then-piles down the page and the
+     * opponent piles-then-portrait.
+     */
+    expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'who field' 'piles hand'");
+    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-areas')).toBe("'piles hand' 'who field'");
+    // And the bar reserves nothing for a zone any more.
+    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--mana-h) minmax(0, 1fr)');
+    expect(BOARD_RULES).not.toContain('seat__who > .zone--graveyard');
   });
 
   it('tells ours from theirs: the viewer’s bar says (you) and its seat says data-viewer', () => {
@@ -2255,3 +2491,5 @@ describe('the stack’s art (#10)', () => {
     expect(item.querySelector('.stack__source')!.textContent).toBe('unknown source · ability');
   });
 });
+
+

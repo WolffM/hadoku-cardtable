@@ -124,6 +124,31 @@
  * Golem's face carries `["Affinity:Mountain", "Haste"]` — so `summoningSick` is
  * `Sickness` AND no `Haste`, and `arrivedThisTurn` keeps Forge's raw answer for
  * anyone who wants it.
+ *
+ * ## The mana pool: `Mana`, and the one byte that is not the colour you expect
+ *
+ * A seat's FLOATING mana is `PlayerView.Mana` — set to an empty map in the
+ * constructor (`PlayerView.java:54`) and refilled by `updateMana`
+ * (`PlayerView.java:501-507`) — and until wave 26 nothing here read it, so a
+ * player could not see mana they had already tapped for. Forge applies the pool
+ * to a cost before it asks for the rest, so the mana works; it was simply
+ * invisible, which is the bug.
+ *
+ * It crosses as `ManaMapType` → `{ t: 'map', v: [[byte, int], …] }`
+ * (`packages/forge-wire/src/tier-c.ts`), and the keys are **`ManaAtom`'s**, not
+ * `MagicColor`'s. That distinction is the whole of the mapping and it is easy to
+ * get wrong in exactly one place: `updateMana` iterates `ManaAtom.MANATYPES`
+ * (`ManaAtom.java:15`), whose colourless is `1 << 5` = **32**, while
+ * `MagicColor.COLORLESS` is **0** (`MagicColor.java:22`). W/U/B/R/G agree at
+ * 1/2/4/8/16 because `ManaAtom` copies them (`ManaAtom.java:7-11`).
+ *
+ * Read off the committed capture rather than the constant: every `Mana` value in
+ * `fixtures/tierc-game1-seq1-27.json` is a six-entry map over the bytes
+ * `{16, 32, 1, 2, 4, 8}`, all of them `0` — a real pool at a moment with nothing
+ * floating, which is also why the fixture draws no pool at all.
+ *
+ * Only NON-ZERO colours reach the view: Forge sends all six every time, and six
+ * zeroes are not a pool. A player with nothing floating has an empty list.
  */
 
 import {
@@ -229,6 +254,18 @@ export function boardPT(entry: BoardCard): BoardPT | null {
   };
 }
 
+/**
+ * One colour of a seat's mana pool. `C` is Forge's colourless mana — a mana
+ * type, which is why it is not in `ManaColor`.
+ */
+export type PoolColor = ManaColor | 'C';
+
+/** How much of one colour is floating in a seat's pool. Never zero. */
+export interface ManaInPool {
+  color: PoolColor;
+  count: number;
+}
+
 export interface BoardPlayer {
   id: number;
   name: string;
@@ -244,6 +281,17 @@ export interface BoardPlayer {
   battlefield: BoardCard[];
   graveyard: BoardCard[];
   exile: BoardCard[];
+  /**
+   * The floating mana in this seat's pool, WUBRG then colourless, zero counts
+   * dropped (`PlayerView.Mana`; see the header). A public fact in Magic, so it
+   * is read for every seat and not only the viewer's.
+   *
+   * OPTIONAL for the same reason `BoardCard`'s late fields are: `toBoardView`
+   * always sets it, and a `BoardPlayer` typed out by hand in a suite testing
+   * something else (`inspect/index.test.ts`) need not restate the wire. Absent
+   * means "nothing known", which draws the same as an empty pool.
+   */
+  manaPool?: readonly ManaInPool[];
 }
 
 export interface StackEntry {
@@ -393,6 +441,48 @@ function readEntityId(obj: WireObject | undefined, name: string): number | null 
   const v = prop(obj, name);
   if (v === undefined || (v.t !== 'int' && v.t !== 'long') || typeof v.v !== 'number') return null;
   return v.v === -1 ? null : v.v;
+}
+
+/**
+ * `ManaAtom`'s byte → our letter (`ManaAtom.java:7-12`). **32, not 0, is
+ * colourless**: `PlayerView.updateMana` walks `ManaAtom.MANATYPES`, and
+ * `MagicColor.COLORLESS` — which is 0 — is a different constant that never
+ * reaches this map. The committed capture's keys are exactly these six.
+ */
+const MANA_ATOM: ReadonlyMap<number, PoolColor> = new Map<number, PoolColor>([
+  [1, 'W'],
+  [2, 'U'],
+  [4, 'B'],
+  [8, 'R'],
+  [16, 'G'],
+  [32, 'C'],
+]);
+
+/** The order a pool is drawn in: WUBRG, then colourless. */
+const POOL_ORDER: readonly PoolColor[] = ['W', 'U', 'B', 'R', 'G', 'C'];
+
+/**
+ * A `ManaMapType` — `{ t: 'map', v: [[byte, int], …] }` — as the pool the board
+ * draws. Zero counts are dropped (Forge sends all six colours on every update),
+ * an unknown key is ignored rather than guessed at, and the order is ours rather
+ * than the `HashMap`'s: the capture's own iteration order is `16, 32, 1, 2, 4, 8`.
+ */
+function readManaPool(obj: WireObject | undefined, name: string): ManaInPool[] {
+  const v = prop(obj, name);
+  if (v === undefined || v.t !== 'map' || !Array.isArray(v.v)) return [];
+  const counts = new Map<PoolColor, number>();
+  for (const entry of v.v as unknown[]) {
+    if (!Array.isArray(entry)) continue;
+    const [key, value] = entry as (Tagged | null | undefined)[];
+    if (key === null || key === undefined || value === null || value === undefined) continue;
+    if (key.t !== 'byte' && key.t !== 'int' && key.t !== 'short') continue;
+    if (value.t !== 'int' && value.t !== 'long') continue;
+    if (typeof key.v !== 'number' || typeof value.v !== 'number') continue;
+    const color = MANA_ATOM.get(key.v);
+    if (color === undefined || value.v <= 0) continue;
+    counts.set(color, (counts.get(color) ?? 0) + value.v);
+  }
+  return POOL_ORDER.filter((c) => counts.has(c)).map((c) => ({ color: c, count: counts.get(c)! }));
 }
 
 /** A `list` of `int` — how every collection of entities crosses the wire. */
@@ -634,6 +724,7 @@ export function toBoardView(
       battlefield: cardsIn(readIds(p, 'Battlefield'), true),
       graveyard: cardsIn(readIds(p, 'Graveyard')),
       exile: cardsIn(readIds(p, 'Exile')),
+      manaPool: readManaPool(p, 'Mana'),
     };
   });
   players.sort((a, b) => Number(b.isViewer) - Number(a.isViewer));

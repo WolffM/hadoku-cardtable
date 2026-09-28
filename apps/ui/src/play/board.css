@@ -9,26 +9,29 @@
  * change in size. this can never happen. the entire canvas must be fully
  * static at all times."*
  *
- * So the board is a grid whose rows are named sizes, not content:
+ * So the board is a grid whose rows are named sizes or `fr`, never content:
  *
- *   bar    var(--bar-h)         one line, clipped
- *   them   minmax(0, 1fr)       the opponents' seats
- *   mid    var(--mid-h)         the stack, and only the stack
- *   you    minmax(0, 1.4fr)     your seat
+ *   them   minmax(0, 1fr)       the opponents' seat
+ *   you    minmax(0, 1fr)       your seat
  *
- * and each seat is a grid of fixed rows in the same way. Nothing in this file
- * is sized by what is in it. Four consequences are load-bearing, and each one
+ * and each seat is a grid of `fr` rows in the same way. Nothing in this file
+ * is sized by what is in it. Five consequences are load-bearing, and each one
  * is a bug that was there before:
  *
- *   - **The stack's band is `--mid-h` whether it holds nothing or five items.**
- *     Items that do not fit scroll sideways INSIDE the band. The battlefields
- *     above and below it never move.
- *   - **An opponent's hidden hand is a fixed row** (`--opp-hand-h`), so the
- *     first card they draw does not shrink their battlefield.
+ *   - **The two seats are one to one**, which is what puts the two battlefields
+ *     the same size on either side of the centre line at 50.5% — the operator's
+ *     own geometry (`docs/planning/board-layout-2026-09-27.md`). There is no
+ *     `bar` row any more: the turn bar is deleted (see "Deleted" below).
+ *   - **The stack's band is out of flow** and `--mid-h` tall whether it holds
+ *     nothing or five items. Items that do not fit scroll sideways INSIDE the
+ *     band, and because it floats it cannot move a row at all.
+ *   - **An opponent's hidden hand is an `fr` row like yours** (2.6 against the
+ *     battlefield's 4), so the first card they draw does not shrink their
+ *     battlefield.
  *   - **A battlefield's four rows are four tracks that are always there**, so
  *     a player's first artifact does not add a row to the table.
- *   - **The missing-card alert and the overlay root are out of flow**
- *     (`position: absolute`), so neither can push a track when it appears.
+ *   - **The missing-card alert, the game-over line and the overlay root are out
+ *     of flow** (`position: absolute`), so none can push a track when it appears.
  *
  * The board also never scrolls, which is the older rule and still holds: the
  * operator, 2026-09-19, *"this module can NEVER require a scroll bar."*
@@ -55,8 +58,8 @@
  *
  * Graveyard and exile are piles, not grids: each card shows a strip and the
  * newest shows whole, and the strips shrink when the pile is taller than its
- * box. The graveyard is at the foot of the seat's own bar and exile in the
- * seat's right column, and both are drawn as that same pile.
+ * box. Both sit in `.seat__piles`, the LOWER cell of the seat's left column,
+ * beside the hand — and both are drawn as that same pile.
  *
  * ## A battlefield is four labelled groups, side by side
  *
@@ -103,8 +106,9 @@
  * The operator, 2026-09-26: *"use a vertical bar for showing the players
  * health, avatar, name, hand, library. horizontal space is precious"*. So the
  * seat's wide header strip is gone and its furniture is one narrow column
- * (`--who-w`) at the seat's left edge, spanning both of the seat's rows. The
- * arithmetic of the trade, at 1280×800:
+ * (`--who-w`) at the seat's left edge. Since wave 26 §A.2 the column is in TWO
+ * cells rather than spanning both rows: the furniture beside the battlefield and
+ * the piles beside the hand. The arithmetic of the trade, at 1280×800:
  *
  *   - the header cost every seat `2.5rem` of HEIGHT across its whole width and
  *     used almost none of it. The viewer's battlefield gains ~26px and the
@@ -118,38 +122,65 @@
  *
  * And the point of wave 20's face anchoring survives the move, because
  * `e2e/table-fit.spec.ts` measures it: the avatar block sits in the OUTER of the
- * bar's tracks — first row for the opponent, and for the viewer below its own
- * counts — so their face is still in the top third of the canvas, ours in the
- * bottom third, with the stack's band between them. The counts take the track
- * with the slack, so a flag appearing mid-game never moves a face.
+ * bar's tracks — first row for the opponent, last for the viewer — so their face
+ * is still in the top third of the canvas and ours in the bottom third. The
+ * counts take the track with the slack, so a flag appearing mid-game never moves
+ * a face, and the MANA POOL has a named track of its own for the same reason.
  *
- * ## The graveyard is at the FOOT of that bar
+ * ## The piles are the left column's SECOND CELL, beside the hand
  *
- * Settled by the operator, 2026-09-27: *the graveyard sits below the portrait
- * and its counts.* So the bar has a third track (`--grave-h`), the seat's right
- * column holds exile alone, and the viewer's own portrait sits `--grave-h`
- * higher up its bar than it did — still in the bottom third of the canvas, which
- * is the property `e2e/table-fit.spec.ts` asserts. Nothing else about the seat's
- * boxes moves: the bar's width, the battlefield, the hand and the exile column
- * are the tracks they were.
+ * Wave 26 §A.2, and it is the operator's own drag: `.seat__piles` at 0.6% across
+ * and 78.5% down for the viewer, 6.5% down for the opponent — level with each
+ * seat's HAND, while `.seat__who` is level with its battlefield. For the viewer
+ * that reads portrait above, graveyard below, which is what wave 25 §E settled in
+ * words arriving here as geometry. The full-height third column beside the
+ * battlefield (`grid-template-areas: 'who field piles'`) is gone, and the
+ * battlefield has that width now.
  *
- * ## Every label is horizontal, and every label is a fixed track
+ * ## The right end of every row is RESERVED
+ *
+ * `--right-gutter`. The phase rail, the controls and the log button are PERMANENT
+ * overlays over the right end of the board (`live/live.css`), so a card must
+ * never come to rest under them — the trick `.board__bar { padding-right: 11rem }`
+ * used for the status line, moved onto the rows now that the bar is deleted. The
+ * leftmost permanent overlay in the operator's drawing starts at x=1080 of 1280
+ * (84.4%), so the reservation is what is left of the width plus the padding
+ * between. Transient overlays — the stack, a question — reserve nothing and cover
+ * what is under them.
+ *
+ * ## No zone panels and no zone labels
+ *
+ * The operator, 2026-09-27: *"yes drop the zone labels too"*, and the panel
+ * chrome went with the captions (§A.3). So there is no `.zone__head` rule and no
+ * `--gutter-w` column: a zone is identified by where it is and what is in it.
+ * What each ROW still has is its SURFACE — a battlefield is a sunken slab and a
+ * hand a raised panel — which is a different instruction of the operator's
+ * ("need a visually different background for hand and battlefield") and stays.
+ *
+ * ## Every label that is left is horizontal, and is a fixed track
  *
  * The operator, 2026-09-26: *"vertical words are impossible to read, lets try
- * it differently"*. Nothing here sets text rotated. A zone's label is a
- * horizontal word in a `--gutter-w` column at the left of its slot, and a
- * battlefield lane's is a `--row-head-h` strip across the top of the lane. Both
- * are named sizes, so a label still cannot be pushed by what its zone holds,
- * and which AXIS each costs is the measured choice: a zone is wide, so its label
- * takes width, while a lane is tall and narrow, so its label takes height —
- * and a label strip over the whole zone would make every lane shorter than the
- * slot, which `e2e/table-fit.spec.ts` reds on purpose.
+ * it differently"*. Nothing here sets text rotated. The labels left on the board
+ * are a battlefield's four LANE names — a grouping this board invented, not a
+ * zone the table's shape identifies — and each is a `--row-head-h` strip across
+ * the top of its own lane: a named size, so it cannot be pushed by what the lane
+ * holds, and across the top rather than down the side because a lane is tall and
+ * narrow and a column there would eat its whole share of the width.
  *
  * A lane paying for its label in height means the card-sizing maths has to give
  * that height back: `--card-slack` on a lane's list includes the strip and its
  * gap, or a two-row lane computes a card taller than the room under its own
  * label and the lane has to scroll. `Board.test.ts` greps this file for
  * `writing-mode` and `rotate`.
+ *
+ * ## Deleted
+ *
+ * `.board__bar`, the turn bar. The operator, 2026-09-27: *"i dont understand what
+ * 'turn bar' and 'seat 1 live' are relevant for so i think these should just be
+ * deleted."* Turn and phase are the rail's (`live/live.css`), which wave 26 §B
+ * widened to 8.4% so they can be read. Nothing hidden was left behind in its
+ * place. `.board__over` is the one thing it carried that is not the rail's — the
+ * game ENDING — and it is out of flow now, beside `.board__warn`.
  *
  * No WotC marks in anything drawn here: states are words ("tapped"), life is a
  * number, a player is a circle and a bust we drew, and the stack is a list.
@@ -168,19 +199,22 @@
 
   /* The fixed tracks. Change one of these and the whole table re-proportions;
      nothing else may change them, and nothing content-sized may exist. */
-  --bar-h: 2rem;
-  --mid-h: 5rem;
-  --opp-hand-h: 2.05rem;
+  --mid-h: 5.75rem;
+  /*
+   * What the permanent overlays take of every row's right end (§A.5). The
+   * operator's leftmost permanent overlay starts at x=1080 of 1280, so 200px of
+   * the width is theirs; 12rem of it is reserved INSIDE the zone and the rest is
+   * the board's and the seat's own padding between the zone and the window.
+   */
+  --right-gutter: 12rem;
 
   position: relative;
   height: 100dvh;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: var(--bar-h) minmax(0, 1fr) var(--mid-h) minmax(0, 1.4fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-areas:
-    'bar'
     'them'
-    'mid'
     'you';
   gap: var(--board-gap);
   min-width: 0;
@@ -206,31 +240,28 @@
   min-width: 0;
 }
 
-.board__bar {
-  grid-area: bar;
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 12px;
-  align-items: center;
-  min-width: 0;
-  padding: 0 10px;
-  /* The live status line sits at the right end of this row (`live.css`). */
-  padding-right: 11rem;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  font-weight: 600;
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.board__bar [data-testid='phase'] {
-  color: var(--accent);
-}
-
+/*
+ * The game is over. Out of flow, like the missing-card alert beside it: it
+ * appears mid-game, and a track that appears is exactly what the static rule
+ * forbids. It is the one thing the deleted turn bar carried that is neither the
+ * rail's nor on the operator's delete list, and four e2e assertions read it.
+ */
 .board__over {
+  position: absolute;
+  z-index: 3;
+  top: var(--board-gap);
+  left: 50%;
+  translate: -50% 0;
+  margin: 0;
+  padding: 2px 10px;
+  background: var(--bg-raised);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
   color: var(--warn);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
 /*
@@ -241,7 +272,7 @@
 .board__warn {
   position: absolute;
   z-index: 3;
-  top: calc(var(--board-gap) + var(--bar-h) + 2px);
+  top: calc(var(--board-gap) + 1.65rem);
   left: var(--board-gap);
   right: var(--board-gap);
   max-height: 2.6em;
@@ -284,64 +315,57 @@
 /* ── a player's side of the table ─────────────────────────────────── */
 
 /*
- * A seat is a grid of fixed tracks. Two narrow columns hold everything that is
- * not a card: the seat's own furniture (`--who-w`) at the left, now with the
- * GRAVEYARD at the foot of it, and the exile pile (`--pile-w`) at the right.
- * Both span the seat's full height, so the battlefield and the hand keep every
- * row to themselves. The opponent's ROWS are mirrored so the two battlefields
- * face each other across the stack. Your battlefield and hand split 4 : 2.6,
- * which with the 1 : 1.4 split between the seats leaves the two battlefields
- * about the same height — and the battlefield the larger share, because it holds
- * four lanes.
+ * A seat is a grid of two columns and two `fr` rows, as the operator drew it
+ * (`docs/planning/board-layout-2026-09-27.md`).
+ *
+ * ONE narrow left column (`--who-w`, ~5.6% of the canvas) holds everything that
+ * is not a card, in two cells: the seat's furniture — portrait, life, name, mana
+ * pool, counts — level with its BATTLEFIELD, and the piles — graveyard and exile
+ * — level with its HAND. That is the whole of §A.2: the column used to span both
+ * rows with a second `--pile-w` column beside the battlefield, and the
+ * battlefield has that width now.
+ *
+ * The opponent's ROWS are mirrored, so the two battlefields face each other
+ * across the centre line and each hand is as far from it as the canvas allows.
+ * Both seats split 4 : 2.6 between battlefield and hand, and the two seats are
+ * 1 : 1 — which puts the two battlefields the same size, 26% of the canvas each,
+ * which is the operator's own number.
  *
  * There is no head row any more: the furniture is a vertical bar (see the
  * header), and its 2.5rem of height went to the battlefields.
  *
  * Every track is a named size or an `fr`: `auto` anywhere here would let a
- * card, a flag or a count move a sibling zone. The piles column is `--pile-w`
- * rather than the `auto` it used to be, which measured the same and said less.
+ * card, a flag or a count move a sibling zone.
  *
  * Scoped under `.board` because `styles.css` has a `.seat` of its own — the
  * draft's seat list, a centred grid — and without the extra class its
  * `align-items: center` collapses every zone here to zero height.
  */
 .board .seat {
-  --pile-w: 4rem;
   /*
-   * The furniture column. Wide enough for the two counts written out ("library
-   * 46" at 10px) and for a mark worth aiming at, and no wider: the rest of the
-   * row is the battlefield's.
+   * The left column. The operator drew it at 72px of 1280 — 5.6% — and that is
+   * also what it needs: the two counts written out ("library 46" at 10px), a mark
+   * worth aiming at, and two piles side by side under it. The rest of the row is
+   * the battlefield's.
    */
-  --who-w: 4.25rem;
+  --who-w: 4.5rem;
+  /* Each of the two piles in that column, side by side inside it. */
+  --pile-w: 2rem;
   /*
-   * The graveyard, at the foot of the bar. Both are named sizes, like every
-   * other track here, and the arithmetic they have to satisfy is two-sided:
-   *
-   *   - the track must hold the pile's whole NEWEST card (`--grave-w` at
-   *     `--card-tall` = 4.88rem) plus the zone's label, which wraps to two lines
-   *     in a column this narrow (~1.55rem) and its gap. Below that the pile
-   *     clips its newest card, and `e2e/table-fit.spec.ts` counts a zone that
-   *     clips as overflowing;
-   *   - and what is LEFT of the bar must still hold the portrait block and every
-   *     count and flag the seat can raise (five lines at 10px), because the bar
-   *     clips and a clipped flag is information gone. At 1366×768 the
-   *     opponent's bar is the shorter of the two at ~250px, and 59 + 65 + 112 +
-   *     the gaps fits it.
-   *
-   * That is why the graveyard's card is a little narrower than exile's: exile has
-   * a whole column to itself, and this one shares the bar with the portrait.
+   * The mana pool's track: two rows of up to three pips at 10px, which is every
+   * colour Forge's pool can hold (`ManaAtom.MANATYPES` is six). Named, like every
+   * other track here, so mana arriving mid-turn cannot move the portrait above it.
    */
-  --grave-h: 7rem;
-  --grave-w: 3.5rem;
+  --mana-h: 1.9rem;
 
   display: grid;
   align-items: stretch;
   justify-items: stretch;
-  grid-template-columns: var(--who-w) minmax(0, 1fr) var(--pile-w);
+  grid-template-columns: var(--who-w) minmax(0, 1fr);
   grid-template-rows: minmax(0, 4fr) minmax(0, 2.6fr);
   grid-template-areas:
-    'who field piles'
-    'who hand piles';
+    'who field'
+    'piles hand';
   gap: 4px 8px;
   min-width: 0;
   min-height: 0;
@@ -353,10 +377,10 @@
 }
 
 .board .seat:not([data-viewer]) {
-  grid-template-rows: var(--opp-hand-h) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 2.6fr) minmax(0, 4fr);
   grid-template-areas:
-    'who hand piles'
-    'who field piles';
+    'piles hand'
+    'who field';
 }
 
 .board .seat[data-viewer] {
@@ -364,28 +388,30 @@
 }
 
 /*
- * The vertical bar: the seat's avatar, life, name, counts and graveyard in one
- * narrow column, spanning the seat's full height.
+ * The vertical bar: the seat's avatar, life, name, mana pool and counts in one
+ * narrow cell, level with that seat's battlefield.
  *
- * THREE tracks now, and which one the avatar block is in is still the whole of
- * wave 20's item 11: `auto` first puts it at the TOP for the opponent and the
- * viewer's flip moves it below its counts, so the two faces stay as far apart as
- * the canvas allows with the stack's band between them. The counts live in the
- * `1fr` track, which is where the slack is — a flag appearing mid-game ("their
- * turn", "priority") grows into that track instead of moving the face, and the
- * face is what `e2e/table-fit.spec.ts` measures.
+ * Which track the avatar block is in is still the whole of wave 20's item 11:
+ * `auto` FIRST puts it at the top for the opponent and the viewer's flip puts it
+ * LAST, so the two faces stay as far apart as the canvas allows. The counts live
+ * in the `1fr` track, which is where the slack is — a flag appearing mid-game
+ * ("their turn", "priority") grows into that track instead of moving the face,
+ * and the face is what `e2e/table-fit.spec.ts` measures.
  *
- * The graveyard is the LAST track on both sides, which is what "below the
- * portrait and its counts" means for a bar whose viewer half draws its counts
- * above its portrait (the operator, 2026-09-27). It is `--grave-h` and never
- * anything else, so a pile filling up cannot move the face above it — the pile
- * squeezes its own strips instead (see `.zone--graveyard` below).
+ * The MANA POOL sits directly against the portrait on both sides — under it for
+ * the opponent, over it for the viewer — in `--mana-h`, a named track, so mana
+ * arriving mid-turn moves nothing (§A.6).
+ *
+ * The viewer's bar has a FOURTH track, at its inner end: `Regroup`, the one
+ * control on this board that is ours, which moved here when §A.3 took the
+ * battlefield's label column away from under it. It is present exactly when the
+ * seat is the viewer's, which never changes mid-match, so it moves nothing either.
  */
 .board .seat__who {
   grid-area: who;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) var(--grave-h);
+  grid-template-rows: auto var(--mana-h) minmax(0, 1fr);
   gap: 3px;
   min-width: 0;
   min-height: 0;
@@ -393,22 +419,24 @@
 }
 
 .board .seat[data-viewer] .seat__who {
-  grid-template-rows: minmax(0, 1fr) auto var(--grave-h);
+  grid-template-rows: auto minmax(0, 1fr) var(--mana-h) auto;
 }
 
-.board .seat[data-viewer] .seat__ident {
-  grid-row: 2;
+.board .seat[data-viewer] .seat__regroup {
+  grid-row: 1;
 }
 
 .board .seat[data-viewer] .seat__counts {
-  grid-row: 1;
+  grid-row: 2;
   justify-content: flex-end;
 }
 
-/* Last on both sides: the opponent's bar reads portrait, counts, graveyard and
-   the viewer's counts, portrait, graveyard. */
-.board .seat__who > .zone--graveyard {
+.board .seat[data-viewer] .seat__mana {
   grid-row: 3;
+}
+
+.board .seat[data-viewer] .seat__ident {
+  grid-row: 4;
 }
 
 /* The mark with the name under it. The `.face` draws its own name and would say
@@ -474,6 +502,119 @@
   color: var(--warn);
 }
 
+/*
+ * The seat's floating mana, against its own portrait (§A.6). Nothing drew the
+ * pool at all before wave 26, which is the defect: Forge applies it to a cost
+ * before it asks for the rest, so mana the player could not see still paid — it
+ * just paid invisibly.
+ *
+ * A grid of three columns, so the six mana types Forge's pool can hold
+ * (`ManaAtom.MANATYPES`) fit two rows deep inside `--mana-h` and the track never
+ * has to grow. Our own marks — a letter and a count — because the symbol fonts'
+ * component is another lane's file, and because a pool entry is a COUNT rather
+ * than a cost, which a letter says and a pip does not.
+ *
+ * Colour is never the only signal: every pip draws its letter, and the whole pool
+ * is in the list's accessible name in words (`Board.tsx`).
+ */
+.board .seat__mana {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.seat__mana-pip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 0 1px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 9.5px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.seat__mana-letter {
+  font-weight: 700;
+}
+
+.seat__mana-n {
+  color: var(--ink-dim);
+}
+
+/* Our own five, off the palette: never a WotC mark and never a card frame. */
+.seat__mana-pip[data-mana='W'] {
+  border-color: #c9c2a6;
+  color: #efe9d2;
+}
+.seat__mana-pip[data-mana='U'] {
+  border-color: #5f92c4;
+  color: #a8cdf0;
+}
+.seat__mana-pip[data-mana='B'] {
+  border-color: #8a7f92;
+  color: #cfc4d6;
+}
+.seat__mana-pip[data-mana='R'] {
+  border-color: #c2705f;
+  color: #f0b3a8;
+}
+.seat__mana-pip[data-mana='G'] {
+  border-color: #6fa172;
+  color: #b4d9b6;
+}
+.seat__mana-pip[data-mana='C'] {
+  border-color: var(--line);
+  color: var(--ink-dim);
+}
+
+/*
+ * Regroup — ours, and the only control on this board that answers no question
+ * (`Board.tsx`). It clears BOTH slots of the seat's arrangement, so it lives in
+ * the seat's bar rather than on one zone, which is where §A.3 put it when the
+ * battlefield's label column went.
+ */
+.board .seat__regroup {
+  flex: none;
+  margin: 0;
+  padding: 1px 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 9px;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.board .seat__regroup:hover {
+  color: var(--ink);
+  border-color: var(--ink-dim);
+}
+
+.board .seat__regroup:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 .seat > .zone--battlefield {
   grid-area: field;
 }
@@ -483,19 +624,23 @@
 }
 
 /*
- * The piles column: EXILE, and nothing else, now that the graveyard is at the
- * foot of the seat's bar (the operator, 2026-09-27). One `fr` track, so the pile
- * is never sized by what is in it — exile is usually empty and the first exiled
- * card may not move anything around it.
+ * The piles: the graveyard and exile, side by side in the LOWER cell of the
+ * seat's left column, level with that seat's hand (§A.2 — the operator's own
+ * `.seat__piles` at 0.6% across, 78.5% down for the viewer and 6.5% for the
+ * opponent). For the viewer that is the graveyard under their own portrait,
+ * which is what wave 25 §E settled in words.
  *
- * The column's width is the seat's own `--pile-w` track, so this element no
- * longer declares one of its own.
+ * Two equal `fr` columns and one `fr` row, so neither pile is ever sized by what
+ * is in it: exile is usually empty and the first exiled card may not move
+ * anything around it, and a graveyard filling up squeezes its own strips.
  */
 .seat__piles {
   grid-area: piles;
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
   gap: 4px;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -507,6 +652,13 @@
   min-height: 0;
 }
 
+/*
+ * The stack's own head. It is the ONE label left that heads a `[data-zone]`, and
+ * it stays for a reason the operator's instruction does not cover: the stack is
+ * not a region of the table, it is a transient panel floating at 59% across
+ * (`live/live.css`), so "a zone is identified by where it is" does not identify
+ * it. Every label on the TABLE went with §A.3.
+ */
 .zone__head {
   margin: 0;
   font-size: 11px;
@@ -529,18 +681,17 @@
 }
 
 /*
- * A row zone: the battlefields and your hand. Its label is a horizontal word in
- * a FIXED column at the left (`--gutter-w`), and the cards take the rest of the
- * box — which for a battlefield is its four lanes, each with a label strip of
- * its own across the top of the lane.
+ * A row zone: the battlefields and your hand. ONE column, all of it the cards' —
+ * §A.3 deleted the zone's label and the `--gutter-w` column it sat in with it, so
+ * a battlefield is now its four lanes and nothing else, each lane with a label
+ * strip across its own top.
  *
- * The label is a column rather than a strip over the slot because a lane has to
- * be the whole HEIGHT of the slot: the lanes divide the width, and
- * `e2e/table-fit.spec.ts` asserts every filled lane is within 4px of the zone's
- * own height. A label track above them would make every lane 17px shorter than
- * the zone and red that assertion — which is also the layout argument the
- * header makes, from the other end. So the label costs width, and it is the
- * `--group-overhead` the lane labels stopped costing that pays for it.
+ * Its right end is RESERVED (`--right-gutter`, §A.5): the phase rail, the
+ * controls and the log button float over it permanently, so a card may never come
+ * to rest under them. The reservation is padding on the zone rather than a
+ * narrower zone, so the row still runs the width of the table — which is the
+ * operator's own drawing, where the rows are 86.9% wide and the overlays sit on
+ * top of their right end.
  */
 .seat > .zone--battlefield,
 .seat[data-viewer] > .zone--hand {
@@ -549,25 +700,13 @@
 
   container: row-zone / size;
   display: grid;
-  grid-template-columns: var(--gutter-w) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+  padding-right: var(--right-gutter);
   border-radius: var(--radius);
   /* The last resort. The sizing above is meant never to need it. */
   overflow: auto;
   scrollbar-width: thin;
-}
-
-/*
- * The word itself, horizontal. `auto` would let the column be as wide as the
- * longest label at whatever type size — 83px for "BATTLEFIELD" at the 11px the
- * other zones use — so the column is a named size and the type is the piles'
- * 9.5px, wrapping the count onto a second line rather than clipping it.
- */
-.seat > .zone--battlefield .zone__head,
-.seat[data-viewer] > .zone--hand > .zone__head {
-  font-size: 9.5px;
-  letter-spacing: 0;
-  white-space: normal;
 }
 
 /* A battlefield is the table: the darkest surface here, sunken into the seat. */
@@ -577,12 +716,6 @@
    * nothing more. "Creatures 0" is the longest of the four at this type size.
    */
   --group-empty-w: 3.4rem;
-  /*
-   * The zone's own label column: enough for "BATTLEFIELD" at 9.5px on one line,
-   * with the count wrapping under it, and enough for the Regroup control below
-   * that — which on the viewer's side is the wider of the two.
-   */
-  --gutter-w: 4.5rem;
   /*
    * And what a lane costs before its first card: its border and the list's
    * padding, now that the label is a strip over the lane rather than a column
@@ -598,50 +731,12 @@
   --row-head-gap: 2px;
 
   gap: 4px;
-  padding: 0 4px 0 2px;
+  /* The right pad is the overlays' (`--right-gutter`, on the shared rule above). */
+  padding: 0 0 0 2px;
+  padding-right: var(--right-gutter);
   background: var(--bg);
   border: 1px solid rgb(0 0 0 / 55%);
   box-shadow: inset 0 3px 8px rgb(0 0 0 / 70%);
-}
-
-/* The zone's label column, and the one control on this board that is ours: the
-   label at the top of the column, Regroup at the foot of it. */
-.zone__gutter {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 4px;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.zone__regroup {
-  flex: none;
-  margin: 0;
-  padding: 1px 4px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--ink-dim);
-  font: inherit;
-  font-size: 9px;
-  line-height: 1.3;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.zone__regroup:hover {
-  color: var(--ink);
-  border-color: var(--ink-dim);
-}
-
-.zone__regroup:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
 }
 
 /*
@@ -725,10 +820,10 @@
  */
 .seat[data-viewer] > .zone--hand {
   --card-max: 7rem;
-  /* "HAND 5" at 9.5px, on one line. */
-  --gutter-w: 2.8rem;
 
-  padding: 0 4px 0 2px;
+  /* The right pad is the overlays' (`--right-gutter`, on the shared rule above). */
+  padding: 0 0 0 2px;
+  padding-right: var(--right-gutter);
   background:
     repeating-linear-gradient(-45deg, transparent 0 7px, rgb(255 255 255 / 4.5%) 7px 14px),
     var(--bg-card);
@@ -876,13 +971,20 @@
  * the markup at zero cards, so their first draw moves nothing.
  */
 .seat:not([data-viewer]) > .zone--hand {
-  --card-w: 2.6rem;
+  /*
+   * The operator drew their hand as tall as yours — 124px against your 132 — so
+   * the row is an `fr` like yours (2.6 against the battlefield's 4) rather than
+   * the 2.05rem strip it was, and the backs are sized for it. Still a fixed
+   * share, so their first draw moves nothing.
+   */
+  --card-w: 4rem;
 
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
   padding: 0 4px;
+  padding-right: var(--right-gutter);
   background:
     repeating-linear-gradient(-45deg, transparent 0 7px, rgb(255 255 255 / 4.5%) 7px 14px),
     var(--bg-card);
@@ -903,9 +1005,9 @@
  * `minmax(0, --peek)`, so a pile taller than its box squeezes them instead of
  * growing. Hovering a buried card lifts it out.
  *
- * Selected by which zone it IS rather than by the column it sits in: the two
- * piles are in different parts of the seat now — the graveyard at the foot of
- * the bar, exile in its own column — and they are the same thing in both.
+ * Selected by which zone it IS rather than by where it sits: both are in
+ * `.seat__piles` now, side by side in the left column's lower cell, and they are
+ * the same thing in both places this file has put them.
  */
 .board .seat .zone--graveyard,
 .board .seat .zone--exile {
@@ -914,13 +1016,6 @@
   gap: 2px;
   min-height: 0;
   overflow: hidden;
-}
-
-.board .seat .zone--graveyard > .zone__head,
-.board .seat .zone--exile > .zone__head {
-  font-size: 9.5px;
-  letter-spacing: 0;
-  white-space: normal;
 }
 
 .board .seat .zone--graveyard .zone__cards,
@@ -937,13 +1032,6 @@
   min-height: 0;
   padding-bottom: calc(var(--pile-card-w) * var(--card-tall) - var(--peek));
   overflow: hidden;
-}
-
-/* In the bar the pile shares its column's HEIGHT with the portrait and the
-   counts, so its card is `--grave-w` rather than the exile column's `--pile-w`.
-   The seat's arithmetic is beside the token. */
-.board .seat__who > .zone--graveyard .zone__cards {
-  --pile-card-w: var(--grave-w);
 }
 
 /* An empty pile reserves no room under a card that is not there. */
@@ -1038,12 +1126,27 @@
 /* ── the centre band: the stack, between the two battlefields ─────── */
 
 /*
- * One column, all of it the stack's. The faces used to take a fixed column at
- * either end; they anchor the seats now (item 11), and the band's height is
- * `--mid-h` and never anything else.
+ * The stack FLOATS — settled in wave 26 and the operator's own answer to the one
+ * question the drag could not express: *"float over the board makes sense"*. So
+ * the centre band is out of flow entirely and the two battlefields meet at the
+ * centre line, which is what gives each of them its 26% of the canvas.
+ *
+ * It takes the TOP THIRD of the column the question panel takes the rest of —
+ * `--live-col-x` / `--live-col-w` on `.live` (`live/live.css`, lane B's), which
+ * are the geometry both halves share. The fallbacks are the operator's own
+ * numbers, so the board mounted bare (the dev harnesses, `Board.test.ts`) puts
+ * the stack in the same place as the match does.
+ *
+ * `--mid-h` is still the band's own height and nothing else's, so `--stack-card-w`
+ * below is unchanged: an item that does not fit scrolls sideways INSIDE the band.
  */
 .board__mid {
-  grid-area: mid;
+  position: absolute;
+  z-index: 1;
+  top: 11.5%;
+  left: var(--live-col-x, 59.4%);
+  width: var(--live-col-w, 24.1%);
+  height: var(--mid-h);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--board-gap);

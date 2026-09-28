@@ -505,3 +505,130 @@ describe('hidden information is untouched by any of this', () => {
     }
   });
 });
+
+/* ── §A.6 — the mana pool, which nothing read before wave 26 ────────── */
+
+/**
+ * The pool is `PlayerView.Mana`, a `ManaMapType` Forge sets in the constructor
+ * (`PlayerView.java:54`) and refills in `updateMana` (:501-507), and this adapter
+ * simply did not read it — so a player could not see mana they had already tapped
+ * for. Forge applies the pool to a cost before it asks for the rest, which is why
+ * the mana WORKED and was only invisible; that is the whole of the bug.
+ *
+ * The one thing here that can go wrong quietly is the byte→colour map, and it is
+ * wrong in exactly one place if you take the obvious constant: `updateMana` walks
+ * `ManaAtom.MANATYPES`, whose colourless is `1 << 5` = **32**
+ * (`ManaAtom.java:12,15`), while `MagicColor.COLORLESS` is **0**
+ * (`MagicColor.java:22`) and never appears in this map at all.
+ *
+ * So the census below is read off the COMMITTED CAPTURE rather than off either
+ * constant.
+ */
+describe('§A.6 — the seat’s mana pool', () => {
+  /** Every `Mana` value in the committed fixture, as the wire carries it. */
+  function manaValuesInFixture(): { keys: number[]; counts: number[] }[] {
+    const out: { keys: number[]; counts: number[] }[] = [];
+    for (const obj of baseState().values()) {
+      if (obj._type !== WireType.Player) continue;
+      const v = obj['Mana'] as { t?: string; v?: unknown } | undefined;
+      if (v === undefined || v.t !== 'map' || !Array.isArray(v.v)) continue;
+      const pairs = v.v as { v: number }[][];
+      out.push({ keys: pairs.map((pr) => pr[0]!.v), counts: pairs.map((pr) => pr[1]!.v) });
+    }
+    return out;
+  }
+
+  function withMana(playerId: number, pool: [number, number][]): WireState {
+    const state = baseState();
+    const key = deltaKey(WireType.Player, playerId);
+    state.set(key, {
+      ...state.get(key)!,
+      Mana: { t: 'map', v: pool.map(([b, n]) => [{ t: 'byte', v: b }, { t: 'int', v: n }]) },
+    } as WireObject);
+    return state;
+  }
+
+  const poolOf = (state: WireState, playerId: number) => adapt(state).players.find((p) => p.id === playerId)!.manaPool;
+
+  it('knows what the wire actually carries: six ManaAtom bytes per seat, all zero in this capture', () => {
+    const seen = manaValuesInFixture();
+    expect(seen.length, 'both seats carry a pool').toBeGreaterThanOrEqual(2);
+    for (const { keys, counts } of seen) {
+      // 32 is ManaAtom's colourless. 0 — MagicColor's — is not a key here.
+      expect([...keys].sort((a, b) => a - b)).toEqual([1, 2, 4, 8, 16, 32]);
+      expect(keys).not.toContain(0);
+      expect(counts.every((n) => n === 0), 'nothing was floating when this was captured').toBe(true);
+    }
+  });
+
+  it('reports no pool for six zeroes, because six zeroes are not a pool', () => {
+    for (const player of adapt(baseState()).players) expect(player.manaPool, `seat ${player.id}`).toEqual([]);
+  });
+
+  it('maps every ManaAtom byte to its colour, colourless included, and orders WUBRG then C', () => {
+    // Every type Forge can hold, one each, in the HashMap's own scrambled order.
+    const all = withMana(0, [
+      [16, 1],
+      [32, 1],
+      [1, 1],
+      [2, 1],
+      [4, 1],
+      [8, 1],
+    ]);
+    expect(poolOf(all, 0)).toEqual([
+      { color: 'W', count: 1 },
+      { color: 'U', count: 1 },
+      { color: 'B', count: 1 },
+      { color: 'R', count: 1 },
+      { color: 'G', count: 1 },
+      { color: 'C', count: 1 },
+    ]);
+  });
+
+  it('keeps the counts and drops the colours that are nought', () => {
+    expect(
+      poolOf(
+        withMana(0, [
+          [8, 3],
+          [1, 0],
+          [2, 1],
+        ]),
+        0,
+      ),
+    ).toEqual([
+      { color: 'U', count: 1 },
+      { color: 'R', count: 3 },
+    ]);
+  });
+
+  it('ignores a key that is not a mana type rather than guessing at one', () => {
+    // 64 is `ManaAtom.GENERIC`, which is not a pool colour and never a key here;
+    // -1 is Forge's "nothing". Neither may invent an entry.
+    expect(
+      poolOf(
+        withMana(0, [
+          [64, 2],
+          [-1, 2],
+          [4, 1],
+        ]),
+        0,
+      ),
+    ).toEqual([{ color: 'B', count: 1 }]);
+  });
+
+  it('is read per seat, because a mana pool is public information', () => {
+    const state = withMana(1, [[2, 2]]);
+    expect(poolOf(state, 1), 'the opponent’s pool is carried').toEqual([{ color: 'U', count: 2 }]);
+    expect(poolOf(state, 0), 'and it is not the viewer’s').toEqual([]);
+  });
+
+  it('reports nothing when the property is absent or is not a map', () => {
+    const state = baseState();
+    const key = deltaKey(WireType.Player, 0);
+    const { Mana: _dropped, ...withoutMana } = state.get(key)!;
+    state.set(key, withoutMana as WireObject);
+    expect(poolOf(state, 0)).toEqual([]);
+    state.set(key, { ...withoutMana, Mana: { t: 'int', v: 3 } } as WireObject);
+    expect(poolOf(state, 0)).toEqual([]);
+  });
+});
