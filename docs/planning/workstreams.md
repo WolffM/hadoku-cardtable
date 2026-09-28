@@ -156,6 +156,18 @@ screenshot at 1280×800: the control labels truncate to **"Full c…"** and
 row compresses its cards until their names overlap and are unreadable. **The
 blocking wants re-drawing against the real table width**, not against the page.
 
+### Found while closing: a cancelled CI run leaks Forge JVMs
+
+Two orphaned bridge JVMs were alive on the host at close, 11h34m old, holding
+380 MB, reparented to systemd, with their run directories already deleted —
+`…/actions-runner-hadoku-cardtable/_work/…/e2e/.run/play-work/stack-RWQANz/spare-*`.
+One stack directory, two spares, so this is one run that died rather than every
+run leaking: the harness reaps in `afterAll`, which does not run when the job is
+killed, and the runner then wipes the workspace out from under live processes.
+Killed by the tracker. **Worth checking after any cancelled `forge-e2e` run**, and
+worth a boot sweep on the runner if it happens twice — the pool already has one
+(`sweepOrphans`), it simply never runs there.
+
 ### Hand-backs, carried forward
 
 - `styles.css` still holds the pre-D20 `.pip` section (16 rules) that C's shim
