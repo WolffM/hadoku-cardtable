@@ -60,8 +60,15 @@ const COLORS = new Set(['W', 'U', 'B', 'R', 'G']);
  *
  * `"{3}{W}{W}"` -> `['3','W','W']`, `"{X}{R}"` -> `['X','R']`,
  * `"{W/U}"` -> `['W/U']`. Deliberately tokens rather than a rendered string:
- * we draw our own pips (no WotC symbol font, ever) and the renderer needs the
- * pieces.
+ * the renderer needs the pieces. `apps/ui/src/components/ManaPip.tsx` turns one
+ * token into one symbol, and a hybrid into Mana's two-half split — which is a
+ * class per PART, so a pre-rendered `{W/U}` would have to be taken apart again.
+ *
+ * This used to read "we draw our own pips (no WotC symbol font, ever)". D20
+ * (operator, 2026-09-27) repealed the drawing half: the symbols are Keyrune's
+ * and Mana's now, third-party fonts and never WotC's own files
+ * (`docs/LICENSING.md` §3.2). The token list is unaffected, and the reason for
+ * it never depended on who drew the glyph.
  */
 function manaTokens(cost: string | undefined): string[] {
   if (typeof cost !== 'string' || cost.length === 0) return [];

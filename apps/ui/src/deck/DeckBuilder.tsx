@@ -31,10 +31,23 @@
  * loads your own deck (Wave 13 §C): a body naming two decks against a person is
  * refused by the gate, and this screen no longer offers it.
  *
- * ## No trademarks, no images
+ * ## The deck's colours
  *
- * Rows are name, cost and type. `ManaPip` draws its own circles; there are no
- * mana symbols, frames or set symbols, and no image host is named here.
+ * The bar carries the MAINDECK's colours as pips, folded out of the cards in it
+ * by `components/DeckView.tsx`'s `mainDeckColors` — the same fold and the same
+ * component the finished deck's own view uses, because two folds would be two
+ * answers to "what colour is this deck" (operator, wave 26: *"decks should have
+ * their corresponding mana symbols"*).
+ *
+ * Not `mainSummary().pips`, which is next to it and counts something else: that
+ * is how many coloured pips the maindeck asks for, Phyrexian included, and it is
+ * there to tell you how many basics to add. `{R/P}` is payable with two life, so
+ * it is a pip to count and not a colour to claim.
+ *
+ * ## No frames, no images
+ *
+ * Rows are name, cost and type. The symbols are Keyrune's and Mana's (D20);
+ * `ManaPip` owns that. No card frames, and no image host is named here.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -53,6 +66,7 @@ import {
 } from '@hadoku/deck';
 import type { DeckEntry } from '@hadoku/carddata/dck';
 
+import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
 import { deckFromPool } from '../draft/deckFromPool.ts';
 import type { DraftCard } from '../draft/types.ts';
@@ -157,6 +171,7 @@ export function DeckBuilder({ draftId, pool, client, checkDelayMs = 300 }: DeckB
 
   const main = mainDeckSize(deck);
   const summary = mainSummary(deck, index);
+  const colors = mainDeckColors(deck, index);
   const basics = deck.basics.reduce((n, e) => n + e.count, 0);
 
   return (
@@ -173,6 +188,7 @@ export function DeckBuilder({ draftId, pool, client, checkDelayMs = 300 }: DeckB
             {sideboardSize(deck)}
           </span>
           <span className="builder__of">left in the sideboard</span>
+          <DeckColors colors={colors} label={`maindeck colours: ${colors.join(' ') || 'colourless'}`} />
         </div>
         <p className="lobby__note" data-testid="main-summary">
           {summary.creatures} creatures · {summary.spells} other spells · {summary.lands} lands. Coloured pips:{' '}

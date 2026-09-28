@@ -23,11 +23,23 @@
  * is rendered for exactly that reason — it is a number that cannot change, and
  * a reader who watches it not change learns the property.
  *
- * ## No trademarks, and no images at all
+ * ## The deck's colours
  *
- * Rows are name, cost and type, drawn by us (`ManaPip` draws its own circles
- * and renders `{T}` as the word TAP). No card frames, no set symbols, no mana
- * font.
+ * Operator, wave 26: *"decks should have their corresponding mana symbols."* So
+ * the head carries the MAINDECK's colours, folded out of the deck's own card
+ * list by {@link mainDeckColors} — not stored anywhere, because a deck that
+ * remembered its colours could disagree with the cards in it.
+ *
+ * The fold and the pips are exported, and `deck/DeckBuilder.tsx` draws the same
+ * ones over the same model. {@link deckColorsByName} is the arm for a deck that
+ * is a list of NAMES rather than cards — a library deck, whose costs come from
+ * `decks/pools/*.generated.json` — which is what the room screen needs.
+ *
+ * ## No frames, and no images at all
+ *
+ * Rows are name, cost and type. The symbols are Keyrune's and Mana's as of D20
+ * (2026-09-27) — `ManaPip` owns that and this file only calls it. Still
+ * forbidden here as everywhere: card frames, the WotC logo, the wordmark.
  *
  * **And no art.** This file renders no `CardTile` and no `<img>`: every pile,
  * main and sideboard alike, is the text `Row` below, and its only component
@@ -89,8 +101,10 @@ export interface DeckViewProps {
 }
 
 /**
- * Which pip a basic land shows. Ours, drawn as a circle by `ManaPip` — never
- * WotC's mana symbol, which is a trademark this project does not render.
+ * Which pip a basic land shows.
+ *
+ * Also the colour a basic contributes to {@link mainDeckColors} — a deck with
+ * twelve Forests in it is green even if every spell in it is Phyrexian.
  */
 const BASIC_PIP: Record<string, string> = {
   Plains: 'W',
@@ -99,6 +113,136 @@ const BASIC_PIP: Record<string, string> = {
   Mountain: 'R',
   Forest: 'G',
 };
+
+/* ── a deck's colours ────────────────────────────────────────────────── */
+
+/** One of the five, and never a token. */
+export type DeckColor = 'W' | 'U' | 'B' | 'R' | 'G';
+
+/** WUBRG: the order every Magic interface writes the colours in. */
+export const DECK_COLORS: readonly DeckColor[] = ['W', 'U', 'B', 'R', 'G'];
+
+function isDeckColor(value: string): value is DeckColor {
+  return (DECK_COLORS as readonly string[]).includes(value);
+}
+
+/**
+ * `"{2}{R/P}"` → `['2', 'R/P']`.
+ *
+ * The UI's own cards arrive as token lists already (`DraftCard.manaCost`); a
+ * frozen Standard pool stores Scryfall's string, so the string half is needed
+ * for library decks. Same expression as `carddata`'s `build-pool.ts`.
+ */
+export function manaTokensOf(cost: string): string[] {
+  return [...cost.matchAll(/\{([^}]+)\}/g)].map((m) => m[1] as string);
+}
+
+/**
+ * The colours one cost token demands, which is NOT the colours of the card.
+ *
+ * **Phyrexian mana contributes nothing**, and that is the whole reason this
+ * fold exists rather than a pass over Scryfall's `colors`. `{R/P}` is payable
+ * with two life, so Gut Shot is a red card that a deck with no red mana plays
+ * happily — and the M13 library's Mono Green Infect deck plays five such cards
+ * (Gut Shot, Mental Misstep, Apostle's Blessing, Gitaxian Probe, Mutagenic
+ * Growth). Folding `colors` there yields WURG for a deck whose own name, and
+ * whose twelve Forests, say G.
+ *
+ * A hybrid contributes BOTH halves: `{W/U}` needs one of two colours and a
+ * deck showing only one of them would be claiming a choice it has not made.
+ * Twobrid (`{2/W}`) contributes its colour, since the generic half is a price
+ * rather than an alternative colour.
+ *
+ * Known limitation: a cost in ORACLE TEXT is invisible here. Lingering Souls'
+ * flashback is `{1}{B}` and its mana cost is `{2}{W}`, so the two `uwb-delver`
+ * decks in the library fold to WU. Scryfall's `color_identity` would catch it
+ * and would also drag Phyrexian back in, which is the worse error; a cost
+ * parser that read oracle text would be a second rules engine in a component.
+ */
+function tokenColors(token: string): DeckColor[] {
+  const parts = token.toUpperCase().split('/');
+  if (parts.includes('P')) return [];
+  return parts.filter(isDeckColor);
+}
+
+/** Fold cost tokens into a deck's colours: deduped, WUBRG-ordered. */
+export function foldDeckColors(tokens: Iterable<string>): DeckColor[] {
+  const held = new Set<string>();
+  for (const token of tokens) for (const color of tokenColors(token)) held.add(color);
+  return DECK_COLORS.filter((c) => held.has(c));
+}
+
+/**
+ * A named card list's colours, given Scryfall cost strings by name.
+ *
+ * This is the arm a LIBRARY deck needs — `decks/pools/*.generated.json`'s
+ * `manaCost` map, keyed by every name a card answers to, against the names on a
+ * `.dck` line. Exported for the room screen (wave 26 §F), which has a deck's
+ * lines and no cards.
+ *
+ * A name the map has no entry for contributes nothing, because that is what
+ * absence means there: every land is absent, and a land has no coloured pip.
+ */
+export function deckColorsByName(
+  names: Iterable<string>,
+  costs: Readonly<Record<string, string>>,
+): DeckColor[] {
+  const tokens: string[] = [];
+  for (const name of names) tokens.push(...manaTokensOf(costs[name] ?? ''));
+  return foldDeckColors(tokens);
+}
+
+/**
+ * The MAINDECK's colours — what you are playing, not what you drafted.
+ *
+ * The maindeck rather than the pool because a limited pool is usually all five
+ * colours and saying so tells a builder nothing. Basics count: they are the
+ * mana, and a deck whose spells are all Phyrexian is still the colour of its
+ * lands.
+ */
+export function mainDeckColors(
+  deck: Deck,
+  index: ReadonlyMap<string, DraftCard>,
+): DeckColor[] {
+  const tokens: string[] = [];
+  for (const entry of deck.main) tokens.push(...(index.get(cardKey(entry.card))?.manaCost ?? []));
+  for (const entry of deck.basics) {
+    const pip = entry.count > 0 ? BASIC_PIP[entry.card.name] : undefined;
+    if (pip !== undefined) tokens.push(pip);
+  }
+  return foldDeckColors(tokens);
+}
+
+/**
+ * A deck's colours, as pips.
+ *
+ * Each pip is wrapped in a span of OUR own carrying `data-color`, so counting
+ * the colours of a deck on screen does not depend on what `ManaPip` renders
+ * inside — that is `ManaPip.tsx`'s business and it changed twice this month.
+ */
+export function DeckColors({
+  colors,
+  label,
+}: {
+  colors: readonly DeckColor[];
+  label?: string;
+}) {
+  return (
+    <span
+      className="cost deckcolors"
+      data-testid="deck-colors"
+      data-colors={colors.join('')}
+      aria-label={label ?? `deck colours: ${colors.length === 0 ? 'colourless' : colors.join(' ')}`}
+    >
+      {colors.map((color) => (
+        <span key={color} className="deckcolors__pip" data-color={color}>
+          <ManaPip token={color} />
+        </span>
+      ))}
+      {colors.length === 0 && <span className="deckcolors__none">colourless</span>}
+    </span>
+  );
+}
 
 /** The browser half: a blob, an anchor, a click, and no leaked object URL. */
 function downloadFile(filename: string, text: string): void {
@@ -153,6 +297,7 @@ export function DeckView({ draftId, pool, onDownload = downloadFile }: DeckViewP
     return index;
   }, [pool]);
 
+  const colors = mainDeckColors(deck, byKey);
   const problems = deckProblems(deck, poolOf(deck));
   const main = mainDeckSize(deck);
   const side = sideboardSize(deck);
@@ -164,6 +309,7 @@ export function DeckView({ draftId, pool, onDownload = downloadFile }: DeckViewP
       <header className="deck__head">
         <div>
           <h1 className="deck__title">Your deck</h1>
+          <DeckColors colors={colors} label={`your deck's colours: ${colors.join(' ') || 'colourless'}`} />
         </div>
         <div className="deck__counts">
           <span className="deck__count" data-testid="main-count">

@@ -37,6 +37,16 @@
  * That is not duplication for its own sake: it is the same "pool is an
  * argument, never an import" rule `format.ts` is built on, applied one level
  * out.
+ *
+ * ## Why it carries mana costs and colours as well as names
+ *
+ * Wave 26 §D: *"decks should have their corresponding mana symbols."* A deck's
+ * colours are a fold over its own card list, and a frozen pool of NAMES cannot
+ * be folded — so every deck in the library was uncolourable while the cube's
+ * draft pool, which carries `colors` and `manaCost` per card, was not. The two
+ * maps below close that, keyed by name so the fixture stays a list plus two
+ * lookups rather than becoming a list of card objects; `cards` is untouched and
+ * `poolFromFixture` reads none of it, so nothing about legality moved.
  */
 
 import { poolNameKeys, type FormatPool } from '../format.ts';
@@ -57,6 +67,73 @@ export interface PoolFixture {
   readonly banned: readonly string[];
   /** Every legal card name, as Scryfall spells it, sorted. Bans excluded. */
   readonly cards: readonly string[];
+  /**
+   * Scryfall's own `mana_cost` per card, e.g. `Huntmaster of the Fells` →
+   * `{2}{R}{G}`. Cards with no cost — every land — are absent rather than
+   * mapped to `""`, which is what keeps the map to roughly the size of the
+   * spells.
+   *
+   * Keyed by every name the card answers to (`poolNameKeys`), exactly as
+   * `poolFromFixture` keys `legal`, so a decklist's `Huntmaster of the Fells`
+   * resolves without the caller knowing that Scryfall spells it
+   * `Front // Back`. That is the same loss `poolNameKeys`' own comment records
+   * having made every Innistrad-era deck illegal once.
+   *
+   * Here because **a deck's colours are a fold over its own card list** and,
+   * until it was, nothing downstream of a frozen pool could compute one: the
+   * fixtures held names and nothing else. The COST rather than only
+   * {@link colors} because Phyrexian mana makes the two disagree — Gut Shot is
+   * `colors: ["R"]` with cost `{R/P}`, and the Mono Green Infect deck in the
+   * M13 library plays five such cards, so a fold over `colors` calls a
+   * mono-green deck five-coloured.
+   */
+  readonly manaCost: Readonly<Record<string, string>>;
+  /**
+   * Scryfall's `colors` per card, as WUBRG-ordered letters: `GR`, `W`, and so
+   * on. Colourless cards are absent, for the same reason lands are absent from
+   * {@link manaCost}.
+   *
+   * This is the card's colour as the rules define it, which is NOT the same
+   * question as "what does this deck need to cast it" — see {@link manaCost}.
+   * Both are carried because both are asked.
+   */
+  readonly colors: Readonly<Record<string, string>>;
+}
+
+/** The five real colours, in the order every Magic UI writes them. */
+const COLOR_ORDER = ['W', 'U', 'B', 'R', 'G'] as const;
+
+/** A projected Scryfall record, read as data and nothing more. */
+type Printing = Readonly<Record<string, unknown>>;
+
+/**
+ * The front face of a two-faced printing, or `null` for an ordinary card.
+ *
+ * Needed because a `transform` card carries NO top-level `mana_cost` and no
+ * top-level `colors` at all — both live on the faces. Verified against the
+ * corpus: `Huntmaster of the Fells // Ravager of the Fells` has neither field
+ * at the top level, and its front face has `{2}{R}{G}` / `["G","R"]`.
+ */
+function frontFace(printing: Printing): Printing | null {
+  const faces = printing['card_faces'];
+  if (!Array.isArray(faces) || faces.length === 0) return null;
+  const front: unknown = faces[0];
+  return typeof front === 'object' && front !== null ? (front as Printing) : null;
+}
+
+function manaCostOf(printing: Printing): string {
+  const own = printing['mana_cost'];
+  if (typeof own === 'string' && own.length > 0) return own;
+  const face = frontFace(printing)?.['mana_cost'];
+  return typeof face === 'string' ? face : '';
+}
+
+function colorsOf(printing: Printing): string {
+  const own = printing['colors'];
+  const face = frontFace(printing)?.['colors'];
+  const raw = Array.isArray(own) ? own : Array.isArray(face) ? face : [];
+  const held = new Set(raw.filter((c): c is string => typeof c === 'string'));
+  return COLOR_ORDER.filter((c) => held.has(c)).join('');
 }
 
 /**
@@ -78,7 +155,16 @@ export interface StandardPoolLike {
     readonly setList: readonly string[];
     readonly banned: readonly string[];
   };
-  readonly cards: readonly { readonly name: string }[];
+  readonly cards: readonly {
+    readonly name: string;
+    /**
+     * The representative printing, `GameplayCard`-shaped — i.e. a projected
+     * Scryfall record, read for its `mana_cost` and `colors` and nothing else.
+     * `PoolCard.printing` satisfies this, and a `Record<string, unknown>` is
+     * all the shape this file is willing to claim about it.
+     */
+    readonly printing: Printing;
+  }[];
 }
 
 /**
@@ -92,6 +178,19 @@ export interface StandardPoolLike {
  * red measurement is worse than either alone.
  */
 export function fixtureFromStandardPool(date: string, pool: StandardPoolLike): PoolFixture {
+  // Built in `pool.cards` order, which `standardPoolAt` name-sorts, so the two
+  // maps come out in the same order as `cards` and a diff in the committed file
+  // is a real change rather than a re-serialisation.
+  const manaCost: Record<string, string> = {};
+  const colors: Record<string, string> = {};
+  for (const card of pool.cards) {
+    const cost = manaCostOf(card.printing);
+    const colour = colorsOf(card.printing);
+    for (const key of poolNameKeys(card.name)) {
+      if (cost.length > 0) manaCost[key] = cost;
+      if (colour.length > 0) colors[key] = colour;
+    }
+  }
   return {
     date,
     name: pool.format.name,
@@ -102,6 +201,8 @@ export function fixtureFromStandardPool(date: string, pool: StandardPoolLike): P
     // `standardPoolAt` returns `cards` name-sorted, so the committed file is
     // stable across runs and a diff in it is a real change.
     cards: pool.cards.map((c) => c.name),
+    manaCost,
+    colors,
   };
 }
 
@@ -150,6 +251,45 @@ function requireStringArray(
 }
 
 /**
+ * Read a map of `name → string`, tolerating its absence.
+ *
+ * Absence is NOT a fault, unlike every field above, and the difference is
+ * deliberate: `cards`, `sets` and `banned` are what a legality check reads, so a
+ * generator that drops one must be refused loudly. `manaCost` and `colors` are
+ * an enrichment nothing legal depends on — a pool with no cost map still
+ * validates every deck identically — and a parser that refused a fixture over
+ * them would take the whole format picker down (`http/library.ts` drops a pool
+ * it cannot parse) to hide a missing set of mana symbols. A present-but-wrong
+ * map is still a fault, because that is a generator that believes it emitted
+ * something.
+ *
+ * What keeps the absence from being silent is a test rather than a throw:
+ * `apps/ui/src/components/DeckView.test.ts` asserts every committed fixture
+ * carries both maps and that they cover the real decklists.
+ */
+function optionalStringMap(
+  source: Record<string, unknown>,
+  key: string,
+  faults: string[],
+): Record<string, string> {
+  const value = field(source, key);
+  if (value === undefined) return {};
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    faults.push(`\`${key}\` must be an object of strings`);
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const [name, item] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof item !== 'string' || item.length === 0) {
+      faults.push(`\`${key}[${JSON.stringify(name)}]\` must be a non-empty string`);
+      continue;
+    }
+    out[name] = item;
+  }
+  return out;
+}
+
+/**
  * Read a fixture out of already-parsed JSON, or refuse with every fault named.
  *
  * Validated rather than cast, because the fixture is a **generated** file: the
@@ -180,6 +320,8 @@ export function parsePoolFixture(json: unknown): PoolFixture {
   const sets = requireStringArray(raw, 'sets', faults);
   const banned = requireStringArray(raw, 'banned', faults);
   const cards = requireStringArray(raw, 'cards', faults);
+  const manaCost = optionalStringMap(raw, 'manaCost', faults);
+  const colors = optionalStringMap(raw, 'colors', faults);
 
   if (faults.length === 0 && cards.length === 0) {
     // A pool with no cards passes every shape check and fails every deck. It
@@ -191,7 +333,7 @@ export function parsePoolFixture(json: unknown): PoolFixture {
     throw new PoolFixtureError(`pool fixture is unusable: ${faults.join('; ')}`);
   }
 
-  return { date, name, effective, source, sets, banned, cards };
+  return { date, name, effective, source, sets, banned, cards, manaCost, colors };
 }
 
 /**
