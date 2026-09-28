@@ -4,6 +4,36 @@
  *
  * ## The baseline
  *
+ * Re-recorded in Wave 25 for `3710618` (lane E: the hand gained the same free
+ * arrangement the battlefield has, the graveyard moved under the portrait and
+ * its counts, and a claimed press selects no text). That commit does not own
+ * this file, so the pin is re-recorded here immediately after it, as the
+ * paragraph below prescribes. 94 characters arrived, and the whole of the
+ * change is the hand's new `draggable` plus one relabelled control:
+ *
+ *   +85  five `draggable="true"` attributes, 17 characters each — one per card
+ *        of the VIEWER's own hand, which is the lane's first defect: the hand
+ *        `<Zone>` was passed no arrangement, so `draggable` was false for every
+ *        card in it. `draggable="true"` therefore goes 5 -> 10 in this markup:
+ *        the five battlefield cards the ledger above pinned, plus these five.
+ *        The opponent's hand is a count, not cards, so it contributes none.
+ *    +9  `aria-label="Regroup your battlefield"` -> `"… battlefield and hand"`,
+ *        because the one reset control now clears both slots of the store.
+ *    ±0  BOTH graveyard `<section>`s moved — out of `.seat__piles`' column and
+ *        into the foot of `.seat__who` — and the diff is an insert and a delete
+ *        of the SAME bytes: 3498 for `data-owner="them"`, 3581 for
+ *        `data-owner="you"`. A zone that moved without its markup changing is
+ *        exactly what a grid-area move should look like here.
+ *    ±0  `data-selectable` is still 0: this test renders `<Board>` with no
+ *        `interaction` prop, so nothing Forge offers can reach it.
+ *  ─────
+ *   +94  34754 -> 34848, and 85 + 9 = 94 exactly.
+ *
+ * That ledger is a measurement, not an estimate, and it was checked the strong
+ * way: `Board.tsx` alone was reverted to `c698ae5` in the working tree and this
+ * test PASSED at the previous pin, which is what proves the whole delta is
+ * `Board.tsx` and that neither `../adapter.ts` nor `../fixtures.ts` moved.
+ *
  * Re-recorded in Wave 24 for `c239b6b` (lane A: the battlefield gained free
  * placement and stacking, equipment folded onto what it equips, a P/T badge
  * that distinguishes buffed from damaged, and haste stopped wearing the
@@ -88,8 +118,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = 'db9c44404304ea26ae008f8f5d77b52187fa33170e8fb445544c52a5e131f25b';
-const BASELINE_LENGTH = 34754;
+const BASELINE_SHA256 = 'c2a8bb754745f97a2ecc27d8ee13b0bd4cc81aad03e703782f2f4145cf15d32e';
+const BASELINE_LENGTH = 34848;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));
