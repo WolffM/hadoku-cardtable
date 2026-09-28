@@ -31,7 +31,9 @@
  *     one of Forge's choices, so there is often no offered card to drag FROM.
  *
  * A press that never passes `DRAG_SLOP_PX` is a plain click and this layer
- * stays out of it — no suppression, exactly as before.
+ * stays out of it — no click is suppressed, exactly as before. What a claimed
+ * press DOES refuse, from the press itself, is the browser's default: a drag on
+ * the table may not highlight the words it crosses (`claim`).
  *
  * ## Nothing here decides legality
  *
@@ -76,9 +78,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
   /**
    * The press began on something the BROWSER will drag natively.
    *
-   * Lane A's arrange gesture (§A.1) makes every card on the viewer's own
-   * battlefield `draggable="true"` and hangs HTML5 `dragstart`/`drop` on it
-   * (`Board.tsx:644,658-662`). That press and this layer's overlap, and the
+   * Lane A's arrange gesture (§A.1) makes the cards of the viewer's own
+   * battlefield — and, since wave 25, of their own HAND — `draggable="true"` and
+   * hangs HTML5 `dragstart`/`drop` on them (`Board.tsx`'s `CardOnBoard`). A hand
+   * card Forge OFFERED is deliberately left out of that, because dragging a card
+   * out of hand is how it is played and this guard would take that press.
+   * That press and this layer's overlap, and the
    * expensive half is a card Forge did NOT offer while a selection is open: it
    * is draggable, so the native drag runs, and the source-less pointing gesture
    * below would run too — one press that rearranges the battlefield AND sends
@@ -177,6 +182,31 @@ export function installGestures(options: GestureOptions): GestureHandle {
     else canvas.setAttribute(name, value);
   }
 
+  /**
+   * This layer has the press, so the browser's own idea of what a press means
+   * must not run beside it — and the one that matters is TEXT SELECTION.
+   *
+   * The operator, 2026-09-27: dragging on the table highlighted every word the
+   * pointer crossed. `./gestures.css` does write `user-select: none` on the
+   * canvas, but only once `data-dragging` is set, which is after the press passes
+   * `DRAG_SLOP_PX` — and the browser began selecting on the press itself. So the
+   * default is refused at the press, before there is anything to undo.
+   *
+   * **Only on a press this layer CLAIMED.** A press on a natively-draggable
+   * element (lane A's arrangement) returns above this without cancelling
+   * anything, because cancelling `pointerdown` is also how the native HTML5 drag
+   * is cancelled — it would take the arrangement with it. That press selects no
+   * text either, from the static rule on the card itself (`../../board.css`).
+   *
+   * Cancelling `pointerdown` suppresses the compatibility mouse events and the
+   * selection; it does NOT suppress `click`, which is not one of them, so a press
+   * that never passes the slop is still the plain click it always was — the
+   * property `e2e/play.spec.ts` leans on for every card it plays by clicking.
+   */
+  function claim(event: PointerEvent): void {
+    if (event.cancelable) event.preventDefault();
+  }
+
   function onPointerDown(event: PointerEvent): void {
     // Left button only: a right-click is Forge's own menu on the desktop and
     // is not this gesture's to take.
@@ -204,6 +234,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const under = targetUnder(event.target, offered);
     if (under !== null && under.kind === 'card') {
       const box = cardBox(canvas, under.id);
+      claim(event);
       drag = { source: under.id, press: at, from: box === null ? at : centreOf(box), at, target: under, moved: false };
       hover = null;
       paint();
@@ -211,6 +242,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     }
     if (!inside(event.target)) return;
     if (declaringAttackers(match)) {
+      claim(event);
       marquee = { press: at, at, moved: false };
       hover = null;
       paint();
@@ -220,6 +252,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // spell doing the targeting is not itself one of Forge's choices, so
     // there is often no offered card to drag FROM.
     if (match.selectables === null) return;
+    claim(event);
     drag = { source: null, press: at, from: at, at, target: under, moved: false };
     hover = null;
     paint();

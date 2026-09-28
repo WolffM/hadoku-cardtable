@@ -49,9 +49,10 @@
  * ## The arrangement is the player's, and it never leaves the browser
  *
  * Grouping is the DEFAULT order, not a cage. The viewer drags a permanent
- * within a row or into another row and it stays where they put it; `Regroup`
- * throws the arrangement away and the default grouping comes back. Two things
- * about this are load-bearing:
+ * within a row or into another row and it stays where they put it, and drags a
+ * card of their own HAND to wherever in the hand they want it; `Regroup` throws
+ * the whole seat's arrangement away and the default order comes back. Two
+ * things about this are load-bearing:
  *
  *   - **It sends nothing to Forge.** There is no wire message, no reply, no
  *     ask. It reorders what the VIEW draws, which is why a player may tidy a
@@ -65,9 +66,42 @@
  *
  * A card the arrangement names that is no longer on the battlefield is
  * ignored, and a permanent that arrives while an arrangement stands joins the
- * end of its own row. Only the viewer's own battlefield is draggable: the
- * arrangement is theirs, and the opponent arranges their own side on their own
- * screen.
+ * end of its own row. Only the viewer's own side is draggable: the arrangement
+ * is theirs, and the opponent arranges their own side on their own screen.
+ *
+ * ## The hand is arranged the same way, and stands down on a card Forge offered
+ *
+ * The operator, 2026-09-27: they could not reorder their own hand at all. The
+ * hand is now the same gesture, the same store and the same slot machinery as a
+ * battlefield row — one slot key, `<playerId>:hand`, holding the order the
+ * player put their cards in. A drop on a card puts the dragged card in front of
+ * it; a drop on the hand's own list puts it at the end. There is no STACKING in
+ * a hand: a hand is a row of cards you hold, so the thirds of a card's box that
+ * mean "stack above / below" on a battlefield mean nothing here and the drop is
+ * always a reorder.
+ *
+ * **The condition for a hand card is stricter than the battlefield's, and that
+ * is the seam, not taste.** A press on a natively-draggable element starts no
+ * gesture of the interaction lane at all (`live/gestures/install.ts`'s
+ * `nativelyDraggable`), so making a card arrangeable GIVES UP that lane's press
+ * on it. On a battlefield the trade is the documented one: a permanent is played
+ * by clicking it, and drag-to-play on it is what arranging costs. In a hand it
+ * cannot be paid, because **dragging a card out of your hand onto the
+ * battlefield is how a land and a spell are played** — the gesture
+ * `e2e/play.spec.ts` drives for both, and the operator's own report
+ * (*"cards are not dragable"*) was that regression in production. So a hand card
+ * is arrangeable only when no other gesture can want the press: Forge has not
+ * offered it, no selection is open, and nothing is being declared.
+ *
+ * Which is exactly the set of presses that do nothing today — at plain priority
+ * with no selection open, `install.ts` starts no gesture over a card Forge did
+ * not offer. So the hand gained a gesture and nothing lost one.
+ *
+ * What the player sees: on anyone else's turn the whole hand rearranges; in
+ * their own main phase the cards they can actually play are pinned (they are
+ * the ones a drag plays) and every other card still moves; while Forge is asking
+ * or combat is being declared the hand holds still. No rule is implemented
+ * anywhere in that — every set is Forge's own, read off `interaction`.
  *
  * ## Stacking: deliberate as well as free
  *
@@ -120,6 +154,17 @@
  *
  * The counts are the other track, so a flag arriving mid-game ("their turn",
  * "priority") grows the track that has room rather than moving the face.
+ *
+ * ## The graveyard is in the bar, under the portrait and its counts
+ *
+ * Settled by the operator, 2026-09-27: *the graveyard sits BELOW the portrait
+ * and its counts.* So the seat's third column holds EXILE alone and the
+ * graveyard is the bar's last track — under the avatar block and the counts for
+ * the opponent, and under both for the viewer, whose bar already draws its
+ * counts above its portrait. It is a named track (`--grave-h`), like every other
+ * track on this board, and it is the one zone that lives inside a
+ * `[data-player-bar]`: the bar still carries no `data-zone` of its own, and the
+ * set of zones on the board is unchanged — only where one of them sits.
  *
  * ## Every label is horizontal
  *
@@ -208,8 +253,9 @@
  *     `table` for the stack, which belongs to no seat);
  *   - a battlefield's rows each carry `data-board-row` (`lands`, `artifacts`,
  *     `creatures`, `other`), in that order, and `data-empty` when the row
- *     holds nothing. A draggable card carries `draggable` and the viewer's
- *     battlefield carries one `[data-arrange-reset]` control;
+ *     holds nothing. A draggable card carries `draggable` — on the viewer's own
+ *     battlefield and in their own hand — and the viewer's battlefield carries
+ *     one `[data-arrange-reset]` control, which resets the whole seat;
  *
  *     **A row's `:scope > ul.zone__cards > li.board-card` children are its
  *     PILES, one per visual column** — the bottom card of each. The cards above
@@ -220,10 +266,13 @@
  *     board, and a `:scope >` query still measures one card's box;
  *
  *   - this lane's gesture is HTML5 DRAG-AND-DROP and nothing else:
- *     `dragstart` / `dragend` on a battlefield card's `<li>`, `dragover` /
- *     `drop` on that `<li>` and on the row's `<li>`. **No pointer event is bound
- *     anywhere in this file**, so the interaction lane's delegated pointer
- *     handling has the pointer to itself. Nothing here reads, writes or styles
+ *     `dragstart` / `dragend` on an arrangeable card's `<li>`, `dragover` /
+ *     `drop` on that `<li>` and on the box it sits in — a battlefield row's
+ *     `<li>`, or the hand's own `<ul class="zone__cards">`. **No pointer event is
+ *     bound anywhere in this file**, so the interaction lane's delegated pointer
+ *     handling has the pointer to itself. A card whose press is an ARRANGEMENT
+ *     needs no offer from Forge and sends nothing, which is why it is this
+ *     gesture and not the pointer layer's. Nothing here reads, writes or styles
  *     `data-attack-intent`; this lane's own attributes are `data-arrange-reset`,
  *     `data-pile-size`, `data-pile-depth`, `data-attached` and `data-pt*`;
  *
@@ -231,10 +280,13 @@
  *     seam, not a detail.** A `draggable="true"` element starts the browser's
  *     native drag from the same press the interaction lane starts a targeter
  *     drag on, so a card that was both would fire both gestures at once. The
- *     condition is `interaction.selectionOpen && selectable` — an OPEN
- *     SELECTION, not merely Forge's actionable set, whose own docs are on
- *     `BoardInteraction.selectionOpen`. So a natively-draggable element is
- *     never a card an open selection is waiting on;
+ *     condition on a BATTLEFIELD is `interaction.selectionOpen && selectable` —
+ *     an OPEN SELECTION, not merely Forge's actionable set, whose own docs are
+ *     on `BoardInteraction.selectionOpen`. In the HAND it is `selectable`
+ *     alone, because drag-to-play out of a hand may not be given up (the hand's
+ *     own section above). So a natively-draggable element is never a card an
+ *     open selection is waiting on, and in a hand never a card Forge offered at
+ *     all;
  *   - `data-board-overlay` is a positioned root covering the canvas exactly,
  *     at the board's top level, for those lanes to render into. This file adds
  *     no pointer handler to it and draws nothing in it.
@@ -372,15 +424,25 @@ type Pile = readonly BoardCard[];
 type Grouped = Readonly<Record<BoardRow, readonly Pile[]>>;
 
 /**
- * The player's own arrangement, as PILES of card ids per `<playerId>:<row>`. A
- * row the store does not name is drawn in the view's order, each card on its
- * own; a row it names is drawn in the player's piles, and then anything the
+ * A slot of one seat the player may arrange: one of the battlefield's four rows,
+ * or their own hand. The hand's slot holds piles of ONE — a hand is a row of
+ * cards you hold and nothing in it stacks — which is what lets it share the
+ * store, the gesture and the reset with the battlefield instead of inventing a
+ * second of each.
+ */
+type ArrangeSlot = BoardRow | 'hand';
+const ARRANGE_SLOTS: readonly ArrangeSlot[] = [...BOARD_ROWS, 'hand'];
+
+/**
+ * The player's own arrangement, as PILES of card ids per `<playerId>:<slot>`. A
+ * slot the store does not name is drawn in the view's order, each card on its
+ * own; a slot it names is drawn in the player's piles, and then anything the
  * store has never heard of, in the view's order.
  */
 type Arrangement = Readonly<Record<string, readonly (readonly number[])[]>>;
 
 const NO_ARRANGEMENT: Arrangement = {};
-const slotKey = (playerId: number, row: BoardRow): string => `${playerId}:${row}`;
+const slotKey = (playerId: number, slot: ArrangeSlot): string => `${playerId}:${slot}`;
 
 /** How many cards a row holds, across all its piles. */
 const cardsIn = (piles: readonly Pile[]): number => piles.reduce((n, p) => n + p.length, 0);
@@ -505,16 +567,20 @@ function withAttachments(rows: Record<BoardRow, BoardCard[][]>, cards: readonly 
 /**
  * Where a drop landed, and so what the player meant by it.
  *
- * A row's own box is "at the end of this row, on its own". A CARD is three
- * targets, because the operator asked for two different things at once — *"put
- * cards wherever they want"* and *"snap above/below each other in any order"*:
+ * The SLOT's own box — a battlefield row's, or the hand's list — is `end`: "at
+ * the end of this slot, on its own". A CARD is three targets on a battlefield,
+ * because the operator asked for two different things at once — *"put cards
+ * wherever they want"* and *"snap above/below each other in any order"*:
  *
  *   - its top third: stack ON TOP of that card;
  *   - its bottom third: stack UNDERNEATH it;
  *   - its middle: the old behaviour, in front of that card's pile.
+ *
+ * In a HAND a card is one target, `before` — nothing stacks in a hand, so the
+ * thirds are not read there at all.
  */
 type DropTarget =
-  | { kind: 'row' }
+  | { kind: 'end' }
   | { kind: 'before'; id: number }
   | { kind: 'stack'; id: number; onTop: boolean };
 
@@ -557,7 +623,7 @@ function withMove(
     piles[r] = rows[r].map((p) => p.map((c) => c.id).filter((id) => id !== cardId)).filter((p) => p.length > 0);
   }
   const into = piles[row];
-  if (target.kind === 'row') {
+  if (target.kind === 'end') {
     into.push([cardId]);
   } else {
     const index = into.findIndex((p) => p.includes(target.id));
@@ -574,27 +640,85 @@ function withMove(
   return next;
 }
 
-/** The arrangement with one seat's rows thrown away: the default grouping is back. */
+/**
+ * The viewer's own hand, in the order they arranged it: what the store names
+ * first, then every card it has never heard of, in the view's order.
+ *
+ * A card the store names that is no longer in the hand is ignored and a card
+ * drawn while an arrangement stands joins the end of it — the same contract a
+ * battlefield row has, and for the same reason: the store holds ids, so a
+ * resync that rebuilds every object redraws the same hand.
+ */
+function handOrder(cards: readonly BoardCard[], playerId: number, arranged: Arrangement): readonly BoardCard[] {
+  const named = arranged[slotKey(playerId, 'hand')];
+  if (named === undefined) return cards;
+  const byId = new Map(cards.map((c) => [c.id, c]));
+  const out: BoardCard[] = [];
+  const placed = new Set<number>();
+  for (const pile of named) {
+    for (const id of pile) {
+      const card = byId.get(id);
+      if (card === undefined || placed.has(id)) continue;
+      placed.add(id);
+      out.push(card);
+    }
+  }
+  for (const card of cards) if (!placed.has(card.id)) out.push(card);
+  return out;
+}
+
+/**
+ * The hand after a drag: `cardId` lands in front of `target`, or at the end.
+ *
+ * The whole hand is written out, not just the card that moved — what the player
+ * is looking at becomes what is stored, so the next card drawn joins the end
+ * rather than the middle of an order they chose. Each card is its own pile of
+ * one: a hand does not stack.
+ */
+function withHandMove(
+  ordered: readonly BoardCard[],
+  playerId: number,
+  arranged: Arrangement,
+  cardId: number,
+  target: DropTarget,
+): Arrangement {
+  const ids = ordered.map((c) => c.id).filter((id) => id !== cardId);
+  const at = target.kind === 'end' ? -1 : ids.indexOf(target.id);
+  if (at === -1) ids.push(cardId);
+  else ids.splice(at, 0, cardId);
+  return { ...arranged, [slotKey(playerId, 'hand')]: ids.map((id) => [id]) };
+}
+
+/** The arrangement with one seat's slots thrown away: the default order is back. */
 function withoutSeat(playerId: number, arranged: Arrangement): Arrangement {
   const next: Record<string, readonly (readonly number[])[]> = { ...arranged };
-  for (const row of BOARD_ROWS) delete next[slotKey(playerId, row)];
+  for (const slot of ARRANGE_SLOTS) delete next[slotKey(playerId, slot)];
   return next;
 }
 
 /**
- * The drag, as the markup sees it. Present only on the viewer's own
- * battlefield; every other zone gets `undefined` and renders no drag
+ * The drag, as the markup sees it. Present only on the viewer's own battlefield
+ * and their own hand; every other zone gets `undefined` and renders no drag
  * affordance at all.
  */
 interface Arranging {
   start(event: DragEvent, cardId: number): void;
   over(event: DragEvent): void;
-  /** Dropped on a card: which third of its box decides stack-above, stack-below or reorder. */
-  dropOn(event: DragEvent<HTMLElement>, row: BoardRow, cardId: number): void;
-  /** Dropped on the row's own box: the row's end, on its own. */
-  dropInRow(event: DragEvent, row: BoardRow): void;
+  /**
+   * Dropped on a card. On a battlefield, which third of its box decides
+   * stack-above, stack-below or reorder; in a hand it is a reorder and the
+   * thirds are not read.
+   */
+  dropOn(event: DragEvent<HTMLElement>, slot: ArrangeSlot, cardId: number): void;
+  /** Dropped on the slot's own box — a row's, or the hand's list: its end, on its own. */
+  dropInto(event: DragEvent, slot: ArrangeSlot): void;
   /** A drag that ended anywhere — including outside the board — carries nothing now. */
   end(): void;
+  /**
+   * Throw the whole SEAT's arrangement away: the battlefield's rows and the
+   * hand's order both, since they are one store and one control. Its button
+   * lives on the battlefield's gutter and says so in its accessible name.
+   */
   regroup(): void;
 }
 
@@ -674,15 +798,19 @@ function CardOnBoard({
   entry,
   interaction,
   arranging,
-  row,
+  slot,
   pile,
   depth = 0,
 }: {
   entry: BoardCard;
   interaction: BoardInteraction | undefined;
   arranging?: Arranging;
-  /** Set on a battlefield, and only there. A hand or a pile has no row. */
-  row?: BoardRow;
+  /**
+   * Which arrangeable slot this card is in: a battlefield row, or `hand`. Absent
+   * in a graveyard, in an exile pile and on the opponent's hidden hand — the
+   * zones no gesture of this lane starts in.
+   */
+  slot?: ArrangeSlot;
   /** The whole pile, on its bottom card. Absent for a lone card and for members. */
   pile?: Pile;
   /** 0 for the bottom of a pile, 1 for the card on it, and so on. */
@@ -730,8 +858,41 @@ function CardOnBoard({
    * declaration. Forge publishes no open selection for it, so `selectionOpen`
    * cannot cover this and the fact is carried separately — see the field.
    */
-  const itsAttackToDeclare = interaction?.declaringAttackers === true && rowFor(entry) === 'creatures';
-  const draggable = arranging !== undefined && row !== undefined && !inOpenSelection && !itsAttackToDeclare;
+  const onBattlefield = slot !== undefined && slot !== 'hand';
+  const itsAttackToDeclare = interaction?.declaringAttackers === true && onBattlefield && rowFor(entry) === 'creatures';
+  /*
+   * In a HAND the arrangement stands down on more than the battlefield's rule
+   * covers, and each of the three is a press another gesture already owns — the
+   * header's "The hand is arranged the same way" has the argument in full:
+   *
+   *   - **a card Forge OFFERED**, its actionable set included, because DRAGGING A
+   *     CARD OUT OF YOUR HAND IS HOW IT IS PLAYED (`e2e/play.spec.ts` drives a
+   *     land and a spell that way, and the operator's *"cards are not dragable"*
+   *     was that gesture broken in production). On a battlefield drag-to-play is
+   *     what arranging costs; here it may not be;
+   *   - **an OPEN SELECTION anywhere**, because the source-less targeter drag
+   *     begins anywhere on the table;
+   *   - **a declaration**, because the box-draw sweeps from anywhere.
+   *
+   * With those out, the only press this attribute newly claims is one on an
+   * un-offered hand card at plain priority — which starts no gesture of the
+   * interaction lane today either (`install.ts` returns when `match.selectables`
+   * is null). So nothing that worked stops working: the hand is tidied in the
+   * gaps, which is every moment the game is not asking this seat something.
+   */
+  const handStandsDown =
+    slot === 'hand' &&
+    (selectable || interaction?.selectionOpen === true || interaction?.declaringAttackers === true);
+  /**
+   * Whether this card may be PICKED UP. Whether a card may be DROPPED ON is a
+   * different question — `arrangeable` below — because a card the player cannot
+   * pick up is still a place they can put one: without that, a drop on a pinned
+   * card bubbles to the zone's own box and the card lands at the END of the slot
+   * instead of in front of what it was dropped on.
+   */
+  const draggable =
+    arranging !== undefined && slot !== undefined && !inOpenSelection && !itsAttackToDeclare && !handStandsDown;
+  const arrangeable = arranging !== undefined && slot !== undefined;
   const above = pile === undefined ? [] : pile.slice(1);
 
   return (
@@ -748,8 +909,8 @@ function CardOnBoard({
       draggable={draggable || undefined}
       onDragStart={draggable ? (e) => arranging.start(e, entry.id) : undefined}
       onDragEnd={draggable ? () => arranging.end() : undefined}
-      onDragOver={draggable ? (e) => arranging.over(e) : undefined}
-      onDrop={draggable ? (e) => arranging.dropOn(e, row, entry.id) : undefined}
+      onDragOver={arrangeable ? (e) => arranging.over(e) : undefined}
+      onDrop={arrangeable ? (e) => arranging.dropOn(e, slot, entry.id) : undefined}
     >
       {selectable ? (
         <button
@@ -765,7 +926,7 @@ function CardOnBoard({
           <CardTile card={entry.card} />
         </div>
       )}
-      {row !== undefined && <PowerToughness entry={entry} />}
+      {onBattlefield && <PowerToughness entry={entry} />}
       {chips.length > 0 && (
         <ul className="board-card__chips" aria-label={`${entry.card.name} status`}>
           {chips.map((chip) => (
@@ -783,7 +944,7 @@ function CardOnBoard({
               entry={c}
               interaction={interaction}
               arranging={arranging}
-              row={row}
+              slot={slot}
               depth={i + 1}
             />
           ))}
@@ -805,6 +966,7 @@ function Zone({
   label,
   cards,
   interaction,
+  arranging,
 }: {
   owner: string;
   ownerSide: ZoneOwner;
@@ -812,12 +974,29 @@ function Zone({
   label: string;
   cards: readonly BoardCard[];
   interaction: BoardInteraction | undefined;
+  /**
+   * Present only on the viewer's own HAND — the one `Zone` whose order is the
+   * player's. A graveyard and an exile pile are Forge's own order and get
+   * `undefined`, so no card in them is draggable and the list takes no drop.
+   * `cards` arrives already in the player's order (`handOrder`).
+   */
+  arranging?: Arranging;
 }) {
   return (
     <ZoneShell owner={owner} ownerSide={ownerSide} zone={zone} label={label} count={cards.length}>
-      <ul className="zone__cards">
+      <ul
+        className="zone__cards"
+        onDragOver={arranging === undefined ? undefined : (e) => arranging.over(e)}
+        onDrop={arranging === undefined ? undefined : (e) => arranging.dropInto(e, 'hand')}
+      >
         {cards.map((c) => (
-          <CardOnBoard key={c.id} entry={c} interaction={interaction} />
+          <CardOnBoard
+            key={c.id}
+            entry={c}
+            interaction={interaction}
+            arranging={arranging}
+            slot={arranging === undefined ? undefined : 'hand'}
+          />
         ))}
       </ul>
     </ZoneShell>
@@ -900,7 +1079,7 @@ function Battlefield({
             type="button"
             className="zone__regroup"
             data-arrange-reset=""
-            aria-label="Regroup your battlefield"
+            aria-label="Regroup your battlefield and hand"
             onClick={arranging.regroup}
           >
             Regroup
@@ -926,7 +1105,7 @@ function Battlefield({
              */
             style={{ flexGrow: rows[row].length }}
             onDragOver={arranging === undefined ? undefined : (e) => arranging.over(e)}
-            onDrop={arranging === undefined ? undefined : (e) => arranging.dropInRow(e, row)}
+            onDrop={arranging === undefined ? undefined : (e) => arranging.dropInto(e, row)}
           >
             <h5 className="zone__row-head">
               {ROW_LABEL[row]} <span className="zone__count">{cardsIn(rows[row])}</span>
@@ -938,7 +1117,7 @@ function Battlefield({
                   entry={pile[0]!}
                   interaction={interaction}
                   arranging={arranging}
-                  row={row}
+                  slot={row}
                   pile={pile}
                 />
               ))}
@@ -1095,6 +1274,21 @@ function PlayerArea({
           {player.hasPriority && <span className="seat__flag">priority</span>}
           {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
         </div>
+        {/*
+         * The graveyard, in the bar and UNDER the portrait and its counts —
+         * settled by the operator, 2026-09-27. It is the last child, so the
+         * viewer's own bar (which draws its counts above its portrait) still
+         * puts it under both. `board.css` gives it the bar's last track,
+         * `--grave-h`, and the bar itself is still not a zone.
+         */}
+        <Zone
+          owner={player.name}
+          ownerSide={side}
+          zone="graveyard"
+          label="Graveyard"
+          cards={player.graveyard}
+          interaction={interaction}
+        />
       </div>
 
       <Battlefield
@@ -1105,18 +1299,19 @@ function PlayerArea({
         arranged={arranged}
       />
       <div className="seat__piles">
-        <Zone
-          owner={player.name}
-          ownerSide={side}
-          zone="graveyard"
-          label="Graveyard"
-          cards={player.graveyard}
-          interaction={interaction}
-        />
         <Zone owner={player.name} ownerSide={side} zone="exile" label="Exile" cards={player.exile} interaction={interaction} />
       </div>
       {player.hand !== null ? (
-        <Zone owner={player.name} ownerSide={side} zone="hand" label="Hand" cards={player.hand} interaction={interaction} />
+        <Zone
+          owner={player.name}
+          ownerSide={side}
+          zone="hand"
+          label="Hand"
+          /* The player's own order, and the view's for anyone who has not moved a card. */
+          cards={handOrder(player.hand, player.id, arranged)}
+          interaction={interaction}
+          arranging={arranging}
+        />
       ) : (
         <HiddenHand player={player} />
       )}
@@ -1223,23 +1418,34 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
 
   /**
    * One drop, applied. Everything a drop does is here: it stops the browser's
-   * default, keeps the row from also seeing a drop that landed on a card, and
-   * writes the store. It sends NOTHING — there is no sender in this scope, no
-   * ask, no reply; a rearrange is invisible to Forge by construction.
+   * default, keeps the slot's own box from also seeing a drop that landed on a
+   * card, and writes the store. It sends NOTHING — there is no sender in this
+   * scope, no ask, no reply; a rearrange is invisible to Forge by construction.
+   *
+   * A card only ever lands in the zone it was picked up from: the drop checks
+   * that the carried card is in that zone of the viewer's own view, so a hand
+   * card dropped on a battlefield row and a permanent dropped in the hand both
+   * do nothing at all. Moving a card between zones is Forge's, never ours.
    */
-  const place = (event: DragEvent, row: BoardRow, target: DropTarget): void => {
+  const place = (event: DragEvent, slot: ArrangeSlot, target: DropTarget): void => {
     const cardId = carried.current;
     carried.current = null;
     if (viewer === undefined || cardId === null) return;
     event.preventDefault();
-    // A card dropped on a card is not also dropped on the row under it.
+    // A card dropped on a card is not also dropped on the box under it.
     event.stopPropagation();
-    if (target.kind !== 'row' && target.id === cardId) return;
-    if (!viewer.battlefield.some((c) => c.id === cardId)) return;
-    ARRANGED.set(
-      key,
-      withMove(group(viewer.battlefield, viewer.id, arranged), viewer.id, arranged, cardId, row, target),
-    );
+    if (target.kind !== 'end' && target.id === cardId) return;
+    if (slot === 'hand') {
+      const hand = viewer.hand;
+      if (hand === null || !hand.some((c) => c.id === cardId)) return;
+      ARRANGED.set(key, withHandMove(handOrder(hand, viewer.id, arranged), viewer.id, arranged, cardId, target));
+    } else {
+      if (!viewer.battlefield.some((c) => c.id === cardId)) return;
+      ARRANGED.set(
+        key,
+        withMove(group(viewer.battlefield, viewer.id, arranged), viewer.id, arranged, cardId, slot, target),
+      );
+    }
     redraw();
   };
 
@@ -1271,13 +1477,19 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
             const data = event.dataTransfer as DataTransfer | undefined;
             if (data !== undefined) data.dropEffect = 'move';
           },
-          dropOn(event, row, cardId) {
+          dropOn(event, slot, cardId) {
+            // Nothing stacks in a hand, so the thirds of the box are not read
+            // there: a drop on a card puts the carried card in front of it.
+            if (slot === 'hand') {
+              place(event, slot, { kind: 'before', id: cardId });
+              return;
+            }
             const box = event.currentTarget as HTMLElement | null;
             const rect = box?.getBoundingClientRect?.() ?? { top: 0, height: 0 };
-            place(event, row, dropOnCard(rect, event.clientY, cardId));
+            place(event, slot, dropOnCard(rect, event.clientY, cardId));
           },
-          dropInRow(event, row) {
-            place(event, row, { kind: 'row' });
+          dropInto(event, slot) {
+            place(event, slot, { kind: 'end' });
           },
           end() {
             carried.current = null;

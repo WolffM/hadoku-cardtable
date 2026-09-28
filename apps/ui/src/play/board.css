@@ -55,7 +55,8 @@
  *
  * Graveyard and exile are piles, not grids: each card shows a strip and the
  * newest shows whole, and the strips shrink when the pile is taller than its
- * box.
+ * box. The graveyard is at the foot of the seat's own bar and exile in the
+ * seat's right column, and both are drawn as that same pile.
  *
  * ## A battlefield is four labelled groups, side by side
  *
@@ -116,11 +117,21 @@
  *     20 comes out within a pixel of what it was.
  *
  * And the point of wave 20's face anchoring survives the move, because
- * `e2e/table-fit.spec.ts` measures it: the bar is two tracks and the avatar
- * block sits in the seat's OUTER one — first row for the opponent, last for
- * the viewer — so their face is still in the top third of the canvas, ours in
- * the bottom third, with the stack's band between them. The counts take the
- * track with the slack, so a flag appearing mid-game never moves a face.
+ * `e2e/table-fit.spec.ts` measures it: the avatar block sits in the OUTER of the
+ * bar's tracks — first row for the opponent, and for the viewer below its own
+ * counts — so their face is still in the top third of the canvas, ours in the
+ * bottom third, with the stack's band between them. The counts take the track
+ * with the slack, so a flag appearing mid-game never moves a face.
+ *
+ * ## The graveyard is at the FOOT of that bar
+ *
+ * Settled by the operator, 2026-09-27: *the graveyard sits below the portrait
+ * and its counts.* So the bar has a third track (`--grave-h`), the seat's right
+ * column holds exile alone, and the viewer's own portrait sits `--grave-h`
+ * higher up its bar than it did — still in the bottom third of the canvas, which
+ * is the property `e2e/table-fit.spec.ts` asserts. Nothing else about the seat's
+ * boxes moves: the bar's width, the battlefield, the hand and the exile column
+ * are the tracks they were.
  *
  * ## Every label is horizontal, and every label is a fixed track
  *
@@ -274,19 +285,21 @@
 
 /*
  * A seat is a grid of fixed tracks. Two narrow columns hold everything that is
- * not a card: the seat's own furniture (`--who-w`) at the left and the piles
- * (`--pile-w`) at the right, graveyard over exile. Both span the seat's full
- * height, so the battlefield and the hand keep every row to themselves. The
- * opponent's ROWS are mirrored so the two battlefields face each other across
- * the stack. Your battlefield and hand split 4 : 2.6, which with the 1 : 1.4
- * split between the seats leaves the two battlefields about the same height —
- * and the battlefield the larger share, because it holds four lanes.
+ * not a card: the seat's own furniture (`--who-w`) at the left, now with the
+ * GRAVEYARD at the foot of it, and the exile pile (`--pile-w`) at the right.
+ * Both span the seat's full height, so the battlefield and the hand keep every
+ * row to themselves. The opponent's ROWS are mirrored so the two battlefields
+ * face each other across the stack. Your battlefield and hand split 4 : 2.6,
+ * which with the 1 : 1.4 split between the seats leaves the two battlefields
+ * about the same height — and the battlefield the larger share, because it holds
+ * four lanes.
  *
  * There is no head row any more: the furniture is a vertical bar (see the
  * header), and its 2.5rem of height went to the battlefields.
  *
  * Every track is a named size or an `fr`: `auto` anywhere here would let a
- * card, a flag or a count move a sibling zone.
+ * card, a flag or a count move a sibling zone. The piles column is `--pile-w`
+ * rather than the `auto` it used to be, which measured the same and said less.
  *
  * Scoped under `.board` because `styles.css` has a `.seat` of its own — the
  * draft's seat list, a centred grid — and without the extra class its
@@ -300,11 +313,31 @@
    * row is the battlefield's.
    */
   --who-w: 4.25rem;
+  /*
+   * The graveyard, at the foot of the bar. Both are named sizes, like every
+   * other track here, and the arithmetic they have to satisfy is two-sided:
+   *
+   *   - the track must hold the pile's whole NEWEST card (`--grave-w` at
+   *     `--card-tall` = 4.88rem) plus the zone's label, which wraps to two lines
+   *     in a column this narrow (~1.55rem) and its gap. Below that the pile
+   *     clips its newest card, and `e2e/table-fit.spec.ts` counts a zone that
+   *     clips as overflowing;
+   *   - and what is LEFT of the bar must still hold the portrait block and every
+   *     count and flag the seat can raise (five lines at 10px), because the bar
+   *     clips and a clipped flag is information gone. At 1366×768 the
+   *     opponent's bar is the shorter of the two at ~250px, and 59 + 65 + 112 +
+   *     the gaps fits it.
+   *
+   * That is why the graveyard's card is a little narrower than exile's: exile has
+   * a whole column to itself, and this one shares the bar with the portrait.
+   */
+  --grave-h: 7rem;
+  --grave-w: 3.5rem;
 
   display: grid;
   align-items: stretch;
   justify-items: stretch;
-  grid-template-columns: var(--who-w) minmax(0, 1fr) auto;
+  grid-template-columns: var(--who-w) minmax(0, 1fr) var(--pile-w);
   grid-template-rows: minmax(0, 4fr) minmax(0, 2.6fr);
   grid-template-areas:
     'who field piles'
@@ -331,22 +364,28 @@
 }
 
 /*
- * The vertical bar: the seat's avatar, life, name and counts in one narrow
- * column, spanning the seat's full height.
+ * The vertical bar: the seat's avatar, life, name, counts and graveyard in one
+ * narrow column, spanning the seat's full height.
  *
- * Two tracks, and which one the avatar block is in is the whole of wave 20's
- * item 11 in the new layout: `auto` then `1fr` puts it at the TOP for the
- * opponent, `1fr` then `auto` at the BOTTOM for the viewer, so the two faces
- * are as far apart as the canvas allows with the stack's band between them.
- * The counts live in the `1fr` track, which is where the slack is — a flag
- * appearing mid-game ("their turn", "priority") grows into that track instead
- * of moving the face, and the face is what `e2e/table-fit.spec.ts` measures.
+ * THREE tracks now, and which one the avatar block is in is still the whole of
+ * wave 20's item 11: `auto` first puts it at the TOP for the opponent and the
+ * viewer's flip moves it below its counts, so the two faces stay as far apart as
+ * the canvas allows with the stack's band between them. The counts live in the
+ * `1fr` track, which is where the slack is — a flag appearing mid-game ("their
+ * turn", "priority") grows into that track instead of moving the face, and the
+ * face is what `e2e/table-fit.spec.ts` measures.
+ *
+ * The graveyard is the LAST track on both sides, which is what "below the
+ * portrait and its counts" means for a bar whose viewer half draws its counts
+ * above its portrait (the operator, 2026-09-27). It is `--grave-h` and never
+ * anything else, so a pile filling up cannot move the face above it — the pile
+ * squeezes its own strips instead (see `.zone--graveyard` below).
  */
 .board .seat__who {
   grid-area: who;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) var(--grave-h);
   gap: 3px;
   min-width: 0;
   min-height: 0;
@@ -354,7 +393,7 @@
 }
 
 .board .seat[data-viewer] .seat__who {
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto var(--grave-h);
 }
 
 .board .seat[data-viewer] .seat__ident {
@@ -364,6 +403,12 @@
 .board .seat[data-viewer] .seat__counts {
   grid-row: 1;
   justify-content: flex-end;
+}
+
+/* Last on both sides: the opponent's bar reads portrait, counts, graveyard and
+   the viewer's counts, portrait, graveyard. */
+.board .seat__who > .zone--graveyard {
+  grid-row: 3;
 }
 
 /* The mark with the name under it. The `.face` draws its own name and would say
@@ -438,17 +483,19 @@
 }
 
 /*
- * The piles column: graveyard over exile, in fixed shares. Fixed, not
- * content-sized, because exile is usually empty and the first exiled card
- * would otherwise shorten the graveyard beside it — a zone filling and moving
- * a sibling is the thing this board may not do.
+ * The piles column: EXILE, and nothing else, now that the graveyard is at the
+ * foot of the seat's bar (the operator, 2026-09-27). One `fr` track, so the pile
+ * is never sized by what is in it — exile is usually empty and the first exiled
+ * card may not move anything around it.
+ *
+ * The column's width is the seat's own `--pile-w` track, so this element no
+ * longer declares one of its own.
  */
 .seat__piles {
   grid-area: piles;
   display: grid;
-  grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 4px;
-  width: var(--pile-w);
   min-height: 0;
 }
 
@@ -662,12 +709,13 @@
   color: var(--ink-dim);
 }
 
-/* The drag is the affordance: the arrangement is the player's (`Board.tsx`). */
-.zone__row .board-card[draggable='true'] {
+/* The drag is the affordance: the arrangement is the player's (`Board.tsx`).
+   On a battlefield lane and in your own hand alike. */
+.board .seat .board-card[draggable='true'] {
   cursor: grab;
 }
 
-.zone__row .board-card[draggable='true']:active {
+.board .seat .board-card[draggable='true']:active {
   cursor: grabbing;
 }
 
@@ -854,8 +902,13 @@
  * shows whole in the room reserved under the last strip. The strips are
  * `minmax(0, --peek)`, so a pile taller than its box squeezes them instead of
  * growing. Hovering a buried card lifts it out.
+ *
+ * Selected by which zone it IS rather than by the column it sits in: the two
+ * piles are in different parts of the seat now — the graveyard at the foot of
+ * the bar, exile in its own column — and they are the same thing in both.
  */
-.seat__piles > .zone {
+.board .seat .zone--graveyard,
+.board .seat .zone--exile {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -863,35 +916,49 @@
   overflow: hidden;
 }
 
-.seat__piles > .zone > .zone__head {
+.board .seat .zone--graveyard > .zone__head,
+.board .seat .zone--exile > .zone__head {
   font-size: 9.5px;
   letter-spacing: 0;
   white-space: normal;
 }
 
-.seat__piles .zone__cards {
-  --card-w: var(--pile-w);
+.board .seat .zone--graveyard .zone__cards,
+.board .seat .zone--exile .zone__cards {
+  --pile-card-w: var(--pile-w);
+  --card-w: var(--pile-card-w);
   --peek: 1.15rem;
 
   flex: 0 1 auto;
   display: grid;
   grid-auto-rows: minmax(0, var(--peek));
   align-content: start;
+  justify-content: center;
   min-height: 0;
-  padding-bottom: calc(var(--pile-w) * var(--card-tall) - var(--peek));
+  padding-bottom: calc(var(--pile-card-w) * var(--card-tall) - var(--peek));
   overflow: hidden;
 }
 
+/* In the bar the pile shares its column's HEIGHT with the portrait and the
+   counts, so its card is `--grave-w` rather than the exile column's `--pile-w`.
+   The seat's arithmetic is beside the token. */
+.board .seat__who > .zone--graveyard .zone__cards {
+  --pile-card-w: var(--grave-w);
+}
+
 /* An empty pile reserves no room under a card that is not there. */
-.seat__piles .zone__cards:not(:has(> li)) {
+.board .seat .zone--graveyard .zone__cards:not(:has(> li)),
+.board .seat .zone--exile .zone__cards:not(:has(> li)) {
   padding-bottom: 0;
 }
 
-.seat__piles .board-card {
+.board .seat .zone--graveyard .board-card,
+.board .seat .zone--exile .board-card {
   min-height: 0;
 }
 
-.seat__piles .board-card:hover {
+.board .seat .zone--graveyard .board-card:hover,
+.board .seat .zone--exile .board-card:hover {
   z-index: 1;
 }
 
@@ -903,6 +970,25 @@
   flex-direction: column;
   align-self: start;
   min-width: 0;
+}
+
+/*
+ * A press on a card of this table is a GESTURE, and it selects no text.
+ *
+ * The operator, 2026-09-27: dragging a card highlighted its name, its type line
+ * and whatever else the pointer crossed. This has to be STATIC, on the card
+ * itself, and neither half of what was already here could be: the gesture
+ * layer's own rule (`live/gestures/gestures.css`) is written on the canvas only
+ * after the press passes the slop threshold, by which time the browser has
+ * already begun selecting, and the arrangement's press is a native HTML5 drag
+ * that no `preventDefault` may cancel — cancelling it is cancelling the drag.
+ * So the first pixel of movement finds nothing selectable under it.
+ *
+ * Scoped to the seat's own cards: `.board-card` is also styled by `card.css` and
+ * by `prompts/prompts.css`, and a card in a prompt is read, not dragged.
+ */
+.board .seat .board-card {
+  user-select: none;
 }
 
 /*

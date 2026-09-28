@@ -316,10 +316,13 @@ describe('dragging a card, and the targeter arrow', () => {
    * Wave 20's zone drop, and it is asserted from the HAND.
    *
    * *"Dragging a land onto the table is #6's whole point"* — and #6 is a card in
-   * hand. Lane A's arrange gesture makes only the viewer's own BATTLEFIELD cards
-   * natively draggable (`row !== undefined`), so a hand card is this layer's
-   * whichever way the two halves land. The battlefield side of the partition has
-   * its own case further down.
+   * hand. Wave 25 gave the hand an arrangement of its own, and it stands down on
+   * exactly this card: a hand card FORGE OFFERED is never natively draggable,
+   * because dragging it out of hand is how it is played
+   * (`Board.tsx`'s `handStandsDown`). So an offered hand card is this layer's
+   * whichever way the two halves land, which the `draggable` assertion below
+   * pins from this side. The battlefield side of the partition has its own case
+   * further down.
    */
   it('outside a selection, a hand card dropped on the table is the one frame a click sends — and it is not sent twice', async () => {
     const { s, m, canvas } = await gestureBoard();
@@ -348,6 +351,50 @@ describe('dragging a card, and the targeter arrow', () => {
     fireEvent.click(face);
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+  });
+
+  /**
+   * §E.2. The operator, 2026-09-27: dragging on the table highlighted the words
+   * the pointer crossed. A press this layer CLAIMS refuses the browser's default
+   * from the press itself, because `./gestures.css`'s `user-select: none` is
+   * written only once the press has passed the slop and the selection has begun
+   * by then.
+   *
+   * It is deliberately NOT done on a press the arrangement owns: cancelling
+   * `pointerdown` is also how the native HTML5 drag is cancelled, and that press
+   * IS a native drag. The card carries a static `user-select: none` instead
+   * (`../../board.css`), which is what covers it.
+   */
+  it('refuses the browser’s default on a press it claims, and never on the arrangement’s', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const mine = mineOf(m).battlefield.map((c) => c.id);
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    /*
+     * At plain priority, with nothing offered in hand: the ARRANGEMENT owns a
+     * press on a hand card, and this layer leaves it entirely alone — cancelling
+     * that press would cancel the native drag with it.
+     */
+    for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const arrangeable = cardEl(canvas, hand.at(-1)!);
+    expect(arrangeable.getAttribute('draggable'), 'the arrangement really owns it').toBe('true');
+    expect(
+      fireEvent.pointerDown(arrangeable, { button: 0, clientX: 10, clientY: 10 }),
+      'the arrangement’s own press is left alone',
+    ).toBe(true);
+    fireEvent.pointerUp(arrangeable, { clientX: 10, clientY: 10 });
+
+    // And Forge ASKING about a permanent: this layer claims that press, so the
+    // browser's default — a text selection — is refused at the press itself.
+    for (const f of notify([prompt('Choose a target'), selectables([mine[0]!], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    expect(
+      fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 }),
+      'a claimed press selects no text',
+    ).toBe(false);
+    fireEvent.pointerUp(cardEl(canvas, mine[0]!), { clientX: 10, clientY: 10 });
+    // A press that never moved is a click, not a drag, so neither sent anything.
+    expect(s.clientFrames(), 'and neither press sent anything').toHaveLength(0);
   });
 
   it('the arrow is drawn into lane A’s overlay and snaps to the legal target under the pointer', async () => {
