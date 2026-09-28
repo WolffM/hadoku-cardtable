@@ -1292,6 +1292,20 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 		expect(readPromptFacts(notesFor('Pay Mana Cost: {1}{U}', deadAuto, [61])).noWayToPay).toBe(false);
 		// And a CLEARED set is "Forge has not said", never "nothing".
 		expect(readPromptFacts(notesFor('Pay Mana Cost: {1}{U}', deadAuto, null)).noWayToPay).toBe(false);
+		/*
+		 * The shape `auto.jvm.test.ts`'s item-6 run actually recorded, and the one
+		 * that would be a false Cancel if the window gate were ever loosened: Forge's
+		 * TARGETING input reuses the bar it was handed, because
+		 * `InputSelectTargets.showMessage` calls the three-argument `updateButtons`
+		 * that changes only the enabled flags (`InputSelectTargets.java:135-149`). So
+		 * a `label1: 'Auto'` with a dead button arrives over a prompt that is not a
+		 * payment at all. What keeps it out is the cost line, which it has not got.
+		 */
+		const targeting = readPromptFacts(notesFor('Galvanic Blast (38) - Galvanic Blast deals 2 damage to any target.\n\nSelect any target', deadAuto, []));
+		expect(targeting.cost).toBeNull();
+		expect(targeting.window).toBe('other');
+		expect(targeting.noWayToPay).toBe(false);
+		expect(decideCancel(targeting, DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
 	it('cancels it, and names the cost it abandoned', () => {
