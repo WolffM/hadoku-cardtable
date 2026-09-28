@@ -629,8 +629,8 @@ function RoomTableScreen({
   };
 
   /**
-   * The deck dropdown moved. `Random` is one of the decks ON OFFER — the era
-   * has already narrowed them, so it cannot roll an illegal deck — and it
+   * The deck dropdown moved. `Random` is one of the decks ON OFFER — the room's
+   * pool has already narrowed them, so it cannot roll an illegal deck — and it
    * resolves to that deck's id rather than staying a mystery: what you got is
    * what the dropdown then reads.
    */
@@ -1343,8 +1343,8 @@ function PlayerRow({ seat, player }: { seat: number; player: RoomPlayer }) {
  * mtgtop8 deck 209238."*), the citation buried mid-sentence, and the card
  * counts. The operator wanted all of it gone; the link stays because the
  * attribution is owed, and a link is not a sentence. The name is in the
- * dropdown, the counts are the server's to complain about, and the era is the
- * select above.
+ * dropdown, the counts are the server's to complain about, and the pool is
+ * stated above it.
  */
 function DeckSource({ deck }: { deck: TableDeck | undefined }) {
   if (deck === undefined) return null;
