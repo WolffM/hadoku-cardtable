@@ -23,12 +23,23 @@
  * is rendered for exactly that reason — it is a number that cannot change, and
  * a reader who watches it not change learns the property.
  *
- * ## No trademarks, no images
+ * ## No trademarks, and no images at all
  *
  * Rows are name, cost and type, drawn by us (`ManaPip` draws its own circles
  * and renders `{T}` as the word TAP). No card frames, no set symbols, no mana
- * font. The pool tiles reuse `CardTile`, which resolves art through
- * `draft/cardImage.ts` → `@hadoku/carddata/art` → `art-manifest.json`; no image
+ * font.
+ *
+ * **And no art.** This file renders no `CardTile` and no `<img>`: every pile,
+ * main and sideboard alike, is the text `Row` below, and its only component
+ * import is `ManaPip`. Until wave 25 §F this paragraph claimed "the pool tiles
+ * reuse `CardTile`", which was never true of this file — a stale comment that
+ * reads as a second art path when someone goes looking for one. There is
+ * exactly one `<img>` in the app (`CardTile.tsx`) and this is not it.
+ *
+ * A deck list as text is a choice: 40-plus cards you sort, count and move, not
+ * a gallery. Making it a grid of tiles is a design change, not a bug fix. If it
+ * ever becomes one, the art comes from `CardTile` → `draft/cardImage.ts` →
+ * `@hadoku/carddata/art` → `art-manifest.json` like everywhere else; no image
  * host is named anywhere in this file, and none may be.
  *
  * ## The download

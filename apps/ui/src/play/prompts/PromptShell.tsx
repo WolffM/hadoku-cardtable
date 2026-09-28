@@ -103,11 +103,23 @@ export function PromptShell({
  * `CardTile` stamps its own `data-card-id` in, which the DOM contract
  * (`Board.tsx`) already accounts for — the prompt's tile wrapper carries the
  * bare forge id beside it.
+ *
+ * **`name` is the card's IDENTITY; `label` is what the tile SAYS (wave 25 §F).**
+ * They were one argument until now, and that is the whole of the reported bug:
+ * for a reveal Forge pre-renders each option with `CardView.toString()` —
+ * `zoneText + name + " (" + id + ")"` (`CardView.java:1214-1232`) — so the
+ * caller's label is `Mox Opal (130)`, and an art key built from THAT matches no
+ * row in the table. The art is looked up on `name`/`setCode`, which come from
+ * the card's own facts and nothing else; `label`, when a caller has one, only
+ * replaces the words on the tile.
  */
-export function promptCardTile(forgeId: number, name: string, setCode = ''): DraftCard {
+export function promptCardTile(forgeId: number, name: string, setCode = '', label?: string): DraftCard {
   const card: DraftCard = {
     cardId: `w${forgeId}`,
-    name,
+    // What the tile says. Forge's own wording wins where a caller has it — it
+    // may carry a zone or a qualifier the lookup cannot know — but it is never
+    // the key the art is resolved by.
+    name: label ?? name,
     manaCost: [],
     manaValue: 0,
     colors: [],
@@ -130,11 +142,36 @@ export function promptCardTile(forgeId: number, name: string, setCode = ''): Dra
  *
  * Every card-drawing prompt goes through this rather than reaching for the
  * name and the set code separately, so "a prompt resolves art the way the board
- * does" is one function instead of a convention. `label` overrides the name for
- * the asks where Forge pre-renders it (`getChoices`, `order`); the printing
- * still comes from the lookup, because a label is not a card name.
+ * does" is one function instead of a convention.
+ *
+ * ## A tile's name is not its label (wave 25 §F)
+ *
+ * `label` is Forge's pre-rendered wording for the asks that have one —
+ * `getChoices` (so: every `reveal`, `AbstractGuiGame.java:786`) and `order`,
+ * both of which reach `PlayBridge`'s `choices()` with a null display function
+ * and therefore label each option `String.valueOf(item)`, i.e.
+ * `CardView.toString()`. This function used to hand that string on as the card's
+ * NAME, so the art key became `Mox Opal (130)` and every revealed card drew the
+ * text tile with no art at all — the operator's report, and the `(130)` in the
+ * name was its fingerprint.
+ *
+ * So: **identity comes from the lookup, the label is display only.** The art key
+ * is the card's own `Name`/`SetCode`, exactly as `adapter.ts` builds it for the
+ * board, and it is the same whether a caller passed a label or not.
+ *
+ * The lookup does hold those facts for a revealed card: Forge calls
+ * `tempShowCards` → `addMayLookTemp` before revealing
+ * (`PlayerControllerHuman.java:182-195`), so the card projects as `full` to the
+ * seat being shown it — measured against the real jar in
+ * `../live/prompts.jvm.test.ts` (§F.2), which prints what the lookup held for
+ * every id a reveal labelled.
+ *
+ * When the lookup knows nothing the label is the only name there is, so it is
+ * used for both jobs: a shortcut may remove a question, never information, and
+ * a card with no facts still says what it was called.
  */
 export function promptTileFor(lookup: PromptLookup, forgeId: number, label?: string): DraftCard {
   const facts = lookup.card(forgeId);
-  return promptCardTile(forgeId, label ?? facts?.name ?? `card #${forgeId}`, facts?.setCode ?? '');
+  const identity = facts?.name ?? label ?? `card #${forgeId}`;
+  return promptCardTile(forgeId, identity, facts?.setCode ?? '', label);
 }

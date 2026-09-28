@@ -139,3 +139,16 @@ restored: identical
 Test Files  9 passed | 1 skipped (10)
 Tests  168 passed | 1 skipped (169)
 exit 0
+
+## wave 25 §F — a tile's name is not its label  (PromptShell.tsx)
+# promptTileFor + promptCardTile: back to ONE string for both jobs, exactly as
+# c698ae5 had it —
+#   promptCardTile(forgeId, name, setCode = '')            [no `label`]
+#   promptTileFor: promptCardTile(forgeId, label ?? facts?.name ?? …, …)
+# i.e. Forge's pre-rendered `CardView.toString()` label ("Mox Opal (130)") used
+# as the art key. Both broken call sites fail, one test each.
+exit 1
+Tests  2 failed | 171 passed | 1 skipped (174)
+× a reveal Forge pre-rendered with CardView.toString() > resolves art from the card's own facts, never from the label
+× order over cards Forge pre-rendered > resolves each item's art from the card's own facts, never from the label
+restored: Tests  173 passed | 1 skipped (174), exit 0

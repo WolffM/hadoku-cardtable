@@ -9,7 +9,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, within } from '@testing-library/react';
 
 import { askFor } from './fixtures.ts';
-import { expectWireReply, mountPrompt } from './testing.ts';
+import { expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
+import { cardImageUrl } from '../../draft/cardImage.ts';
+import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 
 afterEach(cleanup);
 
@@ -91,5 +93,56 @@ describe('order', () => {
     fireEvent.click(getByRole('button', { name: 'Place all, in this order' }));
     fireEvent.click(submit());
     expect(answers[0]!.rememberDecision).toBe(false);
+  });
+});
+
+/*
+ * Wave 25 §F — an `order` over CARDS, labelled the way Forge labels it.
+ *
+ * `PlayBridge.order` passes a null display function for BOTH lists
+ * (`PlayBridge.java:977-978`), so every option's label is `CardView.toString()`
+ * — `zoneText + name + " (" + id + ")"`. The committed `order.json` fixture is
+ * an order over ABILITIES, which draw as words and so never exercised this;
+ * Brainstorm's "Choose order of cards to put into the library" does, and that
+ * is this shape.
+ */
+describe('order over cards Forge pre-rendered', () => {
+  const labelFor = (i: number) => forgeCardLabel(POOL[i]!.name, POOL_ID_BASE + i);
+
+  const cardsAsk = () => ({
+    ...askFor('order'),
+    title: 'Choose order of cards to put into the library',
+    top: 'Closest to top',
+    sourceChoices: POOL.map((_, i) => ({
+      key: `s${i}`,
+      label: labelFor(i),
+      ref: { kind: 'card' as const, id: POOL_ID_BASE + i },
+    })),
+    destChoices: [],
+  });
+
+  it("resolves each item's art from the card's own facts, never from the label", () => {
+    const { getByTestId } = mountPrompt('order', cardsAsk(), poolLookup);
+    const items = [...getByTestId('order-source').querySelectorAll<HTMLElement>(':scope > li')];
+    expect(items).toHaveLength(POOL.length);
+    for (const [i, li] of items.entries()) {
+      const img = li.querySelector<HTMLImageElement>('img.card__art');
+      expect(img, `${POOL[i]!.name} drew its art through the label ${labelFor(i)}`).not.toBeNull();
+      expect(img!.getAttribute('src')).toBe(cardImageUrl(POOL[i]!.scryfallId));
+      // Forge's own wording is still what the tile says.
+      expect(li.querySelector('.card__name')!.textContent).toBe(labelFor(i));
+      // And the label is a key the art-id table does not hold.
+      expect(scryfallIdFor(KNOWN_ART_IDS, labelFor(i), POOL[i]!.setCode)).toBeUndefined();
+    }
+  });
+
+  it('places the cards and answers by key, each tile stamped with its forge id', () => {
+    const { getByTestId, getByRole, submit, answers } = mountPrompt('order', cardsAsk(), poolLookup);
+    fireEvent.click(getByRole('button', { name: 'Place all, in this order' }));
+    const placed = [...getByTestId('order-dest').querySelectorAll<HTMLElement>(':scope > li')];
+    expect(placed.map((li) => li.dataset.cardId)).toEqual(POOL.map((_, i) => String(POOL_ID_BASE + i)));
+    fireEvent.click(submit());
+    expect(answers).toEqual([{ ordered: ['s0', 's1', 's2'], rememberDecision: false }]);
+    expectWireReply('order', answers[0]);
   });
 });

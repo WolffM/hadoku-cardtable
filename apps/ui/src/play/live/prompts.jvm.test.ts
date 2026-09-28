@@ -13,6 +13,13 @@
  * `showConfirmDialog` is Forge's server-side probe, answered AGAINST its
  * default.
  *
+ * A third match, added by wave 25 §F, is the one ask the other two never
+ * produced: a real `reveal`. Merfolk Branchwalker explores on entry, which
+ * shows both seats the top card of a library, and that is the path where Forge
+ * labels an option with `CardView.toString()` rather than a display function.
+ * It is how §F.2's premise — "the card's own facts are already in the browser
+ * when the ask renders" — is measured rather than read off the source.
+ *
  * Temple of Mystery used to scry through `manipulateCardList` — until Wave 19
  * lane C closed the Preordain finding at the ORIGIN: each run directory writes
  * Forge's preferences with `UI_SELECT_FROM_CARD_DISPLAYS=false`, so a scry now
@@ -53,10 +60,15 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
+import type { ChoiceOption } from '@hadoku/forge-wire';
+
 import { leaked, rawStatesOf, secretsFor } from '../../../../server/src/play/fixtures/transcript.ts';
+import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
+import { lookupFromState, type PromptCardFacts } from '../prompts/lookup.ts';
+import { promptTileFor } from '../prompts/PromptShell.tsx';
 import { createDriver, drive, type Plan } from './game-driver.ts';
 import { forgeAvailability, liveJvmCount, startLiveMatch, waitUntil, type LiveHarness } from './jvm-harness.ts';
-import { startMatch, type LiveMatch, type MatchTransport } from './match.ts';
+import { startMatch, type LiveAsk, type LiveMatch, type MatchTransport } from './match.ts';
 
 const available = forgeAvailability();
 const title = available.ok
@@ -157,6 +169,137 @@ function expectNoLeak(h: LiveHarness, mustHaveSecrets = true): void {
   }
   if (mustHaveSecrets) expect(total, 'the leak check had secrets to look for').toBeGreaterThan(0);
   else console.log(`[prompts.jvm] non-vacuity not required here; the two seats held ${total} secrets between them`);
+}
+
+/*
+ * Wave 25 §F.2 — the runtime premise behind "a tile's name is not its label".
+ *
+ * `getChoices` and `order` are the two asks whose options Forge pre-renders,
+ * and for a reveal it has no display function at all, so each label is
+ * `CardView.toString()` — `zoneText + name + " (" + id + ")"`
+ * (`CardView.java:1214-1232`, via `AbstractGuiGame.reveal` →
+ * `getChoices(message, -1, -1, items)` and `PlayBridge.java:947-964`'s null
+ * `display`). A tile whose ART is looked up on that string can never resolve.
+ *
+ * The fix looks the art up on the card's OWN facts instead, which only works if
+ * the client actually HOLDS them when the prompt renders. Forge calls
+ * `tempShowCards` → `addMayLookTemp` before revealing
+ * (`PlayerControllerHuman.java:182-195`), so a revealed library card should
+ * project as `full`. This measures it rather than trusting it: while each such
+ * ask sits OPEN in the browser's own queue (`live.asks` — the very list the
+ * components render from), what did `lookupFromState(live.state).card(id)`
+ * hold for every card the ask labelled?
+ */
+interface LabelProbe {
+  seat: number;
+  method: string;
+  label: string;
+  id: number;
+  facts: PromptCardFacts | undefined;
+}
+
+/** The options of the two asks Forge pre-renders, or null for any other ask. */
+function preRenderedOptions(ask: LiveAsk): readonly ChoiceOption[] | null {
+  if (ask.method === 'getChoices') return ask.choices;
+  if (ask.method === 'order') return [...ask.sourceChoices, ...ask.destChoices];
+  return null;
+}
+
+/** Forge's own `(id)` suffix, the shape `CardView.toString()` ends in. */
+const FORGE_ID_SUFFIX = /\(\d+\)$/;
+
+interface LabelProbeRun {
+  probes: LabelProbe[];
+  /** Every distinct name a card TILE showed, in either seat, over the whole run. */
+  tileNames: Set<string>;
+  stop(): void;
+}
+
+/**
+ * Sample the lookup for every card-bearing option of every `getChoices`/`order`
+ * ask, at the moment the seat's own queue first holds it — and, on every tick,
+ * collect the names the rendered tiles are showing.
+ *
+ * The tile names accumulate rather than being read once, because a React render
+ * lands a tick after the fold and a single read would race it. The set is the
+ * operator's own complaint, mechanised: no tile in a real match may be named
+ * `<something> (130)`.
+ */
+function probeLabels(h: LiveHarness, roots: readonly HTMLElement[]): LabelProbeRun {
+  const probes: LabelProbe[] = [];
+  const tileNames = new Set<string>();
+  const seen = new Set<string>();
+  const sample = () => {
+    for (const s of h.seats) {
+      const lookup = lookupFromState(s.live.state);
+      for (const ask of s.live.asks) {
+        if (seen.has(ask.callId)) continue;
+        const options = preRenderedOptions(ask);
+        if (options === null) continue;
+        seen.add(ask.callId);
+        for (const o of options) {
+          if (o.ref === null || o.ref.kind !== 'card') continue;
+          probes.push({ seat: s.seat, method: ask.method, label: o.label, id: o.ref.id, facts: lookup.card(o.ref.id) });
+        }
+      }
+    }
+    for (const root of roots) {
+      for (const el of root.querySelectorAll('.card__name')) {
+        const text = el.textContent;
+        if (text !== null && text !== '') tileNames.add(text);
+      }
+    }
+  };
+  const timer = setInterval(sample, 20);
+  return {
+    probes,
+    tileNames,
+    stop: () => {
+      sample();
+      clearInterval(timer);
+    },
+  };
+}
+
+/** What the probe found, printed, and the two things §F has to settle. */
+function reportLabelProbe(run: LabelProbeRun): void {
+  const { probes, tileNames } = run;
+  console.log(`[prompts.jvm] §F.2 pre-rendered card options sampled: ${probes.length}`);
+  for (const p of probes.slice(0, 12)) {
+    console.log(
+      `[prompts.jvm] §F.2 ${p.method} seat ${p.seat} id ${p.id}: label ${JSON.stringify(p.label)} ` +
+        `-> lookup ${p.facts === undefined ? 'MISS' : JSON.stringify({ name: p.facts.name, setCode: p.facts.setCode })}`,
+    );
+  }
+  const suffixed = probes.filter((p) => FORGE_ID_SUFFIX.test(p.label));
+  const misses = probes.filter((p) => p.facts === undefined);
+  console.log(
+    `[prompts.jvm] §F.2 labels carrying Forge's "(id)" suffix: ${suffixed.length}/${probes.length}; ` +
+      `lookup misses: ${misses.length}/${probes.length}`,
+  );
+  if (probes.length > 0) {
+    // The premise: the card's own facts ARE in the browser when the ask
+    // renders, so separating identity from label is enough on its own.
+    expect(misses, 'every card a pre-rendered ask labelled was in the folded state').toEqual([]);
+    for (const p of probes) {
+      expect(p.facts?.name, `id ${p.id} has a real name, not the label`).not.toBe(p.label);
+      expect(p.facts?.name.length, `id ${p.id} has a non-empty name`).toBeGreaterThan(0);
+    }
+  }
+  /*
+   * What the tiles were CALLED, for the record.
+   *
+   * A forge id showing up here is not a failure: §F keeps Forge's own wording on
+   * the tile on purpose — it may carry a zone the lookup cannot know, and a fix
+   * may remove a question but never information. What §F changed is the art
+   * KEY, which is no longer this string. So this is printed, not asserted; the
+   * scenario below asserts that each reveal's label did reach the screen.
+   */
+  const named = [...tileNames].filter((n) => FORGE_ID_SUFFIX.test(n));
+  console.log(
+    `[prompts.jvm] §F ${tileNames.size} distinct tile names rendered, ${named.length} carrying Forge's own id: ` +
+      `${JSON.stringify(named.slice(0, 6))}`,
+  );
 }
 
 function expectCleanBridge(h: LiveHarness): void {
@@ -292,14 +435,107 @@ describe.skipIf(!available.ok)(title, () => {
       };
       const want = ['confirm', 'order', 'tempShowZones', 'getChoices', 'showInputDialog', 'chooseSingleEntityForEffect'];
       const driver = createDriver(h, plan);
-      await drive(driver, () => want.every((m) => answered(h, m).length > 0), 180_000, () => status(h));
+      const probe = probeLabels(h, driver.roots);
+      try {
+        await drive(driver, () => want.every((m) => answered(h, m).length > 0), 180_000, () => status(h));
+      } finally {
+        probe.stop();
+      }
 
       summary('choices', h);
+      reportLabelProbe(probe);
       console.log(driver.log.filter((l) => / answers (chooseSingleEntityForEffect|order|confirm|getChoices|showInputDialog|tempShowZones) /.test(l)).join('\n'));
       for (const m of want) expect(answered(h, m).length, m).toBeGreaterThan(0);
       // Lane C's origin fix, held: a scry must not arrive as the library-sized
       // list any more, so nothing of that shape was asked on the way here.
       expect(answered(h, 'manipulateCardList').length).toBe(0);
+      expectCleanBridge(h);
+      await expectNoDesync(h);
+      expectNoLeak(h, false);
+      h.stop();
+    },
+    240_000,
+  );
+
+  /*
+   * Wave 25 §F — a real reveal, which is the ask the operator was looking at.
+   *
+   * Merfolk Branchwalker explores when it enters: `ExploreEffect.java:78` calls
+   * `GameAction.reveal(top, pl, false, …)` with `dontRevealToOwner` false, so
+   * BOTH seats are shown the top card of the controller's library. That lands
+   * as `PlayerControllerHuman.reveal` → `tempShowCards` →
+   * `AbstractGuiGame.reveal` → `getChoices(message, -1, -1, items)` with no
+   * display function, which is the one path in Forge that labels a card option
+   * `CardView.toString()`. Nothing else in this file produced such an ask: the
+   * `getChoices` of the `choices` scenario is Blaze's X (numbers, no refs) and
+   * its `order` arrived with both lists empty.
+   *
+   * So this is the scenario that answers §F.2 from a real match, and it holds
+   * two things: the lookup had the card's own `Name`/`SetCode` while the ask was
+   * open, and no tile anywhere was named with a forge id.
+   */
+  it(
+    'a reveal: the label carries Forge\'s "(id)", and the card\'s own facts are in the browser anyway',
+    async () => {
+      const h = await startLiveMatch({
+        seed: 7,
+        seats: [
+          { name: 'A', ai: false, deck: deck('Explore A', ['32 Forest', '28 Merfolk Branchwalker']) },
+          { name: 'B', ai: false, deck: deck('Explore B', ['32 Forest', '28 Merfolk Branchwalker']) },
+        ],
+      });
+      running.push(h);
+      const plan: Plan = { land: /Forest/, casts: [{ name: 'Merfolk Branchwalker', mana: 2 }] };
+      const driver = createDriver(h, plan);
+      const probe = probeLabels(h, driver.roots);
+      try {
+        await drive(
+          driver,
+          () => probe.probes.some((x) => x.method === 'getChoices'),
+          150_000,
+          () => status(h),
+        );
+      } finally {
+        probe.stop();
+      }
+
+      summary('explore', h);
+      reportLabelProbe(probe);
+
+      const reveals = probe.probes.filter((x) => x.method === 'getChoices');
+      expect(reveals.length, 'Forge revealed a library card through getChoices').toBeGreaterThan(0);
+      // The bug's fingerprint, measured rather than quoted: Forge really does
+      // label a revealed card `<name> (<id>)`.
+      expect(
+        reveals.filter((x) => FORGE_ID_SUFFIX.test(x.label)).length,
+        'a reveal label carried the forge id',
+      ).toBeGreaterThan(0);
+      for (const r of reveals) {
+        // The label is not a usable art key — that is the whole bug — and the
+        // name the lookup holds is the one the board would key on.
+        expect(scryfallIdFor(KNOWN_ART_IDS, r.label, r.facts?.setCode ?? ''), r.label).toBeUndefined();
+        expect(r.label, `${r.facts?.name} (${r.id})`).toContain(r.facts?.name ?? '\u0000');
+        // Forge's own wording reached the screen: nothing was removed to fix it.
+        expect([...probe.tileNames], `the tile said ${r.label}`).toContain(r.label);
+        /*
+         * And where the art-id table knows the revealed printing, the tile §F
+         * builds carries that art id — from the card's facts, with the label
+         * still on show. Conditional because which card a library reveals is up
+         * to the shuffle: measured runs have revealed `Forest (89)` (in the
+         * table, `Forest|TRK`) and `Merfolk Branchwalker (2)` (not in it, and
+         * the manifest is empty — the tracker's own watch).
+         */
+        const byFacts = scryfallIdFor(KNOWN_ART_IDS, r.facts?.name ?? '', r.facts?.setCode ?? '');
+        console.log(
+          `[prompts.jvm] §F reveal ${JSON.stringify(r.label)} -> art id ${String(byFacts)} ` +
+            `(from ${JSON.stringify(r.facts?.name)}|${r.facts?.setCode ?? ''})`,
+        );
+        if (byFacts !== undefined) {
+          const tile = promptTileFor(lookupFromState(h.seats[r.seat]!.live.state), r.id, r.label);
+          expect(tile.scryfallId, 'the tile resolved art through the facts, not the label').toBe(byFacts);
+          expect(tile.name, "and still says Forge's words").toBe(r.label);
+        }
+      }
       expectCleanBridge(h);
       await expectNoDesync(h);
       expectNoLeak(h, false);

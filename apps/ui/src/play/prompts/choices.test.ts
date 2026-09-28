@@ -18,41 +18,13 @@ import { cleanup, fireEvent } from '@testing-library/react';
 
 import { askFor, asksFor } from './fixtures.ts';
 import { EMPTY_LOOKUP, type PromptLookup } from './lookup.ts';
-import { expectWireReply, mountPrompt } from './testing.ts';
+import { expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
-import poolData from '../../draft/pool.json' with { type: 'json' };
 
 afterEach(cleanup);
 
 const labels = (els: HTMLElement[]) => els.map((e) => e.closest('li')!.textContent);
-
-/** Three real pool cards — the art-id table knows every one of them. */
-const POOL = (() => {
-  const seen = new Set<string>();
-  const unique: { name: string; setCode: string; scryfallId: string }[] = [];
-  for (const c of (poolData as { cards: { name: string; setCode: string; scryfallId?: string }[] }).cards) {
-    // First occurrence per name: that is the row the art-id index keeps, so
-    // the tile's art is this printing's art, not a duplicate's.
-    if (c.scryfallId === undefined || c.scryfallId === '' || seen.has(c.name)) continue;
-    seen.add(c.name);
-    unique.push({ name: c.name, setCode: c.setCode, scryfallId: c.scryfallId });
-    if (unique.length === 3) break;
-  }
-  return unique;
-})();
-const POOL_ID_BASE = 901;
-
-/** A lookup that names the pool cards, so the tiles resolve real art. */
-const poolLookup: PromptLookup = {
-  ...EMPTY_LOOKUP,
-  card: (id) => {
-    const hit = POOL[id - POOL_ID_BASE];
-    return hit === undefined
-      ? undefined
-      : { name: hit.name, setCode: hit.setCode, lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false };
-  },
-};
 
 describe('getChoices', () => {
   it('chooses one colour and answers its key', () => {
@@ -346,6 +318,72 @@ describe('a library search', () => {
     ]);
     expect(tiles.every((li) => li.dataset.choosable === 'false')).toBe(true);
     expect(container.querySelectorAll('input')).toHaveLength(0);
+  });
+});
+
+/*
+ * Wave 25 §F — a tile's name is not its label.
+ *
+ * `reveal` is `getChoices(message, -1, -1, items)` with no display function
+ * (`AbstractGuiGame.java:786`), and `PlayBridge` then labels each option
+ * `String.valueOf(item)` — `CardView.toString()`, which for a card in a library
+ * is `Mox Opal (130)` (`CardView.java:1214-1232`). `promptTileFor` used to pass
+ * that string on as the card's NAME, so the art key was the label, the art key
+ * matched nothing, and every revealed card drew a text tile. The `(130)` the
+ * operator saw in the name was the same bug.
+ *
+ * The lookup HAS the card's own `Name` and `SetCode` here: Forge calls
+ * `tempShowCards` → `addMayLookTemp` before revealing
+ * (`PlayerControllerHuman.java:182-195`). That premise is measured against the
+ * real jar in `../live/prompts.jvm.test.ts` (§F.2); these hold the component.
+ */
+describe("a reveal Forge pre-rendered with CardView.toString()", () => {
+  const labelFor = (i: number) => forgeCardLabel(POOL[i]!.name, POOL_ID_BASE + i);
+
+  /** A display-only reveal (`max < 0`) of the three pool cards, labelled as Forge labels them. */
+  const revealAsk = () => ({
+    ...askFor('getChoices'),
+    message: 'Revealed for explore - Library',
+    min: -1,
+    max: -1,
+    choices: POOL.map((_, i) => ({
+      key: `c${i}`,
+      label: labelFor(i),
+      ref: { kind: 'card' as const, id: POOL_ID_BASE + i },
+    })),
+    selected: [] as string[],
+  });
+
+  it("resolves art from the card's own facts, never from the label", () => {
+    const { getByTestId } = mountPrompt('getChoices', revealAsk(), poolLookup);
+    const tiles = [...getByTestId('prompt-cards').querySelectorAll<HTMLElement>(':scope > li')];
+    expect(tiles).toHaveLength(POOL.length);
+    for (const [i, li] of tiles.entries()) {
+      const img = li.querySelector<HTMLImageElement>('img.card__art');
+      expect(img, `${POOL[i]!.name} drew its art through the label ${labelFor(i)}`).not.toBeNull();
+      // The board's own URL for this printing — one chain, one host decision.
+      expect(img!.getAttribute('src')).toBe(cardImageUrl(POOL[i]!.scryfallId));
+      // And the label really is a key the table does not have: this test is
+      // only meaningful because resolving on it cannot work.
+      expect(scryfallIdFor(KNOWN_ART_IDS, labelFor(i), POOL[i]!.setCode)).toBeUndefined();
+    }
+  });
+
+  it("still says Forge's own wording on the tile — a fix may not remove information", () => {
+    const { getByTestId } = mountPrompt('getChoices', revealAsk(), poolLookup);
+    const names = [...getByTestId('prompt-cards').querySelectorAll('.card__name')].map((e) => e.textContent);
+    expect(names).toEqual(POOL.map((_, i) => labelFor(i)));
+  });
+
+  it('a card the lookup knows nothing about still shows its label, and draws no art', () => {
+    const ask = {
+      ...revealAsk(),
+      choices: [{ key: 'c0', label: 'Mox Opal (130)', ref: { kind: 'card' as const, id: 4242 } }],
+    };
+    const { getByTestId } = mountPrompt('getChoices', ask, EMPTY_LOOKUP);
+    const grid = getByTestId('prompt-cards');
+    expect(grid.querySelector('.card__name')!.textContent).toBe('Mox Opal (130)');
+    expect(grid.querySelector('img.card__art')).toBeNull();
   });
 });
 
