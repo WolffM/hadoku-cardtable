@@ -59,17 +59,48 @@
  * finds the board, the cards and lane A's overlay root under it. So nothing
  * here knows what a drop means, and nothing there knows React.
  *
- * ## The says, and the full-control toggle
+ * ## The corner stops talking, and the log moves (wave 25 §C)
+ *
+ * The operator, 2026-09-27: *"i mostly hate all the text in the bottom right
+ * it's totally useless"*, and then *"the corner box can still have the
+ * full-control toggle and some of the user control like the buttons you had
+ * before. but i hate the log, the log must go somewhere else."* So the cluster
+ * keeps every CONTROL and has no text row at all: Forge's prompt line and the
+ * server's says both moved into `live-logbook`, an overlay on the left edge
+ * that the phase rail vacated, **collapsed by default** behind the cluster's
+ * own `Log` toggle.
+ *
+ * The prompt line kept its test id (`live-says`). It is the only place Forge's
+ * own message text is readable, and `e2e/play.spec.ts` — another lane's file —
+ * reads it by that id to see what the game is waiting on. The ELEMENT moved;
+ * the name it is found by did not.
+ *
+ * ## The says
  *
  * Lane C's server says a thing to the seat when it acts for it —
  * "auto-passed Upkeep step", "paid U — Volcanic Island" — because an
  * auto-pass nobody can see is indistinguishable from a board that froze
  * (§C.2), and a cast that shows no payment looks free (#8). Those arrive as
- * Tier-A `message` notifies; `match.says` holds the last few and the control
- * cluster draws the newest two, always in a slot of its own so the table never
- * moves
- * ("nothing comes and goes"). A say is a state, not prose — it is rendered
+ * Tier-A `message` notifies; `match.says` holds the last few (`SAYS_KEPT`) and
+ * the logbook draws all of them — the cluster's fixed two-line slot was the
+ * only reason it ever drew fewer. A say is a state, not prose — it is rendered
  * exactly as sent, braces said in words like every other rules text.
+ *
+ * ## A payment is a question, so it is drawn as one (wave 25 §C.2)
+ *
+ * The operator, on a Mana Leak: *"if an effect happens that is necessary, it
+ * should popout into its own popover modal on top of the game not in some
+ * shitty text box."* A mana payment is not one of Forge's `ask` methods — it is
+ * a STATE of the live match, `showPromptMessage` plus `updateButtons`, which is
+ * exactly why its text used to land in the corner with the rest of the prose
+ * and its answers were the cluster's own two buttons. `match.ts`'s
+ * `payingMana` already names that state (four facts, all cited there), so this
+ * component draws it in the prompt sheet with Forge's own message and Forge's
+ * own two labels. No new words, and nothing in `../prompts/` — there is no ask
+ * to have a prompt component for.
+ *
+ * The cluster's OK and Cancel stay live through a payment, because they are the
+ * same two buttons: `pressButton` is the one sender either way.
  *
  * The toggle beside the buttons is §C.4's escape hatch: full control OFF is
  * the default (the shortcuts run), ON asks every question and stops at every
@@ -91,9 +122,10 @@
  * every frame with the same children, and its box is still the same box at a
  * given window size — *"a fixed home, not a bar on demand"*. That is why its
  * width and height are fixed in `live.css` and every slot inside it is fixed
- * too: a longer say scrolls inside its own slot and moves nothing. A cluster
- * that appeared when Forge asked would fail that spec, and it would be the
- * *"appearing and disappearing"* the operator called ugly in the first place.
+ * too. A cluster that appeared when Forge asked would fail that spec, and it
+ * would be the *"appearing and disappearing"* the operator called ugly in the
+ * first place. Wave 25 took the two TEXT rows out of it, so the box is shorter
+ * and holds nothing that can grow: every child is now a button.
  *
  * A button is disabled unless Forge enabled it AND no question is open;
  * `pressButton` refuses the same cases, so a disabled button that is somehow
@@ -125,10 +157,11 @@
  * ## The phase reads down the side
  *
  * §C.2: which phase, which step, whose turn, at a glance. `PhaseRail` draws
- * Forge's thirteen `PhaseType` steps as a column at the left edge, grouped the
- * way a turn is, with the step the game is on named and the rest as marks.
- * Presentation only — every value comes off `match.view`, which already
- * carried all three, and nothing new goes on the wire.
+ * Forge's thirteen `PhaseType` steps as a column at the RIGHT edge (wave 25 §C.4
+ * — the operator put it there, and the left edge it used to hold is the
+ * logbook's now), grouped the way a turn is, with the step the game is on named
+ * and the rest as marks. Presentation only — every value comes off `match.view`,
+ * which already carried all three, and nothing new goes on the wire.
  *
  * The current step is marked three ways, because colour may not be the only
  * signal: it is the only one that says its name, its mark is the long one, and
@@ -179,7 +212,9 @@ import {
   currentAsk,
   declaringAttackers,
   noteAutoAnswered,
+  payingMana,
   pressButton,
+  SAYS_KEPT,
   selectCard,
   selectPlayer,
   setFullControl,
@@ -339,8 +374,15 @@ function abilityLabelsOf(ask: LiveAsk): Record<number, string> {
   return out;
 }
 
-/** How many of the held says the control cluster draws. The slot is always this tall. */
-export const SAYS_SHOWN = 2;
+/**
+ * How many of the held says the logbook draws: all of them.
+ *
+ * It was 2 while the log lived in the control cluster, because the cluster's box
+ * is fixed and its slot was two lines tall. The logbook has the height, so the
+ * cap is the server's own `SAYS_KEPT` and nothing is dropped between what the
+ * match holds and what the panel shows.
+ */
+export const SAYS_SHOWN = SAYS_KEPT;
 
 /* ── The phase, down the side (§C.2) ─────────────────────────────────── */
 
@@ -474,6 +516,70 @@ function ConcedeAsk({ onConcede, onCancel }: { onConcede: () => void; onCancel: 
   );
 }
 
+/* ── A payment is a question (wave 25 §C.2) ──────────────────────────── */
+
+/**
+ * The payment window: Forge's own message, and Forge's own two labels.
+ *
+ * It is drawn in the same KIND of host the asks are drawn in — `.live__prompt`,
+ * so it inherits the placement the operator asked for: centred, above the
+ * cluster, clear of the canvas.
+ *
+ * Its test id is its OWN (`live-payment-host`) and deliberately not
+ * `live-prompt`, because `live-prompt` means *"one of Forge's fifteen asks is
+ * open"* to three e2e readers that would all get this wrong: `answerPrompt`
+ * (`e2e/play/prompts.ts`) switches on `data-method` and throws on a host that
+ * has none, `e2e/arrow.spec.ts` looks for that host's `prompt-submit`, and
+ * `e2e/table-fit.spec.ts`'s stuck-detector treats an open prompt as "a person is
+ * being asked, leave it alone" — which is the opposite of what a payment needs.
+ * `table-fit` measures this host under its own id instead.
+ *
+ * The buttons send through `pressButton`, the one sender — the same one the
+ * cluster's OK and Cancel use, and it refuses a bar Forge has disabled whichever
+ * button was pressed. Button one is the default only while Forge has ENABLED it:
+ * `InputPayMana` enables its `Auto` when it has sources to pay with
+ * (`InputPayMana.java:405`), and a cost that cannot be auto-paid has no default
+ * answer at all — the player taps sources on the board instead.
+ *
+ * No title. Forge's message is the question, and a heading here would be this
+ * lane inventing a word for a window whose whole point is that it says what
+ * Forge said.
+ */
+function PaymentWindow({ match }: { match: LiveMatch }) {
+  const messageId = useId();
+  const bar = match.buttons;
+  return (
+    <div className="live__prompt" data-testid="live-payment-host">
+      <section className="confirm live__payment" data-testid="live-payment" role="dialog" aria-labelledby={messageId}>
+        <p className="confirm__message" id={messageId}>
+          {plainRulesText(match.prompt ?? '')}
+        </p>
+        <div className="confirm__actions">
+          <button
+            type="button"
+            className="button confirm__button"
+            data-testid="live-payment-ok"
+            data-default={bar !== null && bar.enable1 ? '' : undefined}
+            disabled={bar === null || !bar.enable1}
+            onClick={() => pressButton(match, 'ok')}
+          >
+            {bar === null || bar.label1 === '' ? 'OK' : bar.label1}
+          </button>
+          <button
+            type="button"
+            className="button confirm__button"
+            data-testid="live-payment-cancel"
+            disabled={bar === null || !bar.enable2}
+            onClick={() => pressButton(match, 'cancel')}
+          >
+            {bar === null || bar.label2 === '' ? 'Cancel' : bar.label2}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export interface LiveBoardProps {
   match: LiveMatch;
   /**
@@ -549,6 +655,21 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
    * and a resync must not answer it.
    */
   const [conceding, setConceding] = useState(false);
+  /*
+   * The logbook is open. Local state and COLLAPSED by default (§C.3): the
+   * operator's complaint was that this text was on screen at all times, and the
+   * cluster's `Log` toggle is how it comes back. It is a preference of the person
+   * in the seat, like full control, so nothing on the wire touches it.
+   */
+  const [logOpen, setLogOpen] = useState(false);
+  const logbookId = useId();
+  /*
+   * Forge is parked on a mana payment (§C.2). `payingMana` is the whole
+   * predicate and it already refuses while any ask is queued, so the two can
+   * never be drawn at once; the `ask === null` here says that in one place
+   * rather than relying on it.
+   */
+  const paying = ask === null && payingMana(match);
 
   /*
    * The pointer layer is lane B's (`./gestures/`), and the element is the whole
@@ -589,8 +710,42 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
         </p>
       )}
       {match.view !== null && <Board view={match.view} interaction={interaction} />}
-      {/* Out of flow, over the board's left edge: it moves no canvas box. */}
+      {/* Out of flow, over the board's right edge: it moves no canvas box. */}
       {match.view !== null && <PhaseRail view={match.view} />}
+      {/*
+       * The logbook (§C.3): Forge's current message and the server's says, over
+       * the board's LEFT edge — the side the phase rail vacated — and hidden
+       * until the cluster's `Log` toggle opens it.
+       *
+       * It is always in the DOM and only `hidden`, which is what makes it a
+       * disclosure rather than a thing that comes and goes: the toggle's
+       * `aria-controls` points at a node that exists, and a spec reading Forge's
+       * message off `live-says` finds it whether the panel is open or not.
+       *
+       * `pointer-events: none` in `live.css`, for the same reason the phase rail
+       * has it: an overlay over the canvas must never be the thing under the
+       * cursor, or it would shadow the drag gesture on whatever it covers.
+       */}
+      <div className="live__logbook" data-testid="live-logbook" id={logbookId} hidden={!logOpen}>
+        {/*
+         * What Forge is waiting on, exactly as Forge said it. This is the line
+         * that used to be the cluster's top row; it kept its test id because it
+         * is the only place Forge's own message is readable and another lane's
+         * spec finds it by that name.
+         */}
+        <p className="live__says" data-testid="live-says">
+          {plainRulesText(match.prompt ?? '')}
+        </p>
+        {/*
+         * The says, newest at the bottom, all of the ones the match holds. Brace
+         * notation is said in words, as every other rules text is.
+         */}
+        <ul className="live__log" data-testid="live-log" aria-label="Said">
+          {match.says.slice(-SAYS_SHOWN).map((line, i) => (
+            <li key={i}>{plainRulesText(line)}</li>
+          ))}
+        </ul>
+      </div>
       {/*
        * The control cluster (§C.1). One container, every frame, the same
        * children and the same box — `e2e/table-fit.spec.ts` measures all four
@@ -616,19 +771,6 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
         >
           Leave
         </button>
-        <p className="live__says" data-testid="live-says">
-          {match.prompt ?? ''}
-        </p>
-        {/*
-         * The says, newest at the bottom. Always rendered, always two lines
-         * tall: an empty log is an empty slot, never a cluster that changed
-         * shape. Brace notation is said in words, as every other rules text is.
-         */}
-        <ul className="live__log" data-testid="live-log" aria-label="Said">
-          {match.says.slice(-SAYS_SHOWN).map((line, i) => (
-            <li key={i}>{plainRulesText(line)}</li>
-          ))}
-        </ul>
         <button
           type="button"
           className="live__toggle"
@@ -670,6 +812,22 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
         >
           Concede
         </button>
+        {/*
+         * The log's toggle (§C.3). A disclosure, not an answer: `aria-expanded`
+         * and `aria-controls` name the panel it opens, and it is pressable at any
+         * time for the same reason Full control is — it is a preference about
+         * what is on screen, not a reply to Forge.
+         */}
+        <button
+          type="button"
+          className="live__logbook-toggle"
+          data-testid="live-log-toggle"
+          aria-expanded={logOpen}
+          aria-controls={logbookId}
+          onClick={() => setLogOpen(!logOpen)}
+        >
+          Log
+        </button>
       </div>
       {ask !== null && (
         <div className="live__prompt" data-testid="live-prompt" data-call-id={ask.callId} data-method={ask.method}>
@@ -685,6 +843,7 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
           </PromptBoundary>
         </div>
       )}
+      {paying && <PaymentWindow match={match} />}
       {conceding && (
         <ConcedeAsk
           onConcede={() => {

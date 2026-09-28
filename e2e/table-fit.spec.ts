@@ -28,9 +28,10 @@
  *     watchparty's room frame scrolls on its own and would otherwise hide a
  *     scrollbar from the page-level check;
  *   - once the board is drawn, `live-buttons` has a nonzero box that lies
- *     inside the viewport, with `live-button-ok`, `live-button-cancel` and
- *     `live-says` in it, and that box is at the SAME place and size in every
- *     frame at a given window size — a fixed home, not a bar on demand;
+ *     inside the viewport, with `live-button-ok` and `live-button-cancel` in it
+ *     and NO text row (wave 25 §C took Forge's line and the log out of the
+ *     corner), and that box is at the SAME place and size in every frame at a
+ *     given window size — a fixed home, not a bar on demand;
  *   - an open prompt lies inside the viewport and above the bar;
  *   - no battlefield or hand has to scroll internally to show its cards —
  *     the layout FITS them rather than hiding the overflow a level down.
@@ -290,7 +291,9 @@ function installSampler(): void {
           const blame = over > 0 ? `${worst} +${Math.round(over)}` : `clipped: ${anyWorst} +${Math.round(anyOver)}`;
           // And which question was open, if one was: a prompt is the usual
           // reason a fixed canvas suddenly has more in it than it can hold.
-          const asking = document.querySelector<HTMLElement>('[data-testid="live-prompt"]')?.dataset.method ?? 'none';
+          const asking =
+            document.querySelector<HTMLElement>('[data-testid="live-prompt"]')?.dataset.method ??
+            (document.querySelector('[data-testid="live-payment-host"]') === null ? 'none' : 'a payment');
           breach(
             `${el.className === '' ? el.tagName.toLowerCase() : el.className} overflows its box (${by}, ${blame}, asking ${asking})`,
           );
@@ -306,8 +309,17 @@ function installSampler(): void {
         else {
           barBox = bar.getBoundingClientRect();
           if (!inside(barBox)) breach('button bar not wholly inside the window');
-          for (const id of ['live-button-ok', 'live-button-cancel', 'live-says']) {
+          for (const id of ['live-button-ok', 'live-button-cancel']) {
             if (bar.querySelector(`[data-testid="${id}"]`) === null) breach(`button bar without ${id}`);
+          }
+          /*
+           * Wave 25 §C: *"i mostly hate all the text in the bottom right it's
+           * totally useless"*. Forge's line and the log are in `live-logbook`
+           * now, so a corner with either of them back in it is the regression —
+           * and it is asserted on every frame, like the box itself.
+           */
+          for (const id of ['live-says', 'live-log']) {
+            if (bar.querySelector(`[data-testid="${id}"]`) !== null) breach(`the corner is talking again (${id})`);
           }
           const size = `${innerWidth}x${innerHeight}`;
           const box = [barBox.top, barBox.left, barBox.width, barBox.height].map((n) => Math.round(n)).join(',');
@@ -323,18 +335,48 @@ function installSampler(): void {
             breach(`${kind} of ${count} cards scrolls inside itself`);
           }
         }
+        /*
+         * The two overlays wave 25 §C moved, measured on every frame like the
+         * cluster: the logbook must stay in the window and clear of the cluster's
+         * home, and the phase rail's current-step NAME must stay in the window —
+         * the rail moved to the right edge, and a name that still hung out to the
+         * right of it would run off the screen. That is the whole failure mode of
+         * §C.4 and this is where it would be caught.
+         */
+        const logbook = document.querySelector<HTMLElement>('[data-testid="live-logbook"]');
+        if (logbook !== null && !logbook.hidden) {
+          const r = logbook.getBoundingClientRect();
+          if (!inside(r)) breach('the logbook is not wholly inside the window');
+          if (barBox !== null && r.right > barBox.left + 0.5 && r.bottom > barBox.top + 0.5) {
+            breach('the logbook reaches the control cluster');
+          }
+        }
+        const stepName = document.querySelector('.live__step[data-current] .live__step-name');
+        if (stepName !== null && !inside(stepName.getBoundingClientRect())) {
+          breach('the current step’s name is not wholly inside the window');
+        }
         const turn = document.querySelector('[data-testid="turn"]')?.textContent ?? '';
         if (turn !== '' && !fit.turns.includes(turn)) fit.turns.push(turn);
-        const says = bar?.querySelector('[data-testid="live-says"]')?.textContent ?? '';
+        // Forge's own line, read from its new home in the logbook (wave 25 §C):
+        // the element moved out of the corner and kept the id it is found by.
+        const says = document.querySelector('[data-testid="live-logbook"] [data-testid="live-says"]')?.textContent ?? '';
         if (says !== '' && fit.says.length < 400 && !fit.says.includes(says)) fit.says.push(says);
       }
 
-      const prompt = document.querySelector('[data-testid="live-prompt"]');
-      if (prompt !== null) {
+      /*
+       * An open question, and the payment window is one (wave 25 §C.2): the
+       * payment carries its OWN id rather than `live-prompt`, because that id
+       * means "one of Forge's fifteen asks" to `e2e/play/prompts.ts` and to the
+       * stuck detector below. It gets the same two measurements — inside the
+       * window, and clear of the cluster's home.
+       */
+      for (const id of ['live-prompt', 'live-payment-host']) {
+        const prompt = document.querySelector(`[data-testid="${id}"]`);
+        if (prompt === null) continue;
         fit.promptFrames += 1;
         const r = prompt.getBoundingClientRect();
-        if (!inside(r)) breach('prompt not wholly inside the window');
-        if (barBox !== null && r.bottom > barBox.top + 0.5) breach('prompt covers the button bar');
+        if (!inside(r)) breach(`${id} not wholly inside the window`);
+        if (barBox !== null && r.bottom > barBox.top + 0.5) breach(`${id} covers the button bar`);
       }
     }
     requestAnimationFrame(tick);
@@ -457,10 +499,15 @@ async function stateOf(f: Friend): Promise<Record<string, unknown>> {
     name: f.name,
     turn: await f.page.getByTestId('turn').textContent(),
     phase: await f.page.getByTestId('phase').textContent(),
+    // Forge's own line, in the logbook now (wave 25 §C) — same id, new home.
     says: await f.page.getByTestId('live-says').textContent(),
     ok: await f.page.getByTestId('live-button-ok').isEnabled(),
     cancel: await f.page.getByTestId('live-button-cancel').isEnabled(),
     prompt: await f.page.getByTestId('live-prompt').evaluateAll((els) => els.map((e) => e.getAttribute('data-method'))),
+    // `evaluateAll`, not `textContent`: it resolves at once with nothing when the
+    // window is closed, where `textContent` would wait out its whole timeout in
+    // the one place that must not be slow — the failure message.
+    payment: await f.page.getByTestId('live-payment').evaluateAll((els) => els.map((e) => e.textContent)),
     error: await f.page.getByTestId('live-error').allTextContents(),
   };
 }
@@ -512,6 +559,23 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string, summary: R
   await expect(alice.page.getByTestId('live-status')).toHaveText('Seat 1, live.', { timeout: 30_000 });
   await expect(bob.page.getByTestId('live-status')).toHaveText('Seat 2, live.', { timeout: 30_000 });
   for (const f of friends) await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible();
+  /*
+   * Open the log on both pages (wave 25 §C.3).
+   *
+   * Forge's own message used to be a permanent row in the control cluster and
+   * this spec drove the whole game off it. The operator's complaint was exactly
+   * that it was always on screen, so it is collapsed now and the cluster's own
+   * `Log` toggle is how it comes back — a real press on a real control. Opening
+   * it here keeps the signal this spec polls (`live-says`, in its new home) and
+   * puts the panel on screen for every frame the sampler measures, which is what
+   * proves the new overlay fits too.
+   */
+  for (const f of friends) {
+    const toggle = f.page.getByTestId('live-log-toggle');
+    await expect(toggle, `${f.name}: the log is collapsed by default`).toHaveAttribute('aria-expanded', 'false');
+    await toggle.click();
+    await expect(f.page.getByTestId('live-logbook'), `${f.name}: the log opened`).toBeVisible();
+  }
   return matchId;
 }
 

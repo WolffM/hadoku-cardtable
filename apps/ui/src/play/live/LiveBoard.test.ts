@@ -466,16 +466,18 @@ describe('clicking a card on the live board', () => {
 describe('the says, the toggle, and the ability label', () => {
   const says = (text: string) => parseServerFrame({ kind: 'notify', method: 'message', message: text, title: '' });
 
-  it('draws the newest two says in a slot that is there before any arrive', async () => {
+  it('draws every say the match holds, in a panel that is there before any arrive', async () => {
     const { s, container } = await liveBoard();
     const log = container.querySelector('[data-testid="live-log"]')!;
-    expect(log.querySelectorAll('li')).toHaveLength(0); // the slot, empty, not gone
+    expect(log.querySelectorAll('li')).toHaveLength(0); // the panel, empty, not gone
 
     for (const f of [says('auto-passed Upkeep step'), says('paid U — Volcanic Island'), says('auto-passed Draw step')]) {
       s.send(f);
     }
-    await waitFor(() => expect(log.querySelectorAll('li')).toHaveLength(2));
+    // All three, not the two the cluster's fixed row had room for (§C.3).
+    await waitFor(() => expect(log.querySelectorAll('li')).toHaveLength(3));
     expect([...log.querySelectorAll('li')].map((li) => li.textContent)).toEqual([
+      'auto-passed Upkeep step',
       'paid U — Volcanic Island',
       'auto-passed Draw step',
     ]);
@@ -900,12 +902,14 @@ describe('Leave is with the match controls', () => {
     expect(container.querySelector('.board')!.contains(leave)).toBe(false);
     // And the cluster is still a sibling of the board, drawn after it: the
     // chrome is around the canvas, not in it. Wave 24 added the phase rail
-    // between them, and it is a sibling for the same reason.
+    // between them and wave 25 the logbook, and both are siblings for the same
+    // reason.
     const live = container.querySelector('.live')!;
     expect([...live.children].map((el) => el.className)).toEqual([
       'live__status',
       'board',
       'live__phases',
+      'live__logbook',
       'live__buttons',
     ]);
   });
@@ -1018,24 +1022,92 @@ function declarations(css: string, selector: string): string {
  *
  * `e2e/table-fit.spec.ts` is the other half and it is strict: *"once the board
  * is drawn, `live-buttons` has a nonzero box that lies inside the viewport,
- * with `live-button-ok`, `live-button-cancel` and `live-says` in it, and that
- * box is at the SAME place and size in every frame at a given window size — a
- * fixed home, not a bar on demand."* Every fixed track below is that sentence.
+ * with `live-button-ok` and `live-button-cancel` in it, and that box is at the
+ * SAME place and size in every frame at a given window size — a fixed home, not
+ * a bar on demand."* Every fixed track below is that sentence.
+ *
+ * Wave 25 §C: the cluster keeps every CONTROL and has no text in it at all.
  */
 describe('the controls are a cluster over the board, not a bar under it', () => {
-  it('is ONE container, and the three things the fit spec looks for are inside it', async () => {
+  it('is ONE container, and every control the operator kept is inside it', async () => {
     const { container, getByTestId } = await liveBoard();
     const cluster = getByTestId('live-buttons');
-    // The spec queries `live-buttons` and then looks INSIDE it for all three,
-    // so a second container, or one of these drawn as a sibling, is a red e2e.
+    // The spec queries `live-buttons` and then looks INSIDE it, so a second
+    // container, or one of these drawn as a sibling, is a red e2e.
     expect(container.querySelectorAll('[data-testid="live-buttons"]')).toHaveLength(1);
-    for (const id of ['live-button-ok', 'live-button-cancel', 'live-says']) {
+    for (const id of ['live-button-ok', 'live-button-cancel', 'live-leave', 'live-full-control', 'live-concede', 'live-log-toggle']) {
       expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
     }
-    // And the rest of the contents the operator accepted.
-    for (const id of ['live-leave', 'live-log', 'live-full-control', 'live-concede']) {
-      expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
+  });
+
+  /*
+   * §C.1 — *"i mostly hate all the text in the bottom right it's totally
+   * useless"*, and *"i hate the log, the log must go somewhere else."*
+   *
+   * So the claim is two-sided and both sides are asserted: no text is in the
+   * corner, and the text is somewhere — the log is MOVED, not deleted, because
+   * it is what carries `paid U — Volcanic Island` and a cast must never look
+   * free.
+   */
+  it('has no PROSE in it — Forge’s line and the log are out of the corner, and still on the page', async () => {
+    const { container, getByTestId } = await liveBoard();
+    const cluster = getByTestId('live-buttons');
+    for (const id of ['live-says', 'live-log']) {
+      expect(cluster.querySelector(`[data-testid="${id}"]`), `${id} is out of the corner`).toBeNull();
     }
+    // Every child of the cluster is a button now: nothing in it can be text that
+    // grows, which is the other half of "one box at one window size".
+    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON', 'BUTTON', 'BUTTON', 'BUTTON']);
+    // And both moved into the logbook, which is not inside the cluster.
+    const logbook = getByTestId('live-logbook');
+    expect(cluster.contains(logbook)).toBe(false);
+    for (const id of ['live-says', 'live-log']) {
+      expect(logbook.querySelector(`[data-testid="${id}"]`), `${id} has a home`).not.toBeNull();
+    }
+    expect(container.querySelectorAll('[data-testid="live-says"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="live-log"]')).toHaveLength(1);
+  });
+
+  /*
+   * The logbook is a disclosure: collapsed by default, and the toggle in the
+   * cluster is what opens it. `hidden` rather than unmounted, so `aria-controls`
+   * names a node that exists and the panel's own content is readable before it
+   * is ever opened.
+   */
+  it('the logbook is collapsed until the cluster’s toggle opens it, and never leaves the DOM', async () => {
+    const { getByTestId } = await liveBoard();
+    const toggle = getByTestId('live-log-toggle') as HTMLButtonElement;
+    const logbook = getByTestId('live-logbook');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-controls')).toBe(logbook.id);
+    expect(logbook.hasAttribute('hidden')).toBe(true);
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(logbook.hasAttribute('hidden')).toBe(false));
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(logbook.hasAttribute('hidden')).toBe(true));
+    // The collapsed rule is the one that has to be written down: `display: flex`
+    // on the panel outranks the UA's own `[hidden]`, so without it a collapsed
+    // panel would draw.
+    expect(declarations(liveCss(), '.live__logbook[hidden]')).toContain('display: none');
+  });
+
+  it('the logbook is out of flow over the board and takes no pointer events, so it moves and blocks nothing', async () => {
+    const { container, getByTestId } = await liveBoard();
+    expect(container.querySelector('.board')!.contains(getByTestId('live-logbook'))).toBe(false);
+    const decls = declarations(liveCss(), '.live__logbook');
+    expect(decls).toContain('position: absolute');
+    expect(decls).toContain('pointer-events: none');
+    // On the LEFT, which is the edge the phase rail vacated (§C.4).
+    expect(decls).toContain('left: 6px');
+    // Bounded against `.live`, so an overfull panel clips instead of growing the
+    // match's scroll box — which the fit spec reads as a breach.
+    expect(decls).toContain('max-height: calc(100% - 12px)');
+    expect(decls).toContain('overflow: hidden');
+    // Under lane A's overlay root at z 2, like the rail.
+    expect(decls).toContain('z-index: 1');
   });
 
   it('is out of the flow in the bottom-right corner, so the table has the height back', () => {
@@ -1054,13 +1126,19 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     const css = liveCss();
     const cluster = declarations(css, '.live__buttons');
     // A track sized by its content is exactly how the box changes between
-    // frames — a longer say, a longer button label from Forge.
+    // frames — a longer button label from Forge.
     expect(cluster).toContain('grid-template-columns: repeat(6, 1fr)');
-    expect(cluster).toContain('grid-template-rows: 34px 34px 30px minmax(26px, 1fr)');
-    // So what overflows scrolls or clips inside its own slot.
+    expect(cluster).toContain('grid-template-rows: 30px 26px minmax(22px, 1fr)');
+    // So what overflows clips inside its own slot.
+    expect(declarations(css, '.live__buttons button')).toContain('text-overflow: ellipsis');
+    // The row that was sized by Forge's own words is gone from the grid
+    // altogether (§C.1); the `log` area that remains is the TOGGLE's, a button.
+    expect(cluster, 'no says row in the cluster').not.toContain('says');
+    expect(declarations(css, '.live__buttons .live__logbook-toggle')).toContain('grid-area: log');
+    // The text is capped in the logbook instead, where the height is not the
+    // cluster's to lose.
     expect(declarations(css, '.live__says')).toContain('overflow: auto');
     expect(declarations(css, '.live__log')).toContain('overflow: hidden');
-    expect(declarations(css, '.live__buttons button')).toContain('text-overflow: ellipsis');
     // The sizes resolve on `.live` itself, so the dev harness — which mounts it
     // with no shell — gets a fixed box too. A `var()` with no value is an
     // invalid declaration and the cluster would fall back to content size.
@@ -1077,17 +1155,19 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
    * subtracts to find the room above it. The cluster's tracks are pixels, so
    * the token has to be their sum. It was `9.75rem`, which is that sum at a
    * 16px root font size and nothing else — measured in Chrome, the tracks that
-   * need 153px got 136px at a 14px root and 195px at 20px. So the token is
+   * needed 153px got 136px at a 14px root and 195px at 20px. So the token is
    * pixels, and this adds them up rather than trusting a literal.
+   *
+   * Wave 25 §C took two 34px text rows and a gap out, so the sum is 102.
    */
   it('the height token is the exact sum of the cluster’s own tracks, in pixels', () => {
     const css = liveCss();
     const cluster = declarations(css, '.live__buttons');
     const rows = /grid-template-rows: ([^;]+);/.exec(cluster)?.[1];
     expect(rows, 'the cluster declares explicit rows').toBeDefined();
-    // `minmax(26px, 1fr)` contributes its 26px floor; nothing here is content-sized.
+    // `minmax(22px, 1fr)` contributes its 22px floor; nothing here is content-sized.
     const tracks = [...rows!.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
-    expect(tracks).toEqual([34, 34, 30, 26]);
+    expect(tracks).toEqual([30, 26, 22]);
     const padY = Number(/padding: (\d+)px/.exec(cluster)?.[1]);
     const gap = Number(/gap: (\d+)px/.exec(cluster)?.[1]);
     const token = Number(/--live-controls-h: (\d+)px/.exec(declarations(css, '.live'))?.[1]);
@@ -1096,6 +1176,11 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
       tracks.reduce((a, b) => a + b, 0) + gap * (tracks.length - 1) + padY * 2 + border * 2,
       'padding + border + rows + gaps === --live-controls-h',
     ).toBe(token);
+    // And the arithmetic is written out beside the token, so the next reader of
+    // the file does not have to run this to see where the number came from.
+    expect(css, 'the comment beside the token says the same sum').toContain(
+      '6 + 6 padding + 1 + 1 border + (30 + 26 + 22) rows + 2 × 5 gaps = 102',
+    );
   });
 });
 
@@ -1164,6 +1249,25 @@ describe('the phase reads down the side', () => {
     // comes out on top of the rail rather than behind it.
     expect(decls).toContain('z-index: 1');
   });
+
+  /*
+   * §C.4 — the operator put the rail on the RIGHT. It was already vertically
+   * centred, so the anchor is all that changes here; the part that is easy to
+   * miss is the current step's NAME, which hangs out of the rail and would run
+   * off the window if it still hung to the right.
+   */
+  it('anchors to the right edge, and the current step’s name hangs inwards from it', () => {
+    const css = liveCss();
+    const rail = declarations(css, '.live__phases');
+    expect(rail).toContain('right: 2px');
+    expect(rail, 'no left anchor is left behind').not.toContain('left:');
+    // Still vertically centred: that was already right and nothing here moves it.
+    expect(rail).toContain('top: 50%');
+    expect(rail).toContain('translate: 0 -50%');
+    const name = declarations(css, '.live__step-name');
+    expect(name).toContain('right: calc(100% + 4px)');
+    expect(name, 'the name does not hang off the right edge of the window').not.toContain('left:');
+  });
 });
 
 /*
@@ -1196,10 +1300,159 @@ describe('a prompt belongs where the player is looking', () => {
       'live__status',
       'board',
       'live__phases',
+      'live__logbook',
       'live__buttons',
       'live__prompt',
     ]);
     expect(container.querySelector('.board')!.contains(getByTestId('live-prompt'))).toBe(false);
+  });
+});
+
+/*
+ * ── Wave 25 §C.2: a payment is a question, so it is drawn as one ───────────
+ *
+ * The operator hit a Mana Leak and got `Pay Mana Cost: {3}` buried in the
+ * corner's multi-line blob, with the cluster's OK and Cancel underneath it as
+ * its answers: *"if an effect happens that is necessary, it should popout into
+ * its own popover modal on top of the game not in some shitty text box."*
+ *
+ * A payment is not one of Forge's `ask` methods — it is `showPromptMessage`
+ * plus `updateButtons`, which is why it had no window. `match.ts`'s
+ * `payingMana` already names that state off four facts, and these cases drive it
+ * with the frames a real Forge sends (`InputPayMana`'s own `Auto` bar, a prompt
+ * that names the ability being paid for, and the actionable set that makes the
+ * input live) and assert where the text comes out.
+ */
+describe('a mana payment pops out of the corner', () => {
+  const payBar = (enable1: boolean) =>
+    parseServerFrame({
+      kind: 'notify',
+      method: 'updateButtons',
+      owner: { kind: 'player', id: 0 },
+      label1: 'Auto',
+      label2: 'Cancel',
+      enable1,
+      enable2: true,
+      focus1: enable1,
+    });
+  const payPrompt = (message: string, cardId: number) =>
+    parseServerFrame({
+      kind: 'notify',
+      method: 'showPromptMessage',
+      player: { kind: 'player', id: 0 },
+      message,
+      card: { kind: 'card', id: cardId },
+    });
+  const actionable = (ids: number[]) =>
+    parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
+
+  /** Into the payment input, exactly as Forge enters it. */
+  async function payment(enable1 = true) {
+    const live = await liveBoard();
+    const mine = live.m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    for (const f of [payBar(enable1), payPrompt('Mana Leak - Counter target spell.\n\nPay Mana Cost: {3}', mine[0]!), actionable(mine)]) {
+      live.s.send(f);
+    }
+    await waitFor(() => expect(live.m.promptCard).toBe(mine[0]!));
+    return live;
+  }
+
+  it('renders the sheet, with Forge’s own text and Forge’s own two labels', async () => {
+    const { getByTestId, queryByTestId } = await payment();
+    const sheet = await waitFor(() => getByTestId('live-payment'));
+    // The whole claim: the payment is IN the centred sheet the other questions
+    // use, not in a line in the corner.
+    const host = getByTestId('live-payment-host');
+    expect(host.contains(sheet)).toBe(true);
+    expect(host.className).toBe('live__prompt');
+    expect(sheet.textContent).toContain('Pay Mana Cost: 3');
+    expect(sheet.textContent).toContain('Mana Leak');
+    // Forge's labels, not ours.
+    expect(getByTestId('live-payment-ok').textContent).toBe('Auto');
+    expect(getByTestId('live-payment-cancel').textContent).toBe('Cancel');
+    /*
+     * And it is NOT `live-prompt`. That id means "one of Forge's fifteen asks is
+     * open" to three e2e readers — `e2e/play/prompts.ts` switches on the host's
+     * `data-method` and THROWS when there is none, and `table-fit`'s stuck
+     * detector leaves an open prompt alone. A payment wearing that id would break
+     * two other lanes' specs and wedge a real game.
+     */
+    expect(queryByTestId('live-prompt')).toBeNull();
+    expect(host.hasAttribute('data-method')).toBe(false);
+  });
+
+  /*
+   * THE REGRESSION, as the operator met it: the payment's text in the corner,
+   * with the cluster's buttons as its only answers. The corner has no text row
+   * at all now, so this is asserted as an absence in the cluster and a presence
+   * in the sheet — reverting either half turns it red.
+   */
+  it('and NOT a corner line: the cluster holds no text about the payment', async () => {
+    const { getByTestId } = await payment();
+    await waitFor(() => getByTestId('live-payment'));
+    const cluster = getByTestId('live-buttons');
+    expect(cluster.textContent, 'the corner says nothing about the cost').not.toContain('Pay Mana Cost');
+    expect(cluster.querySelector('[data-testid="live-says"]')).toBeNull();
+    // The message is readable exactly once on the page — in the sheet. The
+    // logbook's copy of Forge's line is collapsed and is the same one line.
+    expect(getByTestId('live-payment').textContent).toContain('Pay Mana Cost: 3');
+    expect(getByTestId('live-logbook').hasAttribute('hidden')).toBe(true);
+  });
+
+  it('its buttons are the same sender as the cluster’s: one press, one act, and the window is gone', async () => {
+    const { s, m, getByTestId, queryByTestId } = await payment();
+    await waitFor(() => getByTestId('live-payment'));
+    fireEvent.click(getByTestId('live-payment-ok'));
+    await waitFor(() => expect(m.stats.replies).toBe(1));
+    expect(s.clientFrames().map((f) => (f.ok && f.value.kind === 'act' ? f.value.method : null))).toEqual(['selectButtonOk']);
+    // `pressButton` ends the input as well as answering it, so the payment state
+    // is over and the window goes with it — there is nothing left to press twice.
+    await waitFor(() => expect(queryByTestId('live-payment')).toBeNull());
+    expect(m.inputLive).toBe(false);
+    expect(m.stats.replies).toBe(1);
+  });
+
+  /* And Cancel is the other of Forge's two answers, through the same sender. */
+  it('Cancel sends Forge’s own cancel and nothing else', async () => {
+    const { s, m, getByTestId, queryByTestId } = await payment();
+    await waitFor(() => getByTestId('live-payment'));
+    fireEvent.click(getByTestId('live-payment-cancel'));
+    await waitFor(() => expect(m.stats.replies).toBe(1));
+    expect(s.clientFrames().map((f) => (f.ok && f.value.kind === 'act' ? f.value.method : null))).toEqual(['selectButtonCancel']);
+    await waitFor(() => expect(queryByTestId('live-payment')).toBeNull());
+  });
+
+  /*
+   * A cost that cannot be auto-paid is exactly when the player taps sources on
+   * the board, so the window is still up and still says the cost — it just has
+   * no default answer. `payingMana` does not require `enable1` for the same
+   * reason (`match.ts`).
+   */
+  it('a cost Forge cannot auto-pay still gets the window, with no default answer', async () => {
+    const { getByTestId } = await payment(false);
+    const sheet = await waitFor(() => getByTestId('live-payment'));
+    expect(sheet.textContent).toContain('Pay Mana Cost: 3');
+    const ok = getByTestId('live-payment-ok') as HTMLButtonElement;
+    expect(ok.disabled).toBe(true);
+    expect(ok.hasAttribute('data-default')).toBe(false);
+    expect((getByTestId('live-payment-cancel') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  /* Priority is not a payment: the window closes the moment the input ends. */
+  it('closes when Forge moves on, even while the stale Auto bar is still standing', async () => {
+    const { s, queryByTestId, getByTestId } = await payment();
+    await waitFor(() => getByTestId('live-payment'));
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'showPromptMessage',
+        player: { kind: 'player', id: 0 },
+        message: 'Priority: you\nTurn: 14\nPhase: Main 1\nStack: Empty',
+        card: null,
+      }),
+    );
+    await waitFor(() => expect(queryByTestId('live-payment')).toBeNull());
+    expect(queryByTestId('live-payment-host')).toBeNull();
   });
 });
 

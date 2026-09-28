@@ -23,8 +23,9 @@
  * ## Everything but the table is out of flow (wave 24 §C.1)
  *
  * The board is the ONLY thing in `.live`'s flex flow that takes height. The
- * controls, the phase rail, the prompt sheet and the concede confirmation are
- * all absolutely positioned inside `.live`, so the table gets the whole box:
+ * controls, the phase rail, the logbook, the prompt sheet and the concede
+ * confirmation are all absolutely positioned inside `.live`, so the table gets
+ * the whole box:
  * the bar the operator called ugly used to eat 3.25rem of it under the canvas
  * and now sits over the board's bottom-right corner instead.
  *
@@ -35,7 +36,11 @@
  * `e2e/table-fit.spec.ts` reads `live-buttons`'s box on every animation frame
  * of a real match and fails if a window size ever saw two different boxes —
  * *"a fixed home, not a bar on demand"*. So no slot in it may be sized by its
- * content; a longer say scrolls inside its own slot.
+ * content.
+ *
+ * Wave 25 §C emptied it of TEXT: every child of the cluster is a button now,
+ * and the two rows that held Forge's message and the server's says are the
+ * logbook's, on the other side of the board and collapsed by default.
  *
  * The prompt is an overlay centred in the room ABOVE the cluster, bounded by
  * the match's own box: it covers part of the board while it is open, never
@@ -78,19 +83,23 @@
  * The cluster's two sizes are in PIXELS and not rems, and that is not a style
  * preference. `--live-controls-h` is the cluster's `height`, and the cluster's
  * grid tracks are pixels (they must be — see its own rule), so the two have to
- * be the same number or the cluster does not fit its own box. `9.75rem` was
- * that number at a 16px root font size and nothing else: measured in Chrome,
- * the same tracks that need 153px were given 136px at a 14px root (the bottom
- * row clipped) and 195px at a 20px root (39px of dead space under it). The
- * prompt host is then placed by subtracting this same token, so a token that is
- * not the real height is also how a centred sheet ends up over the cluster.
+ * be the same number or the cluster does not fit its own box. It was once
+ * `9.75rem`, which is that number at a 16px root font size and nothing else:
+ * measured in Chrome, the same tracks that needed 153px were given 136px at a
+ * 14px root (the bottom row clipped) and 195px at a 20px root (39px of dead
+ * space under it). The prompt host is then placed by subtracting this same
+ * token, so a token that is not the real height is also how a centred sheet ends
+ * up over the cluster.
  *
- *   6 + 6 padding + 1 + 1 border + (34 + 34 + 30 + 26) rows + 3 × 5 gaps = 153
+ * Wave 25 §C took the two text rows out of the cluster (34px each, plus a gap),
+ * so the number is 102 where it used to be 153:
+ *
+ *   6 + 6 padding + 1 + 1 border + (30 + 26 + 22) rows + 2 × 5 gaps = 102
  *
  * That arithmetic is asserted in `LiveBoard.test.ts`, off this file's own text.
  */
 .live {
-  --live-controls-h: 153px;
+  --live-controls-h: 102px;
   --live-controls-w: 288px;
   --live-rail-w: 2rem;
 
@@ -179,15 +188,20 @@
  * Turn 0 because the coin toss had nowhere to draw.
  *
  * §C.1: a cluster in the bottom-right corner, over the board, and out of the
- * flex flow — the operator accepted its contents and rejected its shape. Four
- * rows: what Forge says, what the server said, Forge's two answers, and the two
- * controls that are not answers (Leave and Concede) on a row of their own.
+ * flex flow — the operator accepted its contents and rejected its shape.
+ *
+ * Wave 25 §C took its PROSE away and left every control where it was: *"the
+ * corner box can still have the full-control toggle and some of the user control
+ * like the buttons you had before. but i hate the log, the log must go somewhere
+ * else."* So three rows now — Forge's two answers, the three controls that are
+ * not answers (Leave, Full control, Concede), and the log's own toggle — and no
+ * child of this box is text.
  *
  * **Every track is a fixed length**, columns and rows both, and that is the
  * requirement rather than the taste: `e2e/table-fit.spec.ts` records this box
  * on every frame of a real match and fails a window size that ever saw two.
  * `height` is set from the token as well, so even a child that overflows its
- * row cannot change the box — it scrolls inside its own slot instead.
+ * row cannot change the box — it clips inside its own slot instead.
  */
 .live__buttons {
   position: absolute;
@@ -198,12 +212,11 @@
   height: var(--live-controls-h);
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  grid-template-rows: 34px 34px 30px minmax(26px, 1fr);
+  grid-template-rows: 30px 26px minmax(22px, 1fr);
   grid-template-areas:
-    'says says says says says says'
-    'log log log log log log'
     'ok ok ok cancel cancel cancel'
-    'leave leave full full conc conc';
+    'leave leave full full conc conc'
+    'log log log log log log';
   gap: 5px;
   margin: 0;
   padding: 6px 7px;
@@ -214,15 +227,18 @@
 }
 
 /*
- * What Forge is waiting on. Its own slot, two lines tall, always: Forge's
- * message is a few short lines ("Priority: …", "Turn: …", "Phase: …",
- * "Stack: …") and a longer one scrolls in here rather than resizing the
- * cluster.
+ * What Forge is waiting on, at the top of the logbook (§C.3).
+ *
+ * Forge's message is a few short lines ("Priority: …", "Turn: …", "Phase: …",
+ * "Stack: …"), which is why the operator called it useless in the corner: the
+ * turn bar and the phase rail already say the same two things. It is kept
+ * because it is the only place Forge's own words appear at all — and it is
+ * capped and scrollable, so a long one cannot push the says out of the panel.
  */
 .live__says {
-  grid-area: says;
+  flex: none;
+  max-height: 5.2em;
   min-width: 0;
-  min-height: 0;
   margin: 0;
   overflow: auto;
   font-size: 12px;
@@ -382,6 +398,22 @@
   width: min(480px, 100%);
 }
 
+/*
+ * The payment window (wave 25 §C.2). *"If an effect happens that is necessary,
+ * it should popout into its own popover modal on top of the game not in some
+ * shitty text box."*
+ *
+ * It reuses the confirmation's own look and the prompt host's own placement,
+ * because a payment IS a question — the only reason it was not drawn as one is
+ * that Forge does not deliver it as an `ask`. Its text is Forge's message, which
+ * carries the ability being paid for and then the cost, so it is a size up from
+ * the corner line it replaces: it is the one thing on screen the player has to
+ * read.
+ */
+.live__payment .confirm__message {
+  font-size: 14px;
+}
+
 .confirm__title {
   font-size: 14px;
 }
@@ -427,18 +459,60 @@
 }
 
 /*
- * The says: the last things the server said to this seat — what was
- * auto-passed, what a cast paid (`LiveBoard.tsx`). A state, not prose, so it
- * is one quiet column of lines beside the prompt, never a panel of its own.
+ * The logbook (wave 25 §C.3): Forge's current message and the last things the
+ * server said to this seat, over the board's LEFT edge — the side the phase rail
+ * vacated when it moved right.
  *
- * The slot is its own grid row and is ALWAYS that row's height, empty or full:
- * the cluster must not change shape when a say arrives ("nothing comes and
- * goes"). Lines are pinned to the BOTTOM so the newest is always the bottom
- * line — one say does not shift two says up a row — and each line ellipsizes
- * rather than wraps, because a wrapped line would want a taller row.
+ * The operator kept the log and evicted it from the corner: *"i hate the log,
+ * the log must go somewhere else."* It is what carries `paid U — Volcanic
+ * Island`, and a cast that shows no payment looks free, so it is moved and not
+ * deleted.
+ *
+ * Out of flow and `pointer-events: none`, for exactly the reason the phase rail
+ * is: the canvas is static, an overlay cannot move a grid track, and an overlay
+ * over the table must never become the element under the cursor or it would
+ * shadow the drag gesture on whatever it covers. `z-index: 1` puts it over the
+ * table's own cards and under lane A's overlay root at z 2.
+ *
+ * It is anchored to the bottom with a `max-height` against `.live`, so an
+ * overfull panel clips inside itself rather than growing `.live`'s scroll box —
+ * which `e2e/table-fit.spec.ts` would see as the match breaching its own box.
+ */
+.live__logbook {
+  position: absolute;
+  z-index: 1;
+  left: 6px;
+  bottom: 6px;
+  width: 15rem;
+  max-height: calc(100% - 12px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--ink);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/*
+ * Collapsed is the default, and `hidden` is how it collapses — the panel stays in
+ * the DOM so the toggle's `aria-controls` names something real. This rule is not
+ * optional: `display: flex` above outranks the UA's own `[hidden]` rule, so
+ * without it a hidden panel would draw.
+ */
+.live__logbook[hidden] {
+  display: none;
+}
+
+/*
+ * The says. Lines are pinned to the BOTTOM so the newest is always the bottom
+ * line, and the panel keeps all of the ones the match holds (`SAYS_KEPT`) rather
+ * than the two the cluster's fixed row had space for.
  */
 .live__log {
-  grid-area: log;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -454,9 +528,7 @@
 }
 
 .live__log li {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 /*
@@ -517,6 +589,24 @@
 }
 
 /*
+ * The log's toggle (§C.3), on a row of its own at the bottom of the cluster: it
+ * is the quietest control here and the only one that answers nothing at all, so
+ * it sits below the row of controls that at least act on the match. Open reads as
+ * the accent, the same affordance "on" has everywhere else in this file.
+ */
+.live__buttons .live__logbook-toggle {
+  grid-area: log;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+
+.live__buttons .live__logbook-toggle[aria-expanded='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/*
  * A confirmation this component asked, not one Forge is waiting on: today that
  * is Concede's, and the host is centred over the whole match box rather than
  * over the room above the cluster, because it is the one thing on screen that
@@ -552,6 +642,14 @@
 /*
  * The phase rail (§C.2): which phase, which step, whose turn, down the side.
  *
+ * Wave 25 §C.4 moved it to the RIGHT edge — the operator put it there — and the
+ * left edge it used to hold is the logbook's now. It was already vertically
+ * centred, so the anchor is the only thing that changed, plus the side the
+ * current step's NAME hangs out on (see `.live__step-name`). It shares this edge
+ * with two things and clears both: the status line is pinned to the top
+ * (`top: 12px`) and the control cluster to the bottom (`bottom: 6px`), while this
+ * is centred and about 180px tall.
+ *
  * Out of flow and `pointer-events: none`, which is what makes it legal here —
  * the canvas is static (w19, absolute) and an overlay cannot move a grid track,
  * so the rail changes no box the fit spec measures and can never become the
@@ -562,7 +660,7 @@
  * overlay root at z 2 — so the inspector's enlarged card still comes out on
  * top of the rail, which is the operator's #4 in the other direction.
  *
- * It is two rems wide because the step NAMES hang out of it to the right, over
+ * It is two rems wide because the step NAMES hang out of it to the left, over
  * the board, rather than being wrapped or truncated inside it: only the current
  * step draws its name, and "Declare attackers" does not fit in a rail narrow
  * enough to be worth having.
@@ -571,7 +669,7 @@
   position: absolute;
   z-index: 1;
   top: 50%;
-  left: 2px;
+  right: 2px;
   width: var(--live-rail-w);
   translate: 0 -50%;
   display: flex;
@@ -669,11 +767,16 @@
  * OTHER step keeps its name in the accessible tree and draws nothing: a screen
  * reader still reads the whole turn, with `aria-current` saying where the game
  * is, and the table is not covered in thirteen labels.
+ *
+ * It hangs to the LEFT of the rail (§C.4), because the rail is on the right edge
+ * now: a name placed at `left: calc(100% + 4px)` there runs off the window, which
+ * is the same bug in the other direction. `right` with `white-space: nowrap` lets
+ * the box shrink-wrap the word and grow inwards over the board.
  */
 .live__step-name {
   position: absolute;
   top: 50%;
-  left: calc(100% + 4px);
+  right: calc(100% + 4px);
   translate: 0 -50%;
   font-size: 10px;
   font-weight: 600;
@@ -681,8 +784,11 @@
   color: var(--accent);
 }
 
+/* `right: auto` explicitly: `left` + `width` + `right` all set is an
+   over-constrained box, and which one the browser drops is not worth relying on. */
 .live__step:not([data-current]) .live__step-name {
   top: 0;
+  right: auto;
   left: 0;
   width: 1px;
   height: 1px;
