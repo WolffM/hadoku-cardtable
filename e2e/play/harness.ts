@@ -103,6 +103,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 
 import { startEdge } from '../edge.ts';
+import { PLAY_SEED } from '../playSeed.ts';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
 const SERVER_JS = resolve(ROOT, 'apps/server/dist/index.js');
@@ -409,6 +410,24 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
       CARDTABLE_FORGE_JAR: forge.jar,
       CARDTABLE_FORGE_RES: forge.res,
       CARDTABLE_PLAY_PROBE: '1',
+      /*
+       * ONE game, every run — and this is the server that plays it.
+       *
+       * The seed reaches Forge through `parseStartBody`, which reads this
+       * variable off the PLAY SERVER's environment (`play/socket.ts`), so it
+       * has to be set on the process spawned here. It was set on
+       * `e2e/harness.ts`'s server instead (wave 20), and that server is the one
+       * started WITHOUT `CARDTABLE_FORGE_JAR` — "deliberately absent … minus
+       * Forge" in its own comment. So no e2e match has ever been seeded: every
+       * run of `play.spec.ts` dealt a fresh shuffle, and the two runs recorded
+       * as "seed 7 verified twice" were two lucky deals.
+       *
+       * With it here the deal is fixed: two cold matches on one seed produce
+       * the same library permutation for both seats, measured through the real
+       * bridge (`MyRandom.setRandom` in `PlayBridge.java`, Forge's shuffle in
+       * `GameAction.java`). A red in `play.spec.ts` is now the product.
+       */
+      CARDTABLE_PLAY_SEED: String(PLAY_SEED),
     },
   });
   server.stdout?.pipe(serverLog, { end: false });

@@ -6,20 +6,38 @@
  * second server.
  *
  * Forge reads this as the seed for its shuffles, the coin toss and the precon
- * pick (`apps/server/src/play/README.md`), so the e2e plays ONE game rather
- * than a new one each run. That matters for more than tidiness:
- * `play.spec.ts` proves a spell resolves with nobody pressing a button, which
- * it can only do if the game ever offers it a castable spell — and on
- * 2026-09-25 CI drew a hand where Forge offered nothing but lands, so the
- * proof failed on the shuffle rather than on the product.
+ * pick, so the e2e plays ONE game rather than a new one each run. The chain is
+ * short and every link is checked: `play/harness.ts` puts it on the play
+ * server's environment, `parseStartBody` reads it into `MatchSpec.seed`
+ * (`apps/server/src/play/socket.ts`), `bridgeConfig` spreads the spec to the
+ * JVM, and `PlayBridge.startMatch` calls `MyRandom.setRandom(new Random(seed))`
+ * before a card is dealt. `apps/server/src/play/seed.jvm.test.ts` measures the
+ * end of that chain against a real Forge: two cold matches on one seed, the
+ * same library order both times.
  *
- * **Changing this number changes the game**, and not every game reaches the
- * scenario a spec needs: seed 20260925 (the first one tried) produced a game
- * where Forge never offered alice a castable spell at all, so `play.spec.ts`'s
- * unattended-resolve check had nothing to exercise — deterministically, which
- * is how it was found. Seed 7 casts Squadron Hawk and resolves it with no
- * button press, verified twice.
+ * ## It did nothing at all until 2026-09-27
  *
- * If a spec goes red after a change here, suspect the seed before the code.
+ * Wave 20 set `CARDTABLE_PLAY_SEED` on `e2e/harness.ts`'s server — the one
+ * started deliberately WITHOUT `CARDTABLE_FORGE_JAR`, which therefore cannot
+ * start a Forge match. The play stack has its own server
+ * (`e2e/play/harness.ts`) and that is the process the variable had to be on. So
+ * no e2e match was ever seeded, every run of `play.spec.ts` dealt a fresh
+ * shuffle, and the note recorded here — "seed 7 casts Squadron Hawk and
+ * resolves it with no button press, verified twice" — was two lucky deals, not
+ * a property of this number. Wave 22 then read the bridge and concluded the
+ * opposite, that the seed never reaches `MyRandom`; that was wrong too
+ * (`PlayBridge.java` has always called it). Both readings came from reading
+ * code. The test now measures it.
+ *
+ * ## Changing this number changes the game
+ *
+ * And not every game reaches the scenario a spec needs. Seed 7 deals alice six
+ * lands and one Preordain, which is a hand `play.spec.ts` can only play out
+ * because its drag loop now plays a land EVERY turn rather than once. Seed
+ * 20260925 (the first one tried) produced a game where Forge never offered
+ * alice a castable spell at all.
+ *
+ * If a spec goes red after a change here, suspect the seed before the code —
+ * and the red will be the same red every run, which is the whole point.
  */
 export const PLAY_SEED = 7;

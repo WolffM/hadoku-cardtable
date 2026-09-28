@@ -231,6 +231,13 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	// `everOffered: ["Plains", "Celestial Colonnade"]` — so the proof failed on
 	// the shuffle, not on the product.
 	//
+	// Read off THIS server's environment, which is the whole of the subtlety:
+	// the variable has to be set on the process that starts the match. Wave 20
+	// set it on `e2e/harness.ts`'s server — the one started deliberately without
+	// `CARDTABLE_FORGE_JAR` — so it seeded nothing for a week, and `play.spec.ts`
+	// went on dealing a fresh game every run while its own comments said
+	// otherwise. It now rides on the play stack's server (`e2e/play/harness.ts`).
+	//
 	// Unset in production, which is every deployment: this is the test hatch,
 	// and an unseeded match is what it falls back to.
 	const seedRaw = process.env.CARDTABLE_PLAY_SEED;
