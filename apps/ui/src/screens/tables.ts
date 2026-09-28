@@ -17,6 +17,20 @@
  * AI arm, where both decks are the one caller's to choose; the server refuses
  * that shape against a human (Wave 13 §C).
  *
+ * ## The room's pool is the room's, so `loadDeck` names a deck and nothing else
+ *
+ * Wave 25: the format was per-SEAT — each caller sent its own `rules` with its
+ * deck and the server stored them — so two players could load decks legal in
+ * two different Standard pools and the match started anyway. The pool is the
+ * TABLE's now, set by the leader through `PATCH /api/rooms/:id`
+ * (`rooms/api.ts`'s `setFormat`), and `PUT …/deck` therefore carries `{ deck }`
+ * only. A body that still carries `rules` is refused with 400, so this is not a
+ * field that could be sent and quietly ignored.
+ *
+ * `check` is unchanged and still takes a whole `SeatChoice`: it is the question
+ * "would this deck be legal in that pool", asked of no room at all, and
+ * `legalDecksIn` below is its only caller.
+ *
  * `fetch` is an argument so a test can answer without a server. Production
  * passes nothing and gets the global.
  *
@@ -106,9 +120,21 @@ export interface RoomPlayer {
   choice: SeatChoice | null;
 }
 
+/**
+ * What the CALLER is at this table, which the room record cannot say.
+ *
+ * `leader` is the server's answer to "is the leader me" — `RoomView.leader` is a
+ * hashed participant id and no browser can derive its own, so this is the only
+ * thing that can tell a screen whether it owns the table's settings.
+ */
+export interface RoomTableYou {
+  player: boolean;
+  leader: boolean;
+}
+
 export interface RoomTable {
   room: { id: string; name: string; gameType: string; matchId: string | null; seats: number };
-  you: { player: boolean };
+  you: RoomTableYou;
   players: RoomPlayer[];
 }
 
@@ -136,8 +162,12 @@ export interface TablesClient {
   start(opponent: 'human' | 'ai', seats: [SeatChoice, SeatChoice]): Promise<StartOutcome>;
   /** Both players' state at a room's table. */
   table(roomId: string): Promise<TableOutcome>;
-  /** Load MY deck. There is no call that names anybody else's. */
-  loadDeck(roomId: string, choice: SeatChoice): Promise<TableOutcome>;
+  /**
+   * Load MY deck. There is no call that names anybody else's, and none that
+   * names a format either: the ROOM's pool is the rules for both seats, and a
+   * body carrying `rules` is refused with 400.
+   */
+  loadDeck(roomId: string, deck: DeckRef): Promise<TableOutcome>;
   ready(roomId: string, ready: boolean): Promise<TableOutcome>;
   /** Start the room's match. Either player may; the server answers one match. */
   startRoom(roomId: string): Promise<StartOutcome>;
@@ -209,7 +239,7 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
       });
       return table({ status: res.status, body: await readJson(res) });
     },
-    loadDeck: async (roomId, choice) => table(await send('PUT', `tables/rooms/${encodeURIComponent(roomId)}/deck`, choice)),
+    loadDeck: async (roomId, deck) => table(await send('PUT', `tables/rooms/${encodeURIComponent(roomId)}/deck`, { deck })),
     ready: async (roomId, ready) => table(await post(`tables/rooms/${encodeURIComponent(roomId)}/ready`, { ready })),
     startRoom: async (roomId) => {
       // 201 started it; 200 is the match the other player already started.
@@ -251,7 +281,22 @@ export function pickRandom<T>(items: readonly T[], rand: () => number = secureRa
   return items[Math.min(items.length - 1, Math.floor(rand() * items.length))];
 }
 
-/** Which decks an era offers, and whether the server answered for all of them. */
+/**
+ * The newest frozen pool — the last element, not the first.
+ *
+ * `GET /api/tables/formats` sends them "in date order, oldest first"
+ * (`apps/server/src/http/library.ts`), so `formats[0]` is `standard-2011-02-13`
+ * and every room used to open on it. The room's own default is the NEWEST pool
+ * (operator, 2026-09-27), and this is the same arithmetic on the client side —
+ * used only as the fallback for a room whose record has not been read yet, or a
+ * server too old to send one. Never as a second opinion about a room that
+ * answered.
+ */
+export function newestFormat(formats: readonly TableFormat[]): string {
+  return formats.at(-1)?.id ?? '';
+}
+
+/** Which decks a pool offers, and whether the server answered for all of them. */
 export interface LegalSweep {
   /** The format this was asked about. */
   readonly formatId: string;

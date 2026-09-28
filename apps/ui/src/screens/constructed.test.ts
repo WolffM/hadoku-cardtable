@@ -39,7 +39,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { ConstructedScreen } from './ConstructedScreen.tsx';
 import { parseRoute } from './route.ts';
 import { roomsClient, type ClientMode, type RoomView } from '../rooms/api.ts';
-import { apiBase, tablesClient, type Fetch, type RoomPlayer, type SeatChoice, type Verdict } from './tables.ts';
+import { apiBase, tablesClient, type DeckRef, type Fetch, type RoomPlayer, type SeatChoice, type Verdict } from './tables.ts';
 
 afterEach(() => {
   cleanup();
@@ -129,6 +129,20 @@ function opponent(over: Partial<RoomPlayer> = {}): RoomPlayer {
 interface Table {
   players: RoomPlayer[];
   matchId: string | null;
+  /**
+   * The pool the ROOM is on. Absent ⇒ the oldest of the two above, which keeps
+   * both decks legal for the suites that are about something else.
+   *
+   * Deliberately NOT the newest: that a fresh room DEFAULTS to the newest pool
+   * is the server's behaviour and `apps/server`'s test's to prove. What this
+   * file proves is that the screen reads whatever the room says, plus its own
+   * fallback when the room says nothing — see "the newest pool" below.
+   */
+  format?: string;
+  /** Whether the CALLER is the leader. Absent ⇒ true: alice made the room. */
+  leader?: boolean;
+  /** `PATCH /api/rooms/:id` refuses with this, as it does for a non-leader. */
+  refusePatch?: { status: number; error: string };
   /** What `GET /api/rooms/:id` says this room is. Absent ⇒ the field is not sent at all. */
   clientMode?: ClientMode;
   /** What the room PLAYS. Absent ⇒ `constructed-1v1`, which is every test above. */
@@ -160,9 +174,11 @@ function stubServer(table: Table) {
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   const gameType = table.gameType ?? 'constructed-1v1';
+  table.format ??= FORMATS[0].id;
+  const iAmLeader = () => table.leader !== false;
   const view = () => ({
     room: { id: ROOM, name: 'Friday night', gameType, matchId: table.matchId, seats: 2 },
-    you: { player: table.players.some((p) => p.you) },
+    you: { player: table.players.some((p) => p.you), leader: iAmLeader() },
     players: table.players.map((p, seat) => ({ ...p, seat })),
   });
   /*
@@ -170,15 +186,23 @@ function stubServer(table: Table) {
    * OUT of the body when the table does not set one, which is the shape a
    * server older than the field sends — the screen must read that as builtin.
    */
+  /** The room's members. `p-alice` is the caller, and the leader by default. */
+  const membersOf = () => table.members ?? [{ id: 'p-alice', name: 'user-alice' }];
   const roomRecord = (): Record<string, unknown> => ({
     id: ROOM,
     name: 'Friday night',
-    creator: 'user-alice',
-    leader: 'user-alice',
+    creator: 'p-alice',
+    // The leader is a member ID, which is what the screen matches on — the
+    // display name is not unique, and no browser can derive its own id.
+    leader: 'p-alice',
     gameType,
+    format: table.format,
+    // Caller-scoped, as `http/rooms.ts` serialises it: whether the leader is
+    // this caller, and whether this caller is ready. `p-alice` is us.
+    you: { leader: iAmLeader(), ready: membersOf().some((m) => m.id === 'p-alice' && m.ready === true) },
     ...(table.clientMode === undefined ? {} : { clientMode: table.clientMode }),
     locked: false,
-    members: (table.members ?? [{ id: 'p-alice', name: 'user-alice' }]).map((m) => ({
+    members: membersOf().map((m) => ({
       ...m,
       ready: m.ready === true,
       joinedAt: '',
@@ -187,18 +211,40 @@ function stubServer(table: Table) {
     draftStartedAt: table.draftStartedAt ?? null,
     createdAt: '2026-09-19T00:00:00.000Z',
   });
-  const verdictFor = (choice: SeatChoice): Verdict => {
-    const id = 'library' in choice.deck ? choice.deck.library : '?';
-    const name = DECKS.find((d) => d.id === id)?.name ?? '?';
-    const format = FORMATS.find((f) => f.id === (choice.rules.kind === 'standard' ? choice.rules.format : ''));
-    if (format?.id === '2011-07-01' && id === BEN_STARK) return BANNED;
+  /** One deck against one pool, which is the only question the gate answers. */
+  const verdictOf = (deckId: string, formatId: string): Verdict => {
+    const name = DECKS.find((d) => d.id === deckId)?.name ?? '?';
+    const format = FORMATS.find((f) => f.id === formatId);
+    if (format?.id === '2011-07-01' && deckId === BEN_STARK) return BANNED;
     return LEGAL(name, format?.name ?? '?');
   };
+  const verdictFor = (choice: SeatChoice): Verdict =>
+    verdictOf(
+      'library' in choice.deck ? choice.deck.library : '?',
+      choice.rules.kind === 'standard' ? choice.rules.format : '',
+    );
 
   const fetchImpl: Fetch = async (url, init) => {
     const body: unknown = init?.body === undefined ? undefined : JSON.parse(String(init.body));
     calls.push({ url, method: init?.method ?? 'GET', body });
     if (url.endsWith(`/api/rooms/${ROOM}`)) {
+      /*
+       * The leader's setter: `PATCH /api/rooms/:id` with `{ format }`, the same
+       * route and allow-list that carries `{ gameType }`. A non-leader is
+       * refused in the server's own words, and — like the real one — changing
+       * the pool CLEARS every stored verdict and every ready flag, because what
+       * they readied with is not what the table is now.
+       */
+      if ((init?.method ?? 'GET') === 'PATCH') {
+        if (table.refusePatch !== undefined) return json(table.refusePatch.status, { error: table.refusePatch.error });
+        const asked = body as { format?: unknown };
+        if (typeof asked.format !== 'string') return json(400, { error: 'format must be a string' });
+        table.format = asked.format;
+        table.players = table.players.map((p) =>
+          p.you ? { ...p, ready: false, legal: false, verdict: null, choice: null } : { ...p, ready: false },
+        );
+        return json(200, roomRecord());
+      }
       return table.roomUnreadable === true ? json(503, { error: 'rooms are restarting' }) : json(200, roomRecord());
     }
     /*
@@ -232,8 +278,9 @@ function stubServer(table: Table) {
     }
     if (url.endsWith('/tables/formats')) return json(200, { formats: FORMATS });
     if (url.endsWith('/tables/decks')) return json(200, { decks: DECKS });
-    // One per deck, each time an era is chosen: how the picker learns which
-    // decks that era offers. The same gate that answers the load below.
+    // One per deck, each time the room's pool moves: how the picker learns
+    // which decks that pool offers. UNCHANGED by w25 — `POST /tables/check`
+    // still takes a whole seat choice, because it is asked about no room.
     if (url.endsWith('/tables/check')) {
       if (table.checkFails === true) return json(503, { error: 'the gate is restarting' });
       return json(200, verdictFor(body as SeatChoice));
@@ -242,7 +289,17 @@ function stubServer(table: Table) {
     if (url.endsWith(`/tables/rooms/${ROOM}`)) return json(200, view());
     if (url.endsWith(`/tables/rooms/${ROOM}/deck`)) {
       if (table.deckFails === true) return json(503, { error: 'the room is restarting' });
-      const verdict = verdictFor(body as SeatChoice);
+      /*
+       * `{ deck }` and nothing else. The real route REFUSES a body carrying
+       * `rules` with 400 rather than accepting and ignoring it (w25 §A.3), so
+       * this stub does too: a screen that still sent a format would fail here
+       * instead of passing while sending a field nobody reads.
+       */
+      const sent = body as { deck?: DeckRef; rules?: unknown };
+      if ('rules' in (sent as object)) return json(400, { error: 'unknown field(s): rules' });
+      const deckId = sent.deck !== undefined && 'library' in sent.deck ? sent.deck.library : '?';
+      // The ROOM's pool is the rules, for both seats.
+      const verdict = verdictOf(deckId, table.format ?? '');
       const mine: RoomPlayer = {
         seat: 0,
         name: 'user-alice',
@@ -323,11 +380,18 @@ async function pick(value: string): Promise<void> {
   });
 }
 
-/** Choosing an era, which re-sends a chosen deck under the new rules. */
-async function pickEra(formatId: string): Promise<void> {
+/**
+ * The LEADER moving the table's pool, which re-sends a chosen deck under the
+ * new rules — on every browser in the room, not only this one.
+ *
+ * There is no local format state any more: this writes to the ROOM, so the wait
+ * is on the room record coming back with the new pool.
+ */
+async function pickPool(formatId: string): Promise<void> {
   await act(async () => {
     fireEvent.change(screen.getByTestId('format'), { target: { value: formatId } });
   });
+  await waitFor(() => expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe(formatId));
 }
 
 /** The deck dropdown's options, by value — what the era left on offer. */
@@ -434,8 +498,10 @@ describe('a room’s table', () => {
     expect(put).toEqual({
       url: `/cardtable/api/tables/rooms/${ROOM}/deck`,
       method: 'PUT',
-      // One deck, no seat number, and no field that could name another member.
-      body: { deck: { library: PAUL_RIETZL }, rules: { kind: 'standard', format: '2011-02-13' } },
+      // One deck, no seat number, no field that could name another member —
+      // and no `rules`: the ROOM's pool is what it is checked against, and a
+      // body that named one would be a 400 (see the stub).
+      body: { deck: { library: PAUL_RIETZL } },
     });
     expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (MBS)');
     expect(screen.getByTestId('room-seat-1').textContent).toContain('(you)');
@@ -443,7 +509,7 @@ describe('a room’s table', () => {
   });
 
   /*
-   * The era moving under a chosen deck is now the only way to hold an illegal
+   * The POOL moving under a chosen deck is now the only way to hold an illegal
    * one: the dropdown offers nothing else. Both halves are asserted — the
    * verdict names the banned cards, and the deck drops off the list — because
    * the second is what stops Ready coming back to life over it.
@@ -451,17 +517,21 @@ describe('a room’s table', () => {
   it('an illegal deck blocks YOUR ready and names the card, and nobody else’s', async () => {
     const server = await mountRoom({ players: [opponent({ ready: true })], matchId: null });
     await pick(BEN_STARK);
-    await pickEra('2011-07-01');
+    await pickPool('2011-07-01');
 
     const verdict = screen.getByTestId('verdict-mine').textContent ?? '';
     expect(verdict).toContain('Jace, the Mind Sculptor');
     expect(verdict).toContain('Stoneforge Mystic');
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
-    // The era that bans it no longer offers it, and nothing is chosen.
+    // The pool that bans it no longer offers it, and nothing is chosen.
     await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
     expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe('');
-    // The other player is untouched by it: still ready, still legal.
-    expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('ready');
+    // The other player was stood down BY THE POOL MOVING, which is the server's
+    // rule and not this deck's fault: what they readied with is not what the
+    // table is on any more. Their deck is still legal — one player's illegal
+    // deck says nothing about the other's.
+    await waitFor(() => expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('not ready'));
+    expect(screen.getByTestId('room-seat-0-legal').textContent).toBe('legal');
     // And nothing was started.
     expect(lastCall(server.calls, '/play/matches')).toBeUndefined();
     expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
@@ -526,6 +596,7 @@ describe('a room’s table', () => {
         create: async () => ({ ok: false as const, message: 'not used' }),
         ready: async () => ({ ok: false as const, message: 'not used' }),
         start: async () => ({ ok: false as const, message: 'not used' }),
+        setFormat: async () => ({ ok: false as const, message: 'not used' }),
         join: async (roomId: string, password?: string) => {
           joins.push(roomId);
           passwords.push(password);
@@ -537,9 +608,11 @@ describe('a room’s table', () => {
                 room: {
                   id: roomId,
                   name: roomId,
-                  creator: 'user-alice',
-                  leader: 'user-alice',
+                  creator: 'p-alice',
+                  leader: 'p-alice',
                   gameType: 'constructed-1v1',
+                  format: '2011-02-13',
+                  you: { leader: true, ready: false },
                   clientMode: 'builtin' as const,
                   locked: false,
                   members: [],
@@ -680,17 +753,17 @@ describe('the deck picker', () => {
     await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
   });
 
-  it('narrows the deck list to the decks the era says are legal, asking the gate for each', async () => {
+  it('narrows the deck list to the decks the ROOM’s pool says are legal, asking the gate for each', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
-    // The opening era is legal for both, so both are on offer.
+    // The pool the room opens on is legal for both, so both are on offer.
     await deckSelect();
     expect(offered()).toEqual(['', '__random__', BEN_STARK, PAUL_RIETZL]);
 
-    await pickEra('2011-07-01');
-    // The era that bans Jace and Stoneforge offers one of the two decks.
+    await pickPool('2011-07-01');
+    // The pool that bans Jace and Stoneforge offers one of the two decks.
     await waitFor(() => expect(offered()).toEqual(['', '__random__', PAUL_RIETZL]));
 
-    // It is the SERVER's answer, one request per deck per era — not arithmetic
+    // It is the SERVER's answer, one request per deck per pool — not arithmetic
     // done here over a set list the browser was never sent.
     const checks = server.calls.filter((c) => c.url.endsWith('/tables/check'));
     expect(checks.map((c) => c.body)).toEqual(
@@ -700,9 +773,9 @@ describe('the deck picker', () => {
       ]),
     );
 
-    // And an era already answered for is not asked again.
+    // And a pool already answered for is not asked again.
     const asked = checks.length;
-    await pickEra('2011-02-13');
+    await pickPool('2011-02-13');
     await waitFor(() => expect(offered()).toContain(BEN_STARK));
     expect(server.calls.filter((c) => c.url.endsWith('/tables/check')).length).toBe(asked);
   });
@@ -720,21 +793,28 @@ describe('the deck picker', () => {
   /*
    * The case the `deckId === ''` half of Ready's guard exists for, and the
    * reason it is not redundant with "the server holds a legal deck for you":
-   * the era moved, the re-send under the new rules FAILED, and the verdict the
-   * server still holds is the one it formed against the era before. Ready has
-   * to be dead — pressing it would start a match from a hold nobody re-checked.
+   * the pool moved, the re-send under the new rules FAILED, and the server has
+   * no verdict for this seat at all any more — moving the pool clears it, along
+   * with everybody's readiness. Ready has to be dead; pressing it would start a
+   * match from a hold nobody re-checked.
+   *
+   * (It used to assert that the screen still showed the OLD pool's verdict.
+   * That was true when the verdict survived a format change and is not any
+   * more, so the assertion went with the behaviour it described. What it was
+   * there to protect — Ready stays dead — is asserted below, twice.)
    */
-  it('will not ready up on a hold the era moved out from under, when the re-send failed', async () => {
+  it('will not ready up on a hold the pool moved out from under, when the re-send failed', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
     await pick(BEN_STARK);
     await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
 
     server.table.deckFails = true;
-    await pickEra('2011-07-01');
+    await pickPool('2011-07-01');
 
-    // The server still says the old era's verdict — it never heard the new one.
-    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (MBS)');
-    expect(screen.getByTestId('table-error').textContent).toContain('the room is restarting');
+    // The re-send is refused, in the server's own words.
+    await waitFor(() => expect(screen.getByTestId('table-error').textContent).toContain('the room is restarting'));
+    // Nothing was checked against the new pool, so there is no verdict to show.
+    await waitFor(() => expect(screen.queryByTestId('verdict-mine')).toBeNull());
     // The deck is off the list, nothing is chosen, and Ready stays dead.
     await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
     expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe('');
@@ -742,32 +822,26 @@ describe('the deck picker', () => {
   });
 
   it('Random chooses one of the decks on offer, and says which one it chose', async () => {
-    // Pinned source: 0.99 lands on the last deck the era offers.
+    // Pinned source: 0.99 lands on the last deck the pool offers.
     const server = await mountRoom({ players: [opponent()], matchId: null }, () => 0.99);
     await pick('__random__');
 
     expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe(PAUL_RIETZL);
-    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({
-      deck: { library: PAUL_RIETZL },
-      rules: { kind: 'standard', format: '2011-02-13' },
-    });
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: PAUL_RIETZL } });
     // `Random` is never what gets loaded: it resolves to a deck id.
     const loads = server.calls.filter((c) => c.url.endsWith('/deck'));
     expect(loads.map((c) => JSON.stringify(c.body))).not.toContain(expect.stringContaining('__random__'));
   });
 
-  it('Random cannot roll a deck the era bans, because the era narrowed the list first', async () => {
-    // 0 lands on the FIRST offered deck, which in this era is not Ben Stark's.
+  it('Random cannot roll a deck the pool bans, because the pool narrowed the list first', async () => {
+    // 0 lands on the FIRST offered deck, which in this pool is not Ben Stark's.
     const server = await mountRoom({ players: [opponent()], matchId: null }, () => 0);
-    await pickEra('2011-07-01');
+    await pickPool('2011-07-01');
     await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
     await pick('__random__');
     expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe(PAUL_RIETZL);
     expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in');
-    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({
-      deck: { library: PAUL_RIETZL },
-      rules: { kind: 'standard', format: '2011-07-01' },
-    });
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: PAUL_RIETZL } });
   });
 
   /*
@@ -795,15 +869,168 @@ describe('the deck picker', () => {
     expect(source.getAttribute('href')).toBe('https://www.mtgtop8.com/event?e=1016&f=ST');
   });
 
-  it('re-sends the deck under the new era, so the held verdict is never one from another format', async () => {
+  it('re-sends the deck when the pool moves, so the held verdict is never one from another pool', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
     await pick(PAUL_RIETZL);
-    await pickEra('2011-07-01');
-    // Same deck, new rules — not the rules it was first checked against.
-    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({
-      deck: { library: PAUL_RIETZL },
-      rules: { kind: 'standard', format: '2011-07-01' },
+    const loadsBefore = server.calls.filter((c) => c.url.endsWith('/deck')).length;
+    await pickPool('2011-07-01');
+
+    // A second PUT, naming the same deck and no rules at all — the room's pool
+    // is what the server checks it against, and the room's pool has moved.
+    await waitFor(() => expect(server.calls.filter((c) => c.url.endsWith('/deck')).length).toBe(loadsBefore + 1));
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: PAUL_RIETZL } });
+    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (2011-07-01)');
+  });
+
+  /*
+   * And NOT re-sent on the way in.
+   *
+   * A `PUT …/deck` stands you down (`routes.ts`: a new deck un-readies you), so
+   * a screen that re-sent the held deck the first time it learned the room's
+   * pool would silently un-ready anybody who reloaded while ready. The first
+   * sighting of a pool is not a change to it.
+   */
+  it('does not re-send the deck the server is already holding when it arrives', async () => {
+    const held: RoomPlayer = {
+      seat: 0,
+      name: 'user-alice',
+      you: true,
+      deckName: 'Boros Landfall (Paul Rietzl)',
+      rulesName: 'Standard (MBS)',
+      legal: true,
+      issueCount: 0,
+      ready: true,
+      verdict: LEGAL('Boros Landfall (Paul Rietzl)', 'Standard (MBS)'),
+      choice: { deck: { library: PAUL_RIETZL }, rules: { kind: 'standard', format: '2011-02-13' } },
+    };
+    // The other player is NOT ready, so nothing starts while this is watched.
+    const server = await mountRoom({ players: [opponent(), held], matchId: null });
+    // The picker opens on the deck the server holds…
+    await waitFor(() => expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe(PAUL_RIETZL));
+    // …and over a dozen polls it never writes one.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 120));
     });
+    expect(server.calls.filter((c) => c.url.endsWith('/deck'))).toHaveLength(0);
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).textContent).toBe('Stand down');
+  });
+});
+
+/* ── the table's pool belongs to the leader (wave 25 §B) ─────────────── */
+
+/*
+ * Operator, 2026-09-27: *"room creator should be leader and be the one who
+ * selects the room mode … people who join can only select from the deck
+ * dropdown, and the room leader can change the set or other settings."*
+ *
+ * So the pool is the ROOM's — read from its record, written by one PATCH — and
+ * the only input a non-leader has on this card is the deck below it. Both halves
+ * are asserted, because either alone is half of it: a control nobody has is a
+ * screen that cannot set the table, and a control everybody has is the defect.
+ */
+describe('the table’s pool', () => {
+  const POOL_NAME = '2011-02-13 — Standard (MBS)';
+
+  it('gives the LEADER a control that moves it, and writes it to the room', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null });
+    const select = screen.getByTestId('format') as HTMLSelectElement;
+    expect(select.value).toBe('2011-02-13');
+    expect(screen.queryByTestId('format-fixed')).toBeNull();
+
+    await pickPool('2011-07-01');
+
+    // One PATCH on the room itself, with `{ format }` and nothing else — the
+    // same route and allow-list that carries `{ gameType }`.
+    const patches = server.calls.filter((c) => c.method === 'PATCH');
+    expect(patches).toEqual([
+      { url: `/cardtable/api/rooms/${ROOM}`, method: 'PATCH', body: { format: '2011-07-01' } },
+    ]);
+    // And the deck list follows the room, not the press: the pool the room is
+    // now on is the one the gate was asked about.
+    await waitFor(() => expect(offered()).toEqual(['', '__random__', PAUL_RIETZL]));
+  });
+
+  it('gives a NON-leader no pool control at all, only the value the room is on', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null, leader: false });
+
+    // No control of any kind: not a disabled select, not a select at all.
+    expect(screen.queryByTestId('format')).toBeNull();
+    const fixed = screen.getByTestId('format-fixed');
+    expect(fixed.tagName).toBe('SPAN');
+    expect(fixed.textContent).toBe(POOL_NAME);
+    expect(fixed.dataset.format).toBe('2011-02-13');
+    expect(screen.getByTestId('deck-mine').closest('section')!.querySelectorAll('select')).toHaveLength(1);
+
+    // Their one input still works, and the pool is never written by them.
+    await pick(PAUL_RIETZL);
+    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (MBS)');
+    expect(server.calls.filter((c) => c.method === 'PATCH')).toHaveLength(0);
+  });
+
+  it('follows the pool the leader moved it to, on a browser that pressed nothing', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null, leader: false });
+    await pick(BEN_STARK);
+    await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
+
+    // The leader's browser moved it; this one learns it from the room poll.
+    server.table.format = '2011-07-01';
+
+    // The held deck is re-sent — this seat's verdict was cleared by the change
+    // too — and the pool that bans it names the cards and takes it off the list.
+    await waitFor(() => expect(screen.getByTestId('verdict-mine').textContent).toContain('Jace, the Mind Sculptor'));
+    expect(screen.getByTestId('format-fixed').textContent).toBe('2011-07-01 — Standard (2011-07-01)');
+    await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: BEN_STARK } });
+  });
+
+  it('says who the leader is with a mark and a name, and no sentence about it', async () => {
+    await mountRoom({ players: [opponent()], matchId: null });
+    const mark = screen.getByTestId('room-leader');
+    expect(mark.dataset.mark).toBe('crown');
+    expect(mark.dataset.state).toBe('leader');
+    // Our own drawing, and a shape as well as a colour — the same rule the
+    // legal/ready pills follow.
+    expect(mark.querySelector('svg path')).not.toBeNull();
+    expect(mark.textContent).toBe('user-alice (you)');
+    // No prose: nothing on the card explains what a leader is or may do.
+    const card = screen.getByTestId('deck-mine').closest('section') as HTMLElement;
+    expect(card.textContent).not.toMatch(/room leader|can change|only the/i);
+    // And the quietest colouring in the file is its own state, so the two
+    // pass/fail colourings still mean exactly what they meant.
+    expect(SCREENS_CSS).toMatch(/\.pill\[data-state='leader'\] \{[^}]*border-style: dotted;/);
+  });
+
+  it('names the leader without “(you)” to everybody else', async () => {
+    await mountRoom({ players: [opponent()], matchId: null, leader: false });
+    expect(screen.getByTestId('room-leader').textContent).toBe('user-alice');
+  });
+
+  it('falls back to the NEWEST pool, not the oldest, when the room does not say', async () => {
+    // The room record carries no pool — an older server, or a body that lost
+    // the field. `formats[0]` is 2011-02-13 and is where every room used to
+    // open; the fallback is the LAST element, the same default the server
+    // applies at create (operator, 2026-09-27: newest).
+    const server = await mountRoom({ players: [opponent()], matchId: null, format: '' });
+    await waitFor(() => expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2011-07-01'));
+    const checks = server.calls.filter((c) => c.url.endsWith('/tables/check'));
+    expect(checks).not.toHaveLength(0);
+    expect(checks.every((c) => (c.body as SeatChoice).rules.kind === 'standard' && (c.body as { rules: { format: string } }).rules.format === '2011-07-01')).toBe(true);
+  });
+
+  it('hands back the server’s refusal and leaves the pool where the room has it', async () => {
+    const server = await mountRoom({
+      players: [opponent()],
+      matchId: null,
+      refusePatch: { status: 409, error: 'this room is drafting; the game type cannot change now' },
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('format'), { target: { value: '2011-07-01' } });
+    });
+    await waitFor(() => expect(screen.getByTestId('table-error').textContent).toContain('this room is drafting'));
+    // Nothing local moved: the select still reads what the ROOM is on.
+    expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2011-02-13');
+    expect(server.table.format).toBe('2011-02-13');
   });
 });
 
@@ -910,6 +1137,37 @@ describe('a draft room', () => {
       fireEvent.click(screen.getByTestId('ready-toggle'));
     });
     expect(lastCall(server.calls, `/api/rooms/${ROOM}/ready`)?.body).toEqual({ ready: false });
+  });
+
+  /*
+   * Wave 23's stated cost, paid off (w25).
+   *
+   * The toggle's label used to be a latch set by our own `ready` call, because
+   * nothing on the wire said which member the caller was — so a reload while
+   * ready read "Ready" and pressing it re-sent readiness you already had. The
+   * room record carries a caller-scoped `you.ready` now, and this browser has
+   * pressed nothing at all.
+   */
+  it('arrives reading the readiness the ROOM holds for you, having pressed nothing', async () => {
+    const server = await mountDraft({ members: members(true, false) });
+    const toggle = (await screen.findByTestId('ready-toggle')) as HTMLButtonElement;
+    await waitFor(() => expect(toggle.textContent).toBe('Stand down'));
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/ready`))).toHaveLength(0);
+  });
+
+  it('marks which member is the leader, with a mark and not a sentence', async () => {
+    await mountDraft({ members: members(false, false) });
+    await screen.findByTestId('draft-lobby');
+
+    // `p-alice` is the room's `leader`, and a member's ID is the only thing
+    // that identifies them — the display name is not unique.
+    const mark = screen.getByTestId('draft-member-0-leader');
+    expect(mark.dataset.mark).toBe('crown');
+    expect(mark.querySelector('svg path')).not.toBeNull();
+    // Exactly one member carries it, and the other says nothing.
+    expect(screen.queryByTestId('draft-member-1-leader')).toBeNull();
+    expect(screen.getByTestId('draft-member-1').textContent).not.toMatch(/leader/i);
   });
 
   it('starts the draft exactly once when every member is ready, and only then', async () => {

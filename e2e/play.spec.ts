@@ -564,17 +564,30 @@ function roomRow(f: Friend, roomId: string): Locator {
 }
 
 /**
- * Choose a format and a deck in the room's own picker. Yours only.
+ * Set the table's pool. The LEADER's control, and there is one of it.
+ *
+ * Wave 25: the pool is the room's, not the seat's — the leader moves it with a
+ * `PATCH /api/rooms/:id` and everybody else reads it. So the wait is on the
+ * select reading back what was asked for, which means the ROOM is on it: the
+ * control is bound to the room record, so a refused or lost write snaps the
+ * value back to whatever the table is actually on.
+ */
+async function setRoomPool(f: Friend, format: string): Promise<void> {
+  await f.page.getByTestId('format').selectOption(format);
+  await expect(f.page.getByTestId('format'), `${f.name}: the room is on the pool they chose`).toHaveValue(format);
+}
+
+/**
+ * Choose a deck in the room's own picker. Yours only, and no format with it.
  *
  * Choosing the deck IS loading it — the Load button is gone (wave 22 §B), so
  * the `PUT .../deck` rides the dropdown's own `change`. That keeps this one
  * `PUT` per person, which is what makes the seat order below a claim: the
  * table seats people in the order their deck lands. The dropdown is dead
- * until the era's legality sweep answers and then offers only that era's
+ * until the pool's legality sweep answers and then offers only that pool's
  * decks, so the wait is on it coming alive, not on an arbitrary delay.
  */
-async function loadOwnDeck(f: Friend, format: string, deckId: string): Promise<void> {
-  await f.page.getByTestId('format').selectOption(format);
+async function loadOwnDeck(f: Friend, deckId: string): Promise<void> {
   await expect(f.page.getByTestId('deck-mine')).toBeEnabled();
   await f.page.getByTestId('deck-mine').selectOption(deckId);
   await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');
@@ -689,14 +702,30 @@ test(LIVE_TITLE, async ({ browser }) => {
     await bob.page.waitForURL(new RegExp(`#/room/${roomId}$`), { timeout: 20_000 });
     await expect(bob.page.getByTestId('constructed')).toBeVisible();
 
+    /* ── the leader sets the table, once, for both seats ──────────────── */
+
+    // Operator, 2026-09-27: *"room creator should be leader and be the one who
+    // selects the room mode … people who join can only select from the deck
+    // dropdown"*. Alice made the room, so the pool is hers; bob has no control
+    // for it at all, and his screen follows hers without him pressing anything.
+    await setRoomPool(alice, choice.format);
+    await expect(alice.page.getByTestId('room-leader'), 'the leader is marked, not explained').toContainText(
+      'e2e-alice',
+    );
+    const bobPool = bob.page.getByTestId('format-fixed');
+    await expect(bobPool, "bob's screen follows the pool alice set").toHaveAttribute('data-format', choice.format);
+    expect(await bob.page.getByTestId('format').count(), 'bob has no pool control, only a deck list').toBe(0);
+    expect(await alice.page.getByTestId('format-fixed').count(), 'the leader has the control, not the text').toBe(0);
+    summary.pool = { format: choice.format, bobReads: await bobPool.textContent() };
+
     /* ── each loads their OWN deck ────────────────────────────────────── */
 
     // Alice first: the table seats players in the order they load a deck
     // (`routes.ts` `playersOf`, by `seatedAt`), so this is what puts her deck
     // in seat 1 and makes the seat/deck mapping below a claim and not a flip.
-    await loadOwnDeck(alice, choice.format, choice.decks[0].id);
+    await loadOwnDeck(alice, choice.decks[0].id);
     await expect(alice.page.getByTestId('room-seat-0')).toContainText('e2e-alice (you)');
-    await loadOwnDeck(bob, choice.format, choice.decks[1].id);
+    await loadOwnDeck(bob, choice.decks[1].id);
     await expect(bob.page.getByTestId('room-seat-1')).toContainText('e2e-bob (you)');
     // Each sees the other at the other seat, and each page says who is waited on.
     await expect(alice.page.getByTestId('room-seat-1')).toContainText('e2e-bob');

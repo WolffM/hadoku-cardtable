@@ -38,6 +38,22 @@
  * rather than as a pod with no cards behind it. `draftStartedAt` is also never
  * restored from disk (`lobby.ts`), which is why a restart mid-draft puts the
  * room back in this state and the room screen says so in words.
+ *
+ * ## The pool is the ROOM's, and only the leader moves it (w25)
+ *
+ * `RoomView.format` is a `TableFormat.id` and the table's rules for BOTH seats;
+ * it used to be per-seat, sent with each player's deck. `setFormat` is the
+ * leader's setter — `PATCH /api/rooms/:id` with `{ format }`, the same route and
+ * allow-list that carries `{ gameType }` — and a non-leader gets the server's
+ * own refusal rather than a control that does nothing.
+ *
+ * `RoomView.you` is caller-scoped: `leader` is the only thing that can tell a
+ * browser it owns the table's settings, because `leader` is a hashed
+ * participant id no client can derive. Both fields default FALSE and `format`
+ * defaults to the empty string, which is the same discipline as `clientMode`:
+ * an older server, or a body that lost the field, leaves nobody in charge and
+ * the room screen falls back to the newest pool rather than pretending to know
+ * one.
  */
 
 import { apiBase } from '../screens/tables.ts';
@@ -59,6 +75,20 @@ export interface RoomMember {
   ready: boolean;
 }
 
+/**
+ * What the CALLER is in this room, which nothing else in the view can say.
+ *
+ * `leader` compared against `RoomView.leader` is not a question a browser can
+ * answer: the leader is a hashed participant id and no client holds its own. So
+ * the server answers it per caller, and `ready` comes with it — a reload while
+ * ready used to relabel the Ready button, because the only thing that knew was
+ * a latch set by our own call (wave 23's known gap).
+ */
+export interface RoomYou {
+  leader: boolean;
+  ready: boolean;
+}
+
 export interface RoomView {
   id: string;
   name: string;
@@ -66,6 +96,14 @@ export interface RoomView {
   leader: string;
   /** Kept as a string: a type the server adds later is shown, not dropped. */
   gameType: string;
+  /**
+   * The table's pool — a `TableFormat.id`, the rules BOTH seats are checked
+   * against, and the leader's to change. Empty only when the server did not
+   * send one, which the room screen reads as "fall back to the newest pool".
+   */
+  format: string;
+  /** Caller-scoped. Both halves default false; see the header. */
+  you: RoomYou;
   /** Fixed at create, for the room's whole life. Missing on the wire ⇒ builtin. */
   clientMode: ClientMode;
   locked: boolean;
@@ -206,10 +244,23 @@ function parseClientMode(v: unknown): ClientMode {
   return v === 'streamed' ? 'streamed' : 'builtin';
 }
 
+/**
+ * What the caller is, read strictly.
+ *
+ * `=== true` and nothing else, the same rule `parseMember` uses for `ready`: the
+ * only way a browser draws the leader's controls is for the server to have said
+ * so in a boolean. A missing `you` leaves nobody in charge, which costs the
+ * leader a control and costs nobody a wrong one.
+ */
+function parseYou(v: unknown): RoomYou {
+  const o = isRecord(v) ? v : {};
+  return { leader: o.leader === true, ready: o.ready === true };
+}
+
 /** A RoomView, or null when the body is not one. */
 export function parseRoomView(v: unknown): RoomView | null {
   if (!isRecord(v)) return null;
-  const { id, name, creator, leader, gameType, clientMode, locked, members, matchId, draftStartedAt, createdAt } = v;
+  const { id, name, creator, leader, gameType, format, you, clientMode, locked, members, matchId, draftStartedAt, createdAt } = v;
   if (typeof id !== 'string' || !ROOM_ID.test(id)) return null;
   if (typeof name !== 'string' || typeof gameType !== 'string' || typeof locked !== 'boolean') return null;
   if (!Array.isArray(members)) return null;
@@ -219,6 +270,8 @@ export function parseRoomView(v: unknown): RoomView | null {
     creator: typeof creator === 'string' ? creator : '',
     leader: typeof leader === 'string' ? leader : '',
     gameType,
+    format: typeof format === 'string' ? format : '',
+    you: parseYou(you),
     clientMode: parseClientMode(clientMode),
     locked,
     members: members.map(parseMember).filter((m): m is RoomMember => m !== null),
@@ -275,6 +328,16 @@ export interface RoomsClient {
   /** Your own readiness in this room. The server resolves who you are. */
   ready(roomId: string, ready: boolean): Promise<RoomOutcome>;
   /**
+   * Set the table's pool. The LEADER's call: anyone else gets the server's
+   * `only the room leader…` refusal, in its own words, and the screen does not
+   * offer the control in the first place.
+   *
+   * `PATCH /api/rooms/:id`, the same route and the same allow-list that carries
+   * `{ gameType }` — so `{ format }` is the whole body, and a field that is not
+   * on the list is a 400 rather than a write nobody notices.
+   */
+  setFormat(roomId: string, format: string): Promise<RoomOutcome>;
+  /**
    * Deal the draft. Any member may ask — like constructed, where either browser
    * may start the match and the server answers one start to both — and asking
    * twice is not an error: a room whose draft has already started answers with
@@ -310,12 +373,24 @@ const JSON_HEADERS = { 'content-type': 'application/json' };
 export function roomsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base: string = defaultApiBase()): RoomsClient {
   const url = (path: string): string => `${base}rooms${path}`;
 
-  /** The two room writes that answer with the room. Same shape, same refusals. */
-  const write = async (path: string, payload: unknown, whatFailed: string): Promise<RoomOutcome> => {
+  /**
+   * The room writes that answer with the room. Same shape, same refusals.
+   *
+   * The method is a parameter because the pool's setter is a PATCH on the room
+   * itself while readiness and the start are POSTs to sub-paths; everything
+   * after the request is identical, including the refusal wording, so there is
+   * one of these and not two.
+   */
+  const write = async (
+    path: string,
+    payload: unknown,
+    whatFailed: string,
+    method: 'POST' | 'PATCH' = 'POST',
+  ): Promise<RoomOutcome> => {
     let res: Response;
     try {
       res = await fetchImpl(url(path), {
-        method: 'POST',
+        method,
         credentials: 'same-origin',
         headers: JSON_HEADERS,
         body: JSON.stringify(payload),
@@ -405,6 +480,10 @@ export function roomsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
 
     ready(roomId, ready) {
       return write(`/${encodeURIComponent(roomId)}/ready`, { ready }, 'Could not change your readiness');
+    },
+
+    setFormat(roomId, format) {
+      return write(`/${encodeURIComponent(roomId)}`, { format }, 'Could not change the pool', 'PATCH');
     },
 
     start(roomId) {

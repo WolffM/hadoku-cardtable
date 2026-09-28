@@ -41,6 +41,11 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   creator: 'http-a',
   leader: 'http-a',
   gameType: 'constructed-1v1',
+  // The table's pool, and what the caller is in this room (w25). Both are
+  // always on the wire; `parseRoomView`'s defaults for a body that lost them
+  // are asserted in "the pool and the caller" below.
+  format: '2011-02-13',
+  you: { leader: true, ready: false },
   clientMode: 'builtin',
   locked: false,
   members: [{ id: 'http-a', name: 'alice', joinedAt: '2026-09-19T00:00:00.000Z', ready: false }],
@@ -331,6 +336,65 @@ describe('the room writes', () => {
     // And an unreachable server is said in words rather than thrown.
     const offline = roomsClient(() => Promise.reject(new Error('offline')), '/cardtable/api/');
     expect(await offline.start('r-cube')).toEqual({ ok: false, message: 'Could not reach the server.' });
+  });
+
+  /* ── the leader's setter (w25 §B) ──────────────────────────────────── */
+
+  it('sets the table’s pool with a PATCH on the room, carrying `format` and nothing else', async () => {
+    const moved = room({ id: 'r-open', name: 'Friday night', format: '2011-07-01' });
+    const { calls, client } = writes(() => json(200, moved));
+
+    const outcome = await client.setFormat('r-open', '2011-07-01');
+    expect(outcome.ok && outcome.room.format).toBe('2011-07-01');
+    // PATCH, not POST, and on the room itself — the same route and allow-list
+    // that already carries `{ gameType }`.
+    expect(calls).toEqual([
+      { url: '/cardtable/api/rooms/r-open', method: 'PATCH', body: { format: '2011-07-01' } },
+    ]);
+  });
+
+  it('hands back the leader refusal in the server’s own words', async () => {
+    const refused = writes(() => json(403, { error: 'only the room leader can change the game type' }));
+    expect(await refused.client.setFormat('r-open', '2011-07-01')).toEqual({
+      ok: false,
+      message: 'Could not change the pool: only the room leader can change the game type.',
+    });
+  });
+});
+
+/* ── the pool and the caller (w25 §B) ────────────────────────────────── */
+
+describe('the pool and the caller', () => {
+  it('reads the room’s pool as a string, and an absent one as empty rather than a guess', () => {
+    expect(parseRoomView({ ...OPEN, format: '2011-07-01' })?.format).toBe('2011-07-01');
+    // The shape a server that predates the field sends: none at all. Empty is
+    // the honest answer, and the room screen's fallback is the newest pool —
+    // it is not this parser's job to invent one.
+    const older: Record<string, unknown> = { ...OPEN };
+    delete older.format;
+    expect(parseRoomView(older)?.format).toBe('');
+    for (const near of [0, true, {}, null, ['2011-07-01']]) {
+      expect(parseRoomView({ ...OPEN, format: near })?.format).toBe('');
+    }
+  });
+
+  it('reads `you` from booleans only, so an older server leaves nobody in charge', () => {
+    expect(parseRoomView({ ...OPEN, you: { leader: true, ready: true } })?.you).toEqual({ leader: true, ready: true });
+
+    const older: Record<string, unknown> = { ...OPEN };
+    delete older.you;
+    expect(parseRoomView(older)?.you).toEqual({ leader: false, ready: false });
+    // Anything that is not a boolean `true` is false: the only way a browser
+    // draws the leader's control is for the server to have said so.
+    for (const near of ['true', 'yes', 1, {}, null, undefined]) {
+      expect(parseRoomView({ ...OPEN, you: { leader: near, ready: near } })?.you).toEqual({
+        leader: false,
+        ready: false,
+      });
+    }
+    for (const near of ['x', 3, null, []]) {
+      expect(parseRoomView({ ...OPEN, you: near })?.you).toEqual({ leader: false, ready: false });
+    }
   });
 });
 

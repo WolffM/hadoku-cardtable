@@ -151,10 +151,30 @@
   filter: none;
 }
 
-/* The deck list while the era's legality answer is in flight: not choosable. */
+/* The deck list while the pool's legality answer is in flight: not choosable. */
 .lobby__card select:disabled {
   color: var(--color-text-secondary);
   cursor: progress;
+}
+
+/*
+ * A field's name, and a field that is not a control.
+ *
+ * The leader gets a `<select>` for the table's pool and everybody else gets the
+ * same value as text, so the two have to LOOK like the same field — the name
+ * above it in the same type, and the value in the app's own text colour rather
+ * than the secondary grey a disabled control would be. A disabled select was the
+ * other option and it says the wrong thing: this is not a control that is
+ * temporarily out of reach, it is not the reader's control at all.
+ */
+.lobby__field {
+  color: var(--color-text-secondary);
+}
+
+.lobby__pool {
+  padding: 0.45rem 0;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .lobby__form {
@@ -398,6 +418,15 @@
   grid-area: deck-ready;
 }
 
+/* The leader's own cell in a draft room's member row. Named for the same reason
+   `deck-ready` is: an unnamed pill would be auto-placed and the column would
+   wander between the two rows. On the constructed card the pill is not in a
+   grid at all, so it keeps its own width. */
+.pill--leader {
+  grid-area: leader;
+  justify-self: start;
+}
+
 /*
  * A state, not a clause: a shape, a colour and a word. The SHAPE is the
  * primary signal — `ConstructedScreen.tsx` draws a tick, a cross or an open
@@ -425,6 +454,20 @@
   color: var(--color-warning-dark);
   background: var(--color-warning-bg);
   border-style: dashed;
+}
+
+/*
+ * The leader, which is not a pass or a fail.
+ *
+ * Its own state rather than borrowing `yes`, so the success/warning pair keeps
+ * meaning exactly what it meant: a legal deck and a ready player. The crown is
+ * the signal; this is the quietest colouring in the file, because who set the
+ * table is a fact you look up, not one that should shout over a ready mark.
+ */
+.pill[data-state='leader'] {
+  color: var(--color-text-secondary);
+  background: var(--color-bg-hover);
+  border-style: dotted;
 }
 
 .pill__mark {
@@ -733,8 +776,8 @@
 
 .draft__member {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: 'who deck-ready';
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: 'who leader deck-ready';
   align-items: center;
   gap: 0.2rem 0.75rem;
   padding: 0.45rem 0.7rem;

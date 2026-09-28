@@ -32,17 +32,20 @@
  * membership, and a draft room needs that as much as a constructed one —
  * `GET /api/tables/rooms/:roomId` is the one table route that is not gated.
  *
- * ## Whose Ready toggle it is, which the wire does not say
+ * ## Whose Ready toggle it is, and who the leader is — both from the server
  *
- * `RoomView.members` carries no `you`: a member's id is a hashed participant id
- * the browser cannot derive, and the display name is not unique (an unnamed key
- * is "friend"). The constructed table gets `you` because the SERVER computes it
- * (`routes.ts` `tableView`), and there is no equivalent on the room record. So
- * the toggle's own label is a latch set by the answer to our own `ready` call,
- * and the members list beside it is the room's authority on who is ready. The
- * cost is exact and small: reload mid-lobby while already ready and the button
- * reads "Ready" until you press it, which re-sends the readiness you already
- * had. Nothing about the room is ever mis-stated, and nothing starts early.
+ * A member's id is a hashed participant id the browser cannot derive, and the
+ * display name is not unique (an unnamed key is "friend"), so no client can work
+ * out which member it is. It does not have to: the room record carries a
+ * caller-scoped `you: { leader, ready }` (w25), beside the `you` the constructed
+ * table has always had. The draft toggle's label is that flag rather than a
+ * latch set by our own call — which is what used to make a reload mid-lobby read
+ * "Ready" while the room knew otherwise (wave 23's stated cost) — and `leader`
+ * is what decides who gets the table's settings.
+ *
+ * Both default FALSE when the field is absent (`rooms/api.ts`'s `parseYou`), so
+ * a server that predates them leaves nobody in charge. That costs the leader a
+ * control; it can never hand one to somebody else.
  *
  * The operator's flow (`docs/handoff/w13.md`): a room list, a room, a game
  * type, then *"once both players have a valid deck loaded the game can be
@@ -59,19 +62,36 @@
  * refuses the same thing with the same sentence — the disabled button is a
  * courtesy, the refusal is the control.
  *
- * ## Choosing a deck IS loading it, and the era decides which decks there are
+ * ## Choosing a deck IS loading it, and the ROOM's pool decides which decks
  *
  * The operator, of the Load button this used to have: *"just 'I'm ready' is
- * enough."* So there are two selects and one button. Picking a deck sends the
- * `PUT` itself; picking an era re-sends it under the new rules, because a deck
- * held against one format and started in another is the one way this screen
- * could lie about what it checked.
+ * enough."* So picking a deck sends the `PUT` itself; there is no second thing
+ * to press.
  *
- * The era also NARROWS the deck list to the decks legal in it, which is one
+ * The pool is the TABLE's, not the seat's (w25). Operator, 2026-09-27: *"the
+ * room leader can change the set or other settings"* and *"people who join can
+ * only select from the deck dropdown"*. So the pool is READ from the room
+ * record, the leader alone gets a control that moves it
+ * (`PATCH /api/rooms/:id` → `rooms.setFormat`), and a deck already chosen is
+ * re-sent when the pool moves under it — on every browser, because it is
+ * everybody's stored verdict the server clears, not only the leader's.
+ *
+ * `PUT …/deck` therefore names a deck and nothing else. It used to carry the
+ * caller's own `rules`, which is how two players could sit at one table holding
+ * decks legal in two different pools; the server now refuses a body that
+ * carries `rules` at all (400), so there is no version of this screen that can
+ * quietly disagree with the room about what was checked.
+ *
+ * The pool also NARROWS the deck list to the decks legal in it, which is one
  * `POST /api/tables/check` per deck — see `legalDecksIn` for why there is no
  * cheaper question to ask, and why a deck the server could not be asked about
- * is offered rather than hidden. The answer is remembered per era, so flicking
- * between two eras costs nothing the second time.
+ * is offered rather than hidden. The answer is remembered per pool, so moving
+ * back to one already asked about costs nothing.
+ *
+ * A room whose record has not been read yet, or a server that sends no
+ * `format`, falls back to the NEWEST pool (`newestFormat`) — the same default
+ * the server applies at create, and deliberately not `formats[0]`, which is
+ * 2011-02-13 and is where every room used to open.
  *
  * ## Waiting for the other person is the job
  *
@@ -122,13 +142,13 @@ import {
 import {
   RANDOM_DECK,
   legalDecksIn,
+  newestFormat,
   pickRandom,
   secureRandom,
   tablesClient,
   type LegalSweep,
   type RoomPlayer,
   type RoomTable,
-  type SeatChoice,
   type TableDeck,
   type TableFormat,
   type TablesClient,
@@ -160,8 +180,17 @@ export const STREAM_PROBE_MS = 5000;
 
 type Loaded = { formats: TableFormat[]; decks: TableDeck[] };
 
-function seatChoice(deckId: string, formatId: string): SeatChoice {
-  return { deck: { library: deckId }, rules: { kind: 'standard', format: formatId } };
+/**
+ * A pool, as the screen names it: the id and the pool's own name.
+ *
+ * The same text in the leader's `<option>` and in the fixed value everybody else
+ * reads, so the two screens are not two vocabularies. A pool the catalogue does
+ * not hold is shown as its bare id rather than blank — the room said it, and a
+ * value the screen cannot expand is still the value.
+ */
+function poolLabel(formats: readonly TableFormat[], id: string): string {
+  const found = formats.find((f) => f.id === id);
+  return found === undefined ? id : `${found.id} — ${found.name}`;
 }
 
 export function ConstructedScreen({
@@ -212,13 +241,20 @@ function RoomTableScreen({
   const [table, setTable] = useState<RoomTable | null>(null);
   const [tableError, setTableError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [formatId, setFormatId] = useState('');
   const [deckId, setDeckId] = useState('');
   const [busy, setBusy] = useState(false);
   const [starting, setStarting] = useState(false);
-  /** The era's answer to "which decks are legal here", and one per era kept. */
+  /** The pool's answer to "which decks are legal here", and one per pool kept. */
   const [legal, setLegal] = useState<LegalSweep | null>(null);
   const sweeps = useRef(new Map<string, LegalSweep>());
+  /**
+   * The room's pool as this screen last saw it, so a CHANGE can be told from a
+   * first sighting. Null until the room has answered once: arriving in a room
+   * whose pool is already set must not re-send a deck the server is holding
+   * against that same pool, because a `PUT …/deck` stands you down
+   * (`routes.ts`: a new deck un-readies you).
+   */
+  const seenPool = useRef<string | null>(null);
   const [startRefusal, setStartRefusal] = useState<string | null>(null);
   /** A start is in flight, or has been refused: not asked again on every poll. */
   const asked = useRef(false);
@@ -249,12 +285,6 @@ function RoomTableScreen({
   const [resolved, setResolved] = useState(false);
   /** Latched on the first read. A room does not change mode under its players. */
   const modeRef = useRef<ClientMode | null>(null);
-  /**
-   * Your own readiness in a DRAFT room, as far as this browser knows it. The
-   * room record says who is ready but not which member you are (see the header),
-   * so this is the answer to our own `ready` call and nothing else.
-   */
-  const [iAmReady, setIAmReady] = useState(false);
   /** A refusal from `ready` or `start`, in the server's own words. */
   const [draftError, setDraftError] = useState<string | null>(null);
   const [dealing, setDealing] = useState(false);
@@ -280,6 +310,27 @@ function RoomTableScreen({
   const draftStartedAt = view?.draftStartedAt ?? null;
   const members = view?.members ?? [];
   const allReady = members.length > 0 && members.every((m) => m.ready);
+  /** Your own readiness in a DRAFT room, as the ROOM says it. Not a latch. */
+  const iAmReady = view?.you.ready === true;
+  /**
+   * Whether the table's settings are yours.
+   *
+   * Two sources, and they are the same fact computed by the same server from the
+   * same record: the room record's caller-scoped `you.leader` and the table
+   * view's. Either arriving is enough — a draft room has no table, and a room
+   * record that could not be read must not take the control off the leader of a
+   * table that answered — and neither can be true for anybody else, because no
+   * client computes it.
+   */
+  const iAmLeader = view?.you.leader === true || table?.you.leader === true;
+  /** The member the room names as its leader, when the room said who is in it. */
+  const leaderMember = members.find((m) => m.id === view?.leader) ?? null;
+  /**
+   * The pool the TABLE is on. The room's, or the newest one until the room has
+   * said — never `formats[0]`, which is the oldest frozen pool and is where
+   * every room used to open (operator, 2026-09-27: newest).
+   */
+  const poolId = view?.format !== undefined && view.format !== '' ? view.format : newestFormat(loaded?.formats ?? []);
 
   // The formats and the decks — for a constructed table only. A draft room has
   // no deck to hold, and `routes.ts` refuses every table write it could make.
@@ -298,7 +349,10 @@ function RoomTableScreen({
       .then(([formats, decks]) => {
         if (!live) return;
         setLoaded({ formats, decks });
-        setFormatId((prev) => (prev === '' ? (formats[0]?.id ?? '') : prev));
+        // No pool is chosen here either: the room's is the pool, and until the
+        // room answers `poolId` falls back to the newest of these. Nothing on
+        // this screen ever picks one for the table.
+        //
         // No deck is chosen for you. Choosing one is what loads it, and the
         // Ready button is dead until you have, so a default here would both
         // load a deck nobody picked and make Ready live on arrival.
@@ -430,21 +484,22 @@ function RoomTableScreen({
   const picking =
     !streamed && !draftRoom && resolved && locked === null && table !== null && !spectating && loaded !== null;
 
-  // Which decks this era offers. One sweep per era, remembered — see
+  // Which decks the ROOM's pool offers. One sweep per pool, remembered — see
   // `legalDecksIn`. Gated on the card being drawn, so a streamed room, a
-  // locked room and a spectator ask nothing.
+  // locked room and a spectator ask nothing. The leader moving the pool re-runs
+  // it, which is what narrows the dropdown for everybody in the room.
   useEffect(() => {
-    if (!picking || loaded === null || formatId === '') return;
-    const cached = sweeps.current.get(formatId);
+    if (!picking || loaded === null || poolId === '') return;
+    const cached = sweeps.current.get(poolId);
     if (cached !== undefined) {
       setLegal(cached);
       return;
     }
     let live = true;
-    void legalDecksIn(client, formatId, loaded.decks).then((sweep) => {
+    void legalDecksIn(client, poolId, loaded.decks).then((sweep) => {
       // A sweep the server refused is NOT remembered: it offers every deck,
-      // and caching that would leave the era un-narrowed for as long as the
-      // page is open over one dropped request. Coming back to the era retries.
+      // and caching that would leave the pool un-narrowed for as long as the
+      // page is open over one dropped request. Coming back to it retries.
       if (sweep.error === null) sweeps.current.set(sweep.formatId, sweep);
       if (!live) return;
       setLegal(sweep);
@@ -453,19 +508,19 @@ function RoomTableScreen({
     return () => {
       live = false;
     };
-  }, [picking, loaded, formatId, client]);
+  }, [picking, loaded, poolId, client]);
 
-  /** The decks on offer, or null while the era's answer is still in flight. */
+  /** The decks on offer, or null while the pool's answer is still in flight. */
   const offered = useMemo(
     () =>
-      legal !== null && legal.formatId === formatId && loaded !== null
+      legal !== null && legal.formatId === poolId && loaded !== null
         ? loaded.decks.filter((d) => legal.ids.has(d.id))
         : null,
-    [legal, formatId, loaded],
+    [legal, poolId, loaded],
   );
 
-  // A deck the new era does not offer is no longer chosen. The `PUT` under the
-  // new rules has already gone (`chooseFormat`), so its verdict is on the
+  // A deck the new pool does not offer is no longer chosen. The `PUT` under the
+  // new rules has already gone (the re-send below), so its verdict is on the
   // screen saying which card is the problem; what this does is stop Ready
   // coming back to life over a deck the list no longer contains.
   useEffect(() => {
@@ -538,12 +593,13 @@ function RoomTableScreen({
   }, [draftRoom, draftStartedAt, locked, allReady, dealAttempt, rooms, roomId]);
 
   // Your own choice, as the server holds it: the picker opens where you left it.
+  // The deck only — the pool is the room's, and reading it back off a stored
+  // choice would be this screen holding a second opinion about the table.
   useEffect(() => {
     if (restored.current || mine === null || mine.choice === null) return;
-    const { deck, rules } = mine.choice;
+    const { deck } = mine.choice;
     restored.current = true;
     if ('library' in deck) setDeckId(deck.library);
-    if (rules.kind === 'standard') setFormatId(rules.format);
   }, [mine]);
 
   const apply = (outcome: Awaited<ReturnType<TablesClient['table']>>): void => {
@@ -555,12 +611,18 @@ function RoomTableScreen({
     setActionError(outcome.error);
   };
 
-  /** Hold a deck against a format. There is no button: choosing is loading. */
-  const loadDeck = (deck: string, format: string): void => {
+  /**
+   * Hold a deck. There is no button: choosing is loading.
+   *
+   * No format goes with it. The room's pool is the rules for both seats, and the
+   * server refuses a body that names one — so there is no way for this call to
+   * check a deck against anything but what the table is on.
+   */
+  const loadDeck = (deck: string): void => {
     setBusy(true);
     setActionError(null);
     client
-      .loadDeck(roomId, seatChoice(deck, format))
+      .loadDeck(roomId, { library: deck })
       .then(apply)
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
@@ -576,18 +638,58 @@ function RoomTableScreen({
     const chosen = value === RANDOM_DECK ? pickRandom(offered ?? [], rand)?.id : value;
     if (chosen === undefined || chosen === '') return;
     setDeckId(chosen);
-    loadDeck(chosen, formatId);
+    loadDeck(chosen);
   };
 
   /**
-   * The era moved. A deck already chosen is re-sent under the new rules, so the
-   * verdict the server holds is never one it formed against a different format.
-   * Whether the deck survives the new era is the sweep's answer, above.
+   * The LEADER moved the table's pool.
+   *
+   * A write to the room, not to this screen's state: the room is the authority
+   * on its own pool, so the answer replaces the room record and every other
+   * browser picks the change up on its poll. A refusal — a non-leader, a room
+   * that is drafting — is shown in the server's own words, and nothing local
+   * has moved, so the screen still reads what the table is actually on.
    */
-  const chooseFormat = (value: string): void => {
-    setFormatId(value);
-    if (deckId !== '') loadDeck(deckId, value);
+  const choosePool = (value: string): void => {
+    if (value === poolId) return;
+    setBusy(true);
+    setActionError(null);
+    rooms
+      .setFormat(roomId, value)
+      .then((outcome) => {
+        if (!outcome.ok) {
+          setActionError(outcome.message);
+          return;
+        }
+        setView(outcome.room);
+      })
+      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setBusy(false));
   };
+
+  /*
+   * The pool moved under a deck we are holding, so the hold is re-sent.
+   *
+   * On EVERY browser, not only the leader's: the server clears both players'
+   * readiness and stored verdict when the pool changes, because what they
+   * readied with is not what the table is now. Re-sending is what puts a verdict
+   * back on the screen — the one that names the offending card when the deck
+   * does not survive the move — and the sweep above is what takes the deck off
+   * the list when it does not.
+   *
+   * `seenPool` distinguishes a CHANGE from the first sighting. Arriving in a
+   * room must not re-send: a `PUT …/deck` stands you down, so a reload would
+   * silently un-ready a player who was ready.
+   */
+  useEffect(() => {
+    if (!picking || poolId === '') return;
+    const before = seenPool.current;
+    seenPool.current = poolId;
+    if (before === null || before === poolId) return;
+    // `loadDeck` closes over `client` and `roomId`, which are this screen's own
+    // props and do not change under it, so it is not a dependency.
+    if (deckId !== '') loadDeck(deckId);
+  }, [picking, poolId, deckId]);
 
   const setReady = (ready: boolean): void => {
     setBusy(true);
@@ -605,6 +707,10 @@ function RoomTableScreen({
    * `POST /api/rooms/:id/ready`, not `POST /api/tables/rooms/:id/ready` — the
    * second answers 409 for anything that is not a constructed room, and it is
    * about a deck this room has nobody holding.
+   *
+   * The answer is the whole room, including its caller-scoped `you`, so the
+   * toggle's own label comes off the room rather than off a latch. Nothing here
+   * remembers what it asked for.
    */
   const setDraftReady = (ready: boolean): void => {
     setBusy(true);
@@ -617,7 +723,6 @@ function RoomTableScreen({
           return;
         }
         setView(outcome.room);
-        setIAmReady(ready);
       })
       .catch((err: unknown) => setDraftError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
@@ -707,6 +812,7 @@ function RoomTableScreen({
         {locked === null && draftRoom && (
           <DraftLobby
             members={members}
+            leaderId={view?.leader ?? ''}
             iAmReady={iAmReady}
             allReady={allReady}
             dealing={dealing}
@@ -773,19 +879,46 @@ function RoomTableScreen({
               loaded !== null && (
                 <section className="lobby__card">
                   <h2>Your deck</h2>
-                  <label htmlFor="format">Standard, as it stood on</label>
-                  <select id="format" data-testid="format" value={formatId} onChange={(e) => chooseFormat(e.target.value)}>
-                    {loaded.formats.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.id} — {f.name}
-                      </option>
-                    ))}
-                  </select>
+                  {/* The table's pool: "Matched Standard", the operator's own
+                      words for it — one pool, both seats, checked against the
+                      same list. The LEADER gets a control; everybody else reads
+                      the same text and cannot move it, which is the whole of
+                      *"people who join can only select from the deck
+                      dropdown"*. The leader is named beside it rather than
+                      explained: a mark and a name, not a sentence. */}
+                  {iAmLeader ? (
+                    <>
+                      <label className="lobby__field" htmlFor="format">
+                        Matched Standard
+                      </label>
+                      <select
+                        id="format"
+                        data-testid="format"
+                        value={poolId}
+                        disabled={busy || matchId !== null}
+                        onChange={(e) => choosePool(e.target.value)}
+                      >
+                        {loaded.formats.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.id} — {f.name}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  ) : (
+                    <>
+                      <span className="lobby__field">Matched Standard</span>
+                      <span className="lobby__pool" data-testid="format-fixed" data-format={poolId}>
+                        {poolLabel(loaded.formats, poolId)}
+                      </span>
+                    </>
+                  )}
+                  <LeaderMark name={leaderMember?.name ?? null} you={iAmLeader} />
 
-                  {/* Only the decks that era offers, and the era's answer is
-                      the gate's. Disabled until it has answered: an option
-                      list assembled before the answer would offer decks the
-                      era does not have. */}
+                  {/* Only the decks the room's pool offers, and the pool's
+                      answer is the gate's. Disabled until it has answered: an
+                      option list assembled before the answer would offer decks
+                      the pool does not have. */}
                   <label htmlFor="deck-mine">You play</label>
                   <select
                     id="deck-mine"
@@ -867,10 +1000,15 @@ function RoomTableScreen({
  * The toggle carries `ready-toggle`, the same id the constructed table's does:
  * one room plays one game, so exactly one of the two is ever on the screen.
  *
+ * The leader is marked on their own row — `leaderId` is `RoomView.leader`, and a
+ * member's id is the one thing that identifies them, since the display name is
+ * not unique. A mark, not a sentence (operator: *"i dont need prose in my ui"*).
+ *
  * Nothing here draws a mana symbol, a set symbol, a tap symbol or a card frame.
  */
 function DraftLobby({
   members,
+  leaderId,
   iAmReady,
   allReady,
   dealing,
@@ -880,6 +1018,7 @@ function DraftLobby({
   onRetry,
 }: {
   members: RoomMember[];
+  leaderId: string;
   iAmReady: boolean;
   allReady: boolean;
   dealing: boolean;
@@ -900,6 +1039,15 @@ function DraftLobby({
           members.map((member, i) => (
             <li key={member.id} className="draft__member" data-testid={`draft-member-${i}`}>
               <strong className="tables__who">{member.name}</strong>
+              {member.id === leaderId && leaderId !== '' && (
+                <StatusPill
+                  kind="leader"
+                  testId={`draft-member-${i}-leader`}
+                  state="leader"
+                  mark="crown"
+                  label="leader"
+                />
+              )}
               <StatusPill
                 kind="ready"
                 testId={`draft-member-${i}-ready`}
@@ -1085,6 +1233,12 @@ function startStateText(players: RoomPlayer[], bothReady: boolean, starting: boo
  * read it — so each state has its OWN SHAPE (`data-mark`, drawn in an inline
  * `<svg>` we own) and its own border style as well. `screens.css` colours it;
  * remove every colour from that file and this still reads.
+ *
+ * `leader` is a third kind (w25) and it is not a yes/no: it is on the one member
+ * who has it and absent everywhere else. It gets its own `data-state`, so the
+ * two success/warning colourings stay exactly what they were, and its own drawn
+ * mark. The crown is our own five-point outline — no WotC mark, here or
+ * anywhere in this file.
  */
 function StatusPill({
   kind,
@@ -1094,10 +1248,10 @@ function StatusPill({
   label,
   count,
 }: {
-  kind: 'legal' | 'ready';
+  kind: 'legal' | 'ready' | 'leader';
   testId: string;
-  state: 'yes' | 'no';
-  mark: 'tick' | 'cross' | 'ring';
+  state: 'yes' | 'no' | 'leader';
+  mark: 'tick' | 'cross' | 'ring' | 'crown';
   label: string;
   count?: number;
 }) {
@@ -1107,10 +1261,31 @@ function StatusPill({
         {mark === 'tick' && <path d="M2.6 6.3 4.9 8.8 9.4 3.3" />}
         {mark === 'cross' && <path d="M3.5 3.5 8.5 8.5M8.5 3.5 3.5 8.5" />}
         {mark === 'ring' && <circle cx="6" cy="6" r="3.4" />}
+        {mark === 'crown' && <path d="M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z" />}
       </svg>
       {label}
       {count !== undefined && <span className="pill__count">{count}</span>}
     </span>
+  );
+}
+
+/**
+ * Who sets this table, beside the control that sets it.
+ *
+ * A mark and a name. The operator's standing rule is *"i dont need prose in my
+ * ui"*, so this is not "user-alice is the room leader and can change the pool" —
+ * it is the same pill the draft lobby puts on the leader's row, carrying the
+ * leader's name because on a constructed table there is no member list to put it
+ * on. `(you)` is the same suffix the seat rows use, in one text node with its
+ * space, for the same reason.
+ *
+ * Nothing is drawn when the room has not said who is in it: a mark with no name
+ * would be a claim this browser cannot make.
+ */
+function LeaderMark({ name, you }: { name: string | null; you: boolean }) {
+  if (name === null) return null;
+  return (
+    <StatusPill kind="leader" testId="room-leader" state="leader" mark="crown" label={you ? `${name} (you)` : name} />
   );
 }
 
