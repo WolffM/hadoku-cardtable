@@ -924,15 +924,22 @@ describe('one state, one line', () => {
  * the canvas boxes are lane C's and this lane may not move one.
  */
 describe('Leave is with the match controls', () => {
-  it('is a button in the bar, first in it, and not inside the board', async () => {
+  it('is a button in the cluster, kept off Forge’s two answers, and not inside the board', async () => {
     const { container, getByTestId } = await liveBoard();
     const leave = getByTestId('live-leave');
     const bar = getByTestId('live-buttons');
     expect(leave.tagName).toBe('BUTTON');
     expect(bar.contains(leave)).toBe(true);
-    // First in the bar: the far end from OK and Cancel, so a reach for Leave
-    // is never a misclick on Forge's answer.
-    expect(bar.firstElementChild).toBe(leave);
+    /*
+     * Not adjacent to OK or Cancel, so a reach for Leave is never a misclick on
+     * Forge's answer. It used to be FIRST in the cluster, which was the same
+     * claim when the grid drew it on a row of its own two rows below them; wave
+     * 27 §B.1 made the cluster one column in drawing order, and what keeps them
+     * apart there is Full control standing between.
+     */
+    const order = [...bar.children].map((el) => (el as HTMLElement).dataset.testid);
+    const gap = Math.abs(order.indexOf('live-leave') - order.indexOf('live-button-cancel'));
+    expect(gap, 'Leave does not sit next to Forge’s answers').toBeGreaterThan(1);
     expect(container.querySelector('.board')!.contains(leave)).toBe(false);
     // And the cluster is still a sibling of the board, drawn after it: the
     // chrome is around the canvas, not in it. Wave 24 added the phase rail
@@ -1074,8 +1081,22 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
       expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
     }
     /*
+     * And in the order they are DRAWN (wave 27 §B.1). The cluster is one column
+     * now, so the tab order and the reading order are the same order — in two
+     * columns the markup ran Leave, Full control, OK, Cancel, Concede while the
+     * grid drew OK, Cancel, Full, Conc, Leave, and a keyboard went round the
+     * cluster in an order nothing on screen suggested.
+     */
+    expect([...cluster.querySelectorAll('button')].map((b) => b.dataset.testid)).toEqual([
+      'live-button-ok',
+      'live-button-cancel',
+      'live-full-control',
+      'live-leave',
+      'live-concede',
+    ]);
+    /*
      * The log's toggle is NOT in it any more (§B.4): the operator drew the cluster
-     * at 112 × 84 with five buttons and drew the log as its own 36 × 32 button
+     * 112 wide with five buttons and drew the log as its own 36 × 32 button
      * further up the gutter. It is still the same disclosure, still naming the
      * same panel — the box it lives in changed, not what it does.
      */
@@ -1175,10 +1196,17 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     expect(decls, 'not anchored to the bottom edge any more').not.toContain('bottom:');
     expect(decls).toContain('width: var(--live-controls-w)');
     expect(decls).toContain('height: var(--live-controls-h)');
-    // The size the operator drew: 112 × 84, where wave 25 left 288 × 102.
+    /*
+     * The WIDTH the operator drew, and it is the one number that may not move
+     * (wave 27 §B.1): `board.css` derives `--right-gutter` from it — *"controls
+     * 6 + 112 = 118px <- the widest, and what this token is for"* — so widening
+     * the cluster takes the reservation out of every row of a 960px table. The
+     * HEIGHT is what gave instead, 84 → 136, when the five buttons became one
+     * column so that `Full control` and `Concede` stopped being clipped.
+     */
     const live = declarations(liveCss(), '.live');
     expect(live).toContain('--live-controls-w: 112px');
-    expect(live).toContain('--live-controls-h: 84px');
+    expect(live).toContain('--live-controls-h: 136px');
     // No full-width bar remains: the token that gave the row under the canvas
     // its height is gone from the file, not merely unused.
     expect(liveCss()).not.toContain('--live-bar-h');
@@ -1187,11 +1215,24 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
   it('every slot in it is a fixed track, so one window size can never see two boxes', () => {
     const css = liveCss();
     const cluster = declarations(css, '.live__buttons');
-    // A track sized by its content is exactly how the box changes between
-    // frames — a longer button label from Forge.
-    expect(cluster).toContain('grid-template-columns: repeat(2, 1fr)');
-    expect(cluster).toContain('grid-template-rows: 22px 22px 22px');
-    // So what overflows clips inside its own slot.
+    /*
+     * A track sized by its content is exactly how the box changes between
+     * frames — a longer button label from Forge. `1fr` IS such a track:
+     * it is `minmax(auto, 1fr)`, floored by the widest thing in the column, so
+     * the one column is written `minmax(0, 1fr)` (wave 27 §B.1).
+     */
+    expect(cluster).toContain('grid-template-columns: minmax(0, 1fr)');
+    expect(cluster).toContain('grid-template-rows: 22px 22px 22px 22px 22px');
+    // Five rows, five buttons, one column: no label shares a row with another,
+    // which is what stopped `Full control` and `Concede` ellipsizing.
+    expect(cluster).toContain("grid-template-areas: 'ok' 'cancel' 'full' 'leave' 'conc'");
+    /*
+     * The ellipsis stays, as the LAST RESORT for a label Forge chose and not for
+     * one of ours: `label1`/`label2` come off the wire and the five that do not
+     * now have 92px each. `e2e/table-fit.spec.ts` is what proves none of ours is
+     * clipped in a real browser — `scrollWidth` against `clientWidth`, because a
+     * clipped label breaches no box and no overflow check can see it.
+     */
     expect(declarations(css, '.live__buttons button')).toContain('text-overflow: ellipsis');
     // The row that was sized by Forge's own words is gone from the grid
     // altogether (§C.1); the `log` area that remains is the TOGGLE's, a button.
@@ -1223,8 +1264,9 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
    * pixels, and this adds them up rather than trusting a literal.
    *
    * Wave 25 §C took two 34px text rows and a gap out, and wave 26 §B.3 shrank the
-   * box to the 112 × 84 the operator drew and moved the log's button out of it, so
-   * the sum is 84.
+   * box to the 112 × 84 the operator drew and moved the log's button out of it.
+   * Wave 27 §B.1 gave each of the five buttons a row of its own — two columns of
+   * 49px clipped `Full control` and `Concede` — so the sum is 136.
    */
   it('the height token is the exact sum of the cluster’s own tracks, in pixels', () => {
     const css = liveCss();
@@ -1233,7 +1275,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     expect(rows, 'the cluster declares explicit rows').toBeDefined();
     // `minmax(22px, 1fr)` contributes its 22px floor; nothing here is content-sized.
     const tracks = [...rows!.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
-    expect(tracks).toEqual([22, 22, 22]);
+    expect(tracks).toEqual([22, 22, 22, 22, 22]);
     const padY = Number(/padding: (\d+)px/.exec(cluster)?.[1]);
     const gap = Number(/gap: (\d+)px/.exec(cluster)?.[1]);
     const token = Number(/--live-controls-h: (\d+)px/.exec(declarations(css, '.live'))?.[1]);
@@ -1245,7 +1287,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // And the arithmetic is written out beside the token, so the next reader of
     // the file does not have to run this to see where the number came from.
     expect(css, 'the comment beside the token says the same sum').toContain(
-      '4 + 4 padding + 1 + 1 border + (22 + 22 + 22) rows + 2 × 4 gaps = 84',
+      '4 + 4 padding + 1 + 1 border + (22 + 22 + 22 + 22 + 22) rows + 4 × 4 gaps = 136',
     );
   });
 });
@@ -1366,6 +1408,36 @@ describe('the phase reads down the side', () => {
       '--live-rail-w: max(8.4%, 6.75rem)',
     );
     expect(rail, 'no left anchor is left behind').not.toContain('left:');
+    /*
+     * And what the rail's floor actually LEAVES a name, which is the number wave
+     * 26 got wrong (wave 27 §B.2).
+     *
+     * 108 − 2 border − 2 × side padding − the mark − the gap is a name's whole
+     * budget, and at 9.5px type `Beginning of combat` needed 94 of the 94 it had
+     * — but only at weight 400. The CURRENT step is drawn at 600, where the same
+     * word needs 97, so it ellipsized for the handful of frames a turn spends in
+     * that step, and no box anywhere breached. Measured in Chromium against the
+     * app's own font stack; the table is in `live.css` beside the rule.
+     *
+     * This adds the terms up off the file rather than trusting a literal, the
+     * way the cluster's height token is added up above — and the worst case it
+     * is compared against is the BOLD one.
+     */
+    const px = (decls: string, prop: string): number[] =>
+      [...(new RegExp(`(?:^|; )${prop}: ([^;]+)`).exec(decls)?.[1] ?? '').matchAll(/([\d.]+)px/g)].map((m) => Number(m[1]));
+    const name = declarations(css, '.live__step-name');
+    const mark = declarations(css, '.live__mark');
+    // The gap is the STEP's — between the mark and the name — not the rail's
+    // own, which is the space between the turn row and the column of steps.
+    const step = declarations(css, '.live__step');
+    const floorRem = Number(/--live-rail-w: max\(8\.4%, ([\d.]+)rem\)/.exec(live)?.[1]);
+    const budget =
+      floorRem * 16 - 2 * 1 - 2 * px(rail, 'padding')[1]! - px(mark, 'width')[0]! - px(step, 'gap')[0]!;
+    expect(budget, 'a step name’s own budget at the rail’s floor').toBe(96);
+    expect(px(name, 'font-size')[0], 'the type the budget was measured at').toBe(9);
+    // `Beginning of combat` at 9px/600, the longest of Forge's thirteen at the
+    // weight the current step is actually drawn at.
+    expect(budget, 'the widest step name, BOLD, fits the budget').toBeGreaterThanOrEqual(92);
     // Its own percentages, which is what makes the cluster's `top: 67%` land
     // directly under it rather than wherever thirteen rows happened to end.
     expect(rail).toContain('top: 31%');

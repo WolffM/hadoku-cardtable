@@ -32,6 +32,14 @@
  *     and NO text row (wave 25 §C took Forge's line and the log out of the
  *     corner), and that box is at the SAME place and size in every frame at a
  *     given window size — a fixed home, not a bar on demand;
+ *   - **no label in the chrome is CLIPPED** (wave 27 §B.3). This is the one
+ *     failure every check above is blind to by construction: a button whose
+ *     label ellipsizes has a box exactly as wide as the stylesheet said, sits
+ *     wholly inside the window, scrolls nothing and moves no neighbour. It is
+ *     the TEXT that does not fit, and the only thing that knows is
+ *     `scrollWidth > clientWidth`. Wave 26 shipped `Full c…` and `Conc…` at
+ *     1280×800 through a green run of this very spec
+ *     (`docs/planning/wave26-question-panel-1280x800.png`);
  *   - an open prompt lies inside the viewport and above the bar;
  *   - no battlefield or hand has to scroll internally to show its cards —
  *     the layout FITS them rather than hiding the overflow a level down.
@@ -92,6 +100,15 @@
  * A grouped card's floor is lower than a single row's and says why
  * (`MIN_GROUPED_CARD_PX`).
  *
+ * The third **asks a real question** (wave 27 §B.2). The only question either
+ * test above ever opens is a `showConfirmDialog` — two lines of prose and two
+ * buttons — which fits any column anyone has ever drawn. What the operator's
+ * 24.1% has to earn is a REVEAL GRID, and at the table's real width (960 at a
+ * 1280 viewport, not 1280) that column is ~227px. So a twelve-card choice is
+ * built out of `ChoicePrompts`' own markup and real `CardTile`s and measured
+ * there: inside the window, inside its own column, scrolling downward and never
+ * sideways, and drawing more than one column of cards.
+ *
  * Needs a Forge build, exactly as `play.spec.ts`: `CARDTABLE_FORGE_JAR` +
  * `CARDTABLE_FORGE_RES`. Without them it SKIPS and its title says why, so the
  * Playwright summary reports a skip rather than a silent pass. CI sets both.
@@ -139,8 +156,8 @@ const TITLE = forge.ok
   ? 'a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window'
   : `a live match fits 1280×800 and 1366×768 in every frame — SKIPPED: ${forge.reason}`;
 const CROWD_TITLE = forge.ok
-  ? 'the canvas is static as the stack fills, and a crowded table fits too: 8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling'
-  : `the canvas is static and a crowded table fits too — SKIPPED: ${forge.reason}`;
+  ? 'the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column'
+  : `the canvas is static, a crowded table fits and a question fits its column — SKIPPED: ${forge.reason}`;
 
 /* ── the sampler, which runs inside each page ────────────────────────── */
 
@@ -359,6 +376,33 @@ function installSampler(): void {
         if (stepName !== null && !inside(stepName.getBoundingClientRect())) {
           breach('the current step’s name is not wholly inside the window');
         }
+        /*
+         * And no label in the chrome is CLIPPED (wave 27 §B.3).
+         *
+         * Every other check on this page is about a BOX, and a clipped label
+         * breaches none of them: `text-overflow: ellipsis` makes the text fit the
+         * box the stylesheet gave it, so the box is the right size, inside the
+         * window, clear of its neighbours and identical in every frame. The
+         * element that knows is the element itself — `scrollWidth` is what the
+         * text needed, `clientWidth` is what it got.
+         *
+         * Wave 26 shipped `Full c…` and `Conc…` through a green run of this spec
+         * for exactly that reason: 112px in two columns is a 39px label slot, and
+         * `Full control` needs 62. §B.1 made the cluster one column of five.
+         *
+         * The rail's thirteen step names are in it too: §B.2 widened the rail from
+         * 32px to 108 *so that all thirteen would be read*, and a rail that
+         * ellipsizes one of them has quietly undone that.
+         */
+        for (const el of Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '[data-testid="live-buttons"] button, [data-testid="live-log-toggle"], .live__step-name',
+          ),
+        )) {
+          if (el.scrollWidth <= el.clientWidth + 1) continue;
+          const what = el.dataset.testid ?? (el.className === '' ? el.tagName.toLowerCase() : el.className);
+          breach(`the label ${JSON.stringify(el.textContent)} is clipped (${what}: needs ${el.scrollWidth}w, has ${el.clientWidth}w)`);
+        }
         const turn = document.querySelector('[data-testid="live-turn"]')?.textContent ?? '';
         if (turn !== '' && !fit.turns.includes(turn)) fit.turns.push(turn);
         // Forge's own line, read from its new home in the logbook (wave 25 §C):
@@ -434,6 +478,23 @@ async function samples(f: Friend): Promise<FitSamples> {
   return got;
 }
 
+/**
+ * The words the chrome's own controls say, and nothing about Forge's two — the
+ * cluster's OK and Cancel carry `label1`/`label2` off the wire, which have been
+ * `OK`, `Cancel`, `Auto`, `Play` and `Draw` and are not this file's to predict.
+ *
+ * These four ARE, and they are asserted as strings rather than only measured,
+ * because `scrollWidth` alone would pass a stylesheet that fitted the box by
+ * shortening the word — which is the same loss the ellipsis was, spelled
+ * differently. The rendered text must be the whole intended text (wave 27 §B).
+ */
+const OUR_LABELS: Record<string, string> = {
+  'live-leave': 'Leave',
+  'live-full-control': 'Full control',
+  'live-concede': 'Concede',
+  'live-log-toggle': 'Log',
+};
+
 /** The same checks the sampler makes, made once from outside at a named moment. */
 async function fitsNow(f: Friend, moment: string): Promise<Record<string, unknown>> {
   const m = await f.page.evaluate(() => {
@@ -449,6 +510,23 @@ async function fitsNow(f: Friend, moment: string): Promise<Record<string, unknow
       prompt: box('[data-testid="live-prompt"]'),
       turn: document.querySelector('[data-testid="live-turn"]')?.textContent ?? null,
       battlefields: Array.from(document.querySelectorAll<HTMLElement>('.seat [data-zone="battlefield"]')).map((z) => Number(z.dataset.count)),
+      /*
+       * What every label in the chrome says and what room it had to say it in
+       * (wave 27 §B.3). `scrollWidth` is what the text needed and `clientWidth`
+       * is what the box gave it, so a label clipped by `text-overflow: ellipsis`
+       * — which breaches no box and so passes every other check on this page —
+       * is the one where the two differ.
+       */
+      labels: Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '[data-testid="live-buttons"] button, [data-testid="live-log-toggle"], .live__step-name',
+        ),
+      ).map((el) => ({
+        id: el.dataset.testid ?? el.className,
+        text: (el.textContent ?? '').trim(),
+        needs: el.scrollWidth,
+        has: el.clientWidth,
+      })),
     };
   });
   const where = `${f.name} at ${m.size.join('×')}, ${moment}`;
@@ -457,6 +535,18 @@ async function fitsNow(f: Friend, moment: string): Promise<Record<string, unknow
   expect(m.bar, `${where}: no button bar`).not.toBeNull();
   expect(m.bar!.height, `${where}: the button bar has no height`).toBeGreaterThan(0);
   expect(m.bar!.bottom, `${where}: the button bar is below the window`).toBeLessThanOrEqual(m.size[1]);
+  /*
+   * §B.3, from outside and by name. The sampler catches a clip in any frame;
+   * this says which control and what it was supposed to say, which is the
+   * difference between a red that names the bug and one that names a symptom.
+   */
+  const clipped = m.labels.filter((l) => l.needs > l.has + 1);
+  expect(clipped, `${where}: a label is clipped — ${JSON.stringify(clipped)}`).toEqual([]);
+  for (const [id, intended] of Object.entries(OUR_LABELS)) {
+    const label = m.labels.find((l) => l.id === id);
+    if (label === undefined) continue;
+    expect(label.text, `${where}: ${id} says its whole word`).toBe(intended);
+  }
   if (SHOTS !== '') {
     mkdirSync(SHOTS, { recursive: true });
     await f.page.screenshot({ path: resolve(SHOTS, `${moment.replace(/[^a-z0-9]+/gi, '-')}-${f.name}-${m.size.join('x')}.png`) });
@@ -1283,6 +1373,145 @@ function clearStack(): void {
   for (const el of Array.from(document.querySelectorAll('[data-zone="stack"] [data-probe]'))) el.remove();
 }
 
+/* ── a real question, in the column it actually gets ─────────────────── */
+
+/**
+ * How many cards the probe question offers. Forge's reveals and searches run
+ * this big — a library search over a fetch land, `Squadron Hawk`'s "up to three
+ * cards", a scry-and-reveal — and twelve is where a narrow column stops being a
+ * theory.
+ */
+const QUESTION_CARDS = 12;
+/**
+ * And the grid must draw at least this many columns. Wave 27 §B.2: the question
+ * column is 24.1% of a table that is 960 at a 1280 viewport, so the sheet's own
+ * content box is ~200px, and `prompts.css`'s `--card-w: 7rem` floor (112px)
+ * resolves `repeat(auto-fill, minmax(112px, 1fr))` to ONE column there — a
+ * twelve-card reveal as a twelve-row scroll two cards tall. `live.css` asks the
+ * same grid at 5rem inside the live column, which is two.
+ */
+const MIN_QUESTION_COLUMNS = 2;
+/** What watchparty's `.wp-room-chrome` aside takes, and never gives back. */
+const CHAT_ASIDE_PX = 320;
+
+interface QuestionFit {
+  size: string;
+  /** `.live`'s own box — the TABLE, which is the viewport less the chat aside. */
+  live: [number, number];
+  host: [number, number, number, number];
+  sheet: { width: number; height: number; scrollW: number; scrollH: number; clientW: number; clientH: number };
+  inside: boolean;
+  sheetInsideHost: boolean;
+  columns: number;
+  cardW: number;
+  page: [number, number];
+  overflowing: string[];
+}
+
+/**
+ * Put a REAL question in the question column and measure it. Runs in the page,
+ * DOM only.
+ *
+ * The probe asks with the markup `ChoicePrompts` renders — `PromptShell`'s
+ * `.prompt` around a `.prompt__cards` grid of real `CardTile`s cloned out of the
+ * dealt hand — because the claim is about the STYLESHEET at this width and
+ * nothing about the wire. The match is parked on a keep-or-mulligan question, so
+ * React redraws nothing under it; `clearQuestion` takes it back out.
+ *
+ * The question that `play.spec.ts` and the first test above raise is a
+ * `showConfirmDialog`: two lines of prose and two buttons, which fits any column
+ * ever drawn. A reveal grid is the case the operator's 24.1% has to earn, and it
+ * had never been measured at the table's real width.
+ */
+function askQuestion(cards: number): Promise<QuestionFit> {
+  const live = document.querySelector<HTMLElement>('.live');
+  if (live === null) throw new Error('no .live to put a question in');
+  const source = Array.from(
+    document.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="hand"] li.board-card [data-testid="card"]'),
+  );
+  if (source.length === 0) throw new Error('no dealt hand to copy cards from');
+  for (const el of Array.from(live.querySelectorAll('[data-question-probe]'))) el.remove();
+
+  const host = document.createElement('div');
+  host.className = 'live__prompt';
+  host.setAttribute('data-question-probe', '');
+  const sheet = document.createElement('section');
+  sheet.className = 'prompt';
+  sheet.setAttribute('data-prompt', 'getChoices');
+  const title = document.createElement('h3');
+  title.className = 'prompt__title';
+  title.textContent = 'Reveal cards from your library and put one into your hand';
+  const hint = document.createElement('p');
+  hint.className = 'prompt__hint';
+  hint.textContent = 'Choose exactly 1.';
+  const grid = document.createElement('ul');
+  grid.className = 'prompt__cards';
+  for (let i = 0; i < cards; i += 1) {
+    const li = document.createElement('li');
+    const label = document.createElement('label');
+    const tile = document.createElement('span');
+    tile.className = 'prompt__tile';
+    tile.appendChild(source[i % source.length].cloneNode(true));
+    label.appendChild(tile);
+    li.appendChild(label);
+    grid.appendChild(li);
+  }
+  const actions = document.createElement('div');
+  actions.className = 'prompt__actions';
+  for (const word of ['Cancel', 'OK']) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'prompt__submit';
+    b.textContent = word;
+    actions.appendChild(b);
+  }
+  sheet.append(title, hint, grid, actions);
+  host.appendChild(sheet);
+  live.appendChild(host);
+
+  return new Promise((done) =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const page = document.scrollingElement ?? document.documentElement;
+        const over = (el: HTMLElement): boolean => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+        const overflowing: string[] = [];
+        const match = document.querySelector<HTMLElement>('[data-testid="match"]');
+        for (let el: HTMLElement | null = match; el !== null && el !== document.documentElement; el = el.parentElement) {
+          if (over(el)) overflowing.push(el.className === '' ? el.tagName.toLowerCase() : el.className);
+        }
+        const h = host.getBoundingClientRect();
+        const s = sheet.getBoundingClientRect();
+        const tiles = Array.from(grid.children).map((li) => li.getBoundingClientRect());
+        done({
+          size: `${innerWidth}x${innerHeight}`,
+          live: [live.clientWidth, live.clientHeight],
+          host: [h.left, h.top, h.width, h.height].map((n) => Math.round(n)) as [number, number, number, number],
+          sheet: {
+            width: Math.round(s.width),
+            height: Math.round(s.height),
+            scrollW: sheet.scrollWidth,
+            scrollH: sheet.scrollHeight,
+            clientW: sheet.clientWidth,
+            clientH: sheet.clientHeight,
+          },
+          inside: h.top >= 0 && h.left >= 0 && h.bottom <= innerHeight + 0.5 && h.right <= innerWidth + 0.5,
+          sheetInsideHost:
+            s.top >= h.top - 0.5 && s.bottom <= h.bottom + 0.5 && s.left >= h.left - 0.5 && s.right <= h.right + 0.5,
+          columns: new Set(tiles.map((r) => Math.round(r.left))).size,
+          cardW: Math.round(Math.min(...tiles.map((r) => r.width))),
+          page: [page.scrollWidth, page.scrollHeight],
+          overflowing,
+        });
+      }),
+    ),
+  );
+}
+
+/** Take the probe question back off the page. Runs in the page. */
+function clearQuestion(): void {
+  for (const el of Array.from(document.querySelectorAll('[data-question-probe]'))) el.remove();
+}
+
 test(CROWD_TITLE, async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
@@ -1293,6 +1522,7 @@ test(CROWD_TITLE, async ({ browser }) => {
   const summary: Record<string, unknown> = {};
   const steps: (CrowdFit & { who: string; step: string })[] = [];
   const staticShots: (StaticShot & { who: string })[] = [];
+  const questions: (QuestionFit & { who: string })[] = [];
   try {
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
@@ -1413,6 +1643,47 @@ test(CROWD_TITLE, async ({ browser }) => {
         const full = shots.at(-1)!;
         expect(full.stackScroll[0], `${where}: 12 items are more than the band is wide`).toBeGreaterThan(full.stackClient[0]);
 
+        /* ── a real question, in the column the operator drew (§B.2) ──── */
+        const q = await f.page.evaluate(askQuestion, QUESTION_CARDS);
+        await f.page.evaluate(clearQuestion);
+        questions.push({ who: f.name, ...q });
+        console.log(
+          `[table-fit question] ${f.name} ${q.size}: table ${q.live.join('x')}; host ${q.host.join(',')}; ` +
+            `sheet ${q.sheet.width}x${q.sheet.height} scroll ${q.sheet.scrollW}x${q.sheet.scrollH} in ${q.sheet.clientW}x${q.sheet.clientH}; ` +
+            `${q.columns} columns of ${q.cardW}px; overflowing ${JSON.stringify(q.overflowing)}`,
+        );
+        {
+          const qw = `${f.name} at ${q.size}, a ${QUESTION_CARDS}-card question`;
+          /*
+           * The settled width, asserted rather than assumed: the table is the
+           * viewport less watchparty's pinned 320px aside, less the match
+           * shell's own 16px of side padding. 960 → 944 at 1280, 1046 → 1030 at
+           * 1366. Wave 26's blocking was applied as if the table had the whole
+           * 1280, and this is the line that says out loud that it does not.
+           */
+          const viewportW = Number(q.size.split('x')[0]);
+          expect(q.live[0], `${qw}: the table is the viewport less the chat aside`).toBeLessThanOrEqual(
+            viewportW - CHAT_ASIDE_PX,
+          );
+          expect(q.live[0], `${qw}: and not much less than that`).toBeGreaterThanOrEqual(viewportW - CHAT_ASIDE_PX - 24);
+          // It is in the window, the sheet is inside its host rather than
+          // hanging out of it, and nothing around the match grew.
+          expect(q.inside, `${qw}: the question is wholly inside the window (${q.host.join(',')})`).toBe(true);
+          expect(q.sheetInsideHost, `${qw}: the sheet stays inside the column it was given`).toBe(true);
+          expect(q.overflowing, `${qw}: the match and every box around it holds what is in it`).toEqual([]);
+          expect(q.page[1], `${qw}: the page scrolls vertically`).toBeLessThanOrEqual(Number(q.size.split('x')[1]));
+          expect(q.page[0], `${qw}: the page scrolls sideways`).toBeLessThanOrEqual(viewportW);
+          /*
+           * What does not fit scrolls DOWNWARD inside the sheet and never
+           * sideways: a card grid a player has to scroll left and right is how a
+           * reveal loses the card it was about.
+           */
+          expect(q.sheet.scrollW, `${qw}: the sheet scrolls sideways`).toBeLessThanOrEqual(q.sheet.clientW + 1);
+          // And the grid is worth reading at this width (§B.2).
+          expect(q.columns, `${qw}: the reveal grid's columns`).toBeGreaterThanOrEqual(MIN_QUESTION_COLUMNS);
+          expect(q.cardW, `${qw}: the narrowest card in the question`).toBeGreaterThanOrEqual(MIN_GROUPED_CARD_PX);
+        }
+
         for (const counts of CROWD_STEPS) {
           const step = `battlefields ${counts.battlefield}, hand ${counts.hand}`;
           const got = await f.page.evaluate(fillCrowd, counts);
@@ -1483,13 +1754,14 @@ test(CROWD_TITLE, async ({ browser }) => {
     }
     summary.crowd = steps;
     summary.staticCanvas = staticShots;
+    summary.questions = questions;
   } finally {
     for (const f of friends) await f.context.close();
     await stack.stop();
     mkdirSync(RUN_DIR, { recursive: true });
     writeFileSync(
       resolve(RUN_DIR, 'table-fit-crowd-summary.json'),
-      JSON.stringify({ ...summary, crowd: steps, staticCanvas: staticShots }, null, 2),
+      JSON.stringify({ ...summary, crowd: steps, staticCanvas: staticShots, questions }, null, 2),
     );
   }
 });

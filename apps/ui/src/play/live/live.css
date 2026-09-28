@@ -52,10 +52,30 @@
  * | --- | --- | --- |
  * | question / payment | 59.4% across, 24% down, 24.1% × 48% | `--live-col-x` / `--live-col-w`, `.live__prompt` |
  * | phase rail | 8.4% wide, 31% down, 35% tall, right | `--live-rail-w`, `.live__phases` |
- * | controls | 112 × 84, 67% down, under the rail | `--live-controls-*`, `.live__buttons` |
+ * | controls | 112 × 84 → 112 × 136, 67% down, under the rail | `--live-controls-*`, `.live__buttons` |
  * | log button | 36 × 32, above the rail | `.live__log-button` |
  *
- * Two of them are worth saying in words:
+ * ## The drawing's WIDTH is real and its HEIGHT was not (wave 27 §B.1)
+ *
+ * The canvas was 1280 wide and the table is not: `.wp-room-chrome` is a pinned
+ * 320px aside, so the table gets **960 at a 1280 viewport and 1046 at 1366**.
+ * The arrangement survives that intact — it is proportional — but the cluster's
+ * two PIXEL numbers did not, and at 112 × 84 in two columns a slot is 49px wide
+ * and `Full control` and `Concede` both ellipsized. The operator saw them as
+ * `Full c…` and `Conc…` in `docs/planning/wave26-question-panel-1280x800.png`.
+ *
+ * The width is the one number that cannot move: `board.css`'s `--right-gutter`
+ * is derived from it (`controls 6 + 112 = 118px  <- the widest`), and widening
+ * the cluster would take the reservation out of every row of a 960px table for
+ * two words. So the 112 stays and the cluster becomes what
+ * `board-layout-2026-09-27.md` calls it in words — *"Five buttons — OK, Cancel,
+ * Leave, Full control, Concede — in a narrow stack"* — ONE column of five, where
+ * every label has 92px to be read in and none of them is clipped. The height is
+ * the only thing that gives, 84 → 136, and it is the cheapest of the three
+ * things that could: the gutter's width is unchanged, and the strip's order —
+ * log button, rail, controls — is unchanged.
+ *
+ * Two more of them are worth saying in words:
  *
  *  - **a question has one home.** It used to be centred in the room above the
  *    cluster, which put it in a different place for every sheet height. It is a
@@ -117,10 +137,13 @@
  *
  * Wave 25 §C took the two text rows out of the cluster and wave 26 §B.3 shrank
  * it to the 112 × 84 the operator drew, with the log's button out of it
- * altogether — five buttons in three rows, so the number is 84 where wave 25
- * left 102 and the original bar had 153:
+ * altogether — five buttons in three rows. **Wave 27 §B.1 gave each of the five
+ * a row of its own**, because two columns of 49px clipped `Full control` and
+ * `Concede` and the width is `board.css`'s to reserve (see the header). So the
+ * number is 136 where wave 26 left 84, wave 25 left 102 and the original bar
+ * had 153:
  *
- *   4 + 4 padding + 1 + 1 border + (22 + 22 + 22) rows + 2 × 4 gaps = 84
+ *   4 + 4 padding + 1 + 1 border + (22 + 22 + 22 + 22 + 22) rows + 4 × 4 gaps = 136
  *
  * That arithmetic is asserted in `LiveBoard.test.ts`, off this file's own text.
  *
@@ -137,7 +160,7 @@
  * it at, and the rail is never narrower than the thing it exists to be read at.
  */
 .live {
-  --live-controls-h: 84px;
+  --live-controls-h: 136px;
   --live-controls-w: 112px;
   --live-rail-w: max(8.4%, 6.75rem);
   --live-col-x: 59.4%;
@@ -248,20 +271,34 @@
  * else."*
  *
  * Wave 26 §B.3 is the rest of that: 112 × 84, the size the operator drew, and
- * FIVE buttons in it — Forge's two answers on the top row, the two controls that
- * act on the match (Full control, Concede) on the second, Leave across the
- * third. The log's toggle is not in it any more; the operator drew that as its
- * own 36 × 32 button further up the gutter, which is the same decision as the
- * size, seen from the other side. It sits directly under the rail, in the same
- * column, where the drag put it.
+ * FIVE buttons in it. The log's toggle is not in it any more; the operator drew
+ * that as its own 36 × 32 button further up the gutter, which is the same
+ * decision as the size, seen from the other side. It sits directly under the
+ * rail, in the same column, where the drag put it.
+ *
+ * **Wave 27 §B.1 made it ONE column of five.** Two columns of a 112px box give
+ * a slot 49px wide and a label 39px to be read in; `Full control` needs 62 and
+ * `Concede` 44, so both ellipsized — `Full c…` and `Conc…` in the operator's own
+ * screenshot. A label clipped by `text-overflow` breaches nothing: its box is
+ * exactly the width it was told to be, so no overflow check in the fit spec can
+ * see it, which is why wave 27 §B.3 taught that spec to read `scrollWidth`
+ * against `clientWidth` instead. One column gives every label 92px and clips
+ * none of them, and it is what `board-layout-2026-09-27.md` calls this thing in
+ * words: *"Five buttons … in a narrow stack"*.
  *
  * **Every track is a fixed length**, columns and rows both, and that is the
  * requirement rather than the taste: `e2e/table-fit.spec.ts` records this box
  * on every frame of a real match and fails a window size that ever saw two.
- * `height` is set from the token as well, so even a child that overflows its
- * row cannot change the box — it clips inside its own slot instead. The labels
- * are wider than a 49px slot, so they ellipsize and each button carries its full
- * words on a `title`.
+ * The column is `minmax(0, 1fr)` and not `1fr`, which is `minmax(auto, 1fr)` and
+ * therefore floored by its own content. `height` is set from the token as well,
+ * so even a child that overflows its row cannot change the box — it clips inside
+ * its own slot instead. `text-overflow: ellipsis` stays on the buttons as the
+ * last resort for a label FORGE chose (`label1`/`label2`, which have been `OK`,
+ * `Cancel`, `Auto`, `Play` and `Draw`), never for one of ours.
+ *
+ * The areas are in the order the buttons are written in `LiveBoard.tsx`, so the
+ * tab order and the reading order are the same order — in two columns they were
+ * not, and a stack is the only shape where that is free.
  */
 .live__buttons {
   position: absolute;
@@ -271,12 +308,14 @@
   width: var(--live-controls-w);
   height: var(--live-controls-h);
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: 22px 22px 22px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 22px 22px 22px 22px 22px;
   grid-template-areas:
-    'ok cancel'
-    'full conc'
-    'leave leave';
+    'ok'
+    'cancel'
+    'full'
+    'leave'
+    'conc';
   gap: 4px;
   margin: 0;
   padding: 4px;
@@ -414,8 +453,9 @@
      person uses, so it takes them back. */
   pointer-events: auto;
   /* The column IS the width now — 24.1% of the match, about 305px on the
-     operator's own canvas — so the sheet fills it rather than choosing a width
-     of its own. What does not fit scrolls inside the sheet, as it already did. */
+     operator's own canvas and 231px on the 960 the table actually gets
+     (wave 27) — so the sheet fills it rather than choosing a width of its own.
+     What does not fit scrolls inside the sheet, as it already did. */
   width: 100%;
   max-width: none;
   min-height: 0;
@@ -424,6 +464,28 @@
   overflow-y: auto;
   border-color: var(--accent);
   box-shadow: 0 6px 24px rgb(0 0 0 / 45%);
+}
+
+/*
+ * A card grid inside the column, at the width the column actually has
+ * (wave 27 §B.2).
+ *
+ * `prompts.css` sizes a choice's tiles off its own `--card-w: 7rem` (112px),
+ * which was chosen against a sheet that could be 720px wide. The column is
+ * 24.1% of the table, and the table is 960 at a 1280 viewport — 231px, 207 of
+ * it inside the sheet's own padding. `repeat(auto-fill, minmax(112px, 1fr))`
+ * resolves to ONE column there, so a reveal of ten cards is a ten-row scroll
+ * through a window 355px tall: it fits, in the sense that nothing breaches, and
+ * a player sees two cards of a ten-card reveal at a time.
+ *
+ * 5rem is the same grid asked the question at the column's real width: 80px
+ * floors give TWO columns of ~100px, which is wider than the 7rem tile is
+ * drawn at on a board of this size. Nothing else about the prompt changes, and
+ * this is scoped to the live column so the draft table's own card grids — the
+ * other place `.prompt__cards` is drawn — keep the size they were tuned at.
+ */
+.live__prompt .prompt__cards {
+  --card-w: 5rem;
 }
 
 /*
@@ -617,11 +679,12 @@
 }
 
 /*
- * Leave (§F.1). Quiet and narrow like the toggle, and on the row BELOW OK and
- * Cancel with Concede beside it: those two are the controls that are not
- * answers to Forge, and a row of their own is what keeps reaching for one from
- * being a misclick on the other. Both are children of the cluster, whose box is
- * fixed above, so neither changes a canvas box.
+ * Leave (§F.1). Quiet and narrow like the toggle, and BELOW OK and Cancel:
+ * Leave and Concede are the controls that are not answers to Forge, and putting
+ * Full control between them and Forge's two is what keeps reaching for one from
+ * being a misclick on the other now that the cluster is a single column (§B.1).
+ * Both are children of the cluster, whose box is fixed above, so neither changes
+ * a canvas box.
  *
  * `data-urgent` is the gone match: the state line says `Match gone.` and this
  * is the thing to do about it, in the same colour, because a state with nowhere
@@ -637,8 +700,8 @@
 }
 
 /*
- * Concede (§C.4), beside Leave. Destructive, so it reads as the quietest thing
- * in the cluster until it is reached for: `--ink-dim` at rest, the warning
+ * Concede (§C.4), under Leave and last in the stack. Destructive, so it reads
+ * as the quietest thing in it until it is reached for: `--ink-dim` at rest, the warning
  * colour on hover and while its confirmation is open. It sends nothing — the
  * dialog below is the only path to the wire (`LiveBoard.tsx`).
  */
@@ -770,7 +833,9 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 4px 2px;
+  /* 1px on the sides, not 2: the two pixels are the step names' (see
+     `.live__step-name`'s own budget below). */
+  padding: 4px 1px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-raised);
@@ -823,13 +888,31 @@
 }
 
 /*
- * The row's own budget, and it is measured rather than chosen: at the 108px the
- * operator drew, a name has 108 − 2 border − 4 padding − 6 mark − 2 gap = 94px,
- * and the longest of Forge's thirteen — "Beginning of combat", then
- * "First-strike damage" — need ~92px at 9.5px type. At 10px type with a 9px mark
- * and wider gutters they needed ~100 and ellipsized, which is the rail doing at
- * 108px exactly what §B.2 widened it to stop. Measured in Chromium at 1280×800
- * (`e2e/table-fit.spec.ts`'s own screenshots), not estimated.
+ * The row's own budget, and it is measured rather than chosen — and wave 26
+ * measured the wrong thing, which is wave 27 §B.2's finding.
+ *
+ * At the 108px the operator drew, a name had 108 − 2 border − 4 padding − 6 mark
+ * − 2 gap = **94px**, and `Beginning of combat` at 9.5px type needs exactly 94.
+ * So the budget was called met, with nothing left over — and the CURRENT step is
+ * drawn at `font-weight: 600` (see `.live__step[data-current]`), where the same
+ * word needs **97** and ellipsized to `Beginning of comba…` for the few frames a
+ * turn spends in that step. Nothing could see it: a clipped label breaches no
+ * box, and this rail's own check in `e2e/table-fit.spec.ts` was that the current
+ * name stays inside the WINDOW, which a clipped one does perfectly.
+ *
+ * Measured in Chromium at the app's own font stack, both weights, all thirteen:
+ *
+ *   | type   | 400 | 600 |
+ *   | 9px    |  89 |  92 |
+ *   | 9.25px |  92 |  95 |
+ *   | 9.5px  |  94 |  97 |   <- wave 26 read this row's left-hand cell
+ *   | 10px   |  99 | 103 |
+ *
+ * So the type is 9px and the rail's side padding is 1px rather than 2, which
+ * makes the budget 96 against a worst case of 92: four pixels, on the weight
+ * that is actually drawn, rather than zero on the weight that is not. The
+ * operator's 108 is untouched — the type size was never theirs — and the
+ * per-frame clip check in the fit spec now guards the number either way.
  */
 .live__step {
   flex: 1 1 0;
@@ -893,7 +976,7 @@
 .live__step-name {
   flex: 1 1 0;
   min-width: 0;
-  font-size: 9.5px;
+  font-size: 9px;
   line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;

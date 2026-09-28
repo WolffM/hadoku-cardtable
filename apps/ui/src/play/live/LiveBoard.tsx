@@ -171,10 +171,11 @@
  * pressed still sends nothing. With no bar from Forge yet, the buttons carry
  * neutral labels.
  *
- * **Leave and Concede are in it** (wave 22 §F.1, wave 24 §C.4), on the row
- * BELOW OK and Cancel. They are the two controls that are not answers to
- * Forge, and giving them their own row is what keeps a reach for one from
- * being a misclick on the other.
+ * **Leave and Concede are in it** (wave 22 §F.1, wave 24 §C.4), BELOW OK and
+ * Cancel with Full control between them. They are the two controls that are not
+ * answers to Forge, and keeping them out of reach of Forge's two is what stops a
+ * reach for one being a misclick on the other. Wave 27 §B.1 made the cluster a
+ * single column of five, so "their own row" is now every button's.
  *
  * ## Concede asks first
  *
@@ -847,38 +848,17 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
        * children and the same box — `e2e/table-fit.spec.ts` measures that box on
        * every animation frame of a real match, and now also fails a frame in
        * which either text row came back into it. `live.css` pins it in the
-       * right-hand gutter under the rail, at the 112×84 the operator drew
+       * right-hand gutter under the rail, at the 112 wide the operator drew
        * (wave 26 §B.3); it is in no flex flow and costs the table no height.
+       *
+       * Wave 27 §B.1 made it a single COLUMN of five — the shape
+       * `board-layout-2026-09-27.md` describes in words — because two 49px
+       * columns clipped `Full control` and `Concede`, and the cluster's width is
+       * what `board.css` reserves the gutter from and so cannot grow. The five
+       * are written here in the order they are drawn, so the tab order and the
+       * reading order are one order; in two columns they were not.
        */}
       <div className="live__buttons" data-testid="live-buttons">
-        {/*
-         * Leave: the match's own control, on the row below Forge's answers.
-         * Not a link, because leaving is an action on this match and not a
-         * place — and a button is the tab stop a person expects.
-         */}
-        <button
-          type="button"
-          className="live__leave"
-          data-testid="live-leave"
-          data-urgent={status === 'match-gone' ? true : undefined}
-          title="Leave the match"
-          onClick={() => {
-            if (onLeave !== undefined) onLeave();
-            else navigate({ kind: 'lobby' });
-          }}
-        >
-          Leave
-        </button>
-        <button
-          type="button"
-          className="live__toggle"
-          data-testid="live-full-control"
-          aria-pressed={match.fullControl}
-          title="Full control"
-          onClick={() => setFullControl(match, !match.fullControl)}
-        >
-          Full control
-        </button>
         <button
           type="button"
           className="live__ok"
@@ -897,9 +877,37 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
         >
           {bar === null || bar.label2 === '' ? 'Cancel' : bar.label2}
         </button>
+        <button
+          type="button"
+          className="live__toggle"
+          data-testid="live-full-control"
+          aria-pressed={match.fullControl}
+          title="Full control"
+          onClick={() => setFullControl(match, !match.fullControl)}
+        >
+          Full control
+        </button>
         {/*
-         * Concede (§C.4). It sends NOTHING: it opens the confirmation, and only
-         * that dialog's own yes reaches `concede`. Pressable with a question
+         * Leave: the match's own control, below Forge's answers with Full
+         * control between them. Not a link, because leaving is an action on this
+         * match and not a place — and a button is the tab stop a person expects.
+         */}
+        <button
+          type="button"
+          className="live__leave"
+          data-testid="live-leave"
+          data-urgent={status === 'match-gone' ? true : undefined}
+          title="Leave the match"
+          onClick={() => {
+            if (onLeave !== undefined) onLeave();
+            else navigate({ kind: 'lobby' });
+          }}
+        >
+          Leave
+        </button>
+        {/*
+         * Concede (§C.4), last. It sends NOTHING: it opens the confirmation, and
+         * only that dialog's own yes reaches `concede`. Pressable with a question
          * open, like Leave — giving up is not an answer to what Forge asked.
          */}
         <button
