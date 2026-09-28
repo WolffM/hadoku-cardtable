@@ -1042,16 +1042,41 @@ interface RowFit {
   row: string;
   cards: number;
   empty: boolean;
+  /**
+   * The lane's own `--cols` as the BROWSER resolves it. `board.css:825` takes
+   * the lane's share of the width from this and `--rows` and nothing else
+   * (wave 27 §A.1), so reading it back is what proves this probe is driving the
+   * product's own path rather than a width it set for itself.
+   */
+  cols: number;
+  /**
+   * And the rows the lane's list actually laid out, which is `--rows` — the
+   * ZONE's one decision, inherited into all four lanes. Counted off the RESOLVED
+   * `grid-template-rows` (`repeat(var(--rows), auto)` with `grid-auto-flow:
+   * column`), not off the custom property: an unregistered custom property
+   * inherits as its token stream, so `--rows` reads back as the literal
+   * `calc(1 + clamp(…))` it is declared as and `Number()` of it is `NaN`.
+   */
+  rows: number;
   box: [number, number];
   scroll: [number, number];
   cardW: [number, number];
+  /** `flex-grow` as the stylesheet computed it: `ceil(cols / rows)`. */
+  grow: number;
 }
 
 interface ZoneFit {
   zone: string;
   viewer: boolean;
   cards: number;
-  rows: string;
+  /**
+   * The rows the zone settled on, counted off the RESOLVED `grid-template-rows`
+   * of the list that holds the cards. Read off the `--rows` custom property
+   * until wave 27 §A.1 made it a `calc()` of `--cols`: an unregistered custom
+   * property inherits as its token stream, so that read came back as the literal
+   * `calc(1 + clamp(…))` rather than a number.
+   */
+  rows: number;
   box: [number, number];
   scroll: [number, number];
   cardW: [number, number];
@@ -1133,22 +1158,41 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
     const rows = Array.from(zone.querySelectorAll<HTMLElement>('[data-board-row]'));
     if (rows.length !== 4) throw new Error(`a battlefield has ${rows.length} rows, not 4`);
     const want = share(counts.battlefield);
+    /*
+     * `data-empty` and `--cols` are React's, and a probe that puts cards in a
+     * lane owes it both (wave 27 §A.1). `--cols` is a COUNT and not a width:
+     * `board.css:825` derives the lane's share from it as
+     * `flex-grow: round(up, var(--cols) / var(--rows), 1)` — the columns a lane
+     * draws, not the piles it holds — and `:977` derives `--rows` itself from
+     * the count on `.zone__rows`. So the zone-wide total has to be written too,
+     * and it has to be written THERE: a lane is `contain: size`, so no selector
+     * can sum across the four.
+     *
+     * This probe used to write `row.style.flexGrow` directly, which was wave
+     * 26's behaviour and is an inline style, so it beat the stylesheet and
+     * pinned the very defect §A.1 fixed — the spec went green while measuring a
+     * layout the product no longer produces. Setting the counts and letting
+     * `board.css` do the arithmetic is the whole point.
+     */
+    const rowsList = zone.querySelector<HTMLElement>(':scope > ul.zone__rows');
+    if (rowsList === null) throw new Error('a battlefield has no row list of its own');
+    rowsList.style.setProperty('--cols', String(want.reduce((a, b) => a + b, 0)));
     rows.forEach((row, i) => {
       const ul = row.querySelector<HTMLElement>(':scope > ul.zone__cards');
       if (ul === null) throw new Error(`the ${row.dataset.boardRow ?? '?'} row has no list of its own`);
       fillTo(ul, want[i], true);
-      /*
-       * `data-empty` and the lane's `flex-grow` are React's, and both are
-       * derived from the card count — so a probe that puts cards in a lane owes
-       * it both. Without the grow a filled lane is 0 wide (its cards with it),
-       * which is what a first run of this probe measured.
-       */
       if (want[i] > 0) row.removeAttribute('data-empty');
-      row.style.flexGrow = String(want[i]);
+      row.style.setProperty('--cols', String(want[i]));
     });
   }
   const hand = document.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="hand"]');
-  if (hand !== null) fillTo(listIn(hand, 'zone__cards'), counts.hand, false);
+  if (hand !== null) {
+    // The hand is ONE list and keeps its own row decision, from its own zone
+    // (`board.css`, the `--rows` block), so its count goes on the list itself.
+    const list = listIn(hand, 'zone__cards');
+    fillTo(list, counts.hand, false);
+    list.style.setProperty('--cols', String(counts.hand));
+  }
   const backs = document.querySelector<HTMLElement>('.seat:not([data-viewer]) > [data-zone="hand"] ul.card-backs');
   if (backs !== null && backs.children.length > 0) {
     while (backs.children.length < counts.backs) {
@@ -1181,13 +1225,19 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
             (row): RowFit => {
               const inRow = Array.from(row.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li'));
               if (over(row)) overflowing.push(`the ${row.dataset.boardRow ?? '?'} row of ${inRow.length}`);
+              const style = getComputedStyle(row);
+              const list = row.querySelector<HTMLElement>(':scope > ul.zone__cards');
+              const tracks = list === null ? '' : getComputedStyle(list).gridTemplateRows;
               return {
                 row: row.dataset.boardRow ?? '?',
                 cards: inRow.length,
                 empty: row.hasAttribute('data-empty'),
+                cols: Number(style.getPropertyValue('--cols').trim()),
+                rows: tracks === '' || tracks === 'none' ? 0 : tracks.trim().split(/\s+/).length,
                 box: [row.clientWidth, row.clientHeight],
                 scroll: [row.scrollWidth, row.scrollHeight],
                 cardW: widthsOf(inRow),
+                grow: Number(style.flexGrow),
               };
             },
           );
@@ -1202,7 +1252,7 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
             zone: zone.dataset.zone ?? '?',
             viewer: zone.closest('.seat[data-viewer]') !== null,
             cards: cards.length,
-            rows: ul === null ? '' : getComputedStyle(ul).getPropertyValue('--rows').trim(),
+            rows: ul === null ? 0 : getComputedStyle(ul).gridTemplateRows.trim().split(/\s+/).length,
             box: [zone.clientWidth, zone.clientHeight],
             scroll: [zone.scrollWidth, zone.scrollHeight],
             cardW: widthsOf(cards),
@@ -1219,16 +1269,26 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
 }
 
 /**
- * Take every probe copy back out, and hand the rows the `data-empty` React
- * would have given them — the probe took it off the rows it filled, and a row
- * that is empty again must be a label strip again. Runs in the page.
+ * Take every probe copy back out, and put back what React would have written —
+ * the `data-empty` the probe took off the rows it filled, so a row that is empty
+ * again is a label strip again, and the `--cols` counts it wrote beside it
+ * (wave 27 §A.1: the lane's, and the zone-wide total on `.zone__rows`, which is
+ * what `board.css` reads `--rows` from). Runs in the page.
  */
 function clearCrowd(): void {
   for (const el of Array.from(document.querySelectorAll('[data-probe]'))) el.remove();
   for (const row of Array.from(document.querySelectorAll<HTMLElement>('[data-board-row]'))) {
     const cards = row.querySelectorAll('.board-card').length;
     if (cards === 0) row.setAttribute('data-empty', 'true');
-    row.style.flexGrow = String(cards);
+    row.style.setProperty('--cols', String(cards));
+  }
+  for (const list of Array.from(document.querySelectorAll<HTMLElement>('.board [data-zone="battlefield"] > ul.zone__rows'))) {
+    list.style.setProperty('--cols', String(list.querySelectorAll('.board-card').length));
+  }
+  for (const list of Array.from(
+    document.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="hand"] > ul.zone__cards'),
+  )) {
+    list.style.setProperty('--cols', String(list.querySelectorAll('.board-card').length));
   }
 }
 
@@ -1696,7 +1756,9 @@ test(CROWD_TITLE, async ({ browser }) => {
                 .map(
                   (z) =>
                     `${z.viewer ? 'your' : 'their'} ${z.zone} ${z.cards} rows ${z.rows} box ${z.box.join('x')} scroll ${z.scroll.join('x')} card ${z.cardW.join('-')}w ${z.cardH}h` +
-                    (z.groups.length === 0 ? '' : ` [${z.groups.map((g) => `${g.row} ${g.cards}@${g.box[1]}px`).join(' | ')}]`),
+                    (z.groups.length === 0
+                      ? ''
+                      : ` [${z.groups.map((g) => `${g.row} ${g.cards}c/${g.rows}r grow ${g.grow} ${g.box[0]}x${g.box[1]}px card ${g.cardW[0]}-${g.cardW[1]}w`).join(' | ')}]`),
                 )
                 .join('; '),
           );
@@ -1732,8 +1794,29 @@ test(CROWD_TITLE, async ({ browser }) => {
               z.groups.reduce((n, g) => n + g.cards, 0),
               `${where}: every card of ${side} battlefield is in a row`,
             ).toBe(counts.battlefield);
+            /*
+             * The probe drove the product's OWN sizing path (wave 27 §A.1), and
+             * this is the line that says so: the lane's `--cols` as the browser
+             * resolved it is the count the probe set, `--rows` is one number for
+             * the whole zone, and `flex-grow` is `board.css`'s own
+             * `ceil(cols / rows)` rather than anything this file chose.
+             *
+             * It is asserted because the failure it guards against is silent:
+             * this probe used to write `flex-grow` inline, which beat the
+             * stylesheet, so it went on measuring wave 26's rule after §A.1
+             * replaced it. A green spec that tests a layout the product does not
+             * produce is worse than a red one.
+             */
+            const zoneRows = [...new Set(filled.map((g) => g.rows))];
+            expect(zoneRows, `${where}: ${side} battlefield settles ONE row count for every lane that holds cards`).toHaveLength(1);
+            const perZone = zoneRows[0]!;
+            expect(perZone, `${where}: ${side} battlefield draws at least one row`).toBeGreaterThanOrEqual(1);
             for (const g of z.groups) {
               expect(g.empty, `${where}: ${side} ${g.row} of ${g.cards} marks itself empty`).toBe(g.cards === 0);
+              expect(g.cols, `${where}: ${side} ${g.row}'s --cols is the count it holds`).toBe(g.cards);
+              expect(g.grow, `${where}: ${side} ${g.row} grows by the COLUMNS it draws, not the piles it holds`).toBe(
+                Math.ceil(g.cards / perZone),
+              );
               expect(g.scroll[0], `${where}: ${side} ${g.row} scrolls sideways`).toBeLessThanOrEqual(g.box[0] + 1);
               expect(g.scroll[1], `${where}: ${side} ${g.row} scrolls downward`).toBeLessThanOrEqual(g.box[1] + 1);
             }
