@@ -1,0 +1,39 @@
+/*
+ * The mute button. The whole of this module's CSS, and it draws no symbol —
+ * the state is the word, for the reason `MuteButton.tsx` gives.
+ *
+ * Tokens come from `styles.css` (`--line`, `--ink-dim`, `--accent`, `--radius`),
+ * so this follows the theme without knowing anything about it.
+ */
+
+.sound-mute {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 10px;
+  cursor: pointer;
+  /* The label swaps between "Sound on" and "Sound off", which are different
+     widths — without a floor the button twitches on every click. */
+  min-width: 84px;
+  text-align: center;
+}
+
+.sound-mute:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.sound-mute:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Muted reads as the inactive state: dimmer ink, softer edge. Not colour alone —
+   the label already says which it is. */
+.sound-mute[data-muted='true'] {
+  color: var(--ink-faint);
+  border-color: var(--line-soft);
+}

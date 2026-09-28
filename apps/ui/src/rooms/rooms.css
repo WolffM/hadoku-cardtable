@@ -13,6 +13,18 @@
   gap: 14px;
 }
 
+/* Title on the left, the sound toggle pushed to the right edge. `baseline` so
+   the 13px button sits on the same line as the 19px heading rather than being
+   centred against its box, and `wrap` so a narrow table drops the button under
+   the title instead of squeezing the heading. */
+.rooms__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
 .rooms__title {
   font-size: 19px;
 }

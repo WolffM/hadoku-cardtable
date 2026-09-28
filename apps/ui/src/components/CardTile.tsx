@@ -31,11 +31,21 @@ import { memo, useMemo } from 'react';
  * Abilities are newline-separated in the payload and each one is its own line
  * here. Collapsing them into a paragraph makes a five-ability planeswalker
  * unreadable, which is the card you most need to read before picking.
+ *
+ * ## A tile makes a sound, and owns none of it
+ *
+ * Hovering a tile cues `hover`; picking one cues `select`. Both go through
+ * `playCue` in `../sound/index.ts`, which is the only place in this app that
+ * constructs an `AudioContext`. This component holds no audio object, no file
+ * name and no volume, and it does not consult the player's mute — for the same
+ * reason it holds no image URL: a placeholder the operator intends to replace
+ * has to be replaceable in one place.
  */
 
 import type { DraftCard } from '../draft/types.ts';
 import { ManaCost, ManaPip, SetSymbol } from './ManaPip.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
+import { cueHandler, playCue } from '../sound/index.ts';
 
 const RARITY_LETTER: Record<string, string> = {
   common: 'C',
@@ -164,9 +174,21 @@ function CardTileImpl({ card, onPick, disabled = false }: CardTileProps) {
     </>
   );
 
+  // A tile makes two sounds and asks for both through `playCue` — it holds no
+  // `AudioContext`, no file and no volume, and it does not know whether the
+  // player has muted. `sound/index.ts` explains why that indirection is the
+  // whole deliverable. `cueHandler` returns the SAME function object every
+  // render, which matters here specifically: this component is `memo`-ised
+  // because a late-draft screen holds 60 tiles, and an inline
+  // `() => playCue('hover')` would allocate a fresh closure per render.
+  const onHover = cueHandler('hover');
+
   if (!onPick) {
     return (
-      <article className="card" data-card-id={card.cardId} data-testid="card">
+      // Hover cues a pool tile too. A pool card is not clickable but it IS the
+      // thing you are reading, and a cue that only fires on half the cards on
+      // screen reads as a bug rather than as a rule.
+      <article className="card" data-card-id={card.cardId} data-testid="card" onMouseEnter={onHover}>
         {body}
       </article>
     );
@@ -179,7 +201,14 @@ function CardTileImpl({ card, onPick, disabled = false }: CardTileProps) {
       data-card-id={card.cardId}
       data-testid="card"
       disabled={disabled}
-      onClick={() => onPick(card.cardId)}
+      onMouseEnter={onHover}
+      onClick={() => {
+        // The cue first, then the pick. `onPick` navigates and re-renders the
+        // whole screen, and a cue requested after that has to survive the
+        // unmount to be heard.
+        playCue('select');
+        onPick(card.cardId);
+      }}
       aria-label={`Pick ${card.name}`}
     >
       {body}

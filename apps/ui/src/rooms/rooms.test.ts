@@ -13,12 +13,15 @@
  * `screens/lobby.test.ts` gives.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
 import { parseRoute } from '../screens/route.ts';
+import { resetCueSinkForTests, setCueSink } from '../sound/index.ts';
+import { MUTE_KEY, resetMutedForTests } from '../sound/mute.ts';
+import type { CueRequest } from '../sound/sink.ts';
 import {
   clientModeLabel,
   GAME_TYPES,
@@ -638,5 +641,120 @@ describe('entering a room', () => {
     });
     expect((await screen.findByTestId('room-join-error')).textContent).toContain('Too many attempts');
     expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+  });
+});
+
+/* ── the front page makes a sound (w27 §F) ───────────────────────────── */
+
+/*
+ * The other half of `../sound/sound.test.ts`: that file proves the module, this
+ * one proves the wiring on the surface a player lands on first.
+ *
+ * Every case below injects a RECORDING SINK. jsdom has no WebAudio, so with no
+ * sink injected `playCue` is already a no-op here — which means these assertions
+ * would pass vacuously if they asserted on silence alone. They assert on the
+ * requests instead, and the muted case asserts on silence only after the
+ * unmuted case has shown the same click is loud.
+ */
+describe('the front page’s cues', () => {
+  beforeEach(() => {
+    resetCueSinkForTests();
+    unmute();
+  });
+
+  afterEach(() => {
+    setCueSink(null);
+    // The muted case CLICKS the button, which persists `true`. Leaving it there
+    // would silence every case that ran afterwards — and they would pass, since
+    // most of what they assert is a cue arriving, so the failure would have read
+    // as a product bug. Clearing the store as well as the memo is the fix.
+    unmute();
+  });
+
+  /** Forget the mute, in memory and in the store. */
+  const unmute = (): void => {
+    resetMutedForTests();
+    try {
+      globalThis.localStorage.removeItem(MUTE_KEY);
+    } catch {
+      // jsdom always has a store; this only guards a hostile one.
+    }
+  };
+
+  const recorder = () => {
+    const requests: CueRequest[] = [];
+    setCueSink({ play: (r: CueRequest) => void requests.push(r) });
+    return requests;
+  };
+
+  it('offers a mute the player can find, on the front page, showing its state', async () => {
+    const { client } = server([OPEN]);
+    mount(client);
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(1));
+
+    const button = screen.getByTestId('sound-mute');
+    expect(button.getAttribute('data-muted')).toBe('false');
+    expect(button.getAttribute('aria-label')).toBe('Mute sounds');
+  });
+
+  it('cues select on Enter, once, for the press itself', async () => {
+    const { client } = server([OPEN]);
+    mount(client);
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(1));
+
+    const requests = recorder();
+    await act(async () => {
+      fireEvent.click(within(rowFor('r-open')).getByTestId('room-enter'));
+    });
+    expect(requests.map((r) => r.cue)).toEqual(['select']);
+  });
+
+  it('cues deny when a room refuses the join', async () => {
+    const refusing: Fetch = async (_url, init) =>
+      init?.method === 'POST' ? json(404, { error: 'no such room' }) : json(200, { rooms: [OPEN] });
+    mount(roomsClient(refusing, '/cardtable/api/'));
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(1));
+
+    const requests = recorder();
+    await act(async () => {
+      fireEvent.click(within(rowFor('r-open')).getByTestId('room-enter'));
+    });
+    await screen.findByTestId('room-join-error');
+    expect(requests.map((r) => r.cue)).toEqual(['select', 'deny']);
+  });
+
+  it('cues deny when the create form refuses an empty name, and select when it does not', async () => {
+    const { client } = server([]);
+    mount(client);
+    await screen.findByTestId('rooms-empty');
+
+    const requests = recorder();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('room-create-submit'));
+    });
+    expect(requests.map((r) => r.cue)).toEqual(['deny']);
+
+    fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Friday night' } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('room-create-submit'));
+    });
+    expect(requests.map((r) => r.cue)).toEqual(['deny', 'select']);
+  });
+
+  it('says nothing at all once the player has muted — and the room still opens', async () => {
+    const { client } = server([OPEN]);
+    mount(client);
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(1));
+
+    const requests = recorder();
+    fireEvent.click(screen.getByTestId('sound-mute'));
+    expect(screen.getByTestId('sound-mute').getAttribute('data-muted')).toBe('true');
+
+    await act(async () => {
+      fireEvent.click(within(rowFor('r-open')).getByTestId('room-enter'));
+    });
+    expect(requests).toEqual([]);
+    // Muting sound mutes sound and nothing else.
+    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-open' }));
   });
 });
