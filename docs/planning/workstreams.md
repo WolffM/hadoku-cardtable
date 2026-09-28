@@ -390,7 +390,9 @@ remain. Proven: network count 9 before a run, 9 after, streamed room green.
 
 **`e2e/play.spec.ts` proved item 5 by luck.** It hunts a castable spell to
 show one resolves with nobody pressing a button — and the game was never
-seeded, so the shuffle decided whether the proof was reachable at all. CI drew
+seeded, so the shuffle decided whether the proof was reachable at all. (And
+stayed unseeded after this wave "fixed" it, for the reason the wave 22 section
+below now records.) CI drew
 a hand where Forge offered nothing but two lands (`casts: []`, `everOffered:
 ["Plains", "Celestial Colonnade"]`) and the wave's headline proof went red on
 a dependency-bump commit that could not have touched it.
@@ -414,12 +416,12 @@ how the second half of this was found. Two things fixed it:
    on luck. The BEHAVIOUR's proof of record is `auto.test.ts`, which decides
    every captured priority window deterministically and is mutation-tested
    (2 of 76).
-2. **Seed 7**, which casts Squadron Hawk and resolves it with no button press,
-   verified over repeated runs. **— CORRECTED 2026-09-27: the seed does not
-   fix the deal.** `MyRandom.setRandom` is called only by `SimulateMatch`, not
-   by our bridge, so three runs give three deals and this check is still
-   reachable-by-luck. What makes it stable is item 1, the split assertion, not
-   the seed. See wave 22's close.
+2. **Seed 7.** ~~Casts Squadron Hawk and resolves it with no button press,
+   verified over repeated runs.~~ That was two lucky deals: the seed was set on
+   the OTHER e2e server, the one that cannot start Forge, so nothing was seeded
+   until 2026-09-27. The seed does fix the deal — measured, mutation-tested, see
+   the wave 22 section below — and seed 7 now deterministically casts Preordain
+   and resolves Day of Judgment unattended, once the drag loop plays its lands.
 
 ### Open: `board-play.jvm.test.ts` times out at 120 s
 
@@ -465,34 +467,45 @@ closed it. **Verified live by the tracker:** four `forge.jar` processes on the
 host, and all four are legitimate — one warm spare (child of the server) and
 two inside the friend-demo bench containers, up 5 days. No orphans.
 
-### Correction: the shuffle seed does NOT fix the deal — my board entry was wrong
+### CLOSED 2026-09-27: the seed does fix the deal. It was set on the wrong server.
 
-Wave 20's close recorded *"seed 7, which casts Squadron Hawk and resolves it
-with no button press, verified over repeated runs"*, and wave 21 built on it.
-The w22 manager reports three runs giving three different deals, which
-contradicts that.
+**Settled by measurement**, which is what both earlier entries here lacked. Two
+cold matches on seed 20260918, through the real bridge against the real Forge
+build on this host, put both libraries in the same order —
+`apps/server/src/play/seed.jvm.test.ts`, and mutation-tested: with
+`MyRandom.setRandom` skipped in `PlayBridge.startMatch` the two permutations
+differ and the test fails.
 
-**They are right.** `MyRandom.setRandom(new Random(seed))` — the call that
-actually seeds Forge's shuffles — exists in
-`forge-gui-desktop/.../view/SimulateMatch.java:89`, the AI-vs-AI simulator
-invoked with `-s`. **Our bridge path is not that arm.** `MatchSpec.seed` is
-forwarded into the JVM's config by `bridgeConfig` and the bridge evidently
-never applies it to Forge's RNG, so the seed has been decorative for our
-matches all along. What I actually observed in w20 — two seeded runs casting
-different cards — I attributed to test timing; the deal was changing too and I
-did not check.
+**The actual bug:** wave 20 set `CARDTABLE_PLAY_SEED` on `e2e/harness.ts`'s
+server — the one started deliberately *without* `CARDTABLE_FORGE_JAR`, which
+therefore cannot start a Forge match at all. `play.spec.ts` runs against a
+second server of its own (`e2e/play/harness.ts`), and that is the process the
+variable had to be on. So no e2e match was ever seeded and every run dealt a
+fresh shuffle, while the spec's comments said otherwise. Fixed by moving it, one
+line.
 
-**Consequence:** `e2e/play.spec.ts`'s unattended-resolve check is still
-reachable-by-luck, exactly as it was before the seeding work. The mitigation
-that IS doing the work is the split assertion (a cast that misbehaves fails; a
-scenario that never occurred reports `UNPROVEN` and does not) — that part
-stands and is why CI is not flaky on it now. `apps/server/src/play/README.md`'s
-claim that the seed drives `MyRandom` should be re-read against the bridge
-before anyone relies on it again.
+**Both previous entries on this were wrong, in opposite directions**, and both
+came from reading code rather than running it:
 
-**Settles it:** make the bridge call `MyRandom.setRandom` from the config's
-seed, then run the same seed twice and diff the opening hands. Until then, no
-test may claim a deterministic deal.
+- Wave 20 recorded *"seed 7, which casts Squadron Hawk … verified over repeated
+  runs"* — two lucky deals on an unseeded game.
+- Wave 22's close recorded that the bridge never applies the seed, because
+  `MyRandom.setRandom` appears in `SimulateMatch.java:89`. It also appears in
+  `PlayBridge.java:1487`, and always has. That correction was itself wrong and
+  is withdrawn.
+
+**What the fixed deal then exposed**, first seeded run: `play.spec.ts` failed
+with *"dragged 26x spell and none of them moved"*. Seed 7 deals alice six lands
+and one Preordain, and the drag loop played exactly ONE land and then spent its
+whole budget on a card she could not pay for. The gesture was never broken; the
+loop was not playing her mana out. It drags a land whenever one is offered now —
+Forge allows one a turn — and the spec is green in 40 s instead of 3.2 min, with
+Preordain dragged, cast, and Day of Judgment resolving unattended at turn 9. The
+spell half of that check had only ever passed on deals that handed it a one-mana
+play in the opening hand, which is the same luck one level in.
+
+Each silent drag now records the card and Forge's own prompt line, because the
+bare count read exactly like a broken affordance and was not one.
 
 ### Follow-ups the wave deliberately did not take — all on the board now
 
