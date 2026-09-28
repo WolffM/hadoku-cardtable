@@ -185,16 +185,30 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string): Promise<s
   await alice.page.getByTestId('room-create-submit').click();
   await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
   await bob.page.goto(alice.page.url());
+  /*
+   * The pool is the TABLE's and the leader is the one who moves it (wave 25 §B).
+   * Alice made the room, so it is hers; bob has no `format` control at all, and
+   * driving one on his page is a twenty-second wait for an element that is not
+   * coming. The wait is on the select reading its value back, which means the
+   * room record is on it — the control is bound to the room, so a refused write
+   * snaps it back.
+   */
+  await expect(alice.page.getByTestId('constructed')).toBeVisible();
+  await alice.page.getByTestId('format').selectOption(choice.format);
+  await expect(alice.page.getByTestId('format'), 'the room is on the pool alice chose').toHaveValue(choice.format);
+  await expect(bob.page.getByTestId('format-fixed'), "bob's screen follows it").toHaveAttribute(
+    'data-format',
+    choice.format,
+  );
   for (const [f, deck] of [
     [alice, choice.decks[0]],
     [bob, choice.decks[1]],
   ] as const) {
     await expect(f.page.getByTestId('constructed')).toBeVisible();
-    await f.page.getByTestId('format').selectOption(choice.format);
     // Choosing the deck IS loading it: there is no Load button any more (wave
-    // 22 §B). The picker is dead until the era's own legality sweep answers,
-    // and it then offers only the decks that era holds — so wait for it to
-    // come alive rather than selecting into the last era's list.
+    // 22 §B). The picker is dead until the pool's own legality sweep answers,
+    // and it then offers only the decks that pool holds — so wait for it to
+    // come alive rather than selecting into the last pool's list.
     await expect(f.page.getByTestId('deck-mine')).toBeEnabled();
     await f.page.getByTestId('deck-mine').selectOption(deck);
     await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');

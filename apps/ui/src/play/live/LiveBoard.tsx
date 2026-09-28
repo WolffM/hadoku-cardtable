@@ -748,8 +748,9 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
       </div>
       {/*
        * The control cluster (§C.1). One container, every frame, the same
-       * children and the same box — `e2e/table-fit.spec.ts` measures all four
-       * on every animation frame of a real match. `live.css` pins it in the
+       * children and the same box — `e2e/table-fit.spec.ts` measures that box on
+       * every animation frame of a real match, and now also fails a frame in
+       * which either text row came back into it. `live.css` pins it in the
        * bottom-right corner over the board; it is in no flex flow and costs
        * the table no height.
        */}
