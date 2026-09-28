@@ -1,3 +1,7 @@
+/* Mana and set symbols (D20). Vendored; see each file's header and LICENSING §3.2. */
+@import "./symbols/mana.css";
+@import "./symbols/keyrune.css";
+
 /*
  * Draft table styling.
  *
