@@ -142,11 +142,13 @@
  * `--right-gutter`. The phase rail, the controls and the log button are PERMANENT
  * overlays over the right end of the board (`live/live.css`), so a card must
  * never come to rest under them — the trick `.board__bar { padding-right: 11rem }`
- * used for the status line, moved onto the rows now that the bar is deleted. The
- * leftmost permanent overlay in the operator's drawing starts at x=1080 of 1280
- * (84.4%), so the reservation is what is left of the width plus the padding
- * between. Transient overlays — the stack, a question — reserve nothing and cover
- * what is under them.
+ * used for the status line, moved onto the rows now that the bar is deleted.
+ * Transient overlays — the stack, a question — reserve nothing and cover what is
+ * under them.
+ *
+ * **Reserve what they occupy, not where the drawing put them.** The arithmetic is
+ * beside the token, and getting it from the drawing's 1280px canvas instead of
+ * from `.live`'s own width is what reds `e2e/table-fit.spec.ts`'s crowded table.
  *
  * ## No zone panels and no zone labels
  *
@@ -201,12 +203,26 @@
      nothing else may change them, and nothing content-sized may exist. */
   --mid-h: 5.75rem;
   /*
-   * What the permanent overlays take of every row's right end (§A.5). The
-   * operator's leftmost permanent overlay starts at x=1080 of 1280, so 200px of
-   * the width is theirs; 12rem of it is reserved INSIDE the zone and the rest is
-   * the board's and the seat's own padding between the zone and the window.
+   * What the permanent overlays take of every row's right end (§A.5), and it is
+   * measured from what they OCCUPY rather than from where the operator's drawing
+   * put them. That distinction cost a real assertion: the drawing's leftmost
+   * permanent overlay sits at x=1080 of a 1280 **window**, which reads as 200px,
+   * but `live.css` anchors all three of them to `.live`'s right edge and `.live`
+   * is not the window — in a watchparty room it is about 944px wide, where 200px
+   * would be a fifth of the table. Reserving that much left the battlefield an
+   * 832px content box where the 30px narrowest-card floor was derived at ~840,
+   * and `e2e/table-fit.spec.ts`'s crowd step measured 28px.
+   *
+   * So: the widest of the three, plus the gutter they all sit in, plus 2px of
+   * clearance (`live.css`, and the numbers are literals here on purpose —
+   * `--live-*` is B's file and is undefined when `Board` is mounted bare, which
+   * `Board.test.ts` and the dev harnesses do):
+   *
+   *   controls  6 + 112 = 118px   <- the widest, and what this token is for
+   *   rail      6 + 108 = 114px
+   *   log       6 +  36 =  42px
    */
-  --right-gutter: 12rem;
+  --right-gutter: 7.5rem;
 
   position: relative;
   height: 100dvh;

@@ -839,7 +839,20 @@ describe('the table as the operator blocked it (§A)', () => {
    * token, because four hand-written paddings is how three of them end up wrong.
    */
   it('reserves the right end of every row for the permanent overlays', () => {
-    expect(declarationIn('.board', '--right-gutter'), 'one token, on the board').toBeDefined();
+    /*
+     * The VALUE is pinned, not just the reference, because it is a measurement and
+     * because over-reserving is a silent failure with a real cost: 12rem — taken
+     * from the operator's drawing, where the leftmost permanent overlay sits at
+     * x=1080 of a 1280 WINDOW — reds `e2e/table-fit.spec.ts`'s crowded table at
+     * 28px against its 30px floor, because `live.css` anchors those overlays to
+     * `.live`'s right edge and `.live` is ~944px wide in a watchparty room. What
+     * they occupy is the widest of the three plus their shared 6px gutter: the
+     * controls, 6 + 112 = 118px. 7.5rem is that plus 2px of clearance.
+     */
+    expect(declarationIn('.board', '--right-gutter'), 'the reservation is what they occupy').toBe('7.5rem');
+    // A literal, not a reference: `--live-*` is `live.css`'s and is undefined when
+    // `Board` is mounted bare, which this suite and the dev harnesses both do.
+    expect(declarationIn('.board', '--right-gutter')).not.toContain('--live-');
     for (const row of [
       '.seat > .zone--battlefield,\n.seat[data-viewer] > .zone--hand',
       '.seat > .zone--battlefield',
