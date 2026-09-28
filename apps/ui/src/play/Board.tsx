@@ -285,6 +285,16 @@
  *     `[data-card-id="<id>"]` still finds exactly one element anywhere on the
  *     board, and a `:scope >` query still measures one card's box;
  *
+ *     **A battlefield writes `--cols` in three places and `board.css` sizes the
+ *     zone from it** (wave 27 §A.1): on `ul.zone__rows`, every pile on that
+ *     battlefield; on each lane's `<li>`, that lane's piles; and on the viewer's
+ *     own hand list, its cards. The stylesheet cannot take these itself — a lane
+ *     is `contain: size`, so nothing in it contributes to its width, and no
+ *     selector can sum a count across the four lanes. It replaces the inline
+ *     `flex-grow` a lane used to carry, which is now `ceil(--cols / --rows)`
+ *     there. A DOM-only probe that adds cards to a lane owes it `--cols`, the
+ *     way `e2e/table-fit.spec.ts`'s crowd probe owed it the grow;
+ *
  *   - this lane's gesture is HTML5 DRAG-AND-DROP and nothing else:
  *     `dragstart` / `dragend` on an arrangeable card's `<li>`, `dragover` /
  *     `drop` on that `<li>` and on the box it sits in — a battlefield row's
@@ -329,12 +339,14 @@
  * their battlefield, the viewer at the bottom with their hand outermost and their
  * bar's face beside theirs — the two battlefields meeting at the centre line.
  * Page layout is `board.css`; how a single card looks is `card.css`, sized from
- * `--card-w` so the layout can shrink cards per zone.
+ * `--card-w` so the layout can shrink cards per zone — down to `--card-min`, the
+ * width at which a card's NAME stops being readable, and no further (§A.1).
  */
 
-import { useEffect, useReducer, useRef, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useReducer, useRef, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
+import { ManaPip } from '../components/ManaPip.tsx';
 import {
   boardPT,
   type BoardCard,
@@ -475,6 +487,15 @@ const slotKey = (playerId: number, slot: ArrangeSlot): string => `${playerId}:${
 
 /** How many cards a row holds, across all its piles. */
 const cardsIn = (piles: readonly Pile[]): number => piles.reduce((n, p) => n + p.length, 0);
+
+/**
+ * How many COLUMNS a whole battlefield draws — every pile in all four lanes.
+ *
+ * `board.css` sizes the zone from this (`--cols`) because nothing in CSS can
+ * count across the four lanes: `:has(> li:nth-child(n))` counts inside ONE list,
+ * and a lane is a size container whose contents contribute nothing to its box.
+ */
+const cols = (rows: Grouped): number => BOARD_ROWS.reduce((n, row) => n + rows[row].length, 0);
 
 /**
  * Every match's arrangement, in the browser and nowhere else — not on the
@@ -751,9 +772,29 @@ interface Arranging {
   regroup(): void;
 }
 
-/** `{T}` is a WotC mark; on our chrome it is the word. */
-function inOurWords(text: string): string {
-  return text.replace(/\{T\}/g, 'TAP');
+/**
+ * A stack item's rules text, with its `{…}` symbols drawn as pips.
+ *
+ * This used to rewrite `{T}` to the literal word `TAP`, because the tap symbol
+ * was a mark we had decided not to reproduce. **D20 (2026-09-27) settled that
+ * the other way** — the operator: *"naw we're not drawing our own"* — and the
+ * symbol now ships from the Mana pack, so `ManaPip` knows `T` and `CardTile`
+ * already draws `ms-tap` in a card's own rules text. The word was the last place
+ * on the board that still spelled it out.
+ *
+ * A token the fonts have no glyph for still renders, as itself in a plain
+ * capsule; that is `ManaPip`'s contract and not this function's business.
+ */
+function RulesText({ text }: { text: string }) {
+  const pieces = text.split(/(\{[^}]{1,5}\})/g).filter((p) => p !== '');
+  return (
+    <>
+      {pieces.map((piece, i) => {
+        const symbol = /^\{([^}]{1,5})\}$/.exec(piece);
+        return symbol === null ? <span key={i}>{piece}</span> : <ManaPip key={i} token={symbol[1]!} />;
+      })}
+    </>
+  );
 }
 
 /**
@@ -1015,6 +1056,12 @@ function Zone({
     <ZoneShell owner={owner} ownerSide={ownerSide} zone={zone} label={label} count={cards.length}>
       <ul
         className="zone__cards"
+        /*
+         * The count `board.css` sizes this list from — see `Battlefield` below.
+         * A HAND only: a graveyard and an exile are piles, sized by `--pile-w`
+         * and not by a row count, so writing it there would be dead markup.
+         */
+        style={zone === 'hand' ? ({ '--cols': cards.length } as CSSProperties) : undefined}
         onDragOver={arranging === undefined ? undefined : (e) => arranging.over(e)}
         onDrop={arranging === undefined ? undefined : (e) => arranging.dropInto(e, 'hand')}
       >
@@ -1111,7 +1158,14 @@ function Battlefield({
       label="Battlefield"
       count={player.battlefield.length}
     >
-      <ul className="zone__rows">
+      {/*
+       * `--cols` is the count `board.css` cannot take for itself: a lane is
+       * `contain: size`, so nothing inside it contributes to its width, and the
+       * zone-wide row count has to be summed across the four lanes, which no
+       * selector can do. The stylesheet turns these two numbers into the row
+       * count and each lane's share — see `.zone__rows` there.
+       */}
+      <ul className="zone__rows" style={{ '--cols': cols(rows) } as CSSProperties}>
         {BOARD_ROWS.map((row) => (
           <li
             key={row}
@@ -1120,14 +1174,14 @@ function Battlefield({
             data-empty={rows[row].length === 0 || undefined}
             /*
              * A lane's share of the battlefield's width is how many COLUMNS it
-             * draws — its piles, not its cards — so every card on the board comes
-             * out the same width whatever the split is (`board.css`). A stack
-             * takes one card's width, which is the whole point of stacking, and
-             * the lane it is in asks for one card's worth of room. A lane holding
+             * draws, and that is `ceil(piles / rows)` — the stylesheet divides,
+             * because only it knows how many rows the zone settled on. A stack
+             * takes one card's width, which is the whole point of stacking, so
+             * this is the PILE count and not the card count. A lane holding
              * nothing takes its label's width and the stylesheet decides that,
              * not this number.
              */
-            style={{ flexGrow: rows[row].length }}
+            style={{ '--cols': rows[row].length } as CSSProperties}
             onDragOver={arranging === undefined ? undefined : (e) => arranging.over(e)}
             onDrop={arranging === undefined ? undefined : (e) => arranging.dropInto(e, row)}
           >
@@ -1445,7 +1499,9 @@ function StackItem({ item, interaction }: { item: StackEntry; interaction: Board
           {item.isAbility && <span className="stack__kind"> · ability</span>}
         </span>
         {item.controllerName !== null && <span className="stack__controller">{item.controllerName}</span>}
-        <span className="stack__text">{inOurWords(item.description)}</span>
+        <span className="stack__text">
+          <RulesText text={item.description} />
+        </span>
       </span>
     </>
   );

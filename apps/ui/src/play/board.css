@@ -44,17 +44,22 @@
  * the other way round. Three mechanisms do it, and none of them depends on
  * knowing how many cards there are in advance:
  *
- *   - **Rows of cards shrink to the width.** A battlefield or a hand is a grid
- *     that flows into columns of `minmax(0, --card-w)`: while the cards fit
- *     they are `--card-w` wide, and when they stop fitting every column gives
- *     up the same share, so the thirteenth land makes all thirteen narrower
- *     instead of starting a row below the fold.
+ *   - **Rows of cards shrink to the width, DOWN TO A FLOOR.** A battlefield or a
+ *     hand is a grid that flows into columns of
+ *     `minmax(--card-min, --card-w)`: while the cards fit they are `--card-w`
+ *     wide, and when they stop fitting every column gives up the same share, so
+ *     the thirteenth land makes all thirteen narrower instead of starting a row
+ *     below the fold — but never past the width at which the card's own NAME
+ *     stops being readable (`--card-min`, wave 27 §A.1). Past that the row takes
+ *     another row rather than going on crushing.
  *   - **`--card-w` comes from the zone's height.** Those zones are size
  *     containers, so `100cqh` is the zone's own height and a card is sized so
  *     that `--rows` rows of it fit (a card is 488 × 680, `card.css`).
  *   - **More rows once one row would be too thin.** `--rows` steps from 1 to 2
- *     to 3 by card count, at thresholds that depend on the zone's shape; the
- *     derivation is beside the rules.
+ *     to 3 by card count (`--cols`, which `Board.tsx` writes), at thresholds that
+ *     depend on the zone's shape; the derivation is beside the rules. On a
+ *     battlefield the step is taken ONCE, for the whole zone, and the four lanes
+ *     inherit it — see `.zone__rows`.
  *
  * Graveyard and exile are piles, not grids: each card shows a strip and the
  * newest shows whole, and the strips shrink when the pile is taller than its
@@ -81,7 +86,10 @@
  * **A lane's share is how many COLUMNS it draws**, so every card on the
  * battlefield comes out the same width: a lane of n columns `flex-grow: n` gets
  * n/total of the width, which is exactly the room n cards need at that common
- * width. A column is a PILE, not a card — a stack of three (the player's, or an
+ * width. Its columns are `ceil(--cols / --rows)`, NOT its pile count — wave 26
+ * grew every lane by its piles, so a lane on two rows asked for twice the width
+ * it drew and starved the lane beside it down to 27px. A column is a PILE, not a
+ * card — a stack of three (the player's, or an
  * equipped creature's, `Board.tsx`) is one column, because `card.css` fans it
  * inside a single card's box. A lane
  * holding nothing shrinks to `--group-empty-w`, its label and no more. Inside
@@ -223,6 +231,24 @@
    *   log       6 +  36 =  42px
    */
   --right-gutter: 7.5rem;
+  /*
+   * The narrowest a card may be drawn before its NAME stops being readable, and
+   * it is a measurement rather than a taste (wave 27 §A.1).
+   *
+   * A board tile's name is 11px with `overflow-wrap: anywhere`, inside 14px of
+   * horizontal padding (`.board .card`). At 27px of column the name box is 11px
+   * wide and "Izzet Guildgate" comes out as SEVEN lines of one or two letters —
+   * which is what `docs/planning/wave26-question-panel-1280x800.png` shows on the
+   * viewer's creatures lane, and what the operator reported. At 2.75rem the same
+   * name is 41px wide and two lines. Measured in a browser at 960 and at 1046,
+   * over the four lane splits a real game produces.
+   *
+   * It is a floor the sizing AIMS AT, not a cliff: the lane's own share is the
+   * other half of the `min()` below, so a lane that genuinely cannot hold its
+   * cards at this width goes on narrowing them rather than overflowing — no zone
+   * on this board may scroll (the operator, 2026-09-19).
+   */
+  --card-min: 2.75rem;
 
   position: relative;
   height: 100dvh;
@@ -756,13 +782,28 @@
 }
 
 /*
- * The four groups, as lanes across the slot. `Board.tsx` sets each lane's
- * `flex-grow` to its card count, which is what makes every card on the
- * battlefield one width; a lane holding nothing is its label's width. Each
- * lane is its own size container, so the `--card-w` rule below reads the
- * LANE's height — which is the whole slot's, because the zone's label takes a
- * column and no height at all — and from which `--card-slack` then subtracts the
- * lane's own label strip.
+ * The four groups, as lanes across the slot. Each lane is its own size
+ * container, so the `--card-w` rule below reads the LANE's height — which is the
+ * whole slot's, because the zone's label takes a column and no height at all —
+ * and from which `--card-slack` then subtracts the lane's own label strip.
+ *
+ * ## `--cols`, and why a lane's share is not its card count
+ *
+ * `Board.tsx` writes `--cols` on this list (every pile on the battlefield) and
+ * on each lane (that lane's piles). Nothing else here counts anything: a lane is
+ * `contain: size`, so its own content contributes NOTHING to its width and an
+ * `auto` flex basis there computes to zero. The count has to come from outside.
+ *
+ * A lane's share of the width is then the COLUMNS it draws — `ceil(cols / rows)`
+ * — and not its piles, which is the wave-26 defect this replaces. A lane that
+ * stepped to two rows kept asking for two rows' worth of width and spent one:
+ * measured at 960 with sixteen lands and four creatures, the lands lane drew
+ * 56px cards out of 478px while the creatures lane beside it drew **27px** cards
+ * out of 124px, which is the unreadable row in
+ * `docs/planning/wave26-question-panel-1280x800.png`. With the share taken from
+ * the columns both lanes come out at 56–57px. The same split with the lanes
+ * evenly loaded (9/2/8/1, `e2e/table-fit.spec.ts`'s own crowd) went 59/33/61/35
+ * and comes out 60/61/60/61.
  */
 .zone__rows {
   display: flex;
@@ -778,6 +819,10 @@
 .zone__row {
   container: row-zone / size;
   flex: 0 1 var(--group-overhead);
+  /* The columns it draws, not the piles it holds. `round(up, …)` because CSS has
+     no `ceil()` in this engine — checked, `minmax(… ceil(16 / 2) …)` is refused
+     and `round(up, 16 / 2, 1)` is not. */
+  flex-grow: round(up, var(--cols, 0) / var(--rows), 1);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--row-head-h) minmax(0, 1fr);
@@ -871,7 +916,20 @@
   display: grid;
   grid-auto-flow: column;
   grid-template-rows: repeat(var(--rows), auto);
-  grid-auto-columns: minmax(0, var(--card-w));
+  /*
+   * A column is at most one card (`--card-w`) and at least a card whose name can
+   * be READ (`--card-min`) — wave 27 §A.1. `minmax(0, …)` was what let a full row
+   * go on narrowing until the names overlapped.
+   *
+   * The floor gives way to the lane's own equal share when even that will not
+   * fit, because the alternative is a lane that overflows, and a card clipped out
+   * of sight is a worse bug than a card that is hard to read. `100cqw` is this
+   * container's content WIDTH — the lane's on a battlefield, the hand zone's in
+   * your hand, and in both it already has `--right-gutter` taken out of it,
+   * because a size container's query box is its content box and the reservation
+   * is padding on the zone.
+   */
+  grid-auto-columns: minmax(min(var(--card-min), calc(100cqw / round(up, var(--cols, 99) / var(--rows), 1))), var(--card-w));
   gap: var(--cards-gap);
   align-content: start;
   justify-content: start;
@@ -892,93 +950,72 @@
 }
 
 /*
- * When to add a row. With the zone W wide and H tall, one row of N cards is
- * min(0.718·H, W/N) wide and two rows are min(0.359·H, 2W/N), so a second row
- * gives bigger cards once N > 2.79·W/H, and a third beats two once
- * N > 8.37·W/H. The container's shape W/H is the container query — a lane's, on
- * a battlefield, which is why a crowded lane goes to two rows while a sparse
- * one beside it stays at one — the count is `:has(nth-child)`, and each band of
- * shapes uses its midpoint's thresholds.
- * The bands nest (a zone 7:1 is also >= 3), so each starts by resetting to one
- * row with a selector as specific as the ones it overrides.
+ * When to add a row, and it is ONE decision per zone.
+ *
+ * With the zone W wide and H tall, one row of N cards is min(0.718·H, W/N) wide
+ * and two rows are min(0.359·H, 2W/N), so a second row gives bigger cards once
+ * N > 2.79·W/H and a third beats two once N > 8.37·W/H. The shape W/H is the
+ * container query and each band of shapes uses its midpoint's thresholds; N is
+ * `--cols`, which `Board.tsx` writes.
+ *
+ * **Per battlefield, not per lane** (wave 27 §A.1). Wave 26 let each lane choose
+ * its own row count from its own shape, and a lane that chose two rows then took
+ * twice the width it drew — the 27px creatures lane beside a 56px lands lane. The
+ * decision moves to `.zone__rows`, whose container is the ZONE, and the value
+ * inherits into all four lanes and their lists; `flex-grow` above then divides by
+ * it, so the lanes divide the width in the ratio they actually draw. Your HAND is
+ * one list and keeps its own decision, from its own zone, unchanged.
+ *
+ * `clamp(0, cols - (T - 1), 1)` is "one more row once `--cols` reaches T": the
+ * inner subtraction is negative below T, is 1 at T and is clamped to 1 above it.
+ * There is nothing to reset between bands, because each band states the whole
+ * arithmetic rather than adding to the one before.
  */
 
-.zone__cards:has(> li:nth-child(7)) {
-  --rows: 2;
-}
-.zone__cards:has(> li:nth-child(21)) {
-  --rows: 3;
+.zone__rows,
+.zone--hand > .zone__cards {
+  --rows: calc(1 + clamp(0, var(--cols, 0) - 6, 1) + clamp(0, var(--cols, 0) - 20, 1));
 }
 
 @container row-zone (aspect-ratio >= 3) {
-  .zone__cards:has(> li:nth-child(1)) {
-    --rows: 1;
-  }
-  .zone__cards:has(> li:nth-child(10)) {
-    --rows: 2;
-  }
-  .zone__cards:has(> li:nth-child(30)) {
-    --rows: 3;
+  .zone__rows,
+  .zone--hand > .zone__cards {
+    --rows: calc(1 + clamp(0, var(--cols, 0) - 9, 1) + clamp(0, var(--cols, 0) - 29, 1));
   }
 }
 
 @container row-zone (aspect-ratio >= 4) {
-  .zone__cards:has(> li:nth-child(1)) {
-    --rows: 1;
-  }
-  .zone__cards:has(> li:nth-child(13)) {
-    --rows: 2;
-  }
-  .zone__cards:has(> li:nth-child(38)) {
-    --rows: 3;
+  .zone__rows,
+  .zone--hand > .zone__cards {
+    --rows: calc(1 + clamp(0, var(--cols, 0) - 12, 1) + clamp(0, var(--cols, 0) - 37, 1));
   }
 }
 
 @container row-zone (aspect-ratio >= 5) {
-  .zone__cards:has(> li:nth-child(1)) {
-    --rows: 1;
-  }
-  .zone__cards:has(> li:nth-child(16)) {
-    --rows: 2;
-  }
-  .zone__cards:has(> li:nth-child(47)) {
-    --rows: 3;
+  .zone__rows,
+  .zone--hand > .zone__cards {
+    --rows: calc(1 + clamp(0, var(--cols, 0) - 15, 1) + clamp(0, var(--cols, 0) - 46, 1));
   }
 }
 
 @container row-zone (aspect-ratio >= 6) {
-  .zone__cards:has(> li:nth-child(1)) {
-    --rows: 1;
-  }
-  .zone__cards:has(> li:nth-child(20)) {
-    --rows: 2;
-  }
-  .zone__cards:has(> li:nth-child(59)) {
-    --rows: 3;
+  .zone__rows,
+  .zone--hand > .zone__cards {
+    --rows: calc(1 + clamp(0, var(--cols, 0) - 19, 1) + clamp(0, var(--cols, 0) - 58, 1));
   }
 }
 
 @container row-zone (aspect-ratio >= 8) {
-  .zone__cards:has(> li:nth-child(1)) {
-    --rows: 1;
-  }
-  .zone__cards:has(> li:nth-child(26)) {
-    --rows: 2;
-  }
-  .zone__cards:has(> li:nth-child(76)) {
-    --rows: 3;
+  .zone__rows,
+  .zone--hand > .zone__cards {
+    --rows: calc(1 + clamp(0, var(--cols, 0) - 25, 1) + clamp(0, var(--cols, 0) - 75, 1));
   }
 }
 
 @container row-zone (aspect-ratio >= 10) {
-  .zone__cards:has(> li:nth-child(1)) {
-    --rows: 1;
-  }
-  .zone__cards:has(> li:nth-child(31)) {
-    --rows: 2;
-  }
-  .zone__cards:has(> li:nth-child(93)) {
-    --rows: 3;
+  .zone__rows,
+  .zone--hand > .zone__cards {
+    --rows: calc(1 + clamp(0, var(--cols, 0) - 30, 1) + clamp(0, var(--cols, 0) - 92, 1));
   }
 }
 

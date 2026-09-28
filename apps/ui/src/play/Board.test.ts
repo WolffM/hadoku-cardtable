@@ -492,12 +492,25 @@ describe('BoardInteraction', () => {
 /* ── our words, not their marks ────────────────────────────────────────── */
 
 describe('marks', () => {
-  it('writes {T} as TAP in text the board draws', () => {
+  /**
+   * §A.7. The board spelled `{T}` out as the word TAP while the tap symbol was a
+   * mark we had decided not to reproduce. **D20 settled that the other way** —
+   * the operator, 2026-09-27: *"naw we're not drawing our own"* — so the symbol
+   * ships from the Mana pack and `CardTile` has drawn `ms-tap` in a card's own
+   * rules text since wave 26 §C. The stack's text was the last place still
+   * writing the word, and it now goes through the same `ManaPip`.
+   */
+  it('draws {T} in the stack’s text as the tap SYMBOL, not the word TAP', () => {
     const view = boardFromFixture(fixture);
-    const withTap: BoardView = { ...view, stack: [{ ...view.stack[0]!, description: '{T}: Add one mana.' }] };
+    const withTap: BoardView = { ...view, stack: [{ ...view.stack[0]!, description: '{T}: Add {R}.' }] };
     const { container } = renderBoard(withTap);
-    const text = container.querySelector('.stack__text')!.textContent;
-    expect(text).toBe('TAP: Add one mana.');
+    const text = container.querySelector<HTMLElement>('.stack__text')!;
+    expect(text.textContent, 'neither the word nor the braces are left in the text').toBe(': Add .');
+    expect(
+      [...text.querySelectorAll<HTMLElement>('.pip')].map((p) => p.dataset.token),
+      'both symbols are pips, and the tap one is a pip like any other',
+    ).toEqual(['T', 'R']);
+    expect(text.querySelector('.ms-tap'), 'drawn from the Mana pack’s own glyph (D20)').not.toBeNull();
   });
 
   it('draws costs as our own pips, and every card resolved', () => {
@@ -1223,14 +1236,20 @@ describe('the battlefield’s rows (#10)', () => {
     for (const id of [0, 1]) {
       const rows = [...zone(id, 'battlefield').querySelectorAll<HTMLElement>('[data-board-row]')];
       expect(rows.map((r) => r.dataset.boardRow), `seat ${id}'s rows, in order`).toEqual(ROWS);
-      // A lane's share of the width is how many COLUMNS it draws — its piles,
-      // one `<li>` each, not every card in them (`board.css`). Nothing is
-      // stacked in the fixture, so here the two numbers agree; the stacking
-      // tests below are where they part.
+      // A lane reports its PILES, one `<li>` each, not every card in them, and
+      // `board.css` turns that into the lane's share of the width (`--cols`
+      // divided by the zone's row count). Nothing is stacked in the fixture, so
+      // here the two numbers agree; the stacking tests below are where they part.
       expect(
-        rows.map((r) => r.style.flexGrow),
-        `seat ${id}'s lanes grow by the columns they draw`,
+        rows.map((r) => r.style.getPropertyValue('--cols')),
+        `seat ${id}'s lanes report the columns they draw`,
       ).toEqual(rows.map((r) => String(r.querySelectorAll(':scope > ul.zone__cards > li.board-card').length)));
+      // And the zone reports the whole battlefield, because the row count is one
+      // decision for all four lanes and no selector can sum across them.
+      const list = zone(id, 'battlefield').querySelector<HTMLElement>(':scope > ul.zone__rows')!;
+      expect(list.style.getPropertyValue('--cols'), `seat ${id}'s battlefield reports every column`).toBe(
+        String(rows.reduce((n, r) => n + r.querySelectorAll(':scope > ul.zone__cards > li.board-card').length, 0)),
+      );
       for (const r of rows) {
         const head = r.querySelector('.zone__row-head')!;
         const cards = r.querySelectorAll('.board-card').length;
@@ -1531,7 +1550,7 @@ describe('drag to stack (#1, #19)', () => {
     dragOnto(container, 25, 8, 'top');
     const lane = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="lands"]')!;
     // Three columns, four cards — this is exactly where the two numbers part.
-    expect(lane.style.flexGrow, 'the lane grows by its columns').toBe('3');
+    expect(lane.style.getPropertyValue('--cols'), 'the lane asks for its columns').toBe('3');
     expect(lane.querySelectorAll(':scope > ul.zone__cards > li.board-card')).toHaveLength(3);
     expect(lane.querySelectorAll('.board-card')).toHaveLength(4);
     // The lane's own label still counts CARDS, which is what is on the board.
@@ -2506,3 +2525,298 @@ describe('the stack’s art (#10)', () => {
 });
 
 
+
+/* ── wave 27 §A: the table fits 960, and cards find their place ───────── */
+
+/**
+ * The operator, 2026-09-27: *"a system that by default snaps to the next
+ * avaliable space, but also allows stacking cards with slight off-set similar to
+ * how enchantments/equipped artifacts are already represented"*.
+ *
+ * Two behaviours and one model, and the second half is the operator's own
+ * comparison, so it is the SAME rendering an attachment gets rather than a
+ * second overlap style.
+ */
+describe('cards find their place (§A.3, §A.4)', () => {
+  /** The viewer's lands lane, as columns of piles: each column bottom card first. */
+  const lanes = (container: HTMLElement, row: string): number[][] => {
+    const lane = container.querySelector<HTMLElement>(`.seat[data-viewer] [data-board-row="${row}"]`)!;
+    return [...lane.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li.board-card')].map((base) => [
+      Number(base.dataset.cardId),
+      ...[...base.querySelectorAll<HTMLElement>(':scope > ul.board-card__pile > li.board-card')].map((m) => Number(m.dataset.cardId)),
+    ]);
+  };
+
+  /** The fixture with one more land on the viewer's battlefield, as Forge would send it. */
+  function withNewLand(base: BoardView, id: number): BoardView {
+    const me = base.players.find((p) => p.isViewer)!;
+    const seed = me.battlefield.find((c) => c.card.typeLine.includes('Land'))!;
+    return {
+      ...base,
+      seq: base.seq + 1,
+      players: base.players.map((p) =>
+        !p.isViewer ? p : { ...p, battlefield: [...p.battlefield, { ...seed, id, card: { ...seed.card, cardId: `w${id}`, name: `Wastes ${id}` } }] },
+      ),
+    };
+  }
+
+  it('a card entering a zone takes the NEXT FREE SLOT — its own, at the end of its lane', () => {
+    // With no arrangement at all first: the default order is the view's, and a
+    // permanent that arrives joins the end of the lane it belongs to.
+    const bare = renderBoard();
+    expect(lanes(bare.container, 'lands')).toEqual([[8], [24], [6], [25]]);
+    cleanup();
+    const arrived = renderBoard(withNewLand(boardFromFixture(fixture), 777));
+    expect(lanes(arrived.container, 'lands'), 'the new land is the last column, on its own').toEqual([[8], [24], [6], [25], [777]]);
+    cleanup();
+
+    // And with an arrangement standing — the case that matters, because the
+    // arrangement names every card the player has touched and the newcomer is
+    // in none of its piles. It must not land in the middle of an order they
+    // chose, and it must not join a pile.
+    const before = renderBoard();
+    const drag = (cardId: number, ontoId: number) => {
+      fireEvent.dragStart(before.container.querySelector<HTMLElement>(`[data-card-id="${cardId}"]`)!);
+      const onto = before.container.querySelector<HTMLElement>(`[data-card-id="${ontoId}"]`)!;
+      fireEvent.dragOver(onto);
+      fireEvent.drop(onto);
+    };
+    drag(25, 8);
+    expect(lanes(before.container, 'lands')).toEqual([[25], [8], [24], [6]]);
+    cleanup();
+    const after = renderBoard(withNewLand(boardFromFixture(fixture), 778));
+    expect(lanes(after.container, 'lands'), 'the arrangement stands and the newcomer is last').toEqual([[25], [8], [24], [6], [778]]);
+    // Nothing overlaps unless the player asked for it: every column is a pile of
+    // one, and no card on the board carries the pile marks.
+    for (const column of lanes(after.container, 'lands')) expect(column).toHaveLength(1);
+    expect(
+      after.container.querySelectorAll('.seat[data-viewer] [data-zone="battlefield"] .board-card[data-pile-size]'),
+      'nothing stacked itself',
+    ).toHaveLength(0);
+  });
+
+  it('a card dropped ON a card stacks with an offset, drawn exactly as an attachment is', () => {
+    const TOP = 100;
+    const HEIGHT = 90;
+    const { container } = renderBoard();
+    const onto = container.querySelector<HTMLElement>('[data-card-id="8"]')!;
+    onto.getBoundingClientRect = () =>
+      ({ top: TOP, bottom: TOP + HEIGHT, height: HEIGHT, left: 0, right: 70, width: 70, x: 0, y: TOP, toJSON: () => ({}) }) as DOMRect;
+    fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="25"]')!);
+    fireEvent.dragOver(onto);
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'clientY', { value: TOP + 10 });
+    fireEvent(onto, drop);
+
+    expect(lanes(container, 'lands'), '25 is stacked on 8, and the lane is a column shorter').toEqual([[8, 25], [24], [6]]);
+    // The MARKUP is the attachment's markup: a `ul.board-card__pile` inside the
+    // base card's own `<li>`, `data-pile-size` on the base and `data-pile-depth`
+    // on each member. `Board.tsx` builds the player's piles and Forge's
+    // attachments with the same `Pile`, which is why there is one of these.
+    const base = container.querySelector<HTMLElement>('[data-card-id="8"]')!;
+    const member = container.querySelector<HTMLElement>('[data-card-id="25"]')!;
+    expect(base.dataset.pileSize, 'the base says how deep the pile is').toBe('2');
+    expect(member.parentElement!.className).toBe('board-card__pile');
+    expect(member.dataset.pileDepth, 'and the member says where in it it sits').toBe('1');
+    // A player's stack is NOT marked as Forge's — that attribute is the engine's
+    // claim, and the player making a pile must not be able to forge it.
+    expect(member.dataset.attached, 'the player stacked it; Forge did not').toBeUndefined();
+    // And the OFFSET is `card.css`'s fan, the one an attachment has always been
+    // drawn with: the depth drives `--pile-fan`, a step per card, and the pile
+    // occupies exactly one card's box whatever it holds.
+    expect(CARD_CSS).toContain("--pile-fan: var(--stack-step);");
+    expect(CARD_CSS).toMatch(/\.board-card\[data-pile-size\][^{]*\{[^}]*--pile-fan/);
+    expect(CARD_CSS).toMatch(/\.board-card__pile > \.board-card\[data-pile-depth='1'\]/);
+  });
+});
+
+/**
+ * §A.1 — the fit. The table is **960px wide at a 1280 viewport**, not 1280:
+ * watchparty's roster-and-chat aside is `flex: 0 0 20rem` and pinned above
+ * 767px (`apps/ui/src/chrome/chrome.css`), so the board gets 1280 − 320.
+ *
+ * jsdom lays nothing out, so this does the arithmetic the stylesheet does, on
+ * the tokens read out of the stylesheet and the counts read off the rendered
+ * markup. The same numbers were measured in a real browser at 960×705 and
+ * 1046×683 while this was written; `e2e/table-fit.spec.ts` (lane B's) is where
+ * they are measured on a live match.
+ */
+describe('a full row keeps its names legible at the 960 budget (§A.1)', () => {
+  /** 1280 minus watchparty's pinned 320px aside. `chrome.css` documents both. */
+  const TABLE_W = 960;
+  /** The board's own height there, measured: the page header takes the rest. */
+  const TABLE_H = 705;
+  const px = (value: string | undefined): number => {
+    const rem = /^([\d.]+)rem$/.exec(value ?? '');
+    if (rem !== null) return Number(rem[1]) * 16;
+    const abs = /^([\d.]+)px$/.exec(value ?? '');
+    if (abs === null) throw new Error(`not a length: ${String(value)}`);
+    return Number(abs[1]);
+  };
+  const token = (selector: string, name: string): number => px(declarationIn(selector, name));
+  /** The one rule that sizes a card's column, in a hand and in a battlefield lane. */
+  const GRID = '.seat > .zone--battlefield .zone__row > .zone__cards,\n.seat[data-viewer] > .zone--hand > .zone__cards';
+  /** The rule that gives a row zone its `--card-max`, shared by a battlefield and a hand. */
+  const ROW_ZONE = '.seat > .zone--battlefield,\n.seat[data-viewer] > .zone--hand';
+
+  /** Every `--rows` formula in file order: the base band, then >= 3, 4, 5, 6, 8, 10. */
+  const ladder = (): { above: number; steps: number[] }[] => {
+    const found = BOARD_RULES.match(/--rows: calc\([^;]+\);/g) ?? [];
+    expect(found, 'the row ladder is arithmetic on `--cols`, one rule per band').toHaveLength(7);
+    return found.map((rule, i) => ({
+      above: [0, 3, 4, 5, 6, 8, 10][i]!,
+      steps: [...rule.matchAll(/clamp\(0, var\(--cols, 0\) - (\d+), 1\)/g)].map((m) => Number(m[1]) + 1),
+    }));
+  };
+
+  /**
+   * A viewer's battlefield filled lane by lane, in `BOARD_ROWS` order: lands,
+   * artifacts, creatures, everything else. The split is what decides whether the
+   * lanes starve each other, so it is the input.
+   */
+  function lopsided(...want: [number, number, number, number]): BoardView {
+    const base = boardFromFixture(fixture);
+    const me = base.players.find((p) => p.isViewer)!;
+    const seed = me.battlefield.find((c) => c.card.typeLine.includes('Land'))!;
+    const kinds = [
+      ['Land', 'Izzet Guildgate'],
+      ['Artifact', 'Bonesplitter'],
+      ['Creature — Elemental', 'Fire Urchin'],
+      ['Enchantment', 'Pacifism'],
+    ] as const;
+    const made: BoardCard[] = [];
+    let id = 50_000;
+    want.forEach((n, lane) => {
+      const [typeLine, name] = kinds[lane]!;
+      for (let i = 0; i < n; i += 1) made.push({ ...seed, id: (id += 1), card: { ...seed.card, cardId: `w${id}`, typeLine, name } });
+    });
+    return { ...base, players: base.players.map((p) => (p.isViewer ? { ...p, battlefield: made } : p)) };
+  }
+
+  /**
+   * What the stylesheet will draw, at `TABLE_W`: the narrowest card on the
+   * viewer's battlefield, and the row count the zone settled on.
+   *
+   * Every number below is a token out of `board.css` or a count out of the
+   * markup. It follows the boxes down: the board's padding, the seat's border
+   * and padding, the left column and its gap, the zone's border, its 2px of
+   * left pad and the gutter it reserves for the permanent overlays, the lane
+   * gaps and each lane's own border and list padding.
+   */
+  function draws(container: HTMLElement) {
+    const zone = container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"]')!;
+    const list = zone.querySelector<HTMLElement>(':scope > ul.zone__rows')!;
+    const lanes = [...list.querySelectorAll<HTMLElement>(':scope > li.zone__row')];
+    const cols = lanes.map((l) => Number(l.style.getPropertyValue('--cols')));
+    const total = Number(list.style.getPropertyValue('--cols'));
+    expect(total, 'the zone reports every column on it').toBe(cols.reduce((a, b) => a + b, 0));
+
+    const boardGap = token('.board', '--board-gap');
+    const seat = TABLE_W - 2 * boardGap - 2 /* the seat's own border */ - 2 * 8 /* its padding */;
+    const zoneW = seat - token('.board .seat', '--who-w') - 8 /* the seat's column gap */;
+    const inner = zoneW - 2 /* the zone's border */ - 2 /* its 2px of left pad */ - token('.board', '--right-gutter');
+
+    // The zone's height, the same way down, because the row ladder reads the
+    // zone's SHAPE and `--card-w` reads its height.
+    const seatH = (TABLE_H - 2 * boardGap - boardGap) / 2 - 2 - 11;
+    const zoneH = ((seatH - 4) * 4) / 6.6 - 2;
+
+    const band = ladder()
+      .filter((b) => inner / zoneH >= b.above)
+      .at(-1)!;
+    const rows = 1 + band.steps.filter((t) => total >= t).length;
+
+    const gap = token('.seat > .zone--battlefield', '--group-gap');
+    const emptyW = token('.seat > .zone--battlefield', '--group-empty-w');
+    const overhead = token('.seat > .zone--battlefield', '--group-overhead');
+    const cardsGap = token('.board', '--cards-gap');
+    // How many columns each lane DRAWS, and — read out of the stylesheet, so
+    // that reverting the budget reverts this arithmetic with it — how much width
+    // each lane ASKS for. Wave 26 asked by the pile count, which is the defect.
+    const drawn = cols.map((n) => Math.ceil(n / rows));
+    const grow = declarationIn('.zone__row', 'flex-grow') ?? 'var(--cols, 0)';
+    const share = grow.includes('--rows') ? drawn : cols;
+    const grown = share.reduce((a, b) => a + b, 0);
+    // Flexbox: every lane starts at its basis, an empty one is pinned to its
+    // label's width, and what is left is shared out by the grow.
+    const spare = inner - 3 * gap - cols.filter((n) => n === 0).length * emptyW - cols.filter((n) => n > 0).length * overhead;
+    const widths = cols.map((n, i) => (n === 0 ? emptyW : overhead + (spare * share[i]!) / grown));
+    const cardW = cols.map((n, i) => {
+      if (n === 0) return Infinity;
+      const laneInner = widths[i]! - (i === 0 ? 0 : 1) /* the lane's left rule */ - 2 * 2 /* the list's padding */;
+      const even = (laneInner - (drawn[i]! - 1) * cardsGap) / drawn[i]!;
+      // A column is never wider than one card and, since §A.1, never narrower
+      // than a name can be read — the floor giving way to the lane's own share.
+      const floor = declarationIn(GRID, 'grid-auto-columns')!.includes('--card-min') ? Math.min(token('.board', '--card-min'), even) : 0;
+      return Math.max(floor, Math.min(even, token(ROW_ZONE, '--card-max')));
+    });
+    return { rows, narrowest: Math.min(...cardW), cardW, widths };
+  }
+
+  /**
+   * The floor and the budget, as declarations — so reverting either hunk fails
+   * here and not only in a browser.
+   */
+  it('floors a column at a legible width and takes the lane’s share from the COLUMNS it draws', () => {
+    expect(declarationIn('.board', '--card-min'), 'the floor is a token of the board, beside the gutter').toBe('2.75rem');
+    const columns = declarationIn(GRID, 'grid-auto-columns')!;
+    expect(columns, 'a column is never narrower than a card whose name can be read').toContain('var(--card-min)');
+    expect(columns, 'nor wider than one card').toContain('var(--card-w)');
+    expect(columns, 'and the floor gives way to the lane’s own share rather than overflowing it').toContain('100cqw');
+    expect(columns, 'the wave-26 rule let it go on shrinking to nothing').not.toContain('minmax(0,');
+    // A lane asks for the COLUMNS it draws, `ceil(--cols / --rows)`. Wave 26 grew
+    // it by its piles, so a lane on two rows starved the lane beside it.
+    expect(declarationIn('.zone__row', 'flex-grow')).toBe('round(up, var(--cols, 0) / var(--rows), 1)');
+    // And the row count is ONE decision per battlefield, taken on the zone's own
+    // shape — not four lanes disagreeing. The hand is one list and keeps its own.
+    expect(declarationIn('.zone__rows,\n.zone--hand > .zone__cards', '--rows')).toMatch(/^calc\(1 \+ clamp\(/);
+    expect(BOARD_RULES, 'nothing counts cards with a `:has()` ladder any more').not.toContain('nth-child');
+  });
+
+  it('draws the report’s own row — sixteen lands beside four creatures — with every name readable', () => {
+    const { container } = renderBoard(lopsided(16, 0, 4, 0));
+    const got = draws(container);
+    expect(got.rows, 'twenty columns on a zone this shape is two rows').toBe(2);
+    // The committed screenshot `docs/planning/wave26-question-panel-1280x800.png`
+    // is this row: the creatures lane came out at 27px, where "Izzet Guildgate"
+    // is seven lines of one letter. Measured in chromium at 960×705 after the
+    // fix: 56px in the lands lane and 57px in the creatures lane.
+    expect(Math.round(got.narrowest), 'the narrowest card on the battlefield').toBeGreaterThanOrEqual(
+      px(declarationIn('.board', '--card-min')),
+    );
+    expect(Math.round(got.narrowest)).toBeLessThan(70);
+  });
+
+  it('holds for every split a real game produces, and puts every lane at one width', () => {
+    const splits: [number, number, number, number][] = [
+      [9, 2, 8, 1],
+      [16, 0, 4, 0],
+      [5, 1, 4, 1],
+      [12, 2, 5, 1],
+      [20, 4, 12, 2],
+    ];
+    for (const want of splits) {
+      const [lands, artifacts, creatures, other] = want;
+      const total = lands + artifacts + creatures + other;
+      const { container } = renderBoard(lopsided(...want));
+      const got = draws(container);
+      const drawn = got.cardW.filter((w) => w !== Infinity);
+      expect(Math.round(got.narrowest), `the split ${want.join('/')}`).toBeGreaterThanOrEqual(
+        // Past the point where the zone can hold them all at the floor the floor
+        // gives way — on purpose, because a clipped card is worse than a small
+        // one. Twenty lands and twelve creatures is already far past a real game.
+        total > 30 ? 36 : px(declarationIn('.board', '--card-min')),
+      );
+      /*
+       * One width, whatever the split — which is what taking the share from the
+       * columns buys and what wave 26 could not do. Chromium measured 60/61/60/61
+       * for this split at 960 and 59/59/59/59 at 1046; wave 26 measured
+       * 59/33/61/35. The few pixels of slack here are the lane's flat
+       * `--group-overhead` basis, which a one-column lane spends on one card and
+       * an eight-column lane spreads over eight.
+       */
+      expect(Math.max(...drawn) - Math.min(...drawn), `${want.join('/')}: every lane draws one card width`).toBeLessThan(5);
+      cleanup();
+    }
+  });
+});

@@ -597,6 +597,56 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     expect(sent(s)).toEqual([['selectCard', theirs[0]!]]);
   });
 
+  /**
+   * Wave 27 §A.6: **rearranging is not an act**, so a press that starts one must
+   * be claimable with NO OFFER OPEN — which is most of a game.
+   *
+   * `install.ts` gets there twice over and both halves matter. `nativelyDraggable`
+   * returns before every branch, so the arrangement owns the press whatever else
+   * is true; and with `match.selectables === null` the source-less pointing
+   * gesture does not start at all, which is the line the brief names. Neither is
+   * reached by WIDENING what counts as an offer — that is how a click on a card
+   * Forge never named becomes an act — so this asserts the offer is still empty
+   * while the press goes through.
+   *
+   * **The two guards are redundant of each other here, and deliberately so.**
+   * Mutation-tested: removing either one alone leaves this green, because the
+   * other still returns; removing both fails it. They stop being redundant the
+   * moment an offer IS open, which is the case above.
+   */
+  it('with NOTHING offered, a press on the viewer’s own card is the arrangement’s and sends nothing', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const mine = mineOf(m).battlefield.map((c) => c.id);
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    // No selection, and not even an actionable set: Forge has named nothing.
+    expect(m.selectables, 'no offer is open').toBeNull();
+    const offered = boardInteraction(m);
+    expect(offered.selectable.size + offered.selectablePlayers.size, 'and nothing on the board is Forge’s').toBe(0);
+    expect(offered.selectionOpen, 'no selection is open either').toBe(false);
+    // Which is exactly when lane A makes the viewer's own battlefield draggable.
+    expect(cardEl(canvas, mine[0]!).getAttribute('draggable'), 'the arrangement owns this press').toBe('true');
+
+    /*
+     * Asserted WHILE THE PRESS IS HELD, which is the only moment that can tell
+     * the two apart: with nothing selectable `commitDrag` can never send, so a
+     * gesture that wrongly started would leave nothing behind on release and a
+     * check after the fact would pass either way (it did — this case was written
+     * that way first and neither mutation of `install.ts` failed it).
+     */
+    const from = cardEl(canvas, mine[0]!);
+    fireEvent.pointerDown(from, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 200, clientY: 140 });
+    expect(canvas.hasAttribute('data-dragging'), 'this layer did not take the press').toBe(false);
+    expect(overlayOf(canvas).querySelector('[data-testid="targeter"]'), 'and drew no arrow').toBeNull();
+    fireEvent.pointerUp(cardEl(canvas, theirs[0]!), { clientX: 200, clientY: 140 });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames(), 'an arrangement puts nothing on the wire').toHaveLength(0);
+    // The offer is still empty afterwards — the press was not bought by widening it.
+    expect(m.selectables).toBeNull();
+    expect(boardInteraction(m).selectable.size).toBe(0);
+  });
+
   it('declaring attackers, a box-draw MAY start on a draggable permanent — and the native drag is cancelled', async () => {
     const { s, m, canvas } = await declaringAttackersBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
