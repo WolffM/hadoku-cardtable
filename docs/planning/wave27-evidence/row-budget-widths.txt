@@ -1,0 +1,22 @@
+=== old (wave 26 / wave 27) ===
+960 705 x probe 9 2 8 1            min  33  land:n9 w59 arti:n2 w33 crea:n8 w61 othe:n1 w35
+1046 683 x probe 9 2 8 1           min  37  land:n9 w59 arti:n2 w37 crea:n8 w59 othe:n1 w39
+960 705 x probe 16 0 4 0           min  27  land:n16 w56 crea:n4 w27
+1046 683 x probe 16 0 4 0          min  31  land:n16 w59 crea:n4 w31
+960 705 x probe 5 1 4 1            min  60  land:n5 w60 arti:n1 w63 crea:n4 w60 othe:n1 w63
+1046 683 x probe 5 1 4 1           min  68  land:n5 w68 arti:n1 w71 crea:n4 w68 othe:n1 w71
+960 705 x probe 12 2 5 1           min  31  land:n12 w61 arti:n2 w33 crea:n5 w31 othe:n1 w35
+1046 683 x probe 12 2 5 1          min  36  land:n12 w59 arti:n2 w37 crea:n5 w36 othe:n1 w39
+960 705 x probe 20 4 12 2          min  15  land:n20 w33 arti:n4 w15 crea:n12 w33 othe:n2 w16  OVERFLOW
+1046 683 x probe 20 4 12 2         min  18  land:n20 w37 arti:n4 w18 crea:n12 w38 othe:n2 w19
+=== new (wave 26 / wave 27) ===
+960 705 x product 9 2 8 1          min  60  land:n9 w60 arti:n2 w61 crea:n8 w60 othe:n1 w61
+1046 683 x product 9 2 8 1         min  59  land:n9 w59 arti:n2 w59 crea:n8 w59 othe:n1 w59
+960 705 x product 16 0 4 0         min  56  land:n16 w56 crea:n4 w57
+1046 683 x product 16 0 4 0        min  59  land:n16 w59 crea:n4 w59
+960 705 x product 5 1 4 1          min  61  land:n5 w61 arti:n1 w61 crea:n4 w61 othe:n1 w61
+1046 683 x product 5 1 4 1         min  68  land:n5 w68 arti:n1 w71 crea:n4 w68 othe:n1 w71
+960 705 x product 12 2 5 1         min  60  land:n12 w60 arti:n2 w61 crea:n5 w60 othe:n1 w61
+1046 683 x product 12 2 5 1        min  59  land:n12 w59 arti:n2 w59 crea:n5 w59 othe:n1 w59
+960 705 x product 20 4 12 2        min  40  land:n20 w40 arti:n4 w40 crea:n12 w40 othe:n2 w40
+1046 683 x product 20 4 12 2       min  38  land:n20 w38 arti:n4 w38 crea:n12 w38 othe:n2 w38

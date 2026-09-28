@@ -278,18 +278,51 @@ was answered in 3 ms, and a probe ran alongside it in 4.4 ms.
 | suite | what | real data |
 | --- | --- | --- |
 | `visibility.test.ts` (21) | both seats projected from Wave 8's 27-packet fixture; whole-payload leak check; own hand fully visible after draws; public cards untouched; events dropped (real `GameEventCardChangeZone`); `setGameView`; a face-down permanent | `apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`, `packages/forge-wire/src/events/fixtures/` |
-| `match.test.ts` (44) | identity binding and its failure modes, per-seat emission and the leak check, cursor, snapshot, asks (reply by callId, other seat cannot answer, disconnect/timeout/browser abort, re-send), invalid frames, lifecycle; the 'Flying' regression; **crash** (both seats told, once, at the next cursor; kept across a resync) and **reconnect** (the grace, the same board and ask after a refresh) | `fixtures/bridge-two-seats.ndjson`, `fixtures/bridge-flying-seat1.ndjson` |
-| `socket.test.ts` (18) | real express + socket.io + clients with edge headers: POST, joins, match-full, whole-transcript leak check, contiguous cursors from the snapshot, reply routing, disconnect vs refresh, tier gate, dev identity refused without the hatch; a refresh in browser order (old socket closed first) outliving the grace; a crash leaving the server up; full control echoed to every join and resync, restored across a refresh, per seat, and withheld from a refused join | same transcript |
-| `host.test.ts` (22) | the JVM pool against `fixtures/fake-bridge.mjs` (a child process speaking the bridge's line protocol, no Forge): spare adoption and re-addressing, a still-booting spare, spare off, `close()`, the ceiling counting the spare, the heap cap, a spare that keeps dying, a match's JVM SIGKILLed; the run directory (removed on a clean end, kept and pruned on a crash); the boot sweep against a **fixture** work dir (dead removed; live, fresh, in-bound crash records and anything not ours spared; the record bound; it runs when the pool is made); and Wave 22's re-attach — a JVM still running after the process that started it is gone and naming itself on disk, offered back and replayed into a new match, killed when nobody claims it, handed over on the way out and taken back by a second pool, a live spare ended from its own record, an orphan past `ORPHAN_MAX_MS` ended, and a live dir whose record names a different process left alone | fake bridge — runs in CI |
-| `auto.test.ts` (76) | the shortcuts as rules: every committed prompt fixture stays a question; the bounds cases that answer themselves; `autoPassReason` and `autoPayReason` over typed frames AND over `fixtures/w20-turn-flow.json`'s real windows; the same through a whole `Match` over the replay host; `fullControl` turning all of it off | `apps/ui/src/play/prompts/fixtures/*.json`, `fixtures/w20-turn-flow.json` |
+| `match.test.ts` (60) | identity binding and its failure modes, per-seat emission and the leak check, cursor, snapshot, asks (reply by callId, other seat cannot answer, disconnect/timeout/browser abort, re-send), invalid frames, lifecycle; the 'Flying' regression; **crash** (both seats told, once, at the next cursor; kept across a resync) and **reconnect** (the grace, the same board and ask after a refresh) | `fixtures/bridge-two-seats.ndjson`, `fixtures/bridge-flying-seat1.ndjson` |
+| `socket.test.ts` (27) | real express + socket.io + clients with edge headers: POST, joins, match-full, whole-transcript leak check, contiguous cursors from the snapshot, reply routing, disconnect vs refresh, tier gate, dev identity refused without the hatch; a refresh in browser order (old socket closed first) outliving the grace; a crash leaving the server up; full control echoed to every join and resync, restored across a refresh, per seat, and withheld from a refused join | same transcript |
+| `host.test.ts` (26) | the JVM pool against `fixtures/fake-bridge.mjs` (a child process speaking the bridge's line protocol, no Forge): spare adoption and re-addressing, a still-booting spare, spare off, `close()`, the ceiling counting the spare, the heap cap, a spare that keeps dying, a match's JVM SIGKILLed; the run directory (removed on a clean end, kept and pruned on a crash); the boot sweep against a **fixture** work dir (dead removed; live, fresh, in-bound crash records and anything not ours spared; the record bound; it runs when the pool is made); and Wave 22's re-attach — a JVM still running after the process that started it is gone and naming itself on disk, offered back and replayed into a new match, killed when nobody claims it, handed over on the way out and taken back by a second pool, a live spare ended from its own record, an orphan past `ORPHAN_MAX_MS` ended, and a live dir whose record names a different process left alone | fake bridge — runs in CI |
+| `auto.test.ts` (144) | the shortcuts as rules: every committed prompt fixture stays a question; the bounds cases that answer themselves; `autoPassReason` and `autoPayReason` over typed frames AND over `fixtures/w20-turn-flow.json`'s real windows; the same through a whole `Match` over the replay host; `fullControl` turning all of it off | `apps/ui/src/play/prompts/fixtures/*.json`, `fixtures/w20-turn-flow.json` |
 | `auto.jvm.test.ts` (1) | the same against a real Forge: stops passed only where Forge named nothing, every cast says what it paid, the scry asks about the scried cards; **skips visibly** without a jar | live |
 | `seed.jvm.test.ts` (1) | one seed, one deal: two cold matches on seed 20260918 put both libraries in the same order — the seed reaching Forge's `MyRandom`, measured rather than read off the source; **skips visibly** without a jar | live |
 | `jvm.test.ts` (3) | real matches in real JVMs — fixed decks + seed (cold), and seeded variety **through the warm spare**; then a refresh with a real ask parked in Forge, and a SIGKILL; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
+
+Every count above is the number of tests the suite RUNS, not the `it(` blocks
+in its source — `auto.test.ts` has two `it.each` tables, so it reads 121 blocks
+and runs 144. Re-measure one with
+`pnpm vitest run apps/server/src/play/<suite>.test.ts`. Four of these five were
+stale when Wave 27 checked them (match 44→60, socket 18→27, host 22→26, auto
+76→144) and only nine of that drift was Wave 27's own, so re-measure rather
+than incrementing.
 
 The leak oracle (`fixtures/transcript.ts`, `secretsFor`) is defined from zones
 — opponent's hand and every library, minus anything the viewer legitimately
 saw — independently of `visibility.ts`. Each leak test also asserts the raw
 stream contains every secret, so it cannot pass vacuously.
+
+### Choosing a seat's `StopPolicy` from outside the process
+
+`CARDTABLE_PLAY_STOP_POLICY` names the policy a NEW match's seats start on. It
+is the selector for the per-seat `StopPolicy` Wave 26 built and nothing could
+reach; unset — as in production — every seat starts on `DEFAULT_STOP_POLICY`,
+which `socket.test.ts` asserts the way it already asserts *"production must not
+be seeded"* for `CARDTABLE_PLAY_SEED`. The four names are `default`,
+`strictPayment`, `arena` and `fullControl` (`NAMED_STOP_POLICIES` in `auto.ts`,
+a `Map` and not an object literal, so `…=toString` cannot hand a seat
+`Object.prototype.toString` as its policy — `auto.test.ts` pins that).
+
+A name it does not know is **loud, not a fallback**: `attachPlay` logs
+`stop-policy-unknown` with the four valid names and leaves the seats on the
+default, so a typo cannot masquerade as a working hatch. A recognised name logs
+`stop-policy-selected` with the policy it resolved. Check for one of those two
+lines before believing the hatch took.
+
+This exists so a spec or a screenshot can see a payment a browser is asked to
+make: with `unambiguousPayment: 'forgeAuto'` as the default, the server answers
+every payment before a browser sees it. **`pnpm e2e` cannot pass it through** —
+`e2e/play/harness.ts` spawns the play server with a closed env allow-list
+rather than spreading `process.env`, so the variable would set on Playwright and
+never reach the process that starts the match. Until that file forwards it, use
+it on a hand-run server (`pnpm --filter @hadoku/server exec tsx src/index.ts`).
 
 ### The red JVM run the manager hit: an oracle false positive, not a leak
 

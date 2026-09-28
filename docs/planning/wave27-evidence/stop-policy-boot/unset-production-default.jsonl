@@ -1,0 +1,16 @@
+{"t":"2026-09-28T19:32:41.632Z","svc":"cardtable-stream","evt":"stream-routes","streams":2,"rooms":true}
+{"t":"2026-09-28T19:32:41.650Z","svc":"cardtable-rooms","event":"lobby-open","rooms":0,"defaultFormat":"2012-08-11"}
+{"t":"2026-09-28T19:32:41.672Z","svc":"cardtable-tables","evt":"library","formats":9,"decks":49,"faults":[]}
+[cardtable] play: no Forge (CARDTABLE_FORGE_JAR is not set) — POST /api/play/matches answers 503
+{"t":"2026-09-28T19:32:41.673Z","svc":"cardtable-stream","evt":"stream-attached","streams":2,"rooms":true}
+[cardtable] streamed Forge LIVE — 2 static container(s) at /stream/**, plus room-keyed streams at /stream/<room>/<seat>/ (see stream/index.ts)
+[cardtable] listening on 127.0.0.1:19556
+[cardtable] tier floor: friend
+[cardtable] browser bridge on /play/ws (same floor, re-applied at the upgrade)
+[cardtable] draft socket ready — MTGO Vintage Cube 2025-12: 534 cards
+[cardtable] EDGE_AUTH_SECRET unset and INSECURE_NO_EDGE_AUTH=1 — identity headers are TRUSTED UNVERIFIED. Local dev only.
+[cardtable] BUNDLE NOT SERVABLE (unservable): index.html is at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w27-manager/apps/ui/dist/index.html and reads fine, but serving it answered 404. The path has a dot-segment (.claude), and express's sendFile refuses those (send's dotfiles: 'ignore'). Run the server from a copy outside it — the e2e harness does.
+{"t":"2026-09-28T19:32:51.149Z","svc":"cardtable","evt":"shutdown-begin","signal":"SIGTERM"}
+{"t":"2026-09-28T19:32:51.149Z","svc":"cardtable","evt":"shutdown-matches","handed":[],"ended":[]}
+{"t":"2026-09-28T19:32:51.149Z","svc":"cardtable","evt":"shutdown-jvms","killed":[],"kept":[],"left":[]}
+{"t":"2026-09-28T19:32:51.149Z","svc":"cardtable","evt":"shutdown-done","signal":"SIGTERM","why":"closed","ms":0,"handed":0,"ended":0}

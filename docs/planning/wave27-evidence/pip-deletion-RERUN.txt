@@ -1,0 +1,25 @@
+Wave 27 lane D — how to re-run the ".pip deletion changes no rendered pip" proof.
+
+  export PATH="/home/hadoku/.local/share/fnm/node-versions/v24.18.0/installation/bin:$PATH"
+  cd /tmp/claude-1000/w27/D-pip
+  # before.css = the built UI bundle at 840c152's styles.css; after.css = with
+  # the 16 .pip rules deleted and .pip--unknown added. Both were produced by
+  #   flock -x /tmp/claude-1000/w27/build.lock pnpm --filter @hadoku/ui build
+  # and copied out of apps/ui/dist/assets/.
+  flock -x /tmp/claude-1000/w27/forge.lock node probe.mjs before.css before.json
+  flock -x /tmp/claude-1000/w27/forge.lock node probe.mjs after.css  after.json
+  for c in ctx-deckrow ctx-tile ctx-inherit; do cmp before-$c.png after-$c.png; done   # silent = identical
+  python3 - <<'PY'
+import json
+b=json.load(open('before.json')); a=json.load(open('after.json'))
+d=[k for k in b if any(b[k][p]!=a[k][p] for p in ['glyph','before','after','box','text'])]
+print('rendered differences:', len(d))
+PY
+
+The control (proves the probe is not blind): after-nounknown.css is after.css with
+.pip--unknown removed. Probing it gives 50 rendered differences and 3 differing PNGs.
+
+probe.mjs serves apps/ui/dist over 127.0.0.1:18777 so the vendored woff2 fonts load,
+renders the exact markup ManaPip.tsx emits for all 48 token shapes in 3 inherited
+font contexts (144 probes), and dumps computed style + ::before/::after content +
+box + text, then screenshots each context at deviceScaleFactor 3.

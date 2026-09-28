@@ -1,0 +1,8 @@
+probes: 144  (48 tokens x 3 inherit contexts)
+RENDERED differences (glyph, ::before, ::after, box, text): 0
+wrapper-only differences: 141 of 144
+wrappers with display:contents (generate no box) before: 141; after: 141
+the no-glyph arm, which is the only wrapper that paints:
+   ctx-deckrow/ZZZ-not-a-token before==after: True
+   ctx-tile/ZZZ-not-a-token before==after: True
+   ctx-inherit/ZZZ-not-a-token before==after: True
