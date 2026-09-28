@@ -240,6 +240,22 @@ export interface MatchDeps {
 	 * behaviour; `attachPlay` passes 30 s so a refresh survives.
 	 */
 	disconnectGraceMs?: number;
+	/**
+	 * The {@link StopPolicy} a NEW match's seats start on. Absent — which is
+	 * production — means {@link DEFAULT_STOP_POLICY}, and `socket.test.ts` holds
+	 * that assertion.
+	 *
+	 * This is the SELECTOR half of wave 26 §E's per-seat policy, and it is
+	 * deliberately a starting value rather than a second mechanism: a seat still
+	 * owns its own policy and {@link Match.setStopPolicy} still moves one seat
+	 * without touching the other. What this changes is only where seat 0 and
+	 * seat 1 begin.
+	 *
+	 * `attachPlay` fills it from `CARDTABLE_PLAY_STOP_POLICY`
+	 * (`socket.ts`'s `parseStopPolicyEnv`) — the hatch that lets a spec, or a
+	 * screenshot, catch a payment the default would have had Forge answer.
+	 */
+	stopPolicy?: StopPolicy;
 	now?: () => number;
 }
 
@@ -342,7 +358,9 @@ export class Match {
 			ended: null,
 			departure: null,
 			fullControl: false,
-			policy: DEFAULT_STOP_POLICY,
+			// The starting value only — `setStopPolicy` still moves one seat at a
+			// time. Absent is production (`MatchDeps.stopPolicy`).
+			policy: deps.stopPolicy ?? DEFAULT_STOP_POLICY,
 			actionable: null,
 			payment: null,
 			autoPaid: null,

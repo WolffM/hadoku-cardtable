@@ -21,8 +21,10 @@ import {
 	ARENA_STOP_POLICY,
 	DEFAULT_STOP_POLICY,
 	FULL_CONTROL_POLICY,
+	STOP_POLICY_NAMES,
 	STRICT_PAYMENT_POLICY,
 	PHASE_BY_UI_NAME,
+	namedStopPolicy,
 	autoCancelReason,
 	autoPassReason,
 	autoPayReason,
@@ -527,7 +529,11 @@ interface Harness {
 	logs: Record<string, unknown>[];
 }
 
-function harness(): Harness {
+/**
+ * @param stopPolicy what a NEW match's seats start on (`MatchDeps.stopPolicy`,
+ *   wave 27 §C). Omitted is production: `DEFAULT_STOP_POLICY`.
+ */
+function harness(stopPolicy?: StopPolicy): Harness {
 	const { factory, hosts } = replayFactory();
 	const sent: Harness['sent'] = [];
 	const logs: Record<string, unknown>[] = [];
@@ -536,6 +542,7 @@ function harness(): Harness {
 		log: (e) => logs.push(e),
 		askTimeoutMs: 60_000,
 		overGraceMs: 60_000,
+		...(stopPolicy === undefined ? {} : { stopPolicy }),
 		emit: (_m, seat, envelope) => sent.push({ seat, envelope }),
 	});
 	const match = registry.create({
@@ -883,6 +890,107 @@ describe('a seat owns its stop policy', () => {
 		push(h, 0, autoBar(true, me));
 		push(h, 0, prompt('Pay Mana Cost: {U}', me));
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+	});
+});
+
+/*
+ * ── And something can now SELECT one (wave 27 §C) ─────────────────────
+ *
+ * Wave 26 §E's policy was per-seat and unreachable: the values above are module
+ * constants, so `setStopPolicy(0, STRICT_PAYMENT_POLICY)` is a line only a unit
+ * test can write. `NAMED_STOP_POLICIES` puts a NAME on each, and
+ * `MatchDeps.stopPolicy` is where a named one lands — which is what
+ * `socket.ts`'s `CARDTABLE_PLAY_STOP_POLICY` fills in.
+ *
+ * Nothing about the mechanism moved. These cases hold two things apart: the name
+ * resolving to the right VALUE, and that value being what a new match's seats
+ * actually decide against.
+ */
+describe('a stop policy can be named from outside', () => {
+	it('resolves each name to the value it names, and nothing else', () => {
+		expect(namedStopPolicy('default')).toEqual(DEFAULT_STOP_POLICY);
+		expect(namedStopPolicy('strictPayment')).toEqual(STRICT_PAYMENT_POLICY);
+		expect(namedStopPolicy('arena')).toEqual(ARENA_STOP_POLICY);
+		expect(namedStopPolicy('fullControl')).toEqual(FULL_CONTROL_POLICY);
+		// The names it advertises are exactly the names it answers to — a refusal
+		// that lists `known` must not list one that then resolves to null.
+		expect([...STOP_POLICY_NAMES].sort()).toEqual(['arena', 'default', 'fullControl', 'strictPayment']);
+		for (const name of STOP_POLICY_NAMES) expect(namedStopPolicy(name)).not.toBeNull();
+	});
+
+	it('names nothing for a name it does not have, including a prototype one', () => {
+		expect(namedStopPolicy('strict-payment')).toBeNull();
+		expect(namedStopPolicy('STRICTPAYMENT')).toBeNull();
+		expect(namedStopPolicy('')).toBeNull();
+		expect(namedStopPolicy(undefined)).toBeNull();
+		expect(namedStopPolicy(null)).toBeNull();
+		// The registry is looked up by key, so `Object.prototype`'s own names must
+		// not answer as policies.
+		expect(namedStopPolicy('toString')).toBeNull();
+		expect(namedStopPolicy('constructor')).toBeNull();
+	});
+
+	/*
+	 * The behavioural half, and the one §B needs: the SAME two-source payment
+	 * window that the default seat has Forge's Auto pressed for is left alone on
+	 * every seat of a match started strict — with nobody having called
+	 * `setStopPolicy`. That is the ask reaching a browser.
+	 */
+	it('starts every seat of a new match on the named policy, so the payment is still the player’s', () => {
+		const h = harness(STRICT_PAYMENT_POLICY);
+		expect(h.match.stopPolicy(0)).toEqual(STRICT_PAYMENT_POLICY);
+		expect(h.match.stopPolicy(1)).toEqual(STRICT_PAYMENT_POLICY);
+		// Nobody moved a seat, so nothing logged a move.
+		expect(h.logs.filter((l) => l.evt === 'stop-policy')).toEqual([]);
+
+		for (const seat of [0, 1]) {
+			const me = playerOf(h, seat);
+			push(h, seat, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
+			push(h, seat, autoBar(true, me));
+			push(h, seat, prompt('Pay Mana Cost: {1}{U}', me));
+		}
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+		expect(h.logs.filter((l) => l.evt === 'auto-paid')).toEqual([]);
+		// And the window did reach both seats, which is what a browser draws — the
+		// assertion above would also pass if nothing had happened at all.
+		for (const seat of [0, 1]) {
+			const prompts = frames(h, seat).filter(
+				(f) => f.method === 'showPromptMessage' && f.message === 'Pay Mana Cost: {1}{U}',
+			);
+			expect(prompts, `seat ${seat} must be SHOWN the payment`).toHaveLength(1);
+		}
+	});
+
+	it('leaves production on DEFAULT_STOP_POLICY when nothing names one', () => {
+		const h = harness();
+		expect(h.match.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
+		expect(h.match.stopPolicy(1)).toEqual(DEFAULT_STOP_POLICY);
+		// The same window, and the default presses Forge's Auto on both seats —
+		// which is the behaviour §B could not screenshot and must stay the default.
+		for (const seat of [0, 1]) {
+			const me = playerOf(h, seat);
+			push(h, seat, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
+			push(h, seat, autoBar(true, me));
+			push(h, seat, prompt('Pay Mana Cost: {1}{U}', me));
+		}
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
+			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
+			{ t: 'act', seat: 1, frame: { kind: 'act', method: 'selectButtonOk' } },
+		]);
+	});
+
+	it('is a STARTING value, not a second mechanism: one seat still moves alone', () => {
+		const h = harness(STRICT_PAYMENT_POLICY);
+		expect(h.match.setStopPolicy(1, DEFAULT_STOP_POLICY)).toEqual({ ok: true });
+		expect(h.match.stopPolicy(0)).toEqual(STRICT_PAYMENT_POLICY);
+		expect(h.match.stopPolicy(1)).toEqual(DEFAULT_STOP_POLICY);
+		// …and the escape hatch is still ahead of whatever was named.
+		h.match.setFullControl(0, true);
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Pay Mana Cost: {U}', me));
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 0)).toEqual([]);
 	});
 });
 

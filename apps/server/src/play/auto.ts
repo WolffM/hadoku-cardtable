@@ -78,8 +78,13 @@
  *   to ask for landed in wave 26 §E**: `SeatState.policy`, set through
  *   `Match.setStopPolicy`, and every decision below is asked of THAT seat's
  *   policy rather than of {@link DEFAULT_STOP_POLICY}. Nothing yet lets a
- *   PLAYER choose one — there is no wire message for it — so the only callers
- *   today are the tests that need a seat to differ from the default.
+ *   PLAYER choose one — there is no wire message for it, and that is still
+ *   true. What wave 27 §C added is the hatch BESIDE that: a name
+ *   ({@link NAMED_STOP_POLICIES}) read off the environment by
+ *   `socket.ts`'s `CARDTABLE_PLAY_STOP_POLICY` and handed to every new match's
+ *   seats through `MatchDeps.stopPolicy`. Unset in production, exactly like
+ *   `CARDTABLE_PLAY_SEED`; it exists so a spec and a screenshot of a live
+ *   payment can be taken from outside the process.
  * - `apps/server/src/play/host.ts` — `FORGE_PREFERENCES` does not set
  *   `UI_SHOW_AUTOTAP_PREVIEW`, so Forge's auto-tap PLAN never reaches us and
  *   {@link PromptFacts.plannedSources} is empty in production. Wave 25 §D
@@ -330,6 +335,55 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	costConfirm: 'ask',
 	answerOneAnswerAsks: false,
 };
+
+/**
+ * The policies a NAME can select — the whole of what wave 27 §C added here.
+ *
+ * Wave 26 §E made the policy per-seat (`match.ts`, `SeatState.policy`), and
+ * nothing outside a unit test could choose one: the values above are module
+ * constants, so selecting `STRICT_PAYMENT_POLICY` meant importing it. That is
+ * why nobody could screenshot a live payment — under
+ * {@link DEFAULT_STOP_POLICY} Forge's own Auto answers the payment before a
+ * browser is shown it.
+ *
+ * So: a name, resolved by {@link namedStopPolicy}, which is what
+ * `socket.ts`'s `CARDTABLE_PLAY_STOP_POLICY` hatch carries. This is the
+ * SELECTOR and nothing else — it re-plumbs nothing, it adds no field to
+ * {@link StopPolicy}, and every value in it already existed above.
+ *
+ * `'fullControl'` is {@link FULL_CONTROL_POLICY}, the policy VALUE — not
+ * `SeatState.fullControl`, the per-seat escape hatch, which short-circuits
+ * ahead of any policy and is set over the wire by the player.
+ *
+ * A `Map` and not an object literal, and that is not a style choice: a
+ * plain-object registry looked up with `reg[name]` answers `'toString'` and
+ * `'constructor'` with `Object.prototype`'s own members, so a typo'd
+ * environment variable could hand a FUNCTION to a seat as its policy. A `Map`
+ * has no prototype chain to walk.
+ */
+export const NAMED_STOP_POLICIES: ReadonlyMap<string, StopPolicy> = new Map<string, StopPolicy>([
+	['default', DEFAULT_STOP_POLICY],
+	['strictPayment', STRICT_PAYMENT_POLICY],
+	['arena', ARENA_STOP_POLICY],
+	['fullControl', FULL_CONTROL_POLICY],
+]);
+
+/** The names {@link namedStopPolicy} answers to, for a refusal that can say so. */
+export const STOP_POLICY_NAMES: readonly string[] = [...NAMED_STOP_POLICIES.keys()];
+
+/**
+ * The policy this name selects, or null when it names none.
+ *
+ * Null rather than a throw and rather than a silent fall back to the default:
+ * the caller is a hatch read off an environment, and an environment with a
+ * typo in it must be able to SAY so (`socket.ts` logs `stop-policy-unknown`)
+ * rather than quietly playing under the default the operator was trying to
+ * move off.
+ */
+export function namedStopPolicy(name: string | undefined | null): StopPolicy | null {
+	if (name === undefined || name === null) return null;
+	return NAMED_STOP_POLICIES.get(name.trim()) ?? null;
+}
 
 /* ── Asks Forge left one legal reply to ──────────────────────────────── */
 

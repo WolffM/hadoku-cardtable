@@ -17,7 +17,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
-import { parseStartBody } from './socket.ts';
+import { parseStartBody, parseStopPolicyEnv, STOP_POLICY_ENV } from './socket.ts';
+import { ARENA_STOP_POLICY, DEFAULT_STOP_POLICY, FULL_CONTROL_POLICY, STRICT_PAYMENT_POLICY } from './auto.ts';
 import type { BridgeLine } from './host.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, secretsFor, type ReplayHost } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
@@ -565,6 +566,96 @@ describe('CARDTABLE_PLAY_SEED', () => {
 		expect(r.ok).toBe(true);
 		if (!r.ok) return;
 		expect(r.spec.seed).toBeUndefined();
+	});
+});
+
+/* ── a seat can be set strict, from outside the process (wave 27 §C) ─── */
+
+describe(STOP_POLICY_ENV, () => {
+	const ORIGINAL = process.env[STOP_POLICY_ENV];
+	afterEach(() => {
+		if (ORIGINAL === undefined) delete process.env[STOP_POLICY_ENV];
+		else process.env[STOP_POLICY_ENV] = ORIGINAL;
+	});
+
+	/*
+	 * Wave 26 §E gave every seat its own `StopPolicy` (`match.ts`,
+	 * `SeatState.policy`) and nothing could select one — the values are module
+	 * constants in `auto.ts`, so naming `STRICT_PAYMENT_POLICY` meant importing
+	 * it, which only a unit test can do. The visible cost: wave 27 §B could not
+	 * screenshot a live mana payment, because `DEFAULT_STOP_POLICY`'s
+	 * `unambiguousPayment: 'forgeAuto'` has the server press Forge's own Auto the
+	 * instant the window opens, so no browser is ever shown the ask.
+	 *
+	 * Shaped after `CARDTABLE_PLAY_SEED` above, and for the same reason: read off
+	 * THIS server's environment, unset in every deployment.
+	 */
+	it('names a policy when set, and names nothing otherwise', () => {
+		delete process.env[STOP_POLICY_ENV];
+		expect(parseStopPolicyEnv(process.env), 'production must not pick a policy').toBeNull();
+		// An empty value is the same as unset — a shell that exports the variable
+		// blank has not selected anything.
+		expect(parseStopPolicyEnv({ [STOP_POLICY_ENV]: '' })).toBeNull();
+
+		process.env[STOP_POLICY_ENV] = 'strictPayment';
+		expect(parseStopPolicyEnv(process.env)).toEqual({ name: 'strictPayment', policy: STRICT_PAYMENT_POLICY });
+		// …and that is the value that makes a payment the player's to click.
+		expect(STRICT_PAYMENT_POLICY.unambiguousPayment).toBe('auto');
+		expect(DEFAULT_STOP_POLICY.unambiguousPayment).toBe('forgeAuto');
+	});
+
+	it('resolves every name it advertises, and trims the shell whitespace off one', () => {
+		expect(parseStopPolicyEnv({ [STOP_POLICY_ENV]: 'default' })?.policy).toEqual(DEFAULT_STOP_POLICY);
+		expect(parseStopPolicyEnv({ [STOP_POLICY_ENV]: 'arena' })?.policy).toEqual(ARENA_STOP_POLICY);
+		expect(parseStopPolicyEnv({ [STOP_POLICY_ENV]: 'fullControl' })?.policy).toEqual(FULL_CONTROL_POLICY);
+		expect(parseStopPolicyEnv({ [STOP_POLICY_ENV]: '  strictPayment\n' })?.policy).toEqual(STRICT_PAYMENT_POLICY);
+	});
+
+	/*
+	 * A typo must be loud. Falling back to the default silently would play the
+	 * whole match under the policy the operator was trying to move off, and the
+	 * screenshot would be of nothing — which is exactly the week
+	 * `CARDTABLE_PLAY_SEED` spent set on a server that could not start Forge.
+	 */
+	it('reports an unknown name rather than quietly falling back', () => {
+		const r = parseStopPolicyEnv({ [STOP_POLICY_ENV]: 'strict-payment' });
+		expect(r).not.toBeNull();
+		expect(r?.name).toBe('strict-payment');
+		expect(r?.policy).toBeNull();
+	});
+
+	it('starts a real match’s seats on the named policy, and on the default when unset', async () => {
+		delete process.env[STOP_POLICY_ENV];
+		const plain = await boot();
+		const { body: plainBody } = await startMatch(plain);
+		const plainMatch = plain.handle.matches.get(plainBody.matchId as string);
+		expect(plainMatch?.stopPolicy(0), 'production must keep DEFAULT_STOP_POLICY').toEqual(DEFAULT_STOP_POLICY);
+		expect(plainMatch?.stopPolicy(1)).toEqual(DEFAULT_STOP_POLICY);
+		expect(plain.logs.some((l) => l.evt === 'stop-policy-selected')).toBe(false);
+		await plain.close();
+
+		process.env[STOP_POLICY_ENV] = 'strictPayment';
+		const strict = await boot();
+		expect(strict.logs.find((l) => l.evt === 'stop-policy-selected')).toMatchObject({
+			name: 'strictPayment',
+			unambiguousPayment: 'auto',
+		});
+		const { body } = await startMatch(strict);
+		const match = strict.handle.matches.get(body.matchId as string);
+		expect(match?.stopPolicy(0)).toEqual(STRICT_PAYMENT_POLICY);
+		expect(match?.stopPolicy(1)).toEqual(STRICT_PAYMENT_POLICY);
+		// The per-seat mechanism is untouched: one seat still moves alone.
+		expect(match?.setStopPolicy(1, DEFAULT_STOP_POLICY)).toEqual({ ok: true });
+		expect(match?.stopPolicy(0)).toEqual(STRICT_PAYMENT_POLICY);
+		expect(match?.stopPolicy(1)).toEqual(DEFAULT_STOP_POLICY);
+	});
+
+	it('logs an unknown name at attach and leaves the seats on the default', async () => {
+		process.env[STOP_POLICY_ENV] = 'strict-payment';
+		const h = await boot();
+		expect(h.logs.find((l) => l.evt === 'stop-policy-unknown')).toMatchObject({ name: 'strict-payment' });
+		const { body } = await startMatch(h);
+		expect(h.handle.matches.get(body.matchId as string)?.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
 	});
 });
 

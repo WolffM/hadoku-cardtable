@@ -79,6 +79,7 @@ import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { CONFIG } from '../config.js';
 import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
 import { identityFromHeaders, participantHandle } from '../room/identity.js';
+import { namedStopPolicy, STOP_POLICY_NAMES, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { createMatchRegistry, type Match, type MatchRegistry } from './match.js';
 import {
@@ -255,6 +256,45 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	};
 }
 
+/**
+ * The variable that names the {@link StopPolicy} a new match's seats start on.
+ *
+ * Deliberately shaped after `CARDTABLE_PLAY_SEED` above: read off THIS
+ * server's environment, unset in production, and there so that a test — or a
+ * screenshot — can pin behaviour the product path otherwise decides for
+ * itself.
+ */
+export const STOP_POLICY_ENV = 'CARDTABLE_PLAY_STOP_POLICY';
+
+/**
+ * What `CARDTABLE_PLAY_STOP_POLICY` selects, or null when the hatch is shut.
+ *
+ * Wave 26 §E gave every seat its own `StopPolicy` and left nothing able to
+ * choose one: the values are module constants in `auto.ts`, so a caller outside
+ * a unit test could not name one. The visible cost was that no spec and no
+ * screenshot could catch a mana payment — `DEFAULT_STOP_POLICY`'s
+ * `unambiguousPayment: 'forgeAuto'` has the server press Forge's own Auto the
+ * moment the window opens, so the browser is never shown the ask.
+ *
+ * Three states, and the third is the point:
+ *
+ *  - **unset or empty** → `null`. Production, and every deployment. Seats start
+ *    on `DEFAULT_STOP_POLICY`, which `socket.test.ts` asserts.
+ *  - **a known name** → that policy. `strictPayment` is the one lane B wants:
+ *    `STRICT_PAYMENT_POLICY`, where a payment is the player's to click.
+ *  - **an unknown name** → `{ name, policy: null }`, so `attachPlay` can LOG
+ *    the typo. Falling back silently would play the whole match under the
+ *    default the operator was trying to move off, and the screenshot would be
+ *    of nothing — the exact failure mode `CARDTABLE_PLAY_SEED` spent a week in
+ *    when it was set on a server that could not start Forge.
+ */
+export function parseStopPolicyEnv(env: NodeJS.ProcessEnv = process.env): { name: string; policy: StopPolicy | null } | null {
+	const raw = env[STOP_POLICY_ENV];
+	if (raw === undefined || raw.trim() === '') return null;
+	const name = raw.trim();
+	return { name, policy: namedStopPolicy(name) };
+}
+
 export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): PlayHandle {
 	const log = deps.log ?? defaultLog;
 	const policy = playEmitPolicy(log);
@@ -264,6 +304,24 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	if (deps.devIdentity === true && !devIdentity) {
 		log({ evt: 'dev-identity-refused', reason: 'the insecure edge hatch is not open' });
 	}
+
+	// The stop-policy hatch, read once at attach and logged either way, because a
+	// silent one is worth nothing: a run under a policy the operator did not ask
+	// for looks identical to a run under the one they did.
+	const selected = parseStopPolicyEnv();
+	if (selected !== null && selected.policy === null) {
+		log({ evt: 'stop-policy-unknown', env: STOP_POLICY_ENV, name: selected.name, known: STOP_POLICY_NAMES });
+	} else if (selected !== null && selected.policy !== null) {
+		log({
+			evt: 'stop-policy-selected',
+			env: STOP_POLICY_ENV,
+			name: selected.name,
+			unambiguousPayment: selected.policy.unambiguousPayment,
+			unpayableCost: selected.policy.unpayableCost,
+			skipNonStopPhases: selected.policy.skipNonStopPhases,
+		});
+	}
+	const startingStopPolicy = selected?.policy ?? null;
 
 	const roomFor = (match: Match): PlayRoom => {
 		const room = rooms.seed(match.id, match.id);
@@ -286,6 +344,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			return deps.host(id, spec, events);
 		},
 		...(attach === undefined ? {} : { attach: (record, events) => attach(record, events) }),
+		...(startingStopPolicy === null ? {} : { stopPolicy: startingStopPolicy }),
 		rejoinGraceMs: deps.rejoinGraceMs,
 		log,
 		askTimeoutMs: deps.askTimeoutMs ?? 10 * 60_000,
