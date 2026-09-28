@@ -422,18 +422,45 @@ const PAYING = {
 	openAsks: 0,
 };
 
+/**
+ * The strict payment policy, by name.
+ *
+ * `DEFAULT_STOP_POLICY.unambiguousPayment` became `'forgeAuto'` on 2026-09-27
+ * (the operator, on item 6). The strict semantics did not go away and are not
+ * untested: every case below that used to ride on the default now names this.
+ */
+const STRICT_PAYMENT: StopPolicy = { ...DEFAULT_STOP_POLICY, unambiguousPayment: 'auto' };
+
 describe('autoPayReason', () => {
 	it('presses Forge’s Auto for a payment with exactly one source, and names the cost', () => {
 		expect(autoPayReason(PAYING)).toBe('{U}');
 	});
 
-	it('asks when there is more than one source — which land to tap is a real choice', () => {
-		expect(autoPayReason({ ...PAYING, actionable: [67, 68] })).toBeNull();
+	it('asks when there is more than one source, UNDER THE STRICT VALUE — which land to tap is a real choice', () => {
+		expect(autoPayReason({ ...PAYING, actionable: [67, 68] }, STRICT_PAYMENT)).toBeNull();
 	});
 
-	it('asks when Forge named no source, or has not said at all', () => {
-		expect(autoPayReason({ ...PAYING, actionable: [] })).toBeNull();
-		expect(autoPayReason({ ...PAYING, actionable: null })).toBeNull();
+	it('settles the same window under the default, because the operator chose Forge’s auto-tap', () => {
+		expect(autoPayReason({ ...PAYING, actionable: [67, 68] })).not.toBeNull();
+	});
+
+	it('asks when Forge named no source, or has not said at all, UNDER THE STRICT VALUE', () => {
+		expect(autoPayReason({ ...PAYING, actionable: [] }, STRICT_PAYMENT)).toBeNull();
+		expect(autoPayReason({ ...PAYING, actionable: null }, STRICT_PAYMENT)).toBeNull();
+	});
+
+	/*
+	 * Under `'forgeAuto'` these settle, and that is the PRE-TAP case rather than a
+	 * hole. Forge's Auto is live here (`confirmLive`, checked before any of this),
+	 * which is Forge saying it found a payment; naming no clickable source while
+	 * saying so is what a cost already covered by floating mana looks like. Mana
+	 * tapped before a cast is in Forge's pool when the payment input opens, Forge
+	 * applies the pool first, and Auto covers only the remainder. An unpayable cost
+	 * is the opposite shape — Auto DEAD — and `decideCancel` owns it.
+	 */
+	it('settles a window with no source offered under the default — Forge’s Auto live is Forge’s answer', () => {
+		expect(autoPayReason({ ...PAYING, actionable: [] })).not.toBeNull();
+		expect(autoPayReason({ ...PAYING, actionable: null })).not.toBeNull();
 	});
 
 	it('never presses a bar that is not the payment input’s own Auto', () => {
@@ -646,13 +673,15 @@ describe('a Match with the shortcuts on (the default)', () => {
 		expect(h.logs.filter((l) => l.evt === 'auto-paid')).toHaveLength(1);
 	});
 
-	it('does NOT press Auto when Forge offered two sources to tap', () => {
+	it('presses Auto when Forge offered two sources to tap — the default is Forge’s plan now', () => {
 		const h = harness();
 		const me = playerOf(h, 0);
 		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
 		push(h, 0, autoBar(true, me));
 		push(h, 0, prompt('Pay Mana Cost: {1}{U}', me));
-		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+		// One act, and it is the Auto press. Which land Forge taps is Forge's;
+		// `decidePay`'s own tests keep the strict semantics under STRICT_PAYMENT.
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
 	});
 
 	it('says what a cast paid, naming the lands that tapped, once the payment prompt ends', () => {
@@ -929,7 +958,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			passWhenNothingToDo: true,
 			interruptsRestoreStops: true,
 			passStackWindows: true,
-			unambiguousPayment: 'auto',
+			unambiguousPayment: 'forgeAuto',
 			unpayableCost: 'cancel',
 			costConfirm: 'ask',
 			answerOneAnswerAsks: true,
@@ -981,7 +1010,9 @@ describe('NEVER shortcut (2): a cost whose payment is a genuine choice', () => {
 	const twoSourcesNoPlan = facts({ window: 'payment', cost: '{1}{W}', sources: [61, 62], plannedSources: [] });
 
 	it('two sources with no plan on the wire is a choice, and stays a stop', () => {
-		expect(decidePay(twoSourcesNoPlan, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decidePay(twoSourcesNoPlan, STRICT_PAYMENT)).toBeNull();
+		// And under the default the operator chose, Forge's plan settles it.
+		expect(decidePay(twoSourcesNoPlan, DEFAULT_STOP_POLICY)).toBe('{1}{W}');
 	});
 
 	/*
@@ -999,7 +1030,7 @@ describe('NEVER shortcut (2): a cost whose payment is a genuine choice', () => {
 
 	it('#22 — a source LEFT OUT of the plan means the plan had a choice, and it is the player’s', () => {
 		const partly = { ...twoSourcesNoPlan, sources: [61, 62, 63], plannedSources: [61, 62] };
-		expect(decidePay(partly, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decidePay(partly, STRICT_PAYMENT)).toBeNull();
 	});
 
 	it('one source is still one payment (#6), plan or no plan', () => {
@@ -1232,9 +1263,9 @@ describe('item 6 — the guard that asked, and the policy value that stops askin
 		// Two sources, no plan: that is the pair `decidePay` cannot settle.
 		expect(galvanicBlast.sources).toHaveLength(2);
 		expect(galvanicBlast.plannedSources).toEqual([]);
-		expect(decidePay(galvanicBlast, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decidePay(galvanicBlast, STRICT_PAYMENT)).toBeNull();
 		// And with one source it always did fire — the arm was never broken.
-		expect(decidePay({ ...galvanicBlast, sources: [16] }, DEFAULT_STOP_POLICY)).toBe('{R}');
+		expect(decidePay({ ...galvanicBlast, sources: [16] }, STRICT_PAYMENT)).toBe('{R}');
 	});
 
 	it('the value that closes it is one word, and it presses Forge’s own Auto', () => {
@@ -1250,13 +1281,16 @@ describe('item 6 — the guard that asked, and the policy value that stops askin
 		expect(decidePay({ ...galvanicBlast, window: 'priority' }, forgeAuto)).toBeNull();
 	});
 
-	it('is NOT the default, and the two-Mountain window is why', () => {
+	it('IS the default as of 2026-09-27, and item 6 is what changed it', () => {
 		// The same facts a genuinely ambiguous payment produces — two sources that
-		// can BOTH pay — are these exact facts. `board-play.jvm.test.ts` step 3
-		// asserts the strict behaviour over a real match, so the default stays
-		// strict and `'forgeAuto'` is opt-in.
-		expect(DEFAULT_STOP_POLICY.unambiguousPayment).toBe('auto');
-		expect(ARENA_STOP_POLICY.unambiguousPayment).toBe('auto');
+		// can BOTH pay — are these exact facts, and nothing on this wire tells the
+		// two apart. So the question was never "be cleverer", it was whose auto-tap
+		// decides; the operator's answer, shown the trade, was Forge's.
+		expect(DEFAULT_STOP_POLICY.unambiguousPayment).toBe('forgeAuto');
+		expect(ARENA_STOP_POLICY.unambiguousPayment).toBe('forgeAuto');
+		expect(decidePay(galvanicBlast, DEFAULT_STOP_POLICY)).toBe('{R}');
+		// The strict value still exists and still means what it meant.
+		expect(STRICT_PAYMENT.unambiguousPayment).toBe('auto');
 	});
 
 	it('full control asks anyway, whatever the payment preference is', () => {
@@ -1391,8 +1425,11 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
 		push(h, 0, autoBar(true, me));
 		push(h, 0, prompt('Pay Mana Cost: {1}{U}', me));
-		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+		// The Auto press is the PAYMENT's business and is expected under the
+		// default; what must never happen here is a CANCEL, because Forge said it
+		// found a payment.
 		expect(h.logs.filter((l) => l.evt === 'auto-cancelled')).toEqual([]);
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.frame.method === 'selectButtonCancel')).toEqual([]);
 	});
 
 	it('full control leaves the Cancel to the player', () => {

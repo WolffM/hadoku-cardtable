@@ -173,19 +173,34 @@ export interface StopPolicy {
 	/**
 	 * How a payment Forge can settle with no choice left is handled (#6, #22).
 	 *
-	 * `'forgeAuto'` is the value wave 25 §D added and did NOT adopt, and the
-	 * reason is a finding rather than caution. Forge's payment-mode actionable set
-	 * is *every card in five zones with a playable mana ability*
-	 * (`PlayerControllerHuman.pushActionableCards`, the payment branch at
-	 * `:1565-1573`; `cardHasPlayableManaAbility` `:1594-1599`; the zones at
-	 * `:1533-1535`) — **not** the cards that can pay THIS cost. So one Mountain
-	 * and one Island for `{R}` (ONE payment) and two Mountains for `{R}` (TWO)
-	 * reach us as the same facts: two sources, and a one-card plan that leaves one
-	 * of them out. Nothing on this wire tells them apart, and deciding that an
-	 * Island cannot pay red is a rule — which this file implements none of. So the
-	 * strict value stays the default, `'forgeAuto'` is the one-word switch, and
-	 * `apps/ui/src/play/live/board-play.jvm.test.ts` (step 3, two Mountains for
-	 * `{R}`) asserts the strict behaviour and is not this lane's to re-aim.
+	 * **`'forgeAuto'` is the default as of 2026-09-27**, by the operator, having
+	 * been shown the trade. Wave 25 §D added the value and left it unadopted; the
+	 * finding behind that caution still stands and is worth keeping, because it is
+	 * why the strict values cannot close item 6 on their own.
+	 *
+	 * Forge's payment-mode actionable set is *every card in five zones with a
+	 * playable mana ability* (`PlayerControllerHuman.pushActionableCards`, the
+	 * payment branch at `:1565-1573`; `cardHasPlayableManaAbility` `:1594-1599`;
+	 * the zones at `:1533-1535`) — **not** the cards that can pay THIS cost. So
+	 * one Mountain and one Island for `{R}` (ONE payment) and two Mountains for
+	 * `{R}` (TWO) reach us as the same facts: two sources, and a one-card plan
+	 * that leaves one of them out. Nothing on this wire tells them apart, and
+	 * deciding that an Island cannot pay red is a rule — which this file
+	 * implements none of.
+	 *
+	 * So the choice was never "be cleverer"; it was whose auto-tap decides. The
+	 * operator's answer, on item 6 (*"there is only one red mana source on my
+	 * battlefield, why is galvanic blast asking me how to pay?"*): Forge's.
+	 * `'forgeAuto'` presses Forge's own Auto whenever Forge has it live, which is
+	 * Forge saying it found a payment — so an ambiguous cost is settled by Forge's
+	 * plan rather than asked. `FULL_CONTROL_POLICY` keeps `'ask'`, which is the
+	 * escape, and `'auto'` remains for a policy that wants provable-only.
+	 *
+	 * **Pre-tapping is unaffected**, and that is a property of WHEN this fires
+	 * rather than a case handled here: mana floated before a cast is already in
+	 * Forge's pool when the payment input opens, Forge applies the pool first, and
+	 * Auto covers only what is left. The pool is `PlayerView.Mana` on the wire and
+	 * nothing in our UI draws it yet — see the board.
 	 */
 	readonly unambiguousPayment: PaymentPreference;
 	/**
@@ -231,8 +246,11 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	interruptsRestoreStops: true,
 	// #5, wave 20: *"ridiculous. just resolve it"*.
 	passStackWindows: true,
-	// #6, wave 20: *"Preordain asks how to tap lands with ONE land in play"*.
-	unambiguousPayment: 'auto',
+	// #6, wave 20: *"Preordain asks how to tap lands with ONE land in play"*, and
+	// item 6, wave 25: *"why is galvanic blast asking me how to pay?"* — which
+	// only `'forgeAuto'` closes, for the reason the field's doc gives. Operator's
+	// choice, 2026-09-27, having been shown what it costs.
+	unambiguousPayment: 'forgeAuto',
 	// Item 7, wave 25: *"it's confusing i have to click 'cancel' to not pay
 	// manaleak when i dont even have enough mana"*.
 	unpayableCost: 'cancel',
