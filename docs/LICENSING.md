@@ -128,7 +128,7 @@ Roughly in order of how much attention each attracts:
 | **Money** — sales, subs, ads, donations, Patreon | **None. Ever.** Not even "buy me a coffee". This is the single brightest line. |
 | **Public availability** — open signup, SEO, app stores | Friend-tier edge gate, no public signup, no indexing |
 | **Card images at scale** — hosting/mirroring scans | **We host art on `cdn.hadoku.me`** as of 2026-09-15 (D15) — one cube, ~53 MB, treated as a replaceable placeholder. This moved us *up* this row on purpose; §3.1 records the trade and its price. Before that date this row read *"Never mirror."* |
-| **Looking official** — WotC logos, mana symbols, set symbols, the Magic wordmark, card frames | Our own visual language. No WotC marks anywhere in the UI. |
+| **Looking official** — WotC logos, mana symbols, set symbols, the Magic wordmark, card frames | **Mana and set SYMBOLS ship from Keyrune and Mana** as of 2026-09-27 (D20) — third-party fonts, not WotC's own files; §3.2 records the trade. No WotC **logo**, no Magic **wordmark**, no card **frames**, and the UI still says unofficial. Before that date this row read *"Our own visual language. No WotC marks anywhere in the UI."* |
 | **Scale / visibility** — big playerbase, streams, press | A handful of friends |
 | Card names + Oracle text | Unavoidable for any engine; functional; lowest-attention item on this list |
 
@@ -175,8 +175,14 @@ Roughly in order of how much attention each attracts:
    keeps a card's art a lookup rather than a URL, so re-sourcing the art stays
    a one-line data edit.
 
-4. **No WotC trademarks in the UI.** No mana symbols, set symbols, tap symbol,
-   card frames, or the Magic logo. Draw our own.
+4. ~~**No WotC trademarks in the UI.**~~ **Amended 2026-09-27 (D20)** by the
+   operator: *"naw we're not drawing our own"*, supplying Keyrune and Mana.
+   **Mana symbols, the tap symbol and set symbols now ship** from those two
+   fonts — see §3.2 for what each licence actually says, because the two are
+   NOT the same position. Still forbidden, and not loosened by D20: **the WotC
+   logo, the Magic wordmark, and card frames.** `ManaPip.tsx`'s old rationale
+   (a plain disc and a letter, Phyrexian as a dashed ring) is superseded; its
+   token PARSER is not, and is what maps onto the font's classes.
 5. **Keep the friend gate.** The `/cardtable/` prefix is friend-tier at the edge.
    Do not add a public tier. Do not add anonymous access "just for the draft".
 6. **Carry the disclaimer** (`NOTICE.md`, and in the UI footer):
@@ -186,6 +192,63 @@ Roughly in order of how much attention each attracts:
    at once.
 
 ---
+
+## 3.2 Symbols — D20, and why the two fonts are not one decision
+
+**The operator's call, 2026-09-27:** *"naw we're not drawing our own"*, with
+`keyrune-master.zip` and `mana-master.zip` supplied. What follows is what those
+two packs actually license, checked in the files rather than assumed, because
+they differ and the difference is the whole of our position.
+
+**Keyrune — set symbols. The stronger half.**
+
+- Icons and code: **GPL 3.0**. Fonts: **SIL OFL 1.1**. © 2019 Andrew Gioia.
+- Its own licence text: the glyphs are *"redrawn by hand and distributed for the
+  express purpose of identifying Wizards of the Coast products (i.e., card sets
+  and expansions), as provided in the Wizards Play Network Marketing Material
+  Policy"*, and *"the use of these trademarks does not indicate endorsement"*.
+- So: not WotC's artwork, a third party's original drawings, distributed under a
+  stated nominative-use rationale citing WotC's own policy — and **GPL 3.0,
+  which is this repo's licence already** (we vendored Forge). A licence match,
+  not a tension.
+- Coverage checked: all **12** set codes our nine eras need (`AVR DKA ISD M11
+  M12 M13 MBS NPH ROE SOM WWK ZEN`) are present, out of 434 glyphs.
+
+**Mana — mana symbols. The weaker half.**
+
+- Font: **SIL OFL 1.1**. CSS/LESS/Sass: **MIT**. mana-font 1.18.0, Andrew Gioia.
+- But its README says plainly: *"All mana, tap, and card type symbol images are
+  copyright Wizards of the Coast."* The OFL covers the font WRAPPER; the
+  artwork's copyright is attributed upstream. There is no redrawn-by-hand claim
+  here and no nominative-use rationale in the pack.
+- Coverage checked: every token `ManaPip` already parses — `W U B R G C S X`,
+  numerals 0–20, tap, hybrid (`ms-wu`), twobrid (`ms-2w`), Phyrexian (`ms-bp`,
+  `ms-wup`).
+
+**Still better than the alternative that was on the table.** The other route was
+`svgs.scryfall.io/card-symbols/` and `svgs.scryfall.io/sets/` — WotC's own files,
+served by a third party, with no licence grant to us at all. Both fonts are a
+better position than that, and Keyrune is a genuinely defensible one.
+
+**What holds the posture up is unchanged**, and D20 leans on it exactly as D18
+did: **no money**, the **friend gate**, a handful of players, and the disclaimer
+in `NOTICE.md`. D20 spends some of the "looking official" mitigation; it spends
+none of those four.
+
+**Obligations D20 creates.**
+
+- **Attribution travels with the fonts.** SIL OFL 1.1 requires the copyright
+  notice and licence to accompany the font; `NOTICE.md` carries both packs.
+- **Do not rename the font files.** OFL's reserved-font-name clause.
+- **`mplantin` is not ours to take.** Mana ships a Plantin-alike text face
+  alongside the symbols. Plantin is a Monotype typeface, it is a different and
+  worse question, and we need none of it. Ship `mana.woff2` and
+  `keyrune.woff2`, nothing else from the packs' `fonts/` directories.
+- **The image gate does not need changing.** `scripts/d13-gate.sh` matches
+  `(jpe?g|png|webp|gif|avif)`; a `woff2` is neither an image file nor a
+  `data:image/…` URI, so both fonts pass it as they stand. The gate's arms are
+  about raster card-image bytes, which is what "a 5.85 MB inlined PNG is a
+  performance bug" meant.
 
 ## 3. Scryfall
 

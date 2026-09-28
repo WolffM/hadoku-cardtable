@@ -115,6 +115,41 @@ panel.
 
 ## Presentation (PR-8) — what exists, what doesn't, what gates it
 
+**D20, 2026-09-27: the symbols are not ours.** Operator: *"naw we're not drawing
+our own"*, supplying `keyrune-master.zip` and `mana-master.zip`. Recorded in
+`docs/LICENSING.md` §3.2 with what each licence actually says — the two packs are
+NOT the same position, and the difference is worth knowing:
+
+| pack | covers | licence | position |
+| --- | --- | --- | --- |
+| **Keyrune** 434 glyphs, `keyrune.woff2` 144 KB | set symbols; all **12** codes our nine eras need (`AVR DKA ISD M11 M12 M13 MBS NPH ROE SOM WWK ZEN`) | glyphs **GPL 3.0**, font **OFL 1.1**, © Andrew Gioia | **strong** — glyphs *redrawn by hand*, distributed under a stated nominative-use rationale citing WotC's own WPN policy, and GPL-3.0 matches this repo's own licence |
+| **Mana** 308 glyphs, `mana.woff2` 187 KB | every token `ManaPip` parses: `W U B R G C S X`, 0–20, tap, hybrid `ms-wu`, twobrid `ms-2w`, Phyrexian `ms-bp`/`ms-wup` | font **OFL 1.1**, CSS **MIT** | **weaker** — its README says *"all mana, tap, and card type symbol images are copyright Wizards of the Coast"*. The OFL covers the wrapper; the artwork is attributed upstream |
+
+Better than the route it replaced either way: the alternative was
+`svgs.scryfall.io`, which is WotC's own files with no grant to us at all.
+
+Three things checked so the build has no surprises:
+
+- **The image gate needs no change.** `scripts/d13-gate.sh` matches
+  `(jpe?g|png|webp|gif|avif)`; a `woff2` is neither an image file nor a
+  `data:image/…` URI. Both fonts pass as they stand.
+- **`.gitignore` does not block fonts** (`*.jpg`, `*.png`, `cards/` only), so
+  the two `woff2` can be committed. 331 KB for both, whole. Only 12 of
+  Keyrune's 434 glyphs are ever used, so **subsetting is an obvious follow-up**
+  — not a blocker, and it costs a `fonttools` build step.
+- **Do not ship `mplantin`.** The Mana pack bundles a Plantin-alike text face;
+  Plantin is Monotype's, it is a separate and worse question, and we need none
+  of it.
+
+`ManaPip.tsx` keeps its token parser — `W/U` → hybrid, `2/W` → twobrid, `B/P` →
+Phyrexian — which maps 1:1 onto the font's `ms-` classes. Only what it RENDERS
+changes: a class instead of a letter. The seam that made this a small job is the
+one the file already had.
+
+**Still open, and still the operator's:** the two zips sit untracked at
+`temp/` (8 MB). The tracker did not delete them; the build lane extracts the two
+`woff2` it needs and `temp/` is the operator's to clear.
+
 Measured 2026-09-27, not assumed:
 
 - **Sound: nothing exists.** `Audio`, `AudioContext`, `playSound`, `.mp3`, `.ogg`

@@ -81,6 +81,21 @@ Card data is sourced from Scryfall (<https://scryfall.com>). Scryfall is not
 affiliated with, and does not endorse, this project. Card data and artwork
 remain the property of Wizards of the Coast and the respective artists.
 
+## Symbol fonts
+
+Set symbols are from **Keyrune** (<https://keyrune.andrewgioia.com>),
+copyright (c) 2019 Andrew Gioia. Keyrune's glyphs are licensed GPL 3.0 and its
+prepared font files under the SIL Open Font License 1.1. Keyrune's glyphs are
+redrawn by hand and distributed to identify Wizards of the Coast products; the
+underlying symbols are trademarks of Wizards of the Coast, and their use here
+does not indicate endorsement by Wizards of the Coast.
+
+Mana symbols are from the **Mana** font (<https://mana.andrewgioia.com>),
+copyright (c) Andrew Gioia, licensed under the SIL Open Font License 1.1.
+All mana, tap and card type symbol images are copyright Wizards of the Coast.
+
+Neither font is renamed, per the SIL OFL reserved font name clause.
+
 ## hadoku-watchparty
 
 The room, chat and presence layer derives from `hadoku-watchparty` (MIT).

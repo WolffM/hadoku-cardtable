@@ -32,8 +32,16 @@ source rather than its reputation.
   resolves it. The art is a **placeholder** the operator expects to re-source, so
   repointing a card must stay a one-line data edit. A component that hardcodes an
   image host has broken this even if every URL it emits is legal.
-- **No WotC trademarks in the UI** — no mana symbols, set symbols, tap symbol,
-  card frames, Magic wordmark. Draw our own.
+- ~~**No WotC trademarks in the UI**~~ — **amended 2026-09-27 (D20)** by the
+  operator: *"naw we're not drawing our own"*. **Mana symbols, the tap symbol
+  and set symbols ship from Keyrune (GPL-3.0 glyphs, OFL font) and Mana (OFL
+  font)** — third-party fonts, never WotC's own files, and never
+  `svgs.scryfall.io`. `docs/LICENSING.md` §3.2 records what each licence
+  actually says, because the two packs differ.
+  **Still forbidden:** the WotC logo, the Magic wordmark, card frames. Also
+  still true: do not ship `mplantin` from the Mana pack (Monotype's typeface,
+  a different question, and we need none of it) and do not rename either font
+  (OFL reserved-font-name).
 - **Keep the friend gate.** `/cardtable/*` is friend-tier at the edge. Never add
   a public or anonymous tier, not even "just for drafting".
 - **GPL-3.0-or-later** applies to this whole repo (we vendored Forge). Don't
