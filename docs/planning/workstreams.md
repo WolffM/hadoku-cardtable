@@ -81,6 +81,7 @@ it. PR-5 is new and exists to serve it.
 
 | # | Programme | State |
 | --- | --- | --- |
+| **PR-8** | **Presentation** — sound, motion, board and UI art. The operator, 2026-09-27: *"one of the most important parts of this project is getting the graphics/audio to be upgraded. thats a huge part of the appeal, otherwise all we've done is create magic online with slight improvements"* | **NEW, and the operator's stated priority after w25**: *"i would prefer to not be debugging the game functionality for much longer."* See the presentation section below for what exists, what does not, and the three decisions that gate it |
 | **PR-7** | **The outer shell** — adopt hadoku_site's `templates/game` and delete our hand-written wrapper in favour of it | **SCHEDULED: the wave immediately after the game client.** Operator, 2026-09-20. Not before — the shell wraps the client, and the client is the unproven half |
 | **PR-6** | **The game client** — a real Forge UI in the browser, speaking through our bridge | **IN PROGRESS. W19 landed the QOL wave**: static canvas with player faces, only-Forge-offered clickability + drag + targeter, stops only where a legal action exists with payment said out loud, art ids for every card and stack item. The operator's bar — *"i would not even call this alpha playable yet"* — was the brief; their re-test is the remaining proof |
 | **PR-5** | **Constructed** — historical Standard pools, prebuilt decks, format validation. The operator's stated goal. | **Wave 6 lanes C/D** lay the data track; play needs PR-4 |
@@ -88,6 +89,68 @@ it. PR-5 is new and exists to serve it.
 | **PR-2** | **Draft** — pure draft engine, cube import, draft UI. Playable with friends. | **built end to end, unproven with two people.** Engine (W3), card art (W4) and a live socket (W5) all land; `DraftScreen` renders from fixtures, the in-process engine, or a server. **"Playable with friends" is not ticked** until two browsers draft one pod — see the queue |
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
+
+## The board's blocking, and the lesson about visual instructions
+
+**`docs/planning/board-layout-2026-09-27.md` is the operator's own layout**, made
+by dragging the real regions on a 1280×800 canvas
+(https://claude.ai/artifact/YVxEMT7bfxyK6zcgdcivDN, saved in that artifact's
+store at `layout/current`). It is a spec to implement: a left column per seat
+with the portrait above the graveyard, four rows with the hands outermost, and
+the stack, the question panel, the phase rail and the controls as overlays over
+the right end of the board. The turn bar and the `Seat 1, live.` status line are
+deleted. Cards snap to the next free slot and stack with an offset when dropped
+on each other. **Ordering: wave 25 lands first; this is the wave after**, and
+that file lists which of wave 25's lanes are steps toward it and which two of its
+decisions it supersedes.
+
+**The lesson, recorded because it cost four rounds.** The operator asked three
+separate times for the board's card layout not to be *"this sort of tab system"*,
+and it never became a board row — so it was never in a wave, and each time it was
+answered with a guess in prose. A visual instruction is not a remark; it is an
+item, and it goes on the board the first time it is said. The fix that finally
+worked was to stop describing and hand over a canvas, which settled in one round
+what four rounds of words had not: the tab system is `ZoneShell`'s labelled
+panel.
+
+## Presentation (PR-8) — what exists, what doesn't, what gates it
+
+Measured 2026-09-27, not assumed:
+
+- **Sound: nothing exists.** `Audio`, `AudioContext`, `playSound`, `.mp3`, `.ogg`
+  return zero hits across `apps/ui/src` and `packages`. Greenfield, which is the
+  good news — there is no legacy audio layer to unpick. The operator's list: UI
+  sounds for hover, drag and button select, and by implication the game's own
+  events.
+- **Arrows: half exist.** `gestures/arrow.ts` draws the targeter while a pointer
+  drags, and `e2e/arrow.spec.ts` measures its endpoints against both cards'
+  boxes. What does not exist is an arrow driven by a GAME EVENT — a spell
+  resolving onto its target, damage — which reads off the wire rather than the
+  pointer. That is an extension, not a new capability.
+- **Card effects: nothing exists.** No distortion, no transform on a card when
+  something happens to it. `card.css` is a static face.
+- **Board and UI art: nothing exists**, and `ManaPip` is a CSS gradient standing
+  where a drawn symbol goes (`styles.css:572-577`).
+
+Three decisions gate the programme, and none is a code question:
+
+1. **Where sound files live.** `.gitignore` refuses `*.jpg` and `*.png` but says
+   nothing about `*.mp3`, `*.ogg` or `*.wav` — that is an accident of the D15
+   image rule, not a decision. The same argument applies (bundle weight, and art
+   being re-sourceable), so the answer is almost certainly `cdn.hadoku.me`
+   alongside the art, with a lookup like `packages/carddata/src/art` has.
+2. **One seam, or twelve call sites.** Card art survived because it has exactly
+   one resolver and one `<img>`. Sound needs the same discipline before the first
+   `new Audio()` is written, or it will end up scattered through every component
+   that wants a click.
+3. **The trademark line is a deliverable, not a footnote.** No mana symbols, set
+   symbols, tap symbol, card frames or wordmark — CLAUDE.md, and it is one of the
+   four things holding the licensing posture up. So a drawn symbol set is itself
+   a piece of work to commission or generate, not a detail of some other lane.
+
+Also open, and relevant: **`apps/ui/src/draft/art-manifest.json` has zero
+entries**, so every card in the app resolves to `cards.scryfall.io` today. The
+lookup layer is built and correct; nothing has been put in it.
 
 ## Board
 
