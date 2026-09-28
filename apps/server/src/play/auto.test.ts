@@ -21,6 +21,7 @@ import {
 	ARENA_STOP_POLICY,
 	DEFAULT_STOP_POLICY,
 	FULL_CONTROL_POLICY,
+	STRICT_PAYMENT_POLICY,
 	PHASE_BY_UI_NAME,
 	autoCancelReason,
 	autoPassReason,
@@ -422,14 +423,14 @@ const PAYING = {
 	openAsks: 0,
 };
 
-/**
- * The strict payment policy, by name.
- *
+/*
+ * The strict payment policy is a NAMED EXPORT of `auto.ts` now
+ * (`STRICT_PAYMENT_POLICY`), because two callers need exactly it: every case
+ * below that used to ride on the default, and `board-play.jvm.test.ts`, whose
+ * seats run it so that clicking a land to pay is still a thing that happens.
  * `DEFAULT_STOP_POLICY.unambiguousPayment` became `'forgeAuto'` on 2026-09-27
- * (the operator, on item 6). The strict semantics did not go away and are not
- * untested: every case below that used to ride on the default now names this.
+ * (the operator, on item 6); the strict semantics did not go away.
  */
-const STRICT_PAYMENT: StopPolicy = { ...DEFAULT_STOP_POLICY, unambiguousPayment: 'auto' };
 
 describe('autoPayReason', () => {
 	it('presses Forge’s Auto for a payment with exactly one source, and names the cost', () => {
@@ -437,7 +438,7 @@ describe('autoPayReason', () => {
 	});
 
 	it('asks when there is more than one source, UNDER THE STRICT VALUE — which land to tap is a real choice', () => {
-		expect(autoPayReason({ ...PAYING, actionable: [67, 68] }, STRICT_PAYMENT)).toBeNull();
+		expect(autoPayReason({ ...PAYING, actionable: [67, 68] }, STRICT_PAYMENT_POLICY)).toBeNull();
 	});
 
 	it('settles the same window under the default, because the operator chose Forge’s auto-tap', () => {
@@ -445,8 +446,8 @@ describe('autoPayReason', () => {
 	});
 
 	it('asks when Forge named no source, or has not said at all, UNDER THE STRICT VALUE', () => {
-		expect(autoPayReason({ ...PAYING, actionable: [] }, STRICT_PAYMENT)).toBeNull();
-		expect(autoPayReason({ ...PAYING, actionable: null }, STRICT_PAYMENT)).toBeNull();
+		expect(autoPayReason({ ...PAYING, actionable: [] }, STRICT_PAYMENT_POLICY)).toBeNull();
+		expect(autoPayReason({ ...PAYING, actionable: null }, STRICT_PAYMENT_POLICY)).toBeNull();
 	});
 
 	/*
@@ -680,7 +681,7 @@ describe('a Match with the shortcuts on (the default)', () => {
 		push(h, 0, autoBar(true, me));
 		push(h, 0, prompt('Pay Mana Cost: {1}{U}', me));
 		// One act, and it is the Auto press. Which land Forge taps is Forge's;
-		// `decidePay`'s own tests keep the strict semantics under STRICT_PAYMENT.
+		// `decidePay`'s own tests keep the strict semantics under STRICT_PAYMENT_POLICY.
 		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
 	});
 
@@ -772,6 +773,116 @@ describe('full control — the escape hatch, off by default', () => {
 			callId: 'a-3',
 			result: ['k1', 'k2', 'k3', 'k4', 'k5'],
 		});
+	});
+});
+
+/*
+ * ── A seat owns its stop policy (wave 26 §E) ──────────────────────────
+ *
+ * Every decision `match.ts` makes for a seat is asked of THAT seat's
+ * `StopPolicy` rather than of `auto.ts`'s module default. That is what lets
+ * `board-play.jvm.test.ts` run its seats strict — so a payment with two
+ * untapped Mountains is still the player's to click — while the default stays
+ * `'forgeAuto'` for everyone else (item 6).
+ *
+ * The distinction these cases have to hold is between the POLICY VALUE reaching
+ * a decision and the default reaching it: the strict seat and the default seat
+ * are handed the SAME frames in the same test, and only one of them is paid for.
+ */
+describe('a seat owns its stop policy', () => {
+	it('starts every seat on the default, and says so', () => {
+		const h = harness();
+		expect(h.match.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
+		expect(h.match.stopPolicy(1).unambiguousPayment).toBe('forgeAuto');
+		expect(h.match.setStopPolicy(9, STRICT_PAYMENT_POLICY)).toEqual({ ok: false, error: 'no-such-seat' });
+		expect(h.logs.filter((l) => l.evt === 'stop-policy')).toEqual([]);
+	});
+
+	it('leaves a strict seat’s two-source payment alone, and presses the default seat’s', () => {
+		const h = harness();
+		expect(h.match.setStopPolicy(0, STRICT_PAYMENT_POLICY)).toEqual({ ok: true });
+		expect(h.match.stopPolicy(0).unambiguousPayment).toBe('auto');
+		expect(h.logs.filter((l) => l.evt === 'stop-policy')).toEqual([
+			{
+				evt: 'stop-policy',
+				matchId: h.match.id,
+				seat: 0,
+				unambiguousPayment: 'auto',
+				unpayableCost: 'cancel',
+				skipNonStopPhases: 'never',
+			},
+		]);
+
+		// The same window, twice: two sources offered, Forge's Auto live, one cost.
+		// Which of the two to tap is a choice the wire cannot prove away.
+		for (const seat of [0, 1]) {
+			const me = playerOf(h, seat);
+			push(h, seat, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }, { kind: 'card', id: 68 }] });
+			push(h, seat, autoBar(true, me));
+			push(h, seat, prompt('Pay Mana Cost: {1}{U}', me));
+		}
+		// The strict seat was not paid for; the default seat was, once.
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 0)).toEqual([]);
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 1)).toEqual([
+			{ t: 'act', seat: 1, frame: { kind: 'act', method: 'selectButtonOk' } },
+		]);
+		expect(h.logs.filter((l) => l.evt === 'auto-paid')).toEqual([
+			{ evt: 'auto-paid', matchId: h.match.id, seat: 1, cost: '{1}{U}' },
+		]);
+	});
+
+	it('still presses a strict seat’s ONE-source payment — the value, not a bypass', () => {
+		const h = harness();
+		h.match.setStopPolicy(0, STRICT_PAYMENT_POLICY);
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Pay Mana Cost: {U}', me));
+		// This is step 1 of `board-play.jvm.test.ts` against a real jar: one
+		// Mountain, one way to pay, settled with no click.
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 0)).toEqual([
+			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
+		]);
+	});
+
+	it('reaches the STOP decisions too, not only the payment', () => {
+		const h = harness();
+		// Full control as a POLICY VALUE, without the flag: the same escape, by
+		// the long road, which is what proves the seat's policy is what is read.
+		h.match.setStopPolicy(0, FULL_CONTROL_POLICY);
+		expect(h.match.fullControl(0)).toBe(false);
+		for (const seat of [0, 1]) {
+			const me = playerOf(h, seat);
+			push(h, seat, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
+			push(h, seat, prompt(PRIORITY_MESSAGE.replace('Priority: B', `Priority: ${seat === 0 ? 'A' : 'B'}`), me));
+			push(h, seat, buttons(true, me));
+		}
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 0)).toEqual([]);
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 1)).toEqual([
+			{ t: 'act', seat: 1, frame: { kind: 'act', method: 'selectButtonOk' } },
+		]);
+	});
+
+	it('reaches the bounds shortcut too — a policy that answers nothing answers nothing', () => {
+		const h = harness();
+		h.match.setStopPolicy(0, FULL_CONTROL_POLICY);
+		push(h, 0, allMustBeChosen('p-1'));
+		push(h, 1, allMustBeChosen('p-2'));
+		expect(frames(h, 0).filter((f) => f.kind === 'ask' && f.callId === 'p-1')).toHaveLength(1);
+		expect(h.host.commands.filter((c) => c.t === 'reply')).toEqual([
+			{ t: 'reply', seat: 1, callId: 'p-2', result: ['k1', 'k2', 'k3', 'k4', 'k5'] },
+		]);
+	});
+
+	it('keeps the flag as the escape hatch it was: full control still short-circuits a default policy', () => {
+		const h = harness();
+		h.match.setFullControl(0, true);
+		expect(h.match.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Pay Mana Cost: {U}', me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
 	});
 });
 
@@ -1010,7 +1121,7 @@ describe('NEVER shortcut (2): a cost whose payment is a genuine choice', () => {
 	const twoSourcesNoPlan = facts({ window: 'payment', cost: '{1}{W}', sources: [61, 62], plannedSources: [] });
 
 	it('two sources with no plan on the wire is a choice, and stays a stop', () => {
-		expect(decidePay(twoSourcesNoPlan, STRICT_PAYMENT)).toBeNull();
+		expect(decidePay(twoSourcesNoPlan, STRICT_PAYMENT_POLICY)).toBeNull();
 		// And under the default the operator chose, Forge's plan settles it.
 		expect(decidePay(twoSourcesNoPlan, DEFAULT_STOP_POLICY)).toBe('{1}{W}');
 	});
@@ -1030,7 +1141,7 @@ describe('NEVER shortcut (2): a cost whose payment is a genuine choice', () => {
 
 	it('#22 — a source LEFT OUT of the plan means the plan had a choice, and it is the player’s', () => {
 		const partly = { ...twoSourcesNoPlan, sources: [61, 62, 63], plannedSources: [61, 62] };
-		expect(decidePay(partly, STRICT_PAYMENT)).toBeNull();
+		expect(decidePay(partly, STRICT_PAYMENT_POLICY)).toBeNull();
 	});
 
 	it('one source is still one payment (#6), plan or no plan', () => {
@@ -1263,9 +1374,9 @@ describe('item 6 — the guard that asked, and the policy value that stops askin
 		// Two sources, no plan: that is the pair `decidePay` cannot settle.
 		expect(galvanicBlast.sources).toHaveLength(2);
 		expect(galvanicBlast.plannedSources).toEqual([]);
-		expect(decidePay(galvanicBlast, STRICT_PAYMENT)).toBeNull();
+		expect(decidePay(galvanicBlast, STRICT_PAYMENT_POLICY)).toBeNull();
 		// And with one source it always did fire — the arm was never broken.
-		expect(decidePay({ ...galvanicBlast, sources: [16] }, STRICT_PAYMENT)).toBe('{R}');
+		expect(decidePay({ ...galvanicBlast, sources: [16] }, STRICT_PAYMENT_POLICY)).toBe('{R}');
 	});
 
 	it('the value that closes it is one word, and it presses Forge’s own Auto', () => {
@@ -1290,7 +1401,7 @@ describe('item 6 — the guard that asked, and the policy value that stops askin
 		expect(ARENA_STOP_POLICY.unambiguousPayment).toBe('forgeAuto');
 		expect(decidePay(galvanicBlast, DEFAULT_STOP_POLICY)).toBe('{R}');
 		// The strict value still exists and still means what it meant.
-		expect(STRICT_PAYMENT.unambiguousPayment).toBe('auto');
+		expect(STRICT_PAYMENT_POLICY.unambiguousPayment).toBe('auto');
 	});
 
 	it('full control asks anyway, whatever the payment preference is', () => {

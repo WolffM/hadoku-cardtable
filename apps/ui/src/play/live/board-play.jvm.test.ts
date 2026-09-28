@@ -32,6 +32,28 @@
  *     land. Two Mountains are untapped by now, so which one to tap is a real
  *     choice and the shortcut stays out of it.
  *
+ * ## Both seats run STRICT_PAYMENT_POLICY, and that is what makes step 3 real
+ *
+ * Wave 26 §E. `DEFAULT_STOP_POLICY.unambiguousPayment` became `'forgeAuto'` on
+ * 2026-09-27 (item 6, the operator's own call): a payment Forge's own Auto is
+ * live for is settled by Forge, ambiguous or not. Under that default step 3
+ * cannot happen at all — the server pays for Shock before the driver can click
+ * a land, and the capability this test exists to prove ("clicking a land pays")
+ * would be untested with nothing red to say so.
+ *
+ * So each seat is given {@link STRICT_PAYMENT_POLICY} the moment the match
+ * exists, through `Match.setStopPolicy` — the per-seat `StopPolicy` that
+ * `auto.ts`'s own "what the next wave must add" asked for. That value is the
+ * default's payment behaviour up to 2026-09-27 and nothing else: one offered
+ * source is still settled by Forge's Auto (step 1 asserts exactly that), and a
+ * choice the wire cannot prove away is still the player's (step 3). Full
+ * control is NOT used here on purpose: it makes every phase a stop and would
+ * change this driver's whole pacing rather than just the payment.
+ *
+ * Read the two steps together and they pin both halves of the policy against a
+ * real Forge: step 1 that the server does press Auto when there is one way to
+ * pay, step 3 that it does not when there are two.
+ *
  * Done when each is visible on the actor's own folded board: the Mountain on
  * the battlefield, the Goblin on the stack or resolved, Shock on the stack or
  * in the graveyard with the opponent at 18.
@@ -96,6 +118,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { createElement } from 'react';
 
+import { STRICT_PAYMENT_POLICY } from '../../../../server/src/play/auto.ts';
 import type { BoardCard, BoardPlayer } from '../adapter.ts';
 import { forgeAvailability, liveJvmCount, startLiveMatch, waitUntil, type LiveHarness, type SeatClient } from './jvm-harness.ts';
 import { LiveBoard } from './LiveBoard.tsx';
@@ -184,6 +207,15 @@ describe.skipIf(!available.ok)(title, () => {
         ],
       });
       running.push(h);
+
+      /*
+       * A seat owns its stop policy (wave 26 §E), and these two want the strict
+       * one: see "Both seats run STRICT_PAYMENT_POLICY" above. Set before a
+       * single frame is clicked on, so no payment in the run is judged by the
+       * `'forgeAuto'` default.
+       */
+      for (const s of h.seats) expect(h.match.setStopPolicy(s.seat, STRICT_PAYMENT_POLICY)).toEqual({ ok: true });
+      expect(h.seats.map((s) => h.match.stopPolicy(s.seat).unambiguousPayment)).toEqual(['auto', 'auto']);
 
       const roots = h.seats.map((s) => {
         const root = document.createElement('div');
@@ -415,7 +447,8 @@ describe.skipIf(!available.ok)(title, () => {
           else if (lost('goblin', `Raging Goblin ${clicked.goblin} never left the hand`, inHand(s, clicked.goblin))) clicked.goblin = null;
           /*
            * Nothing pays here. With one Mountain in play there is exactly one
-           * way to pay {R}, so `autoPayReason` presses Forge's own Auto and the
+           * way to pay {R} — one source, which even the STRICT policy these
+           * seats run settles — so `autoPayReason` presses Forge's own Auto and the
            * cost is settled with no click and no button press at this table —
            * which is the wave-20 claim asserted below. A click racing that
            * press would decide the claim by whichever won, so the driver does

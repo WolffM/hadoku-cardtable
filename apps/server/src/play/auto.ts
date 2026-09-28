@@ -39,7 +39,10 @@
  * stack window, refuses to pass for want of actions, asks every payment, leaves
  * a cost Forge cannot pay for the player to cancel, and answers no bounds ask.
  * `match.ts` also gates on the seat's `fullControl` flag,
- * so the escape hatch holds at both levels, and `toYieldUpdates` of it emits the
+ * so the escape hatch holds at both levels (the flag short-circuits before the
+ * seat's policy is read at all, and setting the policy to
+ * {@link FULL_CONTROL_POLICY} reaches the same place the long way round), and
+ * `toYieldUpdates` of it emits the
  * frames that CLEAR Forge's yields (`clearMarker`, `stackYield false`,
  * `setAutoPassUntilEndOfTurn false`, `setDisableYields true`, and `skipPhase
  * false` for all thirteen phases on every player) — item 5's "it clears the
@@ -69,9 +72,14 @@
  *   `YieldController`. Until that delegates to
  *   `getYieldController().isSkippingPhase(turnPlayer, phase)`, a `SkipPhase`
  *   envelope is inert on our bridge.
- * - `apps/server/src/play/match.ts` — a per-seat `StopPolicy`, the act that
- *   ships `toYieldUpdates` on `openView`, and a `lastAnsweredAsk` note on
- *   `SeatNotes` (see {@link StopPolicy.costConfirm}).
+ * - `apps/server/src/play/match.ts` — the act that ships `toYieldUpdates` on
+ *   `openView`, and a `lastAnsweredAsk` note on `SeatNotes` (see
+ *   {@link StopPolicy.costConfirm}). **The per-seat `StopPolicy` this list used
+ *   to ask for landed in wave 26 §E**: `SeatState.policy`, set through
+ *   `Match.setStopPolicy`, and every decision below is asked of THAT seat's
+ *   policy rather than of {@link DEFAULT_STOP_POLICY}. Nothing yet lets a
+ *   PLAYER choose one — there is no wire message for it — so the only callers
+ *   today are the tests that need a seat to differ from the default.
  * - `apps/server/src/play/host.ts` — `FORGE_PREFERENCES` does not set
  *   `UI_SHOW_AUTOTAP_PREVIEW`, so Forge's auto-tap PLAN never reaches us and
  *   {@link PromptFacts.plannedSources} is empty in production. Wave 25 §D
@@ -230,11 +238,15 @@ export interface StopPolicy {
 }
 
 /**
- * What a seat gets. **Behaviour-identical to wave 20 and 22**, on purpose: the
- * suites outside this lane (`e2e/play.spec.ts`,
- * `apps/ui/src/play/live/*.jvm.test.ts`) assert against it and this lane cannot
- * run them. {@link ARENA_STOP_POLICY} is the value that changes it, and
- * adopting it is a one-word edit here.
+ * What a seat gets **unless something set it another one** — a seat carries its
+ * own policy since wave 26 §E (`match.ts`, `SeatState.policy`), and this is the
+ * value it starts from.
+ *
+ * It was behaviour-identical to waves 20 and 22 until 2026-09-27, when the
+ * operator moved `unambiguousPayment` to `'forgeAuto'` (item 6). The suites that
+ * assert a payment is the PLAYER's to click name {@link STRICT_PAYMENT_POLICY}
+ * on their seats instead of riding on this default;
+ * {@link ARENA_STOP_POLICY} is the value that changes the stop set.
  */
 export const DEFAULT_STOP_POLICY: StopPolicy = {
 	// #7, wave 20: *"dont auto-pass peoples turns"* — the entry to your own main
@@ -256,6 +268,26 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	unpayableCost: 'cancel',
 	costConfirm: 'ask',
 	answerOneAnswerAsks: true,
+};
+
+/**
+ * The default, with payments handed back to the player wherever the WIRE does
+ * not prove the choice was made for them — `'auto'`, which was the default
+ * until 2026-09-27.
+ *
+ * It is a named value rather than a spelled-out object because two callers need
+ * exactly it and for the same reason: a seat that wants to CLICK its own lands.
+ * `auto.test.ts` keeps every strict case of {@link decidePay} under it, and
+ * `apps/ui/src/play/live/board-play.jvm.test.ts` runs its seats under it so
+ * that step 3 — two Mountains untapped, one `{R}` to pay — is still a real
+ * choice and is still paid by a click on a land. Under
+ * {@link DEFAULT_STOP_POLICY} Forge's Auto settles that before a click can
+ * happen, which is the whole point of the default and is why the strict value
+ * has to stay reachable PER SEAT ({@link StopPolicy.unambiguousPayment}).
+ */
+export const STRICT_PAYMENT_POLICY: StopPolicy = {
+	...DEFAULT_STOP_POLICY,
+	unambiguousPayment: 'auto',
 };
 
 /**

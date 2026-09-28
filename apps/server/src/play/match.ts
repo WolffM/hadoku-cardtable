@@ -108,11 +108,13 @@ import {
 	autoCancelReason,
 	autoPassReason,
 	autoPayReason,
+	DEFAULT_STOP_POLICY,
 	onlyAnswer,
 	paymentCost,
 	paymentLine,
 	type Payment,
 	type SeatNotes,
+	type StopPolicy,
 } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
@@ -170,6 +172,22 @@ export interface SeatState {
 	 * than a stop you did not want is a stop you did not get.
 	 */
 	fullControl: boolean;
+	/**
+	 * This seat's stop preferences — **one policy per seat, not one per server**
+	 * (wave 26 §E).
+	 *
+	 * Every shortcut decision for this seat is asked of THIS value: `onlyAnswer`,
+	 * `autoPassReason`, `autoPayReason` and `autoCancelReason` each take a
+	 * `StopPolicy` and each got `auto.ts`'s module default until now. It starts as
+	 * `DEFAULT_STOP_POLICY` and {@link Match.setStopPolicy} moves it, so one seat
+	 * can be strict about payments while the other takes Forge's Auto — which is
+	 * what `board-play.jvm.test.ts` needs to prove that clicking a land pays for a
+	 * spell, and what a player's own preference screen will set later.
+	 *
+	 * {@link SeatState.fullControl} is NOT this: it short-circuits ahead of the
+	 * policy, so the escape hatch cannot be lost to a policy value.
+	 */
+	policy: StopPolicy;
 	/** Forge's latest actionable set for this seat; null when it has not said (`auto.ts`). */
 	actionable: number[] | null;
 	/** The payment being made, while its prompt is up. */
@@ -324,6 +342,7 @@ export class Match {
 			ended: null,
 			departure: null,
 			fullControl: false,
+			policy: DEFAULT_STOP_POLICY,
 			actionable: null,
 			payment: null,
 			autoPaid: null,
@@ -750,7 +769,7 @@ export class Match {
 		if (frame.kind === 'ask' && isBlocking(frame.method)) {
 			// A question with one answer is not a question (`auto.ts`). Answered
 			// here, the browser never sees the ask at all — no modal to dismiss.
-			const auto = s.fullControl ? null : onlyAnswer(frame);
+			const auto = s.fullControl ? null : onlyAnswer(frame, s.policy);
 			if (auto !== null) {
 				s.autoAnswered += 1;
 				this.deps.log({
@@ -812,6 +831,39 @@ export class Match {
 	}
 
 	/**
+	 * Give ONE seat its own stop preferences (wave 26 §E).
+	 *
+	 * A policy is a value (`auto.ts`), so this is an assignment and nothing more —
+	 * the decisions read {@link SeatState.policy} at the moment the window opens,
+	 * so a policy set mid-match applies to the next window and never retracts a
+	 * press already made. Nothing is `say`-ed: a preference is not something Forge
+	 * told the seat, and the log is where a shortcut nobody expected is diagnosed.
+	 *
+	 * There is no wire message that carries one yet, so the callers today are
+	 * tests. `setFullControl` stays the escape hatch and is deliberately NOT
+	 * expressed through this: it short-circuits before the policy is read.
+	 */
+	setStopPolicy(seat: number, policy: StopPolicy): ClientOutcome {
+		const s = this.seats[seat];
+		if (s === undefined || s.ai) return { ok: false, error: 'no-such-seat' };
+		s.policy = policy;
+		this.deps.log({
+			evt: 'stop-policy',
+			matchId: this.id,
+			seat,
+			unambiguousPayment: policy.unambiguousPayment,
+			unpayableCost: policy.unpayableCost,
+			skipNonStopPhases: policy.skipNonStopPhases,
+		});
+		return { ok: true };
+	}
+
+	/** This seat's stop preferences, as the shortcut decisions read them. */
+	stopPolicy(seat: number): StopPolicy {
+		return this.seats[seat]?.policy ?? DEFAULT_STOP_POLICY;
+	}
+
+	/**
 	 * One observable line to a seat: what a cast paid, and whether full control is
 	 * on. **A synthesised Forge frame** — nothing downstream can tell it from one
 	 * Forge sent — so a line added here is a line every client folds. Wave 25 §D,
@@ -848,7 +900,7 @@ export class Match {
 	 */
 	private maybeAutoPass(s: SeatState): void {
 		if (s.fullControl || s.ai || this.status !== 'running') return;
-		const phase = autoPassReason(this.notesOf(s));
+		const phase = autoPassReason(this.notesOf(s), s.policy);
 		if (phase === null) return;
 		s.autoPassed += 1;
 		// Forge clears the set as the input stops; drop ours with it so the next
@@ -869,7 +921,7 @@ export class Match {
 	private maybeAutoPay(s: SeatState): void {
 		if (s.fullControl || s.ai || this.status !== 'running') return;
 		const notes = this.notesOf(s);
-		const cost = autoPayReason(notes);
+		const cost = autoPayReason(notes, s.policy);
 		if (cost === null) {
 			this.maybeCancelUnpayable(s, notes);
 			// The payment ended (or never started); the next one earns its press.
@@ -894,7 +946,7 @@ export class Match {
 	 * board returning to priority IS the answer.
 	 */
 	private maybeCancelUnpayable(s: SeatState, notes: SeatNotes): void {
-		const cost = autoCancelReason(notes);
+		const cost = autoCancelReason(notes, s.policy);
 		if (cost === null) {
 			if (s.payment === null) s.autoCancelled = null;
 			return;
