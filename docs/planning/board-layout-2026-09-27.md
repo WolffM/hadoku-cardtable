@@ -119,12 +119,17 @@ panels**: each zone renders as a bordered, filled box with a head, so the table
 reads as a stack of form fields rather than a surface. `ZoneShell`
 (`Board.tsx:828-869`) is what draws it.
 
-The label question came back `on`, but that was the pre-checked default and not
-necessarily a choice, so the reading recorded here is: **the panel chrome goes,
-the zone stays identifiable.** Borders, fills and heads that make a zone look
-like a form field are the complaint; knowing which zone is which is not. If that
-reading is wrong the operator will say so, and this paragraph is where it gets
-corrected.
+The label question came back `on`, but that was the pre-checked default rather
+than a choice, and the operator settled it on being asked (2026-09-27):
+**"yes drop the zone labels too"**. So the panel chrome AND the words go. A zone
+is identified by where it is and what is in it — the hand is the row nearest you,
+the graveyard is the pile under your portrait — which is how a table works and
+why it needs no captions. `ZoneShell`'s head (`Board.tsx:828-869`) goes with the
+border and the fill.
+
+Keep the accessible name. Dropping a visible caption is not dropping the zone's
+identity from the accessibility tree, and `data-zone` is what three playwright
+specs locate cards by.
 
 ## Ordering against wave 25
 
