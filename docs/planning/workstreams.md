@@ -90,6 +90,76 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## Verified this pass (2026-09-28 — tracker, closing Wave 27)
+
+Six lanes, all landed, one push, **0.23.0**. CI on main's head: `check` ✓ and
+`forge-e2e` ✓. Deploy real — bundle built 13:49:06.138, process started 13:49:08,
+two seconds later. Worktree and branch gone. **Tracker's own `pnpm check` on
+main: 2692 passed / 22 skipped**, run in a worktree with the corrected
+`node_modules` layout, so it is a real check of `packages/**` too.
+
+### Lane E is the wave's best work: there was no probe race
+
+Wave 26 handed over *"the `play.spec.ts` probe race, undiagnosed"* and the
+tracker carried it as a defect. It is not a race, and E proved it with counts
+rather than argument (`docs/planning/wave27-probe-race.md`): **20 runs on an idle
+host, 0 red; 15 runs beside 16 CPU burners, 10 red, always the same line**
+(`expect(boardAfter).toBe(boardBefore)`). The probe never lost a race in 26
+measured matches with 26 distinct match ids. What was actually there: two spec
+defects, a floating promise that ate the error so the reported line was not the
+line that failed, and a board equality that was comparing the MOUSE. Both fixed.
+
+This is the third time on this host that contention has been reported as a
+product bug — the tracker did it twice at wave 25's close. **Under load, suspect
+the host before the code**, and say how many runs and under what condition.
+
+### Five defects in MY wave file — four the manager found, one it did not
+
+1. **`parity.test.ts` was in no lane's row** though §A necessarily moves the
+   markup it pins, so the manager re-recorded it (`f724fea`).
+2. **§B.4 demanded a screenshot with no path**, and
+3. **§E demanded written evidence with no path** — so both landed in tmpfs and
+   the manager had to rescue them into `docs/planning/wave27-evidence/`
+   (`bffbdb4`). My own skill says a handoff pointing at a scratchpad has not
+   handed off; I wrote two of them.
+4. **§D.2 asserted that the vendored font CSS also claims `.pip`. It does not** —
+   both files are `.ms`/`.ss` with zero `.pip`. A lane was told a false premise
+   about its own subject.
+5. **§A specified work wave 24 had already shipped.** The operator's placement
+   model — snap to the next free slot, stack with an offset on a drop onto a card
+   — is `dropOnCard` and `withMove` in `Board.tsx`, landed in `3db801c` and in
+   the tree before wave 27 began: a drop on a card's top or bottom third stacks
+   it, the middle reorders, a new permanent joins the end of its row, and
+   attachments survive the move. Lane A was right to ship only the fit, and
+   nobody recorded that the rest was already done. **The operator asked three
+   times because they could not USE it** — cards were crushed unreadable at the
+   real table width — which is exactly what §A did fix.
+
+Four commands would have caught all of these and they are now a tracker memory:
+what else pins each owned file, what generates each generated file, grep every
+factual claim before asserting it, and name a repo path for every artifact a
+done-when demands. Plus the habit none of them covers: confirm the work is not
+already done.
+
+### The manager's own finding, recorded because the next wave inherits it
+
+It put `pnpm check` behind `build.lock` — the same lock as builds and the 40–57 s
+e2e runs — though a check writes no shared artifact. Eleven full checks queued
+behind one another for nothing, and every one came back red from other lanes'
+mid-edits anyway. Its own prescription, which the next wave file should carry: a
+separate `check.lock`, scoped suites per lane, **one** authoritative full check by
+the manager, and an explicit run budget on any lane told to chase a flake.
+
+### Leftovers
+
+- `styles.css`'s `.pip--unknown` comment pointed at `/tmp/claude-1000/w27/D-pip`;
+  re-pointed at the committed probe in this commit. `.pip--unknown` itself stays
+  on purpose — it is the fallback for a token no font has a glyph for, and D kept
+  it after measuring computed-style equivalence in a browser.
+- `docs/planning/wave27-probe-race.md` §0 still cites `/tmp` lock paths in its
+  reproduction commands. Harmless (they are lock files, recreated on use), noted
+  so nobody reads it as a dead artifact path.
+
 ## Verified this pass (2026-09-28 — tracker, closing Wave 26)
 
 Six lanes, all landed, one push, **0.22.0**. Deploy tree at `f544238`, bundle

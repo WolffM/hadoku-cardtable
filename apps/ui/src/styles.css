@@ -575,7 +575,9 @@ button {
  * this rule is the same capsule, on the one class that means it, so deleting
  * fourteen dead rules does not quietly leave a bare word in a row of discs. The
  * declarations are the union of what those two gave it — identical computed
- * style, which `/tmp/claude-1000/w27/D-pip` measured in a real browser.
+ * style, measured in a real browser by
+ * `docs/planning/wave27-evidence/pip-deletion-probe.mjs` — the probe and its
+ * before/after output, rescued off tmpfs into the repo when wave 27 closed.
  */
 .pip--unknown {
   display: inline-flex;
