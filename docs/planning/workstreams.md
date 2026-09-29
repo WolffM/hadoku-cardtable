@@ -90,6 +90,91 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## Queued for Wave 29 — three items that arrived after w28 was dispatched
+
+**Recorded here because a visual instruction that stays in conversation gets
+lost.** The "tab system" was said three times and never became a board row; that
+is not happening again. All three land in `apps/ui/src/play/`, which w28's §A
+owns, so none of them could have been added safely once that wave was running.
+
+**15. A card's state is drawn, not written.** Operator, 2026-09-28: *"+1/+1 looks
+really ugly, we need a better way to show that. actually all the shitty text you
+have written on the card looks ugly, we need to find a way to handle all of that
+with effects."*
+
+It is one function — `Board.tsx:889-897` turns seven states into STRINGS and
+drops them on a ~70px tile, over real art:
+
+```
+if (entry.tapped) chips.push('tapped');
+if (entry.summoningSick) chips.push('summoning sick');
+if (entry.attacking) chips.push('attacking');
+if (entry.blocking) chips.push('blocking');
+if (entry.damage > 0 && boardPT(entry) === null) chips.push(`${entry.damage} damage`);
+if (entry.token) chips.push('token');
+for (const c of entry.counters) chips.push(`${c.count} ${c.name}`);
+```
+
+Three have conventional answers and are not open questions: **tapped rotates the
+card** (which merges with w28's item 6, "creatures should tap when they are
+attacking"), **damage is red on the P/T badge** (`boardPT` already half does it),
+and **counters are a badge with a number** rather than `1 +1/+1`. Summoning sick,
+blocking and token are a design job with real constraints: legible at ~70px, and
+distinguishable from the SELECTION and ATTACK-INTENT outlines the gesture layer
+already draws — so not a fourth outline colour, and preferably a different
+channel (fill, tilt, desaturation, corner mark) so no viewer is told two things
+in one hue.
+
+**Art is not the problem, and this must not break it.** Card art DOES render in
+the deployed app: the CSP allows `https://cards.scryfall.io`, `art-ids.json`
+covers these cards (`Celestial Colonnade|WWK`, `Jace, the Mind Sculptor|WWK`,
+`Slagstorm|MBS`, `Tragic Slip|DKA` all resolve), and `CardTile` falls back to the
+text tile only when an image FAILS. The wave-27 evidence screenshot looks artless
+because `e2e/play/browser.ts:43` aborts every off-loopback request on purpose —
+**the tracker read that screenshot as evidence about the product and it was
+evidence about the harness.** Any evidence screenshot for this item must be taken
+with art loading or it proves nothing.
+
+**16. An active conditional ability should show it.** Operator: *"things like
+morbid should be visible when they are active. the 'orange glow' from hearthstone
+was always nice for when cards special effects were active."*
+
+**Two different things wear this coat, and only one is buildable today.**
+
+- *"This card can do something right now"* — buildable. The wire carries
+  `HasAvailableActions` and `CanPlay` (both `BooleanType`, `tier-c.ts:483,486`),
+  and Forge's actionable set already reaches us as `setWeaklySelectable`. A glow
+  driven by those is most of the visual effect the operator is describing.
+- *"Morbid's condition is currently met"* — **not established, and the lane must
+  check before promising it.** Nothing obviously on the wire says a specific
+  conditional ability's condition is satisfied; the nearest candidates are
+  `OverlayText` and `MarkerText` (`tier-c.ts:373-374`, real `CardView` getters).
+  If Forge does not tell us, **computing it ourselves is implementing rules**,
+  which this repo does not do — the answer would then be a bridge change, not a
+  UI one. Ship the achievable glow; report on the other with evidence.
+
+**17. The targeting arrow starts in the wrong place.** Operator: *"the arrow
+drawing is very wonky, by default it points at player portraits which doesnt make
+sense at all. when playing a card, it should get put in the 'decision area' and
+the arrow should draw from there, at least thats whenever i'm playing a card that
+has an arrow that needs drawing."*
+
+Two changes: an arrow must not default to a player portrait as its target, and a
+card being played should move to a staging area with the arrow originating there.
+The staging area is close to the question panel w27 §B gave a fixed home, so
+these want designing together rather than as two independent tweaks.
+`gestures/arrow.ts` draws it; `e2e/arrow.spec.ts` measures its endpoints against
+both cards' boxes and will need re-aiming.
+
+### Tracker process note: do not edit a dispatched wave
+
+Item 15 was written into `w28`'s wave file **after the operator had already
+started the manager**, so it is in that branch's history (`fa963e2`) and almost
+certainly was not read. Nothing was unpicked — rewriting history under a live
+agent is worse than a stale docs commit riding along — but the rule is now
+explicit: **once handed over, the worktree is the manager's.** New items go to
+the next wave's file, which is what this section is.
+
 ## Verified this pass (2026-09-28 — tracker, closing Wave 27)
 
 Six lanes, all landed, one push, **0.23.0**. CI on main's head: `check` ✓ and
