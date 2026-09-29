@@ -88,7 +88,7 @@ real jar — **four runs, all green, no re-run needed**:
 
 | suite | result |
 | --- | --- |
-| `live/flow.jvm.test.ts` | **exit 0, 7 passed** (was: dead in `beforeAll`, 7 skipped, under BOTH policies) |
+| `live/flow.jvm.test.ts` | **exit 0, 7 passed — 3 runs out of 3** after the manager found it flaky (2 red in 2); see §3 |
 | `live/combat-drag.jvm.test.ts` | **exit 0, 1 passed** |
 | `live/prompts.jvm.test.ts` | **exit 0, 3 passed** |
 | `live/board-play.jvm.test.ts` | **exit 0, 1 passed** |
@@ -100,7 +100,74 @@ real jar — **four runs, all green, no re-run needed**:
 `docs/planning/wave28-evidence/B-tests-A-must-reaim.md` measured the attribution;
 none of it was re-run.
 
-### `flow.jvm.test.ts` — the pre-existing bug, fixed. No pin.
+### `flow.jvm.test.ts` — hardened three times over. Still NOT pinned. **3/3 green.**
+
+**The manager's verification found it flaky after the first fix**, 2 red in 2 runs
+(suite-level, at `:359` and at `:489` — both land-drop call sites), against a tree
+whose only base movement was a docs-only `origin/main`. The failure was specific,
+not a timeout shaped like nothing:
+
+```
+Error: timed out waiting for the land to be on the battlefield, untapped (Preordain run)
+{"seat":0,"at":"3/COMBAT_DECLARE_ATTACKERS","battlefield":[],
+ "hand":["Preordain #11",…,"Volcanic Island #30",…],
+ "acts":["ok:2/DRAW","ok:2/MAIN1",…,"ok:3/UPKEEP"],
+ "refused":["play land #30"]}
+```
+
+Two faults, one class — **an action taken on a fact that has since moved**, the
+same class as the selection loop below:
+
+1. **`atOwnMain` is Forge's prompt MESSAGE, parsed, and the message can be a
+   window behind its own buttons.** `jvm-harness.ts:158-165` bumps ONE
+   `notes.version` for four different frames, so an `updateButtons` arriving alone
+   advances it while `notes.prompt` still holds the previous window. `holdSeat0`
+   is `atOwnMain`, so a stale read makes the hold answer **false at the one stop
+   the scenario exists to keep** — and `advance` then presses OK and passes seat 0
+   out of its own main. That is `acts` ending `ok:2/MAIN1` in the dump above.
+   Under the old default the seat stopped at every priority window and this was
+   effectively unreachable; `skipNonStopPhases: 'always'` passes seven phases in a
+   burst, so the window changes several times inside one 100 ms tick.
+2. **The retry loop could not recover.** Its `drive` was `retryLand` ALONE, and
+   `retryLand` correctly returns early when the seat is not at its own main — so
+   once seat 0 had drifted past MAIN1, NOTHING advanced either seat and the wait
+   could only run out its 60 s. (The manager read this as "`retryLand` does not
+   re-check the phase"; it did. The defect is that nothing else was driving.)
+
+The fix, and it keeps the suite on the product's real default:
+
+- **`settle(hands)`** runs once per seat per tick, inside `until`'s own loop so it
+  runs whatever `drive` a step passes (including `() => {}`). A seat is *steady*
+  when `notes.version` did not move between two ticks — one tick of latency, and
+  the message and the bar are the same window's by construction. This is the
+  "pair the prompt and the buttons before acting" that
+  `board-play.jvm.test.ts:265-278` does with `stats.replies` and this file had no
+  equivalent of.
+- **`advance` stands down on an unsteady seat** entirely, so it can no longer
+  press OK into a window it never saw.
+- **Every `atOwnMain` decision became `atSteadyOwnMain`** — both holds, all four
+  step predicates.
+- **`retryLand` became `playLand`**, which makes the FIRST drop as well as the
+  retries, re-checks `atSteadyOwnMain` at the instant it clicks, and records the
+  first as a real `click` (a refusal is data) and later ones as `clickAgain`.
+- **Both land-drop waits now keep the game moving** (`playLand(x); keepMoving()`),
+  so a seat that drifted comes back round to its own main and drops there instead
+  of hammering a closed window. `holdSeat0` still holds seat 0 at its own main, so
+  re-acquiring it does not race the drop. Budget raised 60 s → 120 s because
+  re-acquiring can now legitimately cost a turn.
+- **`why()` prints `steady` and `version`**, so the next failure of this shape is
+  diagnosable from one dump.
+
+Nothing pinned, nothing weakened, nothing deleted. The file's header now carries
+the three timing hazards and where each fix lives.
+
+**Three consecutive runs, one file at a time under `jvm.lock`, real jar:
+`3/3 green`** — exit 0, 7 passed, at 37.2 s / 37.5 s / 37.4 s, under a host load
+average of **9.23 on 12 cores** (the manager's two reds ran at 5.20 and took 75.6 s
+and 91.0 s — they were burning their deadlines). The `refused.length <= 2` bound
+at `:570` is inside those passes.
+
+### The pre-existing selection bug, fixed in the same file
 
 `advance` took `[...boardInteraction(...).selectable][0]` every tick **with no
 memory of what it had already picked**. Forge does not remove a card from the
@@ -112,10 +179,11 @@ one before it alike.
 
 `Hands` now carries `picked: Map<string, number[]>`, keyed by turn and prompt,
 exactly as `game-driver.ts:135-139` and `combat-drag.jvm.test.ts:391-394` already
-do. **That one change is the whole fix**: the suite is green under the wave-28
-default, with no policy pin and no assertion weakened. `flow.jvm.test.ts:506`'s
-claim — *"a turn never advances past a main phase unattended"* — is reached and
-asserted for the first time in this wave.
+do. **That was the fix for the RED**, and it was necessary but not sufficient —
+the two timing faults above are what made the suite flaky rather than dead.
+`flow.jvm.test.ts:506`'s claim — *"a turn never advances past a main phase
+unattended"* — is reached and asserted for the first time in this wave, and under
+the product's real default.
 
 ### `combat-drag.jvm.test.ts` and `prompts.jvm.test.ts` — **pinned**, and written down
 

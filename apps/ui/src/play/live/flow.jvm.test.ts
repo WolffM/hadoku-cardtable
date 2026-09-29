@@ -40,6 +40,32 @@
  * The Preordain deck is the operator's own card, for the claim in their words:
  * a one-land Preordain reaches the stack with no prompt drawn at all.
  *
+ * ## This suite runs the PRODUCT'S REAL DEFAULT, and that is why it is hardened
+ *
+ * `./combat-drag.jvm.test.ts` and `./prompts.jvm.test.ts` pin
+ * `EVERY_PRIORITY_POLICY` and say why in their own headers: they are about a drag
+ * and about fifteen prompt shapes, not about the stop set. This file IS about the
+ * stop set — *"a turn never advances past a main phase unattended"* is its sixth
+ * claim — so it is the one jar-gated suite left exercising wave 28's
+ * `ARENA_STOP_POLICY` default, and it may not be pinned. Every timing problem it
+ * has is therefore fixed rather than dialled out. Three of them, and each has its
+ * fix documented where the fix is:
+ *
+ *   1. **The window has to have STOPPED MOVING before anything is decided from
+ *      it** — {@link settle}. `jvm-harness.ts` bumps one version for four
+ *      different frames, so a prompt can be a window behind its own buttons, and
+ *      every decision here is Forge's prompt MESSAGE parsed.
+ *   2. **A land drop is phase-safe, not time-safe** — {@link playLand}. "The seat
+ *      was at its own main when the wait returned" is not "the seat is at its own
+ *      main now", and under `skipNonStopPhases: 'always'` the gap between the two
+ *      is where the drop used to go.
+ *   3. **A selection remembers what it already picked** — see `advance`. Forge's
+ *      offered set is what MAY be chosen, not what is left.
+ *
+ * (1) and (2) were measured as a real 2-in-2 red by the wave manager on
+ * 2026-09-28, at both land-drop call sites; (3) was a pre-existing red that kept
+ * all seven cases skipped.
+ *
  * Skips visibly without `CARDTABLE_FORGE_JAR` / `CARDTABLE_FORGE_RES`, like
  * `prompts.jvm.test.ts` — and `CARDTABLE_PLAY_WORK_DIR` must point at scratch.
  */
@@ -81,6 +107,10 @@ interface Hands {
    * where the whole of this is explained.
    */
   picked: Map<string, number[]>;
+  /** `notes.version` as of the PREVIOUS tick — see {@link settle}. */
+  lastVersion: number;
+  /** The seat's window stopped moving between the last two ticks. */
+  steady: boolean;
 }
 
 function mount(h: LiveHarness, seat: number): Hands {
@@ -89,7 +119,51 @@ function mount(h: LiveHarness, seat: number): Hands {
   root.dataset.seat = String(seat);
   document.body.appendChild(root);
   render(createElement(LiveBoard, { match: s.live }), { container: root });
-  return { seat: s, root, acts: [], refused: [], picked: new Map() };
+  return { seat: s, root, acts: [], refused: [], picked: new Map(), lastVersion: -1, steady: false };
+}
+
+/**
+ * One tick of "has this seat's window finished arriving?", written before any
+ * decision is taken from it.
+ *
+ * **This is the guard the whole scenario rests on, and it exists because a
+ * seat's prompt and its buttons do not arrive together.** `jvm-harness.ts:158-165`
+ * bumps `notes.version` on ANY of `showPromptMessage`, `updateButtons`,
+ * `setSelectables` or `clearSelectables` — so an `updateButtons` arriving alone
+ * advances the version while `notes.prompt` still holds the PREVIOUS window's
+ * message. Every decision below reads that message (`atOwnMain` is the message,
+ * parsed), so a decision taken in that gap is a decision about a window that has
+ * already gone: the seat presses OK into a window it never saw, or clicks a land
+ * into a step Forge will refuse it in.
+ *
+ * Lane B measured what made that routine rather than occasional
+ * (`docs/planning/wave28-evidence/B-tests-A-must-reaim.md`): with
+ * `skipNonStopPhases: 'always'` the server passes upkeep, draw, beginning of
+ * combat, combat damage, end of combat, the end step and cleanup in a BURST, so
+ * the window under a reader changes several times inside one 100 ms tick. Under
+ * the old default the seat stopped at every priority window and the gap was
+ * effectively never hit.
+ *
+ * So: act on a seat only when its version did not move between two ticks. One
+ * tick of latency, and the message and the bar are then the same window's by
+ * construction — which is the "pair the prompt and the buttons before acting"
+ * that `board-play.jvm.test.ts:265-278` does with `stats.replies` and this file
+ * had no equivalent of.
+ *
+ * Run once per seat per tick from {@link until}'s own loop, so it runs whatever
+ * `drive` a step passes — including `() => {}`.
+ */
+function settle(hands: readonly Hands[]): void {
+  for (const p of hands) {
+    const version = p.seat.notes.version;
+    p.steady = version === p.lastVersion;
+    p.lastVersion = version;
+  }
+}
+
+/** "This seat holds priority in its own main phase, and the window has settled." */
+function atSteadyOwnMain(p: Hands): boolean {
+  return p.steady && atOwnMain(p.seat);
 }
 
 /** The method of the prompt this seat is showing, or null. */
@@ -165,6 +239,9 @@ function why(hands: readonly Hands[]): string {
         hand: zoneOf(live, 'hand').map((c) => `${c.name} #${c.id}`),
         battlefield: zoneOf(live, 'battlefield').map((c) => `${c.name} #${c.id}${c.tapped ? ' (tapped)' : ''}`),
         showing: showing(p),
+        /* Was the window still arriving when this went wrong? See `settle`. */
+        steady: p.steady,
+        version: p.seat.notes.version,
         acts: p.acts.slice(-6),
         refused: p.refused,
       });
@@ -174,12 +251,39 @@ function why(hands: readonly Hands[]): string {
 
 const TICK_MS = 100;
 
-/** The land drop, again, if the first click landed on a replaced input. */
-function retryLand(p: Hands): void {
-  if (!atOwnMain(p.seat)) return;
+/**
+ * Drop the land, and keep trying until it is down — **phase-safe, not
+ * time-safe**.
+ *
+ * A land may only be played in your own main phase with an empty stack, and
+ * Forge refuses it anywhere else. Under the wave-28 default the seat is swept
+ * from MAIN1 to the next stop the moment it passes, so "the seat was at its own
+ * main when the wait returned" is not the same claim as "the seat is at its own
+ * main now". Three things follow, and all three are this function:
+ *
+ *   - it re-checks {@link atSteadyOwnMain} at the instant it clicks, not before
+ *     a wait — including for the FIRST drop, which is why the scenario calls this
+ *     rather than clicking by hand;
+ *   - it clicks nothing at all when the seat has drifted out of its main, so a
+ *     refusal is never retried into the same closed window;
+ *   - re-acquiring the main phase is somebody else's job and it has to be done:
+ *     see the call sites, which drive the game onward as well as calling this, so
+ *     a seat that drifted comes back round to its own main and drops there.
+ *
+ * The first click is a recorded {@link click} (a refusal is data — see *"a
+ * refused click is rare"*); every later one is a {@link clickAgain}, which is
+ * this scenario's own retry and not the double-click item 9 is about.
+ */
+function playLand(p: Hands): void {
+  if (!atSteadyOwnMain(p)) return;
   if (zoneOf(p.seat.live, 'battlefield').some((c) => c.name === 'Volcanic Island')) return;
   const land = zoneOf(p.seat.live, 'hand').find((c) => c.name === 'Volcanic Island');
-  if (land !== undefined) clickAgain(p, land.id, 'play land');
+  if (land === undefined) return;
+  if (p.acts.some((a) => /play land/.test(a)) || p.refused.some((a) => /play land/.test(a))) {
+    clickAgain(p, land.id, 'play land');
+    return;
+  }
+  click(p, land.id, 'play land');
 }
 
 /**
@@ -187,6 +291,13 @@ function retryLand(p: Hands): void {
  * selection Forge is waiting on (the cleanup discard is one, and it blocks the
  * whole game), otherwise press OK. `hold` is the ONE stop the scenario wants
  * left alone — pressing it would be the test doing what the product must not.
+ *
+ * **Nothing here acts on a seat whose window is still arriving** ({@link settle}).
+ * That is not politeness: `hold` is `atOwnMain`, which is Forge's prompt MESSAGE
+ * parsed, and a stale message makes `hold` answer false at the one stop the
+ * scenario exists to keep — so this function would press OK and pass seat 0 out
+ * of its own main, which is exactly the shape of the red the manager measured
+ * (`acts` ending `ok:2/MAIN1`, the land still in hand at `3/…`).
  */
 function advance(hands: readonly Hands[], hold: (p: Hands) => boolean): void {
   for (const p of hands) {
@@ -195,6 +306,9 @@ function advance(hands: readonly Hands[], hold: (p: Hands) => boolean): void {
       continue;
     }
     if (currentAsk(p.seat.live) !== null) continue;
+    // The window is still arriving: whatever `notes.prompt` says is the last
+    // window's, and every decision below is taken from it.
+    if (!p.steady) continue;
     // OK first: Forge enables it once a selection has what it needs, so this
     // finishes a discard rather than over-clicking one.
     if (p.seat.live.buttons?.enable1 === true) {
@@ -330,42 +444,69 @@ describe.skipIf(!available.ok)(title, () => {
     // Seat 0's own main phase is where the scenario acts; never press it.
     // Hold seat 0's own main phase — but only from turn 2, or the seat that goes
     // FIRST waits at turn 1 for a scenario that has not begun.
-    const holdSeat0 = (p: Hands) => p.seat.seat === 0 && atOwnMain(p.seat) && (p.seat.live.view?.turn ?? 0) >= 2;
+    const holdSeat0 = (p: Hands) => p.seat.seat === 0 && atSteadyOwnMain(p) && (p.seat.live.view?.turn ?? 0) >= 2;
     const keepMoving = () => advance(hands, holdSeat0);
 
+    /*
+     * `settle` FIRST, before the predicate and before `drive`, so both read a
+     * window that has stopped moving — see its own docs. It runs whatever `drive`
+     * a step passes, including `() => {}`, which is the point of putting it here
+     * rather than inside `advance`.
+     */
     async function until(done: () => boolean, label: string, ms: number, drive = keepMoving): Promise<void> {
       const deadline = Date.now() + ms;
+      settle(hands);
       while (!done()) {
         if (Date.now() > deadline) {
           throw new Error(`timed out waiting for ${label}\n${why(hands)}`);
         }
         drive();
         await new Promise((r) => setTimeout(r, TICK_MS));
+        settle(hands);
       }
     }
 
     const a = hands[0];
     // 1. Reach seat 0's own precombat main with a land in hand.
     await until(
-      () => atOwnMain(a.seat) && (a.seat.live.view?.turn ?? 0) >= 2 && zoneOf(a.seat.live, 'hand').some((c) => c.name === 'Volcanic Island'),
+      () => atSteadyOwnMain(a) && (a.seat.live.view?.turn ?? 0) >= 2 && zoneOf(a.seat.live, 'hand').some((c) => c.name === 'Volcanic Island'),
       "seat 0's own main phase with a land in hand",
       180_000,
     );
 
-    // 2. Play the land. Forge offers exactly one ability ("Play land"); nothing
-    //    may be drawn for it.
-    const land = zoneOf(a.seat.live, 'hand').find((c) => c.name === 'Volcanic Island')!;
-    click(a, land.id, 'play land');
+    /*
+     * 2. Play the land. Forge offers exactly one ability ("Play land"); nothing
+     *    may be drawn for it.
+     *
+     *    The drop is inside the loop, not before it, and the loop KEEPS THE GAME
+     *    MOVING as well as dropping. Both halves are load-bearing under the
+     *    wave-28 default:
+     *
+     *      - `playLand` re-checks the phase at the instant it clicks, so a drop
+     *        never goes into a step Forge will refuse it in;
+     *      - `keepMoving` means a seat that has already drifted out of its main
+     *        comes back round to the next one. The old loop drove with `retryLand`
+     *        ALONE, so once seat 0 was past MAIN1 nothing advanced either seat and
+     *        the wait could only run out its 60 s — which is the red the manager
+     *        measured (`"refused":["play land #30"]` at `3/COMBAT_DECLARE_ATTACKERS`
+     *        with an empty battlefield).
+     *
+     *    `holdSeat0` still holds seat 0 at its own main, so re-acquiring it does
+     *    not race the drop.
+     */
     await until(
       () => zoneOf(a.seat.live, 'battlefield').some((c) => c.name === 'Volcanic Island' && !c.tapped),
       'the land to be on the battlefield, untapped',
-      60_000,
-      () => retryLand(a),
+      120_000,
+      () => {
+        playLand(a);
+        keepMoving();
+      },
     );
 
     // 3. Cast the creature. From the click to the stack, nothing may be drawn:
     //    not the one-ability offer, not the payment.
-    await until(() => atOwnMain(a.seat), 'priority back at seat 0', 30_000, () => {});
+    await until(() => atSteadyOwnMain(a), 'priority back at seat 0', 30_000, () => {});
     const spell = zoneOf(a.seat.live, 'hand').find((c) => c.name === 'Merfolk of the Pearl Trident')!;
     const onStack = () => (h.seats[0].live.view?.stack.length ?? 0) > 0 || zoneOf(a.seat.live, 'battlefield').some((c) => c.name === 'Merfolk of the Pearl Trident');
     const beforeTheCast = a.acts.length;
@@ -403,7 +544,7 @@ describe.skipIf(!available.ok)(title, () => {
 
     // 5. And then it WAITS. Seat 0 is at its own main phase with nothing to do;
     //    nobody touches anything for six seconds.
-    await until(() => atOwnMain(a.seat), 'priority back at seat 0 after the resolution', 30_000, () => {});
+    await until(() => atSteadyOwnMain(a), 'priority back at seat 0 after the resolution', 30_000, () => {});
     record.stalledFrom = marker(a.seat);
     await new Promise((r) => setTimeout(r, 6000));
     record.stalledTo = marker(a.seat);
@@ -435,11 +576,19 @@ describe.skipIf(!available.ok)(title, () => {
     await until(() => a.seat.live.fullControl, 'full control on', 10_000, () => {});
     const turnThen = a.seat.live.view?.turn ?? 0;
     await until(
-      () => (a.seat.live.view?.turn ?? 0) > turnThen && atOwnMain(a.seat) && zoneOf(a.seat.live, 'hand').some((c) => c.name === 'Volcanic Island'),
+      () => (a.seat.live.view?.turn ?? 0) > turnThen && atSteadyOwnMain(a) && zoneOf(a.seat.live, 'hand').some((c) => c.name === 'Volcanic Island'),
       "seat 0's next own main phase, under full control",
       240_000,
-      () => advance(hands, (p) => p.seat.seat === 0 && atOwnMain(p.seat) && (p.seat.live.view?.turn ?? 0) > turnThen),
+      () => advance(hands, (p) => p.seat.seat === 0 && atSteadyOwnMain(p) && (p.seat.live.view?.turn ?? 0) > turnThen),
     );
+    /*
+     * The one click this step makes is deliberately NOT `playLand`: under full
+     * control the land does NOT reach the battlefield until the one-ability offer
+     * is answered, which is the claim this step exists to make, so a loop keyed on
+     * "is the land down yet" would click again while the prompt was open. The
+     * predicate above has already settled the window, which is the guard that
+     * matters.
+     */
     const land2 = zoneOf(a.seat.live, 'hand').find((c) => c.name === 'Volcanic Island')!;
     click(a, land2.id, 'play land under full control');
     await until(
@@ -468,31 +617,35 @@ describe.skipIf(!available.ok)(title, () => {
     running.push(p2);
     const two: [Hands, Hands] = [mount(p2, 0), mount(p2, 1)];
 
-    const keepMoving2 = () => advance(two, (p) => p.seat.seat === 0 && atOwnMain(p.seat) && (p.seat.live.view?.turn ?? 0) >= 2);
+    const keepMoving2 = () => advance(two, (p) => p.seat.seat === 0 && atSteadyOwnMain(p) && (p.seat.live.view?.turn ?? 0) >= 2);
     async function until2(done: () => boolean, label: string, ms: number, drive = keepMoving2): Promise<void> {
       const deadline = Date.now() + ms;
+      settle(two);
       while (!done()) {
         if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}\n${why(two)}`);
         drive();
         await new Promise((r) => setTimeout(r, TICK_MS));
+        settle(two);
       }
     }
 
     const b = two[0];
     await until2(
-      () => atOwnMain(b.seat) && (b.seat.live.view?.turn ?? 0) >= 2 && zoneOf(b.seat.live, 'hand').some((c) => c.name === 'Volcanic Island'),
+      () => atSteadyOwnMain(b) && (b.seat.live.view?.turn ?? 0) >= 2 && zoneOf(b.seat.live, 'hand').some((c) => c.name === 'Volcanic Island'),
       "seat 0's own main phase with a land in hand (Preordain run)",
       180_000,
     );
-    const island = zoneOf(b.seat.live, 'hand').find((c) => c.name === 'Volcanic Island')!;
-    click(b, island.id, 'play land');
+    // The same shape as step 2 above, and for the same reason — see it.
     await until2(
       () => zoneOf(b.seat.live, 'battlefield').some((c) => c.name === 'Volcanic Island' && !c.tapped),
       'the land to be on the battlefield, untapped (Preordain run)',
-      60_000,
-      () => retryLand(b),
+      120_000,
+      () => {
+        playLand(b);
+        keepMoving2();
+      },
     );
-    await until2(() => atOwnMain(b.seat), 'priority back at seat 0 (Preordain run)', 30_000, () => {});
+    await until2(() => atSteadyOwnMain(b), 'priority back at seat 0 (Preordain run)', 30_000, () => {});
     const pre = zoneOf(b.seat.live, 'hand').find((c) => c.name === 'Preordain')!;
     click(b, pre.id, 'cast Preordain');
     await until2(
@@ -562,7 +715,7 @@ describe.skipIf(!available.ok)(title, () => {
    * and the server can replace the input under a click in flight — an auto-pass
    * lands, `clearWeaklySelectable` arrives — so the click correctly sends
    * nothing and the card has to be clicked again. Measured here: it happens, it
-   * is rare, and the retry always lands (`retryLand`; the scenario could not
+   * is rare, and the retry always lands (`playLand`; the scenario could not
    * have reached its other five claims otherwise). It is asserted as a bound
    * rather than as zero, because zero is not what the design promises.
    */
