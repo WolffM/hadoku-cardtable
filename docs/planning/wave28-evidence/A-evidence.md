@@ -318,9 +318,15 @@ focused, so the panel's `textContent` is still the log's own words.
 
 ## 6. Files outside this lane that this change touches or breaks — NAMED, NOT FIXED
 
-### `e2e/table-fit.spec.ts` — **will go red in three places.** Nobody owns it.
+### `e2e/table-fit.spec.ts` — **will go red in two places.** Nobody owns it.
 
-1. **`:1682-1683`** — the face geometry, and this is item 10 being done:
+Line numbers are as of `60409a6`, the manager's commit that took up §C's
+deck-chooser recipe in this file and in `e2e/arrow.spec.ts`. **That clears the
+blocker B and C both reported** — `selectOption` on `deck-mine` is gone from both
+specs — so this spec is runnable again, and the two things below are what stands
+between it and green.
+
+1. **`:1683-1684`** — the face geometry, and this is item 10 being done:
    ```ts
    expect(them.mid, `${where}: their face is in the top third of the canvas`).toBeLessThan(board.top + third);
    expect(you.mid, `${where}: our face is in the bottom third of the canvas`).toBeGreaterThan(board.bottom - third);
@@ -336,7 +342,7 @@ focused, so the panel's `textContent` is still the log's own words.
    column and the stack is at 59.4% across). A "closer together" assertion would
    be `you.mid - them.mid` under, say, a third of the canvas.
 
-2. **`:1139-1145`** — the crowd probe builds a chip strip by hand:
+2. **`:1140-1146`** — the crowd probe builds a chip strip by hand:
    ```ts
    const chips = document.createElement('ul');
    chips.className = 'board-card__chips';
@@ -351,14 +357,13 @@ focused, so the panel's `textContent` is still the log's own words.
    `Board.test.ts`'s *"nothing the state layer draws can change a card's box"*
    asserts directly. **Delete those lines.**
 
-3. **`:666`** — `selectOption` on `deck-mine`, which is §C's chooser and is
-   already named in `C-deck-chooser-e2e-recipe.md` and in B's report. Unrelated to
-   this lane, still unfixed, and it fails before anything above is reached.
-
-The whole spec is jar-gated, so none of this is in CI's `check`; it runs in the
+The whole spec is jar-gated, so neither is in CI's `check`; it runs in the
 `forge-e2e` job on this host.
 
-### `e2e/arrow.spec.ts:213` — `selectOption` on `deck-mine`. §C's recipe, still unapplied. Not this lane's.
+### `e2e/arrow.spec.ts` — nothing from this lane. Already re-aimed at §C's chooser by `60409a6`.
+
+It drives the targeter arrow over `[data-card-id]` and reads no state chip, no
+seat count and no log line, so nothing this lane changed reaches it.
 
 ### Not touched and not broken, checked
 
@@ -380,10 +385,14 @@ The whole spec is jar-gated, so none of this is in CI's `check`; it runs in the
 
 ## 7. What could NOT be verified, with the command that would settle it
 
-- **`e2e/table-fit.spec.ts` was not run.** It is jar-gated and it carries §C's
-  unfixed `selectOption` at `:666`, so it dies in the lobby before it measures
-  anything this lane changed — running it now proves nothing. Once `:666`,
-  `:1682-1683` and `:1139-1145` are fixed by whoever takes that file:
+- **`e2e/table-fit.spec.ts` was not run**, and it IS runnable now that `60409a6`
+  cleared §C's `selectOption`. It was not run because the two failures above are
+  arithmetic rather than a guess — the faces were measured in a browser at y=351
+  and y=429 against thirds at 267 and 533, and `.board-card__chips` is simply not
+  in `board.css` any more (`grep -n chip apps/ui/src/play/board.css` finds three
+  lines of prose and no rule) — and a jar slot spent confirming them is a jar slot
+  not spent on the four suites this lane owns. Once `:1683-1684` and `:1140-1146`
+  are taken up by whoever owns that file:
   ```sh
   flock -x /tmp/claude-1000/w28-locks/jvm.lock env \
     CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=/tmp/claude-1000/w28-A-play \
