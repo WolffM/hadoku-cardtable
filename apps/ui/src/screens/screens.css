@@ -28,7 +28,14 @@
  * letter-spacing instead, which is what the fleet's own sheets do.
  *
  * Same two legal rules as the table: no `url()` anywhere, and no WotC trade
- * dress. There is nothing to draw here but text, boxes and one status dot.
+ * dress of our own drawing.
+ *
+ * It used to add *"there is nothing to draw here but text, boxes and one status
+ * dot"*, and wave 28 §C ended that: the room screen now draws Keyrune and Mana
+ * glyphs (D20 — third-party fonts, never a WotC file) and one card image per deck
+ * row. The `url()` rule is untouched and is what keeps the image legal AND
+ * repointable: the `src` is built by `cardImageUrl` from `art-manifest.json`, so a
+ * card's art stays a lookup rather than a URL, and no host is named in here.
  */
 
 /* ── shell ─────────────────────────────────────────────────────────── */
@@ -858,4 +865,184 @@
   padding: 12px;
   color: var(--color-text-secondary);
   background: var(--color-bg);
+}
+
+/* ── the era's sets, grouped by block (wave 28 §C, item 1) ─────────────── */
+
+/*
+ * Operator, 2026-09-28: *"this is ugly, just the symbols is okay. group them by
+ * block and make them bigger."*
+ *
+ * It was a `<p>` with no rules at all — twelve glyph-plus-code pairs run
+ * together at body size, which is the cramped look being complained about. Now:
+ * the glyph is `2rem`, the codes are gone from the markup entirely
+ * (`ConstructedScreen.tsx`'s `PoolSets` says why they are not merely hidden), and
+ * the gap INSIDE a block is a quarter of the gap BETWEEN blocks, which is what
+ * makes the grouping readable without a heading.
+ *
+ * `--color-text-secondary` rather than `--color-text`: a set symbol is a label
+ * for the pool above it, not the thing being read, and it is an oversized shape
+ * whose weight at `2rem` would otherwise out-shout the deck names below it.
+ */
+.lobby__sets {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 26px;
+}
+
+.lobby__block {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 2rem;
+  color: var(--color-text-secondary);
+}
+
+/* ── the deck chooser, which is not a dropdown (wave 28 §C, item 2) ─────── */
+
+/*
+ * *"the deck chooser dropdown is very ugly, needs a complete redesign. it should
+ * have a partial art that represents the deck and the two colored symbols. we
+ * cannot use a standard dropdown for this."*
+ *
+ * A grid of card-like rows, one per legal deck. `auto-fill` with a `190px`
+ * minimum is the same width the table's own card tiles use (`--card-w`), so a
+ * deck row and a card read as the same kind of object, and a narrow room screen
+ * collapses to one column instead of scrolling sideways.
+ *
+ * This is the first thing in this sheet that is not text, boxes and a status dot:
+ * it draws Keyrune/Mana glyphs (D20) and one card image per row. The image is an
+ * `<img src>` built by `cardImageUrl`, NOT a `url()` here — the sheet's no-`url()`
+ * rule stands, and it has to, because a card's art is a lookup that must stay
+ * repointable from `art-manifest.json` alone.
+ */
+.deckpick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.deckpick__option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.deckpick__option:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.deckpick__option:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/*
+ * The chosen deck, said in three ways at once and not one of them colour alone:
+ * a thicker ring (`box-shadow` rather than a border, so the row does not move by
+ * a pixel when it is chosen), a lifted background, and the `chosen` chip below.
+ * `aria-checked` is the same fact for a screen reader.
+ */
+.deckpick__option[aria-checked='true'] {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+  background: var(--color-bg-card);
+}
+
+/* Dead for the same reason the dropdown was: the pool has not answered yet. */
+.deckpick__option:disabled,
+.deckpick__random:disabled {
+  cursor: progress;
+  color: var(--color-text-secondary);
+}
+
+/*
+ * The partial art: a band of the card, cropped by the box rather than by the URL.
+ *
+ * `cardImageUrl` asks for `normal`, the whole unmodified card face, and this
+ * window shows the strip where the art is. `object-position: center 22%` lands on
+ * it for the whole 488x680 frame shape, and `cover` means a card whose bytes are
+ * missing or oddly sized still fills the band instead of letterboxing.
+ */
+.deckpick__art {
+  display: block;
+  width: 100%;
+  height: 68px;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.deckpick__art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 22%;
+}
+
+/* No art resolved, and no apology for it: the row is complete without one. */
+.deckpick__art--none {
+  background: var(--color-bg);
+}
+
+.deckpick__name {
+  padding: 8px 10px 0;
+  font-weight: 600;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.deckpick__option .deckcolors {
+  padding: 4px 10px 8px;
+}
+
+.deckpick__mark {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 6px;
+  border-radius: var(--hdk-radius);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/*
+ * Random spans the grid and looks like neither a deck nor the Ready button: it
+ * is an action that resolves to one of the rows above it, so it gets the dashed
+ * outline this sheet already uses for "not a thing, a way of getting one".
+ */
+.deckpick__random {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 6px 14px;
+  border: 1px dashed var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.deckpick__random:hover:not(:disabled),
+.deckpick__random:focus-visible {
+  border-style: solid;
+  border-color: var(--color-primary);
+  color: var(--color-text);
 }

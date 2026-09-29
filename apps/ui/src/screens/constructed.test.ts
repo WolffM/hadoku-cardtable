@@ -47,8 +47,18 @@ import {
   type LibraryCollection,
 } from '@hadoku/deck/library';
 
-import { ConstructedScreen, DRAFTED_BASICS, DRAFTED_DECK, draftedDeckOf } from './ConstructedScreen.tsx';
+import {
+  ConstructedScreen,
+  DRAFTED_BASICS,
+  DRAFTED_DECK,
+  draftedDeckOf,
+  groupSetsByBlock,
+  manaValueOf,
+} from './ConstructedScreen.tsx';
 import { deckColorsByName } from '../components/DeckView.tsx';
+import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
+import ART_IDS from '../draft/art-ids.json';
+import { cardImageUrl } from '../draft/cardImage.ts';
 import { parseRoute } from './route.ts';
 import poolJson from '../draft/pool.json';
 import { dckTextOf } from '../draft/deckFromPool.ts';
@@ -435,23 +445,48 @@ async function mountRoom(table: Table, rand?: () => number) {
 const lastCall = (calls: Call[], path: string): Call | undefined => calls.filter((c) => c.url.endsWith(path)).at(-1);
 
 /**
- * The deck dropdown, once the era has answered which decks it offers.
+ * The deck chooser, once the era has answered which decks it offers.
  *
- * The list is disabled until then, on purpose — an option list assembled
- * before the answer would offer decks the era does not have — so every test
- * that picks a deck waits for the answer first. That wait IS the contract.
+ * Not a `<select>` since wave 28 §C: a `role="radiogroup"` of card-like rows, so
+ * "disabled" is `aria-disabled` on the root rather than a property. The rows are
+ * dead until the era answers, on purpose — a list assembled before the answer
+ * would offer decks the era does not have — so every test that picks a deck waits
+ * for the answer first. That wait IS the contract.
  */
-async function deckSelect(): Promise<HTMLSelectElement> {
-  const select = (await screen.findByTestId('deck-mine')) as HTMLSelectElement;
-  await waitFor(() => expect(select.disabled).toBe(false));
-  return select;
+async function deckPicker(): Promise<HTMLElement> {
+  const group = await screen.findByTestId('deck-mine');
+  await waitFor(() => expect(group.getAttribute('aria-disabled')).toBeNull());
+  return group;
 }
 
-/** Choosing a deck. There is no Load button: this is the load. */
+/** One row of the chooser, by the id it sends. Throws rather than returning null. */
+function deckRow(value: string): HTMLButtonElement {
+  const found = screen
+    .getByTestId('deck-mine')
+    .querySelector<HTMLButtonElement>(`[data-deck-id="${value}"]`);
+  if (found === null) throw new Error(`no deck row ${value}`);
+  return found;
+}
+
+/** A row's visible deck name, which is the only text the row carries of its own. */
+const rowName = (row: HTMLElement): string =>
+  row.querySelector('.deckpick__name')?.textContent ?? '';
+
+/** Which deck the chooser says is chosen, or `''`. The same fact `aria-checked` carries. */
+const chosen = (): string => screen.getByTestId('deck-mine').dataset['chosen'] ?? '';
+
+/**
+ * Choosing a deck. There is no Load button: this is the load.
+ *
+ * A click on the row, which is the same gesture the three e2e specs now make
+ * (`docs/planning/wave28-evidence/C-deck-chooser-e2e-recipe.md`) — so this helper
+ * and those specs drive the control the same way a person does.
+ */
 async function pick(value: string): Promise<void> {
-  const select = await deckSelect();
+  await deckPicker();
+  const row = deckRow(value);
   await act(async () => {
-    fireEvent.change(select, { target: { value } });
+    fireEvent.click(row);
   });
 }
 
@@ -469,9 +504,16 @@ async function pickPool(formatId: string): Promise<void> {
   await waitFor(() => expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe(formatId));
 }
 
-/** The deck dropdown's options, by value — what the era left on offer. */
+/**
+ * The chooser's deck rows, by the id they send — what the era left on offer.
+ *
+ * `Random` is not in this list and is not a row: it is a button beside them that
+ * resolves to one of them, so a list of what the era offers is a list of decks.
+ */
 const offered = (): string[] =>
-  [...(screen.getByTestId('deck-mine') as HTMLSelectElement).options].map((o) => o.value);
+  [...screen.getByTestId('deck-mine').querySelectorAll<HTMLElement>('[data-testid="deck-option"]')].map(
+    (row) => row.dataset['deckId'] ?? '',
+  );
 
 describe('apiBase', () => {
   it('puts the API under the prefix the app is deployed at', () => {
@@ -600,7 +642,7 @@ describe('a room’s table', () => {
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
     // The pool that bans it no longer offers it, and nothing is chosen.
     await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
-    expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe('');
+    expect(chosen()).toBe('');
     // The other player was stood down BY THE POOL MOVING, which is the server's
     // rule and not this deck's fault: what they readied with is not what the
     // table is on any more. Their deck is still legal — one player's illegal
@@ -821,7 +863,8 @@ describe('the deck picker', () => {
     const ready = screen.getByTestId('ready-toggle') as HTMLButtonElement;
     expect(ready.textContent).toBe('Ready');
     // Nothing is chosen for you, so nothing is loaded and Ready cannot be pressed.
-    expect((await deckSelect()).value).toBe('');
+    await deckPicker();
+    expect(chosen()).toBe('');
     expect(ready.disabled).toBe(true);
 
     await pick(PAUL_RIETZL);
@@ -831,12 +874,12 @@ describe('the deck picker', () => {
   it('narrows the deck list to the decks the ROOM’s pool says are legal, asking the gate for each', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
     // The pool the room opens on is legal for both, so both are on offer.
-    await deckSelect();
-    expect(offered()).toEqual(['', '__random__', BEN_STARK, PAUL_RIETZL]);
+    await deckPicker();
+    expect(offered()).toEqual([BEN_STARK, PAUL_RIETZL]);
 
     await pickPool('2011-07-01');
     // The pool that bans Jace and Stoneforge offers one of the two decks.
-    await waitFor(() => expect(offered()).toEqual(['', '__random__', PAUL_RIETZL]));
+    await waitFor(() => expect(offered()).toEqual([PAUL_RIETZL]));
 
     // It is the SERVER's answer, one request per deck per pool — not arithmetic
     // done here over a set list the browser was never sent.
@@ -860,8 +903,8 @@ describe('the deck picker', () => {
     // Failing open costs a refusal the person can read — and the failure is
     // said out loud rather than swallowed.
     await mountRoom({ players: [opponent()], matchId: null, checkFails: true });
-    await deckSelect();
-    expect(offered()).toEqual(['', '__random__', BEN_STARK, PAUL_RIETZL]);
+    await deckPicker();
+    expect(offered()).toEqual([BEN_STARK, PAUL_RIETZL]);
     await waitFor(() => expect(screen.getByTestId('table-error').textContent).toContain('the gate is restarting'));
   });
 
@@ -892,7 +935,7 @@ describe('the deck picker', () => {
     await waitFor(() => expect(screen.queryByTestId('verdict-mine')).toBeNull());
     // The deck is off the list, nothing is chosen, and Ready stays dead.
     await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
-    expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe('');
+    expect(chosen()).toBe('');
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -901,7 +944,7 @@ describe('the deck picker', () => {
     const server = await mountRoom({ players: [opponent()], matchId: null }, () => 0.99);
     await pick('__random__');
 
-    expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe(PAUL_RIETZL);
+    expect(chosen()).toBe(PAUL_RIETZL);
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: PAUL_RIETZL } });
     // `Random` is never what gets loaded: it resolves to a deck id.
     const loads = server.calls.filter((c) => c.url.endsWith('/deck'));
@@ -914,7 +957,7 @@ describe('the deck picker', () => {
     await pickPool('2011-07-01');
     await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
     await pick('__random__');
-    expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe(PAUL_RIETZL);
+    expect(chosen()).toBe(PAUL_RIETZL);
     expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in');
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: PAUL_RIETZL } });
   });
@@ -981,7 +1024,7 @@ describe('the deck picker', () => {
     // The other player is NOT ready, so nothing starts while this is watched.
     const server = await mountRoom({ players: [opponent(), held], matchId: null });
     // The picker opens on the deck the server holds…
-    await waitFor(() => expect((screen.getByTestId('deck-mine') as HTMLSelectElement).value).toBe(PAUL_RIETZL));
+    await waitFor(() => expect(chosen()).toBe(PAUL_RIETZL));
     // …and over a dozen polls it never writes one.
     await act(async () => {
       await new Promise((r) => setTimeout(r, 120));
@@ -1022,7 +1065,7 @@ describe('the table’s pool', () => {
     ]);
     // And the deck list follows the room, not the press: the pool the room is
     // now on is the one the gate was asked about.
-    await waitFor(() => expect(offered()).toEqual(['', '__random__', PAUL_RIETZL]));
+    await waitFor(() => expect(offered()).toEqual([PAUL_RIETZL]));
   });
 
   it('gives a NON-leader no pool control at all, only the value the room is on', async () => {
@@ -1034,7 +1077,9 @@ describe('the table’s pool', () => {
     expect(fixed.tagName).toBe('SPAN');
     expect(fixed.textContent).toBe(POOL_NAME);
     expect(fixed.dataset.format).toBe('2011-02-13');
-    expect(screen.getByTestId('deck-mine').closest('section')!.querySelectorAll('select')).toHaveLength(1);
+    // And there is now no `<select>` on the card AT ALL: the pool is theirs to
+    // read, and the deck chooser stopped being a dropdown in wave 28 §C.
+    expect(screen.getByTestId('deck-mine').closest('section')!.querySelectorAll('select')).toHaveLength(0);
 
     // Their one input still works, and the pool is never written by them.
     await pick(PAUL_RIETZL);
@@ -1474,30 +1519,102 @@ describe('a builtin room is what it has always been', () => {
 
 /**
  * *"constructed selections should show the set symbols that are in that era."*
+ * — and then, 2026-09-28: *"this is ugly, just the symbols is okay. group them by
+ * block and make them bigger."*
  *
- * The data was already on the wire — `GET /api/tables/formats` sends each era's
- * `sets` — so this is C's `SetSymbol` on that list. Keyrune glyphs from a
- * third-party font, never WotC's own files and never `svgs.scryfall.io` (D20,
- * `docs/LICENSING.md` §3.2), each with its raw code beside it so a set with no
- * glyph reads as its code rather than as an empty box.
+ * The data was already on the wire (`GET /api/tables/formats` sends each era's
+ * `sets`); wave 28 §C dropped the codes, enlarged the glyph and clustered the sets
+ * into their blocks. Keyrune glyphs from a third-party font, never WotC's own
+ * files and never `svgs.scryfall.io` (D20, `docs/LICENSING.md` §3.2).
+ *
+ * **Asserted on what a browser would paint**, which is the lesson the old
+ * `<option>` comment left behind: the row's `textContent` is empty, so a CSS
+ * `display: none` over the codes could not pass this — and every set is still
+ * identifiable through `data-set`, `title` and the block's `aria-label`, which is
+ * what a reader gets instead.
  */
 describe('the era’s set symbols', () => {
-  it('draws one per set in the era the room is on, and follows the pool', async () => {
+  /** `[block code, the era's sets in it]`, in the order the row draws them. */
+  const blocks = (): [string, string][] =>
+    [...screen.getByTestId('pool-sets').querySelectorAll<HTMLElement>('[data-testid="pool-block"]')].map((g) => [
+      g.dataset['block'] ?? '',
+      g.dataset['sets'] ?? '',
+    ]);
+
+  it('groups the era’s sets by block, with no set code text anywhere', async () => {
     await mountRoom({ players: [], matchId: null, format: FORMATS[0].id });
     const row = await screen.findByTestId('pool-sets');
     expect(row.dataset.sets).toBe(FORMATS[0].sets.join(' '));
-    expect([...row.querySelectorAll('[data-set]')].map((e) => (e as HTMLElement).dataset.set)).toEqual(FORMATS[0].sets);
-    // The glyph is a Keyrune class, and the raw code is there beside it.
-    expect(row.querySelector('.ss')?.className).toBe(`ss ss-${FORMATS[0].sets[0].toLowerCase()}`);
-    expect(row.textContent).toContain(FORMATS[0].sets[0]);
+
+    // Three blocks out of six sets, and the core set goes last rather than
+    // sitting between ROE and SOM where its release date would put it.
+    expect(blocks()).toEqual([
+      ['zen', 'ZEN WWK ROE'],
+      ['som', 'SOM MBS'],
+      ['lea', 'M11'],
+    ]);
+    // Every set still draws, exactly once, and the glyph is a Keyrune class.
+    expect([...row.querySelectorAll('[data-set]')].map((e) => (e as HTMLElement).dataset.set)).toEqual([
+      'ZEN',
+      'WWK',
+      'ROE',
+      'SOM',
+      'MBS',
+      'M11',
+    ]);
+    expect(row.querySelector('.ss')?.className).toBe('ss ss-zen');
+
+    // THE POINT: no text. Not hidden text — none. A test that only checked for a
+    // `[data-set]` node would pass against the row this replaced.
+    expect(row.textContent).toBe('');
+    for (const code of FORMATS[0].sets) expect(row.textContent).not.toContain(code);
+    // The code is still reachable without being painted, which is what makes
+    // dropping it safe for a reader.
+    expect(row.querySelector('[data-set="ZEN"]')?.getAttribute('title')).toBe('ZEN');
+    expect(screen.getByLabelText('Zendikar: ZEN WWK ROE')).toBeTruthy();
+    expect(screen.getByLabelText('Core Set: M11')).toBeTruthy();
+
     // No image, no WotC host: the symbols are a font.
     expect(row.querySelector('img')).toBeNull();
     expect(row.innerHTML).not.toContain('scryfall');
+    // Bigger, and the grouping is drawn as well as grouped: the gap between
+    // blocks is the second signal, and jsdom computes no cascade, so the
+    // declaration is the assertion.
+    expect(SCREENS_CSS).toMatch(/\.lobby__block \{[^}]*font-size: 2rem;/);
+    expect(SCREENS_CSS).toMatch(/\.lobby__sets \{[^}]*gap: 6px 26px;/);
+  });
 
-    // The leader moves the pool: the symbols are the NEW era's, NPH and all.
+  it('follows the pool the leader moves it to, and NPH joins its own block', async () => {
+    await mountRoom({ players: [], matchId: null, format: FORMATS[0].id });
+    await screen.findByTestId('pool-sets');
+
     await pickPool(FORMATS[1].id);
     await waitFor(() => expect(screen.getByTestId('pool-sets').dataset.sets).toBe(FORMATS[1].sets.join(' ')));
-    expect(screen.getByTestId('pool-sets').textContent).toContain('NPH');
+    // NPH is Scars of Mirrodin's third set, so the new era grows a group rather
+    // than gaining a loose glyph on the end.
+    expect(blocks()).toEqual([
+      ['zen', 'ZEN WWK ROE'],
+      ['som', 'SOM MBS NPH'],
+      ['lea', 'M11'],
+    ]);
+    expect(screen.getByTestId('pool-sets').querySelector('[data-set="NPH"]')).not.toBeNull();
+    expect(screen.getByTestId('pool-sets').textContent).toBe('');
+  });
+
+  it('puts a set it has no block for in a group of its own, at the end', async () => {
+    // The map is twelve frozen codes. A thirteenth must still DRAW — a pool that
+    // silently lost a set would be worse than one with an odd-looking group.
+    expect(groupSetsByBlock(['ISD', 'RTR', 'M13', 'AVR'])).toEqual([
+      { block: 'Innistrad', blockCode: 'isd', codes: ['ISD', 'AVR'] },
+      { block: 'Core Set', blockCode: 'lea', codes: ['M13'] },
+      { block: 'Other sets', blockCode: 'other', codes: ['RTR'] },
+    ]);
+    // And the twelve the eras are actually made of are four groups, no strays.
+    expect(
+      groupSetsByBlock(['ZEN', 'WWK', 'ROE', 'M11', 'SOM', 'MBS', 'NPH', 'M12', 'ISD', 'DKA', 'AVR', 'M13']).map(
+        (g) => g.blockCode,
+      ),
+    ).toEqual(['zen', 'som', 'isd', 'lea']);
   });
 });
 
@@ -1596,22 +1713,26 @@ describe('a room on a drafted pool', () => {
   it('offers YOUR drafted cards as the deck, and sends the .dck of your own pool', async () => {
     const { server, socket } = await mountPod();
     // Until the pod answers, there is nothing to offer and the screen says why.
-    expect((screen.getByTestId('deck-mine') as HTMLSelectElement).disabled).toBe(true);
+    expect(screen.getByTestId('deck-mine').getAttribute('aria-disabled')).toBe('true');
     expect((await screen.findByTestId('drafted-waiting')).textContent).toContain(POD);
 
     socket.fire(DRAFT_CHANNEL.serverToClient, stateMessage(seatView(POOL), { name: 'Test Cube', size: 540 }));
 
-    const select = await deckSelect();
-    // One option, and it is the cards you drafted — not the 60-card library, which
-    // no cube pool holds. The label says how big the deck it would load is.
-    expect([...select.options].map((o) => o.value)).toEqual(['', RANDOM_DECK, DRAFTED_DECK]);
-    // The label says how big the deck it would load is, and then its colours.
-    // `pool.json`'s first 45 cards are the cube's white section, so `W` — and the
-    // basics `draftedDeckOf` adds are Plains for the same reason (wave 27 §D).
-    expect([...select.options].at(-1)?.textContent).toBe(
-      `Your drafted pool — ${45 + DRAFTED_BASICS} cards · W`,
-    );
-    expect([...select.options].at(-1)?.dataset['colors']).toBe('W');
+    await deckPicker();
+    // One row, and it is the cards you drafted — not the 60-card library, which
+    // no cube pool holds.
+    expect(offered()).toEqual([DRAFTED_DECK]);
+    // The row says how big the deck it would load is; its colours are pips beside
+    // that rather than letters in it. `pool.json`'s first 45 cards are the cube's
+    // white section, so `W` — and the basics `draftedDeckOf` adds are Plains for
+    // the same reason (wave 27 §D).
+    const drafted = deckRow(DRAFTED_DECK);
+    expect(rowName(drafted)).toBe(`Your drafted pool — ${45 + DRAFTED_BASICS} cards`);
+    expect(drafted.dataset['colors']).toBe('W');
+    expect(within(drafted).getByTestId('deck-colors').dataset['colors']).toBe('W');
+    // A drafted card carries its own Scryfall id, so the art rule needs no lookup
+    // table here: the most expensive card in the 45 is what the row draws.
+    expect(drafted.querySelector('img')?.getAttribute('src')).toMatch(/^https:\/\//);
     // And the library sweep never ran: a drafted pool asks the gate nothing.
     expect(server.calls.filter((c) => c.url.endsWith('/tables/check'))).toEqual([]);
 
@@ -1648,10 +1769,9 @@ describe('a room on a drafted pool', () => {
     );
     const note = await screen.findByTestId('drafted-none');
     expect(note.textContent).toContain(POD);
-    expect([...(screen.getByTestId('deck-mine') as HTMLSelectElement).options].map((o) => o.value)).toEqual([
-      '',
-      RANDOM_DECK,
-    ]);
+    // No rows at all — and `Random` is still there, with nothing to roll.
+    expect(offered()).toEqual([]);
+    expect(deckRow(RANDOM_DECK)).toBeTruthy();
   });
 });
 
@@ -1716,43 +1836,53 @@ describe('draftedDeckOf', () => {
  * the frozen pool's own `manaCost` and asserts the dropdown matches it.
  * (`packages/deck`'s `library.test.ts` guards the map itself, byte for byte.)
  */
-describe('the deck dropdown shows its colours', () => {
-  /** `apps/ui/src/screens` → the repo root, as `DeckView.test.ts` does it. */
-  const ROOT = resolve(import.meta.dirname ?? 'apps/ui/src/screens', '..', '..', '..', '..');
-  const readRepo = (repoPath: string): string => readFileSync(resolve(ROOT, repoPath), 'utf8');
 
-  const collectionOf = (id: string): LibraryCollection => {
-    const found = LIBRARY.find((c) => c.id === id);
-    if (found === undefined) throw new Error(`no collection ${id}`);
-    return found;
+/* ── real library decks, shared by the two suites that need one ─────────── */
+
+/*
+ * Every other suite here offers `DECKS`, whose maindeck is one line of sixty
+ * Islands — enough to prove a `PUT` went out, useless for a colour and useless
+ * for a deck's art, both of which are folds over a real card list. So these read
+ * the real `.dck` files off disk exactly as the server reads them.
+ */
+/** `apps/ui/src/screens` → the repo root, as `DeckView.test.ts` does it. */
+const ROOT = resolve(import.meta.dirname ?? 'apps/ui/src/screens', '..', '..', '..', '..');
+const readRepo = (repoPath: string): string => readFileSync(resolve(ROOT, repoPath), 'utf8');
+
+const collectionOf = (id: string): LibraryCollection => {
+  const found = LIBRARY.find((c) => c.id === id);
+  if (found === undefined) throw new Error(`no collection ${id}`);
+  return found;
+};
+
+/** A real library deck, in the shape `GET /tables/decks` sends it. */
+function realDeck(collectionId: string, file: string): TableDeck {
+  const collection = collectionOf(collectionId);
+  const entry = collection.decks.find((d) => d.file === file);
+  if (entry === undefined) throw new Error(`no ${file} in ${collectionId}`);
+  const parsed = parseDck(readRepo(deckPath(collection, entry)));
+  // Every library deck names itself — `library.test.ts` refuses one that does
+  // not — so a null here is a broken file, not a case to tolerate.
+  if (parsed.name === null) throw new Error(`${file} has no [metadata] Name`);
+  const lines = (section: string) =>
+    (parsed.sections.get(section) ?? []).map((e) => ({ count: e.count, name: e.card.name }));
+  return {
+    id: entry.id,
+    collection: collection.id,
+    name: parsed.name,
+    format: collection.format,
+    date: collection.date,
+    provenance: 'Transcribed from mtgtop8.',
+    citation: collection.source,
+    main: lines('main'),
+    sideboard: lines('sideboard'),
   };
+}
 
-  /** A real library deck, in the shape `GET /tables/decks` sends it. */
-  function realDeck(collectionId: string, file: string): TableDeck {
-    const collection = collectionOf(collectionId);
-    const entry = collection.decks.find((d) => d.file === file);
-    if (entry === undefined) throw new Error(`no ${file} in ${collectionId}`);
-    const parsed = parseDck(readRepo(deckPath(collection, entry)));
-    // Every library deck names itself — `library.test.ts` refuses one that does
-    // not — so a null here is a broken file, not a case to tolerate.
-    if (parsed.name === null) throw new Error(`${file} has no [metadata] Name`);
-    const lines = (section: string) =>
-      (parsed.sections.get(section) ?? []).map((e) => ({ count: e.count, name: e.card.name }));
-    return {
-      id: entry.id,
-      collection: collection.id,
-      name: parsed.name,
-      format: collection.format,
-      date: collection.date,
-      provenance: 'Transcribed from mtgtop8.',
-      citation: collection.source,
-      main: lines('main'),
-      sideboard: lines('sideboard'),
-    };
-  }
+const UW_DELVER = realDeck('pt-dark-ascension-2012-standard', '6-matthew-costa-uw-delver.dck');
+const MONO_GREEN = realDeck('scg-kansas-city-2012-standard', '2-nick-marriott-mono-green-infect.dck');
 
-  const UW_DELVER = realDeck('pt-dark-ascension-2012-standard', '6-matthew-costa-uw-delver.dck');
-  const MONO_GREEN = realDeck('scg-kansas-city-2012-standard', '2-nick-marriott-mono-green-infect.dck');
+describe('the deck dropdown shows its colours', () => {
 
   /** The same answer, from the frozen pool rather than from the shipped slice. */
   function fromTheFixture(deck: TableDeck): string {
@@ -1765,15 +1895,9 @@ describe('the deck dropdown shows its colours', () => {
     ).join('');
   }
 
-  const option = (select: HTMLSelectElement, value: string): HTMLOptionElement => {
-    const found = [...select.options].find((o) => o.value === value);
-    if (found === undefined) throw new Error(`no option ${value}`);
-    return found;
-  };
-
-  async function mountWithRealDecks(): Promise<HTMLSelectElement> {
+  async function mountWithRealDecks(): Promise<HTMLElement> {
     await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, MONO_GREEN] });
-    return deckSelect();
+    return deckPicker();
   }
 
   /** The pips beside the control: one `<span data-color>` per colour, in WUBRG order. */
@@ -1784,15 +1908,20 @@ describe('the deck dropdown shows its colours', () => {
     }));
 
   it('a two-colour deck carries two colours, and a mono-colour deck one', async () => {
-    const select = await mountWithRealDecks();
+    await mountWithRealDecks();
 
-    const two = option(select, UW_DELVER.id);
+    const two = deckRow(UW_DELVER.id);
     expect(two.dataset['colors']).toBe('WU');
-    expect(two.textContent).toBe(`${UW_DELVER.name} · WU`);
+    // The row's own visible text is the deck's NAME and nothing else: the ` · WU`
+    // suffix the `<option>` needed is gone, because the row draws real pips.
+    expect(rowName(two)).toBe(UW_DELVER.name);
+    expect(two.textContent).toBe(UW_DELVER.name);
+    expect(within(two).getByTestId('deck-colors').dataset['colors']).toBe('WU');
 
-    const one = option(select, MONO_GREEN.id);
+    const one = deckRow(MONO_GREEN.id);
     expect(one.dataset['colors']).toBe('G');
-    expect(one.textContent).toBe(`${MONO_GREEN.name} · G`);
+    expect(rowName(one)).toBe(MONO_GREEN.name);
+    expect(within(one).getByTestId('deck-colors').dataset['colors']).toBe('G');
 
     // Not a second fold, and not a second map: the shipped slice the screen
     // reads and the frozen pool it was cut from say the same thing, through the
@@ -1823,28 +1952,249 @@ describe('the deck dropdown shows its colours', () => {
     expect(pips()).toEqual([{ color: 'G', glyph: 'ms ms-g ms-cost' }]);
   });
 
-  it('says the colours in words too, because an option cannot be coloured', async () => {
-    const select = await mountWithRealDecks();
+  it('names the colours for a reader, because colour is never the only signal', async () => {
+    await mountWithRealDecks();
     await pick(UW_DELVER.id);
-    // Colour is never the only signal: the letters are in the option's own text
-    // and the pips carry an accessible name. An `<option>`'s own colour cannot
-    // be styled portably, so this is the only place either could live.
+    // Two accessible names now, and neither is a colour: the chosen deck's line
+    // beside the control, and the row's own pips. The ` · WU` letters the
+    // `<option>` had to carry are gone — a `::before` glyph could not live in one,
+    // and it can live in a row.
     expect(within(screen.getByTestId('deck-mine-colors')).getByLabelText("your deck's colours: W U")).toBeTruthy();
-    expect(option(select, UW_DELVER.id).textContent).toContain('WU');
+    expect(
+      within(deckRow(UW_DELVER.id)).getByLabelText(`${UW_DELVER.name}: W U`),
+    ).toBeTruthy();
   });
 
   it('a deck with no coloured card in it says colourless rather than nothing', async () => {
     // `DECKS`' stand-in plays sixty Islands, which is the real shape of this
     // case: a land contributes no cost, and absence from the map is what
     // `deckColorsByName` reads as "no coloured pip".
-    const select = await (async () => {
-      await mountRoom({ players: [], matchId: null });
-      return deckSelect();
-    })();
-    expect(option(select, BEN_STARK).dataset['colors']).toBe('');
-    expect(option(select, BEN_STARK).textContent).toBe('Mystic Caw Go (Ben Stark)');
+    await mountRoom({ players: [], matchId: null });
+    await deckPicker();
+    expect(deckRow(BEN_STARK).dataset['colors']).toBe('');
+    expect(rowName(deckRow(BEN_STARK))).toBe('Mystic Caw Go (Ben Stark)');
+    // A colourless deck's row says the word rather than drawing nothing.
+    expect(within(deckRow(BEN_STARK)).getByTestId('deck-colors').textContent).toBe('colourless');
     await pick(BEN_STARK);
     expect(pips()).toEqual([]);
     expect(screen.getByTestId('deck-mine-colors').textContent).toBe('colourless');
+  });
+});
+
+/* ── the deck chooser is not a dropdown (wave 28 §C, item 2) ────────────── */
+
+/**
+ * *"the deck chooser dropdown is very ugly, needs a complete redesign. it should
+ * have a partial art that represents the deck and the two colored symbols. we
+ * cannot use a standard dropdown for this."*
+ *
+ * Three things have to be true at once, and each one alone is a broken control:
+ * the rows have to SHOW something (art, colours, name), the control has to say
+ * which deck is chosen, and it has to be operable without a mouse. Replacing a
+ * `<select>` with divs loses the last two silently, which is why they are asserted
+ * here rather than looked at once.
+ *
+ * Asserted on what a browser would paint — the glyph classes the fonts define and
+ * the URL an `<img>` would fetch — not on the presence of a node. That is the
+ * lesson the old `<option>` comment leaves behind, and it outlived the dropdown.
+ */
+describe('the deck chooser', () => {
+  async function mountChooser(): Promise<HTMLElement> {
+    await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, MONO_GREEN] });
+    return deckPicker();
+  }
+
+  const rows = (): HTMLElement[] => [
+    ...screen.getByTestId('deck-mine').querySelectorAll<HTMLElement>('[data-testid="deck-option"]'),
+  ];
+
+  it('is not a select, and draws one card-like row per legal deck', async () => {
+    const group = await mountChooser();
+
+    // Not a dropdown, and not divs pretending: a radio group of real buttons, so
+    // Space and Enter activate a row without a key handler of ours.
+    expect(group.tagName).toBe('DIV');
+    expect(group.getAttribute('role')).toBe('radiogroup');
+    // No dropdown INSIDE it either — the pool's own `<select>` is still on the
+    // card and is a different control.
+    expect(group.querySelectorAll('select, option')).toHaveLength(0);
+    expect(offered()).toEqual([UW_DELVER.id, MONO_GREEN.id]);
+    for (const row of rows()) {
+      expect(row.tagName).toBe('BUTTON');
+      expect(row.getAttribute('type')).toBe('button');
+      expect(row.getAttribute('role')).toBe('radio');
+    }
+
+    // Each row paints the three things the operator asked for: the deck's name,
+    // its colours as REAL glyphs (which an `<option>` could not hold), and a slice
+    // of art. The pip classes are the font's own, asserted as classes because that
+    // is what decides whether a browser draws a symbol or nothing.
+    const uw = deckRow(UW_DELVER.id);
+    expect(rowName(uw)).toBe(UW_DELVER.name);
+    expect(
+      [...uw.querySelectorAll('.deckcolors__pip i')].map((i) => i.className),
+    ).toEqual(['ms ms-w ms-cost', 'ms ms-u ms-cost']);
+    expect([...deckRow(MONO_GREEN.id).querySelectorAll('.deckcolors__pip i')].map((i) => i.className)).toEqual([
+      'ms ms-g ms-cost',
+    ]);
+
+    // The art is a LOOKUP: the id the rule chose, resolved by the one function in
+    // this app that builds an image URL. Asserting the exact URL it composes is
+    // what proves no second path was invented — and the host is whichever
+    // `@hadoku/carddata/art` allows, never one written down here.
+    const geist = (ART_IDS as { ids: Record<string, string> }).ids['Geist of Saint Traft'];
+    expect(geist).toBeDefined();
+    const src = uw.querySelector('img')?.getAttribute('src');
+    expect(src).toBe(cardImageUrl(geist));
+    expect(ALLOWED_ART_HOSTS.some((host) => (src ?? '').startsWith(host))).toBe(true);
+    // Decorative: the row's accessible name is the DECK's, not the card's.
+    expect(uw.querySelector('img')?.getAttribute('alt')).toBe('');
+    expect(uw.textContent).not.toContain('Geist of Saint Traft');
+  });
+
+  it('says which deck is chosen, in the DOM and for a reader', async () => {
+    const group = await mountChooser();
+    // Nothing chosen: no row checked, and no row claiming to be.
+    expect(group.dataset['chosen']).toBe('');
+    expect(rows().map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'false']);
+
+    await pick(MONO_GREEN.id);
+
+    expect(chosen()).toBe(MONO_GREEN.id);
+    expect(rows().map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'true']);
+    // And a mark a person can see, because `aria-checked` paints nothing. Its own
+    // colouring is not the only signal either — the chosen row is ringed.
+    expect(deckRow(MONO_GREEN.id).querySelector('.deckpick__mark')?.textContent).toBe('chosen');
+    expect(deckRow(UW_DELVER.id).querySelector('.deckpick__mark')).toBeNull();
+    expect(SCREENS_CSS).toMatch(/\.deckpick__option\[aria-checked='true'\] \{[^}]*box-shadow: inset 0 0 0 2px/);
+  });
+
+  it('is operable by keyboard: one tab stop, arrows choose, and nothing wraps', async () => {
+    const group = await mountChooser();
+
+    // One row in the tab order, and before anything is chosen it is the first —
+    // a group where every row is tabbable is a group you cannot tab out of.
+    expect(rows().map((r) => r.tabIndex)).toEqual([0, -1]);
+
+    // Down: the second deck is focused AND chosen, which is what a native
+    // `<select>` did on the same key press.
+    await act(async () => {
+      fireEvent.keyDown(group, { key: 'ArrowDown' });
+    });
+    expect(document.activeElement).toBe(deckRow(MONO_GREEN.id));
+    expect(chosen()).toBe(MONO_GREEN.id);
+    expect(rows().map((r) => r.tabIndex)).toEqual([-1, 0]);
+
+    // Up: back to the first.
+    await act(async () => {
+      fireEvent.keyDown(group, { key: 'ArrowUp' });
+    });
+    expect(document.activeElement).toBe(deckRow(UW_DELVER.id));
+    expect(chosen()).toBe(UW_DELVER.id);
+
+    // Up again at the top does NOT wrap onto the last deck. A `<select>` does not
+    // wrap, and wrapping here would silently re-send a different deck.
+    await act(async () => {
+      fireEvent.keyDown(group, { key: 'ArrowUp' });
+    });
+    expect(chosen()).toBe(UW_DELVER.id);
+
+    // End and Home reach the ends without visiting what is between them.
+    await act(async () => {
+      fireEvent.keyDown(group, { key: 'End' });
+    });
+    expect(chosen()).toBe(MONO_GREEN.id);
+    await act(async () => {
+      fireEvent.keyDown(group, { key: 'Home' });
+    });
+    expect(chosen()).toBe(UW_DELVER.id);
+
+    // ArrowLeft/ArrowRight are the same two directions, for a grid that wraps to
+    // rows on a narrow screen.
+    await act(async () => {
+      fireEvent.keyDown(group, { key: 'ArrowRight' });
+    });
+    expect(chosen()).toBe(MONO_GREEN.id);
+    await act(async () => {
+      fireEvent.keyDown(group, { key: 'ArrowLeft' });
+    });
+    expect(chosen()).toBe(UW_DELVER.id);
+
+    // The keyboard is not a second, quieter path: choosing by key loaded the deck
+    // through the same call a click makes, and the server answered a verdict.
+    await waitFor(() => expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in'));
+  });
+
+  it('keeps the tab stop on the deck the server is already holding', async () => {
+    // A roving tab stop that ignores the choice sends a keyboard user to one deck
+    // while the screen says another is loaded. So until they move it themselves,
+    // the stop IS the chosen row — including a choice that arrived from the room.
+    await mountChooser();
+    await pick(MONO_GREEN.id);
+    expect(rows().map((r) => r.tabIndex)).toEqual([-1, 0]);
+  });
+
+  it('is dead until the pool answers, and says so where a test can read it', async () => {
+    // `aria-disabled` rather than a `disabled` property, because the root is not a
+    // form control any more — and Playwright's `toBeEnabled()` reads it, which is
+    // what keeps the three e2e specs' wait meaningful after the re-aim.
+    await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, MONO_GREEN] });
+    const group = await screen.findByTestId('deck-mine');
+    await deckPicker();
+    expect(group.getAttribute('aria-disabled')).toBeNull();
+    expect(rows()).toHaveLength(2);
+    for (const row of rows()) expect((row as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('Random is a button beside the decks, not a deck that can be chosen', async () => {
+    await mountChooser();
+    // It is not one of the rows, because it is not a state a deck can be in: it
+    // resolves to one of them and the chooser then reads THAT deck.
+    expect(offered()).not.toContain(RANDOM_DECK);
+    const random = screen.getByTestId('deck-random');
+    expect(random.getAttribute('role')).toBeNull();
+    await act(async () => {
+      fireEvent.click(random);
+    });
+    expect([UW_DELVER.id, MONO_GREEN.id]).toContain(chosen());
+  });
+});
+
+/**
+ * The art rule, on its own: the most expensive card the deck plays.
+ *
+ * A deck has no art of its own, so the rule is a decision and the decision is
+ * testable without a screen. Its consequence on real lists is what matters —
+ * these are the cards the decks are NAMED after, which is the whole reason the
+ * rule is "most expensive" and not "first non-land".
+ */
+describe('which card’s art stands for a deck', () => {
+  it('reads a Scryfall cost string the way Scryfall counts it', () => {
+    expect(manaValueOf('{3}{G}{G}')).toBe(5);
+    expect(manaValueOf('{1}')).toBe(1);
+    // Twobrid pays the generic half; Phyrexian and hybrid are one mana each.
+    expect(manaValueOf('{2/W}')).toBe(2);
+    expect(manaValueOf('{R/P}')).toBe(1);
+    expect(manaValueOf('{W/U}{W/U}')).toBe(2);
+    // X is zero on the stack-independent count, which is Scryfall's `cmc`.
+    expect(manaValueOf('{X}{R}')).toBe(1);
+    // A land has no cost string at all, which is how a land is excluded.
+    expect(manaValueOf('')).toBe(0);
+  });
+
+  it('picks the card each real deck is named after', () => {
+    // `LIBRARY_CARD_COSTS` has no land in it, so the lands in these lists cannot
+    // win — and every id resolves through the committed table the play board uses.
+    const pickFor = (deck: TableDeck): string => {
+      const best = deck.main
+        .flatMap((line) => {
+          const cost = LIBRARY_CARD_COSTS[line.name];
+          return cost === undefined ? [] : [{ name: line.name, count: line.count, value: manaValueOf(cost) }];
+        })
+        .sort((a, b) => b.value - a.value || b.count - a.count || (a.name < b.name ? -1 : 1))[0];
+      return best?.name ?? '';
+    };
+    expect(pickFor(UW_DELVER)).toBe('Geist of Saint Traft');
+    expect(pickFor(MONO_GREEN)).toBe('Wild Defiance');
   });
 });

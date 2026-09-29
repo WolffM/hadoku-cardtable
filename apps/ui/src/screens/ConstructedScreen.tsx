@@ -129,20 +129,35 @@
  * It points back at the room list rather than rendering a table with no room.
  */
 
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 
+import {
+  artIdIndexFromTable,
+  scryfallIdFor,
+  type ArtIdIndex,
+  type ArtIdTableFile,
+} from '@hadoku/carddata/art';
 import { basicLand, mainDeckSize, moveToMain, setBasicLand, type Deck } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
 import { navigate } from './route.ts';
 import { PodScreen } from './PodScreen.tsx';
-import { SetSymbol } from '../components/ManaPip.tsx';
 import {
   DeckColors,
   deckColorsByName,
   mainDeckColors,
+  manaTokensOf,
   type DeckColor,
 } from '../components/DeckView.tsx';
+import artIdsData from '../draft/art-ids.json' with { type: 'json' };
+import { cardImageUrl } from '../draft/cardImage.ts';
 import { cardIndex, mainSummary } from '../deck/build.ts';
 import { deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
 import { closeDraft, startDraft, type DraftTransport, type SocketDraft } from '../draft/socket.ts';
@@ -208,44 +223,96 @@ type Loaded = { formats: TableFormat[]; decks: TableDeck[] };
  * value the screen cannot expand is still the value.
  */
 /**
- * One row of the deck dropdown: what it sends, what it reads, what colour it is.
+ * One row of the deck chooser: what it sends, what it reads, what colour it is,
+ * and which card's art stands for it.
  *
- * The colours are folded once, here, and used twice — in the option's own text
- * and in the pips beside the control — so the letters and the symbols cannot
- * disagree with each other either.
+ * The colours are folded once, here, and used twice — in the row's own pips and
+ * in the pips beside the control — so the two cannot disagree with each other.
  */
 interface DeckOption {
   value: string;
   label: string;
   colors: readonly DeckColor[];
+  /**
+   * The Scryfall id of the card whose art represents this deck, or undefined
+   * when nothing in the list could be resolved. See {@link deckArtId}.
+   */
+  artId?: string | undefined;
+}
+
+/** Converted mana cost of one Scryfall cost token — `'3'` → 3, `'2/W'` → 2, `'X'` → 0. */
+function tokenValue(token: string): number {
+  if (/^\d+$/.test(token)) return Number(token);
+  const generic = token.split('/').find((part) => /^\d+$/.test(part));
+  if (generic !== undefined) return Number(generic);
+  return token === 'X' || token === 'Y' || token === 'Z' ? 0 : 1;
+}
+
+/** Converted mana cost of a Scryfall cost string. Scryfall's own `cmc`, recomputed. */
+export function manaValueOf(cost: string): number {
+  return manaTokensOf(cost).reduce((total, token) => total + tokenValue(token), 0);
+}
+
+/** A maindeck card the art rule may choose between. */
+interface ArtCandidate {
+  name: string;
+  count: number;
+  manaValue: number;
+  scryfallId?: string | undefined;
 }
 
 /**
- * An option's visible text: the deck's name, then its colours as letters.
+ * The card whose art stands for a deck — **the most expensive card it plays**,
+ * ties broken by how many copies, then by name.
  *
- * **Letters, and not pips, and that is not a shortcut.** `<option>` has a
- * text-only content model: a `<span>` put inside one by React stays in the DOM
- * but a browser draws only the option's text, so `::before`-driven font glyphs
- * — which is what every symbol in this app is since D20 — render as nothing at
- * all. A test that counted pip elements inside an `<option>` would pass against
- * a dropdown that shows a player nothing.
+ * A deck has no art of its own, so a rule has to be chosen and written down.
+ * This is the rule, and it is the most expensive card rather than the first
+ * non-land because the expensive card is the one the deck is usually NAMED
+ * after: it gives Primeval Titan for Kessig Titan, Geist of Saint Traft for UW
+ * Delver, Etched Champion for Tempered Steel and Avenger of Zendikar for Valakut
+ * Ramp. "First non-land" would give whatever the transcription happened to list
+ * first, which for these files is alphabetical inside the creature block.
  *
- * The control stays a `<select>` for a second reason: six specs drive it with
- * Playwright's `selectOption` (`play`, `table-fit`, `arrow`, `room-mode`,
- * `streamed-live`), and a listbox of divs would break every one of them.
+ * Copies before name because two six-drops is common and the four-of is the
+ * deck's plan; name last so the answer is total and a re-render cannot flicker.
  *
- * So the dropdown says `WU` — which is how mtgtop8, every decklist site and
- * every player writes a deck's colours — and the SYMBOLS are rendered beside the
- * control, where markup is allowed, for whichever deck is chosen. Letters also
- * happen to be the accessible half: an `<option>`'s colour cannot be styled
- * portably, so colour could never have been the signal here.
+ * **A card with no mana cost is not a candidate**, which is how a land is
+ * excluded without a type line: the library arm learns costs from
+ * `LIBRARY_CARD_COSTS`, where every land is simply absent, and the drafted arm
+ * reads `DraftCard.manaCost`, which is empty for one. All 49 catalogued library
+ * decks resolve under this rule — verified against
+ * `apps/ui/src/draft/art-ids.json`, whose scope is *"every card in the committed
+ * decks/ lists"* plus a bare-name fallback row.
  *
- * A colourless deck gets no suffix rather than a `—`: there is nothing to say,
- * and an em dash beside a deck name reads like a missing value.
+ * Undefined when nothing resolves; the row then draws its colours and no art,
+ * which is a complete option on its own.
  */
-function optionLabel(option: DeckOption): string {
-  return option.colors.length === 0 ? option.label : `${option.label} · ${option.colors.join('')}`;
+export function deckArtId(candidates: readonly ArtCandidate[]): string | undefined {
+  const best = [...candidates].sort(
+    (a, b) =>
+      b.manaValue - a.manaValue ||
+      b.count - a.count ||
+      (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+  )[0];
+  return best?.scryfallId;
 }
+
+/**
+ * `Name|SET` and bare `Name` → Scryfall id, for every card the committed
+ * constructed lists play.
+ *
+ * The same committed table the play board resolves art through
+ * (`scripts/art/build-art-ids.ts` generates it; `apps/ui/src/play/adapter.ts`
+ * loads it for the same reason), read here through `@hadoku/carddata/art` rather
+ * than through that file, so this screen does not depend on the play surface's
+ * module layout. It is already in this bundle — the app is not code-split — so
+ * importing it here costs no bytes.
+ *
+ * **A lookup, not a URL** (D15): nothing here names a host. The id goes to
+ * `cardImageUrl`, which is the only place in the UI that builds one, and
+ * repointing a card stays a one-line edit in `art-manifest.json`.
+ */
+const LIBRARY_ART_IDS: ArtIdIndex = artIdIndexFromTable(artIdsData as ArtIdTableFile);
 
 function poolLabel(formats: readonly TableFormat[], id: string): string {
   const found = formats.find((f) => f.id === id);
@@ -353,14 +420,347 @@ function poolFieldLabel(pod: string | null): string {
   return pod === null ? 'Matched Standard' : 'Drafted pool';
 }
 
+/* ── the era's sets, grouped by block (wave 28 §C, item 1) ─────────────── */
+
+/**
+ * Which block Scryfall files each set the eras are made of under.
+ *
+ * **A static map, on purpose, and here is the reason** — the alternative was to
+ * put the block in the pool fixtures through their own generator
+ * (`packages/deck/src/library/build-pool-fixture.ts`), and that generator
+ * **cannot answer the question**. It reads `packages/carddata/data/cards.jsonl`,
+ * Scryfall's `default_cards` bulk export, and a Scryfall CARD object carries
+ * `set`, `set_name` and `set_type` and **no `block` field at all** (verified
+ * against the committed corpus: every key of a card row is listed by
+ * `head -1 cards.jsonl`, and `block` is not among them). `block` and `block_code`
+ * live on the SET object, which only `api.scryfall.com/sets` serves, so the
+ * fixture route would have meant a new network dependency in a generator that has
+ * none — for twelve rows that cannot change, because the eras are frozen.
+ *
+ * So: twelve codes, four groups, each one verified against
+ * `https://api.scryfall.com/sets` on 2026-09-28 rather than remembered —
+ *
+ *   ZEN WWK ROE → Zendikar (`zen`)
+ *   SOM MBS NPH → Scars of Mirrodin (`som`)
+ *   ISD DKA AVR → Innistrad (`isd`)
+ *   M11 M12 M13 → Core Set (`lea`)
+ *
+ * The core sets really are one Scryfall block whose `block_code` is `lea`, i.e.
+ * Alpha, 1993. That is why {@link groupSetsByBlock} does not order blocks by
+ * their own earliest set: it would put the core block in front of everything.
+ */
+interface SetBlock {
+  readonly block: string;
+  readonly blockCode: string;
+}
+
+const ZENDIKAR: SetBlock = { block: 'Zendikar', blockCode: 'zen' };
+const SCARS: SetBlock = { block: 'Scars of Mirrodin', blockCode: 'som' };
+const INNISTRAD: SetBlock = { block: 'Innistrad', blockCode: 'isd' };
+const CORE: SetBlock = { block: 'Core Set', blockCode: 'lea' };
+
+/** A set this screen has no block recorded for still draws, in a group of its own. */
+const UNKNOWN_BLOCK: SetBlock = { block: 'Other sets', blockCode: 'other' };
+
+const SET_BLOCKS: Readonly<Record<string, SetBlock>> = {
+  ZEN: ZENDIKAR,
+  WWK: ZENDIKAR,
+  ROE: ZENDIKAR,
+  SOM: SCARS,
+  MBS: SCARS,
+  NPH: SCARS,
+  ISD: INNISTRAD,
+  DKA: INNISTRAD,
+  AVR: INNISTRAD,
+  M11: CORE,
+  M12: CORE,
+  M13: CORE,
+};
+
+/** One block's worth of an era: the block, and the era's sets that belong to it. */
+export interface SetBlockGroup {
+  readonly block: string;
+  readonly blockCode: string;
+  readonly codes: string[];
+}
+
+/**
+ * An era's sets, gathered into their blocks.
+ *
+ * Order: the sets arrive in release order (`GET /api/tables/formats` sends the
+ * format's own list, and `standardPoolAt` builds it oldest-first), and that order
+ * is kept INSIDE each group. The groups themselves come in first-appearance
+ * order, except that the core-set block goes last and an unrecognised set's group
+ * after it. Core last rather than in place because a core set is not part of the
+ * story its neighbours tell, and because `M12` sits between `NPH` and `ISD` in
+ * release order — leaving it there would split the two expansion blocks it falls
+ * between, which is exactly the cramped, ungrouped look the operator objected to.
+ */
+export function groupSetsByBlock(sets: readonly string[]): SetBlockGroup[] {
+  const groups = new Map<string, SetBlockGroup>();
+  for (const code of sets) {
+    const meta = SET_BLOCKS[code.toUpperCase()] ?? UNKNOWN_BLOCK;
+    const held = groups.get(meta.blockCode);
+    if (held === undefined) groups.set(meta.blockCode, { ...meta, codes: [code] });
+    else held.codes.push(code);
+  }
+  const rank = (blockCode: string): number =>
+    blockCode === UNKNOWN_BLOCK.blockCode ? 2 : blockCode === CORE.blockCode ? 1 : 0;
+  // Stable sort, so first-appearance order survives inside a rank.
+  return [...groups.values()].sort((a, b) => rank(a.blockCode) - rank(b.blockCode));
+}
+
+/**
+ * The era's sets, as symbols and NOTHING else.
+ *
+ * Operator, 2026-09-28: *"this is ugly, just the symbols is okay. group them by
+ * block and make them bigger."* So the raw set code that used to sit beside every
+ * glyph is gone, the glyph is `2rem` (`screens.css`), and the sets are clustered
+ * into their blocks with a gap between clusters.
+ *
+ * **The code is gone from the TEXT, not from the DOM's reach.** Hiding it in CSS
+ * would have left it in `textContent`, which is a test that passes against a row
+ * nobody can read — the trap the old `<option>` comment warned about. So the row
+ * carries no text at all, and every set is still identifiable: `data-set` and a
+ * `title` per glyph, and the block's name and its codes in the group's
+ * `aria-label`, which is what a screen reader gets instead of twelve bare glyphs.
+ *
+ * Keyrune glyphs, from a third-party font — never a WotC file and never
+ * `svgs.scryfall.io` (D20, `docs/LICENSING.md` §3.2). This deliberately does not
+ * use `components/ManaPip.tsx`'s `SetSymbol`, which renders the code beside the
+ * glyph by construction and is `CardTile`'s, not this screen's.
+ *
+ * A drafted pool has no set list and draws nothing, which is the truth about it:
+ * a cube is not an era.
+ */
 function PoolSets({ format }: { format: TableFormat | null }) {
   if (format === null || format.sets.length === 0) return null;
   return (
     <p className="lobby__sets" data-testid="pool-sets" data-sets={format.sets.join(' ')}>
-      {format.sets.map((code) => (
-        <SetSymbol key={code} code={code} />
+      {groupSetsByBlock(format.sets).map((group) => (
+        <span
+          key={group.blockCode}
+          className="lobby__block"
+          data-testid="pool-block"
+          data-block={group.blockCode}
+          data-sets={group.codes.join(' ')}
+          aria-label={`${group.block}: ${group.codes.join(' ')}`}
+        >
+          {group.codes.map((code) => (
+            <i
+              key={code}
+              className={`ss ss-${code.toLowerCase()}`}
+              data-set={code}
+              title={code}
+              aria-hidden="true"
+            />
+          ))}
+        </span>
       ))}
     </p>
+  );
+}
+
+/* ── the deck chooser, which is not a dropdown (wave 28 §C, item 2) ─────── */
+
+/**
+ * A deck's art: a slice of the card the art rule chose, or nothing.
+ *
+ * **A lookup, not a URL.** The id goes to `cardImageUrl`, the one function in
+ * this app that builds an image URL, which resolves it through
+ * `art-manifest.json` — so repointing a card is still a one-line data edit and
+ * this component names no host (D15). No bytes ship in the bundle: this is an
+ * `<img src>` at a remote origin, and D18 repealed the restriction on which one.
+ *
+ * `normal` is what `cardImageUrl` defaults to: the whole card face, unmodified.
+ * The SLICE is a CSS crop of those bytes for layout — `object-fit: cover` on a
+ * short box — which is what *"a partial art that represents the deck"* asks for,
+ * and it is a display crop rather than an `art_crop` URL, so we are still not
+ * copying anybody's image metadata.
+ *
+ * Decorative, and deliberately: `alt=""` plus `aria-hidden`. The row's accessible
+ * name is the DECK's name, and announcing "Primeval Titan" for a deck called
+ * Kessig Titan would be telling a screen-reader user about our art rule.
+ *
+ * A URL that 404s (a CDN key never uploaded) only shows up at fetch time, so
+ * `onError` falls back to the same empty band an unresolved id gets.
+ */
+function DeckArt({ artId }: { artId: string | undefined }) {
+  const [broken, setBroken] = useState(false);
+  const url = artId === undefined ? null : cardImageUrl(artId);
+  if (url === null || broken) {
+    return <span className="deckpick__art deckpick__art--none" aria-hidden="true" />;
+  }
+  return (
+    <span className="deckpick__art" aria-hidden="true">
+      <img src={url} alt="" loading="lazy" onError={() => setBroken(true)} />
+    </span>
+  );
+}
+
+/**
+ * The deck chooser: one card-like row per legal deck, and not a `<select>`.
+ *
+ * Operator, 2026-09-28: *"the deck chooser dropdown is very ugly, needs a
+ * complete redesign. it should have a partial art that represents the deck and
+ * the two colored symbols. we cannot use a standard dropdown for this."*
+ *
+ * ## What the dropdown's own comment got right, and what dissolved with it
+ *
+ * The previous author argued FOR the `<select>`, and one of their two reasons
+ * dissolves the moment it stops being one: `<option>` has a text-only content
+ * model, so a `<span>` React puts inside one stays in the DOM while the browser
+ * draws only the option's text — every symbol in this app is a `::before`-driven
+ * font glyph since D20, so a pip inside an `<option>` rendered as nothing at all,
+ * and *"a test that counted pip elements inside an `<option>` would pass against
+ * a dropdown that shows a player nothing"*. Real elements hold real glyphs, so
+ * the pips are in the rows now.
+ *
+ * **The lesson survives, because it was never about `<option>`:** assert on what
+ * a browser would paint. `constructed.test.ts` asserts the glyph CLASSES the
+ * fonts define and the text the rows carry, not that some node exists inside
+ * them.
+ *
+ * Their second reason was real: three e2e specs drove it with Playwright's
+ * `selectOption` — `e2e/play.spec.ts`, `e2e/arrow.spec.ts`, `e2e/table-fit.spec.ts`
+ * (`room-mode` and `streamed-live` only ever asserted its presence, so the old
+ * comment's "six specs" was already stale). None of those files is this lane's,
+ * so the shape here is chosen to make each re-aim ONE line: `deck-mine` stays on
+ * the ROOT, every row carries `data-deck-id="<library id>"`, and the root carries
+ * `aria-disabled` so `toBeEnabled()` still means something.
+ * `docs/planning/wave28-evidence/C-deck-chooser-e2e-recipe.md` has the exact
+ * before/after line for each spec.
+ *
+ * The `Name · WU` letters the dropdown carried are gone, and colour is still not
+ * the only signal: a Mana-font pip draws the colour's LETTER inside the coloured
+ * disc, and `DeckColors` names the colours in an `aria-label` besides. The
+ * letters were in the text only because an `<option>`'s colour cannot be styled.
+ *
+ * ## Keyboard, which a div cannot get for free
+ *
+ * A `role="radiogroup"` of `role="radio"` BUTTONS: native buttons, so Space and
+ * Enter activate without a handler, and `disabled` is the real thing rather than
+ * a class. One row is in the tab order at a time (a roving `tabIndex`), and until
+ * somebody presses something that stop is the CHOSEN row — otherwise Tab would
+ * land on one deck while another is checked. Arrow keys move focus and choose, as
+ * the ARIA radio-group pattern says; choosing on arrow is also what the
+ * `<select>` did, since a closed native select fires `change` on every arrow
+ * press, so no extra `PUT` per keystroke has been introduced. Home and End jump
+ * to the ends, and nothing wraps — a `<select>` does not wrap either, and here
+ * wrapping past the end would silently re-roll onto another deck.
+ *
+ * `aria-checked` is what says which deck is chosen; `data-chosen` on the root is
+ * the same fact for a test, and the row also paints a mark.
+ */
+function DeckChooser({
+  options,
+  value,
+  disabled,
+  onChoose,
+}: {
+  options: readonly DeckOption[];
+  value: string;
+  disabled: boolean;
+  onChoose: (value: string) => void;
+}) {
+  /** Where Tab lands. Null until the reader moves it, so it follows the choice. */
+  const [focus, setFocus] = useState<number | null>(null);
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const chosen = options.findIndex((o) => o.value === value);
+  const stop = focus ?? (chosen >= 0 ? chosen : 0);
+
+  const goTo = (index: number): void => {
+    const next = Math.max(0, Math.min(options.length - 1, index));
+    const row = options[next];
+    if (row === undefined) return;
+    setFocus(next);
+    refs.current[next]?.focus();
+    onChoose(row.value);
+  };
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const step =
+      event.key === 'ArrowDown' || event.key === 'ArrowRight'
+        ? 1
+        : event.key === 'ArrowUp' || event.key === 'ArrowLeft'
+          ? -1
+          : 0;
+    if (step !== 0) {
+      event.preventDefault();
+      goTo(stop + step);
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      goTo(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      goTo(options.length - 1);
+    }
+  };
+
+  return (
+    <div
+      className="deckpick"
+      id="deck-mine"
+      data-testid="deck-mine"
+      role="radiogroup"
+      aria-labelledby="deck-mine-label"
+      aria-disabled={disabled ? 'true' : undefined}
+      data-chosen={value}
+      onKeyDown={disabled ? undefined : onKeyDown}
+    >
+      {options.map((option, index) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          className="deckpick__option"
+          data-testid="deck-option"
+          data-deck-id={option.value}
+          data-colors={option.colors.join('')}
+          aria-checked={option.value === value}
+          tabIndex={stop === index ? 0 : -1}
+          disabled={disabled}
+          ref={(el) => {
+            refs.current[index] = el;
+          }}
+          onFocus={() => setFocus(index)}
+          onClick={() => onChoose(option.value)}
+        >
+          <DeckArt artId={option.artId} />
+          <span className="deckpick__name">{option.label}</span>
+          <DeckColors
+            colors={option.colors}
+            label={`${option.label}: ${
+              option.colors.length === 0 ? 'colourless' : option.colors.join(' ')
+            }`}
+          />
+          {option.value === value && (
+            <span className="deckpick__mark" aria-hidden="true">
+              chosen
+            </span>
+          )}
+        </button>
+      ))}
+      {/*
+        Random is a BUTTON and not one of the radios, because it is not a state a
+        deck can be in: it resolves to one of the decks on offer and the chooser
+        then reads that deck (`chooseDeck`). A radio that can never stay checked
+        would be lying about itself.
+      */}
+      <button
+        type="button"
+        className="deckpick__random"
+        data-testid="deck-random"
+        data-deck-id={RANDOM_DECK}
+        disabled={disabled}
+        onClick={() => onChoose(RANDOM_DECK)}
+      >
+        Random
+      </button>
+    </div>
   );
 }
 
@@ -787,11 +1187,28 @@ function RoomTableScreen({
     if (pod !== null) {
       if (!podAnswered) return null;
       if (draftedDeck === null) return [];
+      // A drafted card carries its own id and its own mana value, so the art rule
+      // needs no lookup table here — the pool IS the table.
+      const byName = new Map((myPool ?? []).map((card) => [card.name, card]));
       return [
         {
           value: DRAFTED_DECK,
           label: `Your drafted pool — ${mainDeckSize(draftedDeck)} cards`,
           colors: mainDeckColors(draftedDeck, cardIndex(myPool ?? [])),
+          artId: deckArtId(
+            draftedDeck.main.flatMap((entry) => {
+              const card = byName.get(entry.card.name);
+              if (card === undefined || card.manaCost.length === 0) return [];
+              return [
+                {
+                  name: card.name,
+                  count: entry.count,
+                  manaValue: card.manaValue,
+                  scryfallId: card.scryfallId,
+                },
+              ];
+            }),
+          ),
         },
       ];
     }
@@ -803,6 +1220,23 @@ function RoomTableScreen({
           colors: deckColorsByName(
             d.main.map((line) => line.name),
             LIBRARY_CARD_COSTS,
+          ),
+          // A library deck is a list of NAMES on the wire, so both halves of the
+          // art rule are lookups against committed data: the cost from the same
+          // slice the colours come from, the id from the play board's own table.
+          artId: deckArtId(
+            d.main.flatMap((line) => {
+              const cost = LIBRARY_CARD_COSTS[line.name];
+              if (cost === undefined) return [];
+              return [
+                {
+                  name: line.name,
+                  count: line.count,
+                  manaValue: manaValueOf(cost),
+                  scryfallId: scryfallIdFor(LIBRARY_ART_IDS, line.name, ''),
+                },
+              ];
+            }),
           ),
         }));
   }, [pod, podAnswered, draftedDeck, myPool, offered]);
@@ -1256,30 +1690,19 @@ function RoomTableScreen({
                       answer is the gate's. Disabled until it has answered: an
                       option list assembled before the answer would offer decks
                       the pool does not have. */}
-                  <label htmlFor="deck-mine">You play</label>
-                  <select
-                    id="deck-mine"
-                    data-testid="deck-mine"
+                  <span className="lobby__field" id="deck-mine-label">
+                    You play
+                  </span>
+                  <DeckChooser
+                    options={deckOptions ?? []}
                     value={deckId}
                     disabled={deckOptions === null || matchId !== null}
-                    onChange={(e) => chooseDeck(e.target.value)}
-                  >
-                    <option value="" disabled>
-                      —
-                    </option>
-                    <option value={RANDOM_DECK}>Random</option>
-                    {(deckOptions ?? []).map((o) => (
-                      /* `data-colors` is the machine-readable half of the same
-                         fold the text carries — see `optionLabel` for why the
-                         text is letters and the symbols are below. */
-                      <option key={o.value} value={o.value} data-colors={o.colors.join('')}>
-                        {optionLabel(o)}
-                      </option>
-                    ))}
-                  </select>
-                  {/* The chosen deck's colours as SYMBOLS, from wave 26 §D's own
-                      component, here because an `<option>` cannot hold one.
-                      `Random` has not rolled yet and has no colours to show. */}
+                    onChoose={chooseDeck}
+                  />
+                  {/* The chosen deck's colours as SYMBOLS again, beside the
+                      control rather than in it — the row says what the deck IS,
+                      this says what you are about to play, and both come off the
+                      one fold. `Random` has not rolled yet and has none to show. */}
                   {chosenOption !== null && (
                     <p className="lobby__note" data-testid="deck-mine-colors">
                       <DeckColors
