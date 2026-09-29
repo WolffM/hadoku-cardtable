@@ -206,3 +206,19 @@ three lanes write into it concurrently, so lane B's commit would have swept
 lanes C and D's in-progress evidence — which breaks "a failing lane reverts
 alone". Corrected by message to all three before any of them committed: commit
 evidence **by explicit filename**, prefixed with the lane letter.
+
+## 10. A correction to this wave's own teardown check
+
+The handoff says to check `pgrep -f PlayBridge.java` for orphaned Forge JVMs
+before teardown. **That command matches its own command line**, so it reports a
+process every time it runs, and this manager twice read those self-matches as
+lane JVMs before catching it. The real check is to enumerate actual JVMs and
+filter by cwd:
+
+```sh
+for p in $(pgrep -x java); do echo "$p $(readlink /proc/$p/cwd)"; done
+```
+
+Production's spares live under `/tmp/cardtable-play/spare-*` and are left alone;
+a wave's own live under its `CARDTABLE_PLAY_WORK_DIR`. Anything under a
+workspace that no longer exists is the orphan the rule is about.
