@@ -663,7 +663,14 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string, summary: R
     // and it then offers only the decks that pool holds — so wait for it to
     // come alive rather than selecting into the last pool's list.
     await expect(f.page.getByTestId('deck-mine')).toBeEnabled();
-    await f.page.getByTestId('deck-mine').selectOption(deck);
+    // Wave 28 §C replaced the `<select>` with a `role="radiogroup"` of `role="radio"`
+    // buttons (*"we cannot use a standard dropdown for this"*), so `selectOption`
+    // throws `Element is not a <select> element`. `deck-mine` is still the root and
+    // every row still carries its library id, so picking a deck is still one line:
+    // `docs/planning/wave28-evidence/C-deck-chooser-e2e-recipe.md` is where that
+    // shape was promised, and this is it taken up. Neither spec is any lane's, so
+    // the manager took them once §C had landed.
+    await f.page.getByTestId('deck-mine').locator(`[data-deck-id="${deck}"]`).click();
     await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');
   }
   await alice.page.getByTestId('ready-toggle').click();
