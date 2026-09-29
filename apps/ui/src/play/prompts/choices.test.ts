@@ -13,6 +13,9 @@
  * builds for that printing.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent } from '@testing-library/react';
 
@@ -433,5 +436,68 @@ describe('a prompt tile and the board resolve the same printing', () => {
     expect(img!.getAttribute('src')).not.toBe(cardImageUrl(bare));
     // And it is the id the board would have put on its own tile.
     expect(scryfallIdFor(KNOWN_ART_IDS, name, setCode)).toBe(keyed);
+  });
+});
+
+/* ── §A.8 — the prompts, as the operator sees them ───────────────────── */
+
+const PROMPTS_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/prompts', 'prompts.css'), 'utf8');
+
+/**
+ * The operator, 2026-09-28: *"radio selectors are unstyled which is ugly"* and
+ * *"theres no newline here: 'Seat 1 activated Slagstorm - Choose a mode' i think
+ * choose a mode should be on its own line."*
+ *
+ * Both are about a prompt with no CARDS in it. The card grid solved the first
+ * one in wave 20 — there the tick is the tile's border — and a list prompt fell
+ * through to the browser's own control on a surface that carries no other
+ * browser chrome anywhere.
+ */
+describe('§A.8 — a list prompt draws its own controls, and breaks Forge’s title', () => {
+  it('hides the native control without hiding it from the keyboard, and draws a mark of our own', () => {
+    const { getAllByTestId } = mountPrompt('getChoices', askFor('getChoices'));
+    const boxes = getAllByTestId('prompt-choice') as HTMLInputElement[];
+    // Still real inputs, still reachable, still what a click lands on: `display:
+    // none` would take them out of the tab order and out of the live driver's
+    // reach, which is why the grid does it this way too.
+    expect(boxes[0]!.type, 'a real input, of whichever kind the ask calls for').toMatch(/^(radio|checkbox)$/);
+    expect(boxes[0]!.closest('li')!.querySelector('label')).not.toBeNull();
+    const hidden = /\.prompt__list input\[type='radio'\],\n\.prompt__list input\[type='checkbox'\] \{([^}]*)\}/.exec(
+      PROMPTS_CSS,
+    );
+    expect(hidden, 'the native control has a rule that hides it').not.toBeNull();
+    expect(hidden![1]).toMatch(/opacity:\s*0/);
+    expect(hidden![1], 'hidden, not removed from the page').not.toMatch(/display:\s*none/);
+    // And the row draws the mark instead: a ring that fills, plus a border on the
+    // row — two signals, so a chosen row is never identified by colour alone.
+    expect(PROMPTS_CSS).toMatch(/\.prompt__list label:has\(> input\[type='radio'\]\)::before/);
+    expect(PROMPTS_CSS).toMatch(/\.prompt__list label:has\(> input:checked\)::before \{[^}]*background: var\(--accent\)/);
+    expect(PROMPTS_CSS).toMatch(/\.prompt__list > li:has\(input:checked\) \{[^}]*border-color: var\(--accent\)/);
+    expect(PROMPTS_CSS).toMatch(/\.prompt__list > li:has\(input:focus-visible\) \{[^}]*outline:/);
+  });
+
+  it('puts the instruction on its own line, and leaves the whole string in the dialog’s name', () => {
+    // `getChoices` titles its shell with Forge's `message`, which is the string
+            // the operator quoted.
+    const ask = { ...askFor('getChoices'), message: 'Seat 1 activated Slagstorm - Choose a mode' };
+    const { container } = mountPrompt('getChoices', ask);
+    const title = container.querySelector<HTMLElement>('.prompt__title')!;
+    expect(title.hasAttribute('data-split'), 'the title is split').toBe(true);
+    expect(title.querySelector('.prompt__title-source')!.textContent).toBe('Seat 1 activated Slagstorm');
+    expect(title.querySelector('.prompt__title-task')!.textContent).toBe('Choose a mode');
+    // The string is Forge's and nothing was reworded: the dialog still answers to
+    // all of it, which is what a screen reader is given.
+    expect(container.querySelector('[role="dialog"]')!.getAttribute('aria-label')).toBe(
+      'Seat 1 activated Slagstorm - Choose a mode',
+    );
+    expect(PROMPTS_CSS).toMatch(/\.prompt__title\[data-split\] \{[^}]*flex-direction: column/);
+  });
+
+  it('a title Forge did not compose that way is drawn exactly as it was', () => {
+    const ask = { ...askFor('getChoices'), message: 'Choose a colour' };
+    const { container } = mountPrompt('getChoices', ask);
+    const title = container.querySelector<HTMLElement>('.prompt__title')!;
+    expect(title.hasAttribute('data-split')).toBe(false);
+    expect(title.textContent).toBe('Choose a colour');
   });
 });

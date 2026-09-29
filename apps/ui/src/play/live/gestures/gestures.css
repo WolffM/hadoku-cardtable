@@ -84,13 +84,21 @@
 }
 
 /*
- * Forge answered and did NOT declare it. The disagreement is shown, not
- * smoothed away: a dotted warn-coloured outline, so it reads differently from
- * the intent both in colour and in line style.
+ * `refused` — Forge answered and did NOT declare it — draws NOTHING, and that is
+ * wave 28 item 6.
+ *
+ * It used to be a dotted warn-coloured outline. The operator, 2026-09-28:
+ * *"theres a weird 'orange' outline around the ghoul in addition to the blue
+ * outline, lets get rid of the orange one, no idea what that even is."* Which is
+ * the finding, not just the instruction: a mark nobody can read is not
+ * communicating. The creature simply not attacking is the signal that remains,
+ * and it is the one the player was reading anyway.
+ *
+ * The VALUE stays on the wire and on the element — `attackIntents` still answers
+ * `refused`, `intent.ts` still writes it, and `gestures.test.ts` still asserts
+ * it. It is a true statement about a disagreement between the player and the
+ * engine, readable in the DOM and by a test; it just does not paint.
  */
-[data-attack-intent='refused'] {
-  outline: 2px dotted var(--warn);
-}
 
 /* Forge agreed. Its own `attacking` drawing takes over, so this adds nothing. */
 [data-attack-intent='declared'] {

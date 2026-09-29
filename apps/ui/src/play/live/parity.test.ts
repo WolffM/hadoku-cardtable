@@ -4,6 +4,39 @@
  *
  * ## The baseline
  *
+ * Re-recorded in Wave 28 §A for the play surface's state layer (§A.15) and the
+ * seat's symbol counts (§A.10). That change does not own this file, so the pin is
+ * re-recorded here immediately after it, as the paragraph below prescribes.
+ * 42286 -> 42868, and every one of the 582 characters is accounted for:
+ *
+ * +1226  the four seat COUNTS became a drawn mark and a number (§A.10, the
+ *        operator: *"can we get symbols to display hand/deck size instead of
+ *        words?"*). `<span data-testid="hand-count">hand 2</span>` (44) became
+ *        337, and the library's 51 became 371: a wrapper class, an `aria-label`
+ *        carrying the word the symbol replaced, a three-path `<svg>` for the hand
+ *        and a four-path one for the library, and the number in its own span.
+ *        190 -> 1416 over the four of them.
+ *  -644  every status CHIP, gone (§A.15, *"all the shitty text you have written
+ *        on the card looks ugly"*). Six cards on this board are tapped — Izzet
+ *        Guildgate 8, Island 24, Izzet Guildgate 6, Mountain 87, Mountain 78 and
+ *        Vulshok War Boar 99 — and each carried a one-chip list at
+ *        `96 + len(name)` characters: 6 x 96 plus 68 characters of card name.
+ *    ±0  the rest of the state layer contributes NOTHING here, and that is the
+ *        fixture being honest rather than the layer being absent: no card in the
+ *        captured game is summoning sick, attacking, blocking, a token, damaged
+ *        or carrying a counter (checked, card by card), so no `data-sick`,
+ *        `data-attacking`, `data-blocking`, `data-token`, `data-damage`,
+ *        `.board-card__marks` or `.board-card__counters` is emitted. The
+ *        `Board.test.ts` cases for those build their own view.
+ *    ±0  `data-question` on `.board__mid` (§A.7/§13) is absent: this test renders
+ *        `<Board>` with no `interaction` prop, so no question can be open.
+ *    ±0  `data-avatar` on a face (§A.4) is absent: nothing populates
+ *        `BoardPlayer.avatarId` yet, which the field's own doc says is the state
+ *        of the feature, and `PlayerFace` draws the generated mark for a seat
+ *        without one.
+ *  ─────
+ *  +582  42286 -> 42868, and 1226 - 644 = 582 exactly.
+ *
  * Re-recorded in Wave 27 for `3bb983d` (lane A: a lane's `flex-grow` stopped
  * being its PILE count and became the COLUMNS it draws, and `--rows` became one
  * decision per battlefield instead of one per lane — the budget bug that let a
@@ -21,7 +54,7 @@
  *        `style="--cols:N"` (8). The other two lanes' swaps are folded into
  *        the +28 above, because each is the same tag as its `zone__rows`.
  *   +17  the viewer's hand list gained `style="--cols:5"`. Graveyards and
- *        exiles did NOT: they are piles sized by `--pile-w`, so `--cols` there
+ *        exiles did NOT: they are piles sized by their own box, so `--cols` there
  *        would be dead markup — and writing it would have made this delta
  *        roughly +150 instead of +53.
  *   +26  four `<span>` wrappers, and these are §A.7: `inOurWords` no longer
@@ -206,8 +239,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = '02b147b2b22474ae7fcf8a8862628e43280a6b5e9a19aab246f2b23aa9c350e1';
-const BASELINE_LENGTH = 42286;
+const BASELINE_SHA256 = '18026c506c8a3acb5a96da25e5c7e386f83d936b1a96501b01e491b0677dd2ad';
+const BASELINE_LENGTH = 42868;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

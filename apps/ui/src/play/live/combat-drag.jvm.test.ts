@@ -64,6 +64,39 @@
  * everything in `wire` came from a gesture, and nothing else could have put it
  * there.
  *
+ * ## This suite PINS `EVERY_PRIORITY_POLICY`, and here is why that is honest
+ *
+ * Wave 28 §B made `ARENA_STOP_POLICY` the server's default: a seat now stops in
+ * MAIN1, MAIN2 and declare-attackers on its own turn, in declare-blockers and the
+ * end step on the opponent's, and **every other phase is passed whether or not
+ * Forge named anything the seat could do there**. That is the right default and
+ * the operator asked for it — *"it's stopping everywhere, super annoying"*.
+ *
+ * It also turned a latent race in this file's driver into a routine one, which
+ * lane B measured rather than guessed
+ * (`docs/planning/wave28-evidence/B-tests-A-must-reaim.md`): with the change,
+ * exit 1; with the three changed fields reverted in place, exit 0. The mechanism
+ * is one line of the harness — `jvm-harness.ts:158-165` bumps `notes.version` on
+ * an `updateButtons` arriving ALONE, so a driver that keys on the version and
+ * then reads `notes.prompt` acts on the previous window with a live button. Under
+ * the old default the server auto-passed only windows Forge itself called empty,
+ * so the bursts were rare; under `'always'` a whole sequence of phases is passed
+ * at once and the stale read is hit on nearly every turn.
+ *
+ * **This suite does not test the stop set.** It exists to prove that an attack
+ * and a block can be declared BY DRAGGING, and that Forge agrees. The stop set is
+ * asserted directly, and now in several places, by `apps/server/src/play/auto.test.ts`
+ * and `auto.jvm.test.ts`. So the seats here are pinned to
+ * {@link EVERY_PRIORITY_POLICY} — the stop behaviour that WAS the default until
+ * 2026-09-28 — which restores the timing this driver was written in and changes
+ * nothing about the gesture under test.
+ *
+ * `./board-play.jvm.test.ts:217` is the precedent, and the same kind of reason:
+ * it pins `STRICT_PAYMENT_POLICY` because it is about payments and not about what
+ * the default does with them. Pinning is only honest written down, which is what
+ * this section is: **the product's real default is exercised, by the suites that
+ * are about it.**
+ *
  * Skips visibly without `CARDTABLE_FORGE_JAR` / `CARDTABLE_FORGE_RES`, like the
  * server's `jvm.test.ts`.
  */
@@ -74,6 +107,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { ClientFrame } from '@hadoku/forge-wire';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
+import { EVERY_PRIORITY_POLICY } from '../../../../server/src/play/auto.ts';
 import { forgeAvailability, liveJvmCount, startLiveMatch, waitUntil, type LiveHarness, type SeatClient } from './jvm-harness.ts';
 import { LiveBoard } from './LiveBoard.tsx';
 import { boardInteraction, currentAsk } from './match.ts';
@@ -206,6 +240,12 @@ describe.skipIf(!available.ok)(title, () => {
         ],
       });
       running.push(h);
+      /*
+       * The stop policy this driver was written in — see "This suite PINS
+       * `EVERY_PRIORITY_POLICY`" above. Set before a single frame is clicked on,
+       * so no window in the run is timed by the wave-28 default.
+       */
+      for (const s of h.seats) expect(h.match.setStopPolicy(s.seat, EVERY_PRIORITY_POLICY)).toEqual({ ok: true });
       const wires: [Wire, Wire] = [tapWire(h.seats[0]), tapWire(h.seats[1])];
 
       const mount = (s: SeatClient): HTMLElement => {

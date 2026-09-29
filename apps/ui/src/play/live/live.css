@@ -665,6 +665,110 @@
 }
 
 /*
+ * The log, coloured by what happened (wave 28 §A.11) — the operator: *"properly
+ * color things based on what happened like damage taken"*.
+ *
+ * Five kinds and a default (`LiveBoard.tsx`'s `logKind` says where each line
+ * comes from). **Colour is never the only signal here either**: the line's own
+ * words are the primary one and always have been, which is why these are tints
+ * on the text rather than badges — a log read with no colour at all still says
+ * everything it said before.
+ *
+ * `damage` is the one the operator named and is the strongest of them; `payment`
+ * is the line the log exists for (*"a cast that shows no payment looks free"*)
+ * and stays at full ink; `control` is a preference of yours rather than something
+ * that happened in the game, so it recedes.
+ */
+.live__log li[data-log-kind='payment'] {
+  color: var(--ink);
+}
+
+.live__log li[data-log-kind='damage'] {
+  color: var(--c-red);
+}
+
+.live__log li[data-log-kind='life'] {
+  color: var(--c-green);
+}
+
+.live__log li[data-log-kind='play'] {
+  color: var(--c-blue);
+}
+
+.live__log li[data-log-kind='control'] {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+/*
+ * Whose line it is. `sayToTable` attributes the copy it sends the OPPONENT and
+ * leaves the actor's own copy unattributed, so an unattributed line in a table's
+ * log reads as your own — and the marker is a leading rule rather than another
+ * hue, so it stacks with the kind above instead of fighting it.
+ */
+.live__log li[data-log-who='them'] {
+  padding-left: 5px;
+  border-left: 2px solid var(--line);
+}
+
+/*
+ * A card name in the log, hoverable (§A.11): *"any cardnames should be hoverable
+ * and show what card it is."*
+ *
+ * `pointer-events: auto` is a deliberate hole in the panel's `pointer-events:
+ * none`, and it is the narrowest one that works: hover needs the element to be
+ * hittable, and the element is a few words inside a panel the player opened on
+ * purpose. Everything else in the logbook stays untouchable, so the drag gesture
+ * on the table under it is unshadowed exactly as before.
+ *
+ * Keyboard gets the same thing the pointer does — the name is a tab stop and
+ * `:focus-visible` opens the same peek — because a reveal only a mouse can reach
+ * is not a reveal.
+ */
+.live__log-card {
+  position: relative;
+  pointer-events: auto;
+  color: inherit;
+  text-decoration: underline dotted currentcolor;
+  text-underline-offset: 2px;
+  cursor: help;
+}
+
+.live__log-card:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/*
+ * The card itself, out of flow beside the panel. `LiveBoard.tsx` renders it only
+ * while the name is hovered or focused — not hidden with CSS — so a logbook of
+ * eight lines is not also eight cards' worth of markup and art requests, and so
+ * the panel's own text is still exactly the log's text to anything reading it.
+ *
+ * It sizes the tile through `--card-w`/`--card-h` rather than by selecting
+ * `.card`: this stylesheet may not reach into the canvas's own classes, which is
+ * a rule `LiveBoard.test.ts` asserts by parsing this file.
+ */
+.live__log-peek {
+  --card-w: 8.5rem;
+  --card-h: 11.85rem;
+
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: calc(100% + 8px);
+  width: var(--card-w);
+  translate: 0 -50%;
+  padding: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 45%);
+  pointer-events: none;
+}
+
+/*
  * The full-control toggle (§C.4). Styled by the `.live__buttons button` rules
  * like its neighbours; pressed is the accent border the selectable cards and
  * the bar's own state already use, so "on" reads as one affordance everywhere.

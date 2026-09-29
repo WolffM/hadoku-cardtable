@@ -72,6 +72,15 @@ interface Hands {
   acts: string[];
   /** Acts the board REFUSED to send — `boardInteraction` said the card was not clickable. */
   refused: string[];
+  /**
+   * Which cards this seat has already picked, per open selection.
+   *
+   * Keyed by the turn and the prompt, so a NEW question starts from nothing and
+   * the same question asked again on a later turn does too. Without it a
+   * selection with `min > 1` can never be satisfied — see `advance`, which is
+   * where the whole of this is explained.
+   */
+  picked: Map<string, number[]>;
 }
 
 function mount(h: LiveHarness, seat: number): Hands {
@@ -80,7 +89,7 @@ function mount(h: LiveHarness, seat: number): Hands {
   root.dataset.seat = String(seat);
   document.body.appendChild(root);
   render(createElement(LiveBoard, { match: s.live }), { container: root });
-  return { seat: s, root, acts: [], refused: [] };
+  return { seat: s, root, acts: [], refused: [], picked: new Map() };
 }
 
 /** The method of the prompt this seat is showing, or null. */
@@ -193,10 +202,32 @@ function advance(hands: readonly Hands[], hold: (p: Hands) => boolean): void {
       ok(p, marker(p.seat));
       continue;
     }
+    /*
+     * A selection Forge is waiting on, WITH A MEMORY — and the memory is the fix,
+     * not a refinement.
+     *
+     * This used to take `[...selectable][0]` every tick and keep no record of it.
+     * Forge does not remove a card from the offered set when you pick it (the set
+     * is what MAY be chosen, not what is left), so a `min: 2` cleanup discard got
+     * the same card clicked over and over, the selection never reached its
+     * minimum, `enable1` never came alive, and the whole scenario died in
+     * `beforeAll` with seat 1 parked at `5/CLEANUP` having sent `selection #53`
+     * six times. That was a pre-existing defect in this file — it fails under the
+     * wave-28 default and under the one before it alike — and it is why all seven
+     * cases here skipped.
+     *
+     * `game-driver.ts:135-139` and `combat-drag.jvm.test.ts:391-394` both keep
+     * this record; this is the same one, keyed the same way.
+     */
     const selection = p.seat.live.selectables;
     if (selection === null || selection.min === 0) continue;
-    const next = [...boardInteraction(p.seat.live).selectable][0];
-    if (next !== undefined) click(p, next, 'selection');
+    const key = `${p.seat.live.view?.turn ?? '?'}:${p.seat.notes.prompt?.message ?? ''}`;
+    const already = p.picked.get(key) ?? [];
+    if (already.length >= selection.min) continue;
+    const next = [...boardInteraction(p.seat.live).selectable].find((id) => !already.includes(id));
+    if (next === undefined) continue;
+    p.picked.set(key, [...already, next]);
+    click(p, next, 'selection');
   }
 }
 

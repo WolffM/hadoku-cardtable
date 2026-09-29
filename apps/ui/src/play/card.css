@@ -75,7 +75,7 @@
  * bottom — the `<li>` itself, which for an equip stack is the creature — so it
  * is drawn whole and in front, and the cards stacked on it peek out behind its
  * lower-right corner. An equipped creature therefore still shows its own art,
- * its own P/T badge and its own chips.
+ * its own P/T badge and its own state marks.
  *
  * The fan is capped at Forge's own `UI_MAX_STACK_DEPTH` (default 4,
  * `ForgePreferences.java:96`): there is no rule for a fourth step below, so a
@@ -135,10 +135,13 @@
   --at: 2;
 }
 
-/* The chips belong on the card they describe, not out over its gear. */
-.board-card[data-pile-size] > .board-card__chips {
-  right: calc(2px + var(--pile-fan));
-}
+/*
+ * The state layer needs no fan adjustment: a pile's fan narrows the base card's
+ * face from the RIGHT and offsets the cards behind it down and right, so the
+ * marks (top-left) and the counters (bottom-left) are already inside the face.
+ * Only the P/T badge, which hangs off the top-right, pays the fan — see
+ * `.board-card__pt` below.
+ */
 
 /*
  * Forge said this card is attached to something (#11) — a second signal beside
@@ -210,6 +213,182 @@
   font-size: 8px;
 }
 
+/*
+ * Damage, finished (wave 28 §A.15). The badge already drew the toughness that is
+ * LEFT, in the hurt ink with its marker; what it did not do was say at a glance
+ * that the card had been hit — that was the `3 damage` chip's job, and the chip
+ * is gone. So the badge itself reads hurt when damage is marked: the hurt ink on
+ * its rule and a tint behind it, over whatever art is underneath.
+ *
+ * The same rule paints the standalone damage badge, which is what a card with
+ * damage and NO readable P/T draws instead (`PowerToughness`).
+ */
+.board-card__pt[data-damage] {
+  border-color: color-mix(in srgb, var(--c-red) 65%, var(--line));
+  background: color-mix(in srgb, var(--c-red) 18%, var(--bg-raised));
+}
+
+/* ── the state layer: marks, counters, sickness, tokens ─────────── */
+
+/*
+ * Wave 28 §A.15, the operator: *"all the shitty text you have written on the
+ * card looks ugly, we need to find a way to handle all of that with effects."*
+ *
+ * `Board.tsx` has the table of which state went into which channel and why. What
+ * this file owes that table:
+ *
+ *   - every mark is a CAPSULE with its own opaque background, because the thing
+ *     underneath is a photograph and an unbacked glyph over art is unreadable;
+ *   - no mark is an outline and no mark is drawn in `--accent`. The accent is
+ *     already spoken for twice on a card — the solid ring is "Forge is offering
+ *     this" and the dashed one is "you pointed at this"
+ *     (`live/gestures/gestures.css`) — and a third meaning in the same hue is how
+ *     a player stops being able to read any of them;
+ *   - nothing here may change a card's box. Every one of these is out of flow and
+ *     clipped to the card, like the P/T badge above, because a battlefield row is
+ *     sized from the cards in it and a status that grew one would move the table.
+ *     A status chip doing exactly that at 11 permanents is the regression
+ *     `e2e/table-fit.spec.ts` was taught to catch.
+ */
+
+/*
+ * The marks, down the card's TOP-LEFT corner — the P/T badge has the top-right
+ * and the counters have the bottom-left, so the three never collide.
+ */
+.board-card__marks {
+  position: absolute;
+  z-index: 6;
+  top: 2px;
+  left: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.board-card__mark {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink-dim);
+}
+
+.board-card__mark-art {
+  width: 10px;
+  height: 10px;
+  fill: currentcolor;
+}
+
+/*
+ * The word, for anything that cannot see the picture. Clipped rather than
+ * `display: none`: a hidden element is not in the accessible tree at all, and the
+ * whole point of drawing the state is that the state is still SAID somewhere.
+ */
+.board-card__mark-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * Summoning sickness: the card DESATURATES.
+ *
+ * A saturation channel, chosen because it is the one signal that cannot be
+ * mistaken for an outline and says exactly the same thing to a colour-blind
+ * viewer as to anyone else. It reads over art — which is the case that matters,
+ * since a sick creature has just arrived and is the card a player is looking at.
+ * The mark in the corner is the second signal, per the rule the P/T badge set.
+ *
+ * On the FACE, not on the `<li>`: the marks and the badges must stay legible, and
+ * a filter on the list item would grey them out too.
+ */
+.board-card[data-sick] > .board-card__face {
+  filter: grayscale(0.7) brightness(0.82);
+}
+
+.board-card__mark[data-mark='blocking'] {
+  color: var(--ink);
+}
+
+/*
+ * A token (item 14): *"wolf-token has no art."*
+ *
+ * It has no art because it has no row in `art-ids.json`, which is not this lane's
+ * file — so what this lane can do is make the artless tile read as DELIBERATE.
+ * A token wears the spark mark and a dashed edge, which together say "the game
+ * made this" rather than "the picture failed". The day a token gets an id, the
+ * art arrives under the same mark and nothing here changes.
+ */
+.board-card[data-token] > .board-card__face > .card {
+  border-style: dashed;
+  border-color: var(--ink-faint);
+}
+
+/*
+ * Counters, bottom-left: a badge with a number, which is the operator's own
+ * instruction. `+1/+1` is compact and signed (`+3`), `-1/-1` is its mirror, and
+ * anything else falls back to its count and its name, clipped here with the whole
+ * of it in the list's accessible name.
+ *
+ * `+1/+1` takes the buffed blue and `-1/-1` the hurt red, which are the two inks
+ * the P/T badge already uses for the same two directions — a card with three
+ * +1/+1 counters has a blue power and a blue badge, and they agree. The SIGN is
+ * the signal that does not need the colour.
+ */
+.board-card__counters {
+  position: absolute;
+  z-index: 6;
+  bottom: 2px;
+  left: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: calc(100% - 4px - var(--pile-fan));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.board-card__counter {
+  max-width: 100%;
+  padding: 0 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-card__counter[data-counter='plus'] {
+  border-color: color-mix(in srgb, var(--c-blue) 65%, var(--line));
+  color: var(--c-blue);
+}
+
+.board-card__counter[data-counter='minus'] {
+  border-color: color-mix(in srgb, var(--c-red) 65%, var(--line));
+  color: var(--c-red);
+}
+
 /* ── selectable: Forge said this card may be chosen ──────────────────── */
 
 button.board-card__face {
@@ -230,9 +409,20 @@ button.board-card__face:focus-visible {
   outline-offset: 3px;
 }
 
-/* ── tapped: a quarter turn, inside a landscape box of the same width ─── */
+/* ── turned: a quarter turn, inside a landscape box of the same width ─── */
 
-.board-card[data-tapped] .board-card__face {
+/*
+ * Two facts, one drawing. `data-tapped` is Forge's own `Tapped`; `data-attacking`
+ * is its own `Attacking`, and wave 28 item 6 is the operator asking for the
+ * second to read like the first: *"creatures should tap when they are
+ * attacking"*. Forge taps an attacker itself a moment later, so this is the
+ * board agreeing with the engine early rather than inventing a state.
+ *
+ * `:is()` so a card that is both is turned ONCE. The attack-INTENT mark
+ * (`live/gestures/gestures.css`) is still a third thing and still never this:
+ * "you pointed at this" is not "this is attacking".
+ */
+.board-card:is([data-tapped], [data-attacking]) .board-card__face {
   aspect-ratio: 680 / 488;
 }
 
@@ -241,7 +431,7 @@ button.board-card__face:focus-visible {
  * a quarter it is exactly the box: width w·488/680, height w, rotated → w wide
  * and w·488/680 tall.
  */
-.board-card[data-tapped] .board-card__face > .card {
+.board-card:is([data-tapped], [data-attacking]) .board-card__face > .card {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -469,13 +659,58 @@ button.face__hit:focus-visible {
   list-style: none;
 }
 
+/*
+ * Item 12: *"opponents hand should show like real card backs."* So a back is
+ * drawn as a CARD and not as a hatched slab: a card's proportion, a card's
+ * radius, a bordered field, an inset panel with its own rule, and one mark in
+ * the middle of that panel. Three layers, none of which needs a child element,
+ * so the strip's geometry is untouched and a back is still one bare `<li>`:
+ *
+ *   - the field, a soft radial that is darkest at the edges, on the element;
+ *   - the panel, an inset rule on `::before`, so the back has a border INSIDE
+ *     its border the way a printed back does;
+ *   - the mark, a lozenge on `::after`.
+ *
+ * It is NOT Magic's back. That is WotC art and this repo draws none of it
+ * (CLAUDE.md): no logo, no wordmark, no frame. This is our pattern, for the same
+ * reason the player mark is a circle and a bust we drew.
+ */
 .card-back {
+  position: relative;
   flex: none;
   width: var(--card-back-w);
   aspect-ratio: 488 / 680;
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) * 0.75);
-  background: repeating-linear-gradient(45deg, var(--bg-card) 0 5px, var(--bg-raised) 5px 10px);
+  background:
+    radial-gradient(120% 90% at 50% 38%, var(--bg-raised) 0%, var(--bg-card) 62%, var(--bg) 100%);
+  overflow: hidden;
+}
+
+/* The inset panel: a back has a border inside its border. */
+.card-back::before {
+  content: '';
+  position: absolute;
+  inset: 11%;
+  border: 1px solid var(--line-soft);
+  border-radius: calc(var(--radius) * 0.5);
+}
+
+/*
+ * The mark in the middle of it — a lozenge, ours. Clipped rather than rotated:
+ * the one rotation in this file is the turned card's quarter turn, and
+ * `Board.test.ts` counts them to keep it that way.
+ */
+.card-back::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: color-mix(in srgb, var(--ink-faint) 34%, transparent);
 }
 
 .card-back + .card-back {

@@ -210,8 +210,10 @@
  * `@hadoku/carddata/art`) from the Scryfall id the adapter looked up. No host
  * is named here. A card with no id is the text tile, which is a whole card on
  * its own. The board adds only the state a printed card doesn't have (damage,
- * counters, attacking), as chips beside the tile, in our own words. A stack
- * item draws its source card the same way, from `StackEntry.sourceCard`.
+ * counters, tapped, attacking, blocking, summoning sickness, whether it is a
+ * token) — and since wave 28 §A.15 it DRAWS that state rather than writing it:
+ * see "A card's state is drawn" below. A stack item draws its source card the
+ * same way, from `StackEntry.sourceCard`.
  *
  * ## P/T on the board is the board's badge, not the tile's stat
  *
@@ -225,11 +227,15 @@
  * accessible name. A card whose printed base our data does not know draws
  * plain, which is the honest answer and never a guessed buff.
  *
- * ## Tapped is turned sideways
+ * ## Tapped is turned sideways, and so is an attacker
  *
  * A tapped card is rotated a quarter turn inside a landscape box of the same
  * width (`card.css`), so it reads as tapped at a glance and still takes no
- * more room than its column. It keeps the word "tapped" as a chip as well.
+ * more room than its column. Since wave 28 that is the WHOLE of "tapped" here —
+ * the word is gone — and an ATTACKING creature is drawn the same way, which is
+ * item 6: *"creatures should tap when they are attacking"*. `data-tapped` and
+ * `data-attacking` stay two attributes, because they are two facts; only the
+ * drawing is shared.
  *
  * ## What is clickable is Forge's answer, not ours
  *
@@ -347,6 +353,7 @@ import { useEffect, useReducer, useRef, type CSSProperties, type DragEvent, type
 
 import { CardTile } from '../components/CardTile.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
+import { avatarSquareUrl } from '../room/avatar.ts';
 import {
   boardPT,
   type BoardCard,
@@ -416,6 +423,24 @@ export interface BoardInteraction {
    * phase `COMBAT_DECLARE_ATTACKERS` and this seat is the active player.
    */
   declaringAttackers?: boolean;
+  /**
+   * A QUESTION is on screen — one of Forge's fifteen asks, or the mana-payment
+   * window. Items 7 and 13: *"the stack should allow to be bigger unless there is
+   * a decision waiting"*.
+   *
+   * It is not `selectionOpen`, and the difference is why this field exists.
+   * `selectionOpen` is about the CARDS Forge offered; this is about a PANEL
+   * standing in front of the board, in the column the stack takes the top of
+   * (`--live-col-x`, `live/live.css`). The stack is roomy when nothing is in
+   * front of it and compact when something is, because the alternative is a
+   * bigger stack overlapping the question that displaced it.
+   *
+   * **Absent means no question** — the safe default, the state every fixture and
+   * `live/parity.test.ts` render in, and the one that gives the stack its room.
+   * `LiveBoard` is the one place both facts are readable off the same handle, so
+   * it is where this is filled in, exactly as `declaringAttackers` is.
+   */
+  questionOpen?: boolean;
   /** A card was clicked. Only ever called for an id in `selectable`. */
   onSelectCard(cardId: number): void;
   onSelectPlayer(playerId: number): void;
@@ -821,7 +846,31 @@ const PT_MARK: Readonly<Record<'buffed' | 'hurt', string>> = { buffed: '▲', hu
  */
 function PowerToughness({ entry }: { entry: BoardCard }) {
   const pt = boardPT(entry);
-  if (pt === null) return null;
+  /*
+   * No P/T and damage marked anyway — a planeswalker, a damaged non-creature,
+   * or a creature whose printed numbers our data cannot read. Wave 28 §A.15:
+   * *"Damage is red on the P/T badge, which `boardPT` already half does. Finish
+   * it rather than writing `3 damage` beside it."* This is the other half of
+   * finishing it: the number goes in the badge's own box, in the badge's own
+   * hurt ink and marker, instead of becoming the one chip that outlived the
+   * chips.
+   */
+  if (pt === null) {
+    if (entry.damage <= 0) return null;
+    return (
+      <span
+        className="board-card__pt"
+        data-pt=""
+        data-damage={entry.damage}
+        aria-label={`${entry.damage} damage marked`}
+      >
+        <span className="board-card__pt-n" data-pt-state="hurt" data-pt-of="damage">
+          <span aria-hidden="true">{PT_MARK.hurt}</span>
+          {entry.damage}
+        </span>
+      </span>
+    );
+  }
   const say = (what: string, value: number, state: PTState): string =>
     state === 'buffed'
       ? `${what} ${value}, up from ${what === 'power' ? pt.printed?.power : pt.printed?.toughness}`
@@ -838,12 +887,147 @@ function PowerToughness({ entry }: { entry: BoardCard }) {
     <span
       className="board-card__pt"
       data-pt=""
+      /* Damage, on the badge that carries it — the badge itself reads hurt, so a
+         damaged creature is visible before anyone reads the two numbers. */
+      data-damage={pt.damage > 0 ? pt.damage : undefined}
       aria-label={`${say('power', pt.power, pt.powerState)}, ${say('toughness', pt.toughness, pt.toughnessState)}`}
     >
       {number(pt.power, pt.powerState, 'power')}
       <span aria-hidden="true">/</span>
       {number(pt.toughness, pt.toughnessState, 'toughness')}
     </span>
+  );
+}
+
+/*
+ * ── a card's state is DRAWN (wave 28 §A.15) ──────────────────────────────
+ *
+ * The operator, 2026-09-28: *"+1/+1 looks really ugly, we need a better way to
+ * show that. actually all the shitty text you have written on the card looks
+ * ugly, we need to find a way to handle all of that with effects."*
+ *
+ * What was here was one function that turned seven states into STRINGS and
+ * dropped them on a ~70px tile over real art: `tapped`, `summoning sick`,
+ * `attacking`, `blocking`, `3 damage`, `token`, `1 +1/+1`. Every one of them is
+ * now a treatment, and each treatment is in a DIFFERENT CHANNEL, which is the
+ * constraint that made this a design problem rather than a CSS one:
+ *
+ * | state | channel | why not something else |
+ * | --- | --- | --- |
+ * | tapped, attacking | a quarter turn (`card.css`) | the convention, and Forge's own. An attacker reads as tapped because that is what the operator asked for in item 6 and because Forge taps it a moment later anyway |
+ * | damage | the P/T badge's own ink (`PowerToughness`) | the number that matters is what is LEFT, and the badge already holds it |
+ * | counters | a numbered badge, bottom-left | `+1/+1` is the common case and gets the compact `+3`; anything else falls back to its name |
+ * | summoning sick | the card DESATURATES | a saturation channel, so it cannot be confused with any outline and says the same thing to a colour-blind viewer |
+ * | blocking | a corner mark, a drawn shield | a mark, not an outline |
+ * | token | a corner mark and a hatched edge (`card.css`) | ditto, and see item 14 below |
+ *
+ * **The three outlines already on a card are not ours to add a fourth to.** The
+ * gestures lane draws a solid accent ring for "Forge is offering this"
+ * (`card.css`'s `button.board-card__face`) and a dashed accent outline for "you
+ * pointed at this as an attacker" (`live/gestures/gestures.css`). So nothing
+ * here is an outline and nothing here is drawn in the accent: a player can tell
+ * "Forge is offering this" from "this is sick" because the two are not the same
+ * KIND of mark, never mind the same hue.
+ *
+ * **Every treatment has to read over ART, not against a flat tile.** Card art
+ * renders in the deployed app; the artless screenshots are an artefact of
+ * `e2e/play/browser.ts` aborting off-loopback requests. So the marks sit in
+ * opaque capsules on the card's own chrome rather than relying on the tile's
+ * background, and the sick treatment is a filter on the whole face, which is the
+ * one treatment that cannot be lost under a picture.
+ *
+ * **Item 14, the token with no art, is answered here rather than in
+ * `CardTile`.** `wolf-token` has no row in `art-ids.json`, so `scryfallIdFor`
+ * misses and the tile falls back to its TEXT tile — a whole card, name, type and
+ * rules, but no picture. Giving tokens art ids means editing
+ * `apps/ui/src/draft/art-ids.json` or `packages/carddata/src/art/`, and neither
+ * is this lane's file. What IS this lane's is making the artless tile read as
+ * deliberate: a token wears the token mark and a hatched edge, so "this is a
+ * thing the game made" is the message instead of "the art failed to load". The
+ * two halves are compatible — the day a token gets an id, the art arrives under
+ * the same mark.
+ */
+
+/** A state that draws as a corner mark. The rest of them draw as themselves. */
+type StateMark = 'sick' | 'blocking' | 'token';
+
+/**
+ * The marks, as geometry we drew rather than a typeface that might not have the
+ * character — the same reason `PT_MARK` is `▲`/`▼` and not a glyph name. 16×16,
+ * currentColor, no image and nothing that could be mistaken for a WotC mark.
+ */
+const MARK_ART: Readonly<Record<StateMark, string>> = {
+  /* A crescent: this one is asleep. */
+  sick: 'M10.6 2.2a6 6 0 1 0 3.2 9.9A7 7 0 0 1 10.6 2.2Z',
+  /* A shield: this one is in the way. */
+  blocking: 'M8 1.6l5.4 2v4.3c0 3.2-2.3 5.6-5.4 6.5-3.1-.9-5.4-3.3-5.4-6.5V3.6Z',
+  /* A four-point spark: the game made this one. */
+  token: 'M8 1.2l1.7 5.1 5.1 1.7-5.1 1.7L8 14.8l-1.7-5.1L1.2 8l5.1-1.7Z',
+};
+
+const MARK_WORD: Readonly<Record<StateMark, string>> = {
+  sick: 'summoning sick',
+  blocking: 'blocking',
+  token: 'token',
+};
+
+/**
+ * The marks a card wears, in a fixed order so two cards in a row read the same
+ * way. The word rides along visually hidden (`card.css`): the picture is for
+ * the player and the word is for anything that cannot see it, which is the same
+ * split the P/T badge makes between its marker glyph and its accessible name.
+ */
+function StateMarks({ entry }: { entry: BoardCard }) {
+  const marks: StateMark[] = [];
+  if (entry.summoningSick) marks.push('sick');
+  if (entry.blocking) marks.push('blocking');
+  if (entry.token) marks.push('token');
+  if (marks.length === 0) return null;
+  return (
+    <ul className="board-card__marks" aria-label={`${entry.card.name} status`}>
+      {marks.map((mark) => (
+        <li key={mark} className="board-card__mark" data-mark={mark}>
+          <svg className="board-card__mark-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d={MARK_ART[mark]} />
+          </svg>
+          <span className="board-card__mark-word">{MARK_WORD[mark]}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * What one counter says on a 70px card.
+ *
+ * The operator: *"Counters are a badge with a number, not `1 +1/+1`. `+1/+1` is
+ * the common case and deserves the compact form; a named counter falls back to
+ * its name."* So the two P/T counters are a signed number and everything else is
+ * its count and its name, clipped by the stylesheet with the whole thing in the
+ * list's accessible name.
+ */
+function counterFace(counter: { name: string; count: number }): string {
+  if (counter.name === '+1/+1') return `+${counter.count}`;
+  if (counter.name === '-1/-1') return `−${counter.count}`;
+  return `${counter.count} ${counter.name}`;
+}
+
+const counterKind = (name: string): string => (name === '+1/+1' ? 'plus' : name === '-1/-1' ? 'minus' : 'named');
+
+function Counters({ entry }: { entry: BoardCard }) {
+  const counters = entry.counters.filter((c) => c.count !== 0);
+  if (counters.length === 0) return null;
+  return (
+    <ul
+      className="board-card__counters"
+      aria-label={`${entry.card.name} counters: ${counters.map((c) => `${c.count} ${c.name}`).join(', ')}`}
+    >
+      {counters.map((c) => (
+        <li key={c.name} className="board-card__counter" data-counter={counterKind(c.name)} data-count={c.count}>
+          <span aria-hidden="true">{counterFace(c)}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -886,17 +1070,6 @@ function CardOnBoard({
   /** 0 for the bottom of a pile, 1 for the card on it, and so on. */
   depth?: number;
 }) {
-  const chips: string[] = [];
-  if (entry.tapped) chips.push('tapped');
-  if (entry.summoningSick) chips.push('summoning sick');
-  if (entry.attacking) chips.push('attacking');
-  if (entry.blocking) chips.push('blocking');
-  // Damage is the red half of the P/T badge when there is one; saying it twice
-  // on a 70px card is noise, and the badge carries the number and the words.
-  if (entry.damage > 0 && boardPT(entry) === null) chips.push(`${entry.damage} damage`);
-  if (entry.token) chips.push('token');
-  for (const c of entry.counters) chips.push(`${c.count} ${c.name}`);
-
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
   /*
    * A card Forge is ASKING ABOUT belongs to Forge, and that — not "actionable" —
@@ -968,7 +1141,19 @@ function CardOnBoard({
   return (
     <li
       className="board-card"
+      /*
+       * Forge's own `Tapped`, unchanged and still its alone. `data-attacking` is
+       * beside it rather than folded into it (item 6: *"creatures should tap when
+       * they are attacking"*) because the two are different facts and only the
+       * DRAWING is shared — `card.css` turns a card on either, and the gestures
+       * lane's `data-attack-intent` still means the third thing, "you pointed at
+       * this", which is neither.
+       */
       data-tapped={entry.tapped || undefined}
+      data-attacking={entry.attacking || undefined}
+      data-sick={entry.summoningSick || undefined}
+      data-blocking={entry.blocking || undefined}
+      data-token={entry.token || undefined}
       data-board-card={entry.id}
       data-card-id={entry.id}
       data-selectable={selectable || undefined}
@@ -997,15 +1182,8 @@ function CardOnBoard({
         </div>
       )}
       {onBattlefield && <PowerToughness entry={entry} />}
-      {chips.length > 0 && (
-        <ul className="board-card__chips" aria-label={`${entry.card.name} status`}>
-          {chips.map((chip) => (
-            <li key={chip} className="board-card__chip">
-              {chip}
-            </li>
-          ))}
-        </ul>
-      )}
+      {onBattlefield && <StateMarks entry={entry} />}
+      {onBattlefield && <Counters entry={entry} />}
       {above.length > 0 && (
         <ul className="board-card__pile" aria-label={`Stacked on ${entry.card.name}`}>
           {above.map((c, i) => (
@@ -1058,7 +1236,7 @@ function Zone({
         className="zone__cards"
         /*
          * The count `board.css` sizes this list from — see `Battlefield` below.
-         * A HAND only: a graveyard and an exile are piles, sized by `--pile-w`
+         * A HAND only: a graveyard and an exile are piles, sized by their own box
          * and not by a row count, so writing it there would be dead markup.
          */
         style={zone === 'hand' ? ({ '--cols': cards.length } as CSSProperties) : undefined}
@@ -1211,6 +1389,20 @@ function Battlefield({
  * Someone else's hand: a count, drawn as that many backs. There is no card
  * here to draw a face from — the adapter never maps these cards. The strip is
  * always in the markup so the slot is one height at nought backs and at ten.
+ *
+ * Item 12: *"opponents hand should show like real card backs."* A back is a
+ * CARD, so it is drawn as one — a card's proportion, a card's radius, a bordered
+ * field with an inset panel inside it and a mark in the middle of that panel
+ * (`card.css`). What it is NOT is Magic's own back: that is WotC art and this
+ * repo draws none of it (CLAUDE.md). Ours is a pattern we made, which is the
+ * same trade `PlayerFace` makes against an avatar and `CardTile` makes against a
+ * card frame.
+ *
+ * **The second half of item 12 is not in this wave.** Seeing the opponent
+ * REARRANGE their hand needs the arrangement to leave the browser, and the
+ * arrangement store (`ARRANGED`, above) is per-viewer by construction with no
+ * wire path — it is a design question about what a rearrangement tells the table,
+ * not a CSS one. It is w29's.
  */
 function HiddenHand({ player }: { player: BoardPlayer }) {
   return (
@@ -1250,13 +1442,35 @@ function HiddenHand({ player }: { player: BoardPlayer }) {
  */
 function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction: BoardInteraction | undefined }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
+  /*
+   * The watchparty character, when the seat has one — wave 28 item 4, the render
+   * half. `avatarSquareUrl` is lane D's one accessor and it answers `null` for
+   * absent, blank and over-long alike, so THIS is the whole fallback: a seat with
+   * no avatar keeps the mark we draw, because a seat with no face is worse than a
+   * generic face.
+   *
+   * Nothing populates `player.avatarId` in production yet and the field says why
+   * (`adapter.ts`). This draws it; the hop that delivers it is a wave of its own.
+   *
+   * No host is written here. The URL comes out of `watchpartyOrigin()`, derived
+   * from the page, so a local e2e stays local — the same rule the art resolver
+   * follows for cards. It is only ASKED for when there is an id to resolve:
+   * `watchpartyOrigin()` reads `globalThis.location`, and this component renders
+   * in `live/parity.test.ts` under `react-dom/server`, where there is none.
+   */
+  const avatar = player.avatarId === undefined ? null : avatarSquareUrl(player.avatarId);
   const mark = (
     <>
-      <svg className="face__art" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-        <circle className="face__plate" cx="24" cy="24" r="22.5" />
-        <circle className="face__brow" cx="24" cy="18" r="7.5" />
-        <path className="face__bust" d="M10.5 40.5a13.5 13.5 0 0 1 27 0Z" />
-      </svg>
+      {avatar === null ? (
+        <svg className="face__art" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+          <circle className="face__plate" cx="24" cy="24" r="22.5" />
+          <circle className="face__brow" cx="24" cy="18" r="7.5" />
+          <path className="face__bust" d="M10.5 40.5a13.5 13.5 0 0 1 27 0Z" />
+        </svg>
+      ) : (
+        /* `alt=""`: the seat's name is right beside it and says who this is. */
+        <img className="face__art face__avatar" src={avatar} alt="" data-testid="seat-avatar" />
+      )}
       <span className="face__life" data-testid="life">
         {player.life}
       </span>
@@ -1266,6 +1480,7 @@ function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction:
     <div
       className="face"
       data-player-face=""
+      data-avatar={player.avatarId === undefined ? undefined : player.avatarId}
       data-player-id={player.id}
       data-viewer={player.isViewer || undefined}
       data-active={player.isActive || undefined}
@@ -1409,9 +1624,37 @@ function PlayerArea({
           </h3>
         </div>
         <ManaPool player={player} />
+        {/*
+         * The counts, as MARKS rather than words (item 10): *"can we get symbols
+         * to display hand/deck size instead of words?"* Two drawn symbols —
+         * a fanned hand and a stacked library — each with its number beside it,
+         * in a column 72px wide where `hand 7` and `library 46` were most of the
+         * ink. They are ours, drawn here as geometry like the player mark and the
+         * state marks: no font to miss the glyph, no WotC symbol anywhere near it.
+         *
+         * The test ids do not move — `hand-count` and `library-count` are read by
+         * `Board.test.ts` and are the only handle anything has on these two
+         * numbers — and each carries the words in its accessible name, so the
+         * symbol is for the eye and the label is for everything else.
+         */}
         <div className="seat__counts">
-          <span data-testid="hand-count">hand {player.handCount}</span>
-          <span data-testid="library-count">library {player.libraryCount}</span>
+          <span className="seat__count" data-testid="hand-count" aria-label={`hand ${player.handCount}`}>
+            <svg className="seat__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M3.4 5.6 6 13.4l3.1-1-2.6-7.8Z" />
+              <path d="M7.2 4.4h3.1v9H7.2Z" />
+              <path d="m11.1 4.6 2.9.9-2.2 7.6-2.4-.8Z" />
+            </svg>
+            <span aria-hidden="true">{player.handCount}</span>
+          </span>
+          <span className="seat__count" data-testid="library-count" aria-label={`library ${player.libraryCount}`}>
+            <svg className="seat__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M2.8 11.4h10.4v1.9H2.8Z" />
+              <path d="M2.8 8.1h10.4V10H2.8Z" />
+              <path d="M2.8 4.8h10.4v1.9H2.8Z" />
+              <path d="M2.8 2.4h10.4v1.5H2.8Z" />
+            </svg>
+            <span aria-hidden="true">{player.libraryCount}</span>
+          </span>
           {player.isActive && <span className="seat__flag">their turn</span>}
           {player.hasPriority && <span className="seat__flag">priority</span>}
           {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
@@ -1668,7 +1911,16 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
         ))}
       </div>
 
-      <div className="board__mid" data-testid="board-mid">
+      {/*
+       * The stack's column. `data-question` is the whole of items 7 and 13 on
+       * this side: the band is ROOMY by default and compact while a question
+       * stands in front of it (`board.css` reads it, and `--stack-card-w` follows
+       * the height so a roomy band draws a bigger card). Whether it is DRAWN at
+       * all is the stylesheet's, off the list being empty — so the DOM probe in
+       * `e2e/table-fit.spec.ts`, which appends `<li>`s without going through
+       * React, still sees the stack appear when it fills it.
+       */}
+      <div className="board__mid" data-testid="board-mid" data-question={interaction?.questionOpen === true || undefined}>
         <StackView stack={view.stack} interaction={interaction} />
       </div>
 

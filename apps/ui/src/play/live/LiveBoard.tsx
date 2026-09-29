@@ -235,6 +235,9 @@
 
 import { Component, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
+import type { DraftCard } from '@hadoku/shared';
+
+import { CardTile } from '../../components/CardTile.tsx';
 import { PHASE_LABEL, type BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction } from '../Board.tsx';
 import { lookupFromState, plainRulesText, withAbilityLabels } from '../prompts/lookup.ts';
@@ -428,6 +431,233 @@ function abilityLabelsOf(ask: LiveAsk): Record<number, string> {
  * match holds and what the panel shows.
  */
 export const SAYS_SHOWN = SAYS_KEPT;
+
+/* ── the log, as something you can read (wave 28 §A.11, render half) ──── */
+
+/**
+ * What KIND of thing a log line reports.
+ *
+ * The operator, 2026-09-28: *"log should show the whole game log not just what
+ * i've done … properly color things based on what happened like damage taken …
+ * any cardnames should be hoverable and show what card it is."* Lane B shipped
+ * the first clause — `match.ts`'s `sayToTable` composes a line once per
+ * recipient, from that recipient's own folded history, so the whole table's
+ * events reach both seats without a name crossing that the recipient may not
+ * know. This is the rest of it.
+ *
+ * **The vocabulary is small and it is ours, which is why classifying it by its
+ * words is honest here and would not be in general.** Every line on this channel
+ * is a `message` notify, and there are four writers of them in the whole repo:
+ * `paid …` and `<seat> paid …` (`auto.ts`'s `paymentLine`), `full control
+ * on`/`off` (`match.ts`'s own `say`), `played …` (this client's
+ * `noteAutoAnswered`), and whatever Forge itself sends through `showMessage`.
+ * Only the last is out of our hands, and it falls to `said`, which is the
+ * default and is styled as plain text.
+ *
+ * **Forge's own game log cannot reach us today**, so there is no richer source
+ * to classify: `GameEventAddLog` is modelled in `packages/forge-wire` and
+ * `bridge/PlayBridge.java:538` sends `"events": []` on every delta on purpose,
+ * because per-event visibility rules do not exist yet. When they do, an
+ * `AddLog` arrives with a `GameLogEntryType` and a `sourceCard` — a KIND and a
+ * card id, structured — and this function is the thing it replaces rather than
+ * something it has to be bent into.
+ */
+export type LogKind = 'payment' | 'damage' | 'life' | 'play' | 'control' | 'said';
+
+/* ── Forge's second button, and the one label we refuse (item 6) ───── */
+
+/**
+ * Whether this seat has already declared an attacker, off Forge's own
+ * `Attacking` on its own board.
+ *
+ * Structured state, not prompt text — the same rule `declaringAttackers` follows
+ * and for the same reason. It is also exactly the predicate Forge itself
+ * switches its second button on: `InputAttack.canCallBackAttackers()`.
+ */
+function anyAttackerDeclared(match: LiveMatch): boolean {
+  const me = match.view?.players.find((p) => p.isViewer);
+  return me !== undefined && me.battlefield.some((c) => c.attacking);
+}
+
+/**
+ * Whether Forge's SECOND button is offered at all.
+ *
+ * The operator, 2026-09-28: *"i hate the 'alpha strike' button just delete it."*
+ * There is no alpha-strike affordance in this repo and there never was —
+ * `grep -rni alpha` over `apps/`, `packages/` and `e2e/` finds two doc lines
+ * about Forge's protocol and nothing else. What the operator saw is **Forge's own
+ * label, painted by us**:
+ *
+ *     InputAttack.java:89
+ *       String alphaLabel = canCallBackAttackers() ? localizer.getMessage("lblCallBack")
+ *                                                  : localizer.getMessage("lblAlphaStrike");
+ *     res/languages/en-US.properties:472   lblAlphaStrike=Alpha Strike
+ *
+ * and the two call sites below, which render `bar.label2` verbatim. So the button
+ * is Forge's and the fix is ours: during declare-attackers we do not offer it.
+ *
+ * **"Call Back" is NOT given the same treatment, and that is a decision rather
+ * than an oversight.** It is the same button in its other state, and the two
+ * states do opposite things: `Alpha Strike` attacks with everything, which is the
+ * shortcut the operator wants gone; `Call Back` takes back the attackers already
+ * declared, which is the only way to undo a declaration this UI has. Removing a
+ * shortcut and removing an undo are different acts, and only the first was asked
+ * for.
+ *
+ * Forge distinguishes them by `canCallBackAttackers()`, and so do we — off
+ * `Attacking`, never off the label's TEXT, because the label is localized and a
+ * client that reads Forge's prose to decide what a button means is a client that
+ * breaks in French.
+ *
+ * The button ITSELF stays in the DOM, disabled, and reads `Cancel`. It is not
+ * removed: the control cluster is a fixed box with a fixed slot for each of its
+ * five children, and `e2e/table-fit.spec.ts` fails a frame in which that box is
+ * not the box it was in every other frame. Disabled-and-neutral is also the
+ * truthful reading — there are no attackers to take back yet — and it becomes
+ * Forge's own `Call Back` the moment there are.
+ */
+function offersSecondButton(match: LiveMatch): boolean {
+  return !declaringAttackers(match) || anyAttackerDeclared(match);
+}
+
+/** What the second button says: Forge's word, or the neutral one when we refuse it. */
+function secondLabel(match: LiveMatch): string {
+  const bar = match.buttons;
+  if (!offersSecondButton(match)) return 'Cancel';
+  return bar === null || bar.label2 === '' ? 'Cancel' : bar.label2;
+}
+
+
+export function logKind(line: string): LogKind {
+  if (/^full control (on|off)$/.test(line)) return 'control';
+  if (/\bpaid\b/.test(line)) return 'payment';
+  if (/\bdamage\b|\bdeals?\b/i.test(line)) return 'damage';
+  if (/\blife\b|\bgains?\b|\bloses\b/i.test(line)) return 'life';
+  if (/\b(played|casts?|plays)\b/i.test(line)) return 'play';
+  return 'said';
+}
+
+/**
+ * The cards this viewer can put a name to, by lower-cased name.
+ *
+ * Built from the BOARD VIEW and nothing else, which is what makes the hover
+ * leak-free by construction: every card in it is already drawn on this viewer's
+ * own screen (their hand, either battlefield, either graveyard, either exile, or
+ * a stack item's source). An opponent's hand is a COUNT in `BoardView` — the
+ * adapter never maps those cards — so there is nothing here to reveal that the
+ * viewer could not already click on.
+ *
+ * A name the viewer's board does not hold simply draws as text with no hover,
+ * which is the right answer: we have no card to show.
+ */
+export function cardsNamedInView(view: BoardView | null): Map<string, DraftCard> {
+  const out = new Map<string, DraftCard>();
+  if (view === null) return out;
+  const add = (card: DraftCard): void => {
+    const key = card.name.toLowerCase();
+    if (!out.has(key)) out.set(key, card);
+  };
+  for (const p of view.players) {
+    for (const zone of [p.hand ?? [], p.battlefield, p.graveyard, p.exile]) for (const c of zone) add(c.card);
+  }
+  for (const item of view.stack) if (item.sourceCard !== null) add(item.sourceCard);
+  return out;
+}
+
+/**
+ * A log line, split into the card names it holds and the text between them.
+ *
+ * Longest name first, so `Volcanic Island` is one match rather than `Island`
+ * inside it, and case-insensitively, because Forge's own strings and ours do not
+ * agree about it. Non-overlapping: a name already consumed cannot be matched
+ * again inside a later one.
+ */
+export function splitLogLine(line: string, cards: ReadonlyMap<string, DraftCard>): (string | DraftCard)[] {
+  const names = [...cards.keys()].sort((a, b) => b.length - a.length);
+  if (names.length === 0) return line === '' ? [] : [line];
+  const out: (string | DraftCard)[] = [];
+  const lower = line.toLowerCase();
+  let at = 0;
+  while (at < line.length) {
+    let hitAt = -1;
+    let hitName = '';
+    for (const name of names) {
+      const i = lower.indexOf(name, at);
+      if (i === -1) continue;
+      if (hitAt === -1 || i < hitAt || (i === hitAt && name.length > hitName.length)) {
+        hitAt = i;
+        hitName = name;
+      }
+    }
+    if (hitAt === -1) {
+      out.push(line.slice(at));
+      break;
+    }
+    if (hitAt > at) out.push(line.slice(at, hitAt));
+    out.push(cards.get(hitName)!);
+    at = hitAt + hitName.length;
+  }
+  return out.filter((p) => p !== '');
+}
+
+/**
+ * One line of the table's log.
+ *
+ * Three things beyond the words:
+ *
+ *  - `data-log-kind`, which `live.css` colours. Damage is the one the operator
+ *    named; it is not the only one that is worth telling apart at a glance.
+ *  - `data-log-who`, `them` when the line opens with the OTHER seat's name.
+ *    `sayToTable` attributes the copy it sends the opponent and leaves the
+ *    actor's own copy unattributed, so a line that starts with a seat name is by
+ *    construction someone else's doing — and an unattributed line in a table's
+ *    log reads as your own, which is the thing this marks.
+ *  - a card name is HOVERABLE and shows the card. The tile is the real
+ *    `CardTile`, so the art goes through the one resolver like every other card
+ *    on this page, and the name is `tabindex`-reachable so the keyboard gets the
+ *    same thing the pointer does.
+ */
+function LogLine({ line, cards, theirName }: { line: string; cards: ReadonlyMap<string, DraftCard>; theirName: string | null }) {
+  const text = plainRulesText(line);
+  const mine = theirName === null || !text.startsWith(`${theirName} `);
+  /*
+   * Which name is being pointed at, if any. State rather than a CSS `:hover`
+   * rule, for two reasons that are both about the rest of the page: the tile is
+   * only in the DOM while it is wanted, so a full logbook is not eight card tiles
+   * and eight art requests sitting behind `display: none`; and the log's
+   * `textContent` stays the log's own words, which is what `e2e/table-fit.spec.ts`
+   * and `LiveBoard.test.ts` read it as.
+   */
+  const [peek, setPeek] = useState<string | null>(null);
+  return (
+    <li data-log-kind={logKind(text)} data-log-who={mine ? 'you' : 'them'}>
+      {splitLogLine(text, cards).map((piece, i) =>
+        typeof piece === 'string' ? (
+          <span key={i}>{piece}</span>
+        ) : (
+          <span
+            key={i}
+            className="live__log-card"
+            data-log-card={piece.name}
+            tabIndex={0}
+            title={`${piece.name}${piece.typeLine === '' ? '' : ` — ${piece.typeLine}`}`}
+            onMouseEnter={() => setPeek(piece.name)}
+            onMouseLeave={() => setPeek(null)}
+            onFocus={() => setPeek(piece.name)}
+            onBlur={() => setPeek(null)}
+          >
+            {piece.name}
+            {peek === piece.name && (
+              <span className="live__log-peek" data-testid="live-log-peek" aria-hidden="true">
+                <CardTile card={piece} />
+              </span>
+            )}
+          </span>
+        ),
+      )}
+    </li>
+  );
+}
 
 /* ── The phase, down the side (§C.2) ─────────────────────────────────── */
 
@@ -634,10 +864,10 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
             type="button"
             className="button confirm__button"
             data-testid="live-payment-cancel"
-            disabled={bar === null || !bar.enable2}
+            disabled={bar === null || !bar.enable2 || !offersSecondButton(match)}
             onClick={() => pressButton(match, 'cancel')}
           >
-            {bar === null || bar.label2 === '' ? 'Cancel' : bar.label2}
+            {secondLabel(match)}
           </button>
         </div>
       </section>
@@ -687,6 +917,26 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
    * already been said above, and saying it twice is the bug §F.2 names.
    */
   const alert = status === 'live' ? match.lastError : null;
+  const askOpen = ask !== null;
+  /*
+   * Forge is parked on a mana payment (§C.2). `payingMana` is the whole
+   * predicate and it already refuses while any ask is queued, so the two can
+   * never be drawn at once; the `ask === null` here says that in one place
+   * rather than relying on it.
+   *
+   * It is read HERE, above the interaction, because the stack has to know that a
+   * question is in front of it (items 7 and 13) and this is one of the two
+   * things that can be.
+   */
+  const paying = !askOpen && payingMana(match);
+  /*
+   * What the log can put a face to, and whose lines are whose. Both come off the
+   * board view the viewer is already looking at — see `cardsNamedInView` for why
+   * that is the leak-free source — and both are `null`/empty before the first
+   * state frame, which draws the log as plain text.
+   */
+  const logCards = cardsNamedInView(match.view);
+  const theirName = match.view?.players.find((p) => !p.isViewer)?.name ?? null;
   const offered = boardInteraction(match);
   const interaction: BoardInteraction = {
     /*
@@ -711,6 +961,14 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
      * read off the same `LiveMatch` handle, so it is where they are handed over.
      */
     declaringAttackers: declaringAttackers(match),
+    /*
+     * A question is in front of the board, so the stack stands aside (items 7 and
+     * 13). The two things that draw in that column are the fifteen prompts and
+     * the payment window, and both are decided a few lines below as `ask` and
+     * `paying` — this is the same pair, named once, so the stack cannot disagree
+     * with what is actually on screen.
+     */
+    questionOpen: askOpen || paying,
     onSelectCard: (cardId) => selectCard(match, cardId),
     onSelectPlayer: (playerId) => selectPlayer(match, playerId),
   };
@@ -730,13 +988,6 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
    */
   const [logOpen, setLogOpen] = useState(false);
   const logbookId = useId();
-  /*
-   * Forge is parked on a mana payment (§C.2). `payingMana` is the whole
-   * predicate and it already refuses while any ask is queued, so the two can
-   * never be drawn at once; the `ask === null` here says that in one place
-   * rather than relying on it.
-   */
-  const paying = ask === null && payingMana(match);
 
   /*
    * The pointer layer is lane B's (`./gestures/`), and the element is the whole
@@ -816,7 +1067,7 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
          */}
         <ul className="live__log" data-testid="live-log" aria-label="Said">
           {match.says.slice(-SAYS_SHOWN).map((line, i) => (
-            <li key={i}>{plainRulesText(line)}</li>
+            <LogLine key={i} line={line} cards={logCards} theirName={theirName} />
           ))}
         </ul>
       </div>
@@ -872,10 +1123,10 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
           type="button"
           className="live__cancel"
           data-testid="live-button-cancel"
-          disabled={ask !== null || bar === null || !bar.enable2}
+          disabled={askOpen || bar === null || !bar.enable2 || !offersSecondButton(match)}
           onClick={() => pressButton(match, 'cancel')}
         >
-          {bar === null || bar.label2 === '' ? 'Cancel' : bar.label2}
+          {secondLabel(match)}
         </button>
         <button
           type="button"

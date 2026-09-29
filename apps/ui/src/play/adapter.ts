@@ -292,6 +292,32 @@ export interface BoardPlayer {
    * means "nothing known", which draws the same as an empty pool.
    */
   manaPool?: readonly ManaInPool[];
+  /**
+   * The watchparty character this seat picked, as an id — wave 28 item 4, the
+   * RENDER half.
+   *
+   * **Nothing populates this today, and that is the honest state of the
+   * feature.** Lane D wired `avatarId` as far as the TABLE VIEW
+   * (`apps/server/src/http/routes.ts`'s `tableView()`), and the board does not
+   * see the table view: `toBoardView` builds a `BoardPlayer` out of Forge's
+   * `PlayerView`, which carries no identity of ours, and `MatchScreen.tsx` hands
+   * `LiveBoard` a match id and a socket and nothing else. The remaining hop is
+   * `routes.ts` → `play/socket.ts` → `play/match.ts` → here, and
+   * `docs/planning/wave28-evidence/D-avatar-field.md` §2 names the four files and
+   * the join key (`seats[].playerId`, already on the join envelope, is a Forge
+   * player id and so is `BoardPlayer.id`). Three of those four files are other
+   * lanes'.
+   *
+   * So the field is ADDITIVE and optional, `PlayerFace` draws it when it is
+   * there, and a seat without one keeps the generated mark — a seat with no face
+   * is worse than a generic face. When the hop lands, the only change here is
+   * that something sets it.
+   *
+   * Two states, never three: a non-blank string, or absent. Lane D's §3 has the
+   * argument; `avatarSquareUrl` (`../room/avatar.ts`) answers `null` for absent,
+   * blank and over-long alike, so one null check is the whole fallback.
+   */
+  avatarId?: string;
 }
 
 export interface StackEntry {

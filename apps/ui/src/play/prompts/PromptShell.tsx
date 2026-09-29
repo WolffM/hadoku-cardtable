@@ -33,6 +33,35 @@ export interface PromptShellProps {
   children?: ReactNode;
 }
 
+/**
+ * The title, broken where Forge already broke it.
+ *
+ * The operator, 2026-09-28: *"theres no newline here: 'Seat 1 activated Slagstorm
+ * - Choose a mode' i think choose a mode should be on its own line."*
+ *
+ * The STRING is Forge's — it composes `<what happened> - <what you must do>` and
+ * hands it over as one line — and the line break is ours to render. So this
+ * splits on Forge's own separator, the first spaced hyphen, and draws the two
+ * halves as two lines: what happened, quieter, and then the instruction, which is
+ * the part the player has to act on.
+ *
+ * Nothing is added, removed or reworded: `aria-label` on the dialog is still the
+ * whole original string, and a title with no separator draws exactly as it did.
+ * The separator itself goes, because that is what a line break is for.
+ */
+const TITLE_SPLIT = /^(.+?) - (.+)$/s;
+
+export function PromptTitle({ title }: { title: string }) {
+  const split = TITLE_SPLIT.exec(title);
+  if (split === null) return <h3 className="prompt__title">{title}</h3>;
+  return (
+    <h3 className="prompt__title" data-split="">
+      <span className="prompt__title-source">{split[1]}</span>
+      <span className="prompt__title-task">{split[2]}</span>
+    </h3>
+  );
+}
+
 export function PromptShell({
   method,
   title,
@@ -45,7 +74,7 @@ export function PromptShell({
 }: PromptShellProps) {
   return (
     <section className="prompt" data-prompt={method} role="dialog" aria-label={title}>
-      <h3 className="prompt__title">{title}</h3>
+      <PromptTitle title={title} />
       {message !== undefined && message !== '' && <p className="prompt__message">{message}</p>}
       {children}
       {problems.length > 0 && (

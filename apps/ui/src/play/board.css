@@ -22,8 +22,10 @@
  *     the same size on either side of the centre line at 50.5% — the operator's
  *     own geometry (`docs/planning/board-layout-2026-09-27.md`). There is no
  *     `bar` row any more: the turn bar is deleted (see "Deleted" below).
- *   - **The stack's band is out of flow** and `--mid-h` tall whether it holds
- *     nothing or five items. Items that do not fit scroll sideways INSIDE the
+ *   - **The stack's band is out of flow** and one height whether it holds
+ *     nothing or five items — `--mid-h` while nothing is being asked and
+ *     `--mid-h-asked` while a question stands in front of it (items 7 and 13),
+ *     and an empty stack is that same box drawn invisible. Items that do not fit scroll sideways INSIDE the
  *     band, and because it floats it cannot move a row at all.
  *   - **An opponent's hidden hand is an `fr` row like yours** (2.6 against the
  *     battlefield's 4), so the first card they draw does not shrink their
@@ -209,7 +211,21 @@
 
   /* The fixed tracks. Change one of these and the whole table re-proportions;
      nothing else may change them, and nothing content-sized may exist. */
-  --mid-h: 5.75rem;
+  /*
+   * The stack's band. TWO sizes since wave 28 (items 7 and 13): the operator,
+   * *"the stack should allow to be bigger unless there is a decision waiting"*.
+   * `--mid-h` is the roomy one and is what everything reads; `.board__mid`
+   * redefines it to `--mid-h-asked` while a question is open, and every derived
+   * size (`--stack-card-w`) follows, because they are all computed inside that
+   * element.
+   *
+   * The compact number is the one this band has always been, and it is the one
+   * that has to fit: the question panel starts at 24% down (`--live-col-*`,
+   * `live/live.css`) and the band starts at 11.5%, so 5.75rem is the room above
+   * it. The roomy one is only ever drawn when there is no panel to run into.
+   */
+  --mid-h: 9.25rem;
+  --mid-h-asked: 5.75rem;
   /*
    * What the permanent overlays take of every row's right end (§A.5), and it is
    * measured from what they OCCUPY rather than from where the operator's drawing
@@ -364,7 +380,7 @@
  * is not a card, in two cells: the seat's furniture — portrait, life, name, mana
  * pool, counts — level with its BATTLEFIELD, and the piles — graveyard and exile
  * — level with its HAND. That is the whole of §A.2: the column used to span both
- * rows with a second `--pile-w` column beside the battlefield, and the
+ * rows with a second pile column beside the battlefield, and the
  * battlefield has that width now.
  *
  * The opponent's ROWS are mirrored, so the two battlefields face each other
@@ -386,13 +402,18 @@
 .board .seat {
   /*
    * The left column. The operator drew it at 72px of 1280 — 5.6% — and that is
-   * also what it needs: the two counts written out ("library 46" at 10px), a mark
-   * worth aiming at, and two piles side by side under it. The rest of the row is
-   * the battlefield's.
+   * also what it needs: a mark worth aiming at, a name under it, and two piles
+   * side by side below. The rest of the row is the battlefield's.
+   *
+   * It was derived with the two counts *written out* ("library 46" at 10px);
+   * item 10 made them symbols and a number, so the column has slack it did not
+   * have — and item 9 spends it on the piles, which now draw a card the full
+   * width of their own box instead of a fixed one inside it. The column itself
+   * does NOT move: `--who-w` is what every other track on the table is
+   * proportioned against, and `e2e/table-fit.spec.ts`'s crowd thresholds were
+   * derived at this width.
    */
   --who-w: 4.5rem;
-  /* Each of the two piles in that column, side by side inside it. */
-  --pile-w: 2rem;
   /*
    * The mana pool's track: two rows of up to three pips at 10px, which is every
    * colour Forge's pool can hold (`ManaAtom.MANATYPES` is six). Named, like every
@@ -453,31 +474,72 @@
   grid-area: who;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto var(--mana-h) minmax(0, 1fr);
+  /* The opponent's: counts, mana, then the portrait at the INNER edge. */
+  grid-template-rows: minmax(0, 1fr) var(--mana-h) auto;
   gap: 3px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
-.board .seat[data-viewer] .seat__who {
-  grid-template-rows: auto minmax(0, 1fr) var(--mana-h) auto;
-}
-
-.board .seat[data-viewer] .seat__regroup {
+/*
+ * Which track the portrait sits in is item 10, and wave 28 REVERSED it.
+ *
+ * Wave 20 put the two faces as far apart as the canvas allowed, because the
+ * operator could not tell theirs from ours when both sat in the stack's band.
+ * 2026-09-28, with the seats re-blocked and each face in its own seat's left
+ * column, they asked for the opposite: *"avatars a looking awkward in that
+ * position. lets push them closer together. bottom avatar anchored top of that
+ * box, top avatar anchored bottom of that box."*
+ *
+ * "That box" is `.seat__who`. The opponent's is the LOWER cell of their seat and
+ * the viewer's is the UPPER cell of theirs, so anchoring the opponent's portrait
+ * to the bottom of its box and the viewer's to the top of its box brings the two
+ * faces in to the centre line from opposite sides. The counts take the outer end
+ * of each bar, which is the `1fr` track — still where the slack is, so a flag
+ * arriving mid-game ("their turn", "priority") still cannot move a face.
+ *
+ * **What wave 20 was actually about survives.** Telling ours from theirs never
+ * rested on the distance: it rests on `(you)` beside the name, on `data-viewer`
+ * on the seat and on the face, and on the brighter ink the viewer's mark is drawn
+ * in (`card.css`). Those are unchanged.
+ *
+ * `e2e/table-fit.spec.ts:1682-1683` asserts the OLD geometry (each face in the
+ * outer third of the canvas). That file belongs to no lane this wave; the lane
+ * report names the two lines and what they should say instead.
+ */
+.board .seat__counts {
   grid-row: 1;
 }
 
-.board .seat[data-viewer] .seat__counts {
+.board .seat__mana {
   grid-row: 2;
-  justify-content: flex-end;
 }
 
-.board .seat[data-viewer] .seat__mana {
+.board .seat__ident {
   grid-row: 3;
 }
 
+/* The viewer's: the portrait at the INNER edge too, which is the top here, then
+   mana, the counts in the slack, and Regroup at the outer end. */
+.board .seat[data-viewer] .seat__who {
+  grid-template-rows: auto var(--mana-h) minmax(0, 1fr) auto;
+}
+
 .board .seat[data-viewer] .seat__ident {
+  grid-row: 1;
+}
+
+.board .seat[data-viewer] .seat__mana {
+  grid-row: 2;
+}
+
+.board .seat[data-viewer] .seat__counts {
+  grid-row: 3;
+  justify-content: flex-end;
+}
+
+.board .seat[data-viewer] .seat__regroup {
   grid-row: 4;
 }
 
@@ -520,7 +582,15 @@
   font-weight: 400;
 }
 
-/* The counts, and the flags the game raises, down the bar one per line. */
+/*
+ * The counts, and the flags the game raises, down the bar one per line.
+ *
+ * Item 10: *"can we get symbols to display hand/deck size instead of words?"* So
+ * a count is a drawn mark and a number — `Board.tsx` draws both marks — and the
+ * two of them fit on ONE line in a 72px column where `hand 7` and `library 46`
+ * were two lines of nearly nothing else. The words are still in each count's
+ * accessible name, which is where they belong: a symbol is for the eye.
+ */
 .board .seat__counts {
   display: flex;
   flex-direction: column;
@@ -534,6 +604,22 @@
   line-height: 1.3;
   overflow: hidden;
   white-space: nowrap;
+}
+
+.board .seat__count {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--ink);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.board .seat__count-art {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  fill: var(--ink-dim);
 }
 
 .seat__flag {
@@ -672,14 +758,24 @@
  * opponent). For the viewer that is the graveyard under their own portrait,
  * which is what wave 25 §E settled in words.
  *
- * Two equal `fr` columns and one `fr` row, so neither pile is ever sized by what
- * is in it: exile is usually empty and the first exiled card may not move
- * anything around it, and a graveyard filling up squeezes its own strips.
+ * Two `fr` columns and one `fr` row, so neither pile is ever sized by what is in
+ * it: exile is usually empty and the first exiled card may not move anything
+ * around it, and a graveyard filling up squeezes its own strips.
+ *
+ * The two columns are not EQUAL any more (item 9, *"the graveyard is unecessarily
+ * small"*). They were, and the graveyard — the pile that actually fills up — got
+ * half of a 72px column, which is a 34px card. It gets 1.5 of the 2.5 shares now,
+ * and with the card filling its own box (below) that is 32px -> 40px, a quarter
+ * bigger. Exile keeps a column of its own at 27px, because an exiled card that
+ * cannot be seen at all is worse than a narrow one, and because the alternative
+ * — widening `--who-w` — re-proportions the whole table and takes the width out
+ * of the battlefield, where `e2e/table-fit.spec.ts`'s crowd thresholds were
+ * derived. A ratio is still a fixed track: neither pile is sized by its contents.
  */
 .seat__piles {
   grid-area: piles;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   gap: 4px;
   min-width: 0;
@@ -1064,6 +1160,15 @@
  */
 .board .seat .zone--graveyard,
 .board .seat .zone--exile {
+  /*
+   * A size container, so the card inside can be sized from the BOX rather than
+   * from a fixed 2rem — item 9, and the whole of it: *"the graveyard is
+   * unecessarily small, i think the cards can expand to fit the width of that
+   * box."* The box is one of the two columns of `.seat__piles`, which is the
+   * `--who-w` cell divided in two; a pile used to draw a 2rem card inside
+   * it and leave the rest as air.
+   */
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1073,15 +1178,25 @@
 
 .board .seat .zone--graveyard .zone__cards,
 .board .seat .zone--exile .zone__cards {
-  --pile-card-w: var(--pile-w);
+  /*
+   * The card IS the column. `100cqw` is the pile's own content width, so a card
+   * expands to fit its box and follows it if the box ever changes — and every
+   * length below is still derived from one number, which is what keeps the
+   * reserved room under the last card exact.
+   */
+  --pile-card-w: 100cqw;
   --card-w: var(--pile-card-w);
-  --peek: 1.15rem;
+  /* The strip each buried card shows, in proportion to the card rather than a
+     fixed 1.15rem: a wider card deserves a taller name strip, and at the
+     previous 2rem/1.15rem ratio this is the same pile it always was. */
+  --peek: calc(var(--pile-card-w) * 0.575);
 
   flex: 0 1 auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-auto-rows: minmax(0, var(--peek));
   align-content: start;
-  justify-content: center;
+  justify-content: stretch;
   min-height: 0;
   padding-bottom: calc(var(--pile-card-w) * var(--card-tall) - var(--peek));
   overflow: hidden;
@@ -1103,8 +1218,18 @@
   z-index: 1;
 }
 
-/* `start`, not stretched: a tapped card's box is shorter than its row, and
-   its chips belong on the card, not at the bottom of the row. */
+/*
+ * `start`, not stretched: a turned card's box is shorter than its row, and the
+ * state layer belongs on the card, not at the bottom of the row.
+ *
+ * Everything that layer draws — the P/T badge, the corner marks, the counters —
+ * is positioned against THIS box and lives in `card.css`. It used to be a strip
+ * of text chips and it is drawn now (wave 28 §A.15, `Board.tsx` has the table).
+ * The rule the chips were taught by outlives them and is why every piece of it is
+ * out of flow and clipped: a chip reading `summoning sick` is about 74px, a card
+ * at eleven-to-a-row at 1280×800 is 71px, and the one that hung out of the last
+ * card made the whole battlefield scroll sideways by 8px.
+ */
 .board-card {
   position: relative;
   display: flex;
@@ -1130,50 +1255,6 @@
  */
 .board .seat .board-card {
   user-select: none;
-}
-
-/*
- * Status chips sit ON the card, along its bottom edge: below it they would
- * make a row of cards taller than the height its size was derived from.
- *
- * And they never make a card WIDER. A chip is one line of text, and "summoning
- * sick" is about 74px — wider than a card once eleven share a row at
- * 1280×800 (71px). An unclipped chip hung out of the last card and made the
- * whole battlefield scroll sideways by 8px. So the strip is clipped to the
- * card, and a chip too long for it is cut with an ellipsis; its full words
- * are still in the list's accessible text.
- */
-.board-card__chips {
-  position: absolute;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
-  /* Above the cards stacked behind this one (`card.css`'s pile order), so an
-     equipped creature's own chips are not hidden by its gear. */
-  z-index: 6;
-  display: flex;
-  flex-wrap: wrap-reverse;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.board-card__chip {
-  min-width: 0;
-  max-width: 100%;
-  padding: 0 4px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--bg-raised);
-  color: var(--ink-dim);
-  font-size: 9px;
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ── the centre band: the stack, between the two battlefields ─────── */
@@ -1208,6 +1289,16 @@
   min-height: 0;
 }
 
+/*
+ * A question is on the table, so the band takes the size it has always had and
+ * the panel below it has the rest of the column. `Board.tsx` writes the
+ * attribute off `BoardInteraction.questionOpen`; absent means no question, which
+ * is the roomy default and the state every fixture renders in.
+ */
+.board__mid[data-question] {
+  --mid-h: var(--mid-h-asked);
+}
+
 /* ── the stack ────────────────────────────────────────────────────── */
 
 /*
@@ -1224,6 +1315,24 @@
   background: var(--bg-raised);
   border: 1px dashed var(--line);
   border-radius: var(--radius);
+}
+
+/*
+ * Item 13: *"the stack doesn't need to show if its empty."* An empty stack is a
+ * dashed box and the word STACK and a zero, over the opponent's battlefield, all
+ * game long — and it is exactly as informative as nothing.
+ *
+ * `visibility: hidden` rather than `display: none`, and that choice is
+ * load-bearing twice. The BOX stays the box, so the canvas is as static as it
+ * ever was — the older, absolute rule (*"the entire canvas must be fully static
+ * at all times"*), which `e2e/table-fit.spec.ts` measures by reading
+ * `.board__mid` and `[data-zone="stack"]` with 0, 1, 5 and 12 items on it. And
+ * the condition is the LIST being empty rather than a count React writes, so that
+ * spec's DOM probe — which appends `<li>`s directly — makes the stack appear by
+ * filling it, exactly as a real stack does.
+ */
+.stack:has(> .stack__items:empty) {
+  visibility: hidden;
 }
 
 .stack > .zone__head {

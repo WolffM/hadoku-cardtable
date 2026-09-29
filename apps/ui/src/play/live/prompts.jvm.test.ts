@@ -53,6 +53,36 @@
  * was sent. Each seat's deck carries four cards the other deck does not, never
  * cast, so there are secrets to leak.
  *
+ * ## These scenarios PIN `EVERY_PRIORITY_POLICY`, and here is why that is honest
+ *
+ * Wave 28 §B made `ARENA_STOP_POLICY` the server's default, so a seat now passes
+ * every phase outside its stop sets whether or not Forge named something it could
+ * do there. The operator asked for exactly that — *"it's stopping everywhere,
+ * super annoying"* — and it is the right default.
+ *
+ * It also turned a latent race in `./game-driver.ts` into a routine one, which
+ * lane B measured rather than guessed
+ * (`docs/planning/wave28-evidence/B-tests-A-must-reaim.md`): with the change the
+ * combat scenario ran out its 150 s budget with every one of its 70 asks answered
+ * and `assignCombatDamage` never reached; with the change reverted in place, exit
+ * 0, 3 passed. The mechanism is `jvm-harness.ts:158-165` — an `updateButtons`
+ * arriving ALONE bumps `notes.version` while `notes.prompt` still holds the
+ * previous window, and `game-driver.ts:92,106` keys on the version and then reads
+ * the message. Passing a burst of phases at once makes that read stale often
+ * instead of occasionally.
+ *
+ * **These scenarios do not test the stop set.** They exist to prove that fifteen
+ * prompt shapes are asked, drawn, answered and accepted without a desync or a
+ * leak. The stop set is asserted directly by `apps/server/src/play/auto.test.ts`
+ * and `auto.jvm.test.ts`, which is where a change to it belongs. So every seat
+ * here is pinned to {@link EVERY_PRIORITY_POLICY} — the stop behaviour that WAS
+ * the default until 2026-09-28 — restoring the timing these scenarios were
+ * written in and changing nothing about the prompts under test.
+ *
+ * `./board-play.jvm.test.ts:217` is the precedent and the same kind of reason.
+ * Pinning is only honest written down, which is what this section is: **the
+ * product's real default is exercised, by the suites that are about it.**
+ *
  * Skips visibly without `CARDTABLE_FORGE_JAR` / `CARDTABLE_FORGE_RES`, like the
  * server's `jvm.test.ts`.
  */
@@ -62,6 +92,7 @@ import { cleanup } from '@testing-library/react';
 
 import type { ChoiceOption } from '@hadoku/forge-wire';
 
+import { EVERY_PRIORITY_POLICY } from '../../../../server/src/play/auto.ts';
 import { leaked, rawStatesOf, secretsFor } from '../../../../server/src/play/fixtures/transcript.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { lookupFromState, type PromptCardFacts } from '../prompts/lookup.ts';
@@ -350,6 +381,9 @@ describe.skipIf(!available.ok)(title, () => {
         ],
       });
       running.push(h);
+      // The stop policy these scenarios were written in — see "These scenarios
+      // PIN `EVERY_PRIORITY_POLICY`" above. Set before anything is driven.
+      for (const seat of h.seats) expect(h.match.setStopPolicy(seat.seat, EVERY_PRIORITY_POLICY)).toEqual({ ok: true });
 
       // Forge's server side asks seat 0 a real showConfirmDialog. Its default
       // is No, and the driver presses the other button, so a `true` can only
@@ -422,6 +456,9 @@ describe.skipIf(!available.ok)(title, () => {
         ],
       });
       running.push(h);
+      // The stop policy these scenarios were written in — see "These scenarios
+      // PIN `EVERY_PRIORITY_POLICY`" above. Set before anything is driven.
+      for (const seat of h.seats) expect(h.match.setStopPolicy(seat.seat, EVERY_PRIORITY_POLICY)).toEqual({ ok: true });
       const plan: Plan = {
         land: /Volcanic Island|Temple of Mystery/,
         casts: [
@@ -485,6 +522,9 @@ describe.skipIf(!available.ok)(title, () => {
         ],
       });
       running.push(h);
+      // The stop policy these scenarios were written in — see "These scenarios
+      // PIN `EVERY_PRIORITY_POLICY`" above. Set before anything is driven.
+      for (const seat of h.seats) expect(h.match.setStopPolicy(seat.seat, EVERY_PRIORITY_POLICY)).toEqual({ ok: true });
       const plan: Plan = { land: /Forest/, casts: [{ name: 'Merfolk Branchwalker', mana: 2 }] };
       const driver = createDriver(h, plan);
       const probe = probeLabels(h, driver.roots);

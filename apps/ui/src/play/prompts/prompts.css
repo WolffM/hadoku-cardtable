@@ -46,6 +46,94 @@
   font-size: 16px;
 }
 
+/*
+ * A title Forge composed as `<what happened> - <what you must do>` (item 8). The
+ * two halves are two lines, and the instruction is the one that carries the
+ * weight — *"i think choose a mode should be on its own line"*.
+ */
+.prompt__title[data-split] {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.prompt__title-source {
+  color: var(--ink-dim);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* ── a choice in a LIST: the radio is ours, not the browser's ─────── */
+
+/*
+ * The operator, 2026-09-28: *"radio selectors are unstyled which is ugly."*
+ *
+ * The card grid already solved this in wave 20 — there the tick IS the tile's
+ * border and the native control is visually hidden (see `.prompt__cards
+ * input[type='radio']` below). A prompt with no cards in it fell through to a
+ * bare `<input type="radio">` in a `<label>`, which is the browser's own control
+ * in the middle of a surface that has no other browser chrome on it anywhere.
+ *
+ * So the list gets the same treatment in its own shape: the native control is
+ * hidden but still focusable and still clickable through the label (the live
+ * prompt driver drives it, and `choices.test.ts` fires on it by `prompt-choice`),
+ * and the row draws a mark we own — a ring that fills when it is chosen — plus
+ * the accent border the chosen row already gets everywhere else in this file.
+ *
+ * Two signals, never one: the ring FILLS and the row's border changes. A chosen
+ * row is not identified by colour alone.
+ */
+.prompt__list label,
+.prompt__amount label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.prompt__list input[type='radio'],
+.prompt__list input[type='checkbox'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The mark: a ring, and a dot inside it once the row is chosen. */
+.prompt__list label:has(> input[type='radio'])::before,
+.prompt__list label:has(> input[type='checkbox'])::before {
+  content: '';
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background: var(--bg-card);
+  border: 2px solid var(--ink-faint);
+  border-radius: 999px;
+}
+
+.prompt__list label:has(> input[type='checkbox'])::before {
+  border-radius: 4px;
+}
+
+.prompt__list label:has(> input:checked)::before {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--bg-card);
+}
+
+.prompt__list > li:has(input:checked) {
+  border-color: var(--accent);
+}
+
+.prompt__list > li:has(input:focus-visible) {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 .prompt__message,
 .prompt__hint,
 .prompt__reveal {

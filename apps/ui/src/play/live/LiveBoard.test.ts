@@ -1887,3 +1887,190 @@ describe('what the board is told about Forge’s input', () => {
   });
 });
 
+
+/* ── §A.6 — Forge's second button during declare-attackers ───────────── */
+
+/**
+ * The operator, 2026-09-28: *"i hate the 'alpha strike' button just delete it."*
+ *
+ * There is no alpha-strike affordance in this repo. The button is FORGE's:
+ * `InputAttack.java:89` sets its second label to `lblAlphaStrike` when this seat
+ * has declared nothing and `lblCallBack` when it has, and this component painted
+ * `bar.label2` verbatim. So the shortcut goes and the UNDO stays, and the two are
+ * told apart by Forge's own `Attacking` rather than by the label's text — which
+ * is localized, and a client that reads Forge's prose to decide what a button
+ * means is a client that breaks in French.
+ */
+describe('§A.6 — Forge’s second button is not offered during declare-attackers', () => {
+  const GAME_KEY = String(deltaKey(WireType.Game, 1));
+  const notify = (raw: unknown) => parseServerFrame(raw);
+  const bar = (label2: string) =>
+    notify({
+      kind: 'notify',
+      method: 'updateButtons',
+      owner: { kind: 'player', id: 0 },
+      label1: 'OK',
+      label2,
+      enable1: true,
+      enable2: true,
+      focus1: true,
+    });
+  const phase = (m: LiveMatch, name: string, playerTurn: number) =>
+    notify({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: {
+          seq: m.view!.seq + 1,
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: {},
+          objectDeltas: {
+            [GAME_KEY]: {
+              _type: WireType.Game,
+              _id: 1,
+              Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
+              PlayerTurn: { t: 'int', v: playerTurn },
+            },
+          },
+          events: [],
+        },
+      },
+    });
+  const attacking = (m: LiveMatch, ids: number[]) =>
+    notify({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: {
+          seq: m.view!.seq + 1,
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: {},
+          objectDeltas: Object.fromEntries(
+            ids.map((id) => [String(id), { _type: WireType.Card, _id: id, Attacking: { t: 'bool', v: true } }]),
+          ),
+          events: [],
+        },
+      },
+    });
+
+  it('paints Forge’s label2 everywhere else, refuses it with nothing declared, and gives it back as Call Back', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const cancel = () => getByTestId('live-button-cancel') as HTMLButtonElement;
+
+    // 1. Outside combat, Forge's word is Forge's word. Nothing here filters it.
+    s.send(bar('Cancel'));
+    await waitFor(() => expect(cancel().disabled).toBe(false));
+    expect(cancel().textContent).toBe('Cancel');
+
+    // 2. Declaring attackers with none declared: this is the Alpha Strike state,
+    //    and the button is neither offered nor labelled with Forge's word.
+    s.send(phase(m, 'COMBAT_DECLARE_ATTACKERS', me.id));
+    s.send(bar('Alpha Strike'));
+    await waitFor(() => expect(cancel().disabled).toBe(true));
+    expect(cancel().textContent, 'and it never says Forge’s word').toBe('Cancel');
+    expect(m.buttons!.label2, 'Forge still sent it — we simply do not offer it').toBe('Alpha Strike');
+
+    // 3. One attacker declared. Forge's own `canCallBackAttackers()` is true now,
+    //    it sends `Call Back`, and that is an UNDO rather than a shortcut — so it
+    //    comes back. Removing a way to take back a declared attack is a different
+    //    act from removing attack-with-everything, and only the second was asked for.
+    s.send(attacking(m, [me.battlefield.find((c) => !c.tapped)!.id]));
+    s.send(bar('Call Back'));
+    await waitFor(() => expect(cancel().disabled).toBe(false));
+    expect(cancel().textContent).toBe('Call Back');
+  });
+
+  it('keeps the button in the cluster either way: the box may not change', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const before = getByTestId('live-buttons').querySelectorAll('button').length;
+    s.send(phase(m, 'COMBAT_DECLARE_ATTACKERS', me.id));
+    s.send(bar('Alpha Strike'));
+    await waitFor(() => expect((getByTestId('live-button-cancel') as HTMLButtonElement).disabled).toBe(true));
+    /*
+     * Disabled, not removed. `live.css` gives the cluster a fixed box with a
+     * fixed slot per child and `e2e/table-fit.spec.ts` fails a frame in which
+     * that box is not the box it was in every other frame — so a button that came
+     * and went would be a canvas regression, not a tidier cluster.
+     */
+    expect(getByTestId('live-buttons').querySelectorAll('button')).toHaveLength(before);
+  });
+});
+
+/* ── §A.11 — the log, as something you can read ──────────────────────── */
+
+/**
+ * The render half of item 11. Lane B shipped the server half at `2cb7293`:
+ * `sayToTable` composes each line once per recipient from that recipient's own
+ * folded history, so the whole table's events reach both seats and a name the
+ * recipient may not know cannot ride along. This is what the result LOOKS like.
+ */
+describe('§A.11 — the log is coloured by what happened, and its card names reveal the card', () => {
+  const says = (text: string) => parseServerFrame({ kind: 'notify', method: 'message', message: text, title: '' });
+  const lines = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-testid="live-log"] li')];
+
+  it('marks each line with its kind, and each kind has an ink of its own', async () => {
+    const { s, container } = await liveBoard();
+    for (const f of [
+      says('paid U — Volcanic Island'),
+      says('Fire Urchin deals 2 damage to Goblin Replica'),
+      says('full control on'),
+      says('played Island'),
+      says('nothing in particular'),
+    ]) {
+      s.send(f);
+    }
+    await waitFor(() => expect(lines(container)).toHaveLength(5));
+    expect(lines(container).map((li) => li.dataset.logKind)).toEqual(['payment', 'damage', 'control', 'play', 'said']);
+    /*
+     * Colour is never the only signal — the words are, and always were. These are
+     * tints on the text rather than badges, so a log read with no colour at all
+     * still says everything it said before.
+     */
+    for (const kind of ['payment', 'damage', 'life', 'play', 'control']) {
+      const rule = new RegExp(`\\.live__log li\\[data-log-kind='${kind}'\\] \\{([^}]*)\\}`).exec(liveCss());
+      expect(rule, `${kind} has a rule`).not.toBeNull();
+      expect(rule![1], `${kind} sets an ink`).toMatch(/color:/);
+    }
+  });
+
+  it('tells the table’s lines from your own, by the attribution the server already puts on them', async () => {
+    const { s, m, container } = await liveBoard();
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    s.send(says('paid U — Volcanic Island'));
+    s.send(says(`${them.name} paid R — Mountain`));
+    await waitFor(() => expect(lines(container)).toHaveLength(2));
+    // `sayToTable` attributes the OPPONENT's copy and leaves the actor's own
+    // unattributed, so an unattributed line is by construction your own doing.
+    expect(lines(container).map((li) => li.dataset.logWho)).toEqual(['you', 'them']);
+  });
+
+  it('a card name the viewer’s own board holds is a tab stop, and hovering it draws the card', async () => {
+    const { s, container } = await liveBoard();
+    s.send(says('paid U — Island, Izzet Guildgate'));
+    await waitFor(() => expect(lines(container)).toHaveLength(1));
+    const names = [...lines(container)[0]!.querySelectorAll<HTMLElement>('.live__log-card')];
+    expect(names.map((n) => n.dataset.logCard)).toEqual(['Island', 'Izzet Guildgate']);
+    expect(names.map((n) => n.tabIndex), 'the keyboard gets what the pointer gets').toEqual([0, 0]);
+    // The line still READS as the line: wrapping a name changes no text.
+    expect(lines(container)[0]!.textContent).toBe('paid U — Island, Izzet Guildgate');
+    // Nothing is drawn until it is wanted, and then it is the real card.
+    expect(container.querySelector('[data-testid="live-log-peek"]')).toBeNull();
+    fireEvent.mouseEnter(names[0]!);
+    await waitFor(() => expect(container.querySelector('[data-testid="live-log-peek"]')).not.toBeNull());
+    expect(container.querySelector('[data-testid="live-log-peek"] .card__name')!.textContent).toBe('Island');
+    fireEvent.mouseLeave(names[0]!);
+    await waitFor(() => expect(container.querySelector('[data-testid="live-log-peek"]')).toBeNull());
+  });
+
+  it('a name the viewer’s board does not hold is left as text: we have no card to show', async () => {
+    const { s, container } = await liveBoard();
+    s.send(says('paid B — Swamp'));
+    await waitFor(() => expect(lines(container)).toHaveLength(1));
+    expect(lines(container)[0]!.querySelectorAll('.live__log-card')).toHaveLength(0);
+    expect(lines(container)[0]!.textContent).toBe('paid B — Swamp');
+  });
+});

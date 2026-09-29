@@ -137,10 +137,23 @@ describe('players', () => {
     expect(within(seat(1)).getByTestId('life').textContent).toBe('16');
   });
 
-  it('counts libraries', () => {
+  /*
+   * §A.10: *"can we get symbols to display hand/deck size instead of words?"* So
+   * the count IS the number, the word is the accessible name, and the mark beside
+   * it is a drawn `<svg>` — both halves asserted, because a count that lost its
+   * word entirely would be a symbol nobody can name.
+   */
+  it('draws each count as a symbol and a number, with the word in its accessible name', () => {
     const { seat } = renderBoard();
-    expect(within(seat(0)).getByTestId('library-count').textContent).toBe('library 46');
-    expect(within(seat(1)).getByTestId('library-count').textContent).toBe('library 47');
+    const library = within(seat(0)).getByTestId('library-count');
+    expect(library.textContent, 'the number, and no word').toBe('46');
+    expect(library.getAttribute('aria-label')).toBe('library 46');
+    expect(library.querySelector('svg.seat__count-art'), 'a drawn mark beside it').toBeTruthy();
+    expect(within(seat(1)).getByTestId('library-count').textContent).toBe('47');
+    const hand = within(seat(0)).getByTestId('hand-count');
+    expect(hand.textContent).toBe('5');
+    expect(hand.getAttribute('aria-label')).toBe('hand 5');
+    expect(hand.querySelector('svg.seat__count-art')).toBeTruthy();
   });
 });
 
@@ -162,20 +175,48 @@ describe('zones', () => {
     expect(cardNames(zone(1, 'battlefield')).filter((n) => n === 'Mountain')).toHaveLength(4);
   });
 
-  it('marks tapped permanents in words', () => {
+  /*
+   * §A.15: a card's state is DRAWN, not written. The operator: *"all the shitty
+   * text you have written on the card looks ugly."* So `tapped` is the turn
+   * `card.css` makes, and the WORD is gone from the card entirely — which is the
+   * half a revert would put back, so it is the half asserted.
+   */
+  it('marks tapped permanents by turning them, and writes the word nowhere', () => {
     const { zone } = renderBoard();
-    const tapped = zone(1, 'battlefield').querySelectorAll('[data-tapped]');
+    const field = zone(1, 'battlefield');
+    const tapped = field.querySelectorAll('[data-tapped]');
     // Mountain 87, Mountain 78, Vulshok War Boar 99.
     expect(tapped).toHaveLength(3);
-    expect(within(tapped[2] as HTMLElement).getByText('tapped')).toBeTruthy();
+    expect(field.textContent, 'no card on the board says "tapped"').not.toContain('tapped');
+    // And the turn is real: the stylesheet turns anything tapped or attacking.
+    expect(
+      /\.board-card:is\(\[data-tapped\], \[data-attacking\]\) \.board-card__face > \.card \{[^}]*rotate\(90deg\)/.test(
+        withoutComments(CARD_CSS),
+      ),
+      'the turn is on the tapped/attacking rule',
+    ).toBe(true);
   });
 
   it('reports summoning sickness only for creatures on the battlefield', () => {
-    // Forge's raw `Sickness` is true on most cards in hand and graveyard too.
-    const { container, zone } = renderBoard();
-    expect(zone(0, 'hand').textContent).not.toContain('summoning sick');
-    expect(zone(0, 'graveyard').textContent).not.toContain('summoning sick');
-    expect(container.querySelectorAll('.board-card__chip').length).toBeGreaterThan(0);
+    /*
+     * Forge's raw `Sickness` is true on most cards in HAND and in a GRAVEYARD too
+     * — which is exactly the reason the state layer is drawn on the battlefield
+     * and nowhere else: nothing in a hand is sick, blocking or attacking in any
+     * way a player can act on.
+     *
+     * The committed fixture's own board carries none of these states, so the sick
+     * creature is put there by hand. Its ZONE is what is under test.
+     */
+    const base = boardFromFixture(fixture);
+    const sicken = (p: (typeof base.players)[number]) =>
+      !p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => ({ ...c, summoningSick: true })) };
+    const { zone } = renderBoard({ ...base, players: base.players.map(sicken) });
+    expect(zone(0, 'hand').querySelectorAll('.board-card__marks')).toHaveLength(0);
+    expect(zone(0, 'graveyard').querySelectorAll('.board-card__marks')).toHaveLength(0);
+    expect(
+      zone(0, 'battlefield').querySelectorAll('.board-card__mark[data-mark="sick"]').length,
+      'every creature on the battlefield wears the mark',
+    ).toBe(base.players.find((p) => p.isViewer)!.battlefield.length);
   });
 
   it('fills graveyards and leaves exile empty, as the game did', () => {
@@ -684,19 +725,25 @@ describe('the canvas is static', () => {
     expect(BOARD_RULES, 'and so is the opponent-hand strip the fr row replaced').not.toContain('--opp-hand-h');
     /*
      * And the bar itself is fixed tracks with the avatar block in the seat's
-     * OUTER one — `auto` first for the opponent (the top of the board), `auto`
-     * last for the viewer (the bottom). That is what keeps wave 20's faces at
-     * opposite ends of the canvas, and what `e2e/table-fit.spec.ts` measures as
-     * "their face is in the top third".
+     * INNER one — `auto` LAST for the opponent, whose bar is the lower cell of
+     * their seat, and `auto` FIRST for the viewer, whose bar is the upper cell of
+     * theirs. That is item 10, and it REVERSES wave 20's anchoring on the
+     * operator's own instruction: *"lets push them closer together. bottom avatar
+     * anchored top of that box, top avatar anchored bottom of that box."* Telling
+     * ours from theirs still rests on `(you)`, on `data-viewer` and on the ink,
+     * which is what wave 20 was actually about.
      */
-    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--mana-h) minmax(0, 1fr)');
+    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('minmax(0, 1fr) var(--mana-h) auto');
+    expect(declarationIn('.board .seat__counts', 'grid-row')).toBe('1');
+    expect(declarationIn('.board .seat__mana', 'grid-row')).toBe('2');
+    expect(declarationIn('.board .seat__ident', 'grid-row')).toBe('3');
     expect(declarationIn('.board .seat[data-viewer] .seat__who', 'grid-template-rows')).toBe(
-      'auto minmax(0, 1fr) var(--mana-h) auto',
+      'auto var(--mana-h) minmax(0, 1fr) auto',
     );
-    expect(declarationIn('.board .seat[data-viewer] .seat__ident', 'grid-row')).toBe('4');
-    expect(declarationIn('.board .seat[data-viewer] .seat__counts', 'grid-row')).toBe('2');
-    expect(declarationIn('.board .seat[data-viewer] .seat__mana', 'grid-row')).toBe('3');
-    expect(declarationIn('.board .seat[data-viewer] .seat__regroup', 'grid-row')).toBe('1');
+    expect(declarationIn('.board .seat[data-viewer] .seat__ident', 'grid-row')).toBe('1');
+    expect(declarationIn('.board .seat[data-viewer] .seat__mana', 'grid-row')).toBe('2');
+    expect(declarationIn('.board .seat[data-viewer] .seat__counts', 'grid-row')).toBe('3');
+    expect(declarationIn('.board .seat[data-viewer] .seat__regroup', 'grid-row')).toBe('4');
     // The graveyard left the bar entirely, and the bar's track for it with it.
     expect(BOARD_RULES, 'the bar no longer has a graveyard track').not.toContain('--grave-h');
     expect(BOARD_RULES).not.toContain('--grave-w');
@@ -712,9 +759,11 @@ describe('the canvas is static', () => {
     expect(declarationIn('.board__mid', 'width')).toBe('var(--live-col-w, 24.1%)');
     expect(declarationIn('.board__mid', 'grid-template-columns')).toBe('minmax(0, 1fr)');
     expect(BOARD_RULES).not.toContain('--faces-w');
-    // The piles cell holds BOTH piles, side by side in two equal `fr` columns and
-    // one `fr` row: neither is ever sized by what is in it.
-    expect(declarationIn('.seat__piles', 'grid-template-columns')).toBe('repeat(2, minmax(0, 1fr))');
+    // The piles cell holds BOTH piles, side by side in two `fr` columns and one
+    // `fr` row: neither is ever sized by what is in it. The graveyard has the
+    // bigger share since item 9 — it is the one that fills up — and a ratio is
+    // still a fixed track.
+    expect(declarationIn('.seat__piles', 'grid-template-columns')).toBe('minmax(0, 1.5fr) minmax(0, 1fr)');
     expect(declarationIn('.seat__piles', 'grid-template-rows')).toBe('minmax(0, 1fr)');
     // The left column is one cell per seat ROW, mirrored: furniture beside the
     // battlefield, piles beside the hand, on both sides of the table.
@@ -970,8 +1019,8 @@ describe('no rotated text (operator, 2026-09-26)', () => {
     expect(inCards).toEqual(['rotate(']);
     const rotates = /^\s*transform: translate\(-50%, -50%\) rotate\(90deg\);$/m;
     expect(rotates.test(CARD_CSS), 'the one rotation is the tapped card’s quarter turn').toBe(true);
-    const tapped = /\.board-card\[data-tapped\] \.board-card__face > \.card \{[^}]*rotate\(90deg\)/;
-    expect(tapped.test(withoutComments(CARD_CSS)), 'and it is on the tapped card’s own rule').toBe(true);
+    const turned = /\.board-card:is\(\[data-tapped\], \[data-attacking\]\) \.board-card__face > \.card \{[^}]*rotate\(90deg\)/;
+    expect(turned.test(withoutComments(CARD_CSS)), 'and it is on the turned card’s own rule').toBe(true);
   });
 
   it('draws the lane labels that are left horizontally, with their counts', () => {
@@ -1022,8 +1071,11 @@ describe('the seat’s vertical bar (#9)', () => {
       expect(face.querySelector('img')).toBeNull();
       expect(within(bar).getByTestId('life').textContent).toBe(String(p.life));
       expect(bar.querySelector('.seat__name')!.textContent).toContain(p.name);
-      expect(within(bar).getByTestId('hand-count').textContent).toBe(`hand ${p.handCount}`);
-      expect(within(bar).getByTestId('library-count').textContent).toBe(`library ${p.libraryCount}`);
+      // Symbols and numbers since §A.10; the words are the accessible names.
+      expect(within(bar).getByTestId('hand-count').getAttribute('aria-label')).toBe(`hand ${p.handCount}`);
+      expect(within(bar).getByTestId('library-count').getAttribute('aria-label')).toBe(`library ${p.libraryCount}`);
+      expect(within(bar).getByTestId('hand-count').textContent).toBe(String(p.handCount));
+      expect(within(bar).getByTestId('library-count').textContent).toBe(String(p.libraryCount));
       // One life total per seat, and it is the one on the avatar: the header
       // used to carry a second copy beside it.
       expect(seat(p.id).querySelectorAll('[data-testid="life"]')).toHaveLength(1);
@@ -1095,7 +1147,7 @@ describe('the seat’s vertical bar (#9)', () => {
     expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'who field' 'piles hand'");
     expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-areas')).toBe("'piles hand' 'who field'");
     // And the bar reserves nothing for a zone any more.
-    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--mana-h) minmax(0, 1fr)');
+    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('minmax(0, 1fr) var(--mana-h) auto');
     expect(BOARD_RULES).not.toContain('seat__who > .zone--graveyard');
   });
 
@@ -2397,13 +2449,13 @@ describe('power and toughness on the board (#12, #18)', () => {
 /* ── haste is not summoning sickness ──────────────────────────────────── */
 
 describe('a hasty creature does not claim to be summoning sick (#17)', () => {
-  /** The chips one card wears. */
-  const chipsOf = (container: HTMLElement, id: number) =>
-    [...container.querySelectorAll<HTMLElement>(`[data-card-id="${id}"] > .board-card__chips > .board-card__chip`)].map(
-      (c) => c.textContent,
+  /** The state marks one card wears, by name. */
+  const marksOf = (container: HTMLElement, id: number) =>
+    [...container.querySelectorAll<HTMLElement>(`[data-card-id="${id}"] > .board-card__marks > .board-card__mark`)].map(
+      (m) => m.dataset.mark,
     );
 
-  it('draws the chip from summoningSick, not from Forge’s raw Sickness', () => {
+  it('draws the mark from summoningSick, not from Forge’s raw Sickness', () => {
     const base = boardFromFixture(fixture);
     const view: BoardView = {
       ...base,
@@ -2419,7 +2471,8 @@ describe('a hasty creature does not claim to be summoning sick (#17)', () => {
       ),
     };
     const { container } = renderBoard(view);
-    expect(chipsOf(container, 21), 'it arrived this turn and it can still act').not.toContain('summoning sick');
+    expect(marksOf(container, 21), 'it arrived this turn and it can still act').not.toContain('sick');
+    expect(container.querySelector('[data-card-id="21"]')!.hasAttribute('data-sick')).toBe(false);
     cleanup();
     const sick = renderBoard({
       ...base,
@@ -2427,7 +2480,8 @@ describe('a hasty creature does not claim to be summoning sick (#17)', () => {
         !p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id !== 21 ? c : { ...c, summoningSick: true })) },
       ),
     });
-    expect(chipsOf(sick.container, 21), 'and a creature that cannot act still says so').toContain('summoning sick');
+    expect(marksOf(sick.container, 21), 'and a creature that cannot act still says so').toContain('sick');
+    expect(sick.container.querySelector('[data-card-id="21"]')!.getAttribute('data-sick')).toBe('true');
   });
 });
 
@@ -2818,5 +2872,202 @@ describe('a full row keeps its names legible at the 960 budget (§A.1)', () => {
       expect(Math.max(...drawn) - Math.min(...drawn), `${want.join('/')}: every lane draws one card width`).toBeLessThan(5);
       cleanup();
     }
+  });
+});
+
+/* ── §A.15 — a card's state is DRAWN, not written ─────────────────────── */
+
+/**
+ * Wave 28's headline. The operator, 2026-09-28: *"+1/+1 looks really ugly, we
+ * need a better way to show that. actually all the shitty text you have written
+ * on the card looks ugly, we need to find a way to handle all of that with
+ * effects."*
+ *
+ * One case per visual claim, each failing on its own when the treatment it names
+ * is reverted. The committed fixture's board carries NONE of these states — no
+ * card in the captured game is sick, attacking, blocking, damaged, a token or
+ * carrying a counter — so every case here builds the state it is about onto the
+ * viewer's own battlefield and leaves the rest of the board alone.
+ */
+describe('§A.15 — a card’s state is drawn', () => {
+  const base = boardFromFixture(fixture);
+  /** The viewer's first creature, given some state. Everything else is the fixture's. */
+  const withState = (state: Partial<BoardCard>, cardId = 21): BoardView => ({
+    ...base,
+    players: base.players.map((p) =>
+      !p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === cardId ? { ...c, ...state } : c)) },
+    ),
+  });
+  const card = (container: HTMLElement, id = 21) => container.querySelector<HTMLElement>(`[data-card-id="${id}"]`)!;
+
+  it('no card on the board writes its state in words any more', () => {
+    const { container } = renderBoard(
+      withState({ tapped: true, summoningSick: true, attacking: true, blocking: true, token: true, damage: 2, counters: [{ name: '+1/+1', count: 3 }] }),
+    );
+    const text = container.querySelector<HTMLElement>('[data-zone="battlefield"]')!.textContent ?? '';
+    for (const word of ['tapped', 'summoning sick', 'attacking', 'blocking', 'token', '3 +1/+1', '2 damage']) {
+      expect(text, `the board still writes "${word}"`).not.toContain(word);
+    }
+    // And there is no chip list left anywhere to write one into.
+    expect(container.querySelectorAll('.board-card__chips, .board-card__chip')).toHaveLength(0);
+  });
+
+  it('an ATTACKING creature draws turned, exactly as a tapped one does (item 6)', () => {
+    const { container } = renderBoard(withState({ attacking: true, tapped: false }));
+    expect(card(container).getAttribute('data-attacking')).toBe('true');
+    expect(card(container).hasAttribute('data-tapped'), 'and Forge’s own tapped is untouched').toBe(false);
+    // One rule turns either, so a card that is both is turned once.
+    const rule = /\.board-card:is\(\[data-tapped\], \[data-attacking\]\) \.board-card__face > \.card \{([^}]*)\}/.exec(
+      withoutComments(CARD_CSS),
+    );
+    expect(rule, 'the turn is one rule for both').not.toBeNull();
+    expect(rule![1]).toMatch(/rotate\(90deg\)/);
+  });
+
+  it('summoning sickness desaturates the card and carries a drawn mark, never an outline', () => {
+    const { container } = renderBoard(withState({ summoningSick: true }));
+    expect(card(container).getAttribute('data-sick')).toBe('true');
+    const mark = card(container).querySelector<HTMLElement>('.board-card__mark[data-mark="sick"]')!;
+    expect(mark, 'a mark of its own').not.toBeNull();
+    expect(mark.querySelector('svg.board-card__mark-art'), 'drawn, not a glyph a font might not have').not.toBeNull();
+    expect(mark.textContent, 'and the word is still said, for anything that cannot see it').toBe('summoning sick');
+    // The treatment is a FILTER — a channel no outline uses — and it is not the accent.
+    const sick = /\.board-card\[data-sick\] > \.board-card__face \{([^}]*)\}/.exec(withoutComments(CARD_CSS));
+    expect(sick, 'the sick rule').not.toBeNull();
+    expect(sick![1]).toMatch(/filter:\s*grayscale/);
+    expect(sick![1], 'and it is not a fourth outline').not.toMatch(/outline|--accent/);
+  });
+
+  it('blocking and token are corner marks, and neither is drawn in the accent', () => {
+    const { container } = renderBoard(withState({ blocking: true, token: true }));
+    const marks = [...card(container).querySelectorAll<HTMLElement>('.board-card__mark')].map((m) => m.dataset.mark);
+    expect(marks).toEqual(['blocking', 'token']);
+    expect(card(container).getAttribute('data-token')).toBe('true');
+    // The three outlines a card can already wear belong to the two gesture states
+    // and nothing here may add a fourth colour to that conversation.
+    const layer = withoutComments(CARD_CSS).slice(withoutComments(CARD_CSS).indexOf('.board-card__marks {'));
+    expect(layer, 'the state layer never draws in the accent').not.toMatch(/\.board-card__mark[^}]*--accent/);
+  });
+
+  it('counters are a badge with a number: +1/+1 is compact, a named counter falls back to its name', () => {
+    const { container } = renderBoard(
+      withState({ counters: [{ name: '+1/+1', count: 3 }, { name: '-1/-1', count: 1 }, { name: 'charge', count: 2 }] }),
+    );
+    const badges = [...card(container).querySelectorAll<HTMLElement>('.board-card__counter')];
+    expect(badges.map((b) => b.textContent)).toEqual(['+3', '−1', '2 charge']);
+    expect(badges.map((b) => b.dataset.counter)).toEqual(['plus', 'minus', 'named']);
+    expect(
+      card(container).querySelector('.board-card__counters')!.getAttribute('aria-label'),
+      'and the whole of it is still said in words',
+    ).toBe('Fire Urchin counters: 3 +1/+1, 1 -1/-1, 2 charge');
+  });
+
+  it('damage is on the P/T badge — and is the badge itself when a card has no P/T', () => {
+    const hit = renderBoard(withState({ damage: 2 }));
+    const badge = card(hit.container).querySelector<HTMLElement>('.board-card__pt')!;
+    expect(badge.dataset.damage, 'the badge says it was hit').toBe('2');
+    expect(badge.querySelector('[data-pt-of="toughness"]')!.getAttribute('data-pt-state')).toBe('hurt');
+    cleanup();
+    // A land: no power, no toughness, and damage marked on it anyway.
+    const land = renderBoard(withState({ damage: 3 }, 25));
+    const only = card(land.container, 25).querySelector<HTMLElement>('.board-card__pt')!;
+    expect(only, 'a card with no P/T still shows its damage').not.toBeNull();
+    expect(only.dataset.damage).toBe('3');
+    expect(only.getAttribute('aria-label')).toBe('3 damage marked');
+    expect(only.textContent, 'the number, with the hurt marker — not the word').toBe('▼3');
+  });
+
+  it('nothing the state layer draws can change a card’s box', () => {
+    const css = withoutComments(CARD_CSS);
+    for (const sel of ['.board-card__marks', '.board-card__counters']) {
+      expect(declarationInCss(css, sel, 'position'), `${sel} is out of flow`).toBe('absolute');
+      expect(declarationInCss(css, sel, 'pointer-events'), `${sel} eats no click`).toBe('none');
+    }
+  });
+
+  it('the state layer is drawn on the battlefield and nowhere else', () => {
+    const view = withState({ summoningSick: true, token: true, counters: [{ name: '+1/+1', count: 1 }] });
+    const sicken = (cards: BoardCard[]) => cards.map((c) => ({ ...c, summoningSick: true, token: true, counters: [{ name: '+1/+1', count: 1 }] }));
+    const { zone } = renderBoard({
+      ...view,
+      players: view.players.map((p) =>
+        !p.isViewer ? p : { ...p, hand: p.hand === null ? null : sicken(p.hand), graveyard: sicken(p.graveyard) },
+      ),
+    });
+    expect(zone(0, 'battlefield').querySelectorAll('.board-card__marks').length).toBeGreaterThan(0);
+    for (const where of ['hand', 'graveyard', 'exile'] as const) {
+      expect(zone(0, where).querySelectorAll('.board-card__marks, .board-card__counters'), where).toHaveLength(0);
+    }
+  });
+});
+
+/* ── §A.7 / §A.13 — the stack, and §A.9 — the graveyard ──────────────── */
+
+describe('§A.7 / §A.13 — the stack is hidden at zero and roomy unless a question is open', () => {
+  const base = boardFromFixture(fixture);
+  const noInteraction = (over: Partial<BoardInteraction> = {}): BoardInteraction => ({
+    selectable: new Set<number>(),
+    selectablePlayers: new Set<number>(),
+    onSelectCard: () => {},
+    onSelectPlayer: () => {},
+    ...over,
+  });
+
+  it('draws nothing when the stack is empty, and the rule is keyed on the LIST being empty', () => {
+    // The operator: *"the stack doesn't need to show if its empty."*
+    const hidden = /\.stack:has\(> \.stack__items:empty\) \{([^}]*)\}/.exec(BOARD_RULES);
+    expect(hidden, 'the empty-stack rule').not.toBeNull();
+    expect(hidden![1]).toMatch(/visibility:\s*hidden/);
+    /*
+     * `visibility`, not `display` — the BOX has to stay the box. That is the
+     * older, absolute rule (*"the entire canvas must be fully static at all
+     * times"*) and it is what keeps `e2e/table-fit.spec.ts`'s four stack shots
+     * comparable; and the condition is the list rather than a React-written
+     * count, so that spec's DOM probe makes the stack appear by filling it.
+     */
+    expect(hidden![1], 'the slot is not taken away').not.toMatch(/display:\s*none/);
+    const { container } = renderBoard({ ...base, stack: [] });
+    expect(container.querySelector('[data-zone="stack"] > ol.stack__items')!.children).toHaveLength(0);
+  });
+
+  it('is roomy by default and compact while a question is open', () => {
+    // *"the stack should allow to be bigger unless there is a decision waiting"*.
+    const roomy = declarationIn('.board', '--mid-h')!;
+    const asked = declarationIn('.board', '--mid-h-asked')!;
+    expect(Number.parseFloat(roomy), 'the roomy band is the bigger one').toBeGreaterThan(Number.parseFloat(asked));
+    expect(declarationIn('.board__mid[data-question]', '--mid-h')).toBe('var(--mid-h-asked)');
+    // And the card on the stack follows the band, so a roomy band draws a bigger one.
+    expect(declarationIn('.stack__items', '--stack-card-w')).toContain('var(--mid-h)');
+
+    const quiet = renderBoard(base, noInteraction());
+    expect(quiet.container.querySelector<HTMLElement>('.board__mid')!.hasAttribute('data-question')).toBe(false);
+    cleanup();
+    const asking = renderBoard(base, noInteraction({ questionOpen: true }));
+    expect(asking.container.querySelector<HTMLElement>('.board__mid')!.getAttribute('data-question')).toBe('true');
+  });
+});
+
+describe('§A.9 — a pile’s cards expand to fit their box', () => {
+  it('sizes a graveyard card from the box rather than from a fixed width', () => {
+    // *"the graveyard is unecessarily small, i think the cards can expand to fit
+    // the width of that box"*.
+    /*
+     * Both piles share one rule, so it is addressed by its LAST selector line —
+     * which is how `declarationIn` reads a multi-selector rule, and the two lines
+     * are asserted to be together so "the graveyard's rule" cannot drift from
+     * "exile's rule" without this failing.
+     */
+    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard,\n.board .seat .zone--exile {');
+    expect(BOARD_RULES).toContain('.board .seat .zone--graveyard .zone__cards,\n.board .seat .zone--exile .zone__cards {');
+    expect(declarationIn('.board .seat .zone--exile', 'container-type'), 'the pile is a size container').toBe(
+      'inline-size',
+    );
+    expect(declarationIn('.board .seat .zone--exile .zone__cards', '--pile-card-w')).toBe('100cqw');
+    expect(declarationIn('.board .seat .zone--exile .zone__cards', '--card-w')).toBe('var(--pile-card-w)');
+    expect(declarationIn('.board .seat .zone--exile .zone__cards', 'justify-content'), 'and it fills it').toBe(
+      'stretch',
+    );
+    // The fixed width it replaced is gone outright, not merely unused.
+    expect(BOARD_RULES, 'the fixed pile width is gone').not.toContain('--pile-w:');
   });
 });
