@@ -90,6 +90,76 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## Verified this pass (2026-09-29 — tracker, closing Wave 28)
+
+Four lanes landed, **0.24.0**, CI `check` ✓ and `forge-e2e` ✓ on main's head.
+Deploy real: the redeploy for `db2966e` finished 06:40:54Z and the bundle was
+built eight seconds later, `/health` reports `bundle: ok`, and the process
+restarted after it. Worktree and branch gone; the only live JVM is production's
+warm spare. **Tracker's own `pnpm check`: 2759 passed / 22 skipped.**
+
+- **Item 15 shipped, and the tracker's expectation was wrong.** The amendment
+  (`fa963e2`) was written after the operator started the manager, and both the
+  operator and the tracker assumed it would not be read. It was: it is on main as
+  `8337bfe`, lane A's commit is titled *"a card's state is drawn…"*, and the seven
+  `chips.push(...)` strings are gone from `Board.tsx`, replaced by a drawn state
+  layer in `card.css` with `data-tapped` on the card. The rule
+  ([[dispatched-wave-is-not-mine-to-edit]]) stands — it was luck, not method.
+- **The manager caught a regression all four lanes missed.** Item 10 turned the
+  seat counts into symbols, moving the digits into an `aria-hidden` span, and two
+  places still scraped them as page text — one reported *"the opening hand was
+  never dealt"* for a board that had dealt it. Verified fixed and pinned:
+  `play.spec.ts:986` reads the `aria-label`, and `Board.test.ts:146` asserts it is
+  `library 46`, so it cannot drift silently again.
+- **The manager also got a diagnosis wrong and §A corrected it**, which is the
+  behaviour the protocol wants: `retryLand` already guarded the phase at `:177`;
+  the real defect was `atOwnMain` parsing Forge's prompt message, which can lag
+  its own buttons.
+
+### Item 4 is not done, and the wave file is why
+
+The avatar reaches the table view and the room roster and stops there.
+`adapter.ts:320` carries `avatarId?: string` and `apps/ui/src/room/avatar.ts`
+resolves it, but `PlayerFace` still draws its generated bust. The manager traced
+the remaining hop and §D confirmed it independently: `routes.ts` (§D) →
+`play/socket.ts` (§B) → `play/match.ts` (§B) → `adapter.ts` (§A) — **three of
+those four files were not §A's**, so the hand-off this wave file ordered lanes
+around could never have happened inside it. Carried to w29 with the join key in
+`docs/planning/wave28-evidence/D-avatar-field.md` §2.
+
+### The planner note: waves are slow because of how the TRACKER cuts them
+
+The manager measured its own clock at the operator's request — *"this process is
+way too slow… i've had that issue several times already"* — and wrote
+`docs/planning/wave28-evidence/manager-why-waves-run-long.md`. The findings are
+about wave PLANNING, not tests, and they are recorded here because they are the
+tracker's to fix:
+
+- **Test execution was 10–20 minutes of a ~110-minute wave**; roughly 80% was
+  agents reading, reasoning and editing. Making tests faster buys a rounding
+  error. The instinct goes to the wrong lever.
+- **§A took 42 minutes and started at minute 55.** Dispatched at t=0 beside the
+  others it would have committed before §B did — **~55 minutes instead of 110+,
+  for identical work and identical verification.**
+- **"B before A" gated 100% of §A to protect ~10% of it** (four jvm test files).
+  Order the TASK, not the LANE: *"§A does its jvm re-aim after §B reports;
+  everything else starts now."*
+- **"D before A" bought nothing**, because the dependency did not exist — see
+  item 4 above. A dependency asserted in a wave file is a claim, and the tracker
+  did not grep it.
+- **Lane sizing was argued correctly and concluded backwards.** "The play UI
+  cannot be split across lanes" is true; "therefore put eleven items in it" does
+  not follow. If a surface can only be one lane, that lane IS the wave — so cap
+  its item count. Three items per wave, more often, beats eleven in one.
+- **Every "prove it by re-running" needs its own run budget in the same
+  sentence.** The brief capped flake reproduction at three runs and said nothing
+  about attribution runs, which then cost ~15 minutes of JVM clock — for the
+  wave's single most valuable artifact (§B re-running each moved suite with its
+  change reverted in place, to prove causation rather than assume it).
+
+All six are now a tracker memory, and **w29 is cut to them**: every lane
+dispatched at t=0, dependencies written as tasks, and the play surface capped.
+
 ## Queued for Wave 29 — three items that arrived after w28 was dispatched
 
 **Recorded here because a visual instruction that stays in conversation gets
