@@ -645,7 +645,13 @@ async function setRoomPool(f: Friend, format: string): Promise<void> {
  */
 async function loadOwnDeck(f: Friend, deckId: string): Promise<void> {
   await expect(f.page.getByTestId('deck-mine')).toBeEnabled();
-  await f.page.getByTestId('deck-mine').selectOption(deckId);
+  // Wave 28 §C replaced the `<select>` with a `role="radiogroup"` of `role="radio"`
+  // buttons (*"we cannot use a standard dropdown for this"*), so `selectOption`
+  // throws `Element is not a <select> element`. `deck-mine` is still the root and
+  // every row still carries its library id, so picking a deck is still one line:
+  // `docs/planning/wave28-evidence/C-deck-chooser-e2e-recipe.md` is where that
+  // shape was promised, and this is it taken up.
+  await f.page.getByTestId('deck-mine').locator(`[data-deck-id="${deckId}"]`).click();
   await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');
 }
 
@@ -1055,10 +1061,14 @@ test(LIVE_TITLE, async ({ browser }) => {
      * Consecutive passes on which this seat dragged nothing out of hand, per seat.
      *
      * It gates the OK press for the reason the flow loop below already gives in
-     * full: Wave 20 makes a seat's own main phase a stop the server never
-     * passes, and that stop is the ONE window in which Forge offers this hand
-     * anything — so pressing the moment the bar lights up passes the window
-     * before the board has drawn what is in it. This loop used to press on the
+     * full: a seat's own main phase is a stop the server never passes, and that
+     * stop is the ONE window in which Forge offers this hand anything — so
+     * pressing the moment the bar lights up passes the window before the board
+     * has drawn what is in it. **Wave 28 made that more true, not less**: with
+     * `DEFAULT_STOP_POLICY` on Arena's stop set (`auto.ts`, item 5) the server
+     * passes every phase outside the stop sets regardless of what the seat could
+     * do there, so the main phases and declare-attackers are now the whole of
+     * this seat's own turn as far as this loop can see it. This loop used to press on the
      * first enabled OK it saw, and a deal whose only spell needed three lands
      * therefore never got to drag one: measured 2026-09-26, `turn 58` reached
      * inside the 180 s budget with a single land dragged and no spell ever
@@ -1279,11 +1289,18 @@ test(LIVE_TITLE, async ({ browser }) => {
           await dragToBattlefield(alice, land.id);
         } else {
           /*
-           * A stop is NOT a reason to press OK yet. Wave 20 makes the seat's own
-           * main phase a stop the server never passes, and that is the one
-           * window where Forge offers this hand anything — so pressing the
-           * moment the bar lights up skips it before the board has drawn what
-           * is offered. Only an idle board (nothing offered for ~1 s) is passed.
+           * A stop is NOT a reason to press OK yet. The seat's own main phase is
+           * a stop the server never passes, and that is the one window where
+           * Forge offers this hand anything — so pressing the moment the bar
+           * lights up skips it before the board has drawn what is offered. Only
+           * an idle board (nothing offered for ~1 s) is passed.
+           *
+           * Wave 28 (item 5) narrowed what ELSE this loop can be sitting in: the
+           * default stop set is Arena's now, so the upkeep, draw, combat steps
+           * and end-of-combat go past on their own whether or not the seat could
+           * have acted there. An idle pass here is therefore a main phase with
+           * nothing castable far more often than it used to be, which is the
+           * board this counter was written to recognise.
            */
           empty += 1;
           if (empty >= 4) await pressOk();

@@ -20,6 +20,7 @@ import { ClientFrameSchema, PHASE_TYPES, REPLY_SCHEMAS, YieldUpdateSchema, parse
 import {
 	ARENA_STOP_POLICY,
 	DEFAULT_STOP_POLICY,
+	EVERY_PRIORITY_POLICY,
 	FULL_CONTROL_POLICY,
 	STOP_POLICY_NAMES,
 	STRICT_PAYMENT_POLICY,
@@ -45,7 +46,7 @@ import {
 import { FORGE_PREFERENCES } from './host.js';
 import { createMatchRegistry, type Match } from './match.js';
 import type { ServerEnvelope } from './transport.js';
-import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/transcript.js';
+import { leaked, loadTranscript, rawStatesOf, replayFactory, secretsFor, type ReplayHost } from './fixtures/transcript.js';
 
 /* ── The real prompt fixtures ────────────────────────────────────────── */
 
@@ -291,6 +292,18 @@ describe('the captured turn flow — every rule against frames Forge really sent
 
 const PRIORITY_MESSAGE = 'Priority: B\nTurn: 4 (A)\nPhase: End of Combat Step\nStack: Empty';
 
+/*
+ * Two windows in phases the default policy DOES stop in — wave 28, item 5.
+ *
+ * `PRIORITY_MESSAGE` is the End of Combat step, which is not in either stop set,
+ * so the default now passes it whether or not the seat could act there. That is
+ * the change, so every case below whose claim is "this window is the PLAYER's"
+ * has to name a phase the player actually asked for: their end step, or the
+ * seat's own precombat main.
+ */
+const THEIR_STOP_MESSAGE = 'Priority: B\nTurn: 4 (A)\nPhase: End step\nStack: Empty';
+const MY_STOP_MESSAGE = 'Priority: A\nTurn: 4 (A)\nPhase: Main phase, precombat\nStack: Empty';
+
 function prompt(message: string, playerId = 1): ServerFrame {
 	return parseServerFrame({
 		kind: 'notify',
@@ -327,12 +340,49 @@ describe('autoPassReason', () => {
 		expect(autoPassReason(IDLE)).toBe('End of Combat Step');
 	});
 
-	it('never passes a stop where Forge named something actionable', () => {
-		expect(autoPassReason({ ...IDLE, actionable: [67] })).toBeNull();
+	it('never passes a phase the player ASKED to stop in, with something to do or nothing', () => {
+		// Their end step and the seat's own precombat main are both stop phases under
+		// the default (wave 28). Nothing about what Forge named changes that.
+		for (const message of [THEIR_STOP_MESSAGE, MY_STOP_MESSAGE]) {
+			for (const actionable of [[] as number[], [67], null]) {
+				expect(autoPassReason({ ...IDLE, prompt: prompt(message), actionable }), `${message} ${String(actionable)}`).toBeNull();
+			}
+		}
 	});
 
-	it('never passes on silence: a cleared set is "Forge has not said", not "nothing"', () => {
-		expect(autoPassReason({ ...IDLE, actionable: null })).toBeNull();
+	/*
+	 * Wave 28, item 5, and the reason it is a leak fix rather than a convenience:
+	 * this window used to be a stop whenever Forge named anything the seat could
+	 * do, and Forge names a held instant. So the seat stopping told the table the
+	 * seat was holding one. A phase outside the stop set is now passed on the
+	 * PHASE, which is the same whatever the hand is.
+	 */
+	it('PASSES a phase outside the stop sets whether Forge named something, nothing, or nothing at all', () => {
+		for (const actionable of [[] as number[], [67], null]) {
+			expect(autoPassReason({ ...IDLE, actionable }), String(actionable)).toBe('End of Combat Step');
+		}
+	});
+
+	it('never passes on silence where the policy still asks "was there anything to do"', () => {
+		// A cleared set is "Forge has not said", not "nothing". Two places still
+		// judge a window that way: every priority window under the superseded
+		// default, and a STACK window under the current one, in any phase.
+		expect(autoPassReason({ ...IDLE, actionable: null }, EVERY_PRIORITY_POLICY)).toBeNull();
+		expect(autoPassReason({ ...IDLE, actionable: [67] }, EVERY_PRIORITY_POLICY)).toBeNull();
+		const onStack = prompt('Priority: B\nTurn: 4 (A)\nPhase: End of Combat Step\nStack: 1 to Resolve.');
+		expect(autoPassReason({ ...IDLE, prompt: onStack, actionable: null })).toBeNull();
+		expect(autoPassReason({ ...IDLE, prompt: onStack, actionable: [67] })).toBeNull();
+	});
+
+	it('never passes a phase spelling it could not identify, now that "always" is the default', () => {
+		// All thirteen spellings are mapped, so an unknown one is Forge saying
+		// something new — "when in doubt the player is asked", not "skip it".
+		const odd = prompt('Priority: A\nTurn: 4 (A)\nPhase: Fourth main phase\nStack: Empty');
+		expect(autoPassReason({ ...IDLE, prompt: odd, actionable: [67] })).toBeNull();
+		expect(autoPassReason({ ...IDLE, prompt: odd, actionable: null })).toBeNull();
+		// Forge's own "nothing here" still passes it: the guard removes the SKIP,
+		// not `passWhenNothingToDo`.
+		expect(autoPassReason({ ...IDLE, prompt: odd, actionable: [] })).toBe('Fourth main phase');
 	});
 
 	// Wave 20, #5: this used to be "never passes with something on the stack".
@@ -644,18 +694,41 @@ describe('a Match with the shortcuts on (the default)', () => {
 		expect(h.match.seats[0]?.autoPassed).toBe(1);
 	});
 
-	it('does NOT pass a stop where Forge named something the seat can do', () => {
+	it('does NOT pass a stop PHASE, whatever Forge named the seat could do there', () => {
 		const h = harness();
 		const me = playerOf(h, 0);
 		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
-		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
+		push(h, 0, prompt(MY_STOP_MESSAGE, me));
 		push(h, 0, buttons(true, me));
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
 		expect(says(h, 0)).toEqual([]);
 	});
 
-	it('does NOT pass on a cleared set — Forge has not answered, so neither do we', () => {
-		const h = harness();
+	/*
+	 * Item 5, wave 28, end to end through `match.ts`: **the operator's own bug.**
+	 * Their upkeep, Tragic Slip in hand, Forge naming it actionable — which is
+	 * what made the old default stop here, and what made the stop say the hand
+	 * held an instant. The upkeep is not a stop phase, so it is passed on the
+	 * PHASE, and the pass is identical with an empty hand.
+	 */
+	it('item 5 — passes the upkeep the operator was stopped on, and passes it identically with nothing in hand', () => {
+		for (const actionable of [[{ kind: 'card' as const, id: 67 }], []]) {
+			const h = harness();
+			const me = playerOf(h, 0);
+			push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: actionable });
+			push(h, 0, prompt('Priority: A\nTurn: 4 (A)\nPhase: Upkeep step\nStack: Empty', me));
+			push(h, 0, buttons(true, me));
+			expect(h.host.commands.filter((c) => c.t === 'act'), JSON.stringify(actionable)).toEqual([
+				{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
+			]);
+			expect(h.logs.filter((l) => l.evt === 'auto-passed')).toEqual([
+				{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'Upkeep step' },
+			]);
+		}
+	});
+
+	it('does NOT pass on a cleared set where the policy still reads one — Forge has not answered, so neither do we', () => {
+		const h = harness(EVERY_PRIORITY_POLICY);
 		const me = playerOf(h, 0);
 		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
 		push(h, 0, { kind: 'notify', method: 'clearWeaklySelectable' });
@@ -717,6 +790,59 @@ describe('a Match with the shortcuts on (the default)', () => {
 		expect(says(h, 0).filter((l) => l.startsWith('paid'))).toEqual([]);
 		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
 		expect(says(h, 0).filter((l) => l.startsWith('paid'))).toEqual([`paid U — ${tapped.name}`]);
+	});
+
+	/*
+	 * Item 11, wave 28, the server half: *"log should show the whole game log not
+	 * just what i've done."* `say` sends to ONE seat, which is exactly why the
+	 * operator only ever saw their own actions. The payment line is the one event
+	 * this repo synthesises, so it is the one that could be made the table's.
+	 *
+	 * The mutation target is `sayToTable` in `match.ts`: put the payment line back
+	 * on `say` and seat 1's assertions here go red.
+	 */
+	it('item 11 — a payment line reaches the WHOLE table, attributed, and names only what the recipient can see', () => {
+		const h = harness();
+		h.host.push(...TRANSCRIPT.slice(OPENING.length));
+		const me = playerOf(h, 0);
+		const tapped = firstOwnCard(h, 0);
+		push(h, 0, prompt('Preordain - scribes 2.\n\nPay Mana Cost: {U}', me));
+		push(h, 0, {
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: {
+				packet: {
+					seq: 9101,
+					checksum: 0,
+					checksumProperties: [],
+					newObjects: {},
+					objectDeltas: { [String(tapped.key)]: { _type: 0, _id: tapped.id, Tapped: { t: 'bool', v: true } } },
+					events: [],
+				},
+			},
+		});
+		push(h, 0, prompt(MY_STOP_MESSAGE, me));
+
+		// The payer's own copy is unattributed — their own log need not tell them
+		// who they are — and names the card, because they can see it.
+		expect(says(h, 0).filter((l) => l.includes('paid'))).toEqual([`paid U — ${tapped.name}`]);
+
+		// The opponent gets the same EVENT, which is the whole of item 11's server
+		// half, and it says who: an unattributed line in a table's log reads as
+		// your own.
+		const theirs = says(h, 1).filter((l) => l.includes('paid'));
+		expect(theirs).toHaveLength(1);
+		expect(theirs[0]?.startsWith('Seat 1 paid U — ')).toBe(true);
+
+		// And the leak rule, which is what makes the broadcast shippable: the line
+		// is composed from the RECIPIENT's own folded history, so a card seat 1
+		// never saw reads as `card #<id>` to them while reading as its name to seat
+		// 0. Nothing crosses over inside a string.
+		expect(theirs[0]).toBe(`Seat 1 paid U — card #${tapped.id}`);
+		expect(theirs[0]?.includes(tapped.name)).toBe(false);
+		// The oracle agrees, over everything seat 1 was actually sent.
+		const { secrets } = secretsFor(rawStatesOf(TRANSCRIPT, 1), 1);
+		expect(leaked(secrets, JSON.stringify(frames(h, 1)))).toEqual([]);
 	});
 
 	it('keeps its lines across a refresh: a snapshot re-sends them before the prompt', () => {
@@ -816,7 +942,9 @@ describe('a seat owns its stop policy', () => {
 				seat: 0,
 				unambiguousPayment: 'auto',
 				unpayableCost: 'cancel',
-				skipNonStopPhases: 'never',
+				// Wave 28: STRICT_PAYMENT_POLICY spreads the default, and the default
+				// skips every phase outside the stop sets now.
+				skipNonStopPhases: 'always',
 			},
 		]);
 
@@ -911,10 +1039,15 @@ describe('a stop policy can be named from outside', () => {
 		expect(namedStopPolicy('default')).toEqual(DEFAULT_STOP_POLICY);
 		expect(namedStopPolicy('strictPayment')).toEqual(STRICT_PAYMENT_POLICY);
 		expect(namedStopPolicy('arena')).toEqual(ARENA_STOP_POLICY);
+		expect(namedStopPolicy('everyPriority')).toEqual(EVERY_PRIORITY_POLICY);
 		expect(namedStopPolicy('fullControl')).toEqual(FULL_CONTROL_POLICY);
+		// `arena` still answers, and it now names the default — wave 28 adopted the
+		// value, and a hatch that stops answering to a name it once answered to is
+		// worse than an alias.
+		expect(namedStopPolicy('arena')).toEqual(DEFAULT_STOP_POLICY);
 		// The names it advertises are exactly the names it answers to — a refusal
 		// that lists `known` must not list one that then resolves to null.
-		expect([...STOP_POLICY_NAMES].sort()).toEqual(['arena', 'default', 'fullControl', 'strictPayment']);
+		expect([...STOP_POLICY_NAMES].sort()).toEqual(['arena', 'default', 'everyPriority', 'fullControl', 'strictPayment']);
 		for (const name of STOP_POLICY_NAMES) expect(namedStopPolicy(name)).not.toBeNull();
 	});
 
@@ -1139,9 +1272,13 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 	/** The opponent's upkeep, with something this seat could do. */
 	const busyOnTheirUpkeep = facts({ phase: 'UPKEEP', phaseLabel: 'Upkeep step', myTurn: false, sources: [61] });
 
-	it('#20 — the default asks, and ARENA passes it, with no code between them', () => {
-		expect(decideStop(busyOnTheirUpkeep, DEFAULT_STOP_POLICY)).toBeNull();
-		expect(decideStop(busyOnTheirUpkeep, ARENA_STOP_POLICY)).toBe('Upkeep step');
+	it('#20 — the superseded default asks, and the current one passes it, with no code between them', () => {
+		// Wave 24 §E wrote this as "the default asks, and ARENA passes it". Wave 28
+		// adopted ARENA, so the two values swapped sides and the sentence still has
+		// to be true of a VALUE rather than of a branch: nothing in `auto.ts`
+		// changed between these two lines.
+		expect(decideStop(busyOnTheirUpkeep, EVERY_PRIORITY_POLICY)).toBeNull();
+		expect(decideStop(busyOnTheirUpkeep, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
 	});
 
 	it('#20 — the phases the player DID ask for still stop, with something to do or not', () => {
@@ -1164,16 +1301,22 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 	it('an unknown phase is never skipped — a spelling we do not know is a stop', () => {
 		const unknown = facts({ phase: null, phaseLabel: 'Fourth main phase', sources: [61] });
 		expect(isStopPhase(ARENA_STOP_POLICY, unknown)).toBe(false);
-		// `skipNonStopPhases: 'always'` would pass it; that is deliberate and it is
-		// what the label fallback is for. With actions and the default, it stops.
-		expect(decideStop(unknown, DEFAULT_STOP_POLICY)).toBeNull();
+		// Wave 24 §E left this as "`'always'` would pass it; that is deliberate".
+		// Wave 28 made `'always'` the DEFAULT, and an unidentified phase quietly
+		// passing every window it appears in is not a thing to leave deliberate, so
+		// `skipsThisTurn` now refuses a null phase. It holds under every policy.
+		for (const policy of [DEFAULT_STOP_POLICY, EVERY_PRIORITY_POLICY, ARENA_STOP_POLICY, FULL_CONTROL_POLICY]) {
+			expect(decideStop(unknown, policy)).toBeNull();
+		}
+		// Forge's own "nothing here" still passes it, label and all.
+		expect(decideStop({ ...unknown, sources: [] }, DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
 	});
 
-	it('the default policy is wave 20’s behaviour, field by field', () => {
+	it('the default policy is Arena’s stop set, field by field — wave 28, item 5', () => {
 		expect(DEFAULT_STOP_POLICY).toEqual({
-			stopOnMyTurn: ['MAIN1', 'MAIN2'],
-			stopOnTheirTurn: [],
-			skipNonStopPhases: 'never',
+			stopOnMyTurn: ['MAIN1', 'MAIN2', 'COMBAT_DECLARE_ATTACKERS'],
+			stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'],
+			skipNonStopPhases: 'always',
 			passWhenNothingToDo: true,
 			interruptsRestoreStops: true,
 			passStackWindows: true,
@@ -1182,6 +1325,67 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			costConfirm: 'ask',
 			answerOneAnswerAsks: true,
 		});
+		// It was adopted WHOLESALE, not just its `skipNonStopPhases` — the stop sets
+		// are the half that keeps a held instant castable at all.
+		expect(DEFAULT_STOP_POLICY).toEqual(ARENA_STOP_POLICY);
+	});
+
+	it('wave 20’s behaviour is still a value, so the change is reversible', () => {
+		expect(EVERY_PRIORITY_POLICY).toEqual({
+			...DEFAULT_STOP_POLICY,
+			stopOnMyTurn: ['MAIN1', 'MAIN2'],
+			stopOnTheirTurn: [],
+			skipNonStopPhases: 'never',
+		});
+	});
+
+	/*
+	 * Item 5, as the operator described it, and the lane's mutation target: revert
+	 * `DEFAULT_STOP_POLICY`'s three fields in `auto.ts` and this case goes red.
+	 *
+	 * *"the game auto-stopped on my upkeep because i have tragic slip avaliable
+	 * and i could use it on my own minion … it reveals information about whats in
+	 * my hand … upkeep stops like this should not happen unless in full control
+	 * mode."*
+	 */
+	it('item 5 — an upkeep with a castable instant is PASSED by default and STOPPED under full control', () => {
+		// Forge named the instant: one actionable card, the seat's own upkeep, an
+		// empty stack. This is the whole of what the old default read.
+		const upkeepHoldingSlip = facts({ phase: 'UPKEEP', phaseLabel: 'Upkeep step', myTurn: true, sources: [61] });
+		expect(decideStop(upkeepHoldingSlip, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
+		// The operator's stated escape, and it is not weakened by any of this.
+		expect(decideStop(upkeepHoldingSlip, FULL_CONTROL_POLICY)).toBeNull();
+		// And the leak argument, as an assertion: the decision does not depend on
+		// what the seat holds. An empty hand reaches the same answer, so the pass
+		// says nothing about the hand.
+		expect(decideStop({ ...upkeepHoldingSlip, sources: [] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
+		expect(decideStop({ ...upkeepHoldingSlip, sources: [61, 62, 63] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
+		// The same window under the superseded default is the bug, in one line.
+		expect(decideStop(upkeepHoldingSlip, EVERY_PRIORITY_POLICY)).toBeNull();
+		// The opponent's upkeep too — *"it's stopping everywhere"*.
+		const theirUpkeep = { ...upkeepHoldingSlip, myTurn: false };
+		expect(decideStop(theirUpkeep, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
+		expect(decideStop(theirUpkeep, FULL_CONTROL_POLICY)).toBeNull();
+	});
+
+	/*
+	 * The other half of the wholesale decision: `'always'` alone would have left
+	 * the seat with nowhere to cast the instant it is holding. These are the three
+	 * windows the stop sets keep, and the reason they are not negotiable.
+	 */
+	it('the windows a held instant is actually cast in are still stops', () => {
+		const stops: [PhaseType, string, boolean][] = [
+			['COMBAT_DECLARE_ATTACKERS', 'Declare Attackers Step', true],
+			['COMBAT_DECLARE_BLOCKERS', 'Declare Blockers Step', false],
+			['END_OF_TURN', 'End step', false],
+			['MAIN1', 'Main phase, precombat', true],
+			['MAIN2', 'Main phase, postcombat', true],
+		];
+		for (const [phase, phaseLabel, myTurn] of stops) {
+			for (const sources of [[], [61]]) {
+				expect(decideStop(facts({ phase, phaseLabel, myTurn, sources }), DEFAULT_STOP_POLICY), phase).toBeNull();
+			}
+		}
 	});
 });
 
@@ -1366,11 +1570,18 @@ describe('toYieldUpdates — the policy as Forge’s own YieldUpdate arms', () =
 	});
 
 	it('carries one skipPhase per (turn player, phase) — 13 phases, every player', () => {
-		const frames = toYieldUpdates(DEFAULT_STOP_POLICY, SEAT);
-		const skips = frames.filter((f) => f.update === 'skipPhase');
-		expect(skips).toHaveLength(PHASE_TYPES.length * 2);
-		// The default skips nothing: every stop is still Forge's own to decide.
-		expect(skips.every((f) => f.update === 'skipPhase' && f.skip === false)).toBe(true);
+		for (const policy of [DEFAULT_STOP_POLICY, EVERY_PRIORITY_POLICY]) {
+			expect(toYieldUpdates(policy, SEAT).filter((f) => f.update === 'skipPhase')).toHaveLength(PHASE_TYPES.length * 2);
+		}
+		// `skipNonStopPhases: 'never'` skips nothing: every stop is Forge's own to
+		// decide. That was the default until wave 28, and it is what the current
+		// default stopped doing — the case below is the same set, inverted.
+		const never = toYieldUpdates(EVERY_PRIORITY_POLICY, SEAT).filter((f) => f.update === 'skipPhase');
+		expect(never.every((f) => f.update === 'skipPhase' && f.skip === false)).toBe(true);
+		// The default now sends a real skip set, which is what makes the change
+		// something Forge is told about rather than something only we act on.
+		const now = toYieldUpdates(DEFAULT_STOP_POLICY, SEAT).filter((f) => f.update === 'skipPhase' && f.skip);
+		expect(now.length).toBe(PHASE_TYPES.length * 2 - DEFAULT_STOP_POLICY.stopOnMyTurn.length - DEFAULT_STOP_POLICY.stopOnTheirTurn.length);
 	});
 
 	it('ARENA’s skip set is exactly the complement of its stop set, per side', () => {

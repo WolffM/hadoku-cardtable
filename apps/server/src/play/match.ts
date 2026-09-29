@@ -894,6 +894,55 @@ export class Match {
 		this.send(s, frame);
 	}
 
+	/**
+	 * One observable line to **every** seat — the table's log rather than a seat's.
+	 *
+	 * Wave 28, item 11: *"log should show the whole game log not just what i've
+	 * done."* {@link Match.say} sends to one seat, and that is exactly why the
+	 * operator only ever saw their own actions. What a seat is TOLD is still
+	 * per-seat, and that is the point of the callback rather than a string: the
+	 * line is composed once per recipient, from **that recipient's own projected
+	 * history**, so a name the recipient may not know cannot ride along in it. A
+	 * broadcast built from the ACTOR's history would be a leak with a plausible
+	 * excuse, and `match.test.ts`'s `leaked(secrets, emitted)` is the oracle that
+	 * would catch it.
+	 *
+	 * Not every line earns this. A seat's own preference (`full control on`) is
+	 * still {@link Match.say}: it is not something that happened in the game, and
+	 * telling the opponent when you switch it on is information about you that the
+	 * game did not create.
+	 *
+	 * ## Why this is our `say` channel and not Forge's own log
+	 *
+	 * Item 11 asks for "the whole game log", and Forge has one: `GameEventAddLog`,
+	 * which `packages/forge-wire/src/events/modelled.ts:66-71` already models with
+	 * its `GameLogEntryType` and its `sourceCard`. It does not reach us.
+	 * `bridge/PlayBridge.java:538` sends `"events": []` on **every** `applyDelta`,
+	 * deliberately — its own class comment (`:147-149`): *"events carry card names,
+	 * including the card an opponent just drew, and the Node side has no per-event
+	 * visibility rule yet."*
+	 *
+	 * So carrying Forge's log is a BRIDGE change plus a per-event visibility rule,
+	 * and neither is this lane's file. Ours is the half that can ship without one:
+	 * the events this repo synthesises itself, broadcast, with every name resolved
+	 * against the recipient. When the bridge does forward the events arm, an
+	 * `AddLog` line must be filtered by the same rule this method embodies — the
+	 * recipient's own view decides what a line may name — and `sourceCard` is
+	 * exactly the field that makes that filterable rather than a string scan.
+	 */
+	private sayToTable(line: (recipient: SeatState) => string | null): void {
+		for (const s of this.seats) {
+			if (s.ai) continue;
+			const message = line(s);
+			if (message !== null) this.say(s, message);
+		}
+	}
+
+	/** This seat's Forge player name — shown to both seats, so never an identity. */
+	private seatName(seat: number): string {
+		return this.spec.seats[seat]?.name ?? `Seat ${seat + 1}`;
+	}
+
 	/** What this seat was last told, as the stop decisions read it (`auto.ts`). */
 	private notesOf(s: SeatState): SeatNotes {
 		return {
@@ -984,6 +1033,17 @@ export class Match {
 	 * The one payment that leaves no line is one that was CANCELLED: the cast was
 	 * rolled back, nothing was paid, and the rule is "a cast must never look free",
 	 * not "every prompt must leave a line".
+	 *
+	 * **The line goes to the whole table since wave 28 (item 11).** What a
+	 * payment tapped is public: the cards are on the battlefield and their
+	 * `Tapped` flip is already in every seat's own projected delta, so the
+	 * opponent can watch the lands turn sideways whether or not a line says so.
+	 * What was NOT public before this is the pairing — which lands paid for which
+	 * cast — and that is the half the log exists to carry. Each recipient's copy
+	 * resolves the card names from **their own** folded history, so a card they
+	 * cannot name reads as `card #<id>` to them and as its name to the payer; and
+	 * the opponent's copy is attributed, because an unattributed line in a table's
+	 * log reads as your own.
 	 */
 	private trackPayment(s: SeatState, message: string): void {
 		const cost = paymentCost(message);
@@ -1004,9 +1064,13 @@ export class Match {
 			s.paymentCancelled = false;
 			return;
 		}
-		const state = foldFrames(s.history as unknown as StateFrame[]);
-		for (const card of payment.tapped) card.name = cardName(state, card.id) ?? card.name;
-		this.say(s, paymentLine(payment));
+		this.sayToTable((recipient) => {
+			// The recipient's OWN state names the cards. Nothing the payer can see
+			// and the recipient cannot gets to cross over inside a string.
+			const state = foldFrames(recipient.history as unknown as StateFrame[]);
+			const tapped = payment.tapped.map((c) => ({ id: c.id, name: cardName(state, c.id) ?? c.name }));
+			return paymentLine({ cost: payment.cost, tapped }, recipient === s ? undefined : this.seatName(s.seat));
+		});
 	}
 
 	/** Cards that tapped under an open payment prompt, from this seat's own projected delta. */

@@ -280,8 +280,11 @@ export const STOP_POLICY_ENV = 'CARDTABLE_PLAY_STOP_POLICY';
  *
  *  - **unset or empty** → `null`. Production, and every deployment. Seats start
  *    on `DEFAULT_STOP_POLICY`, which `socket.test.ts` asserts.
- *  - **a known name** → that policy. `strictPayment` is the one lane B wants:
- *    `STRICT_PAYMENT_POLICY`, where a payment is the player's to click.
+ *  - **a known name** → that policy. `strictPayment` is `STRICT_PAYMENT_POLICY`,
+ *    where a payment is the player's to click; `everyPriority` is the stop
+ *    behaviour that was the default until wave 28 adopted Arena's stop set
+ *    (item 5), which is what a run wanting a window in every phase now asks for.
+ *    `arena` still resolves and now names the default.
  *  - **an unknown name** → `{ name, policy: null }`, so `attachPlay` can LOG
  *    the typo. Falling back silently would play the whole match under the
  *    default the operator was trying to move off, and the screenshot would be

@@ -64,6 +64,7 @@ import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
 import {
 	DEFAULT_STOP_POLICY,
 	FULL_CONTROL_POLICY,
+	STRICT_PAYMENT_POLICY,
 	decideCancel,
 	decidePay,
 	decideStop,
@@ -778,14 +779,23 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(facts.cost).not.toBeNull();
 				expect(facts.sources!.length).toBeGreaterThan(1);
 				// `UI_SHOW_AUTOTAP_PREVIEW` defaults false and the bridge does not set
-				// it, so Forge's own auto-tap plan never reaches us and the payment
-				// correctly stays a stop. Flipping that pref is what closes #22.
+				// it, so Forge's own auto-tap plan never reaches us. Flipping that pref
+				// is what closes #22.
 				expect(facts.plannedSources).toEqual([]);
-				expect(decidePay(facts, DEFAULT_STOP_POLICY)).toBeNull();
-				// The same row WITH Forge's weighting is one payment — the wire shape
-				// the pref produces, asserted here so the fix has a test waiting.
+				// The strict value is the one that asks, and it is the one this claim
+				// belongs to: this line said `DEFAULT_STOP_POLICY` until wave 28 found
+				// it red. The default moved to `'forgeAuto'` on 2026-09-27 (`auto.ts`,
+				// `88ca6fb`) and this jar-gated file was never re-aimed — CI runs no
+				// jar-gated vitest, so the red sat here latent rather than failing.
+				expect(decidePay(facts, STRICT_PAYMENT_POLICY)).toBeNull();
+				// Under the default the operator chose, Forge's own Auto settles it.
+				expect(decidePay(facts, DEFAULT_STOP_POLICY)).toBe(facts.cost);
+				// The same row WITH Forge's weighting is one payment even for the strict
+				// value — the wire shape the pref produces, asserted here so the fix has
+				// a test waiting.
 				const weighted = readPromptFacts({ ...notesFrom(row), actionable: [...row.actionable!, ...new Set(row.actionable!)] });
 				expect(new Set(weighted.plannedSources)).toEqual(new Set(weighted.sources));
+				expect(decidePay(weighted, STRICT_PAYMENT_POLICY)).toBe(facts.cost);
 				expect(decidePay(weighted, DEFAULT_STOP_POLICY)).toBe(facts.cost);
 			}
 
@@ -1091,7 +1101,6 @@ describe.skipIf(!available.ok)(title, () => {
 			 * can pay THIS cost — and it is why `decidePay`'s source-count arm asked.
 			 */
 			const board = new Map(zone(0, 'Battlefield').map((c) => [c.id, c.name]));
-			const forgeAuto = { ...DEFAULT_STOP_POLICY, unambiguousPayment: 'forgeAuto' as const };
 			for (const row of blastRows()) {
 				const facts: PromptFacts = readPromptFacts(notesFrom(row));
 				expect(facts.window).toBe('payment');
@@ -1102,9 +1111,12 @@ describe.skipIf(!available.ok)(title, () => {
 				// The guard, as it stands: two sources and no auto-tap plan on the wire.
 				expect(facts.sources).toHaveLength(2);
 				expect(facts.plannedSources).toEqual([]);
-				expect(decidePay(facts, DEFAULT_STOP_POLICY)).toBeNull();
-				// And the policy value that stops asking, over the same real frames.
-				expect(decidePay(facts, forgeAuto)).toBe('{R}');
+				// The strict value is the one this claim belongs to — see the #22 block
+				// above for why this line named the default until wave 28.
+				expect(decidePay(facts, STRICT_PAYMENT_POLICY)).toBeNull();
+				// And the value that stops asking, over the same real frames, which has
+				// been the DEFAULT since 2026-09-27: that is what closes item 6.
+				expect(decidePay(facts, DEFAULT_STOP_POLICY)).toBe('{R}');
 				expect(decidePay(facts, FULL_CONTROL_POLICY)).toBeNull();
 				// Not an unpayable cost: Forge's Auto is live, so it can be paid.
 				expect(facts.noWayToPay).toBe(false);

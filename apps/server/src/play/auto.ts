@@ -33,6 +33,42 @@
  * `match.ts` calls them and this lane does not own `match.ts`; each is now three
  * lines — read the facts, ask the policy.
  *
+ * ## A stop is a PHASE the player picked, not a card they happen to hold
+ *
+ * Wave 28, and it is the one thing in this file a player can feel. Until
+ * 2026-09-28 {@link DEFAULT_STOP_POLICY} carried `skipNonStopPhases: 'never'`,
+ * so a phase outside the stop set was passed only when *Forge itself* said the
+ * seat could do nothing there. The consequence, which the operator hit on their
+ * own upkeep: *"the game auto-stopped on my upkeep because i have tragic slip
+ * avaliable and i could use it on my own minion … it reveals information about
+ * whats in my hand … it's stopping everywhere, super annoying."*
+ *
+ * **That is an information leak, and it is the reason this changed — the
+ * annoyance is only the symptom.** A stop conditioned on what the seat could do
+ * is a stop conditioned on what the seat HOLDS: every extra window the table
+ * watches you sit in narrows what your hand can be. A stop at a FIXED phase
+ * tells the table nothing, because it happens whether your hand is Tragic Slip
+ * or seven lands. The shortcut model cannot know what a card is — that is the
+ * whole point of {@link PromptFacts} — but it can stop asking a question whose
+ * *timing* is the answer.
+ *
+ * So {@link DEFAULT_STOP_POLICY} adopted {@link ARENA_STOP_POLICY} **wholesale**,
+ * not just its `skipNonStopPhases`. That was a real choice and the reason is
+ * arithmetic rather than taste: `'always'` on top of the old stop sets
+ * (`['MAIN1','MAIN2']` and `[]`) would have left the seat with **no window at all
+ * on the opponent's turn**, so a held instant could never be cast — the operator
+ * asked for fewer stops, not for fewer options, and a policy that cannot cast
+ * Tragic Slip on anybody's turn is worse than one that asks too often. Arena's
+ * stop set is the conventional answer to exactly that trade: your own main
+ * phases and your declare-attackers step (which is also where item 6's attack
+ * control has to happen), the opponent's declare-blockers step and end step.
+ * Three windows instead of thirteen, and the three that matter.
+ *
+ * The behaviour it replaced is still reachable and still tested, under the name
+ * it now deserves: {@link EVERY_PRIORITY_POLICY}. It is there so the change is
+ * reversible and so a suite can pin the difference — not so a suite can dodge
+ * re-aiming to it.
+ *
  * ## Full control is a POLICY, not a bypass
  *
  * {@link FULL_CONTROL_POLICY} makes every phase a stop phase, refuses to pass a
@@ -248,17 +284,29 @@ export interface StopPolicy {
  * value it starts from.
  *
  * It was behaviour-identical to waves 20 and 22 until 2026-09-27, when the
- * operator moved `unambiguousPayment` to `'forgeAuto'` (item 6). The suites that
- * assert a payment is the PLAYER's to click name {@link STRICT_PAYMENT_POLICY}
- * on their seats instead of riding on this default;
- * {@link ARENA_STOP_POLICY} is the value that changes the stop set.
+ * operator moved `unambiguousPayment` to `'forgeAuto'` (item 6), and it took
+ * Arena's stop set on 2026-09-28 (wave 28, item 5) for the reason the file
+ * header gives: **a stop conditioned on what the seat could do is a stop
+ * conditioned on what the seat holds.** The suites that assert a payment is the
+ * PLAYER's to click name {@link STRICT_PAYMENT_POLICY} on their seats instead of
+ * riding on this default; the ones that want a stop in every priority window
+ * name {@link EVERY_PRIORITY_POLICY}.
  */
 export const DEFAULT_STOP_POLICY: StopPolicy = {
 	// #7, wave 20: *"dont auto-pass peoples turns"* — the entry to your own main
-	// phase is where the player is entitled to look at the board.
-	stopOnMyTurn: ['MAIN1', 'MAIN2'],
-	stopOnTheirTurn: [],
-	skipNonStopPhases: 'never',
+	// phase is where the player is entitled to look at the board. Wave 28 adds
+	// declare-attackers, because with `skipNonStopPhases: 'always'` below it is
+	// the ONLY window an attack can be declared in (item 6's attack control).
+	stopOnMyTurn: ['MAIN1', 'MAIN2', 'COMBAT_DECLARE_ATTACKERS'],
+	// Wave 28, item 5. Not empty, and that is the whole care in this change: with
+	// `'always'` and an empty set the seat gets no window on the opponent's turn
+	// at all, so a held instant could never be cast. Declare-blockers and the end
+	// step are where it is cast.
+	stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'],
+	// Item 5, wave 28: *"upkeep stops like this should not happen unless in full
+	// control mode. it's stopping everywhere, super annoying."* — and the leak
+	// argument above, which is the part that outlives the annoyance.
+	skipNonStopPhases: 'always',
 	passWhenNothingToDo: true,
 	interruptsRestoreStops: true,
 	// #5, wave 20: *"ridiculous. just resolve it"*.
@@ -304,15 +352,32 @@ export const STRICT_PAYMENT_POLICY: StopPolicy = {
  * whether or not the seat could have done something there, which is what stops
  * a held instant turning every step of the opponent's turn into a click.
  *
- * Not the default, and the reason is recorded rather than hidden: turning it on
- * changes what `e2e/play.spec.ts` and `apps/ui/src/play/live/*.jvm.test.ts`
- * observe, and wave 24 lane E may edit none of those three.
+ * **This IS {@link DEFAULT_STOP_POLICY} as of 2026-09-28** (wave 28, item 5) —
+ * the value was written in wave 24 §E and left unadopted for a file-ownership
+ * reason, and wave 28 owns those files. The name is kept because it is a name on
+ * the wire: `CARDTABLE_PLAY_STOP_POLICY=arena` resolves through
+ * {@link NAMED_STOP_POLICIES}, and a hatch that stops answering to a name it
+ * once answered to is a worse thing than one alias.
  */
-export const ARENA_STOP_POLICY: StopPolicy = {
+export const ARENA_STOP_POLICY: StopPolicy = DEFAULT_STOP_POLICY;
+
+/**
+ * The stop behaviour that was the default until 2026-09-28: a stop in **every**
+ * priority window Forge did not itself call empty.
+ *
+ * A named value for the same reason {@link STRICT_PAYMENT_POLICY} is one — a
+ * superseded default has to stay reachable, or "revert the change and watch the
+ * test go red" is not a thing anyone can do. Wave 20's stop set, and
+ * `skipNonStopPhases: 'never'`, which is what makes "could the seat do something
+ * here" decide a stop again. That reading is exactly the leak the header
+ * describes, so this is a value to pin a difference against, not one to run a
+ * table on.
+ */
+export const EVERY_PRIORITY_POLICY: StopPolicy = {
 	...DEFAULT_STOP_POLICY,
-	stopOnMyTurn: ['MAIN1', 'MAIN2', 'COMBAT_DECLARE_ATTACKERS'],
-	stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'],
-	skipNonStopPhases: 'always',
+	stopOnMyTurn: ['MAIN1', 'MAIN2'],
+	stopOnTheirTurn: [],
+	skipNonStopPhases: 'never',
 };
 
 /**
@@ -365,6 +430,7 @@ export const NAMED_STOP_POLICIES: ReadonlyMap<string, StopPolicy> = new Map<stri
 	['default', DEFAULT_STOP_POLICY],
 	['strictPayment', STRICT_PAYMENT_POLICY],
 	['arena', ARENA_STOP_POLICY],
+	['everyPriority', EVERY_PRIORITY_POLICY],
 	['fullControl', FULL_CONTROL_POLICY],
 ]);
 
@@ -709,8 +775,21 @@ export function isStopPhase(policy: StopPolicy, facts: PromptFacts): boolean {
 	return stops.includes(facts.phase);
 }
 
-/** Whether a phase outside the stop sets is skipped outright on this turn. */
+/**
+ * Whether a phase outside the stop sets is skipped outright on this turn.
+ *
+ * **A phase we could not IDENTIFY is never skipped**, and wave 28 is when that
+ * started to matter: `skipNonStopPhases: 'always'` is the default now, so a
+ * label the adapter cannot map would otherwise pass every window it appears in.
+ * `PHASE_BY_UI_NAME` covers all thirteen of Forge's spellings (`auto.test.ts`
+ * pins that), so `phase === null` means Forge is saying something we have never
+ * seen — which is the file's "when in doubt the player is asked", not a phase
+ * the player asked to skip. The window still reaches
+ * {@link StopPolicy.passWhenNothingToDo} below, so Forge's own "nothing here"
+ * still passes it.
+ */
 function skipsThisTurn(policy: StopPolicy, facts: PromptFacts): boolean {
+	if (facts.phase === null) return false;
 	if (policy.skipNonStopPhases === 'always') return true;
 	if (policy.skipNonStopPhases === 'theirTurn') return !facts.myTurn;
 	return false;
@@ -980,14 +1059,26 @@ export interface Payment {
 }
 
 /**
- * The line a finished payment leaves behind: *"paid U — Volcanic Island"*.
+ * The line a finished payment leaves behind: *"paid U — Volcanic Island"*, or
+ * *"Seat 1 paid U — Volcanic Island"* once somebody other than the payer is
+ * being told.
  *
  * A cast must never look free (`#8`). This is a state, not prose: the cost, and
  * the cards that paid it. A payment nothing tapped for (mana already in the
  * pool, a free spell) says only what was paid.
+ *
+ * `actor` is wave 28, item 11 — *"log should show the whole game log not just
+ * what i've done"*. The line goes to both seats now (`match.ts`'s `sayToTable`),
+ * and a table's log has to say WHO: unattributed, every seat reads the
+ * opponent's payment as its own. It is the seat's Forge player name
+ * (`SeatSpec.name`, *"shown to both seats, so never an identity"*), which is
+ * also the name Forge's own prompts use, so the two halves of the log agree. The
+ * payer's own copy is left unattributed — their own log does not need to tell
+ * them who they are.
  */
-export function paymentLine(payment: Payment): string {
+export function paymentLine(payment: Payment, actor?: string): string {
 	const cost = plainCost(payment.cost);
-	if (payment.tapped.length === 0) return `paid ${cost}`;
-	return `paid ${cost} — ${payment.tapped.map((c) => c.name).join(', ')}`;
+	const who = actor === undefined || actor === '' ? '' : `${actor} `;
+	if (payment.tapped.length === 0) return `${who}paid ${cost}`;
+	return `${who}paid ${cost} — ${payment.tapped.map((c) => c.name).join(', ')}`;
 }
