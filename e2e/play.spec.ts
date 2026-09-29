@@ -966,8 +966,25 @@ test(LIVE_TITLE, async ({ browser }) => {
     await expect
       .poll(
         async () => {
-          const txt = await decider!.f.page.textContent('body');
-          const m = /library (\d+)/.exec(txt ?? '');
+          /*
+           * Read the count off its own element, not off the page's text. Wave 28
+           * item 10 turned the seat counts into SYMBOLS — *"can we get symbols to
+           * display hand/deck size instead of words?"* — so the digits now sit in
+           * an `aria-hidden` span beside an inline SVG and the words survive only
+           * as the accessible name. A `textContent('body')` scrape for
+           * `library <n>` therefore matches nothing, returns the 60 sentinel
+           * forever, and reports "the opening hand was never dealt" for a board
+           * that dealt it correctly — which is exactly how it failed twice before
+           * this was fixed, while the game underneath was fine.
+           *
+           * `aria-label` is the right source and not a workaround: it is the same
+           * string the seat used to paint, it is what a screen reader is told, and
+           * `Board.test.ts` asserts it, so this cannot drift without that going
+           * red first. `.first()` keeps the original semantics — the old regex
+           * took the first match in DOM order, and both seats carry a count.
+           */
+          const label = await decider!.f.page.getByTestId('library-count').first().getAttribute('aria-label');
+          const m = /library (\d+)/.exec(label ?? '');
           return m === null ? 60 : Number(m[1]);
         },
         { timeout: 30_000, message: 'the opening hand was never dealt after the board answered the coin toss' },
@@ -1635,11 +1652,24 @@ test(LIVE_TITLE, async ({ browser }) => {
       const view = toBoardView(new Map(Object.entries(server.objects)), 0, { viewerPlayerId: playerId });
       const drawn = await f.page.evaluate(() => {
         const text = (el: Element | null) => el?.textContent ?? null;
+        /*
+         * The counts are read by their ACCESSIBLE NAME, the life by its text, and
+         * that asymmetry is deliberate. Wave 28 item 10 made hand and library
+         * symbols — *"can we get symbols to display hand/deck size instead of
+         * words?"* — so their `textContent` is now the bare digits beside an inline
+         * SVG, while the words survive as `aria-label`. The `expected` side below
+         * still builds `hand <n>` / `library <n>` from the server, and it should:
+         * that string is what the seat communicates, and comparing it to the
+         * accessible name keeps this a check that the page says the same thing the
+         * server does. Comparing digits instead would quietly stop testing whether
+         * the seat says WHICH count it is drawing.
+         */
+        const label = (el: Element | null) => el?.getAttribute('aria-label') ?? null;
         const players = Array.from(document.querySelectorAll('[data-testid="player"]')).map((p) => ({
           id: Number(p.getAttribute('data-player-id')),
           life: text(p.querySelector('[data-testid="life"]')),
-          hand: text(p.querySelector('[data-testid="hand-count"]')),
-          library: text(p.querySelector('[data-testid="library-count"]')),
+          hand: label(p.querySelector('[data-testid="hand-count"]')),
+          library: label(p.querySelector('[data-testid="library-count"]')),
           zones: Object.fromEntries(
             ['battlefield', 'graveyard', 'exile', 'hand'].map((z) => [
               z,
