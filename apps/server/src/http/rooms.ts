@@ -11,6 +11,7 @@
  *   GET   /api/rooms/:id        → 200 RoomView | 404
  *   POST  /api/rooms/:id/join   { password? }                   → 200 RoomView | 404 | 429
  *   POST  /api/rooms/:id/ready  { ready }                       → 200 RoomView | 400 | 403 | 404
+ *   POST  /api/rooms/:id/identity { avatarId }                 → 200 RoomView | 400 | 403 | 404
  *   POST  /api/rooms/:id/start  {} or no body                   → 200 RoomView | 403 | 404 | 409
  *   PATCH /api/rooms/:id        { gameType } | { format }       → 200 RoomView | 403 | 404 | 409
  *
@@ -91,6 +92,7 @@ import { isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { userNameOf } from '../edge-auth.js';
 import { identityFromHeaders } from '../room/identity.js';
 import {
+	AVATAR_ID_MAX,
 	CLIENT_MODES,
 	DEFAULT_CLIENT_MODE,
 	DEFAULT_GAME_TYPE,
@@ -234,6 +236,36 @@ function parseReady(body: unknown): Parsed<{ ready: boolean }> {
 	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
 	if (typeof o.ready !== 'boolean') return { ok: false, error: 'ready must be a boolean' };
 	return { ok: true, value: { ready: o.ready } };
+}
+
+/**
+ * `{ avatarId }`, where the field is REQUIRED and may be null.
+ *
+ * The three states of `avatarId?: string | null` mean three different things and
+ * only two of them are a request: a string is "this is my character", `null` is
+ * "I have none any more". ABSENT is neither, so it is a 400 rather than a
+ * no-op write — the same discipline as `parseReady`, which will not accept a
+ * body that forgot to say which way. A body that means nothing must not be
+ * answerable with a 200 that changed nothing.
+ *
+ * `''` is refused rather than folded into `null`, because an empty string on
+ * this route is a client bug and telling it so is cheaper than it finding out
+ * from a face that will not draw. The lobby folds it anyway (`avatarIdOf`), so
+ * the two layers cannot disagree about what is stored — only about whether the
+ * caller is told.
+ */
+function parseAvatar(body: unknown): Parsed<{ avatarId: string | null }> {
+	const o = asObject(body);
+	if (o === null) return { ok: false, error: 'body must be a JSON object' };
+	const extra = unknownKeys(o, ['avatarId']);
+	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
+	if (o.avatarId === null) return { ok: true, value: { avatarId: null } };
+	if (typeof o.avatarId !== 'string') return { ok: false, error: 'avatarId must be a string or null' };
+	const id = o.avatarId.trim();
+	if (id === '' || id.length > AVATAR_ID_MAX) {
+		return { ok: false, error: `avatarId must be 1\u2013${AVATAR_ID_MAX} characters, or null to clear it` };
+	}
+	return { ok: true, value: { avatarId: id } };
 }
 
 /** A start carries nothing. No body at all is the same as `{}`. */
@@ -394,6 +426,49 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		// A non-member is the same 404 as a room that does not exist. There is no
 		// join-by-readying: entering a room is what makes someone a member.
 		if (!ROOM_ID_RE.test(id) || !lobby.setReady(id, caller.id, parsed.value.ready)) return noMatch(res);
+		const room = lobby.get(id);
+		if (room === undefined) return noMatch(res);
+		res.json(roomBody(room, caller.id));
+	});
+
+	/**
+	 * The caller's own avatar in this room — the last hop of the operator's
+	 * *"you're still not pulling in the watchparty selected avatars"*.
+	 *
+	 * ## Why this one identity field is ACCEPTED and not derived
+	 *
+	 * `name` arrives edge-injected (`X-User-Name`) and the participant id is
+	 * hashed from the edge's headers, so neither is ever read off a body — see
+	 * `room/identity.ts`, "Derived, never accepted". There is no `X-User-Avatar`
+	 * and there is no reason for the edge to invent one: the avatar is a choice
+	 * the viewer makes inside WATCHPARTY's chrome, saved in watchparty's own prefs
+	 * row, and the edge has never seen it.
+	 *
+	 * So it comes from the browser, and the thing that makes that safe is that
+	 * the ROW it lands on is not negotiable: `callerOf(req)` is the derived
+	 * ParticipantId, and `setAvatar` will only touch that member. A body cannot
+	 * name somebody else, and the worst a caller can do is draw the wrong face on
+	 * their own seat. That is a cosmetic property of a person, not a credential.
+	 *
+	 * ## One door, not three
+	 *
+	 * Create and join do NOT take the field. A room a friend has been in all
+	 * evening needs its avatar updated without re-creating or re-joining, so the
+	 * update path has to exist anyway — and two doors onto one value is how the
+	 * two come to disagree. `Caller` therefore stays exactly what it was, which
+	 * keeps `callerOf`'s header-only reading intact.
+	 *
+	 * A non-member, and a room that does not exist, are the same 404 as
+	 * everywhere else in this file. A browser asserting its avatar against a
+	 * MATCH id gets that 404 and is right to ignore it — see the client.
+	 */
+	rooms.post('/:id/identity', (req: Request, res: Response) => {
+		const parsed = parseAvatar(req.body);
+		if (!parsed.ok) return badRequest(res, parsed.error);
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id) || !lobby.setAvatar(id, caller.id, parsed.value.avatarId)) return noMatch(res);
 		const room = lobby.get(id);
 		if (room === undefined) return noMatch(res);
 		res.json(roomBody(room, caller.id));

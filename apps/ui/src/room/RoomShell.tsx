@@ -46,6 +46,14 @@ import '@wolffm/watchparty-ui/room-chrome.css';
 import { whoami as hadokuWhoami } from '@wolffm/prefs-client';
 import { useHadokuTheme, type Theme } from '@wolffm/themes';
 
+// The watchparty seam's two data answers — which origin serves their sprites,
+// and which character this viewer picked — live in one module with the bundle
+// evidence beside them. `watchpartyOrigin` used to be a private function here;
+// it moved because `avatarSquareUrl` needs the same string and two derivations
+// of one origin is how the chrome and the faces come to disagree about it.
+import { selectedAvatarId, watchpartyOrigin } from './avatar.ts';
+import { roomsClient, type RoomIdentityClient } from '../rooms/api.ts';
+
 /**
  * The page's resolved theme, handed to the chrome as-is.
  *
@@ -115,19 +123,6 @@ export function watchpartyTheme(theme: string): Theme {
   return theme as Theme;
 }
 
-/**
- * Watchparty's server, on whatever origin serves this page. In production that
- * is `https://hadoku.me/watchparty` — both apps sit behind the same edge — and
- * their chrome talks to their server. It is derived rather than hardcoded so a
- * page served from anywhere else never reaches production: the draft e2e runs
- * against a local server, and the hardcoded origin sent its browsers to
- * hadoku.me for sprites, whoami and client-log (8d71303, caught by that spec's
- * off-host guard).
- */
-function watchpartyOrigin(): string {
-  return `${window.location.origin}/watchparty`;
-}
-
 /** Their contract: `cardtable-<[a-z0-9-]{1,40}>` needs no provisioning. */
 const ROOM_ID = /^[a-z0-9-]{1,40}$/;
 
@@ -182,6 +177,33 @@ export function useWhoami(): Who | null | 'pending' {
  * while whoami is in flight, or when whoami failed. A table without chat is a
  * degraded room; a table that will not draw because chat is down is an outage.
  */
+/**
+ * Tell our own room which avatar this viewer is wearing, once per room.
+ *
+ * This is the hop the operator's *"why not?"* was about. The id is watchparty's,
+ * read from their prefs cache (`avatar.ts` says why there is no accessor to ask);
+ * the row it lands on is decided by the server from the edge's headers, so this
+ * can only ever set the caller's own.
+ *
+ * **Every failure is ignored, deliberately.** `roomId` here is whatever the route
+ * carries, which for `#/match/<id>` is a MATCH id and not a room — the server
+ * answers its single 404 and that is the correct no-op, not something to show
+ * anybody. A viewer with no avatar sends nothing at all; the server's "clear it"
+ * case exists for a viewer who HAD one and dropped it, which only the chrome can
+ * tell us about, and it cannot yet.
+ */
+function useAvatarAssert(roomId: string | null, userId: string | null, client: RoomIdentityClient): void {
+  useEffect(() => {
+    if (roomId === null || userId === null) return;
+    const avatarId = selectedAvatarId(userId);
+    if (avatarId === null) return;
+    void client.setAvatar(roomId, avatarId).catch(() => {});
+  }, [roomId, userId, client]);
+}
+
+/** One client per mount; the assert effect must not re-fire on every render. */
+const rooms = roomsClient();
+
 export function RoomShell({ roomId, children }: { roomId: string | null; children: ReactNode }) {
   const who = useWhoami();
   // Always inside `AppChrome`'s `HadokuThemeRoot` — see chrome/AppChrome.tsx,
@@ -190,6 +212,9 @@ export function RoomShell({ roomId, children }: { roomId: string | null; childre
   // ever renders `RoomShell` outside the theme root takes that throw here.
   const { theme } = useHadokuTheme();
   const key = roomId === null ? null : roomKeyFor(roomId);
+  // Before the early returns, because hooks cannot be called conditionally. It
+  // no-ops on its own until whoami has answered.
+  useAvatarAssert(key === null ? null : roomId, who === 'pending' || who === null ? null : who.userId, rooms);
 
   if (key === null || who === 'pending' || who === null) return <>{children}</>;
 

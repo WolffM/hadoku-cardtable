@@ -102,6 +102,25 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * The character a friend picked in watchparty's room, drawn beside the roster.
+ *
+ * `vertical-align` rather than a flex row: the faces sit INSIDE the same element
+ * as the comma-separated names, so they have to flow with the text and wrap with
+ * it. A flex wrapper would have taken the names out of that line.
+ *
+ * `image-rendering: pixelated` because these are small sprite PNGs from
+ * watchparty's `/media/sprites/` — smoothing an 18px character turns it to mush.
+ */
+.rooms__face {
+  width: 18px;
+  height: 18px;
+  vertical-align: -4px;
+  margin-right: 4px;
+  border-radius: 3px;
+  image-rendering: pixelated;
+}
+
 .rooms__enter,
 .rooms__password button,
 .rooms__status--bad button {

@@ -74,6 +74,7 @@ vi.mock('@wolffm/themes', async (importOriginal) => ({
 import { THEMES } from '@wolffm/themes';
 
 import { RoomShell, roomKeyFor, watchpartyTheme } from './RoomShell.tsx';
+import { watchpartyPrefsCacheKey } from './avatar.ts';
 
 afterEach(() => {
   cleanup();
@@ -146,5 +147,78 @@ describe('a host theme outside the chrome union still reaches the chrome', () =>
     // chrome produces for a falsy prop, and the split-theme bug the operator
     // saw was exactly a `dark` chrome beside a light page.
     expect(roomChrome.getAttribute('data-theme')).not.toBe('dark');
+  });
+});
+
+/*
+ * Item 4 of the 2026-09-28 play test: *"i noticed you're still not pulling in the
+ * watchparty selected avatars. why not?"*
+ *
+ * Because the last hop was never wired. This is the client end of it: the shell
+ * reads the character the viewer picked in watchparty's chrome and asserts it to
+ * OUR room, which carries it to the table view. `avatar.ts` holds the derivation
+ * of both halves (the prefs cache key and the sprite URL) and the reason there is
+ * no typed accessor to ask instead.
+ *
+ * The whoami mock above answers `userId: 'u-test'`, which is the same string the
+ * shell hands the chrome as its `userId` prop — and therefore the same string
+ * watchparty keys its prefs cache on. That agreement is the load-bearing part,
+ * so the key here is built by `watchpartyPrefsCacheKey` rather than typed out.
+ */
+describe('the avatar the viewer picked in watchparty', () => {
+  const ROW = JSON.stringify({ blob: { name: 'Test Friend', sprite: 'wanderer' }, userVersion: 1, deviceVersion: 0 });
+
+  afterEach(() => {
+    globalThis.localStorage.clear();
+  });
+
+  it('is asserted to the room once, on the room’s own identity route', async () => {
+    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), ROW);
+    const posts: { url: string; body: unknown }[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      posts.push({ url: String(input), body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined });
+      return Promise.resolve(new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } }));
+    });
+
+    render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+
+    expect(posts[0].url).toContain('/rooms/r-cube/identity');
+    expect(posts[0].body).toEqual({ avatarId: 'wanderer' });
+  });
+
+  it('sends nothing at all when the viewer has no avatar to send', async () => {
+    // No prefs row: a viewer who has never opened the chrome on this browser.
+    // The server's "clear it" case is for somebody who HAD one and dropped it,
+    // which only the chrome can tell us about — so an empty read is silence, not
+    // a `null` that would wipe the avatar they picked on their other machine.
+    const posts: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      posts.push(String(input));
+      return Promise.resolve(new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } }));
+    });
+
+    render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
+    // The chrome appearing is what says whoami has resolved, so the effect has
+    // had its chance to fire; nothing here waits on a timer.
+    await waitFor(() => screen.getByTestId('room-chrome'));
+    expect(posts.filter((u) => u.includes('/identity'))).toEqual([]);
+  });
+
+  it('refuses the shared anonymous prefs row while a session is still resolving', async () => {
+    // `Yt()` in watchparty's own bundle skips the read in exactly this state,
+    // because the anon row belongs to whoever used the browser last. Ours POSTs
+    // the value to a room, so wearing a housemate's face would be public.
+    globalThis.localStorage.setItem('hadoku_session_id', 's-1');
+    globalThis.localStorage.setItem(watchpartyPrefsCacheKey(null), ROW);
+    const posts: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      posts.push(String(input));
+      return Promise.resolve(new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } }));
+    });
+
+    render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
+    await waitFor(() => screen.getByTestId('room-chrome'));
+    expect(posts.filter((u) => u.includes('/identity'))).toEqual([]);
   });
 });

@@ -228,11 +228,52 @@ export function newestFormat(): FormatId {
 	return newestFrozen;
 }
 
+/**
+ * Watchparty's own bound on the value (`sprite: z.string().min(1).max(32)` in
+ * `@wolffm/watchparty-ui@0.39.8`'s bundled `room-chrome.js`). Restated here
+ * rather than guessed at, because this is the layer that persists it.
+ */
+export const AVATAR_ID_MAX = 32;
+
+/**
+ * The one reading of an avatar id, in every direction.
+ *
+ * `@wolffm/rooms-protocol` types it `avatarId?: string | null` (`RosterIdentity`,
+ * `LocalIdentity`), so THREE states arrive — absent, explicitly null, a string —
+ * and exactly TWO ever leave this file: a non-blank string, or absent. `null`,
+ * `''`, whitespace, an over-long value and anything that is not a string all
+ * collapse to absent, because to whoever is drawing a face they all mean the
+ * same thing (draw the fallback) and a third state on the wire is a third branch
+ * in every consumer for no new fact.
+ *
+ * An EMPTY STRING reaching a client is the specific bug this function exists to
+ * stop. It survives a `!== undefined` check and then resolves to a sprite URL
+ * ending `square_.png`, which is a 404 drawn as a broken image rather than the
+ * fallback the absence would have produced.
+ */
+function avatarIdOf(v: unknown): string | undefined {
+	if (typeof v !== 'string') return undefined;
+	const trimmed = v.trim();
+	return trimmed === '' || trimmed.length > AVATAR_ID_MAX ? undefined : trimmed;
+}
+
 export interface RoomMember {
 	/** A ParticipantId from `identityFromHeaders`. */
 	id: string;
 	/** `userIdOf(req)` — the same string `/api/whoami` returns as `userId`. */
 	name: string;
+	/**
+	 * The character this member picked in watchparty's room, when they have one.
+	 *
+	 * **Absent or a non-blank string, never `null` and never `''`** — see
+	 * `avatarIdOf`. The value is watchparty's `sprite` id (`sage`, `herald`,
+	 * `cleric`, `knight`, `mage`, `brawler`, `wanderer`, `rogue` in 0.39.8), and
+	 * it is deliberately NOT validated against that list: a ninth character they
+	 * add must reach the client, not be dropped here. Resolving it to something
+	 * drawable is the UI's job (`apps/ui/src/room/avatar.ts`), because the URL is
+	 * derived from the page's own origin and this file has no origin.
+	 */
+	avatarId?: string;
 	joinedAt: string;
 	/**
 	 * The ROOM's readiness, which is what a draft starts on.
@@ -349,6 +390,23 @@ export interface Lobby {
 	/** false when there is no such room or the caller is not a member. Persisted. */
 	setReady(roomId: string, memberId: string, ready: boolean): boolean;
 	/**
+	 * The member's OWN avatar, and nobody else's.
+	 *
+	 * `memberId` is always a derived ParticipantId (`identityFromHeaders`), so a
+	 * browser cannot name a row that is not its own however it spells the body —
+	 * which is what makes accepting this value from a client safe. It is a
+	 * cosmetic property of a person, not a credential, and it is the one identity
+	 * field the edge does not inject: there is no `X-User-Avatar`, so the only
+	 * place it can come from is the viewer's own watchparty prefs.
+	 *
+	 * Three states in, two states stored. A non-blank string sets it; `null`
+	 * clears it; `''`, whitespace, an over-long value and a non-string all read
+	 * as `null` (`avatarIdOf`). `false` only when there is no such room or
+	 * `memberId` is not a member. Persisted, and only written when the value
+	 * actually changed.
+	 */
+	setAvatar(roomId: string, memberId: string, avatarId: string | null): boolean;
+	/**
 	 * Deal the room's draft: the point at which a draft room stops being a lobby.
 	 *
 	 * Requires the room to exist, the caller to be a member, the game type to be
@@ -462,6 +520,8 @@ interface MemberRecord {
 	joinedAt: number;
 	state: unknown;
 	ready: boolean;
+	/** Normalised by `avatarIdOf` on the way in, so this is never `''` and never `null`. */
+	avatarId?: string;
 }
 
 interface RoomRecord {
@@ -600,6 +660,12 @@ function viewOf(room: RoomRecord, locked: boolean): RoomView {
 			name: m.name,
 			joinedAt: new Date(m.joinedAt).toISOString(),
 			ready: m.ready,
+			// Spread, not `avatarId: m.avatarId`. The key is ABSENT for a member
+			// who has no avatar rather than present-and-undefined, so an
+			// in-process reader and a JSON reader see the same two states —
+			// `JSON.stringify` drops an undefined value and would otherwise be
+			// the only thing making them agree.
+			...(m.avatarId === undefined ? {} : { avatarId: m.avatarId }),
 		})),
 		matchId: room.matchId,
 		draftStartedAt: room.draftStartedAt === null ? null : new Date(room.draftStartedAt).toISOString(),
@@ -687,6 +753,13 @@ class FileLobby implements Lobby {
 						? null
 						: { state: structuredClone(m.state), ready: m.ready },
 			};
+			// Room-store's own field (`SerializedMember.avatarId`), not the
+			// per-member `app` blob: the avatar is a fleet-wide identity property
+			// `@wolffm/rooms-protocol` already names, so it belongs beside `name`
+			// rather than inside our opaque blob. Written only when there is one,
+			// so a member with no avatar produces the bytes a pre-wave-28 room
+			// wrote, byte for byte.
+			if (m.avatarId !== undefined) member.avatarId = m.avatarId;
 			return member;
 		});
 		const app: StoredApp = {
@@ -820,6 +893,26 @@ class FileLobby implements Lobby {
 		return true;
 	}
 
+	setAvatar(roomId: string, memberId: string, avatarId: string | null): boolean {
+		const room = this.#rooms.get(roomId);
+		const member = room?.members.find((m) => m.id === memberId);
+		if (room === undefined || member === undefined) return false;
+		const next = avatarIdOf(avatarId);
+		// Idempotent, and it does not WRITE when nothing changed. The browser
+		// asserts its avatar on every page load (`apps/ui/src/room/RoomShell.tsx`),
+		// which for a room somebody leaves open all evening would otherwise be a
+		// snapshot write per reload for a value that never moved. `true` either
+		// way: the caller asked for a state and the room is in it.
+		if (next === member.avatarId) return true;
+		if (next === undefined) delete member.avatarId;
+		else member.avatarId = next;
+		this.#persist(room);
+		// The id itself, not the member's: which character somebody picked is not
+		// a secret, and a log line that could not name it could not be read.
+		this.#log({ event: 'room-avatar', roomId, avatarId: next ?? null });
+		return true;
+	}
+
 	startDraft(roomId: string, callerId: string): StartDraftResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
@@ -950,16 +1043,25 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 				restoredAt: now(),
 			});
 			const app = decoded.app;
-			const members: MemberRecord[] = decoded.members.map((m) => ({
-				id: m.participantId,
-				name: m.name ?? 'anon',
-				joinedAt: m.joinedAt,
-				state: unboxState(m.app),
-				// Kept across the restart, unlike the draft itself: the room comes
-				// back in its lobby phase with everybody still ready, which is one
-				// click from starting again rather than four.
-				ready: unboxReady(m.app),
-			}));
+			const members: MemberRecord[] = decoded.members.map((m) => {
+				// Re-normalised on the way in rather than trusted. `decodeSnapshot`
+				// already drops a non-string, but a record written by a build with a
+				// looser rule could carry `''` — the one value `avatarIdOf` exists to
+				// keep off the wire. Absent when there is none, so a restored room and
+				// a fresh one present the same two states.
+				const avatarId = avatarIdOf(m.avatarId);
+				return {
+					id: m.participantId,
+					name: m.name ?? 'anon',
+					joinedAt: m.joinedAt,
+					state: unboxState(m.app),
+					// Kept across the restart, unlike the draft itself: the room comes
+					// back in its lobby phase with everybody still ready, which is one
+					// click from starting again rather than four.
+					ready: unboxReady(m.app),
+					...(avatarId === undefined ? {} : { avatarId }),
+				};
+			});
 			lobby.restore(
 				{
 					id: roomId,

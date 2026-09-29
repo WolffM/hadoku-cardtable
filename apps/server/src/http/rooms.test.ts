@@ -1118,3 +1118,154 @@ describe('PATCH /api/rooms/:id while a draft is running', () => {
 		expect((patched.json() as import('../room/lobby.ts').RoomView).members.map((m) => m.ready)).toEqual([false, false]);
 	});
 });
+
+/*
+ * `POST /api/rooms/:id/identity` — the one door onto a member's avatar, and the
+ * one identity field this app ACCEPTS rather than derives.
+ *
+ * `name` arrives edge-injected and the participant id is hashed from the edge's
+ * headers, so neither is ever read off a body (`room/identity.ts`, "Derived,
+ * never accepted"). There is no `X-User-Avatar` and there never will be: the
+ * choice is made inside watchparty's chrome and saved in watchparty's prefs row,
+ * which the edge has never seen. What makes accepting it safe is that the ROW is
+ * still derived — `callerOf(req)` — so the tests that matter most here are the
+ * ones about whose member row moves.
+ */
+describe('POST /api/rooms/:id/identity', () => {
+	const memberAvatars = (room: import('../room/lobby.ts').RoomView): Record<string, unknown>[] =>
+		room.members as unknown as Record<string, unknown>[];
+
+	it('sets the caller\'s own avatar and carries it on every body that names the room', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		expect(memberAvatars(room)[0]).not.toHaveProperty('avatarId');
+
+		const set = await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'alice', body: { avatarId: 'wanderer' } });
+		expect(set.status).toBe(200);
+		expect((set.json() as import('../room/lobby.ts').RoomView).members[0]?.avatarId).toBe('wanderer');
+
+		// The list and the single-room read are separate builders of the view.
+		const listed = (await call(h, 'GET', '/api/rooms')).json() as { rooms: import('../room/lobby.ts').RoomView[] };
+		expect(listed.rooms[0]?.members[0]?.avatarId).toBe('wanderer');
+		const got = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
+		expect(got.members[0]?.avatarId).toBe('wanderer');
+	});
+
+	it('moves only the caller\'s row, whatever the body says', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Two of us' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+
+		const set = await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'bob', body: { avatarId: 'rogue' } });
+		expect(set.status).toBe(200);
+		const after = (set.json() as import('../room/lobby.ts').RoomView).members;
+		expect(after.find((m) => m.name === 'user-bob')?.avatarId).toBe('rogue');
+		// Alice is untouched, and her key is still absent rather than cleared to
+		// something. There is no field in the body that could have named her.
+		expect(memberAvatars(set.json() as import('../room/lobby.ts').RoomView).find((m) => m.name === 'user-alice')).not.toHaveProperty(
+			'avatarId',
+		);
+	});
+
+	it('leaves the key OFF the wire for a member with no avatar, never sending "" or null', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Two of us' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+		await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'alice', body: { avatarId: 'mage' } });
+
+		// On the BYTES, because this is the property a browser depends on: an
+		// empty string survives a `!== undefined` check and then resolves to a
+		// sprite URL ending `square_.png`.
+		const got = await call(h, 'GET', `/api/rooms/${room.id}`);
+		expect(got.text).toContain('"avatarId":"mage"');
+		expect(got.text).not.toContain('"avatarId":""');
+		expect(got.text).not.toContain('"avatarId":null');
+		expect(memberAvatars(got.json() as import('../room/lobby.ts').RoomView).find((m) => m.name === 'user-bob')).not.toHaveProperty(
+			'avatarId',
+		);
+	});
+
+	it('clears it with null, and refuses every other way of saying nothing', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'alice', body: { avatarId: 'mage' } });
+
+		const cleared = await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'alice', body: { avatarId: null } });
+		expect(cleared.status).toBe(200);
+		expect(memberAvatars(cleared.json() as import('../room/lobby.ts').RoomView)[0]).not.toHaveProperty('avatarId');
+
+		// An ABSENT field is a 400, not a 200 that changed nothing: a body that
+		// means neither "this is my character" nor "I have none" is not a request.
+		// Same discipline as `/ready`, which will not accept a body that forgot
+		// to say which way.
+		const empty = await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'alice', body: {} });
+		expect(empty.status).toBe(400);
+		expect(empty.json()).toEqual({ error: 'avatarId must be a string or null' });
+
+		// `''` is a client bug, and it is told so rather than quietly folded — the
+		// lobby folds it anyway, so the two layers cannot store different things.
+		const blank = await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'alice', body: { avatarId: '' } });
+		expect(blank.status).toBe(400);
+		expect((blank.json() as { error: string }).error).toContain('or null to clear it');
+
+		const long = await call(h, 'POST', `/api/rooms/${room.id}/identity`, {
+			as: 'alice',
+			body: { avatarId: 'x'.repeat(33) },
+		});
+		expect(long.status).toBe(400);
+		const wrongType = await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'alice', body: { avatarId: 7 } });
+		expect(wrongType.status).toBe(400);
+		expect(wrongType.json()).toEqual({ error: 'avatarId must be a string or null' });
+		// The same allow-list discipline every other route here has: a field that
+		// is not on the list is a refusal, never an accepted-and-ignored write.
+		const extra = await call(h, 'POST', `/api/rooms/${room.id}/identity`, {
+			as: 'alice',
+			body: { avatarId: 'mage', name: 'Somebody Else' },
+		});
+		expect(extra.status).toBe(400);
+		expect(extra.json()).toEqual({ error: 'unknown field(s): name' });
+	});
+
+	it('answers the single 404 for a non-member, an unknown room and a malformed id', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } })).json() as
+			import('../room/lobby.ts').RoomView;
+
+		// Not a member. Deliberately the same answer as "no such room": a
+		// 404-vs-403 split would tell an enumerator which ids exist, and this
+		// route must not be the one that leaks it.
+		const outsider = await call(h, 'POST', `/api/rooms/${room.id}/identity`, { as: 'bob', body: { avatarId: 'mage' } });
+		expect(outsider.status).toBe(404);
+		expect(outsider.json()).toEqual(roomsMod.NO_MATCH);
+		// There is no join-by-asserting: bob is still not in the room.
+		expect(
+			((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).members,
+		).toHaveLength(1);
+
+		// A MATCH id, which is what `RoomShell` asserts against on `#/match/<id>`.
+		// The 404 is the correct no-op and the client ignores it.
+		const match = await call(h, 'POST', '/api/rooms/m-090bf01ba811/identity', { as: 'alice', body: { avatarId: 'mage' } });
+		expect(match.status).toBe(404);
+		expect(match.json()).toEqual(roomsMod.NO_MATCH);
+
+		const malformed = await call(h, 'POST', '/api/rooms/NOT_AN_ID/identity', { as: 'alice', body: { avatarId: 'mage' } });
+		expect(malformed.status).toBe(404);
+		expect(malformed.json()).toEqual(roomsMod.NO_MATCH);
+	});
+
+	it('refuses a caller the edge could not name, like every other write here', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		const anon = await call(h, 'POST', `/api/rooms/${room.id}/identity`, {
+			headers: anonymousHeaders(),
+			body: { avatarId: 'mage' },
+		});
+		expect(anon.status).toBe(403);
+		expect((anon.json() as { error: string }).error).toContain('take part in');
+	});
+});

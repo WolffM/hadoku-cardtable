@@ -57,6 +57,7 @@
  */
 
 import { apiBase } from '../screens/tables.ts';
+import { normalizeAvatarId } from '../room/avatar.ts';
 
 export type GameType = 'constructed-1v1' | 'draft';
 
@@ -73,6 +74,16 @@ export interface RoomMember {
   joinedAt: string;
   /** The room's readiness, which is what a draft starts on. Missing ⇒ false. */
   ready: boolean;
+  /**
+   * The character this member picked in watchparty's room, when they have one.
+   *
+   * **Absent or a non-blank string — never `null`, never `''`.** The server folds
+   * all three of `avatarId`'s upstream states into those two before it answers
+   * (`apps/server/src/room/lobby.ts`'s `avatarIdOf`), and `parseMember` folds
+   * them again here, so a consumer's fallback is one `=== undefined` check.
+   * `room/avatar.ts` turns it into a URL.
+   */
+  avatarId?: string;
 }
 
 /**
@@ -224,12 +235,25 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 function parseMember(v: unknown): RoomMember | null {
   if (!isRecord(v)) return null;
-  const { id, name, joinedAt, ready } = v;
+  const { id, name, joinedAt, ready, avatarId } = v;
   if (typeof id !== 'string' || typeof name !== 'string') return null;
   // `ready === true` and nothing else: an absent flag, a string, a 1 all read
   // as not ready, so the only way to be counted towards a draft start is for
   // the server to have said so in a boolean.
-  return { id, name, joinedAt: typeof joinedAt === 'string' ? joinedAt : '', ready: ready === true };
+  const member: RoomMember = {
+    id,
+    name,
+    joinedAt: typeof joinedAt === 'string' ? joinedAt : '',
+    ready: ready === true,
+  };
+  // Parsed through the same two-state rule the server answers with, and
+  // ASSIGNED CONDITIONALLY: `avatarId: normalizeAvatarId(...) ?? undefined`
+  // would put the key on every member, so the absent case would no longer be
+  // absent for an in-process reader. A server that sent `null`, `''` or a
+  // 33-character id leaves the field off rather than reaching a face.
+  const avatar = normalizeAvatarId(avatarId);
+  if (avatar !== null) member.avatarId = avatar;
+  return member;
 }
 
 /**
@@ -346,6 +370,30 @@ export interface RoomsClient {
   start(roomId: string): Promise<RoomOutcome>;
 }
 
+/**
+ * The room's identity write, deliberately NOT on `RoomsClient`.
+ *
+ * `RoomsClient` is what a SCREEN does to a room: list it, enter it, ready up,
+ * choose the pool, start the draft. Asserting which avatar you are wearing is
+ * none of those — it is the watchparty seam's own write, made once per room by
+ * `room/RoomShell.tsx`, and no screen calls it or should have to stub it. Two
+ * interfaces keep each one exactly as wide as its consumers; `roomsClient()`
+ * returns both.
+ */
+export interface RoomIdentityClient {
+  /**
+   * Tell the room which avatar you are wearing — YOUR row and nobody else's.
+   *
+   * The server resolves who you are from the edge's headers, exactly as `ready`
+   * does, so the body names a value and never a member. `null` clears it.
+   *
+   * A room you are not in, and an id that is not a room at all, are the server's
+   * usual single 404; a caller that asserts against a MATCH id therefore gets a
+   * refusal and should ignore it rather than surface it (see `RoomShell`).
+   */
+  setAvatar(roomId: string, avatarId: string | null): Promise<RoomOutcome>;
+}
+
 async function bodyOf(res: Response): Promise<unknown> {
   try {
     return await res.json();
@@ -370,7 +418,10 @@ function defaultApiBase(): string {
 
 const JSON_HEADERS = { 'content-type': 'application/json' };
 
-export function roomsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base: string = defaultApiBase()): RoomsClient {
+export function roomsClient(
+  fetchImpl: Fetch = (i, init) => fetch(i, init),
+  base: string = defaultApiBase(),
+): RoomsClient & RoomIdentityClient {
   const url = (path: string): string => `${base}rooms${path}`;
 
   /**
@@ -488,6 +539,10 @@ export function roomsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
 
     start(roomId) {
       return write(`/${encodeURIComponent(roomId)}/start`, {}, 'Could not start the draft');
+    },
+
+    setAvatar(roomId, avatarId) {
+      return write(`/${encodeURIComponent(roomId)}/identity`, { avatarId }, 'Could not set your avatar');
     },
   };
 }

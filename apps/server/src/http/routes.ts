@@ -162,7 +162,13 @@ export interface RoomViewLike {
 	format: string;
 	/** The one member who may change the room's settings. `you.leader` is this, per caller. */
 	leader: string;
-	members: { id: string; name: string }[];
+	/**
+	 * `avatarId` is optional and, when present, a NON-BLANK string: the lobby
+	 * folds `null`, `''` and whitespace to absent before a view is built
+	 * (`room/lobby.ts`'s `avatarIdOf`), so this layer has two states to carry and
+	 * not four. Structural here like the rest of this interface.
+	 */
+	members: { id: string; name: string; avatarId?: string }[];
 	matchId: string | null;
 }
 
@@ -324,7 +330,8 @@ function readPlayerState(raw: unknown): TablePlayerState | null {
 }
 
 interface TablePlayer {
-	member: { id: string; name: string };
+	/** The room's member row, verbatim — `playersOf` does not rebuild it. */
+	member: RoomViewLike['members'][number];
 	state: TablePlayerState;
 }
 
@@ -544,6 +551,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			players: players.map((p, seat) => ({
 				seat,
 				name: p.member.name,
+				// The character this player picked in watchparty's room, when they
+				// have one. Not caller-scoped: a face is not hidden information, and
+				// both seats already see each other's names.
+				//
+				// **Spread, so the key is ABSENT rather than present-and-undefined.**
+				// The done-when for this hop is "a missing one is absent rather than
+				// empty", and `avatarId: p.member.avatarId` would satisfy that only
+				// over JSON — an in-process reader would see the key. One shape for
+				// both readers means the fallback a client writes is one check.
+				...(p.member.avatarId === undefined ? {} : { avatarId: p.member.avatarId }),
 				you: p.member.id === me,
 				deckName: p.state.verdict.deckName,
 				rulesName: p.member.id === me ? p.state.verdict.rulesName : poolName(room),

@@ -758,3 +758,95 @@ describe('the front page’s cues', () => {
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-open' }));
   });
 });
+
+/* ── the avatar a friend picked in watchparty's room (item 4) ─────────── */
+
+/*
+ * `RoomMember.avatarId` is the field the server carries from a room member to
+ * the table's players, and the operator's *"why not?"* was about this last hop.
+ *
+ * The parse is the interesting half: the server already answers with two states
+ * (a non-blank string, or no key), so the only way a third reaches a face is if
+ * this file invents one. `avatarId: normalizeAvatarId(v) ?? undefined` would put
+ * the key on EVERY member, which is why the parser assigns conditionally and why
+ * these use `toHaveProperty`.
+ */
+describe('a member’s avatar', () => {
+  const memberOf = (v: unknown): Record<string, unknown> =>
+    (parseRoomView(v)?.members[0] ?? {}) as unknown as Record<string, unknown>;
+
+  it('reads a real id through, and leaves the key off for every other shape', () => {
+    const withAvatar = { ...OPEN, members: [{ id: 'http-a', name: 'alice', joinedAt: '', ready: false, avatarId: 'wanderer' }] };
+    expect(parseRoomView(withAvatar)?.members[0]?.avatarId).toBe('wanderer');
+
+    // The server never sends these. The parser still folds them, because the
+    // browser is the last place that can stop `""` becoming `square_.png`.
+    for (const nothing of ['', '   ', null, 7, {}, 'x'.repeat(33)]) {
+      const member = memberOf({ ...OPEN, members: [{ id: 'http-a', name: 'alice', joinedAt: '', ready: false, avatarId: nothing }] });
+      expect(member, JSON.stringify(nothing)).not.toHaveProperty('avatarId');
+    }
+    // And a member from a server that predates the field: absent, not present.
+    expect(memberOf(OPEN)).not.toHaveProperty('avatarId');
+  });
+
+  it('asserts the caller’s own avatar to the room’s identity route, and clears with null', async () => {
+    const answered = room({
+      id: 'r-cube',
+      name: 'Cube night',
+      members: [{ id: 'http-a', name: 'alice', joinedAt: '', ready: false, avatarId: 'wanderer' }],
+    });
+    const calls: Call[] = [];
+    const fetchImpl: Fetch = async (url, init) => {
+      calls.push({ url, method: init?.method ?? 'GET', body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined });
+      return json(200, answered);
+    };
+    const client = roomsClient(fetchImpl, '/cardtable/api/');
+
+    expect(await client.setAvatar('r-cube', 'wanderer')).toEqual({ ok: true, room: answered });
+    // The body names a VALUE and never a member: the server resolves who is
+    // asking from the edge's headers, exactly as `ready` does.
+    expect(calls).toEqual([
+      { url: '/cardtable/api/rooms/r-cube/identity', method: 'POST', body: { avatarId: 'wanderer' } },
+    ]);
+    await client.setAvatar('r-cube', null);
+    expect(calls[1].body).toEqual({ avatarId: null });
+  });
+
+  it('draws a face for each member who has one, and nothing for a member who has not', async () => {
+    const roster = room({
+      id: 'r-open',
+      name: 'Friday night',
+      members: [
+        { id: 'http-a', name: 'alice', joinedAt: '', ready: false, avatarId: 'wanderer' },
+        { id: 'http-b', name: 'bob', joinedAt: '', ready: false },
+        { id: 'http-c', name: 'carol', joinedAt: '', ready: false, avatarId: 'knight' },
+      ],
+    });
+    const { client } = server([roster]);
+    mount(client);
+
+    const members = await waitFor(() => within(rowFor('r-open')).getByTestId('room-members'));
+    // The names are still the roster; the faces are beside them, not instead.
+    expect(members.textContent).toContain('alice, bob, carol');
+
+    const faces = within(members).getAllByTestId('room-face');
+    // TWO faces for three members. A placeholder for bob would be a row of
+    // identical squares saying less than the names already do.
+    expect(faces.map((f) => f.getAttribute('data-avatar-id'))).toEqual(['wanderer', 'knight']);
+    expect(faces[0].getAttribute('src')).toContain('/watchparty/media/sprites/square_wanderer.png');
+    // Decorative: the names are in the same element, so an announced character
+    // would read the roster twice.
+    expect(faces.every((f) => f.getAttribute('alt') === '')).toBe(true);
+    expect(faces.map((f) => f.getAttribute('title'))).toEqual(['alice', 'carol']);
+  });
+
+  it('reads the server’s 404 for a match id as a plain refusal, with its own words', async () => {
+    // What `RoomShell` gets on `#/match/<id>`: the id is not a room, so the
+    // server answers its single 404 and the shell ignores it.
+    const client = roomsClient(async () => json(404, { error: 'no room with that id and password' }), '/cardtable/api/');
+    expect(await client.setAvatar('m-090bf01ba811', 'wanderer')).toEqual({
+      ok: false,
+      message: 'Could not set your avatar: no room with that id and password.',
+    });
+  });
+});

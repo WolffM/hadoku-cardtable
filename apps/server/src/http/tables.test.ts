@@ -242,13 +242,14 @@ interface FakeRoom {
 	/** The room's pool: one per table, for both seats. Mutable here, so a test can put a room in a state the leader's setter would never leave it in. */
 	format: string;
 	leader: string;
-	members: { id: string; name: string }[];
+	/** `avatarId` optional and never blank, exactly as `RoomViewLike` states it. */
+	members: { id: string; name: string; avatarId?: string }[];
 	matchId: string | null;
 	state: Map<string, unknown>;
 }
 
 interface FakeLobby extends TablesRooms {
-	open(id: string, members: { id: string; name: string }[], gameType?: string, format?: string): FakeRoom;
+	open(id: string, members: FakeRoom['members'], gameType?: string, format?: string): FakeRoom;
 	room(id: string): FakeRoom | undefined;
 }
 
@@ -811,6 +812,8 @@ describe('a room table', () => {
 		ready: boolean;
 		issueCount: number;
 		verdict: { issues: { cardName: string | null }[] } | null;
+		/** Present only for a player who has one — see the avatar test below. */
+		avatarId?: string;
 	}
 	const players = (body: Record<string, unknown>): PlayerRow[] => body.players as PlayerRow[];
 
@@ -847,6 +850,57 @@ describe('a room table', () => {
 		expect(match?.seatOf(ALICE)).toBe(0);
 		expect(match?.seatOf(BOB)).toBe(1);
 		expect(h.lobby.room(ROOM)?.matchId).toBe(matchId);
+	});
+
+	/*
+	 * Item 4 of the 2026-09-28 play test: *"i noticed you're still not pulling in
+	 * the watchparty selected avatars. why not?"*
+	 *
+	 * `avatarId` has been on `@wolffm/rooms-protocol`'s `RosterIdentity` and on
+	 * `packages/room-store`'s `SerializedMember` all along; what was missing was
+	 * this hop — the room member's field reaching the TABLE's players, beside the
+	 * name the room already carried. `playersOf` hands the member row through
+	 * verbatim and `tableView` spreads it, so both assertions below are about the
+	 * same one line and the second is the one that can regress quietly.
+	 *
+	 * The three states of `avatarId?: string | null` collapse to TWO here — a
+	 * non-blank string, or an ABSENT key — and the absence is asserted with
+	 * `toHaveProperty`, not with `toBeUndefined()`: `avatarId: undefined` passes
+	 * the latter and is exactly the shape that makes an in-process reader and a
+	 * JSON reader disagree.
+	 */
+	it("carries a member's avatarId to the table view, and leaves the key off a member with none", async () => {
+		const h = await boot();
+		// Alice picked a character in watchparty's room; Bob never did. Both are
+		// members of the same room, so one table answers both cases.
+		h.lobby.open(ROOM, [
+			{ id: ALICE, name: 'user-alice', avatarId: 'wanderer' },
+			{ id: BOB, name: 'user-bob' },
+		]);
+		await bothLoaded(h);
+
+		const seen = await view(h, 'alice');
+		expect(seen.status).toBe(200);
+		const rows = players(seen.body);
+		expect(rows.map((p) => p.name)).toEqual(['user-alice', 'user-bob']);
+		expect(rows[0]?.avatarId).toBe('wanderer');
+		// ABSENT, not empty and not null. `call` parses the response TEXT, so a
+		// key missing here is a key missing on the wire — and an empty string
+		// would be the real hazard: it survives a `!== undefined` check and then
+		// resolves to `…/square_.png`, which draws as a broken image exactly where
+		// the caller wanted its fallback.
+		expect(rows[1]).not.toHaveProperty('avatarId');
+		const wire = JSON.stringify(seen.body);
+		expect(wire).toContain('"avatarId":"wanderer"');
+		expect(wire).not.toContain('"avatarId":""');
+		expect(wire).not.toContain('"avatarId":null');
+
+		// The other player's copy of the table says the same thing. A face is not
+		// hidden information — both seats already read each other's names — so
+		// unlike `verdict` and `choice` this field is not caller-scoped.
+		const theirs = players((await view(h, 'bob')).body);
+		expect(theirs[0]?.avatarId).toBe('wanderer');
+		expect(theirs[1]).not.toHaveProperty('avatarId');
 	});
 
 	it('answers the same match to whoever presses start second, without a second JVM', async () => {

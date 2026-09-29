@@ -53,6 +53,7 @@ import {
   type RoomView,
   type RoomsClient,
 } from './api.ts';
+import { avatarSquareUrl } from '../room/avatar.ts';
 import './rooms.css';
 
 export const POLL_MS = 5000;
@@ -259,6 +260,33 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
           )}
         </span>
         <span className="rooms__members" data-testid="room-members">
+          {/* The characters these friends picked in watchparty's room (item 4).
+              A face per member who HAS one, and nothing at all for a member who
+              does not — never a placeholder square, because a row of identical
+              squares says less than the names already beside them.
+              `avatarSquareUrl` answers null for every not-an-id, so the filter
+              below is the whole fallback; see `room/avatar.ts`. */}
+          {room.members.map((m) => {
+            const face = avatarSquareUrl(m.avatarId);
+            if (face === null) return null;
+            return (
+              <img
+                key={m.id}
+                className="rooms__face"
+                data-testid="room-face"
+                data-avatar-id={m.avatarId}
+                src={face}
+                // Decorative: the names are in the same element, so a screen
+                // reader that announced the character too would read the room's
+                // roster twice.
+                alt=""
+                title={m.name}
+                width={18}
+                height={18}
+                loading="lazy"
+              />
+            );
+          })}
           {names.length === 0 ? 'Nobody here yet' : names.join(', ')}
         </span>
       </div>

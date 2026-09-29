@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { loadTablesLibrary } from '../http/library.ts';
 import {
+	AVATAR_ID_MAX,
 	CLIENT_MODES,
 	DEFAULT_CLIENT_MODE,
 	draftIdOfPool,
@@ -696,5 +697,165 @@ describe('a drafted pool id', () => {
 		}
 		// And a name that merely starts with the word is not a drafted pool either.
 		expect(draftIdOfPool('drafted-2011-07-01')).toBeNull();
+	});
+});
+
+/*
+ * The avatar a friend picked in watchparty's room (item 4 of the 2026-09-28 play
+ * test: *"i noticed you're still not pulling in the watchparty selected avatars.
+ * why not?"*).
+ *
+ * `@wolffm/rooms-protocol` types the field `avatarId?: string | null`, which is
+ * THREE states, and they do not mean the same thing:
+ *
+ *   absent  the member never set one
+ *   null    it was explicitly cleared upstream
+ *   string  a real character id
+ *
+ * The rule this lobby settled on, and the reason it is a test rather than a
+ * comment: **three states in, two states out.** `setAvatar` accepts all three —
+ * a string sets, `null` clears, and `''`/whitespace/over-long read as a clear —
+ * and every view it answers with carries either a non-blank string or NO KEY AT
+ * ALL. `null` collapses to absent because to anything drawing a face they are
+ * the same instruction, and an EMPTY STRING must never leave here: it survives a
+ * `!== undefined` check and then resolves to a sprite URL ending `square_.png`.
+ *
+ * `toHaveProperty` rather than `toBeUndefined`, throughout. These are in-process
+ * `RoomView` objects, and `avatarId: undefined` satisfies `toBeUndefined()` while
+ * being precisely the shape that makes an object reader and a JSON reader
+ * disagree about whether the member has an avatar.
+ */
+describe('a member\'s avatar', () => {
+	const avatarOf = (room: RoomView | undefined, memberId: string) =>
+		room?.members.find((m) => m.id === memberId);
+
+	it('is absent until it is set, and is then carried on every view of the room', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		// A member who has never picked one: no key, on the create result and on
+		// every later read.
+		expect(made.room.members[0]).not.toHaveProperty('avatarId');
+		expect(avatarOf(lobby.get(made.room.id), ALICE.id)).not.toHaveProperty('avatarId');
+
+		expect(lobby.setAvatar(made.room.id, ALICE.id, 'wanderer')).toBe(true);
+		expect(avatarOf(lobby.get(made.room.id), ALICE.id)?.avatarId).toBe('wanderer');
+		// `list()` and `get()` are two builders of the same view; the field has to
+		// be on both or the front page and the room screen disagree.
+		expect(avatarOf(lobby.list()[0], ALICE.id)?.avatarId).toBe('wanderer');
+	});
+
+	it('is each member\'s own — setting one leaves everybody else alone', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Two of us', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+
+		expect(lobby.setAvatar(made.room.id, BOB.id, 'rogue')).toBe(true);
+		expect(avatarOf(lobby.get(made.room.id), BOB.id)?.avatarId).toBe('rogue');
+		expect(avatarOf(lobby.get(made.room.id), ALICE.id)).not.toHaveProperty('avatarId');
+	});
+
+	it('survives a restart, because it is persisted beside the name and not in the opaque blob', async () => {
+		const dir = await tempDir();
+		const first = await openLobby({ dir });
+		const made = first.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		expect(first.join(made.room.id, BOB).ok).toBe(true);
+		expect(first.setAvatar(made.room.id, ALICE.id, 'knight')).toBe(true);
+
+		// Room-store's `SerializedMember.avatarId` is what carries it; nothing in
+		// the per-member `app` blob does, so this also pins that the field went to
+		// the right half of the snapshot.
+		const second = await openLobby({ dir });
+		expect(avatarOf(second.get(made.room.id), ALICE.id)?.avatarId).toBe('knight');
+		expect(avatarOf(second.get(made.room.id), BOB.id)).not.toHaveProperty('avatarId');
+	});
+
+	it('folds null and every blank spelling to ABSENT, never to an empty string', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		const id = made.room.id;
+
+		for (const blank of ['', '   ', '\t', 'x'.repeat(AVATAR_ID_MAX + 1)]) {
+			expect(lobby.setAvatar(id, ALICE.id, blank), blank).toBe(true);
+			expect(avatarOf(lobby.get(id), ALICE.id), blank).not.toHaveProperty('avatarId');
+		}
+
+		// And `null` on a member who HAS one clears it back to absent rather than
+		// to a third state — the whole reason this collapse is a decision and not
+		// an oversight.
+		expect(lobby.setAvatar(id, ALICE.id, 'mage')).toBe(true);
+		expect(avatarOf(lobby.get(id), ALICE.id)?.avatarId).toBe('mage');
+		expect(lobby.setAvatar(id, ALICE.id, null)).toBe(true);
+		expect(avatarOf(lobby.get(id), ALICE.id)).not.toHaveProperty('avatarId');
+		// Cleared on disk too. A clear that only happened in memory would come
+		// back wearing the old face after the next deploy.
+		const second = await openLobby({ dir });
+		expect(avatarOf(second.get(id), ALICE.id)).not.toHaveProperty('avatarId');
+	});
+
+	it('is trimmed, and is NOT checked against watchparty\'s eight characters', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		expect(lobby.setAvatar(made.room.id, ALICE.id, '  cleric  ')).toBe(true);
+		expect(avatarOf(lobby.get(made.room.id), ALICE.id)?.avatarId).toBe('cleric');
+
+		// A ninth character watchparty adds must reach our seats rather than be
+		// dropped by a list nobody remembered to update. Their own schema is
+		// `z.string().min(1).max(32)`, not an enum, and so is this.
+		expect(lobby.setAvatar(made.room.id, ALICE.id, 'necromancer')).toBe(true);
+		expect(avatarOf(lobby.get(made.room.id), ALICE.id)?.avatarId).toBe('necromancer');
+		expect(lobby.setAvatar(made.room.id, ALICE.id, 'x'.repeat(AVATAR_ID_MAX))).toBe(true);
+		expect(avatarOf(lobby.get(made.room.id), ALICE.id)?.avatarId).toBe('x'.repeat(AVATAR_ID_MAX));
+	});
+
+	it('refuses a room that does not exist and a caller who is not a member', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		expect(lobby.setAvatar('r-nosuchroom', ALICE.id, 'mage')).toBe(false);
+		expect(lobby.setAvatar(made.room.id, CAROL.id, 'mage')).toBe(false);
+		// Nothing was invented for the non-member either.
+		expect(lobby.get(made.room.id)?.members.map((m) => m.id)).toEqual([ALICE.id]);
+	});
+
+	it('reads an empty string stored by some other build back as ABSENT', async () => {
+		const dir = await tempDir();
+		// A snapshot this build would never write: room-store's field carries the
+		// value, and a looser writer could put `''` in it. The restore path
+		// re-normalises rather than trusting the file, so the one value that must
+		// never reach a client cannot arrive from disk either.
+		const snapshot: RoomSnapshot = {
+			storeVersion: STORE_VERSION,
+			roomId: 'r-blankavatar',
+			roomKey: 'r-blankavatar',
+			lastEventSeq: 0,
+			createdAt: 1_700_000_000_000,
+			updatedAt: 1_700_000_000_000,
+			members: [
+				{ participantId: ALICE.id, joinedAt: 1, lastSeen: 1, name: ALICE.name, avatarId: '', app: null },
+				{ participantId: BOB.id, joinedAt: 2, lastSeen: 2, name: BOB.name, avatarId: 'herald', app: null },
+			],
+			usedAvatars: [],
+			clientNames: {},
+			seats: createSeatTable(null),
+			app: legacyApp(),
+			appVersion: 1,
+		};
+		new FileRoomStore(dir).saveSync(snapshot);
+
+		const lobby = await openLobby({ dir });
+		expect(avatarOf(lobby.get('r-blankavatar'), ALICE.id)).not.toHaveProperty('avatarId');
+		expect(avatarOf(lobby.get('r-blankavatar'), BOB.id)?.avatarId).toBe('herald');
 	});
 });
