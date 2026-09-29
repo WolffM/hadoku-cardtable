@@ -1137,12 +1137,20 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
       copy.setAttribute('data-probe', '');
       copy.removeAttribute('data-selectable');
       if (onBattlefield && i % 3 === 1) copy.setAttribute('data-tapped', 'true');
-      if (onBattlefield && i % 5 === 2) {
-        const chips = document.createElement('ul');
-        chips.className = 'board-card__chips';
-        chips.innerHTML = '<li class="board-card__chip">summoning sick</li><li class="board-card__chip">2 damage</li>';
-        copy.appendChild(chips);
-      }
+      /*
+       * Wave 28 §A deleted `.board-card__chips`: a card's state is DRAWN now — a
+       * quarter turn, a desaturated face, corner marks, a badge — and not written
+       * as a list of words. This probe used to append that list by hand to crowd
+       * the zone, which after §A appends markup no stylesheet claims, so it lands
+       * IN FLOW, adds height to the copied card and can breach the zone's own
+       * `scrollHeight` check — a probe failing on its own scaffolding.
+       *
+       * Nothing replaces it here, because the clause it served is now asserted
+       * where it belongs and more directly: `Board.test.ts`'s *"nothing the state
+       * layer draws can change a card's box"* (`:2980`). The state layer is out of
+       * flow and clipped by construction, so crowding it is not a thing a card's
+       * box can be made to feel.
+       */
       ul.appendChild(copy);
       i += 1;
     }
@@ -1680,8 +1688,22 @@ test(CROWD_TITLE, async ({ browser }) => {
           const you = at(base.faces.you);
           const them = at(base.faces.them);
           const third = (board.bottom - board.top) / 3;
-          expect(them.mid, `${where}: their face is in the top third of the canvas`).toBeLessThan(board.top + third);
-          expect(you.mid, `${where}: our face is in the bottom third of the canvas`).toBeGreaterThan(board.bottom - third);
+          /*
+           * Wave 20 put the faces at opposite ENDS of the canvas and asserted each
+           * sat in its own outer third. Wave 28 item 10 reversed that on the
+           * operator's instruction — *"avatars a looking awkward in that position.
+           * lets push them closer together. bottom avatar anchored top of that box,
+           * top avatar anchored bottom of that box"* — so the outer-third claims are
+           * now false BY DESIGN (measured after §A: mid 351 and 429, against thirds
+           * at 267 and 533). Asserting them would pin the layout the operator asked
+           * us to leave.
+           *
+           * What item 10 actually asks for is the positive claim, so that is what is
+           * asserted: the two faces are CLOSER together than a third of the canvas.
+           * The two properties that outlived the move — theirs finishes before ours
+           * starts, and neither touches the stack — are just below, unchanged.
+           */
+          expect(you.mid - them.mid, `${where}: the two faces are closer together than a third of the canvas`).toBeLessThan(third);
           // Opposite ends, with nothing shared: theirs finishes before ours starts.
           expect(them.bottom, `${where}: their face is wholly above ours`).toBeLessThanOrEqual(you.top);
           // And neither face shares a pixel with the stack.
