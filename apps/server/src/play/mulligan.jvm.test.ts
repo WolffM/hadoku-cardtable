@@ -38,7 +38,7 @@ import { ClientFrameSchema } from '@hadoku/forge-wire';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine } from './host.js';
 import { createMatchRegistry } from './match.js';
-import { foldFrames, TYPE, type StateFrame, type WireObj } from './visibility.js';
+import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from './transport.js';
 
 const available = jvmHostConfig();
@@ -110,31 +110,36 @@ describe.skipIf(!available.ok)(title, () => {
 				return f ?? null;
 			}
 
-			// Drive exactly what the diagnosis probe drove: answer whatever bar shows
-			// up, preferring "mulligan" whenever the keep/mulligan prompt offers it,
-			// so a seat actually reaches the London bottom-the-cards step.
-			const seen = new Set<string>();
+			// London order (wave 31, P7): every seat is asked keep-or-mulligan on the
+			// full new hand, and the cards go back only after Keep. Seat 0 mulligans
+			// once and then keeps, which is what puts the bottom-the-cards step on
+			// the wire. Keyed by the prompt frame's position, not its text, because
+			// the same keep question is legitimately asked twice.
+			const handled = new Set<number>();
+			const mulliganed = new Set<number>();
 			let london: { seat: number; message: string } | null = null;
+			const seen = new Set<string>();
 			const deadline = Date.now() + 45_000;
 			while (Date.now() < deadline && london === null) {
 				for (const seat of [0, 1] as const) {
-					const prompt = lastPromptOf(seat);
-					const msg = prompt?.message ?? '';
-					const key = `${String(seat)}|${msg}`;
-					if (msg === '' || seen.has(key)) continue;
-					seen.add(key);
+					const at = sent.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1)).filter((i) => i >= 0).pop();
+					if (at === undefined || handled.has(at)) continue;
+					handled.add(at);
+					const msg = (sent[at]!.envelope.frame as unknown as { message: string }).message;
+					seen.add(`${String(seat)}|${msg}`);
 					const buttons = lastButtonsOf(seat);
 					if (/bottom of your library/i.test(msg)) {
 						london = { seat, message: msg };
 						break;
-					} else if (/keep your hand|mulligan/i.test(msg) && buttons?.enable2 === true) {
+					} else if (/keep your hand/i.test(msg) && seat === 0 && !mulliganed.has(seat) && buttons?.enable2 === true) {
+						mulliganed.add(seat);
 						match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' }));
 					} else if (buttons?.enable1 === true) {
 						match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
 					}
 				}
 				if (london !== null) break;
-				await new Promise((r) => setTimeout(r, 200));
+				await new Promise((r) => setTimeout(r, 50));
 			}
 
 			// The fix emits the correction synchronously with the very button/prompt
@@ -189,6 +194,107 @@ describe.skipIf(!available.ok)(title, () => {
 			match.stop();
 			jvm.close();
 			await waitUntil(() => liveJvmCount() === 0, 'this match\'s JVM to exit', 15_000);
+		},
+		240_000,
+	);
+	it(
+		'asks keep-or-mulligan on the full new hand and puts the card back only after Keep',
+		async () => {
+			if (!available.ok) return;
+			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
+			const logs: Record<string, unknown>[] = [];
+			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+			const registry = createMatchRegistry({
+				host: (id, spec, events) => jvm(id, spec, events),
+				log: (e) => logs.push(e),
+				askTimeoutMs: 120_000,
+				overGraceMs: 60_000,
+				emit: (_m, seat, envelope) => sent.push({ seat, envelope }),
+			});
+			const match = registry.create({
+				seed: 7,
+				seats: [
+					{ name: 'A', ai: false, deck: deck('M A', ['30 Mountain', '30 Memnite']) },
+					{ name: 'B', ai: false, deck: deck('M B', ['30 Mountain', '30 Memnite']) },
+				],
+			});
+			expect(await match.whenRunning(120_000)).toEqual({ ok: true });
+
+			function handSize(seat: number, upTo: number): number {
+				const state = foldFrames(
+					sent
+						.slice(0, upTo + 1)
+						.filter((x) => x.seat === seat && x.envelope.frame.kind === 'notify')
+						.map((x) => x.envelope.frame as unknown as StateFrame)
+						.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
+				);
+				const player = state.get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1)) as unknown as Record<string, { v?: unknown[] }> | undefined;
+				return player?.['Hand']?.v?.length ?? -1;
+			}
+
+			/** Seat 0 mulligans once, then keeps; seat 1 keeps. Every prompt either seat sees is recorded in order. */
+			const sequence: string[] = [];
+			const buttons = [{ enable1: false, enable2: false }, { enable1: false, enable2: false }];
+			const changed = [true, true];
+			const returned = [false, false];
+			let cursor = 0;
+			let mulligansTaken = 0;
+			const deadline = Date.now() + 60_000;
+			let done = false;
+			while (!done && Date.now() < deadline) {
+				for (; cursor < sent.length; cursor++) {
+					const { seat, envelope } = sent[cursor]!;
+					const f = envelope.frame as unknown as Record<string, unknown>;
+					if (f.method === 'applyDelta') changed[seat] = true;
+					if (f.method === 'updateButtons') {
+						buttons[seat] = { enable1: f.enable1 === true, enable2: f.enable2 === true };
+						continue;
+					}
+					if (f.method !== 'showPromptMessage') continue;
+					const msg = String(f.message);
+					// Forge re-sends a prompt frame while it waits, so one is recorded only if
+					// the seat's state changed since the last one it recorded (a mulligan
+					// changes the hand); the return step happens once per seat.
+					if (/keep your hand/i.test(msg)) {
+						if (!changed[seat]) continue;
+						changed[seat] = false;
+						sequence.push(`seat${String(seat)} keep? (${String(handSize(seat, cursor))} cards)`);
+						if (seat === 0 && mulligansTaken === 0) {
+							mulligansTaken++;
+							match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' }));
+						} else {
+							match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+						}
+					} else if (/bottom of your library/i.test(msg)) {
+						if (returned[seat]) continue;
+						returned[seat] = true;
+						sequence.push(`seat${String(seat)} return (${String(handSize(seat, cursor))} cards): ${msg.replace(/\s+/g, ' ')}`);
+						match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' }));
+					} else if (!done && !/^Waiting for/.test(msg)) {
+						// The coin toss and anything else with a live OK: answer it, record what follows the return.
+						if (seat === 0 && sequence.some((x) => x.startsWith('seat0 return'))) {
+							sequence.push(`seat0 after: ${msg.split('\n')[0]}`);
+							done = true;
+						} else if (buttons[seat]!.enable1) {
+							match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+						}
+					}
+				}
+				await new Promise((r) => setTimeout(r, 100));
+			}
+			await new Promise((r) => setTimeout(r, 1000));
+			console.log(`[mulligan-sequence] ${JSON.stringify(sequence, null, 1)}`);
+
+			const seat0 = sequence.filter((x) => x.startsWith('seat0'));
+			expect(seat0.map((x) => x.replace(/:.*$/, ''))).toEqual([
+				'seat0 keep? (7 cards)',
+				'seat0 keep? (7 cards)',
+				'seat0 return (7 cards)',
+				'seat0 after',
+			]);
+			match.stop();
+			jvm.close();
+			await waitUntil(() => liveJvmCount() === 0, "this match's JVM to exit", 15_000);
 		},
 		240_000,
 	);
