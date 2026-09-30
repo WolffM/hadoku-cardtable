@@ -29,6 +29,7 @@
 import { useEffect, useState } from 'react';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
+import { roomsClient } from '../rooms/api.ts';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from '../play/live/match.ts';
 
 export interface MatchScreenProps {
@@ -46,9 +47,30 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
     return () => closeMatch(handle);
   }, [matchId, makeTransport]);
 
+  // The room that started this match, for the board's "Back to the room" link.
+  // The route carries only the match id, so ask the room list which room holds
+  // it (a room with a match is always offered). Unknown is a legitimate answer
+  // (a match link from elsewhere, a list that would not load): the board then
+  // says "Back to the lobby", which is where that viewer belongs.
+  const [roomId, setRoomId] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    roomsClient()
+      .list()
+      .then(
+        (rooms) => {
+          if (live) setRoomId(rooms.find((r) => r.matchId === matchId)?.id ?? null);
+        },
+        () => undefined,
+      );
+    return () => {
+      live = false;
+    };
+  }, [matchId]);
+
   return (
     <div className="shell shell--match" data-testid="match">
-      {match !== null && <LiveBoard match={match} />}
+      {match !== null && <LiveBoard match={match} roomId={roomId} />}
     </div>
   );
 }
