@@ -244,6 +244,26 @@ Check `pm2` / the match log before pushing anything outside `docs/**` and
   to put to the operator: show presence, not membership; or drop a room whose
   members have all been absent for N minutes.
 
+## 2026-09-30 — main's `check` is red on one slow runner, not on code
+
+`check` failed on `ded7f8d` and `dd0c2a9` (the latter carries the 0.39.20
+dependency bump) and passed on `97628be` and `eaa3898`, with identical code
+between them. **Both failures, and three re-runs of `dd0c2a9`, ran on
+`warm-claw-5-hadoku-cardtable` and took 311 to 334 s; every job on `warm-claw-8` or
+the JIT claw took about 143 s and passed.** On claw-5 the same five or six
+tests in `constructed.test.ts` (and one in `LiveBoard.test.ts`) hit vitest's 5 s
+timeout. Locally the slowest test in that file takes 176 ms and all 72 pass.
+
+- **Not proven:** that the bump is clean on CI. Locally it is: `pnpm check`
+  green (2805 passed) and `room-mode` and `draft` e2e green on the new bundle.
+  `dd0c2a9`'s `forge-e2e` passed. Settle it by a green `check` on a healthy claw.
+- **One forge-e2e failure is unexplained.** `97628be`'s `forge-e2e` failed at
+  `twoLegalDecks` (`table-fit.spec.ts:454`) parsing a body of `not found`, and
+  passed on every neighbour. No cause found in the log; do not close it as a flake.
+- **For the fleet owner:** claw-5 is running at under half speed. Nothing in
+  this repo should be loosened to fit it. A 5 s cliff is still worth a look in
+  its own right if the runner turns out to be fine.
+
 ## Operator play test, 2026-09-30 — eighteen items, three already in flight
 
 Recorded the moment they arrived, because w29 is RUNNING and a wave in flight is
