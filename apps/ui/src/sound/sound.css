@@ -1,6 +1,6 @@
 /*
- * The mute button. The whole of this module's CSS, and it draws no symbol —
- * the state is the word, for the reason `MuteButton.tsx` gives.
+ * The mute button. The whole of this module's CSS: a speaker icon whose state
+ * is also in `aria-label` and `aria-pressed` (`MuteButton.tsx`).
  *
  * Tokens come from `styles.css` (`--line`, `--ink-dim`, `--accent`, `--radius`),
  * so this follows the theme without knowing anything about it.
@@ -15,10 +15,16 @@
   font-size: 13px;
   padding: 4px 10px;
   cursor: pointer;
-  /* The label swaps between "Sound on" and "Sound off", which are different
-     widths — without a floor the button twitches on every click. */
-  min-width: 84px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* A square-ish hit target; the icon swaps between two drawings of one size. */
+  min-width: 36px;
+  min-height: 32px;
+}
+
+.sound-mute__icon {
+  display: block;
 }
 
 .sound-mute:hover {

@@ -20,24 +20,37 @@
  * what each one was doing. Still forbidden, and NOT loosened by D20: the WotC
  * logo, the Magic wordmark, card frames.
  *
- * The palette is dark because a draft is read for forty-five minutes at a
- * stretch, and the colour-pie hues — still used for a card's identity stripe —
+ * The palette follows the theme selector (wave 31 P4; it was fixed dark before).
+ * The colour-pie hues — still used for a card's identity stripe —
  * are desaturated well away from the printed ones.
  */
 
-:root {
-  color-scheme: dark;
-
-  --bg: #14161a;
-  --bg-raised: #1c1f25;
-  --bg-card: #23272f;
-  --line: #333943;
-  --line-soft: #2a2f37;
-  --ink: #e6e9ee;
-  --ink-dim: #99a1ae;
-  --ink-faint: #6a7280;
-  --accent: #7bb0ff;
-  --warn: #ffb057;
+:root,
+[data-theme],
+.cardtable-chrome {
+  /*
+   * Chrome colours ALIAS the theme (wave 31 P4). `color-scheme` follows the theme in `chrome/chrome.css`. They were fixed dark values, so
+   * the game UI ignored the theme selector while the header beside it changed.
+   * `@wolffm/themes` publishes `--color-*` on `[data-theme]`; each token below
+   * reads one, with its former dark value as the fallback for a page where no
+   * theme CSS has loaded. The selector list re-declares them wherever a theme is
+   * set, so a container with its own `data-theme` resolves against ITS theme
+   * instead of inheriting `:root`'s already-resolved value.
+   *
+   * Not aliased, on purpose: the colour-pie `--c-*` hues below and black shadows
+   * are data and shading, the same in every theme.
+   */
+  --bg: var(--color-bg, #14161a);
+  --bg-raised: var(--color-bg-card, #1c1f25);
+  --bg-card: color-mix(in srgb, var(--color-bg-card, #23272f) 90%, var(--color-text, #e6e9ee));
+  --line: var(--color-border, #333943);
+  --line-soft: color-mix(in srgb, var(--color-border, #2a2f37) 55%, var(--color-bg, #14161a));
+  --ink: var(--color-text, #e6e9ee);
+  --ink-dim: var(--color-text-secondary, #99a1ae);
+  --ink-faint: var(--color-text-tertiary, #6a7280);
+  --accent: var(--color-primary, #7bb0ff);
+  --on-accent: var(--color-on-primary, #10131a);
+  --warn: var(--color-warning, #ffb057);
 
   /* Our colour-pie hues. Deliberately not the printed ones. */
   --c-white: #d8cfae;
@@ -127,7 +140,7 @@ button {
 .fixtures__list .fixtures__on {
   background: var(--accent);
   border-color: var(--accent);
-  color: #10131a;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
@@ -749,7 +762,7 @@ button {
 }
 
 .seat--waiting {
-  background: rgb(123 176 255 / 8%);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   border-left-color: var(--accent);
 }
 

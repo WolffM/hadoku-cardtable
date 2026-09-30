@@ -53,10 +53,10 @@ export function MuteButton({ className }: MuteButtonProps) {
       // the mute, and its state is pressed-or-not. A screen reader gets "Mute
       // sounds, pressed" instead of having to infer from the word.
       aria-pressed={muted}
-      // The word, not a glyph. `CardTile` says the same thing about rarity and
-      // for the same reason — a speaker-with-a-slash is a mark we would have to
-      // draw, and Keyrune and Mana are Magic symbols, not UI icons. Two words
-      // beat an icon nobody is sure about.
+      // The name lives here, not in visible text: the control is a speaker icon
+      // (wave 31 P20, *"the sound on control is an icon, not the words"*). The
+      // icon is drawn below as plain SVG, because Keyrune and Mana are Magic
+      // symbols and not UI icons.
       aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}
       title={muted ? 'Sounds are off' : 'Sounds are on'}
       onClick={() => {
@@ -68,7 +68,26 @@ export function MuteButton({ className }: MuteButtonProps) {
         if (!toggleMuted()) playCue('select');
       }}
     >
-      <span className="sound-mute__label">{muted ? 'Sound off' : 'Sound on'}</span>
+      <svg
+        className="sound-mute__icon"
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        aria-hidden="true"
+        focusable="false"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+        {muted ? (
+          <path d="M17 9l5 6M22 9l-5 6" />
+        ) : (
+          <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />
+        )}
+      </svg>
     </button>
   );
 }

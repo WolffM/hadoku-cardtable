@@ -33,6 +33,7 @@ import {
 	newestFormat,
 	openLobby,
 	ROOM_IDLE_MS,
+	ROOM_STALE_MS,
 	type ClientMode,
 	type Lobby,
 	type RoomView,
@@ -857,5 +858,44 @@ describe('a member\'s avatar', () => {
 		const lobby = await openLobby({ dir });
 		expect(avatarOf(lobby.get('r-blankavatar'), ALICE.id)).not.toHaveProperty('avatarId');
 		expect(avatarOf(lobby.get('r-blankavatar'), BOB.id)?.avatarId).toBe('herald');
+	});
+});
+
+describe('Lobby.offered', () => {
+	/*
+	 * Wave 31. Rooms restore on boot and live `ROOM_IDLE_MS`, and the list shows a
+	 * room's STORED members, so a dead table looked alive. The rule: a room nobody
+	 * has touched or polled for `ROOM_STALE_MS` (30 minutes) is not offered.
+	 */
+	it('drops a restored room untouched for ROOM_STALE_MS and keeps a fresh one', async () => {
+		const dir = await tempDir();
+		const now = 2_500_000_000_000;
+		writeFixtureRoom(dir, 'r-dead000000001', legacyApp({ name: 'hi there' }), now - ROOM_STALE_MS - 1);
+		writeFixtureRoom(dir, 'r-live000000002', legacyApp({ name: 'tonight' }), now - ROOM_STALE_MS + 60_000);
+
+		const lobby = await openLobby({ dir, now: () => now });
+		expect(lobby.list().map((r) => r.id).sort()).toEqual(['r-dead000000001', 'r-live000000002']);
+		expect(lobby.offered().map((r) => r.id)).toEqual(['r-live000000002']);
+	});
+
+	it('counts a member\'s poll as a touch, and nobody else\'s', async () => {
+		const dir = await tempDir();
+		const now = 2_600_000_000_000;
+		writeFixtureRoom(dir, 'r-dead000000001', legacyApp({ name: 'hi there' }), now - ROOM_STALE_MS - 1);
+		const lobby = await openLobby({ dir, now: () => now });
+
+		lobby.touch('r-dead000000001', BOB.id);
+		expect(lobby.offered()).toEqual([]);
+		lobby.touch('r-dead000000001', ALICE.id);
+		expect(lobby.offered().map((r) => r.id)).toEqual(['r-dead000000001']);
+	});
+
+	it('resolves a match id to its room', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		expect(lobby.roomOfMatch('m-1')).toBeUndefined();
+		lobby.setMatch(made.room.id, 'm-1');
+		expect(lobby.roomOfMatch('m-1')?.id).toBe(made.room.id);
 	});
 });

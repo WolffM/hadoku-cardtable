@@ -886,6 +886,27 @@ describe('a room table', () => {
 	});
 
 	/*
+	 * Wave 31 shape 1: the room's display names ride the start body (`names`, in
+	 * `decks` order) and land on the Forge seats, so Forge's own prompts say
+	 * "user-alice" and not "Seat 1".
+	 */
+	it("puts each member's display name on the seat their deck is in", async () => {
+		const h = await boot();
+		h.lobby.open(ROOM, [
+			{ id: ALICE, name: 'user-alice' },
+			{ id: BOB, name: 'user-bob' },
+		]);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+
+		const res = await startRoom(h, 'alice');
+		expect(res.status).toBe(201);
+		const seats = h.specs[0]?.seats as { name: string }[];
+		expect(seats.map((s) => s.name)).toEqual(['user-alice', 'user-bob']);
+	});
+
+	/*
 	 * Item 4 of the 2026-09-28 play test: *"i noticed you're still not pulling in
 	 * the watchparty selected avatars. why not?"*
 	 *

@@ -45,6 +45,10 @@
  * refuses a longer value.
  */
 
+import { createPrefsClient, type PrefsClient } from '@wolffm/prefs-client';
+import { SeqCursorSchema } from '@hadoku/shared';
+import { CallIdSchema } from '@hadoku/forge-wire';
+
 /** Watchparty's bound on the id: `sprite: z.string().min(1).max(32)`. */
 export const AVATAR_ID_MAX = 32;
 
@@ -175,4 +179,62 @@ export function selectedAvatarId(userId: string | null | undefined, store: Avata
     // it means we do not know this viewer's avatar, which is `null`.
     return null;
   }
+}
+
+/*
+ * ## The account's copy, not just this browser's
+ *
+ * `selectedAvatarId` above reads the prefs SDK's write-through CACHE, which only
+ * exists on a browser that has already opened watchparty's chrome. A fresh
+ * browser has no cache row and so asserted nothing (wave 31 P3b). The value
+ * itself lives in the account: watchparty's prefs row (app `watchparty`, `user`
+ * scope), which is what `createPrefsClient(...).read()` returns. We only ever
+ * read it, never save, so asking for the same app id cannot change what the
+ * chrome stores. The schema is loose on purpose: the row holds every one of
+ * watchparty's own fields and we want one.
+ *
+ * `apiBase` is this page's origin for the reason `watchpartyOrigin` gives: the
+ * SDK's default is a hardcoded `https://hadoku.me/prefs`, which a local e2e
+ * would reach off-host.
+ */
+
+/** Only `sprite` is read. `.loose()` keeps the rest of watchparty's fields from failing validation. */
+const WatchpartyPrefsSchema = SeqCursorSchema.pick({}).extend({ sprite: CallIdSchema.optional() }).loose();
+
+interface WatchpartyPrefs {
+  [key: string]: unknown;
+  sprite?: string;
+}
+
+let accountClient: PrefsClient<WatchpartyPrefs> | null = null;
+
+function watchpartyPrefsClient(): PrefsClient<WatchpartyPrefs> {
+  accountClient ??= createPrefsClient({
+    appId: 'watchparty',
+    // Two zod copies in one lockfile make the schema types nominally different;
+    // `play/live/prefs.ts` explains the same cast at length.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see play/live/prefs.ts
+    schema: WatchpartyPrefsSchema as any,
+    apiBase: `${globalThis.location.origin}/prefs`,
+  }) as unknown as PrefsClient<WatchpartyPrefs>;
+  return accountClient;
+}
+
+/**
+ * This viewer's chosen avatar from their ACCOUNT, falling back to this browser's
+ * cache when the account cannot be read (offline, signed out, a host without the
+ * prefs route). Null when neither knows: that is the unset case (D2), which only
+ * watchparty's own auto-assigned sprite could fill and nothing readable to us
+ * carries.
+ */
+export async function accountAvatarId(userId: string | null | undefined): Promise<string | null> {
+  try {
+    const prefs = await watchpartyPrefsClient().read();
+    const id = normalizeAvatarId(prefs.sprite);
+    if (id !== null) return id;
+  } catch {
+    // Unreadable account is not an error to show anybody: the cache read below
+    // is the same answer a browser that has used the chrome would give.
+  }
+  return selectedAvatarId(userId);
 }

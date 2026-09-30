@@ -187,6 +187,25 @@ describe('the avatar the viewer picked in watchparty', () => {
     expect(posts[0].body).toEqual({ avatarId: 'wanderer' });
   });
 
+  it('asserts again when the first try is refused, because a joiner’s first screen beats their own join', async () => {
+    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), ROW);
+    let answers = 0;
+    const posts: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      posts.push(String(input));
+      answers += 1;
+      // Refused the first time (not a member yet), accepted the second.
+      const status = answers === 1 ? 404 : 200;
+      return Promise.resolve(new Response('{}', { status, headers: { 'content-type': 'application/json' } }));
+    });
+
+    render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
+    await waitFor(() => expect(posts.filter((u) => u.includes('/identity'))).toHaveLength(2), { timeout: 4000 });
+    // Accepted on the second, so there is no third.
+    await new Promise((r) => setTimeout(r, 100));
+    expect(posts.filter((u) => u.includes('/identity'))).toHaveLength(2);
+  });
+
   it('sends nothing at all when the viewer has no avatar to send', async () => {
     // No prefs row: a viewer who has never opened the chrome on this browser.
     // The server's "clear it" case is for somebody who HAD one and dropped it,

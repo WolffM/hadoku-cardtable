@@ -378,8 +378,33 @@ export type StartDraftResult =
  */
 export const ROOM_IDLE_MS = 12 * 60 * 60_000;
 
+/**
+ * How long a room may go without a touch or a poll before the front page stops
+ * OFFERING it (wave 31). The room is not deleted (`ROOM_IDLE_MS` does that, much
+ * later); it just stops advertising itself.
+ *
+ * The operator: *"why are 'hi there' and 'hi there2' still showing up?"* Rooms
+ * restore on boot and live twelve hours, and the list prints a room's STORED
+ * members, not who is connected, so a dead table looked alive with an Enter
+ * button. A room someone is in is polled every 1.5 s by its own screen (the
+ * table read, and `GET /api/rooms/:id`), so "nobody touched or polled it for
+ * thirty minutes" means nobody is there. A room with a match or a draft under
+ * way is exempt: its players are on another screen and do not poll the room.
+ */
+export const ROOM_STALE_MS = 30 * 60_000;
+
 export interface Lobby {
 	list(): RoomView[];
+	/**
+	 * The rooms the front page offers: `list()` minus the rooms nobody has touched
+	 * or polled for `staleMs` (`ROOM_STALE_MS`). A room with a match or a draft in
+	 * progress is always offered. Same order as `list()`.
+	 */
+	offered(staleMs?: number): RoomView[];
+	/** Record that `memberId` is polling `roomId` now. A non-member or unknown room is ignored. */
+	touch(roomId: string, memberId: string): void;
+	/** The room whose match is `matchId`, or undefined. A match id is never a room id. */
+	roomOfMatch(matchId: string): RoomView | undefined;
 	get(roomId: string): RoomView | undefined;
 	/** Whether `memberId` is a member of `roomId`. False when there is no such room. */
 	isMember(roomId: string, memberId: string): boolean;
@@ -796,6 +821,31 @@ class FileLobby implements Lobby {
 			.map((r) => this.#view(r));
 	}
 
+	/** In memory only: a poll is not a mutation and must not write a file every 1.5 s. */
+	#polledAt = new Map<string, number>();
+
+	touch(roomId: string, memberId: string): void {
+		if (this.isMember(roomId, memberId)) this.#polledAt.set(roomId, this.#now());
+	}
+
+	offered(staleMs: number = ROOM_STALE_MS): RoomView[] {
+		const cutoff = this.#now() - staleMs;
+		return [...this.#rooms.values()]
+			.filter(
+				(r) =>
+					r.matchId !== null ||
+					r.draftStartedAt !== null ||
+					Math.max(r.updatedAt, this.#polledAt.get(r.id) ?? 0) > cutoff,
+			)
+			.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
+			.map((r) => this.#view(r));
+	}
+
+	roomOfMatch(matchId: string): RoomView | undefined {
+		for (const room of this.#rooms.values()) if (room.matchId === matchId) return this.#view(room);
+		return undefined;
+	}
+
 	get(roomId: string): RoomView | undefined {
 		const room = this.#rooms.get(roomId);
 		return room === undefined ? undefined : this.#view(room);
@@ -990,6 +1040,7 @@ class FileLobby implements Lobby {
 			if (room.draftStartedAt !== null) continue;
 			this.#rooms.delete(id);
 			this.#secrets.delete(id);
+			this.#polledAt.delete(id);
 			dropped.push(id);
 			// The room is gone from the list the moment it leaves the map; the
 			// disk write is best-effort and logged, because a store that cannot

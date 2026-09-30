@@ -328,13 +328,16 @@ describe('the mute button', () => {
 
     expect(button.getAttribute('data-muted')).toBe('false');
     expect(button.getAttribute('aria-pressed')).toBe('false');
-    expect(button.textContent).toBe('Sound on');
+    expect(button.getAttribute('aria-label')).toBe('Mute sounds');
+    // An icon, not words (wave 31 P20): no visible text, and the name is the label.
+    expect(button.textContent).toBe('');
+    expect(button.querySelector('svg')).not.toBeNull();
 
     fireEvent.click(button);
 
     expect(button.getAttribute('data-muted')).toBe('true');
     expect(button.getAttribute('aria-pressed')).toBe('true');
-    expect(button.textContent).toBe('Sound off');
+    expect(button.getAttribute('aria-label')).toBe('Unmute sounds');
     expect(isMuted()).toBe(true);
     expect(globalThis.localStorage.getItem(MUTE_KEY)).toBe('true');
   });

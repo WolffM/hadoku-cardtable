@@ -371,7 +371,9 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		// One `you` per room: the front page says which rooms you lead and which
 		// you have already readied in, without a second request per room.
 		const me = callerOf(req).id;
-		res.json({ rooms: lobby.list().map((room) => roomBody(room, me)) });
+		// `offered`, not `list`: a room nobody has touched or polled for
+		// `ROOM_STALE_MS` is a dead table and is not advertised (wave 31).
+		res.json({ rooms: lobby.offered().map((room) => roomBody(room, me)) });
 	});
 
 	rooms.post('/', (req: Request, res: Response) => {
@@ -387,7 +389,10 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const id = String(req.params.id);
 		const room = ROOM_ID_RE.test(id) ? lobby.get(id) : undefined;
 		if (room === undefined) return noMatch(res);
-		res.json(roomBody(room, callerOf(req).id));
+		const me = callerOf(req).id;
+		// The room screen polls this; a member's poll is what keeps a room offered.
+		lobby.touch(id, me);
+		res.json(roomBody(room, me));
 	});
 
 	rooms.post('/:id/join', (req: Request, res: Response) => {
@@ -467,7 +472,12 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!parsed.ok) return badRequest(res, parsed.error);
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
-		const id = String(req.params.id);
+		// The match route has no room id of its own: the client names the MATCH it is
+		// on. Match ids are not `r-` ids but do fit `ROOM_ID_RE`'s alphabet, so a match
+		// lookup goes FIRST and the name is used as a room id only when it is no
+		// match. This was a 404 for both players at every match start.
+		const named = String(req.params.id);
+		const id = lobby.roomOfMatch(named)?.id ?? named;
 		if (!ROOM_ID_RE.test(id) || !lobby.setAvatar(id, caller.id, parsed.value.avatarId)) return noMatch(res);
 		const room = lobby.get(id);
 		if (room === undefined) return noMatch(res);

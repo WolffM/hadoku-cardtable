@@ -76,12 +76,12 @@ interface Harness {
 
 async function openApp(
 	dir: string,
-	opts: { joinRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } } = {},
+	opts: { joinRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number }; now?: () => number } = {},
 ): Promise<Harness> {
 	const log = (entry: Record<string, unknown>): void => {
 		logged.push(entry);
 	};
-	const lobby = await lobbyMod.openLobby({ dir, log });
+	const lobby = await lobbyMod.openLobby({ dir, log, ...(opts.now === undefined ? {} : { now: opts.now }) });
 	const app = express();
 	app.use(edgeMod.edgeProvenance);
 	app.use(edgeMod.requireMinTier);
@@ -1246,8 +1246,8 @@ describe('POST /api/rooms/:id/identity', () => {
 			((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).members,
 		).toHaveLength(1);
 
-		// A MATCH id, which is what `RoomShell` asserts against on `#/match/<id>`.
-		// The 404 is the correct no-op and the client ignores it.
+		// A match id NO room holds: nothing to resolve it to, so the same 404. (A
+		// match id a room DOES hold resolves; see the next test.)
 		const match = await call(h, 'POST', '/api/rooms/m-090bf01ba811/identity', { as: 'alice', body: { avatarId: 'mage' } });
 		expect(match.status).toBe(404);
 		expect(match.json()).toEqual(roomsMod.NO_MATCH);
@@ -1255,6 +1255,35 @@ describe('POST /api/rooms/:id/identity', () => {
 		const malformed = await call(h, 'POST', '/api/rooms/NOT_AN_ID/identity', { as: 'alice', body: { avatarId: 'mage' } });
 		expect(malformed.status).toBe(404);
 		expect(malformed.json()).toEqual(roomsMod.NO_MATCH);
+	});
+
+	/*
+	 * Wave 31 P3b. `RoomShell` asserts against the route's id, which on
+	 * `#/match/<id>` is a MATCH id; the prod log shows `POST /<id>/identity` 404
+	 * for both players at every match start. The server resolves the match to the
+	 * lobby room that started it.
+	 */
+	it('resolves a match id to the room that holds it, and sets the avatar there', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		// A real match id's shape: it fits `ROOM_ID_RE`, which is why the lookup
+		// has to come before the room-id test rather than after it.
+		h.lobby.setMatch(room.id, 'a1b2c3d4-0000-4000-8000-000000000001');
+
+		const set = await call(h, 'POST', '/api/rooms/a1b2c3d4-0000-4000-8000-000000000001/identity', {
+			as: 'alice',
+			body: { avatarId: 'wanderer' },
+		});
+		expect(set.status).toBe(200);
+		expect(h.lobby.get(room.id)?.members[0]?.avatarId).toBe('wanderer');
+
+		// Still the caller's own row: bob is not in the room that holds the match.
+		const outsider = await call(h, 'POST', '/api/rooms/a1b2c3d4-0000-4000-8000-000000000001/identity', {
+			as: 'bob',
+			body: { avatarId: 'rogue' },
+		});
+		expect(outsider.status).toBe(404);
 	});
 
 	it('refuses a caller the edge could not name, like every other write here', async () => {
@@ -1267,5 +1296,49 @@ describe('POST /api/rooms/:id/identity', () => {
 		});
 		expect(anon.status).toBe(403);
 		expect((anon.json() as { error: string }).error).toContain('take part in');
+	});
+});
+
+/*
+ * Wave 31, stale rooms. The operator: *"why are 'hi there' and 'hi there2' still
+ * showing up?"* A room nobody has touched or polled for `ROOM_STALE_MS` (30
+ * minutes) is not offered on the front page.
+ */
+describe('GET /api/rooms and stale rooms', () => {
+	const ids = async (h: Harness, as: string): Promise<string[]> =>
+		((await call(h, 'GET', '/api/rooms', { as })).json() as { rooms: { id: string }[] }).rooms.map((r) => r.id);
+
+	it('stops offering a room after ROOM_STALE_MS with no touch, and offers it again when a member polls', async () => {
+		let clock = 5_000_000_000_000;
+		const h = await openApp(await tempDir(), { now: () => clock });
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'hi there' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		expect(await ids(h, 'bob')).toEqual([room.id]);
+
+		clock += lobbyMod.ROOM_STALE_MS - 1;
+		expect(await ids(h, 'bob')).toEqual([room.id]);
+
+		clock += 2;
+		expect(await ids(h, 'bob')).toEqual([]);
+		// Hidden, not deleted: `get` and a direct join still find it.
+		expect(h.lobby.get(room.id)).toBeDefined();
+
+		// A non-member's read is not a poll and revives nothing.
+		await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'bob' });
+		expect(await ids(h, 'bob')).toEqual([]);
+
+		// A member's poll is: the room screen reads this every 1.5 s.
+		await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'alice' });
+		expect(await ids(h, 'bob')).toEqual([room.id]);
+	});
+
+	it('keeps offering a room that holds a match', async () => {
+		let clock = 6_000_000_000_000;
+		const h = await openApp(await tempDir(), { now: () => clock });
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'playing' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		h.lobby.setMatch(room.id, 'a1b2c3d4-0000-4000-8000-000000000002');
+		clock += lobbyMod.ROOM_STALE_MS * 3;
+		expect(await ids(h, 'bob')).toEqual([room.id]);
 	});
 });
