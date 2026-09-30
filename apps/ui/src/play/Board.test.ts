@@ -2796,7 +2796,8 @@ describe('a full row keeps its names legible at the 960 budget (§A.1)', () => {
   };
   const token = (selector: string, name: string): number => px(declarationIn(selector, name));
   /** The one rule that sizes a card's column, in a hand and in a battlefield lane. */
-  const GRID = '.seat > .zone--battlefield .zone__row > .zone__cards,\n.seat[data-viewer] > .zone--hand > .zone__cards';
+  const GRID =
+    '.seat > .zone--battlefield .zone__row > .zone__cards,\n.seat > .zone--battlefield > .zone__cards,\n.seat[data-viewer] > .zone--hand > .zone__cards';
   /** The rule that gives a row zone its `--card-max`, shared by a battlefield and a hand. */
   const ROW_ZONE = '.seat > .zone--battlefield,\n.seat[data-viewer] > .zone--hand';
 
@@ -3204,6 +3205,43 @@ describe('item 11 — one board by default, four lanes as the alternate', () => 
     expect(flatIds(me.id)).toEqual(me.battlefield.map((c) => c.id));
     expect(flatIds(them.id)).toEqual(them.battlefield.map((c) => c.id));
     expect(flatIds(me.id).length, 'a real mix of types is on this seat’s board').toBeGreaterThan(1);
+  });
+
+  /*
+   * The manager's read of `A-board-1280x800.png` caught a real regression in
+   * `5b6c73e`: the single list's own selector (`.seat > .zone--battlefield >
+   * .zone__cards`) had been added to the `--rows` CALC block but not to the
+   * SHARED GRID block that actually gives a battlefield card its size — so the
+   * single layout's list fell through to no grid at all, `<li>`s flowed as
+   * plain full-width blocks one under another, and a pile's own fan (which
+   * still applied — `.board-card__pile` is `position: absolute` and scoped to
+   * no layout) had nothing but that oversized block to fan inside, clipping
+   * at the lane's bottom the moment a pile or a tenth card needed the row
+   * budget `--rows` exists to find.
+   *
+   * `--card-max` is the SAME token both layouts read (`.seat >
+   * .zone--battlefield`'s own `7.5rem`, inherited into whichever child list
+   * is actually mounted) — that part was already correct in `5b6c73e` and
+   * stays asserted here as the reason a shared cap is enough once the list
+   * is actually IN the grid this pins.
+   */
+  it('the single list shares the lanes’ own sizing grid — same --card-max, same --rows device, not the hand’s fallback size', () => {
+    const gridSelector =
+      '.seat > .zone--battlefield .zone__row > .zone__cards,\n.seat > .zone--battlefield > .zone__cards,\n.seat[data-viewer] > .zone--hand > .zone__cards';
+    expect(
+      declarationIn(gridSelector, 'display'),
+      'the single list is in the SAME shared grid rule as the lanes and the hand',
+    ).toBe('grid');
+    expect(declarationIn(gridSelector, 'grid-auto-flow')).toBe('column');
+    expect(declarationIn(gridSelector, '--card-w')).toContain('var(--card-max)');
+    expect(
+      declarationIn('.seat > .zone--battlefield > .zone__cards', '--card-slack'),
+      'its own slack override exists — the list is not silently falling back to the hand’s',
+    ).toBe('6px');
+    expect(
+      declarationIn('.zone__rows,\n.zone--hand > .zone__cards,\n.seat > .zone--battlefield > .zone__cards', '--rows'),
+      'and it is in the SAME --rows ladder as the alternate’s zone__rows and the hand, not stuck at the fallback 1',
+    ).toMatch(/^calc\(1 \+ clamp\(/);
   });
 
   it('boardLayout="type-separated" still renders the four labelled lanes — the alternate is not deleted', () => {

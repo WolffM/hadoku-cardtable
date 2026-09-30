@@ -988,6 +988,7 @@
 }
 
 .seat > .zone--battlefield .zone__row > .zone__cards,
+.seat > .zone--battlefield > .zone__cards,
 .seat[data-viewer] > .zone--hand > .zone__cards {
   /*
    * Tall enough for `--rows` rows in the container's own height (`100cqh` — the
@@ -1040,6 +1041,22 @@
    this list does not get of it is the LANE's own label strip. */
 .seat > .zone--battlefield .zone__row > .zone__cards {
   --card-slack: calc(6px + var(--row-head-h) + var(--row-head-gap));
+  --card-pad: 2px;
+}
+
+/*
+ * The single layout's own list (item 11): this container IS the whole
+ * battlefield slot, not one of four lanes sharing it, so there is no label
+ * strip to subtract — just the same base `6px` the row variant above adds
+ * its label height to. Without this rule (and the one above adding this
+ * selector to the shared grid block) the list fell through to NO grid at
+ * all: `<li>` flowed as plain block boxes, full width, one under another,
+ * clipped at the lane's bottom the moment a pile or a tenth card needed the
+ * room `--rows` exists to find — the regression the manager's read of
+ * `A-board-1280x800.png` caught.
+ */
+.seat > .zone--battlefield > .zone__cards {
+  --card-slack: 6px;
   --card-pad: 2px;
 }
 
