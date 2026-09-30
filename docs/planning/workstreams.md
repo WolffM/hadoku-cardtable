@@ -207,6 +207,43 @@ full controller.
   The same bug, in the room layer. Ask the operator before
   widening the rule to it.
 
+## 2026-09-30 — every deploy kills every live match; the hand-over has never worked in prod
+
+Operator: *"why can I still join `#/match/m-c6f0bd09c188` if the match is
+gone?"* and *"why are 'hi there' and 'hi there2' still showing up?"*
+
+**Root cause, reproduced in isolation.** pm2 runs cardtable with `treekill: true`,
+so on every restart it signals the whole parent-pid tree, and the match JVM,
+though `detached` + `unref()`'d, is still a child of the server until it exits.
+Wave 22's hand-over (`host.ts:120-200`) is sound and its half works
+(`match-handed-over` logged), but the new process finds no live JVM. Six
+hand-overs since 2026-09-27, **zero** adoptions. Experiment: same process shape
+under a private `PM2_HOME`; the stand-in child dies with `treekill: true` and
+survives with `false`. Filed as
+`docs/requests/HADOKU_SITE_CARDTABLE_TREEKILL.md` (one line in hadoku_site's
+`ecosystem.config.cjs`). **Open until hadoku_site deploys it and a match is
+shown surviving a restart.**
+
+**My push caused the match the operator was in to die.** The `0553bb8` dependency
+bump changed `package.json`, so it redeployed, and the restart killed the live
+match `m-c6f0bd09c188` at 21:06:09 (created 21:04:49). Until the fix above
+lands, **a push that redeploys cardtable ends every game in progress**.
+Check `pm2` / the match log before pushing anything outside `docs/**` and
+`*.md`, and ask when someone is playing.
+
+**Two cardtable-side findings, for w31:**
+
+- **"Can still join a gone match."** The URL's hash route attempts the join,
+  the server answers `match-gone`, and the UI still leaves the person on a
+  match page. Needs its own look at what `LiveBoard` renders for `match-gone`
+  (`LiveBoard.tsx:345,380`) and whether the route should bounce to the room.
+- **Stale rooms with stored members.** `lobby.ts` restores rooms on boot with
+  `matchId: null` (correct) and forgets them after `ROOM_IDLE_MS` = 12 h. The
+  list shows a room's **stored** members ("Hadoku, Bella"), not who is connected,
+  so a dead table looks alive with an **Enter** button for half a day. Options
+  to put to the operator: show presence, not membership; or drop a room whose
+  members have all been absent for N minutes.
+
 ## Operator play test, 2026-09-30 — eighteen items, three already in flight
 
 Recorded the moment they arrived, because w29 is RUNNING and a wave in flight is
