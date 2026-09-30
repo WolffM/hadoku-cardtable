@@ -128,8 +128,25 @@ import java.util.concurrent.atomic.AtomicInteger;
  * human seat is a real, stock {@link FGameClient} connected to it over loopback. What is
  * ours is the client's {@code IGuiGame}, {@link SeatGui}: where Forge's desktop client
  * would draw, it writes one JSON line per protocol call. Nothing in {@code forge/} is
- * modified, and nothing here reaches into Forge's server: the seam is the one
- * {@code IToClient} already crosses.
+ * modified, and — with one exception — nothing here reaches into Forge's server: the
+ * seam is the one {@code IToClient} already crosses.
+ *
+ * <p><b>The one exception: {@link SeatGui#liveMulliganFlag()}.</b> Wave 30 §B. Forge's
+ * own server-side proxy, {@code RemoteClientGuiGame}, syncs the trackable graph
+ * (walks it and puts a changed property on a {@code DeltaPacket}) only for the
+ * {@code showPromptMessage} overload carrying a {@code CardView}, never for
+ * {@code updateButtons} or the no-card {@code showPromptMessage} —
+ * {@code RemoteClientGuiGame.java:330-337}, whose own comment says why: the
+ * {@code card == null} path is shared with the live-game-thread auto-pass timer, and
+ * walking the graph there would race it. {@code InputLondonMulligan} sets
+ * {@code GameView.Mulligan} correctly and then makes exactly those two unsynced calls,
+ * so the flag never reaches a {@code DeltaPacket} for the life of that input — read
+ * from {@code forge/}'s real source in the deploy tree, and measured: see
+ * {@code docs/planning/wave30-evidence/B-item1-mulligan-root-cause.md}. {@link #LOBBY}
+ * (set once in {@link #startMatch}) is what lets {@link SeatGui} read the SERVER's live
+ * {@code Game} directly for that one property instead of waiting on a wire that never
+ * carries it; {@link SeatGui#syncMulliganFlag()} is where every read happens and why
+ * each one is safe.
  *
  * <p><b>One match per JVM.</b> {@link FServerManager#getInstance()} is a process-wide
  * singleton holding one lobby, so this program hosts exactly one match. Whether a
@@ -541,6 +558,14 @@ public final class PlayBridge {
 
     // ================================================================ the seats
 
+    /**
+     * The server's own lobby, set once in {@link #startMatch} — the one live
+     * {@code Game} every {@link SeatGui} reads off directly for
+     * {@link SeatGui#liveMulliganFlag()}. See that method's doc for why a seat's
+     * client-side {@code IGuiGame} reads the SERVER's object at all.
+     */
+    static volatile ServerGameLobby LOBBY;
+
     static final Map<Integer, SeatGui> SEATS = new ConcurrentHashMap<>();
 
     /**
@@ -577,6 +602,12 @@ public final class PlayBridge {
         final Map<String, PendingAsk> pending = new ConcurrentHashMap<>();
         /** SpellAbilityViews this seat has been offered, for {@code selectAbility}. */
         final Map<Integer, SpellAbilityView> abilities = new ConcurrentHashMap<>();
+        /**
+         * What this seat was LAST TOLD the Game object's {@code Mulligan} property is —
+         * real wire traffic or this bridge's own synthetic correction, either one. {@code
+         * null} until either has said anything; see {@link #syncMulliganFlag()}.
+         */
+        volatile Boolean lastToldMulligan;
 
         /**
          * This seat's client-side "event dispatch thread": one thread, so the seat's
@@ -683,6 +714,12 @@ public final class PlayBridge {
             // flattened by the same toNetworkValue the delta stream uses — so the full
             // state and a delta share one encoding, which is what tier-c.ts assumes.
             final DeltaPacket full = new DeltaSyncManager().collectDeltas(view);
+            // Seed what this seat has been told, if the opening walk happens to carry
+            // it — it never will in practice (Mulligan is not yet true when a match
+            // opens), but this is the one other place `applyDelta` carries state, and
+            // `syncMulliganFlag` is keyed on knowing what was ALREADY said.
+            final Boolean seeded = mulliganIn(full.getNewObjects());
+            if (seeded != null) { lastToldMulligan = seeded; }
             final JsonObject f = notify("setGameView");
             final JsonObject payload = new JsonObject();
             payload.add("gameView", objectTable(full.getNewObjects()));
@@ -704,6 +741,16 @@ public final class PlayBridge {
 
         @Override
         public void applyDelta(final DeltaPacket packet) {
+            // A REAL packet that happens to carry Mulligan (every normal input syncs
+            // fine; only InputLondonMulligan's two no-sync calls do not, see
+            // `syncMulliganFlag`) is what this seat was just told — record it so a
+            // later `syncMulliganFlag` call does not send a redundant correction for
+            // a value the wire already carried.
+            if (packet != null) {
+                Boolean told = mulliganIn(packet.getObjectDeltas());
+                if (told == null) { told = mulliganIn(packet.getNewObjects()); }
+                if (told != null) { lastToldMulligan = told; }
+            }
             if (packet != null && (!packet.getNewObjects().isEmpty() || !packet.getObjectDeltas().isEmpty())) {
                 final JsonObject f = notify("applyDelta");
                 final JsonObject payload = new JsonObject();
@@ -712,6 +759,122 @@ public final class PlayBridge {
                 frame(f);
             }
             super.applyDelta(packet);
+            // And also here: an ordinary applyDelta is every bit as good a moment as a
+            // prompt or a button to notice the live flag moved without the wire saying
+            // so — the operator's report was that a stale hand stayed clickable-less
+            // through several of exactly these.
+            syncMulliganFlag();
+        }
+
+        /**
+         * This seat's Game object's {@code Mulligan} property, read directly off the
+         * SERVER'S live {@code Game} — not off anything this class receives over the
+         * wire. Wave 30 §B.
+         *
+         * <h4>Why this exists: Forge's own protocol never syncs it here</h4>
+         *
+         * {@code InputLondonMulligan.showMessage()} sets it correctly
+         * (forge-game's {@code GameView.updateIsMulligan}, called from
+         * {@code InputLondonMulligan.java:60} and cleared at {@code :105}) and then
+         * makes exactly two {@code IGuiGame} calls — {@code updateButtons} and
+         * {@code showMessage(String)}, which always passes {@code card = null}
+         * ({@code InputBase.java:120-121}). Forge's server-side proxy,
+         * {@code RemoteClientGuiGame}, only walks the trackable graph
+         * ({@code syncAndSend}, which is what puts a property on a
+         * {@code DeltaPacket}) for {@code showPromptMessage} when {@code card != null}
+         * — its own comment says why: {@code card == null} is also the auto-pass
+         * timer's path, which fires while the game thread is live, and walking the
+         * graph there would race it ({@code RemoteClientGuiGame.java:330-337}).
+         * {@code updateButtons} never syncs at all ({@code :346-348}). So the property
+         * Forge just set is correct on the server and never reaches a
+         * {@code DeltaPacket} for the life of this input — confirmed empirically, not
+         * just read: {@code mulligan.jvm.test.ts} measured zero further wire frames
+         * for 3 s after reaching the London step. Full citations and the raw dump are
+         * in {@code docs/planning/wave30-evidence/B-item1-mulligan-root-cause.md}.
+         *
+         * <h4>Why a direct read is safe here, once — not a graph walk</h4>
+         *
+         * This is called from {@link #showPromptMessage} and {@link #updateButtons},
+         * both invoked on THIS seat's own client channel thread in response to a
+         * network message Forge's game thread sent as the very last synchronous act of
+         * {@code InputSyncronizedBase.showAndWait()} before it parks on
+         * {@code awaitLatchRelease()} — {@code InputQueue.setInput} →
+         * {@code updateObservers} → {@code showMessageInitial} → {@code showMessage},
+         * all synchronous, all ahead of the latch. By the time this runs, the thread
+         * that wrote the property is blocked on the input, not mutating the game. This
+         * is ONE property read ({@code TrackableObject.get}, a map lookup), not the
+         * graph walk {@code RemoteClientGuiGame} itself avoids racing — a fundamentally
+         * cheaper and narrower operation. It is also called from {@link #applyDelta},
+         * where the same reasoning does not strictly apply (a real delta can arrive
+         * between unrelated game-thread activity) but the read is still just as safe:
+         * a boolean field, not a graph. The one theoretical window — this seat's
+         * network thread outracing the game thread's own synchronous write — is caught
+         * by the very next call of any of these three, every one of which fires again
+         * before a browser could possibly need the value (every card click during this
+         * input re-invokes {@code showMessage()}).
+         */
+        private Boolean liveMulliganFlag() {
+            final ServerGameLobby lobby = LOBBY;
+            if (lobby == null) { return null; }
+            final HostedMatch hosted = lobby.getHostedMatch();
+            if (hosted == null || hosted.getGame() == null) { return null; }
+            final GameView live = hosted.getGame().getView();
+            return live == null ? null : live.isMulligan();
+        }
+
+        /**
+         * Compare the server's live {@link #liveMulliganFlag()} against
+         * {@link #lastToldMulligan} and, on a real change, emit a synthetic
+         * {@code applyDelta} carrying ONLY that property — in exactly the encoding
+         * {@link #packetJson} already produces for a real one, so nothing downstream
+         * (this lane's {@code visibility.ts}, or a client's fold) can tell it from one
+         * Forge sent. Emits in BOTH directions: the true→false transition
+         * ({@code InputLondonMulligan.done()}, after the step is answered) is just as
+         * unsynced as true→false's opposite, for the same reason — without this, a
+         * seat that once saw {@code Mulligan: true} would fold it forever.
+         */
+        private void syncMulliganFlag() {
+            final Boolean live = liveMulliganFlag();
+            if (live == null) { return; }
+            final Boolean last = lastToldMulligan;
+            if (last != null && last.booleanValue() == live.booleanValue()) { return; }
+            emitSyntheticMulliganDelta(live);
+        }
+
+        /**
+         * Build and send the one-property synthetic delta {@link #syncMulliganFlag}
+         * decided is needed, and apply it to this client's own local mirror exactly as
+         * a real one would be ({@code super.applyDelta}, not {@code this.applyDelta} —
+         * calling back through the override would re-run {@link #syncMulliganFlag}
+         * pointlessly, since {@link #lastToldMulligan} is set here directly instead).
+         */
+        private void emitSyntheticMulliganDelta(final boolean value) {
+            final GameView localView = getGameView();
+            // No local Game object yet (before the first setGameView/openView) — there
+            // is nothing to key the delta off and nothing downstream to receive it.
+            if (localView == null) { return; }
+            final Map<TrackableProperty, Object> props = new HashMap<>();
+            props.put(TrackableProperty.Mulligan, value);
+            final Map<Integer, Map<TrackableProperty, Object>> objectDeltas = new HashMap<>();
+            objectDeltas.put(DeltaPacket.makeDeltaKey(DeltaPacket.TYPE_GAME_VIEW, localView.getId()), props);
+            final DeltaPacket synthetic = new DeltaPacket(-1L, objectDeltas, null, 0, null);
+            final JsonObject f = notify("applyDelta");
+            final JsonObject payload = new JsonObject();
+            payload.add("packet", packetJson(synthetic));
+            f.add("payload", payload);
+            frame(f);
+            super.applyDelta(synthetic);
+            lastToldMulligan = value;
+        }
+
+        /** The Game object's {@code Mulligan} property in a raw (pre-JSON) delta map, if present. */
+        static Boolean mulliganIn(final Map<Integer, Map<TrackableProperty, Object>> objects) {
+            for (final Map.Entry<Integer, Map<TrackableProperty, Object>> e : objects.entrySet()) {
+                if (DeltaPacket.getTypeFromDeltaKey(e.getKey()) != DeltaPacket.TYPE_GAME_VIEW) { continue; }
+                final Object v = e.getValue().get(TrackableProperty.Mulligan);
+                if (v instanceof Boolean b) { return b; }
+            }
+            return null;
         }
 
         // ------------------------------------------------ Tier A/B notifies
@@ -735,6 +898,10 @@ public final class PlayBridge {
         @Override public void clearSelectables() { frame(notify("clearSelectables")); }
 
         @Override public void showPromptMessage(final PlayerView playerView, final String message, final CardView card) {
+            // See `syncMulliganFlag`: this is one of the two calls
+            // `InputLondonMulligan.showMessage()` makes that Forge's OWN
+            // `RemoteClientGuiGame` never syncs the trackable graph for.
+            syncMulliganFlag();
             if (playerView == null) { return; }
             final JsonObject f = notify("showPromptMessage");
             f.add("player", ref("player", playerView.getId()));
@@ -745,6 +912,8 @@ public final class PlayBridge {
 
         @Override public void updateButtons(final PlayerView owner, final String label1, final String label2,
                                             final boolean enable1, final boolean enable2, final boolean focus1) {
+            // The other of the two — see `syncMulliganFlag`.
+            syncMulliganFlag();
             if (owner == null) { return; }
             final JsonObject f = notify("updateButtons");
             f.add("owner", ref("player", owner.getId()));
@@ -1482,6 +1651,7 @@ public final class PlayBridge {
         final int port = booted.port();
         final FServerManager server = booted.server();
         final ServerGameLobby lobby = booted.lobby();
+        LOBBY = lobby;
         final Random random = seed == null ? new Random() : new Random(seed);
         if (seed != null) {
             forge.util.MyRandom.setRandom(new Random(seed));

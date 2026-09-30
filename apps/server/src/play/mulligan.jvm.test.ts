@@ -1,32 +1,34 @@
 /**
  * Item 1 — the mulligan's dead hand, driven against a REAL Forge match.
  *
- * `docs/planning/wave30-evidence/item1-mulligan-diagnosis.md` has the full
+ * `docs/planning/wave30-evidence/item1-mulligan-diagnosis.md` has the original
  * diagnosis: the operator's dead hand ("the only button I can press is Auto")
  * traces to a missing `Mulligan` key on the Game object the London step reads.
- * `apps/ui/src/play/live/match.ts`'s `mulliganHand` only offers the hand when
- * `readGameBool(state, 'Mulligan')` is true, and the diagnosis doc's probe
- * (`mulligan-probe.jvm.test.ts.txt`, run against real Forge, seed 7,
- * Mountain/Memnite decks) printed the Game object's own keys at the London
- * step and `Mulligan` was not among them.
+ * `docs/planning/wave30-evidence/B-item1-mulligan-root-cause.md` has the root
+ * cause, read from `forge/`'s real source: `InputLondonMulligan.showMessage()`
+ * sets `GameView.Mulligan` correctly and then makes two `IGuiGame` calls
+ * Forge's own `RemoteClientGuiGame` never syncs the trackable graph for
+ * (`RemoteClientGuiGame.java:330-337` — the `card == null` fast path shared
+ * with the live-game-thread auto-pass timer). `PlayBridge.java`'s
+ * `SeatGui.syncMulliganFlag()` is the fix: it reads the SERVER's live
+ * `GameView.isMulligan()` directly at those two calls (and at every
+ * `applyDelta`) and, on a change the wire did not carry, emits a synthetic
+ * one-property `applyDelta` in the exact encoding a real one would use.
  *
- * `apps/ui/src/play/live/match.ts` is lane A's file, not this lane's, so this
- * test does not drive it. It drives the same real match the probe did, through
- * this lane's own server primitives (`host.ts`, `match.ts`, `visibility.ts` —
- * the same ones `jvm.test.ts` and `auto.jvm.test.ts` use), reaches the same
- * London step, and asserts directly on the Game object the bridge's delta
- * carries — the first place the diagnosis doc says to look. That is the
- * server-side half of the same fact the probe measured: if `Mulligan` is
- * missing HERE, in the raw per-seat state this lane projects, nothing
- * downstream (the client fold, `mulliganHand`) can recover it.
+ * `apps/ui/src/play/live/match.ts`'s `mulliganHand` (lane A's file, not this
+ * lane's) only offers the hand when `readGameBool(state, 'Mulligan')` is true;
+ * this test does not drive that file. It drives the same real match the
+ * diagnosis probe did, through this lane's own server primitives (`host.ts`,
+ * `match.ts`, `visibility.ts` — the same ones `jvm.test.ts` and
+ * `auto.jvm.test.ts` use), reaches the London step, and asserts directly on
+ * the Game object the bridge's delta carries — one step upstream of
+ * `mulliganHand`, on the wire this lane owns.
  *
  * Skips visibly without a Forge build, like every `*.jvm.test.ts`:
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=… \
  *   pnpm exec vitest run apps/server/src/play/mulligan.jvm.test.ts \
  *     --pool=forks --poolOptions.forks.singleFork=true
- *
- * Budget: this reproduction is run at most three times (wave 30 §B brief).
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -58,7 +60,7 @@ async function waitUntil(predicate: () => boolean, label: string, timeoutMs: num
 
 describe.skipIf(!available.ok)(title, () => {
 	it(
-		'carries the Mulligan flag on the Game object once London asks a seat to bottom cards',
+		'carries the Mulligan flag true at the London step and false once it is answered',
 		async () => {
 			if (!available.ok) return;
 			const raw: BridgeLine[] = [];
@@ -135,33 +137,54 @@ describe.skipIf(!available.ok)(title, () => {
 				await new Promise((r) => setTimeout(r, 200));
 			}
 
-			// Forge's delta sync and its prompt/button notifies are separate calls;
-			// give a trailing delta describing this step a few more macrotasks to
-			// arrive before reading state, so a real lag is not mistaken for an
-			// absent flag.
-			await new Promise((r) => setTimeout(r, 3_000));
+			// The fix emits the correction synchronously with the very button/prompt
+			// frames the loop above reacted to, so no extra wait should be needed —
+			// this one guards against any residual macrotask lag rather than masking
+			// an absent flag the way the pre-fix 3 s wait was measuring for.
+			await new Promise((r) => setTimeout(r, 500));
 
-			const dumpDir = process.env.CARDTABLE_PLAY_DUMP;
-			if (dumpDir !== undefined) {
-				mkdirSync(dumpDir, { recursive: true });
-				writeFileSync(
-					join(dumpDir, `mulligan-${Date.now()}.json`),
-					JSON.stringify({ london, raw, sent: sent.map((s) => ({ seat: s.seat, envelope: s.envelope })) }, null, 2),
-				);
+			function gameMulligan(seat: number): { t?: string; v?: unknown } | undefined {
+				const gameObj = [...stateOf(seat).values()].find((o) => o._type === TYPE.game);
+				return (gameObj as unknown as Record<string, { t?: string; v?: unknown }> | undefined)?.['Mulligan'];
 			}
 
+			const dump = (tag: string): void => {
+				const dumpDir = process.env.CARDTABLE_PLAY_DUMP;
+				if (dumpDir === undefined) return;
+				mkdirSync(dumpDir, { recursive: true });
+				writeFileSync(
+					join(dumpDir, `mulligan-${tag}-${Date.now()}.json`),
+					JSON.stringify({ london, raw, sent: sent.map((s) => ({ seat: s.seat, envelope: s.envelope })) }, null, 2),
+				);
+			};
+			dump('london');
+
 			expect(london, `never reached the London step within 45s; seen prompts: ${JSON.stringify([...seen])}`).not.toBeNull();
+			const seat = london!.seat;
 
-			const state = stateOf(london!.seat);
-			const gameObj = [...state.values()].find((o) => o._type === TYPE.game);
-			expect(gameObj, 'no Game object in this seat\'s projected state').toBeDefined();
+			// THE FIRST ASSERTION: the flag `mulliganHand` gates on, on the wire this
+			// lane sends, true at the moment the step is offered.
+			expect(gameMulligan(seat)).toEqual({ t: 'bool', v: true });
 
-			// THE ASSERTION: the flag `mulliganHand` gates on, on the wire this lane
-			// sends. Fails against today's code (the key is absent); the fix under
-			// this item must make it present and true at this step.
-			expect(Object.keys(gameObj!)).toContain('Mulligan');
-			const mulligan = (gameObj as unknown as Record<string, { t?: string; v?: unknown }>)['Mulligan'];
-			expect(mulligan).toEqual({ t: 'bool', v: true });
+			// Complete the step — press "Auto" (button2), exactly the one live button
+			// the operator's report says was reachable — and wait for the game to move
+			// past it (a new distinct prompt for this seat).
+			const promptAtLondon = lastPromptOf(seat)?.message ?? '';
+			match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' }));
+			await waitUntil(
+				() => (lastPromptOf(seat)?.message ?? '') !== '' && lastPromptOf(seat)?.message !== promptAtLondon,
+				'a prompt past the London step',
+				30_000,
+			);
+			await new Promise((r) => setTimeout(r, 500));
+			dump('after');
+
+			// THE SECOND ASSERTION: once the step is answered, Forge itself clears
+			// the flag (`InputLondonMulligan.done()`) — and that clear is EVERY BIT as
+			// unsynced as the set was, for the identical reason, so without the fix's
+			// both-directions emission this would still read true forever.
+			const after = gameMulligan(seat);
+			expect(after === undefined || after.v !== true, `Mulligan still true after the London step: ${JSON.stringify(after)}`).toBe(true);
 
 			match.stop();
 			jvm.close();
