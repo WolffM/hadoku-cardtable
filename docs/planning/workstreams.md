@@ -202,7 +202,9 @@ full controller.
     and closing the first promotes it;
   - mutation counts for each guard.
 - **Out of scope unless asked:** the draft. Two browsers can both pick for one
-  drafter today, the same bug in the room layer. Ask the operator before
+  drafter today: `pick` is gated on `seatOf(room.seats, participantId)`
+  (`apps/server/src/room/socket.ts:388`), the person and not the connection.
+  The same bug, in the room layer. Ask the operator before
   widening the rule to it.
 
 ## Operator play test, 2026-09-30 — eighteen items, three already in flight
