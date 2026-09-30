@@ -1,0 +1,72 @@
+/** Scratch probe: drive a real Forge match to the London mulligan step. */
+import { describe, expect, it, afterAll } from 'vitest';
+import { forgeAvailability, startLiveMatch, waitUntil, type LiveHarness } from './jvm-harness.ts';
+import { boardInteraction } from './match.ts';
+
+const forge = forgeAvailability();
+const running: LiveHarness[] = [];
+afterAll(() => { for (const h of running) h.stop(); });
+
+function gameObj(live: { state: Map<string, Record<string, unknown>> }): unknown {
+  for (const obj of live.state.values()) {
+    if ((obj as { _type?: number })._type === 3) return Object.keys(obj);
+  }
+  return null;
+}
+
+function deck(name: string, lines: readonly string[]): string {
+  return `[metadata]\nName=${name}\n[main]\n${lines.join('\n')}\n`;
+}
+
+describe.skipIf(!forge.ok)('PROBE: the London mulligan step', () => {
+  it('reports what the board sees while Forge asks for cards to bottom', async () => {
+    const h = await startLiveMatch({
+      seed: 7,
+      seats: [
+        { name: 'A', ai: false, deck: deck('M A', ['30 Mountain', '30 Memnite']) },
+        { name: 'B', ai: false, deck: deck('M B', ['30 Mountain', '30 Memnite']) },
+      ],
+    });
+    running.push(h);
+    const s = h.seats[0];
+    const snap = (tag: string) => {
+      const b = boardInteraction(s.live);
+      // eslint-disable-next-line no-console
+      console.log(`[mull] ${tag} prompt=${JSON.stringify(s.notes.prompt?.message ?? null)} ` +
+        `buttons=${JSON.stringify(s.notes.buttons)} inputLive=${String(s.live.inputLive)} ` +
+        `asks=${String(s.live.asks.length)} selectable=${String(b.selectable.size)} ` +
+        `selectionOpen=${String(b.selectionOpen)}`);
+    };
+
+    // Log every DISTINCT prompt both seats see for 45 s, with the board's view.
+    const seen = new Set<string>();
+    const deadline = Date.now() + 45_000;
+    while (Date.now() < deadline) {
+      for (const c of h.seats) {
+        const msg = c.notes.prompt?.message ?? '';
+        const key = `${c.seat}|${msg}`;
+        if (msg !== '' && !seen.has(key)) {
+          seen.add(key);
+          const b = boardInteraction(c.live);
+          // eslint-disable-next-line no-console
+          console.log(`[mull] seat${c.seat} prompt=${JSON.stringify(msg)} ` +
+            `buttons=${JSON.stringify(c.notes.buttons)} inputLive=${String(c.live.inputLive)} ` +
+            `asks=${String(c.live.asks.length)} selectable=${String(b.selectable.size)} ` +
+            `GAMEOBJ=${JSON.stringify(gameObj(c.live))}`);
+          const bar = c.notes.buttons;
+          if (/keep your hand|mulligan/i.test(msg) && bar?.enable2 === true) {
+            // eslint-disable-next-line no-console
+            console.log(`[mull] >>> seat${String(c.seat)} pressing "${String(bar.label2)}" (the mulligan)`);
+            c.act({ kind: 'act', method: 'selectButtonCancel' });
+          } else if (!/bottom of your library/i.test(msg) && bar?.enable1 === true) {
+            // eslint-disable-next-line no-console
+            console.log(`[mull] >>> seat${String(c.seat)} pressing "${String(bar.label1)}"`);
+            c.act({ kind: 'act', method: 'selectButtonOk' });
+          }
+        }
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    expect(true).toBe(true);
+  }, 240_000);
+});
