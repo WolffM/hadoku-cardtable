@@ -118,6 +118,35 @@ import {
 } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
+
+/**
+ * `host.ts`'s `SeatSpec`, widened with the per-seat identity item 4 (wave 29
+ * §B) carries beside `deck` and `ai` — never on `name`, which is what Forge
+ * renders to both seats (`socket.ts`'s `parseStartBody`, "Forge shows these
+ * names to both seats; they are never an identity").
+ *
+ * Declared here rather than on `SeatSpec` itself: `host.ts` is owned by
+ * neither wave-29 lane, and it does not need to change to carry this. Read
+ * `apps/server/src/play/bridge/PlayBridge.java`'s `configFrom` to confirm —
+ * it pulls `name`/`ai`/`deck` off each seat's JSON object by key and ignores
+ * anything else, so the extra property `bridgeConfig`'s `...spec` spread
+ * carries into `config.json` is inert there: Forge never reads it and never
+ * shows it.
+ */
+export type SeatSpecWithIdentity = MatchSpec['seats'][number] & { avatarId?: string };
+
+/** `MatchSpec`, with both seats widened the same way. */
+export type MatchSpecWithIdentity = Omit<MatchSpec, 'seats'> & {
+	seats: [SeatSpecWithIdentity, SeatSpecWithIdentity];
+};
+
+/** One seat, as {@link Match.seatIdentities} reports it — see that method's header. */
+export interface SeatIdentity {
+	seat: number;
+	claimed: boolean;
+	playerId: number | null;
+	avatarId?: string;
+}
 import {
 	createProjector,
 	foldFrames,
@@ -146,6 +175,16 @@ export interface SeatState {
 	owner: ParticipantId | null;
 	/** From this seat's `openView`. Null until Forge has opened the game. */
 	playerId: number | null;
+	/**
+	 * The per-seat identity item 4 (wave 29 §B) carries — from
+	 * `MatchSpec.seats[i].avatarId` (via {@link SeatSpecWithIdentity}), never
+	 * from Forge's own state. Absent for a seat with none: two states, not
+	 * three, matching `D-avatar-field.md` §3 — a room member who never picked
+	 * one and a room member whose choice was explicitly cleared both mean the
+	 * same thing to whatever draws a face, so both collapse before they reach
+	 * here (`socket.ts`'s `normalizeAvatarId`).
+	 */
+	avatarId?: string;
 	readonly projector: SeatProjector;
 	/** The last `forge:s2c` seq this seat was sent. 0 = none yet. */
 	seq: number;
@@ -347,6 +386,10 @@ export class Match {
 			ai: s.ai,
 			owner: null,
 			playerId: null,
+			// Present at runtime whenever the caller built the spec through
+			// `SeatSpecWithIdentity` (`socket.ts`'s `parseStartBody`); absent
+			// otherwise, including for the AI seat, which has no room member.
+			avatarId: (s as SeatSpecWithIdentity).avatarId,
 			projector: createProjector(),
 			seq: 0,
 			history: [],
@@ -520,6 +563,34 @@ export class Match {
 			cursor: s.seq === 0 ? null : { epoch: this.epoch, seq: s.seq },
 			frames: [...s.history],
 		};
+	}
+
+	/**
+	 * Every seat's identity — item 4 (wave 29 §B), the server half of *"i
+	 * noticed you're still not pulling in the watchparty selected avatars"*.
+	 *
+	 * **Deliberately NOT folded into {@link Match.snapshot}.** `MatchSnapshot`
+	 * is `.strict()` (`transport.ts`'s `MatchSnapshotSchema`, mirrored byte for
+	 * byte in `apps/ui/src/play/live/transport.ts`), and neither file is this
+	 * lane's to widen this wave — `match.test.ts` and `socket.test.ts` both
+	 * validate a live snapshot against that schema, so an extra key there
+	 * reds them for a reason that has nothing to do with this feature. This is
+	 * sent instead as its own event, `forge:seats` (`socket.ts`'s `answer`), on
+	 * the same "a fresh page needs this" list `resendAfterSnapshot`'s header
+	 * names for the prompt and the full-control echo.
+	 *
+	 * Both seats, always — not caller-scoped, the same reasoning `routes.ts`'s
+	 * `tableView` gives for `avatarId`: a face is not hidden information. A
+	 * seat with none has the key ABSENT rather than `avatarId: undefined`, so
+	 * an in-process reader and a JSON reader agree (`D-avatar-field.md` §3).
+	 */
+	seatIdentities(): SeatIdentity[] {
+		return this.seats.map((s) => ({
+			seat: s.seat,
+			claimed: s.owner !== null,
+			playerId: s.playerId,
+			...(s.avatarId === undefined ? {} : { avatarId: s.avatarId }),
+		}));
 	}
 
 	/**

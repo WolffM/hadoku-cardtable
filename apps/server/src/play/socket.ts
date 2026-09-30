@@ -79,9 +79,10 @@ import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { CONFIG } from '../config.js';
 import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
 import { identityFromHeaders, participantHandle } from '../room/identity.js';
+import { AVATAR_ID_MAX } from '../room/lobby.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
-import { createMatchRegistry, type Match, type MatchRegistry } from './match.js';
+import { createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
 import {
 	fullControlEcho,
 	MATCH_EVENTS,
@@ -206,12 +207,41 @@ function playEmitPolicy(log: PlayLog): EmitPolicy {
 	};
 }
 
-/** `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null] }`. */
+/**
+ * The per-seat identity's own two-state rule, item 4 (wave 29 §B —
+ * `D-avatar-field.md` §3): a non-blank string of at most `AVATAR_ID_MAX`
+ * characters, or absent — never `null`, never `''`.
+ *
+ * Re-implemented here rather than imported: the lobby's own normalizer
+ * (`avatarIdOf` in `room/lobby.ts`) is not exported and `lobby.ts` is not this
+ * lane's file to change, so only its exported limit is reused. By the time an
+ * `avatarId` reaches this function it has usually already been through that
+ * one (`routes.ts`'s `startFromRoom` reads it off a `RoomViewLike` member,
+ * which the lobby already normalized) — this is the defensive copy for the
+ * one request path (`POST /play/matches` itself) that reaches `parseStartBody`
+ * without going through the lobby at all.
+ */
+function normalizeAvatarId(v: unknown): string | undefined {
+	if (typeof v !== 'string') return undefined;
+	const trimmed = v.trim();
+	return trimmed === '' || trimmed.length > AVATAR_ID_MAX ? undefined : trimmed;
+}
+
+/**
+ * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], avatarIds?: [string?, string?] }`.
+ *
+ * `avatarIds` is item 4's server half (wave 29 §B): the per-seat identity
+ * `routes.ts`'s `startFromRoom` carries in the same seat order as `decks`,
+ * when a match starts from a room. Carried on the spec beside `deck` and
+ * `ai` — never on `seats[].name`, which is what Forge renders to both seats —
+ * via {@link MatchSpecWithIdentity} (`match.ts`'s header has the argument for
+ * why that type lives there and not on `host.ts`'s `SeatSpec`).
+ */
 export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | { ok: false; error: string } {
 	const b = (body ?? {}) as Record<string, unknown>;
 	if (typeof b !== 'object' || Array.isArray(b)) return { ok: false, error: 'body must be an object' };
 	for (const key of Object.keys(b)) {
-		if (key !== 'opponent' && key !== 'decks') return { ok: false, error: `unknown field ${key}` };
+		if (key !== 'opponent' && key !== 'decks' && key !== 'avatarIds') return { ok: false, error: `unknown field ${key}` };
 	}
 	const opponent = b.opponent ?? 'human';
 	if (opponent !== 'human' && opponent !== 'ai') return { ok: false, error: "opponent is 'human' or 'ai'" };
@@ -221,6 +251,12 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 		if (d !== null && (typeof d !== 'string' || d.length === 0 || d.length > 64 * 1024)) {
 			return { ok: false, error: 'each deck is .dck text (at most 64 KiB) or null' };
 		}
+	}
+	let avatarIds: [string | undefined, string | undefined] = [undefined, undefined];
+	if (b.avatarIds !== undefined) {
+		const raw = b.avatarIds;
+		if (!Array.isArray(raw) || raw.length !== 2) return { ok: false, error: 'avatarIds is a two-element array' };
+		avatarIds = [normalizeAvatarId(raw[0]), normalizeAvatarId(raw[1])];
 	}
 	// `CARDTABLE_PLAY_SEED` fixes Forge's shuffles, the coin toss and the precon
 	// pick (`play/README.md`, `MatchSpec.seed`), and `bridgeConfig` spreads the
@@ -243,17 +279,29 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	// and an unseeded match is what it falls back to.
 	const seedRaw = process.env.CARDTABLE_PLAY_SEED;
 	const seed = seedRaw === undefined || seedRaw === '' ? Number.NaN : Number(seedRaw);
-	return {
-		ok: true,
-		spec: {
-			seats: [
-				// Forge shows these names to both seats; they are never an identity.
-				{ name: 'Seat 1', ai: false, deck: decks[0] as string | null },
-				{ name: opponent === 'ai' ? 'Forge AI' : 'Seat 2', ai: opponent === 'ai', deck: decks[1] as string | null },
-			],
-			...(Number.isFinite(seed) ? { seed } : {}),
-		},
+	// `MatchSpecWithIdentity`, not `MatchSpec`, so `avatarId` can sit on each
+	// seat beside `deck` and `ai` without the excess-property check a literal
+	// typed directly as `MatchSpec` would fail. Returned as `spec: MatchSpec`
+	// below anyway (it satisfies that narrower type structurally), because
+	// `host.ts`'s own type is not this lane's to widen — see `match.ts`'s
+	// header on `SeatSpecWithIdentity`.
+	const spec: MatchSpecWithIdentity = {
+		seats: [
+			// Forge shows these names to both seats; they are never an identity.
+			// `avatarId` is spread rather than assigned, so a seat with none has the
+			// key ABSENT on the spec too — the same discipline `Match.seatIdentities`
+			// keeps on the way out (D-avatar-field.md §3).
+			{ name: 'Seat 1', ai: false, deck: decks[0] as string | null, ...(avatarIds[0] === undefined ? {} : { avatarId: avatarIds[0] }) },
+			{
+				name: opponent === 'ai' ? 'Forge AI' : 'Seat 2',
+				ai: opponent === 'ai',
+				deck: decks[1] as string | null,
+				...(avatarIds[1] === undefined ? {} : { avatarId: avatarIds[1] }),
+			},
+		],
+		...(Number.isFinite(seed) ? { seed } : {}),
 	};
+	return { ok: true, spec };
 }
 
 /**
@@ -566,6 +614,22 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						 * server's to settle.
 						 */
 						socket.emit(MATCH_EVENTS.fullControl, fullControlEcho(result.matchId, match.fullControl(result.seat)));
+						/*
+						 * Item 4's server half (wave 29 §B): every seat's identity, on its
+						 * own event and for the same reason `forge:full-control` is —
+						 * `MatchSnapshotSchema` is `.strict()` and mirrored byte for byte in
+						 * `apps/ui/src/play/live/transport.ts`, so folding a new key into it
+						 * is a change to a file no lane owns this wave. `Match.seatIdentities`
+						 * has the full argument. Sent on every join and every resync, to
+						 * THIS socket, both seats always (an avatar is not hidden
+						 * information, the same reasoning `routes.ts`'s `tableView` uses).
+						 *
+						 * Not `MATCH_EVENTS.*` — that map is `transport.ts`'s, and this event
+						 * is new this wave. `apps/ui/src/play/live/transport.ts` (lane A's
+						 * file) is where the client-side name and schema for `forge:seats`
+						 * are adopted; the payload shape is `{ matchId, seats: SeatIdentity[] }`.
+						 */
+						socket.emit('forge:seats', { matchId: result.matchId, seats: match.seatIdentities() });
 					}
 				});
 			};

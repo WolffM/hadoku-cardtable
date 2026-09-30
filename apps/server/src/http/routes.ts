@@ -867,8 +867,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return answer(payload);
 		}) as typeof res.json;
 
-		// Play's own body. Each deck is the text its own player's rule checked.
-		req.body = { opponent: 'human', decks: players.map((p) => p.state.text) };
+		// Play's own body. Each deck is the text its own player's rule checked, and
+		// `avatarIds` is item 4's server half (wave 29 §B): the same seat order as
+		// `decks`, each the room member's own `avatarId` — already the lobby's
+		// two-state shape (a non-blank string, or absent; see `RoomViewLike.members`
+		// above and `D-avatar-field.md` §3), never Forge's own view of the seat.
+		req.body = {
+			opponent: 'human',
+			decks: players.map((p) => p.state.text),
+			avatarIds: players.map((p) => p.member.avatarId),
+		};
 		next();
 	}
 

@@ -117,6 +117,12 @@ interface Peer {
 	acks: unknown[];
 	/** Every `forge:full-control` payload the SERVER sent this socket, as received. */
 	fullControls: unknown[];
+	/**
+	 * Every `forge:seats` payload the SERVER sent this socket, as received —
+	 * item 4's server half (wave 29 §B). Sent on every join and every resync,
+	 * beside `forge:full-control`; see `socket.ts`'s `answer`.
+	 */
+	seatsEvents: unknown[];
 	request(event: 'forge:join' | 'forge:resync', payload: unknown): Promise<unknown>;
 	send(payload: unknown): void;
 	/** Ask for full control, or give it back — the client → server direction. */
@@ -140,6 +146,7 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 			frames: [],
 			acks: [],
 			fullControls: [],
+			seatsEvents: [],
 			request: async (event, payload) => {
 				const ack: unknown = await socket.timeout(3000).emitWithAck(event, payload);
 				peer.acks.push(ack);
@@ -151,6 +158,7 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 		};
 		socket.on('forge:s2c', (payload: unknown) => peer.frames.push(payload));
 		socket.on('forge:full-control', (payload: unknown) => peer.fullControls.push(payload));
+		socket.on('forge:seats', (payload: unknown) => peer.seatsEvents.push(payload));
 		socket.on('connect', () => done(peer));
 		socket.on('connect_error', (err) => fail(err));
 	});
@@ -165,12 +173,16 @@ async function waitUntil(predicate: () => boolean, label: string, timeoutMs = 50
 }
 
 /** POST a match and feed the recorded opening to its host, so the route can answer. */
-async function startMatch(h: Harness, user = 'alice'): Promise<{ status: number; body: Record<string, unknown> }> {
+async function startMatch(
+	h: Harness,
+	user = 'alice',
+	body: Record<string, unknown> = { opponent: 'human' },
+): Promise<{ status: number; body: Record<string, unknown> }> {
 	const hostsBefore = h.hosts.length;
 	const response = fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
 		method: 'POST',
 		headers: { ...edgeHeaders(user), 'content-type': 'application/json' },
-		body: JSON.stringify({ opponent: 'human' }),
+		body: JSON.stringify(body),
 	});
 	await waitUntil(() => h.hosts.length > hostsBefore, 'the match host to be created');
 	(h.hosts.at(-1) as ReplayHost).push(...OPENING);
@@ -346,6 +358,88 @@ describe('two seats over the socket', () => {
 		await waitUntil(() => host.commands.length > 0, 'the abort');
 		const callId = (PROBE_ASK.frame as { callId: string }).callId;
 		expect(host.commands).toEqual([{ t: 'abort', seat: 0, callId, reason: 'disconnected' }]);
+	});
+});
+
+/*
+ * Item 4's server half (wave 29 §B): *"i noticed you're still not pulling in
+ * the watchparty selected avatars. why not?"* — `routes.ts`'s `startFromRoom`
+ * carries `avatarIds` in seat order, `parseStartBody` normalizes them onto the
+ * spec, and `Match.seatIdentities` sends them on `forge:seats`, beside
+ * `playerId`, to every socket that joins or resyncs.
+ *
+ * These cases start a match DIRECTLY against `POST /api/play/matches` (not
+ * through the room gate, which is `http/tables.test.ts`'s route) — the two
+ * files' done-whens are deliberately split this way: this one proves the
+ * WIRE shape reaching the client, that one proves the ROOM's member lands in
+ * the right seat.
+ */
+describe('forge:seats: item 4’s server half', () => {
+	it("carries the avatar beside playerId, and a seat with none carries the absent state — never null, never ''", async () => {
+		const h = await boot();
+		const { body } = await startMatch(h, 'alice', { opponent: 'human', avatarIds: ['wanderer', undefined] });
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+
+		const a = (await alice.request('forge:join', { matchId })) as Record<string, unknown>;
+		// Alice joins first: at the instant HER join is answered, bob has not
+		// claimed his seat yet, so her own first `forge:seats` correctly reports
+		// seat 1 unclaimed — that half is asserted separately below, from a
+		// resync taken once both have joined.
+		const b = (await bob.request('forge:join', { matchId })) as Record<string, unknown>;
+		// The join ack itself is untouched: `MatchSnapshotSchema` is `.strict()`
+		// and not this lane's schema to widen, so the new field rides a separate
+		// event rather than this one.
+		expect(transportMod.MatchSnapshotSchema.safeParse(a).success).toBe(true);
+		expect(transportMod.MatchSnapshotSchema.safeParse(b).success).toBe(true);
+		expect(a).not.toHaveProperty('seats');
+
+		await waitUntil(() => alice.seatsEvents.length > 0 && bob.seatsEvents.length > 0, 'both seats to be told their identities');
+		// Bob joined second, after alice's seat was already claimed, so his own
+		// first event is the one that shows BOTH seats claimed.
+		const event = bob.seatsEvents[0] as { matchId: string; seats: unknown[] };
+		expect(event.matchId).toBe(matchId);
+		expect(event.seats).toEqual([
+			{ seat: 0, claimed: true, playerId: 0, avatarId: 'wanderer' },
+			{ seat: 1, claimed: true, playerId: 1 },
+		]);
+		// ABSENT, not `avatarId: undefined` and not `avatarId: null` — the same
+		// bug `D-avatar-field.md` §3 names: an empty/null value survives a
+		// `!== undefined` check and draws as a broken image where the fallback
+		// belonged.
+		expect(event.seats[1]).not.toHaveProperty('avatarId');
+		const wire = JSON.stringify(bob.seatsEvents);
+		expect(wire).toContain('"avatarId":"wanderer"');
+		expect(wire).not.toContain('"avatarId":null');
+		expect(wire).not.toContain('"avatarId":""');
+	});
+
+	it('is told again, the same way, on a resync', async () => {
+		const h = await boot();
+		const { body } = await startMatch(h, 'alice', { opponent: 'human', avatarIds: ['sage', 'herald'] });
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		await alice.request('forge:join', { matchId });
+		await waitUntil(() => alice.seatsEvents.length > 0, 'the join to carry it');
+
+		await alice.request('forge:resync', { matchId });
+		await waitUntil(() => alice.seatsEvents.length > 1, 'the resync to carry it too');
+		expect(alice.seatsEvents[1]).toEqual(alice.seatsEvents[0]);
+	});
+
+	it('a refused join is told nothing at all — there is no seat to name', async () => {
+		const h = await boot();
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		const carol = await connect(h.port, edgeHeaders('carol'));
+		expect(await carol.request('forge:join', { matchId })).toEqual({ error: 'match-full' });
+		await new Promise((r) => setTimeout(r, 200));
+		expect(carol.seatsEvents).toEqual([]);
 	});
 });
 

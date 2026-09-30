@@ -853,6 +853,39 @@ describe('a room table', () => {
 	});
 
 	/*
+	 * Item 4's server half (wave 29 §B), one hop further than the table-view
+	 * test below: `startFromRoom` puts each player's `avatarId` on the SPEC
+	 * Forge is launched with, in the same seat order as `decks` — never on
+	 * `seats[].name` (`socket.ts`'s own note: "Forge shows these names to both
+	 * seats; they are never an identity"). `play/socket.test.ts`'s
+	 * `forge:seats` suite is where the CLIENT-facing shape of this is proved;
+	 * this is where the ROOM member lands in the right seat.
+	 */
+	it("puts the right player's avatarId on the right seat of the spec Forge is launched with", async () => {
+		const h = await boot();
+		h.lobby.open(ROOM, [
+			{ id: ALICE, name: 'user-alice', avatarId: 'wanderer' },
+			{ id: BOB, name: 'user-bob' },
+		]);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+
+		const res = await startRoom(h, 'alice');
+		expect(res.status).toBe(201);
+		expect(h.specs).toHaveLength(1);
+		const seats = h.specs[0]?.seats as ({ avatarId?: string } | undefined)[];
+		// Alice's deck (`BEN_STARK`) is seat 0 and bob's (`PAUL_RIETZL`) is seat 1
+		// (`bothLoaded`), so this is also an assertion that the identity travels
+		// in the SAME order as the deck it rides beside.
+		expect(seats[0]?.avatarId).toBe('wanderer');
+		// ABSENT, not `undefined`-as-a-value and not `''` — `avatarId` in seats[1]
+		// is never set at all (`D-avatar-field.md` §3).
+		expect(seats[1]).not.toHaveProperty('avatarId');
+		expect(JSON.stringify(seats)).not.toContain('"avatarId":""');
+	});
+
+	/*
 	 * Item 4 of the 2026-09-28 play test: *"i noticed you're still not pulling in
 	 * the watchparty selected avatars. why not?"*
 	 *

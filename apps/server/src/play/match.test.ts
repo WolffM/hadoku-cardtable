@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientFrameSchema, safeParseServerFrame, type ClientFrame } from '@hadoku/forge-wire';
 
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
-import { MATCH_ENDED_TITLE, createMatchRegistry, type Match } from './match.js';
+import { MATCH_ENDED_TITLE, createMatchRegistry, type Match, type MatchSpecWithIdentity } from './match.js';
 import { MatchSnapshotSchema, ServerEnvelopeSchema, type MatchSnapshot, type ServerEnvelope } from './transport.js';
 import {
 	FLYING_FILE,
@@ -165,6 +165,69 @@ describe('participants → seats → Forge players', () => {
 		expect(match.status).toBe('failed');
 		expect(match.failure).toContain('reopened');
 		expect(host.stopped).toBe(true);
+	});
+});
+
+/*
+ * Item 4, wave 29 §B: the server half of *"i noticed you're still not
+ * pulling in the watchparty selected avatars. why not?"* — the last hop,
+ * `MatchSpec.seats[i].avatarId` → `Match`'s seat table → `seatIdentities()`,
+ * which `socket.ts` sends as its own `forge:seats` event (never folded into
+ * `MatchSnapshot`; see that method's own header for why).
+ */
+describe("item 4: a seat's identity", () => {
+	function avatarHarness(avatarIds: readonly [string | undefined, string | undefined]): Harness {
+		const { factory, hosts } = replayFactory();
+		const sent: Harness['sent'] = [];
+		const logs: Record<string, unknown>[] = [];
+		const registry = createMatchRegistry({
+			host: factory,
+			log: (e) => logs.push(e),
+			askTimeoutMs: 60_000,
+			overGraceMs: 60_000,
+			emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
+		});
+		const spec: MatchSpecWithIdentity = {
+			seats: [
+				{ name: 'Seat 1', ai: false, deck: null, avatarId: avatarIds[0] },
+				{ name: 'Seat 2', ai: false, deck: null, avatarId: avatarIds[1] },
+			],
+		};
+		const match = registry.create(spec);
+		return { match, host: hosts[0] as ReplayHost, sent, logs };
+	}
+
+	it('carries avatarId beside claimed and playerId, absent — not null, not undefined-as-a-key — for a seat with none', () => {
+		const { match } = avatarHarness(['wanderer', undefined]);
+		expect(match.seatIdentities()).toEqual([
+			{ seat: 0, claimed: false, playerId: null, avatarId: 'wanderer' },
+			{ seat: 1, claimed: false, playerId: null },
+		]);
+		// `toEqual` above would pass just as well for `avatarId: undefined`; the
+		// key itself has to be checked to catch that regression (D-avatar-field.md
+		// §3, "why the key is absent rather than `avatarId: undefined`").
+		expect(match.seatIdentities()[1]).not.toHaveProperty('avatarId');
+		const wire = JSON.stringify(match.seatIdentities());
+		expect(wire).toContain('"avatarId":"wanderer"');
+		expect(wire).not.toContain('"avatarId":null');
+	});
+
+	it('holds once claimed and once Forge has opened the seat, unaffected by either', () => {
+		const { match, host } = avatarHarness(['wanderer', 'herald']);
+		match.claim(ALICE);
+		host.push(...OPENING);
+		expect(match.seatIdentities()).toEqual([
+			{ seat: 0, claimed: true, playerId: 0, avatarId: 'wanderer' },
+			{ seat: 1, claimed: false, playerId: 1, avatarId: 'herald' },
+		]);
+	});
+
+	it('is absent for a seat built with none, even once that seat is open and claimed', () => {
+		const { match, host } = avatarHarness([undefined, undefined]);
+		match.claim(ALICE);
+		match.claim(BOB);
+		host.push(...OPENING);
+		for (const identity of match.seatIdentities()) expect(identity).not.toHaveProperty('avatarId');
 	});
 });
 
