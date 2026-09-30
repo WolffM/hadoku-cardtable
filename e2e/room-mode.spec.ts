@@ -66,6 +66,9 @@ interface Friend {
   streamProbes: string[];
 }
 
+/** Hosts card art may come from (CLAUDE.md, D15; unrestricted since D18) — the same set `draft.spec.ts` excuses. */
+const ART_HOSTS = new Set(['cdn.hadoku.me', 'cards.scryfall.io']);
+
 async function open(browser: Browser, name: string): Promise<Friend> {
   const context = await browser.newContext();
   await context.addCookies([
@@ -199,9 +202,21 @@ test.describe('the room decides which client', () => {
     await expect(rowFor(bob.page, builtinId).getByTestId('room-mode')).toHaveText('our table');
     await expect(rowFor(bob.page, streamedId).getByTestId('room-mode')).toHaveText('streamed Forge');
 
-    // Nothing reached for anything off this machine.
-    expect(alice.blocked, 'alice made an off-host request').toEqual([]);
-    expect(bob.blocked, 'bob made an off-host request').toEqual([]);
+    // Nothing reached for anything off this machine EXCEPT card art — and even
+    // that never left: every off-loopback request is aborted above, so "blocked"
+    // means ATTEMPTED. Art from the two art hosts is the product working (D15,
+    // D18), and `draft.spec.ts` has always excused it the same way
+    // (`ART_HOSTS`). This spec used to demand an empty list and passed only by
+    // racing the deck chooser: it left the builtin room the instant
+    // `deck-mine` was visible, and `deck-mine` was visible with ZERO rows while
+    // `Random` lived inside it and gave it height. Moving Random above the list
+    // (operator, 2026-09-30) made an empty list zero-height, so the spec now
+    // waits for the 29 rows — whose art it then sees. Measured at both commits:
+    // given 1.5 s, the old layout attempts the same 19 art URLs. The race was
+    // hiding them; this names them.
+    const notArt = (urls: readonly string[]) => urls.filter((u) => !ART_HOSTS.has(new URL(u).hostname));
+    expect(notArt(alice.blocked), 'alice made an off-host request that is not card art').toEqual([]);
+    expect(notArt(bob.blocked), 'bob made an off-host request that is not card art').toEqual([]);
     // And the builtin room never asked for a stream at all — a room that is
     // our table costs no container, which is the whole point of the toggle.
     expect(alice.streamProbes.some((p) => p.includes(builtinId))).toBe(false);
