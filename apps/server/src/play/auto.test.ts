@@ -538,6 +538,11 @@ describe('autoPayReason', () => {
 		expect(autoPayReason({ ...PAYING, prompt: phyrexian })).toBeNull();
 	});
 
+	it('leaves life alone in Forge’s real, parenthesised wording too', () => {
+		const phyrexian = prompt('Pay Mana Cost: {U/P}\n(Click on your life total to pay life for phyrexian mana.)');
+		expect(autoPayReason({ ...PAYING, prompt: phyrexian })).toBeNull();
+	});
+
 	it('never presses while a question is open, before the seat is named, or for the other seat', () => {
 		expect(autoPayReason({ ...PAYING, openAsks: 1 })).toBeNull();
 		expect(autoPayReason({ ...PAYING, playerId: null })).toBeNull();
@@ -1832,6 +1837,17 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 		// Forge's Auto is dead for that one too.
 		const phyrexian = notesFor(
 			'Pay Mana Cost: {U/P}\nClick on your life total to pay life for phyrexian mana.',
+			deadAuto,
+			[],
+		);
+		expect(readPromptFacts(phyrexian).noWayToPay).toBe(true);
+		expect(readPromptFacts(phyrexian).alternativePayment).toBe(true);
+		expect(autoCancelReason(phyrexian)).toBeNull();
+	});
+
+	it('leaves LIFE alone in Forge’s real, parenthesised wording: it is an alternative payment, never cancelled', () => {
+		const phyrexian = notesFor(
+			'Pay Mana Cost: {U/P}\n(Click on your life total to pay life for phyrexian mana.)',
 			deadAuto,
 			[],
 		);

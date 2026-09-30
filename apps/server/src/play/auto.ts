@@ -673,7 +673,11 @@ const PAY_MANA = /^Pay Mana Cost: (.+)$/m;
  * (`InputPayManaOfCostPayment.getMessage`, `en-US.properties:1799-1801`), so a
  * prompt offering it has more than one payment however few lands are out.
  */
-const LIFE_INSTEAD = /^Click on your life total to pay life for /m;
+// Forge wraps the line in parentheses (`InputPayManaOfCostPayment.java:106`:
+// `{U/P}\n(Click on your life total to pay life for phyrexian mana.)`), so the
+// opening one is optional. Unanchored on the paren alone it never matched the
+// real prompt, and `decideCancel` cancelled a payable phyrexian cost.
+const LIFE_INSTEAD = /^\(?Click on your life total to pay life for /m;
 
 /**
  * Forge's own word for button 1 of the payment input
