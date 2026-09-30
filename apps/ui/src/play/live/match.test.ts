@@ -703,7 +703,7 @@ describe('clicking the board: only what Forge offered', () => {
     expect(s.clientFrames().map((f) => (f.ok && 'method' in f.value ? f.value.method : null))).toEqual(['selectButtonOk', 'selectCard']);
   });
 
-  it('selectPlayer carries the player, and a snapshot drops a selection the server will not re-send', async () => {
+  it('selectPlayer carries the player, and a snapshot is followed by the selection the server re-sends', async () => {
     const { s, m } = await fullGame();
     const { theirs } = ids(m);
     await sendAndApply(s, m, [prompt('Target'), selectables([theirs[0]!], 1, 1)]);
@@ -718,9 +718,13 @@ describe('clicking the board: only what Forge offered', () => {
     s.lose(prompt('lost'));
     s.send(prompt('after the gap'));
     await until('the resync', () => m.stats.snapshots === 2);
-    expect(m.selectables).toBeNull();
+    // Wave 31 §S (P10): the snapshot clears what the client held, and the
+    // server then re-sends the open selection as normal frames — a reload with a
+    // selection open is no longer a soft-lock.
+    await until('the selection to be re-sent', () => m.selectables !== null);
+    expect([...m.selectables!.cards]).toEqual([theirs[0]]);
     expect(m.weaklySelectable).toBeNull();
-    expect(selectCard(m, theirs[0]!)).toBe(false);
+    expect(selectCard(m, theirs[0]!)).toBe(true);
   });
 });
 
@@ -836,7 +840,7 @@ describe('setHighlighted: Forge’s mark is offered, and never widens an offer',
     await barrier(s, m, mine[1]!);
   });
 
-  it('a snapshot drops the marks too — the server does not re-send them', async () => {
+  it('a snapshot is followed by the marks too — the server re-sends them', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
     await sendAndApply(s, m, [prompt('Return 1 card(s) to the bottom of your library'), mark([mine[0]!])]);
@@ -845,8 +849,9 @@ describe('setHighlighted: Forge’s mark is offered, and never widens an offer',
     s.lose(prompt('lost'));
     s.send(prompt('after the gap'));
     await until('the resync', () => m.stats.snapshots === 2);
-    expect(m.highlighted).toBeNull();
-    expect(selectCard(m, mine[0]!)).toBe(false);
+    await until('the marks to be re-sent', () => m.highlighted !== null);
+    expect([...m.highlighted!]).toEqual([mine[0]]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
   });
 });
 
@@ -1022,7 +1027,7 @@ describe('the London mulligan: Forge’s own flag makes the seat’s own hand cl
     expect(s.clientFrames()).toEqual([cardAct(theirs[0]!)]);
   });
 
-  it('the offer SURVIVES a resync, unlike a mark — the flag is state, not a notify', async () => {
+  it('the offer SURVIVES a resync — the flag is state, and the server re-sends the mark (wave 31 §S)', async () => {
     const { s, m } = await fullGame();
     const hand = myHand(m);
     await sendAndApply(s, m, [mulligan(m, true), prompt('Return 1 card(s) to the bottom of your library'), mark([hand[0]!])]);
@@ -1031,16 +1036,11 @@ describe('the London mulligan: Forge’s own flag makes the seat’s own hand cl
     s.lose(prompt('lost'));
     s.send(prompt('after the gap'));
     await until('the resync', () => m.stats.snapshots === 2);
-    // A snapshot clears `inputLive` and drops the mark, so nothing is offered
-    // the instant it lands — that part is the existing discipline.
-    expect(m.highlighted).toBeNull();
-    expect(boardInteraction(m).selectable.size).toBe(0);
-
-    // The difference: the FLAG came back with the state, so Forge showing its
-    // input again restores the offer with no entity frame of any kind. A mark
-    // could not do that — nothing re-sends a notify.
-    await sendAndApply(s, m, [prompt('Return 1 card(s) to the bottom of your library')]);
-    expect(m.highlighted).toBeNull();
+    // The snapshot itself drops the held mark (`adoptSnapshot`), and the server
+    // then re-sends it: the London bottom pick is a mark, and before wave 31
+    // nothing re-sent it, so a reload with it open was a soft-lock (P10).
+    await until('the mark to be re-sent', () => m.highlighted !== null);
+    expect([...m.highlighted!]).toEqual([hand[0]]);
     expect(m.selectables).toBeNull();
     expect(m.weaklySelectable).toBeNull();
     expect(boardInteraction(m).selectable).toEqual(new Set(hand));
@@ -1741,5 +1741,73 @@ describe('the seat identities — item 4, wave 29 §A.6-8', () => {
     await until('forge:seats to be adopted', () => m.avatarByPlayerId !== null);
     expect(m.avatarByPlayerId!.size).toBe(0);
     for (const p of m.view!.players) expect(p).not.toHaveProperty('avatarId');
+  });
+});
+
+/*
+ * Wave 31 §S: `forge:role`, `forge:seats`' `name`, and `over`.
+ */
+describe('spectator, names and the end of the game (wave 31 §S)', () => {
+  it('a joining page is told player, and holds spectator = false', async () => {
+    const { m } = await fullGame();
+    await until('forge:role to land', () => m.stats.snapshots >= 1);
+    expect(m.spectator).toBe(false);
+  });
+
+  it('forge:role spectator sets the flag, and promotion clears it', async () => {
+    const { s, m } = await fullGame();
+    const before = m.revision;
+    s.sendRole('spectator');
+    await until('the flag', () => m.spectator);
+    expect(m.revision, 'subscribers are told').toBeGreaterThan(before);
+    s.sendRole('player');
+    await until('the promotion', () => !m.spectator);
+  });
+
+  it('a refreshed tab that joins as a spectator is promoted without a new snapshot', async () => {
+    const s = (server = await startReplayServer());
+    s.role = 'spectator';
+    const m = await connect(s);
+    await sendAndApply(s, m, FRAMES);
+    await until('spectator', () => m.spectator);
+    const snapshots = m.stats.snapshots;
+    s.sendRole('player');
+    await until('player', () => !m.spectator);
+    expect(m.stats.snapshots).toBe(snapshots);
+  });
+
+  it('a malformed or foreign forge:role changes nothing and is recorded', async () => {
+    const { s, m } = await fullGame();
+    s.sendRole('admin');
+    await until('the refusal', () => m.lastInvalid !== null);
+    expect(m.spectator).toBe(false);
+  });
+
+  it('carries the seat name onto nameByPlayerId, only for a seat that has one', async () => {
+    const { s, m } = await fullGame();
+    const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
+    const theirId = m.view!.players.find((p) => !p.isViewer)!.id;
+    expect(m.nameByPlayerId).toBeNull();
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: viewerId, name: 'Hadoku' },
+      { seat: 1, claimed: true, playerId: theirId },
+    ]);
+    await until('forge:seats to be adopted', () => m.nameByPlayerId !== null);
+    expect([...m.nameByPlayerId!]).toEqual([[viewerId, 'Hadoku']]);
+  });
+
+  it('over is false in a live game and true once the server’s ending notice has arrived', async () => {
+    const { s, m } = await fullGame();
+    expect(m.over).toBe(false);
+    await sendAndApply(s, m, [
+      parseServerFrame({ kind: 'notify', method: 'showErrorDialog', title: 'Match ended', message: 'Forge stopped.' }),
+    ]);
+    expect(m.over).toBe(true);
+  });
+
+  it('an unrelated error dialog does not end the game', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [parseServerFrame({ kind: 'notify', method: 'showErrorDialog', title: 'Oops', message: 'x' })]);
+    expect(m.over).toBe(false);
   });
 });

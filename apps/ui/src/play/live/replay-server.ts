@@ -111,6 +111,13 @@ export interface ReplayServer {
    * payload: a test that wants a malformed shape should be able to send one.
    */
   sendSeats(seats: unknown): void;
+  /**
+   * Deliver `{ matchId, role }` on `forge:role` (wave 31 §S). Also what every
+   * join and resync answers with, as the real server does: `role`, below.
+   */
+  sendRole(role: unknown): void;
+  /** The role every join and resync is answered with. `'player'` unless a test says otherwise. */
+  role: 'player' | 'spectator';
   /** The envelope `send` produced for a given seq, for replaying it. */
   sent(seq: number): ServerEnvelope;
   /** A new process: new epoch, cursor from 0, no history, no open asks. */
@@ -131,6 +138,13 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
   let history: ServerFrame[] = [];
   const openAsks = new Map<string, ServerFrame>();
   const sentLog = new Map<string, ServerEnvelope>();
+  // The open input, kept the way `Match` keeps it per seat (wave 31 §S, P10):
+  // a reload's snapshot starts from nothing and the server re-sends these.
+  const input: { selection: ServerFrame | null; highlighted: Map<string, unknown>; weakly: ServerFrame | null } = {
+    selection: null,
+    highlighted: new Map(),
+    weakly: null,
+  };
 
   const server: ReplayServer = {
     url: '',
@@ -140,6 +154,7 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     joins: 0,
     resyncs: 0,
     refuseWith: null,
+    role: 'player',
     clientFrames: () =>
       server.received
         .filter((r) => r.event === MATCH_EVENTS.clientToServer)
@@ -152,6 +167,9 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     sendSeats: (seats) => {
       for (const socket of joined) socket.emit(MATCH_EVENTS.seats, { matchId, seats });
     },
+    sendRole: (role) => {
+      for (const socket of joined) socket.emit(MATCH_EVENTS.role, { matchId, role });
+    },
     sent: (n) => {
       const envelope = sentLog.get(`${server.epoch}:${n}`);
       if (envelope === undefined) throw new Error(`nothing was sent at seq ${n} in ${server.epoch}`);
@@ -162,6 +180,9 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       seq = 0;
       history = [];
       openAsks.clear();
+      input.selection = null;
+      input.highlighted.clear();
+      input.weakly = null;
     },
     close: () =>
       new Promise<void>((done) => {
@@ -177,6 +198,17 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     sentLog.set(`${server.epoch}:${seq}`, envelope);
     if (isTierC(frame.method)) history.push(frame);
     if (frame.kind === 'ask') openAsks.set(frame.callId, frame);
+    if (frame.method === 'setSelectables') input.selection = frame;
+    else if (frame.method === 'clearSelectables') {
+      input.selection = null;
+      input.highlighted.clear();
+    } else if (frame.method === 'setHighlighted') {
+      for (const e of frame.entities) {
+        if (frame.on) input.highlighted.set(`${e.kind}:${e.id}`, e);
+        else input.highlighted.delete(`${e.kind}:${e.id}`);
+      }
+    } else if (frame.method === 'setWeaklySelectable') input.weakly = frame;
+    else if (frame.method === 'clearWeaklySelectable') input.weakly = null;
     if (deliver) server.sendRaw(envelope);
     return cursor;
   }
@@ -204,6 +236,14 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       ack?.(snapshot());
       // The contract: every open ask is re-sent after the snapshot, as a frame.
       for (const ask of [...openAsks.values()]) stamp(ask, true);
+      // And, since wave 31 §S, the open selection, its marks and the actionable
+      // set — in `Match.resendAfterSnapshot`'s order, each on the next cursor.
+      if (input.selection !== null) stamp(input.selection, true);
+      if (input.highlighted.size > 0) {
+        stamp({ kind: 'notify', method: 'setHighlighted', entities: [...input.highlighted.values()], on: true } as ServerFrame, true);
+      }
+      if (input.weakly !== null) stamp(input.weakly, true);
+      socket.emit(MATCH_EVENTS.role, { matchId, role: server.role });
     };
     socket.on(MATCH_EVENTS.join, answer(MATCH_EVENTS.join));
     socket.on(MATCH_EVENTS.resync, answer(MATCH_EVENTS.resync));

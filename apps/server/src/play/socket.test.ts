@@ -123,6 +123,8 @@ interface Peer {
 	 * beside `forge:full-control`; see `socket.ts`'s `answer`.
 	 */
 	seatsEvents: unknown[];
+	/** Every `forge:role` payload the SERVER sent this socket (wave 31 §S). */
+	roles: unknown[];
 	request(event: 'forge:join' | 'forge:resync', payload: unknown): Promise<unknown>;
 	send(payload: unknown): void;
 	/** Ask for full control, or give it back — the client → server direction. */
@@ -149,6 +151,7 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 			acks: [],
 			fullControls: [],
 			seatsEvents: [],
+			roles: [],
 			request: async (event, payload) => {
 				const ack: unknown = await socket.timeout(3000).emitWithAck(event, payload);
 				peer.acks.push(ack);
@@ -162,6 +165,7 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 		socket.on('forge:s2c', (payload: unknown) => peer.frames.push(payload));
 		socket.on('forge:full-control', (payload: unknown) => peer.fullControls.push(payload));
 		socket.on('forge:seats', (payload: unknown) => peer.seatsEvents.push(payload));
+		socket.on('forge:role', (payload: unknown) => peer.roles.push(payload));
 		socket.on('connect', () => done(peer));
 		socket.on('connect_error', (err) => fail(err));
 	});
@@ -949,5 +953,162 @@ describe('shutdown', () => {
 		// The point: something asked its host to stop. Before lane U nothing did.
 		expect(host.stopped).toBe(true);
 		expect(h.handle.matches.get(matchId)?.status).toBe('stopped');
+	});
+});
+
+/*
+ * Wave 31 §S: one controlling socket per seat. A second browser on an account
+ * that holds a seat is a SPECTATOR — *"it would be really messy if two clients
+ * were capable of performing game actions"*. The server enforces; the client
+ * is only told (`forge:role`).
+ */
+describe('a second connection for a seat spectates', () => {
+	async function aliceTwice(options: { disconnectGraceMs?: number } = {}): Promise<{
+		h: Harness;
+		matchId: string;
+		first: Peer;
+		second: Peer;
+		host: ReplayHost;
+		callId: string;
+	}> {
+		const h = await boot(options);
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const first = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await first.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		const second = await connect(h.port, edgeHeaders('alice'));
+		const joined = (await second.request('forge:join', { matchId })) as { seat: number };
+		expect(joined.seat).toBe(0);
+		const host = h.hosts[0] as ReplayHost;
+		host.push(PROBE_ASK);
+		await waitUntil(() => second.frames.some((f) => (f as { frame: { kind: string } }).frame.kind === 'ask'), 'the ask on both sockets');
+		return { h, matchId, first, second, host, callId: (PROBE_ASK.frame as { callId: string }).callId };
+	}
+
+	it('tells each socket its role, on every join and resync', async () => {
+		const { matchId, first, second } = await aliceTwice();
+		await waitUntil(() => first.roles.length > 0 && second.roles.length > 0, 'both roles');
+		expect(first.roles).toEqual([{ matchId, role: 'player' }]);
+		expect(second.roles).toEqual([{ matchId, role: 'spectator' }]);
+		await second.request('forge:resync', { matchId });
+		await waitUntil(() => second.roles.length > 1, 'the resync to be told');
+		expect(second.roles[1]).toEqual({ matchId, role: 'spectator' });
+	});
+
+	it('refuses a spectator’s answers, full control and stop preference — and logs c2s-spectator', async () => {
+		const { h, matchId, first, second, host, callId } = await aliceTwice();
+		const answer = { kind: 'reply', callId, method: 'showConfirmDialog', result: true };
+		second.send({ matchId, frame: answer });
+		second.setFullControl({ matchId, on: true });
+		second.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: true });
+		await waitUntil(() => h.logs.filter((l) => l.evt === 'c2s-spectator').length === 3, 'three refusals');
+		expect(h.logs.filter((l) => l.evt === 'c2s-spectator').map((l) => l.input)).toEqual(['c2s', 'full-control', 'stop-preference']);
+		expect(host.commands).toEqual([]);
+		expect(h.handle.matches.get(matchId)?.fullControl(0)).toBe(false);
+		expect(h.handle.matches.get(matchId)?.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
+
+		// The controller still can.
+		first.send({ matchId, frame: answer });
+		await waitUntil(() => host.commands.length > 0, 'the controller’s reply');
+		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
+	});
+
+	it('a spectator whose controller never leaves stays refused', async () => {
+		const { h, matchId, second, host, callId } = await aliceTwice();
+		await new Promise((r) => setTimeout(r, 300));
+		second.send({ matchId, frame: { kind: 'reply', callId, method: 'showConfirmDialog', result: true } });
+		await waitUntil(() => h.logs.some((l) => l.evt === 'c2s-spectator'), 'the refusal');
+		expect(host.commands).toEqual([]);
+		expect(second.roles.every((r) => (r as { role: string }).role === 'spectator')).toBe(true);
+	});
+
+	it('promotes the spectator when the controller leaves: told, re-sent its asks, and able to act', async () => {
+		const { h, matchId, first, second, host, callId } = await aliceTwice({ disconnectGraceMs: 1000 });
+		const framesBefore = second.frames.length;
+		first.socket.disconnect();
+		await waitUntil(() => h.logs.some((l) => l.evt === 'spectator-promoted'), 'the promotion');
+		await waitUntil(() => second.roles.some((r) => (r as { role: string }).role === 'player'), 'the role event');
+		expect(second.roles.at(-1)).toEqual({ matchId, role: 'player' });
+		await waitUntil(
+			() => second.frames.slice(framesBefore).some((f) => (f as { frame: { callId?: string } }).frame.callId === callId),
+			'the ask to be re-sent',
+		);
+		second.send({ matchId, frame: { kind: 'reply', callId, method: 'showConfirmDialog', result: true } });
+		await waitUntil(() => host.commands.length > 0, 'the promoted socket’s reply');
+		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
+	});
+
+	it('a refresh never locks the player out: the new tab spectates, the old one leaves, the new one is promoted', async () => {
+		const h = await boot({ disconnectGraceMs: 1000 });
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const host = h.hosts[0] as ReplayHost;
+		const oldTab = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await oldTab.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+
+		// The new socket opens BEFORE the old one's disconnect lands.
+		const newTab = await connect(h.port, edgeHeaders('alice'));
+		await newTab.request('forge:join', { matchId });
+		await waitUntil(() => newTab.roles.length > 0, 'the new tab’s role');
+		expect(newTab.roles[0]).toEqual({ matchId, role: 'spectator' });
+
+		oldTab.socket.disconnect();
+		await waitUntil(() => newTab.roles.some((r) => (r as { role: string }).role === 'player'), 'the new tab to be promoted');
+
+		host.push(PROBE_ASK);
+		const callId = (PROBE_ASK.frame as { callId: string }).callId;
+		await waitUntil(() => newTab.frames.some((f) => (f as { frame: { kind: string } }).frame.kind === 'ask'), 'the ask');
+		newTab.send({ matchId, frame: { kind: 'reply', callId, method: 'showConfirmDialog', result: true } });
+		await waitUntil(() => host.commands.length > 0, 'the refreshed tab’s reply');
+		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
+	});
+});
+
+describe('POST /api/play/matches names (wave 31 §S)', () => {
+	it('uses them as the Forge players’ names, sanitised, unique, and falls back to Seat N', () => {
+		const named = parseStartBody({ opponent: 'human', names: ['  Had\u0000oku <b>the</b>\n  Great  ', 'hadoku the great'] });
+		expect(named.ok).toBe(true);
+		if (!named.ok) return;
+		expect(named.spec.seats.map((s) => s.name)).toEqual(['Hadoku the Great', 'hadoku the great 2']);
+
+		const half = parseStartBody({ names: ['Ann', undefined] });
+		expect(half.ok && half.spec.seats.map((s) => s.name)).toEqual(['Ann', 'Seat 2']);
+		const ai = parseStartBody({ opponent: 'ai', names: ['Ann', null] });
+		expect(ai.ok && ai.spec.seats.map((s) => s.name)).toEqual(['Ann', 'Forge AI']);
+		const blank = parseStartBody({ names: ['   ', '<i></i>'] });
+		expect(blank.ok && blank.spec.seats.map((s) => s.name)).toEqual(['Seat 1', 'Seat 2']);
+	});
+
+	it('caps a name at 24 characters, including the uniqueness suffix', () => {
+		const long = 'x'.repeat(40);
+		const r = parseStartBody({ names: [long, long] });
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		const [a, b] = r.spec.seats.map((s) => s.name);
+		expect(a).toHaveLength(24);
+		expect(b).toHaveLength(24);
+		expect(b?.endsWith(' 2')).toBe(true);
+		expect(a).not.toBe(b);
+	});
+
+	it('refuses a names value that is not a pair', () => {
+		expect(parseStartBody({ names: ['only one'] })).toEqual({ ok: false, error: 'names is a two-element array' });
+	});
+
+	it('reaches forge:seats as name, only for a seat that was named', async () => {
+		const h = await boot();
+		const { body } = await startMatch(h, 'alice', { opponent: 'human', names: ['Hadoku', undefined] });
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		await alice.request('forge:join', { matchId });
+		await waitUntil(() => alice.seatsEvents.length > 0, 'forge:seats');
+		const seats = (alice.seatsEvents[0] as { seats: Record<string, unknown>[] }).seats;
+		expect(seats[0]?.name).toBe('Hadoku');
+		expect('name' in (seats[1] as object)).toBe(false);
+		expect(h.hosts[0]?.spec.seats.map((s) => s.name)).toEqual(['Hadoku', 'Seat 2']);
 	});
 });

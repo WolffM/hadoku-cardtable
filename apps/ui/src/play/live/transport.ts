@@ -117,6 +117,13 @@ export const MATCH_EVENTS = {
    * own — see that emit site's own comment.
    */
   seats: 'forge:seats',
+  /**
+   * Wave 31 §S: which kind of connection THIS socket is for its seat — the one
+   * that controls it, or a spectator of it. Server → client only, to the one
+   * socket, after every join and resync and again on promotion. The server
+   * enforces (it refuses a spectator's inputs); the client only explains.
+   */
+  role: 'forge:role',
 } as const;
 
 /* ── Cursor ──────────────────────────────────────────────────────────── */
@@ -288,6 +295,8 @@ export const SeatIdentitySchema = borrowed.emptyObject
     /** Null until that seat's `openView` has landed — see `MatchSnapshot.playerId`'s own note. */
     playerId: borrowed.forgeId.nullable(),
     avatarId: borrowed.unknown.optional(),
+    /** Wave 31 §S: the name Forge shows for this seat. Absent when the server was not told one. */
+    name: borrowed.nonEmptyString.optional(),
   })
   .strict();
 
@@ -301,6 +310,13 @@ export const MatchSeatsSchema = borrowed.emptyObject
   .strict();
 
 export type MatchSeats = Output<typeof MatchSeatsSchema>;
+
+/** `forge:role` — see {@link MATCH_EVENTS}. */
+export const MatchRoleSchema = borrowed.emptyObject
+  .extend({ matchId: borrowed.nonEmptyString, role: borrowed.nonEmptyString.refine((r) => r === 'player' || r === 'spectator', 'role is player or spectator') })
+  .strict();
+
+export type MatchRole = { matchId: string; role: 'player' | 'spectator' };
 
 /* ── Parsing, with paths ─────────────────────────────────────────────── */
 
@@ -339,6 +355,10 @@ export function parseServerEnvelope(raw: unknown): TransportParse<ServerEnvelope
 export function parseMatchAck(raw: unknown): TransportParse<MatchAck> {
   const isError = typeof raw === 'object' && raw !== null && 'error' in raw;
   return isError ? outcome(MatchErrorSchema.safeParse(raw)) : outcome(MatchSnapshotSchema.safeParse(raw));
+}
+
+export function parseMatchRole(raw: unknown): TransportParse<MatchRole> {
+  return outcome(MatchRoleSchema.safeParse(raw)) as TransportParse<MatchRole>;
 }
 
 export function parseMatchSeats(raw: unknown): TransportParse<MatchSeats> {

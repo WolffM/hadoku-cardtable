@@ -85,6 +85,12 @@ export const MATCH_EVENTS = {
 	 * at endstep)."* Client → server only; see {@link StopPreferenceSchema}.
 	 */
 	stopPreference: 'forge:stop-preference',
+	/**
+	 * Wave 31 §S: `{ matchId, role: 'player' | 'spectator' }`, server → THIS socket
+	 * only, after every join and resync and again on promotion. One connection
+	 * per seat controls it; another for the same account spectates.
+	 */
+	role: 'forge:role',
 } as const;
 
 /* ── Cursor ──────────────────────────────────────────────────────────── */

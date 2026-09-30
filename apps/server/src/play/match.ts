@@ -133,7 +133,16 @@ import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
  * carries into `config.json` is inert there: Forge never reads it and never
  * shows it.
  */
-export type SeatSpecWithIdentity = MatchSpec['seats'][number] & { avatarId?: string };
+export type SeatSpecWithIdentity = MatchSpec['seats'][number] & {
+	avatarId?: string;
+	/**
+	 * The name the caller GAVE this seat (wave 31 §S, `socket.ts`'s `names`),
+	 * sanitised and unique within the match — and the same string as `name`,
+	 * which is what Forge shows. Absent when none was given, so `name` is then
+	 * only a fallback (`Seat 1`) and {@link SeatIdentity.name} says nothing.
+	 */
+	displayName?: string;
+};
 
 /** `MatchSpec`, with both seats widened the same way. */
 export type MatchSpecWithIdentity = Omit<MatchSpec, 'seats'> & {
@@ -146,6 +155,8 @@ export interface SeatIdentity {
 	claimed: boolean;
 	playerId: number | null;
 	avatarId?: string;
+	/** The name Forge shows for this seat; absent when the caller named none (wave 31 §S). */
+	name?: string;
 }
 import {
 	createProjector,
@@ -185,6 +196,8 @@ export interface SeatState {
 	 * here (`socket.ts`'s `normalizeAvatarId`).
 	 */
 	avatarId?: string;
+	/** See {@link SeatSpecWithIdentity.displayName}. */
+	displayName?: string;
 	readonly projector: SeatProjector;
 	/** The last `forge:s2c` seq this seat was sent. 0 = none yet. */
 	seq: number;
@@ -229,6 +242,21 @@ export interface SeatState {
 	policy: StopPolicy;
 	/** Forge's latest actionable set for this seat; null when it has not said (`auto.ts`). */
 	actionable: number[] | null;
+	/**
+	 * The input Forge currently has open for this seat, as Forge last said it —
+	 * kept so a reload can be told again (wave 31 §S, P10). The state channel
+	 * carries none of these and a reload's snapshot starts from nothing, so a
+	 * decision that IS a selection (the London bottom pick, a target, a payment)
+	 * was dead after a refresh with Forge still waiting.
+	 *
+	 *  - `selection`: the last `setSelectables`, until `clearSelectables`.
+	 *  - `highlighted`: the folded `setHighlighted` marks (incremental and
+	 *    signed on the wire), until `clearSelectables`.
+	 *  - `weakly`: the last `setWeaklySelectable`, until `clearWeaklySelectable`.
+	 */
+	selection: ServerFrame | null;
+	highlighted: Map<string, unknown>;
+	weakly: ServerFrame | null;
 	/** The payment being made, while its prompt is up. */
 	payment: Payment | null;
 	/**
@@ -390,6 +418,7 @@ export class Match {
 			// `SeatSpecWithIdentity` (`socket.ts`'s `parseStartBody`); absent
 			// otherwise, including for the AI seat, which has no room member.
 			avatarId: (s as SeatSpecWithIdentity).avatarId,
+			displayName: (s as SeatSpecWithIdentity).displayName,
 			projector: createProjector(),
 			seq: 0,
 			history: [],
@@ -405,6 +434,9 @@ export class Match {
 			// time. Absent is production (`MatchDeps.stopPolicy`).
 			policy: deps.stopPolicy ?? DEFAULT_STOP_POLICY,
 			actionable: null,
+			selection: null,
+			highlighted: new Map(),
+			weakly: null,
 			payment: null,
 			autoPaid: null,
 			autoCancelled: null,
@@ -590,6 +622,7 @@ export class Match {
 			claimed: s.owner !== null,
 			playerId: s.playerId,
 			...(s.avatarId === undefined ? {} : { avatarId: s.avatarId }),
+			...(s.displayName === undefined ? {} : { name: s.displayName }),
 		}));
 	}
 
@@ -624,6 +657,17 @@ export class Match {
 		if (s.prompt !== null) this.send(s, s.prompt);
 		if (s.buttons !== null) this.send(s, s.buttons);
 		for (const ask of s.asks.values()) this.send(s, ask.frame);
+		/*
+		 * The open SELECTION, in the order Forge publishes it: the offer, then the
+		 * marks, then the actionable set. Each is the frame Forge sent (the marks
+		 * re-folded into one `on: true` frame), so a client that already holds
+		 * them simply replaces them with the same values.
+		 */
+		if (s.selection !== null) this.send(s, s.selection);
+		if (s.highlighted.size > 0) {
+			this.send(s, { kind: 'notify', method: 'setHighlighted', entities: [...s.highlighted.values()], on: true } as unknown as ServerFrame);
+		}
+		if (s.weakly !== null) this.send(s, s.weakly);
 		if (s.ended !== null) this.send(s, s.ended);
 	}
 
@@ -632,6 +676,14 @@ export class Match {
 	fromClient(seat: number, frame: ClientFrame): ClientOutcome {
 		const s = this.seats[seat];
 		if (s === undefined || s.ai) return { ok: false, error: 'no-such-seat' };
+		// Refused in words of its own, and before the general status check: the
+		// game having ended is the one reason a concede can arrive late (the
+		// board still shows the button for a moment), and a log that says only
+		// "match is over" does not say a player tried to give up a finished game.
+		if (frame.kind === 'act' && frame.method === 'concede' && this.status !== 'running') {
+			this.deps.log({ evt: 'concede-refused', matchId: this.id, seat, status: this.status, reason: 'the game has already ended' });
+			return { ok: false, error: `concede-after-game-over (match is ${this.status})` };
+		}
 		if (this.status !== 'running') return { ok: false, error: `match is ${this.status}` };
 		switch (frame.kind) {
 			case 'act':
@@ -886,6 +938,24 @@ export class Match {
 			s.actionable = frame.cards.map((c) => c.id);
 		} else if (frame.method === 'clearWeaklySelectable') {
 			s.actionable = null;
+		}
+		// Kept for a reload (see `SeatState.selection`). Independent of the
+		// actionable bookkeeping above, which has its own reader.
+		if (frame.method === 'setSelectables') {
+			s.selection = frame;
+		} else if (frame.method === 'clearSelectables') {
+			s.selection = null;
+			s.highlighted.clear();
+		} else if (frame.method === 'setHighlighted') {
+			for (const entity of frame.entities) {
+				const key = `${entity.kind}:${entity.id}`;
+				if (frame.on) s.highlighted.set(key, entity);
+				else s.highlighted.delete(key);
+			}
+		} else if (frame.method === 'setWeaklySelectable') {
+			s.weakly = frame;
+		} else if (frame.method === 'clearWeaklySelectable') {
+			s.weakly = null;
 		}
 		this.send(s, frame);
 		if (frame.method === 'showPromptMessage') this.trackPayment(s, frame.message);

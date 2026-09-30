@@ -228,8 +228,42 @@ function normalizeAvatarId(v: unknown): string | undefined {
 	return trimmed === '' || trimmed.length > AVATAR_ID_MAX ? undefined : trimmed;
 }
 
+/** The longest seat name Forge is shown (wave 31 §S). */
+export const SEAT_NAME_MAX = 24;
+
 /**
- * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], avatarIds?: [string?, string?] }`.
+ * A caller-supplied seat name, made safe to hand Forge as a player's name and to
+ * draw anywhere: markup and control characters removed, whitespace collapsed,
+ * at most {@link SEAT_NAME_MAX} characters. Absent (`undefined`) when nothing
+ * printable is left, so the caller falls back to `Seat N`.
+ */
+export function sanitizeSeatName(v: unknown): string | undefined {
+	if (typeof v !== 'string') return undefined;
+	const cleaned = v
+		// eslint-disable-next-line no-control-regex
+		.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, '')
+		.replace(/<[^>]*>/g, ' ')
+		.replace(/[<>]/g, '')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.slice(0, SEAT_NAME_MAX)
+		.trim();
+	return cleaned === '' ? undefined : cleaned;
+}
+
+/** Two seats' names, unique within the match: the second gets ` 2` (kept inside the limit). */
+function uniqueSeatNames(names: [string | undefined, string | undefined]): [string | undefined, string | undefined] {
+	const [a, b] = names;
+	if (a === undefined || b === undefined || a.toLowerCase() !== b.toLowerCase()) return names;
+	return [a, `${b.slice(0, SEAT_NAME_MAX - 2).trimEnd()} 2`];
+}
+
+/**
+ * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], avatarIds?: [string?, string?], names?: [string?, string?] }`.
+ *
+ * `names` (wave 31 §S) is what Forge shows for each seat, in seat order — see
+ * {@link sanitizeSeatName}. Unlike `avatarIds` it IS the Forge player's name,
+ * so Forge's own prompt text says it too; absent, the seat is `Seat N`.
  *
  * `avatarIds` is item 4's server half (wave 29 §B): the per-seat identity
  * `routes.ts`'s `startFromRoom` carries in the same seat order as `decks`,
@@ -242,7 +276,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	const b = (body ?? {}) as Record<string, unknown>;
 	if (typeof b !== 'object' || Array.isArray(b)) return { ok: false, error: 'body must be an object' };
 	for (const key of Object.keys(b)) {
-		if (key !== 'opponent' && key !== 'decks' && key !== 'avatarIds') return { ok: false, error: `unknown field ${key}` };
+		if (key !== 'opponent' && key !== 'decks' && key !== 'avatarIds' && key !== 'names') return { ok: false, error: `unknown field ${key}` };
 	}
 	const opponent = b.opponent ?? 'human';
 	if (opponent !== 'human' && opponent !== 'ai') return { ok: false, error: "opponent is 'human' or 'ai'" };
@@ -258,6 +292,12 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 		const raw = b.avatarIds;
 		if (!Array.isArray(raw) || raw.length !== 2) return { ok: false, error: 'avatarIds is a two-element array' };
 		avatarIds = [normalizeAvatarId(raw[0]), normalizeAvatarId(raw[1])];
+	}
+	let names: [string | undefined, string | undefined] = [undefined, undefined];
+	if (b.names !== undefined) {
+		const raw = b.names;
+		if (!Array.isArray(raw) || raw.length !== 2) return { ok: false, error: 'names is a two-element array' };
+		names = uniqueSeatNames([sanitizeSeatName(raw[0]), sanitizeSeatName(raw[1])]);
 	}
 	// `CARDTABLE_PLAY_SEED` fixes Forge's shuffles, the coin toss and the precon
 	// pick (`play/README.md`, `MatchSpec.seed`), and `bridgeConfig` spreads the
@@ -288,16 +328,24 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	// header on `SeatSpecWithIdentity`.
 	const spec: MatchSpecWithIdentity = {
 		seats: [
-			// Forge shows these names to both seats; they are never an identity.
+			// Forge shows these names to both seats. Wave 31 §S: they are the room's
+			// display names when the caller sent `names`, and `Seat N` otherwise.
 			// `avatarId` is spread rather than assigned, so a seat with none has the
 			// key ABSENT on the spec too — the same discipline `Match.seatIdentities`
 			// keeps on the way out (D-avatar-field.md §3).
-			{ name: 'Seat 1', ai: false, deck: decks[0] as string | null, ...(avatarIds[0] === undefined ? {} : { avatarId: avatarIds[0] }) },
 			{
-				name: opponent === 'ai' ? 'Forge AI' : 'Seat 2',
+				name: names[0] ?? 'Seat 1',
+				ai: false,
+				deck: decks[0] as string | null,
+				...(avatarIds[0] === undefined ? {} : { avatarId: avatarIds[0] }),
+				...(names[0] === undefined ? {} : { displayName: names[0] }),
+			},
+			{
+				name: names[1] ?? (opponent === 'ai' ? 'Forge AI' : 'Seat 2'),
 				ai: opponent === 'ai',
 				deck: decks[1] as string | null,
 				...(avatarIds[1] === undefined ? {} : { avatarId: avatarIds[1] }),
+				...(names[1] === undefined ? {} : { displayName: names[1] }),
 			},
 		],
 		...(Number.isFinite(seed) ? { seed } : {}),
@@ -534,6 +582,27 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		return identityFromHeaders(headers, socket.id);
 	}
 
+	/*
+	 * Wave 31 §S — ONE controlling socket per seat.
+	 *
+	 * Two browsers on an account that holds a seat are two roster entries, and
+	 * only one of them may act: *"it would be really messy if two clients were
+	 * capable of performing game actions"*. The first connection to claim a seat
+	 * controls it; a later one for the same seat joins as a spectator (it still
+	 * sees the seat's own hand — it is the same person's — but the server refuses
+	 * its three inputs). `connected` is the seat's sockets in connect order, so
+	 * the longest-connected spectator is the one promoted when the controller
+	 * leaves. A refresh takes this same path: its new socket may open before the
+	 * old one's `disconnect` lands, spectates for that moment, and is promoted.
+	 */
+	const connected = new Map<string, string[]>();
+	const seatKey = (matchId: string, seat: number): string => `${matchId}#${seat}`;
+	const isController = (matchId: string, seat: number, socketId: string): boolean =>
+		connected.get(seatKey(matchId, seat))?.[0] === socketId;
+	const tellRole = (target: { emit: (event: string, payload: unknown) => unknown }, matchId: string, role: 'player' | 'spectator'): void => {
+		target.emit(MATCH_EVENTS.role, { matchId, role });
+	};
+
 	io.on('connection', (socket) => {
 		const participantId = identityOf(socket);
 		/** matchId → seat, for this connection. */
@@ -572,7 +641,11 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				joinRoom<PlayApp, PlayClient>(room, socket.id, socket.id, participantId, () => ({ seat: seat as number }));
 				await socket.join(room.roomId);
 				joined.set(match.id, seat);
-				log({ evt: 'joined', matchId: match.id, seat, participantId, fresh: claim.fresh });
+				const key = seatKey(match.id, seat);
+				const sockets = connected.get(key) ?? [];
+				sockets.push(socket.id);
+				connected.set(key, sockets);
+				log({ evt: 'joined', matchId: match.id, seat, participantId, fresh: claim.fresh, role: sockets[0] === socket.id ? 'player' : 'spectator' });
 				// A refresh: the old socket's close armed an abort of this seat's asks.
 				match.seatConnected(seat);
 			}
@@ -631,6 +704,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						 * are adopted; the payload shape is `{ matchId, seats: SeatIdentity[] }`.
 						 */
 						socket.emit('forge:seats', { matchId: result.matchId, seats: match.seatIdentities() });
+						// Wave 31 §S: and whether THIS socket controls the seat, every time.
+						tellRole(socket, result.matchId, isController(result.matchId, result.seat, socket.id) ? 'player' : 'spectator');
 					}
 				});
 			};
@@ -649,6 +724,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			const seat = match === undefined ? undefined : joined.get(match.id);
 			if (match === undefined || seat === undefined) {
 				log({ evt: 'c2s-not-joined', participantId, matchId: parsed.value.matchId });
+				return;
+			}
+			if (!isController(match.id, seat, socket.id)) {
+				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'c2s', kind: parsed.value.frame.kind });
 				return;
 			}
 			const outcome = match.fromClient(seat, parsed.value.frame);
@@ -670,6 +749,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			const seat = match === undefined ? undefined : joined.get(match.id);
 			if (match === undefined || seat === undefined) {
 				log({ evt: 'full-control-not-joined', participantId, matchId: parsed.value.matchId });
+				return;
+			}
+			if (!isController(match.id, seat, socket.id)) {
+				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'full-control' });
 				return;
 			}
 			const outcome = match.setFullControl(seat, parsed.value.on);
@@ -697,6 +780,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				log({ evt: 'stop-preference-not-joined', participantId, matchId: parsed.value.matchId });
 				return;
 			}
+			if (!isController(match.id, seat, socket.id)) {
+				log({ evt: 'c2s-spectator', participantId, matchId: match.id, seat, input: 'stop-preference' });
+				return;
+			}
 			const current = match.stopPolicy(seat);
 			const wants = parsed.value.stopAtEndStep;
 			const has = current.stopOnTheirTurn.includes('END_OF_TURN');
@@ -708,6 +795,14 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 
 		socket.on('disconnect', (reason: string) => {
 			for (const [matchId, seat] of joined) {
+				// Before the match lookup: a socket must leave the seat's line even
+				// when its match is gone, or a stale id would hold the control.
+				const key = seatKey(matchId, seat);
+				const line = connected.get(key) ?? [];
+				const wasController = line[0] === socket.id;
+				const remaining = line.filter((id) => id !== socket.id);
+				if (remaining.length === 0) connected.delete(key);
+				else connected.set(key, remaining);
 				const match = matches.get(matchId);
 				if (match === undefined) continue;
 				const room = roomFor(match);
@@ -715,6 +810,15 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				const stillHere = [...room.clients.values()].some((c) => c.app.seat === seat);
 				log({ evt: 'left', matchId, seat, participantId, reason, stillHere });
 				if (!stillHere) match.seatDisconnected(seat);
+				const next = remaining[0];
+				if (wasController && next !== undefined) {
+					// The longest-connected spectator takes the seat, is told, and is
+					// re-sent what a controller needs (the asks, the open selection).
+					log({ evt: 'spectator-promoted', matchId, seat, socketId: next });
+					const promoted = io.sockets.sockets.get(next);
+					if (promoted !== undefined) tellRole(promoted, matchId, 'player');
+					match.resendAfterSnapshot(seat);
+				}
 			}
 		});
 	});

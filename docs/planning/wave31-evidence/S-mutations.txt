@@ -1,0 +1,48 @@
+resend selection/marks/actionable apps/server/src/play/match.test.ts mutated: failed 1 passed 67 rc 1
+resend selection/marks/actionable apps/server/src/play/reload.jvm.test.ts mutated: failed 0 passed 1 rc 0
+resend selection/marks/actionable apps/server/src/play/match.test.ts restored: failed 0 passed 68 rc 0
+resend selection/marks/actionable apps/server/src/play/reload.jvm.test.ts restored: failed 0 passed 1 rc 0
+resend marks apps/server/src/play/match.test.ts mutated: failed 2 passed 66 rc 1
+resend marks apps/server/src/play/reload.jvm.test.ts mutated: failed 0 passed 0 rc 1
+resend marks apps/server/src/play/match.test.ts restored: failed 0 passed 68 rc 0
+resend marks apps/server/src/play/reload.jvm.test.ts restored: failed 0 passed 1 rc 0
+resend actionable apps/server/src/play/match.test.ts mutated: failed 1 passed 67 rc 1
+resend actionable apps/server/src/play/match.test.ts restored: failed 0 passed 68 rc 0
+clearSelectables forgets selection+marks apps/server/src/play/match.test.ts mutated: failed 1 passed 67 rc 1
+clearSelectables forgets selection+marks apps/server/src/play/match.test.ts restored: failed 0 passed 68 rc 0
+clearWeaklySelectable forgets set apps/server/src/play/match.test.ts mutated: failed 1 passed 67 rc 1
+clearWeaklySelectable forgets set apps/server/src/play/match.test.ts restored: failed 0 passed 68 rc 0
+concede guard apps/server/src/play/match.test.ts mutated: failed 1 passed 67 rc 1
+concede guard apps/server/src/play/match.test.ts restored: failed 0 passed 68 rc 0
+gate c2s apps/server/src/play/socket.test.ts mutated: failed 2 passed 41 rc 1
+gate c2s apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+gate full-control apps/server/src/play/socket.test.ts mutated: failed 1 passed 42 rc 1
+gate full-control apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+gate stop-preference apps/server/src/play/socket.test.ts mutated: failed 1 passed 42 rc 1
+gate stop-preference apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+promotion removed apps/server/src/play/socket.test.ts mutated: failed 2 passed 41 rc 1
+promotion removed apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+promotion does not re-send asks apps/server/src/play/socket.test.ts mutated: failed 1 passed 42 rc 1
+promotion does not re-send asks apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+promotion does not tell role apps/server/src/play/socket.test.ts mutated: failed 2 passed 41 rc 1
+promotion does not tell role apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+first socket is not the controller (newest wins) apps/server/src/play/socket.test.ts mutated: failed 4 passed 39 rc 1
+first socket is not the controller (newest wins) apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+role never told on join apps/server/src/play/socket.test.ts mutated: failed 2 passed 41 rc 1
+role never told on join apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+names not unique apps/server/src/play/socket.test.ts mutated: failed 2 passed 41 rc 1
+names not unique apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+names not capped apps/server/src/play/socket.test.ts mutated: failed 1 passed 42 rc 1
+names not capped apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+names markup kept apps/server/src/play/socket.test.ts mutated: failed 1 passed 42 rc 1
+names markup kept apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+name dropped from seat identity apps/server/src/play/match.test.ts mutated: failed 1 passed 67 rc 1
+name dropped from seat identity apps/server/src/play/socket.test.ts mutated: failed 1 passed 42 rc 1
+name dropped from seat identity apps/server/src/play/match.test.ts restored: failed 0 passed 68 rc 0
+name dropped from seat identity apps/server/src/play/socket.test.ts restored: failed 0 passed 43 rc 0
+client ignores forge:role apps/ui/src/play/live/match.test.ts mutated: failed 2 passed 92 rc 1
+client ignores forge:role apps/ui/src/play/live/match.test.ts restored: failed 0 passed 94 rc 0
+client over from ending notice apps/ui/src/play/live/match.test.ts mutated: failed 1 passed 93 rc 1
+client over from ending notice apps/ui/src/play/live/match.test.ts restored: failed 0 passed 94 rc 0
+client name map dropped apps/ui/src/play/live/match.test.ts mutated: failed 1 passed 93 rc 1
+client name map dropped apps/ui/src/play/live/match.test.ts restored: failed 0 passed 94 rc 0

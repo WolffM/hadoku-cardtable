@@ -980,3 +980,132 @@ describe('a match that outlives its server', () => {
 		).toBeNull();
 	});
 });
+
+/* ── Wave 31 §S: a reload with a selection open, a concede after the end, names ── */
+
+describe('wave 31 §S: the open selection survives a reload (P10)', () => {
+	const CARD_A = { kind: 'card', id: 101 };
+	const CARD_B = { kind: 'card', id: 102 };
+	const frameLine = (seat: number, frame: Record<string, unknown>): BridgeLine => ({ t: 'frame', seat, frame }) as BridgeLine;
+
+	function opened(): Harness {
+		const h = harness();
+		h.match.claim(ALICE);
+		h.match.claim(BOB);
+		h.host.push(...OPENING);
+		return h;
+	}
+
+	/** The frames seat 0 was sent on the `mark`-th envelope and after, by method. */
+	function methodsSince(h: Harness, seat: number, mark: number): string[] {
+		return envelopesFor(h, seat)
+			.slice(mark)
+			.map((e) => (e.frame as { method: string }).method);
+	}
+
+	it('re-sends the selection, the marks and the actionable set after a snapshot, to that seat only', () => {
+		const h = opened();
+		h.host.push(
+			frameLine(0, { kind: 'notify', method: 'setSelectables', cards: [CARD_A, CARD_B], min: 1, max: 2 }),
+			frameLine(0, { kind: 'notify', method: 'setHighlighted', entities: [CARD_A, { kind: 'player', id: 1 }], on: true }),
+			frameLine(0, { kind: 'notify', method: 'setWeaklySelectable', cards: [CARD_A] }),
+		);
+		const mark = envelopesFor(h, 0).length;
+		const otherMark = envelopesFor(h, 1).length;
+		h.match.snapshot(0);
+		h.match.resendAfterSnapshot(0);
+		const sent = envelopesFor(h, 0).slice(mark).map((e) => e.frame as Record<string, unknown>);
+		expect(sent.find((f) => f.method === 'setSelectables')).toEqual({
+			kind: 'notify',
+			method: 'setSelectables',
+			cards: [CARD_A, CARD_B],
+			min: 1,
+			max: 2,
+		});
+		expect(sent.find((f) => f.method === 'setHighlighted')).toEqual({
+			kind: 'notify',
+			method: 'setHighlighted',
+			entities: [CARD_A, { kind: 'player', id: 1 }],
+			on: true,
+		});
+		expect(sent.find((f) => f.method === 'setWeaklySelectable')).toMatchObject({ cards: [CARD_A] });
+		expect(methodsSince(h, 1, otherMark)).toEqual([]);
+	});
+
+	it('folds incremental marks, and forgets all of it when Forge clears the selection', () => {
+		const h = opened();
+		h.host.push(
+			frameLine(0, { kind: 'notify', method: 'setSelectables', cards: [CARD_A, CARD_B], min: 1, max: 2 }),
+			frameLine(0, { kind: 'notify', method: 'setHighlighted', entities: [CARD_A, CARD_B], on: true }),
+			frameLine(0, { kind: 'notify', method: 'setHighlighted', entities: [CARD_A], on: false }),
+		);
+		let mark = envelopesFor(h, 0).length;
+		h.match.resendAfterSnapshot(0);
+		const marks = envelopesFor(h, 0)
+			.slice(mark)
+			.map((e) => e.frame as { method: string; entities?: unknown[] })
+			.find((f) => f.method === 'setHighlighted');
+		expect(marks?.entities).toEqual([CARD_B]);
+
+		h.host.push(frameLine(0, { kind: 'notify', method: 'clearSelectables' }));
+		mark = envelopesFor(h, 0).length;
+		h.match.resendAfterSnapshot(0);
+		expect(methodsSince(h, 0, mark)).not.toContain('setSelectables');
+		expect(methodsSince(h, 0, mark)).not.toContain('setHighlighted');
+	});
+
+	it('forgets the actionable set on clearWeaklySelectable', () => {
+		const h = opened();
+		h.host.push(
+			frameLine(0, { kind: 'notify', method: 'setWeaklySelectable', cards: [CARD_A] }),
+			frameLine(0, { kind: 'notify', method: 'clearWeaklySelectable' }),
+		);
+		const mark = envelopesFor(h, 0).length;
+		h.match.resendAfterSnapshot(0);
+		expect(methodsSince(h, 0, mark)).not.toContain('setWeaklySelectable');
+	});
+});
+
+describe('wave 31 §S: a concede after the game ended (P18)', () => {
+	const concede = { kind: 'act', method: 'concede' } as ClientFrame;
+
+	it('is refused in words of its own, logged, and never reaches Forge', () => {
+		const h = harness();
+		h.match.claim(ALICE);
+		h.match.claim(BOB);
+		h.host.push(...OPENING);
+		expect(h.match.fromClient(0, concede)).toEqual({ ok: true });
+		expect(h.host.commands).toHaveLength(1);
+
+		h.host.push({ t: 'gameover', winner: null } as BridgeLine);
+		expect(h.match.status).toBe('over');
+		const outcome = h.match.fromClient(0, concede);
+		expect(outcome).toEqual({ ok: false, error: expect.stringContaining('concede-after-game-over') });
+		expect(h.host.commands).toHaveLength(1);
+		expect(h.logs).toContainEqual(expect.objectContaining({ evt: 'concede-refused', seat: 0, status: 'over' }));
+	});
+});
+
+describe('wave 31 §S: seat names', () => {
+	it('names a seat on forge:seats only when the caller named it', () => {
+		const { factory } = replayFactory();
+		const registry = createMatchRegistry({
+			host: factory,
+			log: () => undefined,
+			askTimeoutMs: 60_000,
+			overGraceMs: 60_000,
+			emit: () => undefined,
+		});
+		const spec: MatchSpecWithIdentity = {
+			seats: [
+				{ name: 'Hadoku', displayName: 'Hadoku', ai: false, deck: null },
+				{ name: 'Seat 2', ai: false, deck: null },
+			],
+		};
+		const match = registry.create(spec);
+		const [a, b] = match.seatIdentities();
+		expect(a).toMatchObject({ seat: 0, name: 'Hadoku' });
+		expect(b).toBeDefined();
+		expect('name' in (b as object)).toBe(false);
+	});
+});

@@ -247,6 +247,7 @@ import {
   fullControlFrame,
   MATCH_EVENTS,
   parseMatchAck,
+  parseMatchRole,
   parseMatchSeats,
   parseServerEnvelope,
   replyFrame,
@@ -256,6 +257,13 @@ import {
   type TransportIssue,
   type WireCursor,
 } from './transport.ts';
+
+/**
+ * The title of the server's ending notice (`MATCH_ENDED_TITLE` in
+ * `apps/server/src/play/match.ts`, which this mirrors — the two packages share
+ * no module).
+ */
+const MATCH_ENDED_TITLE = 'Match ended';
 
 /** Any blocking ask, as parsed. */
 export type LiveAsk = Extract<ServerFrame, { kind: 'ask' }>;
@@ -563,6 +571,27 @@ export interface LiveMatch {
    * and the resync that follows re-sends `forge:seats` for the new epoch.
    */
   avatarByPlayerId: ReadonlyMap<number, string> | null;
+  /**
+   * The name Forge shows for each seat, keyed by Forge PLAYER id — wave 31 §S,
+   * from `forge:seats`' `name`. Same three-state rule as
+   * {@link LiveMatch.avatarByPlayerId}: `null` until the seat table has
+   * arrived, then a real Map holding only the seats the server named.
+   */
+  nameByPlayerId: ReadonlyMap<number, string> | null;
+  /**
+   * This connection is a SPECTATOR of its seat: another connection for the
+   * same account controls it, and the server refuses this one's inputs
+   * (`forge:role`, wave 31 §S). The server enforces; this only lets the UI say
+   * why nothing happens. False until told otherwise — and a refreshed tab is
+   * told `spectator` for a moment and then `player` on promotion.
+   */
+  spectator: boolean;
+  /**
+   * The match has ended: the server's `ended` notice (`showErrorDialog`
+   * titled `Match ended`) has arrived, or Forge's own view says `GameOver`.
+   * Sticky until a snapshot replaces the board, which re-sends the notice.
+   */
+  over: boolean;
   /** The most recent failure worth showing. Cleared when a snapshot lands. */
   lastError: string | null;
   /** Why the most recent malformed envelope or frame was refused. */
@@ -654,6 +683,9 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     attackIntent: null,
     lastSelectedCard: null,
     avatarByPlayerId: null,
+    nameByPlayerId: null,
+    spectator: false,
+    over: false,
     fullControl: false,
     stopAtEndStep: false,
     lastError: null,
@@ -680,6 +712,10 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
 
   match.transport.on(MATCH_EVENTS.seats, (payload) => {
     adoptSeats(match, payload);
+  });
+
+  match.transport.on(MATCH_EVENTS.role, (payload) => {
+    adoptRole(match, payload);
   });
 
   match.transport.on('connect', () => {
@@ -884,7 +920,37 @@ function adoptSeats(match: LiveMatch, payload: unknown): void {
   // A real Map even when it holds nothing: "arrived, nobody has one" is still
   // arrived — see the field's own note on the three states.
   match.avatarByPlayerId = byPlayerId;
+  const names = new Map<number, string>();
+  for (const seat of parsed.value.seats) {
+    if (seat.playerId !== null && seat.name !== undefined) names.set(seat.playerId, seat.name);
+  }
+  match.nameByPlayerId = names;
   redraw(match);
+  notify(match);
+}
+
+/**
+ * `forge:role` arriving FROM the server (wave 31 §S): whether THIS socket
+ * controls the seat or only watches it. Malformed or for another match is
+ * recorded and changes nothing, like `adoptSeats`.
+ */
+function adoptRole(match: LiveMatch, payload: unknown): void {
+  const parsed = parseMatchRole(payload);
+  if (!parsed.ok) {
+    match.lastInvalid = parsed.errors;
+    match.stats.invalid += 1;
+    notify(match);
+    return;
+  }
+  if (parsed.value.matchId !== match.matchId) {
+    match.lastInvalid = [{ path: '$.matchId', message: `role for match ${parsed.value.matchId}, not ${match.matchId}` }];
+    match.stats.invalid += 1;
+    notify(match);
+    return;
+  }
+  const spectator = parsed.value.role === 'spectator';
+  if (match.spectator === spectator) return;
+  match.spectator = spectator;
   notify(match);
 }
 
@@ -1434,9 +1500,10 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.skippedDeltas = 0;
   // The server re-sends every open ask after the snapshot, as normal frames.
   match.asks = [];
-  // It does NOT re-send a selection or an actionable set
-  // (`resendAfterSnapshot` keeps only the prompt and the bar), so one held
-  // from before cannot be trusted.
+  // The server re-sends the open selection, the marks and the actionable set
+  // after the snapshot (wave 31 §S: `resendAfterSnapshot` keeps them per
+  // seat), as normal frames. What this client held from before is replaced by
+  // those, so it is dropped here rather than trusted.
   match.selectables = null;
   match.weaklySelectable = null;
   match.highlighted = null;
@@ -1444,6 +1511,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   // snapshot, so a line that survives from before is not trusted.
   match.says = [];
   match.inputLive = false;
+  match.over = false;
   unspend(match);
   match.lastError = null;
   match.lastInvalid = null;
@@ -1530,6 +1598,7 @@ function redraw(match: LiveMatch): void {
           // field's own note on why the two are still kept apart in STATE.
           avatarByPlayerId: match.avatarByPlayerId ?? undefined,
         });
+  if (match.view?.gameOver === true) match.over = true;
 }
 
 /* ── Inbound ─────────────────────────────────────────────────────────── */
@@ -1668,6 +1737,10 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // it too); membership is the whole of what a board needs.
     match.weaklySelectable = new Set(frame.cards.map((c) => c.id));
     match.inputLive = true;
+  } else if (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.title === MATCH_ENDED_TITLE) {
+    // The server's own ending notice (`Match.endNotice`): the match cannot
+    // continue, whatever the board still shows.
+    match.over = true;
   } else if (frame.kind === 'notify' && frame.method === 'message') {
     // Display only — see the module header. Not an input frame, not an answer:
     // nothing below this line reads it back, on purpose.
@@ -1718,5 +1791,7 @@ function discardLocal(match: LiveMatch): void {
   match.attackIntent = null;
   match.lastSelectedCard = null;
   match.avatarByPlayerId = null;
+  match.nameByPlayerId = null;
+  match.over = false;
   unspend(match);
 }
