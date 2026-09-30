@@ -127,6 +127,33 @@ the deploy tree is at `eaa3898`.
 checked, and it was false. Worktree `.claude/worktrees/w30-manager` still exists
 and is left alone.
 
+## 2026-09-30 — "a second browser saw me as a new user": watchparty's, with two cardtable halves
+
+**Identity is correct end to end.** In watchparty's log both of the operator's
+browsers resolve to `fk:6c0ce5…` at `account` tier. Cardtable's two seats in
+`m-4c9483b3ec01` are the operator (admin, `de5c2a05…`) and a friend (Heiter,
+friend tier, `8b45ae86…`). The "3 online" was the operator counted twice, and
+one of the two rows had been renamed **Himmel** (herald's default name).
+Watchparty's own defects are filed as a handoff:
+`docs/requests/WATCHPARTY_SAME_ACCOUNT_TWO_CONNECTIONS.md`. They are:
+
+- **D1:** a sprite claim belongs to a connection, not a person.
+- **D2:** the `sprite_taken` retry replaces a custom name and saves it to the
+  account's prefs at `user` scope.
+- **D3:** the roster has one row per connection.
+
+**Cardtable's half, for w31. Found in the same investigation; neither is filed
+upstream:**
+
+- **`POST /<matchId>/identity` 404s for every player at match start** (prod log,
+  18:23:21 and 18:23:45, both players). The avatar assert is sent with the
+  match id where the room id belongs (`r-c09f459cf6a3`), so a match URL never
+  sets an avatar.
+- **`apps/ui/src/room/avatar.ts` reads the chosen avatar only from this
+  browser's prefs cache** (`selectedAvatarId`). A browser that has never opened
+  the watchparty chrome shows no avatar. It should read the account's prefs.
+- **Bump `@wolffm/watchparty-ui` past 0.39.8** once watchparty publishes the fix.
+
 ## Operator play test, 2026-09-30 — eighteen items, three already in flight
 
 Recorded the moment they arrived, because w29 is RUNNING and a wave in flight is
