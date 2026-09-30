@@ -74,6 +74,7 @@ import { CONFIG, INDEX_HTML } from './config.js';
 import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, sendIndex } from './base-path.js';
 import { createDraftRooms } from './room/draftRooms.js';
+import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
@@ -142,6 +143,26 @@ app.get('/health', (_req: Request, res: Response) => {
 		timestamp: new Date().toISOString(),
 	});
 });
+
+// ── Busy (LOCAL ONLY: not a public route, and not a tier) ────────────────────
+// hadoku_site's deploy asks this before it stops us, so a release waits for a live
+// match instead of SIGKILLing it. The caller is the deploy runner on this host,
+// which holds no session key — hence above the floor, like /health. It answers
+// ONLY a genuinely local caller and is a bare 404 to everything else, so it does
+// not become the anonymous tier the friend gate forbids. busy.ts has the why.
+app.get(
+	'/health/busy',
+	busyHandler({
+		matches: () => play?.matches.active() ?? [],
+		drafts: () =>
+			(draftRooms?.all() ?? []).map((r) => ({
+				id: r.roomId,
+				status: r.app.state?.status,
+				packNumber: r.app.state?.packNumber,
+				pickNumber: r.app.state?.pickNumber,
+			})),
+	})
+);
 
 // ── The tier floor ───────────────────────────────────────────────────────────
 // Everything below this line is gated. Register new public routes ABOVE it and
