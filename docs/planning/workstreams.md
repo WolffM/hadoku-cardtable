@@ -264,6 +264,30 @@ timeout. Locally the slowest test in that file takes 176 ms and all 72 pass.
   this repo should be loosened to fit it. A 5 s cliff is still worth a look in
   its own right if the runner turns out to be fine.
 
+## Operator play test B, 2026-09-30 — twelve items (P1–P12), each checked against the code
+
+Planned as **wave 31** (`docs/planning/wave31-2026-09-30.md`, not yet dispatched).
+Verified before planning; the "found" column is what the check turned up.
+
+| P | item | status | found |
+| --- | --- | --- | --- |
+| 1 | collapse combat phases outside combat (asked twice) | **open** → w31 L | `PHASE_ORDER` already groups the six steps as `combat`; the rail just never collapses them. The first ask is on no board or wave file. |
+| 2 | card/deck count layout; graveyard ≥ 75% of the left column | **open** → w31 A | w30 made the piles 1.5 : 1 (60%), which still bisects the column |
+| 3 | life under the avatar; names not `Seat N`; drop `(you)` | **open** → w31 A + S | `Seat 1`/`Seat 2` are hardcoded as the Forge player names (`socket.ts:295,300`) and the room's names never reach the match |
+| 3b | only one avatar shows in game | **open** → w31 R, partly blocked on watchparty | the avatar assert **404s for every player** (the match route passes the match id where the lobby room id belongs), and the avatar is read only from this browser's prefs cache. An unset avatar's auto-assigned sprite is on nothing cardtable can read. |
+| 4 | game colours don't follow the theme | **open** → w31 R | root cause: `styles.css` defines `--bg/--ink/--line/--accent` with fixed dark values while `@wolffm/themes` publishes `--color-*`. Only ~18 literals exist in the play CSS. |
+| 5 | delete Regroup | **open** → w31 A | still at `Board.tsx:1830` |
+| 6 | page boundary; outer black border | **open** → w31 L + A | border confirmed at `board.css:874-875`; frame rules are in `live.css:94-185`. The chat aside's edge may not be ours to move. |
+| 7 | mulligan asks keep again after putting a card back | **found, Forge's order** → w31 F | w30 fixed why the hand was dead; it did not touch the order. `LondonMulligan.mulliganDraw()` tucks before the next keep prompt. The rules order is decide, then bottom. |
+| 8 | Gitaxian Probe unplayable at zero mana | **open, probable cause** → w31 F | clickability is `AvailableActions.canAfford` using the AI's `canPayManaCost`; whether it counts Phyrexian life payment is **unverified** (lane reproduces first) |
+| 9 | stack height; Ponder text unreadable | **open** → w31 A | `.stack__what` is 12px in an `overflow-y: auto` box inside a fixed `--mid-h` band; the canvas-static rule constrains the fix |
+| 10 | reload with a decision open soft-locks | **open, cause found** → w31 S | an open *ask* survives a reload and is covered by e2e; a *selection* does not: `resendAfterSnapshot` never re-sends it and the client nulls it. |
+| 11 | drag is too hard, doesn't animate | **open, deferred to w32 (default D1)** | HTML5 DnD in `Board.tsx`'s arranging plus `gestures/`; `Board.tsx` is lane A's file this wave |
+| 12 | the log has its own hover display | **open** → w31 L | `live__log-peek` at `LiveBoard.tsx:665-676` beside the document-level inspector |
+
+Also in w31: the **spectator rule** (a second browser on a held seat watches) and the
+carried **P18** (concede after game over), **P20** (sound icon) and **stale rooms**.
+
 ## Operator play test, 2026-09-30 — eighteen items, three already in flight
 
 Recorded the moment they arrived, because w29 is RUNNING and a wave in flight is
