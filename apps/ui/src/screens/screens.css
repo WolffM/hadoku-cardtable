@@ -1024,13 +1024,23 @@
 }
 
 /*
- * Random spans the grid and looks like neither a deck nor the Ready button: it
- * is an action that resolves to one of the rows above it, so it gets the dashed
- * outline this sheet already uses for "not a thing, a way of getting one".
+ * Ready and Random, above the deck list rather than after it (operator,
+ * 2026-09-30). One row, Ready first because it is the thing the screen exists to
+ * reach; they wrap on a narrow viewport rather than squeezing.
+ */
+.deckpick__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/*
+ * Random looks like neither a deck nor the Ready button: it is an action that
+ * resolves to one of the rows below it, so it gets the dashed outline this sheet
+ * already uses for "not a thing, a way of getting one".
  */
 .deckpick__random {
-  grid-column: 1 / -1;
-  justify-self: start;
   padding: 6px 14px;
   border: 1px dashed var(--color-border-light);
   border-radius: var(--hdk-radius);

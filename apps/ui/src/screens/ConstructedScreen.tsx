@@ -744,22 +744,6 @@ function DeckChooser({
           )}
         </button>
       ))}
-      {/*
-        Random is a BUTTON and not one of the radios, because it is not a state a
-        deck can be in: it resolves to one of the decks on offer and the chooser
-        then reads that deck (`chooseDeck`). A radio that can never stay checked
-        would be lying about itself.
-      */}
-      <button
-        type="button"
-        className="deckpick__random"
-        data-testid="deck-random"
-        data-deck-id={RANDOM_DECK}
-        disabled={disabled}
-        onClick={() => onChoose(RANDOM_DECK)}
-      >
-        Random
-      </button>
     </div>
   );
 }
@@ -1241,9 +1225,6 @@ function RoomTableScreen({
         }));
   }, [pod, podAnswered, draftedDeck, myPool, offered]);
 
-  /** The chosen row, so the pips beside the control are the chosen deck's. */
-  const chosenOption = (deckOptions ?? []).find((o) => o.value === deckId) ?? null;
-
   // A deck the new pool does not offer is no longer chosen. The `PUT` under the
   // new rules has already gone (the re-send below), so its verdict is on the
   // screen saying which card is the problem; what this does is stop Ready
@@ -1686,6 +1667,43 @@ function RoomTableScreen({
                       own ask. A drafted pool has none and draws none. */}
                   <PoolSets format={poolFormat} />
 
+                  {/* The two actions sit ABOVE the list, not after it. Operator,
+                      2026-09-30: *"the random button should be at the top, the
+                      ready button should also be at the top"* — the list is a grid
+                      of decks, and a Ready you have to scroll past every one of
+                      them to reach is a Ready nobody finds. Random is a button and
+                      not one of the radios because it is not a state a deck can be
+                      in: it resolves to one of the decks on offer, and the chooser
+                      then reads that deck (`chooseDeck`). */}
+                  <div className="deckpick__bar" data-testid="deck-actions">
+                    <button
+                      type="button"
+                      className="lobby__go"
+                      data-testid="ready-toggle"
+                      aria-pressed={mine?.ready === true}
+                      disabled={busy || deckId === '' || mine === null || !mine.legal || matchId !== null}
+                      onClick={() => setReady(!(mine?.ready === true))}
+                    >
+                      {mine?.ready === true ? 'Stand down' : 'Ready'}
+                    </button>
+                    <button
+                      type="button"
+                      className="deckpick__random"
+                      data-testid="deck-random"
+                      data-deck-id={RANDOM_DECK}
+                      disabled={deckOptions === null || matchId !== null}
+                      onClick={() => chooseDeck(RANDOM_DECK)}
+                    >
+                      Random
+                    </button>
+                  </div>
+                  {actionError !== null && (
+                    <p className="lobby__error" role="alert" data-testid="table-error">
+                      {actionError}
+                    </p>
+                  )}
+                  {mine?.verdict != null && <VerdictView verdict={mine.verdict} testId="verdict-mine" />}
+
                   {/* Only the decks the room's pool offers, and the pool's
                       answer is the gate's. Disabled until it has answered: an
                       option list assembled before the answer would offer decks
@@ -1699,21 +1717,6 @@ function RoomTableScreen({
                     disabled={deckOptions === null || matchId !== null}
                     onChoose={chooseDeck}
                   />
-                  {/* The chosen deck's colours as SYMBOLS again, beside the
-                      control rather than in it — the row says what the deck IS,
-                      this says what you are about to play, and both come off the
-                      one fold. `Random` has not rolled yet and has none to show. */}
-                  {chosenOption !== null && (
-                    <p className="lobby__note" data-testid="deck-mine-colors">
-                      <DeckColors
-                        colors={chosenOption.colors}
-                        label={`your deck's colours: ${
-                          chosenOption.colors.length === 0 ? 'colourless' : chosenOption.colors.join(' ')
-                        }`}
-                      />
-                    </p>
-                  )}
-                  <DeckSource deck={(offered ?? []).find((d) => d.id === deckId)} />
                   {/* Why the dropdown has nothing in it, when it has nothing in it.
                       A pool is hidden information until the draft is over, so the
                       server tells you about your own seat and nobody else's — and
@@ -1731,23 +1734,6 @@ function RoomTableScreen({
                     </p>
                   )}
 
-                  {mine?.verdict != null && <VerdictView verdict={mine.verdict} testId="verdict-mine" />}
-
-                  <button
-                    type="button"
-                    className="lobby__go"
-                    data-testid="ready-toggle"
-                    aria-pressed={mine?.ready === true}
-                    disabled={busy || deckId === '' || mine === null || !mine.legal || matchId !== null}
-                    onClick={() => setReady(!(mine?.ready === true))}
-                  >
-                    {mine?.ready === true ? 'Stand down' : 'Ready'}
-                  </button>
-                  {actionError !== null && (
-                    <p className="lobby__error" role="alert" data-testid="table-error">
-                      {actionError}
-                    </p>
-                  )}
                 </section>
               )
             )}
@@ -2128,27 +2114,6 @@ function PlayerRow({ seat, player }: { seat: number; player: RoomPlayer }) {
   );
 }
 
-/**
- * Where the chosen deck came from — a link, and nothing else.
- *
- * This used to be three sentences: the provenance line (*"Transcribed from
- * mtgtop8 deck 209238."*), the citation buried mid-sentence, and the card
- * counts. The operator wanted all of it gone; the link stays because the
- * attribution is owed, and a link is not a sentence. The name is in the
- * dropdown, the counts are the server's to complain about, and the pool is
- * stated above it.
- */
-function DeckSource({ deck }: { deck: TableDeck | undefined }) {
-  if (deck === undefined) return null;
-  return (
-    <p className="lobby__note">
-      <a className="shell__link" data-testid="deck-source" href={deck.citation} target="_blank" rel="noreferrer">
-        source
-      </a>
-    </p>
-  );
-}
-
 /** `#/play` with no room: the room list is where a match starts now. */
 function NoRoom() {
   return (
@@ -2192,7 +2157,6 @@ function VerdictView({ verdict, testId }: { verdict: Verdict; testId: string }) 
           ))}
         </ul>
       )}
-      {verdict.note !== null && <p className="lobby__note">{verdict.note}</p>}
     </div>
   );
 }

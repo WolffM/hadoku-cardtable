@@ -482,6 +482,18 @@ const chosen = (): string => screen.getByTestId('deck-mine').dataset['chosen'] ?
  * (`docs/planning/wave28-evidence/C-deck-chooser-e2e-recipe.md`) — so this helper
  * and those specs drive the control the same way a person does.
  */
+/**
+ * Press `Random`. It is a button ABOVE the deck list now, not a row inside it
+ * (operator, 2026-09-30), so `pick` — which clicks a row — cannot reach it.
+ */
+async function pressRandom(): Promise<void> {
+  await deckPicker();
+  const random = screen.getByTestId('deck-random');
+  await act(async () => {
+    fireEvent.click(random);
+  });
+}
+
 async function pick(value: string): Promise<void> {
   await deckPicker();
   const row = deckRow(value);
@@ -942,7 +954,7 @@ describe('the deck picker', () => {
   it('Random chooses one of the decks on offer, and says which one it chose', async () => {
     // Pinned source: 0.99 lands on the last deck the pool offers.
     const server = await mountRoom({ players: [opponent()], matchId: null }, () => 0.99);
-    await pick('__random__');
+    await pressRandom();
 
     expect(chosen()).toBe(PAUL_RIETZL);
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: PAUL_RIETZL } });
@@ -956,7 +968,7 @@ describe('the deck picker', () => {
     const server = await mountRoom({ players: [opponent()], matchId: null }, () => 0);
     await pickPool('2011-07-01');
     await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
-    await pick('__random__');
+    await pressRandom();
     expect(chosen()).toBe(PAUL_RIETZL);
     expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in');
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: PAUL_RIETZL } });
@@ -981,10 +993,11 @@ describe('the deck picker', () => {
     // about YOUR deck and not an explanation of the screen.
     expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (MBS)');
 
-    const source = screen.getByTestId('deck-source');
-    expect(source.tagName).toBe('A');
-    expect(source.textContent).toBe('source');
-    expect(source.getAttribute('href')).toBe('https://www.mtgtop8.com/event?e=1016&f=ST');
+    // No source link. Operator, 2026-09-30: *"the 'source' link is unecessary"*.
+    // The attribution it carried is not lost: every `.dck` keeps its `Source URL`
+    // and a "Transcribed from mtgtop8 deck …" comment, and `decks/README.md`
+    // credits each deck with its mtgtop8 link.
+    expect(screen.queryByTestId('deck-source')).toBeNull();
   });
 
   it('re-sends the deck when the pool moves, so the held verdict is never one from another pool', async () => {
@@ -1771,7 +1784,7 @@ describe('a room on a drafted pool', () => {
     expect(note.textContent).toContain(POD);
     // No rows at all — and `Random` is still there, with nothing to roll.
     expect(offered()).toEqual([]);
-    expect(deckRow(RANDOM_DECK)).toBeTruthy();
+    expect(screen.getByTestId('deck-random')).toBeTruthy();
   });
 });
 
@@ -1900,9 +1913,19 @@ describe('the deck dropdown shows its colours', () => {
     return deckPicker();
   }
 
-  /** The pips beside the control: one `<span data-color>` per colour, in WUBRG order. */
+  /**
+   * The CHOSEN deck's pips: one `<span data-color>` per colour, in WUBRG order,
+   * read off its own row. There used to be a second copy beside the control; the
+   * operator called it "extra mana symbols at the bottom that are unecessary"
+   * (2026-09-30), and the row already draws the same fold.
+   */
+  const chosenRow = (): HTMLElement => {
+    const row = document.querySelector<HTMLElement>('[data-testid="deck-option"][aria-checked="true"]');
+    if (row === null) throw new Error('no deck is chosen');
+    return row;
+  };
   const pips = (): { color: string; glyph: string }[] =>
-    [...screen.getByTestId('deck-mine-colors').querySelectorAll('.deckcolors__pip')].map((el) => ({
+    [...chosenRow().querySelectorAll('.deckcolors__pip')].map((el) => ({
       color: el.getAttribute('data-color') ?? '',
       glyph: el.querySelector('i')?.className ?? '',
     }));
@@ -1939,7 +1962,8 @@ describe('the deck dropdown shows its colours', () => {
 
   it('draws them as the D20 font pips, two for the two-colour deck and one for the mono', async () => {
     await mountWithRealDecks();
-    // Nothing chosen yet: no pips to draw, and no empty row where they will be.
+    // Nothing chosen yet, and the duplicate colour row is gone for good.
+    expect(document.querySelector('[data-testid="deck-option"][aria-checked="true"]')).toBeNull();
     expect(screen.queryByTestId('deck-mine-colors')).toBeNull();
 
     await pick(UW_DELVER.id);
@@ -1959,7 +1983,7 @@ describe('the deck dropdown shows its colours', () => {
     // beside the control, and the row's own pips. The ` · WU` letters the
     // `<option>` had to carry are gone — a `::before` glyph could not live in one,
     // and it can live in a row.
-    expect(within(screen.getByTestId('deck-mine-colors')).getByLabelText("your deck's colours: W U")).toBeTruthy();
+    expect(screen.queryByTestId('deck-mine-colors')).toBeNull();
     expect(
       within(deckRow(UW_DELVER.id)).getByLabelText(`${UW_DELVER.name}: W U`),
     ).toBeTruthy();
@@ -1977,7 +2001,35 @@ describe('the deck dropdown shows its colours', () => {
     expect(within(deckRow(BEN_STARK)).getByTestId('deck-colors').textContent).toBe('colourless');
     await pick(BEN_STARK);
     expect(pips()).toEqual([]);
-    expect(screen.getByTestId('deck-mine-colors').textContent).toBe('colourless');
+    expect(within(chosenRow()).getByTestId('deck-colors').textContent).toBe('colourless');
+  });
+});
+
+/* ── the deck section's order, and what it no longer says (2026-09-30) ──── */
+
+describe('Ready and Random come before the deck list, and the era note is not printed', () => {
+  it('puts Ready and Random ABOVE the list of decks', async () => {
+    await mountRoom({ players: [], matchId: null });
+    const list = await deckPicker();
+    const ready = screen.getByTestId('ready-toggle');
+    const random = screen.getByTestId('deck-random');
+    // DOCUMENT_POSITION_FOLLOWING (4): the list comes after each button.
+    expect(ready.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(random.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Random is an action, not one of the deck radios.
+    expect(list.contains(random)).toBe(false);
+  });
+
+  it('does not print which era a deck was built for', async () => {
+    // BANNED carries the server's era note (`libraryPoolMismatch`): "deck X is
+    // built for Standard (MBS) as of …, but the pool supplied is …". It is not a
+    // fault in the deck, and the operator called it useless. The findings stay.
+    await mountRoom({ players: [], matchId: null });
+    await pick(BEN_STARK);
+    await pickPool('2011-07-01');
+    const verdict = await screen.findByTestId('verdict-mine');
+    expect(verdict.textContent).toContain('Jace, the Mind Sculptor');
+    expect(verdict.textContent).not.toContain('built for');
   });
 });
 
