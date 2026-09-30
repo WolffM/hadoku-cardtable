@@ -5,17 +5,20 @@ operator ruled on §3.** A second browser on the same account renames the
 account, for good. Everything below comes from watchparty's own production log
 and source at `f54f34b9`. Nothing here was inferred from cardtable's side.
 
+The worktree is already scaffolded: branch `same-account`, with
+`node_modules` resolving workspace packages to the worktree, the media links
+and the vault file in place, and a green baseline. Its setup and landing rules
+are in its own `docs/handoff/same-account.md` (gitignored).
+
 ```sh
-cd /home/hadoku/repos/hadoku-watchparty && claude
+cd /home/hadoku/repos/hadoku-watchparty/.claude/worktrees/same-account && claude
 ```
 
-> Read `/home/hadoku/repos/hadoku-cardtable/docs/requests/WATCHPARTY_SAME_ACCOUNT_TWO_CONNECTIONS.md`
-> and fix it. Work in your own worktree
-> (`git worktree add .claude/worktrees/same-account -b same-account origin/main`):
-> two other sessions are live in this repo's main checkout, and wave 3
-> (`w3-manager`) is in flight. None of the files below are wave 3's. Publish
-> `@wolffm/watchparty-ui`, push to main, and report the published version plus
-> each done-when with its evidence. Don't ask questions.
+> Read docs/handoff/same-account.md, then the brief it points to, and fix it.
+> Other agents are live in this repo, so stay in this worktree and on the
+> `same-account` branch. Publish `@wolffm/watchparty-ui`, land on main, confirm
+> the deploy, remove the worktree, and report the published version plus each
+> done-when with its evidence. Don't ask questions.
 
 ---
 
