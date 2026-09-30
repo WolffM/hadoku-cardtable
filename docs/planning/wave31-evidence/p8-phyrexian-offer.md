@@ -32,19 +32,15 @@ rest. No card names.
 [phyrexian] after: life=18 graveyard=1 hand=8
 ```
 
-## A second defect, NOT fixed here (server, lane S's file)
+## A second defect, fixed by lane S (5936477)
 
-Forge wraps the life line in parentheses (`InputPayManaOfCostPayment.java:106`:
-`"\n(" + sb + ")"`), so the real prompt is `...{U/P}\n(Click on your life total to pay life
-for phyrexian mana.)`. `apps/server/src/play/auto.ts:676`, `LIFE_INSTEAD = /^Click on your
-life total to pay life for /m`, is anchored at the line start and never matches it. With no
-land, `noWayToPay` is true, `alternativePayment` false, and under the DEFAULT policy
-`decideCancel` presses Cancel at the moment the prompt opens (log `auto-cancelled
-{U/P}`), so the cast dies right after it is offered. `auto.test.ts:537` and `:1834` pass
-because their fixtures omit the parentheses. One-line fix: `/^\(?Click on your life total
-to pay life for /m`, and add the parenthesised form to those fixtures. Until then the
-test pins the seat's policy to `unpayableCost: 'ask'` (commented in the test); drop the pin
-once `auto.ts` is fixed.
+Forge wraps the life line in parentheses (`InputPayManaOfCostPayment.java:106`), so the
+real prompt is `...{U/P}\n(Click on your life total to pay life for phyrexian mana.)`, and
+`auto.ts`'s `LIFE_INSTEAD` was anchored `^Click on ...`. With no land the DEFAULT policy
+pressed Cancel as the prompt opened (`auto-cancelled {U/P}`). Lane S's commit 5936477
+accepts the optional parenthesis. The test no longer pins the stop policy: with the
+DEFAULT policy and forge-fix.jar (sha256 3e7e2856fa07...a4164) it passed 3 of 3 runs
+(life 20 -> 18, graveyard +1, card drawn).
 
 ## Mutation
 

@@ -26,7 +26,6 @@ import { describe, expect, it } from 'vitest';
 import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount } from './host.js';
-import { DEFAULT_STOP_POLICY } from './auto.js';
 import { createMatchRegistry } from './match.js';
 import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from './transport.js';
@@ -141,20 +140,6 @@ describe.skipIf(!available.ok)(title, () => {
 			expect(hand.length).toBeGreaterThanOrEqual(7);
 			const probe = hand.find((id) => offered?.includes(id) === true);
 			expect(probe, `Gitaxian Probe is not in the set the browser is offered: ${JSON.stringify(offered)}`).toBeDefined();
-
-			/*
-			 * Pinned to `ask`, and this is a FINDING, not a preference. Forge's own
-			 * payment prompt reads "Pay Mana Cost: {U/P}\n(Click on your life total to
-			 * pay life for phyrexian mana.)" — the line is wrapped in parentheses
-			 * (`InputPayManaOfCostPayment.java:106`) — and `auto.ts`'s `LIFE_INSTEAD` is
-			 * anchored `^Click on …`, so it never matches the real text. With no land
-			 * in play `noWayToPay` is then true and the DEFAULT policy presses Cancel
-			 * for the player the instant the prompt appears, so a Phyrexian spell
-			 * offered by the fix above still cannot be cast. `auto.test.ts` passes
-			 * because its fixtures omit the parentheses. Drop this pin when `auto.ts`
-			 * accepts an optional `(`.
-			 */
-			match.setStopPolicy(0, { ...DEFAULT_STOP_POLICY, unpayableCost: 'ask' });
 
 			// Click it, click its target (the opponent), and pay by clicking our own life total.
 			const opponent = match.seats[1]!.playerId ?? -1;
