@@ -1497,6 +1497,14 @@ const QUESTION_CARDS = 12;
 const MIN_QUESTION_COLUMNS = 2;
 /** What watchparty's `.wp-room-chrome` aside takes, and never gives back. */
 const CHAT_ASIDE_PX = 320;
+/**
+ * The page's own inset, both sides together (wave 31 P6, `live.css`): the table's
+ * left edge and the chat's right edge are the header's (`2rem` each), so a match
+ * page is 64px narrower than "viewport less the aside" (896 at 1280, 982 at 1366;
+ * it was 16px of shell padding, 944 and 1030, until then).
+ * `docs/planning/wave31-evidence/p6-boundary.md` measured it.
+ */
+const PAGE_INSET_PX = 64;
 
 interface QuestionFit {
   size: string;
@@ -1776,16 +1784,17 @@ test(CROWD_TITLE, async ({ browser }) => {
           const qw = `${f.name} at ${q.size}, a ${QUESTION_CARDS}-card question`;
           /*
            * The settled width, asserted rather than assumed: the table is the
-           * viewport less watchparty's pinned 320px aside, less the match
-           * shell's own 16px of side padding. 960 → 944 at 1280, 1046 → 1030 at
-           * 1366. Wave 26's blocking was applied as if the table had the whole
-           * 1280, and this is the line that says out loud that it does not.
+           * viewport less watchparty's pinned 320px aside, less the page's own
+           * 2rem inset on each side (`PAGE_INSET_PX`, wave 31 P6). 960 → 896 at
+           * 1280, 1046 → 982 at 1366. Wave 26's blocking was applied as if the
+           * table had the whole 1280, and this is the line that says out loud
+           * that it does not.
            */
           const viewportW = Number(q.size.split('x')[0]);
-          expect(q.live[0], `${qw}: the table is the viewport less the chat aside`).toBeLessThanOrEqual(
-            viewportW - CHAT_ASIDE_PX,
+          expect(q.live[0], `${qw}: the table is the viewport less the chat aside and the page inset`).toBeLessThanOrEqual(
+            viewportW - CHAT_ASIDE_PX - PAGE_INSET_PX,
           );
-          expect(q.live[0], `${qw}: and not much less than that`).toBeGreaterThanOrEqual(viewportW - CHAT_ASIDE_PX - 24);
+          expect(q.live[0], `${qw}: and not much less than that`).toBeGreaterThanOrEqual(viewportW - CHAT_ASIDE_PX - PAGE_INSET_PX - 24);
           // It is in the window, the sheet is inside its host rather than
           // hanging out of it, and nothing around the match grew.
           expect(q.inside, `${qw}: the question is wholly inside the window (${q.host.join(',')})`).toBe(true);

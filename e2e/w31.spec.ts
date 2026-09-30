@@ -18,7 +18,11 @@
  *     REFRESH is the same path and must never lock a player out of their own seat.
  *  3. **A match that is gone** shows the server's sentence and a way back, with no
  *     board chrome and nothing shaped like a Join.
- *  4. **The board in a light theme** follows the theme (P4) and its text is legible.
+ *  4. **The rail and the log (P1, P12).** Combat is one step outside combat and
+ *     six inside, without the rail moving; a card name in the log is enlarged by
+ *     the ONE inspector the board already has, not a hover surface of its own.
+ *  5. **Concede after the end (P18).** Nothing to concede once the game is over.
+ *  6. **The board in a light theme** follows the theme (P4) and its text is legible.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`) like
  * `play.spec.ts`; without one each test SKIPS and its title says why. Serves the
@@ -30,6 +34,8 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
+import { connectHands } from './play/hands.ts';
+import { answerPrompt } from './play/prompts.ts';
 import { enterMatch } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { connectSio } from './play/sio.ts';
@@ -91,8 +97,11 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
     // hand offered: that is a selection, and it is what must survive.
     await alice.page.getByTestId('live-button-cancel').click();
     const bottom = alice.page.getByTestId('live-says');
-    for (let i = 0; i < 40 && !/return \d+ card/i.test(await says(alice.page)); i++) {
-      if (/keep your hand/i.test(await says(alice.page)) && (await enabledOk(alice.page).count()) > 0) await enabledOk(alice.page).click();
+    // Bob keeps whatever he is dealt when he is asked; alice keeps the new seven.
+    for (let i = 0; i < 60 && !/return \d+ card/i.test(await says(alice.page)); i++) {
+      for (const f of [alice, bob]) {
+        if (/keep your hand/i.test(await says(f.page)) && (await enabledOk(f.page).count()) > 0) await enabledOk(f.page).click();
+      }
       await alice.page.waitForTimeout(500);
     }
     await expect(bottom).toContainText(/return \d+ card/i);
@@ -113,6 +122,21 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
     await enabledOk(alice.page).click();
     await expect(bottom, 'Forge took the answer and moved on').not.toContainText(/return \d+ card/i, { timeout: 30_000 });
     await expect(handCards(alice.page)).toHaveCount(before.hand - 1, { timeout: 30_000 });
+    // The rules' London mulligan DECIDES first and bottoms after (wave 31 §F, P7):
+    // once the card is back nothing asks her to keep again. Forge did it the other
+    // way round, so the operator saw mulligan, put one back, "keep?" again.
+    // Bob still has to keep his own hand; alice must not be asked again meanwhile.
+    let askedAgain = false;
+    for (let i = 0; i < 60 && !/^Priority: /.test(await says(alice.page)); i++) {
+      if (/keep your hand/i.test(await says(alice.page))) {
+        askedAgain = true;
+        if ((await enabledOk(alice.page).count()) > 0) await enabledOk(alice.page).click();
+      }
+      if (/keep your hand/i.test(await says(bob.page)) && (await enabledOk(bob.page).count()) > 0) await enabledOk(bob.page).click();
+      await alice.page.waitForTimeout(250);
+    }
+    expect(askedAgain, 'no second keep-or-mulligan after the bottom pick').toBe(false);
+    await expect(bottom, 'the game began for alice').toContainText(/^Priority: /);
   } finally {
     await stack.stop();
   }
@@ -211,7 +235,145 @@ test(titled('a match that is gone shows the reason and a way back, with no board
   }
 });
 
-/* ── 4. the board in a light theme ───────────────────────────────────── */
+/* ── 4. the phase rail and the log ──────────────────────────────────── */
+
+test(titled('combat is one rail step outside combat and six inside, the rail never moves; a log name opens the one inspector (P1, P12)'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  const hands: Awaited<ReturnType<typeof connectHands>>[] = [];
+  try {
+    const alice = await openFriend(browser, 'alice');
+    const bob = await openFriend(browser, 'bob');
+    await alice.page.setViewportSize({ width: 1280, height: 800 });
+    await enterMatch(alice, bob, stack.origin);
+    const rows = alice.page.locator('.live__step');
+    const names = async (f: Friend): Promise<string[]> => (await f.page.locator('.live__step-name').allTextContents()).map((n) => n.trim());
+    const railBox = async (f: Friend) => f.page.getByTestId('live-phases').boundingBox();
+
+    // Before the game has a phase at all: combat is ONE row.
+    const outside = await names(alice);
+    expect(outside.filter((n) => /combat/i.test(n)), 'one combat row outside combat').toEqual(['Combat']);
+    const outsideCount = await rows.count();
+    const outsideBoxes = { alice: await railBox(alice), bob: await railBox(bob) };
+    expect(outsideBoxes.alice, 'the rail has a box to keep').not.toBeNull();
+
+    await playFirst(alice);
+    await alice.page.getByTestId('live-button-ok').click(); // keep
+    hands.push(await connectHands(alice, 0), await connectHands(bob, 1));
+
+    // Combat is over in a few hundred milliseconds when nobody attacks, so it is
+    // WATCHED for from here on rather than waited for after the log check below.
+    // The same loop answers the asks the game raises (a scry), as every spec does.
+    const seen: { combat: { who: string; names: string[]; rows: number; box: number[] } | null; error: unknown } = { combat: null, error: null };
+    let watching = true;
+    const watcher = (async () => {
+      try {
+        while (watching) {
+          for (const f of [alice, bob]) {
+            await answerPrompt(f.page);
+            if (seen.combat !== null) continue;
+            const r = await f.page.evaluate(() => {
+              const e = document.querySelector('[data-testid="live-phases"][data-combat]');
+              if (e === null) return null;
+              const b = e.getBoundingClientRect();
+              return {
+                names: Array.from(document.querySelectorAll('.live__step-name')).map((n) => n.textContent?.trim() ?? ''),
+                rows: document.querySelectorAll('.live__step').length,
+                box: [b.x, b.y, b.width, b.height],
+              };
+            });
+            if (r !== null) seen.combat = { who: f.name, ...r };
+          }
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      } catch (err) {
+        seen.error = err;
+      }
+    })();
+
+    try {
+      // P12: a log line names a card the board has drawn; hovering the NAME enlarges
+      // that tile through the document inspector. Open the log and wait for a name.
+      await alice.page.getByTestId('live-log-toggle').click();
+      const logName = alice.page.locator('[data-log-card][data-inspect-ids]:not([data-inspect-ids=""])').first();
+      await expect(logName, 'a log line names a card that has a tile on the page').toBeVisible({ timeout: 90_000 });
+      expect(await alice.page.getByTestId('live-log-peek').count(), 'there is no second hover surface in the log').toBe(0);
+      const named = ((await logName.textContent()) ?? '').trim();
+      await logName.hover();
+      const inspected = alice.page.locator('[data-board-overlay] [data-inspect]');
+      await expect(inspected, 'the inspector the board already has opens on the log name').toHaveCount(1, { timeout: 5_000 });
+      await expect(inspected).toContainText(named);
+      await alice.page.mouse.move(2, 2);
+      await expect(inspected, 'and closes when the pointer leaves').toHaveCount(0, { timeout: 5_000 });
+
+      // Into combat: the six steps are there, in place of the one, and the rail did not move.
+      await expect.poll(() => seen.combat !== null || seen.error !== null, { timeout: 120_000, message: 'the game reached a combat step' }).toBe(true);
+    } finally {
+      watching = false;
+      await watcher;
+    }
+    if (seen.error !== null) throw seen.error;
+    const combat = seen.combat!;
+    expect(combat.names.filter((n) => /combat|attackers|blockers|damage/i.test(n)).length, `six combat steps in combat (${combat.names.join(', ')})`).toBe(6);
+    expect(combat.names, 'the one "Combat" row is gone while they show').not.toContain('Combat');
+    expect(combat.rows, 'the rail grows by the five extra rows').toBe(outsideCount + 5);
+    const before = outsideBoxes[combat.who as 'alice' | 'bob']!;
+    expect(combat.box, 'the rail did not move or resize when combat expanded it').toEqual([before.x, before.y, before.width, before.height]);
+  } finally {
+    for (const h of hands) await h.close();
+    await stack.stop();
+  }
+});
+
+/* ── 5. nothing to concede once it is over ───────────────────────────── */
+
+test(titled('concede ends the game, and after the end Concede is off on both boards and the server refuses another (P18)'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const alice = await openFriend(browser, 'alice');
+    const bob = await openFriend(browser, 'bob');
+    const { matchId } = await enterMatch(alice, bob, stack.origin);
+    await playFirst(alice);
+    for (const f of [alice, bob]) await expect(f.page.getByTestId('live-concede'), `${f.name}: Concede is on while the game is`).toBeEnabled();
+
+    await bob.page.getByTestId('live-concede').click();
+    await bob.page.getByTestId('live-concede-yes').click();
+    for (const f of [alice, bob]) {
+      await expect(f.page.locator('.board__over'), `${f.name}: the board says the game is over`).toBeVisible({ timeout: 30_000 });
+      await expect(f.page.getByTestId('live-concede'), `${f.name}: Concede is off after the end`).toBeDisabled();
+    }
+
+    // The page is not the enforcement: another concede from alice's seat is
+    // refused. Alice's window closes first, so the raw socket is the one that
+    // CONTROLS the seat (a spectator's act would be refused for that reason instead).
+    await alice.context.close();
+    const raw = await connectSio(stack.origin, 'alice');
+    try {
+      const roles: unknown[] = [];
+      raw.on('forge:role', (p) => roles.push(p));
+      await raw.request('forge:join', { matchId });
+      await expect.poll(() => roles, { timeout: 15_000 }).toContainEqual({ matchId, role: 'player' });
+      raw.emit('forge:c2s', { matchId, frame: { kind: 'act', method: 'concede' } });
+      await expect
+        .poll(() => serverLog(stack).filter((l) => l.evt === 'concede-refused' && l.matchId === matchId).length, {
+          timeout: 10_000,
+          message: 'the server logged a refused concede for the ended match',
+        })
+        .toBeGreaterThan(0);
+    } finally {
+      await raw.close();
+    }
+  } finally {
+    await stack.stop();
+  }
+});
+
+/* ── 6. the board in a light theme ───────────────────────────────────── */
 
 /** WCAG relative-luminance contrast of every drawn piece of text against what is behind it. */
 function measureContrast(root: string): {
