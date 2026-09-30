@@ -224,7 +224,7 @@
    * `live/live.css`) and the band starts at 11.5%, so 5.75rem is the room above
    * it. The roomy one is only ever drawn when there is no panel to run into.
    */
-  --mid-h: 9.25rem;
+  --mid-h: 12rem;
   --mid-h-asked: 5.75rem;
   /*
    * What the permanent overlays take of every row's right end (§A.5), and it is
@@ -465,10 +465,7 @@
  * the opponent, over it for the viewer — in `--mana-h`, a named track, so mana
  * arriving mid-turn moves nothing (§A.6).
  *
- * The viewer's bar has a FOURTH track, at its inner end: `Regroup`, the one
- * control on this board that is ours, which moved here when §A.3 took the
- * battlefield's label column away from under it. It is present exactly when the
- * seat is the viewer's, which never changes mid-match, so it moves nothing either.
+ * (Wave 31 §A.3 deleted `Regroup`, which used to be a fourth track here.)
  */
 .board .seat__who {
   grid-area: who;
@@ -521,9 +518,9 @@
 }
 
 /* The viewer's: the portrait at the INNER edge too, which is the top here, then
-   mana, the counts in the slack, and Regroup at the outer end. */
+   mana, then the counts in the slack. */
 .board .seat[data-viewer] .seat__who {
-  grid-template-rows: auto var(--mana-h) minmax(0, 1fr) auto;
+  grid-template-rows: auto var(--mana-h) minmax(0, 1fr);
 }
 
 .board .seat[data-viewer] .seat__ident {
@@ -536,11 +533,7 @@
 
 .board .seat[data-viewer] .seat__counts {
   grid-row: 3;
-  justify-content: flex-end;
-}
-
-.board .seat[data-viewer] .seat__regroup {
-  grid-row: 4;
+  align-content: flex-end;
 }
 
 /* The mark with the name under it. The `.face` draws its own name and would say
@@ -549,8 +542,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Clear of the life badge, which hangs below the mark's lower edge. */
-  gap: 6px;
+  /* The life total is in the face's own flow now, under the mark (wave 31 §A.1). */
+  gap: 2px;
   min-width: 0;
 }
 
@@ -570,19 +563,6 @@
 }
 
 /*
- * `(you)` on its own line, because the column is narrow enough to clip a long
- * name and this is the part that may not be the bit that goes: it is one of the
- * two things telling our bar from theirs (the other is which end of the canvas
- * it is at). Present exactly when the seat is the viewer's, which never changes
- * mid-match, so it moves nothing.
- */
-.board .seat__you {
-  display: block;
-  color: var(--ink-dim);
-  font-weight: 400;
-}
-
-/*
  * The counts, and the flags the game raises, down the bar one per line.
  *
  * Item 10: *"can we get symbols to display hand/deck size instead of words?"* So
@@ -593,9 +573,12 @@
  */
 .board .seat__counts {
   display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 1px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: center;
+  column-gap: 8px;
+  row-gap: 1px;
   min-width: 0;
   min-height: 0;
   padding: 0 1px;
@@ -682,65 +665,32 @@
   color: var(--ink-dim);
 }
 
-/* Our own five, off the palette: never a WotC mark and never a card frame. */
+/* The colour pie, off the theme's own `--c-*` tokens (wave 31 §A.5): the hues are
+   data and stay; the tint toward `--ink` is what follows the theme. Never a WotC
+   mark and never a card frame. */
 .seat__mana-pip[data-mana='W'] {
-  border-color: #c9c2a6;
-  color: #efe9d2;
+  border-color: var(--c-white);
+  color: color-mix(in srgb, var(--c-white) 55%, var(--ink));
 }
 .seat__mana-pip[data-mana='U'] {
-  border-color: #5f92c4;
-  color: #a8cdf0;
+  border-color: var(--c-blue);
+  color: color-mix(in srgb, var(--c-blue) 55%, var(--ink));
 }
 .seat__mana-pip[data-mana='B'] {
-  border-color: #8a7f92;
-  color: #cfc4d6;
+  border-color: var(--c-black);
+  color: color-mix(in srgb, var(--c-black) 55%, var(--ink));
 }
 .seat__mana-pip[data-mana='R'] {
-  border-color: #c2705f;
-  color: #f0b3a8;
+  border-color: var(--c-red);
+  color: color-mix(in srgb, var(--c-red) 55%, var(--ink));
 }
 .seat__mana-pip[data-mana='G'] {
-  border-color: #6fa172;
-  color: #b4d9b6;
+  border-color: var(--c-green);
+  color: color-mix(in srgb, var(--c-green) 55%, var(--ink));
 }
 .seat__mana-pip[data-mana='C'] {
   border-color: var(--line);
   color: var(--ink-dim);
-}
-
-/*
- * Regroup — ours, and the only control on this board that answers no question
- * (`Board.tsx`). It clears BOTH slots of the seat's arrangement, so it lives in
- * the seat's bar rather than on one zone, which is where §A.3 put it when the
- * battlefield's label column went.
- */
-.board .seat__regroup {
-  flex: none;
-  margin: 0;
-  padding: 1px 4px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--ink-dim);
-  font: inherit;
-  font-size: 9px;
-  line-height: 1.3;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-}
-
-.board .seat__regroup:hover {
-  color: var(--ink);
-  border-color: var(--ink-dim);
-}
-
-.board .seat__regroup:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
 }
 
 .seat > .zone--battlefield {
@@ -766,16 +716,23 @@
  * vertically instead, each pile keeps the column's FULL width — 72px instead
  * of 40px measured before this change — and the two `fr` rows are not equal
  * for the same reason the old columns were not: the graveyard is the pile
- * that actually fills up, so it gets 1.5 of the 2.5 shares and exile keeps a
- * row of its own rather than being squeezed to nothing. Neither pile is ever
- * sized by what is in it either way.
+ * that actually fills up.
+ *
+ * Wave 31 §A.2 (the operator, second play test: *"we certainly dont need to
+ * bisect the vertical space on the left side bar. the graveyard should get at
+ * least 75% of the vertical space there."*): w30's `1.5fr / 1fr` was 60%. It is
+ * `4fr / 1fr` now — the graveyard is 4/5 of the free height, so with the 2px gap
+ * it is at least 75% of the cell from 32px up (`Board.test.ts` derives it from
+ * these two declarations) — and exile is a strip, which is all a pile of a few
+ * cards needs. The counts do not spend any of it: they are one line in the
+ * furniture cell above (`.seat__counts`), not a row down this one.
  */
 .seat__piles {
   grid-area: piles;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1.5fr) minmax(0, 1fr);
-  gap: 4px;
+  grid-template-rows: minmax(0, 4fr) minmax(0, 1fr);
+  gap: 2px;
   min-width: 0;
   min-height: 0;
 }
@@ -871,8 +828,6 @@
   padding: 0 0 0 2px;
   padding-right: var(--right-gutter);
   background: var(--bg);
-  border: 1px solid rgb(0 0 0 / 55%);
-  box-shadow: inset 0 3px 8px rgb(0 0 0 / 70%);
 }
 
 /*
@@ -1364,8 +1319,10 @@
 
 .stack__items {
   /* The art is as tall as the band lets it be: the band, less its border and
-     padding, less the item's own border and padding. */
-  --stack-card-w: calc((var(--mid-h) - 18px) / var(--card-tall));
+     padding, less the item's own border and padding — but never wider than 3.5rem
+     (wave 31 §A.4): the art is a recognition aid and the TEXT is what is read,
+     and a 113px-wide card left the effect 150px of line. */
+  --stack-card-w: min(3.5rem, calc((var(--mid-h) - 18px) / var(--card-tall)));
 
   display: flex;
   flex-direction: row;
@@ -1381,8 +1338,19 @@
   scrollbar-width: thin;
 }
 
+/*
+ * Wave 31 §A.4, the operator's P9: *"stack height is poorly configured, the
+ * textbox for ponder is not readable."* The item is the band's whole width (one
+ * item at a time, the rest a sideways scroll away) rather than a fixed 16rem, so
+ * nothing is clipped at its right edge, and its text 13px rather than 12px, in a band that is 12rem rather than 9.25rem —
+ * sized ONCE (`--mid-h`, and `--mid-h-asked` while a question stands in front of
+ * it), never by how many items there are, so the canvas stays as static as it
+ * was. Ponder's full text (about 200 characters) fits without scrolling; an
+ * effect longer than that still scrolls inside `.stack__what`, the last resort,
+ * and the compact band a question forces is the one place that happens sooner.
+ */
 .stack__item {
-  flex: 0 0 16rem;
+  flex: 0 0 100%;
   min-width: 0;
   padding: 2px 6px 2px 2px;
   background: var(--bg-card);
@@ -1430,7 +1398,8 @@
 }
 
 .stack__text {
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.3;
 }
 
 /* ── the staging area: a card being played (item 17.2) ─────────────── */

@@ -578,19 +578,33 @@ button.board-card__face:focus-visible {
 }
 
 /*
- * In a seat's bar the mark is the bar's width less its padding, and its badge
- * is centred on the mark's lower edge: hung off the corner, as it is in the
- * draft, the badge would run out of a `--who-w` column that clips.
+ * In a seat's bar the mark is the bar's width less its padding, and — wave 31
+ * §A.1, the operator's P3 — its life total sits BELOW the mark, in the flow,
+ * rather than over the mark's lower edge. Over it, the number hid the avatar the
+ * watchparty player had picked. `.face__hit` stops being a square box here and
+ * becomes a column of the mark (still `--face-w` square, which is what
+ * `e2e/table-fit.spec.ts`'s 28px aim check reads) and the number under it.
  */
 .seat__ident .face {
   --face-w: 2.5rem;
 }
 
+.seat__ident .face__hit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  height: auto;
+}
+
+.seat__ident .face__art {
+  flex: none;
+  width: var(--face-w);
+  height: var(--face-w);
+}
+
 .seat__ident .face__life {
-  right: auto;
-  left: 50%;
-  bottom: -3px;
-  translate: -50% 0;
+  position: static;
   min-width: 1.5rem;
   padding: 0 4px;
   font-size: 11px;

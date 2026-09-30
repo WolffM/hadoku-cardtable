@@ -364,6 +364,14 @@ export interface AdaptOptions {
    * avatar — not an error.
    */
   avatarByPlayerId?: ReadonlyMap<number, string>;
+  /**
+   * Every seat's display name, keyed by Forge PLAYER id — wave 31 §A.1, agreed
+   * shape 2 (`SeatIdentity.name`, absent when unknown, on `forge:seats`). A live
+   * match fills it the way it fills `avatarByPlayerId`; a player id this map does
+   * not hold (or holds a blank for) keeps what Forge calls the player, which is
+   * what the board showed before the names went in.
+   */
+  nameByPlayerId?: ReadonlyMap<number, string>;
 }
 
 // ── what a card's printed power and toughness are ───────────────────────────
@@ -721,7 +729,7 @@ export const PHASE_LABEL: Readonly<Record<string, string>> = {
 export function toBoardView(
   state: WireState,
   seq: number,
-  { viewerPlayerId, artIds = KNOWN_ART_IDS, printedPT = POOL_PRINTED_PT, avatarByPlayerId }: AdaptOptions,
+  { viewerPlayerId, artIds = KNOWN_ART_IDS, printedPT = POOL_PRINTED_PT, avatarByPlayerId, nameByPlayerId }: AdaptOptions,
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === WireType.Game);
   const missing: number[] = [];
@@ -743,9 +751,14 @@ export function toBoardView(
     const isViewer = pid === viewerPlayerId;
     const handIds = readIds(p, 'Hand');
     const avatarId = avatarByPlayerId?.get(pid);
+    const seatName = nameByPlayerId?.get(pid);
     return {
       id: pid,
-      name: readStr(p, 'Name') ?? `player ${pid}`,
+      // Defensive: the seat's name is wire data. Only a non-blank string wins.
+      name:
+        typeof seatName === 'string' && seatName.trim() !== ''
+          ? seatName
+          : (readStr(p, 'Name') ?? `player ${pid}`),
       life: readInt(p, 'Life'),
       isViewer,
       isActive: pid === activePlayerId,

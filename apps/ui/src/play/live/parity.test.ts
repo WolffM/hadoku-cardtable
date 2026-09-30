@@ -147,6 +147,18 @@
  * Lane B moved nothing here, as this file's own rule predicts: it renders
  * `Board` alone, and B owns nothing `Board` imports.
  *
+ * Re-recorded in Wave 31 §A (lane A, P3 and P5): 41422 -> 41256, and every one
+ * of the 166 characters is accounted for — the operator asked for the visible
+ * `(you)` to go and for Regroup to be deleted:
+ *
+ *  -129  `<button type="button" class="seat__regroup" data-arrange-reset=""
+ *        aria-label="Regroup your battlefield and hand">Regroup</button>`
+ *   -37  `<span class="seat__you"> (you)</span>`
+ *  ─────
+ *  -166  41422 -> 41256, and 129 + 37 = 166 exactly. The seat's `aria-label`
+ *        still says `… (you)` (that is an attribute of the same length it was),
+ *        and nothing else in the markup moved: the new layout is CSS.
+ *
  * Re-recorded in Wave 25 for `3710618` (lane E: the hand gained the same free
  * arrangement the battlefield has, the graveyard moved under the portrait and
  * its counts, and a claimed press selects no text). That commit does not own
@@ -266,8 +278,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = 'f08df2ae50d3b03e9f4842ff1bd565df004690273d50308f31139da1353e73cf';
-const BASELINE_LENGTH = 41422;
+const BASELINE_SHA256 = '757f9892b6078bf0a4977fe40d7bf93f687b47fb897c02f9eebddeb9701817e7';
+const BASELINE_LENGTH = 41256;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

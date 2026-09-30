@@ -95,11 +95,10 @@ function renderBoard(
 }
 
 /**
- * Forge's own controls are the cards and the seats; `Regroup` is ours and
- * answers nothing (`Board.tsx`). The assertions about what Forge made
- * clickable count the buttons that are Forge's.
+ * Forge's own controls are the cards and the seats. `Regroup`, the one control
+ * that was ours, was deleted in wave 31 §A.3, so every button is Forge's.
  */
-const forgeButtons = (container: HTMLElement) => container.querySelectorAll('button:not([data-arrange-reset])');
+const forgeButtons = (container: HTMLElement) => container.querySelectorAll('button');
 
 /**
  * §A.4. The operator, 2026-09-27: *"i dont understand what 'turn bar' and 'seat 1
@@ -482,8 +481,7 @@ describe('BoardInteraction', () => {
     const { container } = renderBoard(view);
     expect(forgeButtons(container)).toHaveLength(0);
     expect(container.querySelectorAll('[data-selectable]')).toHaveLength(0);
-    // Ours is still there: it answers nothing and is not Forge's to enable.
-    expect(container.querySelectorAll('[data-arrange-reset]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-arrange-reset]'), 'Regroup is gone (§A.3)').toHaveLength(0);
   });
 
   it('makes exactly the selectable cards buttons, and a click reports the id', () => {
@@ -524,12 +522,9 @@ describe('BoardInteraction', () => {
     const { seat } = renderBoard(view, interaction);
     expect(seat(them.id).dataset.selectable).toBe('true');
     expect(seat(me.id).dataset.selectable).toBeUndefined();
-    /*
-     * `Regroup` is in the viewer's own bar since §A.3, and it is OURS: the bar
-     * holds no button that is Forge's while this seat is not selectable.
-     */
-    expect(seat(me.id).querySelector('[data-player-bar] button:not([data-arrange-reset])')).toBeNull();
-    expect(seat(me.id).querySelectorAll('[data-player-bar] [data-arrange-reset]'), 'ours, and one of it').toHaveLength(1);
+    // Wave 31 §A.3 deleted `Regroup`, the one button of ours in the bar, so a seat
+    // that is not selectable holds no button at all.
+    expect(seat(me.id).querySelector('[data-player-bar] button')).toBeNull();
     fireEvent.click(seat(me.id).querySelector('.seat__name')!);
     // Their bar holds two ways to choose them — the name and the face. This is
     // the name.
@@ -824,12 +819,11 @@ describe('the canvas is static', () => {
     expect(declarationIn('.board .seat__mana', 'grid-row')).toBe('2');
     expect(declarationIn('.board .seat__ident', 'grid-row')).toBe('3');
     expect(declarationIn('.board .seat[data-viewer] .seat__who', 'grid-template-rows')).toBe(
-      'auto var(--mana-h) minmax(0, 1fr) auto',
+      'auto var(--mana-h) minmax(0, 1fr)',
     );
     expect(declarationIn('.board .seat[data-viewer] .seat__ident', 'grid-row')).toBe('1');
     expect(declarationIn('.board .seat[data-viewer] .seat__mana', 'grid-row')).toBe('2');
     expect(declarationIn('.board .seat[data-viewer] .seat__counts', 'grid-row')).toBe('3');
-    expect(declarationIn('.board .seat[data-viewer] .seat__regroup', 'grid-row')).toBe('4');
     // The graveyard left the bar entirely, and the bar's track for it with it.
     expect(BOARD_RULES, 'the bar no longer has a graveyard track').not.toContain('--grave-h');
     expect(BOARD_RULES).not.toContain('--grave-w');
@@ -851,7 +845,7 @@ describe('the canvas is static', () => {
     // The graveyard has the bigger share — it is the one that fills up — and a
     // ratio is still a fixed track.
     expect(declarationIn('.seat__piles', 'grid-template-columns')).toBe('minmax(0, 1fr)');
-    expect(declarationIn('.seat__piles', 'grid-template-rows')).toBe('minmax(0, 1.5fr) minmax(0, 1fr)');
+    expect(declarationIn('.seat__piles', 'grid-template-rows')).toBe('minmax(0, 4fr) minmax(0, 1fr)');
     // The left column is one cell per seat ROW, mirrored: furniture beside the
     // battlefield, piles beside the hand, on both sides of the table.
     expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'who field' 'piles hand'");
@@ -1215,9 +1209,7 @@ describe('the seat’s vertical bar (#9)', () => {
       const bar = seat(p.id).querySelector<HTMLElement>('[data-player-bar]')!;
       expect(bar.querySelector('[data-zone]'), `seat ${p.id}'s bar holds no zone`).toBeNull();
       expect([...bar.children].map((c) => c.className), `seat ${p.id}'s bar, in order`).toEqual(
-        p.isViewer
-          ? ['seat__ident', 'seat__mana', 'seat__counts', 'seat__regroup']
-          : ['seat__ident', 'seat__mana', 'seat__counts'],
+        ['seat__ident', 'seat__mana', 'seat__counts'],
       );
       const piles = seat(p.id).querySelector<HTMLElement>('.seat__piles')!;
       expect(
@@ -1238,15 +1230,19 @@ describe('the seat’s vertical bar (#9)', () => {
     expect(BOARD_RULES).not.toContain('seat__who > .zone--graveyard');
   });
 
-  it('tells ours from theirs: the viewer’s bar says (you) and its seat says data-viewer', () => {
+  it('tells ours from theirs: no visible (you); the seat says data-viewer and its accessible name says (you)', () => {
     const { container, seat } = renderBoard(view);
     const board = container.querySelector<HTMLElement>('.board')!;
     const me = view.players.find((p) => p.isViewer)!;
     const them = view.players.find((p) => !p.isViewer)!;
     expect(seat(me.id).dataset.viewer).toBe('true');
     expect(seat(them.id).dataset.viewer).toBeUndefined();
-    expect(seat(me.id).querySelector('.seat__you')!.textContent).toBe(' (you)');
-    expect(seat(them.id).querySelector('.seat__you')).toBeNull();
+    // §A.1 (P3): no text node anywhere in the seat reads `(you)`; the section's
+    // accessible name is where it survives, for screen readers.
+    expect(seat(me.id).querySelector('.seat__you')).toBeNull();
+    expect(seat(me.id).textContent).not.toContain('(you)');
+    expect(seat(me.id).getAttribute('aria-label')).toBe(`${me.name} (you)`);
+    expect(seat(them.id).getAttribute('aria-label')).toBe(them.name);
     // The face carries it too, which is the hook `board.css` and the e2e spec
     // both select on (`[data-player-face][data-viewer]`).
     expect(board.querySelector<HTMLElement>('[data-player-face][data-viewer]')!.dataset.playerId).toBe(String(me.id));
@@ -1539,16 +1535,6 @@ describe('drag to arrange (#10)', () => {
     expect(elsewhere.rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
   });
 
-  it('Regroup throws it away and the default grouping comes back', () => {
-    const { container, rowIds, getByLabelText } = renderBoard();
-    // Dropped on the row itself, so it joins the end of it.
-    drag(container, 8, { row: 'creatures' });
-    expect(rowIds(0, 'creatures')).toEqual([21, 8]);
-    fireEvent.click(getByLabelText('Regroup your battlefield and hand'));
-    expect(rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
-    expect(rowIds(0, 'creatures')).toEqual([21]);
-  });
-
   it('sends nothing to the engine: no selection, no reply, only the view moved', () => {
     const view = boardFromFixture(fixture);
     /*
@@ -1570,7 +1556,7 @@ describe('drag to arrange (#10)', () => {
     expect(view.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id)).toEqual([8, 24, 21, 6, 25]);
   });
 
-  it('is the viewer’s own battlefield and hand only, and one Regroup with both', () => {
+  it('is the viewer’s own battlefield and hand only, and there is no reset control', () => {
     const { container, seat } = renderBoard();
     // Five permanents and the five cards of their own hand (§E.1). With no
     // `interaction` at all nothing is offered, so the whole hand arranges.
@@ -1582,8 +1568,7 @@ describe('drag to arrange (#10)', () => {
     expect(seat(0).querySelectorAll('[data-zone="exile"] .board-card[draggable]')).toHaveLength(0);
     // The opponent's side is theirs to arrange, on their own screen.
     expect(seat(1).querySelectorAll('.board-card[draggable]')).toHaveLength(0);
-    expect(seat(1).querySelectorAll('[data-arrange-reset]')).toHaveLength(0);
-    expect(container.querySelectorAll('[data-arrange-reset]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-arrange-reset]'), 'Regroup is gone (§A.3)').toHaveLength(0);
   });
 
   it('a card dragged onto the opponent’s battlefield stays where it was', () => {
@@ -1739,14 +1724,6 @@ describe('drag to stack (#1, #19)', () => {
     expect(columns(after.container), 'a new view and a new mount draw the same piles').toEqual([[8, 24], [6], [25]]);
   });
 
-  it('Regroup throws the piles away too', () => {
-    const { container, getByLabelText } = renderBoard();
-    dragOnto(container, 24, 8, 'top');
-    expect(columns(container)).toEqual([[8, 24], [6], [25]]);
-    fireEvent.click(getByLabelText('Regroup your battlefield and hand'));
-    expect(columns(container), 'the default grouping is back, nothing stacked').toEqual([[8], [24], [6], [25]]);
-  });
-
   it('a card dropped on ITSELF changes nothing', () => {
     const { container } = renderBoard();
     dragOnto(container, 8, 8, 'top');
@@ -1758,7 +1735,7 @@ describe('drag to stack (#1, #19)', () => {
   /**
    * The safety control: a rearrange is invisible to Forge. Every sender the
    * board has is counted, across every gesture this lane owns — reorder, stack
-   * above, stack below, unstack, and Regroup — with every card and both players
+   * above, stack below, unstack — with every card and both players
    * declared selectable, which is the state in which a stray click WOULD send.
    */
   it('sends nothing to the engine: no sender is called by any arrangement gesture', () => {
@@ -1774,7 +1751,7 @@ describe('drag to stack (#1, #19)', () => {
       me.battlefield.map((c) => c.id),
       view.players.map((p) => p.id),
     );
-    const { container, getByLabelText } = renderBoard(view, interaction);
+    const { container } = renderBoard(view, interaction);
     expect(container.querySelectorAll('.board-card[data-selectable]').length, 'the senders really are armed').toBe(5);
     expect(
       container.querySelectorAll('.seat[data-viewer] [data-zone="battlefield"] .board-card[draggable="true"]'),
@@ -1787,10 +1764,9 @@ describe('drag to stack (#1, #19)', () => {
     fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="24"]')!);
     fireEvent.dragOver(lane);
     fireEvent.drop(lane);
-    fireEvent.click(getByLabelText('Regroup your battlefield and hand'));
 
     // The board really did move — so the zero below is not "nothing happened".
-    expect(container.querySelector('.seat[data-viewer] [data-board-row="other"]')!.querySelectorAll('.board-card')).toHaveLength(0);
+    expect(container.querySelector('.seat[data-viewer] [data-board-row="other"]')!.querySelectorAll('.board-card')).toHaveLength(1);
     expect(onSelectCard, 'no card was selected by a drag').not.toHaveBeenCalled();
     expect(onSelectPlayer, 'no player was selected by a drag').not.toHaveBeenCalled();
     expect(onSelectCard.mock.calls.length + onSelectPlayer.mock.calls.length, 'zero senders invoked').toBe(0);
@@ -1804,7 +1780,6 @@ describe('drag to stack (#1, #19)', () => {
     const { container, seat } = renderBoard();
     // Nothing on their side is draggable or a drop target in the first place.
     expect(seat(1).querySelectorAll('.board-card[draggable]')).toHaveLength(0);
-    expect(seat(1).querySelectorAll('[data-arrange-reset]')).toHaveLength(0);
 
     const theirs = (id: number) => container.querySelector<HTMLElement>(`.seat:not([data-viewer]) [data-card-id="${id}"]`)!;
     // Their own card onto their own card, in the stacking third.
@@ -1834,7 +1809,7 @@ describe('drag to stack (#1, #19)', () => {
   /**
    * §A.2 (#11). `AttachedCards` is Forge's answer about the board, so an
    * equipped creature and its gear are one stack whatever the player does with
-   * the arrangement — including dragging the gear away, and including Regroup.
+   * the arrangement — including dragging the gear away.
    */
   describe('an equipped creature and its gear are one stack (#11)', () => {
     /** The fixture, with an Equipment attached to the viewer's Fire Urchin (21). */
@@ -1901,15 +1876,6 @@ describe('drag to stack (#1, #19)', () => {
       dragOnto(container, 901, 8, 'top');
       expect(columns(container, 'lands')).toEqual([[8], [24], [6], [25]]);
       expect(columns(container, 'creatures')).toEqual([[21, 901]]);
-    });
-
-    it('holds through Regroup', () => {
-      const { container, getByLabelText } = renderBoard(equipped());
-      dragOnto(container, 21, 8, 'top');
-      expect(columns(container, 'lands')).toEqual([[8, 21, 901], [24], [6], [25]]);
-      fireEvent.click(getByLabelText('Regroup your battlefield and hand'));
-      expect(columns(container, 'lands'), 'the default grouping is back').toEqual([[8], [24], [6], [25]]);
-      expect(columns(container, 'creatures'), 'and the equip stack with it').toEqual([[21, 901]]);
     });
 
     it('leaves an aura on the opponent’s creature where Forge lists it', () => {
@@ -2028,8 +1994,6 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
     const { interaction } = spyInteraction(me.battlefield.map((c) => c.id), [], true);
     const { container } = renderBoard(view, interaction);
     expect(container.querySelectorAll('.board-card[draggable]'), 'the whole board is Forge’s while it asks').toHaveLength(0);
-    // Regroup is ours and is not Forge's to disable: it answers nothing.
-    expect(container.querySelectorAll('[data-arrange-reset]')).toHaveLength(1);
   });
 
   it('defaults to no selection open when the field is absent', () => {
@@ -2241,8 +2205,8 @@ describe('drag to arrange your own hand (#2)', () => {
     expect(handIds(renderBoard(drew).container)).toEqual([...arranged, 909]);
   });
 
-  it('is per match, and Regroup throws the hand’s order away with the battlefield’s', () => {
-    const { container, rowIds, getByLabelText } = renderBoard(view);
+  it('is per match: another match starts from the view’s order', () => {
+    const { container, rowIds } = renderBoard(view);
     drag(container, hand.at(-1)!, { card: hand[0]! });
     fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="8"]')!);
     const lane = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="other"]')!;
@@ -2250,10 +2214,6 @@ describe('drag to arrange your own hand (#2)', () => {
     fireEvent.drop(lane);
     expect(handIds(container)).not.toEqual(hand);
     expect(rowIds(0, 'other')).toEqual([8]);
-
-    fireEvent.click(getByLabelText('Regroup your battlefield and hand'));
-    expect(handIds(container), 'the hand is back in the view’s order').toEqual(hand);
-    expect(rowIds(0, 'other'), 'and so is the battlefield').toEqual([]);
 
     // Another match starts from the view's order, as the battlefield does.
     cleanup();
@@ -3304,5 +3264,94 @@ describe('item 11 — one board by default, four lanes as the alternate', () => 
     dropAt(cardEl(first!), AT.middle);
     expect(flatIds()[0]).toBe(third);
     expect(container.querySelectorAll('[data-board-row]'), 'still no type sections').toHaveLength(0);
+  });
+});
+
+/**
+ * Wave 31 §A — the board surface after the operator's second play test. One case
+ * per item, each reading the thing that item changed rather than a neighbour.
+ */
+describe('wave 31 §A: the seat, the left column and the stack', () => {
+  const BOARD_TSX = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'Board.tsx'), 'utf8');
+
+  it('P3: no text node says (you), the life sits under the mark, and the name is the seat’s own', () => {
+    const { container, seat, view } = renderBoard();
+    const me = view.players.find((p) => p.isViewer)!;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n !== null; n = walker.nextNode()) {
+      expect(n.textContent, 'no visible (you) anywhere on the board').not.toContain('(you)');
+    }
+    // Still there for a screen reader.
+    expect(seat(me.id).getAttribute('aria-label')).toBe(`${me.name} (you)`);
+    // The life is the face's last child after the mark, in flow: the card.css rule
+    // that used to lay it over the avatar is overridden to `static` in the seat.
+    const hit = seat(me.id).querySelector('.face__hit')!;
+    expect([...hit.children].map((c) => (c.getAttribute('class') ?? '').split(' ')[0])).toEqual(['face__art', 'face__life']);
+    expect(declarationInCss(CARD_CSS, '.seat__ident .face__life', 'position')).toBe('static');
+    expect(declarationInCss(CARD_CSS, '.seat__ident .face__art', 'width')).toBe('var(--face-w)');
+  });
+
+  it('P3: the adapter takes the seat’s name from identity.name, and falls back to Forge’s when it is blank or absent', () => {
+    const state = foldPackets(loadPackets(fixture)).state;
+    const base = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+    const ids = base.players.map((p) => p.id);
+    const named = toBoardView(state, 27, {
+      viewerPlayerId: fixture.viewerPlayerId,
+      artIds: TEST_ART_IDS,
+      nameByPlayerId: new Map([
+        [ids[0]!, 'Hadoku'],
+        [ids[1]!, '   '],
+      ]),
+    });
+    const nameOf = (v: BoardView, id: number) => v.players.find((p) => p.id === id)!.name;
+    expect(nameOf(named, ids[0]!)).toBe('Hadoku');
+    expect(nameOf(named, ids[1]!), 'blank falls back to what Forge calls them').toBe(nameOf(base, ids[1]!));
+    expect(nameOf(base, ids[0]!), 'and no map at all is what it always was').not.toBe('Hadoku');
+  });
+
+  it('P2: the graveyard takes at least 75% of the left column’s pile cell, exile is the strip', () => {
+    const rows = declarationIn('.seat__piles', 'grid-template-rows')!;
+    const [grave, exile] = [...rows.matchAll(/minmax\(0,\s*([\d.]+)fr\)/g)].map((m) => Number.parseFloat(m[1]!));
+    const gap = Number.parseFloat(declarationIn('.seat__piles', 'gap')!);
+    // The cell is the hand's row: 2.6/6.6 of a seat of a 400px half-canvas at 1280×800.
+    // Test the share across the heights a cell can be, from far below that to far above.
+    for (const height of [64, 100, 150, 240, 400]) {
+      const share = (((height - gap) * grave!) / (grave! + exile!)) / height;
+      expect(share, `graveyard share of a ${height}px pile cell`).toBeGreaterThanOrEqual(0.75);
+    }
+    expect(exile!, 'exile keeps a strip, not nothing').toBeGreaterThan(0);
+    // The counts spend none of it: they are in the furniture cell, on one row.
+    const { seat } = renderBoard();
+    expect(seat(0).querySelector('.seat__piles [data-testid="hand-count"]')).toBeNull();
+    expect(declarationIn('.board .seat__counts', 'flex-direction')).toBe('row');
+  });
+
+  it('P5: Regroup is gone from the markup, the stylesheet and the source', () => {
+    const { container } = renderBoard();
+    expect(container.querySelector('[data-arrange-reset], .seat__regroup')).toBeNull();
+    expect(container.textContent).not.toMatch(/Regroup/i);
+    expect(BOARD_RULES).not.toContain('seat__regroup');
+    const code = BOARD_TSX.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code).not.toMatch(/regroup\s*\(|withoutSeat|ARRANGE_SLOTS|data-arrange-reset/);
+  });
+
+  it('P9: a stack effect is read at 13px in an item as wide as the band, and the band is one size per state, not per item', () => {
+    expect(Number.parseFloat(declarationIn('.stack__text', 'font-size')!)).toBeGreaterThanOrEqual(13);
+    expect(declarationIn('.stack__item', 'flex')).toBe('0 0 100%');
+    // The band is sized by state (`--mid-h`, `--mid-h-asked`) and nothing else:
+    // no rule of the stack sizes itself by what it holds.
+    expect(Number.parseFloat(declarationIn('.board', '--mid-h')!)).toBeGreaterThanOrEqual(12);
+    expect(declarationIn('.board__mid', 'height')).toBe('var(--mid-h)');
+    // The card cannot crowd the text out: its width is capped.
+    expect(declarationIn('.stack__items', '--stack-card-w')).toContain('min(3.5rem');
+  });
+
+  it('P6: the canvas has no outer border or inset shadow, and board.css has no hex literal', () => {
+    expect(declarationIn('.seat > .zone--battlefield', 'border')).toBeUndefined();
+    expect(declarationIn('.seat > .zone--battlefield', 'box-shadow')).toBeUndefined();
+    expect(BOARD_RULES.match(/#[0-9a-fA-F]{3,8}\b/g), 'the colour pie comes off the --c-* tokens').toBeNull();
+    for (const c of ['white', 'blue', 'black', 'red', 'green']) {
+      expect(BOARD_RULES).toContain(`var(--c-${c})`);
+    }
   });
 });

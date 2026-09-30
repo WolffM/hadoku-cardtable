@@ -587,14 +587,6 @@ type Grouped = Readonly<Record<BoardRow, readonly Pile[]>>;
  */
 type ArrangeSlot = BoardRow | 'hand';
 /**
- * Every slot `Regroup` clears, both layouts' at once. A seat has one
- * arrangement store and one reset control; switching the board's layout
- * setting does not need its own Regroup because each layout's rows live under
- * their own keys (`slotKey`) and do not collide.
- */
-const ARRANGE_SLOTS: readonly ArrangeSlot[] = [...BOARD_ROWS, ...SINGLE_ROWS, 'hand'];
-
-/**
  * The player's own arrangement, as PILES of card ids per `<playerId>:<slot>`. A
  * slot the store does not name is drawn in the view's order, each card on its
  * own; a slot it names is drawn in the player's piles, and then anything the
@@ -870,13 +862,6 @@ function withHandMove(
   return { ...arranged, [slotKey(playerId, 'hand')]: ids.map((id) => [id]) };
 }
 
-/** The arrangement with one seat's slots thrown away: the default order is back. */
-function withoutSeat(playerId: number, arranged: Arrangement): Arrangement {
-  const next: Record<string, readonly (readonly number[])[]> = { ...arranged };
-  for (const slot of ARRANGE_SLOTS) delete next[slotKey(playerId, slot)];
-  return next;
-}
-
 /**
  * The drag, as the markup sees it. Present only on the viewer's own battlefield
  * and their own hand; every other zone gets `undefined` and renders no drag
@@ -895,12 +880,6 @@ interface Arranging {
   dropInto(event: DragEvent, slot: ArrangeSlot): void;
   /** A drag that ended anywhere — including outside the board — carries nothing now. */
   end(): void;
-  /**
-   * Throw the whole SEAT's arrangement away: the battlefield's rows and the
-   * hand's order both, since they are one store and one control. Its button
-   * lives on the battlefield's gutter and says so in its accessible name.
-   */
-  regroup(): void;
 }
 
 /**
@@ -1733,12 +1712,13 @@ function PlayerArea({
 }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
   const side: ZoneOwner = player.isViewer ? 'you' : 'them';
-  const name = (
-    <>
-      {player.name}
-      {player.isViewer && <span className="seat__you"> (you)</span>}
-    </>
-  );
+  /*
+   * No visible `(you)` (wave 31 §A.1, the operator's P3): the seat's own name is
+   * what the table shows. Ours from theirs still rests on the seat's end of the
+   * canvas, `data-viewer` and the brighter ink — and the SECTION's accessible
+   * name below still says `(you)`, because a screen reader has none of those.
+   */
+  const name = player.name;
   return (
     <section
       className="seat"
@@ -1817,24 +1797,6 @@ function PlayerArea({
           {player.hasPriority && <span className="seat__flag">priority</span>}
           {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
         </div>
-        {/*
-         * Regroup, which lives here now that the battlefield has no label column
-         * to hang it off (§A.3 took the zone's gutter with its caption). This is
-         * also where it belongs: it clears BOTH slots of the seat's arrangement —
-         * the battlefield and the hand — so it is the seat's control and not one
-         * zone's, which its accessible name has said all along.
-         */}
-        {arranging !== undefined && (
-          <button
-            type="button"
-            className="seat__regroup"
-            data-arrange-reset=""
-            aria-label="Regroup your battlefield and hand"
-            onClick={arranging.regroup}
-          >
-            Regroup
-          </button>
-        )}
       </div>
 
       <Battlefield
@@ -2121,10 +2083,6 @@ export function Board({
           },
           end() {
             carried.current = null;
-          },
-          regroup() {
-            ARRANGED.set(key, withoutSeat(viewer.id, arranged));
-            redraw();
           },
         };
 
