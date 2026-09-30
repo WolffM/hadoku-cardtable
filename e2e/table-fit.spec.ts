@@ -829,7 +829,7 @@ test(TITLE, async ({ browser }) => {
 
     /* ── 2. real play, until both battlefields are a board ─────────── */
 
-    for (const f of friends) hands.push(await connectHands(origin, f.name, matchId));
+    for (const [seat, f] of friends.entries()) hands.push(await connectHands(f, seat));
     const playDeadline = Date.now() + PLAY_BUDGET_MS;
     let lastTurn = await turnOf(alice);
     const discards: { who: string; turn: number }[] = [];

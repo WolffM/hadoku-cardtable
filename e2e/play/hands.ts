@@ -1,204 +1,97 @@
 /**
- * TEST SCAFFOLDING for a product gap: the buttons the board does not have.
+ * TEST SCAFFOLDING: a person's hands on the board, for the parts of a game the
+ * spec is not about — playing a land, casting a spell, passing priority.
  *
- * ## The gap, measured by the spec before this is ever connected
+ * ## Through the page, since wave 31
  *
- * The browser's board ANSWERS asks (`LiveBoard` → the prompt components →
- * `answerAsk`), but it cannot ACT. Nothing in `apps/ui/src/play/` sends a
- * `ClientAct`: `live/match.ts` exports `answerAsk`, `answerConfirm`, `abortAsk`
- * and nothing that emits `selectButtonOk`, `selectCard` or `selectPlayer`;
- * `Board.tsx` renders no control; and `showPromptMessage` / `updateButtons` /
- * `setSelectables` reach the browser and are dropped (`live/match.ts`
- * `foldFrames` reads only `setGameView`, `applyDelta` and `openView`). Almost
- * everything a player does in Forge — play or draw, keep or mulligan, pass
- * priority, play a land, cast a spell, discard to hand size — is an `Input`
- * driven by acts, not an ask. So a match started from the product UI stops at
- * the coin toss, with each browser showing a board and nothing to press. The
- * spec records that first.
+ * This used to be a SECOND SOCKET per friend, sending `selectCard` and
+ * `selectButtonOk` over a raw socket.io connection, because the board could not
+ * act (wave 6). The board acts now, and wave 31 §S made a second connection on a
+ * held seat a SPECTATOR — *"it would be really messy if two clients were capable
+ * of performing game actions"* — whose inputs the server refuses and logs as
+ * `c2s-spectator`. So the scaffold's socket was refused every act it sent, every
+ * game it drove stalled at turn 1 with no land played, and `table-fit.spec.ts`
+ * ran to its play cap (turn 22, largest battlefield 0) before anyone read why.
  *
- * ## What this does about it, and what it does not
+ * It therefore clicks what a person would click, on that friend's own page: an
+ * offered card (`data-selectable` is Forge's own offer), the OK / Cancel bar, the
+ * opponent when Forge asks for a target. Nothing it does is a thing the page
+ * could not do. It never answers an ASK (a dialog): those are the board's, and
+ * every spec that counts answers counts the ones the board gave.
  *
- * One extra socket.io connection per friend, through the SAME stand-in edge
- * with the SAME session cookie, so the server binds it to that friend's seat
- * (`Match.claim` is per participant, and permanent). It sends only acts, the
- * way `apps/ui/src/play/live/game-driver.ts` does in the JVM prompt test:
- * play first and keep; on its own turn's first main phase, a land and then any
- * spell its untapped lands cover; OK for Forge's Auto mana payment; the
- * opponent as a target; a card when Forge asks for cards (the cleanup
- * discard); OK otherwise. It NEVER answers an ask: every ask is left to the
- * browser, so every answer the spec counts was given by the board.
- *
- * It keeps out of the refresh measurement: the spec closes a seat's hands
- * before reloading that seat's page, so the reload really leaves the seat with
- * no connection, and the server's reconnect grace is what holds it.
+ * It keeps out of the refresh measurement the way it always did: `close()` stops
+ * it, and `pause()`/`resume()` hold it still while a spec measures the board.
  */
 
-import { manaCostTokens } from '../../apps/ui/src/play/adapter.ts';
-import { isSnapshot, type Frame } from './frames.ts';
-import { applyFrame, keyOf, TYPE, type State, type WireObj } from './isolation.ts';
-import { connectSio, type SioClient } from './sio.ts';
-
-interface Notes {
-  prompt: string;
-  enable1: boolean;
-  enable2: boolean;
-  selectables: { cards: number[]; min: number } | null;
-  version: number;
-  /** An ask this seat's stream showed and has not moved past yet. */
-  askOpen: boolean;
-}
+import type { Friend } from './browser.ts';
 
 export interface Hands {
   seat: number;
-  /** What this connection did, for the evidence file. */
+  /** What it did, for the evidence file. */
   log: string[];
   acts: number;
   /** Spells it put on the stack, by name. */
   cast: string[];
-  /** Stop acting (the connection stays up). */
+  /** Stop acting (the timer stays). */
   pause(): void;
   resume(): void;
   close(): Promise<void>;
 }
 
 const IDLE_MS = 3000;
-const TICK_MS = 150;
+const TICK_MS = 250;
 
-function ids(obj: WireObj | undefined, prop: string): number[] {
-  return ((obj?.[prop] as { v?: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+interface Look {
+  says: string;
+  ok: boolean;
+  cancel: boolean;
+  /** This seat's name as the board draws it. */
+  me: string;
+  /** Hand cards Forge offered, with their type lines. */
+  hand: { id: number; name: string; type: string }[];
+  /** Every card Forge offered anywhere (a selection's candidates). */
+  anywhere: { id: number }[];
+  /** The opponent, when Forge is asking for a player. */
+  opponentSelectable: boolean;
+  ask: boolean;
 }
 
-export async function connectHands(origin: string, session: string, matchId: string): Promise<Hands> {
-  const sio: SioClient = await connectSio(origin, session);
-  const notes: Notes = { prompt: '', enable1: false, enable2: false, selectables: null, version: 0, askOpen: false };
-  const state: State = new Map();
-  const picked = new Map<string, number[]>();
-  const tried = new Set<string>();
+async function look(f: Friend): Promise<Look | null> {
+  try {
+    return await f.page.evaluate((): Look => {
+      const text = (sel: string): string => document.querySelector(sel)?.textContent ?? '';
+      const cardsIn = (root: ParentNode, sel: string) =>
+        Array.from(root.querySelectorAll(sel)).map((el) => ({
+          id: Number(el.getAttribute('data-board-card')),
+          name: el.querySelector('.card__name')?.textContent ?? '',
+          type: el.querySelector('.card__type')?.textContent ?? '',
+        }));
+      return {
+        says: text('[data-testid="live-says"]'),
+        ok: document.querySelector('[data-testid="live-button-ok"]:enabled') !== null,
+        cancel: document.querySelector('[data-testid="live-button-cancel"]:enabled') !== null,
+        me: text('[data-testid="player"][data-viewer] .seat__name').trim(),
+        hand: cardsIn(document, '[data-zone="hand"][data-owner="you"] [data-board-card][data-selectable]'),
+        anywhere: cardsIn(document, '[data-board-card][data-selectable]').map((c) => ({ id: c.id })),
+        opponentSelectable: document.querySelector('[data-testid="player"]:not([data-viewer])[data-selectable] .seat__select') !== null,
+        ask: document.querySelector('[data-testid="live-prompt"]') !== null,
+      };
+    });
+  } catch {
+    // The page is mid-navigation or closing; the next tick looks again.
+    return null;
+  }
+}
+
+export async function connectHands(f: Friend, seat: number): Promise<Hands> {
   const log: string[] = [];
-  let seen = -1;
+  const tried = new Set<string>();
+  const picked = new Map<string, number[]>();
+  let signature = '';
   let idleSince = Date.now();
   let paused = false;
-
-  const onFrame = (frame: Frame): void => {
-    // A seat's stream pauses behind its open ask (the bridge's per-seat
-    // serial thread), so any later frame means the browser answered it.
-    notes.askOpen = frame.kind === 'ask';
-    if (applyFrame(state, frame)) return;
-    if (frame.method === 'showPromptMessage') notes.prompt = String(frame.message ?? '');
-    else if (frame.method === 'updateButtons') {
-      notes.enable1 = frame.enable1 === true;
-      notes.enable2 = frame.enable2 === true;
-    } else if (frame.method === 'setSelectables') {
-      const cards = ((frame.cards as { id: number }[] | undefined) ?? []).map((c) => c.id);
-      notes.selectables = { cards, min: Number(frame.min ?? 0) };
-    } else if (frame.method === 'clearSelectables') notes.selectables = null;
-    else return;
-    notes.version += 1;
-  };
-  sio.on('forge:s2c', (payload) => onFrame((payload as { frame: Frame }).frame));
-
-  const joined = await sio.request('forge:join', { matchId });
-  if (!isSnapshot(joined)) throw new Error(`hands for ${session} could not join ${matchId}: ${JSON.stringify(joined)}`);
-  for (const f of joined.frames) applyFrame(state, f);
-  const seat = joined.seat;
-  const me = joined.playerId;
-  const myName = `Seat ${seat + 1}`;
-
-  const face = (id: number): WireObj | undefined => state.get(keyOf(TYPE.cardState, id * 16));
-  const nameOf = (id: number): string => String((face(id)?.Name as { v?: unknown } | undefined)?.v ?? `#${id}`);
-  const isLand = (id: number): boolean => ((face(id)?.Type as { core?: string[] } | undefined)?.core ?? []).includes('Land');
-  const manaValue = (id: number): number => {
-    const cost = face(id)?.ManaCost as { v?: unknown } | undefined;
-    return typeof cost?.v === 'string' ? manaCostTokens(cost.v).manaValue : Number.POSITIVE_INFINITY;
-  };
-
-  const act = (why: string, frame: Record<string, unknown>): void => {
-    log.push(`${new Date().toISOString()} seat ${seat}: ${why} [${notes.prompt.replace(/\s+/g, ' ').slice(0, 100)}]`);
-    hands.acts += 1;
-    sio.emit('forge:c2s', { matchId, frame: { kind: 'act', ...frame } });
-  };
-  const ok = (why: string): void => act(why, { method: 'selectButtonOk' });
-  const cancel = (why: string): void => act(why, { method: 'selectButtonCancel' });
-  const selectCard = (why: string, id: number): void =>
-    act(why, { method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null });
-
-  /** On my own turn's first main phase with an empty stack: a land, then a spell. */
-  function mainPhase(turn: string): boolean {
-    const player = state.get(keyOf(TYPE.player, me));
-    const hand = ids(player, 'Hand');
-    const land = hand.find(isLand);
-    if (land !== undefined && !tried.has(`${turn}:land`)) {
-      tried.add(`${turn}:land`);
-      selectCard(`play land ${nameOf(land)}`, land);
-      return true;
-    }
-    const untapped = ids(player, 'Battlefield').filter(
-      (id) => isLand(id) && (state.get(keyOf(TYPE.card, id))?.Tapped as { v?: unknown } | undefined)?.v !== true,
-    ).length;
-    const spell = hand.find((id) => !isLand(id) && manaValue(id) <= untapped && !tried.has(`${turn}:${id}`));
-    if (spell !== undefined) {
-      tried.add(`${turn}:${spell}`);
-      hands.cast.push(nameOf(spell));
-      selectCard(`cast ${nameOf(spell)} (mana value ${manaValue(spell)}, ${untapped} untapped)`, spell);
-      return true;
-    }
-    return false;
-  }
-
-  function decide(): void {
-    const msg = notes.prompt;
-    const turn = /Turn: (\d+)/.exec(msg)?.[1] ?? '?';
-    if (msg.startsWith(`Priority: ${myName}`)) {
-      if (msg.includes(`(${myName})`) && msg.includes('Main phase, precombat') && msg.includes('Stack: Empty') && mainPhase(turn)) return;
-      if (notes.enable1) ok('pass');
-      return;
-    }
-    if (/Pay Mana Cost/i.test(msg)) {
-      if (notes.enable1) ok('Auto-pay');
-      else if (notes.enable2) cancel('cannot pay: cancel');
-      return;
-    }
-    if (/target/i.test(msg)) {
-      const opponent = [...state.values()].find((o) => o._type === TYPE.player && o._id !== me);
-      if (opponent !== undefined && !tried.has(`${turn}:target:${msg}`)) {
-        tried.add(`${turn}:target:${msg}`);
-        act(`target player ${opponent._id}`, { method: 'selectPlayer', player: { kind: 'player', id: opponent._id }, triggerEvent: null });
-        return;
-      }
-      if (notes.enable1) ok('targets done');
-      else if (notes.enable2) cancel('no target: cancel');
-      return;
-    }
-    const sel = notes.selectables;
-    if (sel !== null && sel.min > 0 && sel.cards.length > 0) {
-      const done = picked.get(msg) ?? [];
-      const next = sel.cards.find((id) => !done.includes(id));
-      if (done.length < sel.min && next !== undefined) {
-        picked.set(msg, [...done, next]);
-        selectCard(`choose ${nameOf(next)}`, next);
-        return;
-      }
-    }
-    if (notes.enable1) ok('OK');
-  }
-
-  const timer = setInterval(() => {
-    if (paused || sio.closed || notes.askOpen) return;
-    if (/^Waiting/.test(notes.prompt)) return;
-    if (notes.version === seen) {
-      // Nothing new since the last act: it changed nothing (a spell it cannot
-      // actually pay for, a target it cannot choose). Move on rather than wait.
-      if (Date.now() - idleSince > IDLE_MS) {
-        idleSince = Date.now();
-        if (notes.enable1) ok('idle → OK');
-        else if (notes.enable2) cancel('idle → Cancel');
-      }
-      return;
-    }
-    seen = notes.version;
-    idleSince = Date.now();
-    decide();
-  }, TICK_MS);
+  let closed = false;
+  let busy = false;
 
   const hands: Hands = {
     seat,
@@ -210,12 +103,108 @@ export async function connectHands(origin: string, session: string, matchId: str
     },
     resume: () => {
       paused = false;
-      seen = -1;
+      signature = '';
     },
     close: async () => {
+      closed = true;
       clearInterval(timer);
-      await sio.close();
+      while (busy) await new Promise((r) => setTimeout(r, 50));
     },
   };
+
+  const act = async (why: string, s: Look, click: () => Promise<unknown>): Promise<boolean> => {
+    log.push(`${new Date().toISOString()} seat ${seat}: ${why} [${s.says.replace(/\s+/g, ' ').slice(0, 100)}]`);
+    try {
+      await click();
+    } catch (err) {
+      // The offer can be replaced under the click (a drag's can too); the next tick looks again.
+      log.push(`  (click did not land: ${String(err).split('\n')[0]})`);
+      return false;
+    }
+    hands.acts += 1;
+    return true;
+  };
+  const press = (which: 'ok' | 'cancel') => () =>
+    f.page.locator(`[data-testid="live-button-${which}"]:enabled`).click({ timeout: 2_000 });
+  const clickCard = (id: number) => () =>
+    f.page.locator(`[data-board-card="${id}"] button`).first().click({ timeout: 2_000 });
+
+  async function decide(s: Look): Promise<void> {
+    const msg = s.says;
+    const turn = /Turn: (\d+)/.exec(msg)?.[1] ?? '?';
+    if (s.me !== '' && msg.startsWith(`Priority: ${s.me}`)) {
+      if (msg.includes(`(${s.me})`) && msg.includes('Main phase, precombat') && msg.includes('Stack: Empty')) {
+        const land = s.hand.find((c) => /\bland\b/i.test(c.type));
+        if (land !== undefined && !tried.has(`${turn}:land`)) {
+          tried.add(`${turn}:land`);
+          if (await act(`play land ${land.name}`, s, clickCard(land.id))) return;
+        }
+        const spell = s.hand.find((c) => !/\bland\b/i.test(c.type) && !tried.has(`${turn}:${c.id}`));
+        if (spell !== undefined) {
+          tried.add(`${turn}:${spell.id}`);
+          hands.cast.push(spell.name);
+          if (await act(`cast ${spell.name} (offered by Forge)`, s, clickCard(spell.id))) return;
+        }
+      }
+      if (s.ok) await act('pass', s, press('ok'));
+      return;
+    }
+    if (/Pay Mana Cost/i.test(msg)) {
+      if (s.ok) await act('Auto-pay', s, press('ok'));
+      else if (s.cancel) await act('cannot pay: cancel', s, press('cancel'));
+      return;
+    }
+    if (/target/i.test(msg)) {
+      if (s.opponentSelectable && !tried.has(`${turn}:target:${msg}`)) {
+        tried.add(`${turn}:target:${msg}`);
+        if (
+          await act('target the opponent', s, () =>
+            f.page.locator('[data-testid="player"]:not([data-viewer])[data-selectable] .seat__select').first().click({ timeout: 2_000 }),
+          )
+        )
+          return;
+      }
+      if (s.ok) await act('targets done', s, press('ok'));
+      else if (s.cancel) await act('no target: cancel', s, press('cancel'));
+      return;
+    }
+    // A selection that needs cards (a discard, a choice) and whose OK is still dead.
+    if (!s.ok && s.anywhere.length > 0) {
+      const done = picked.get(msg) ?? [];
+      const next = s.anywhere.find((c) => !done.includes(c.id));
+      if (next !== undefined) {
+        picked.set(msg, [...done, next.id]);
+        await act(`choose card ${next.id}`, s, clickCard(next.id));
+        return;
+      }
+    }
+    if (s.ok) await act('OK', s, press('ok'));
+  }
+
+  const tick = async (): Promise<void> => {
+    if (paused || closed || busy) return;
+    busy = true;
+    try {
+      const s = await look(f);
+      if (s === null || s.ask || /^Waiting/.test(s.says)) return;
+      const sig = `${s.says}|${s.ok}|${s.cancel}|${s.anywhere.map((c) => c.id).join(',')}`;
+      if (sig === signature) {
+        // Nothing new since the last act: it changed nothing (a spell it cannot
+        // actually pay for, a target it cannot choose). Move on rather than wait.
+        if (Date.now() - idleSince > IDLE_MS) {
+          idleSince = Date.now();
+          if (s.ok) await act('idle → OK', s, press('ok'));
+          else if (s.cancel) await act('idle → Cancel', s, press('cancel'));
+        }
+        return;
+      }
+      signature = sig;
+      idleSince = Date.now();
+      await decide(s);
+    } finally {
+      busy = false;
+    }
+  };
+  const timer = setInterval(() => void tick(), TICK_MS);
   return hands;
 }

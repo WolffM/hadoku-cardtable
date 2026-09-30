@@ -68,15 +68,16 @@
  * title says why. CI has no Forge, so in CI only the first test runs: the
  * checker against committed fixtures, which needs nothing.
  *
- * ## What the browser cannot do, measured first
+ * ## What the browser can do, measured first
  *
- * The board answers asks and cannot act (`play/hands.ts` has the file-and-line
- * account). The spec records that before anything else: both boards drawn,
- * Forge waiting on a button at the coin toss, and no control on either page.
- * Then it connects `play/hands.ts` — one extra socket per friend that sends
- * the acts the board cannot (OK, a land, a spell, a target, a discard) — so the
- * game can reach the questions Forge ASKS, and every one of those is answered
- * by the browser's own board, clicked (`play/prompts.ts`).
+ * The spec records first what the product UI alone offers at the start: both
+ * boards drawn, Forge waiting on a button at the coin toss, and the coin toss
+ * answered by CLICKING it. Then `play/hands.ts` — since wave 31 a scaffold that
+ * clicks on the friend's own page, not a second socket (a second connection on a
+ * held seat is a spectator now and its acts are refused) — plays a land and a
+ * spell and passes priority, so the game can reach the questions Forge ASKS, and
+ * every one of those is answered by the browser's own board, clicked
+ * (`play/prompts.ts`).
  *
  * The game is played to turn 5 at least, and until each side has answered by
  * CLICK at least one ask the game raised — not only the zone asks the board
@@ -879,6 +880,26 @@ test(LIVE_TITLE, async ({ browser }) => {
     };
     for (const f of [alice, bob]) await liveOnPage(f);
 
+    /*
+     * Names, not `Seat 1` / `Seat 2` (wave 31 P3). The room knows who sits where;
+     * the match is started with their display names (`names`, shape 1), Forge
+     * carries them as its players' names, and the board reads them back off the
+     * seats (`identity.name`, shape 2). The viewer's own seat is NOT marked `(you)`
+     * in visible text any more — only in the section's accessible name, which a
+     * screen reader has no other way to learn it from.
+     */
+    for (const [f, mine, theirs] of [
+      [alice, 'e2e-alice', 'e2e-bob'],
+      [bob, 'e2e-bob', 'e2e-alice'],
+    ] as const) {
+      const seatNames = await f.page.locator('[data-testid="player"] .seat__name').allTextContents();
+      expect(seatNames.map((n) => n.trim()).sort(), `${f.name}: the board names both people`).toEqual([mine, theirs].sort());
+      expect(await f.page.locator('[data-testid="player"][data-viewer]').getAttribute('aria-label'), `${f.name}: a screen reader is still told which seat is theirs`).toBe(`${mine} (you)`);
+      expect(await f.page.locator('[data-testid="player"]:not([data-viewer])').getAttribute('aria-label')).toBe(theirs);
+      expect(await f.page.getByTestId('match').innerText(), `${f.name}: no visible "(you)" on the board`).not.toContain('(you)');
+      expect(await f.page.getByTestId('match').innerText(), `${f.name}: no "Seat N" placeholder on the board`).not.toMatch(/\bSeat [12]\b/);
+    }
+
     const firstSnapshot = (f: Friend) => {
       const ack = inbound(f).find((m) => m.kind === 'ack' && isSnapshot(m.msg));
       if (ack === undefined || !isSnapshot(ack.msg)) throw new Error(`${f.name}: no snapshot`);
@@ -925,6 +946,10 @@ test(LIVE_TITLE, async ({ browser }) => {
       ),
     );
     summary.uiAloneAtStart = gap;
+    // Forge's own words use the names too (D3): it was given them as the players' names.
+    expect(gap.alice.forgeSays, "Forge greets alice by her name, not 'Seat 1'").toContain('e2e-alice');
+    expect(String(gap.alice.forgeSays)).not.toMatch(/\bSeat [12]\b/);
+    expect(gap.bob.forgeSays, 'bob is told he is waiting on alice by name').toContain('e2e-alice');
     console.log(`[play] the board alone, at the start: ${JSON.stringify(gap)}`);
 
     // ── The coin toss, through the BOARD. Not through the scaffolding.
@@ -1404,9 +1429,8 @@ test(LIVE_TITLE, async ({ browser }) => {
       ).not.toBeNull();
     }
 
-    // ── play: hands click CARDS, which the board still cannot do (a known gap).
-    //    Buttons are no longer among them — those go through the board, above.
-    for (const f of [alice, bob]) hands.push(await connectHands(origin, f.name, matchId));
+    // ── play: hands click cards and buttons on each friend's own page.
+    for (const [seat, f] of [alice, bob].entries()) hands.push(await connectHands(f, seat));
     expect(hands.map((h) => h.seat)).toEqual([0, 1]);
 
     // Until each side has answered a question the GAME asked by clicking its
@@ -1418,10 +1442,7 @@ test(LIVE_TITLE, async ({ browser }) => {
         const done = await answerPrompt(f.page);
         if (done !== null) clicks.push({ name: f.name, ...done });
         // Not an ask, so not one of `clicks` — but the same wedge reaches this
-        // loop, and `hands` cannot clear it: a connection that joins AFTER the
-        // `setSelectables` is re-sent the says, the prompt and the buttons
-        // (`Match.resendAfterSnapshot`) and NOT the selection, so it never
-        // learns which cards the discard will take. The board was sent it live.
+        // loop, and this names the card the board offered for it.
         const forced = await clickForcedCard(f);
         if (forced !== null) forcedCards.push({ name: f.name, id: forced.id, card: forced.name, where: 'play' });
         await shootPayment(f);

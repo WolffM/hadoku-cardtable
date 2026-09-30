@@ -430,8 +430,28 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
       CARDTABLE_PLAY_SEED: String(PLAY_SEED),
     },
   });
-  server.stdout?.pipe(serverLog, { end: false });
-  server.stderr?.on('data', (chunk: Buffer) => serverLog.write(chunk));
+  /*
+   * Both streams land in ONE file, so each is written a whole line at a time.
+   * Copying raw chunks let a stdout chunk that ended mid-line be followed by a
+   * stderr chunk or by the next stdout line's start — a torn line that is not
+   * JSON, which `play.spec.ts`'s `serverLog()` then threw on (seen 2026-09-30:
+   * `…"path":"/r-4270d944{"t":…`). A partial line is held until its newline
+   * arrives, and flushed when its stream ends.
+   */
+  for (const stream of [server.stdout, server.stderr]) {
+    if (stream === null) continue;
+    let held = '';
+    stream.setEncoding('utf8');
+    stream.on('data', (chunk: string) => {
+      const lines = (held + chunk).split('\n');
+      held = lines.pop() ?? '';
+      for (const line of lines) serverLog.write(`${line}\n`);
+    });
+    stream.on('end', () => {
+      if (held !== '') serverLog.write(`${held}\n`);
+      held = '';
+    });
+  }
   const exited = new Promise<void>((r) => server.once('exit', () => r()));
 
   let edge: Server | null = null;
