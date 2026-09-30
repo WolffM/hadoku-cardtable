@@ -576,6 +576,26 @@ async function rowsOf(f: Friend): Promise<RowCards[]> {
 }
 
 /**
+ * Put `f`'s board in the four-lane layout, through the settings panel a player
+ * uses (wave 30 item 11). The default is ONE undivided board with no
+ * `data-board-row` anywhere, so every check here that reads, drags into or
+ * crowds a lane has to ask for the lanes first — and does it the player's way,
+ * not by writing the preference behind the panel's back. The choice is
+ * `LiveBoard`'s own state; the prefs write goes off-loopback and is aborted
+ * like every other one (`e2e/play/browser.ts`), which the panel tolerates.
+ */
+async function chooseLanes(f: Friend): Promise<void> {
+  await f.page.getByTestId('live-settings').click();
+  const panel = f.page.getByTestId('live-settings-panel');
+  await panel.locator('input[name="board-layout"][value="type-separated"]').check();
+  await panel.getByRole('button', { name: 'Close' }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(f.page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-row]'), `${f.name}: the four lanes`).toHaveCount(
+    BOARD_ROWS.length,
+  );
+}
+
+/**
  * Drag one permanent into one of the battlefield's rows, with the browser's
  * own drag events and a real `DataTransfer`. Runs in the page.
  *
@@ -895,6 +915,15 @@ test(TITLE, async ({ browser }) => {
     for (const h of hands) h.pause();
     await new Promise((r) => setTimeout(r, 2_000));
     for (const g of friends) moments.push(await fitsNow(g, 'mid-game'));
+
+    /*
+     * Everything up to here was played on the default single board, and the
+     * sampler held it to the fit rule on every frame. Rows are the four-lane
+     * layout's, so the rest of the game switches to it and is held to the same
+     * rule there.
+     */
+    for (const f of friends) await chooseLanes(f);
+    for (const g of friends) moments.push(await fitsNow(g, 'lanes chosen'));
 
     /* ── 2b. the player arranges their own battlefield ─────────────── */
 
@@ -1620,6 +1649,8 @@ test(CROWD_TITLE, async ({ browser }) => {
         .toBeGreaterThan(0);
     }
     await expect.poll(async () => /keep your hand/i.test((await decider.page.getByTestId('live-says').textContent()) ?? ''), { timeout: 30_000 }).toBe(true);
+    // The crowd probe fills the four lanes, which the default single board does not have.
+    for (const f of friends) await chooseLanes(f);
 
     for (const sizes of [SIZES, { alice: SIZES.bob, bob: SIZES.alice }]) {
       for (const f of friends) await f.page.setViewportSize(sizes[f.name as keyof typeof SIZES]);
