@@ -1410,3 +1410,39 @@
 .stack__text {
   font-size: 12px;
 }
+
+/* ── the staging area: a card being played (item 17.2) ─────────────── */
+
+/*
+ * The operator, 2026-09-28: *"when playing a card, it should get put in the
+ * 'decision area' and the arrow should draw from there."* This is that area —
+ * the SAME footprint `live/live.css`'s `.live__prompt` takes (`--live-col-x` /
+ * `--live-col-w`, the geometry the stack's own band above already shares with
+ * it), because the two are never open at once: `LiveBoard.tsx` only sets
+ * `BoardInteraction.stagedCardId` while no ask and no payment window is
+ * showing. One box, two uses, rather than a third floating thing.
+ *
+ * `Board.tsx`'s `StagingArea` is the whole of what goes here: the fallback
+ * variables match `.board__mid`'s own for the same reason — a bare mount
+ * (`Board.test.ts`, the harnesses) draws it in the same place the match does.
+ */
+.staging {
+  position: absolute;
+  z-index: 3;
+  top: 24%;
+  left: var(--live-col-x, 59.4%);
+  width: var(--live-col-w, 24.1%);
+  height: 48%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.staging__list {
+  width: min(100%, 7rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: auto;
+}

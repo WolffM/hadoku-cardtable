@@ -441,6 +441,39 @@ export interface BoardInteraction {
    * it is where this is filled in, exactly as `declaringAttackers` is.
    */
   questionOpen?: boolean;
+  /**
+   * Item 16 — *"things like morbid should be visible when they are active…
+   * the orange glow from Hearthstone."* The one half of that request the wire
+   * actually supports: Forge's ACTIONABLE set (`setWeaklySelectable`), and
+   * ONLY while no real selection is open — `LiveBoard.tsx` clears this the
+   * moment `selectionOpen` is true, so it never claims the same cards
+   * `selectable` already rings when Forge is asking a specific question.
+   * *"You could do something with this"* is a different, weaker claim than
+   * *"answer with one of these"*, and `card.css` draws the two as different
+   * channels (a ring, and a blur) so a card carrying both is read as both.
+   *
+   * **Absent means no glow anywhere** — the safe default, and the state every
+   * fixture and `live/parity.test.ts` render in.
+   */
+  actionable?: ReadonlySet<number>;
+  /**
+   * Item 17.2 — *"when playing a card, it should get put in the 'decision
+   * area' and the arrow should draw from there."* The id of the hand card
+   * this seat clicked to cast, while Forge is asking for its target
+   * (`LiveMatch.lastSelectedCard`, scoped to a real open selection and to the
+   * viewer's own hand — an activated ability from a permanent already on the
+   * battlefield stays put, because it was never "played").
+   *
+   * `Board` draws that ONE card in `.staging` instead of its hand slot — never
+   * both, so `data-card-id` stays unique across the board — and
+   * `gestures/install.ts`'s `clickOrigin` finds it there without either file
+   * knowing the other exists: it already walks the whole canvas for
+   * `[data-board-card="<id>"]`.
+   *
+   * **Absent means nothing is staged** — the safe default, and the state every
+   * fixture renders in.
+   */
+  stagedCardId?: number;
   /** A card was clicked. Only ever called for an id in `selectable`. */
   onSelectCard(cardId: number): void;
   onSelectPlayer(playerId: number): void;
@@ -1157,6 +1190,8 @@ function CardOnBoard({
       data-board-card={entry.id}
       data-card-id={entry.id}
       data-selectable={selectable || undefined}
+      /* Item 16 — see `BoardInteraction.actionable`'s own note. */
+      data-can-act={(interaction?.actionable?.has(entry.id) ?? false) || undefined}
       /* Forge says this card is attached to something: not the player's doing. */
       data-attached={(entry.attachedToId ?? null) !== null || undefined}
       data-pile-size={above.length > 0 ? pile!.length : undefined}
@@ -1709,8 +1744,14 @@ function PlayerArea({
           ownerSide={side}
           zone="hand"
           label="Hand"
-          /* The player's own order, and the view's for anyone who has not moved a card. */
-          cards={handOrder(player.hand, player.id, arranged)}
+          /*
+           * The player's own order, and the view's for anyone who has not
+           * moved a card — MINUS the one card staged in `.staging` right now
+           * (item 17.2). It is drawn there instead, not also here: two copies
+           * of one `data-card-id` would break every lane that queries it by
+           * value, this file's own invariant included.
+           */
+          cards={handOrder(player.hand, player.id, arranged).filter((c) => c.id !== interaction?.stagedCardId)}
           interaction={interaction}
           arranging={arranging}
         />
@@ -1777,6 +1818,33 @@ function StackItem({ item, interaction }: { item: StackEntry; interaction: Board
  * zone's box depends on what is on the stack — that is item #2 of the
  * operator's list and it is the whole point of this component's shape.
  */
+/**
+ * Item 17.2 — the operator: *"when playing a card, it should get put in the
+ * 'decision area' and the arrow should draw from there."*
+ *
+ * The SAME footprint `live/live.css`'s `.live__prompt` takes (`board.css`
+ * places this one, in the same column, `--live-col-x` / `--live-col-w`) —
+ * never both at once, because `LiveBoard.tsx` only sets `stagedCardId` while
+ * NEITHER an ask nor a payment is showing, so one box serves both rather than
+ * a third floating thing.
+ *
+ * Drawn through `CardOnBoard` itself, not a bespoke tile: the card Forge is
+ * asking about here is exactly as selectable (or not) as it would have been
+ * in the hand, and reusing it is what keeps `data-can-act`, the tapped state
+ * and the selectable button all correct with no second copy of that logic.
+ * No `slot` and no `arranging`, so it is never draggable here — moving it
+ * back into the hand is Forge's answer to the question, not a rearrangement.
+ */
+function StagingArea({ card, interaction }: { card: BoardCard; interaction: BoardInteraction | undefined }) {
+  return (
+    <div className="staging" data-testid="staging">
+      <ul className="staging__list" aria-label="Playing">
+        <CardOnBoard entry={card} interaction={interaction} />
+      </ul>
+    </div>
+  );
+}
+
 function StackView({ stack, interaction }: { stack: readonly StackEntry[]; interaction: BoardInteraction | undefined }) {
   return (
     <section className="stack" aria-label="Stack" data-zone="stack" data-owner="table" data-count={stack.length}>
@@ -1795,6 +1863,16 @@ function StackView({ stack, interaction }: { stack: readonly StackEntry[]; inter
 export function Board({ view, interaction }: { view: BoardView; interaction?: BoardInteraction }) {
   const viewer = view.players.find((p) => p.isViewer);
   const others = view.players.filter((p) => !p.isViewer);
+  /*
+   * Item 17.2's staged card, found once here rather than in `PlayerArea`: it
+   * can only ever be the viewer's own (`BoardInteraction.stagedCardId`'s own
+   * note), and `PlayerArea` only needs to know WHICH id to leave out of the
+   * hand it draws, not the card itself.
+   */
+  const staged =
+    interaction?.stagedCardId === undefined
+      ? undefined
+      : (viewer?.hand?.find((c) => c.id === interaction.stagedCardId) ?? undefined);
 
   /*
    * The inspector, booted and nothing more: it attaches its own listeners by
@@ -1923,6 +2001,8 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
       <div className="board__mid" data-testid="board-mid" data-question={interaction?.questionOpen === true || undefined}>
         <StackView stack={view.stack} interaction={interaction} />
       </div>
+
+      {staged !== undefined && <StagingArea card={staged} interaction={interaction} />}
 
       {viewer !== undefined && (
         <PlayerArea player={viewer} interaction={interaction} arranging={arranging} arranged={arranged} />

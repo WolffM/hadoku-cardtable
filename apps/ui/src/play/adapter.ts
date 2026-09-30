@@ -293,29 +293,26 @@ export interface BoardPlayer {
    */
   manaPool?: readonly ManaInPool[];
   /**
-   * The watchparty character this seat picked, as an id — wave 28 item 4, the
-   * RENDER half.
+   * The watchparty character this seat picked, as an id — wave 28 item 4's
+   * render half, populated for real as of wave 29 §A.6-8.
    *
-   * **Nothing populates this today, and that is the honest state of the
-   * feature.** Lane D wired `avatarId` as far as the TABLE VIEW
-   * (`apps/server/src/http/routes.ts`'s `tableView()`), and the board does not
-   * see the table view: `toBoardView` builds a `BoardPlayer` out of Forge's
-   * `PlayerView`, which carries no identity of ours, and `MatchScreen.tsx` hands
-   * `LiveBoard` a match id and a socket and nothing else. The remaining hop is
-   * `routes.ts` → `play/socket.ts` → `play/match.ts` → here, and
-   * `docs/planning/wave28-evidence/D-avatar-field.md` §2 names the four files and
-   * the join key (`seats[].playerId`, already on the join envelope, is a Forge
-   * player id and so is `BoardPlayer.id`). Three of those four files are other
-   * lanes'.
+   * The remaining hop wave 28 left open (`docs/planning/wave28-evidence/D-avatar-field.md`
+   * §2: `routes.ts` → `play/socket.ts` → `play/match.ts` → here) is wired: §B
+   * sends every seat's identity on its own event, `forge:seats`
+   * (`live/match.ts`'s `adoptSeats`), keyed by the join envelope's own
+   * `playerId` — a Forge player id, the same id `BoardPlayer.id` already is —
+   * and `toBoardView` below joins the two by it.
    *
-   * So the field is ADDITIVE and optional, `PlayerFace` draws it when it is
-   * there, and a seat without one keeps the generated mark — a seat with no face
-   * is worse than a generic face. When the hop lands, the only change here is
-   * that something sets it.
+   * Still additive and optional: `PlayerFace` draws it when it is there, and a
+   * seat without one keeps the generated mark, because a seat with no face is
+   * worse than a generic one. `AdaptOptions.avatarByPlayerId` is what a caller
+   * (live or fixture) supplies to fill it; the fixture path supplies nothing,
+   * so every committed fixture still draws the generated bust, unchanged.
    *
-   * Two states, never three: a non-blank string, or absent. Lane D's §3 has the
-   * argument; `avatarSquareUrl` (`../room/avatar.ts`) answers `null` for absent,
-   * blank and over-long alike, so one null check is the whole fallback.
+   * Two states, never three: a non-blank string, or absent —
+   * `D-avatar-field.md` §3's rule, kept all the way to here. `avatarSquareUrl`
+   * (`../room/avatar.ts`) answers `null` for absent, blank and over-long alike,
+   * so one null check is the whole fallback.
    */
   avatarId?: string;
 }
@@ -358,6 +355,15 @@ export interface AdaptOptions {
   artIds?: ArtIdIndex;
   /** Where a card's PRINTED power/toughness is looked up. Defaults to `POOL_PRINTED_PT`. */
   printedPT?: PrintedPTIndex;
+  /**
+   * Every seat's watchparty character, keyed by Forge PLAYER id — item 4, wave
+   * 29 §A.6-8. Absent (the fixture path's default) draws every seat with the
+   * generated bust, exactly as before this wave. A live match supplies it from
+   * `LiveMatch.avatarByPlayerId` (`live/match.ts`'s `adoptSeats`), and a
+   * player id this map does not hold is the safe, common case — a seat with no
+   * avatar — not an error.
+   */
+  avatarByPlayerId?: ReadonlyMap<number, string>;
 }
 
 // ── what a card's printed power and toughness are ───────────────────────────
@@ -715,7 +721,7 @@ export const PHASE_LABEL: Readonly<Record<string, string>> = {
 export function toBoardView(
   state: WireState,
   seq: number,
-  { viewerPlayerId, artIds = KNOWN_ART_IDS, printedPT = POOL_PRINTED_PT }: AdaptOptions,
+  { viewerPlayerId, artIds = KNOWN_ART_IDS, printedPT = POOL_PRINTED_PT, avatarByPlayerId }: AdaptOptions,
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === WireType.Game);
   const missing: number[] = [];
@@ -736,6 +742,7 @@ export function toBoardView(
     const p = state.get(deltaKey(WireType.Player, pid));
     const isViewer = pid === viewerPlayerId;
     const handIds = readIds(p, 'Hand');
+    const avatarId = avatarByPlayerId?.get(pid);
     return {
       id: pid,
       name: readStr(p, 'Name') ?? `player ${pid}`,
@@ -751,6 +758,10 @@ export function toBoardView(
       graveyard: cardsIn(readIds(p, 'Graveyard')),
       exile: cardsIn(readIds(p, 'Exile')),
       manaPool: readManaPool(p, 'Mana'),
+      // The key must be ABSENT for a seat with none — never `avatarId:
+      // undefined` — so an in-process `'avatarId' in player` reader and a JSON
+      // reader agree (`D-avatar-field.md` §3).
+      ...(avatarId === undefined ? {} : { avatarId }),
     };
   });
   players.sort((a, b) => Number(b.isViewer) - Number(a.isViewer));

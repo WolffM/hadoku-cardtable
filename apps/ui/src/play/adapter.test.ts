@@ -632,3 +632,29 @@ describe('§A.6 — the seat’s mana pool', () => {
     expect(poolOf(state, 0)).toEqual([]);
   });
 });
+
+describe('item 4 — the avatar reaches the seat, wave 29 §A.6-8', () => {
+  it('joins a seat’s avatar onto its BoardPlayer by playerId, and a seat the map does not name has no key at all', () => {
+    const view = toBoardView(baseState(), 27, {
+      viewerPlayerId: fixture.viewerPlayerId,
+      avatarByPlayerId: new Map([[fixture.viewerPlayerId, 'wanderer']]),
+    });
+    const me = view.players.find((p) => p.isViewer)!;
+    const them = view.players.find((p) => !p.isViewer)!;
+    expect(me).toHaveProperty('avatarId', 'wanderer');
+    expect(them).not.toHaveProperty('avatarId');
+  });
+
+  it('with no map at all — the fixture path’s own default — nobody carries the key, exactly as every committed fixture drew before this wave', () => {
+    const view = adapt(baseState());
+    for (const p of view.players) expect(p).not.toHaveProperty('avatarId');
+  });
+
+  it('an EMPTY map (the seats arrived, nobody has a face) draws exactly the same as no map at all', () => {
+    const view = toBoardView(baseState(), 27, {
+      viewerPlayerId: fixture.viewerPlayerId,
+      avatarByPlayerId: new Map(),
+    });
+    for (const p of view.players) expect(p).not.toHaveProperty('avatarId');
+  });
+});

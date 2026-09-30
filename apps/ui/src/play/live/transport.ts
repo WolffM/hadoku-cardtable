@@ -91,6 +91,18 @@ export const MATCH_EVENTS = {
   clientToServer: FORGE_CHANNEL.clientToServer,
   /** Wave 19 lane C: the full-control escape hatch, per seat, off by default. */
   fullControl: 'forge:full-control',
+  /**
+   * Wave 29 §B's own event, not folded into {@link MatchSnapshotSchema}: that
+   * schema is `.strict()` and mirrored byte for byte on the server
+   * (`apps/server/src/play/transport.ts`), and widening it is a change to a
+   * file neither wave-29 lane owns. `Match.seatIdentities()` sends the payload
+   * on this event instead — every seat's `{ seat, claimed, playerId,
+   * avatarId? }`, right after the full-control echo, on every join AND every
+   * resync (`apps/server/src/play/socket.ts`'s `answer`). The server refers to
+   * it by the bare string, because `MATCH_EVENTS` is this file's map, not its
+   * own — see that emit site's own comment.
+   */
+  seats: 'forge:seats',
 } as const;
 
 /* ── Cursor ──────────────────────────────────────────────────────────── */
@@ -211,6 +223,40 @@ export const MatchAckSchema = MatchSnapshotSchema.or(MatchErrorSchema);
 
 export type MatchAck = Output<typeof MatchAckSchema>;
 
+/**
+ * `forge:seats` — item 4, wave 29 §B: one entry per seat, the shape
+ * `Match.seatIdentities()` builds and the join-envelope log line at
+ * `apps/server/src/play/socket.ts` (the "adopted match" line) has always used
+ * for `seat`/`claimed`/`playerId`. `avatarId` is `unknown` here rather than a
+ * typed string on purpose — three states can arrive over the wire (a string,
+ * `null`, absent) even though the server's own two-state rule
+ * (`D-avatar-field.md` §3) means it should only ever send a string or omit the
+ * key. Typing it as a string would make a stray `null` fail this object's
+ * `.strict()` parse and refuse the WHOLE seat list for one seat's bad avatar,
+ * which is worse than drawing that one seat's bust. `match.ts`'s `adoptSeats`
+ * folds all three the same way `avatarSquareUrl` already does.
+ */
+export const SeatIdentitySchema = borrowed.emptyObject
+  .extend({
+    seat: borrowed.forgeId.min(0),
+    claimed: borrowed.boolean,
+    /** Null until that seat's `openView` has landed — see `MatchSnapshot.playerId`'s own note. */
+    playerId: borrowed.forgeId.nullable(),
+    avatarId: borrowed.unknown.optional(),
+  })
+  .strict();
+
+export type SeatIdentity = Output<typeof SeatIdentitySchema>;
+
+export const MatchSeatsSchema = borrowed.emptyObject
+  .extend({
+    matchId: borrowed.nonEmptyString,
+    seats: SeatIdentitySchema.array(),
+  })
+  .strict();
+
+export type MatchSeats = Output<typeof MatchSeatsSchema>;
+
 /* ── Parsing, with paths ─────────────────────────────────────────────── */
 
 export interface TransportIssue {
@@ -248,6 +294,10 @@ export function parseServerEnvelope(raw: unknown): TransportParse<ServerEnvelope
 export function parseMatchAck(raw: unknown): TransportParse<MatchAck> {
   const isError = typeof raw === 'object' && raw !== null && 'error' in raw;
   return isError ? outcome(MatchErrorSchema.safeParse(raw)) : outcome(MatchSnapshotSchema.safeParse(raw));
+}
+
+export function parseMatchSeats(raw: unknown): TransportParse<MatchSeats> {
+  return outcome(MatchSeatsSchema.safeParse(raw));
 }
 
 /* ── Frame builders ──────────────────────────────────────────────────── */

@@ -432,13 +432,21 @@ describe('hidden information', () => {
  * while declaring attackers or blockers — which is most of a game. The tests
  * that care about an open selection pass `true` explicitly.
  */
-function spyInteraction(selectable: number[], selectablePlayers: number[] = [], selectionOpen = false) {
+function spyInteraction(
+  selectable: number[],
+  selectablePlayers: number[] = [],
+  selectionOpen = false,
+  actionable: number[] = [],
+  stagedCardId?: number,
+) {
   const onSelectCard = vi.fn<(id: number) => void>();
   const onSelectPlayer = vi.fn<(id: number) => void>();
   const interaction: BoardInteraction = {
     selectable: new Set(selectable),
     selectablePlayers: new Set(selectablePlayers),
     selectionOpen,
+    actionable: new Set(actionable),
+    stagedCardId,
     onSelectCard,
     onSelectPlayer,
   };
@@ -527,6 +535,66 @@ describe('BoardInteraction', () => {
     const { interaction } = spyInteraction([987654]);
     const { container } = renderBoard(view, interaction);
     expect(forgeButtons(container)).toHaveLength(0);
+  });
+});
+
+/**
+ * Item 16 — the operator: *"things like morbid should be visible when they
+ * are active. the 'orange glow' from hearthstone."* `data-can-act` is the
+ * buildable half (`BoardInteraction.actionable`'s own note); see
+ * `docs/planning/wave29-evidence/A-morbid.md` for the other half.
+ */
+describe('item 16 — a card that could do something glows (data-can-act)', () => {
+  const view = boardFromFixture(fixture);
+  const me = view.players.find((p) => p.isViewer)!;
+  const glowing = me.battlefield[0]!;
+  const plain = me.battlefield[1]!;
+
+  it('a card in `actionable` carries data-can-act; one outside it does not', () => {
+    const { interaction } = spyInteraction([], [], false, [glowing.id]);
+    const { container } = renderBoard(view, interaction);
+    expect(container.querySelector(`[data-board-card="${glowing.id}"]`)!.getAttribute('data-can-act')).toBe('true');
+    expect(container.querySelector(`[data-board-card="${plain.id}"]`)!.hasAttribute('data-can-act')).toBe(false);
+  });
+
+  it('with no interaction at all, nothing glows — the safe default every fixture renders in', () => {
+    const { container } = renderBoard(view);
+    expect(container.querySelectorAll('[data-can-act]')).toHaveLength(0);
+  });
+});
+
+/**
+ * Item 17.2 — the operator: *"when playing a card, it should get put in the
+ * 'decision area' and the arrow should draw from there."*
+ */
+describe('item 17.2 — a card being played is staged, and leaves its hand slot', () => {
+  const view = boardFromFixture(fixture);
+  const me = view.players.find((p) => p.isViewer)!;
+  const staged = me.hand![0]!;
+
+  it('the staged card is drawn once, inside .staging, and its own hand no longer holds it', () => {
+    const { interaction } = spyInteraction([], [], true, [], staged.id);
+    const { container } = renderBoard(view, interaction);
+
+    const inStaging = container.querySelector(`.staging [data-board-card="${staged.id}"]`);
+    expect(inStaging, 'the staging area draws it').not.toBeNull();
+    // Exactly one element on the whole board carries this id — the invariant
+    // `Board.tsx`'s own header states (`data-card-id` is unique across the
+    // board), which two copies of the staged card would have broken.
+    expect(container.querySelectorAll(`[data-board-card="${staged.id}"]`)).toHaveLength(1);
+
+    const hand = container.querySelector('[data-zone="hand"][data-owner="you"]')!;
+    expect(hand.querySelector(`[data-board-card="${staged.id}"]`), 'gone from the hand it was drawn from').toBeNull();
+    // Every OTHER hand card is unaffected.
+    expect(hand.querySelectorAll('[data-board-card]')).toHaveLength(me.hand!.length - 1);
+  });
+
+  it('with no stagedCardId, .staging is not on the page and the hand draws every card — the safe default', () => {
+    const { interaction } = spyInteraction([]);
+    const { container } = renderBoard(view, interaction);
+    expect(container.querySelector('.staging')).toBeNull();
+    const hand = container.querySelector('[data-zone="hand"][data-owner="you"]')!;
+    expect(hand.querySelectorAll('[data-board-card]')).toHaveLength(me.hand!.length);
   });
 });
 

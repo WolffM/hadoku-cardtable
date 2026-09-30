@@ -1112,6 +1112,50 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     expect(sent(s)).toEqual([['selectCard', spell]]);
   });
 
+  /**
+   * Item 17.1 — the operator: *"by default it points at player portraits
+   * which doesnt make sense at all."* `boardInteraction` makes BOTH players
+   * selectable for the whole of an open selection (its own header: "the
+   * players a selection input will take", read off `view.players`, not off
+   * what is under the pointer) — so a portrait being a LEGAL target is not by
+   * itself what draws the arrow at one. This is the actual bug, reproduced:
+   * `[data-testid="player"]` is the WHOLE seat (`PlayerArea`'s outer
+   * `<section>`, `Board.tsx`) — hand, battlefield, everything — not the
+   * portrait, and `targetUnder` used to match on it directly. Hovering their
+   * seat's own furniture (their name, in this case — not their face) used to
+   * snap the arrow to them; `targets.ts`'s `targetUnder` narrows the hit-test
+   * to `data-player-face` alone, and this pins it.
+   */
+  it('a player is a legal target for the whole selection, but the arrow only snaps to their FACE — never their whole seat by default', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const mine = mineOf(m).battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
+    await waitFor(() => expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(true));
+    fireEvent.click(cardEl(canvas, mine[0]!).querySelector('button')!);
+    // No cards named at all — Forge is asking for a PLAYER.
+    for (const f of notify([prompt('Choose a target'), selectables([], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    expect(boardInteraction(m).selectablePlayers.size, 'both seats are legal targets throughout the selection').toBeGreaterThan(0);
+
+    // Their SEAT's own furniture — the name beside their face — never their
+    // face itself: `[data-testid="player"]` wraps this too, which is exactly
+    // the over-wide match this test pins closed.
+    const them = theirsOf(m).id;
+    const theirSeat = canvas.querySelector<HTMLElement>(`[data-testid="player"][data-player-id="${them}"]`)!;
+    const theirName = theirSeat.querySelector<HTMLElement>('.seat__name')!;
+    fireEvent.pointerMove(theirName, { clientX: 150, clientY: 120 });
+    const loose = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(loose.dataset.target, 'their name is inside their seat, but it is not their FACE').toBeUndefined();
+    expect(loose.dataset.snapped).toBeUndefined();
+
+    // The face element itself still snaps it — a real point, not a default.
+    fireEvent.pointerMove(faceEl(canvas, them), { clientX: 220, clientY: 180 });
+    await waitFor(() =>
+      expect(overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!.dataset.target).toBe(`player:${them}`),
+    );
+    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+  });
+
   it('the click arrow goes when the selection does, and the pointer leaving the canvas takes it too', async () => {
     const { s, m, canvas } = await gestureBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);

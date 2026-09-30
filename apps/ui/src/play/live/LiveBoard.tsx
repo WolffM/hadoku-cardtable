@@ -263,6 +263,7 @@ import {
   setFullControl,
   subscribe,
   type LiveAsk,
+  type LiveClickables,
   type LiveMatch,
 } from './match.ts';
 import './live.css';
@@ -550,6 +551,27 @@ export function logKind(line: string): LogKind {
  * A name the viewer's board does not hold simply draws as text with no hover,
  * which is the right answer: we have no card to show.
  */
+/** Reused so `interaction.actionable` allocates nothing when there is no glow to draw. */
+const EMPTY_CARD_IDS: ReadonlySet<number> = new Set();
+
+/**
+ * Item 17.2's staged id, or `undefined` when nothing is staged — see
+ * `BoardInteraction.stagedCardId`'s own note for the full argument. Exported
+ * for its own test.
+ *
+ * `blocked` is `askOpen || paying`: an ask or a payment window claims the
+ * SAME footprint (`board.css`'s `.staging`), so a card the player is casting
+ * stays in its ordinary hand slot for as long as either is showing, rather
+ * than the two drawing on top of each other.
+ */
+export function stagedHandCardId(match: LiveMatch, offered: LiveClickables, blocked: boolean): number | undefined {
+  if (blocked || !offered.selectionOpen) return undefined;
+  const id = match.lastSelectedCard;
+  if (id === null) return undefined;
+  const viewer = match.view?.players.find((p) => p.isViewer);
+  return viewer?.hand?.some((c) => c.id === id) === true ? id : undefined;
+}
+
 export function cardsNamedInView(view: BoardView | null): Map<string, DraftCard> {
   const out = new Map<string, DraftCard>();
   if (view === null) return out;
@@ -969,6 +991,24 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
      * with what is actually on screen.
      */
     questionOpen: askOpen || paying,
+    /*
+     * Item 16's glow: Forge's actionable set, and ONLY while nothing is
+     * asking. `offered.selectable` IS that set already, whenever
+     * `selectionOpen` is false (`boardInteraction`'s own union) — a real
+     * SELECTION replaces its meaning with "answer with one of these", which
+     * the ring alone already says. Computed here rather than read off
+     * `match.weaklySelectable` directly so it can never drift from what
+     * `selectable` itself claims for the same cards.
+     */
+    actionable: offered.selectionOpen ? EMPTY_CARD_IDS : offered.selectable,
+    /*
+     * Item 17.2's staging area: the hand card this seat clicked to cast,
+     * while Forge is asking for its target and nothing else is on top of the
+     * board (`stagedCardId`'s own note on why an ask or a payment wins the
+     * same footprint). `boardCardById` is the one lookup, exported below for
+     * its own test.
+     */
+    stagedCardId: stagedHandCardId(match, offered, askOpen || paying),
     onSelectCard: (cardId) => selectCard(match, cardId),
     onSelectPlayer: (playerId) => selectPlayer(match, playerId),
   };

@@ -58,6 +58,21 @@ export function boardId(el: Element, ...names: string[]): number | null {
  * Nearest wins, walking up: a card inside a seat section is the card, not the
  * seat. A card or face Forge did NOT offer stops the walk — dropping on an
  * inert thing is not a drop on whatever contains it.
+ *
+ * **Item 17.1: the player hit-test is `data-player-face` ONLY, never the
+ * whole `[data-testid="player"]` seat.** The operator, 2026-09-28: *"by
+ * default it points at player portraits which doesnt make sense at all."*
+ * `data-testid="player"` is on `PlayerArea`'s outer `<section>`
+ * (`Board.tsx`), which wraps a whole side of the table — battlefield, hand,
+ * graveyard, the lot. Before this wave, a walk that reached it (anywhere in
+ * that seat that was not itself a card) matched it, so releasing or hovering
+ * on the row label, the pile gutter, the seat's own padding — most of the
+ * board that is not a card — resolved to "targeting that player" whenever a
+ * player was legal at all. `faceBox` keeps the WIDER selector as its own
+ * fallback for the box a decided target snaps TO, which is a different,
+ * harmless question (`boxOf` is only ever called once a target id is already
+ * chosen); this is the question of what counts as a hit in the first place,
+ * and only the face itself may answer it.
  */
 export function targetUnder(node: EventTarget | null, offered: LiveClickables): DropTarget | null {
   let el = node instanceof Element ? node : null;
@@ -66,7 +81,7 @@ export function targetUnder(node: EventTarget | null, offered: LiveClickables): 
     if (cardId !== null) {
       return offered.selectable.has(cardId) ? { kind: 'card', id: cardId } : null;
     }
-    if (el.hasAttribute('data-player-face') || el.getAttribute('data-testid') === 'player') {
+    if (el.hasAttribute('data-player-face')) {
       const id = boardId(el, 'data-player-id');
       return id !== null && offered.selectablePlayers.has(id) ? { kind: 'player', id } : null;
     }

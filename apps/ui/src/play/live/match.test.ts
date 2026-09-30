@@ -1678,3 +1678,68 @@ describe('full control, restored after a refresh', () => {
     expect(m.fullControl).toBe(true);
   });
 });
+
+describe('the seat identities — item 4, wave 29 §A.6-8', () => {
+  /*
+   * Real players, off a real replay server (`fullGame`), because the join key
+   * this joins by (`playerId`) has to be a real Forge player id — the whole
+   * point of the claim is that it is THE SAME id `BoardPlayer.id` already is,
+   * not a stand-in.
+   */
+
+  it('before forge:seats has ever arrived, the seat table is "not yet", not "arrived empty" — and nobody carries the key', async () => {
+    const { m } = await fullGame();
+    expect(m.avatarByPlayerId).toBeNull();
+    for (const p of m.view!.players) expect(p).not.toHaveProperty('avatarId');
+  });
+
+  it('joins the avatar onto the viewer’s own BoardPlayer by playerId, and leaves the other seat’s key off entirely', async () => {
+    const { s, m } = await fullGame();
+    const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
+    const theirId = m.view!.players.find((p) => !p.isViewer)!.id;
+    const before = m.revision;
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: viewerId, avatarId: 'wanderer' },
+      { seat: 1, claimed: true, playerId: theirId },
+    ]);
+    await until('forge:seats to be adopted', () => m.avatarByPlayerId !== null);
+    expect(m.revision, 'it redrew — PlayerFace reads this through subscribe').toBeGreaterThan(before);
+    expect(m.view!.players.find((p) => p.isViewer)).toHaveProperty('avatarId', 'wanderer');
+    expect(m.view!.players.find((p) => !p.isViewer)).not.toHaveProperty('avatarId');
+  });
+
+  it('a seat table that HAS arrived with nobody wearing a face is a real, empty Map — not null', async () => {
+    const { s, m } = await fullGame();
+    const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
+    s.sendSeats([{ seat: 0, claimed: true, playerId: viewerId }]);
+    await until('forge:seats to be adopted', () => m.avatarByPlayerId !== null);
+    expect(m.avatarByPlayerId).not.toBeNull();
+    expect(m.avatarByPlayerId!.size).toBe(0);
+  });
+
+  it('null, "", whitespace and an absent key all collapse to no avatar — the client tolerates every shape the wire could carry', async () => {
+    const { s, m } = await fullGame();
+    const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
+    for (const avatarId of [null, '', '   ', undefined]) {
+      const before = m.revision;
+      s.sendSeats([{ seat: 0, claimed: true, playerId: viewerId, ...(avatarId === undefined ? {} : { avatarId }) }]);
+      await until(`forge:seats(${JSON.stringify(avatarId)}) to be adopted`, () => m.revision > before);
+      expect(m.view!.players.find((p) => p.isViewer), JSON.stringify(avatarId)).not.toHaveProperty('avatarId');
+    }
+  });
+
+  it('a malformed forge:seats payload is recorded and invalid, and the seat table stays "not yet arrived"', async () => {
+    const { s, m } = await fullGame();
+    s.sendSeats('not an array of seats');
+    await until('the payload to be refused', () => m.lastInvalid !== null);
+    expect(m.avatarByPlayerId).toBeNull();
+  });
+
+  it('a seat naming no player id (playerId: null) cannot be joined to a board player, and is simply skipped', async () => {
+    const { s, m } = await fullGame();
+    s.sendSeats([{ seat: 1, claimed: false, playerId: null, avatarId: 'rogue' }]);
+    await until('forge:seats to be adopted', () => m.avatarByPlayerId !== null);
+    expect(m.avatarByPlayerId!.size).toBe(0);
+    for (const p of m.view!.players) expect(p).not.toHaveProperty('avatarId');
+  });
+});

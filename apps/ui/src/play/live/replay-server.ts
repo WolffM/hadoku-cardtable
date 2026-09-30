@@ -105,6 +105,12 @@ export interface ReplayServer {
   lose(frame: ServerFrame): WireCursor;
   /** Deliver an arbitrary payload on `forge:s2c` — a replay, junk, anything. */
   sendRaw(payload: unknown): void;
+  /**
+   * Deliver `{ matchId, seats }` on `forge:seats` — item 4, wave 29 §B's own
+   * event (`match.ts`'s `adoptSeats`). `seats` is `unknown`, like `sendRaw`'s
+   * payload: a test that wants a malformed shape should be able to send one.
+   */
+  sendSeats(seats: unknown): void;
   /** The envelope `send` produced for a given seq, for replaying it. */
   sent(seq: number): ServerEnvelope;
   /** A new process: new epoch, cursor from 0, no history, no open asks. */
@@ -142,6 +148,9 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     lose: (frame) => stamp(frame, false),
     sendRaw: (payload) => {
       for (const socket of joined) socket.emit(MATCH_EVENTS.serverToClient, payload);
+    },
+    sendSeats: (seats) => {
+      for (const socket of joined) socket.emit(MATCH_EVENTS.seats, { matchId, seats });
     },
     sent: (n) => {
       const envelope = sentLog.get(`${server.epoch}:${n}`);

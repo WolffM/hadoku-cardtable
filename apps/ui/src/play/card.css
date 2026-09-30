@@ -409,6 +409,40 @@ button.board-card__face:focus-visible {
   outline-offset: 3px;
 }
 
+/* ── can-act: Forge says this card could do something (item 16) ──────── */
+
+/*
+ * The operator: *"things like morbid should be visible when they are active.
+ * the 'orange glow' from hearthstone was always nice."* Only the buildable
+ * half of that request (`Board.tsx`'s `BoardInteraction.actionable` has the
+ * argument for why the other half — a named ability's CONDITION — is not this
+ * wave's to ship): Forge's ACTIONABLE set, drawn as a soft warm BLUR rather
+ * than a fourth outline colour.
+ *
+ * `--warn` is the exact token wave 27 freed when the operator asked for the
+ * old "orange outline" on a refused attack gone (`live/gestures/gestures.css`'s
+ * header quotes it: *"lets get rid of the orange one"*). Reusing it here is
+ * safe rather than a relapse, because the SHAPE of the mark is different on
+ * purpose — a blur has no edge to be mistaken for the ring's or the intent
+ * mark's hard one — and the two can never be read as the same instruction: a
+ * refused attack draws nothing at all (that outline was deleted, not moved).
+ *
+ * Two rules rather than one, because a box-shadow does not merge across
+ * separate declarations — whichever selector wins the cascade replaces the
+ * property outright. `data-can-act` and `data-selectable` are correlated but
+ * not identical (`data-can-act` is unset the instant a real SELECTION opens,
+ * `LiveBoard.tsx`), so both cases are written out rather than assumed.
+ */
+.board-card[data-can-act] .card {
+  box-shadow: 0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
+}
+
+.board-card[data-can-act][data-selectable] > button.board-card__face .card {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
+}
+
 /* ── turned: a quarter turn, inside a landscape box of the same width ─── */
 
 /*

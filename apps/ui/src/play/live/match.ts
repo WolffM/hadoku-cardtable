@@ -237,6 +237,7 @@ import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protoco
 import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
+import { normalizeAvatarId } from '../../room/avatar.ts';
 import { toBoardView, type BoardView } from '../adapter.ts';
 import { foldPackets, type WireState } from '../fold.ts';
 import { expectWirePackets, WireType, type WirePacket } from '../wire.ts';
@@ -246,6 +247,7 @@ import {
   fullControlFrame,
   MATCH_EVENTS,
   parseMatchAck,
+  parseMatchSeats,
   parseServerEnvelope,
   replyFrame,
   type ClientEnvelope,
@@ -531,6 +533,24 @@ export interface LiveMatch {
    * the alternative is drawing a hatch nobody opened.
    */
   fullControl: boolean;
+  /**
+   * Every seat's identity, keyed by Forge PLAYER id — item 4 (wave 29 §A.6-8),
+   * the render half. `seats[].playerId` is the join key `D-avatar-field.md` §2
+   * traced (the same id `BoardPlayer.id` already is), and this map carries only
+   * the seats that had a non-blank `avatarId`: a seat with none is simply
+   * absent from it, which is what `redraw` turns into `BoardPlayer.avatarId`
+   * being absent too (§3's two-state rule, end to end).
+   *
+   * **`null` until `forge:seats` has landed at least once, and a real (possibly
+   * empty) `Map` after.** That is the whole of the three-state rule this field
+   * exists to keep: "the seat table has not arrived yet" (`null`) is a
+   * different fact from "it arrived, and this seat had no avatar" (a `Map`
+   * with no entry for that player), even though both draw the same generated
+   * bust — see `PlayerFace`. Reset to `null` on an epoch change
+   * (`discardLocal`): a new Forge process can hand its players different ids,
+   * and the resync that follows re-sends `forge:seats` for the new epoch.
+   */
+  avatarByPlayerId: ReadonlyMap<number, string> | null;
   /** The most recent failure worth showing. Cleared when a snapshot lands. */
   lastError: string | null;
   /** Why the most recent malformed envelope or frame was refused. */
@@ -621,6 +641,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     spent: { cards: new Set(), players: new Set() },
     attackIntent: null,
     lastSelectedCard: null,
+    avatarByPlayerId: null,
     fullControl: false,
     lastError: null,
     lastInvalid: null,
@@ -642,6 +663,10 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
 
   match.transport.on(MATCH_EVENTS.fullControl, (payload) => {
     adoptFullControl(match, payload);
+  });
+
+  match.transport.on(MATCH_EVENTS.seats, (payload) => {
+    adoptSeats(match, payload);
   });
 
   match.transport.on('connect', () => {
@@ -780,6 +805,47 @@ function adoptFullControl(match: LiveMatch, payload: unknown): void {
   }
   if (match.fullControl === parsed.data.on) return;
   match.fullControl = parsed.data.on;
+  notify(match);
+}
+
+/**
+ * `forge:seats` arriving FROM the server — item 4, wave 29 §B's own event
+ * (see `MATCH_EVENTS.seats`'s note). Sent on every join and every resync, so
+ * this is the one place `avatarByPlayerId` is ever written.
+ *
+ * A malformed payload or one for another match is recorded and changes
+ * nothing, exactly as `adoptFullControl` treats the same two failures — the
+ * server is telling us, not asking, so there is nothing to answer either way.
+ * `redraw` runs on success (not merely `notify`): this is the fact
+ * `toBoardView` turns into `BoardPlayer.avatarId`, so the view itself is stale
+ * until it is rebuilt.
+ */
+function adoptSeats(match: LiveMatch, payload: unknown): void {
+  const parsed = parseMatchSeats(payload);
+  if (!parsed.ok) {
+    match.lastInvalid = parsed.errors;
+    match.stats.invalid += 1;
+    notify(match);
+    return;
+  }
+  if (parsed.value.matchId !== match.matchId) {
+    match.lastInvalid = [
+      { path: '$.matchId', message: `seats for match ${parsed.value.matchId}, not ${match.matchId}` },
+    ];
+    match.stats.invalid += 1;
+    notify(match);
+    return;
+  }
+  const byPlayerId = new Map<number, string>();
+  for (const seat of parsed.value.seats) {
+    if (seat.playerId === null) continue;
+    const id = normalizeAvatarId(seat.avatarId);
+    if (id !== null) byPlayerId.set(seat.playerId, id);
+  }
+  // A real Map even when it holds nothing: "arrived, nobody has one" is still
+  // arrived — see the field's own note on the three states.
+  match.avatarByPlayerId = byPlayerId;
+  redraw(match);
   notify(match);
 }
 
@@ -1418,7 +1484,13 @@ function redraw(match: LiveMatch): void {
   match.view =
     match.playerId === null || match.state.size === 0
       ? null
-      : toBoardView(match.state, match.forgeSeq, { viewerPlayerId: match.playerId });
+      : toBoardView(match.state, match.forgeSeq, {
+          viewerPlayerId: match.playerId,
+          // `null` (seats never arrived) and an empty `Map` (they arrived, and
+          // named no avatars) both mean "pass nothing" to the adapter — see the
+          // field's own note on why the two are still kept apart in STATE.
+          avatarByPlayerId: match.avatarByPlayerId ?? undefined,
+        });
 }
 
 /* ── Inbound ─────────────────────────────────────────────────────────── */
@@ -1606,5 +1678,6 @@ function discardLocal(match: LiveMatch): void {
   match.inputLive = false;
   match.attackIntent = null;
   match.lastSelectedCard = null;
+  match.avatarByPlayerId = null;
   unspend(match);
 }
