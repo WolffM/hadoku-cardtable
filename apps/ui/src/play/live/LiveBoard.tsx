@@ -246,7 +246,7 @@ import { Component, useEffect, useId, useRef, useState, useSyncExternalStore, ty
 import type { DraftCard } from '@hadoku/shared';
 import { usePrefs } from '@wolffm/prefs-client/react';
 
-import { CardTile } from '../../components/CardTile.tsx';
+import { routeHash } from '../../screens/route.ts';
 import { PHASE_LABEL, type BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
 import { lookupFromState, plainRulesText, withAbilityLabels } from '../prompts/lookup.ts';
@@ -300,6 +300,34 @@ export type LiveStatus =
 
 /** The refusal that means the match itself is gone, rather than this join. */
 export const MATCH_GONE_REFUSAL = 'unknown-match';
+
+/**
+ * What a player is told when the match they asked for is not there any more —
+ * the server's own sentence (`MATCH_GONE_WORDS`, `apps/server/src/play/socket.ts`,
+ * sent as `message` on the `match-gone` ack).
+ *
+ * It is held here and not read off the ack because `match.ts` folds a refused ack
+ * into `lastError` as the refusal CODE alone and keeps nothing else of it; until
+ * it keeps `message`, this is the same string the server sends, and it is only
+ * ever drawn for `unknown-match`, which is the one refusal that carries it.
+ */
+export const MATCH_GONE_SENTENCE =
+  'This match is no longer running on the server — it ended when the server restarted or when Forge stopped. Nothing you did caused it. Start a new match to play again.';
+
+/**
+ * This socket is WATCHING: the account holds the seat in another window, and
+ * only that window may act (`LiveMatch.spectator`, shape 3 of the wave's agreed
+ * seams — the server's `forge:role`). Read through a structural type so this file
+ * does not depend on the field's landing order; `false` until the server says.
+ */
+export function isSpectator(match: LiveMatch): boolean {
+  return (match as { spectator?: boolean }).spectator === true;
+}
+
+/** The server's `ended` frame has arrived (`LiveMatch.over`, shape 4). */
+export function isOver(match: LiveMatch): boolean {
+  return (match as { over?: boolean }).over === true;
+}
 
 /** `forge:join was refused: unknown-match` → `unknown-match`. */
 const REFUSAL = /\bwas refused: (.+)$/;
@@ -378,7 +406,7 @@ export function statusText(match: LiveMatch): string | null {
     case 'refused':
       return `Refused: ${refusalOf(match) ?? ''}`;
     case 'match-gone':
-      return 'Match gone.';
+      return MATCH_GONE_SENTENCE;
   }
 }
 
@@ -575,6 +603,23 @@ export function stagedHandCardId(match: LiveMatch, offered: LiveClickables, bloc
   return viewer?.hand?.some((c) => c.id === id) === true ? id : undefined;
 }
 
+/** The forge ids of every card of each name in the view — what a log line's name hands the inspector. */
+export function cardIdsNamedInView(view: BoardView | null): Map<string, number[]> {
+  const out = new Map<string, number[]>();
+  if (view === null) return out;
+  const add = (card: DraftCard, id: number): void => {
+    const key = card.name.toLowerCase();
+    const held = out.get(key);
+    if (held === undefined) out.set(key, [id]);
+    else held.push(id);
+  };
+  for (const p of view.players) {
+    for (const zone of [p.hand ?? [], p.battlefield, p.graveyard, p.exile]) for (const c of zone) add(c.card, c.id);
+  }
+  for (const item of view.stack) if (item.sourceCard !== null && item.sourceCardId !== null) add(item.sourceCard, item.sourceCardId);
+  return out;
+}
+
 export function cardsNamedInView(view: BoardView | null): Map<string, DraftCard> {
   const out = new Map<string, DraftCard>();
   if (view === null) return out;
@@ -637,23 +682,30 @@ export function splitLogLine(line: string, cards: ReadonlyMap<string, DraftCard>
  *    actor's own copy unattributed, so a line that starts with a seat name is by
  *    construction someone else's doing — and an unattributed line in a table's
  *    log reads as your own, which is the thing this marks.
- *  - a card name is HOVERABLE and shows the card. The tile is the real
- *    `CardTile`, so the art goes through the one resolver like every other card
- *    on this page, and the name is `tabindex`-reachable so the keyboard gets the
- *    same thing the pointer does.
+ *  - a card name is HOVERABLE and shows the card — THROUGH THE INSPECTOR, not a
+ *    surface of its own (wave 31 P12: *"we shouldn't even create a separate hover
+ *    display just use the existing one"*). The name carries `data-inspect-ids`,
+ *    the forge ids of every card of that name in the view, and
+ *    `../inspect/index.ts` — which listens on the document — enlarges the tile the
+ *    board already drew for the first of them. A name whose cards have no tile
+ *    on the page (a zone the board draws as a count, a card hidden from this
+ *    seat) shows NOTHING: that is the honest answer, and inventing a face for it
+ *    would be the second surface again. The name is `tabindex`-reachable, and the
+ *    inspector answers focus as it answers hover.
  */
-function LogLine({ line, cards, theirName }: { line: string; cards: ReadonlyMap<string, DraftCard>; theirName: string | null }) {
+function LogLine({
+  line,
+  cards,
+  ids,
+  theirName,
+}: {
+  line: string;
+  cards: ReadonlyMap<string, DraftCard>;
+  ids: ReadonlyMap<string, readonly number[]>;
+  theirName: string | null;
+}) {
   const text = plainRulesText(line);
   const mine = theirName === null || !text.startsWith(`${theirName} `);
-  /*
-   * Which name is being pointed at, if any. State rather than a CSS `:hover`
-   * rule, for two reasons that are both about the rest of the page: the tile is
-   * only in the DOM while it is wanted, so a full logbook is not eight card tiles
-   * and eight art requests sitting behind `display: none`; and the log's
-   * `textContent` stays the log's own words, which is what `e2e/table-fit.spec.ts`
-   * and `LiveBoard.test.ts` read it as.
-   */
-  const [peek, setPeek] = useState<string | null>(null);
   return (
     <li data-log-kind={logKind(text)} data-log-who={mine ? 'you' : 'them'}>
       {splitLogLine(text, cards).map((piece, i) =>
@@ -664,19 +716,10 @@ function LogLine({ line, cards, theirName }: { line: string; cards: ReadonlyMap<
             key={i}
             className="live__log-card"
             data-log-card={piece.name}
+            data-inspect-ids={(ids.get(piece.name.toLowerCase()) ?? []).join(',')}
             tabIndex={0}
-            title={`${piece.name}${piece.typeLine === '' ? '' : ` — ${piece.typeLine}`}`}
-            onMouseEnter={() => setPeek(piece.name)}
-            onMouseLeave={() => setPeek(null)}
-            onFocus={() => setPeek(piece.name)}
-            onBlur={() => setPeek(null)}
           >
             {piece.name}
-            {peek === piece.name && (
-              <span className="live__log-peek" data-testid="live-log-peek" aria-hidden="true">
-                <CardTile card={piece} />
-              </span>
-            )}
           </span>
         ),
       )}
@@ -724,6 +767,37 @@ export function whoseTurn(view: BoardView): 'yours' | 'theirs' | 'nobody' {
   return active.isViewer ? 'yours' : 'theirs';
 }
 
+/** The one row the six combat steps share while the game is not in combat. */
+const COMBAT_ROW = 'COMBAT';
+
+interface RailRow {
+  phase: string;
+  group: string;
+  /** Index, in `PHASE_ORDER`, of the LAST step this row stands for: the row is past once the game is beyond it. */
+  last: number;
+}
+
+/**
+ * The rows the rail draws. **Combat is six steps only while the game is in it**
+ * (wave 31 P1 — asked twice: *"collapse the combat phases"*). Outside combat the
+ * six are ONE row, `Combat`, and the rail's box does not change: its height is
+ * definite in `live.css` and the rows share it out, so eight rows and thirteen
+ * are the same box with taller and shorter rows (`e2e/table-fit.spec.ts` reads
+ * `.live__step-name` for clipping, and taller rows clip nothing).
+ */
+function railRows(inCombat: boolean): RailRow[] {
+  const out: RailRow[] = [];
+  PHASE_ORDER.forEach(({ phase, group }, i) => {
+    if (group === 'combat' && !inCombat) {
+      if (out.at(-1)?.phase !== COMBAT_ROW) out.push({ phase: COMBAT_ROW, group, last: i });
+      else out.at(-1)!.last = i;
+      return;
+    }
+    out.push({ phase, group, last: i });
+  });
+  return out;
+}
+
 /**
  * The phase rail. Presentation only — turn, step and whose turn all come off
  * the view that was already on screen (see the module header).
@@ -748,6 +822,8 @@ export function whoseTurn(view: BoardView): 'yours' | 'theirs' | 'nobody' {
 function PhaseRail({ view }: { view: BoardView }) {
   const at = PHASE_ORDER.findIndex((p) => p.phase === view.phase);
   const whose = whoseTurn(view);
+  const inCombat = at >= 0 && PHASE_ORDER[at]!.group === 'combat';
+  const rows = railRows(inCombat);
   return (
     <div
       className="live__phases"
@@ -755,6 +831,7 @@ function PhaseRail({ view }: { view: BoardView }) {
       data-whose={whose}
       data-phase={view.phase ?? ''}
       data-turn={view.turn}
+      data-combat={inCombat ? '' : undefined}
     >
       <p className="live__turn" data-testid="live-turn">
         <span className="live__turn-n" data-testid="live-turn-n">
@@ -763,21 +840,24 @@ function PhaseRail({ view }: { view: BoardView }) {
         <span className="live__turn-who">{whose}</span>
       </p>
       <ol className="live__steps" aria-label="Phase">
-        {PHASE_ORDER.map(({ phase, group }, i) => (
-          <li
-            key={phase}
-            className="live__step"
-            data-phase={phase}
-            data-group={group}
-            data-current={i === at ? '' : undefined}
-            data-past={at >= 0 && i < at ? '' : undefined}
-            data-group-start={i === 0 || PHASE_ORDER[i - 1]!.group !== group ? '' : undefined}
-            aria-current={i === at ? 'step' : undefined}
-          >
-            <span className="live__mark" aria-hidden="true" />
-            <span className="live__step-name">{PHASE_LABEL[phase] ?? phase}</span>
-          </li>
-        ))}
+        {rows.map(({ phase, group, last }, i) => {
+          const current = phase === view.phase;
+          return (
+            <li
+              key={phase}
+              className="live__step"
+              data-phase={phase}
+              data-group={group}
+              data-current={current ? '' : undefined}
+              data-past={at >= 0 && last < at ? '' : undefined}
+              data-group-start={i === 0 || rows[i - 1]!.group !== group ? '' : undefined}
+              aria-current={current ? 'step' : undefined}
+            >
+              <span className="live__mark" aria-hidden="true" />
+              <span className="live__step-name">{PHASE_LABEL[phase] ?? (phase === COMBAT_ROW ? 'Combat' : phase)}</span>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
@@ -900,15 +980,38 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
   );
 }
 
+/** What a watching window is offered: nothing. */
+const INERT_CLICKABLES: LiveClickables = {
+  selectable: EMPTY_CARD_IDS,
+  selectablePlayers: EMPTY_CARD_IDS,
+  selectionOpen: false,
+};
+
 export interface LiveBoardProps {
   match: LiveMatch;
+  /**
+   * The room this match was started from, when the route knows it — the one way
+   * back a gone match offers. Absent: the lobby. (A `#/match/<id>` route carries
+   * no room, so `MatchScreen` passes one only when it has one.)
+   */
+  roomId?: string | null;
 }
 
-export function LiveBoard({ match }: LiveBoardProps) {
+export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   useSyncExternalStore(
     (listener) => subscribe(match, listener),
     () => match.revision,
   );
+  /*
+   * A WATCHING socket (shape 3): the account holds this seat in another window,
+   * and two windows acting on one seat is exactly what the operator ruled out.
+   * So this window draws the table and answers nothing — no ask is drawn or
+   * auto-answered, no button presses, no click or drag reaches Forge, Concede is
+   * inert — and hover, the inspector and the log stay. `spectator` is read every
+   * render, so a promotion lifts all of it without a reload.
+   */
+  const spectator = isSpectator(match);
+  const over = isOver(match);
   const pending = currentAsk(match);
   /*
    * One answer is no question (§B, items 4 and 9). `rules.ts`'s `autoAnswer`
@@ -916,7 +1019,7 @@ export function LiveBoard({ match }: LiveBoardProps) {
    * would have asked is never drawn. Full control turns it off, and then the
    * picker comes back for one ability as it does for two.
    */
-  const auto = pending === null || match.fullControl ? null : autoAnswer(pending);
+  const auto = pending === null || match.fullControl || spectator ? null : autoAnswer(pending);
   const autoCallId = auto === null || pending === null ? null : pending.callId;
   useEffect(() => {
     if (autoCallId === null || auto === null) return;
@@ -925,7 +1028,7 @@ export function LiveBoard({ match }: LiveBoardProps) {
     if (answerAsk(match, autoCallId, auto.method, auto.reply)) noteAutoAnswered(match, auto.why);
   }, [match, autoCallId, auto]);
   /* Nothing renders for an ask that answers itself — not even for a frame. */
-  const ask = auto === null ? pending : null;
+  const ask = auto === null && !spectator ? pending : null;
   const bar = match.buttons;
   const status = liveStatus(match);
   /* `null` while the match is live, which is the whole of §B.5. */
@@ -948,7 +1051,7 @@ export function LiveBoard({ match }: LiveBoardProps) {
    * question is in front of it (items 7 and 13) and this is one of the two
    * things that can be.
    */
-  const paying = !askOpen && payingMana(match);
+  const paying = !spectator && !askOpen && payingMana(match);
   /*
    * What the log can put a face to, and whose lines are whose. Both come off the
    * board view the viewer is already looking at — see `cardsNamedInView` for why
@@ -956,8 +1059,9 @@ export function LiveBoard({ match }: LiveBoardProps) {
    * state frame, which draws the log as plain text.
    */
   const logCards = cardsNamedInView(match.view);
+  const logIds = cardIdsNamedInView(match.view);
   const theirName = match.view?.players.find((p) => !p.isViewer)?.name ?? null;
-  const offered = boardInteraction(match);
+  const offered = spectator ? INERT_CLICKABLES : boardInteraction(match);
   const interaction: BoardInteraction = {
     /*
      * `selectionOpen` rides in with the spread: `LiveClickables` already
@@ -1007,8 +1111,12 @@ export function LiveBoard({ match }: LiveBoardProps) {
      * its own test.
      */
     stagedCardId: stagedHandCardId(match, offered, askOpen || paying),
-    onSelectCard: (cardId) => selectCard(match, cardId),
-    onSelectPlayer: (playerId) => selectPlayer(match, playerId),
+    onSelectCard: (cardId) => {
+      if (!spectator) selectCard(match, cardId);
+    },
+    onSelectPlayer: (playerId) => {
+      if (!spectator) selectPlayer(match, playerId);
+    },
   };
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -1073,11 +1181,11 @@ export function LiveBoard({ match }: LiveBoardProps) {
     // would fire on mount, before the socket has so much as connected, and
     // then fire AGAIN the moment the real join lands (`stats.snapshots`
     // 0 → 1), which is a real double-send and not merely a wasted one.
-    if (prefs === null || match.stats.snapshots === 0) return;
+    if (spectator || prefs === null || match.stats.snapshots === 0) return;
     sendStopPreference(match, prefs.stopAtEndStep ?? PLAY_PREFS_DEFAULTS.stopAtEndStep, true);
     // `match.stats.snapshots` (not `match.stats` itself, which is a mutated-in-place
     // object with a stable identity) is the join/resync trigger; see the block comment above.
-  }, [match, prefs, match.stats.snapshots]);
+  }, [match, prefs, spectator, match.stats.snapshots]);
 
   /*
    * The pointer layer is lane B's (`./gestures/`), and the element is the whole
@@ -1088,13 +1196,60 @@ export function LiveBoard({ match }: LiveBoardProps) {
    */
   useEffect(() => {
     const canvas = rootRef.current;
-    if (canvas === null) return undefined;
+    // A watcher's pointer belongs to nobody: no drag, no box, no arrow.
+    if (canvas === null || spectator) return undefined;
     const handle = installGestures({ canvas, match });
     return () => handle.dispose();
-  }, [match]);
+  }, [match, spectator]);
+
+  if (status === 'match-gone') {
+    /*
+     * A match that is gone has no table, and so none of the table's chrome: the
+     * operator, 2026-09-30, *"why can I still join this if the match is gone?"*.
+     * Before this, the page was the status line AND the log toggle, the OK /
+     * Cancel / Full control / Settings / Concede cluster and an empty logbook —
+     * a live-looking page with nothing behind it. Now: the server's own
+     * sentence, and ONE way back, an anchor to the room or else the lobby. No
+     * button, nothing Join-shaped.
+     */
+    return (
+      <div className="live live--gone" ref={rootRef} data-testid="live-gone">
+        <p
+          className="live__status"
+          role="status"
+          data-testid="live-status"
+          data-live-line=""
+          data-status={status}
+          data-perch="table"
+          title={match.lastError ?? undefined}
+        >
+          {statusLine}
+        </p>
+        <a
+          className="live__gone-back"
+          data-testid="live-gone-back"
+          href={routeHash(roomId === null ? { kind: 'lobby' } : { kind: 'room', roomId })}
+        >
+          {roomId === null ? 'Back to the lobby' : 'Back to the room'}
+        </a>
+      </div>
+    );
+  }
 
   return (
-    <div className="live" ref={rootRef}>
+    <div
+      className="live"
+      ref={rootRef}
+      data-spectator={spectator ? '' : undefined}
+      // The board's own arranging drag is HTML5 and is lane A's; a watcher's
+      // window refuses it here, at the root, rather than teaching the board.
+      onDragStartCapture={spectator ? (event) => event.preventDefault() : undefined}
+    >
+      {spectator && (
+        <p className="live__spectator" role="status" data-testid="live-spectator">
+          Watching: this seat is being played in another window
+        </p>
+      )}
       {/*
        * `data-live-line` marks every row of text this component draws about
        * itself, so a test can count them: three at once was the bug.
@@ -1157,7 +1312,7 @@ export function LiveBoard({ match }: LiveBoardProps) {
          */}
         <ul className="live__log" data-testid="live-log" aria-label="Said">
           {match.says.slice(-SAYS_SHOWN).map((line, i) => (
-            <LogLine key={i} line={line} cards={logCards} theirName={theirName} />
+            <LogLine key={i} line={line} cards={logCards} ids={logIds} theirName={theirName} />
           ))}
         </ul>
       </div>
@@ -1206,7 +1361,7 @@ export function LiveBoard({ match }: LiveBoardProps) {
           type="button"
           className="live__ok"
           data-testid="live-button-ok"
-          disabled={ask !== null || bar === null || !bar.enable1}
+          disabled={spectator || ask !== null || bar === null || !bar.enable1}
           onClick={() => pressButton(match, 'ok')}
         >
           {bar === null || bar.label1 === '' ? 'OK' : bar.label1}
@@ -1215,7 +1370,7 @@ export function LiveBoard({ match }: LiveBoardProps) {
           type="button"
           className="live__cancel"
           data-testid="live-button-cancel"
-          disabled={askOpen || bar === null || !bar.enable2 || !offersSecondButton(match)}
+          disabled={spectator || askOpen || bar === null || !bar.enable2 || !offersSecondButton(match)}
           onClick={() => pressButton(match, 'cancel')}
         >
           {secondLabel(match)}
@@ -1225,6 +1380,7 @@ export function LiveBoard({ match }: LiveBoardProps) {
           className="live__toggle"
           data-testid="live-full-control"
           aria-pressed={match.fullControl}
+          disabled={spectator}
           title="Full control"
           onClick={() => setFullControl(match, !match.fullControl)}
         >
@@ -1257,6 +1413,7 @@ export function LiveBoard({ match }: LiveBoardProps) {
           className="live__concede"
           data-testid="live-concede"
           aria-expanded={conceding}
+          disabled={spectator || over}
           title="Concede the game"
           onClick={() => setConceding(true)}
         >
@@ -1278,7 +1435,7 @@ export function LiveBoard({ match }: LiveBoardProps) {
         </div>
       )}
       {paying && <PaymentWindow match={match} />}
-      {conceding && (
+      {conceding && !spectator && !over && (
         <ConcedeAsk
           onConcede={() => {
             concede(match);
@@ -1290,6 +1447,7 @@ export function LiveBoard({ match }: LiveBoardProps) {
       {settingsOpen && (
         <SettingsPanel
           match={match}
+          inert={spectator}
           boardLayout={boardLayout}
           onBoardLayoutChange={setBoardLayout}
           onSave={(patch: Partial<PlayPrefs>) => void savePrefs(patch)}

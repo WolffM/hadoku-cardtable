@@ -44,6 +44,8 @@ import type { PlayPrefs } from './prefs.ts';
 
 export interface SettingsPanelProps {
   match: LiveMatch;
+  /** A watching window: the one setting that reaches the server is refused. */
+  inert?: boolean;
   /** The board's CURRENT layout — `LiveBoard`'s own state, passed to `<Board>`. */
   boardLayout: BoardLayout;
   /** The whole seam back to `LiveBoard`: a choice here becomes `<Board boardLayout>`. */
@@ -58,7 +60,7 @@ const BOARD_LAYOUT_OPTIONS: readonly { value: BoardLayout; label: string }[] = [
   { value: 'type-separated', label: 'Type-separated (lands, artifacts, creatures, other)' },
 ];
 
-export function SettingsPanel({ match, boardLayout, onBoardLayoutChange, onSave, onClose }: SettingsPanelProps) {
+export function SettingsPanel({ match, inert = false, boardLayout, onBoardLayoutChange, onSave, onClose }: SettingsPanelProps) {
   const titleId = useId();
   const layoutLegendId = useId();
 
@@ -97,6 +99,7 @@ export function SettingsPanel({ match, boardLayout, onBoardLayoutChange, onSave,
             type="checkbox"
             data-testid="live-settings-stop-end-step"
             checked={match.stopAtEndStep}
+            disabled={inert}
             onChange={(event) => {
               const next = event.currentTarget.checked;
               sendStopPreference(match, next);

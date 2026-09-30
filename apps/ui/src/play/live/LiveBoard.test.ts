@@ -21,7 +21,15 @@ import { deltaKey, WireType } from '../wire.ts';
 import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
 import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
-import { isMatchGone, LiveBoard, liveStatus, refusalOf, statusText, type LiveStatus } from './LiveBoard.tsx';
+import {
+  isMatchGone,
+  LiveBoard,
+  liveStatus,
+  MATCH_GONE_SENTENCE,
+  refusalOf,
+  statusText,
+  type LiveStatus,
+} from './LiveBoard.tsx';
 import {
   answerAsk,
   boardInteraction,
@@ -874,7 +882,7 @@ describe('one state, one line', () => {
     act(() => stub.answer({ error: 'unknown-match' }));
 
     expect(isMatchGone(m)).toBe(true);
-    only(container, m, 'match-gone', 'Match gone.');
+    only(container, m, 'match-gone', MATCH_GONE_SENTENCE);
     // The operator's three, as they were: the refusal, the seat line and the
     // waiting line. Exactly one of them is drawn now, and it is none of them.
     expect(container.textContent).not.toContain('Connected, not seated.');
@@ -885,6 +893,40 @@ describe('one state, one line', () => {
     // the status line's own `data-status="match-gone"` (asserted in `only`
     // above) is what is left to act on the state.
     expect(getByTestId('live-status').title).toContain('unknown-match');
+  });
+
+  /*
+   * Wave 31 §L.5 — *"why can I still join this if the match is gone?"*. What the
+   * page showed before: the one line AND the whole of the table's chrome — the
+   * Log toggle and its empty logbook, the OK / Cancel / Full control / Settings /
+   * Concede cluster — over nothing. Now: the server's sentence and ONE way back.
+   */
+  it('match-gone: the server’s sentence, one way back, and no board chrome or Join-shaped control', () => {
+    const { stub, container, queryByTestId, getByTestId } = stubBoard();
+    act(() => stub.fire('connect'));
+    act(() => stub.answer({ error: 'unknown-match', outcome: 'match-gone', message: MATCH_GONE_MESSAGE }));
+
+    expect(getByTestId('live-status').textContent).toBe(MATCH_GONE_SENTENCE);
+    for (const id of ['live-buttons', 'live-log-toggle', 'live-logbook', 'live-concede', 'live-settings', 'live-full-control']) {
+      expect(queryByTestId(id), `${id} is table chrome and there is no table`).toBeNull();
+    }
+    expect(container.querySelectorAll('button'), 'nothing to press, least of all something that says Join').toHaveLength(0);
+    // The way back: no room on a `#/match/<id>` route, so the lobby.
+    const back = getByTestId('live-gone-back') as HTMLAnchorElement;
+    expect(back.getAttribute('href')).toBe('#/');
+    expect(back.textContent).toBe('Back to the lobby');
+    expect(container.querySelectorAll('a')).toHaveLength(1);
+  });
+
+  it('match-gone inside a room goes back to that room', () => {
+    const stub = stubTransport();
+    const m = (match = startMatch({ matchId: MATCH_ID, transport: stub.transport }));
+    const { getByTestId } = render(createElement(LiveBoard, { match: m, roomId: 'room 7' }));
+    act(() => stub.fire('connect'));
+    act(() => stub.answer({ error: 'unknown-match' }));
+    const back = getByTestId('live-gone-back') as HTMLAnchorElement;
+    expect(back.getAttribute('href')).toBe('#/room/room%207');
+    expect(back.textContent).toBe('Back to the room');
   });
 
   it('match-gone, from lane E’s ACTUAL ack: the outcome and the sentence do not make it malformed', () => {
@@ -902,7 +944,7 @@ describe('one state, one line', () => {
     expect(m.stats.invalid).toBe(0);
     expect(refusalOf(m)).toBe('unknown-match');
     expect(isMatchGone(m)).toBe(true);
-    only(container, m, 'match-gone', 'Match gone.');
+    only(container, m, 'match-gone', MATCH_GONE_SENTENCE);
     expect(container.textContent).not.toContain('is not a snapshot');
     expect(queryByTestId('live-error')).toBeNull();
   });
@@ -913,7 +955,7 @@ describe('one state, one line', () => {
     act(() => stub.answer({ error: 'unknown-match' }));
     act(() => stub.fire('disconnect'));
     expect(m.connected).toBe(false);
-    only(container, m, 'match-gone', 'Match gone.');
+    only(container, m, 'match-gone', MATCH_GONE_SENTENCE);
   });
 
   it('the seam reads the refusal and nothing else: an unanswered ack is not a refusal', () => {
@@ -1312,10 +1354,10 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
 describe('the phase reads down the side', () => {
   const steps = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.live__step')];
 
-  it('draws Forge’s thirteen steps and marks the one the game is on', async () => {
+  it('draws the turn’s steps — combat as one — and marks the one the game is on', async () => {
     const { m, container } = await liveBoard();
     const all = steps(container);
-    expect(all).toHaveLength(13);
+    expect(all).toHaveLength(8);
     const current = all.filter((el) => el.hasAttribute('data-current'));
     expect(current).toHaveLength(1);
     // The phase the VIEW is on, and our own word for it. It used to be compared
@@ -1338,19 +1380,14 @@ describe('the phase reads down the side', () => {
    * the thirteen could be read. The names are `PHASE_LABEL`'s and this lane renames
    * none of them.
    */
-  it('every step says its name, all thirteen of them', async () => {
+  it('every step says its name — outside combat, combat is ONE of them (wave 31 P1)', async () => {
     const { container } = await liveBoard();
     expect(steps(container).map((el) => el.textContent)).toEqual([
       'Untap',
       'Upkeep',
       'Draw',
       'Main 1',
-      'Beginning of combat',
-      'Declare attackers',
-      'Declare blockers',
-      'First-strike damage',
-      'Combat damage',
-      'End of combat',
+      'Combat',
       'Main 2',
       'End step',
       'Cleanup',
@@ -2062,8 +2099,8 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
     expect(lines(container).map((li) => li.dataset.logWho)).toEqual(['you', 'them']);
   });
 
-  it('a card name the viewer’s own board holds is a tab stop, and hovering it draws the card', async () => {
-    const { s, container } = await liveBoard();
+  it('a card name the viewer’s own board holds is a tab stop, and hovering it draws the card through the inspector', async () => {
+    const { s, m, container } = await liveBoard();
     s.send(says('paid U — Island, Izzet Guildgate'));
     await waitFor(() => expect(lines(container)).toHaveLength(1));
     const names = [...lines(container)[0]!.querySelectorAll<HTMLElement>('.live__log-card')];
@@ -2071,13 +2108,31 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
     expect(names.map((n) => n.tabIndex), 'the keyboard gets what the pointer gets').toEqual([0, 0]);
     // The line still READS as the line: wrapping a name changes no text.
     expect(lines(container)[0]!.textContent).toBe('paid U — Island, Izzet Guildgate');
-    // Nothing is drawn until it is wanted, and then it is the real card.
+    // The name points at the cards of that name the view holds; the inspector resolves one.
+    const islandIds = m.view!.players.flatMap((p) => [...(p.hand ?? []), ...p.battlefield]).filter((c) => c.card.name === 'Island').map((c) => c.id);
+    expect(islandIds.length).toBeGreaterThan(0);
+    expect(names[0]!.dataset.inspectIds!.split(',').map(Number).sort()).toEqual(expect.arrayContaining(islandIds));
+    // Nothing is drawn until it is wanted, and then it is the inspector's own panel.
+    expect(container.querySelector('[data-inspect]')).toBeNull();
+    fireEvent.pointerOver(names[0]!, { pointerType: 'mouse' });
+    await waitFor(() => expect(container.querySelector('[data-inspect]')).not.toBeNull());
+    expect(container.querySelector('[data-inspect] .card__name')!.textContent).toBe('Island');
+    // P12: there is no second hover display — the log's own peek is gone.
     expect(container.querySelector('[data-testid="live-log-peek"]')).toBeNull();
-    fireEvent.mouseEnter(names[0]!);
-    await waitFor(() => expect(container.querySelector('[data-testid="live-log-peek"]')).not.toBeNull());
-    expect(container.querySelector('[data-testid="live-log-peek"] .card__name')!.textContent).toBe('Island');
-    fireEvent.mouseLeave(names[0]!);
-    await waitFor(() => expect(container.querySelector('[data-testid="live-log-peek"]')).toBeNull());
+    expect(container.querySelector('.live__log-peek')).toBeNull();
+    fireEvent.pointerOut(names[0]!, { pointerType: 'mouse', relatedTarget: container });
+    await waitFor(() => expect(container.querySelector('[data-inspect]')).toBeNull());
+  });
+
+  it('a log name whose card has no tile on the page draws NOTHING — it does not get a surface of its own', async () => {
+    const { s, container } = await liveBoard();
+    s.send(says('paid U — Island'));
+    await waitFor(() => expect(lines(container)).toHaveLength(1));
+    const name = lines(container)[0]!.querySelector<HTMLElement>('.live__log-card')!;
+    name.dataset.inspectIds = '999999';
+    fireEvent.pointerOver(name, { pointerType: 'mouse' });
+    expect(container.querySelector('[data-inspect]')).toBeNull();
+    expect(container.querySelector('[data-testid="live-log-peek"]')).toBeNull();
   });
 
   it('a name the viewer’s board does not hold is left as text: we have no card to show', async () => {
@@ -2193,5 +2248,199 @@ describe('the settings panel (items 4-7)', () => {
     const { s, m } = await liveBoard();
     await waitFor(() => expect(s.received.filter((r) => r.event === 'forge:stop-preference')).toHaveLength(1));
     expect(m.stopAtEndStep).toBe(false);
+  });
+});
+
+/*
+ * ── Wave 31 lane L — the watching window, the rail, the finished game ──────
+ *
+ * `LiveMatch.spectator` and `LiveMatch.over` are lane S's (shapes 3 and 4) and
+ * are set here directly on the handle, then the board is re-rendered: this file
+ * reads the fields, it does not own how they get set.
+ */
+describe('wave 31 §L — a watching window, the combat rail, and Concede after the end', () => {
+  const notify = (raw: unknown) => parseServerFrame(raw);
+  const GAME_KEY = String(deltaKey(WireType.Game, 1));
+  const inCombat = (m: LiveMatch, name: string) =>
+    notify({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: {
+          seq: m.view!.seq + 1,
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: {},
+          objectDeltas: {
+            [GAME_KEY]: {
+              _type: WireType.Game,
+              _id: 1,
+              Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
+            },
+          },
+          events: [],
+        },
+      },
+    });
+  const selectables = (ids: number[]) =>
+    notify({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min: 1, max: 1 });
+  const buttons = () =>
+    notify({
+      kind: 'notify',
+      method: 'updateButtons',
+      owner: { kind: 'player', id: 0 },
+      label1: 'OK',
+      label2: 'Cancel',
+      enable1: true,
+      enable2: true,
+      focus1: true,
+    });
+  const flag = (m: LiveMatch, patch: { spectator?: boolean; over?: boolean }, rerender: (ui: ReturnType<typeof createElement>) => void) => {
+    Object.assign(m, patch);
+    rerender(createElement(LiveBoard, { match: m }));
+  };
+
+  it('spectator: a banner, no prompt, every button inert, nothing reaches the server — and it lifts on promotion', async () => {
+    const { s, m, getByTestId, queryByTestId, rerender } = await liveBoard();
+    s.send(confirmAsk('c-spec', true));
+    await waitFor(() => getByTestId('confirm-dialog'));
+    // Forge is enabling the buttons and offering a card: every one of them is a
+    // thing a player could press or click, so refusing them is the watcher's.
+    const offeredId = m.view!.players.find((p) => p.isViewer)!.battlefield[0]!.id;
+    s.send(selectables([offeredId]));
+    s.send(buttons());
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await waitFor(() => expect(m.buttons?.enable1).toBe(true));
+    expect(queryByTestId('live-spectator')).toBeNull();
+    const frames = s.clientFrames().length;
+
+    flag(m, { spectator: true }, rerender);
+    expect(getByTestId('live-spectator').textContent).toBe('Watching: this seat is being played in another window');
+    expect(queryByTestId('confirm-dialog'), 'a watcher is asked nothing').toBeNull();
+    expect(queryByTestId('live-prompt')).toBeNull();
+    for (const id of ['live-button-ok', 'live-button-cancel', 'live-full-control', 'live-concede']) {
+      expect((getByTestId(id) as HTMLButtonElement).disabled, `${id} is inert`).toBe(true);
+    }
+    fireEvent.click(getByTestId('live-full-control'));
+    fireEvent.click(getByTestId('live-concede'));
+    expect(queryByTestId('live-concede-ask')).toBeNull();
+    expect(m.fullControl).toBe(false);
+    // Clicks and drags on the table reach nobody.
+    expect(captured.interaction!.selectable.size).toBe(0);
+    const replies = m.stats.replies;
+    captured.interaction!.onSelectCard(offeredId);
+    captured.interaction!.onSelectPlayer(0);
+    expect(m.stats.replies, 'a click on the offered card sent nothing').toBe(replies);
+    const card = document.querySelector<HTMLElement>('.board [data-card-id]')!;
+    expect(fireEvent.dragStart(card), 'the arranging drag is refused at the root').toBe(false);
+    // Reading still works: the log opens.
+    fireEvent.click(getByTestId('live-log-toggle'));
+    expect(getByTestId('live-logbook').hidden).toBe(false);
+    expect(s.clientFrames()).toHaveLength(frames);
+
+    // Promotion: no reload, the prompt comes back and the controls live.
+    flag(m, { spectator: false }, rerender);
+    expect(queryByTestId('live-spectator')).toBeNull();
+    await waitFor(() => getByTestId('confirm-dialog'));
+    expect((getByTestId('live-concede') as HTMLButtonElement).disabled).toBe(false);
+    expect((getByTestId('live-full-control') as HTMLButtonElement).disabled).toBe(false);
+    expect(fireEvent.dragStart(card)).toBe(true);
+  });
+
+  it('spectator: a click on a card Forge offered sends nothing — and does, for the seat’s own window', async () => {
+    const { s, m, rerender } = await liveBoard();
+    const offeredId = m.view!.players.find((p) => p.isViewer)!.battlefield[0]!.id;
+    s.send(selectables([offeredId]));
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    const replies = m.stats.replies;
+
+    flag(m, { spectator: true }, rerender);
+    captured.interaction!.onSelectCard(offeredId);
+    expect(m.stats.replies, 'the watcher’s click went nowhere').toBe(replies);
+
+    flag(m, { spectator: false }, rerender);
+    captured.interaction!.onSelectCard(offeredId);
+    expect(m.stats.replies, 'the same click from the seat’s own window is an answer').toBe(replies + 1);
+  });
+
+  it('spectator: hover and the inspector still work', async () => {
+    const { m, container, rerender } = await liveBoard();
+    flag(m, { spectator: true }, rerender);
+    const tile = container.querySelector<HTMLElement>('.board [data-card-id]')!;
+    fireEvent.pointerOver(tile, { pointerType: 'mouse' });
+    await waitFor(() => expect(container.querySelector('[data-inspect]')).not.toBeNull());
+  });
+
+  it('P1: combat is one row outside combat and six inside it, and the rail itself does not change', async () => {
+    const { s, m, container, getByTestId } = await liveBoard();
+    const names = () => [...container.querySelectorAll('.live__step')].map((el) => el.textContent);
+    expect(names()).toHaveLength(8);
+    expect(names()).toContain('Combat');
+    const railBefore = getByTestId('live-phases').className;
+
+    s.send(inCombat(m, 'COMBAT_DECLARE_BLOCKERS'));
+    await waitFor(() => expect(getByTestId('live-phases').dataset.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    expect(names()).toEqual([
+      'Untap',
+      'Upkeep',
+      'Draw',
+      'Main 1',
+      'Beginning of combat',
+      'Declare attackers',
+      'Declare blockers',
+      'First-strike damage',
+      'Combat damage',
+      'End of combat',
+      'Main 2',
+      'End step',
+      'Cleanup',
+    ]);
+    const current = container.querySelector('.live__step[data-current]')!;
+    expect(current.textContent).toBe('Declare blockers');
+    // The earlier combat steps are past; the rail is the same element with the same box rules.
+    expect(container.querySelector('.live__step[data-phase="COMBAT_BEGIN"]')!.hasAttribute('data-past')).toBe(true);
+    expect(getByTestId('live-phases').className).toBe(railBefore);
+
+    // Out of combat again, past combat: it is one row again and it is PAST.
+    s.send(inCombat(m, 'MAIN2'));
+    await waitFor(() => expect(getByTestId('live-phases').dataset.phase).toBe('MAIN2'));
+    expect(names()).toHaveLength(8);
+    expect(container.querySelector('.live__step[data-phase="COMBAT"]')!.hasAttribute('data-past')).toBe(true);
+    expect(container.querySelector('.live__step[data-current]')!.textContent).toBe('Main 2');
+  });
+
+  it('P18: Concede is disabled once the game is over, and an open confirmation closes', async () => {
+    const { m, getByTestId, queryByTestId, rerender } = await liveBoard();
+    const concede = getByTestId('live-concede') as HTMLButtonElement;
+    expect(concede.disabled).toBe(false);
+    fireEvent.click(concede);
+    await waitFor(() => getByTestId('live-concede-ask'));
+
+    flag(m, { over: true }, rerender);
+    expect((getByTestId('live-concede') as HTMLButtonElement).disabled).toBe(true);
+    expect(queryByTestId('live-concede-ask'), 'nothing to concede').toBeNull();
+    const sent = m.stats.replies;
+    fireEvent.click(getByTestId('live-concede'));
+    expect(queryByTestId('live-concede-ask')).toBeNull();
+    expect(m.stats.replies).toBe(sent);
+  });
+
+  it('P6: the table and the chat sit inside the header’s own inset, on both sides', () => {
+    // jsdom has no layout, so this pins the rules; the boxes are measured in a
+    // real browser in `docs/planning/wave31-evidence/p6-boundary.md`.
+    const chrome = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', '../../chrome/chrome.css'), 'utf8');
+    const inset = /\.cardtable-chrome > \.app-header \{[^}]*?margin-inline: ([\d.]+rem)/.exec(chrome)?.[1];
+    expect(inset, 'the bar’s own side inset').toBe('2rem');
+    const css = liveCss();
+    // The content block holds the table and, in a room, watchparty's chat aside
+    // (a flex item of a frame 100% of this block): insetting it by the bar's own
+    // number moves both.
+    expect(declarations(css, '.cardtable-chrome__content:has(.shell--match)')).toContain(`padding-inline: ${inset}`);
+    // And the table starts where the content does: no side padding of its own.
+    expect(declarations(css, '.shell.shell--match')).toContain('padding: 4px 0 2px');
+  });
+
+  it('the sentence the page shows for a gone match is the one the server sends', () => {
+    expect(MATCH_GONE_SENTENCE).toBe(MATCH_GONE_MESSAGE);
   });
 });

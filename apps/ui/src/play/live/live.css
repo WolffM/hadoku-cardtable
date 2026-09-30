@@ -101,6 +101,25 @@
   margin-bottom: 0;
 }
 
+/*
+ * ONE page boundary (wave 31 P6). The operator: *"card table left boundary is
+ * slightly escaping the boundary set by the bar at the top… same thing goes for
+ * watchparty chat on the right."*
+ *
+ * The header is inset `2rem` each side (`chrome.css`, `.cardtable-chrome >
+ * .app-header`). The content under it — the table, and on a room route
+ * watchparty's chat aside, `.wp-room-chrome`, a `flex: 0 0 20rem` column at the
+ * end of `.wp-room-chrome-frame` — had no inset at all, so the table began 24px
+ * outside the bar (8px against 32px) and the chat ran to the viewport's right
+ * edge, 32px beyond it. The aside's own stylesheet fixes its width and gives it
+ * no margin, but it is a flex item of a frame whose width is 100% of THIS
+ * element, so insetting this element moves both the table and the chat onto the
+ * header's edges without a rule on watchparty's class.
+ */
+.cardtable-chrome__content:has(.shell--match) {
+  padding-inline: 2rem;
+}
+
 /* `.shell.` because `screens.css`'s `.shell` padding is otherwise the later
    rule of the same weight. */
 .shell.shell--match {
@@ -108,7 +127,10 @@
   min-height: 0;
   max-width: none;
   gap: 2px;
-  padding: 4px 8px 2px;
+  /* No side padding: the page's edge is the header's (see the rule above), and
+     the table starts exactly there. It was 8px, which put the table 24px
+     outside the bar that sits over it. */
+  padding: 4px 0 2px;
   /* `clip`, not `hidden`: a hidden box can still be scrolled — focusing a
      button in a prompt would slide the whole table up with no way back. */
   overflow: clip;
@@ -247,6 +269,54 @@
   max-width: 20rem;
   color: var(--warn);
   pointer-events: auto;
+}
+
+/*
+ * A gone match: the server's sentence and one way back, centred, with nothing
+ * of the table's chrome around them (`LiveBoard.tsx`). The link is an anchor on
+ * purpose — it is where you go, not something you press.
+ */
+.live--gone {
+  align-items: center;
+  gap: 1rem;
+  padding-top: 2.5rem;
+}
+
+.live--gone > .live__status[data-perch='table'] {
+  flex: none;
+  padding-top: 0;
+  text-align: center;
+}
+
+.live__gone-back {
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/*
+ * A watching window says so, once, at the top of the table. Out of flow and
+ * pointer-transparent like the corner status line: it moves no canvas box and
+ * never sits between the pointer and a card, because hover and the inspector
+ * are what a watcher still has.
+ */
+.live__spectator {
+  position: absolute;
+  z-index: 6;
+  top: 6px;
+  left: 50%;
+  translate: -50% 0;
+  margin: 0;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .live__error {
@@ -726,8 +796,12 @@
  * on the table under it is unshadowed exactly as before.
  *
  * Keyboard gets the same thing the pointer does — the name is a tab stop and
- * `:focus-visible` opens the same peek — because a reveal only a mouse can reach
+ * focusing it opens the same preview — because a reveal only a mouse can reach
  * is not a reveal.
+ *
+ * The preview is the INSPECTOR's (`../inspect/index.ts`, wave 31 P12): the name
+ * carries `data-inspect-ids` and the document-level inspector enlarges the tile
+ * the board already drew. This file draws no card of its own any more.
  */
 .live__log-card {
   position: relative;
@@ -742,34 +816,6 @@
   outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: 3px;
-}
-
-/*
- * The card itself, out of flow beside the panel. `LiveBoard.tsx` renders it only
- * while the name is hovered or focused — not hidden with CSS — so a logbook of
- * eight lines is not also eight cards' worth of markup and art requests, and so
- * the panel's own text is still exactly the log's text to anything reading it.
- *
- * It sizes the tile through `--card-w`/`--card-h` rather than by selecting
- * `.card`: this stylesheet may not reach into the canvas's own classes, which is
- * a rule `LiveBoard.test.ts` asserts by parsing this file.
- */
-.live__log-peek {
-  --card-w: 8.5rem;
-  --card-h: 11.85rem;
-
-  position: absolute;
-  z-index: 3;
-  top: 50%;
-  left: calc(100% + 8px);
-  width: var(--card-w);
-  translate: 0 -50%;
-  padding: 4px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: 0 4px 14px rgb(0 0 0 / 45%);
-  pointer-events: none;
 }
 
 /*

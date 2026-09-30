@@ -334,3 +334,59 @@ describe('the canvas', () => {
     expect(panel()).toBeNull();
   });
 });
+
+/*
+ * Wave 31 P12 — a name outside the board (the log's) points at cards with
+ * `data-inspect-ids`, and the inspector enlarges the tile the board ALREADY
+ * drew: the same panel, no second surface.
+ */
+describe('a card name elsewhere on the page (the log)', () => {
+  function named(ids: string) {
+    const utils = mountBoard();
+    const name = document.createElement('span');
+    name.setAttribute('data-inspect-ids', ids);
+    name.tabIndex = 0;
+    name.textContent = 'Their Card';
+    utils.container.appendChild(name);
+    return { ...utils, name };
+  }
+
+  it('hovering it opens the board’s own preview of the first id that has a tile', () => {
+    const { name, panel } = named('404,3');
+    hover(name);
+    expect(panel()).not.toBeNull();
+    expect(panel()!.querySelector('.card__name')!.textContent).toBe('Their Card');
+  });
+
+  it('leaving it closes the preview', () => {
+    const { name, panel } = named('3');
+    hover(name);
+    fireEvent.pointerOut(name, { pointerType: 'mouse', relatedTarget: document.body });
+    expect(panel()).toBeNull();
+  });
+
+  it('focusing it opens the same preview and blurring closes it — the keyboard gets what the pointer gets', () => {
+    const { name, panel } = named('3');
+    fireEvent.focusIn(name);
+    expect(panel()).not.toBeNull();
+    fireEvent.focusOut(name);
+    expect(panel()).toBeNull();
+  });
+
+  it('a name whose cards have no tile on the page shows nothing', () => {
+    const { name, panel } = named('404,505');
+    hover(name);
+    expect(panel()).toBeNull();
+    fireEvent.focusIn(name);
+    expect(panel()).toBeNull();
+  });
+
+  it('a name INSIDE a board card whose ids have no tile shows nothing — the card around it is not the answer', () => {
+    const { theirCard, panel } = mountBoard();
+    const name = document.createElement('span');
+    name.setAttribute('data-inspect-ids', '404');
+    theirCard().appendChild(name);
+    hover(name);
+    expect(panel()).toBeNull();
+  });
+});

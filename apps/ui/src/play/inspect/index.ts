@@ -113,7 +113,21 @@ interface InspectTarget {
   card: Element;
   /** The `CardTile` to clone. */
   tile: Element;
+  /**
+   * The element the gesture is actually on, when it is not the card: a log line's
+   * card name (`data-inspect-ids`). The pointer leaving THIS is what dismisses,
+   * and the preview is placed beside it.
+   */
+  trigger?: Element;
 }
+
+/**
+ * A name somewhere that is not a card — a log line's — points at cards with
+ * `data-inspect-ids="<id>,<id>"`: the forge ids of every card of that name the
+ * seat was sent. There is no second hover surface; the name resolves to a tile
+ * ALREADY DRAWN on the board and that tile is what is enlarged.
+ */
+const INSPECT_IDS = 'data-inspect-ids';
 
 /** The box vocabulary `placeInspector` speaks. Client coordinates. */
 export interface Rect {
@@ -152,9 +166,22 @@ function ownerBoardCard(tile: Element): Element | null {
  * null is the hidden-information control: there is nothing to show because
  * the seat was sent nothing to show.
  */
-function inspectedCardFrom(node: EventTarget | null): InspectTarget | null {
+function inspectedCardFrom(node: EventTarget | null, root: ParentNode): InspectTarget | null {
   let el = node instanceof Element ? node : null;
   while (el !== null) {
+    // A name, before a card: the first of its ids with a tile on the page. A
+    // card with no tile drawn (it is in a zone the board shows as a count, or
+    // it is hidden from this seat) enlarges nothing — the log does not get a
+    // surface of its own to make up for it.
+    const named = el.getAttribute(INSPECT_IDS);
+    if (named !== null) {
+      for (const id of named.split(',')) {
+        const owner = BOARD_ID.test(id) ? root.querySelector(`[data-card-id="${id}"]`) : null;
+        const tile = owner?.querySelector('.card') ?? null;
+        if (owner !== null && tile !== null) return { card: owner, tile, trigger: el };
+      }
+      return null;
+    }
     // A stack item, first: its card is named by `data-source-card`.
     const source = el.getAttribute('data-source-card');
     if (source !== null && BOARD_ID.test(source)) {
@@ -263,7 +290,7 @@ export function mountInspector(root: ParentNode): () => void {
   function show(target: InspectTarget): void {
     const overlayEl = overlay();
     if (overlayEl === null) return;
-    if (current !== null && current.card === target.card) return;
+    if (current !== null && current.card === target.card && current.trigger === target.trigger) return;
     dismiss();
     current = target;
 
@@ -277,7 +304,7 @@ export function mountInspector(root: ParentNode): () => void {
     if (art !== null) art.setAttribute('loading', 'eager');
 
     const boardR = rectOf(overlayEl.getBoundingClientRect());
-    const spot = placeInspector(rectOf(target.tile.getBoundingClientRect()), boardR, handRect());
+    const spot = placeInspector(rectOf((target.trigger ?? target.tile).getBoundingClientRect()), boardR, handRect());
 
     const el = doc.createElement('div');
     el.className = 'inspect';
@@ -295,7 +322,7 @@ export function mountInspector(root: ParentNode): () => void {
     // A card can leave the DOM under an open preview (it died, the zone
     // emptied). Watch for that while open — and only while open.
     watcher = new MutationObserver(() => {
-      if (current !== null && !current.card.isConnected) dismiss();
+      if (current !== null && (!current.card.isConnected || current.trigger?.isConnected === false)) dismiss();
     });
     watcher.observe(doc.body, { childList: true, subtree: true });
   }
@@ -308,7 +335,7 @@ export function mountInspector(root: ParentNode): () => void {
       dismiss();
       return;
     }
-    const target = inspectedCardFrom(event.target);
+    const target = inspectedCardFrom(event.target, root);
     if (target === null) {
       dismiss();
       return;
@@ -318,23 +345,35 @@ export function mountInspector(root: ParentNode): () => void {
 
   function onPointerOut(event: PointerEvent): void {
     if (current === null || event.pointerType === 'touch') return;
-    if (!(event.target instanceof Node) || !current.card.contains(event.target)) return;
+    const zone = current.trigger ?? current.card;
+    if (!(event.target instanceof Node) || !zone.contains(event.target)) return;
     const to = event.relatedTarget;
-    if (to instanceof Node && current.card.contains(to)) return;
+    if (to instanceof Node && zone.contains(to)) return;
     // Off the card — including out of the window entirely, where there is no
     // next element to pointerover. Usually the pointerover on the next
     // element got here first; this is the case where nothing follows.
     dismiss();
   }
 
+  // The keyboard gets what the pointer gets: a card name in the log is a tab
+  // stop, and focusing it shows the card the same way hovering it does.
+  function onFocusIn(event: FocusEvent): void {
+    const target = inspectedCardFrom(event.target, root);
+    if (target?.trigger !== undefined) show(target);
+  }
+
+  function onFocusOut(event: FocusEvent): void {
+    if (current?.trigger !== undefined && event.target === current.trigger) dismiss();
+  }
+
   function onPointerDown(event: PointerEvent): void {
     swallowClickIn = null;
     if (event.pointerType !== 'touch') return;
     cancelPress();
-    const target = inspectedCardFrom(event.target);
+    const target = inspectedCardFrom(event.target, root);
     // A tap anywhere the game is not showing a card closes the preview — and
     // a second press on the card it enlarged toggles it off.
-    if (target === null || (current !== null && current.card === target.card)) {
+    if (target === null || (current !== null && current.card === target.card && current.trigger === target.trigger)) {
       dismiss();
       return;
     }
@@ -394,6 +433,8 @@ export function mountInspector(root: ParentNode): () => void {
 
   doc.addEventListener('pointerover', onPointerOver);
   doc.addEventListener('pointerout', onPointerOut);
+  doc.addEventListener('focusin', onFocusIn);
+  doc.addEventListener('focusout', onFocusOut);
   doc.addEventListener('pointerdown', onPointerDown);
   doc.addEventListener('pointermove', onPointerMove);
   doc.addEventListener('pointerup', onPointerUpOrCancel);
@@ -407,6 +448,8 @@ export function mountInspector(root: ParentNode): () => void {
     dismiss();
     doc.removeEventListener('pointerover', onPointerOver);
     doc.removeEventListener('pointerout', onPointerOut);
+    doc.removeEventListener('focusin', onFocusIn);
+    doc.removeEventListener('focusout', onFocusOut);
     doc.removeEventListener('pointerdown', onPointerDown);
     doc.removeEventListener('pointermove', onPointerMove);
     doc.removeEventListener('pointerup', onPointerUpOrCancel);

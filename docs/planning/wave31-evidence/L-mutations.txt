@@ -1,0 +1,56 @@
+# Lane L mutation run: reverted fails N / restored passes M (suite: LiveBoard.test.ts + inspect/, 135 tests at the last run, 134 at the first)
+# 'failed 0' would be a survivor. The clicks mutant survived the first pass and was re-run after a dedicated test was added (last block).
+
+## spectator: isSpectator always false -> failed 1 | 1 failed | 133 passed (134)
+    src/play/live/LiveBoard.test.ts > wave 31 §L — a watching window, the combat rail, and Concede after the end > spectator: a banner, no prompt, every b
+## spectator: ask still drawn -> failed 1 | 1 failed | 133 passed (134)
+    src/play/live/LiveBoard.test.ts > wave 31 §L — a watching window, the combat rail, and Concede after the end > spectator: a banner, no prompt, every b
+## spectator: buttons live -> failed 1 | 1 failed | 133 passed (134)
+    src/play/live/LiveBoard.test.ts > wave 31 §L — a watching window, the combat rail, and Concede after the end > spectator: a banner, no prompt, every b
+## spectator: drag not refused -> failed 1 | 1 failed | 133 passed (134)
+    src/play/live/LiveBoard.test.ts > wave 31 §L — a watching window, the combat rail, and Concede after the end > spectator: a banner, no prompt, every b
+## spectator: clicks reach the server -> failed 0 | 134 passed (134)
+## P1: never collapse -> failed 3 | 3 failed | 131 passed (134)
+    src/play/live/LiveBoard.test.ts > the phase reads down the side > draws the turn’s steps — combat as one — and marks the one the game is on
+    src/play/live/LiveBoard.test.ts > the phase reads down the side > every step says its name — outside combat, combat is ONE of them (wave 31 P1)
+    src/play/live/LiveBoard.test.ts > wave 31 §L — a watching window, the combat rail, and Concede after the end > P1: combat is one row outside combat an
+## P1: collapsed row never past -> failed 1 | 1 failed | 133 passed (134)
+    src/play/live/LiveBoard.test.ts > wave 31 §L — a watching window, the combat rail, and Concede after the end > P1: combat is one row outside combat an
+## P12: log names carry no ids -> failed 1 | 1 failed | 133 passed (134)
+    src/play/live/LiveBoard.test.ts > §A.11 — the log is coloured by what happened, and its card names reveal the card > a card name the viewer’s own boar
+## P12: inspector ignores ids -> failed 4 | 4 failed | 130 passed (134)
+    src/play/inspect/index.test.ts > a card name elsewhere on the page (the log) > a name INSIDE a board card whose ids have no tile shows nothing — the c
+    src/play/inspect/index.test.ts > a card name elsewhere on the page (the log) > focusing it opens the same preview and blurring closes it — the keyboar
+    src/play/inspect/index.test.ts > a card name elsewhere on the page (the log) > hovering it opens the board’s own preview of the first id that has a ti
+    src/play/live/LiveBoard.test.ts > §A.11 — the log is coloured by what happened, and its card names reveal the card > a card name the viewer’s own boar
+## P12: inspector shows something for a tile-less name -> failed 1 | 1 failed | 133 passed (134)
+    src/play/inspect/index.test.ts > a card name elsewhere on the page (the log) > a name INSIDE a board card whose ids have no tile shows nothing — the c
+## P12: pointer-out ignores trigger -> failed 2 | 2 failed | 132 passed (134)
+    src/play/inspect/index.test.ts > a card name elsewhere on the page (the log) > leaving it closes the preview
+    src/play/live/LiveBoard.test.ts > §A.11 — the log is coloured by what happened, and its card names reveal the card > a card name the viewer’s own boar
+## P12: no focus support -> failed 1 | 1 failed | 133 passed (134)
+    src/play/inspect/index.test.ts > a card name elsewhere on the page (the log) > focusing it opens the same preview and blurring closes it — the keyboar
+## P18: concede enabled when over -> failed 1 | 1 failed | 133 passed (134)
+    src/play/live/LiveBoard.test.ts > wave 31 §L — a watching window, the combat rail, and Concede after the end > P18: Concede is disabled once the game 
+## P18: confirmation survives over -> failed 1 | 1 failed | 133 passed (134)
+    src/play/live/LiveBoard.test.ts > wave 31 §L — a watching window, the combat rail, and Concede after the end > P18: Concede is disabled once the game 
+## gone: no early return -> failed 2 | 2 failed | 132 passed (134)
+    src/play/live/LiveBoard.test.ts > one state, one line > match-gone inside a room goes back to that room
+    src/play/live/LiveBoard.test.ts > one state, one line > match-gone: the server’s sentence, one way back, and no board chrome or Join-shaped control
+## gone: sentence replaced -> failed 4 | 4 failed | 130 passed (134)
+    src/play/live/LiveBoard.test.ts > one state, one line > a gone match that the socket then drops is still gone, not connecting
+    src/play/live/LiveBoard.test.ts > one state, one line > match-gone, from lane E’s ACTUAL ack: the outcome and the sentence do not make it malformed
+    src/play/live/LiveBoard.test.ts > one state, one line > match-gone: the server’s sentence, one way back, and no board chrome or Join-shaped control
+    src/play/live/LiveBoard.test.ts > one state, one line > match-gone: unknown-match is not a status, and the three lines are one
+## P6: content not inset -> failed 1 | 1 failed | 133 passed (134)
+    src/play/live/LiveBoard.test.ts > wave 31 §L — a watching window, the combat rail, and Concede after the end > P6: the table and the chat sit inside t
+## P6: table has its own side padding -> failed 1 | 1 failed | 133 passed (134)
+    src/play/live/LiveBoard.test.ts > wave 31 §L — a watching window, the combat rail, and Concede after the end > P6: the table and the chat sit inside t
+## gone: back ignores room -> failed 1 | 1 failed | 133 passed (134)
+    src/play/live/LiveBoard.test.ts > one state, one line > match-gone inside a room goes back to that room
+
+## re-run after the dedicated click test (135 tests)
+## spectator: clicks reach the server -> failed 1 | 1 failed | 134 passed (135)
+    src/play/live/LiveBoard.test.ts > wave 31 §L > spectator: a click on a card Forge offered sends nothing — and does, for the seat's own window
+
+# Restored: apps/ui full run from the repo root, 43 files passed, 1045 tests passed, 13 skipped (jar-gated), exit 0.
