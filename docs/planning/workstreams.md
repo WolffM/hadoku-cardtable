@@ -173,6 +173,9 @@ commitment stands and this is now the third ask on the record.
 | 15 | in declare-blockers, draw an arrow from each attacker; blockers did not highlight blue | |
 | 16 | delete the `Call Back` button | It is Forge's own `lblCallBack` / `InputAttack.canCallBackAttackers()` — it un-declares attackers. Removing it removes that ability; the operator has asked for it anyway |
 | 18 | conceding was possible after the game had already ended | |
+| 20 | the `sound on` control should be an icon, not the words | Wave 27 §F's mute. It is in `apps/ui/src/rooms/`, **not** the play surface, so it is not capped by the play lane and can ride any wave |
+
+*(No item 19 was sent; the numbering is the operator's.)*
 
 ## Verified this pass (2026-09-29 — tracker, closing Wave 28)
 
