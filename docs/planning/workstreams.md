@@ -90,6 +90,90 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## Operator play test, 2026-09-30 — eighteen items, three already in flight
+
+Recorded the moment they arrived, because w29 is RUNNING and a wave in flight is
+not mine to edit ([[dispatched-wave-is-not-mine-to-edit]]). Nothing here goes
+into w29; it is w30's queue and beyond.
+
+### Already being fixed in w29 — do not re-queue
+
+- **6 (partly) and 17 — the arrow.** *"arrow snapping is getting better, but it's
+  still not working correctly"*, and *"kessig wolf-run arrow is default pointing
+  at my character portrait? that doesn't even make any sense it's not a valid
+  target."* w29 §A item 17 is exactly this: an arrow must not default to a player
+  portrait, and a card being played moves to a staging area with the arrow
+  starting there. Item 6's *"the effect didn't even pop up at all on the screen,
+  just the arrow… i can't even see what i'm doing"* is the same staging-area
+  change seen from the other side.
+- **7 — avatars.** *"avatars are still not showing? i guess thats part of w29."*
+  Correct: w29 §B carries the field the last three hops and §A draws it.
+
+### 2 and 12 are not bugs. They are a trade wave 28 made on purpose.
+
+*"i played a land and clicked 'end turn' and the phase counter stopped at endstep…
+it always waits on opponent at endstep now, that wasn't happening before and it's
+not a desired behavior"*, and *"whenever i play any card it seems to put it on the
+stack and i hold priority?"*
+
+`DEFAULT_STOP_POLICY.stopOnTheirTurn` is now `['COMBAT_DECLARE_BLOCKERS',
+'END_OF_TURN']` (`auto.ts:305`), and the lane wrote down why: with
+`skipNonStopPhases: 'always'` — which is what item 5 asked for — **an empty
+`stopOnTheirTurn` gives the seat no window on the opponent's turn at all, so a
+held instant could never be cast.** Declare-blockers and the end step were chosen
+as those windows.
+
+So items 5 and 2 pull in opposite directions and the tension is real:
+
+| | wants |
+| --- | --- |
+| item 5 (2026-09-28) | stop stopping everywhere; a stop that fires *because* something is castable leaks what is in my hand |
+| item 2 (2026-09-30) | do not wait on the opponent at end step |
+
+Satisfying both means stops are neither automatic nor condition-driven, which
+leaves one shape: **the player arms priority deliberately.** Forge already models
+it (`setAutoPassUntilEndOfTurn`, and `YieldController` is what `toYieldUpdates`
+already speaks). No leak, because arming it is a choice; no nagging, because it
+is off by default. **This is an operator decision and it blocks nothing else** —
+recorded here, put to them directly.
+
+`passStackWindows` is still `true` (`auto.ts:313`), so item 12's "I hold
+priority" is NOT that field. Candidates for whoever takes it: the stop at your own
+MAIN phase firing again after a cast resolves, or the staging/stack UI making a
+passed window look held. Diagnose before fixing.
+
+### 11 — the board separators. Asked at least three times; already committed to w30.
+
+*"i asked for a different board ui several times already. it's still the weird
+'type-seperated' board that you built many waves ago. i said this should be an
+alternate ui and the real ui should just be a single board, no seperators."*
+
+This is the same item as 2026-09-28's item 3 (*"we need a front and back layout…
+selectable from the menu, in case users want to switch to the alternate view
+(which is the current view)"*). The board groups permanents into `BOARD_ROWS`
+(`lands`, `artifacts`, `creatures`, `other`) and the operator wants **one
+undivided surface as the default, with the type-separated view demoted to an
+option.** The tracker deferred it twice, each time with a file-ownership reason,
+and w29's file already commits it: *"it is wave 30's play lane, alone."* That
+commitment stands and this is now the third ask on the record.
+
+### The rest — play-surface polish, for w30 and beyond
+
+| # | item | note |
+| --- | --- | --- |
+| 1 | mulligan is broken: after clicking mulligan the only live button is `Auto`; the hand should light up to pick a card to bottom | **Functional, not polish** — a London mulligan the player cannot complete. Wave 22 §L already fixed a version of this (`mulliganHand` in `match.ts`); check whether it regressed |
+| 3 | a picker's `OK` / `Clear choice` should sit BELOW the selector panel, not at the bottom of a scroll | *"i have to scroll all the way to the bottom to click 'ok'"*. Applies to every selector, not just Rampant Growth |
+| 4 | poison/infect counters are shown nowhere (the portrait did read 11 at game end) | Player counters, not card counters — a different place from wave 28's state layer |
+| 5 | delete the `Leave` button; `Concede` is enough | |
+| 8 | an auto-targeted effect still needs its arrow while it is on the stack | Fiend Hunter auto-targeted the only legal target and drew nothing |
+| 9 | the graveyard is still double-stacked; make it single | `.seat__piles` splits `2fr / 1fr` |
+| 10 | z-order: cards on board → effects on cards → popup modals | A `2 charges` marker drew over an open card selector |
+| 13 | `Choose X` is a radio list; make it a drag left/right, **capped at the mana actually available** | The cap is the interesting half — it is a number only Forge can answer |
+| 14 | draw changed power/toughness bottom-right, over where it normally sits | |
+| 15 | in declare-blockers, draw an arrow from each attacker; blockers did not highlight blue | |
+| 16 | delete the `Call Back` button | It is Forge's own `lblCallBack` / `InputAttack.canCallBackAttackers()` — it un-declares attackers. Removing it removes that ability; the operator has asked for it anyway |
+| 18 | conceding was possible after the game had already ended | |
+
 ## Verified this pass (2026-09-29 — tracker, closing Wave 28)
 
 Four lanes landed, **0.24.0**, CI `check` ✓ and `forge-e2e` ✓ on main's head.
