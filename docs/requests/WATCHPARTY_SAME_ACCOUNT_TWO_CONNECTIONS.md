@@ -1,9 +1,9 @@
 # Handoff: give this to a Claude session in `hadoku-watchparty`
 
-**Filed 2026-09-30 by the cardtable tracker.** One person on two browsers turns
-into two people in the room, and the second browser renames the account for
-good. Everything below comes from watchparty's own production log and source
-at `f54f34b9`. Nothing here was inferred from cardtable's side.
+**Filed 2026-09-30 by the cardtable tracker; revised the same day after the
+operator ruled on §3.** A second browser on the same account renames the
+account, for good. Everything below comes from watchparty's own production log
+and source at `f54f34b9`. Nothing here was inferred from cardtable's side.
 
 ```sh
 cd /home/hadoku/repos/hadoku-watchparty && claude
@@ -57,79 +57,66 @@ Identity was resolved correctly the whole time: **both browsers are
 (`apps/server/src/ws/presence.ts:100`). The rename therefore landed, and
 `setClientName` at `:76` recorded it against the participant.
 
-## 3. The three defects
+## 3. The defect, and what is NOT one
 
-### D1: an account competes with itself for its own sprite
+**Operator's ruling, 2026-09-30. Settled; do not re-open:** *"it does make sense
+that multiple browsers would be treated as separate entities."* A second
+browser on the same account is its own roster row, and it may have its own
+sprite. A roster that reads "3 online" for two people on three connections is
+**correct**. What is wrong is that the second connection **renamed the
+account**: *"it is pretty weird that it loaded with himmel since it recognized
+my account."*
 
-A sprite claim belongs to a **connection**, so a second connection from the
-same participant is refused the sprite that participant already holds. The
-path:
+### How the rename happens
 
-- `apps/server/src/ws/join.ts:218-225`: the join's requested sprite fails
-  `claimSprite`, and the server auto-assigns the first free one (`sage`).
-- `apps/server/src/ws/presence.ts:81-90`: a later `identity_update` asking for
-  `rogue` gets `conflict / sprite_taken`. That is emitted at debug level, which
-  is why it is absent from the log above.
+1. `apps/server/src/ws/join.ts:218-225`: the second connection's requested
+   sprite (`rogue`) is held by the account's first connection, so the server
+   auto-assigns the first free one (`sage`). That is fine.
+2. The client then asks for its saved sprite again with an `identity_update`,
+   and `apps/server/src/ws/presence.ts:81-90` answers `conflict / sprite_taken`.
+   That is emitted at debug level, which is why it is absent from the log above.
+3. `apps/ui/src/lib/socket.ts:570-587`: on `sprite_taken`, the client picks the
+   next free character and calls `setIdentity(displayNameFor(c), c)`. That
+   **replaces the account's name with the character's default.** The
+   `presence` handler (`:368-383`) preserves custom names explicitly; this path
+   never learned to.
+4. **Then it saves the rename to the account.**
+   - `setIdentity` (`apps/ui/src/lib/store.ts:247-253`) calls
+     `savePref('name')` and `savePref('sprite')`.
+   - `savePref` (`apps/ui/src/lib/preferences.ts:243`) calls
+     `watchpartyPrefs.save()` with no scope.
+   - The `@wolffm/prefs-client` `SaveOptions` doc reads: *"Default: 'user'"*.
 
-The fix: a sprite held by the **same `participantId`** is not taken. The second
-connection gets the same sprite. Release has to be reference-counted, so the
-sprite goes back to the pool only when that participant's last connection
-leaves. `claimSprite` wraps `claimAvatar` in `packages/rooms-server`, so decide
-whether the rule belongs in the package or in watchparty's wrapper, and say
-which you chose.
+   One retry on one browser rewrote the operator's saved name and sprite
+   everywhere, and `presence.ts:76` (`setClientName`) recorded "Himmel" against
+   the participant on the server too.
 
-### D2: the `sprite_taken` retry renames the person and saves the rename to their account
+### What to change
 
-`apps/ui/src/lib/socket.ts:570-587`: on `sprite_taken`, the client picks the
-next free character and calls `setIdentity(displayNameFor(c), c)`. That
-**discards a custom name**. The `presence` handler 200 lines further down
-(`:368-383`) preserves custom names explicitly; this path never learned to.
+- **A connection never takes a name it did not choose.** An automatic sprite
+  reassignment, whether on join or on `sprite_taken`, keeps the name the
+  connection already has. Apply the same `isCharacterName` rule the presence
+  handler uses. A connection with no name at all may still take a character
+  default, as today.
+- **An automatic reassignment is not a preference.** It must not be written to
+  `user`-scope prefs, and must not reach `setClientName`. Only a pick the
+  person makes in the character modal is saved.
+- **Stop fighting the account's other connection.** When the saved sprite is
+  held by another connection of the same `participantId`, the second
+  connection should accept the sprite the server gave it, not
+  re-request the saved one and trip `sprite_taken`. How the client learns
+  "held by me elsewhere" is your call: the server knows it (`meta.participantId`
+  on both), so a distinct reason on the refusal is one option. Say which you
+  chose.
 
-It is also **persisted to the account**:
-
-- `setIdentity` (`apps/ui/src/lib/store.ts:247-253`) calls `savePref('name')` and
-  `savePref('sprite')`.
-- `savePref` (`apps/ui/src/lib/preferences.ts:243`) calls
-  `watchpartyPrefs.save()` with no scope.
-- The `@wolffm/prefs-client` `SaveOptions` doc reads: *"Default: 'user'"*.
-
-So one retry on one browser rewrote the operator's saved name and sprite
-everywhere. The fix:
-
-- **Never replace a custom name here.** Apply the same `isCharacterName` rule
-  the presence handler uses.
-- **An automatic reassignment is not a choice.** It must not be written to
-  `user`-scope prefs. Only a pick the person makes in the character modal is
-  a preference.
-
-Once D1 is fixed this path should almost never run for one person on two
-browsers. It still runs for two different people who want the same sprite, and
-they must not lose their names either.
-
-### D3: the roster counts connections, not people
-
-`listPresence` (`apps/server/src/rooms/store.ts:294-300`) emits one row per
-client, and the UI keys the roster by `client_id` (`socket.ts:355-365`,
-`apps/ui/src/components/Roster.tsx`). Two tabs make two rows, and the header
-says "3 online" for two people.
-
-The fix: one row per participant. `participantId` is already treated as
-loggable (`join.ts:210` logs it as *"a digest, not the key"*), so grouping on it
-server-side is the obvious shape. Keep the per-client map internally: votes,
-readiness and leadership are all keyed by `clientId` and must not change
-meaning. Anything the client finds by its own socket id (`myEntry` at
-`socket.ts:256` and `:672`, and the presence handler's `roster[myId]`) has to keep
-finding itself, so decide how a grouped row tells a client "this is you".
-
-**Not a defect, for the avoidance of doubt:** `ephemeral`-tier participants
-(no key, no device id) key on the socket id, so they are one row per
-connection by construction, and that is correct.
+Two different people who want the same sprite still go through
+`sprite_taken`, and they must keep their names too.
 
 ## 4. Repair: the operator's account already holds the bad values
 
 After the fix ships, the operator's `watchparty` prefs row (user
 `de5c2a05-…-fd69`) very likely still says `name: "Himmel"`, `sprite:
-"herald"`, because of D2. The server's per-participant name store also has
+"herald"`, because of the rename in §3. The server's per-participant name store also has
 `Himmel` for `fk:6c0ce5…` until the room is forgotten. Say what you found and
 what you did about it. If you cannot read the row, say so, and the operator
 will re-pick in the character modal. Do not write another user's row.
@@ -138,30 +125,28 @@ will re-pick in the character modal. Do not write another user's row.
 
 Each item names the artifact that proves it.
 
-1. **D1, server test** in `apps/server/test/` (next to `join.test.ts` and
-   `identity-persistence.test.ts`): one participant joins on two sockets.
-   - The second socket gets the same sprite with no `sprite_taken`.
-   - Closing either socket leaves the sprite claimed.
-   - Closing both releases it.
-   - Mutation-tested: revert the fix and the test fails, restore it and it
-     passes. Give the counts.
-2. **D2, UI test** under `apps/ui/src/lib/__tests__/`: a `sprite_taken` retry
-   with a custom name set:
+1. **UI test** under `apps/ui/src/lib/__tests__/`: a `sprite_taken` retry
+   while a custom name is set:
    - keeps the custom name;
    - makes no `user`-scope `save()` call.
+
+   Mutation-tested: revert the fix and the test fails, restore it and it
+   passes. Give the counts.
+2. **Server test** in `apps/server/test/` (next to `join.test.ts` and
+   `identity-persistence.test.ts`): one participant on two sockets.
+   - The second socket keeps the name it joined with.
+   - Nothing it is auto-assigned reaches `setClientName`.
+
    Mutation-tested, same shape.
-3. **D3, server test**: two sockets for one participant plus one for another
-   gives presence with **2** rows. The existing presence and identity suites
-   stay green.
-4. **An end-to-end test with two browser contexts on one key** in `e2e/`:
-   - roster count 1;
-   - the name the account had before the second browser joined is unchanged
-     on both;
-   - both show the same sprite.
-5. **Published:** `@wolffm/watchparty-ui` at a version above `0.39.8`
-   (cardtable pins `0.39.8` in `apps/ui/package.json`). If D1 or D3 lands in
+3. **An end-to-end test with two browser contexts on one key** in `e2e/`:
+   - both rows carry the name the account had before the second browser
+     joined;
+   - the account's saved prefs are unchanged afterwards;
+   - two rows is correct, per the ruling in §3.
+4. **Published:** `@wolffm/watchparty-ui` at a version above `0.39.8`
+   (cardtable pins `0.39.8` in `apps/ui/package.json`). If anything lands in
    `packages/rooms-server`, publish that too. Report both versions.
-6. **Deployed:** watchparty's pm2 process restarted after the install, with the
+5. **Deployed:** watchparty's pm2 process restarted after the install, with the
    running commit named.
 
 ## 6. Out of scope, and why
@@ -174,5 +159,8 @@ Each item names the artifact that proves it.
 
   Cardtable will bump to your new `watchparty-ui` version itself; do not edit
   cardtable.
+- **Who may act in a game is cardtable's.** The operator's rule is that a second
+  browser on an account that already holds a seat joins as a spectator. That
+  is enforced on cardtable's match socket, not in the room chrome.
 - **Identity derivation is correct.** Both browsers resolved to the same
   `account`-tier participant. Do not touch `deriveParticipantId`.

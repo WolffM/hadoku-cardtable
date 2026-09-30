@@ -134,13 +134,13 @@ browsers resolve to `fk:6c0ce5…` at `account` tier. Cardtable's two seats in
 `m-4c9483b3ec01` are the operator (admin, `de5c2a05…`) and a friend (Heiter,
 friend tier, `8b45ae86…`). The "3 online" was the operator counted twice, and
 one of the two rows had been renamed **Himmel** (herald's default name).
-Watchparty's own defects are filed as a handoff:
-`docs/requests/WATCHPARTY_SAME_ACCOUNT_TWO_CONNECTIONS.md`. They are:
-
-- **D1:** a sprite claim belongs to a connection, not a person.
-- **D2:** the `sprite_taken` retry replaces a custom name and saves it to the
-  account's prefs at `user` scope.
-- **D3:** the roster has one row per connection.
+Watchparty's defect is filed as a handoff:
+`docs/requests/WATCHPARTY_SAME_ACCOUNT_TWO_CONNECTIONS.md`. The `sprite_taken`
+retry replaces a custom name with a character default and saves it to the
+account's prefs at `user` scope. **Revised after the operator ruled** that two
+browsers ARE two roster entries (*"it does make sense that multiple browsers
+would be treated as separate entities"*), so the "one row per person" and
+"share the sprite" asks were dropped.
 
 **Cardtable's half, for w31. Found in the same investigation; neither is filed
 upstream:**
@@ -153,6 +153,57 @@ upstream:**
   browser's prefs cache** (`selectedAvatarId`). A browser that has never opened
   the watchparty chrome shows no avatar. It should read the account's prefs.
 - **Bump `@wolffm/watchparty-ui` past 0.39.8** once watchparty publishes the fix.
+
+### A second browser on a held seat is a spectator (w31, top of the play lane)
+
+Operator, 2026-09-30: *"it would be really messy if two clients were capable
+of performing game actions. if i join on a new browser it shouldn't let me
+participate in game actions and just have it joined as a spectator."*
+
+**Today it can act.** `m-4c9483b3ec01`, prod log: seat 0 `joined` at 19:41:25
+from the operator's second browser (`fresh: false`) while the first was still
+connected. Every seat action in `apps/server/src/play/socket.ts` is gated only on
+`joined.get(match.id)` (`clientToServer`, `fullControl`, `stopPreference`), and
+`match.claim` hands a returning participant its seat. So each connection is a
+full controller.
+
+**The design, checked against the code:**
+
+- **Viewing needs no change.** Frames already reach every socket in the seat's
+  room, so a second browser gets the seat's own view. It is the same person,
+  so showing their own hand is not a leak.
+- **One controlling socket per seat.** The first connection to claim a seat
+  controls it. A later connection for the same seat, while the controller is
+  still connected, joins as a **spectator**. The server refuses its
+  `clientToServer`, `fullControl` and `stopPreference`, and logs
+  `c2s-spectator`. The server is the enforcement; the UI only explains it.
+- **Promotion on disconnect.** When the controlling socket disconnects, the
+  longest-connected spectator socket for that seat becomes the controller. The
+  seat's asks are re-sent to it (`resendAfterSnapshot`), and it is told on a
+  new event.
+
+  This is **also the refresh path**, and it has to be tested as such. A refresh
+  can open the new socket before the old one's `disconnect` lands (the reason
+  `disconnectGraceMs` exists), so the refreshed tab spectates for a moment and
+  is then promoted. A refresh must never leave a player locked out of their
+  own seat.
+- **The UI:**
+  - a spectator banner ("Watching: this seat is being played in another
+    window");
+  - no prompt, action bar, drag or concede is actionable;
+  - hover and zoom still work.
+
+  The mode must lift on promotion without a reload.
+- **Done-when:**
+  - server tests for: refused actions; promotion; the refresh race (new socket
+    joins before the old one leaves); a spectator whose controller never
+    leaves stays refused;
+  - an e2e with two contexts on one key: the second one's controls are inert,
+    and closing the first promotes it;
+  - mutation counts for each guard.
+- **Out of scope unless asked:** the draft. Two browsers can both pick for one
+  drafter today, the same bug in the room layer. Ask the operator before
+  widening the rule to it.
 
 ## Operator play test, 2026-09-30 — eighteen items, three already in flight
 
