@@ -1597,6 +1597,7 @@ function redraw(match: LiveMatch): void {
           // named no avatars) both mean "pass nothing" to the adapter — see the
           // field's own note on why the two are still kept apart in STATE.
           avatarByPlayerId: match.avatarByPlayerId ?? undefined,
+          nameByPlayerId: match.nameByPlayerId ?? undefined,
         });
   if (match.view?.gameOver === true) match.over = true;
 }

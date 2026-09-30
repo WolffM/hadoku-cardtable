@@ -1796,6 +1796,20 @@ describe('spectator, names and the end of the game (wave 31 §S)', () => {
     expect([...m.nameByPlayerId!]).toEqual([[viewerId, 'Hadoku']]);
   });
 
+  it('draws the server’s seat name on the BoardPlayer, and leaves an unnamed seat with what Forge calls it', async () => {
+    const { s, m } = await fullGame();
+    const viewer = m.view!.players.find((p) => p.isViewer)!;
+    const other = m.view!.players.find((p) => !p.isViewer)!;
+    const forgeName = other.name;
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: viewer.id, name: 'Hadoku' },
+      { seat: 1, claimed: true, playerId: other.id },
+    ]);
+    await until('forge:seats to be adopted', () => m.nameByPlayerId !== null);
+    expect(m.view!.players.find((p) => p.isViewer)!.name).toBe('Hadoku');
+    expect(m.view!.players.find((p) => !p.isViewer)!.name).toBe(forgeName);
+  });
+
   it('over is false in a live game and true once the server’s ending notice has arrived', async () => {
     const { s, m } = await fullGame();
     expect(m.over).toBe(false);
