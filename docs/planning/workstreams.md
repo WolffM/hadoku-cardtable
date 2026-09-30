@@ -134,8 +134,33 @@ Satisfying both means stops are neither automatic nor condition-driven, which
 leaves one shape: **the player arms priority deliberately.** Forge already models
 it (`setAutoPassUntilEndOfTurn`, and `YieldController` is what `toYieldUpdates`
 already speaks). No leak, because arming it is a choice; no nagging, because it
-is off by default. **This is an operator decision and it blocks nothing else** —
-recorded here, put to them directly.
+is off by default. **DECIDED, 2026-09-30, by the operator:** *"i see, you leave room at the endstep
+to avoid giving information but also give someone a chance to play cards. i think
+by default this should be off, but can be turned on in settings (always stop at
+endstep). same place that we should allow the board config to show differently.
+full control mode lets you get this anyway."*
+
+So:
+
+1. **`END_OF_TURN` leaves the default `stopOnTheirTurn`.** The opponent's turn
+   passes unless the player asks otherwise. The operator accepts the consequence
+   and named the existing escape: full control already gives you every stop.
+2. **A SETTINGS SURFACE, holding at least two preferences**, and this is the
+   larger half of the decision — the operator has now asked for the thing the
+   tracker proposed when waves started feeling endless: *a preference you flip
+   instead of a wave the tracker runs.*
+   - *Always stop at end step* — default **off**.
+   - *Board layout* — single undivided board (the new default, item 11) vs the
+     type-separated rows (demoted to the alternate).
+3. The mechanism under both already exists and must not be rebuilt: wave 28 §E
+   built the **per-seat `StopPolicy`**, and wave 27 §C built the hatch that
+   selects one from outside the process. What is missing is a player-facing
+   control and somewhere to persist it. `@wolffm/prefs-client` is already an
+   `apps/ui` dependency and is the fleet's preference service — prefer it over
+   `localStorage`, which does not survive a different browser.
+
+**This makes wave 30 a coherent wave rather than a pile**: the board rework (item
+11), the stop default (item 2), and the settings surface that owns both.
 
 `passStackWindows` is still `true` (`auto.ts:313`), so item 12's "I hold
 priority" is NOT that field. Candidates for whoever takes it: the stop at your own
