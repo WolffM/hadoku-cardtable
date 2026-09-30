@@ -90,6 +90,43 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## 2026-09-30 — deck screen feedback shipped direct; main was red after w30, now green
+
+**Shipped direct, no wave** (operator feedback on the deck picker): Ready and
+Random moved to a bar above the deck list; the chosen deck's duplicate colour
+row, the "source" link and the era note (*"deck … is built for Standard (AVR) …
+but the pool supplied is Standard (M13)"*) are gone. `7bba643`, `@hadoku/ui`
+0.26.1. Attribution for each list stays in its `.dck` (`Source URL`) and
+`decks/README.md`. Guards in `apps/ui/src/screens/constructed.test.ts`; reverted,
+2 of 72 fail, restored, 72 pass.
+
+**Main was red after w30 and after my push, for two separate reasons**, both
+fixed. CI run `36757749433` on `eaa3898`: `check` success, `forge-e2e` success;
+the deploy tree is at `eaa3898`.
+
+- **`forge-e2e` was already red on w30's own head `517185d`.** W30 made the single
+  board the default, and that board has no `[data-board-row]`. `e2e/table-fit.spec.ts`
+  reads those rows (the drag-between-rows check and the crowd probe), and nobody
+  owned it this wave. **This was my wave file's fault**: my pin check grepped
+  `*.test.ts` and never `e2e/*.spec.ts`. The w30 manager's "CI passed" claim was
+  wrong. Fix `eaa3898`: both tests switch to the four lanes through the settings
+  panel, the way a player does. The live game is played on the default single
+  board up to mid-game first, so the frame sampler still covers the default
+  (13 turns, about 900 frames per player, no breaches, locally with the jar).
+  **Not covered:** the crowd probe still measures only the four-lane layout. A
+  crowded *single* board has no e2e fit check. That is w31 work.
+- **`check` went red on my `7bba643`.** `e2e/room-mode.spec.ts` asserted zero
+  off-host requests. With Random out of the list, the deck rows render in time,
+  and their card art requests `cdn.hadoku.me` / `cards.scryfall.io` before the
+  test ends. A/B: `517185d` passes, `7bba643` fails, and the same 19 URLs appear
+  on the old layout given 1.5 s. Fix `9404976`: card-art hosts are excused, the
+  same way `draft.spec` has always done it. Mutation: an injected fetch to
+  `example.invalid` still fails the test.
+
+**W30's closing note is still unverified lane by lane.** Only the CI claim was
+checked, and it was false. Worktree `.claude/worktrees/w30-manager` still exists
+and is left alone.
+
 ## Operator play test, 2026-09-30 — eighteen items, three already in flight
 
 Recorded the moment they arrived, because w29 is RUNNING and a wave in flight is
