@@ -15,7 +15,7 @@ import { createElement, type ComponentType } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame } from '@hadoku/forge-wire';
 
-import type { BoardInteraction } from '../Board.tsx';
+import type { BoardInteraction, BoardLayout } from '../Board.tsx';
 import { PHASE_LABEL, type BoardView } from '../adapter.ts';
 import { deltaKey, WireType } from '../wire.ts';
 import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
@@ -34,6 +34,7 @@ import {
   type LiveMatch,
   type MatchTransport,
 } from './match.ts';
+import type { PlayPrefs } from './prefs.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, type ReplayServer } from './replay-server.ts';
 import { parseMatchAck } from './transport.ts';
 
@@ -42,20 +43,49 @@ import { parseMatchAck } from './transport.ts';
  * component. Two things need that and nothing else in this file is affected:
  * the interaction contract lane A reads (`selectionOpen`, `declaringAttackers`)
  * is a set of BOOLEANS, and asserting them off the DOM would be asserting what
- * lane A drew rather than what this component handed over. Every other case
- * here still renders the real board, because the wrapper delegates to it.
+ * lane A drew rather than what this component handed over — and item 11's
+ * `boardLayout` prop, a string, for the same reason. Every other case here
+ * still renders the real board, because the wrapper delegates to it.
  */
-const captured = vi.hoisted(() => ({ interaction: null as BoardInteraction | null }));
+const captured = vi.hoisted(() => ({
+  interaction: null as BoardInteraction | null,
+  boardLayout: null as BoardLayout | null,
+}));
 vi.mock('../Board.tsx', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../Board.tsx')>();
   return {
     ...actual,
-    Board: (props: { view: BoardView; interaction: BoardInteraction }) => {
+    Board: (props: { view: BoardView; interaction: BoardInteraction; boardLayout?: BoardLayout }) => {
       captured.interaction = props.interaction;
+      captured.boardLayout = props.boardLayout ?? 'single';
       return createElement(actual.Board, props);
     },
   };
 });
+
+/*
+ * `@wolffm/prefs-client/react`'s `usePrefs` is mocked rather than let loose:
+ * the real one reads localStorage and fetches `hadoku.me/prefs` over the
+ * network, neither of which this suite may depend on. `prefsState.value` is
+ * this file's own knob — a test sets `prefs` before rendering to simulate a
+ * returning viewer, and every `save` call is captured in `saved` rather than
+ * actually persisted anywhere.
+ */
+const prefsState = vi.hoisted(() => ({
+  prefs: null as PlayPrefs | null,
+  saved: [] as Partial<PlayPrefs>[],
+}));
+vi.mock('@wolffm/prefs-client/react', () => ({
+  usePrefs: () => ({
+    prefs: prefsState.prefs,
+    loading: prefsState.prefs === null,
+    error: null,
+    save: (patch: Partial<PlayPrefs>) => {
+      prefsState.saved.push(patch);
+      return Promise.resolve();
+    },
+  }),
+}));
 
 let server: ReplayServer | null = null;
 let match: LiveMatch | null = null;
@@ -66,6 +96,8 @@ afterEach(async () => {
   match = null;
   if (server !== null) await server.close();
   server = null;
+  prefsState.prefs = null;
+  prefsState.saved = [];
 });
 
 async function liveBoard(playerId = 0) {
@@ -738,7 +770,7 @@ describe('one state, one line', () => {
   function stubBoard() {
     const stub = stubTransport();
     const m = (match = startMatch({ matchId: MATCH_ID, transport: stub.transport }));
-    const utils = render(createElement(LiveBoard, { match: m, onLeave: () => {} }));
+    const utils = render(createElement(LiveBoard, { match: m }));
     return { stub, m, ...utils };
   }
 
@@ -849,13 +881,14 @@ describe('one state, one line', () => {
     expect(container.textContent).not.toContain('Waiting for the game state.');
     expect(container.textContent).not.toContain('was refused');
     expect(queryByTestId('live-error')).toBeNull();
-    // A state, and where it can be acted on: the bar's Leave says so.
-    expect(getByTestId('live-leave').dataset.urgent).toBe('true');
+    // Item 5 deleted `Leave` and the `data-urgent` treatment that rode on it;
+    // the status line's own `data-status="match-gone"` (asserted in `only`
+    // above) is what is left to act on the state.
     expect(getByTestId('live-status').title).toContain('unknown-match');
   });
 
   it('match-gone, from lane E’s ACTUAL ack: the outcome and the sentence do not make it malformed', () => {
-    const { stub, m, container, queryByTestId, getByTestId } = stubBoard();
+    const { stub, m, container, queryByTestId } = stubBoard();
     act(() => stub.fire('connect'));
     // The shape the server really sends now (§E). With `MatchErrorSchema`
     // strict and one field, this parsed as malformed, `lastError` became
@@ -872,7 +905,6 @@ describe('one state, one line', () => {
     only(container, m, 'match-gone', 'Match gone.');
     expect(container.textContent).not.toContain('is not a snapshot');
     expect(queryByTestId('live-error')).toBeNull();
-    expect(getByTestId('live-leave').dataset.urgent).toBe('true');
   });
 
   it('a gone match that the socket then drops is still gone, not connecting', () => {
@@ -916,36 +948,39 @@ describe('one state, one line', () => {
 });
 
 /*
- * §F.1 — Leave, moved off the floor.
+ * Item 5 (wave 30) — `Leave` is deleted; `Concede` is enough.
  *
- * *"'Leave the match' button is in a really weird spot, why is it below the
- * game canvas?"* It is in the bar now. What these assert is where it sits in
- * the DOM, that a keyboard can reach it, and that it is not inside the canvas —
- * the canvas boxes are lane C's and this lane may not move one.
+ * *"delete the Leave button. Concede is enough."* Wave 22 §F.1 used to put
+ * `Leave` in the bar and assert it sat off Forge's two answers, was keyboard
+ * reachable and was not inside the canvas. What remains to assert is that it
+ * is truly gone — not disabled, not hidden, ABSENT — and that the cluster's
+ * shape and the canvas guard around it still hold with one fewer child.
+ * `Concede`'s own coverage (§C.4, below) already proves it is keyboard
+ * reachable and pressable with a question open, so nothing here duplicates
+ * that.
  */
-describe('Leave is with the match controls', () => {
-  it('is a button in the cluster, kept off Forge’s two answers, and not inside the board', async () => {
+describe('Leave is deleted (item 5); Concede is the cluster’s only own control', () => {
+  it('Leave is nowhere — no test id, no label', async () => {
+    const { container, queryByTestId } = await liveBoard();
+    expect(queryByTestId('live-leave')).toBeNull();
+    expect(container.textContent).not.toContain('Leave');
+  });
+
+  it('Concede is in the cluster, kept off Forge’s two answers, and not inside the board', async () => {
     const { container, getByTestId } = await liveBoard();
-    const leave = getByTestId('live-leave');
+    const concede = getByTestId('live-concede');
     const bar = getByTestId('live-buttons');
-    expect(leave.tagName).toBe('BUTTON');
-    expect(bar.contains(leave)).toBe(true);
-    /*
-     * Not adjacent to OK or Cancel, so a reach for Leave is never a misclick on
-     * Forge's answer. It used to be FIRST in the cluster, which was the same
-     * claim when the grid drew it on a row of its own two rows below them; wave
-     * 27 §B.1 made the cluster one column in drawing order, and what keeps them
-     * apart there is Full control standing between.
-     */
+    expect(concede.tagName).toBe('BUTTON');
+    expect(bar.contains(concede)).toBe(true);
+    // Not adjacent to OK or Cancel: Full control stands between, so a reach
+    // for Concede is never a misclick on Forge's answer.
     const order = [...bar.children].map((el) => (el as HTMLElement).dataset.testid);
-    const gap = Math.abs(order.indexOf('live-leave') - order.indexOf('live-button-cancel'));
-    expect(gap, 'Leave does not sit next to Forge’s answers').toBeGreaterThan(1);
-    expect(container.querySelector('.board')!.contains(leave)).toBe(false);
-    // And the cluster is still a sibling of the board, drawn after it: the
-    // chrome is around the canvas, not in it. Wave 24 added the phase rail
-    // between them, wave 25 the logbook and wave 26 the log's own button, and all
-    // three are siblings for the same reason. No `live__status`: a live board
-    // draws no line about itself (§B.5).
+    const gap = Math.abs(order.indexOf('live-concede') - order.indexOf('live-button-cancel'));
+    expect(gap, 'Concede does not sit next to Forge’s answers').toBeGreaterThan(1);
+    expect(container.querySelector('.board')!.contains(concede)).toBe(false);
+    // The cluster still holds five children — item 7 put `Settings` in the
+    // slot item 5's deletion of `Leave` vacated — and is still a sibling of
+    // the board, drawn after it: the chrome is around the canvas, not in it.
     const live = container.querySelector('.live')!;
     expect([...live.children].map((el) => el.className)).toEqual([
       'board',
@@ -954,40 +989,7 @@ describe('Leave is with the match controls', () => {
       'live__log-button',
       'live__buttons',
     ]);
-  });
-
-  it('a keyboard reaches it, and a press leaves', async () => {
-    let left = 0;
-    const s = (server = await startReplayServer());
-    const m = (match = startMatch({
-      matchId: s.matchId,
-      transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
-    }));
-    const { getByTestId } = render(
-      createElement(LiveBoard, {
-        match: m,
-        onLeave: () => {
-          left += 1;
-        },
-      }),
-    );
-    const leave = getByTestId('live-leave') as HTMLButtonElement;
-    expect(leave.disabled).toBe(false);
-    expect(leave.tabIndex).toBe(0);
-    leave.focus();
-    expect(document.activeElement).toBe(leave);
-    // The Enter a focused button takes is a click; fire what the browser fires.
-    fireEvent.click(leave);
-    expect(left).toBe(1);
-    // It is not one of Forge's answers: nothing left over the wire.
-    expect(s.clientFrames()).toEqual([]);
-  });
-
-  it('is pressable with a question open — leaving is not an answer', async () => {
-    const { s, getByTestId } = await liveBoard();
-    s.send(confirmAsk('c-leave', true));
-    await waitFor(() => getByTestId('confirm-dialog'));
-    expect((getByTestId('live-leave') as HTMLButtonElement).disabled).toBe(false);
+    expect(bar.querySelectorAll('button')).toHaveLength(5);
   });
 
   /*
@@ -1077,21 +1079,21 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // The spec queries `live-buttons` and then looks INSIDE it, so a second
     // container, or one of these drawn as a sibling, is a red e2e.
     expect(container.querySelectorAll('[data-testid="live-buttons"]')).toHaveLength(1);
-    for (const id of ['live-button-ok', 'live-button-cancel', 'live-leave', 'live-full-control', 'live-concede']) {
+    for (const id of ['live-button-ok', 'live-button-cancel', 'live-full-control', 'live-settings', 'live-concede']) {
       expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
     }
+    // Item 5 deleted `Leave`: the cluster no longer holds it at all.
+    expect(cluster.querySelector('[data-testid="live-leave"]')).toBeNull();
     /*
-     * And in the order they are DRAWN (wave 27 §B.1). The cluster is one column
-     * now, so the tab order and the reading order are the same order — in two
-     * columns the markup ran Leave, Full control, OK, Cancel, Concede while the
-     * grid drew OK, Cancel, Full, Conc, Leave, and a keyboard went round the
-     * cluster in an order nothing on screen suggested.
+     * And in the order they are DRAWN (wave 27 §B.1). The cluster is one
+     * column, so the tab order and the reading order are the same order —
+     * `Settings` (item 7) is written in the slot `Leave` vacated.
      */
     expect([...cluster.querySelectorAll('button')].map((b) => b.dataset.testid)).toEqual([
       'live-button-ok',
       'live-button-cancel',
       'live-full-control',
-      'live-leave',
+      'live-settings',
       'live-concede',
     ]);
     /*
@@ -1122,7 +1124,8 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
       expect(cluster.querySelector(`[data-testid="${id}"]`), `${id} is out of the corner`).toBeNull();
     }
     // Every child of the cluster is a button now: nothing in it can be text that
-    // grows, which is the other half of "one box at one window size".
+    // grows, which is the other half of "one box at one window size". Still
+    // five: item 7 put `Settings` where item 5's deletion of `Leave` left a gap.
     expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON', 'BUTTON', 'BUTTON']);
     // And both moved into the logbook, which is not inside the cluster.
     const logbook = getByTestId('live-logbook');
@@ -1202,7 +1205,9 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
      * 6 + 112 = 118px <- the widest, and what this token is for"* — so widening
      * the cluster takes the reservation out of every row of a 960px table. The
      * HEIGHT is what gave instead, 84 → 136, when the five buttons became one
-     * column so that `Full control` and `Concede` stopped being clipped.
+     * column so that `Full control` and `Concede` stopped being clipped. Item
+     * 5 (wave 30) deleted `Leave` and item 7 put `Settings` in its slot, so
+     * the cluster is still five and the number is still 136.
      */
     const live = declarations(liveCss(), '.live');
     expect(live).toContain('--live-controls-w: 112px');
@@ -1224,8 +1229,11 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     expect(cluster).toContain('grid-template-columns: minmax(0, 1fr)');
     expect(cluster).toContain('grid-template-rows: 22px 22px 22px 22px 22px');
     // Five rows, five buttons, one column: no label shares a row with another,
-    // which is what stopped `Full control` and `Concede` ellipsizing.
-    expect(cluster).toContain("grid-template-areas: 'ok' 'cancel' 'full' 'leave' 'conc'");
+    // which is what stopped `Full control` and `Concede` ellipsizing. `Leave`
+    // had the fourth row until item 5 (wave 30) deleted it; item 7 put
+    // `Settings` there instead.
+    expect(cluster).toContain("grid-template-areas: 'ok' 'cancel' 'full' 'settings' 'conc'");
+    expect(cluster, 'item 5: no row for Leave any more').not.toContain('leave');
     /*
      * The ellipsis stays, as the LAST RESORT for a label Forge chose and not for
      * one of ours: `label1`/`label2` come off the wire and the five that do not
@@ -1266,7 +1274,9 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
    * Wave 25 §C took two 34px text rows and a gap out, and wave 26 §B.3 shrank the
    * box to the 112 × 84 the operator drew and moved the log's button out of it.
    * Wave 27 §B.1 gave each of the five buttons a row of its own — two columns of
-   * 49px clipped `Full control` and `Concede` — so the sum is 136.
+   * 49px clipped `Full control` and `Concede` — so the sum was 136. Item 5
+   * (wave 30) deleted `Leave` and item 7 put `Settings` in its slot, so the
+   * cluster is still five rows and the sum is still 136.
    */
   it('the height token is the exact sum of the cluster’s own tracks, in pixels', () => {
     const css = liveCss();
@@ -1888,20 +1898,23 @@ describe('what the board is told about Forge’s input', () => {
 });
 
 
-/* ── §A.6 — Forge's second button during declare-attackers ───────────── */
+/* ── §A.6 / item 16 — Forge's second button during declare-attackers ─── */
 
 /**
  * The operator, 2026-09-28: *"i hate the 'alpha strike' button just delete it."*
- *
- * There is no alpha-strike affordance in this repo. The button is FORGE's:
- * `InputAttack.java:89` sets its second label to `lblAlphaStrike` when this seat
- * has declared nothing and `lblCallBack` when it has, and this component painted
- * `bar.label2` verbatim. So the shortcut goes and the UNDO stays, and the two are
- * told apart by Forge's own `Attacking` rather than by the label's text — which
- * is localized, and a client that reads Forge's prose to decide what a button
- * means is a client that breaks in French.
+ * Wave 30 item 16 widens the refusal from just `Alpha Strike` to `Call Back`
+ * too: *"delete the Call Back button… the operator has asked for it anyway"*,
+ * knowing the cost — `Call Back` is Forge's own `lblCallBack`
+ * (`InputAttack.canCallBackAttackers()`), and it was the only way this UI let a
+ * player un-declare attackers already committed. `InputAttack.java:89` sets the
+ * bar's second label to `lblAlphaStrike` with nothing declared and `lblCallBack`
+ * once something is, and this component used to paint `bar.label2` verbatim
+ * for the second case. Now `offersSecondButton` refuses BOTH, off
+ * `declaringAttackers` alone — never off the label's text, which is localized,
+ * and a client that reads Forge's prose to decide what a button means is a
+ * client that breaks in French.
  */
-describe('§A.6 — Forge’s second button is not offered during declare-attackers', () => {
+describe('§A.6 / item 16 — Forge’s second button is refused for the whole of declare-attackers', () => {
   const GAME_KEY = String(deltaKey(WireType.Game, 1));
   const notify = (raw: unknown) => parseServerFrame(raw);
   const bar = (label2: string) =>
@@ -1955,7 +1968,7 @@ describe('§A.6 — Forge’s second button is not offered during declare-attack
       },
     });
 
-  it('paints Forge’s label2 everywhere else, refuses it with nothing declared, and gives it back as Call Back', async () => {
+  it('paints Forge’s label2 everywhere else, and refuses it whether or not an attacker is declared', async () => {
     const { s, m, getByTestId } = await liveBoard();
     const me = m.view!.players.find((p) => p.isViewer)!;
     const cancel = () => getByTestId('live-button-cancel') as HTMLButtonElement;
@@ -1965,22 +1978,23 @@ describe('§A.6 — Forge’s second button is not offered during declare-attack
     await waitFor(() => expect(cancel().disabled).toBe(false));
     expect(cancel().textContent).toBe('Cancel');
 
-    // 2. Declaring attackers with none declared: this is the Alpha Strike state,
-    //    and the button is neither offered nor labelled with Forge's word.
+    // 2. Declaring attackers with none declared (the old Alpha Strike state):
+    //    the button is neither offered nor labelled with Forge's word.
     s.send(phase(m, 'COMBAT_DECLARE_ATTACKERS', me.id));
     s.send(bar('Alpha Strike'));
     await waitFor(() => expect(cancel().disabled).toBe(true));
     expect(cancel().textContent, 'and it never says Forge’s word').toBe('Cancel');
     expect(m.buttons!.label2, 'Forge still sent it — we simply do not offer it').toBe('Alpha Strike');
 
-    // 3. One attacker declared. Forge's own `canCallBackAttackers()` is true now,
-    //    it sends `Call Back`, and that is an UNDO rather than a shortcut — so it
-    //    comes back. Removing a way to take back a declared attack is a different
-    //    act from removing attack-with-everything, and only the second was asked for.
+    // 3. One attacker declared. Forge's own `canCallBackAttackers()` is true now
+    //    and it sends `Call Back` — item 16 refuses this one too, on the operator's
+    //    own instruction, so the button stays disabled and neutral instead of
+    //    becoming Forge's undo.
     s.send(attacking(m, [me.battlefield.find((c) => !c.tapped)!.id]));
     s.send(bar('Call Back'));
-    await waitFor(() => expect(cancel().disabled).toBe(false));
-    expect(cancel().textContent).toBe('Call Back');
+    await waitFor(() => expect(m.buttons!.label2).toBe('Call Back'));
+    expect(cancel().disabled, 'Call Back is refused too (item 16)').toBe(true);
+    expect(cancel().textContent, 'and it never reads Forge’s word either').toBe('Cancel');
   });
 
   it('keeps the button in the cluster either way: the box may not change', async () => {
@@ -2072,5 +2086,112 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
     await waitFor(() => expect(lines(container)).toHaveLength(1));
     expect(lines(container)[0]!.querySelectorAll('.live__log-card')).toHaveLength(0);
     expect(lines(container)[0]!.textContent).toBe('paid B — Swamp');
+  });
+});
+
+/*
+ * ── items 4-7 — the settings panel ───────────────────────────────────────
+ *
+ * The operator, 2026-09-30: *"i think by default this should be off, but can
+ * be turned on in settings (always stop at endstep). same place that we
+ * should allow the board config to show differently."*
+ */
+describe('the settings panel (items 4-7)', () => {
+  it('is reachable from a button in the existing cluster, not a fourth floating thing', async () => {
+    const { container, getByTestId } = await liveBoard();
+    expect(container.querySelector('[data-testid="live-settings-panel"]')).toBeNull();
+    const trigger = getByTestId('live-settings') as HTMLButtonElement;
+    expect(getByTestId('live-buttons').contains(trigger)).toBe(true);
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    // Still exactly three permanent overlays beside the board: the rail, the
+    // cluster and the log button. The settings button rides inside the
+    // cluster, so this set is unchanged from before item 7.
+    const live = container.querySelector('.live')!;
+    expect([...live.children].map((el) => el.className)).toEqual([
+      'board',
+      'live__phases',
+      'live__logbook',
+      'live__log-button',
+      'live__buttons',
+    ]);
+
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    const panel = getByTestId('live-settings-panel');
+    expect(panel).not.toBeNull();
+    // Opening it added no new overlay to `.live` either — it is a child of
+    // `.live`, like `ConcedeAsk`'s own host, not a new permanent fixture.
+    expect(live.contains(panel)).toBe(true);
+  });
+
+  it('closes on its own Close button and on Escape', async () => {
+    const { getByTestId, queryByTestId } = await liveBoard();
+    fireEvent.click(getByTestId('live-settings'));
+    const panel = getByTestId('live-settings-panel');
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(queryByTestId('live-settings-panel')).toBeNull();
+
+    fireEvent.click(getByTestId('live-settings'));
+    const closeButton = getByTestId('live-settings-panel').querySelector('button[data-default]') as HTMLButtonElement;
+    expect(closeButton.textContent).toBe('Close');
+    fireEvent.click(closeButton);
+    expect(queryByTestId('live-settings-panel')).toBeNull();
+  });
+
+  it('board layout: single is the default `Board` prop, and the radio flips it to type-separated and back', async () => {
+    const { getByTestId } = await liveBoard();
+    expect(captured.boardLayout).toBe('single');
+    fireEvent.click(getByTestId('live-settings'));
+    const panel = getByTestId('live-settings-panel');
+    const radios = [...panel.querySelectorAll<HTMLInputElement>('input[name="board-layout"]')];
+    expect(radios.map((r) => r.value)).toEqual(['single', 'type-separated']);
+    expect(radios[0]!.checked).toBe(true);
+
+    fireEvent.click(radios[1]!);
+    expect(captured.boardLayout).toBe('type-separated');
+    expect(prefsState.saved).toContainEqual({ boardLayout: 'type-separated' });
+
+    fireEvent.click(radios[0]!);
+    expect(captured.boardLayout).toBe('single');
+  });
+
+  it('always-stop-at-end-step: off by default, the checkbox sends forge:stop-preference and persists the change', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    expect(m.stopAtEndStep).toBe(false);
+    fireEvent.click(getByTestId('live-settings'));
+    const checkbox = getByTestId('live-settings-stop-end-step') as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(m.stopAtEndStep).toBe(true));
+    const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: true });
+    expect(prefsState.saved).toContainEqual({ stopAtEndStep: true });
+    expect(checkbox.checked).toBe(true);
+
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(m.stopAtEndStep).toBe(false));
+    expect(s.received.filter((r) => r.event === 'forge:stop-preference')).toHaveLength(2);
+    // A preference, not a Forge frame: none of it crossed forge:c2s.
+    expect(s.clientFrames()).toEqual([]);
+  });
+
+  it('a persisted preference is sent to the server on join, without the panel ever opening — the manager’s own instruction', async () => {
+    prefsState.prefs = { boardLayout: 'type-separated', stopAtEndStep: true };
+    const { s, m } = await liveBoard();
+    await waitFor(() => expect(m.stopAtEndStep).toBe(true));
+    expect(captured.boardLayout).toBe('type-separated');
+    const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: true });
+    // Never opened `live-settings-panel` in this test at all.
+  });
+
+  it('a persisted OFF preference is still sent on join — force, because off already matches the client default', async () => {
+    prefsState.prefs = { stopAtEndStep: false };
+    const { s, m } = await liveBoard();
+    await waitFor(() => expect(s.received.filter((r) => r.event === 'forge:stop-preference')).toHaveLength(1));
+    expect(m.stopAtEndStep).toBe(false);
   });
 });

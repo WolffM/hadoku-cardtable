@@ -218,6 +218,13 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     socket.on(MATCH_EVENTS.fullControl, (payload) => {
       server.received.push({ event: MATCH_EVENTS.fullControl, payload });
     });
+    // Item 2/6 (wave 30): same shape as full control — recorded, no ack, no
+    // state held here. The REAL handler (`apps/server/src/play/socket.ts`)
+    // folds it into the seat's `StopPolicy`; this double only has to prove
+    // what the CLIENT sent.
+    socket.on(MATCH_EVENTS.stopPreference, (payload) => {
+      server.received.push({ event: MATCH_EVENTS.stopPreference, payload });
+    });
   });
 
   await new Promise<void>((ready) => http.listen(0, '127.0.0.1', ready));

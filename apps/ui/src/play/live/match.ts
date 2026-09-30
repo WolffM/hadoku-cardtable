@@ -250,6 +250,7 @@ import {
   parseMatchSeats,
   parseServerEnvelope,
   replyFrame,
+  stopPreferenceFrame,
   type ClientEnvelope,
   type MatchSnapshot,
   type TransportIssue,
@@ -534,6 +535,17 @@ export interface LiveMatch {
    */
   fullControl: boolean;
   /**
+   * This seat's *"always stop at end step"* preference (item 2/6, wave 30) —
+   * this client's own last word, same shape as `fullControl` but with no
+   * server echo: `forge:stop-preference` is client → server only
+   * (`apps/server/src/play/transport.ts`'s own `StopPreferenceSchema` note),
+   * because unlike full control nothing about the ANSWER changes server-side
+   * in a way this client needs told back — `Match.setStopPolicy` folds it
+   * into the seat's `StopPolicy` and the next stop simply does or does not
+   * fire. Off by default, which is also the operator's own default.
+   */
+  stopAtEndStep: boolean;
+  /**
    * Every seat's identity, keyed by Forge PLAYER id — item 4 (wave 29 §A.6-8),
    * the render half. `seats[].playerId` is the join key `D-avatar-field.md` §2
    * traced (the same id `BoardPlayer.id` already is), and this map carries only
@@ -643,6 +655,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     lastSelectedCard: null,
     avatarByPlayerId: null,
     fullControl: false,
+    stopAtEndStep: false,
     lastError: null,
     lastInvalid: null,
     lastVerdict: null,
@@ -767,6 +780,32 @@ export function setFullControl(match: LiveMatch, on: boolean): boolean {
   if (match.fullControl === on) return false;
   match.transport.emit(MATCH_EVENTS.fullControl, fullControlFrame(match.matchId, on));
   match.fullControl = on;
+  notify(match);
+  return true;
+}
+
+/**
+ * Flip this seat's *"always stop at end step"* preference and tell the
+ * server (item 2/6, wave 30). The settings panel's own sender, and the only
+ * one: `forge:stop-preference` folds into the seat's `StopPolicy`
+ * (`apps/server/src/play/socket.ts`'s handler), toggling `END_OF_TURN` in or
+ * out of `stopOnTheirTurn` without touching any other field of it.
+ *
+ * `force` re-sends even when the local flag already agrees — the settings
+ * panel's own mount effect uses it to push a PERSISTED preference (read back
+ * from `@wolffm/prefs-client` on a returning viewer) into a freshly joined
+ * match, whose server-side `StopPolicy` starts from `DEFAULT_STOP_POLICY`
+ * and has no memory of a preference set in an earlier match. Without `force`
+ * that first sync would no-op, because the client's own `stopAtEndStep`
+ * already reads `false` before anything has been sent this match — the same
+ * shape `false === false` would refuse in `setFullControl` above, except
+ * there the server's OWN default agrees with the client's, so the omission
+ * never mattered there.
+ */
+export function sendStopPreference(match: LiveMatch, stopAtEndStep: boolean, force = false): boolean {
+  if (!force && match.stopAtEndStep === stopAtEndStep) return false;
+  match.transport.emit(MATCH_EVENTS.stopPreference, stopPreferenceFrame(match.matchId, stopAtEndStep));
+  match.stopAtEndStep = stopAtEndStep;
   notify(match);
   return true;
 }

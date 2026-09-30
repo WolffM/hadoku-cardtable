@@ -105,8 +105,10 @@
  *    the operator widened it to ~108px deliberately, so the phases are to be
  *    READ. It also carries the only turn indicator on the page, because §A
  *    deleted the turn bar — `live-turn` is what the specs read now.
- *  - **the controls are 112×84**, five buttons, directly under the rail. Wave 25
- *    took the prose out; this is the rest of it.
+ *  - **the controls are 112×84**, five buttons, directly under the rail — item
+ *    5 (wave 30) deleted `Leave` and item 7 put `Settings` in the slot it
+ *    vacated, so the five wave 25 took the prose out of are still five. Wave
+ *    25 took the prose out; this is the rest of it.
  *  - **the log is a 36×32 button** of its own, in the gutter above the rail, and
  *    the panel it opens is the full height of the match. It is out of the
  *    control cluster entirely: the cluster is five buttons at 112px wide and a
@@ -122,8 +124,8 @@
  * The other five states keep the line, and that is not a hedge: in every one of
  * them there is no board, so the line is the only thing on the page. `Match
  * gone.` with nothing under it is a player being told what happened; deleting it
- * would leave them a blank screen with a Leave button. What the operator was
- * shown, and rejected, was the line on a LIVE table.
+ * would leave them a blank screen with nothing on it at all. What the operator
+ * was shown, and rejected, was the line on a LIVE table.
  *
  * ## A payment is a question, so it is drawn as one (wave 25 §C.2)
  *
@@ -171,11 +173,17 @@
  * pressed still sends nothing. With no bar from Forge yet, the buttons carry
  * neutral labels.
  *
- * **Leave and Concede are in it** (wave 22 §F.1, wave 24 §C.4), BELOW OK and
- * Cancel with Full control between them. They are the two controls that are not
- * answers to Forge, and keeping them out of reach of Forge's two is what stops a
- * reach for one being a misclick on the other. Wave 27 §B.1 made the cluster a
- * single column of five, so "their own row" is now every button's.
+ * **Concede and Settings are in it** (wave 24 §C.4, wave 30 item 7), BELOW OK
+ * and Cancel with Full control between them. Neither is an answer to Forge,
+ * and keeping them out of reach of Forge's two is what stops a reach for one
+ * being a misclick on theirs. Wave 27 §B.1 made the cluster a single column,
+ * so "its own row" is now every button's. `Leave` sat where `Settings` is now,
+ * just above Concede, from wave 22 §F.1 until item 5 (wave 30) deleted it on
+ * the operator's own instruction — *"delete the Leave button; Concede is
+ * enough"* — and item 7 put the settings disclosure in the slot it vacated
+ * rather than shrinking the cluster, which is what keeps the reachability
+ * promise (§7: no fourth floating thing) cheap: one more button in a box that
+ * already exists, not a new one.
  *
  * ## Concede asks first
  *
@@ -236,14 +244,14 @@
 import { Component, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import type { DraftCard } from '@hadoku/shared';
+import { usePrefs } from '@wolffm/prefs-client/react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 import { PHASE_LABEL, type BoardView } from '../adapter.ts';
-import { Board, type BoardInteraction } from '../Board.tsx';
+import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
 import { lookupFromState, plainRulesText, withAbilityLabels } from '../prompts/lookup.ts';
 import { autoAnswer } from '../prompts/rules.ts';
 import { isPromptMethod, PromptFor, type AskOf, type PromptMethod } from '../prompts/index.ts';
-import { navigate } from '../../screens/route.ts';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
 import { installGestures } from './gestures/index.ts';
 import {
@@ -260,12 +268,15 @@ import {
   SAYS_KEPT,
   selectCard,
   selectPlayer,
+  sendStopPreference,
   setFullControl,
   subscribe,
   type LiveAsk,
   type LiveClickables,
   type LiveMatch,
 } from './match.ts';
+import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs.ts';
+import { SettingsPanel } from './SettingsPanel.tsx';
 import './live.css';
 
 /* ── Where the match is: six states, one line ─────────────────────────── */
@@ -465,20 +476,7 @@ export const SAYS_SHOWN = SAYS_KEPT;
  */
 export type LogKind = 'payment' | 'damage' | 'life' | 'play' | 'control' | 'said';
 
-/* ── Forge's second button, and the one label we refuse (item 6) ───── */
-
-/**
- * Whether this seat has already declared an attacker, off Forge's own
- * `Attacking` on its own board.
- *
- * Structured state, not prompt text — the same rule `declaringAttackers` follows
- * and for the same reason. It is also exactly the predicate Forge itself
- * switches its second button on: `InputAttack.canCallBackAttackers()`.
- */
-function anyAttackerDeclared(match: LiveMatch): boolean {
-  const me = match.view?.players.find((p) => p.isViewer);
-  return me !== undefined && me.battlefield.some((c) => c.attacking);
-}
+/* ── Forge's second button, and the two labels we refuse (items 6, 16) ───── */
 
 /**
  * Whether Forge's SECOND button is offered at all.
@@ -497,28 +495,33 @@ function anyAttackerDeclared(match: LiveMatch): boolean {
  * and the two call sites below, which render `bar.label2` verbatim. So the button
  * is Forge's and the fix is ours: during declare-attackers we do not offer it.
  *
- * **"Call Back" is NOT given the same treatment, and that is a decision rather
- * than an oversight.** It is the same button in its other state, and the two
- * states do opposite things: `Alpha Strike` attacks with everything, which is the
- * shortcut the operator wants gone; `Call Back` takes back the attackers already
- * declared, which is the only way to undo a declaration this UI has. Removing a
- * shortcut and removing an undo are different acts, and only the first was asked
- * for.
+ * **Wave 30 item 16 widens that to `Call Back` as well, on the operator's own
+ * instruction, and the cost is real and named rather than hidden: `Call Back`
+ * is Forge's `lblCallBack`, offered exactly when
+ * `InputAttack.canCallBackAttackers()` is true, and it is the only way this UI
+ * ever let a player UN-DECLARE attackers they had already committed to. Wave
+ * 29 kept it for exactly that reason — `Alpha Strike` is a shortcut the
+ * operator asked gone, `Call Back` was an undo — and this wave removes the undo
+ * too, because the operator asked for it anyway with the cost stated. Nothing
+ * downstream of this function changes: `declaringAttackers` alone decides it
+ * now, so the button is refused for the whole of declare-attackers and never
+ * unlocks partway through.**
  *
- * Forge distinguishes them by `canCallBackAttackers()`, and so do we — off
- * `Attacking`, never off the label's TEXT, because the label is localized and a
- * client that reads Forge's prose to decide what a button means is a client that
- * breaks in French.
+ * Off `declaringAttackers` — structured state Forge already tells this client,
+ * never off the label's TEXT, because the label is localized and a client that
+ * reads Forge's prose to decide what a button means is a client that breaks in
+ * French.
  *
  * The button ITSELF stays in the DOM, disabled, and reads `Cancel`. It is not
  * removed: the control cluster is a fixed box with a fixed slot for each of its
- * five children, and `e2e/table-fit.spec.ts` fails a frame in which that box is
- * not the box it was in every other frame. Disabled-and-neutral is also the
- * truthful reading — there are no attackers to take back yet — and it becomes
- * Forge's own `Call Back` the moment there are.
+ * children, and `e2e/table-fit.spec.ts` fails a frame in which that box is not
+ * the box it was in every other frame. Disabled-and-neutral is also the
+ * truthful reading outside declare-attackers, where this button is still
+ * Forge's own generic Cancel (a mana payment's, for one) and unaffected by any
+ * of this.
  */
 function offersSecondButton(match: LiveMatch): boolean {
-  return !declaringAttackers(match) || anyAttackerDeclared(match);
+  return !declaringAttackers(match);
 }
 
 /** What the second button says: Forge's word, or the neutral one when we refuse it. */
@@ -899,14 +902,9 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
 
 export interface LiveBoardProps {
   match: LiveMatch;
-  /**
-   * What Leave does. Defaults to the lobby, which is where leaving a match
-   * goes; a test or a harness passes its own.
-   */
-  onLeave?: () => void;
 }
 
-export function LiveBoard({ match, onLeave }: LiveBoardProps) {
+export function LiveBoard({ match }: LiveBoardProps) {
   useSyncExternalStore(
     (listener) => subscribe(match, listener),
     () => match.revision,
@@ -1030,6 +1028,58 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
   const logbookId = useId();
 
   /*
+   * The settings panel is open. Local state, not a `LiveMatch` field — it is
+   * this component's own disclosure, like the logbook's, not a question Forge
+   * or the wire is waiting on.
+   */
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  /*
+   * Board layout (item 11): a PROP of `Board`, `single` by default, read from
+   * the persisted preference below once it loads. Lives here, not inside
+   * `SettingsPanel`, because `<Board>` needs it whether or not Settings is
+   * ever opened.
+   */
+  const [boardLayout, setBoardLayout] = useState<BoardLayout>(PLAY_PREFS_DEFAULTS.boardLayout);
+  /*
+   * Item 6's persistence, and item 2/6's wire message.
+   *
+   * `usePrefs` is called ONCE, here, rather than inside `SettingsPanel`:
+   * applying a persisted preference to a FRESH match has to happen whether or
+   * not the player ever opens Settings this match (a preference set last
+   * match must still reach this seat), so it cannot be gated behind a panel
+   * that may never mount. Manager, 2026-09-30: *"send it on join/rejoin with
+   * the stored preference as well as on toggle, since the server default is
+   * off and does not remember."*
+   *
+   * `sendStopPreference(..., true)` is keyed on `[prefs, match, match.stats.snapshots]`:
+   * `prefs` so the first load applies immediately once it resolves, and
+   * `match.stats.snapshots` — bumped by every successful `forge:join` /
+   * `forge:resync` (`./match.ts`'s `fetchSnapshot`) — so a RESYNC, which
+   * hands this seat a freshly-created-or-recovered server `StopPolicy` with
+   * no memory of an earlier preference, gets the stored value re-sent too.
+   * `force: true` because the persisted value may already equal the
+   * client's own default (`false`) while the server still needs telling —
+   * `sendStopPreference`'s own doc comment has the full case.
+   */
+  const { prefs, save: savePrefs } = usePrefs(getPlayPrefsClient());
+  const appliedBoardLayout = useRef(false);
+  useEffect(() => {
+    if (appliedBoardLayout.current || prefs === null) return;
+    appliedBoardLayout.current = true;
+    if (prefs.boardLayout === 'type-separated') setBoardLayout('type-separated');
+  }, [prefs]);
+  useEffect(() => {
+    // `snapshots === 0` is "no join has completed yet" — sending before that
+    // would fire on mount, before the socket has so much as connected, and
+    // then fire AGAIN the moment the real join lands (`stats.snapshots`
+    // 0 → 1), which is a real double-send and not merely a wasted one.
+    if (prefs === null || match.stats.snapshots === 0) return;
+    sendStopPreference(match, prefs.stopAtEndStep ?? PLAY_PREFS_DEFAULTS.stopAtEndStep, true);
+    // `match.stats.snapshots` (not `match.stats` itself, which is a mutated-in-place
+    // object with a stable identity) is the join/resync trigger; see the block comment above.
+  }, [match, prefs, match.stats.snapshots]);
+
+  /*
    * The pointer layer is lane B's (`./gestures/`), and the element is the whole
    * contract: `installGestures` is handed `.live` and finds the board, the
    * cards and lane A's overlay root under it. No `onChange` — the board redraws
@@ -1074,7 +1124,7 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
           {alert}
         </p>
       )}
-      {match.view !== null && <Board view={match.view} interaction={interaction} />}
+      {match.view !== null && <Board view={match.view} interaction={interaction} boardLayout={boardLayout} />}
       {/* Out of flow, over the board's right edge: it moves no canvas box. */}
       {match.view !== null && <PhaseRail view={match.view} />}
       {/*
@@ -1145,9 +1195,11 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
        * Wave 27 §B.1 made it a single COLUMN of five — the shape
        * `board-layout-2026-09-27.md` describes in words — because two 49px
        * columns clipped `Full control` and `Concede`, and the cluster's width is
-       * what `board.css` reserves the gutter from and so cannot grow. The five
-       * are written here in the order they are drawn, so the tab order and the
-       * reading order are one order; in two columns they were not.
+       * what `board.css` reserves the gutter from and so cannot grow. Item 5
+       * (wave 30) deleted `Leave`; item 7 put `Settings` where it was, so the
+       * cluster is still five. They are written here in the order they are
+       * drawn, so the tab order and the reading order are one order; in two
+       * columns they were not.
        */}
       <div className="live__buttons" data-testid="live-buttons">
         <button
@@ -1179,27 +1231,26 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
           Full control
         </button>
         {/*
-         * Leave: the match's own control, below Forge's answers with Full
-         * control between them. Not a link, because leaving is an action on this
-         * match and not a place — and a button is the tab stop a person expects.
+         * Settings (item 7), in the slot `Leave` vacated when item 5 deleted
+         * it. A disclosure like the log's — `aria-expanded` follows the
+         * panel — and pressable at any time for the same reason Full control
+         * is: it is a preference of the person in the seat, not an answer to
+         * Forge.
          */}
         <button
           type="button"
-          className="live__leave"
-          data-testid="live-leave"
-          data-urgent={status === 'match-gone' ? true : undefined}
-          title="Leave the match"
-          onClick={() => {
-            if (onLeave !== undefined) onLeave();
-            else navigate({ kind: 'lobby' });
-          }}
+          className="live__settings"
+          data-testid="live-settings"
+          aria-expanded={settingsOpen}
+          title="Settings"
+          onClick={() => setSettingsOpen(true)}
         >
-          Leave
+          Settings
         </button>
         {/*
-         * Concede (§C.4), last. It sends NOTHING: it opens the confirmation, and
-         * only that dialog's own yes reaches `concede`. Pressable with a question
-         * open, like Leave — giving up is not an answer to what Forge asked.
+         * Concede (§C.4), last. It sends NOTHING: it opens the confirmation,
+         * and only that dialog's own yes reaches `concede`. Pressable with a
+         * question open — giving up is not an answer to what Forge asked.
          */}
         <button
           type="button"
@@ -1234,6 +1285,15 @@ export function LiveBoard({ match, onLeave }: LiveBoardProps) {
             setConceding(false);
           }}
           onCancel={() => setConceding(false)}
+        />
+      )}
+      {settingsOpen && (
+        <SettingsPanel
+          match={match}
+          boardLayout={boardLayout}
+          onBoardLayoutChange={setBoardLayout}
+          onSave={(patch: Partial<PlayPrefs>) => void savePrefs(patch)}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
     </div>

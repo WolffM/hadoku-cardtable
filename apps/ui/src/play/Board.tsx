@@ -28,18 +28,37 @@
  * with an empty, a one-item and a five-item stack and holds the structure
  * identical; `e2e/table-fit.spec.ts` measures the real boxes in a browser.
  *
- * ## The battlefield reads like a table: four labelled groups
+ * ## One undivided battlefield by default; four labelled groups as the alternate (item 11)
  *
- * The operator, 2026-09-25: the battlefield's *"ordering random"*, and they
- * want lands, artifacts and creatures apart. So a battlefield is four groups
- * inside its one fixed slot — lands, artifacts, creatures, and everything else
- * — each with its label and its count, all four always drawn. A card's group is
- * read off its OWN type line (`BoardCard.card.typeLine`, which the adapter
+ * The operator asked, at least three times, for the battlefield NOT to be
+ * type-separated by default: *"i said this should be an alternate ui and the
+ * real ui should just be a single board, no seperators."* So `single` — cards
+ * in one lane, in arrival/placement order — is the `boardLayout` prop's
+ * default, and the settings panel is the only way to reach the alternate.
+ *
+ * The alternate is what wave 26 built and is unchanged: the operator,
+ * 2026-09-25, wanted the battlefield's *"ordering random"* fixed by keeping
+ * lands, artifacts and creatures apart, so `type-separated` is four groups
+ * inside the one fixed slot — lands, artifacts, creatures, and everything else
+ * — each with its label and its count, all four always drawn. A card's group
+ * is read off its OWN type line (`BoardCard.card.typeLine`, which the adapter
  * already carries); nothing is asked of the engine and no rule is implemented
- * here. `rowFor` resolves an overlap by what the card is used as: an artifact
- * land is a land, an artifact creature is a creature.
+ * here. `permanentType` resolves an overlap by what the card is used as: an
+ * artifact land is a land, an artifact creature is a creature — and it answers
+ * the same way whichever layout is on screen, because Forge's own rules (the
+ * attack-declare gesture standing down on creatures) still need to know what a
+ * card IS even when the board draws no lanes for it. `visualRow` is the one
+ * that differs by layout: everything in one bucket by default, `permanentType`
+ * in the alternate.
  *
- * They are drawn as LANES ACROSS the slot rather than bands down it, and that
+ * Wave 24's placement model is not replaced either way, only un-bucketed by
+ * default: a drop on a card's top or bottom third still stacks it, the middle
+ * still reorders, a new permanent still joins the end — of the one lane by
+ * default, of its type row in the alternate. The two layouts keep independent
+ * arrangements (different `Arrangement` store keys), so switching the setting
+ * back and forth does not throw either one away.
+ *
+ * In the alternate, the four groups are drawn as LANES ACROSS the slot rather than bands down it, and that
  * was measured, not chosen: the slot is 840 × 130 at 1280×800, where four
  * bands are a 21px card and four lanes are a 100px one. `board.css` has the
  * arithmetic. The attribute stays `data-board-row` — a row of the table, which
@@ -484,19 +503,43 @@ type ZoneOwner = 'you' | 'them' | 'table';
 
 /* ── the battlefield's rows ───────────────────────────────────────────── */
 
-/** The battlefield's rows, top to bottom. Every battlefield draws all four. */
+/**
+ * Item 11. *"i said this should be an alternate ui and the real ui should
+ * just be a single board, no seperators."* `single` — one undivided
+ * battlefield, cards in arrival/placement order — is the DEFAULT; the four
+ * type-separated lanes below survive as the `type-separated` alternate,
+ * behind the settings panel's own choice. Nothing about wave 24's placement
+ * model changes either way: a drop on a card's top or bottom third still
+ * stacks it, the middle still reorders, a new permanent still joins the end —
+ * of its ROW in the alternate, of the one lane in the default.
+ */
+export type BoardLayout = 'single' | 'type-separated';
+
+/** The type-separated alternate's rows, top to bottom. Every battlefield draws all four. */
 const BOARD_ROWS = ['lands', 'artifacts', 'creatures', 'other'] as const;
-type BoardRow = (typeof BOARD_ROWS)[number];
+/** The single-layout default's one lane: everything, in placement order. */
+const SINGLE_ROWS = ['all'] as const;
+type BoardRow = (typeof BOARD_ROWS)[number] | (typeof SINGLE_ROWS)[number];
+
+/** Which rows a layout draws, and in what order `--cols` sums them. */
+function rowsForLayout(layout: BoardLayout): readonly BoardRow[] {
+  return layout === 'single' ? SINGLE_ROWS : BOARD_ROWS;
+}
 
 const ROW_LABEL: Readonly<Record<BoardRow, string>> = {
   lands: 'Lands',
   artifacts: 'Artifacts',
   creatures: 'Creatures',
   other: 'Other',
+  all: '',
 };
 
 /**
- * Which row a permanent belongs in, from its own type line.
+ * A permanent's TYPE, off its own type line. This is a fact about the card —
+ * used by the type-separated alternate to bucket it, and by the attack-declare
+ * gesture (`CardOnBoard`) to know which cards are creatures — and it is read
+ * the same way whatever the board's layout is: the single layout not drawing
+ * lanes does not mean Forge's own rules stop caring what a card is.
  *
  * Read off the types, never the subtypes — `Artifact — Equipment` is an
  * artifact and nothing here should care that "Equipment" is a word. An overlap
@@ -504,12 +547,21 @@ const ROW_LABEL: Readonly<Record<BoardRow, string>> = {
  * then creature, then artifact: an artifact land is tapped for mana and an
  * artifact creature attacks.
  */
-function rowFor(card: BoardCard): BoardRow {
+function permanentType(card: BoardCard): (typeof BOARD_ROWS)[number] {
   const types = card.card.typeLine.split('—')[0] ?? '';
   if (/\bLand\b/i.test(types)) return 'lands';
   if (/\bCreature\b/i.test(types)) return 'creatures';
   if (/\bArtifact\b/i.test(types)) return 'artifacts';
   return 'other';
+}
+
+/**
+ * Which row a permanent draws in, for the layout actually on screen: its type
+ * in the alternate, the one lane in the default. Only the default's grouping
+ * is new here — the alternate is `permanentType`, unchanged.
+ */
+function visualRow(card: BoardCard, layout: BoardLayout): BoardRow {
+  return layout === 'single' ? 'all' : permanentType(card);
 }
 
 /**
@@ -519,18 +571,28 @@ function rowFor(card: BoardCard): BoardRow {
  */
 type Pile = readonly BoardCard[];
 
-/** One battlefield, in rows of piles. Always all four keys, in `BOARD_ROWS` order. */
+/**
+ * One battlefield, in rows of piles. Always every `BoardRow` key, whether or
+ * not the layout on screen draws it — `rowsForLayout` says which ones a given
+ * render actually uses, and the rest sit empty.
+ */
 type Grouped = Readonly<Record<BoardRow, readonly Pile[]>>;
 
 /**
- * A slot of one seat the player may arrange: one of the battlefield's four rows,
- * or their own hand. The hand's slot holds piles of ONE — a hand is a row of
- * cards you hold and nothing in it stacks — which is what lets it share the
- * store, the gesture and the reset with the battlefield instead of inventing a
- * second of each.
+ * A slot of one seat the player may arrange: one of the battlefield's four
+ * type rows, the single layout's one lane, or their own hand. The hand's slot
+ * holds piles of ONE — a hand is a row of cards you hold and nothing in it
+ * stacks — which is what lets it share the store, the gesture and the reset
+ * with the battlefield instead of inventing a second of each.
  */
 type ArrangeSlot = BoardRow | 'hand';
-const ARRANGE_SLOTS: readonly ArrangeSlot[] = [...BOARD_ROWS, 'hand'];
+/**
+ * Every slot `Regroup` clears, both layouts' at once. A seat has one
+ * arrangement store and one reset control; switching the board's layout
+ * setting does not need its own Regroup because each layout's rows live under
+ * their own keys (`slotKey`) and do not collide.
+ */
+const ARRANGE_SLOTS: readonly ArrangeSlot[] = [...BOARD_ROWS, ...SINGLE_ROWS, 'hand'];
 
 /**
  * The player's own arrangement, as PILES of card ids per `<playerId>:<slot>`. A
@@ -547,13 +609,15 @@ const slotKey = (playerId: number, slot: ArrangeSlot): string => `${playerId}:${
 const cardsIn = (piles: readonly Pile[]): number => piles.reduce((n, p) => n + p.length, 0);
 
 /**
- * How many COLUMNS a whole battlefield draws — every pile in all four lanes.
+ * How many COLUMNS a whole battlefield draws — every pile in every lane the
+ * layout on screen draws (all four in the alternate, the one lane by default).
  *
  * `board.css` sizes the zone from this (`--cols`) because nothing in CSS can
- * count across the four lanes: `:has(> li:nth-child(n))` counts inside ONE list,
- * and a lane is a size container whose contents contribute nothing to its box.
+ * count across lanes: `:has(> li:nth-child(n))` counts inside ONE list, and a
+ * lane is a size container whose contents contribute nothing to its box.
  */
-const cols = (rows: Grouped): number => BOARD_ROWS.reduce((n, row) => n + rows[row].length, 0);
+const cols = (rows: Grouped, layout: BoardLayout): number =>
+  rowsForLayout(layout).reduce((n, row) => n + rows[row].length, 0);
 
 /**
  * Every match's arrangement, in the browser and nowhere else — not on the
@@ -574,20 +638,20 @@ export function forgetArrangements(): void {
 }
 
 /**
- * A battlefield's rows: what the player arranged first, then everything else in
- * the row its type puts it in — and Forge's attachments folded in on top of
- * both.
+ * A battlefield's rows: what the player arranged first, then everything else
+ * in the row `visualRow` puts it in for this layout — and Forge's attachments
+ * folded in on top of both.
  *
  * Every card appears exactly once whatever the store says — an id the store
  * lists twice, or lists for a card that has left the battlefield, cannot
  * duplicate a card or lose one. `data-card-id` is unique across the board and
  * three other lanes depend on that.
  */
-function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangement): Grouped {
+function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangement, layout: BoardLayout): Grouped {
   const byId = new Map(cards.map((c) => [c.id, c]));
-  const rows: Record<BoardRow, BoardCard[][]> = { lands: [], artifacts: [], creatures: [], other: [] };
+  const rows: Record<BoardRow, BoardCard[][]> = { lands: [], artifacts: [], creatures: [], other: [], all: [] };
   const placed = new Set<number>();
-  for (const row of BOARD_ROWS) {
+  for (const row of rowsForLayout(layout)) {
     for (const pile of arranged[slotKey(playerId, row)] ?? []) {
       const members: BoardCard[] = [];
       for (const id of pile) {
@@ -600,9 +664,9 @@ function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangem
     }
   }
   for (const card of cards) {
-    if (!placed.has(card.id)) rows[rowFor(card)].push([card]);
+    if (!placed.has(card.id)) rows[visualRow(card, layout)].push([card]);
   }
-  return withAttachments(rows, cards);
+  return withAttachments(rows, cards, layout);
 }
 
 /**
@@ -622,7 +686,11 @@ function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangem
  * With nothing attached this returns the rows it was given, unchanged — the
  * common case costs one map and no allocation.
  */
-function withAttachments(rows: Record<BoardRow, BoardCard[][]>, cards: readonly BoardCard[]): Grouped {
+function withAttachments(
+  rows: Record<BoardRow, BoardCard[][]>,
+  cards: readonly BoardCard[],
+  layout: BoardLayout,
+): Grouped {
   const byId = new Map(cards.map((c) => [c.id, c]));
   /** attachment id → the host that claims it. First claim wins. */
   const hostOf = new Map<number, number>();
@@ -646,10 +714,10 @@ function withAttachments(rows: Record<BoardRow, BoardCard[][]>, cards: readonly 
     }
   };
 
-  const out: Record<BoardRow, BoardCard[][]> = { lands: [], artifacts: [], creatures: [], other: [] };
+  const out: Record<BoardRow, BoardCard[][]> = { lands: [], artifacts: [], creatures: [], other: [], all: [] };
   /** Which pile array a host ended up in, so its attachments can be spliced into it. */
   const home = new Map<number, BoardCard[]>();
-  for (const row of BOARD_ROWS) {
+  for (const row of rowsForLayout(layout)) {
     for (const pile of rows[row]) {
       const kept = pile.filter((c) => rootHost(c.id) === c.id);
       if (kept.length === 0) continue;
@@ -663,7 +731,7 @@ function withAttachments(rows: Record<BoardRow, BoardCard[][]>, cards: readonly 
     // A host that is itself an attachment of an attachment in a cycle has no
     // home; its gear is still drawn, on its own, rather than lost.
     if (pile === undefined) {
-      out[rowFor(card)].push([card]);
+      out[visualRow(card, layout)].push([card]);
       continue;
     }
     const at = pile.findIndex((c) => c.id === hostOf.get(card.id));
@@ -712,11 +780,14 @@ function dropOnCard(rect: { top: number; height: number }, clientY: number | und
 /**
  * The arrangement after a drag: `cardId` lands in `row`, at `target`.
  *
- * All four rows are written out, not just the two the card moved between: what
- * the player is looking at becomes what is stored, so the next permanent to
- * arrive joins the end of its row instead of landing in the middle of an order
- * they arranged. Forge's attachments are written out with it and re-applied on
- * the next render, so an equip stack survives every one of these moves.
+ * Every row the ACTIVE LAYOUT draws is written out, not just the two the card
+ * moved between: what the player is looking at becomes what is stored, so the
+ * next permanent to arrive joins the end of its row instead of landing in the
+ * middle of an order they arranged. Forge's attachments are written out with
+ * it and re-applied on the next render, so an equip stack survives every one
+ * of these moves. The OTHER layout's rows are left untouched in the store —
+ * rearranging the single lane does not disturb the type-separated rows a
+ * player set up earlier, and switching layouts does not throw either away.
  */
 function withMove(
   rows: Grouped,
@@ -725,9 +796,11 @@ function withMove(
   cardId: number,
   row: BoardRow,
   target: DropTarget,
+  layout: BoardLayout,
 ): Arrangement {
-  const piles: Record<BoardRow, number[][]> = { lands: [], artifacts: [], creatures: [], other: [] };
-  for (const r of BOARD_ROWS) {
+  const active = rowsForLayout(layout);
+  const piles: Record<BoardRow, number[][]> = { lands: [], artifacts: [], creatures: [], other: [], all: [] };
+  for (const r of active) {
     piles[r] = rows[r].map((p) => p.map((c) => c.id).filter((id) => id !== cardId)).filter((p) => p.length > 0);
   }
   const into = piles[row];
@@ -744,7 +817,7 @@ function withMove(
     }
   }
   const next: Record<string, readonly (readonly number[])[]> = { ...arranged };
-  for (const r of BOARD_ROWS) next[slotKey(playerId, r)] = piles[r];
+  for (const r of active) next[slotKey(playerId, r)] = piles[r];
   return next;
 }
 
@@ -1135,7 +1208,8 @@ function CardOnBoard({
    * cannot cover this and the fact is carried separately — see the field.
    */
   const onBattlefield = slot !== undefined && slot !== 'hand';
-  const itsAttackToDeclare = interaction?.declaringAttackers === true && onBattlefield && rowFor(entry) === 'creatures';
+  const itsAttackToDeclare =
+    interaction?.declaringAttackers === true && onBattlefield && permanentType(entry) === 'creatures';
   /*
    * In a HAND the arrangement stands down on more than the battlefield's rule
    * covers, and each of the three is a press another gesture already owns — the
@@ -1345,8 +1419,13 @@ function ZoneShell({
 }
 
 /**
- * A battlefield: four labelled rows in one fixed slot, all four always drawn.
- * The rows are the default ordering and the player's own arrangement on top of
+ * A battlefield. By DEFAULT (`layout === 'single'`, item 11) it is one
+ * undivided lane: every permanent in placement order, no type sections, no
+ * lane labels. As the ALTERNATE (`type-separated`) it is four labelled rows
+ * in the same fixed slot, all four always drawn — wave 26's markup, unchanged,
+ * for the tests and the operator's own choice that still want it.
+ *
+ * Both are the default ordering plus the player's own arrangement on top of
  * it; `arranging` is present only on the viewer's own side.
  */
 function Battlefield({
@@ -1355,14 +1434,56 @@ function Battlefield({
   interaction,
   arranging,
   arranged,
+  layout,
 }: {
   player: BoardPlayer;
   ownerSide: ZoneOwner;
   interaction: BoardInteraction | undefined;
   arranging: Arranging | undefined;
   arranged: Arrangement;
+  layout: BoardLayout;
 }) {
-  const rows = group(player.battlefield, player.id, arranged);
+  const rows = group(player.battlefield, player.id, arranged, layout);
+
+  if (layout === 'single') {
+    const piles = rows.all;
+    return (
+      <ZoneShell
+        owner={player.name}
+        ownerSide={ownerSide}
+        zone="battlefield"
+        label="Battlefield"
+        count={player.battlefield.length}
+      >
+        {/*
+         * One flat list, no row wrapper and no `data-board-row` anywhere —
+         * that absence is what `Board.test.ts` reads as "the default has no
+         * type sections". `--cols` drives the same row-count and card-width
+         * arithmetic `board.css` already gives the hand (`.zone--hand >
+         * .zone__cards`): this list IS the zone's own size container, the way
+         * the hand's list is, because there is no lane to nest it in.
+         */}
+        <ul
+          className="zone__cards"
+          style={{ '--cols': cols(rows, layout) } as CSSProperties}
+          onDragOver={arranging === undefined ? undefined : (e) => arranging.over(e)}
+          onDrop={arranging === undefined ? undefined : (e) => arranging.dropInto(e, 'all')}
+        >
+          {piles.map((pile) => (
+            <CardOnBoard
+              key={pile[0]!.id}
+              entry={pile[0]!}
+              interaction={interaction}
+              arranging={arranging}
+              slot="all"
+              pile={pile}
+            />
+          ))}
+        </ul>
+      </ZoneShell>
+    );
+  }
+
   return (
     <ZoneShell
       owner={player.name}
@@ -1378,7 +1499,7 @@ function Battlefield({
        * selector can do. The stylesheet turns these two numbers into the row
        * count and each lane's share — see `.zone__rows` there.
        */}
-      <ul className="zone__rows" style={{ '--cols': cols(rows) } as CSSProperties}>
+      <ul className="zone__rows" style={{ '--cols': cols(rows, layout) } as CSSProperties}>
         {BOARD_ROWS.map((row) => (
           <li
             key={row}
@@ -1602,11 +1723,13 @@ function PlayerArea({
   interaction,
   arranging,
   arranged,
+  layout,
 }: {
   player: BoardPlayer;
   interaction: BoardInteraction | undefined;
   arranging: Arranging | undefined;
   arranged: Arrangement;
+  layout: BoardLayout;
 }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
   const side: ZoneOwner = player.isViewer ? 'you' : 'them';
@@ -1720,6 +1843,7 @@ function PlayerArea({
         interaction={interaction}
         arranging={arranging}
         arranged={arranged}
+        layout={layout}
       />
       {/*
        * The piles, in the LOWER cell of the seat's left column — beside the hand,
@@ -1860,7 +1984,22 @@ function StackView({ stack, interaction }: { stack: readonly StackEntry[]; inter
   );
 }
 
-export function Board({ view, interaction }: { view: BoardView; interaction?: BoardInteraction }) {
+export function Board({
+  view,
+  interaction,
+  boardLayout = 'single',
+}: {
+  view: BoardView;
+  interaction?: BoardInteraction;
+  /**
+   * Item 11. `single` — one undivided battlefield — is the default; the
+   * settings panel is the only place that reads a stored preference and
+   * passes `type-separated` here. A test that wants the alternate passes it
+   * explicitly, which is also how the alternate's own pinned markup keeps
+   * being exercised without becoming the default.
+   */
+  boardLayout?: BoardLayout;
+}) {
   const viewer = view.players.find((p) => p.isViewer);
   const others = view.players.filter((p) => !p.isViewer);
   /*
@@ -1924,7 +2063,15 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
       if (!viewer.battlefield.some((c) => c.id === cardId)) return;
       ARRANGED.set(
         key,
-        withMove(group(viewer.battlefield, viewer.id, arranged), viewer.id, arranged, cardId, slot, target),
+        withMove(
+          group(viewer.battlefield, viewer.id, arranged, boardLayout),
+          viewer.id,
+          arranged,
+          cardId,
+          slot,
+          target,
+          boardLayout,
+        ),
       );
     }
     redraw();
@@ -1985,7 +2132,14 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
     <section className="board" aria-label="Game board" ref={root}>
       <div className="board__opponents">
         {others.map((p) => (
-          <PlayerArea key={p.id} player={p} interaction={interaction} arranging={undefined} arranged={arranged} />
+          <PlayerArea
+            key={p.id}
+            player={p}
+            interaction={interaction}
+            arranging={undefined}
+            arranged={arranged}
+            layout={boardLayout}
+          />
         ))}
       </div>
 
@@ -2005,7 +2159,13 @@ export function Board({ view, interaction }: { view: BoardView; interaction?: Bo
       {staged !== undefined && <StagingArea card={staged} interaction={interaction} />}
 
       {viewer !== undefined && (
-        <PlayerArea player={viewer} interaction={interaction} arranging={arranging} arranged={arranged} />
+        <PlayerArea
+          player={viewer}
+          interaction={interaction}
+          arranging={arranging}
+          arranged={arranged}
+          layout={boardLayout}
+        />
       )}
 
       {/*

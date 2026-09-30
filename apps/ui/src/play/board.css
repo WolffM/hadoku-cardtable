@@ -752,31 +752,29 @@
 }
 
 /*
- * The piles: the graveyard and exile, side by side in the LOWER cell of the
- * seat's left column, level with that seat's hand (§A.2 — the operator's own
+ * The piles: the graveyard and exile, in the LOWER cell of the seat's left
+ * column, level with that seat's hand (§A.2 — the operator's own
  * `.seat__piles` at 0.6% across, 78.5% down for the viewer and 6.5% for the
  * opponent). For the viewer that is the graveyard under their own portrait,
  * which is what wave 25 §E settled in words.
  *
- * Two `fr` columns and one `fr` row, so neither pile is ever sized by what is in
- * it: exile is usually empty and the first exiled card may not move anything
- * around it, and a graveyard filling up squeezes its own strips.
- *
- * The two columns are not EQUAL any more (item 9, *"the graveyard is unecessarily
- * small"*). They were, and the graveyard — the pile that actually fills up — got
- * half of a 72px column, which is a 34px card. It gets 1.5 of the 2.5 shares now,
- * and with the card filling its own box (below) that is 32px -> 40px, a quarter
- * bigger. Exile keeps a column of its own at 27px, because an exiled card that
- * cannot be seen at all is worse than a narrow one, and because the alternative
- * — widening `--who-w` — re-proportions the whole table and takes the width out
- * of the battlefield, where `e2e/table-fit.spec.ts`'s crowd thresholds were
- * derived. A ratio is still a fixed track: neither pile is sized by its contents.
+ * ONE column, not two (item 9, wave 30: *"the graveyard is still
+ * double-stacked; make it single."*) — the piles used to sit SIDE BY SIDE,
+ * splitting the column's already-narrow 72px in two, which is what made the
+ * graveyard read as a second, cramped stack wedged in beside exile rather
+ * than the one pile under the portrait the operator asked for. Stacked
+ * vertically instead, each pile keeps the column's FULL width — 72px instead
+ * of 40px measured before this change — and the two `fr` rows are not equal
+ * for the same reason the old columns were not: the graveyard is the pile
+ * that actually fills up, so it gets 1.5 of the 2.5 shares and exile keeps a
+ * row of its own rather than being squeezed to nothing. Neither pile is ever
+ * sized by what is in it either way.
  */
 .seat__piles {
   grid-area: piles;
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1.5fr) minmax(0, 1fr);
   gap: 4px;
   min-width: 0;
   min-height: 0;
@@ -1069,48 +1067,55 @@
  */
 
 .zone__rows,
-.zone--hand > .zone__cards {
+.zone--hand > .zone__cards,
+.seat > .zone--battlefield > .zone__cards {
   --rows: calc(1 + clamp(0, var(--cols, 0) - 6, 1) + clamp(0, var(--cols, 0) - 20, 1));
 }
 
 @container row-zone (aspect-ratio >= 3) {
   .zone__rows,
-  .zone--hand > .zone__cards {
+  .zone--hand > .zone__cards,
+  .seat > .zone--battlefield > .zone__cards {
     --rows: calc(1 + clamp(0, var(--cols, 0) - 9, 1) + clamp(0, var(--cols, 0) - 29, 1));
   }
 }
 
 @container row-zone (aspect-ratio >= 4) {
   .zone__rows,
-  .zone--hand > .zone__cards {
+  .zone--hand > .zone__cards,
+  .seat > .zone--battlefield > .zone__cards {
     --rows: calc(1 + clamp(0, var(--cols, 0) - 12, 1) + clamp(0, var(--cols, 0) - 37, 1));
   }
 }
 
 @container row-zone (aspect-ratio >= 5) {
   .zone__rows,
-  .zone--hand > .zone__cards {
+  .zone--hand > .zone__cards,
+  .seat > .zone--battlefield > .zone__cards {
     --rows: calc(1 + clamp(0, var(--cols, 0) - 15, 1) + clamp(0, var(--cols, 0) - 46, 1));
   }
 }
 
 @container row-zone (aspect-ratio >= 6) {
   .zone__rows,
-  .zone--hand > .zone__cards {
+  .zone--hand > .zone__cards,
+  .seat > .zone--battlefield > .zone__cards {
     --rows: calc(1 + clamp(0, var(--cols, 0) - 19, 1) + clamp(0, var(--cols, 0) - 58, 1));
   }
 }
 
 @container row-zone (aspect-ratio >= 8) {
   .zone__rows,
-  .zone--hand > .zone__cards {
+  .zone--hand > .zone__cards,
+  .seat > .zone--battlefield > .zone__cards {
     --rows: calc(1 + clamp(0, var(--cols, 0) - 25, 1) + clamp(0, var(--cols, 0) - 75, 1));
   }
 }
 
 @container row-zone (aspect-ratio >= 10) {
   .zone__rows,
-  .zone--hand > .zone__cards {
+  .zone--hand > .zone__cards,
+  .seat > .zone--battlefield > .zone__cards {
     --rows: calc(1 + clamp(0, var(--cols, 0) - 30, 1) + clamp(0, var(--cols, 0) - 92, 1));
   }
 }

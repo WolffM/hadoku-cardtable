@@ -4,6 +4,33 @@
  *
  * ## The baseline
  *
+ * Re-recorded in Wave 30 §A for item 11: `single` — one undivided battlefield,
+ * no type sections — is now `boardLayout`'s default, and `fixtureMarkup()`
+ * renders `<Board>` with no `boardLayout` prop at all, so this pin is exactly
+ * the case that has to move. 42868 -> 41422, and every one of the 1446
+ * characters is accounted for — computed by rendering both the old
+ * (`boardLayout: 'type-separated'`) and new (no prop) markup for the same
+ * fixture and diffing the real strings, not estimated:
+ *
+ *  -1538  removed from each seat's battlefield, the type-separated alternate's
+ *         own wrapping, now drawn only when `boardLayout: 'type-separated'`
+ *         is passed explicitly: two `<ul class="zone__rows" style="--cols:N">`
+ *         (+`</ul>`, 90B), eight `<li class="zone__row" data-board-row="…"
+ *         [data-empty="true"] style="--cols:N">` lane wrappers (+`</li>`,
+ *         624B), eight `<h5 class="zone__row-head">Lands <span
+ *         class="zone__count">N</span></h5>`-shaped lane labels (592B), and
+ *         the eight bare `<ul class="zone__cards">` (+`</ul>`) those lanes
+ *         held their cards in (232B) — 90 + 624 + 592 + 232 = 1538.
+ *   +92   added, one per seat: the single flat `<ul class="zone__cards"
+ *         style="--cols:N">` (+`</ul>`) that replaces all of the above —
+ *         `Battlefield`'s `single` branch reusing the hand's own `--cols`
+ *         device (`board.css`'s `.seat > .zone--battlefield > .zone__cards`
+ *         header has the sizing this enables) rather than inventing a second.
+ *  ─────
+ *  -1446  42868 -> 41422, and 92 - 1538 = -1446 exactly. Nothing else on the
+ *         page changed: no seat furniture, no piles, no hand, no stack — item
+ *         11 touches only the battlefield's own markup.
+ *
  * Re-recorded in Wave 28 §A for the play surface's state layer (§A.15) and the
  * seat's symbol counts (§A.10). That change does not own this file, so the pin is
  * re-recorded here immediately after it, as the paragraph below prescribes.
@@ -239,8 +266,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = '18026c506c8a3acb5a96da25e5c7e386f83d936b1a96501b01e491b0677dd2ad';
-const BASELINE_LENGTH = 42868;
+const BASELINE_SHA256 = 'f08df2ae50d3b03e9f4842ff1bd565df004690273d50308f31139da1353e73cf';
+const BASELINE_LENGTH = 41422;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

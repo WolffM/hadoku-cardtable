@@ -25,6 +25,11 @@
  *   client → server  `forge:full-control`  `{ matchId, on }` — this seat's escape
  *                    hatch (Wave 19 lane C's `play/auto.ts`); carries nothing
  *                    about the game, and no ack: the server only logs a refusal
+ *   client → server  `forge:stop-preference`  `{ matchId, type: 'stopPreference',
+ *                    stopAtEndStep }` — item 2/6 (wave 30), the settings
+ *                    panel's *"always stop at end step"*. Client → server
+ *                    only, same as full control's own no-ack shape; see
+ *                    {@link StopPreferenceSchema}.
  *   server → client  `forge:s2c`     `{ matchId, cursor, frame: ServerFrame }`
  *
  * `POST <base>/api/play/matches` starts a match; its body is lane A's, and
@@ -92,6 +97,15 @@ export const MATCH_EVENTS = {
   /** Wave 19 lane C: the full-control escape hatch, per seat, off by default. */
   fullControl: 'forge:full-control',
   /**
+   * Item 2/6 (wave 30): *"always stop at end step — default off"*. Client →
+   * server only; see {@link StopPreferenceSchema}. Named and shaped to match
+   * `apps/server/src/play/transport.ts`'s own mirror exactly — that lane
+   * built its handler off the wave brief's fallback shape before this file
+   * existed to read, so this is the one place the two were reconciled rather
+   * than the other way round.
+   */
+  stopPreference: 'forge:stop-preference',
+  /**
    * Wave 29 §B's own event, not folded into {@link MatchSnapshotSchema}: that
    * schema is `.strict()` and mirrored byte for byte on the server
    * (`apps/server/src/play/transport.ts`), and widening it is a change to a
@@ -147,6 +161,37 @@ export type FullControlRequest = Output<typeof FullControlSchema>;
 /** The payload of a `forge:full-control` emit, parsed through its own schema. */
 export function fullControlFrame(matchId: string, on: boolean): FullControlRequest {
   return FullControlSchema.parse({ matchId, on });
+}
+
+/**
+ * `forge:stop-preference` — item 2/6 (wave 30): *"always stop at end
+ * step — default off."* Client → server only, and no echo: unlike full
+ * control there is no seat-visible state this client needs told back, so a
+ * fresh page reads the LAST value it itself persisted
+ * (`@wolffm/prefs-client`, item 6) rather than anything the server answers.
+ *
+ * The shape is the wave brief's own suggestion, kept literally — `{ type:
+ * 'stopPreference', stopAtEndStep }` beside `matchId` — because
+ * `apps/server/src/play/transport.ts` already built its handler against
+ * exactly this shape (see that file's own note on why: this lane's evidence
+ * file had not landed when lane B reached the item). `type` rides on the
+ * PAYLOAD even though the event name alone disambiguates it, for the same
+ * reason that file gives: a client that logs the raw payload can tell what it
+ * sent without cross-referencing the event name.
+ */
+export const StopPreferenceSchema = borrowed.emptyObject
+  .extend({
+    matchId: borrowed.nonEmptyString,
+    type: borrowed.nonEmptyString.refine((v) => v === 'stopPreference', { message: "must be 'stopPreference'" }),
+    stopAtEndStep: borrowed.boolean,
+  })
+  .strict();
+
+export type StopPreferenceRequest = Output<typeof StopPreferenceSchema>;
+
+/** The payload of a `forge:stop-preference` emit, parsed through its own schema. */
+export function stopPreferenceFrame(matchId: string, stopAtEndStep: boolean): StopPreferenceRequest {
+  return StopPreferenceSchema.parse({ matchId, type: 'stopPreference', stopAtEndStep });
 }
 
 /* ── Server → client ─────────────────────────────────────────────────── */

@@ -26,7 +26,7 @@ import {
   type BoardCard,
   type BoardView,
 } from './adapter.ts';
-import { Board, forgetArrangements, type BoardInteraction } from './Board.tsx';
+import { Board, forgetArrangements, type BoardInteraction, type BoardLayout } from './Board.tsx';
 import { boardFromFixture, loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
 import { cardStateKey, deltaKey, expectWirePackets, isAnnotationKey, WireType, type WireObject } from './wire.ts';
@@ -63,14 +63,32 @@ afterEach(() => {
 
 const fixture = PLAY_FIXTURES[0]!;
 
-function renderBoard(view: BoardView = boardFromFixture(fixture), interaction?: BoardInteraction) {
-  const utils = render(createElement(Board, interaction === undefined ? { view } : { view, interaction }));
+/**
+ * Item 11: `Board`'s own default is `single` (the operator's new default,
+ * un-bucketed). This FILE's default stays `type-separated`, on purpose — the
+ * overwhelming majority of the suite below was written against, and still
+ * pins, the four-lane alternate's markup (`data-board-row`, its lanes, its
+ * per-row arithmetic), and that markup is not deleted — item 11 says it
+ * "survives as the ALTERNATE" and "several tests pin its markup." Passing
+ * `boardLayout` explicitly here keeps every one of those tests exercising
+ * exactly the alternate they always did, without threading the prop through
+ * a few hundred individual call sites. The real DEFAULT — what a caller gets
+ * with NO `boardLayout` prop at all — is asserted separately, directly
+ * against `<Board view={...} />` with nothing else, in "item 11 — one board by
+ * default" below.
+ */
+function renderBoard(
+  view: BoardView = boardFromFixture(fixture),
+  interaction?: BoardInteraction,
+  boardLayout: BoardLayout = 'type-separated',
+) {
+  const utils = render(createElement(Board, { view, interaction, boardLayout }));
   const seat = (id: number) => utils.container.querySelector<HTMLElement>(`[data-testid="player"][data-player-id="${id}"]`)!;
   const zone = (id: number, name: string) => seat(id).querySelector<HTMLElement>(`[data-zone="${name}"]`)!;
   const cardNames = (el: HTMLElement) => [...el.querySelectorAll('.card__name')].map((n) => n.textContent);
-  /** A battlefield row, by the name `Board.tsx` puts in `data-board-row`. */
+  /** A battlefield row, by the name `Board.tsx` puts in `data-board-row`. Alternate-layout only. */
   const row = (id: number, name: string) => zone(id, 'battlefield').querySelector<HTMLElement>(`[data-board-row="${name}"]`)!;
-  /** The ids a row draws, in the order it draws them. */
+  /** The ids a row draws, in the order it draws them. Alternate-layout only. */
   const rowIds = (id: number, name: string) =>
     [...row(id, name).querySelectorAll<HTMLElement>('.board-card')].map((c) => Number(c.dataset.cardId));
   return { ...utils, view, seat, zone, cardNames, row, rowIds };
@@ -827,12 +845,13 @@ describe('the canvas is static', () => {
     expect(declarationIn('.board__mid', 'width')).toBe('var(--live-col-w, 24.1%)');
     expect(declarationIn('.board__mid', 'grid-template-columns')).toBe('minmax(0, 1fr)');
     expect(BOARD_RULES).not.toContain('--faces-w');
-    // The piles cell holds BOTH piles, side by side in two `fr` columns and one
-    // `fr` row: neither is ever sized by what is in it. The graveyard has the
-    // bigger share since item 9 — it is the one that fills up — and a ratio is
-    // still a fixed track.
-    expect(declarationIn('.seat__piles', 'grid-template-columns')).toBe('minmax(0, 1.5fr) minmax(0, 1fr)');
-    expect(declarationIn('.seat__piles', 'grid-template-rows')).toBe('minmax(0, 1fr)');
+    // The piles cell holds BOTH piles, stacked in ONE `fr` column and two `fr`
+    // rows (item 9, wave 30: no more side by side, which read as the graveyard
+    // itself being double-stacked) — neither is ever sized by what is in it.
+    // The graveyard has the bigger share — it is the one that fills up — and a
+    // ratio is still a fixed track.
+    expect(declarationIn('.seat__piles', 'grid-template-columns')).toBe('minmax(0, 1fr)');
+    expect(declarationIn('.seat__piles', 'grid-template-rows')).toBe('minmax(0, 1.5fr) minmax(0, 1fr)');
     // The left column is one cell per seat ROW, mirrored: furniture beside the
     // battlefield, piles beside the hand, on both sides of the table.
     expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'who field' 'piles hand'");
@@ -2890,8 +2909,11 @@ describe('a full row keeps its names legible at the 960 budget (§A.1)', () => {
     // it by its piles, so a lane on two rows starved the lane beside it.
     expect(declarationIn('.zone__row', 'flex-grow')).toBe('round(up, var(--cols, 0) / var(--rows), 1)');
     // And the row count is ONE decision per battlefield, taken on the zone's own
-    // shape — not four lanes disagreeing. The hand is one list and keeps its own.
-    expect(declarationIn('.zone__rows,\n.zone--hand > .zone__cards', '--rows')).toMatch(/^calc\(1 \+ clamp\(/);
+    // shape — not four lanes disagreeing. The hand is one list and keeps its own,
+    // and so (item 11) does the single-layout default's one lane.
+    expect(
+      declarationIn('.zone__rows,\n.zone--hand > .zone__cards,\n.seat > .zone--battlefield > .zone__cards', '--rows'),
+    ).toMatch(/^calc\(1 \+ clamp\(/);
     expect(BOARD_RULES, 'nothing counts cards with a `:has()` ladder any more').not.toContain('nth-child');
   });
 
@@ -3137,5 +3159,112 @@ describe('§A.9 — a pile’s cards expand to fit their box', () => {
     );
     // The fixed width it replaced is gone outright, not merely unused.
     expect(BOARD_RULES, 'the fixed pile width is gone').not.toContain('--pile-w:');
+  });
+});
+
+/*
+ * ── item 11 — one board by default, four lanes as the alternate ─────────
+ *
+ * *"i said this should be an alternate ui and the real ui should just be a
+ * single board, no seperators."* `renderBoard`'s own default keeps every
+ * OTHER test above exercising the alternate (it always did, before this prop
+ * existed) — these cases are the ones that render `<Board>` with no
+ * `boardLayout` prop at all, which is the only way to prove what a caller who
+ * supplies none actually gets.
+ */
+describe('item 11 — one board by default, four lanes as the alternate', () => {
+  afterEach(() => {
+    cleanup();
+    forgetArrangements();
+  });
+
+  it('the default — no boardLayout prop at all — draws no type sections anywhere on the board', () => {
+    const view = boardFromFixture(fixture);
+    const { container } = render(createElement(Board, { view }));
+    expect(container.querySelectorAll('[data-board-row]'), 'not one row, on either seat').toHaveLength(0);
+    expect(container.querySelectorAll('.zone__rows'), 'not the rows wrapper either').toHaveLength(0);
+    expect(container.querySelectorAll('.zone__row-head'), 'nor a lane label').toHaveLength(0);
+  });
+
+  it('every permanent is still on the board, in ONE flat list per battlefield, in the view’s own order', () => {
+    const view = boardFromFixture(fixture);
+    const me = view.players.find((p) => p.isViewer)!;
+    const them = view.players.find((p) => !p.isViewer)!;
+    const { container } = render(createElement(Board, { view }));
+    const flatIds = (playerId: number) => {
+      const zone = container.querySelector<HTMLElement>(
+        `[data-testid="player"][data-player-id="${playerId}"] [data-zone="battlefield"]`,
+      )!;
+      const list = zone.querySelector<HTMLElement>(':scope > ul.zone__cards')!;
+      expect(list, 'a flat list directly under the zone, no row wrapper between').not.toBeNull();
+      return [...list.querySelectorAll<HTMLElement>(':scope > li.board-card')].map((c) => Number(c.dataset.cardId));
+    };
+    // Nothing lost, nothing duplicated, nothing reordered — arrival order,
+    // exactly as `group()` gives it before any player has dragged anything.
+    expect(flatIds(me.id)).toEqual(me.battlefield.map((c) => c.id));
+    expect(flatIds(them.id)).toEqual(them.battlefield.map((c) => c.id));
+    expect(flatIds(me.id).length, 'a real mix of types is on this seat’s board').toBeGreaterThan(1);
+  });
+
+  it('boardLayout="type-separated" still renders the four labelled lanes — the alternate is not deleted', () => {
+    const view = boardFromFixture(fixture);
+    const { container } = render(createElement(Board, { view, boardLayout: 'type-separated' }));
+    const rows = [...container.querySelectorAll<HTMLElement>('[data-board-row]')];
+    expect(rows.map((r) => r.dataset.boardRow)).toEqual(
+      expect.arrayContaining(['lands', 'artifacts', 'creatures', 'other']),
+    );
+    // Four lanes a SEAT, both seats.
+    expect(container.querySelectorAll('[data-board-row]')).toHaveLength(8);
+  });
+
+  it('wave 24’s placement model is not replaced by the default — a drop still stacks, reorders and joins the end, in the one lane', () => {
+    /*
+     * The exact device `describe('drag to stack (#1, #19)')` above already
+     * uses against the alternate's own lanes: a real box on the target (jsdom
+     * lays nothing out, and no geometry reads as the old plain reorder), and
+     * `clientY` forced onto a plain `Event` (`fireEvent.drop(el, { clientY })`
+     * drops it — jsdom has no real `DragEvent`).
+     */
+    const TOP = 100;
+    const HEIGHT = 90;
+    const AT = { top: TOP + 10, middle: TOP + HEIGHT / 2, bottom: TOP + HEIGHT - 10 } as const;
+    function withBox(el: HTMLElement): HTMLElement {
+      el.getBoundingClientRect = () =>
+        ({ top: TOP, bottom: TOP + HEIGHT, height: HEIGHT, left: 0, right: 70, width: 70, x: 0, y: TOP, toJSON: () => ({}) }) as DOMRect;
+      return el;
+    }
+    function dropAt(el: HTMLElement, clientY: number): void {
+      const event = new Event('drop', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'clientY', { value: clientY });
+      fireEvent(el, event);
+    }
+
+    const { container } = renderBoard(boardFromFixture(fixture), undefined, 'single');
+    const me = boardFromFixture(fixture).players.find((p) => p.isViewer)!;
+    const cardEl = (id: number) => container.querySelector<HTMLElement>(`.seat[data-viewer] [data-card-id="${id}"]`)!;
+    const flatIds = () => {
+      const zone = container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"]')!;
+      const list = zone.querySelector<HTMLElement>(':scope > ul.zone__cards')!;
+      return [...list.querySelectorAll<HTMLElement>(':scope > li.board-card')].map((c) => Number(c.dataset.cardId));
+    };
+
+    const [first, second, third] = me.battlefield.map((c) => c.id);
+    const before = flatIds();
+    expect(before.length, 'a real mix of types is on this seat’s battlefield').toBeGreaterThan(2);
+
+    // Stack ON TOP: `second` dropped on the upper third of `first`.
+    fireEvent.dragStart(cardEl(second!));
+    fireEvent.dragOver(withBox(cardEl(first!)));
+    dropAt(cardEl(first!), AT.top);
+    expect(cardEl(first!).querySelector('.board-card__pile'), 'a pile, inside the one lane').not.toBeNull();
+    expect(flatIds(), 'one column fewer — second joined first’s pile').toEqual(before.filter((id) => id !== second));
+
+    // Reorder: `third` dropped on the MIDDLE third of `first`'s pile lands in
+    // front of it — still one lane, no type row anywhere.
+    fireEvent.dragStart(cardEl(third!));
+    fireEvent.dragOver(withBox(cardEl(first!)));
+    dropAt(cardEl(first!), AT.middle);
+    expect(flatIds()[0]).toBe(third);
+    expect(container.querySelectorAll('[data-board-row]'), 'still no type sections').toHaveLength(0);
   });
 });

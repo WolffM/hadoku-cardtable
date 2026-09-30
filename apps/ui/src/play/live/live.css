@@ -140,8 +140,10 @@
  * altogether — five buttons in three rows. **Wave 27 §B.1 gave each of the five
  * a row of its own**, because two columns of 49px clipped `Full control` and
  * `Concede` and the width is `board.css`'s to reserve (see the header). So the
- * number is 136 where wave 26 left 84, wave 25 left 102 and the original bar
- * had 153:
+ * number was 136 where wave 26 left 84, wave 25 left 102 and the original bar
+ * had 153. **Item 5 (wave 30) deleted `Leave`, and item 7 (wave 30) put
+ * `Settings` in the slot it vacated** — the cluster is still five rows and the
+ * number is still 136:
  *
  *   4 + 4 padding + 1 + 1 border + (22 + 22 + 22 + 22 + 22) rows + 4 × 4 gaps = 136
  *
@@ -284,7 +286,9 @@
  * see it, which is why wave 27 §B.3 taught that spec to read `scrollWidth`
  * against `clientWidth` instead. One column gives every label 92px and clips
  * none of them, and it is what `board-layout-2026-09-27.md` calls this thing in
- * words: *"Five buttons … in a narrow stack"*.
+ * words: *"Five buttons … in a narrow stack"*. Item 5 (wave 30) deleted
+ * `Leave` and item 7 put `Settings` in the slot it vacated, so the stack is
+ * still five — the column shape and the 92px-per-label arithmetic unchanged.
  *
  * **Every track is a fixed length**, columns and rows both, and that is the
  * requirement rather than the taste: `e2e/table-fit.spec.ts` records this box
@@ -314,7 +318,7 @@
     'ok'
     'cancel'
     'full'
-    'leave'
+    'settings'
     'conc';
   gap: 4px;
   margin: 0;
@@ -783,31 +787,29 @@
 }
 
 /*
- * Leave (§F.1). Quiet and narrow like the toggle, and BELOW OK and Cancel:
- * Leave and Concede are the controls that are not answers to Forge, and putting
- * Full control between them and Forge's two is what keeps reaching for one from
- * being a misclick on the other now that the cluster is a single column (§B.1).
- * Both are children of the cluster, whose box is fixed above, so neither changes
- * a canvas box.
- *
- * `data-urgent` is the gone match: the state line says `Match gone.` and this
- * is the thing to do about it, in the same colour, because a state with nowhere
- * to act on it is just prose.
+ * Settings (item 7, wave 30), in the slot `Leave` vacated when item 5 deleted
+ * it — below Full control, above Concede. Quiet and narrow like the toggle: a
+ * disclosure, not an answer to Forge and not destructive, so it carries no
+ * warning colour of its own. `aria-expanded` follows the panel the same way
+ * the log button's does.
  */
-.live__buttons .live__leave {
-  grid-area: leave;
+.live__buttons .live__settings {
+  grid-area: settings;
 }
 
-.live__buttons .live__leave[data-urgent] {
-  border-color: var(--warn);
-  color: var(--warn);
+.live__buttons .live__settings[aria-expanded='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /*
- * Concede (§C.4), under Leave and last in the stack. Destructive, so it reads
- * as the quietest thing in it until it is reached for: `--ink-dim` at rest, the warning
- * colour on hover and while its confirmation is open. It sends nothing — the
- * dialog below is the only path to the wire (`LiveBoard.tsx`).
+ * Concede (§C.4), below Settings and last in the stack. It is the cluster's
+ * one DESTRUCTIVE control, and Full control between it and Forge's two
+ * answers is what keeps reaching for it from being a misclick on one of
+ * theirs. It reads as the quietest thing in it until it is reached for:
+ * `--ink-dim` at rest, the warning colour on hover and while its confirmation
+ * is open. It sends nothing itself — the dialog below is the only path to the
+ * wire (`LiveBoard.tsx`).
  */
 .live__buttons .live__concede {
   grid-area: conc;
@@ -895,6 +897,35 @@
 .live__ask .live__danger {
   border-color: var(--warn);
   color: var(--warn);
+}
+
+/*
+ * Settings (item 7, wave 30), in the same host `.live__ask` as Concede's own
+ * confirmation — centred, above the board, `pointer-events` split the same
+ * way. Not destructive, so its border is overridden back to the accent the
+ * generic `.live__ask > .confirm` rule (above) does not know to give it —
+ * that rule reads `--warn` for Concede, and this panel is a preference, not a
+ * threat.
+ */
+.live__ask > .live__settings-body {
+  border-color: var(--accent);
+}
+
+.live__settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.live__settings-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
 }
 
 /*

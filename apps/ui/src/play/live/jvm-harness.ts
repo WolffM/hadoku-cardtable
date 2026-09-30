@@ -217,6 +217,31 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
           });
           return;
         }
+        /*
+         * Item 2/6 (wave 30): the settings panel's own preference, routed the
+         * same way full control is above and `socket.ts`'s own handler is —
+         * the CURRENT `StopPolicy` read back, `END_OF_TURN` toggled in or out
+         * of `stopOnTheirTurn`, and the rest of the policy left untouched.
+         * `LiveBoard.tsx`'s join/resync effect sends this on EVERY mount that
+         * reaches a snapshot (not only when the settings panel is opened), so
+         * every jar-gated scenario that mounts `LiveBoard` emits it once —
+         * this case existing is what keeps that from being "unexpected emit
+         * forge:stop-preference" the way it was before this lane added it.
+         */
+        if (event === MATCH_EVENTS.stopPreference) {
+          const stopAtEndStep = (payload as { stopAtEndStep?: unknown }).stopAtEndStep === true;
+          later(() => {
+            const current = match.stopPolicy(seat);
+            const has = current.stopOnTheirTurn.includes('END_OF_TURN');
+            if (stopAtEndStep === has) return;
+            const stopOnTheirTurn = stopAtEndStep
+              ? [...current.stopOnTheirTurn, 'END_OF_TURN' as const]
+              : current.stopOnTheirTurn.filter((p) => p !== 'END_OF_TURN');
+            const outcome = match.setStopPolicy(seat, { ...current, stopOnTheirTurn });
+            if (!outcome.ok) throw new Error(`seat ${seat} could not set stop preference: ${outcome.error}`);
+          });
+          return;
+        }
         if (event !== MATCH_EVENTS.clientToServer) throw new Error(`unexpected emit ${event}`);
         later(() => fromClient(seat, payload));
       },
