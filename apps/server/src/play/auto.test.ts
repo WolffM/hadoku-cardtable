@@ -298,10 +298,16 @@ const PRIORITY_MESSAGE = 'Priority: B\nTurn: 4 (A)\nPhase: End of Combat Step\nS
  * `PRIORITY_MESSAGE` is the End of Combat step, which is not in either stop set,
  * so the default now passes it whether or not the seat could act there. That is
  * the change, so every case below whose claim is "this window is the PLAYER's"
- * has to name a phase the player actually asked for: their end step, or the
- * seat's own precombat main.
+ * has to name a phase the player actually asked for: their declare-blockers
+ * step, or the seat's own precombat main.
+ *
+ * `THEIR_STOP_MESSAGE` named the END step until wave 30 item 2 took it out of
+ * `stopOnTheirTurn` (*"it always waits on opponent at endstep now… not a
+ * desired behavior"*) — declare-blockers is the phase that stayed, and the one
+ * dedicated test for the end step's new behaviour is
+ * "item 2 — the opponent's end step is passed by default; blockers are not".
  */
-const THEIR_STOP_MESSAGE = 'Priority: B\nTurn: 4 (A)\nPhase: End step\nStack: Empty';
+const THEIR_STOP_MESSAGE = 'Priority: B\nTurn: 4 (A)\nPhase: Declare Blockers Step\nStack: Empty';
 const MY_STOP_MESSAGE = 'Priority: A\nTurn: 4 (A)\nPhase: Main phase, precombat\nStack: Empty';
 
 function prompt(message: string, playerId = 1): ServerFrame {
@@ -1176,12 +1182,21 @@ function firstOwnCard(h: Harness, seat: number): { id: number; key: number; name
  * the policy says.
  */
 
-/** A window, as facts, without going through a prompt at all. */
+/**
+ * A window, as facts, without going through a prompt at all.
+ *
+ * The default phase is `COMBAT_DECLARE_BLOCKERS` — a genuine stop phase under
+ * `DEFAULT_STOP_POLICY` on the opponent's turn — so a bare `facts({...})` used
+ * by the "NEVER shortcut" guards below is not itself confounded by wave 30 item
+ * 2 taking `END_OF_TURN` out of `stopOnTheirTurn`. It was `END_OF_TURN` until
+ * that change; the dedicated test for the end step's new behaviour names its
+ * own facts explicitly.
+ */
 function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnType<typeof readPromptFacts> {
 	return {
 		window: 'priority',
-		phase: 'END_OF_TURN',
-		phaseLabel: 'End step',
+		phase: 'COMBAT_DECLARE_BLOCKERS',
+		phaseLabel: 'Declare Blockers Step',
 		myTurn: false,
 		stackEmpty: true,
 		mine: true,
@@ -1312,10 +1327,10 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		expect(decideStop({ ...unknown, sources: [] }, DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
 	});
 
-	it('the default policy is Arena’s stop set, field by field — wave 28, item 5', () => {
+	it('the default policy is Arena’s stop set, field by field — wave 28, item 5, minus the end step wave 30 removed', () => {
 		expect(DEFAULT_STOP_POLICY).toEqual({
 			stopOnMyTurn: ['MAIN1', 'MAIN2', 'COMBAT_DECLARE_ATTACKERS'],
-			stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'],
+			stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS'],
 			skipNonStopPhases: 'always',
 			passWhenNothingToDo: true,
 			interruptsRestoreStops: true,
@@ -1370,14 +1385,14 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 
 	/*
 	 * The other half of the wholesale decision: `'always'` alone would have left
-	 * the seat with nowhere to cast the instant it is holding. These are the three
-	 * windows the stop sets keep, and the reason they are not negotiable.
+	 * the seat with nowhere to cast the instant it is holding. These are the
+	 * windows the stop sets keep, and the reason they are not negotiable — minus
+	 * `END_OF_TURN`, wave 30 item 2's whole point, covered on its own below.
 	 */
 	it('the windows a held instant is actually cast in are still stops', () => {
 		const stops: [PhaseType, string, boolean][] = [
 			['COMBAT_DECLARE_ATTACKERS', 'Declare Attackers Step', true],
 			['COMBAT_DECLARE_BLOCKERS', 'Declare Blockers Step', false],
-			['END_OF_TURN', 'End step', false],
 			['MAIN1', 'Main phase, precombat', true],
 			['MAIN2', 'Main phase, postcombat', true],
 		];
@@ -1386,6 +1401,36 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 				expect(decideStop(facts({ phase, phaseLabel, myTurn, sources }), DEFAULT_STOP_POLICY), phase).toBeNull();
 			}
 		}
+	});
+
+	/*
+	 * Item 2, wave 30: *"i played a land and clicked 'end turn' and the phase
+	 * counter stopped at endstep… it always waits on opponent at endstep now,
+	 * that wasn't happening before and it's not a desired behavior."*
+	 *
+	 * The mutation target: put `END_OF_TURN` back into
+	 * `DEFAULT_STOP_POLICY.stopOnTheirTurn` and the first assertion goes red.
+	 *
+	 * `COMBAT_DECLARE_BLOCKERS` is deliberately in the SAME window and deliberately
+	 * untouched, field by field against the same facts, so one test proves both
+	 * halves of the operator's ask at once: the end step stops being a stop, and
+	 * blocking — a decision, not a wait — still is.
+	 */
+	it('item 2 — the opponent’s end step is passed by default; blockers are not', () => {
+		const theirEndStep = facts({ phase: 'END_OF_TURN', phaseLabel: 'End step', myTurn: false, sources: [61] });
+		expect(decideStop(theirEndStep, DEFAULT_STOP_POLICY)).toBe('End step');
+		const theirBlockers = facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', myTurn: false, sources: [61] });
+		expect(decideStop(theirBlockers, DEFAULT_STOP_POLICY)).toBeNull();
+		// A held instant still has a window on the opponent's turn — item 5's own
+		// trade, unreversed: it moved from "always open" to "declare-blockers only".
+		expect(decideStop({ ...theirBlockers, sources: [] }, DEFAULT_STOP_POLICY)).toBeNull();
+		// The setting §A's panel writes through `Match.setStopPolicy` turns the end
+		// step back into a stop, same mechanism as every other preference here —
+		// not a second code path, a wider `stopOnTheirTurn`.
+		const alwaysStopAtEndStep: StopPolicy = { ...DEFAULT_STOP_POLICY, stopOnTheirTurn: [...DEFAULT_STOP_POLICY.stopOnTheirTurn, 'END_OF_TURN'] };
+		expect(decideStop(theirEndStep, alwaysStopAtEndStep)).toBeNull();
+		// Full control still keeps it whatever the default or the setting say.
+		expect(decideStop(theirEndStep, FULL_CONTROL_POLICY)).toBeNull();
 	});
 });
 
@@ -1422,8 +1467,11 @@ describe('NEVER shortcut (1): a stop with a legal action and something at stake'
 		// The one place the policy DOES pass a window with something to do is a
 		// phase the player asked to skip — which is #20, and is a preference.
 		expect(decideStop(facts({ phase: 'UPKEEP', phaseLabel: 'Upkeep step', sources: [61] }), ARENA_STOP_POLICY)).toBe('Upkeep step');
+		// COMBAT_DECLARE_BLOCKERS, not END_OF_TURN (wave 30 item 2 moved the end
+		// step out of ARENA's — i.e. DEFAULT_STOP_POLICY's — stop set; that change
+		// has its own dedicated test above).
 		expect(
-			decideStop(facts({ phase: 'END_OF_TURN', phaseLabel: 'End step', sources: [61] }), ARENA_STOP_POLICY),
+			decideStop(facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', sources: [61] }), ARENA_STOP_POLICY),
 		).toBeNull();
 	});
 });
@@ -1536,7 +1584,7 @@ describe('NEVER shortcut (3): anything at all while full control is on', () => {
 
 	it('stops a stack window too — the one wave 20 taught the default to pass', () => {
 		const onStack = facts({ stackEmpty: false, sources: [] });
-		expect(decideStop(onStack, DEFAULT_STOP_POLICY)).toBe('End step');
+		expect(decideStop(onStack, DEFAULT_STOP_POLICY)).toBe('Declare Blockers Step');
 		expect(decideStop(onStack, FULL_CONTROL_POLICY)).toBeNull();
 	});
 

@@ -127,6 +127,8 @@ interface Peer {
 	send(payload: unknown): void;
 	/** Ask for full control, or give it back — the client → server direction. */
 	setFullControl(payload: unknown): void;
+	/** Wave 30 §B item 6: flip the "always stop at end step" setting for THIS seat. */
+	setStopPreference(payload: unknown): void;
 	/** Everything this peer was sent, serialised. */
 	transcript(): string;
 }
@@ -154,6 +156,7 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 			},
 			send: (payload) => socket.emit('forge:c2s', payload),
 			setFullControl: (payload) => socket.emit('forge:full-control', payload),
+			setStopPreference: (payload) => socket.emit('forge:stop-preference', payload),
 			transcript: () => [...peer.acks, ...peer.frames].map((x) => JSON.stringify(x)).join('\n'),
 		};
 		socket.on('forge:s2c', (payload: unknown) => peer.frames.push(payload));
@@ -567,6 +570,93 @@ describe('full control survives a refresh', () => {
 		expect(await carol.request('forge:join', { matchId })).toEqual({ error: 'match-full' });
 		await new Promise((r) => setTimeout(r, 200));
 		expect(carol.fullControls).toEqual([]);
+	});
+});
+
+/*
+ * Wave 30 §B item 2/6: *"i think by default this should be off, but can be
+ * turned on in settings (always stop at endstep)."* `forge:stop-preference` is
+ * the wire half — client → server only, over REAL sockets — of moving the
+ * seat's OWN `StopPolicy` (`Match.setStopPolicy`, wave 26 §E); the shortcut
+ * decision itself is `auto.test.ts`'s "item 2" case.
+ */
+describe('the stop-at-end-step preference (item 2/6)', () => {
+	it('toggles END_OF_TURN in and out of stopOnTheirTurn, and only this seat’s', async () => {
+		const h = await boot();
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		const match = h.handle.matches.get(matchId);
+
+		// The default: off, exactly `DEFAULT_STOP_POLICY` (wave 30 item 2 dropped
+		// END_OF_TURN from it already), for both seats.
+		expect(match?.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
+		expect(match?.stopPolicy(1)).toEqual(DEFAULT_STOP_POLICY);
+
+		alice.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: true });
+		await waitUntil(() => match?.stopPolicy(0).stopOnTheirTurn.includes('END_OF_TURN') === true, 'seat 0 to hold the setting');
+		expect(match?.stopPolicy(0)).toEqual({ ...DEFAULT_STOP_POLICY, stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'] });
+		// Bob never asked for it — a preference of the person in the seat, exactly
+		// like full control.
+		expect(match?.stopPolicy(1)).toEqual(DEFAULT_STOP_POLICY);
+
+		// Flipping it off again restores the default exactly — not a field wiped,
+		// a value re-derived from whatever the seat was already on.
+		alice.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: false });
+		await waitUntil(() => match?.stopPolicy(0).stopOnTheirTurn.includes('END_OF_TURN') === false, 'seat 0 to drop the setting');
+		expect(match?.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
+	});
+
+	it('composes with a policy the seat already had, rather than resetting it', async () => {
+		// Wave 27 §C's hatch — `CARDTABLE_PLAY_STOP_POLICY` — starts both seats on
+		// STRICT_PAYMENT_POLICY, same device the suite above this one exercises.
+		const original = process.env[STOP_POLICY_ENV];
+		process.env[STOP_POLICY_ENV] = 'strictPayment';
+		try {
+			const h = await boot();
+			const { body } = await startMatch(h);
+			const matchId = body.matchId as string;
+			const alice = await connect(h.port, edgeHeaders('alice'));
+			await alice.request('forge:join', { matchId });
+			const match = h.handle.matches.get(matchId);
+			expect(match?.stopPolicy(0)).toEqual(STRICT_PAYMENT_POLICY);
+
+			alice.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: true });
+			await waitUntil(() => match?.stopPolicy(0).stopOnTheirTurn.includes('END_OF_TURN') === true, 'the setting to land');
+			// Every OTHER field of the seat's starting policy survives —
+			// `unambiguousPayment` stays `'auto'`, not reset to the module default's
+			// `'forgeAuto'`.
+			expect(match?.stopPolicy(0)).toEqual({ ...STRICT_PAYMENT_POLICY, stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'] });
+		} finally {
+			if (original === undefined) delete process.env[STOP_POLICY_ENV];
+			else process.env[STOP_POLICY_ENV] = original;
+		}
+	});
+
+	it('a malformed payload is logged and refused, never applied', async () => {
+		const h = await boot();
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		await alice.request('forge:join', { matchId });
+		const match = h.handle.matches.get(matchId);
+
+		alice.setStopPreference({ matchId, type: 'somethingElse', stopAtEndStep: true });
+		await waitUntil(() => h.logs.some((l) => l.evt === 'stop-preference-malformed'), 'the refusal to be logged');
+		expect(match?.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
+	});
+
+	it('a socket that never joined this match cannot move a seat it is not in', async () => {
+		const h = await boot();
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const outsider = await connect(h.port, edgeHeaders('outsider'));
+		outsider.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: true });
+		await waitUntil(() => h.logs.some((l) => l.evt === 'stop-preference-not-joined'), 'the refusal to be logged');
+		expect(h.handle.matches.get(matchId)?.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
 	});
 });
 

@@ -89,6 +89,7 @@ import {
 	parseClientEnvelope,
 	parseFullControl,
 	parseMatchRequest,
+	parseStopPreference,
 	type MatchError,
 	type MatchSnapshot,
 } from './transport.js';
@@ -673,6 +674,36 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			}
 			const outcome = match.setFullControl(seat, parsed.value.on);
 			if (!outcome.ok) log({ evt: 'full-control-refused', participantId, matchId: match.id, seat, error: outcome.error });
+		});
+
+		/*
+		 * Wave 30 §B item 2/6: *"always stop at end step — default off"*, moved
+		 * through the per-seat `StopPolicy` that already exists (wave 26 §E) rather
+		 * than a second mechanism. This does not REPLACE the seat's policy — it
+		 * reads the CURRENT one and toggles `END_OF_TURN` in or out of
+		 * `stopOnTheirTurn`, so any other preference already on the seat (a name
+		 * from `CARDTABLE_PLAY_STOP_POLICY`, or a later field nobody has added yet)
+		 * survives the toggle untouched.
+		 */
+		socket.on(MATCH_EVENTS.stopPreference, (raw: unknown) => {
+			const parsed = parseStopPreference(raw);
+			if (!parsed.ok) {
+				log({ evt: 'stop-preference-malformed', participantId, errors: parsed.errors.slice(0, 3) });
+				return;
+			}
+			const match = matches.get(parsed.value.matchId);
+			const seat = match === undefined ? undefined : joined.get(match.id);
+			if (match === undefined || seat === undefined) {
+				log({ evt: 'stop-preference-not-joined', participantId, matchId: parsed.value.matchId });
+				return;
+			}
+			const current = match.stopPolicy(seat);
+			const wants = parsed.value.stopAtEndStep;
+			const has = current.stopOnTheirTurn.includes('END_OF_TURN');
+			if (wants === has) return;
+			const stopOnTheirTurn = wants ? [...current.stopOnTheirTurn, 'END_OF_TURN' as const] : current.stopOnTheirTurn.filter((p) => p !== 'END_OF_TURN');
+			const outcome = match.setStopPolicy(seat, { ...current, stopOnTheirTurn });
+			if (!outcome.ok) log({ evt: 'stop-preference-refused', participantId, matchId: match.id, seat, error: outcome.error });
 		});
 
 		socket.on('disconnect', (reason: string) => {

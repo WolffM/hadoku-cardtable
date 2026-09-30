@@ -16,6 +16,7 @@
  *   server → client  `forge:full-control`  `{ matchId, on }` — the seat's
  *                    current state, sent to a socket that has just been
  *                    answered a snapshot. One event, one schema, both ways.
+ *   client → server  `forge:stop-preference`  `{ matchId, type: 'stopPreference', stopAtEndStep }`
  *
  * ## The cursor, and the one place the contract's wording was sharpened
  *
@@ -78,6 +79,12 @@ export const MATCH_EVENTS = {
 	clientToServer: FORGE_CHANNEL.clientToServer,
 	/** Wave 19 lane C: the full-control escape hatch, per seat, off by default. */
 	fullControl: 'forge:full-control',
+	/**
+	 * Wave 30 §B item 2/6: the one setting the operator asked for — *"i think by
+	 * default this should be off, but can be turned on in settings (always stop
+	 * at endstep)."* Client → server only; see {@link StopPreferenceSchema}.
+	 */
+	stopPreference: 'forge:stop-preference',
 } as const;
 
 /* ── Cursor ──────────────────────────────────────────────────────────── */
@@ -127,6 +134,43 @@ export type FullControlRequest = Output<typeof FullControlSchema>;
  */
 export function fullControlEcho(matchId: string, on: boolean): FullControlRequest {
 	return FullControlSchema.parse({ matchId, on });
+}
+
+/**
+ * `forge:stop-preference` — wave 30 §B item 6: *"a settings surface, holding
+ * at least two preferences… always stop at end step — default off."* This is
+ * that one preference, travelling from the settings panel to the seat's own
+ * {@link StopPolicy} (`auto.ts`) through the ALREADY-EXISTING per-seat setter,
+ * `Match.setStopPolicy` (wave 26 §E) — nothing here is a second mechanism.
+ *
+ * **Fallback shape.** Lane A (§A) owns the settings panel and was to write its
+ * chosen message shape to `docs/planning/wave30-evidence/A-stop-pref-message.md`
+ * before this lane reached this item; that file did not exist when it did. Per
+ * the wave brief this is the shape the brief itself specifies —
+ * `{ type: 'stopPreference', stopAtEndStep: boolean }` — implemented as its own
+ * event, the way `forge:full-control` is, rather than folded onto `forge:c2s`
+ * (a `ClientFrame` is `@hadoku/forge-wire`'s sealed union and a seat preference
+ * is not a Forge frame, exactly the reasoning `forge:full-control`'s own
+ * doc-comment already gives). `type` is carried on the PAYLOAD, as the brief's
+ * literal shape has it, even though the event name alone already disambiguates
+ * it — so a client that logs the raw payload can tell what it sent without
+ * cross-referencing the event name. **Client → server only**: unlike
+ * `forge:full-control` there is no echo, because nothing server-side changed
+ * the meaning of "sent it" — the manager reconciles this against whatever §A
+ * actually built.
+ */
+export const StopPreferenceSchema = borrowed.emptyObject
+	.extend({
+		matchId: borrowed.nonEmptyString,
+		type: borrowed.nonEmptyString.refine((v) => v === 'stopPreference', { message: "must be 'stopPreference'" }),
+		stopAtEndStep: borrowed.boolean,
+	})
+	.strict();
+
+export interface StopPreferenceRequest {
+	matchId: string;
+	type: 'stopPreference';
+	stopAtEndStep: boolean;
 }
 
 /* ── Server → client ─────────────────────────────────────────────────── */
@@ -236,6 +280,10 @@ export function parseMatchRequest(raw: unknown): Parsed<MatchRequest> {
 
 export function parseFullControl(raw: unknown): Parsed<FullControlRequest> {
 	return fromZod(FullControlSchema.safeParse(raw));
+}
+
+export function parseStopPreference(raw: unknown): Parsed<StopPreferenceRequest> {
+	return fromZod(StopPreferenceSchema.safeParse(raw)) as Parsed<StopPreferenceRequest>;
 }
 
 /** Envelope first, then the frame — a reply's `result` is checked against its method here. */

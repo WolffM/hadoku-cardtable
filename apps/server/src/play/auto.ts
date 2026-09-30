@@ -298,11 +298,26 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	// declare-attackers, because with `skipNonStopPhases: 'always'` below it is
 	// the ONLY window an attack can be declared in (item 6's attack control).
 	stopOnMyTurn: ['MAIN1', 'MAIN2', 'COMBAT_DECLARE_ATTACKERS'],
-	// Wave 28, item 5. Not empty, and that is the whole care in this change: with
+	// Wave 28, item 5: not empty, and that is the whole care in THAT change — with
 	// `'always'` and an empty set the seat gets no window on the opponent's turn
-	// at all, so a held instant could never be cast. Declare-blockers and the end
-	// step are where it is cast.
-	stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS', 'END_OF_TURN'],
+	// at all, so a held instant could never be cast. Declare-blockers is where it
+	// is cast against an attack; wave 28 also held the end step open as a second
+	// window, for the same reason.
+	//
+	// Wave 30, item 2 removes `END_OF_TURN`: *"i played a land and clicked 'end
+	// turn' and the phase counter stopped at endstep… it always waits on opponent
+	// at endstep now, that wasn't happening before and it's not a desired
+	// behavior."* The trade wave 28 made — a stop here is the window for a held
+	// instant — is real and is NOT reversed; it is handed to the player instead
+	// of assumed. `COMBAT_DECLARE_BLOCKERS` stays: the operator objected to the
+	// END-STEP wait specifically, and blocking is not a wait, it is a decision a
+	// seat must make regardless of what it holds. The escape the operator named
+	// is `FULL_CONTROL_POLICY`, which still keeps every stop; the dial is the
+	// per-seat `StopPolicy` a settings toggle now moves (`socket.ts`'s
+	// `forge:stop-preference`) — a held instant on the opponent's turn is castable
+	// again the moment that preference is on, same mechanism, the player's choice
+	// rather than the default's.
+	stopOnTheirTurn: ['COMBAT_DECLARE_BLOCKERS'],
 	// Item 5, wave 28: *"upkeep stops like this should not happen unless in full
 	// control mode. it's stopping everywhere, super annoying."* — and the leak
 	// argument above, which is the part that outlives the annoyance.
