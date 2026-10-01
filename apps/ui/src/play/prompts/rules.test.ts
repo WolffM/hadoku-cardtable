@@ -23,6 +23,7 @@ import {
   inputDialogProblems,
   manipulateProblems,
   moveItem,
+  numericChoiceRange,
   optionDialogProblems,
   orderProblems,
   searchRows,
@@ -89,6 +90,64 @@ describe('getChoices', () => {
   it('treats min/max -1 as display-only: the only answer is empty', () => {
     expect(getChoicesProblems(reveal, [])).toEqual([]);
     expect(getChoicesProblems(reveal, ['c76'])).toEqual(['nothing may be chosen here']);
+  });
+});
+
+/**
+ * `chooseNumber`/`getInteger` (announce X, `NumTimes`, keyword-cost counts)
+ * never leaves the wire as anything but a `getChoices` whose `choices` are the
+ * integers themselves (first list item 13). Nothing marks the ask as numeric,
+ * so this is read structurally — and these are the shapes that must, and must
+ * not, read as one.
+ */
+describe('numericChoiceRange', () => {
+  const numeric = (keys: string[]): AskOf<'getChoices'> => ({
+    ...askFor('getChoices'),
+    choices: keys.map((k) => ({ key: k, label: k, ref: null })),
+  });
+
+  it('reads a plain 0..N range', () => {
+    expect(numericChoiceRange(numeric(['0', '1', '2', '3']))).toEqual({ min: 0, max: 3, otherKey: undefined });
+  });
+
+  it('reads a range that does not start at zero', () => {
+    expect(numericChoiceRange(numeric(['2', '3', '4']))).toEqual({ min: 2, max: 4, otherKey: undefined });
+  });
+
+  it("carries Forge's own Other… entry separately from the range it caps", () => {
+    const ask = numeric(['0', '1', '2', 'lblOtherInteger']);
+    expect(numericChoiceRange(ask)).toEqual({ min: 0, max: 2, otherKey: 'lblOtherInteger' });
+  });
+
+  it('is not fooled by a word list (colours), even though it is also all getChoices', () => {
+    const [colors] = asksFor('getChoices') as [AskOf<'getChoices'>];
+    expect(numericChoiceRange(colors)).toBeNull();
+  });
+
+  it('is not fooled by a card/player list, even when its keys happen to be digits', () => {
+    const ask = {
+      ...askFor('getChoices'),
+      choices: [
+        { key: '0', label: '0', ref: { kind: 'card' as const, id: 67 } },
+        { key: '1', label: '1', ref: null },
+      ],
+    };
+    expect(numericChoiceRange(ask)).toBeNull();
+  });
+
+  it('refuses a gap in the sequence', () => {
+    expect(numericChoiceRange(numeric(['0', '1', '3']))).toBeNull();
+  });
+
+  it('refuses a key whose label disagrees with it — not Forge’s own toString() of the integer', () => {
+    const ask = numeric(['0', '1']);
+    ask.choices[1] = { key: '1', label: 'one', ref: null };
+    expect(numericChoiceRange(ask)).toBeNull();
+  });
+
+  it('refuses a single choice (needs at least two to see a sequence) and an empty list', () => {
+    expect(numericChoiceRange(numeric(['0']))).toBeNull();
+    expect(numericChoiceRange(numeric([]))).toBeNull();
   });
 });
 

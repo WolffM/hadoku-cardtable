@@ -27,7 +27,9 @@ import {
   chooseEntitiesProblems,
   chooseSingleProblems,
   getChoicesProblems,
+  numericChoiceRange,
   searchRows,
+  type NumericChoiceRange,
   type SearchRow,
 } from './rules.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
@@ -95,10 +97,71 @@ function UnofferedRow({ row, lookup }: { row: SearchRow; lookup: PromptLookup })
   );
 }
 
+/**
+ * "Choose X" — and `NumTimes`, and a keyword-cost count — as a DRAG, not a
+ * radio list (first list item 13). Forge's own choices are the integers
+ * `range.min..range.max`; this reads the one chosen (default its minimum, so
+ * the slider always shows a value, never the "nothing ticked yet" of a radio
+ * list) and answers with that choice's own key, byte-identical to what the
+ * radio rendering would have sent.
+ *
+ * `range.otherKey`, when Forge's own cutoff sat below its true max, is a
+ * plain button beside the slider: picking it sends Forge's "Other…" choice
+ * exactly as a click would have, and the free-text follow-up it provokes is
+ * `showInputDialog`, already answered by `DialogPrompts.tsx` — nothing here
+ * chains the two asks itself.
+ */
+function NumberChoiceSlider({
+  range,
+  value,
+  onChange,
+}: {
+  range: NumericChoiceRange;
+  /** The chosen key, or null while the "Other…" entry is the current choice. */
+  value: number | null;
+  onChange: (key: string) => void;
+}) {
+  return (
+    <div className="prompt__slider">
+      <input
+        type="range"
+        data-testid="prompt-slider"
+        min={range.min}
+        max={range.max}
+        step={1}
+        value={value ?? range.min}
+        aria-label={`between ${range.min} and ${range.max}`}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <output className="prompt__slider-value" data-testid="prompt-slider-value">
+        {value ?? range.min}
+      </output>
+      {range.otherKey !== undefined && (
+        <button
+          type="button"
+          className="prompt__link"
+          data-testid="prompt-slider-other"
+          aria-pressed={value === null}
+          onClick={() => onChange(range.otherKey!)}
+        >
+          Other…
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoices'>) {
   const bounds = choiceBounds(ask.min, ask.max);
   const known = new Set(ask.choices.map((c) => c.key));
-  const [chosen, setChosen] = useState<string[]>(() => ask.selected.filter((k) => known.has(k)));
+  const range = bounds.max > 0 ? numericChoiceRange(ask) : null;
+  const [chosen, setChosen] = useState<string[]>(() => {
+    const selected = ask.selected.filter((k) => known.has(k));
+    // A slider always shows a value; Forge's own default reading for `getInteger`
+    // (`AbstractGuiGame.java:791-813`) is the range's minimum.
+    if (selected.length === 0 && range !== null) return [String(range.min)];
+    return selected;
+  });
   // Reply in the order Forge listed the options, not the order they were clicked.
   const reply = ask.choices.map((c) => c.key).filter((k) => chosen.includes(k));
   const problems = getChoicesProblems(ask, reply);
@@ -106,6 +169,17 @@ export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoi
     assertAnswerable('getChoices', problems);
     onAnswer(checkedReply('getChoices', reply));
   };
+
+  if (range !== null) {
+    const key = chosen[0] ?? null;
+    const value = key !== null && key !== range.otherKey ? Number.parseInt(key, 10) : null;
+    return (
+      <PromptShell method="getChoices" title={ask.message} problems={problems} onSubmit={submit}>
+        <NumberChoiceSlider range={range} value={value} onChange={(k) => setChosen([k])} />
+      </PromptShell>
+    );
+  }
+
   const anyCards = ask.choices.some((c) => cardOfOption(c.ref) !== null);
 
   return (

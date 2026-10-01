@@ -13,6 +13,7 @@
  * gesture drew it, and it is the only thing that is new.
  */
 import { centreOf, edgePointNearest } from './targets.ts';
+import type { AutoTargetArrow } from './auto-targets.ts';
 import type { DropTarget, Point } from './types.ts';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -90,6 +91,64 @@ function tipOn(snap: Element, spec: ArrowSpec): Point {
 /** Take the arrow away. Absent is fine — this is called on every gesture end. */
 export function clearArrow(overlay: HTMLElement | null): void {
   overlay?.querySelector('[data-testid="targeter"]')?.remove();
+}
+
+/** The persistent arrows' own testid — never `targeter`, so the one interactive arrow and these never collide. */
+const AUTO_TESTID = 'stack-target-arrow';
+
+/**
+ * Reconcile the overlay's passive arrows against `specs` (item 8): one SVG per
+ * spec, keyed by `data-key` so an unchanged pair is left alone across paints,
+ * and every key not in `specs` any more is removed — the stack item resolved,
+ * or its target left the board. Same shaft-and-head geometry as `drawArrow`,
+ * drawn a touch lighter (`./gestures.css`) so it reads as "already decided"
+ * rather than "decide this".
+ */
+export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoTargetArrow[]): void {
+  const box = overlay.getBoundingClientRect();
+  const seen = new Set<string>();
+  for (const spec of specs) {
+    seen.add(spec.key);
+    const tip = spec.kind === 'player' ? centreOf(spec.to) : edgePointNearest(spec.to, spec.from);
+    const x1 = spec.from.x - box.left;
+    const y1 = spec.from.y - box.top;
+    const x2 = tip.x - box.left;
+    const y2 = tip.y - box.top;
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const points = [
+      `${x2},${y2}`,
+      `${x2 - HEAD * Math.cos(angle - SPREAD)},${y2 - HEAD * Math.sin(angle - SPREAD)}`,
+      `${x2 - HEAD * Math.cos(angle + SPREAD)},${y2 - HEAD * Math.sin(angle + SPREAD)}`,
+    ].join(' ');
+
+    let svg = overlay.querySelector<SVGSVGElement>(`[data-testid="${AUTO_TESTID}"][data-key="${spec.key}"]`);
+    if (svg === null) {
+      svg = document.createElementNS(SVG, 'svg');
+      svg.setAttribute('class', 'targeter targeter--auto');
+      svg.setAttribute('data-testid', AUTO_TESTID);
+      svg.setAttribute('data-key', spec.key);
+      svg.setAttribute('aria-hidden', 'true');
+      const shaft = document.createElementNS(SVG, 'line');
+      shaft.setAttribute('class', 'targeter__shaft');
+      const head = document.createElementNS(SVG, 'polygon');
+      head.setAttribute('class', 'targeter__head');
+      svg.append(shaft, head);
+      overlay.append(svg);
+    }
+    svg.querySelector('line')!.setAttribute('x1', String(x1));
+    svg.querySelector('line')!.setAttribute('y1', String(y1));
+    svg.querySelector('line')!.setAttribute('x2', String(x2));
+    svg.querySelector('line')!.setAttribute('y2', String(y2));
+    svg.querySelector('polygon')!.setAttribute('points', points);
+  }
+  for (const el of [...overlay.querySelectorAll(`[data-testid="${AUTO_TESTID}"]`)]) {
+    if (!seen.has(el.getAttribute('data-key') ?? '')) el.remove();
+  }
+}
+
+/** Take every passive arrow away — on dispose, so a board left behind carries none. */
+export function clearAutoTargetArrows(overlay: HTMLElement | null): void {
+  overlay?.querySelectorAll(`[data-testid="${AUTO_TESTID}"]`).forEach((el) => el.remove());
 }
 
 /** An attribute that is ABSENT when it has no value — `undefined` in JSX, and what the e2e reads. */

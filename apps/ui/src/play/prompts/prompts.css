@@ -43,6 +43,39 @@
   min-width: 0;
 }
 
+/*
+ * The scrolling part of the sheet (first list item 3). *"i have to scroll all
+ * the way to the bottom to click 'ok'."*
+ *
+ * `.live__prompt > .prompt` (`../live/live.css`) is itself `overflow-y: auto`
+ * inside a flex column of a bounded height — the mechanism that keeps a tall
+ * sheet from pushing the match shell out of its box (wave 20's card grids were
+ * the first to do that). Before this, EVERY child of `.prompt` — title,
+ * message, the selector, the problems list, OK and Clear — scrolled as that
+ * one block, so a long list pushed OK below the fold and answering it meant
+ * scrolling the whole sheet to find the button.
+ *
+ * `.prompt__body` is the one child that may grow past the sheet's box: `flex:
+ * 1 1 auto` is what lets it (and only it) shrink below its own content once
+ * the sheet runs out of room, and `min-height: 0` is what a flex item needs to
+ * shrink that far at all (the same rule `.live__prompt > .prompt` itself
+ * relies on, one level up). Title, message, problems and the actions row have
+ * no such rule, so a flex item's default `min-height: auto` keeps every one of
+ * them at its full size — always on screen, never inside the scroll. Once
+ * `.prompt__body` is absorbing the squeeze, `.prompt` itself stops growing
+ * past its box, so the outer `overflow-y: auto` in `../live/live.css` has
+ * nothing left to do; it is not removed, because a sheet mounted with no
+ * bounding ancestor (a screenshot harness, say) still wants it as a fallback.
+ */
+.prompt__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
 .prompt__title {
   margin: 0;
   font-size: 16px;
@@ -322,14 +355,14 @@
 
 .prompt__dropzone[data-over] {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 /* A card is armed, so this end is now a click target, not only a drop target. */
 .prompt__dropzone[data-live] {
   border-style: solid;
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-ink);
   cursor: pointer;
 }
 
@@ -403,11 +436,34 @@
   align-self: flex-start;
   background: none;
   border: none;
-  color: var(--accent);
+  color: var(--accent-ink);
   padding: 0;
   cursor: pointer;
 }
 
 .prompt__input {
   max-width: 100%;
+}
+
+/*
+ * "Choose X" as a drag, capped by the mana you have (first list item 13): a
+ * native range input rather than a radio list, because the control itself —
+ * not a list of N labelled rows — is the whole of what the operator asked for.
+ */
+.prompt__slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prompt__slider input[type='range'] {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.prompt__slider-value {
+  min-width: 2.5ch;
+  text-align: right;
+  font-weight: 600;
 }

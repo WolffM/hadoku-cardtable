@@ -42,7 +42,8 @@
  * wrong thing; it cannot put an id on the wire that Forge did not name.
  */
 import { boardInteraction, declaringAttackers, declaringCombat, payingMana, subscribe } from '../match.ts';
-import { clearArrow, drawArrow } from './arrow.ts';
+import { autoTargetArrows } from './auto-targets.ts';
+import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
 import { commitDrag, commitMarquee, rectOf, type Rect } from './commit.ts';
 import { applyIntents, clearIntents } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
@@ -189,6 +190,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
         next = `click:${source ?? ''}:${target === null ? '' : `${target.kind}:${target.id}`}`;
       }
     }
+    // Item 8: Forge's own already-decided targets. Independent of whichever
+    // gesture (if any) is in progress above, so it is reconciled every paint
+    // regardless of branch — a drag or a box-draw does not hide it.
+    if (overlay !== null) drawAutoTargetArrows(overlay, autoTargetArrows(canvas, match));
     if (next === shape) return;
     shape = next;
     options.onChange?.();
@@ -392,6 +397,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       unsubscribe();
       const overlay = overlayOf();
       clearArrow(overlay);
+      clearAutoTargetArrows(overlay);
       clearMarquee(overlay);
       clearIntents(canvas);
       canvas.removeAttribute(CANVAS_ATTR);

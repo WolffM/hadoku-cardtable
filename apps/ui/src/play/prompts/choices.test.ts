@@ -70,6 +70,68 @@ describe('getChoices', () => {
     expectWireReply('getChoices', answers[0]);
   });
 
+  /**
+   * First list item 13: "Choose X" / `NumTimes` / a keyword-cost count never
+   * leaves the wire as anything but `getChoices` whose choices are Forge's own
+   * integers — see `rules.test.ts`'s `numericChoiceRange`. A fixture built the
+   * same way `AbstractGuiGame.getInteger` builds it: a straight 0..N run.
+   */
+  const announceXAsk = (max: number, otherKey?: string) => ({
+    ...askFor('getChoices'),
+    message: 'Choose X for Fireball',
+    min: 0,
+    max: 1,
+    choices: [
+      ...Array.from({ length: max + 1 }, (_, n) => ({ key: String(n), label: String(n), ref: null })),
+      ...(otherKey === undefined ? [] : [{ key: otherKey, label: 'Other…', ref: null }]),
+    ],
+    selected: [],
+  });
+
+  describe('"Choose X" (item 13): a slider, not a radio list', () => {
+    it('renders a range input capped at the ask’s own max, defaulted to the minimum', () => {
+      const { getByTestId, queryAllByTestId } = mountPrompt('getChoices', announceXAsk(5));
+      const slider = getByTestId('prompt-slider') as HTMLInputElement;
+      expect(slider.type).toBe('range');
+      expect(slider.min).toBe('0');
+      expect(slider.max).toBe('5');
+      expect(slider.value).toBe('0');
+      expect(getByTestId('prompt-slider-value').textContent).toBe('0');
+      // No radios at all for this ask — the whole point of the item.
+      expect(queryAllByTestId('prompt-choice')).toHaveLength(0);
+    });
+
+    it('dragging it answers the value dragged to, as the key Forge offered', () => {
+      const { getByTestId, answers, submit } = mountPrompt('getChoices', announceXAsk(5));
+      const slider = getByTestId('prompt-slider') as HTMLInputElement;
+      fireEvent.change(slider, { target: { value: '3' } });
+      expect(getByTestId('prompt-slider-value').textContent).toBe('3');
+      fireEvent.click(submit());
+      expect(answers).toEqual([['3']]);
+      expectWireReply('getChoices', answers[0]);
+    });
+
+    it('never offers a value past Forge’s own max', () => {
+      const { getByTestId } = mountPrompt('getChoices', announceXAsk(2));
+      const slider = getByTestId('prompt-slider') as HTMLInputElement;
+      expect(slider.max).toBe('2');
+    });
+
+    it('an Other… entry is a button beside the slider, and picking it answers Forge’s own key', () => {
+      const { getByTestId, answers, submit } = mountPrompt('getChoices', announceXAsk(9, 'lblOtherInteger'));
+      fireEvent.click(getByTestId('prompt-slider-other'));
+      fireEvent.click(submit());
+      expect(answers).toEqual([['lblOtherInteger']]);
+      expectWireReply('getChoices', answers[0]);
+    });
+
+    it('is not offered a mode/colour/reveal choice: the ordinary list still renders for those', () => {
+      const { getAllByTestId, queryByTestId } = mountPrompt('getChoices', askFor('getChoices'));
+      expect(queryByTestId('prompt-slider')).toBeNull();
+      expect(getAllByTestId('prompt-choice')).toHaveLength(5);
+    });
+  });
+
   it('shows a display-only GRID of the revealed cards, with nothing to tick, and answers empty', () => {
     const reveal = asksFor('getChoices').find((a) => a.max < 0)!;
     const { container, answers, submit, getByTestId } = mountPrompt('getChoices', reveal);

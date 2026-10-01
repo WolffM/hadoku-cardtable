@@ -76,7 +76,7 @@ export function PromptShell({
     <section className="prompt" data-prompt={method} role="dialog" aria-label={title}>
       <PromptTitle title={title} />
       {message !== undefined && message !== '' && <p className="prompt__message">{message}</p>}
-      {children}
+      <div className="prompt__body">{children}</div>
       {problems.length > 0 && (
         <ul className="prompt__problems" data-testid="prompt-problems" aria-live="polite">
           {problems.map((p) => (
