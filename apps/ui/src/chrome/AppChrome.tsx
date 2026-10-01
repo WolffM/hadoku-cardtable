@@ -122,6 +122,12 @@
  *   looking like a link, plus the header's edge buffer. A wrapper that slots
  *   a different header in has to bring both.
  *
+ * ## App settings in the header's gear (wave 32)
+ *
+ * `HeaderSettings.tsx` is the one context this directory exports to a screen:
+ * a portal target inside the gear's popout. `AppChrome` slots the host into the
+ * header; a screen renders `HeaderSettingsPortal` around its own controls.
+ *
  * ## Theming is NOT ours, and must not become ours
  *
  * `<HadokuThemeRoot>` owns the theme, its three persistence layers
@@ -178,9 +184,10 @@
  * a frame.
  */
 
-import { useRef, type ReactNode, type RefObject } from 'react';
+import { cloneElement, isValidElement, useRef, type ReactElement, type ReactNode, type RefObject } from 'react';
 import { HadokuThemeRoot, useHadokuTheme } from '@wolffm/themes';
 import { ensureMatchMedia } from './matchMedia.ts';
+import { HeaderSettingsHost, HeaderSettingsProvider } from './HeaderSettings.tsx';
 import './chrome.css';
 
 // Before anything from @wolffm/themes runs an effect: one of them calls
@@ -201,11 +208,24 @@ export function AppChrome({ header, children }: AppChromeProps) {
   const containerRef = useRef<HTMLElement>(null);
   return (
     <HadokuThemeRoot containerRef={containerRef}>
-      <ChromeInner containerRef={containerRef} header={header}>
-        {children}
-      </ChromeInner>
+      <HeaderSettingsProvider>
+        <ChromeInner containerRef={containerRef} header={withSettingsHost(header)}>
+          {children}
+        </ChromeInner>
+      </HeaderSettingsProvider>
     </HadokuThemeRoot>
   );
+}
+
+/**
+ * Slots the settings host into the header's `children`, after whatever the
+ * author put there. `App.tsx` authors the header and does not know a match
+ * exists; see `HeaderSettings.tsx` for what the host is and why.
+ */
+function withSettingsHost(header: ReactNode): ReactNode {
+  if (!isValidElement(header)) return header;
+  const el = header as ReactElement<{ children?: ReactNode }>;
+  return cloneElement(el, undefined, el.props.children, <HeaderSettingsHost key="app-settings" />);
 }
 
 function ChromeInner({

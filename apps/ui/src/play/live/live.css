@@ -52,7 +52,7 @@
  * | --- | --- | --- |
  * | question / payment | 59.4% across, 24% down, 24.1% × 48% | `--live-col-x` / `--live-col-w`, `.live__prompt` |
  * | phase rail | 8.4% wide, 31% down, 35% tall, right | `--live-rail-w`, `.live__phases` |
- * | controls | 112 × 84 → 112 × 136, 67% down, under the rail | `--live-controls-*`, `.live__buttons` |
+ * | controls | 112 × 84 → 112 × 110, 67% down, under the rail | `--live-controls-*`, `.live__buttons` |
  * | log button | 36 × 32, above the rail | `.live__log-button` |
  *
  * ## The drawing's WIDTH is real and its HEIGHT was not (wave 27 §B.1)
@@ -167,7 +167,13 @@
  * `Settings` in the slot it vacated** — the cluster is still five rows and the
  * number is still 136:
  *
- *   4 + 4 padding + 1 + 1 border + (22 + 22 + 22 + 22 + 22) rows + 4 × 4 gaps = 136
+ *   4 + 4 padding + 1 + 1 border + (22 + 22 + 22 + 22) rows + 3 × 4 gaps = 110
+ *
+ * **Wave 32 took `Settings` out of the cluster** (Q15: it lives in the header's
+ * gear now), so the cluster is OK, Cancel, Full control and Concede — four rows,
+ * and 110, not 136. Cancel is drawn only while Forge enables it (Q15b); the box
+ * stays four rows tall either way, because the rows are fixed tracks and the
+ * height is the token, so a Cancel that comes and goes moves nothing.
  *
  * That arithmetic is asserted in `LiveBoard.test.ts`, off this file's own text.
  *
@@ -184,7 +190,7 @@
  * it at, and the rail is never narrower than the thing it exists to be read at.
  */
 .live {
-  --live-controls-h: 136px;
+  --live-controls-h: 110px;
   --live-controls-w: 112px;
   --live-rail-w: max(8.4%, 6.75rem);
   --live-col-x: 59.4%;
@@ -376,20 +382,16 @@
  */
 .live__buttons {
   position: absolute;
-  z-index: 4;
+  z-index: var(--z-overlay, 20);
   top: 67%;
   right: var(--live-gutter);
   width: var(--live-controls-w);
   height: var(--live-controls-h);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 22px 22px 22px 22px 22px;
-  grid-template-areas:
-    'ok'
-    'cancel'
-    'full'
-    'settings'
-    'conc';
+  grid-template-rows: repeat(4, 22px);
+  grid-auto-rows: 22px;
+  align-content: start;
   gap: 4px;
   margin: 0;
   padding: 4px;
@@ -434,14 +436,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
-}
-
-.live__ok {
-  grid-area: ok;
-}
-
-.live__cancel {
-  grid-area: cancel;
 }
 
 .live__buttons button:hover:not(:disabled) {
@@ -493,7 +487,7 @@
  */
 .live__prompt {
   position: absolute;
-  z-index: 3;
+  z-index: var(--z-popover, 40);
   top: 24%;
   left: var(--live-col-x);
   width: var(--live-col-w);
@@ -823,33 +817,13 @@
  * like its neighbours; pressed is the accent border the selectable cards and
  * the bar's own state already use, so "on" reads as one affordance everywhere.
  */
-.live__buttons .live__toggle {
-  grid-area: full;
-}
-
 .live__buttons .live__toggle[aria-pressed='true'] {
   border-color: var(--accent);
   color: var(--accent);
 }
 
 /*
- * Settings (item 7, wave 30), in the slot `Leave` vacated when item 5 deleted
- * it — below Full control, above Concede. Quiet and narrow like the toggle: a
- * disclosure, not an answer to Forge and not destructive, so it carries no
- * warning colour of its own. `aria-expanded` follows the panel the same way
- * the log button's does.
- */
-.live__buttons .live__settings {
-  grid-area: settings;
-}
-
-.live__buttons .live__settings[aria-expanded='true'] {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/*
- * Concede (§C.4), below Settings and last in the stack. It is the cluster's
+ * Concede (§C.4), last in the stack. It is the cluster's
  * one DESTRUCTIVE control, and Full control between it and Forge's two
  * answers is what keeps reaching for it from being a misclick on one of
  * theirs. It reads as the quietest thing in it until it is reached for:
@@ -858,7 +832,6 @@
  * wire (`LiveBoard.tsx`).
  */
 .live__buttons .live__concede {
-  grid-area: conc;
   color: var(--ink-dim);
 }
 
@@ -884,7 +857,7 @@
  */
 .live__log-button {
   position: absolute;
-  z-index: 4;
+  z-index: var(--z-overlay, 20);
   top: calc(31% - 40px);
   right: var(--live-gutter);
   width: 36px;
@@ -923,7 +896,7 @@
  */
 .live__ask {
   position: absolute;
-  z-index: 5;
+  z-index: var(--z-popover, 40);
   inset: 0;
   display: flex;
   align-items: center;
@@ -946,17 +919,9 @@
 }
 
 /*
- * Settings (item 7, wave 30), in the same host `.live__ask` as Concede's own
- * confirmation — centred, above the board, `pointer-events` split the same
- * way. Not destructive, so its border is overridden back to the accent the
- * generic `.live__ask > .confirm` rule (above) does not know to give it —
- * that rule reads `--warn` for Concede, and this panel is a preference, not a
- * threat.
+ * The match's settings, inside the HEADER's gear popout (wave 32 Q15). They are
+ * portalled out of `.live`, so these rules do not lean on anything `.live` sets.
  */
-.live__ask > .live__settings-body {
-  border-color: var(--accent);
-}
-
 .live__settings-field {
   display: flex;
   flex-direction: column;
@@ -1006,11 +971,18 @@
  */
 .live__phases {
   position: absolute;
-  z-index: 1;
+  z-index: var(--z-overlay, 20);
   top: 31%;
   right: var(--live-gutter);
   width: var(--live-rail-w);
-  height: 35%;
+  /* Wave 32 Q3: the rail is as tall as its rows. Every row is the same height
+     (one thirteenth of the 35% a full turn takes, after the turn row and the
+     padding), so out of combat — eight rows — it is shorter, and when combat
+     begins it GROWS to 35% and shrinks back after it. Animated by CSS alone. */
+  --rail-chrome: 29px;
+  --rail-rows: 8;
+  height: calc(var(--rail-chrome) + var(--rail-rows) * (35% - var(--rail-chrome)) / 13);
+  transition: height 0.3s ease;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1022,6 +994,16 @@
   background: var(--bg-raised);
   overflow: hidden;
   pointer-events: none;
+}
+
+.live__phases[data-combat] {
+  --rail-rows: 13;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live__phases {
+    transition: none;
+  }
 }
 
 /* Whose turn, and which one. The number is the only number here, and it is
@@ -1038,13 +1020,6 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--ink);
-}
-
-.live__turn-who {
-  font-size: 8px;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
 }
 
 .live__phases[data-whose='yours'] .live__turn-n {
@@ -1099,41 +1074,9 @@
   flex: 1 1 0;
   display: flex;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
   min-height: 0;
   overflow: hidden;
-}
-
-/*
- * The mark. Its BOX is the same on every row — the current one is scaled up
- * from the same box rather than being a bigger one — so the rail's width and
- * the rows' positions never depend on where the game is.
- *
- * Three signals distinguish the current step, because colour may not be the
- * only one (`docs/handoff/w24.md` §1): the mark's length, the name's weight and
- * colour, and `aria-current="step"` in the markup. The name being drawn at all
- * used to be one of them and cannot be any more — every step says its name now
- * (§B.2), which is the whole point of the wider rail.
- */
-.live__mark {
-  flex: none;
-  width: 6px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--ink-dim);
-  opacity: 0.3;
-  scale: 0.45 1;
-}
-
-.live__step[data-past] .live__mark {
-  opacity: 0.55;
-}
-
-.live__step[data-current] .live__mark {
-  height: 5px;
-  background: var(--accent);
-  opacity: 1;
-  scale: 1 1;
 }
 
 /* A turn's structure: a hairline where one phase ends and the next begins, so a
@@ -1157,6 +1100,7 @@
 .live__step-name {
   flex: 1 1 0;
   min-width: 0;
+  text-align: center;
   font-size: 9px;
   line-height: 1.1;
   white-space: nowrap;

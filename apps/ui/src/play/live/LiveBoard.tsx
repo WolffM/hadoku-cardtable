@@ -277,6 +277,7 @@ import {
 } from './match.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs.ts';
 import { SettingsPanel } from './SettingsPanel.tsx';
+import { HeaderSettingsPortal } from '../../chrome/HeaderSettings.tsx';
 import './live.css';
 
 /* ── Where the match is: six states, one line ─────────────────────────── */
@@ -835,9 +836,8 @@ function PhaseRail({ view }: { view: BoardView }) {
     >
       <p className="live__turn" data-testid="live-turn">
         <span className="live__turn-n" data-testid="live-turn-n">
-          {view.turn}
+          {view.turn > 0 ? view.turn : 'Start'}
         </span>
-        <span className="live__turn-who">{whose}</span>
       </p>
       <ol className="live__steps" aria-label="Phase">
         {rows.map(({ phase, group, last }, i) => {
@@ -853,7 +853,6 @@ function PhaseRail({ view }: { view: BoardView }) {
               data-group-start={i === 0 || rows[i - 1]!.group !== group ? '' : undefined}
               aria-current={current ? 'step' : undefined}
             >
-              <span className="live__mark" aria-hidden="true" />
               <span className="live__step-name">{PHASE_LABEL[phase] ?? (phase === COMBAT_ROW ? 'Combat' : phase)}</span>
             </li>
           );
@@ -1136,17 +1135,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const logbookId = useId();
 
   /*
-   * The settings panel is open. Local state, not a `LiveMatch` field — it is
-   * this component's own disclosure, like the logbook's, not a question Forge
-   * or the wire is waiting on.
-   */
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  /*
    * Board layout (item 11): a PROP of `Board`, `single` by default, read from
    * the persisted preference below once it loads. Lives here, not inside
    * `SettingsPanel`, because `<Board>` needs it whether or not Settings is
    * ever opened.
    */
+  const showsSecondButton = !spectator && !askOpen && bar !== null && bar.enable2 && offersSecondButton(match);
   const [boardLayout, setBoardLayout] = useState<BoardLayout>(PLAY_PREFS_DEFAULTS.boardLayout);
   /*
    * Item 6's persistence, and item 2/6's wire message.
@@ -1366,15 +1360,25 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         >
           {bar === null || bar.label1 === '' ? 'OK' : bar.label1}
         </button>
-        <button
-          type="button"
-          className="live__cancel"
-          data-testid="live-button-cancel"
-          disabled={spectator || askOpen || bar === null || !bar.enable2 || !offersSecondButton(match)}
-          onClick={() => pressButton(match, 'cancel')}
-        >
-          {secondLabel(match)}
-        </button>
+        {/*
+         * Forge's SECOND prompt button (wave 32 Q15b: *"what is the point of the
+         * cancel button?"*). It is not ours: it is `InputBase`'s cancel, and Forge
+         * names and enables it per question — `Draw` at the coin toss, `Auto` at a
+         * mulligan, `End Turn` at priority, `Cancel` for backing out of a payment
+         * or a target. So it is drawn ONLY while Forge has it enabled, in Forge's
+         * own word; a permanently present, mostly disabled `Cancel` told the
+         * player nothing and sat beside OK as a button that did nothing.
+         */}
+        {showsSecondButton && (
+          <button
+            type="button"
+            className="live__cancel"
+            data-testid="live-button-cancel"
+            onClick={() => pressButton(match, 'cancel')}
+          >
+            {secondLabel(match)}
+          </button>
+        )}
         <button
           type="button"
           className="live__toggle"
@@ -1385,23 +1389,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           onClick={() => setFullControl(match, !match.fullControl)}
         >
           Full control
-        </button>
-        {/*
-         * Settings (item 7), in the slot `Leave` vacated when item 5 deleted
-         * it. A disclosure like the log's — `aria-expanded` follows the
-         * panel — and pressable at any time for the same reason Full control
-         * is: it is a preference of the person in the seat, not an answer to
-         * Forge.
-         */}
-        <button
-          type="button"
-          className="live__settings"
-          data-testid="live-settings"
-          aria-expanded={settingsOpen}
-          title="Settings"
-          onClick={() => setSettingsOpen(true)}
-        >
-          Settings
         </button>
         {/*
          * Concede (§C.4), last. It sends NOTHING: it opens the confirmation,
@@ -1444,16 +1431,20 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           onCancel={() => setConceding(false)}
         />
       )}
-      {settingsOpen && (
+      {/*
+       * The match's settings live in the HEADER's gear popout (wave 32 Q15), not
+       * here: this draws them into it while it is open, and nothing at all
+       * otherwise. The preferences and the live match stay where they are.
+       */}
+      <HeaderSettingsPortal>
         <SettingsPanel
           match={match}
           inert={spectator}
           boardLayout={boardLayout}
           onBoardLayoutChange={setBoardLayout}
           onSave={(patch: Partial<PlayPrefs>) => void savePrefs(patch)}
-          onClose={() => setSettingsOpen(false)}
         />
-      )}
+      </HeaderSettingsPortal>
     </div>
   );
 }

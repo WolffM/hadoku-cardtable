@@ -16,6 +16,7 @@ import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react
 import { parseServerFrame } from '@hadoku/forge-wire';
 
 import type { BoardInteraction, BoardLayout } from '../Board.tsx';
+import { HeaderSettingsHost, HeaderSettingsProvider } from '../../chrome/HeaderSettings.tsx';
 import { PHASE_LABEL, type BoardView } from '../adapter.ts';
 import { deltaKey, WireType } from '../wire.ts';
 import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
@@ -108,13 +109,22 @@ afterEach(async () => {
   prefsState.saved = [];
 });
 
-async function liveBoard(playerId = 0) {
+/**
+ * `menu`: render the header gear's popout host beside the board, as `AppChrome`
+ * does while the popout is open — the match's settings are drawn INTO it
+ * (wave 32 Q15), so a test that wants them needs it.
+ */
+async function liveBoard(playerId = 0, menu = false) {
   const s = (server = await startReplayServer({ playerId }));
   const m = (match = startMatch({
     matchId: s.matchId,
     transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
   }));
-  const utils = render(createElement(LiveBoard, { match: m }));
+  const utils = render(
+    menu
+      ? createElement(HeaderSettingsProvider, null, createElement(HeaderSettingsHost), createElement(LiveBoard, { match: m }))
+      : createElement(LiveBoard, { match: m }),
+  );
   await waitFor(() => expect(m.stats.snapshots).toBe(1));
   const frames = fixtureFrames();
   for (const f of frames) s.send(f);
@@ -413,7 +423,7 @@ describe('Forge asks with buttons, not only with asks', () => {
   });
 
   it('a bar Forge has disabled is not pressable, so a stale click cannot answer the NEXT question', async () => {
-    const { s, m, getByTestId } = await liveBoard();
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
 
     for (const f of buttonFrames('Choose', 'OK', 'Cancel')) s.send(f);
     await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
@@ -422,7 +432,8 @@ describe('Forge asks with buttons, not only with asks', () => {
     // The bar stays where it is; its buttons go disabled until Forge sends a fresh one.
     await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(true));
     expect(getByTestId('live-buttons')).toBeTruthy();
-    expect((getByTestId('live-button-cancel') as HTMLButtonElement).disabled).toBe(true);
+    // Forge disabled the second button too, so it is not drawn at all (Q15b).
+    expect(queryByTestId('live-button-cancel')).toBeNull();
 
     fireEvent.click(getByTestId('live-button-ok'));
     expect(pressButton(m, 'ok')).toBe(false);
@@ -431,23 +442,25 @@ describe('Forge asks with buttons, not only with asks', () => {
   });
 
   it('the bar is there before Forge has sent one: neutral labels, both buttons disabled, nothing said', async () => {
-    const { getByTestId } = await liveBoard();
+    const { getByTestId, queryByTestId } = await liveBoard();
     expect(getByTestId('live-says').textContent).toBe('');
     const ok = getByTestId('live-button-ok') as HTMLButtonElement;
-    const cancel = getByTestId('live-button-cancel') as HTMLButtonElement;
-    expect([ok.textContent, cancel.textContent, ok.disabled, cancel.disabled]).toEqual(['OK', 'Cancel', true, true]);
+    expect([ok.textContent, ok.disabled]).toEqual(['OK', true]);
+    // No bar, so Forge has enabled no second button, so none is drawn (Q15b).
+    expect(queryByTestId('live-button-cancel')).toBeNull();
   });
 
   it('the bar stays while a question is open, disabled, and a press sends nothing', async () => {
-    const { s, m, getByTestId } = await liveBoard();
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
     for (const f of buttonFrames('Priority', 'OK', 'End Turn')) s.send(f);
     await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
+    expect(getByTestId('live-button-cancel').textContent, 'Forge’s own word, drawn while Forge enables it').toBe('End Turn');
 
     s.send(confirmAsk('c-open'));
     await waitFor(() => getByTestId('confirm-dialog'));
     const ok = getByTestId('live-button-ok') as HTMLButtonElement;
-    expect([ok.disabled, (getByTestId('live-button-cancel') as HTMLButtonElement).disabled]).toEqual([true, true]);
-    expect(getByTestId('live-button-cancel').textContent).toBe('End Turn');
+    expect(ok.disabled).toBe(true);
+    expect(queryByTestId('live-button-cancel'), 'a question is open: the second button is not drawn').toBeNull();
     expect(getByTestId('live-says').textContent).toBe('Priority');
     fireEvent.click(ok);
     expect(pressButton(m, 'ok')).toBe(false);
@@ -1017,8 +1030,9 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
     // Not adjacent to OK or Cancel: Full control stands between, so a reach
     // for Concede is never a misclick on Forge's answer.
     const order = [...bar.children].map((el) => (el as HTMLElement).dataset.testid);
-    const gap = Math.abs(order.indexOf('live-concede') - order.indexOf('live-button-cancel'));
-    expect(gap, 'Concede does not sit next to Forge’s answers').toBeGreaterThan(1);
+    expect(order.indexOf('live-full-control'), 'Full control stands between Forge’s answers and Concede').toBe(
+      order.indexOf('live-concede') - 1,
+    );
     expect(container.querySelector('.board')!.contains(concede)).toBe(false);
     // The cluster still holds five children — item 7 put `Settings` in the
     // slot item 5's deletion of `Leave` vacated — and is still a sibling of
@@ -1031,7 +1045,7 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
       'live__log-button',
       'live__buttons',
     ]);
-    expect(bar.querySelectorAll('button')).toHaveLength(5);
+    expect(bar.querySelectorAll('button')).toHaveLength(3);
   });
 
   /*
@@ -1121,9 +1135,11 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // The spec queries `live-buttons` and then looks INSIDE it, so a second
     // container, or one of these drawn as a sibling, is a red e2e.
     expect(container.querySelectorAll('[data-testid="live-buttons"]')).toHaveLength(1);
-    for (const id of ['live-button-ok', 'live-button-cancel', 'live-full-control', 'live-settings', 'live-concede']) {
+    for (const id of ['live-button-ok', 'live-full-control', 'live-concede']) {
       expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
     }
+    // Wave 32 Q15 took Settings out: it is in the header's gear.
+    expect(cluster.querySelector('[data-testid="live-settings"]')).toBeNull();
     // Item 5 deleted `Leave`: the cluster no longer holds it at all.
     expect(cluster.querySelector('[data-testid="live-leave"]')).toBeNull();
     /*
@@ -1133,9 +1149,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
      */
     expect([...cluster.querySelectorAll('button')].map((b) => b.dataset.testid)).toEqual([
       'live-button-ok',
-      'live-button-cancel',
       'live-full-control',
-      'live-settings',
       'live-concede',
     ]);
     /*
@@ -1168,7 +1182,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // Every child of the cluster is a button now: nothing in it can be text that
     // grows, which is the other half of "one box at one window size". Still
     // five: item 7 put `Settings` where item 5's deletion of `Leave` left a gap.
-    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON', 'BUTTON', 'BUTTON']);
+    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON']);
     // And both moved into the logbook, which is not inside the cluster.
     const logbook = getByTestId('live-logbook');
     expect(cluster.contains(logbook)).toBe(false);
@@ -1248,12 +1262,13 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
      * the cluster takes the reservation out of every row of a 960px table. The
      * HEIGHT is what gave instead, 84 → 136, when the five buttons became one
      * column so that `Full control` and `Concede` stopped being clipped. Item
-     * 5 (wave 30) deleted `Leave` and item 7 put `Settings` in its slot, so
-     * the cluster is still five and the number is still 136.
+     * 5 (wave 30) deleted `Leave` and item 7 put `Settings` in its slot; wave 32
+     * Q15 took `Settings` out again (it is in the header's gear), so the
+     * cluster is four rows and the number is 110.
      */
     const live = declarations(liveCss(), '.live');
     expect(live).toContain('--live-controls-w: 112px');
-    expect(live).toContain('--live-controls-h: 136px');
+    expect(live).toContain('--live-controls-h: 110px');
     // No full-width bar remains: the token that gave the row under the canvas
     // its height is gone from the file, not merely unused.
     expect(liveCss()).not.toContain('--live-bar-h');
@@ -1269,12 +1284,11 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
      * the one column is written `minmax(0, 1fr)` (wave 27 §B.1).
      */
     expect(cluster).toContain('grid-template-columns: minmax(0, 1fr)');
-    expect(cluster).toContain('grid-template-rows: 22px 22px 22px 22px 22px');
-    // Five rows, five buttons, one column: no label shares a row with another,
-    // which is what stopped `Full control` and `Concede` ellipsizing. `Leave`
-    // had the fourth row until item 5 (wave 30) deleted it; item 7 put
-    // `Settings` there instead.
-    expect(cluster).toContain("grid-template-areas: 'ok' 'cancel' 'full' 'settings' 'conc'");
+    expect(cluster).toContain('grid-template-rows: repeat(4, 22px)');
+    // Four rows, one column: no label shares a row with another, which is what
+    // stopped `Full control` and `Concede` ellipsizing. Cancel (Forge's second
+    // button) comes and goes without a track of its own appearing or vanishing.
+    expect(cluster).not.toContain('grid-template-areas');
     expect(cluster, 'item 5: no row for Leave any more').not.toContain('leave');
     /*
      * The ellipsis stays, as the LAST RESORT for a label Forge chose and not for
@@ -1326,8 +1340,10 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     const rows = /grid-template-rows: ([^;]+);/.exec(cluster)?.[1];
     expect(rows, 'the cluster declares explicit rows').toBeDefined();
     // `minmax(22px, 1fr)` contributes its 22px floor; nothing here is content-sized.
-    const tracks = [...rows!.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
-    expect(tracks).toEqual([22, 22, 22, 22, 22]);
+    const tracks = Array.from({ length: Number(/repeat\((\d+), (\d+)px\)/.exec(rows!)?.[1]) }, () =>
+      Number(/repeat\((\d+), (\d+)px\)/.exec(rows!)?.[2]),
+    );
+    expect(tracks).toEqual([22, 22, 22, 22]);
     const padY = Number(/padding: (\d+)px/.exec(cluster)?.[1]);
     const gap = Number(/gap: (\d+)px/.exec(cluster)?.[1]);
     const token = Number(/--live-controls-h: (\d+)px/.exec(declarations(css, '.live'))?.[1]);
@@ -1339,7 +1355,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // And the arithmetic is written out beside the token, so the next reader of
     // the file does not have to run this to see where the number came from.
     expect(css, 'the comment beside the token says the same sum').toContain(
-      '4 + 4 padding + 1 + 1 border + (22 + 22 + 22 + 22 + 22) rows + 4 × 4 gaps = 136',
+      '4 + 4 padding + 1 + 1 border + (22 + 22 + 22 + 22) rows + 3 × 4 gaps = 110',
     );
   });
 });
@@ -1400,7 +1416,8 @@ describe('the phase reads down the side', () => {
     const active = view.players.find((p) => p.id === view.activePlayerId);
     const whose = active === undefined ? 'nobody' : active.isViewer ? 'yours' : 'theirs';
     expect(getByTestId('live-phases').dataset.whose).toBe(whose);
-    expect(getByTestId('live-turn').textContent).toBe(`${view.turn}${whose}`);
+    // Q1: the number alone — the name under it is gone.
+    expect(getByTestId('live-turn').textContent).toBe(String(view.turn));
     /*
      * The turn number on its own, and the same number on the rail's own dataset:
      * this is the ONLY turn indicator on the page now that §A has deleted
@@ -1420,7 +1437,7 @@ describe('the phase reads down the side', () => {
     expect(decls).toContain('pointer-events: none');
     // Under lane A's overlay root (z 2), so the inspector's enlarged card still
     // comes out on top of the rail rather than behind it.
-    expect(decls).toContain('z-index: 1');
+    expect(decls, 'wave 32 Q16: the rail is on the overlay layer').toContain('z-index: var(--z-overlay, 20)');
   });
 
   /*
@@ -1473,14 +1490,11 @@ describe('the phase reads down the side', () => {
     const px = (decls: string, prop: string): number[] =>
       [...(new RegExp(`(?:^|; )${prop}: ([^;]+)`).exec(decls)?.[1] ?? '').matchAll(/([\d.]+)px/g)].map((m) => Number(m[1]));
     const name = declarations(css, '.live__step-name');
-    const mark = declarations(css, '.live__mark');
-    // The gap is the STEP's — between the mark and the name — not the rail's
-    // own, which is the space between the turn row and the column of steps.
-    const step = declarations(css, '.live__step');
     const floorRem = Number(/--live-rail-w: max\(8\.4%, ([\d.]+)rem\)/.exec(live)?.[1]);
-    const budget =
-      floorRem * 16 - 2 * 1 - 2 * px(rail, 'padding')[1]! - px(mark, 'width')[0]! - px(step, 'gap')[0]!;
-    expect(budget, 'a step name’s own budget at the rail’s floor').toBe(96);
+    // Wave 32 Q3 took the mark (and its gap) out of every row: the name has the
+    // whole of it, centred.
+    const budget = floorRem * 16 - 2 * 1 - 2 * px(rail, 'padding')[1]!;
+    expect(budget, 'a step name’s own budget at the rail’s floor').toBe(104);
     expect(px(name, 'font-size')[0], 'the type the budget was measured at').toBe(9);
     // `Beginning of combat` at 9px/600, the longest of Forge's thirteen at the
     // weight the current step is actually drawn at.
@@ -1488,7 +1502,7 @@ describe('the phase reads down the side', () => {
     // Its own percentages, which is what makes the cluster's `top: 67%` land
     // directly under it rather than wherever thirteen rows happened to end.
     expect(rail).toContain('top: 31%');
-    expect(rail).toContain('height: 35%');
+    expect(rail, 'a full turn is 35% of the canvas').toContain('(35% - var(--rail-chrome))');
     expect(rail, 'not centred any more: the gutter is a strip, in the drawn order').not.toContain('translate:');
 
     // The question: a fixed column, not a sheet centred on whatever height it is.
@@ -1954,7 +1968,7 @@ describe('what the board is told about Forge’s input', () => {
 describe('§A.6 / item 16 — Forge’s second button is refused for the whole of declare-attackers', () => {
   const GAME_KEY = String(deltaKey(WireType.Game, 1));
   const notify = (raw: unknown) => parseServerFrame(raw);
-  const bar = (label2: string) =>
+  const bar = (label2: string, enable2 = true) =>
     notify({
       kind: 'notify',
       method: 'updateButtons',
@@ -1962,7 +1976,7 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
       label1: 'OK',
       label2,
       enable1: true,
-      enable2: true,
+      enable2,
       focus1: true,
     });
   const phase = (m: LiveMatch, name: string, playerTurn: number) =>
@@ -2005,49 +2019,52 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
       },
     });
 
-  it('paints Forge’s label2 everywhere else, and refuses it whether or not an attacker is declared', async () => {
-    const { s, m, getByTestId } = await liveBoard();
+  it('paints Forge’s label2 while Forge enables it, and refuses it whether or not an attacker is declared', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
     const me = m.view!.players.find((p) => p.isViewer)!;
-    const cancel = () => getByTestId('live-button-cancel') as HTMLButtonElement;
+    const cancel = () => queryByTestId('live-button-cancel') as HTMLButtonElement | null;
 
     // 1. Outside combat, Forge's word is Forge's word. Nothing here filters it.
     s.send(bar('Cancel'));
-    await waitFor(() => expect(cancel().disabled).toBe(false));
-    expect(cancel().textContent).toBe('Cancel');
+    await waitFor(() => expect(cancel()).not.toBeNull());
+    expect(cancel()!.textContent).toBe('Cancel');
 
     // 2. Declaring attackers with none declared (the old Alpha Strike state):
-    //    the button is neither offered nor labelled with Forge's word.
+    //    the button is not offered at all, and never says Forge's word.
     s.send(phase(m, 'COMBAT_DECLARE_ATTACKERS', me.id));
     s.send(bar('Alpha Strike'));
-    await waitFor(() => expect(cancel().disabled).toBe(true));
-    expect(cancel().textContent, 'and it never says Forge’s word').toBe('Cancel');
+    await waitFor(() => expect(cancel()).toBeNull());
     expect(m.buttons!.label2, 'Forge still sent it — we simply do not offer it').toBe('Alpha Strike');
+    expect(getByTestId('live-buttons').textContent).not.toContain('Alpha Strike');
 
     // 3. One attacker declared. Forge's own `canCallBackAttackers()` is true now
     //    and it sends `Call Back` — item 16 refuses this one too, on the operator's
-    //    own instruction, so the button stays disabled and neutral instead of
-    //    becoming Forge's undo.
+    //    own instruction, so the button stays absent instead of becoming Forge's undo.
     s.send(attacking(m, [me.battlefield.find((c) => !c.tapped)!.id]));
     s.send(bar('Call Back'));
     await waitFor(() => expect(m.buttons!.label2).toBe('Call Back'));
-    expect(cancel().disabled, 'Call Back is refused too (item 16)').toBe(true);
-    expect(cancel().textContent, 'and it never reads Forge’s word either').toBe('Cancel');
+    expect(cancel(), 'Call Back is refused too (item 16)').toBeNull();
+    expect(getByTestId('live-buttons').textContent).not.toContain('Call Back');
   });
 
-  it('keeps the button in the cluster either way: the box may not change', async () => {
-    const { s, m, getByTestId } = await liveBoard();
-    const me = m.view!.players.find((p) => p.isViewer)!;
-    const before = getByTestId('live-buttons').querySelectorAll('button').length;
-    s.send(phase(m, 'COMBAT_DECLARE_ATTACKERS', me.id));
-    s.send(bar('Alpha Strike'));
-    await waitFor(() => expect((getByTestId('live-button-cancel') as HTMLButtonElement).disabled).toBe(true));
-    /*
-     * Disabled, not removed. `live.css` gives the cluster a fixed box with a
-     * fixed slot per child and `e2e/table-fit.spec.ts` fails a frame in which
-     * that box is not the box it was in every other frame — so a button that came
-     * and went would be a canvas regression, not a tidier cluster.
-     */
-    expect(getByTestId('live-buttons').querySelectorAll('button')).toHaveLength(before);
+  /*
+   * Wave 32 Q15b — *"what is the point of the cancel button in the control
+   * pane?"* It is Forge's second prompt button, so it is drawn only while Forge
+   * enables it and in Forge's own word; the cluster's box is a fixed token, so
+   * it appearing moves nothing.
+   */
+  it('Q15b: the second button is drawn only while Forge enables it, in Forge’s word, and the cluster box does not move', async () => {
+    const { s, getByTestId, queryByTestId } = await liveBoard();
+    expect(queryByTestId('live-button-cancel'), 'no bar yet').toBeNull();
+
+    s.send(bar('Auto'));
+    await waitFor(() => expect(queryByTestId('live-button-cancel')).not.toBeNull());
+    expect(getByTestId('live-button-cancel').textContent).toBe('Auto');
+
+    s.send(bar('Auto', false));
+    await waitFor(() => expect(queryByTestId('live-button-cancel')).toBeNull());
+    // Both states share the one container and its fixed-track CSS.
+    expect(getByTestId('live-buttons').querySelectorAll('button').length).toBe(3);
   });
 });
 
@@ -2145,58 +2162,36 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
 });
 
 /*
- * ── items 4-7 — the settings panel ───────────────────────────────────────
+ * ── items 4-7, then wave 32 Q15 — the match's settings, in the HEADER ──────
  *
  * The operator, 2026-09-30: *"i think by default this should be off, but can
  * be turned on in settings (always stop at endstep). same place that we
- * should allow the board config to show differently."*
+ * should allow the board config to show differently."* — and, wave 32:
+ * *"the settings live in the top settings menu, and the extra button goes."*
+ *
+ * `liveBoard(0, true)` renders the header popout's host beside the board, which
+ * is what `AppChrome` does while the gear is open.
  */
-describe('the settings panel (items 4-7)', () => {
-  it('is reachable from a button in the existing cluster, not a fourth floating thing', async () => {
-    const { container, getByTestId } = await liveBoard();
-    expect(container.querySelector('[data-testid="live-settings-panel"]')).toBeNull();
-    const trigger = getByTestId('live-settings') as HTMLButtonElement;
-    expect(getByTestId('live-buttons').contains(trigger)).toBe(true);
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
-    // Still exactly three permanent overlays beside the board: the rail, the
-    // cluster and the log button. The settings button rides inside the
-    // cluster, so this set is unchanged from before item 7.
-    const live = container.querySelector('.live')!;
-    expect([...live.children].map((el) => el.className)).toEqual([
-      'board',
-      'live__phases',
-      'live__logbook',
-      'live__log-button',
-      'live__buttons',
-    ]);
-
-    fireEvent.click(trigger);
-    expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    const panel = getByTestId('live-settings-panel');
-    expect(panel).not.toBeNull();
-    // Opening it added no new overlay to `.live` either — it is a child of
-    // `.live`, like `ConcedeAsk`'s own host, not a new permanent fixture.
-    expect(live.contains(panel)).toBe(true);
+describe('the match settings live in the header menu (items 4-7, Q15)', () => {
+  it('there is no Settings button and no floating panel in the match any more', async () => {
+    const { container, queryByTestId } = await liveBoard(0, true);
+    expect(queryByTestId('live-settings')).toBeNull();
+    expect(container.textContent).not.toContain('Settings');
+    // The controls are in the header's popout host, not inside `.live`.
+    const host = queryByTestId('header-app-settings')!;
+    expect(host.contains(queryByTestId('live-settings-panel'))).toBe(true);
+    expect(container.querySelector('.live')!.contains(queryByTestId('live-settings-panel'))).toBe(false);
+    expect(container.querySelector('.live__ask')).toBeNull();
   });
 
-  it('closes on its own Close button and on Escape', async () => {
-    const { getByTestId, queryByTestId } = await liveBoard();
-    fireEvent.click(getByTestId('live-settings'));
-    const panel = getByTestId('live-settings-panel');
-    fireEvent.keyDown(panel, { key: 'Escape' });
-    expect(queryByTestId('live-settings-panel')).toBeNull();
-
-    fireEvent.click(getByTestId('live-settings'));
-    const closeButton = getByTestId('live-settings-panel').querySelector('button[data-default]') as HTMLButtonElement;
-    expect(closeButton.textContent).toBe('Close');
-    fireEvent.click(closeButton);
+  it('draws nothing when the popout is not open (no host)', async () => {
+    const { queryByTestId } = await liveBoard();
     expect(queryByTestId('live-settings-panel')).toBeNull();
   });
 
   it('board layout: single is the default `Board` prop, and the radio flips it to type-separated and back', async () => {
-    const { getByTestId } = await liveBoard();
+    const { getByTestId } = await liveBoard(0, true);
     expect(captured.boardLayout).toBe('single');
-    fireEvent.click(getByTestId('live-settings'));
     const panel = getByTestId('live-settings-panel');
     const radios = [...panel.querySelectorAll<HTMLInputElement>('input[name="board-layout"]')];
     expect(radios.map((r) => r.value)).toEqual(['single', 'type-separated']);
@@ -2211,9 +2206,8 @@ describe('the settings panel (items 4-7)', () => {
   });
 
   it('always-stop-at-end-step: off by default, the checkbox sends forge:stop-preference and persists the change', async () => {
-    const { s, m, getByTestId } = await liveBoard();
+    const { s, m, getByTestId } = await liveBoard(0, true);
     expect(m.stopAtEndStep).toBe(false);
-    fireEvent.click(getByTestId('live-settings'));
     const checkbox = getByTestId('live-settings-stop-end-step') as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
 
@@ -2240,7 +2234,7 @@ describe('the settings panel (items 4-7)', () => {
     const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
     expect(sent).toHaveLength(1);
     expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: true });
-    // Never opened `live-settings-panel` in this test at all.
+    // No popout host was rendered in this test at all.
   });
 
   it('a persisted OFF preference is still sent on join — force, because off already matches the client default', async () => {
@@ -2318,9 +2312,10 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(getByTestId('live-spectator').textContent).toBe('Watching: this seat is being played in another window');
     expect(queryByTestId('confirm-dialog'), 'a watcher is asked nothing').toBeNull();
     expect(queryByTestId('live-prompt')).toBeNull();
-    for (const id of ['live-button-ok', 'live-button-cancel', 'live-full-control', 'live-concede']) {
+    for (const id of ['live-button-ok', 'live-full-control', 'live-concede']) {
       expect((getByTestId(id) as HTMLButtonElement).disabled, `${id} is inert`).toBe(true);
     }
+    expect(queryByTestId('live-button-cancel'), 'a watcher is offered no second button').toBeNull();
     fireEvent.click(getByTestId('live-full-control'));
     fireEvent.click(getByTestId('live-concede'));
     expect(queryByTestId('live-concede-ask')).toBeNull();
@@ -2442,5 +2437,82 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
 
   it('the sentence the page shows for a gone match is the one the server sends', () => {
     expect(MATCH_GONE_SENTENCE).toBe(MATCH_GONE_MESSAGE);
+  });
+});
+
+/*
+ * ── Wave 32 lane L — the turn display, the rail's size, the popover layer ──
+ */
+describe('wave 32 lane L: chrome', () => {
+  it('Q1: before turn 1 the rail says Start, with no name under it; from turn 1 it is the number alone', async () => {
+    const { m, container, getByTestId, rerender } = await liveBoard();
+    m.view = { ...m.view!, turn: 0, activePlayerId: -1 };
+    rerender(createElement(LiveBoard, { match: m }));
+    expect(getByTestId('live-turn-n').textContent).toBe('Start');
+    expect(getByTestId('live-turn').textContent).toBe('Start');
+    expect(container.querySelector('.live__turn-who')).toBeNull();
+    // The specs' hook is kept.
+    expect(getByTestId('live-phases').dataset.whose).toBe('nobody');
+    expect(getByTestId('live-phases').dataset.turn).toBe('0');
+
+    m.view = { ...m.view!, turn: 1 };
+    rerender(createElement(LiveBoard, { match: m }));
+    expect(getByTestId('live-turn-n').textContent).toBe('1');
+  });
+
+  it('Q3: no bullets in the rail, names centred, and the rail is sized by its rows and animated in CSS only', async () => {
+    const { container } = await liveBoard();
+    expect(container.querySelector('.live__mark'), 'the bullet is gone from the markup').toBeNull();
+    const css = liveCss();
+    expect(css, 'and from the stylesheet').not.toContain('.live__mark');
+    expect(declarations(css, '.live__step-name')).toContain('text-align: center');
+    expect(declarations(css, '.live__step')).toContain('justify-content: center');
+
+    const rail = declarations(css, '.live__phases');
+    expect(rail, 'out of combat: eight rows').toContain('--rail-rows: 8');
+    expect(declarations(css, ".live__phases[data-combat]"), 'in combat: thirteen').toContain('--rail-rows: 13');
+    expect(rail, 'the height is the rows’ own, up to the 35% of a full turn').toContain('height: calc(var(--rail-chrome) + var(--rail-rows)');
+    expect(rail).toContain('transition: height');
+    expect(rail, 'still an overlay that takes no pointer events').toContain('pointer-events: none');
+  });
+
+  it('Q3: the rail carries data-combat only while the game is in combat', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    expect(getByTestId('live-phases').hasAttribute('data-combat')).toBe(false);
+    const delta = (name: string) =>
+      parseServerFrame({
+        kind: 'notify',
+        method: 'applyDelta',
+        payload: {
+          packet: {
+            seq: m.view!.seq + 1,
+            checksum: 0,
+            checksumProperties: [],
+            newObjects: {},
+            objectDeltas: {
+              [String(deltaKey(WireType.Game, 1))]: {
+                _type: WireType.Game,
+                _id: 1,
+                Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
+              },
+            },
+            events: [],
+          },
+        },
+      });
+    s.send(delta('COMBAT_DECLARE_BLOCKERS'));
+    await waitFor(() => expect(getByTestId('live-phases').hasAttribute('data-combat')).toBe(true));
+    s.send(delta('MAIN2'));
+    await waitFor(() => expect(getByTestId('live-phases').hasAttribute('data-combat')).toBe(false));
+  });
+
+  it('Q16: the question and the dialogs sit on the popover layer, the cluster, log button and rail on the overlay layer', () => {
+    const css = liveCss();
+    for (const sel of ['.live__prompt', '.live__ask']) {
+      expect(declarations(css, sel), sel).toContain('z-index: var(--z-popover, 40)');
+    }
+    for (const sel of ['.live__buttons', '.live__log-button', '.live__phases']) {
+      expect(declarations(css, sel), sel).toContain('z-index: var(--z-overlay, 20)');
+    }
   });
 });
