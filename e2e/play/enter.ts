@@ -10,6 +10,7 @@
 import { expect, type APIRequestContext } from '@playwright/test';
 
 import type { Friend } from './browser.ts';
+import { TURN_TEXT } from './turn.ts';
 
 const PREFIX = '/cardtable';
 
@@ -64,7 +65,7 @@ export async function enterMatch(alice: Friend, bob: Friend, origin: string): Pr
   if (matchId === undefined) throw new Error(`no match id in ${alice.page.url()}`);
   for (const f of [alice, bob]) {
     await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible();
-    await expect(f.page.getByTestId('live-turn-n'), `${f.name}: the rail carries no turn`).toHaveText(/^\d+$/, { timeout: 30_000 });
+    await expect(f.page.getByTestId('live-turn-n'), `${f.name}: the rail carries no turn`).toHaveText(TURN_TEXT, { timeout: 30_000 });
   }
   return { matchId, roomUrl };
 }

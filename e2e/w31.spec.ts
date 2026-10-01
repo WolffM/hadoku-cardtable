@@ -39,6 +39,7 @@ import { answerPrompt } from './play/prompts.ts';
 import { enterMatch } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { connectSio } from './play/sio.ts';
+import { TURN_TEXT } from './play/turn.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -60,7 +61,7 @@ async function offered(page: Page): Promise<number[]> {
 
 async function boardUp(page: Page): Promise<void> {
   await expect(page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId('live-turn-n')).toHaveText(/^\d+$/, { timeout: 30_000 });
+  await expect(page.getByTestId('live-turn-n')).toHaveText(TURN_TEXT, { timeout: 30_000 });
 }
 
 function serverLog(stack: PlayStack): Record<string, unknown>[] {
@@ -237,7 +238,7 @@ test(titled('a match that is gone shows the reason and a way back, with no board
 
 /* ── 4. the phase rail and the log ──────────────────────────────────── */
 
-test(titled('combat is one rail step outside combat and six inside, the rail never moves; a log name opens the one inspector (P1, P12)'), async ({ browser }) => {
+test(titled('combat is one rail step outside combat and six inside; the rail GROWS into combat and shrinks after, un-bulleted and left-justified, same row height; a log name opens the one inspector (P1, P12, w32 Q3)'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -257,6 +258,33 @@ test(titled('combat is one rail step outside combat and six inside, the rail nev
     expect(outside.filter((n) => /combat/i.test(n)), 'one combat row outside combat').toEqual(['Combat']);
     const outsideCount = await rows.count();
     const outsideBoxes = { alice: await railBox(alice), bob: await railBox(bob) };
+    // Wave 32 Q3: the names are not bulleted and not centre-justified, and a row is as
+    // tall outside combat as inside it (w31's collapse had left the rail at the
+    // six-step height, stretching the rows).
+    const rowLook = async (f: Friend) =>
+      f.page.evaluate(() => {
+        const step = document.querySelector<HTMLElement>('.live__step');
+        const name = document.querySelector<HTMLElement>('.live__step-name');
+        if (step === null || name === null) return null;
+        const list = step.closest('ol,ul') ?? step.parentElement!;
+        const align = (el: Element): string => {
+          const cs = getComputedStyle(el);
+          // `start`/`left` are left-justified; a flex row justifies by `justify-content`.
+          return `${cs.textAlign}|${cs.display.includes('flex') ? cs.justifyContent : '-'}`;
+        };
+        return {
+          bullet: [getComputedStyle(list).listStyleType, getComputedStyle(step).listStyleType, getComputedStyle(step, '::marker').content],
+          alignStep: align(step),
+          alignName: align(name),
+          rowHeights: Array.from(document.querySelectorAll('.live__step')).map((e) => e.getBoundingClientRect().height),
+        };
+      });
+    const outsideLook = await rowLook(alice);
+    expect(outsideLook, 'the rail has rows to inspect').not.toBeNull();
+    for (const kind of outsideLook!.bullet.slice(0, 2)) expect(kind, 'phase names are not bulleted').toBe('none');
+    for (const a of [outsideLook!.alignStep, outsideLook!.alignName]) {
+      expect(a, 'phase names are not centre-justified').not.toMatch(/center/);
+    }
     expect(outsideBoxes.alice, 'the rail has a box to keep').not.toBeNull();
 
     await playFirst(alice);
@@ -266,7 +294,7 @@ test(titled('combat is one rail step outside combat and six inside, the rail nev
     // Combat is over in a few hundred milliseconds when nobody attacks, so it is
     // WATCHED for from here on rather than waited for after the log check below.
     // The same loop answers the asks the game raises (a scry), as every spec does.
-    const seen: { combat: { who: string; names: string[]; rows: number; box: number[] } | null; error: unknown } = { combat: null, error: null };
+    const seen: { combat: { who: string; names: string[]; rows: number; box: number[]; rowH: number[] } | null; error: unknown } = { combat: null, error: null };
     let watching = true;
     const watcher = (async () => {
       try {
@@ -282,6 +310,7 @@ test(titled('combat is one rail step outside combat and six inside, the rail nev
                 names: Array.from(document.querySelectorAll('.live__step-name')).map((n) => n.textContent?.trim() ?? ''),
                 rows: document.querySelectorAll('.live__step').length,
                 box: [b.x, b.y, b.width, b.height],
+                rowH: Array.from(document.querySelectorAll('.live__step')).map((s) => s.getBoundingClientRect().height),
               };
             });
             if (r !== null) seen.combat = { who: f.name, ...r };
@@ -320,7 +349,25 @@ test(titled('combat is one rail step outside combat and six inside, the rail nev
     expect(combat.names, 'the one "Combat" row is gone while they show').not.toContain('Combat');
     expect(combat.rows, 'the rail grows by the five extra rows').toBe(outsideCount + 5);
     const before = outsideBoxes[combat.who as 'alice' | 'bob']!;
-    expect(combat.box, 'the rail did not move or resize when combat expanded it').toEqual([before.x, before.y, before.width, before.height]);
+    // Wave 32 Q3 reverses w31's "the rail never moves": it is an overlay in the reserved
+    // right gutter, so it GROWS when combat begins (taller, same column) and moves no card.
+    expect(combat.box[0], 'the rail keeps its column when combat expands it').toBeCloseTo(before.x, 0);
+    expect(combat.box[2], 'and its width').toBeCloseTo(before.width, 0);
+    expect(combat.box[3], 'the rail is taller in combat than out of it').toBeGreaterThan(before.height + 20);
+    const insideRow = Math.max(...combat.rowH);
+    const outsideRow = Math.max(...outsideLook!.rowHeights);
+    expect(Math.abs(insideRow - outsideRow), `a rail row is as tall out of combat (${outsideRow}) as in it (${insideRow})`).toBeLessThanOrEqual(2);
+    // ... and it shrinks afterwards, by CSS alone (the box is measured, not a class).
+    await expect
+      .poll(async () => {
+          const f = combat.who === 'alice' ? alice : bob;
+          await answerPrompt(f.page); // the game must keep moving for combat to end
+          return (await railBox(f))!.height;
+        }, {
+        timeout: 120_000,
+        message: 'the rail shrinks back to its out-of-combat height when combat is over',
+      })
+      .toBeLessThanOrEqual(before.height + 1);
   } finally {
     for (const h of hands) await h.close();
     await stack.stop();

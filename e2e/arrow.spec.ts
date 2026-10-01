@@ -25,9 +25,11 @@
  * to add that box back. Four independent ways of being wrong are excluded by
  * construction:
  *
- *  - **the pointer is deliberately off-centre** inside the target card — a few
- *    pixels inside its corner. A snapped arrow must end at the card's CENTRE, so
- *    an arrow that merely followed the pointer misses by tens of pixels;
+ *  - **the pointer is deliberately far from the snap point** — a few pixels inside
+ *    the target's far corner. Since wave 32 (Q11) a snapped arrow ends on the
+ *    nearest of EIGHT points on the card's edge (four corners, four midpoints) to
+ *    its origin, never the centre, so an arrow that merely followed the pointer,
+ *    or that still aimed at the centre, misses by tens of pixels;
  *  - **the overlay is not at the viewport's origin** (asserted), so an arrow
  *    drawn in page coordinates rather than the overlay's misses by that offset;
  *  - **the two cards are far apart** (asserted), so the tail and the tip cannot
@@ -73,7 +75,7 @@ const HEAD_SPREAD_RAD = 0.42;
 
 const forge = forgeAvailability();
 const TITLE = forge.ok
-  ? "the targeter arrow's endpoints, measured in a real browser against the two cards' boxes"
+  ? "the targeter arrow's endpoints, measured in a real browser against the two cards' boxes: the tip snaps to the nearest of eight edge points"
   : `the targeter arrow's endpoints, measured in a real browser — SKIPPED: ${forge.reason}`;
 
 interface Box {
@@ -351,11 +353,26 @@ test(TITLE, async ({ browser }) => {
     expect(first.overlay!.top, "the overlay's own offset is what the reading has to add back").toBeGreaterThan(TOL);
     expect(first.overlay!.width).toBeGreaterThan(0);
 
-    /* ── the drag: press on the source's centre, end a few px inside the target's corner ── */
-    const pointer = { x: dst.box!.left + 4, y: dst.box!.top + 4 };
-    expect(away(pointer, dstC), 'the pointer is far off the target’s centre, so a tip that followed it is visible').toBeGreaterThan(
+    /*
+     * Wave 32 Q11: the tip is the nearest of EIGHT points on the target's edge (the
+     * four corners and the four edge midpoints) to the arrow's origin, never the
+     * centre. The source is the left-most offered card, so the nearest point is on
+     * the target's LEFT side; the pointer ends a few px inside the target's far
+     * (bottom-right) corner, so a tip that followed the pointer, or sat at the
+     * centre, is far from where it must be.
+     */
+    const eight = (b: Box): { x: number; y: number }[] => {
+      const xs = [b.left, b.left + b.width / 2, b.left + b.width];
+      const ys = [b.top, b.top + b.height / 2, b.top + b.height];
+      return ys.flatMap((y, r) => xs.map((x, c) => ({ x, y, centre: r === 1 && c === 1 }))).filter((p) => !p.centre).map(({ x, y }) => ({ x, y }));
+    };
+    const nearestEdge = eight(dst.box!).reduce((best, p) => (away(p, srcC) < away(best, srcC) ? p : best));
+    /* ── the drag: press on the source's centre, end a few px inside the target's far corner ── */
+    const pointer = { x: dst.box!.left + dst.box!.width - 4, y: dst.box!.top + dst.box!.height - 4 };
+    expect(away(pointer, nearestEdge), 'the pointer is far from the point the tip must take, so a tip that followed it is visible').toBeGreaterThan(
       10 * TOL,
     );
+    expect(away(nearestEdge, dstC), 'the snap point is on the edge, not the centre').toBeGreaterThan(10 * TOL);
     await alice.page.mouse.move(srcC.x, srcC.y);
     await alice.page.mouse.down();
     // Past DRAG_SLOP_PX, then onto the target. Two moves: one to become a drag,
@@ -381,7 +398,15 @@ test(TITLE, async ({ browser }) => {
     log.push(`tail ${JSON.stringify(tail)} vs source centre ${JSON.stringify(srcC)}`);
     log.push(`tip  ${JSON.stringify(tip)} vs target centre ${JSON.stringify(dstC)} (pointer ${JSON.stringify(pointer)})`);
     expect(away(tail, srcC), `the tail is the source card's centre (${JSON.stringify(tail)} vs ${JSON.stringify(srcC)})`).toBeLessThanOrEqual(TOL);
-    expect(away(tip, dstC), `the tip is the target card's centre (${JSON.stringify(tip)} vs ${JSON.stringify(dstC)})`).toBeLessThanOrEqual(TOL);
+    expect(
+      away(tip, nearestEdge),
+      `the tip is the nearest of the target's eight edge points to the origin (${JSON.stringify(tip)} vs ${JSON.stringify(nearestEdge)})`,
+    ).toBeLessThanOrEqual(TOL);
+    expect(away(tip, dstC), 'and it is not the target card’s centre').toBeGreaterThan(10 * TOL);
+    expect(
+      eight(dst.box!).filter((p) => away(tip, p) <= TOL),
+      'the tip sits on exactly one of the eight points',
+    ).toHaveLength(1);
     // …and NOT the pointer, which is where an unsnapped arrow would end.
     expect(away(tip, pointer), 'a snapped tip is the card, not the pointer').toBeGreaterThan(10 * TOL);
 

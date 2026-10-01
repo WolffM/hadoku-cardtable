@@ -138,6 +138,7 @@ import {
 } from './play/harness.ts';
 import { checkPlayIsolation, foldStream, type PlaySeatLog } from './play/isolation.ts';
 import { FIXTURE_FILE, load, mutations } from './play/fixture.ts';
+import { TURN_TEXT, turnNumber } from './play/turn.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -874,7 +875,7 @@ test(LIVE_TITLE, async ({ browser }) => {
       await expect(f.page.getByTestId('live-phases'), `${f.name}: no phase rail, so no state reached this page`).toBeVisible({
         timeout: 30_000,
       });
-      await expect(f.page.getByTestId('live-turn-n'), `${f.name}: the rail carries no turn`).toHaveText(/^\d+$/, {
+      await expect(f.page.getByTestId('live-turn-n'), `${f.name}: the rail carries no turn`).toHaveText(TURN_TEXT, {
         timeout: 30_000,
       });
     };
@@ -1450,7 +1451,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     };
     // `live-turn-n` is Forge's own turn counter and nothing else (§B.2); the row
     // around it reads "14yours", and `.board__bar`'s "Turn 14" is gone (§A).
-    const turnOnPage = async (): Promise<number> => Number((await alice!.page.getByTestId('live-turn-n').textContent()) ?? 0);
+    const turnOnPage = async (): Promise<number> => turnNumber(await alice!.page.getByTestId('live-turn-n').textContent());
     const deadline = Date.now() + PLAY_BUDGET_MS;
     while (clicked(alice).length === 0 || clicked(bob).length === 0 || (await turnOnPage()) < MIN_TURN) {
       if (Date.now() > deadline) {
@@ -1727,7 +1728,7 @@ test(LIVE_TITLE, async ({ browser }) => {
         };
       });
       const expected = {
-        turn: String(view.turn),
+        turn: view.turn === 0 ? 'Start' : String(view.turn), // wave 32 Q1: the rail says Start until turn 1
         phase: view.phase ?? '',
         players: view.players
           .map((p) => ({

@@ -53,7 +53,8 @@
  *      the game raises is answered on the board (`play/prompts.ts`), so
  *      battlefields fill up and turns change;
  *   2b. the player arranges their own battlefield: a real permanent dragged
- *      into another row with the browser's own drag events, asserted card by
+ *      into another row with a real pointer drag (wave 32 Q4: the board's own
+ *      ghost and target indicator, not the browser's HTML5 drag), asserted card by
  *      card, and asserted AGAIN after step 3 has re-rendered the board — the
  *      arrangement is the player's and nothing the engine does may take it
  *      away (wave 20 §A.2);
@@ -129,6 +130,8 @@ import { openFriend, type Friend } from './play/browser.ts';
 import { connectHands, type Hands } from './play/hands.ts';
 import { forgeAvailability, RUN_DIR, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
+import { turnNumber } from './play/turn.ts';
+import { chooseLanes, DRAG_HOOKS, endOfSlot, pointerDrag, touchDrag, viewerSlot } from './play/w32.ts';
 
 const PREFIX = '/cardtable';
 /** Play at least this far, so the check has seen many turn transitions. */
@@ -469,7 +472,7 @@ async function twoLegalDecks(api: APIRequestContext, origin: string): Promise<{ 
 async function turnOf(f: Friend): Promise<number> {
   // `live-turn-n` is Forge's own counter and nothing else, which is why §B.2 gave
   // it an id of its own: the row around it reads "14yours".
-  return Number((await f.page.getByTestId('live-turn-n').textContent()) ?? 0);
+  return turnNumber(await f.page.getByTestId('live-turn-n').textContent());
 }
 
 async function samples(f: Friend): Promise<FitSamples> {
@@ -573,54 +576,6 @@ async function rowsOf(f: Friend): Promise<RowCards[]> {
       ),
     })),
   );
-}
-
-/**
- * Put `f`'s board in the four-lane layout, through the settings panel a player
- * uses (wave 30 item 11). The default is ONE undivided board with no
- * `data-board-row` anywhere, so every check here that reads, drags into or
- * crowds a lane has to ask for the lanes first — and does it the player's way,
- * not by writing the preference behind the panel's back. The choice is
- * `LiveBoard`'s own state; the prefs write goes off-loopback and is aborted
- * like every other one (`e2e/play/browser.ts`), which the panel tolerates.
- */
-async function chooseLanes(f: Friend): Promise<void> {
-  await f.page.getByTestId('live-settings').click();
-  const panel = f.page.getByTestId('live-settings-panel');
-  await panel.locator('input[name="board-layout"][value="type-separated"]').check();
-  await panel.getByRole('button', { name: 'Close' }).click();
-  await expect(panel).toHaveCount(0);
-  await expect(f.page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-row]'), `${f.name}: the four lanes`).toHaveCount(
-    BOARD_ROWS.length,
-  );
-}
-
-/**
- * Drag one permanent into one of the battlefield's rows, with the browser's
- * own drag events and a real `DataTransfer`. Runs in the page.
- *
- * Dispatched rather than mouse-driven because an HTML5 drag is a sequence of
- * four events and this asserts what the BOARD does with them, not what the
- * platform's drag-and-drop feels like. `Board.tsx` remembers the dragged card
- * itself, so the transfer is a courtesy; it is passed anyway, because a real
- * browser passes it.
- */
-function dragBetweenRows({ cardId, row }: { cardId: number; row: string }): void {
-  const field = document.querySelector('.seat[data-viewer] [data-zone="battlefield"]');
-  if (field === null) throw new Error('no battlefield of your own to arrange');
-  // By VALUE: `CardTile` draws its own `data-card-id`, in the `w<id>` namespace.
-  const card = field.querySelector<HTMLElement>(`li.board-card[data-card-id="${cardId}"]`);
-  const target = field.querySelector<HTMLElement>(`[data-board-row="${row}"]`);
-  if (card === null) throw new Error(`no card ${cardId} on your battlefield`);
-  if (target === null) throw new Error(`no ${row} row on your battlefield`);
-  const dataTransfer = new DataTransfer();
-  const fire = (el: Element, type: string): void => {
-    el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }));
-  };
-  fire(card, 'dragstart');
-  fire(target, 'dragover');
-  fire(target, 'drop');
-  fire(card, 'dragend');
 }
 
 /** What a page is showing right now, for a failure message. */
@@ -916,6 +871,80 @@ test(TITLE, async ({ browser }) => {
     await new Promise((r) => setTimeout(r, 2_000));
     for (const g of friends) moments.push(await fitsNow(g, 'mid-game'));
 
+    // Wave 32 Q13: power/toughness is in the bottom-right corner of the card. Only a
+    // game that has put an untapped creature on the table can show it, so a game
+    // that has not is reported, not failed.
+    const ptChecked: Record<string, number> = {};
+    for (const f of friends) {
+      const pt = await f.page.evaluate(ptCorners);
+      ptChecked[f.name] = pt.checked;
+      expect(pt.misplaced, `${f.name}: every untapped creature's P/T is in its card's bottom-right corner`).toEqual([]);
+    }
+    summary.ptCornerChecked = ptChecked;
+    if (Object.values(ptChecked).every((n) => n === 0)) console.log('[table-fit Q13] no untapped creature on either table: P/T corner NOT measured this run');
+
+    /* ── 2a. wave 32 Q4a / Q4b: the default placement, and a card goes ANYWHERE ── */
+
+    /*
+     * The default board is two tiers: lands in the BACK row, everything else in the
+     * FRONT row, each filled left to right (the opponent's is the vertical mirror).
+     * That is a default, not a bucket: any card may be put in any slot of either row,
+     * an empty one included — here a card is dragged into the OTHER tier with a real
+     * pointer and must land there, at its end.
+     */
+    const placements: Record<string, unknown>[] = [];
+    for (const f of friends) {
+      const read = () =>
+        f.page.evaluate(() => {
+          const tier = (root: ParentNode, slot: string) =>
+            Array.from(root.querySelectorAll<HTMLElement>(`[data-zone="battlefield"] [data-arrange-slot="${slot}"] li.board-card`)).map((li) => {
+              const r = li.getBoundingClientRect();
+              return { id: Number(li.dataset.cardId), land: /\bland\b/i.test(li.querySelector('.card__type')?.textContent ?? ''), left: r.left, top: r.top, width: r.width };
+            });
+          const slotLeft = (root: ParentNode, slot: string) => root.querySelector(`[data-zone="battlefield"] [data-arrange-slot="${slot}"]`)?.getBoundingClientRect().left ?? NaN;
+          const seat = (sel: string) => {
+            const root = document.querySelector(sel);
+            if (root === null) throw new Error(`no ${sel}`);
+            return { back: tier(root, 'back'), front: tier(root, 'front'), backLeft: slotLeft(root, 'back'), frontLeft: slotLeft(root, 'front') };
+          };
+          return { you: seat('.seat[data-viewer]'), them: seat('.seat:not([data-viewer])') };
+        });
+      const seats = await read();
+      for (const side of ['you', 'them'] as const) {
+        const s = seats[side];
+        const w = `${f.name}, ${side}`;
+        expect(s.back.filter((c) => !c.land).map((c) => c.id), `${w}: the back row holds lands only`).toEqual([]);
+        expect(s.front.filter((c) => c.land).map((c) => c.id), `${w}: the front row holds no land`).toEqual([]);
+        for (const [name, row, left] of [['back', s.back, s.backLeft], ['front', s.front, s.frontLeft]] as const) {
+          const lefts = row.map((c) => c.left);
+          expect(lefts, `${w}: the ${name} row fills left to right`).toEqual([...lefts].sort((a, b) => a - b));
+          if (row.length > 0) expect(row[0]!.left - left, `${w}: the ${name} row starts at its left edge`).toBeLessThanOrEqual(row[0]!.width);
+        }
+      }
+      // The opponent's tiers are the vertical mirror: their back row is above their front row; yours is below.
+      const y = (cs: { top: number }[]) => (cs.length === 0 ? null : cs[0]!.top);
+      if (y(seats.you.back) !== null && y(seats.you.front) !== null) expect(y(seats.you.front)!, `${f.name}: your front row is nearer the centre (above your back row)`).toBeLessThan(y(seats.you.back)!);
+      if (y(seats.them.back) !== null && y(seats.them.front) !== null) expect(y(seats.them.back)!, `${f.name}: their back row is above their front row`).toBeLessThan(y(seats.them.front)!);
+
+      // Complete freedom: a land goes to the front row's end, then back.
+      const land = seats.you.back[0];
+      if (land === undefined) continue;
+      const card = f.page.locator(`.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id="${land.id}"]`);
+      const trace = await pointerDrag(f.page, card, await endOfSlot(viewerSlot(f.page, 'front')));
+      expect(trace.midway.ghost + trace.midway.indicator, `${f.name}: the ghost and the indicator were drawn`).toBe(2);
+      const after = await read();
+      expect(after.you.front.map((c) => c.id), `${f.name}: a land can be dropped in the front row`).toContain(land.id);
+      expect(after.you.back.map((c) => c.id), `${f.name}: and has left the back row`).not.toContain(land.id);
+      // Touch works: the same card is carried back to the back row by a finger.
+      const touched = await touchDrag(f.page, card, await endOfSlot(viewerSlot(f.page, 'back')));
+      expect(touched.midway.ghost + touched.midway.indicator, `${f.name}: a touch drag draws the ghost and the indicator too`).toBe(2);
+      const back = await read();
+      expect(back.you.back.map((c) => c.id), `${f.name}: a touch drag put the land back in the back row`).toContain(land.id);
+      placements.push({ who: f.name, moved: land.id, front: after.you.front.map((c) => c.id), back: after.you.back.map((c) => c.id) });
+      moments.push(await fitsNow(f, 'default board arranged'));
+    }
+    summary.defaultPlacements = placements;
+
     /*
      * Everything up to here was played on the default single board, and the
      * sampler held it to the fit rule on every frame. Rows are the four-lane
@@ -944,7 +973,19 @@ test(TITLE, async ({ browser }) => {
       const source = [...before].sort((a, b) => b.cards.length - a.cards.length)[0]!;
       const target = before.find((r) => r.row !== source.row)!;
       const moved = source.cards[source.cards.length - 1]!;
-      await f.page.evaluate(dragBetweenRows, { cardId: moved, row: target.row });
+      // Wave 32 Q4: a POINTER drag of our own, not the browser's HTML5 drag. The card
+      // is carried to the right of the target row's last card (the end slot) with a
+      // real mouse; the ghost and the target indicator are on screen halfway.
+      const cardEl = f.page.locator(`.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id="${moved}"]`);
+      expect(await cardEl.getAttribute('draggable'), `${f.name}: the card is the board's own drag source (the seam marker)`).toBe('true');
+      const to = await endOfSlot(viewerSlot(f.page, target.row));
+      const trace = await pointerDrag(f.page, cardEl, to);
+      expect(trace.midway.pickedUp, `${f.name}: the board is in a drag mid-drag`).toBe(1);
+      expect(trace.midway.ghost, `${f.name}: our own ghost follows the pointer mid-drag`).toBe(1);
+      expect(trace.midway.indicator, `${f.name}: a target indicator marks where the card will land mid-drag`).toBe(1);
+      await expect(f.page.locator(DRAG_HOOKS.ghost), `${f.name}: the ghost is gone after the drop`).toHaveCount(0);
+      await expect(f.page.locator(DRAG_HOOKS.indicator), `${f.name}: so is the target indicator`).toHaveCount(0);
+      expect(await cardEl.evaluate((el) => el.hasAttribute('data-arrange-dragging')), `${f.name}: nothing is left picked up`).toBe(false);
       const after = await rowsOf(f);
       const want = {
         [source.row]: source.cards.slice(0, -1),
@@ -1374,6 +1415,101 @@ interface StaticShot {
 }
 
 /**
+ * Wave 32 Q13: a creature's power/toughness sits in the bottom-RIGHT corner of its
+ * card. Runs in the page. Reports each tile's P/T against the tile's own box.
+ */
+function ptCorners(): { checked: number; misplaced: string[] } {
+  const misplaced: string[] = [];
+  let checked = 0;
+  for (const li of Array.from(document.querySelectorAll<HTMLElement>('.board [data-zone="battlefield"] li.board-card'))) {
+    const pt = li.querySelector<HTMLElement>('.board-card__pt');
+    const art = li.querySelector<HTMLElement>('[data-testid="card"]') ?? li;
+    if (pt === null) continue;
+    const a = art.getBoundingClientRect();
+    const p = pt.getBoundingClientRect();
+    if (a.width === 0 || p.width === 0) continue;
+    // A tapped card is turned a quarter, so only untapped ones have a stable "bottom-right".
+    if (li.hasAttribute('data-tapped') || li.hasAttribute('data-attacking')) continue;
+    checked += 1;
+    const inRight = p.left + p.width / 2 > a.left + a.width / 2;
+    const inBottom = p.top + p.height / 2 > a.top + a.height / 2;
+    const inside = p.right <= a.right + 2 && p.bottom <= a.bottom + 2;
+    if (!(inRight && inBottom && inside)) misplaced.push(`${li.dataset.cardId}: pt ${[p.left, p.top, p.right, p.bottom].map(Math.round)} in card ${[a.left, a.top, a.right, a.bottom].map(Math.round)}`);
+  }
+  return { checked, misplaced };
+}
+
+/** One seat's left column, measured. All boxes are viewport rects. */
+interface SeatColumn {
+  seat: Box4;
+  face: Box4;
+  handCount: Box4;
+  libraryCount: Box4;
+  graveyard: Box4;
+  /** Null while exile holds nothing: the strip is drawn only while it holds a card. */
+  exile: (Box4 & { count: number }) | null;
+  /** Exile zones that are drawn with `data-count="0"`: there must be none. */
+  emptyExileDrawn: number;
+  /** Elements in the seat drawn mirrored (a negative scale on x or y): there must be none. */
+  mirrored: string[];
+  /** The 1 px-rounded layout size of the first card in the hand / the opponent's card backs. */
+  handCard: [number, number] | null;
+}
+interface Box4 {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * Wave 32 Q9, Q2: measure each seat's left column (avatar, the two counts, the
+ * graveyard) and the hand's card size. Runs in the page. `offsetWidth` for the
+ * cards, not a bounding rect, so a fan's rotation does not change what is compared.
+ */
+function measureColumns(): { you: SeatColumn; them: SeatColumn } {
+  const box = (el: Element): Box4 => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  };
+  const one = (seat: Element, what: string): SeatColumn => {
+    const find = (sel: string): Element => {
+      const el = seat.querySelector(sel);
+      if (el === null) throw new Error(`${what}: no ${sel} in the seat`);
+      return el;
+    };
+    const exile = seat.querySelector<HTMLElement>('[data-zone="exile"]');
+    const mirrored: string[] = [];
+    for (const el of Array.from(seat.querySelectorAll<HTMLElement>('*'))) {
+      const t = getComputedStyle(el).transform;
+      if (t === 'none') continue;
+      const m = /^matrix\(([^)]+)\)$/.exec(t);
+      if (m === null) continue;
+      const [a, , , d] = m[1]!.split(',').map(Number);
+      if (a! < 0 || d! < 0) mirrored.push(el.className === '' ? el.tagName.toLowerCase() : String(el.className));
+    }
+    const card = what === 'you'
+      ? seat.querySelector<HTMLElement>('[data-zone="hand"] li.board-card')
+      : seat.querySelector<HTMLElement>('[data-zone="hand"] ul.card-backs > li');
+    return {
+      seat: box(seat),
+      face: box(find('[data-player-face]')),
+      handCount: box(find('[data-testid="hand-count"]')),
+      libraryCount: box(find('[data-testid="library-count"]')),
+      graveyard: box(find('[data-zone="graveyard"]')),
+      exile: exile === null ? null : { ...box(exile), count: Number(exile.dataset.count ?? '0') },
+      emptyExileDrawn: Array.from(seat.querySelectorAll<HTMLElement>('[data-zone="exile"]')).filter((e) => Number(e.dataset.count ?? '0') === 0).length,
+      mirrored,
+      handCard: card === null ? null : [card.offsetWidth, card.offsetHeight],
+    };
+  };
+  const you = document.querySelector('.seat[data-viewer]');
+  const them = document.querySelector('.seat:not([data-viewer])');
+  if (you === null || them === null) throw new Error('a seat is missing');
+  return { you: one(you, 'you'), them: one(them, 'them') };
+}
+
+/**
  * Put `n` items on the stack, DOM only, and measure every slot on the board.
  * Runs in the page.
  *
@@ -1467,6 +1603,46 @@ function fillStack(n: number): Promise<StaticShot> {
             board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"] [data-board-row]'),
           ).map((r) => r.dataset.boardRow ?? '?'),
         });
+      }),
+    ),
+  );
+}
+
+/**
+ * Wave 32 (w31's open stack item): with a question up, the stack band must not clip
+ * an effect's text (Ponder's is the operator's own example). Puts the board in the
+ * asked state, fills the stack with long-text probes, and reports every text the
+ * band cuts off, by its own scroll box or by any clipping ancestor up to the band.
+ * Runs in the page; the caller clears the probes.
+ */
+function stackTextClipped(): Promise<{ texts: number; clipped: string[]; asked: string }> {
+  const mid = document.querySelector<HTMLElement>('.board__mid');
+  if (mid === null) throw new Error('no stack band');
+  const had = mid.hasAttribute('data-question');
+  mid.setAttribute('data-question', '');
+  const list = mid.querySelector<HTMLElement>('[data-zone="stack"] > ol.stack__items');
+  if (list === null) throw new Error('no stack list');
+  const sample = list.querySelector<HTMLElement>('.stack__item[data-probe]');
+  if (sample === null) throw new Error('fillStack has not put a probe on the stack');
+  return new Promise((done) =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const clipped: string[] = [];
+        const texts = Array.from(mid.querySelectorAll<HTMLElement>('.stack__text'));
+        for (const t of texts) {
+          const r = t.getBoundingClientRect();
+          let why = t.scrollHeight > t.clientHeight + 1 ? `its own box (${t.scrollHeight}>${t.clientHeight})` : '';
+          for (let a = t.parentElement; why === '' && a !== null && a !== mid.parentElement; a = a.parentElement) {
+            const cs = getComputedStyle(a);
+            // Only the vertical axis: the stack scrolls SIDEWAYS inside its slot by design.
+            if (cs.overflowY === 'visible') continue;
+            const ar = a.getBoundingClientRect();
+            if (r.bottom > ar.bottom + 1 || r.top < ar.top - 1) why = `${a.className || a.tagName} (text ${Math.round(r.top)}-${Math.round(r.bottom)}, box ${Math.round(ar.top)}-${Math.round(ar.bottom)})`;
+          }
+          if (why !== '') clipped.push(`${t.textContent?.slice(0, 40)}: clipped by ${why}`);
+        }
+        if (!had) mid.removeAttribute('data-question');
+        done({ texts: texts.length, clipped, asked: getComputedStyle(mid).getPropertyValue('--mid-h') });
       }),
     ),
   );
@@ -1635,6 +1811,7 @@ test(CROWD_TITLE, async ({ browser }) => {
   const steps: (CrowdFit & { who: string; step: string })[] = [];
   const staticShots: (StaticShot & { who: string })[] = [];
   const questions: (QuestionFit & { who: string })[] = [];
+  const columnShots: Record<string, unknown>[] = [];
   try {
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
@@ -1666,7 +1843,12 @@ test(CROWD_TITLE, async ({ browser }) => {
         /* ── the canvas is static: fill the stack, and nothing else may move ── */
         const shots: StaticShot[] = [];
         for (const n of STACK_STEPS) shots.push(await f.page.evaluate(fillStack, n));
+        // The asked band: a long effect is readable with a question up (w31 left this open).
+        await f.page.evaluate(fillStack, 2);
+        const asked = await f.page.evaluate(stackTextClipped);
         await f.page.evaluate(clearStack);
+        expect(asked.texts, `${f.name}: the asked stack band measured the effect texts`).toBeGreaterThan(0);
+        expect(asked.clipped, `${f.name}: with a question up the stack band clips no effect text (--mid-h ${asked.asked})`).toEqual([]);
         staticShots.push(...shots.map((s) => ({ who: f.name, ...s })));
         const base = shots[0]!;
         const where = `${f.name} at ${base.size}`;
@@ -1675,7 +1857,9 @@ test(CROWD_TITLE, async ({ browser }) => {
             shots.map((s) => `${s.items} on the stack → mid ${s.boxes.mid}, you/battlefield ${s.boxes['you/battlefield']}`).join('; '),
         );
         // The board really was measured: every slot, and a face per player.
-        expect(Object.keys(base.boxes).sort(), `${where}: every slot measured`).toEqual([
+        // Wave 32 Q9: exile is drawn only while it holds a card, so it is not a slot
+        // every seat has. Whatever exile boxes there are are checked in the column block.
+        expect(Object.keys(base.boxes).filter((k) => !k.endsWith('/exile')).sort(), `${where}: every slot measured`).toEqual([
           'board',
           'face/0',
           'face/1',
@@ -1684,12 +1868,10 @@ test(CROWD_TITLE, async ({ browser }) => {
           'table/stack',
           'them',
           'them/battlefield',
-          'them/exile',
           'them/graveyard',
           'them/hand',
           'you',
           'you/battlefield',
-          'you/exile',
           'you/graveyard',
           'you/hand',
         ]);
@@ -1754,6 +1936,63 @@ test(CROWD_TITLE, async ({ browser }) => {
           }
           // And the grouping is there, in the order it is drawn.
           expect(base.rows, `${where}: the battlefield's rows`).toEqual([...BOARD_ROWS]);
+        }
+
+        /* ── wave 32 Q9 / Q2: the left column, and the opponent's hand ──── */
+        {
+          const cols = await f.page.evaluate(measureColumns);
+          const tol = 3;
+          const overlapX = (a: Box4, b: Box4): boolean => a.left < b.right - 1 && b.left < a.right - 1;
+          for (const side of ['you', 'them'] as const) {
+            const c = cols[side];
+            const w = `${where}, ${side}'s column`;
+            // One column: the avatar, the counts and the graveyard share horizontal space.
+            for (const [name, b] of [['hand count', c.handCount], ['library count', c.libraryCount], ['graveyard', c.graveyard]] as const) {
+              expect(overlapX(c.face, b), `${w}: the avatar and the ${name} share a column`).toBe(true);
+            }
+            // Order along the column: yours reads down (avatar, counts, graveyard), theirs is the vertical mirror.
+            const counts = { top: Math.min(c.handCount.top, c.libraryCount.top), bottom: Math.max(c.handCount.bottom, c.libraryCount.bottom) };
+            if (side === 'you') {
+              expect(c.face.bottom, `${w}: the avatar is above the counts`).toBeLessThanOrEqual(counts.top + tol);
+              expect(counts.bottom, `${w}: the counts are above the graveyard`).toBeLessThanOrEqual(c.graveyard.top + tol);
+              // The graveyard takes what is left: it starts where the counts end ...
+              expect(c.graveyard.top - counts.bottom, `${w}: nothing but the counts sits between them and the graveyard`).toBeLessThanOrEqual(tol * 3);
+              // ... and runs to the column's end (the exile strip, when there is one, is below it).
+              const floor = c.exile === null ? c.seat.bottom : c.exile.top;
+              expect(floor - c.graveyard.bottom, `${w}: the graveyard runs to the end of the column`).toBeLessThanOrEqual(tol * 3);
+            } else {
+              expect(c.graveyard.bottom, `${w}: the graveyard is above the counts`).toBeLessThanOrEqual(counts.top + tol);
+              expect(counts.bottom, `${w}: the counts are above the avatar`).toBeLessThanOrEqual(c.face.top + tol);
+              expect(counts.top - c.graveyard.bottom, `${w}: nothing but the counts sits between them and the graveyard`).toBeLessThanOrEqual(tol * 3);
+              const roof = c.exile === null ? c.seat.top : c.exile.bottom;
+              expect(c.graveyard.top - roof, `${w}: the graveyard runs to the end of the column`).toBeLessThanOrEqual(tol * 3);
+            }
+            // The graveyard is the tall one: taller than the avatar and the counts together.
+            expect(c.graveyard.bottom - c.graveyard.top, `${w}: the graveyard takes the rest`).toBeGreaterThan(
+              c.face.bottom - c.face.top + counts.bottom - counts.top,
+            );
+            expect(c.emptyExileDrawn, `${w}: exile is drawn only while it holds a card`).toBe(0);
+            expect(c.mirrored, `${w}: nothing is drawn mirrored or upside down`).toEqual([]);
+            console.log(
+              `[table-fit column] ${w} at ${base.size}: graveyard ${Math.round(c.graveyard.bottom - c.graveyard.top)}px of the seat's ` +
+                `${Math.round(c.seat.bottom - c.seat.top)}px (${(((c.graveyard.bottom - c.graveyard.top) / (c.seat.bottom - c.seat.top)) * 100).toFixed(1)}%, information only)`,
+            );
+          }
+          // Mirrored vertically across the table: theirs is above yours.
+          expect(cols.them.seat.bottom, `${where}: their seat is wholly above yours`).toBeLessThanOrEqual(cols.you.seat.top + tol);
+          // Q2: the opponent's hand is drawn at the card size of yours.
+          expect(cols.you.handCard, `${where}: you hold cards`).not.toBeNull();
+          expect(cols.them.handCard, `${where}: they hold card backs`).not.toBeNull();
+          expect(
+            Math.abs(cols.them.handCard![0] - cols.you.handCard![0]) <= 1 && Math.abs(cols.them.handCard![1] - cols.you.handCard![1]) <= 1,
+            `${where}: their hand's card (${cols.them.handCard}) is the size of yours (${cols.you.handCard})`,
+          ).toBe(true);
+          columnShots.push({ who: f.name, size: base.size, ...cols });
+          // Q16: the z-order scale is on :root, in the order popovers over overlays over badges over the board.
+          const z = await f.page.evaluate(() =>
+            ['--z-board', '--z-card-badge', '--z-overlay', '--z-popover'].map((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()),
+          );
+          expect(z, `${where}: the z-order scale`).toEqual(['0', '1', '20', '40']);
         }
         // Hand and battlefield are different places, at a glance (#3).
         expect(base.surfaces.hand, `${where}: the hand is not painted like the battlefield`).not.toBe(base.surfaces.battlefield);
@@ -1906,6 +2145,7 @@ test(CROWD_TITLE, async ({ browser }) => {
     }
     summary.crowd = steps;
     summary.staticCanvas = staticShots;
+    summary.seatColumns = columnShots;
     summary.questions = questions;
   } finally {
     for (const f of friends) await f.context.close();
