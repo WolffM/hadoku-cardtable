@@ -3386,6 +3386,16 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     expect(declarationIn('.stack__item', 'overflow')).toBe('hidden');
   });
 
+  it('stack: under a question the effect gets the band’s whole width — no caption, no art, name above the text', () => {
+    expect(declarationIn('.board__mid[data-question] .stack', 'grid-template-columns')).toBe('minmax(0, 1fr)');
+    expect(declarationIn('.board__mid[data-question] .stack > .zone__head,\n.board__mid[data-question] .stack__art', 'display')).toBe('none');
+    expect(declarationIn('.board__mid[data-question] .stack__what', 'flex-direction')).toBe('row');
+    expect(declarationIn('.board__mid[data-question] .stack__what', 'flex-wrap')).toBe('wrap');
+    expect(declarationIn('.board__mid[data-question] .stack__text', 'flex')).toBe('1 0 100%');
+    // Chosen by question state alone, never by what the stack holds.
+    expect(BOARD_RULES).not.toMatch(/\.stack[^{]*:has\([^)]*nth/);
+  });
+
   it('Q2: the strip tells the stylesheet how many backs it holds, as a hand of faces does', () => {
     const { zone } = renderBoard(view);
     const backs = zone(1, 'hand').querySelector<HTMLElement>('ul.card-backs')!;

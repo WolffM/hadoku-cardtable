@@ -1473,6 +1473,37 @@
   scrollbar-width: thin;
 }
 
+/*
+ * A question is up (wave 32, the real-Forge e2e): the band is the one place the
+ * effect is read, and the chrome beside the text left it ~80px of column — a word
+ * a line, six to eight lines, scrolling. So while a question stands, the band
+ * gives the text its whole width: the "STACK n" caption and the art tile are
+ * dropped (the name still says what it is), and the name, kind and controller sit
+ * on ONE wrapping line above the text instead of beside it. Chosen by question
+ * state alone, never by how many items there are; the scroll stays the last resort.
+ */
+.board__mid[data-question] .stack {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.board__mid[data-question] .stack > .zone__head,
+.board__mid[data-question] .stack__art {
+  display: none;
+}
+
+.board__mid[data-question] .stack__what {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: baseline;
+  column-gap: 6px;
+  align-self: flex-start;
+}
+
+.board__mid[data-question] .stack__text {
+  flex: 1 0 100%;
+}
+
 .stack__source {
   font-weight: 600;
 }
