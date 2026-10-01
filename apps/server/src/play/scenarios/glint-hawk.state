@@ -1,15 +1,23 @@
 # Q18 — how Forge identifies a stack ABILITY (its id is the permanent still on
-# the battlefield) versus a stack SPELL (whose card is not), and what makes an
-# ability a legal target of something else. Seat 0 (human) controls Prodigal
-# Sorcerer: a permanent with exactly one non-mana activated ability (uses the
-# stack, needs a target), not summoning sick. Seat 1 (ai) is the target.
+# the battlefield) versus a stack SPELL (whose card is not). Seat 0 (human)
+# controls Shivan Dragon: a permanent with exactly one REPEATABLE, non-tap,
+# no-target activated ability that uses the stack ({R}: +1/+0), not
+# summoning sick, plus three untapped Mountains — enough mana to activate it
+# more than once in the same window, so Forge still offers the permanent
+# again while its own ability sits on the stack (the precondition Q18's e2e
+# needs: the bug only shows when the source is selectable AT THE SAME TIME
+# as its ability is on the stack — a once-only TAP ability like Prodigal
+# Sorcerer's "tap: deal 1 damage" taps itself away the instant it is
+# activated, so the source is never offered again while its ability sits on
+# the stack and the bug's precondition can never occur — see
+# docs/planning/wave33-evidence/q18-mutation.md). Seat 1 (ai) has nothing.
 turn=1
 activeplayer=human
 activephase=MAIN1
 humanlife=20
 ailife=20
 humanhand=
-humanbattlefield=Prodigal Sorcerer
+humanbattlefield=Shivan Dragon;Mountain;Mountain;Mountain
 humanlibrary=Mountain;Mountain;Mountain;Mountain
 humangraveyard=
 aihand=

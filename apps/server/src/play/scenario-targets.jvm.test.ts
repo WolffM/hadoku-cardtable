@@ -21,6 +21,15 @@
  * OWN reasons (reactivating it), not Stifle-like targeting of the ability
  * itself.
  *
+ * `glint-hawk.state` scripts Shivan Dragon (`{R}: +1/+0`, repeatable,
+ * non-tap, no target) rather than Prodigal Sorcerer's original tap ability —
+ * a tap ability taps its own source away the instant it is activated, so
+ * the e2e spec built on it could never catch the source being offered again
+ * WHILE its ability sits on the stack (Q18's actual precondition); see
+ * `docs/planning/wave33-evidence/q18-mutation.md`. This suite's claim is
+ * narrower and still holds for either card: the stack item's `SourceCard` is
+ * the permanent, and the permanent is still on the battlefield.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=/tmp/claude-1000/w33-S \
  *   pnpm exec vitest run apps/server/src/play/scenario-targets.jvm.test.ts \
  *     --pool=forks --poolOptions.forks.singleFork=true
@@ -104,28 +113,25 @@ describe.skipIf(!available.ok)(title, () => {
 			const s = await startScenario(available.config, { seed: 18, decks: DECKS, scenario: scenarioText('glint-hawk') });
 			try {
 				await finishMulligan(s);
-				const sorcerer = await waitUntil(
+				const dragon = await waitUntil(
 					() => {
 						s.answerAsks();
-						return s.zone(0, 'Battlefield').some((c) => c.name === 'Prodigal Sorcerer');
+						return s.zone(0, 'Battlefield').some((c) => c.name === 'Shivan Dragon');
 					},
-					"seat 0's board to reflect the scripted Prodigal Sorcerer",
+					"seat 0's board to reflect the scripted Shivan Dragon",
 					20_000,
-				).then(() => s.zone(0, 'Battlefield').find((c) => c.name === 'Prodigal Sorcerer'));
-				if (sorcerer === undefined) throw new Error('no Prodigal Sorcerer on seat 0’s battlefield');
-				expect(sorcerer.tapped, 'the ability needs an untapped source').toBe(false);
-				s.select(0, sorcerer.id);
-				// Prodigal Sorcerer's ability targets "any target"; answer with the
-				// opponent player once Forge asks for one.
-				const oppId = s.match.seats[1]?.playerId as number;
-				let targeted = false;
+				).then(() => s.zone(0, 'Battlefield').find((c) => c.name === 'Shivan Dragon'));
+				if (dragon === undefined) throw new Error('no Shivan Dragon on seat 0’s battlefield');
+				expect(dragon.tapped, 'the ability needs no tap at all, and the source starts untapped').toBe(false);
+				s.select(0, dragon.id);
+				// Shivan Dragon's `{R}: +1/+0` needs no target at all — unlike
+				// Prodigal Sorcerer's original "any target" ability, nothing here
+				// answers a target ask; `answerAsks()` alone drains whatever mana
+				// payment confirmation Forge raises, and the ability reaches the
+				// stack on its own.
 				await waitUntil(
 					() => {
 						s.answerAsks();
-						if (!targeted && /target/i.test(s.prompt(0))) {
-							targeted = true;
-							s.match.fromClient(0, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: oppId }, triggerEvent: null } as never);
-						}
 						return [...s.state(0).values()].some((o) => o._type === 2);
 					},
 					'the ability to be announced and reach the stack',
@@ -138,8 +144,8 @@ describe.skipIf(!available.ok)(title, () => {
 				const sourceCardRaw = stackItem?.SourceCard as { t?: string; v?: unknown } | undefined;
 				const sourceCardId = sourceCardRaw?.t === 'int' && typeof sourceCardRaw.v === 'number' ? sourceCardRaw.v : null;
 				writeFileSync(
-					'/tmp/claude-1000/w33-S/glint-hawk-stackitem.json',
-					JSON.stringify({ stackItem, sourceCardId, sorcererId: sorcerer.id, sorcererTapped: s.zone(0, 'Battlefield').find((c) => c.id === sorcerer.id)?.tapped }, null, 2),
+					'/tmp/claude-1000/w33-Q18/glint-hawk-stackitem.json',
+					JSON.stringify({ stackItem, sourceCardId, dragonId: dragon.id, dragonTapped: s.zone(0, 'Battlefield').find((c) => c.id === dragon.id)?.tapped }, null, 2),
 				);
 				// The claim: the stack item's source IS the permanent, and that
 				// permanent is STILL on the battlefield — this is what makes
