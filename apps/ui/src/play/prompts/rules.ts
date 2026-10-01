@@ -569,7 +569,7 @@ export type AutoAnswer =
  *
  * Forge asks *"select target spell"* through `TargetSelection.chooseCardFromStack`
  * (`TargetSelection.java:299-343`), which calls `getGui().one(...)` — a
- * mandatory `getChoices` with `min = max = 1` — whose options are
+ * `getChoices` with `min = max = 1` (`oneOrNone` is `min 0, max 1`) — whose options are
  * `StackItemView`s, and which the bridge projects with `ref.kind === 'stackItem'`
  * (`PlayBridge.java:288`). `oneOrNone` is the optional variant (`min = 0`) and
  * stays a question: declining is the player's. Shared with `gestures/stack.ts`,
@@ -606,12 +606,13 @@ export function autoAnswer(ask: AskOf<BlockingMethod>): AutoAnswer | null {
 /**
  * *"If there's only one spell on the stack then the target of Mana Leak is
  * obvious"* (operator, wave 32 Q7). Exactly one option, it is a stack item, and
- * the ask is mandatory and takes exactly one — so there is one legal reply and no
- * question. A rule, not a branch: the same `autoAnswer` that answers a lone
+ * the ask takes at least one. `min` may be 0: the operator's own question was the
+ * OPTIONAL variant (`min 0, max 1`, Forge's `oneOrNone`, `q17-holding-priority.md`),
+ * and the operator ruled that one spell is the obvious target either way. A rule, not a branch: the same `autoAnswer` that answers a lone
  * ability, off for full control and for a spectator by its one caller.
  */
 function onlyStackTarget(ask: AskOf<'getChoices'>): AutoAnswer | null {
-  if (ask.min !== 1 || ask.max !== 1 || ask.choices.length !== 1) return null;
+  if (ask.max < 1 || ask.choices.length !== 1) return null;
   const only = stackItemChoices(ask)?.[0];
   if (only === undefined || getChoicesProblems(ask, [only.key]).length > 0) return null;
   return { method: 'getChoices', reply: [only.key], why: only.label };

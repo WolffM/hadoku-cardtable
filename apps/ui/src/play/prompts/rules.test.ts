@@ -202,8 +202,8 @@ describe('autoAnswer', () => {
 
   /*
    * Wave 32 Q7 — *"if there's only one spell on the stack then the target of
-   * Mana Leak is obvious"*. Forge asks it as a mandatory getChoices over
-   * StackItemViews (`TargetSelection.chooseCardFromStack`), min = max = 1.
+   * Mana Leak is obvious"*. Forge asks it as a getChoices over
+   * StackItemViews (`TargetSelection.chooseCardFromStack`): min = max = 1, or min 0 for oneOrNone.
    */
   describe('a counterspell’s target (Q7)', () => {
     const base = askFor('getChoices');
@@ -219,8 +219,12 @@ describe('autoAnswer', () => {
       expect(autoAnswer(two)).toBeNull();
     });
 
-    it('asks when the targeting is optional — declining is the player’s', () => {
-      expect(autoAnswer({ ...leak, min: 0 })).toBeNull();
+    it('answers the optional variant too — the operator’s own question was min 0, max 1', () => {
+      expect(autoAnswer({ ...leak, min: 0 })).toEqual({ method: 'getChoices', reply: ['si-7'], why: 'Lightning Bolt' });
+    });
+
+    it('asks when the ask takes nothing — a display-only list is not a target', () => {
+      expect(autoAnswer({ ...leak, min: 0, max: 0 })).toBeNull();
     });
 
     it('asks when the one option is not a stack item — that is the server’s rule, not this one', () => {
