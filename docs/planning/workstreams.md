@@ -264,8 +264,8 @@ timeout. Locally the slowest test in that file takes 176 ms and all 72 pass.
   this repo should be loosened to fit it. A 5 s cliff is still worth a look in
   its own right if the runner turns out to be fine.
 
-**Every reported item is also tracked in `docs/planning/playtest-ledger.md`**
-(rendered: https://claude.ai/artifact/AWidhZWnRVwpn1K2xEGwY6), with how many times it
+**Every reported item is also tracked in `docs/planning/playtest-ledger.md`**,
+with how many times it
 has been asked, what shipped, and a column for the operator's own ✅/❌ after a real
 game. Only the operator marks an item verified.
 

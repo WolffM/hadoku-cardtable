@@ -32,11 +32,6 @@ lists. Three or more is a signal that the fix keeps missing what was meant.
 **Not imported yet:** the 2026-09-28 lists (waves 25–28) live in the board's wave
 sections, not here. Say the word and they come in.
 
-**The rendered page** (filterable by status, same content as this file):
-https://claude.ai/artifact/AWidhZWnRVwpn1K2xEGwY6. This markdown is the source of
-truth; the page is generated from it by `docs/planning/playtest-ledger-html.py` and
-republished to that URL on every change.
-
 *Last updated: 2026-09-30, after wave 31 landed and wave 32 was planned.*
 
 ---
@@ -171,6 +166,3 @@ item you have checked comes back, it is listed here with both dates and builds.
   bumps `asked` on the original and gets a cross-reference, instead of becoming a
   fresh row that looks new.
 - **Verification is yours.** The tracker never writes a `✅`.
-- **Regenerating the page:** `python3 docs/planning/playtest-ledger-html.py
-  docs/planning/playtest-ledger.md <out.html>`, then publish `<out.html>` to the URL
-  above (`url` set, so the link does not change).
