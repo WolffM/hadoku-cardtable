@@ -333,3 +333,59 @@ now uses Doom Blade, documented in its own header and the README, and
 Fiend Hunter is not a card this wave's scenarios reference any more. The
 Q18 case (an activated ability's stack item, source = the permanent, still
 on the battlefield) passed cleanly throughout and was never in question.
+
+## Q14 (attackers-declared.state): the SAME bug class as Declare Blockers, found by E, fixed the same way
+
+E found this file's first design (the creature pre-marked `|Attacking` via
+`GameState`, landing directly on `activephase=COMBAT_DECLARE_ATTACKERS`)
+skips Forge's own live `InputAttack` entirely. Not a stale-characteristics
+bug this time — `handleCombat` runs for `COMBAT_DECLARE_ATTACKERS`
+UNCONDITIONALLY, regardless of whether any card is marked `|Attacking`: an
+EMPTY attack is still a manual `GameEventAttackersDeclared` GameState fires
+itself, exactly as it fires a real one. So the live input — the one thing
+Q14's claim ("clicking a declared attacker, and a box, pull attackers back")
+needs — never opens either way, and no `updateButtons` for it ever reaches
+the wire. A browser's `declaredAttackers()` precondition (`button2 ===
+"Call Back"`) can therefore never hold, because there is no live window to
+hold it in.
+
+**Fix, same shape as Declare Blockers**: do not land on EITHER combat phase
+key for this claim at all. `attackers-declared.state` now lands at seat 0's
+own, ordinary Main Phase 1 — no combat key, no `|Attacking` marker — with one
+untapped, non-sick creature on the battlefield (`GameState.java:1286` sets
+`c.setSickness(false)` unconditionally on every card it creates; nothing
+here needs an explicit override). `scenario-combat.jvm.test.ts` presses
+seat 0's own Main 1 priority stop once, through the ordinary main loop, so
+Forge's own phase transition into Declare Attackers Step opens the REAL
+`InputAttack`, live, with the creature offered.
+
+**What the test actually drives** (the exact clicks, for lane E to mirror):
+
+1. Wait for seat 0's own Main Phase 1 priority window (`Priority: …
+   Main phase, precombat`, `enable1 === true`) and press OK ONCE — the
+   ordinary "move on" click, same as any other unremarkable priority window.
+2. Wait for the prompt `/^Select creatures to attack/` — Forge's live
+   declare-attackers input is now open. Precondition check: `button2` is NOT
+   yet `"Call Back"` (nothing declared).
+3. **Click the creature** (`selectCard`, the same act any card click sends)
+   — this is the "declare an attacker" click. Wait for `button2 ===
+   "Call Back"`; the prompt is still `/^Select creatures to attack/` (same
+   input, not a new one), and the wire's `Attacking` property for that card
+   is now `true`.
+4. **Click the SAME creature again** — this is the "pull it back" click.
+   Wait for `button2` to stop being `"Call Back"`; the wire's `Attacking`
+   property reverts to not-true.
+5. (Not driven by this test, but available: pressing OK/button1 now would
+   confirm whatever is currently declared — zero attackers, after step 4 —
+   finishing the input exactly as an ordinary declare-attackers step would.)
+
+No ask, no `getChoices`, no stack item anywhere in this flow — it is three
+ordinary acts (`selectButtonOk`, `selectCard`, `selectCard` again) against
+one long-lived input, exactly like Declare Blockers' own
+`setSelectables`/`setHighlighted`/click pattern.
+
+**Mutation evidence**: reverted to the original `|Attacking` +
+`activephase=COMBAT_DECLARE_ATTACKERS` design, the SAME test fails 1/1 —
+"timed out waiting for Forge's live declare-attackers window to open"
+(29.9 s, the full `waitUntil` budget). Restored: three clean runs, all
+green, 9.4–9.7 s each.

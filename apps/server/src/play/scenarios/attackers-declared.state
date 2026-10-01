@@ -1,15 +1,32 @@
-# Q14 — clicking an ALREADY-declared attacker, and pulling it back. Seat 0
-# (human)'s creature is already attacking (the |Attacking marker) and the
-# game lands in Declare Attackers Step itself (not Declare Blockers — unlike
-# the blockers scenarios, this one must NOT walk past the declare-attackers
-# window, since the claim is about interacting with it).
+# Q14 — clicking a declared attacker, and a box, pull attackers back.
+#
+# NOT `|Attacking` + `activephase=COMBAT_DECLARE_ATTACKERS`: that was this
+# file's first design, and it is wrong for this claim. `GameState.applyGameOnThread`
+# calls `handleCombat` for EITHER combat phase UNCONDITIONALLY (not only when
+# a card is marked `|Attacking` — an empty attack is still a manual
+# `GameEventAttackersDeclared`), which fires the "attackers declared" event
+# itself and skips Forge's own live `InputAttack` entirely — the same shape
+# of bug as the Declare Blockers one (`wave33-evidence/s3-blockers.md`), just
+# with nobody attacking instead of a stale characteristic. The result: no
+# `updateButtons` ever arrives for the live declare-attackers window, so a
+# browser's "button2 === Call Back" precondition can never hold — there is
+# no live window to hold it in.
+#
+# This file instead lands at seat 0's own Main Phase 1, with the creature on
+# the battlefield UNTAPPED, NON-SICK, and plainly a creature — no `|Attacking`
+# marker at all. The test presses priority forward through the ordinary main
+# loop; Forge's own phase transition into Declare Attackers Step opens the
+# REAL `InputAttack` for seat 0, live, with the creature offered. That is the
+# window `Board.tsx`'s click-to-declare / click-to-undeclare / Call Back
+# interaction actually needs — see `scenario-combat.jvm.test.ts` for exactly
+# which clicks drive it.
 turn=1
 activeplayer=human
-activephase=COMBAT_DECLARE_ATTACKERS
+activephase=MAIN1
 humanlife=20
 ailife=20
 humanhand=
-humanbattlefield=Memnite|Attacking
+humanbattlefield=Memnite
 humanlibrary=Mountain;Mountain;Mountain;Mountain
 humangraveyard=
 aihand=

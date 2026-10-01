@@ -58,10 +58,23 @@ set `activephase=COMBAT_DECLARE_ATTACKERS` (which does not have this problem:
 `handleCombat` only calls `devAdvanceToPhase` when the target phase IS
 `COMBAT_DECLARE_BLOCKERS`), and the test itself drives the one remaining step
 — the attacker's own priority stop at Declare Attackers Step — through the
-NORMAL game loop, by which point state effects have run. A scenario that only
-needs attackers already declared, with no blocker-eligibility question at
-stake (`attackers-declared.state`), has no such problem landing directly on
-`COMBAT_DECLARE_ATTACKERS` — nothing there depends on blocker characteristics.
+NORMAL game loop, by which point state effects have run.
+
+**And do NOT set `activephase=COMBAT_DECLARE_ATTACKERS` at all if you need
+Forge's own LIVE declare-attackers input** (clicking a creature to attack,
+seeing "Call Back", clicking it again to undeclare — `attackers-declared.state`'s
+claim). `handleCombat` runs for `COMBAT_DECLARE_ATTACKERS` UNCONDITIONALLY,
+whether or not any card carries `|Attacking` — an empty attack is still a
+manual `GameEventAttackersDeclared` the same way a scripted one is — so
+landing there at all skips the real `InputAttack` entirely; there is no live
+window for a browser to click into. `attackers-declared.state` instead lands
+at seat 0's own Main Phase 1 (an ordinary, no-combat-key landing, exactly
+like `own-spell.state`), with the creature untapped and non-sick on the
+battlefield (Memnite's default — `GameState.java:1286` sets `c.setSickness(false)`
+unconditionally on every card it creates, only reset by an explicit
+`|SummonSick` marker, so no scenario here has ever needed one), and the test
+presses priority forward through the ordinary main loop so Forge's own phase
+transition opens the real window.
 
 ### Why this is safe to call from the start-game hook, on the game thread
 
@@ -88,7 +101,7 @@ and cannot deadlock. See `wave33-evidence/s1-harness.md`.
 | `one-creature.state` | as above, but seat 1 holds one untapped, non-sick creature able to block. | Q12 |
 | `two-triggers.state` | **NOT VERIFIED** — intended: seat 0 controls two Dark Confidants, meant to fire simultaneously at Upkeep. Measured against a real match: life never drops, by either of two designs tried. See the file's own header and `wave33-evidence/s3-blockers.md`'s "Q8". No test exercises it. | Q8 (open) |
 | `own-spell.state` | seat 0 holds a 0-cost creature and enough untapped lands; after casting, the stack holds exactly that spell. | Q17 |
-| `attackers-declared.state` | seat 0's creature is ALREADY an attacker (no click needed) with the game landed in Declare Attackers Step. | Q14 |
+| `attackers-declared.state` | seat 0's own uncontested Main Phase 1, with one untapped, non-sick creature on the battlefield and NOTHING pre-declared — the test presses priority forward so Forge's own live `InputAttack` opens for real. | Q14 |
 | `ponder.state` | seat 0 holds Ponder and 3 untapped Islands, nothing else on the stack. | Ponder's stack text |
 | `auto-target.state` | seat 0 holds Doom Blade and enough mana; seat 1's battlefield holds exactly ONE creature — the only legal target for it. Confirmed: `TargetCards` reaches the wire once the target is selected (a card click — `setSelectables`/`setHighlighted`, not an `ask` — see `wave33-evidence/s3-blockers.md`). | the auto-target arrow (first list's item 8) |
 | `glint-hawk.state` | seat 0 controls Prodigal Sorcerer (a permanent with a non-mana activated ability that uses the stack and needs a target); seat 1 is the opponent. | Q18 — how Forge identifies a stack ABILITY (source = the permanent still on the battlefield) versus a stack SPELL. |
