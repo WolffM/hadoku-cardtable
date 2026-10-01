@@ -68,17 +68,17 @@ Numbering is the operator's (there was no item 19).
 | --- | --- | --- | --- | --- | --- | --- |
 | L1 | mulligan broken: only `Auto` live, hand dead | 1 | shipped w30, w31 | `de0928f` (flag reaches the seat), `be615f1` + fork `917bb193` (order); real-Forge tests | take a mulligan: hand lights up, pick a card | |
 | L2 | the end step waits on the opponent | 1 | shipped w30 | default off, setting in w30 (`5b6c73e`); **moving to the header menu in w32 (Q15)** | end a turn with a land played; it should not stop at their end step | |
-| L3 | picker `OK` / `Clear choice` below the panel, not at the bottom of a scroll | 1 | open | queued for w33 | open any selector; OK is visible without scrolling | |
-| L4 | poison/infect counters shown nowhere | 1 | open | queued for w33 | | |
+| L3 | picker `OK` / `Clear choice` below the panel, not at the bottom of a scroll | 1 | planned w33 | w33 lane G: OK and Clear below the panel, the list scrolls inside | open any selector; OK is visible without scrolling |  |
+| L4 | poison/infect counters shown nowhere | 1 | planned w33 | w33 lane B: poison (and energy/experience) beside the counts |  |  |
 | L5 | delete `Leave`; `Concede` is enough | 1 | shipped w30 | w30 lane A | no `Leave` button | |
 | L6 | arrow snapping/effect not shown when casting | 1 | partly | w29 staging area; **8-point snap is Q11, w32** | cast a targeted spell; the card shows in staging with the arrow starting there | |
 | L7 | avatars not showing | 3 (L7, P3b, Q6) | partly | w29 carried the field; w31 fixed the 404 and the account read; **unset avatar waits on watchparty; live change is Q6, w32** | | |
-| L8 | an auto-targeted effect still needs its arrow on the stack (Fiend Hunter) | 1 | open | queued for w33 | | |
+| L8 | an auto-targeted effect still needs its arrow on the stack (Fiend Hunter) | 1 | planned w33 | w33 lanes B, G: the stack entry carries its targets (`TargetCards`, on Forge's wire) and an arrow is drawn |  |  |
 | L9 | graveyard double-stacked | 3 (L9, P2, Q9) | reopened → P2, Q9 | w30 made it one stack; the layout was then reported again | | |
 | L10 | z-order: cards, then effects on cards, then popups | 2 (L10, Q16) | open → Q16 | w32 | counters and P/T sit under any open popup | |
 | L11 | one undivided board, type-separated as the alternate | ≥3 | shipped w30 | `5b6c73e`, `fc56164`; board `single` is the default | cards sit on one surface, no lane labels | |
 | L12 | holding priority after casting | 2 (L12, Q17) | open → Q17 | w32 diagnoses first; not `passStackWindows` | cast a spell; you do not keep priority | |
-| L13 | `Choose X` as a slider, capped at available mana | 1 | open | queued for w33 | | |
+| L13 | `Choose X` as a slider, capped at available mana | 1 | planned w33 | w33 lane G: a slider; the cap is whatever Forge's ask carries |  |  |
 | L14 | P/T drawn bottom-right, over where it normally sits | 2 (L14, Q13) | open → Q13 | w32 | | |
 | L15 | blockers: an arrow from each attacker; blockers highlight blue | 1 (Q12 is a related, different symptom) | open → Q12 | w32 (Q12 first needs a repro) | | |
 | L16 | delete `Call Back` | 1 | shipped w30 | w30 lane A | no `Call Back` button | |
@@ -139,8 +139,8 @@ All planned in **wave 32** (`docs/planning/wave32-2026-10-01.md`).
 | Q14 | click or box-select attackers to pull them back | 1 | shipped w32, **unverified against real Forge** | `3b9c22c` + `9a70f47`; unit tests only | in Declare Attackers, click an attacker, or drag a box over several: they come back |  |
 | Q15 | settings into the header menu; explain Cancel; layout is mine only | 1 | shipped w32 | `5312231`: settings in the header gear (button and panel deleted), Cancel only when Forge enables it, layout applies to your board only (`4744c57`); `w32.spec` header-menu helpers pass | one gear in the header holds board layout and "always stop at end step" |  |
 | Q16 | card labels under popovers | 2 (with L10) | shipped w32 (accent text remains) | `d2fc75b` `--z-*` scale used by B, L, G. **`--accent` is still used as text** in `live.css`, `prompts.css`, `board.css` (w33) | card labels and P/T sit under any open popover |  |
-| Q17 | holding priority on my own spells | 2 (with L12) | shipped w32, **default changed: confirm** | `9a70f47`: your own spell no longer holds priority (`priority.jvm` 3 of 3 re-run). **This is a behaviour change only you can approve**: after casting you do not get priority back to cast a second spell on top, unless in full control | cast a creature: the stack resolves without you holding priority. Is that what you wanted? |  |
-| Q18 | an activated ability on the stack (Glint Hawk Idol) shows as clickable; only the card on the board should be activatable | 1 | open, queued for w33 | **root cause found:** for an ability, `sourceCardId` is the permanent, which Forge offers for its own activation, so `StackItem` (`Board.tsx:1858`) draws a button whose click is `onSelectCard(sourceId)`, the same action as clicking the card. Not cosmetic. w32 was already dispatched; its lane-G manager was told as information for Q7 (stack targets share the collision) | click a stack ability: nothing happens | |
+| Q17 | holding priority on my own spells | 2 (with L12) | shipped w32; **operator approved the change 2026-10-01** | `9a70f47`: your own spell no longer holds priority (`priority.jvm` 3 of 3 re-run). **This is a behaviour change only you can approve**: after casting you do not get priority back to cast a second spell on top, unless in full control | cast a creature: the stack resolves without you holding priority. Is that what you wanted? |  |
+| Q18 | an activated ability on the stack (Glint Hawk Idol) shows as clickable; only the card on the board should be activatable | 1 | planned w33 | **root cause found:** for an ability, `sourceCardId` is the permanent, which Forge offers for its own activation, so `StackItem` (`Board.tsx:1858`) draws a button whose click is `onSelectCard(sourceId)`, the same action as clicking the card. Not cosmetic. w32 was already dispatched; its lane-G manager was told as information for Q7 (stack targets share the collision) **Planned w33 lane B** | click a stack ability: nothing happens |  |
 
 ---
 

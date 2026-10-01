@@ -269,6 +269,17 @@ with how many times it
 has been asked, what shipped, and a column for the operator's own ✅/❌ after a real
 game. Only the operator marks an item verified.
 
+## Wave 33 planned (2026-10-01): a game a test can set up
+
+`docs/planning/wave33-2026-10-01.md`, not yet dispatched. Operator rulings 2026-10-01 on w32's
+two behaviour changes: *"i'm fine with those changes"* (own spells no longer hold priority; the
+single layout is always two tiers). Lanes: S (a probe-gated scenario harness over Forge's own
+`GameState`, plus real-Forge scenario tests), B (Q18, the ring hook, poison counters), G (the
+picker's OK, the Choose X slider, the auto-target arrow), L (the rail's row heights), E (scenario
+specs that cannot pass vacuously, the two flaky tests made deterministic, and w31/w32/w33 specs
+added to CI's `forge-e2e`). Deck-library integration is wave 34, after the operator reviews the
+selection.
+
 ## Wave 32 landed and was re-verified by the tracker (2026-10-01)
 
 `0.28.0`, `c185cd8`; CI green on both jobs. **Re-run by the tracker** on the deployed commit: `pnpm check`
