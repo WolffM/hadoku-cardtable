@@ -230,8 +230,23 @@ describe('the endpoint a server started from src/index.ts actually exposes', () 
 		const webDir = join(root, 'web');
 		mkdirSync(webDir, { recursive: true });
 		writeFileSync(join(webDir, 'index.html'), INDEX_FIXTURE);
-		port = await freePort();
+		// `freePort` closes its probe before the child binds, so another suite
+		// running in parallel can take the port in between (seen in a full
+		// `pnpm check`: EADDRINUSE on the probed port). Only that failure is
+		// retried, on a fresh port; anything else still fails the suite.
+		for (let attempt = 1; ; attempt++) {
+			port = await freePort();
+			try {
+				await startServer(webDir);
+				break;
+			} catch (err) {
+				if (attempt >= 3 || !output.includes('EADDRINUSE')) throw err;
+				output = '';
+			}
+		}
+	}, 90_000);
 
+	async function startServer(webDir: string): Promise<void> {
 		const env: NodeJS.ProcessEnv = {
 			...process.env,
 			CARDTABLE_PORT: String(port),
@@ -270,7 +285,7 @@ describe('the endpoint a server started from src/index.ts actually exposes', () 
 				down(new Error(`server exited ${code} before listening:\n${output}`));
 			});
 		});
-	}, 90_000);
+	}
 
 	afterAll(async () => {
 		child?.kill('SIGTERM');
