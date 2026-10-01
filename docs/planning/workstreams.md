@@ -269,6 +269,33 @@ with how many times it
 has been asked, what shipped, and a column for the operator's own ✅/❌ after a real
 game. Only the operator marks an item verified.
 
+## Wave 32 landed and was re-verified by the tracker (2026-10-01)
+
+`0.28.0`, `c185cd8`; CI green on both jobs. **Re-run by the tracker** on the deployed commit: `pnpm check`
+(2951 passed); `endturn`, `blockers`, `priority` real-Forge suites 3 of 3 each; the Q12 fix reverted fails
+`blockers.jvm` on the missing "Select creatures to block" prompt and restored passes; `table-fit`, `play`,
+`arrow`, `w32` specs pass with the jar, no skipped titles.
+
+**What the manager's note understated or left out:**
+
+- **Two e2e tests are flaky, and neither runs in CI.** `w31.spec.ts` "combat is one rail step…" failed **3 of 5**
+  runs (out-of-combat rail rows measured 17.5 px against 15.4 px in combat, tolerance 2) and "concede ends the
+  game" failed **3 of 5** (it waits for a `concede-refused` log line; the server's guard is in the right order, so
+  the race is in what the test observes). The manager called the concede one "failed once". `forge-e2e` runs only
+  `play.spec` and `table-fit.spec`, so neither `w31.spec` nor `w32.spec` is a gate.
+- **Q7 and Q10 passed vacuously** (the e2e monitor never met a stack ask or a blockers window), **Q14 and Q8 were
+  never driven against real Forge**, and no test asserts the active-avatar ring (Q1).
+- **Behaviour changes decided inside lanes, not by the operator:** your own spell no longer holds priority (Q17);
+  the single layout is now always two tiers, so boards of six or fewer permanents have smaller cards (Q4).
+- **`@wolffm/watchparty-ui` and `rooms-*` moved to 0.40.0 in production** via the bot's auto-update (`2b0534d`),
+  after w32. The prefs-cache key lane R's avatar read depends on is unchanged in 0.40.0 (checked).
+
+**What makes a scripted scenario possible:** the bridge is a single-file Java program we own
+(`PlayBridge.java`, run by the source launcher, no build step) and Forge's own `GameState` loader (the one its
+puzzle mode uses) takes a text file of life totals, hands and battlefields. The bridge returns `null` for
+`getGamestate()` today. Applying a state at match start, behind the probe flag, would let e2e drive Q7, Q10, Q14,
+Q8, Q18 and a Ponder resolution deterministically instead of hoping a random game reaches them.
+
 ## Operator play test C, 2026-10-01 — seventeen items (Q1–Q17), on the w31 build
 
 Played on `0.27.0` (match `m-96b0a5e2f90d`, created 04:46 UTC, after the 03:17
