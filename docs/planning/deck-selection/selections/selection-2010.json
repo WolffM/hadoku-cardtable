@@ -1,0 +1,775 @@
+{
+ "era": {
+  "year": 2010,
+  "season_start": "2009-10-02",
+  "start": "2010-07-16",
+  "end": "2010-10-01",
+  "format": "Standard (M11)",
+  "sets": "ALA, CFX, ARB, M10, ZEN, WWK, ROE, M11",
+  "banned": []
+ },
+ "chosen": [
+  {
+   "deck": 193665,
+   "event": 459,
+   "archetype": "UR Pyromancer",
+   "player": "Guillaume Matignon",
+   "event_name": "Championnat de France 2010",
+   "stars": 2,
+   "rank": "2",
+   "date": "2010-07-24",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 0,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 8,
+    "avg_cmc": 1.95,
+    "pips": {
+     "W": 0,
+     "U": 30.0,
+     "B": 0,
+     "R": 12.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Call to Mind": 2,
+     "Burst Lightning": 4,
+     "See Beyond": 4,
+     "Preordain": 4,
+     "Mana Leak": 4,
+     "Lightning Bolt": 4,
+     "Time Warp": 4,
+     "Ponder": 4,
+     "Treasure Hunt": 4,
+     "Pyromancer Ascension": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 193749,
+   "event": 459,
+   "archetype": "UG Polymorph",
+   "player": "Antoine Ruel",
+   "event_name": "Championnat de France 2010",
+   "stars": 2,
+   "rank": "3",
+   "date": "2010-07-24",
+   "summer": true,
+   "s": 0.8368288369533896,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 2,
+    "counters": 11,
+    "sweepers": 0,
+    "draw": 16,
+    "burn": 0,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 0,
+     "U": 37.0,
+     "B": 0,
+     "R": 0,
+     "G": 2.0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Essence Scatter": 1,
+     "Spell Pierce": 1,
+     "Negate": 1,
+     "Awakening Zone": 2,
+     "Deprive": 2,
+     "Emrakul, the Aeons Torn": 2,
+     "Everflowing Chalice": 2,
+     "Dispel": 2,
+     "Preordain": 4,
+     "Polymorph": 4,
+     "Jace, the Mind Sculptor": 4,
+     "Mana Leak": 4,
+     "Into the Roil": 4,
+     "Ponder": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 258639,
+   "event": 10215,
+   "archetype": "Jund",
+   "player": "Emanuele Giusti",
+   "event_name": "Grand Prix Bruxelles 2010",
+   "stars": 1,
+   "rank": "1",
+   "date": "2010-03-28",
+   "summer": false,
+   "s": 0.8307692307692308,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 18,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 3.21,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 20.0,
+     "R": 27.0,
+     "G": 22.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Bloodbraid Elf": 4,
+     "Broodmate Dragon": 3,
+     "Putrid Leech": 4,
+     "Siege-Gang Commander": 3,
+     "Sprouting Thrinax": 4,
+     "Blightning": 4,
+     "Garruk Wildspeaker": 2,
+     "Lightning Bolt": 4,
+     "Maelstrom Pulse": 3,
+     "Terminate": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 19
+  },
+  {
+   "deck": 600898,
+   "event": 53972,
+   "archetype": "U/g Polymorph",
+   "player": "Isaiah Ley",
+   "event_name": "PTQ Amsterdam 2010 @ Orlando (Florida)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2010-06-17",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 2,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 18,
+    "burn": 0,
+    "avg_cmc": 2.59,
+    "pips": {
+     "W": 6.0,
+     "U": 27.0,
+     "B": 0,
+     "R": 0,
+     "G": 13.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Negate": 1,
+     "Resounding Wave": 1,
+     "Spell Pierce": 2,
+     "Vines of Vastwood": 2,
+     "Garruk Wildspeaker": 2,
+     "Wind Zendikon": 3,
+     "See Beyond": 3,
+     "Rampant Growth": 3,
+     "Into the Roil": 3,
+     "Jace, the Mind Sculptor": 3,
+     "Ponder": 4,
+     "Polymorph": 4,
+     "Explore": 4,
+     "Iona, Shield of Emeria": 2
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 193668,
+   "event": 459,
+   "archetype": "Turboland",
+   "player": "Lucas Florent",
+   "event_name": "Championnat de France 2010",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2010-07-24",
+   "summer": true,
+   "s": 0.6941346394792776,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 3.41,
+    "pips": {
+     "W": 0,
+     "U": 22.0,
+     "B": 0,
+     "R": 0,
+     "G": 25.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Mind Spring": 2,
+     "Garruk Wildspeaker": 2,
+     "Into the Roil": 2,
+     "Avenger of Zendikar": 3,
+     "Oracle of Mul Daya": 3,
+     "Jace, the Mind Sculptor": 4,
+     "Explore": 4,
+     "Time Warp": 4,
+     "Rampant Growth": 4,
+     "Lotus Cobra": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 600901,
+   "event": 53972,
+   "archetype": "Grixis Control",
+   "player": "Adam Fox",
+   "event_name": "PTQ Amsterdam 2010 @ Orlando (Florida)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2010-06-17",
+   "summer": false,
+   "s": 0.5553077115834221,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 10,
+    "burn": 8,
+    "avg_cmc": 2.88,
+    "pips": {
+     "W": 0,
+     "U": 20.0,
+     "B": 23.0,
+     "R": 27.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Cruel Ultimatum": 2,
+     "Earthquake": 2,
+     "Terminate": 3,
+     "Spreading Seas": 4,
+     "Lightning Bolt": 4,
+     "Blightning": 4,
+     "Jace, the Mind Sculptor": 4,
+     "Siege-Gang Commander": 3,
+     "Gatekeeper of Malakir": 3,
+     "Sedraxis Specter": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 600902,
+   "event": 53972,
+   "archetype": "Vampires",
+   "player": "Max Malesch",
+   "event_name": "PTQ Amsterdam 2010 @ Orlando (Florida)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2010-06-17",
+   "summer": false,
+   "s": 0.5553077115834221,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 2.33,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 56.0,
+     "R": 12.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Black Knight": 4,
+     "Bloodghast": 4,
+     "Gatekeeper of Malakir": 4,
+     "Malakir Bloodwitch": 4,
+     "Vampire Hexmage": 4,
+     "Blightning": 4,
+     "Lightning Bolt": 4,
+     "Sign in Blood": 4,
+     "Terminate": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 174124,
+   "event": 448,
+   "archetype": "Open Filigree",
+   "player": "Niels Viaene",
+   "event_name": "Pro Tour San Diego 2010",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2010-02-21",
+   "summer": false,
+   "s": 0.38444380032698455,
+   "f": {
+    "spells": 41,
+    "lands": 20,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 4.24,
+    "pips": {
+     "W": 34.0,
+     "U": 35.0,
+     "B": 6.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Filigree Angel": 4,
+     "Architects of Will": 4,
+     "Glassdust Hulk": 4,
+     "Spreading Seas": 4,
+     "Open the Vaults": 4,
+     "Sphinx of Lost Truths": 4,
+     "Oblivion Ring": 3,
+     "Day of Judgment": 3,
+     "Courier's Capsule": 3,
+     "Journey to Nowhere": 2,
+     "Jace, the Mind Sculptor": 2,
+     "Fieldmist Borderpost": 2,
+     "Mistvein Borderpost": 1,
+     "Sharuum the Hegemon": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "alternates": [],
+ "pool_size": 8,
+ "rejected_illegal": [
+  {
+   "archetype": "UW Control",
+   "deck": 193663,
+   "player": "Julien Parez",
+   "why": [
+    "Martial Coup (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Control",
+   "deck": 193666,
+   "player": "Guillaume Wafo-Tapa",
+   "why": [
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Control",
+   "deck": 193667,
+   "player": "Gregory Pierron",
+   "why": [
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Control",
+   "deck": 600900,
+   "player": "Frank Lepore",
+   "why": [
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Naya Lightsaber",
+   "deck": 600897,
+   "player": "Cliff Weixler",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Naya Lightsaber",
+   "deck": 253193,
+   "player": "Andr\u00e9 Coimbra",
+   "why": [
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Next Level Bant",
+   "deck": 188406,
+   "player": "Brian Kibler",
+   "why": [
+    "Martial Coup (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Next Level Bant",
+   "deck": 188396,
+   "player": "Yuuya Watanabe",
+   "why": [
+    "Martial Coup (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Next Level Bant",
+   "deck": 252588,
+   "player": "Brian Kibler",
+   "why": [
+    "Martial Coup (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Next Level Bant",
+   "deck": 252589,
+   "player": "Yuuya Watanabe",
+   "why": [
+    "Martial Coup (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mythic Conscription",
+   "deck": 189608,
+   "player": "Naoki Nakada",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mythic Conscription",
+   "deck": 189610,
+   "player": "Gerald Camangon",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mythic Conscription",
+   "deck": 189611,
+   "player": "Yuuya Watanabe",
+   "why": [
+    "Martial Coup (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mythic Conscription",
+   "deck": 188404,
+   "player": "Motoaki Itou",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Red Deck Wins",
+   "deck": 193670,
+   "player": "Pierre-J\u00e9r\u00f4me Meurisse",
+   "why": [
+    "Hellspark Elemental (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Red Deck Wins",
+   "deck": 258647,
+   "player": "Geert Bosch, 9-0",
+   "why": [
+    "Hellspark Elemental (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Naya Toolbox",
+   "deck": 193669,
+   "player": "Boris Faivre",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mythic Bant",
+   "deck": 600903,
+   "player": "Jon Gatson",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mythic Bant",
+   "deck": 258641,
+   "player": "Zoltan Szoke",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Thornling (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mythic Bant",
+   "deck": 258640,
+   "player": "Tamas Nagy",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Thornling (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UWr Walker",
+   "deck": 188405,
+   "player": "Makihito Mihara",
+   "why": [
+    "Martial Coup (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Naya",
+   "deck": 253195,
+   "player": "Terry Soh",
+   "why": [
+    "Ancient Ziggurat (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Naya",
+   "deck": 189612,
+   "player": "Adrian Marasigan",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boss Naya",
+   "deck": 174121,
+   "player": "Luis Scott-Vargas",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "White Weenie",
+   "deck": 174122,
+   "player": "Craig Wescoe",
+   "why": [
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros",
+   "deck": 164662,
+   "player": "Bram Snepvangers",
+   "why": [
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant Conscription",
+   "deck": 188400,
+   "player": "Hiroyuki Shimoya",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Conscription",
+   "deck": 188401,
+   "player": "Ryo Tasaki",
+   "why": [
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Big Zoo",
+   "deck": 258643,
+   "player": "Nicolas Lambach",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono Red Aggro",
+   "deck": 174126,
+   "player": "Jeroen Kanis",
+   "why": [
+    "Hellspark Elemental (not in legal sets)",
+    "Quenchable Fire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BGW Angels",
+   "deck": 174123,
+   "player": "Daniel Gr\u00e4fensteiner",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono W Tokens",
+   "deck": 253197,
+   "player": "William Cavaglieri",
+   "why": [
+    "Martial Coup (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant",
+   "deck": 253198,
+   "player": "Manuel Bucher",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Tapout",
+   "deck": 258648,
+   "player": "Robert Jurkovic, 9-0",
+   "why": [
+    "Martial Coup (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Tapout",
+   "deck": 258649,
+   "player": "Matti Kuisma, 9-0",
+   "why": [
+    "Martial Coup (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Tapout",
+   "deck": 258652,
+   "player": "Manuel Godineau, 8-0-1",
+   "why": [
+    "Martial Coup (not in legal sets)",
+    "Path to Exile (not in legal sets)",
+    "Telemin Performance (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Naya Allies",
+   "deck": 258650,
+   "player": "Jeroen Aga, 9-0",
+   "why": [
+    "Ancient Ziggurat (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Turbo Fog",
+   "deck": 164663,
+   "player": "Joel Calafell",
+   "why": [
+    "Font of Mythos (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Rampant Jund",
+   "player": "Tomoharu Saito",
+   "kept": "Jund",
+   "kept_player": "Emanuele Giusti"
+  }
+ ],
+ "objective": 1.274291930695727
+}

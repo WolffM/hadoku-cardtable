@@ -1,0 +1,751 @@
+{
+ "era": {
+  "year": 2009,
+  "season_start": "2008-10-03",
+  "start": "2009-07-17",
+  "end": "2009-10-02",
+  "format": "Standard (M10)",
+  "sets": "LRW, MOR, SHM, EVE, ALA, CFX, ARB, M10",
+  "banned": []
+ },
+ "chosen": [
+  {
+   "deck": 151389,
+   "event": 439,
+   "archetype": "Elf Rock",
+   "player": "Mongilardi Gilles",
+   "event_name": "Nationals - France 2009",
+   "stars": 3,
+   "rank": "1",
+   "date": "2009-07-26",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.59,
+    "pips": {
+     "W": 10.0,
+     "U": 0,
+     "B": 16.0,
+     "R": 0,
+     "G": 40.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Profane Command": 2,
+     "Chameleon Colossus": 3,
+     "Putrid Leech": 4,
+     "Llanowar Elves": 4,
+     "Wren's Run Vanquisher": 4,
+     "Maelstrom Pulse": 4,
+     "Wilt-Leaf Liege": 4,
+     "Nameless Inversion": 4,
+     "Great Sable Stag": 4,
+     "Kitchen Finks": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 435791,
+   "event": 30116,
+   "archetype": "Jund Aggro",
+   "player": "Jonathan Cano",
+   "event_name": "Nationals - Spain 2009",
+   "stars": 3,
+   "rank": "2",
+   "date": "2009-07-23",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 6,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 2.0,
+     "U": 0,
+     "B": 15.0,
+     "R": 19.0,
+     "G": 35.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Bituminous Blast": 2,
+     "Jund Charm": 3,
+     "Maelstrom Pulse": 3,
+     "Nameless Inversion": 3,
+     "Lightning Bolt": 4,
+     "Chameleon Colossus": 2,
+     "Kitchen Finks": 2,
+     "Great Sable Stag": 3,
+     "Wren's Run Vanquisher": 3,
+     "Boggart Ram-Gang": 4,
+     "Bloodbraid Elf": 4,
+     "Putrid Leech": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 151391,
+   "event": 439,
+   "archetype": "Faeries",
+   "player": "Guillaume Matignon",
+   "event_name": "Nationals - France 2009",
+   "stars": 3,
+   "rank": "3",
+   "date": "2009-07-26",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 14,
+    "counters": 10,
+    "sweepers": 4,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.66,
+    "pips": {
+     "W": 0,
+     "U": 40.0,
+     "B": 10.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Vendilion Clique": 4,
+     "Mistbind Clique": 4,
+     "Cryptic Command": 4,
+     "Bitterblossom": 4,
+     "Thoughtseize": 3,
+     "Scion of Oona": 3,
+     "Broken Ambitions": 3,
+     "Time Warp": 3,
+     "Spellstutter Sprite": 3,
+     "Peppersmoke": 2,
+     "Ponder": 1,
+     "Doom Blade": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 19
+  },
+  {
+   "deck": 132879,
+   "event": 396,
+   "archetype": "Kithkins",
+   "player": "Hannes Kerem",
+   "event_name": "Worlds 2008 (Memphis)",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "2008-12-14",
+   "summer": false,
+   "s": 0.2362810833750747,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 58.0,
+     "U": 0,
+     "B": 6.0,
+     "R": 2.0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Ajani Goldmane": 1,
+     "Burrenton Forge-Tender": 1,
+     "Elspeth, Knight-Errant": 2,
+     "Ranger of Eos": 3,
+     "Figure of Destiny": 4,
+     "Cloudgoat Ranger": 4,
+     "Spectral Procession": 4,
+     "Goldmeadow Stalwart": 4,
+     "Unmake": 4,
+     "Knight of Meadowgrain": 4,
+     "Wizened Cenn": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 5
+  }
+ ],
+ "alternates": [],
+ "pool_size": 4,
+ "rejected_illegal": [
+  {
+   "archetype": "Cruel Control",
+   "deck": 435790,
+   "player": "Enric Mart\u00ed",
+   "why": [
+    "Banefire (not in legal sets)",
+    "Exotic Orchard (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Blightning",
+   "deck": 151390,
+   "player": "Antoine M\u00e9nard",
+   "why": [
+    "Banefire (not in legal sets)",
+    "Hellspark Elemental (not in legal sets)",
+    "Volcanic Fallout (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Blightning",
+   "deck": 151393,
+   "player": "Yohan Allouche",
+   "why": [
+    "Banefire (not in legal sets)",
+    "Hellspark Elemental (not in legal sets)",
+    "Volcanic Fallout (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant Aggro",
+   "deck": 145193,
+   "player": "Tommy Ashton",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Brushland (not in legal sets)",
+    "Noble Hierarch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "GW Tokens",
+   "deck": 145219,
+   "player": "Robert Beverly",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Kithkins",
+   "deck": 435792,
+   "player": "Saul Aguado",
+   "why": [
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Kithkins",
+   "deck": 148107,
+   "player": "Daniel de Almeida Alves",
+   "why": [
+    "Aura of Silence (not in legal sets)",
+    "Glorious Anthem (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5c Control",
+   "deck": 435795,
+   "player": "Jamie Marrero",
+   "why": [
+    "Exotic Orchard (not in legal sets)",
+    "Volcanic Fallout (not in legal sets)",
+    "Wall of Reverence (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5c Control",
+   "deck": 252602,
+   "player": "Gabriel Nassif, 8-0-1",
+   "why": [
+    "Exotic Orchard (not in legal sets)",
+    "Paladin en-Vec (not in legal sets)",
+    "Tidings (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Red Deck Wins",
+   "deck": 435797,
+   "player": "Jos\u00e9 Garcia",
+   "why": [
+    "Goblin Outlander (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cascade Swans",
+   "deck": 146306,
+   "player": "Joel Calafell",
+   "why": [
+    "Aura of Silence (not in legal sets)",
+    "Battlefield Forge (not in legal sets)",
+    "Ghitu Encampment (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cascade Swans",
+   "deck": 146304,
+   "player": "Paulo Vitor Damo da Rosa",
+   "why": [
+    "Aura of Silence (not in legal sets)",
+    "Battlefield Forge (not in legal sets)",
+    "Ghitu Encampment (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cascade Swans",
+   "deck": 146299,
+   "player": "Hugo De Jong",
+   "why": [
+    "Ghitu Encampment (not in legal sets)",
+    "Seismic Assault (not in legal sets)",
+    "Treetop Village (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cascade Swans",
+   "deck": 252607,
+   "player": "Paulo Vitor Damo da Rosa, 9-0",
+   "why": [
+    "Aura of Silence (not in legal sets)",
+    "Battlefield Forge (not in legal sets)",
+    "Ghitu Encampment (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Doran",
+   "deck": 146963,
+   "player": "Yann Massicard",
+   "why": [
+    "Aura of Silence (not in legal sets)",
+    "Brushland (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Doran",
+   "deck": 148108,
+   "player": "Andres Monsalve",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)",
+    "Noble Hierarch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5C Control",
+   "deck": 138503,
+   "player": "Gabriel Nassif",
+   "why": [
+    "Exotic Orchard (not in legal sets)",
+    "Remove Soul (not in legal sets)",
+    "Scepter of Fugue (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Time Sieve",
+   "deck": 151395,
+   "player": "Olivier Ruel",
+   "why": [
+    "Kaleidostone (not in legal sets)",
+    "Vedalken Outlander (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BW Tokens",
+   "deck": 145192,
+   "player": "Ben Friedman",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Glorious Anthem (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BW Tokens",
+   "deck": 145217,
+   "player": "Chris Norton",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Glorious Anthem (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BW Tokens",
+   "deck": 145186,
+   "player": "Brad Taulbee",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Glorious Anthem (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BW Tokens",
+   "deck": 145189,
+   "player": "Miles Rodriguez",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BR Aggro",
+   "deck": 145218,
+   "player": "Jake Miller",
+   "why": [
+    "Banefire (not in legal sets)",
+    "Ghitu Encampment (not in legal sets)",
+    "Goblin Outlander (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "GW Overrun",
+   "deck": 145190,
+   "player": "David Irvine",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "GW Overrun",
+   "deck": 148112,
+   "player": "Allison Abe",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "EsperLark",
+   "deck": 145191,
+   "player": "Matthew Franklin",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Caves of Koilos (not in legal sets)",
+    "Mind Stone (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boat Brew",
+   "deck": 145216,
+   "player": "Matthew Beverly",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Mind Stone (not in legal sets)",
+    "Mogg Fanatic (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BW Aggro",
+   "deck": 145187,
+   "player": "Axel Jensen",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cruel Highlander",
+   "deck": 145188,
+   "player": "Zach Jesse",
+   "why": [
+    "Condemn (not in legal sets)",
+    "Exotic Orchard (not in legal sets)",
+    "Filigree Fracture (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cruel Cascade",
+   "deck": 145212,
+   "player": "Patrick Crane",
+   "why": [
+    "Exotic Orchard (not in legal sets)",
+    "Paladin en-Vec (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "WB Tokens",
+   "deck": 138497,
+   "player": "Luis Scott-Vargas",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Glorious Anthem (not in legal sets)",
+    "Head Games (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "WB Tokens",
+   "deck": 138499,
+   "player": "Matteo Orsini Jones",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Glorious Anthem (not in legal sets)",
+    "Martial Coup (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5CC",
+   "deck": 146305,
+   "player": "Riccardo Neri",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Martial Coup (not in legal sets)",
+    "Nicol Bolas, Planeswalker (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Quick' n Toast",
+   "deck": 132881,
+   "player": "Jamie Parke",
+   "why": [
+    "Condemn (not in legal sets)",
+    "Remove Soul (not in legal sets)",
+    "Tidings (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BW Persist",
+   "deck": 148110,
+   "player": "Guilherme Vieira",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Glorious Anthem (not in legal sets)",
+    "Loxodon Warhammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BW Persist",
+   "deck": 148115,
+   "player": "Daniel Frias",
+   "why": [
+    "Caves of Koilos (not in legal sets)",
+    "Condemn (not in legal sets)",
+    "Glorious Anthem (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "WR Vengeant",
+   "deck": 138500,
+   "player": "Akimasa Yamamoto",
+   "why": [
+    "Banefire (not in legal sets)",
+    "Battlefield Forge (not in legal sets)",
+    "Mind Stone (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "WR Vengeant",
+   "deck": 138502,
+   "player": "Jan Ruess",
+   "why": [
+    "Banefire (not in legal sets)",
+    "Battlefield Forge (not in legal sets)",
+    "Lapse of Certainty (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dark Exalted",
+   "deck": 138501,
+   "player": "Brian Robinson",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Ancient Ziggurat (not in legal sets)",
+    "Brushland (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "RB Sauce",
+   "deck": 132883,
+   "player": "Tsuyoshi Ikeda",
+   "why": [
+    "Ghitu Encampment (not in legal sets)",
+    "Incinerate (not in legal sets)",
+    "Loxodon Warhammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Llark",
+   "deck": 148111,
+   "player": "Wendell Santini",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Mind Stone (not in legal sets)",
+    "Paladin en-Vec (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boddy Red",
+   "deck": 146960,
+   "player": "Charles Gerndon Dupont",
+   "why": [
+    "Banefire (not in legal sets)",
+    "Ghitu Encampment (not in legal sets)",
+    "Hellspark Elemental (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "GB Elves",
+   "deck": 146302,
+   "player": "Sean Og Murphy",
+   "why": [
+    "Civic Wayfinder (not in legal sets)",
+    "Hurricane (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "WR Kithkins",
+   "deck": 138498,
+   "player": "Cedric Phillips",
+   "why": [
+    "Banefire (not in legal sets)",
+    "Battlefield Forge (not in legal sets)",
+    "Glorious Anthem (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Cascade Control",
+   "deck": 148113,
+   "player": "Diego Crucius",
+   "why": [
+    "Adarkar Wastes (not in legal sets)",
+    "Battlefield Forge (not in legal sets)",
+    "Rain of Tears (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5C Blood",
+   "deck": 146957,
+   "player": "Michael Jacob",
+   "why": [
+    "Exotic Orchard (not in legal sets)",
+    "Volcanic Fallout (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5C Blood",
+   "deck": 252592,
+   "player": "Josh Wludyka",
+   "why": [
+    "Exotic Orchard (not in legal sets)",
+    "Loxodon Warhammer (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5C Blood",
+   "deck": 252594,
+   "player": "Michael Jacob",
+   "why": [
+    "Exotic Orchard (not in legal sets)",
+    "Volcanic Fallout (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Zealous Kithkins",
+   "deck": 148114,
+   "player": "Juan V\u00e9liz",
+   "why": [
+    "Aura of Silence (not in legal sets)",
+    "Caves of Koilos (not in legal sets)",
+    "Glorious Anthem (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Jund Blood",
+   "deck": 252591,
+   "player": "Noah Weil",
+   "why": [
+    "Banefire (not in legal sets)",
+    "Karplusan Forest (not in legal sets)",
+    "Llanowar Wastes (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Turbo Fog",
+   "deck": 252605,
+   "player": "Olivier Ruel, 8-0-1",
+   "why": [
+    "Font of Mythos (not in legal sets)",
+    "Holy Day (not in legal sets)",
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros Reveillark",
+   "deck": 252599,
+   "player": "Laurent Cestaro, 8-0-1",
+   "why": [
+    "Banefire (not in legal sets)",
+    "Battlefield Forge (not in legal sets)",
+    "Mind Stone (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Toutounaze",
+   "deck": 253176,
+   "player": "Aaron Nicastri",
+   "why": [
+    "Battlefield Forge (not in legal sets)",
+    "Mind Stone (not in legal sets)",
+    "Mogg Fanatic (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Elves Aggro",
+   "player": "Alain Simon",
+   "kept": "Elf Rock",
+   "kept_player": "Mongilardi Gilles"
+  },
+  {
+   "dropped": "Ubr Faeries",
+   "player": "Sergio Garcia",
+   "kept": "Faeries",
+   "kept_player": "Guillaume Matignon"
+  }
+ ],
+ "objective": -6.329166358655999
+}

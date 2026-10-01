@@ -1,0 +1,1292 @@
+{
+ "era": {
+  "year": 2008,
+  "season_start": "2007-10-20",
+  "start": "2008-07-25",
+  "end": "2008-10-03",
+  "format": "Standard (EVE)",
+  "sets": "CSP, TSP, TSB, PLC, FUT, 10E, LRW, MOR, SHM, EVE",
+  "banned": []
+ },
+ "chosen": [
+  {
+   "deck": 124467,
+   "event": 378,
+   "archetype": "Red Deck Wins",
+   "player": "Michael Jacob",
+   "event_name": "Nationals - US 2008",
+   "stars": 3,
+   "rank": "1",
+   "date": "2008-08-03",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 12,
+    "avg_cmc": 2.67,
+    "pips": {
+     "W": 2.0,
+     "U": 0,
+     "B": 16.0,
+     "R": 54.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Skred": 4,
+     "Flame Javelin": 4,
+     "Incinerate": 4,
+     "Ashenmoor Gouger": 4,
+     "Figure of Destiny": 4,
+     "Magus of the Scroll": 4,
+     "Magus of the Moon": 4,
+     "Demigod of Revenge": 4,
+     "Blood Knight": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 5
+  },
+  {
+   "deck": 603827,
+   "event": 54377,
+   "archetype": "UB Faeries",
+   "player": "Jonathan Randle",
+   "event_name": "Nationals - Great Britain 2008",
+   "stars": 3,
+   "rank": "1",
+   "date": "2008-08-15",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 11,
+    "counters": 14,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.2,
+    "pips": {
+     "W": 0,
+     "U": 29.0,
+     "B": 8.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Remove Soul": 2,
+     "Slaughter Pact": 2,
+     "Nameless Inversion": 4,
+     "Bitterblossom": 4,
+     "Cryptic Command": 4,
+     "Ancestral Vision": 4,
+     "Rune Snag": 4,
+     "Scion of Oona": 3,
+     "Spellstutter Sprite": 4,
+     "Mistbind Clique": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 124447,
+   "event": 379,
+   "archetype": "Torrent",
+   "player": "William Cavaglieri",
+   "event_name": "Nationals - Italy 2008",
+   "stars": 3,
+   "rank": "1",
+   "date": "2008-08-03",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.58,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 23.0,
+     "R": 13.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Shriekmaw": 2,
+     "Marsh Flitter": 3,
+     "Mogg Fanatic": 3,
+     "Bitterblossom": 4,
+     "Torrent of Souls": 4,
+     "Thoughtseize": 4,
+     "Mogg War Marshal": 4,
+     "Magus of the Moon": 4,
+     "Shadow Guildmage": 4,
+     "Nantuko Husk": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 604753,
+   "event": 54478,
+   "archetype": "UW Blink Reveillark",
+   "player": "Masashi Oiso",
+   "event_name": "Nationals - Japan 2008",
+   "stars": 3,
+   "rank": "1",
+   "date": "2008-09-18",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 18,
+    "counters": 10,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.22,
+    "pips": {
+     "W": 10.0,
+     "U": 34.0,
+     "B": 0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Momentary Blink": 2,
+     "Remove Soul": 2,
+     "Prismatic Lens": 2,
+     "Cryptic Command": 4,
+     "Rune Snag": 4,
+     "Ancestral Vision": 4,
+     "Venser, Shaper Savant": 2,
+     "Reveillark": 4,
+     "Mulldrifter": 4,
+     "Riftwing Cloudskate": 4,
+     "Kitchen Finks": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 603835,
+   "event": 54378,
+   "archetype": "Swans Control",
+   "player": "Tom Van Lamoen",
+   "event_name": "Nationals - Netherlands 2008",
+   "stars": 3,
+   "rank": "1",
+   "date": "2008-08-15",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 9,
+    "counters": 8,
+    "sweepers": 10,
+    "draw": 4,
+    "burn": 8,
+    "avg_cmc": 2.57,
+    "pips": {
+     "W": 4.0,
+     "U": 32.0,
+     "B": 0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Sulfurous Blast": 2,
+     "Cryptic Command": 4,
+     "Pyroclasm": 4,
+     "Incinerate": 4,
+     "Rune Snag": 4,
+     "Ancestral Vision": 4,
+     "Skred": 4,
+     "Teferi, Mage of Zhalfir": 2,
+     "Venser, Shaper Savant": 3,
+     "Swans of Bryn Argoll": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 124468,
+   "event": 378,
+   "archetype": "Elves",
+   "player": "Sam Black",
+   "event_name": "Nationals - US 2008",
+   "stars": 3,
+   "rank": "2",
+   "date": "2008-08-03",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.89,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 16.0,
+     "R": 0,
+     "G": 24.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Slaughter Pact": 3,
+     "Profane Command": 4,
+     "Thoughtseize": 4,
+     "Nameless Inversion": 4,
+     "Boreal Druid": 1,
+     "Chameleon Colossus": 2,
+     "Civic Wayfinder": 3,
+     "Tarmogoyf": 4,
+     "Imperious Perfect": 4,
+     "Llanowar Elves": 4,
+     "Wren's Run Vanquisher": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 604754,
+   "event": 54478,
+   "archetype": "Gassy Knoll",
+   "player": "Akihiro Takakuwa",
+   "event_name": "Nationals - Japan 2008",
+   "stars": 3,
+   "rank": "2",
+   "date": "2008-09-18",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 20,
+    "avg_cmc": 1.82,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 34.0,
+     "G": 2.0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Ignite Memories": 1,
+     "Empty the Warrens": 3,
+     "Tarfire": 4,
+     "Pyromancer's Swath": 4,
+     "Manamorphose": 4,
+     "Shard Volley": 4,
+     "Shock": 4,
+     "Grapeshot": 4,
+     "Rite of Flame": 4,
+     "Rift Bolt": 4,
+     "Lotus Bloom": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 603830,
+   "event": 54377,
+   "archetype": "Doran",
+   "player": "Russ J Davies",
+   "event_name": "Nationals - Great Britain 2008",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2008-08-15",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 38,
+    "lands": 23,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.16,
+    "pips": {
+     "W": 4.0,
+     "U": 0,
+     "B": 10.0,
+     "R": 0,
+     "G": 49.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Into the North": 2,
+     "Slaughter Pact": 2,
+     "Loxodon Warhammer": 2,
+     "Profane Command": 3,
+     "Primal Command": 3,
+     "Harmonize": 4,
+     "Search for Tomorrow": 4,
+     "Kitchen Finks": 1,
+     "Shriekmaw": 1,
+     "Cloudthresher": 3,
+     "Chameleon Colossus": 3,
+     "Doran, the Siege Tower": 3,
+     "Wall of Roots": 3,
+     "Tarmogoyf": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 124461,
+   "event": 380,
+   "archetype": "Merfolks",
+   "player": "St\u00e9phane Soubrier",
+   "event_name": "Nationals - France 2008",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2008-08-03",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 23,
+    "counters": 8,
+    "sweepers": 4,
+    "draw": 14,
+    "burn": 0,
+    "avg_cmc": 2.35,
+    "pips": {
+     "W": 4.0,
+     "U": 49.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Aquitect's Will": 2,
+     "Ponder": 4,
+     "Cryptic Command": 4,
+     "Sage's Dousing": 4,
+     "Venser, Shaper Savant": 1,
+     "Sygg, River Guide": 1,
+     "Sower of Temptation": 2,
+     "Burrenton Forge-Tender": 3,
+     "Lord of Atlantis": 4,
+     "Merrow Reejerey": 4,
+     "Silvergill Adept": 4,
+     "Stonybrook Banneret": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 604760,
+   "event": 54478,
+   "archetype": "4c Reveillark Control",
+   "player": "Shouhei Yamamoto",
+   "event_name": "Nationals - Japan 2008",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2008-09-18",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 18,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 4.0,
+    "pips": {
+     "W": 6.0,
+     "U": 22.0,
+     "B": 0,
+     "R": 4.0,
+     "G": 12.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Coalition Relic": 2,
+     "Primal Command": 2,
+     "Careful Consideration": 2,
+     "Firespout": 4,
+     "Rune Snag": 4,
+     "Greater Gargadon": 2,
+     "Body Double": 2,
+     "Sower of Temptation": 2,
+     "Venser, Shaper Savant": 2,
+     "Kitchen Finks": 2,
+     "Reveillark": 4,
+     "Mulldrifter": 4,
+     "Wall of Roots": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 106455,
+   "event": 56,
+   "archetype": "UW Pickles",
+   "player": "Paul Cheon",
+   "event_name": "Grand Prix Krakow 2007",
+   "stars": 1,
+   "rank": "1",
+   "date": "2007-11-04",
+   "summer": false,
+   "s": 0.42352941176470593,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 15,
+    "counters": 8,
+    "sweepers": 7,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.42,
+    "pips": {
+     "W": 9.0,
+     "U": 40.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Teferi, Mage of Zhalfir": 2,
+     "Brine Elemental": 3,
+     "Wrath of God": 3,
+     "Oblivion Ring": 3,
+     "Ancestral Vision": 4,
+     "Phyrexian Ironfoot": 4,
+     "Cryptic Command": 4,
+     "Vesuvan Shapeshifter": 4,
+     "Rune Snag": 4,
+     "Venser, Shaper Savant": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 106457,
+   "event": 56,
+   "archetype": "ManaRamp",
+   "player": "Armin Birner",
+   "event_name": "Grand Prix Krakow 2007",
+   "stars": 1,
+   "rank": "3",
+   "date": "2007-11-04",
+   "summer": false,
+   "s": 0.2362810833750747,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 4,
+    "burn": 5,
+    "avg_cmc": 3.59,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 24.0,
+     "G": 36.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Tarmogoyf": 3,
+     "Garruk Wildspeaker": 3,
+     "Bogardan Hellkite": 3,
+     "Search for Tomorrow": 4,
+     "Wall of Roots": 4,
+     "Incinerate": 4,
+     "Harmonize": 4,
+     "Siege-Gang Commander": 4,
+     "Hostility": 1,
+     "Disintegrate": 1,
+     "Molten Disaster": 1,
+     "Cloudthresher": 2,
+     "Fertile Ground": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 12
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 124458,
+   "event": 380,
+   "archetype": "Quick 'n Toast",
+   "player": "Olivier Ruel",
+   "event_name": "Nationals - France 2008",
+   "stars": 3,
+   "rank": "2",
+   "date": "2008-08-03",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 36,
+    "lands": 25,
+    "creatures": 9,
+    "counters": 9,
+    "sweepers": 10,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 3.03,
+    "pips": {
+     "W": 5.0,
+     "U": 24.0,
+     "B": 0,
+     "R": 2.0,
+     "G": 21.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Mystical Teachings": 1,
+     "Coalition Relic": 1,
+     "Condemn": 2,
+     "Pact of Negation": 2,
+     "Slaughter Pact": 2,
+     "Cryptic Command": 3,
+     "Rune Snag": 4,
+     "Firespout": 4,
+     "Careful Consideration": 4,
+     "Platinum Angel": 1,
+     "Mulldrifter": 2,
+     "Kitchen Finks": 3,
+     "Cloudthresher": 3,
+     "Wall of Roots": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 603836,
+   "event": 54378,
+   "archetype": "Seismic Swans",
+   "player": "Hugo De Jong",
+   "event_name": "Nationals - Netherlands 2008",
+   "stars": 3,
+   "rank": "2",
+   "date": "2008-08-15",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 4,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 9,
+    "burn": 4,
+    "avg_cmc": 2.68,
+    "pips": {
+     "W": 4.0,
+     "U": 12.0,
+     "B": 16.0,
+     "R": 14.0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Pithing Needle": 1,
+     "Gaea's Blessing": 2,
+     "Elsewhere Flask": 3,
+     "Telling Time": 4,
+     "Beseech the Queen": 4,
+     "Seismic Assault": 4,
+     "Ponder": 4,
+     "Thoughtseize": 4,
+     "Firespout": 4,
+     "Swans of Bryn Argoll": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 124472,
+   "event": 378,
+   "archetype": "GR Aggro",
+   "player": "Carl Dillahay",
+   "event_name": "Nationals - US 2008",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2008-08-03",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 18,
+    "avg_cmc": 2.03,
+    "pips": {
+     "W": 2.0,
+     "U": 0,
+     "B": 0,
+     "R": 34.0,
+     "G": 8.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Shard Volley": 3,
+     "Flame Javelin": 3,
+     "Incinerate": 4,
+     "Rift Bolt": 4,
+     "Tarfire": 4,
+     "Keldon Marauders": 4,
+     "Mogg Fanatic": 4,
+     "Kavu Predator": 4,
+     "Figure of Destiny": 4,
+     "Tarmogoyf": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 108520,
+   "event": 117,
+   "archetype": "Doran Rock",
+   "player": "Uri Peleg",
+   "event_name": "Worlds 2007 (New York)",
+   "stars": 1,
+   "rank": "1",
+   "date": "2007-12-06",
+   "summer": false,
+   "s": 0.42352941176470593,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.49,
+    "pips": {
+     "W": 4.0,
+     "U": 0,
+     "B": 23.0,
+     "R": 0,
+     "G": 29.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Llanowar Elves": 3,
+     "Tarmogoyf": 4,
+     "Garruk Wildspeaker": 3,
+     "Thoughtseize": 4,
+     "Birds of Paradise": 4,
+     "Doran, the Siege Tower": 4,
+     "Shriekmaw": 3,
+     "Ohran Viper": 4,
+     "Profane Command": 2,
+     "Eyeblight's Ending": 2,
+     "Nameless Inversion": 2,
+     "Liliana Vess": 1,
+     "Hypnotic Specter": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 106456,
+   "event": 56,
+   "archetype": "MUC Guile",
+   "player": "Amiel Tenenbaum",
+   "event_name": "Grand Prix Krakow 2007",
+   "stars": 1,
+   "rank": "2",
+   "date": "2007-11-04",
+   "summer": false,
+   "s": 0.2823529411764706,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 8,
+    "counters": 19,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.66,
+    "pips": {
+     "W": 0,
+     "U": 54.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Think Twice": 4,
+     "Remove Soul": 4,
+     "Cryptic Command": 4,
+     "Rune Snag": 4,
+     "Venser, Shaper Savant": 2,
+     "Teferi, Mage of Zhalfir": 3,
+     "Guile": 3,
+     "Pact of Negation": 3,
+     "Ancestral Vision": 4,
+     "Faerie Trickery": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 108523,
+   "event": 117,
+   "archetype": "Mannequin",
+   "player": "Kotaro Otsuka",
+   "event_name": "Worlds 2007 (New York)",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "2007-12-06",
+   "summer": false,
+   "s": 0.2362810833750747,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 23,
+    "counters": 3,
+    "sweepers": 5,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 3.72,
+    "pips": {
+     "W": 0,
+     "U": 25.0,
+     "B": 16.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Damnation": 2,
+     "Phyrexian Ironfoot": 3,
+     "Mind Stone": 3,
+     "Cryptic Command": 3,
+     "Epochrasite": 4,
+     "Mulldrifter": 4,
+     "Riftwing Cloudskate": 4,
+     "Makeshift Mannequin": 4,
+     "Shadowmage Infiltrator": 4,
+     "Shriekmaw": 4,
+     "Loxodon Warhammer": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 13
+  },
+  {
+   "deck": 125616,
+   "event": 384,
+   "archetype": "Full Fat Merfolk",
+   "player": "William Cavaglieri",
+   "event_name": "Grand Prix Copenhagen 2008",
+   "stars": 1,
+   "rank": "6",
+   "date": "2008-08-24",
+   "summer": true,
+   "s": 0.23093395621997462,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 27,
+    "counters": 7,
+    "sweepers": 4,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.65,
+    "pips": {
+     "W": 0,
+     "U": 44.0,
+     "B": 0,
+     "R": 0,
+     "G": 10.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Tarmogoyf": 4,
+     "Lord of Atlantis": 4,
+     "Merrow Reejerey": 4,
+     "Silvergill Adept": 4,
+     "Cryptic Command": 4,
+     "Stonybrook Banneret": 4,
+     "Chameleon Colossus": 3,
+     "Sage's Dousing": 3,
+     "Ponder": 3,
+     "Wake Thrasher": 2,
+     "Venser, Shaper Savant": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 122454,
+   "event": 373,
+   "archetype": "Mana Ramp",
+   "player": "Ivan Taroshi Fox",
+   "event_name": "Grand Prix Buenos Aires 2008",
+   "stars": 1,
+   "rank": "5",
+   "date": "2008-06-29",
+   "summer": false,
+   "s": 0.1959909570294431,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 7,
+    "draw": 7,
+    "burn": 4,
+    "avg_cmc": 2.86,
+    "pips": {
+     "W": 4.0,
+     "U": 0,
+     "B": 0,
+     "R": 6.0,
+     "G": 48.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Chameleon Colossus": 4,
+     "Kitchen Finks": 4,
+     "Harmonize": 4,
+     "Wall of Roots": 4,
+     "Skred": 4,
+     "Tarmogoyf": 4,
+     "Firespout": 4,
+     "Cloudthresher": 3,
+     "Edge of Autumn": 3,
+     "Into the North": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 108681,
+   "event": 117,
+   "archetype": "Tarmo Rack",
+   "player": "Saul Aguado",
+   "event_name": "Worlds 2007 (New York)",
+   "stars": 1,
+   "rank": "",
+   "date": "2007-12-06",
+   "summer": false,
+   "s": 0.09816013647626926,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.44,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 33.0,
+     "R": 0,
+     "G": 12.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "The Rack": 4,
+     "Augur of Skulls": 4,
+     "Garruk Wildspeaker": 4,
+     "Thoughtseize": 4,
+     "Stupor": 4,
+     "Tarmogoyf": 4,
+     "Smallpox": 4,
+     "Damnation": 3,
+     "Nameless Inversion": 3,
+     "Liliana Vess": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  }
+ ],
+ "pool_size": 21,
+ "rejected_illegal": [
+  {
+   "archetype": "Angelfire",
+   "deck": 604363,
+   "player": "Bodo R\u00f6sner",
+   "why": [
+    "Azorius Chancery (not in legal sets)",
+    "Azorius Signet (not in legal sets)",
+    "Boros Signet (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Goyf Rack",
+   "deck": 604364,
+   "player": "Dennis Johannsen",
+   "why": [
+    "Cry of Contrition (not in legal sets)",
+    "Dark Confidant (not in legal sets)",
+    "Delirium Skeins (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Goyf Rack",
+   "deck": 604370,
+   "player": "Sven Johnson",
+   "why": [
+    "Cry of Contrition (not in legal sets)",
+    "Dark Confidant (not in legal sets)",
+    "Overgrown Tomb (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Omni-chord",
+   "deck": 604365,
+   "player": "Tobias Gr\u00e4fensteiner",
+   "why": [
+    "Breeding Pool (not in legal sets)",
+    "Chord of Calling (not in legal sets)",
+    "Compulsive Research (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Junk Midrange",
+   "deck": 604366,
+   "player": "Paul Borczyk",
+   "why": [
+    "Carven Caryatid (not in legal sets)",
+    "Castigate (not in legal sets)",
+    "Godless Shrine (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Wish Control",
+   "deck": 604367,
+   "player": "Tobias Rasir",
+   "why": [
+    "Angel of Despair (not in legal sets)",
+    "Castigate (not in legal sets)",
+    "Debtors' Knell (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Beats",
+   "deck": 604368,
+   "player": "Thomas Koch",
+   "why": [
+    "Char (not in legal sets)",
+    "Scab-Clan Mauler (not in legal sets)",
+    "Seal of Fire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Snow Control",
+   "deck": 604369,
+   "player": "Michael M\u00fcller",
+   "why": [
+    "Compulsive Research (not in legal sets)",
+    "Faith's Fetters (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "RDW",
+   "player": "Christophe Peyronnel",
+   "kept": "Red Deck Wins",
+   "kept_player": "Michael Jacob"
+  },
+  {
+   "dropped": "Reveillark",
+   "player": "Stephen Murray",
+   "kept": "UW Blink Reveillark",
+   "kept_player": "Masashi Oiso"
+  },
+  {
+   "dropped": "Ramp-Toast",
+   "player": "Samuele Estratti",
+   "kept": "Quick 'n Toast",
+   "kept_player": "Olivier Ruel"
+  },
+  {
+   "dropped": "Faeries",
+   "player": "Filippo Kratter",
+   "kept": "UB Faeries",
+   "kept_player": "Jonathan Randle"
+  },
+  {
+   "dropped": "Demigod Red",
+   "player": "Ioannis K Kyriazis",
+   "kept": "Red Deck Wins",
+   "kept_player": "Michael Jacob"
+  },
+  {
+   "dropped": "Mono Red",
+   "player": "David Larsson",
+   "kept": "Red Deck Wins",
+   "kept_player": "Michael Jacob"
+  },
+  {
+   "dropped": "BR Tokens",
+   "player": "Alexandre Rivi\u00e8re",
+   "kept": "Torrent",
+   "kept_player": "William Cavaglieri"
+  },
+  {
+   "dropped": "Golgari Elves",
+   "player": "Chris J Stocking",
+   "kept": "Elves",
+   "kept_player": "Sam Black"
+  },
+  {
+   "dropped": "Gassy Knoll (Pyromancer's Swath)",
+   "player": "Matteo Orsini Jones",
+   "kept": "Gassy Knoll",
+   "kept_player": "Akihiro Takakuwa"
+  },
+  {
+   "dropped": "Zur Swans",
+   "player": "Ruben Snijdewind",
+   "kept": "Seismic Swans",
+   "kept_player": "Hugo De Jong"
+  },
+  {
+   "dropped": "Red noob",
+   "player": "Armando Puoti",
+   "kept": "Red Deck Wins",
+   "kept_player": "Michael Jacob"
+  },
+  {
+   "dropped": "Cigno",
+   "player": "Tommaso Chiodi",
+   "kept": "Seismic Swans",
+   "kept_player": "Hugo De Jong"
+  },
+  {
+   "dropped": "GB Elves",
+   "player": "Charles Gindy",
+   "kept": "Elves",
+   "kept_player": "Sam Black"
+  },
+  {
+   "dropped": "BG Elves",
+   "player": "Francisco Braga",
+   "kept": "Elves",
+   "kept_player": "Sam Black"
+  },
+  {
+   "dropped": "UW Merfolk",
+   "player": "Jakub Jahoda",
+   "kept": "Merfolks",
+   "kept_player": "St\u00e9phane Soubrier"
+  },
+  {
+   "dropped": "Dragonstorm",
+   "player": "Patrick Chapin",
+   "kept": "Gassy Knoll",
+   "kept_player": "Akihiro Takakuwa"
+  },
+  {
+   "dropped": "Red Storm",
+   "player": "Felipe Alves Pellegrini",
+   "kept": "Gassy Knoll",
+   "kept_player": "Akihiro Takakuwa"
+  },
+  {
+   "dropped": "Merfolk",
+   "player": "Jan Ruess",
+   "kept": "Merfolks",
+   "kept_player": "St\u00e9phane Soubrier"
+  },
+  {
+   "dropped": "B/G Elves",
+   "player": "Shuhei Nakamura",
+   "kept": "Elves",
+   "kept_player": "Sam Black"
+  },
+  {
+   "dropped": "Quick' n Toast",
+   "player": "Guillaume Wafo-Tapa",
+   "kept": "Quick 'n Toast",
+   "kept_player": "Olivier Ruel"
+  },
+  {
+   "dropped": "Rock",
+   "player": "Adrien Degaspare",
+   "kept": "Elves",
+   "kept_player": "Sam Black"
+  },
+  {
+   "dropped": "Elves!",
+   "player": "Katsuhiro Mori",
+   "kept": "Elves",
+   "kept_player": "Sam Black"
+  },
+  {
+   "dropped": "Snow Mana Ramp",
+   "player": "Marijn Lybaert",
+   "kept": "Mana Ramp",
+   "kept_player": "Ivan Taroshi Fox"
+  },
+  {
+   "dropped": "Doran the Explorer",
+   "player": "Shintarou Ishimura",
+   "kept": "Doran Rock",
+   "kept_player": "Uri Peleg"
+  },
+  {
+   "dropped": "MonoU Pickles",
+   "player": "David Besso",
+   "kept": "UW Pickles",
+   "kept_player": "Paul Cheon"
+  },
+  {
+   "dropped": "Snow ManaRamp",
+   "player": "Gerardo Godinez Estrada",
+   "kept": "ManaRamp",
+   "kept_player": "Armin Birner"
+  },
+  {
+   "dropped": "Sonic Boom",
+   "player": "Kang Jisang",
+   "kept": "MUC Guile",
+   "kept_player": "Amiel Tenenbaum"
+  }
+ ],
+ "objective": 7.470039384335927
+}

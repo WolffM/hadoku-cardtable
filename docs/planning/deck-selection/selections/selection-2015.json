@@ -1,0 +1,1349 @@
+{
+ "era": {
+  "year": 2015,
+  "season_start": "2014-09-26",
+  "start": "2015-07-17",
+  "end": "2015-10-02",
+  "format": "Standard (ORI)",
+  "sets": "THS, BNG, JOU, M15, KTK, FRF, UGF, DTK, ORI",
+  "banned": []
+ },
+ "chosen": [
+  {
+   "deck": 259324,
+   "event": 10377,
+   "archetype": "Abzan Midrange",
+   "player": "Andrea Mengucci",
+   "event_name": "WMCQ 1 - Italy",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-08-23",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.62,
+    "pips": {
+     "W": 25.0,
+     "U": 0,
+     "B": 18.0,
+     "R": 0,
+     "G": 22.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Fleecemane Lion": 4,
+     "Hangarback Walker": 4,
+     "Anafenza, the Foremost": 4,
+     "Den Protector": 4,
+     "Siege Rhino": 4,
+     "Wingmate Roc": 2,
+     "Sorin, Solemn Visitor": 1,
+     "Elspeth, Sun's Champion": 1,
+     "Ultimate Price": 2,
+     "Dromoka's Command": 3,
+     "Abzan Charm": 3,
+     "Hero's Downfall": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 384
+  },
+  {
+   "deck": 260298,
+   "event": 10534,
+   "archetype": "Red Deck Wins",
+   "player": "Jory White",
+   "event_name": "SCG Standard Open - Milwaukee",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-09-20",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 20,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 55.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Abbot of Keral Keep": 4,
+     "Goblin Heelcutter": 1,
+     "Lightning Berserker": 3,
+     "Monastery Swiftspear": 4,
+     "Eidolon of the Great Revel": 4,
+     "Zurgo Bellstriker": 3,
+     "Lightning Strike": 4,
+     "Searing Blood": 4,
+     "Stoke the Flames": 4,
+     "Wild Slash": 4,
+     "Exquisite Firecraft": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 76
+  },
+  {
+   "deck": 259417,
+   "event": 10386,
+   "archetype": "Devotion to Green",
+   "player": "Alex Bastecki",
+   "event_name": "SCG Invitational Somerset",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-08-28",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 1,
+    "avg_cmc": 3.31,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 9.0,
+     "G": 46.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Xenagos, the Reveler": 4,
+     "Crater's Claws": 1,
+     "Polukranos, World Eater": 4,
+     "Dragonlord Atarka": 4,
+     "Genesis Hydra": 3,
+     "Sylvan Caryatid": 4,
+     "Rattleclaw Mystic": 4,
+     "Shaman of Forgotten Ways": 4,
+     "Elvish Mystic": 4,
+     "Whisperwood Elemental": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 114
+  },
+  {
+   "deck": 259368,
+   "event": 10383,
+   "archetype": "Jeskai Midrange",
+   "player": "Robert Sabol",
+   "event_name": "SCG Standard Open Somerset",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-08-29",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 19,
+    "counters": 2,
+    "sweepers": 2,
+    "draw": 2,
+    "burn": 9,
+    "avg_cmc": 3.09,
+    "pips": {
+     "W": 14.0,
+     "U": 15.0,
+     "B": 0,
+     "R": 27.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Soulfire Grand Master": 4,
+     "Dragonlord Ojutai": 1,
+     "Jace, Vryn's Prodigy // Jace, Telepath Unbound": 4,
+     "Stoke the Flames": 2,
+     "Magma Spray": 2,
+     "Dig Through Time": 2,
+     "Valorous Stance": 3,
+     "Ojutai's Command": 2,
+     "Draconic Roar": 3,
+     "Wild Slash": 1,
+     "Roast": 1,
+     "Mantis Rider": 4,
+     "Thunderbreak Regent": 4,
+     "Stormbreath Dragon": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 60
+  },
+  {
+   "deck": 260057,
+   "event": 10488,
+   "archetype": "Esper Control",
+   "player": "Michael Deidolori",
+   "event_name": "SCG Standard Open Worcester",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-09-12",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 8,
+    "counters": 6,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 1,
+    "avg_cmc": 3.76,
+    "pips": {
+     "W": 3.0,
+     "U": 29.0,
+     "B": 23.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Ultimate Price": 1,
+     "Ashiok, Nightmare Weaver": 1,
+     "Ugin, the Spirit Dragon": 1,
+     "Foul-Tongue Invocation": 2,
+     "Dissolve": 2,
+     "Bile Blight": 2,
+     "Crux of Fate": 2,
+     "Thoughtseize": 3,
+     "Hero's Downfall": 3,
+     "Silumgar's Scorn": 4,
+     "Dig Through Time": 4,
+     "Dragonlord Silumgar": 1,
+     "Silumgar, the Drifting Death": 1,
+     "Dragonlord Ojutai": 3,
+     "Jace, Vryn's Prodigy // Jace, Telepath Unbound": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 21
+  },
+  {
+   "deck": 259388,
+   "event": 10384,
+   "archetype": "UR Artifacts",
+   "player": "ryota09",
+   "event_name": "MTGO Standard Champs (#8654170)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-08-29",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 7,
+    "avg_cmc": 1.95,
+    "pips": {
+     "W": 0,
+     "U": 4.0,
+     "B": 0,
+     "R": 21.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Chief of the Foundry": 4,
+     "Hangarback Walker": 4,
+     "Ornithopter": 4,
+     "Phyrexian Revoker": 2,
+     "Pia and Kiran Nalaar": 4,
+     "Thopter Engineer": 3,
+     "Shrapnel Blast": 4,
+     "Stoke the Flames": 3,
+     "Ghostfire Blade": 4,
+     "Springleaf Drum": 3,
+     "Ensoul Artifact": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 6
+  },
+  {
+   "deck": 258338,
+   "event": 10133,
+   "archetype": "Abzan Rally",
+   "player": "Ray Tautic",
+   "event_name": "SCG Standard Open - Richmond",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-07-26",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.62,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 21.0,
+     "R": 0,
+     "G": 23.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Rally the Ancestors": 4,
+     "Collected Company": 4,
+     "Nantuko Husk": 2,
+     "Fleshbag Marauder": 2,
+     "Merciless Executioner": 3,
+     "Grim Haruspex": 3,
+     "Mogis's Marauder": 3,
+     "Den Protector": 3,
+     "Deathmist Raptor": 4,
+     "Elvish Mystic": 4,
+     "Satyr Wayfinder": 4,
+     "Liliana, Heretical Healer // Liliana, Defiant Necromancer": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 259578,
+   "event": 10409,
+   "archetype": "Mardu Aggro",
+   "player": "Alejandro Dupuy de Lome",
+   "event_name": "WMCQ 1 - Spain",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-08-22",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 3.15,
+    "pips": {
+     "W": 14.0,
+     "U": 0,
+     "B": 13.0,
+     "R": 31.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Stormbreath Dragon": 4,
+     "Thunderbreak Regent": 4,
+     "Soulfire Grand Master": 4,
+     "Brimaz, King of Oreskos": 3,
+     "Kolaghan, the Storm's Fury": 2,
+     "Murderous Cut": 2,
+     "Magma Spray": 1,
+     "Kolaghan's Command": 2,
+     "Draconic Roar": 4,
+     "Crackling Doom": 4,
+     "Thoughtseize": 3,
+     "Chandra, Pyromaster": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 29
+  },
+  {
+   "deck": 255724,
+   "event": 9689,
+   "archetype": "Abzan Control",
+   "player": "David Jones",
+   "event_name": "RPTQ Vancouver @ Greensboro",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-04-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 3.11,
+    "pips": {
+     "W": 19.0,
+     "U": 0,
+     "B": 29.0,
+     "R": 0,
+     "G": 20.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Fleecemane Lion": 4,
+     "Siege Rhino": 4,
+     "Courser of Kruphix": 4,
+     "Tasigur, the Golden Fang": 1,
+     "Foul-Tongue Invocation": 1,
+     "Bile Blight": 2,
+     "Murderous Cut": 1,
+     "Hero's Downfall": 3,
+     "Utter End": 1,
+     "Ultimate Price": 1,
+     "Abzan Charm": 4,
+     "Thoughtseize": 4,
+     "Read the Bones": 2,
+     "Elspeth, Sun's Champion": 3
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 64
+  },
+  {
+   "deck": 252157,
+   "event": 9129,
+   "archetype": "UB Control",
+   "player": "Yoon Soo Han",
+   "event_name": "PTQ - Tarukiru Dragon Kiden (Japan)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-02-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 32,
+    "lands": 28,
+    "creatures": 2,
+    "counters": 7,
+    "sweepers": 3,
+    "draw": 2,
+    "burn": 1,
+    "avg_cmc": 4.19,
+    "pips": {
+     "W": 0,
+     "U": 30.0,
+     "B": 28.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Ashiok, Nightmare Weaver": 1,
+     "Ugin, the Spirit Dragon": 1,
+     "Perilous Vault": 1,
+     "Dissipate": 1,
+     "Thoughtseize": 1,
+     "Nullify": 1,
+     "Disdainful Stroke": 1,
+     "Jace's Ingenuity": 2,
+     "Silence the Believers": 2,
+     "Crux of Fate": 3,
+     "Bile Blight": 4,
+     "Dig Through Time": 4,
+     "Dissolve": 4,
+     "Hero's Downfall": 4,
+     "Pearl Lake Ancient": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 57
+  },
+  {
+   "deck": 255344,
+   "event": 9634,
+   "archetype": "See the Unwritten",
+   "player": "Marco Panteghini",
+   "event_name": "RPTQ Vancouver @ Roma (Italy)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-04-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.68,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 3.0,
+     "G": 60.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "See the Unwritten": 4,
+     "Hornet Queen": 1,
+     "Genesis Hydra": 1,
+     "Surrak, the Hunt Caller": 2,
+     "Boon Satyr": 2,
+     "Dragonlord Atarka": 3,
+     "Elvish Mystic": 4,
+     "Rattleclaw Mystic": 4,
+     "Sylvan Caryatid": 4,
+     "Courser of Kruphix": 4,
+     "Whisperwood Elemental": 4,
+     "Polukranos, World Eater": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 255564,
+   "event": 9663,
+   "archetype": "Jeskai Ascendancy",
+   "player": "Michael Earnshaw",
+   "event_name": "Grand Prix Toronto 2015 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2015-05-01",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 5,
+    "counters": 3,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 8,
+    "avg_cmc": 2.94,
+    "pips": {
+     "W": 16.0,
+     "U": 13.0,
+     "B": 0,
+     "R": 19.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Valorous Stance": 1,
+     "Gods Willing": 1,
+     "Lightning Strike": 1,
+     "Anticipate": 2,
+     "Secure the Wastes": 2,
+     "Wild Slash": 3,
+     "Dragon Fodder": 3,
+     "Raise the Alarm": 3,
+     "Disdainful Stroke": 3,
+     "Stoke the Flames": 4,
+     "Jeskai Ascendancy": 4,
+     "Treasure Cruise": 4,
+     "Soulfire Grand Master": 1,
+     "Monastery Mentor": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 9
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 248155,
+   "event": 8380,
+   "archetype": "Jeskai Tempo",
+   "player": "Andrew Johnson",
+   "event_name": "Starcitygames Open Series: Minneapolis",
+   "stars": 3,
+   "rank": "1",
+   "date": "2014-10-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 18,
+    "avg_cmc": 3.6,
+    "pips": {
+     "W": 10.0,
+     "U": 14.0,
+     "B": 0,
+     "R": 41.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Banishing Light": 2,
+     "Dig Through Time": 3,
+     "Jeskai Charm": 4,
+     "Lightning Strike": 4,
+     "Magma Jet": 3,
+     "Stoke the Flames": 4,
+     "Anger of the Gods": 2,
+     "Sarkhan, the Dragonspeaker": 2,
+     "Chandra, Pyromaster": 1,
+     "Stormbreath Dragon": 2,
+     "Mantis Rider": 4,
+     "Goblin Rabblemaster": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 69
+  },
+  {
+   "deck": 255732,
+   "event": 9690,
+   "archetype": "Gruul Deck Wins",
+   "player": "Yann Teoh",
+   "event_name": "RPTQ Vancouver @ Lyon",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-04-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 8,
+    "draw": 0,
+    "burn": 12,
+    "avg_cmc": 2.02,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 47.0,
+     "G": 5.0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Frenzied Goblin": 1,
+     "Goblin Rabblemaster": 2,
+     "Foundry Street Denizen": 4,
+     "Lightning Berserker": 1,
+     "Monastery Swiftspear": 4,
+     "Zurgo Bellstriker": 3,
+     "Stoke the Flames": 4,
+     "Lightning Strike": 4,
+     "Become Immense": 1,
+     "Atarka's Command": 4,
+     "Wild Slash": 4,
+     "Hordeling Outburst": 4,
+     "Dragon Fodder": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 53
+  },
+  {
+   "deck": 253528,
+   "event": 9335,
+   "archetype": "Boros Aggro",
+   "player": "Kitajima Hiroyasu",
+   "event_name": "God Series - Phase 3",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-03-08",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 13,
+    "avg_cmc": 2.78,
+    "pips": {
+     "W": 13.0,
+     "U": 0,
+     "B": 0,
+     "R": 38.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Stormbreath Dragon": 2,
+     "Goblin Rabblemaster": 4,
+     "Soulfire Grand Master": 1,
+     "Seeker of the Way": 4,
+     "Ashcloud Phoenix": 2,
+     "Brimaz, King of Oreskos": 2,
+     "Wild Slash": 2,
+     "Stoke the Flames": 4,
+     "Lightning Strike": 4,
+     "Hordeling Outburst": 4,
+     "Outpost Siege": 2,
+     "Chained to the Rocks": 4,
+     "Chandra, Pyromaster": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 44
+  },
+  {
+   "deck": 255178,
+   "event": 9606,
+   "archetype": "Azorius Heroic",
+   "player": "Ross Merriam",
+   "event_name": "SCG Standard Open Cleveland",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-04-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 1.95,
+    "pips": {
+     "W": 32.0,
+     "U": 7.0,
+     "B": 0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Hero of Iroas": 4,
+     "Lagonna-Band Trailblazer": 2,
+     "Monastery Mentor": 2,
+     "Favored Hoplite": 4,
+     "Battlewise Hoplite": 1,
+     "Seeker of the Way": 4,
+     "Gods Willing": 4,
+     "Defiant Strike": 4,
+     "Dromoka's Command": 4,
+     "Ajani's Presence": 2,
+     "Treasure Cruise": 2,
+     "Ordeal of Thassa": 4,
+     "Ordeal of Heliod": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 42
+  },
+  {
+   "deck": 255713,
+   "event": 9687,
+   "archetype": "Temur Aggro",
+   "player": "Philip Arcuni",
+   "event_name": "RPTQ Vancouver @ Santa Clara",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-04-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 20,
+    "counters": 3,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.69,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 0,
+     "R": 28.0,
+     "G": 26.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Stormbreath Dragon": 4,
+     "Thunderbreak Regent": 4,
+     "Elvish Mystic": 3,
+     "Rattleclaw Mystic": 3,
+     "Savage Knuckleblade": 4,
+     "Courser of Kruphix": 4,
+     "Boon Satyr": 3,
+     "Surrak, the Hunt Caller": 1,
+     "Stubborn Denial": 3,
+     "Reality Shift": 1,
+     "Crater's Claws": 4,
+     "Anger of the Gods": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 34
+  },
+  {
+   "deck": 250011,
+   "event": 8750,
+   "archetype": "Sultai Whip",
+   "player": "Eric English",
+   "event_name": "StarCityGames.com Standard - Seattle",
+   "stars": 3,
+   "rank": "1",
+   "date": "2014-12-13",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.43,
+    "pips": {
+     "W": 0,
+     "U": 4.0,
+     "B": 29.0,
+     "R": 0,
+     "G": 28.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Satyr Wayfinder": 4,
+     "Hornet Queen": 2,
+     "Elvish Mystic": 1,
+     "Soul of Innistrad": 1,
+     "Sylvan Caryatid": 4,
+     "Courser of Kruphix": 4,
+     "Doomwake Giant": 3,
+     "Sidisi, Brood Tyrant": 4,
+     "Pharika, God of Affliction": 1,
+     "Hero's Downfall": 3,
+     "Murderous Cut": 4,
+     "Whip of Erebos": 3,
+     "Thoughtseize": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 34
+  },
+  {
+   "deck": 257350,
+   "event": 9944,
+   "archetype": "Gruul Dragons",
+   "player": "Eric Rill",
+   "event_name": "SCG Standard Open Indianapolis",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-06-20",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 9,
+    "avg_cmc": 2.68,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 33.0,
+     "G": 18.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Crater's Claws": 3,
+     "Roast": 2,
+     "Draconic Roar": 4,
+     "Ashcloud Phoenix": 2,
+     "Deathmist Raptor": 4,
+     "Den Protector": 2,
+     "Rattleclaw Mystic": 4,
+     "Goblin Rabblemaster": 4,
+     "Elvish Mystic": 4,
+     "Stormbreath Dragon": 4,
+     "Thunderbreak Regent": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 33
+  },
+  {
+   "deck": 250012,
+   "event": 8751,
+   "archetype": "Jeskai Token",
+   "player": "Dylan Donegan",
+   "event_name": "StarCityGames.com Invitational - Seattle",
+   "stars": 3,
+   "rank": "1",
+   "date": "2014-12-14",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 12,
+    "avg_cmc": 3.39,
+    "pips": {
+     "W": 14.0,
+     "U": 10.0,
+     "B": 0,
+     "R": 34.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Chandra, Pyromaster": 2,
+     "Jeskai Charm": 2,
+     "Jeskai Ascendancy": 4,
+     "Lightning Strike": 4,
+     "Raise the Alarm": 4,
+     "Stoke the Flames": 4,
+     "Hordeling Outburst": 4,
+     "Treasure Cruise": 4,
+     "Seeker of the Way": 4,
+     "Goblin Rabblemaster": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 24
+  },
+  {
+   "deck": 253731,
+   "event": 9375,
+   "archetype": "Sultai Control",
+   "player": "Michael Miller",
+   "event_name": "StarCityGames.com Standard - Dallas",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-03-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 4,
+    "counters": 2,
+    "sweepers": 2,
+    "draw": 6,
+    "burn": 2,
+    "avg_cmc": 3.89,
+    "pips": {
+     "W": 0,
+     "U": 18.0,
+     "B": 30.0,
+     "R": 0,
+     "G": 10.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Satyr Wayfinder": 4,
+     "Ashiok, Nightmare Weaver": 2,
+     "Garruk, Apex Predator": 1,
+     "Kiora, the Crashing Wave": 2,
+     "Ugin, the Spirit Dragon": 2,
+     "Bile Blight": 4,
+     "Dig Through Time": 4,
+     "Disdainful Stroke": 2,
+     "Hero's Downfall": 4,
+     "Murderous Cut": 1,
+     "Sultai Charm": 3,
+     "Crux of Fate": 2,
+     "Thoughtseize": 3,
+     "Treasure Cruise": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 19
+  },
+  {
+   "deck": 255789,
+   "event": 9699,
+   "archetype": "Jund",
+   "player": "Ryan Overturf",
+   "event_name": "RPTQ Vancouver @ Lenexa",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-04-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.72,
+    "pips": {
+     "W": 4.0,
+     "U": 8.0,
+     "B": 20.0,
+     "R": 8.0,
+     "G": 20.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Thoughtseize": 2,
+     "Murderous Cut": 4,
+     "Tormenting Voice": 4,
+     "Commune with the Gods": 4,
+     "Tasigur, the Golden Fang": 2,
+     "Sagu Mauler": 4,
+     "Soulflayer": 4,
+     "Sylvan Caryatid": 4,
+     "Chromanticore": 4,
+     "Satyr Wayfinder": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 8
+  },
+  {
+   "deck": 255685,
+   "event": 9684,
+   "archetype": "Golgari Aggro",
+   "player": "Kai Burnett",
+   "event_name": "RPTQ Vancouver @ Toronto",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-04-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 19.0,
+     "R": 0,
+     "G": 34.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Whip of Erebos": 1,
+     "Murderous Cut": 1,
+     "Crux of Fate": 1,
+     "Thoughtseize": 2,
+     "Hero's Downfall": 4,
+     "Merciless Executioner": 1,
+     "Sidisi, Undead Vizier": 1,
+     "Tasigur, the Golden Fang": 1,
+     "Whisperwood Elemental": 3,
+     "Satyr Wayfinder": 4,
+     "Rattleclaw Mystic": 4,
+     "Den Protector": 4,
+     "Deathmist Raptor": 4,
+     "Courser of Kruphix": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 255797,
+   "event": 9700,
+   "archetype": "Full Dragons",
+   "player": "Michael Flores",
+   "event_name": "RPTQ Vancouver @ West Valley City",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-04-25",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 10,
+    "counters": 11,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 1,
+    "avg_cmc": 4.18,
+    "pips": {
+     "W": 6.0,
+     "U": 42.0,
+     "B": 1.0,
+     "R": 1.0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Disdainful Stroke": 1,
+     "Voyage's End": 1,
+     "Dragonlord's Prerogative": 1,
+     "Ugin, the Spirit Dragon": 1,
+     "Encase in Ice": 2,
+     "Perilous Vault": 2,
+     "Anticipate": 2,
+     "Nullify": 2,
+     "Dig Through Time": 3,
+     "Dissolve": 4,
+     "Silumgar's Scorn": 4,
+     "Dragonlord Atarka": 1,
+     "Dragonlord Silumgar": 1,
+     "Icefall Regent": 2,
+     "Dragonlord Dromoka": 3,
+     "Dragonlord Ojutai": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  }
+ ],
+ "pool_size": 39,
+ "rejected_illegal": [
+  {
+   "archetype": "Gruul Monsters",
+   "deck": 250645,
+   "player": "Doug Hendrickson",
+   "why": [
+    "Searing Spear (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Esper Dragons",
+   "player": "Zachary Reyburn",
+   "kept": "Esper Control",
+   "kept_player": "Michael Deidolori"
+  },
+  {
+   "dropped": "Gruul Aggro",
+   "player": "Chris VanMeter",
+   "kept": "Gruul Dragons",
+   "kept_player": "Eric Rill"
+  },
+  {
+   "dropped": "Sultai Aggro",
+   "player": "Christopher Morris-Lent",
+   "kept": "Sultai Whip",
+   "kept_player": "Eric English"
+  },
+  {
+   "dropped": "Jeskai Heroic",
+   "player": "Joe Lossett",
+   "kept": "Azorius Heroic",
+   "kept_player": "Ross Merriam"
+  },
+  {
+   "dropped": "UB Dragons",
+   "player": "Kenneth Cordell",
+   "kept": "Esper Control",
+   "kept_player": "Michael Deidolori"
+  },
+  {
+   "dropped": "Jeskai  Midrange",
+   "player": "Kevin Jones",
+   "kept": "Jeskai Tempo",
+   "kept_player": "Andrew Johnson"
+  },
+  {
+   "dropped": "Abzan Reanimator",
+   "player": "Oliver Tomajko",
+   "kept": "Sultai Whip",
+   "kept_player": "Eric English"
+  },
+  {
+   "dropped": "Devotion to Temur",
+   "player": "Remi Perrot",
+   "kept": "Devotion to Green",
+   "kept_player": "Alex Bastecki"
+  },
+  {
+   "dropped": "Naya Midrange",
+   "player": "Matthew Linley",
+   "kept": "Naya Dragons",
+   "kept_player": "Ali Aintrazi"
+  },
+  {
+   "dropped": "URArtifacts",
+   "player": "Sneaky homunkulus",
+   "kept": "UR Artifacts",
+   "kept_player": "ryota09"
+  },
+  {
+   "dropped": "Mardu Control",
+   "player": "Daniel Ward",
+   "kept": "Mardu Aggro",
+   "kept_player": "Alejandro Dupuy de Lome"
+  },
+  {
+   "dropped": "Golgari Constelation",
+   "player": "Julien L\u00e9v\u00eaque",
+   "kept": "Sultai Whip",
+   "kept_player": "Eric English"
+  },
+  {
+   "dropped": "Jeskai Tokens",
+   "player": "Adam Mckibben",
+   "kept": "Jeskai Token",
+   "kept_player": "Dylan Donegan"
+  },
+  {
+   "dropped": "Boros Burn",
+   "player": "Andrew Skorik",
+   "kept": "Boros Aggro",
+   "kept_player": "Kitajima Hiroyasu"
+  },
+  {
+   "dropped": "Devotion to Gruul",
+   "player": "Jesse Juote",
+   "kept": "Devotion to Green",
+   "kept_player": "Alex Bastecki"
+  },
+  {
+   "dropped": "Devotion to Selesnya",
+   "player": "Gabriel Cocchi",
+   "kept": "Devotion to Green",
+   "kept_player": "Alex Bastecki"
+  }
+ ],
+ "objective": 10.724782457361643
+}
