@@ -122,6 +122,12 @@ that *is* on `PATH` has no `javac` and no `lib/ct.sym`, so a stock Forge build
 fails with `error: release version 17 not supported` — which reads like a
 version mismatch and is in fact a missing compiler (D14's amendment).
 
+**In a wave worktree, jar suites and e2e need env the worktree does not have**
+(Node 24, `CARDTABLE_FORGE_JAR`, `CARDTABLE_FORGE_RES` from the main checkout's
+pinned `forge/`, a per-lane `CARDTABLE_PLAY_WORK_DIR`). Without it every jar spec
+skips and exits 0. `docs/WAVE_WORKTREE.md` has the working block and the
+scaffolding still to build. Read it before scaffolding or managing a wave.
+
 ## Working agreements
 
 - Facts about Forge go in `docs/FORGE_ANALYSIS.md` **with the file they came
