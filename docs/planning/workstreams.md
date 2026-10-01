@@ -292,6 +292,13 @@ column says.
 | 16 | card labels under popovers | **queued** (the first list's 10, z-order); **second ask** | |
 | 17 | holding priority on my own spells | **queued** (the first list's 12, second half) | `passStackWindows` is true (`auto.ts:328`), so not that |
 
+**Operator rulings, 2026-10-01** (answers to the tracker's three defaults): **Q10**
+confirmed, *"no creatures, no block"*. **Q5** is scoped: the skip is *"only when 'end
+turn' is clicked"* and the resolve pause stays (so not the global Forge preference the
+tracker first proposed). **Q9**: *"honestly it's just a guess. take whatever space the
+avatar and the hand/deck counts need, and give the rest to the graveyard"*, so the
+80% figure is dropped.
+
 **Also found this pass:** `treekill` is still `true` (a redeploy still ends live
 games; `/health/busy` now exists to check first). CI's `check` fails on
 `warm-claw-5` only; `317bd92` (`/health/busy`, not ours) failed there too.
