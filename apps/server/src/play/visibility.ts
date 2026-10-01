@@ -379,6 +379,23 @@ export interface SeatProjector {
 	project(frame: StateFrame): StateFrame;
 	/** Current visibility of a card for this seat (diagnostics and tests). */
 	visibilityOf(cardId: number): Visibility;
+	/**
+	 * How many creatures this seat's own battlefield holds, or null when the seat
+	 * has no player yet or the state does not know it. Wave 32, Q10 — the fact
+	 * behind *"no creatures, no block"* (`auto.ts` `skipEmptyBlockStop`).
+	 *
+	 * Public information by construction: a battlefield is on the table, and every
+	 * card counted here is one this seat is already sent. A card whose face is not
+	 * known is counted as a creature, because "when in doubt, the player is asked".
+	 */
+	creatureCount(): number | null;
+	/**
+	 * The Forge player id that activated the item on top of the stack, or null when
+	 * the stack is empty or the state does not say. Wave 32, Q17 — the fact behind
+	 * "this is my own spell, resolving" (`auto.ts` `passOwnSpell`). The stack is on
+	 * the table for everyone to read, so this is public by construction.
+	 */
+	stackTopActivator(): number | null;
 }
 
 export function createProjector(viewer: number | null = null): SeatProjector {
@@ -504,6 +521,27 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		},
 		visibilityOf(cardId: number): Visibility {
 			return cardVisibility(raw, indexZones(raw), cardId, who);
+		},
+		stackTopActivator(): number | null {
+			// `GameView.Stack` is the stack item ids, TOP FIRST (`apps/ui/src/play/adapter.ts`).
+			const game = [...raw.values()].find((o) => o._type === TYPE.game);
+			const top = idsOf(game, 'Stack')[0];
+			if (top === undefined) return null;
+			return intOf(raw.get(keyOf(TYPE.stackItem, top)), 'ActivatingPlayer');
+		},
+		creatureCount(): number | null {
+			if (who === null) return null;
+			const player = raw.get(keyOf(TYPE.player, who));
+			if (player === undefined) return null;
+			let creatures = 0;
+			for (const id of idsOf(player, 'Battlefield')) {
+				const card = raw.get(keyOf(TYPE.card, id));
+				const face = raw.get(keyOf(TYPE.cardState, id * 16 + (intOf(card, 'CurrentState') ?? 0)));
+				const type = tagged(face, 'Type') as { t: string; core?: unknown } | undefined;
+				const core = type?.t === 'cardtype' && Array.isArray(type.core) ? (type.core as unknown[]) : null;
+				if (core === null || core.includes('Creature')) creatures += 1;
+			}
+			return creatures;
 		},
 	};
 }

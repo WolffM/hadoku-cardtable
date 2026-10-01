@@ -296,7 +296,13 @@ export type BridgeLine =
 	| { t: 'fatal'; message: string }
 	| { t: 'rejected'; message: string; command: string }
 	| { t: 'stale'; seat: number; callId: string }
-	| { t: 'unsupported'; seat: number; method: string };
+	| { t: 'unsupported'; seat: number; method: string }
+	/**
+	 * Wave 32, Q5 — the bridge switched Forge's phase-pacing sleep for a seat
+	 * (`SeatGui.setPhaseDelayOff`). Informational: it exists so a log and a suite
+	 * can see that the exemption is armed by an End Turn click and lifted after it.
+	 */
+	| { t: 'pace'; seat: number; skipPhaseDelay: boolean; at: number };
 
 export interface HostEvents {
 	line(line: BridgeLine): void;
@@ -398,7 +404,7 @@ export const SPARE_RETRY_MS = 5000;
 /** …and after this many such deaths in a row, not at all. */
 export const SPARE_MAX_FAILURES = 3;
 
-const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'fatal', 'rejected', 'stale', 'unsupported']);
+const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'fatal', 'rejected', 'stale', 'unsupported', 'pace']);
 
 /** A line from the bridge, or null for one that is not a protocol line. */
 export function parseBridgeLine(text: string): BridgeLine | null {

@@ -885,8 +885,10 @@ function adoptFullControl(match: LiveMatch, payload: unknown): void {
 
 /**
  * `forge:seats` arriving FROM the server — item 4, wave 29 §B's own event
- * (see `MATCH_EVENTS.seats`'s note). Sent on every join and every resync, so
- * this is the one place `avatarByPlayerId` is ever written.
+ * (see `MATCH_EVENTS.seats`'s note). Sent on every join and every resync, and —
+ * since wave 32 (Q6) — to every socket in the match whenever a seat's avatar
+ * changes mid-game (`Match.setSeatAvatar`), so this is the one place
+ * `avatarByPlayerId` is ever written and a later event simply replaces the map.
  *
  * A malformed payload or one for another match is recorded and changes
  * nothing, exactly as `adoptFullControl` treats the same two failures — the
@@ -1003,7 +1005,13 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
   const selection = match.selectables;
   const named =
     selection === null
-      ? union(match.weaklySelectable, match.highlighted, mulliganHand(match.state, view), blockTargets(match, view))
+      ? union(
+          match.weaklySelectable,
+          match.highlighted,
+          mulliganHand(match.state, view),
+          blockTargets(match, view),
+          declaredAttackers(match, view),
+        )
       : selection.cards;
   if (named === null) return nothingClickable(match);
   const drawn = cardIdsInView(view);
@@ -1296,6 +1304,48 @@ function blockTargets(match: LiveMatch, view: BoardView): ReadonlySet<number> | 
     for (const c of p.battlefield) if (c.attacking) attackers.add(c.id);
   }
   return attackers;
+}
+
+/**
+ * Forge's own word for button 2 of `InputAttack` once an attacker has been
+ * declared (`InputAttack.updatePrompt` → `lblCallBack`, `en-US.properties`).
+ * Before one is, the same button reads `lblAlphaStrike`. A button LABEL, not a
+ * regex over prompt prose — the same practice as {@link AUTO_PAY_LABEL}.
+ */
+export const CALL_BACK_LABEL = 'Call Back';
+
+/**
+ * The viewer's own already-declared attackers, offered while `InputAttack` is
+ * running — or null when it is not.
+ *
+ * ## Why this exists (wave 32, Q14)
+ *
+ * `InputAttack.onCardSelected` UNDECLARES an attacker the seat clicks again
+ * (`InputAttack.java:208-218`: `combat.isAttacking(card, currentDefender)` →
+ * `undeclareAttacker`), but `pushAttackerCandidates` drops every declared attacker
+ * from the actionable set (`PlayerControllerHuman.java:1613-1614`), so such a click
+ * never reached `boardInteraction` and `selectCard` refused it. The same shape as
+ * {@link blockTargets}: Forge accepts a click its own offer does not name, and the
+ * condition it accepts it under is on the wire.
+ *
+ * ## Two facts say `InputAttack` is the input running
+ *
+ *  - the phase is declare-attackers and this seat is the active player
+ *    ({@link declaringAttackers}); and
+ *  - button 2 reads `Call Back` ({@link CALL_BACK_LABEL}) — Forge's own sign that
+ *    at least one attacker is declared. The declare-attackers PRIORITY window that
+ *    follows reads `End Turn`, and offering an attacker there would send a click to
+ *    an input that has no such meaning.
+ *
+ * Hidden information is untouched: the cards are on this seat's own battlefield,
+ * and `boardInteraction` still intersects with `cardIdsInView`.
+ */
+function declaredAttackers(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
+  if (!declaringAttackers(match)) return null;
+  if (match.buttons === null || match.buttons.label2 !== CALL_BACK_LABEL) return null;
+  const me = view.players.find((p) => p.isViewer);
+  if (me === undefined) return null;
+  return new Set(me.battlefield.filter((c) => c.attacking).map((c) => c.id));
 }
 
 /**

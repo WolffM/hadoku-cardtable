@@ -450,6 +450,12 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		askTimeoutMs: deps.askTimeoutMs ?? 10 * 60_000,
 		overGraceMs: deps.overGraceMs ?? 10 * 60_000,
 		disconnectGraceMs: deps.disconnectGraceMs ?? 30_000,
+		seatsChanged: (match, seats) => {
+			// Wave 32, Q6: a seat's avatar changed mid-match. Every socket in the match
+			// — both seats, and spectators — gets the new roster on the event a join
+			// already carries (`forge:seats`), so the board and the chat agree again.
+			io.to(roomFor(match).roomId).emit('forge:seats', { matchId: match.id, seats });
+		},
 		emit: (match, seat, envelope) => {
 			emitPerRecipient<PlayApp, PlayClient, typeof envelope>(
 				io,

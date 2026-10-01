@@ -210,6 +210,26 @@ export interface SeatState {
 	/** The latest prompt and buttons, re-sent after a snapshot. */
 	prompt: ServerFrame | null;
 	buttons: ServerFrame | null;
+	/**
+	 * The prompt frame this seat's stop was last PASSED on — a prompt earns one press.
+	 *
+	 * Wave 32, Q12. Forge's inputs do not agree on the order they say things in: a
+	 * priority window sends the prompt and then its buttons, but `InputBlock` (and
+	 * the payment input, which `maybeAutoPay` already knew) sends its BUTTONS first
+	 * and its prompt after. A pass decided on the buttons alone therefore read the
+	 * PREVIOUS window's prompt — the seat's last `Priority: … Declare Attackers
+	 * Step`, which had already been passed — found a phase nobody asked to stop in,
+	 * and pressed OK a second time, on the block input that had just opened. The
+	 * block input ended in under 10 ms, the seat was never offered its creatures, and
+	 * the log said `auto-passed` for a phase it was not in. That is the operator's
+	 * *"i was not able to assign blockers at all"*, reproduced against a real Forge in
+	 * `blockers.jvm.test.ts`.
+	 *
+	 * So a prompt that has been passed on is not passed on again: the second press
+	 * would answer whatever Forge asks NEXT. Compared by frame identity — Forge
+	 * re-sending the same words is a new frame and a new window, and is decided afresh.
+	 */
+	passedOn: ServerFrame | null;
 	deck: string | null;
 	/** The notice sent when the match failed; re-sent after every later snapshot. */
 	ended: ServerFrame | null;
@@ -323,6 +343,12 @@ export interface MatchDeps {
 	 * screenshot, catch a payment the default would have had Forge answer.
 	 */
 	stopPolicy?: StopPolicy;
+	/**
+	 * Every seat's identity changed — `Match.setSeatAvatar` (wave 32, Q6). The
+	 * socket layer re-sends `forge:seats` to every socket in the match; a deps
+	 * with none (a unit suite) simply never tells anyone.
+	 */
+	seatsChanged?(seats: SeatIdentity[]): void;
 	now?: () => number;
 }
 
@@ -426,6 +452,7 @@ export class Match {
 			asks: new Map(),
 			prompt: null,
 			buttons: null,
+			passedOn: null,
 			deck: null,
 			ended: null,
 			departure: null,
@@ -624,6 +651,32 @@ export class Match {
 			...(s.avatarId === undefined ? {} : { avatarId: s.avatarId }),
 			...(s.displayName === undefined ? {} : { name: s.displayName }),
 		}));
+	}
+
+	/**
+	 * Change one seat's avatar while the match runs — wave 32, Q6, the server half of
+	 * *"watchparty chat and the game are desynced when i change avatars"*.
+	 *
+	 * The match was told each avatar once, at its start (`SeatSpecWithIdentity`), so a
+	 * member who changed theirs afterwards kept the old face on the board for the rest
+	 * of the game. `routes.ts` calls this when the room's identity route changes a
+	 * member who holds a seat. `null` clears it: the key is ABSENT again, the same two
+	 * states {@link Match.seatIdentities} documents.
+	 *
+	 * The new roster goes to EVERY socket in the match through `deps.seatsChanged`
+	 * (both seats' avatars, always — a face is not hidden information), not just the
+	 * changed seat's: the opponent is watching the same board. A change that changes
+	 * nothing is not re-sent.
+	 */
+	setSeatAvatar(seat: number, avatarId: string | null): void {
+		const s = this.seats[seat];
+		if (s === undefined) return;
+		const next = avatarId === null || avatarId === '' ? undefined : avatarId;
+		if (s.avatarId === next) return;
+		if (next === undefined) delete s.avatarId;
+		else s.avatarId = next;
+		this.deps.log({ evt: 'seat-avatar', matchId: this.id, seat, avatarId: next ?? null });
+		this.deps.seatsChanged?.(this.seatIdentities());
 	}
 
 	/**
@@ -865,6 +918,7 @@ export class Match {
 				return;
 			case 'rejected':
 			case 'stale':
+			case 'pace':
 			case 'unsupported': {
 				const { t, ...detail } = line;
 				this.deps.log({ evt: `bridge-${t}`, matchId: this.id, ...detail });
@@ -1092,6 +1146,8 @@ export class Match {
 			buttons: s.buttons,
 			actionable: s.actionable,
 			openAsks: s.asks.size,
+			creatures: s.projector.creatureCount(),
+			stackTopActivator: s.projector.stackTopActivator(),
 		};
 	}
 
@@ -1108,8 +1164,12 @@ export class Match {
 	 */
 	private maybeAutoPass(s: SeatState): void {
 		if (s.fullControl || s.ai || this.status !== 'running') return;
+		// The prompt in hand was already passed on, so these buttons belong to the input
+		// AFTER it (see `SeatState.passedOn`): not ours to press for.
+		if (s.prompt !== null && s.prompt === s.passedOn) return;
 		const phase = autoPassReason(this.notesOf(s), s.policy);
 		if (phase === null) return;
+		s.passedOn = s.prompt;
 		s.autoPassed += 1;
 		// Forge clears the set as the input stops; drop ours with it so the next
 		// stop is judged on the next answer rather than on this one.
@@ -1354,8 +1414,10 @@ export interface MatchRegistry {
 	handOver(): { handed: Match[]; ending: Match[] };
 }
 
-export type RegistryDeps = Omit<MatchDeps, 'emit'> & {
+export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged'> & {
 	emit(match: Match, seat: number, envelope: ServerEnvelope): void;
+	/** See {@link MatchDeps.seatsChanged}. */
+	seatsChanged?(match: Match, seats: SeatIdentity[]): void;
 	/** The re-attach half of the host. Absent on a host whose JVMs die with us. */
 	attach?(record: JvmRecord, events: HostEvents): MatchHost;
 	/**
@@ -1374,6 +1436,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 			const match: Match = new Match(id, spec, {
 				...deps,
 				emit: (seat, envelope) => deps.emit(match, seat, envelope),
+				seatsChanged: (seats) => deps.seatsChanged?.(match, seats),
 			});
 			matches.set(id, match);
 			match.start();
@@ -1390,7 +1453,11 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 			const match: Match = new Match(
 				record.matchId,
 				record.spec,
-				{ ...deps, emit: (seat, envelope) => deps.emit(match, seat, envelope) },
+				{
+					...deps,
+					emit: (seat, envelope) => deps.emit(match, seat, envelope),
+					seatsChanged: (seats) => deps.seatsChanged?.(match, seats),
+				},
 				{ epoch: record.epoch, owners: record.owners },
 			);
 			matches.set(record.matchId, match);

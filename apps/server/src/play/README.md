@@ -25,7 +25,7 @@ match outlives its server" below.
 | `visibility.ts` | the hidden-information projection (Forge's `canBeShownTo`, server side) |
 | `transport.ts` | the A↔B wrapper schemas (lane B mirrors them at `apps/ui/src/play/live/transport.ts`) |
 | `host.ts` | the `MatchHost` seam, the one-JVM-per-match implementation, its warm spare, the concurrency ceiling, the run directory, and the re-attach seam a match survives a restart through (`orphans`/`attach`/`handOver`) |
-| `auto.ts` | pure decisions: an ask with one legal reply, a stop with nothing to do, a payment with one source. `match.ts` acts on them; a seat's `fullControl` turns the file off for that seat |
+| `auto.ts` | pure decisions: an ask with one legal reply, a stop with nothing to do, a payment with one source. `match.ts` acts on them; a seat's `fullControl` turns the file off for that seat. Wave 32 added three policy values, all off under full control: `skipEmptyBlockStop` (no creatures, no Declare Blockers stop), `passOwnSpell` (priority is not held on the seat's own spell) and `orderSimultaneous` (Forge's own order for simultaneous abilities). `match.ts` presses OK once per prompt (`SeatState.passedOn`): Forge's block input says its buttons BEFORE its prompt, and a second press on the stale prompt ended it |
 | `bridge/PlayBridge.java` | the Java side: runs as a single-file source program, no build step |
 | `dev/seat.ts` | a command-line seat, for local testing (see "Two seats locally") |
 | `dev/spare-bench.ts` | cold start vs warm spare, measured (see "The warm spare, measured") |

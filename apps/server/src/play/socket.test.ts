@@ -435,6 +435,33 @@ describe('forge:seats: item 4’s server half', () => {
 		expect(alice.seatsEvents[1]).toEqual(alice.seatsEvents[0]);
 	});
 
+	/*
+	 * Wave 32, Q6 — *"watchparty chat and the game are desynced when i change
+	 * avatars"*. The match was told each avatar once, at its start; `Match.setSeatAvatar`
+	 * is what `routes.ts` calls when the identity route changes a member who holds a
+	 * seat, and EVERY socket in the match must hear the new roster.
+	 */
+	it('Q6: an avatar changed mid-match reaches every socket in the match, on forge:seats', async () => {
+		const h = await boot();
+		const { body } = await startMatch(h, 'alice', { opponent: 'human', avatarIds: ['sage', 'herald'] });
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		await waitUntil(() => alice.seatsEvents.length > 0 && bob.seatsEvents.length > 0, 'both seats to have been told once');
+		const before = { alice: alice.seatsEvents.length, bob: bob.seatsEvents.length };
+
+		(h.handle.matches.get(matchId) as import('./match.ts').Match).setSeatAvatar(0, 'wanderer');
+
+		await waitUntil(() => alice.seatsEvents.length > before.alice && bob.seatsEvents.length > before.bob, 'every socket to hear the change');
+		for (const peer of [alice, bob]) {
+			const event = peer.seatsEvents.at(-1) as { matchId: string; seats: { seat: number; avatarId?: string }[] };
+			expect(event.matchId).toBe(matchId);
+			expect(event.seats.map((x) => x.avatarId)).toEqual(['wanderer', 'herald']);
+		}
+	});
+
 	it('a refused join is told nothing at all — there is no seat to name', async () => {
 		const h = await boot();
 		const { body } = await startMatch(h);

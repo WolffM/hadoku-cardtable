@@ -610,6 +610,32 @@ public final class PlayBridge {
         volatile Boolean lastToldMulligan;
 
         /**
+         * Wave 32, Q5 — whether Forge's phase-pacing sleep is OFF for this seat, which is
+         * true from an End Turn click until the yield it started is over, and never else.
+         *
+         * <p>{@code PlayerControllerHuman.chooseSpellAbilityToPlay} sleeps
+         * {@code FControlGamePlayback.phasesDelay} (about 205 ms) at every phase an
+         * auto-passing player is "not set up to skip", unless {@code YIELD_SKIP_PHASE_DELAY}
+         * is true ({@code PlayerControllerHuman.java:1685-1691}). The only auto-pass this
+         * bridge ever starts is End Turn ({@code InputPassPriority.onCancel} →
+         * {@code autoPassUntilEndOfTurn}); every other pass is a click our own server makes
+         * on a live prompt and sleeps in nobody's code. So the sleep only ever shows after
+         * an End Turn, and the operator's ruling — *"only when 'end turn' is clicked"* —
+         * is exactly "off while the yield runs, back on after".
+         *
+         * <p>The preference lives in the SERVER's {@code YieldController} (each match is its
+         * own JVM, and each seat has its own controller), and reaches it as a
+         * {@code SetYieldPref} envelope on the same channel as the click, so Forge applies it
+         * before it reads the click.
+         */
+        private volatile boolean phaseDelayOff;
+        /** Button 2 as Forge last labelled it, to know that a cancel click IS an End Turn. */
+        private volatile String lastLabel2 = "";
+        private volatile boolean lastEnable2;
+        /** Forge's own label of the End Turn button ({@code InputPassPriority}, {@code lblEndTurn}). */
+        private static final String END_TURN_LABEL = "End Turn";
+
+        /**
          * This seat's client-side "event dispatch thread": one thread, so the seat's
          * protocol calls run in the order Forge sent them, exactly as the stock client's
          * EDT would run them — but a thread of its own. See {@link BridgeGui}.
@@ -903,6 +929,9 @@ public final class PlayBridge {
             // `RemoteClientGuiGame` never syncs the trackable graph for.
             syncMulliganFlag();
             if (playerView == null) { return; }
+            // A priority window the SEAT is shown is a real input: no yield is running, so
+            // an End Turn's pacing exemption is over (it is only ever armed by the click).
+            if (phaseDelayOff && message != null && message.startsWith("Priority:")) { setPhaseDelayOff(false); }
             final JsonObject f = notify("showPromptMessage");
             f.add("player", ref("player", playerView.getId()));
             f.addProperty("message", str(message));
@@ -915,6 +944,8 @@ public final class PlayBridge {
             // The other of the two — see `syncMulliganFlag`.
             syncMulliganFlag();
             if (owner == null) { return; }
+            lastLabel2 = label2 == null ? "" : label2;
+            lastEnable2 = enable2;
             final JsonObject f = notify("updateButtons");
             f.add("owner", ref("player", owner.getId()));
             f.addProperty("label1", str(label1));
@@ -1370,7 +1401,12 @@ public final class PlayBridge {
             final String method = frame.get("method").getAsString();
             switch (method) {
                 case "selectButtonOk" -> c.selectButtonOk();
-                case "selectButtonCancel" -> c.selectButtonCancel();
+                case "selectButtonCancel" -> {
+                    // End Turn is Forge's own button 2 at a priority window. The exemption
+                    // is sent BEFORE the click so Forge applies it first (one channel, in order).
+                    if (lastEnable2 && END_TURN_LABEL.equals(lastLabel2)) { setPhaseDelayOff(true); }
+                    c.selectButtonCancel();
+                }
                 case "concede" -> c.concede();
                 case "requestResync" -> c.requestResync();
                 case "useMana" -> c.useMana(frame.get("color").getAsByte());
@@ -1391,6 +1427,22 @@ public final class PlayBridge {
                 }
                 default -> throw new IllegalArgumentException("not an act: " + method);
             }
+        }
+
+        /**
+         * Switch Forge's phase-pacing sleep for this seat's controller, and say so on the
+         * protocol (a {@code pace} line) so a suite and a log can see when it flipped.
+         */
+        void setPhaseDelayOff(final boolean off) {
+            final IGameController c = getGameController();
+            if (c == null || phaseDelayOff == off) { return; }
+            phaseDelayOff = off;
+            c.setYieldPref(FPref.YIELD_SKIP_PHASE_DELAY, String.valueOf(off));
+            final JsonObject o = line("pace");
+            o.addProperty("seat", seat);
+            o.addProperty("skipPhaseDelay", off);
+            o.addProperty("at", System.currentTimeMillis());
+            emit(o);
         }
 
         CardView card(final JsonElement ref) {

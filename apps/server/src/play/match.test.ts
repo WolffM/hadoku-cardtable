@@ -231,6 +231,51 @@ describe("item 4: a seat's identity", () => {
 	});
 });
 
+describe('Q6: an avatar changed mid-match (wave 32)', () => {
+	function liveAvatarHarness(): { match: Match; told: { seat: number; avatarId?: string }[][] } {
+		const { factory } = replayFactory();
+		const told: { seat: number; avatarId?: string }[][] = [];
+		const registry = createMatchRegistry({
+			host: factory,
+			log: () => undefined,
+			askTimeoutMs: 60_000,
+			overGraceMs: 60_000,
+			emit: () => undefined,
+			seatsChanged: (_match, seats) => told.push(seats),
+		});
+		const spec: MatchSpecWithIdentity = {
+			seats: [
+				{ name: 'Seat 1', ai: false, deck: null, avatarId: 'sage' },
+				{ name: 'Seat 2', ai: false, deck: null },
+			],
+		};
+		return { match: registry.create(spec), told };
+	}
+
+	it('tells everyone the whole roster, with the changed face and nothing else moved', () => {
+		const { match, told } = liveAvatarHarness();
+		match.setSeatAvatar(1, 'herald');
+		expect(told).toHaveLength(1);
+		expect(told[0]).toEqual([
+			{ seat: 0, claimed: false, playerId: null, avatarId: 'sage' },
+			{ seat: 1, claimed: false, playerId: null, avatarId: 'herald' },
+		]);
+		expect(match.seatIdentities()[1]).toMatchObject({ avatarId: 'herald' });
+	});
+
+	it('clears a face with null — the key is ABSENT again — and does not re-send a change that changes nothing', () => {
+		const { match, told } = liveAvatarHarness();
+		match.setSeatAvatar(0, null);
+		expect(match.seatIdentities()[0]).not.toHaveProperty('avatarId');
+		expect(told).toHaveLength(1);
+		match.setSeatAvatar(0, null);
+		match.setSeatAvatar(1, null);
+		expect(told).toHaveLength(1);
+		match.setSeatAvatar(7, 'nobody');
+		expect(told).toHaveLength(1);
+	});
+});
+
 describe('per-recipient emission, over whole serialised payloads', () => {
 	const h = harness();
 	h.host.push(...TRANSCRIPT);

@@ -89,8 +89,60 @@ describe('onlyAnswer, over every committed prompt fixture', () => {
 		]);
 	});
 
-	it.each(FIXTURE_FILES)('%s is a real choice and is asked', (file) => {
+	// `order.json` is the one fixture that is NOT here: "Select order for simultaneous
+	// abilities" is answered with Forge's own order unless the seat is in full control
+	// (wave 32, Q8) — its own cases follow below.
+	it.each(FIXTURE_FILES.filter((f) => f !== 'order.json'))('%s is a real choice and is asked', (file) => {
 		expect(onlyAnswer(fixture(file))).toBeNull();
+	});
+
+	/*
+	 * Wave 32, Q8 — *"Select order for simultaneous abilities"* is Forge's
+	 * `getGui().order(...)` (`PlayerControllerHuman.java:2309-2313`), and the operator
+	 * wants it to be a full-control thing. The list Forge hands over is already in its
+	 * own order, and answering with it unchanged is what Forge does when it gets no
+	 * choice (`chosen == null` → the same list).
+	 */
+	describe('Q8: the order of simultaneous abilities', () => {
+		const KEYS = ['sa-9101', 'sa-9102', 'sa-9103'];
+
+		it('is answered with the order Forge itself offered, unremembered, by default', () => {
+			const answer = onlyAnswer(fixture('order.json'));
+			expect(answer?.result).toEqual({ ordered: KEYS, rememberDecision: false });
+			expect(answer?.why).toBe("Forge's own order");
+		});
+
+		it('is a question for a policy that asks, and for full control', () => {
+			expect(onlyAnswer(fixture('order.json'), { ...DEFAULT_STOP_POLICY, orderSimultaneous: 'ask' })).toBeNull();
+			expect(onlyAnswer(fixture('order.json'), FULL_CONTROL_POLICY)).toBeNull();
+			expect(FULL_CONTROL_POLICY.orderSimultaneous).toBe('ask');
+		});
+
+		it('does not touch an ordering that has no remember checkbox — a library or damage order is the player’s', () => {
+			const library = { ...fixture('order.json'), showRememberCheckbox: false } as unknown as ServerFrame;
+			expect(onlyAnswer(library)).toBeNull();
+		});
+
+		it('takes the re-order ask’s items from the destination side, and nothing when both sides hold some', () => {
+			const base = fixture('order.json') as unknown as { sourceChoices: unknown[]; destChoices: unknown[] };
+			const reorder = { ...base, sourceChoices: [], destChoices: base.sourceChoices } as unknown as ServerFrame;
+			expect(onlyAnswer(reorder)?.result).toEqual({ ordered: KEYS, rememberDecision: false });
+			const both = { ...base, destChoices: base.sourceChoices.slice(0, 1) } as unknown as ServerFrame;
+			expect(onlyAnswer(both)).toBeNull();
+		});
+
+		it('a seat in full control is still asked, end to end through the match', () => {
+			const h = harness();
+			const ask = { ...(fixture('order.json') as unknown as Record<string, unknown>), callId: 'o-1' };
+			h.match.setFullControl(0, true);
+			push(h, 0, ask);
+			expect(frames(h, 0).filter((f) => f.kind === 'ask' && f.callId === 'o-1')).toHaveLength(1);
+			expect(h.host.commands.filter((c) => c.t === 'reply')).toEqual([]);
+			// And without full control the same ask never reaches the browser.
+			push(h, 1, { ...ask, callId: 'o-2' });
+			expect(frames(h, 1).filter((f) => f.kind === 'ask' && f.callId === 'o-2')).toEqual([]);
+			expect(h.host.commands).toContainEqual({ t: 'reply', seat: 1, callId: 'o-2', result: { ordered: KEYS, rememberDecision: false } });
+		});
 	});
 
 	it('leaves a REVEAL alone even though it has exactly one legal answer', () => {
@@ -171,10 +223,13 @@ describe('onlyAnswer, where Forge left exactly one possibility', () => {
 			remainingObjectsMax: 0,
 		});
 		expect(onlyAnswer(one)).toMatchObject({ result: { ordered: [ask.sourceChoices[0]?.key], rememberDecision: false } });
+		// An ordering with no remember checkbox (a library or damage order); the
+		// one WITH it is Forge's own simultaneous-ability order, answered since Q8.
 		const slack = narrowed('order.json', {
 			sourceChoices: [ask.sourceChoices[0]],
 			remainingObjectsMin: 0,
 			remainingObjectsMax: 1,
+			showRememberCheckbox: false,
 		});
 		expect(onlyAnswer(slack)).toBeNull();
 	});
@@ -662,6 +717,205 @@ function allMustBeChosen(callId: string): ServerFrame {
 		selected: [],
 	});
 }
+
+/** Give a seat one creature on its own battlefield, through the same state channel Forge uses. */
+function putCreature(h: Harness, seat: number, cardId: number, core: string[] = ['Creature']): void {
+	const me = playerOf(h, seat);
+	const faceKey = String(((4 << 28) | ((cardId * 16) & 0x0fffffff)) >>> 0);
+	push(h, seat, {
+		kind: 'notify',
+		method: 'applyDelta',
+		payload: {
+			packet: {
+				seq: 900 + cardId,
+				checksum: 0,
+				checksumProperties: [],
+				newObjects: {
+					[String(((0 << 28) | cardId) >>> 0)]: {
+						_type: 0,
+						_id: cardId,
+						Zone: { t: 'enum', c: 'forge.game.zone.ZoneType', v: 'Battlefield' },
+						CurrentState: { t: 'int', v: 0 },
+						Sickness: { t: 'bool', v: true },
+					},
+					[faceKey]: { _type: 4, _id: cardId * 16, Type: { t: 'cardtype', sup: [], core, sub: [], all: false, exc: [] } },
+				},
+				objectDeltas: {
+					[String(((1 << 28) | me) >>> 0)]: { _type: 1, _id: me, Battlefield: { t: 'list', v: [{ t: 'int', v: cardId }] } },
+				},
+				events: [],
+			},
+		},
+	});
+}
+
+/*
+ * Wave 32, Q12 — **the operator's bug: "i was not able to assign blockers at all."**
+ *
+ * `InputBlock` says its BUTTONS first and its prompt after, so a pass decided on the
+ * buttons alone read the PREVIOUS window's prompt and pressed OK on the block input.
+ * Reproduced against a real Forge in `blockers.jvm.test.ts`; this is the same two
+ * frames through `match.ts`.
+ */
+describe('Q12: the block input is never passed on the prompt of the window before it', () => {
+	const BEFORE = 'Priority: A\nTurn: 4 (B)\nPhase: Declare Attackers Step\nStack: Empty';
+	const BLOCK = 'Select creatures to block Memnite (40) or select another attacker to declare blockers for.';
+
+	it('passes the Declare Attackers window, and then leaves the block input that follows alone', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		// The window before: prompt, then buttons — passed, as the default always did.
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
+		push(h, 0, prompt(BEFORE, me));
+		push(h, 0, buttons(true, me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
+
+		// `InputBlock`: Forge offers the defender's creature, says its BUTTONS, then its prompt.
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 105 }] });
+		push(h, 0, buttons(true, me));
+		push(h, 0, prompt(BLOCK, me));
+		// Still one press: the block input was not passed.
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
+		expect(h.logs.filter((l) => l.evt === 'auto-passed')).toHaveLength(1);
+		// And a later window that IS prompt-then-buttons still passes: nothing was latched off.
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
+		push(h, 0, prompt(BEFORE.replace('Declare Attackers', 'End of Combat'), me));
+		push(h, 0, buttons(true, me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(2);
+	});
+});
+
+/*
+ * Wave 32, Q10 — *"no creatures, no block."*
+ */
+describe('Q10: the Declare Blockers stop is skipped when the seat controls no creature', () => {
+	it('decideStop: zero creatures skips it, one keeps it, unknown keeps it — a summoning-sick creature counts', () => {
+		const at = (creatures: number | null) => facts({ creatures });
+		expect(decideStop(at(0), DEFAULT_STOP_POLICY)).toBe('Declare Blockers Step');
+		expect(decideStop(at(1), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(at(null), DEFAULT_STOP_POLICY)).toBeNull();
+		// Only THIS stop: a main phase is not a block stop and is held whatever the count.
+		expect(decideStop(facts({ phase: 'MAIN1', phaseLabel: 'Main phase, precombat', myTurn: true, creatures: 0 }), DEFAULT_STOP_POLICY)).toBeNull();
+		// A policy that does not skip it, and full control, keep it.
+		expect(decideStop(at(0), { ...DEFAULT_STOP_POLICY, skipEmptyBlockStop: false })).toBeNull();
+		expect(decideStop(at(0), FULL_CONTROL_POLICY)).toBeNull();
+		// Not a leak of the hand: Forge naming something castable does not change the answer.
+		expect(decideStop(facts({ creatures: 0, sources: [67, 68] }), DEFAULT_STOP_POLICY)).toBe('Declare Blockers Step');
+	});
+
+	it('through the match: a seat with no creature passes its Declare Blockers step; one with a creature is stopped', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		// The recorded opening has nothing on either battlefield.
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(h, 0, prompt(THEIR_STOP_MESSAGE, me));
+		push(h, 0, buttons(true, me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
+			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
+		]);
+		expect(h.logs.filter((l) => l.evt === 'auto-passed')).toEqual([
+			{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'Declare Blockers Step' },
+		]);
+
+		// Now the seat controls a creature — still summoning sick, which does not stop it blocking.
+		putCreature(h, 0, 900);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(h, 0, prompt(THEIR_STOP_MESSAGE, me));
+		push(h, 0, buttons(true, me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
+	});
+
+	it('a seat in full control is stopped with no creature, as it is stopped everywhere', () => {
+		const h = harness();
+		h.match.setFullControl(0, true);
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
+		push(h, 0, prompt(THEIR_STOP_MESSAGE, me));
+		push(h, 0, buttons(true, me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+	});
+});
+
+/** Put one item on the stack, activated by `activator`, through the same state channel Forge uses. */
+function putOnStack(h: Harness, seat: number, itemId: number, activator: number): void {
+	const gameKey = String(((3 << 28) | 1) >>> 0);
+	push(h, seat, {
+		kind: 'notify',
+		method: 'applyDelta',
+		payload: {
+			packet: {
+				seq: 1900 + itemId,
+				checksum: 0,
+				checksumProperties: [],
+				newObjects: {
+					[String(((2 << 28) | itemId) >>> 0)]: {
+						_type: 2,
+						_id: itemId,
+						Description: { t: 'str', v: 'a spell' },
+						ActivatingPlayer: { t: 'int', v: activator },
+					},
+				},
+				objectDeltas: { [gameKey]: { _type: 3, _id: 1, Stack: { t: 'list', v: [{ t: 'int', v: itemId }] } } },
+				events: [],
+			},
+		},
+	});
+}
+
+/*
+ * Wave 32, Q17 — *"holding priority on my own spells is weird, why is that still
+ * happening?"* Forge hands the caster priority back; the stack window was passed only
+ * when Forge named nothing castable, so a caster with a second instant in hand sat at
+ * its own spell until it clicked OK. Reproduced against a real Forge in
+ * `priority.jvm.test.ts`.
+ */
+describe('Q17: a seat does not hold priority on its own spell', () => {
+	const OWN = 'Priority: A\nTurn: 4 (A)\nPhase: Main phase, precombat\nStack: 1 to Resolve.';
+	const castable = { sources: [67, 68] };
+
+	it('decideStop: its own spell on top passes whatever else is castable; somebody else’s does not', () => {
+		const stack = { stackEmpty: false, phase: 'MAIN1' as const, phaseLabel: 'Main phase, precombat', myTurn: true, ...castable };
+		expect(decideStop(facts({ ...stack, stackTopMine: true }), DEFAULT_STOP_POLICY)).toBe('Main phase, precombat');
+		// The opponent's spell, with a response in hand: that is what a held instant is FOR.
+		expect(decideStop(facts({ ...stack, stackTopMine: false }), DEFAULT_STOP_POLICY)).toBeNull();
+		// Full control, and a policy that holds, keep the stop.
+		expect(decideStop(facts({ ...stack, stackTopMine: true }), FULL_CONTROL_POLICY)).toBeNull();
+		expect(decideStop(facts({ ...stack, stackTopMine: true }), { ...DEFAULT_STOP_POLICY, passOwnSpell: false })).toBeNull();
+		// A policy that does not pass stack windows at all does not pass this one either.
+		expect(decideStop(facts({ ...stack, stackTopMine: true }), { ...DEFAULT_STOP_POLICY, passStackWindows: false })).toBeNull();
+		// Not a window of its own: an empty stack in a stop phase is still held.
+		expect(decideStop(facts({ ...stack, stackEmpty: true, stackTopMine: true }), DEFAULT_STOP_POLICY)).toBeNull();
+	});
+
+	it('through the match: the caster’s priority is passed on with a second response in hand; the opponent’s spell is not passed', () => {
+		const mine = harness();
+		const me = playerOf(mine, 0);
+		putOnStack(mine, 0, 5, me);
+		push(mine, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(mine, 0, prompt(OWN, me));
+		push(mine, 0, buttons(true, me));
+		expect(mine.host.commands.filter((c) => c.t === 'act')).toEqual([
+			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
+		]);
+
+		const theirs = harness();
+		const me2 = playerOf(theirs, 0);
+		putOnStack(theirs, 0, 5, playerOf(theirs, 1));
+		push(theirs, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(theirs, 0, prompt(OWN, me2));
+		push(theirs, 0, buttons(true, me2));
+		expect(theirs.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+
+		// And full control holds its own spell too.
+		const held = harness();
+		held.match.setFullControl(0, true);
+		putOnStack(held, 0, 5, playerOf(held, 0));
+		push(held, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(held, 0, prompt(OWN, playerOf(held, 0)));
+		push(held, 0, buttons(true, playerOf(held, 0)));
+		expect(held.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+	});
+});
 
 describe('a Match with the shortcuts on (the default)', () => {
 	it('gives a one-ability ask to the player, and answers a bounds question for them', () => {
@@ -1212,6 +1466,8 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 		sources: [],
 		plannedSources: [],
 		openAsks: 0,
+		creatures: null,
+		stackTopMine: false,
 		...over,
 	};
 }
@@ -1344,6 +1600,9 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			unpayableCost: 'cancel',
 			costConfirm: 'ask',
 			answerOneAnswerAsks: true,
+			skipEmptyBlockStop: true,
+			passOwnSpell: true,
+			orderSimultaneous: 'forge',
 		});
 		// It was adopted WHOLESALE, not just its `skipNonStopPhases` — the stop sets
 		// are the half that keeps a held instant castable at all.

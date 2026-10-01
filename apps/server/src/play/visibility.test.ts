@@ -325,3 +325,94 @@ describe('a face-down permanent (real battlefield card, turned face down)', () =
 		expect(own.visibilityOf(cardId)).toBe('full');
 	});
 });
+
+/*
+ * Wave 32, Q10 — `creatureCount`, the fact behind *"no creatures, no block"*
+ * (`auto.ts` `skipEmptyBlockStop`). Over the REAL stream, packet by packet, against
+ * a count taken independently off the folded raw state.
+ */
+describe('creatureCount (Q10)', () => {
+	function expectedCreatures(state: ReadonlyMap<string, WireObj>, playerId: number): number {
+		const bf = state.get(keyOf(TYPE.player, playerId))?.Battlefield as { v: { v: number }[] } | undefined;
+		let n = 0;
+		for (const { v: id } of bf?.v ?? []) {
+			const card = state.get(keyOf(TYPE.card, id));
+			const ordinal = (card?.CurrentState as { v?: number } | undefined)?.v ?? 0;
+			const type = state.get(keyOf(TYPE.cardState, id * 16 + ordinal))?.Type as { core?: string[] } | undefined;
+			if (type?.core?.includes('Creature') === true) n += 1;
+		}
+		return n;
+	}
+
+	it('is null before the viewer is named, and tracks the battlefield after every packet', () => {
+		const frames = fixtureFrames();
+		for (const viewer of PLAYERS) {
+			const projector = createProjector();
+			expect(projector.creatureCount()).toBeNull();
+			projector.setViewer(viewer);
+			const counts: number[] = [];
+			frames.forEach((frame, i) => {
+				projector.project(frame);
+				const expected = expectedCreatures(fold(frames.slice(0, i + 1)), viewer);
+				expect(projector.creatureCount(), `viewer ${viewer} after packet ${i}`).toBe(expected);
+				counts.push(expected);
+			});
+			// Not vacuous: the stream has the seat with no creature AND with one.
+			expect(counts.some((n) => n === 0), `viewer ${viewer} never had none`).toBe(true);
+			expect(counts.some((n) => n > 0), `viewer ${viewer} never had one`).toBe(true);
+		}
+	});
+
+	it('counts a card whose face is not known as a creature — when in doubt, the player is asked', () => {
+		const projector = createProjector(0);
+		projector.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: {
+				packet: {
+					seq: 1,
+					checksum: 0,
+					checksumProperties: [],
+					newObjects: {
+						[keyOf(TYPE.player, 0)]: { _type: TYPE.player, _id: 0, Battlefield: { t: 'list', v: [{ t: 'int', v: 77 }] } },
+					},
+					objectDeltas: {},
+					events: [],
+				},
+			},
+		} as StateFrame);
+		expect(projector.creatureCount()).toBe(1);
+	});
+});
+
+describe('stackTopActivator (Q17)', () => {
+	it('is the activating player of the TOP stack item, and null for an empty or unknown stack', () => {
+		const projector = createProjector(0);
+		expect(projector.stackTopActivator()).toBeNull();
+		const game = keyOf(TYPE.game, 1);
+		const item = (id: number, who: number) => ({ _type: TYPE.stackItem, _id: id, ActivatingPlayer: { t: 'int', v: who } });
+		const frame = (stack: number[], items: Record<string, WireObj>): StateFrame =>
+			({
+				kind: 'notify',
+				method: 'applyDelta',
+				payload: {
+					packet: {
+						seq: 1,
+						checksum: 0,
+						checksumProperties: [],
+						newObjects: { [game]: { _type: TYPE.game, _id: 1 }, ...items },
+						objectDeltas: { [game]: { _type: TYPE.game, _id: 1, Stack: { t: 'list', v: stack.map((v) => ({ t: 'int', v })) } } },
+						events: [],
+					},
+				},
+			}) as StateFrame;
+		projector.project(frame([], {}));
+		expect(projector.stackTopActivator()).toBeNull();
+		// Top first: item 9 is on top, and it is player 1's.
+		projector.project(frame([9, 5], { [keyOf(TYPE.stackItem, 9)]: item(9, 1), [keyOf(TYPE.stackItem, 5)]: item(5, 0) }));
+		expect(projector.stackTopActivator()).toBe(1);
+		// An item the state does not know says nothing.
+		projector.project(frame([77], {}));
+		expect(projector.stackTopActivator()).toBeNull();
+	});
+});

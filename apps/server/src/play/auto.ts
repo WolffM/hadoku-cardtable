@@ -276,6 +276,51 @@ export interface StopPolicy {
 	readonly costConfirm: 'ask' | 'accept';
 	/** Whether an ask Forge left exactly one legal reply to is answered (w19). */
 	readonly answerOneAnswerAsks: boolean;
+	/**
+	 * Skip the Declare Blockers stop when this seat controls no creature (Q10).
+	 *
+	 * The operator, 2026-10-01: *"no creatures, no block."* A stop at the opponent's
+	 * Declare Blockers step is there so the seat can block, and a seat with no
+	 * creature cannot. w28 refused condition-driven stops because a stop that fires
+	 * only when something is castable leaks a HAND; this condition leaks only *"I have
+	 * no creatures"*, which is on the battlefield for everyone to read
+	 * ({@link PromptFacts.creatures}). Summoning sickness does not enter into it: a
+	 * summoning-sick creature can block, so it counts.
+	 *
+	 * Full control keeps the stop, as it keeps every stop.
+	 */
+	readonly skipEmptyBlockStop: boolean;
+	/**
+	 * Pass priority after casting: a window whose top-of-stack item the seat itself
+	 * activated is passed whatever the seat could do (Q17).
+	 *
+	 * The operator, twice (the first list's item 12, then Q17, 2026-10-01): *"holding
+	 * priority on my own spells is weird, why is that still happening?"* Forge gives
+	 * priority back to the caster, and a stack window was passed only when Forge named
+	 * nothing castable (`passWhenNothingToDo`) — so with a second instant in hand and
+	 * an untapped land the caster sat at its own spell until it clicked OK. That is
+	 * the leak wave 28 removed from the phases, still standing on the stack: a stop
+	 * conditioned on what the seat could do is conditioned on what it HOLDS, and every
+	 * cast was telling the table whether the hand held another response. Arena passes
+	 * the caster's priority on, and a held response is what full control is for.
+	 *
+	 * An item the OPPONENT put on the stack is untouched: responding to it is the
+	 * point of a held instant, and that window is still a stop when the seat has one.
+	 * Full control keeps every stop. See `docs/planning/wave32-evidence/q17-holding-priority.md`.
+	 */
+	readonly passOwnSpell: boolean;
+	/**
+	 * How the order of simultaneous abilities and replacement effects is settled
+	 * (Q8). *"Select order for simultaneous abilities"* is Forge's
+	 * `getGui().order(...)` (`PlayerControllerHuman.java:2309-2313`, `:2136`), and
+	 * it is the only `order` ask Forge sends with the remember-this checkbox.
+	 *
+	 *  - `'forge'` answers it with the order Forge itself offered (its own
+	 *    `activePlayerSAs` order), unremembered, so a trigger pile does not stop the
+	 *    game every time.
+	 *  - `'ask'` puts it to the player, which is what full control is for.
+	 */
+	readonly orderSimultaneous: 'ask' | 'forge';
 }
 
 /**
@@ -336,6 +381,12 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	unpayableCost: 'cancel',
 	costConfirm: 'ask',
 	answerOneAnswerAsks: true,
+	// Q10, wave 32. *"no creatures, no block."*
+	skipEmptyBlockStop: true,
+	// Q17, wave 32. *"holding priority on my own spells is weird."*
+	passOwnSpell: true,
+	// Q8, wave 32. Ordering is a full-control thing: Forge's own order unless asked.
+	orderSimultaneous: 'forge',
 };
 
 /**
@@ -414,6 +465,9 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	unpayableCost: 'ask',
 	costConfirm: 'ask',
 	answerOneAnswerAsks: false,
+	skipEmptyBlockStop: false,
+	passOwnSpell: false,
+	orderSimultaneous: 'ask',
 };
 
 /**
@@ -525,9 +579,26 @@ export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP
 			// slack (`remainingObjectsMax > 0`) leaving it unplaced is a second
 			// answer, so that stays a question.
 			const all = [...frame.sourceChoices, ...frame.destChoices];
-			return all.length === 1 && frame.remainingObjectsMax === 0 && all[0] !== undefined
-				? ok(callId, frame.method, { ordered: [all[0].key], rememberDecision: false }, 'one item, no slack')
-				: null;
+			if (all.length === 1 && frame.remainingObjectsMax === 0 && all[0] !== undefined) {
+				return ok(callId, frame.method, { ordered: [all[0].key], rememberDecision: false }, 'one item, no slack');
+			}
+			// Q8: "Select order for simultaneous abilities" (and for replacement
+			// effects) is the only `order` Forge asks WITH the remember checkbox
+			// (`PlayerControllerHuman.java:2309-2313`, `:2136`; the library, damage
+			// and cost orderings pass none). The list it hands over is already in
+			// FORGE's own order (`activePlayerSAs`), and answering with it unchanged is
+			// what Forge itself does when it gets no choice (`chosen == null` → the
+			// same list), so this takes the order Forge offered and asks about no more.
+			// Exactly one side holds the items: the first-time ask carries them all in
+			// `sourceChoices`, the re-order ask in `destChoices`.
+			if (policy.orderSimultaneous === 'forge' && frame.showRememberCheckbox && frame.remainingObjectsMin === 0) {
+				const side =
+					frame.destChoices.length === 0 ? frame.sourceChoices : frame.sourceChoices.length === 0 ? frame.destChoices : null;
+				if (side !== null && side.length > 0) {
+					return ok(callId, frame.method, { ordered: side.map((c) => c.key), rememberDecision: false }, "Forge's own order");
+				}
+			}
+			return null;
 		}
 
 		default:
@@ -554,6 +625,14 @@ export interface SeatNotes {
 	actionable: readonly number[] | null;
 	/** Asks this seat has open. A seat with a question is not idle. */
 	openAsks: number;
+	/**
+	 * How many creatures this seat's own battlefield holds; null when not known
+	 * (`SeatProjector.creatureCount`). Optional so a caller with no board — the
+	 * unit suites — says nothing, which reads as "ask".
+	 */
+	creatures?: number | null;
+	/** The player id that activated the top stack item, or null (`SeatProjector.stackTopActivator`). */
+	stackTopActivator?: number | null;
 }
 
 /* ── The structured facts the decisions are made on ──────────────────── */
@@ -633,6 +712,17 @@ export interface PromptFacts {
 	readonly plannedSources: readonly number[];
 	/** Asks this seat has open. */
 	readonly openAsks: number;
+	/**
+	 * Creatures on this seat's own battlefield, or null when unknown. A fact off the
+	 * board and not off the prompt; {@link StopPolicy.skipEmptyBlockStop} reads it.
+	 */
+	readonly creatures: number | null;
+	/**
+	 * The item on top of the stack was activated by THIS seat. False when the stack is
+	 * empty, when the state does not say, and when it is somebody else's — a doubt is
+	 * "not mine", which keeps the stop. Off the board, not the prompt.
+	 */
+	readonly stackTopMine: boolean;
 }
 
 /* ── THE ONE ADAPTER ─────────────────────────────────────────────────── */
@@ -728,6 +818,8 @@ const UNKNOWN_WINDOW: PromptFacts = {
 	sources: null,
 	plannedSources: [],
 	openAsks: 0,
+	creatures: null,
+	stackTopMine: false,
 };
 
 /** Ids that appear more than once in Forge's weighted multiset, deduplicated. */
@@ -782,6 +874,8 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		sources: all === null ? null : [...new Set(all)],
 		plannedSources: all === null ? [] : repeated(all),
 		openAsks: notes.openAsks,
+		creatures: notes.creatures ?? null,
+		stackTopMine: notes.playerId !== null && notes.stackTopActivator === notes.playerId,
 	};
 }
 
@@ -815,6 +909,15 @@ function skipsThisTurn(policy: StopPolicy, facts: PromptFacts): boolean {
 }
 
 /**
+ * Declare Blockers, and this seat has no creature to block with (Q10).
+ *
+ * Only a COUNT of zero qualifies. Unknown (null) is a stop, as every doubt is.
+ */
+function blockStopIsEmpty(policy: StopPolicy, facts: PromptFacts): boolean {
+	return policy.skipEmptyBlockStop && facts.phase === 'COMBAT_DECLARE_BLOCKERS' && facts.creatures === 0;
+}
+
+/**
  * The phase label to pass, or null when the player must be asked.
  *
  * Pure. There is no pattern in here and no phase spelling: every branch reads a
@@ -832,13 +935,18 @@ export function decideStop(facts: PromptFacts, policy: StopPolicy): string | nul
 	if (facts.window !== 'priority') return null;
 
 	if (facts.stackEmpty) {
-		// The phase the player asked to hold priority in. Nothing below overrides it.
-		if (isStopPhase(policy, facts)) return null;
+		// The phase the player asked to hold priority in. Nothing below overrides it —
+		// except the one stop that exists only so a creature can block (Q10).
+		if (isStopPhase(policy, facts) && !blockStopIsEmpty(policy, facts)) return null;
 		// Forge's `skipPhases`: a phase outside the stop set goes past whatever the
 		// seat could have done there (#20).
 		if (skipsThisTurn(policy, facts)) return facts.phaseLabel ?? 'priority';
 	} else if (!policy.passStackWindows) {
 		return null;
+	} else if (policy.passOwnSpell && facts.stackTopMine) {
+		// Q17: the seat's own spell, back at the caster. Forge hands the caster
+		// priority and this hands it on, whatever else the seat could do — see the field.
+		return facts.phaseLabel ?? 'priority';
 	}
 
 	if (!policy.passWhenNothingToDo) return null;

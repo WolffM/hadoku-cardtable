@@ -1527,6 +1527,42 @@ describe('combat, off the state channel: the intent mark and the block target', 
     expect(declaringCombat(m)).toBe(false);
   });
 
+  /*
+   * Wave 32, Q14. `InputAttack.onCardSelected` undeclares a declared attacker that is
+   * clicked again, but `pushAttackerCandidates` drops declared attackers from the offer
+   * (`PlayerControllerHuman.java:1613-1614`), so the click was refused client-side.
+   */
+  it('a declared attacker is clickable while InputAttack runs, so a second click can call it back', async () => {
+    const { s, m } = await fullGame();
+    const [a, b] = me(m).battlefield.map((c) => c.id);
+    const bar2 = (label2: string) =>
+      parseServerFrame({
+        kind: 'notify',
+        method: 'updateButtons',
+        owner: { kind: 'player', id: 0 },
+        label1: 'OK',
+        label2,
+        enable1: true,
+        enable2: true,
+        focus1: true,
+      });
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), bar2('Alpha Strike')]);
+    // Forge offers the undeclared candidates only; `a` is declared and so is not among them.
+    await sendAndApply(s, m, [attacking([a!]), actionable([b!])]);
+    // Alpha Strike: no attacker is declared as far as Forge's own button says. Not offered.
+    expect(boardInteraction(m).selectable.has(a!)).toBe(false);
+
+    // `Call Back` is Forge saying an attacker is declared: now the declared one is offered too.
+    await sendAndApply(s, m, [bar2('Call Back')]);
+    expect(boardInteraction(m).selectable.has(a!)).toBe(true);
+    expect(boardInteraction(m).selectable.has(b!)).toBe(true);
+    expect(selectCard(m, a!)).toBe(true);
+
+    // The priority window that follows reads `End Turn`: nothing is undeclared by a click there.
+    await sendAndApply(s, m, [prompt('Priority'), bar2('End Turn'), actionable([b!])]);
+    expect(boardInteraction(m).selectable.has(a!)).toBe(false);
+  });
+
   it('the attackers become offerable while InputBlock is running, and only then', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
