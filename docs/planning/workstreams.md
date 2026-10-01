@@ -304,6 +304,15 @@ tracker first proposed). **Q9**: *"honestly it's just a guess. take whatever spa
 avatar and the hand/deck counts need, and give the rest to the graveyard"*, so the
 80% figure is dropped.
 
+**Q18, reported 2026-10-01 while w32 was running:** a stack *ability* (Glint Hawk Idol's
+trigger) draws as clickable. Root cause: `StackItem` (`Board.tsx:1858`) treats an entry as
+selectable when `selectable.has(item.sourceCardId)`, and an ability's `sourceCardId` is the
+permanent on the board, which Forge offers for its own activation; the click is
+`onSelectCard(sourceId)`, so clicking the stack entry does what clicking the card does.
+Queued for w33 (lane B's file; a dispatched wave is not edited). The w32 manager was sent an
+information-only note because lane G's Q7 (stack items as arrow targets) hits the same
+collision.
+
 **Also found this pass:** `treekill` is still `true` (a redeploy still ends live
 games; `/health/busy` now exists to check first). CI's `check` fails on
 `warm-claw-5` only; `317bd92` (`/health/busy`, not ours) failed there too.

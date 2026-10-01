@@ -146,6 +146,7 @@ All planned in **wave 32** (`docs/planning/wave32-2026-10-01.md`).
 | Q15 | settings into the header menu; explain Cancel; layout is mine only | 1 | planned w32 | lane L (settings, Cancel), lane B (own-board layout) | | |
 | Q16 | card labels under popovers | 2 (with L10) | planned w32 | lanes B, L, G, R | | |
 | Q17 | holding priority on my own spells | 2 (with L12) | planned w32 | lane S diagnoses | | |
+| Q18 | an activated ability on the stack (Glint Hawk Idol) shows as clickable; only the card on the board should be activatable | 1 | open, queued for w33 | **root cause found:** for an ability, `sourceCardId` is the permanent, which Forge offers for its own activation, so `StackItem` (`Board.tsx:1858`) draws a button whose click is `onSelectCard(sourceId)`, the same action as clicking the card. Not cosmetic. w32 was already dispatched; its lane-G manager was told as information for Q7 (stack targets share the collision) | click a stack ability: nothing happens | |
 
 ---
 
