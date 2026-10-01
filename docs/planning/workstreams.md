@@ -264,6 +264,38 @@ timeout. Locally the slowest test in that file takes 176 ms and all 72 pass.
   this repo should be loosened to fit it. A 5 s cliff is still worth a look in
   its own right if the runner turns out to be fine.
 
+## Operator play test C, 2026-10-01 — seventeen items (Q1–Q17), on the w31 build
+
+Played on `0.27.0` (match `m-96b0a5e2f90d`, created 04:46 UTC, after the 03:17
+deploy). **w31 landed** (`4a56d60`, CI green on both jobs; the jar installed by the
+operator; `3e7e2856…`). Planned as **wave 32** (`docs/planning/wave32-2026-10-01.md`,
+not yet dispatched). The operator asked whether any of this was already queued: the
+column says.
+
+| Q | item | was it queued? | found |
+| --- | --- | --- | --- |
+| 1 | drop "0 Nobody"; show "Start"; ring the active player's avatar | **new** (a follow-up to w31 P1) | `whoseTurn` returns `nobody` at turn 0 (`LiveBoard.tsx:764`) |
+| 2 | opponent's hand the same card size, mirrored | **new** | |
+| 3 | phase names centred, not bulleted; rail grows in combat | **follow-up on w31 P1** | w31 collapsed the six steps but left the rail's height at the six-step size |
+| 4 | default placement (lands back row, rest front); free drag; our own ghost and snap indicator | **queued** (P11, "leads w32") | placement is new; the HTML5 drag is `draggable`/`dataTransfer` in `Board.tsx`. Third ask. |
+| 5 | skipped phases should not crawl | **new** | **root cause:** the log shows each skipped step passed ~205 ms apart; Forge's own `PlayerControllerHuman` sleeps `phasesDelay` unless `YIELD_SKIP_PHASE_DELAY` is true. One preference in `host.ts`. |
+| 6 | an avatar change does not reach the game | **new, related to P3b** | the avatar is told to the match once, at its start |
+| 7 | Mana Leak: arrow to a stack item; shortcut when one target | **new** (related to the first list's item 8) | |
+| 8 | "Select order for simultaneous abilities" only in full control | **new** | `getGui().order(...)`; `rules.ts`'s `autoAnswer` has no rule for it |
+| 9 | one column: avatar, counts, graveyard the rest; opponent mirrored | **follow-up on w31 P2, and a REVERSAL of w26 §A.2** | w26 put the piles level with the hand on the operator's own drawing; the column is two cells (`board.css:470`, `:730`) |
+| 10 | no Declare Blockers stop if the defender has no creatures | **new** | default `stopOnTheirTurn` is `['COMBAT_DECLARE_BLOCKERS']` unconditionally; w28 refused condition-driven stops, see D1 |
+| 11 | arrow snaps to 8 points on the card edge | **new** | |
+| 12 | could not assign blockers at all | **queued** (the first list's 15: blocker arrows and highlight) | **not diagnosed:** the log shows four `auto-passed Declare Blockers Step` for seat 0 and no blocker prompt. Summoning sickness does not stop a block. Reproduce first. |
+| 13 | P/T bottom-right | **queued** (the first list's 14); **second ask** | |
+| 14 | click or box-select attackers to pull them back | **new** | |
+| 15 | settings into the header menu; explain Cancel; layout is mine only | **new** | **my wave-30 claim was wrong:** `ConnectedSettings@4.8.4` has a `children` slot and `AppHeader` forwards it |
+| 16 | card labels under popovers | **queued** (the first list's 10, z-order); **second ask** | |
+| 17 | holding priority on my own spells | **queued** (the first list's 12, second half) | `passStackWindows` is true (`auto.ts:328`), so not that |
+
+**Also found this pass:** `treekill` is still `true` (a redeploy still ends live
+games; `/health/busy` now exists to check first). CI's `check` fails on
+`warm-claw-5` only; `317bd92` (`/health/busy`, not ours) failed there too.
+
 ## Operator play test B, 2026-09-30 — twelve items (P1–P12), each checked against the code
 
 Planned as **wave 31** (`docs/planning/wave31-2026-09-30.md`, not yet dispatched).
