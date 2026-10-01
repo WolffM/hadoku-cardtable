@@ -247,11 +247,52 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
   try {
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
+    // BOTH seats, not just alice: the "outside" row-height sample is always
+    // read off alice's page, but the "inside" one is read off WHICHEVER seat
+    // (`combat.who`) the watcher below sees combat on first — Forge's own
+    // RNG decides that, not this test. Leaving bob at Playwright's unset
+    // default (1280×720, `docClientH` 80px shorter than alice's 1280×800)
+    // is exactly what produced the tracker's 2.16px "row height" gap: it was
+    // two different viewports, not two different row heights — confirmed by
+    // `railDiag`'s own `docClientH` field on a failing run (800 outside,
+    // 720 inside, same run, same formula).
     await alice.page.setViewportSize({ width: 1280, height: 800 });
+    await bob.page.setViewportSize({ width: 1280, height: 800 });
     await enterMatch(alice, bob, stack.origin);
     const rows = alice.page.locator('.live__step');
     const names = async (f: Friend): Promise<string[]> => (await f.page.locator('.live__step-name').allTextContents()).map((n) => n.trim());
     const railBox = async (f: Friend) => f.page.getByTestId('live-phases').boundingBox();
+    // Wave 33 §L1 follow-up: the operator's tracker measured a 2.16px gap
+    // between the out-of-combat and in-combat row heights on a real run —
+    // under `--rail-row-h`'s own formula ((0.35·H − 29)/13) that is explained
+    // entirely by `.live`'s OWN measured height differing by about 80px
+    // between the two samples (something took vertical space from it — a
+    // wrapping header, a banner, a scrollbar). This captures exactly what a
+    // failure needs to say what moved: `.live`'s height, `.app-header`'s
+    // height, the viewport's `clientHeight`, and `.live`'s parent's box plus
+    // every sibling's box, at the SAME instant each row height is measured.
+    const railDiag = async (f: Friend) =>
+      f.page.evaluate(() => {
+        const live = document.querySelector<HTMLElement>('.live');
+        const header = document.querySelector<HTMLElement>('.app-header');
+        const liveBox = live?.getBoundingClientRect() ?? null;
+        const headerBox = header?.getBoundingClientRect() ?? null;
+        const parent = live?.parentElement ?? null;
+        const parentBox = parent?.getBoundingClientRect() ?? null;
+        const siblings = parent
+          ? Array.from(parent.children).map((el) => {
+              const b = el.getBoundingClientRect();
+              return { tag: el.tagName.toLowerCase(), cls: String((el as HTMLElement).className).slice(0, 60), x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) };
+            })
+          : [];
+        return {
+          liveH: liveBox === null ? null : Math.round(liveBox.height * 100) / 100,
+          headerH: headerBox === null ? null : Math.round(headerBox.height * 100) / 100,
+          docClientH: document.documentElement.clientHeight,
+          parentBox: parentBox === null ? null : { x: Math.round(parentBox.x), y: Math.round(parentBox.y), w: Math.round(parentBox.width), h: Math.round(parentBox.height) },
+          siblings,
+        };
+      });
 
     // Before the game has a phase at all: combat is ONE row.
     const outside = await names(alice);
@@ -280,6 +321,7 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
         };
       });
     const outsideLook = await rowLook(alice);
+    const outsideDiag = await railDiag(alice);
     expect(outsideLook, 'the rail has rows to inspect').not.toBeNull();
     for (const kind of outsideLook!.bullet.slice(0, 2)) expect(kind, 'phase names are not bulleted').toBe('none');
     // The ledger's wording ("phase names centred and un-bulleted") is read as lane L read it: the
@@ -294,7 +336,7 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
     // Combat is over in a few hundred milliseconds when nobody attacks, so it is
     // WATCHED for from here on rather than waited for after the log check below.
     // The same loop answers the asks the game raises (a scry), as every spec does.
-    const seen: { combat: { who: string; names: string[]; rows: number; box: number[]; rowH: number[] } | null; maxH: number; lastRow: number; error: unknown } = { combat: null, maxH: 0, lastRow: 0, error: null };
+    const seen: { combat: { who: string; names: string[]; rows: number; box: number[]; rowH: number[] } | null; maxH: number; lastRow: number; lastDiag: Awaited<ReturnType<typeof railDiag>> | null; error: unknown } = { combat: null, maxH: 0, lastRow: 0, lastDiag: null, error: null };
     let watching = true;
     const watcher = (async () => {
       try {
@@ -312,6 +354,7 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
                 if (m !== null) {
                   seen.maxH = Math.max(seen.maxH, m.h);
                   seen.lastRow = m.row;
+                  seen.lastDiag = await railDiag(f);
                 }
               }
               continue;
@@ -343,8 +386,20 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
       const logName = alice.page.locator('[data-log-card][data-inspect-ids]:not([data-inspect-ids=""])').first();
       await expect(logName, 'a log line names a card that has a tile on the page').toBeVisible({ timeout: 90_000 });
       expect(await alice.page.getByTestId('live-log-peek').count(), 'there is no second hover surface in the log').toBe(0);
-      const named = ((await logName.textContent()) ?? '').trim();
-      await logName.hover();
+      // Pinned to ONE element handle, not re-resolved: `logName` is `.first()`
+      // of a list the real game log keeps growing live. Reading `named` off
+      // the locator and then calling `.hover()` on it again re-queries
+      // "whichever line is first NOW" — if a new log line landed in
+      // between (the window is small, but this ran against a live match,
+      // not a mock), the name just read and the element actually hovered
+      // can be two different cards (measured: expected "Glacial Fortress",
+      // got "Tectonic Edge" — a different card's tooltip, not a broken
+      // hover). A handle fixes both reads to the SAME node regardless of
+      // what the log does afterward.
+      const logNameHandle = await logName.elementHandle();
+      if (logNameHandle === null) throw new Error('the log name vanished between becoming visible and being handled');
+      const named = ((await logNameHandle.textContent()) ?? '').trim();
+      await logNameHandle.hover();
       const inspected = alice.page.locator('[data-board-overlay] [data-inspect]');
       await expect(inspected, 'the inspector the board already has opens on the log name').toHaveCount(1, { timeout: 5_000 });
       await expect(inspected).toContainText(named);
@@ -370,7 +425,23 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
     expect(Math.max(combat.box[3]!, seen.maxH), 'the rail is taller in combat than out of it (its tallest, once the transition settled)').toBeGreaterThan(before.height + 20);
     const insideRow = seen.lastRow > 0 ? seen.lastRow : Math.max(...combat.rowH); // the settled sample, not the first (mid-transition) one
     const outsideRow = Math.max(...outsideLook!.rowHeights);
-    expect(Math.abs(insideRow - outsideRow), `a rail row is as tall out of combat (${outsideRow}) as in it (${insideRow})`).toBeLessThanOrEqual(2);
+    // The settled-sample diag, taken at the SAME instant as `seen.lastRow` —
+    // or, if combat never looped back into the "already seen" branch (too
+    // brief a window), one more taken now, which is still inside combat
+    // (combat.who's page) and still better than nothing.
+    const insideDiag = seen.lastDiag ?? (await railDiag(combat.who === 'alice' ? alice : bob));
+    // Wave 33 §L1: `--rail-row-h` is one formula, read identically whether
+    // `.live__steps` holds 8 rows or 13 — the row's box no longer depends on
+    // how many siblings are sharing the rail's height, so in and out of
+    // combat is the same number by construction, not by a loose tolerance.
+    // When this misses, the diff is explained by `.live` itself having a
+    // different measured height between the two samples (formula:
+    // row = (0.35·liveH - 29) / 13) — these numbers say what moved it.
+    expect(
+      Math.abs(insideRow - outsideRow),
+      `a rail row is as tall out of combat (${outsideRow}) as in it (${insideRow}) — ` +
+        `outside: ${JSON.stringify(outsideDiag)} — inside: ${JSON.stringify(insideDiag)}`,
+    ).toBeLessThanOrEqual(1);
     // ... and it shrinks afterwards, by CSS alone (the box is measured, not a class).
     await expect
       .poll(async () => {
