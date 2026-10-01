@@ -264,6 +264,11 @@ timeout. Locally the slowest test in that file takes 176 ms and all 72 pass.
   this repo should be loosened to fit it. A 5 s cliff is still worth a look in
   its own right if the runner turns out to be fine.
 
+**Every reported item is also tracked in `docs/planning/playtest-ledger.md`**
+(rendered: https://claude.ai/artifact/AWidhZWnRVwpn1K2xEGwY6), with how many times it
+has been asked, what shipped, and a column for the operator's own ✅/❌ after a real
+game. Only the operator marks an item verified.
+
 ## Operator play test C, 2026-10-01 — seventeen items (Q1–Q17), on the w31 build
 
 Played on `0.27.0` (match `m-96b0a5e2f90d`, created 04:46 UTC, after the 03:17
@@ -277,7 +282,7 @@ column says.
 | 1 | drop "0 Nobody"; show "Start"; ring the active player's avatar | **new** (a follow-up to w31 P1) | `whoseTurn` returns `nobody` at turn 0 (`LiveBoard.tsx:764`) |
 | 2 | opponent's hand the same card size, mirrored | **new** | |
 | 3 | phase names centred, not bulleted; rail grows in combat | **follow-up on w31 P1** | w31 collapsed the six steps but left the rail's height at the six-step size |
-| 4 | default placement (lands back row, rest front); free drag; our own ghost and snap indicator | **queued** (P11, "leads w32") | placement is new; the HTML5 drag is `draggable`/`dataTransfer` in `Board.tsx`. Third ask. |
+| 4 | default placement (lands back row, rest front); free drag; our own ghost and snap indicator | **queued** (P11, "leads w32"); second ask | placement is new; the HTML5 drag is `draggable`/`dataTransfer` in `Board.tsx`. Third ask. |
 | 5 | skipped phases should not crawl | **new** | **root cause:** the log shows each skipped step passed ~205 ms apart; Forge's own `PlayerControllerHuman` sleeps `phasesDelay` unless `YIELD_SKIP_PHASE_DELAY` is true. One preference in `host.ts`. |
 | 6 | an avatar change does not reach the game | **new, related to P3b** | the avatar is told to the match once, at its start |
 | 7 | Mana Leak: arrow to a stack item; shortcut when one target | **new** (related to the first list's item 8) | |
