@@ -199,6 +199,14 @@
      of `.live`. The log button sits in it at full width; the rail and the
      controls sit beside it. */
   --live-gutter: 6px;
+  /* `.live`'s own real height, kept current by `LiveBoard.tsx`'s own
+     `ResizeObserver` (set as an inline style, which beats this declaration —
+     this is only the value before that effect has run once). `--rail-row-h`
+     reads this rather than `dvh`: `.live` is shorter than the viewport on the
+     match route (under the header, and inside watchparty's room frame when
+     one is mounted), so a viewport unit overshoots it — see that effect's own
+     comment and `wave33-evidence/l1-rail-rows.md` for the measured gap. */
+  --live-h: 100dvh;
 
   height: 100dvh;
   position: relative;
@@ -295,7 +303,7 @@
 }
 
 .live__gone-back {
-  color: var(--accent);
+  color: var(--accent-ink);
   font-size: 13px;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -819,7 +827,7 @@
  */
 .live__buttons .live__toggle[aria-pressed='true'] {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 /*
@@ -882,7 +890,7 @@
 
 .live__log-button[aria-expanded='true'] {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 /*
@@ -978,10 +986,43 @@
   /* Wave 32 Q3: the rail is as tall as its rows. Every row is the same height
      (one thirteenth of the 35% a full turn takes, after the turn row and the
      padding), so out of combat — eight rows — it is shorter, and when combat
-     begins it GROWS to 35% and shrinks back after it. Animated by CSS alone. */
+     begins it GROWS to 35% and shrinks back after it. Animated by CSS alone.
+
+     Wave 33 §L1: that comment described the INTENT; `.live__step`'s own
+     height was never pinned to this number, only inferred by `flex: 1 1 0`
+     sharing out whatever `.live__steps` had left after the turn row — so the
+     row's actual size depended on how close the real rendered chrome (the
+     turn row's own box, the padding, the border, the 4px gap) came to the
+     `--rail-chrome` guess, and flex additionally splits leftover whole
+     pixels unevenly across however many siblings are sharing them. Both
+     errors scale with 1/n, so eight rows and thirteen rows landed on
+     different numbers (measured: 17.5px out of combat against 15.4px in it —
+     the operator's Q3 complaint, still open after that first attempt). Fixed
+     here by giving the row its OWN height, `--rail-row-h`, computed once and
+     applied literally rather than inferred.
+
+     `--live-h`, not `35%`: a percentage inside a custom property is not
+     resolved where it is declared, it re-resolves against whichever box
+     later reads it — so a `%` written here (relative to `.live`, this rule's
+     own containing block) would silently mean something else the moment
+     `.live__step` reads the same variable. A first pass swapped `%` for
+     `dvh` (the viewport), which has no containing block to re-resolve
+     against and so reaches every row meaning the same thing — but `.live`
+     is itself shorter than the viewport on the real match route (`live.css`'s
+     own `.live` rule, under the header, and inside watchparty's room frame
+     when one is mounted), so `dvh` overshot `.live`'s own height and the
+     rail grew tall enough to overlap the control cluster (measured ~23px at
+     1280×800 — `wave33-evidence/l1-rail-rows.md`). `--live-h` is `.live`'s
+     REAL resolved height in pixels, kept current by a `ResizeObserver` in
+     `LiveBoard.tsx` (set as an inline style there, which is what beats this
+     rule's own `100dvh` fallback on `.live`, below). A length has no
+     containing block either, so the fix for the first bug survives: the same
+     number still reaches every row, bit for bit — it is just `.live`'s own
+     height now, not the viewport's. */
   --rail-chrome: 29px;
   --rail-rows: 8;
-  height: calc(var(--rail-chrome) + var(--rail-rows) * (35% - var(--rail-chrome)) / 13);
+  --rail-row-h: calc((var(--live-h) * 0.35 - var(--rail-chrome)) / 13);
+  height: calc(var(--rail-chrome) + var(--rail-rows) * var(--rail-row-h));
   transition: height 0.3s ease;
   display: flex;
   flex-direction: column;
@@ -1023,15 +1064,16 @@
 }
 
 .live__phases[data-whose='yours'] .live__turn-n {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 /*
- * The thirteen steps share out whatever the rail's definite height leaves after
- * the turn row: `flex: 1 1 0` per row, `min-height: 0` so a row can be shorter
- * than its own text, and `overflow: hidden` on the rail. So the rail's box never
- * depends on the font size or on where the game is, and a short window shrinks
- * the rows instead of pushing the cluster down the gutter.
+ * The list itself still takes whatever the rail's definite height leaves
+ * after the turn row (`flex: 1 1 0`), and `overflow: hidden` on the rail is
+ * the backstop if it doesn't. But the ROWS inside it no longer grow to fill
+ * that space (wave 33 §L1) — each is pinned to `--rail-row-h`, so the rail's
+ * box never depends on the font size or on where the game is, and a short
+ * window clips the LAST rows rather than shrinking every row unevenly.
  */
 .live__steps {
   flex: 1 1 0;
@@ -1071,7 +1113,8 @@
  * per-frame clip check in the fit spec now guards the number either way.
  */
 .live__step {
-  flex: 1 1 0;
+  flex: none;
+  height: var(--rail-row-h);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1115,5 +1158,5 @@
 
 .live__step[data-current] .live__step-name {
   font-weight: 600;
-  color: var(--accent);
+  color: var(--accent-ink);
 }

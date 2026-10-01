@@ -1502,7 +1502,13 @@ describe('the phase reads down the side', () => {
     // Its own percentages, which is what makes the cluster's `top: 67%` land
     // directly under it rather than wherever thirteen rows happened to end.
     expect(rail).toContain('top: 31%');
-    expect(rail, 'a full turn is 35% of the canvas').toContain('(35% - var(--rail-chrome))');
+    // Wave 33 §L1: `var(--live-h) * 0.35`, not `35%` — a `%` here would
+    // re-resolve against whichever box later reads `--rail-row-h` (see the
+    // rule's own comment and the "same row height" tests below) rather than
+    // staying pinned to `.live`'s own height.
+    expect(rail, 'a full turn is 35% of .live’s OWN height, read as a length').toContain(
+      '(var(--live-h) * 0.35 - var(--rail-chrome))',
+    );
     expect(rail, 'not centred any more: the gutter is a strip, in the drawn order').not.toContain('translate:');
 
     // The question: a fixed column, not a sheet centred on whatever height it is.
@@ -2514,5 +2520,100 @@ describe('wave 32 lane L: chrome', () => {
     for (const sel of ['.live__buttons', '.live__log-button', '.live__phases']) {
       expect(declarations(css, sel), sel).toContain('z-index: var(--z-overlay, 20)');
     }
+  });
+});
+
+/*
+ * ── Wave 33 lane L §L1 — the rail's rows, the same height in and out of combat ──
+ *
+ * Measured in a real browser (see `wave33-evidence/l1-rail-rows.md`): before
+ * this fix, out-of-combat rows (eight, `flex: 1 1 0` sharing whatever
+ * `.live__steps` had left) landed on one pixel figure and in-combat rows
+ * (thirteen, the same mechanism) landed on another — the gap scales with
+ * 1/n, so eight and thirteen never matched. jsdom applies no stylesheet (the
+ * file header above explains why these read `live.css`'s own text rather
+ * than `getComputedStyle`), so the claim a real browser now proves —
+ * pixel-IDENTICAL rows, not merely close ones — is proven here as what makes
+ * that identity unavoidable: one variable, computed once, read literally by
+ * every row in both states, with no per-row arithmetic left for a browser to
+ * round differently.
+ */
+describe('wave 33 §L1: the rail’s rows are the same height in and out of combat', () => {
+  it('the row no longer grows to fill whatever is left: it is pinned to --rail-row-h', () => {
+    const css = liveCss();
+    const step = declarations(css, '.live__step');
+    // Reverting to `flex: 1 1 0` (no `height`) is exactly w32's attempt, and
+    // exactly what measured 17.5px against 15.4px.
+    expect(step, 'the row no longer shares leftover flex space').not.toContain('flex: 1 1 0');
+    expect(step, 'flex-basis sharing is off').toContain('flex: none');
+    expect(step, 'the row’s own height, not an inferred share of one').toContain('height: var(--rail-row-h)');
+  });
+
+  it('--rail-row-h is computed ONCE, off --live-h (a length), and never overridden by data-combat', () => {
+    const css = liveCss();
+    const rail = declarations(css, '.live__phases');
+    // A LENGTH, not a `%`: a `%` stored in a custom property re-resolves
+    // against whichever box later reads it — `.live__steps`, not `.live`,
+    // the moment `.live__step` (a different box) reads the same variable —
+    // which is exactly the bug a naive "just share a variable" fix would
+    // reintroduce. `--live-h` holds a pixel length (kept current by
+    // `LiveBoard.tsx`'s own `ResizeObserver`), which has no containing block
+    // to re-resolve against either, so it reaches every row unchanged.
+    expect(rail, '--rail-row-h reads --live-h, not a bare %, and not dvh (the viewport)').toContain(
+      '--rail-row-h: calc((var(--live-h) * 0.35 - var(--rail-chrome)) / 13)',
+    );
+    // The combat rule overrides the ROW COUNT only. If it ever touched
+    // `--rail-row-h` too, the two states would no longer be reading the same
+    // literal value — which is the only thing that makes them equal rather
+    // than merely close.
+    const combat = declarations(css, '.live__phases[data-combat]');
+    expect(combat, 'combat changes the row COUNT, not the row height').toBe('--rail-rows: 13;');
+  });
+
+  it('--live-h is .live’s own height, not the viewport’s — a fallback until the ResizeObserver runs', () => {
+    const css = liveCss();
+    // `dvh` would overshoot: `.live` is shorter than the viewport on the real
+    // match route (under the header, and inside watchparty's room frame when
+    // one is mounted) — measured in `wave33-evidence/l1-rail-rows.md`, where
+    // the rail grew tall enough to overlap the control cluster.
+    expect(declarations(css, '.live'), '.live declares a --live-h fallback').toContain('--live-h: 100dvh;');
+    expect(css, 'no rule still computes the rail off the viewport directly').not.toMatch(/--rail-row-h:.*dvh/);
+  });
+
+  it('the outer box still grows into combat and shrinks after (unchanged by this fix)', () => {
+    const css = liveCss();
+    const rail = declarations(css, '.live__phases');
+    expect(rail).toContain('height: calc(var(--rail-chrome) + var(--rail-rows) * var(--rail-row-h))');
+    expect(rail).toContain('transition: height');
+  });
+
+  it('a short window clips trailing rows rather than shrinking every row (overflow:hidden on the rail)', () => {
+    const css = liveCss();
+    expect(declarations(css, '.live__phases')).toContain('overflow: hidden');
+  });
+
+  /*
+   * §L2 — `--accent` as TEXT is `--accent-ink` (w32 R): `--accent` itself
+   * stays reserved for borders and the colour-pie, which do not need the
+   * contrast `--accent-ink` was built for (`styles.css`'s own token comment).
+   * Every one of this file's five `color: var(--accent)` lines becomes
+   * `--accent-ink`; the six `border-color: var(--accent)` lines are untouched.
+   */
+  it('§L2: every text colour in live.css reads --accent-ink, never bare --accent', () => {
+    const css = liveCss();
+    expect(css, 'no text colour reads the raw token any more').not.toMatch(/(?<!border-)color: var\(--accent\);/);
+    for (const sel of [
+      '.live__gone-back',
+      ".live__buttons .live__toggle[aria-pressed='true']",
+      ".live__log-button[aria-expanded='true']",
+      ".live__phases[data-whose='yours'] .live__turn-n",
+      '.live__step[data-current] .live__step-name',
+    ]) {
+      expect(declarations(css, sel), sel).toContain('color: var(--accent-ink)');
+    }
+    // Borders keep the raw token — only TEXT moved.
+    expect(declarations(css, ".live__buttons .live__toggle[aria-pressed='true']")).toContain(
+      'border-color: var(--accent)',
+    );
   });
 });

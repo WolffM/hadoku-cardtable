@@ -241,7 +241,7 @@
  * new wire shape changes.
  */
 
-import { Component, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Component, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import type { DraftCard } from '@hadoku/shared';
 import { usePrefs } from '@wolffm/prefs-client/react';
@@ -1195,6 +1195,54 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     const handle = installGestures({ canvas, match });
     return () => handle.dispose();
   }, [match, spectator]);
+
+  /*
+   * `--live-h`: `.live`'s own real resolved height, in pixels, kept current on
+   * this element so `live.css`'s `--rail-row-h` (wave 33 §L1) can read it.
+   *
+   * Why this exists rather than a CSS length: `.live` is `height: 100dvh` on
+   * the bare/dev-harness route, but on the MATCH route (`.shell--match` is an
+   * ancestor) `live.css` overrides that to `height: auto` and sizes it by
+   * flex instead — under the real header (`AppHeader`, ~80px with its own
+   * margin) and, in production, possibly inside watchparty's room frame too.
+   * `.live` is shorter than the viewport in both of those real shapes, so a
+   * viewport unit (`dvh`) here overshoots: measured on the match route at
+   * 1280×800, `.live` resolved to 713px against the 800px viewport, a rail
+   * sized from `35dvh` grew tall enough to overlap the control cluster by
+   * ~23px (`docs/planning/wave33-evidence/l1-rail-rows.md` has the numbers).
+   * Measuring `.live` itself, whatever shape put it there, is the only way to
+   * get this right in every shape without hard-coding any of them.
+   *
+   * Why a CSS custom property and not a `%` one: a `%` stored in a custom
+   * property is not resolved where it is declared, it is resolved against
+   * whichever box later reads it (`.live__step`, not `.live`) — the bug the
+   * first version of this fix hit. `--live-h` holds a LENGTH (`px`), which has
+   * no containing block to re-resolve against, so it reaches every descendant
+   * meaning the same thing, the same way `dvh` did — just scoped to `.live`
+   * instead of the viewport.
+   *
+   * `ResizeObserver` guarded rather than assumed: jsdom (this file's own unit
+   * tests) has no implementation of it, and a throw here would fail every
+   * test in the file rather than only the ones about this box.
+   */
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (el === null || typeof ResizeObserver === 'undefined') return undefined;
+    // Synchronous and before paint (`useLayoutEffect`, not `useEffect`): a
+    // passive effect runs after the browser has already painted, and a test
+    // (or a player) that reads the rail's box on the very first frame would
+    // catch the `100dvh` fallback instead of this value — on the match route
+    // that is a taller number, not a merely-stale one, so the first frame's
+    // row heights would disagree with every later one. Measured live: this
+    // is what turned the one-time 23px overlap into a RACE (e2e's "same row
+    // height" check read `.live` before and after this effect had run, 2 of
+    // 3 times) once `--live-h` existed at all.
+    const sync = () => el.style.setProperty('--live-h', `${el.getBoundingClientRect().height}px`);
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   if (status === 'match-gone') {
     /*
