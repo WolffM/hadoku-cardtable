@@ -1,0 +1,18 @@
+[WebServer] [cardtable] play: no Forge (CARDTABLE_FORGE_JAR is not set) — POST /api/play/matches answers 503
+[WebServer] [cardtable] streamed Forge LIVE — 2 static container(s) at /stream/**, plus room-keyed streams at /stream/<room>/<seat>/ (see stream/index.ts)
+[WebServer] [e2e-harness] server :19008, edge :19108 — ready
+
+Running 1 test using 1 worker
+
+[arrow] alice pressed OK
+[arrow] alice pressed OK
+[arrow] bob pressed OK
+[arrow] source 49 {"left":133,"top":597.546875,"width":73.515625,"height":102.4375} → target 3 {"left":598.09375,"top":597.546875,"width":73.515625,"height":102.4375}, 465.1px apart
+[arrow] arrow {"x1":137.7578125,"y1":563.765625,"x2":566.09375,"y2":563.765625,"points":[[566.09375,563.765625],[554.22359377594,569.0665108897745],[554.22359377594,558.4647391102255]],"source":"49","target":"card:3","snapped":true,"box":{"left":32,"top":85,"width":896,"height":633}}
+[arrow] overlay {"left":32,"top":85,"width":896,"height":633}
+[arrow] tail {"x":169.7578125,"y":648.765625} vs source centre {"x":169.7578125,"y":648.765625}
+[arrow] tip  {"x":598.09375,"y":648.765625} vs target centre {"x":634.8515625,"y":648.765625} (pointer {"x":667.609375,"y":695.984375})
+[arrow] loose {"x1":137.7578125,"y1":563.765625,"x2":640.1796875,"y2":168.78125,"points":[[640.1796875,168.78125],[634.1241423522661,180.2847439459173],[627.5718386012302,171.95018454425738]],"source":"49","target":null,"snapped":false,"box":{"left":32,"top":85,"width":896,"height":633}}
+  ✓  1 arrow.spec.ts:278:1 › the targeter arrow's endpoints, measured in a real browser against the two cards' boxes: the tip snaps to the nearest of eight edge points (9.1s)
+
+  1 passed (10.0s)

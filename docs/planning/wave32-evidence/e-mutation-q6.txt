@@ -1,0 +1,7 @@
+mutbuild 0
+  ✘  1 w32.spec.ts:260:1 › changing the saved avatar mid-match redraws that seat's face on both boards, with no reload (Q6) (27.0s)
+    expect(locator).toHaveAttribute(expected) failed
+  1 failed
+restbuild 0
+  ✓  1 w32.spec.ts:260:1 › changing the saved avatar mid-match redraws that seat's face on both boards, with no reload (Q6) (12.6s)
+  1 passed (13.3s)

@@ -1,0 +1,39 @@
+[WebServer] [cardtable] play: no Forge (CARDTABLE_FORGE_JAR is not set) — POST /api/play/matches answers 503
+[WebServer] [cardtable] streamed Forge LIVE — 2 static container(s) at /stream/**, plus room-keyed streams at /stream/<room>/<seat>/ (see stream/index.ts)
+[WebServer] [e2e-harness] server :19008, edge :19108 — ready
+
+Running 7 tests using 1 worker
+
+  ✓  1 w31.spec.ts:85:1 › reload with a selection open: the London bottom pick survives a refresh and can be answered (P10) (9.1s)
+  ✓  2 w31.spec.ts:148:1 › a second browser on a held seat is a spectator: inert, refused by the server, promoted when the first leaves (9.2s)
+  ✓  3 w31.spec.ts:214:1 › a match that is gone shows the reason and a way back, with no board and no Join (866ms)
+  ✘  4 w31.spec.ts:241:1 › combat is one rail step outside combat and six inside; the rail GROWS into combat and shrinks after, centred and un-bulleted, same row height; a log name opens the one inspector (P1, P12, w32 Q3) (13.5s)
+  -  5 w31.spec.ts:386:1 › concede ends the game, and after the end Concede is off on both boards and the server refuses another (P18)
+  -  6 w31.spec.ts:513:1 › the board in the light theme follows the theme and its text is legible (P4)
+  -  7 w31.spec.ts:513:1 › the board in the ocean-light theme follows the theme and its text is legible (P4)
+
+
+  1) w31.spec.ts:241:1 › combat is one rail step outside combat and six inside; the rail GROWS into combat and shrinks after, centred and un-bulleted, same row height; a log name opens the one inspector (P1, P12, w32 Q3) 
+
+    Error: a rail row is as tall out of combat (17.515625) as in it (13.421875)
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 2
+    Received:    4.09375
+
+      364 |     const insideRow = Math.max(...combat.rowH);
+      365 |     const outsideRow = Math.max(...outsideLook!.rowHeights);
+    > 366 |     expect(Math.abs(insideRow - outsideRow), `a rail row is as tall out of combat (${outsideRow}) as in it (${insideRow})`).toBeLessThanOrEqual(2);
+          |                                                                                                                             ^
+      367 |     // ... and it shrinks afterwards, by CSS alone (the box is measured, not a class).
+      368 |     await expect
+      369 |       .poll(async () => {
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/w31.spec.ts:366:125
+
+    Error Context: .run/test-results/w31-combat-is-one-rail-ste-22a3f-ne-inspector-P1-P12-w32-Q3-/error-context.md
+
+  1 failed
+    w31.spec.ts:241:1 › combat is one rail step outside combat and six inside; the rail GROWS into combat and shrinks after, centred and un-bulleted, same row height; a log name opens the one inspector (P1, P12, w32 Q3) 
+  3 did not run
+  3 passed (34.0s)

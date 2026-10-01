@@ -1,0 +1,48 @@
+[WebServer] [cardtable] play: no Forge (CARDTABLE_FORGE_JAR is not set) — POST /api/play/matches answers 503
+[WebServer] [cardtable] streamed Forge LIVE — 2 static container(s) at /stream/**, plus room-keyed streams at /stream/<room>/<seat>/ (see stream/index.ts)
+[WebServer] [e2e-harness] server :19008, edge :19108 — ready
+
+Running 3 tests using 1 worker
+
+[w32 q5] End Turn: COMBAT_BEGIN > COMBAT_DECLARE_ATTACKERS > COMBAT_END > MAIN2 > END_OF_TURN; gaps 20, 17, 42, 17 ms; click to first 93 ms
+[w32 q5] plain pass: COMBAT_BEGIN > COMBAT_DECLARE_ATTACKERS; gaps 50 ms
+  ✓  1 w32.spec.ts:110:1 › the turn reads Start with no name under it (Q1); End Turn passes skipped phases at once, the preference is scoped to the End Turn seat (Q5) (8.5s)
+[w32 q10/q7] to turn 5: Declare Blockers windows seen 0, stops without creatures 0; stack asks seen 0, lone-spell asks 0
+  ✓  2 w32.spec.ts:186:1 › a seat with no creatures is never stopped at Declare Blockers (Q10); an ask over a lone stack spell never reaches the player (Q7) (6.2m)
+  ✘  3 w32.spec.ts:260:1 › changing the saved avatar mid-match redraws that seat's face on both boards, with no reload (Q6) (29.9s)
+
+
+  1) w32.spec.ts:260:1 › changing the saved avatar mid-match redraws that seat's face on both boards, with no reload (Q6) 
+
+    Error: alice: alice's face is redrawn with e2e-sprite-one
+
+    expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('[data-player-face][data-viewer]')
+    Expected: "e2e-sprite-one"
+    Received: ""
+    Timeout:  20000ms
+
+    Call log:
+      - alice: alice's face is redrawn with e2e-sprite-one with timeout 20000ms
+      - waiting for locator('[data-player-face][data-viewer]')
+        44 × locator resolved to <div class="face" data-player-id="0" data-viewer="true" data-player-face="">…</div>
+           - unexpected value "null"
+
+
+      283 |       await save(alice.page, sprite);
+      284 |       for (const f of [alice, bob]) {
+    > 285 |         await expect(faceOf(f), `${f.name}: alice's face is redrawn with ${sprite}`).toHaveAttribute('data-avatar', sprite, { timeout: 20_000 });
+          |                                                                                      ^
+      286 |         await expect(faceOf(f).getByTestId('seat-avatar'), `${f.name}: the face draws that avatar's image`).toHaveAttribute('src', new RegExp(`square_${sprite}\\.png$`));
+      287 |       }
+      288 |     }
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/w32.spec.ts:285:86
+
+    Error Context: .run/test-results/w32-changing-the-saved-ava-d47bf-h-boards-with-no-reload-Q6-/error-context.md
+
+  Slow test file: w32.spec.ts (6.8m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 failed
+    w32.spec.ts:260:1 › changing the saved avatar mid-match redraws that seat's face on both boards, with no reload (Q6) 
+  2 passed (6.8m)

@@ -1,0 +1,104 @@
+[WebServer] [cardtable] play: no Forge (CARDTABLE_FORGE_JAR is not set) — POST /api/play/matches answers 503
+[WebServer] [cardtable] streamed Forge LIVE — 2 static container(s) at /stream/**, plus room-keyed streams at /stream/<room>/<seat>/ (see stream/index.ts)
+[WebServer] [e2e-harness] server :19008, edge :19108 — ready
+
+Running 2 tests using 1 worker
+
+[table-fit] the opening, answered on the board: [{"who":"alice","says":"e2e-alice, you have won the coin toss.\n\nWould you like to play or draw?"},{"who":"alice","says":"e2e-alice, you are going first!\n\nDo you want to keep your hand?"},{"who":"bob","says":"e2e-alice is going first.\ne2e-bob, you are going 2nd.\n\nDo you want to keep your hand?"}]
+  ✘  1 table-fit.spec.ts:712:1 › a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window (47.4s)
+  ✘  2 table-fit.spec.ts:1803:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column (27.3s)
+
+
+  1) table-fit.spec.ts:712:1 › a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window 
+
+    TimeoutError: locator.click: Timeout 20000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'User settings' })
+        - locator resolved to <button type="button" aria-expanded="true" aria-label="User settings" class="settings-toggle-btn">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="settings-popout__overlay"></div> intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="settings-popout__overlay"></div> intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        37 × waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="settings-popout__overlay"></div> intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+
+
+       at play/w32.ts:28
+
+      26 |
+      27 | export async function closeHeaderSettings(page: Page): Promise<void> {
+    > 28 |   if ((await headerPanel(page).count()) > 0) await headerGear(page).click();
+         |                                                                     ^
+      29 |   await expect(headerPanel(page)).toHaveCount(0);
+      30 | }
+      31 |
+        at closeHeaderSettings (/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/play/w32.ts:28:69)
+        at chooseLanes (/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/play/w32.ts:36:3)
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/table-fit.spec.ts:954:30
+
+    Error Context: .run/test-results/table-fit-a-live-match-fit-022ec--a-prompt-inside-the-window/error-context.md
+
+  2) table-fit.spec.ts:1803:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column 
+
+    TimeoutError: locator.click: Timeout 20000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'User settings' })
+        - locator resolved to <button type="button" aria-expanded="true" aria-label="User settings" class="settings-toggle-btn">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="settings-popout__overlay"></div> intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="settings-popout__overlay"></div> intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        39 × waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="settings-popout__overlay"></div> intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+
+
+       at play/w32.ts:28
+
+      26 |
+      27 | export async function closeHeaderSettings(page: Page): Promise<void> {
+    > 28 |   if ((await headerPanel(page).count()) > 0) await headerGear(page).click();
+         |                                                                     ^
+      29 |   await expect(headerPanel(page)).toHaveCount(0);
+      30 | }
+      31 |
+        at closeHeaderSettings (/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/play/w32.ts:28:69)
+        at chooseLanes (/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/play/w32.ts:36:3)
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/table-fit.spec.ts:1838:30
+
+    Error Context: .run/test-results/table-fit-the-canvas-is-st-f0aa9-rd-question-fits-its-column/error-context.md
+
+  2 failed
+    table-fit.spec.ts:712:1 › a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window 
+    table-fit.spec.ts:1803:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column 

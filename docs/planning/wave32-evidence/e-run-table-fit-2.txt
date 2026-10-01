@@ -1,0 +1,67 @@
+[WebServer] [cardtable] play: no Forge (CARDTABLE_FORGE_JAR is not set) — POST /api/play/matches answers 503
+[WebServer] [cardtable] streamed Forge LIVE — 2 static container(s) at /stream/**, plus room-keyed streams at /stream/<room>/<seat>/ (see stream/index.ts)
+[WebServer] [e2e-harness] server :19008, edge :19108 — ready
+
+Running 2 tests using 1 worker
+
+[table-fit] the opening, answered on the board: [{"who":"alice","says":"e2e-alice, you have won the coin toss.\n\nWould you like to play or draw?"},{"who":"alice","says":"e2e-alice, you are going first!\n\nDo you want to keep your hand?"},{"who":"bob","says":"e2e-alice is going first.\ne2e-bob, you are going 2nd.\n\nDo you want to keep your hand?"}]
+[table-fit] alice: 1294 match frames, 1287 with the board, 58 with a prompt; turns 13; largest battlefield 9, hand 7; bar boxes {"1280x800":["563,810,112,110"],"1366x768":["541,896,112,110"]}; breaches {"button bar without live-button-cancel":646}
+[table-fit] bob: 1301 match frames, 1294 with the board, 21 with a prompt; turns 13; largest battlefield 9, hand 8; bar boxes {"1366x768":["541,896,112,110"],"1280x800":["563,810,112,110"]}; breaches {"button bar without live-button-cancel":377}
+  ✘  1 table-fit.spec.ts:712:1 › a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window (28.7s)
+  ✘  2 table-fit.spec.ts:1803:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column (7.4s)
+
+
+  1) table-fit.spec.ts:712:1 › a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window 
+
+    Error: alice: every frame fits (first breaches: [{"t":1790842566625,"what":"button bar without live-button-cancel","size":"1280x800","turn":"Start"},{"t":1790842566626,"what":"button bar without live-button-cancel","size":"1280x800","turn":"Start"},{"t":1790842566628,"what":"button bar without live-button-cancel","size":"1280x800","turn":"Start"},{"t":1790842566646,"what":"button bar without live-button-cancel","size":"1280x800","turn":"Start"},{"t":1790842566660,"what":"button bar without live-button-cancel","size":"1280x800","turn":"Start"}])
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Object {}
+    + Object {
+    +   "button bar without live-button-cancel": 646,
+    + }
+
+      1071 |       expect(Object.keys(s.barBoxes).sort(), `${f.name}: both window sizes were sampled`).toEqual(['1280x800', '1366x768']);
+      1072 |       // And in every one of those frames:
+    > 1073 |       expect(s.breaches, `${f.name}: every frame fits (first breaches: ${JSON.stringify(s.examples.slice(0, 5))})`).toEqual({});
+           |                                                                                                                     ^
+      1074 |       for (const [size, boxes] of Object.entries(s.barBoxes)) {
+      1075 |         expect(boxes, `${f.name} at ${size}: the button bar has one home`).toHaveLength(1);
+      1076 |       }
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/table-fit.spec.ts:1073:117
+
+    Error Context: .run/test-results/table-fit-a-live-match-fit-022ec--a-prompt-inside-the-window/error-context.md
+
+  2) table-fit.spec.ts:1803:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column 
+
+    Error: alice: with a question up the stack band clips no effect text (--mid-h 12rem)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 109-277, box 95-231)",
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 109-277, box 95-231)",
+    + ]
+
+      1849 |         await f.page.evaluate(clearStack);
+      1850 |         expect(asked.texts, `${f.name}: the asked stack band measured the effect texts`).toBeGreaterThan(0);
+    > 1851 |         expect(asked.clipped, `${f.name}: with a question up the stack band clips no effect text (--mid-h ${asked.asked})`).toEqual([]);
+           |                                                                                                                             ^
+      1852 |         staticShots.push(...shots.map((s) => ({ who: f.name, ...s })));
+      1853 |         const base = shots[0]!;
+      1854 |         const where = `${f.name} at ${base.size}`;
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/table-fit.spec.ts:1851:125
+
+    Error Context: .run/test-results/table-fit-the-canvas-is-st-f0aa9-rd-question-fits-its-column/error-context.md
+
+  2 failed
+    table-fit.spec.ts:712:1 › a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window 
+    table-fit.spec.ts:1803:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column 

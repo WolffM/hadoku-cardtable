@@ -1,0 +1,7 @@
+mutbuild 0
+  ✘  1 table-fit.spec.ts:712:1 › a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window (46.8s)
+    TimeoutError: locator.boundingBox: Timeout 20000ms exceeded.
+  1 failed
+restbuild 0
+  ✓  1 table-fit.spec.ts:712:1 › a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window (29.6s)
+  1 passed (30.3s)

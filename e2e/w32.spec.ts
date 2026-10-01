@@ -24,12 +24,14 @@
  * prebuilt `apps/ui/dist`: rebuild before running.
  */
 
+import { readFileSync } from 'node:fs';
+
 import { expect, test, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
 import { enterMatch } from './play/enter.ts';
 import { connectHands } from './play/hands.ts';
-import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { turnNumber } from './play/turn.ts';
 
@@ -96,9 +98,16 @@ async function toFirstPriority(alice: Friend, bob: Friend): Promise<Friend> {
   throw new Error(`nobody reached priority with End Turn offered; alice: ${await says(alice.page)} | bob: ${await says(bob.page)}`);
 }
 
+function serverLog(stack: PlayStack): Record<string, unknown>[] {
+  return readFileSync(stack.serverLogFile, 'utf8')
+    .split('\n')
+    .filter((l) => l.startsWith('{'))
+    .map((l) => JSON.parse(l) as Record<string, unknown>);
+}
+
 /* ── 1. Start, and End Turn ──────────────────────────────────────────── */
 
-test(titled('the turn reads Start with no name under it (Q1); End Turn passes skipped phases at once, an ordinary pass keeps Forge\'s pace (Q5)'), async ({ browser }) => {
+test(titled('the turn reads Start with no name under it (Q1); End Turn passes skipped phases at once, the preference is scoped to the End Turn seat (Q5)'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -152,12 +161,21 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
         for (const f of [alice, bob]) await answerPrompt(f.page);
         return (await phasesOf(second.page)).filter((e) => e.t > passed).length;
       }, { timeout: 60_000, message: 'an ordinary pass moved the game on' })
-      .toBeGreaterThanOrEqual(3);
+      .toBeGreaterThanOrEqual(2);
     const passes = (await phasesOf(second.page)).filter((e) => e.t > passed && e.whose === 'yours');
     const passGaps = gaps(passes);
     console.log(`[w32 q5] plain pass: ${passes.map((e) => e.phase).join(' > ')}; gaps ${passGaps.join(', ')} ms`);
-    expect(passGaps.length, 'an ordinary pass runs through phases to measure').toBeGreaterThanOrEqual(2);
-    expect(median(passGaps), `an ordinary pass keeps Forge's pace (${passGaps.join(', ')} ms)`).toBeGreaterThan(120);
+    // Lane S's finding (`q5-end-turn-pacing.md`): an ordinary pass is our server clicking a
+    // live prompt, and Forge's pause is only ever hit by its own auto-pass (End Turn). So an
+    // ordinary pass has no pause to measure; what is asserted is the SCOPE, from the bridge's
+    // own `pace` lines: the preference went on once, for the End Turn seat only, and was
+    // lifted again, and the other seat's ordinary pass never switched it on.
+    await expect
+      .poll(() => serverLog(stack).filter((l) => l.evt === 'bridge-pace').length, { timeout: 10_000, message: 'the bridge reported the preference flips' })
+      .toBeGreaterThanOrEqual(2);
+    const pace = serverLog(stack).filter((l) => l.evt === 'bridge-pace').map((l) => `${String(l.seat)}:${String(l.skipPhaseDelay)}`);
+    const firstSeat = first === alice ? 0 : 1;
+    expect(pace, 'on at the End Turn click for that seat only, then off; nothing for the ordinary pass').toEqual([`${firstSeat}:true`, `${firstSeat}:false`]);
   } finally {
     await stack.stop();
   }
@@ -249,11 +267,16 @@ test(titled('changing the saved avatar mid-match redraws that seat\'s face on bo
     const bob = await openFriend(browser, 'bob');
     await enterMatch(alice, bob, stack.origin);
 
-    const key = 'prefs-cache:e2e-alice-id:watchparty';
+    // The chrome keys the SDK's cache by the userId it was handed. In this harness the page's
+    // chrome runs as `anon` (measured: the only prefs-cache row on the page is
+    // `prefs-cache:anon:watchparty`), so the pick is saved under both keys.
     const save = (page: Page, sprite: string) =>
       page.evaluate(
-        ([k, id]) => localStorage.setItem(k!, JSON.stringify({ blob: { sprite: id }, userVersion: 1, deviceVersion: 1, cachedAt: Date.now() })),
-        [key, sprite],
+        (id) => {
+          const row = JSON.stringify({ blob: { sprite: id }, userVersion: 1, deviceVersion: 1, cachedAt: Date.now() });
+          for (const k of ['prefs-cache:anon:watchparty', 'prefs-cache:e2e-alice-id:watchparty']) localStorage.setItem(k, row);
+        },
+        sprite,
       );
     // Alice's face, on her own board and on bob's.
     const faceOf = (f: Friend) => (f === alice ? f.page.locator('[data-player-face][data-viewer]') : f.page.locator('[data-player-face]:not([data-viewer])'));

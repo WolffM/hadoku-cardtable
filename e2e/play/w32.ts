@@ -25,7 +25,9 @@ export async function openHeaderSettings(page: Page): Promise<Locator> {
 }
 
 export async function closeHeaderSettings(page: Page): Promise<void> {
-  if ((await headerPanel(page).count()) > 0) await headerGear(page).click();
+  // The popout's own full-page overlay sits over the gear while it is open; a click on it is
+  // the fleet component's outside-click close.
+  if ((await headerPanel(page).count()) > 0) await page.locator('.settings-popout__overlay').click({ position: { x: 2, y: 2 } });
   await expect(headerPanel(page)).toHaveCount(0);
 }
 

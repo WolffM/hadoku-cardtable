@@ -1,0 +1,140 @@
+[WebServer] [cardtable] play: no Forge (CARDTABLE_FORGE_JAR is not set) — POST /api/play/matches answers 503
+[WebServer] [cardtable] streamed Forge LIVE — 2 static container(s) at /stream/**, plus room-keyed streams at /stream/<room>/<seat>/ (see stream/index.ts)
+[WebServer] [e2e-harness] server :19008, edge :19108 — ready
+
+Running 2 tests using 1 worker
+
+[table-fit] the opening, answered on the board: [{"who":"alice","says":"e2e-alice, you have won the coin toss.\n\nWould you like to play or draw?"},{"who":"alice","says":"e2e-alice, you are going first!\n\nDo you want to keep your hand?"},{"who":"bob","says":"e2e-alice is going first.\ne2e-bob, you are going 2nd.\n\nDo you want to keep your hand?"}]
+[table-fit] alice: 1337 match frames, 1336 with the board, 53 with a prompt; turns 13; largest battlefield 9, hand 7; bar boxes {"1280x800":["563,810,112,110"],"1366x768":["541,896,112,110"]}; breaches {}
+[table-fit] bob: 1398 match frames, 1393 with the board, 22 with a prompt; turns 13; largest battlefield 9, hand 8; bar boxes {"1366x768":["541,896,112,110"],"1280x800":["563,810,112,110"]}; breaches {}
+  ✓  1 table-fit.spec.ts:712:1 › a live match fits 1280×800 and 1366×768 in every frame: no page scroll, the button bar always home, a prompt inside the window (28.9s)
+[table-fit static] alice at 1280x800: faces you 47,455,72,59 them 47,354,72,59; 0 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200; 1 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200; 5 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200; 12 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200
+[table-fit column] alice at 1280x800, you's column at 1280x800: graveyard 176px of the seat's 348px (50.6%, information only)
+[table-fit column] alice at 1280x800, them's column at 1280x800: graveyard 176px of the seat's 348px (50.6%, information only)
+[table-fit question] alice 1280x800: table 896x713; host 564,256,216,342; sheet 216x342 scroll 214x945 in 214x340; 2 columns of 92px; overflowing []
+[table-fit crowd] alice 1280x800 battlefields 8, hand 7: overflowing []; their battlefield 8 rows 1 box 786x200 scroll 786x200 card 68-68w 95h [back 4c/1r grow 0 664x98px card 68-68w | front 4c/1r grow 0 664x98px card 68-68w]; your battlefield 8 rows 1 box 786x200 scroll 786x200 card 70-73w 101h [lands 4c/1r grow 4 295x200px card 70-70w | artifacts 1c/1r grow 1 77x200px card 73-73w | creatures 3c/1r grow 3 221x200px card 70-70w | other 0c/1r grow 0 53x200px card 0-0w]; your hand 7 rows 1 box 784x126 scroll 784x126 card 85-85w 118h
+[table-fit crowd] alice 1280x800 battlefields 11, hand 8: overflowing []; their battlefield 11 rows 1 box 786x200 scroll 786x200 card 68-68w 95h [back 5c/1r grow 0 664x98px card 68-68w | front 6c/1r grow 0 664x98px card 68-68w]; your battlefield 11 rows 2 box 786x200 scroll 786x200 card 63-63w 88h [lands 5c/2r grow 3 295x200px card 63-63w | artifacts 2c/2r grow 1 101x200px card 63-63w | creatures 4c/2r grow 2 197x200px card 63-63w | other 0c/2r grow 0 53x200px card 0-0w]; your hand 8 rows 1 box 784x126 scroll 784x126 card 79-79w 109h
+[table-fit crowd] alice 1280x800 battlefields 16, hand 10: overflowing []; their battlefield 16 rows 1 box 786x200 scroll 786x200 card 68-68w 95h [back 7c/1r grow 0 664x98px card 68-68w | front 9c/1r grow 0 664x98px card 68-68w]; your battlefield 16 rows 2 box 786x200 scroll 786x200 card 63-63w 88h [lands 7c/2r grow 4 284x200px card 63-63w | artifacts 2c/2r grow 1 74x200px card 63-63w | creatures 6c/2r grow 3 213x200px card 63-63w | other 1c/2r grow 1 74x200px card 63-63w]; your hand 10 rows 1 box 784x126 scroll 784x126 card 62-62w 86h
+[table-fit crowd] alice 1280x800 battlefields 20, hand 10: overflowing []; their battlefield 20 rows 1 box 786x200 scroll 786x200 card 56-68w 95h [back 9c/1r grow 0 664x98px card 68-68w | front 11c/1r grow 0 664x98px card 56-56w]; your battlefield 20 rows 2 box 786x200 scroll 786x200 card 54-58w 80h [lands 9c/2r grow 5 290x200px card 54-54w | artifacts 2c/2r grow 1 62x200px card 58-58w | creatures 8c/2r grow 4 232x200px card 54-54w | other 1c/2r grow 1 62x200px card 58-58w]; your hand 10 rows 1 box 784x126 scroll 784x126 card 62-62w 86h
+[table-fit static] bob at 1366x768: faces you 47,439,72,59 them 47,338,72,59; 0 on the stack → mid 615,163,237,192, you/battlefield 127,435,872,191; 1 on the stack → mid 615,163,237,192, you/battlefield 127,435,872,191; 5 on the stack → mid 615,163,237,192, you/battlefield 127,435,872,191; 12 on the stack → mid 615,163,237,192, you/battlefield 127,435,872,191
+[table-fit column] bob at 1366x768, you's column at 1366x768: graveyard 160px of the seat's 332px (48.3%, information only)
+[table-fit column] bob at 1366x768, them's column at 1366x768: graveyard 160px of the seat's 332px (48.3%, information only)
+[table-fit question] bob 1366x768: table 982x681; host 615,248,237,327; sheet 237x327 scroll 235x1032 in 235x325; 2 columns of 102px; overflowing []
+[table-fit crowd] bob 1366x768 battlefields 8, hand 7: overflowing []; their battlefield 8 rows 1 box 872x191 scroll 872x191 card 65-65w 90h [back 4c/1r grow 0 750x93px card 65-65w | front 4c/1r grow 0 750x93px card 65-65w]; your battlefield 8 rows 1 box 872x191 scroll 872x191 card 80-84w 116h [lands 4c/1r grow 4 338x191px card 80-80w | artifacts 1c/1r grow 1 88x191px card 84-84w | creatures 3c/1r grow 3 254x191px card 81-81w | other 0c/1r grow 0 53x191px card 0-0w]; your hand 7 rows 1 box 870x120 scroll 870x120 card 80-80w 112h
+[table-fit crowd] bob 1366x768 battlefields 11, hand 8: overflowing []; their battlefield 11 rows 1 box 872x191 scroll 872x191 card 65-65w 90h [back 5c/1r grow 0 750x93px card 65-65w | front 6c/1r grow 0 750x93px card 65-65w]; your battlefield 11 rows 2 box 872x191 scroll 872x191 card 59-59w 83h [lands 5c/2r grow 3 338x191px card 59-59w | artifacts 2c/2r grow 1 115x191px card 59-59w | creatures 4c/2r grow 2 226x191px card 59-59w | other 0c/2r grow 0 53x191px card 0-0w]; your hand 8 rows 1 box 870x120 scroll 870x120 card 80-80w 112h
+[table-fit crowd] bob 1366x768 battlefields 16, hand 10: overflowing []; their battlefield 16 rows 1 box 872x191 scroll 872x191 card 65-65w 90h [back 7c/1r grow 0 750x93px card 65-65w | front 9c/1r grow 0 750x93px card 65-65w]; your battlefield 16 rows 2 box 872x191 scroll 872x191 card 59-59w 83h [lands 7c/2r grow 4 322x191px card 59-59w | artifacts 2c/2r grow 1 84x191px card 59-59w | creatures 6c/2r grow 3 242x191px card 59-59w | other 1c/2r grow 1 84x191px card 59-59w]; your hand 10 rows 1 box 870x120 scroll 870x120 card 71-71w 98h
+[table-fit crowd] bob 1366x768 battlefields 20, hand 10: overflowing []; their battlefield 20 rows 1 box 872x191 scroll 872x191 card 64-65w 90h [back 9c/1r grow 0 750x93px card 65-65w | front 11c/1r grow 0 750x93px card 64-64w]; your battlefield 20 rows 2 box 872x191 scroll 872x191 card 59-59w 83h [lands 9c/2r grow 5 330x191px card 59-59w | artifacts 2c/2r grow 1 69x191px card 59-59w | creatures 8c/2r grow 4 264x191px card 59-59w | other 1c/2r grow 1 69x191px card 59-59w]; your hand 10 rows 1 box 870x120 scroll 870x120 card 71-71w 98h
+[table-fit static] alice at 1366x768: faces you 47,439,72,59 them 47,338,72,59; 0 on the stack → mid 615,163,237,192, you/battlefield 127,435,872,191; 1 on the stack → mid 615,163,237,192, you/battlefield 127,435,872,191; 5 on the stack → mid 615,163,237,192, you/battlefield 127,435,872,191; 12 on the stack → mid 615,163,237,192, you/battlefield 127,435,872,191
+[table-fit column] alice at 1366x768, you's column at 1366x768: graveyard 160px of the seat's 332px (48.3%, information only)
+[table-fit column] alice at 1366x768, them's column at 1366x768: graveyard 160px of the seat's 332px (48.3%, information only)
+[table-fit question] alice 1366x768: table 982x681; host 615,248,237,327; sheet 237x327 scroll 235x1032 in 235x325; 2 columns of 102px; overflowing []
+[table-fit crowd] alice 1366x768 battlefields 8, hand 7: overflowing []; their battlefield 8 rows 1 box 872x191 scroll 872x191 card 65-65w 90h [back 4c/1r grow 0 750x93px card 65-65w | front 4c/1r grow 0 750x93px card 65-65w]; your battlefield 8 rows 1 box 872x191 scroll 872x191 card 80-84w 116h [lands 4c/1r grow 4 338x191px card 80-80w | artifacts 1c/1r grow 1 88x191px card 84-84w | creatures 3c/1r grow 3 254x191px card 81-81w | other 0c/1r grow 0 53x191px card 0-0w]; your hand 7 rows 1 box 870x120 scroll 870x120 card 80-80w 112h
+[table-fit crowd] alice 1366x768 battlefields 11, hand 8: overflowing []; their battlefield 11 rows 1 box 872x191 scroll 872x191 card 65-65w 90h [back 5c/1r grow 0 750x93px card 65-65w | front 6c/1r grow 0 750x93px card 65-65w]; your battlefield 11 rows 2 box 872x191 scroll 872x191 card 59-59w 83h [lands 5c/2r grow 3 338x191px card 59-59w | artifacts 2c/2r grow 1 115x191px card 59-59w | creatures 4c/2r grow 2 226x191px card 59-59w | other 0c/2r grow 0 53x191px card 0-0w]; your hand 8 rows 1 box 870x120 scroll 870x120 card 80-80w 112h
+[table-fit crowd] alice 1366x768 battlefields 16, hand 10: overflowing []; their battlefield 16 rows 1 box 872x191 scroll 872x191 card 65-65w 90h [back 7c/1r grow 0 750x93px card 65-65w | front 9c/1r grow 0 750x93px card 65-65w]; your battlefield 16 rows 2 box 872x191 scroll 872x191 card 59-59w 83h [lands 7c/2r grow 4 322x191px card 59-59w | artifacts 2c/2r grow 1 84x191px card 59-59w | creatures 6c/2r grow 3 242x191px card 59-59w | other 1c/2r grow 1 84x191px card 59-59w]; your hand 10 rows 1 box 870x120 scroll 870x120 card 71-71w 98h
+[table-fit crowd] alice 1366x768 battlefields 20, hand 10: overflowing []; their battlefield 20 rows 1 box 872x191 scroll 872x191 card 64-65w 90h [back 9c/1r grow 0 750x93px card 65-65w | front 11c/1r grow 0 750x93px card 64-64w]; your battlefield 20 rows 2 box 872x191 scroll 872x191 card 59-59w 83h [lands 9c/2r grow 5 330x191px card 59-59w | artifacts 2c/2r grow 1 69x191px card 59-59w | creatures 8c/2r grow 4 264x191px card 59-59w | other 1c/2r grow 1 69x191px card 59-59w]; your hand 10 rows 1 box 870x120 scroll 870x120 card 71-71w 98h
+[table-fit static] bob at 1280x800: faces you 47,455,72,59 them 47,354,72,59; 0 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200; 1 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200; 5 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200; 12 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200
+[table-fit column] bob at 1280x800, you's column at 1280x800: graveyard 176px of the seat's 348px (50.6%, information only)
+[table-fit column] bob at 1280x800, them's column at 1280x800: graveyard 176px of the seat's 348px (50.6%, information only)
+[table-fit question] bob 1280x800: table 896x713; host 564,256,216,342; sheet 216x342 scroll 214x945 in 214x340; 2 columns of 92px; overflowing []
+[table-fit crowd] bob 1280x800 battlefields 8, hand 7: overflowing []; their battlefield 8 rows 1 box 786x200 scroll 786x200 card 68-68w 95h [back 4c/1r grow 0 664x98px card 68-68w | front 4c/1r grow 0 664x98px card 68-68w]; your battlefield 8 rows 1 box 786x200 scroll 786x200 card 70-73w 101h [lands 4c/1r grow 4 295x200px card 70-70w | artifacts 1c/1r grow 1 77x200px card 73-73w | creatures 3c/1r grow 3 221x200px card 70-70w | other 0c/1r grow 0 53x200px card 0-0w]; your hand 7 rows 1 box 784x126 scroll 784x126 card 85-85w 118h
+[table-fit crowd] bob 1280x800 battlefields 11, hand 8: overflowing []; their battlefield 11 rows 1 box 786x200 scroll 786x200 card 68-68w 95h [back 5c/1r grow 0 664x98px card 68-68w | front 6c/1r grow 0 664x98px card 68-68w]; your battlefield 11 rows 2 box 786x200 scroll 786x200 card 63-63w 88h [lands 5c/2r grow 3 295x200px card 63-63w | artifacts 2c/2r grow 1 101x200px card 63-63w | creatures 4c/2r grow 2 197x200px card 63-63w | other 0c/2r grow 0 53x200px card 0-0w]; your hand 8 rows 1 box 784x126 scroll 784x126 card 79-79w 109h
+[table-fit crowd] bob 1280x800 battlefields 16, hand 10: overflowing []; their battlefield 16 rows 1 box 786x200 scroll 786x200 card 68-68w 95h [back 7c/1r grow 0 664x98px card 68-68w | front 9c/1r grow 0 664x98px card 68-68w]; your battlefield 16 rows 2 box 786x200 scroll 786x200 card 63-63w 88h [lands 7c/2r grow 4 284x200px card 63-63w | artifacts 2c/2r grow 1 74x200px card 63-63w | creatures 6c/2r grow 3 213x200px card 63-63w | other 1c/2r grow 1 74x200px card 63-63w]; your hand 10 rows 1 box 784x126 scroll 784x126 card 62-62w 86h
+[table-fit crowd] bob 1280x800 battlefields 20, hand 10: overflowing []; their battlefield 20 rows 1 box 786x200 scroll 786x200 card 56-68w 95h [back 9c/1r grow 0 664x98px card 68-68w | front 11c/1r grow 0 664x98px card 56-56w]; your battlefield 20 rows 2 box 786x200 scroll 786x200 card 54-58w 80h [lands 9c/2r grow 5 290x200px card 54-54w | artifacts 2c/2r grow 1 62x200px card 58-58w | creatures 8c/2r grow 4 232x200px card 54-54w | other 1c/2r grow 1 62x200px card 58-58w]; your hand 10 rows 1 box 784x126 scroll 784x126 card 62-62w 86h
+  ✘  2 table-fit.spec.ts:1834:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column (11.1s)
+
+
+  1) table-fit.spec.ts:1834:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column 
+
+    Error: alice: with a question up the stack band clips no effect text (9rem asked=true band=144px what=229/229,229/229)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 109-277, box 95-231)",
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 109-277, box 95-231)",
+    + ]
+
+      1890 |           expect(asked.asked, `${f.name}: the board is in its asked state (${asked.asked})`).toContain('asked=true');
+      1891 |           expect(asked.texts, `${f.name}: the asked stack band measured the effect texts`).toBeGreaterThan(0);
+    > 1892 |           expect.soft(asked.clipped, `${f.name}: with a question up the stack band clips no effect text (${asked.asked})`).toEqual([]);
+           |                                                                                                                            ^
+      1893 |           await f.page.getByTestId('confirm-dialog').locator('[data-answer="yes"]').click();
+      1894 |           expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);
+      1895 |         }
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/table-fit.spec.ts:1892:124
+
+    Error: bob: with a question up the stack band clips no effect text (9rem asked=true band=144px what=175/175,175/175)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 115-250, box 95-231)",
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 115-250, box 95-231)",
+    + ]
+
+      1890 |           expect(asked.asked, `${f.name}: the board is in its asked state (${asked.asked})`).toContain('asked=true');
+      1891 |           expect(asked.texts, `${f.name}: the asked stack band measured the effect texts`).toBeGreaterThan(0);
+    > 1892 |           expect.soft(asked.clipped, `${f.name}: with a question up the stack band clips no effect text (${asked.asked})`).toEqual([]);
+           |                                                                                                                            ^
+      1893 |           await f.page.getByTestId('confirm-dialog').locator('[data-answer="yes"]').click();
+      1894 |           expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);
+      1895 |         }
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/table-fit.spec.ts:1892:124
+
+    Error: alice: with a question up the stack band clips no effect text (9rem asked=true band=144px what=175/175,175/175)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 115-250, box 95-231)",
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 115-250, box 95-231)",
+    + ]
+
+      1890 |           expect(asked.asked, `${f.name}: the board is in its asked state (${asked.asked})`).toContain('asked=true');
+      1891 |           expect(asked.texts, `${f.name}: the asked stack band measured the effect texts`).toBeGreaterThan(0);
+    > 1892 |           expect.soft(asked.clipped, `${f.name}: with a question up the stack band clips no effect text (${asked.asked})`).toEqual([]);
+           |                                                                                                                            ^
+      1893 |           await f.page.getByTestId('confirm-dialog').locator('[data-answer="yes"]').click();
+      1894 |           expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);
+      1895 |         }
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/table-fit.spec.ts:1892:124
+
+    Error: bob: with a question up the stack band clips no effect text (9rem asked=true band=144px what=229/229,229/229)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 109-277, box 95-231)",
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 109-277, box 95-231)",
+    + ]
+
+      1890 |           expect(asked.asked, `${f.name}: the board is in its asked state (${asked.asked})`).toContain('asked=true');
+      1891 |           expect(asked.texts, `${f.name}: the asked stack band measured the effect texts`).toBeGreaterThan(0);
+    > 1892 |           expect.soft(asked.clipped, `${f.name}: with a question up the stack band clips no effect text (${asked.asked})`).toEqual([]);
+           |                                                                                                                            ^
+      1893 |           await f.page.getByTestId('confirm-dialog').locator('[data-answer="yes"]').click();
+      1894 |           expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);
+      1895 |         }
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/table-fit.spec.ts:1892:124
+
+    Error Context: .run/test-results/table-fit-the-canvas-is-st-f0aa9-rd-question-fits-its-column/error-context.md
+
+  1 failed
+    table-fit.spec.ts:1834:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column 
+  1 passed (40.8s)

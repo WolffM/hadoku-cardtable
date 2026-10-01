@@ -1,0 +1,50 @@
+[WebServer] [cardtable] play: no Forge (CARDTABLE_FORGE_JAR is not set) — POST /api/play/matches answers 503
+[WebServer] [cardtable] streamed Forge LIVE — 2 static container(s) at /stream/**, plus room-keyed streams at /stream/<room>/<seat>/ (see stream/index.ts)
+[WebServer] [e2e-harness] server :19008, edge :19108 — ready
+
+Running 1 test using 1 worker
+
+[table-fit static] alice at 1280x800: faces you 47,455,72,59 them 47,354,72,59; 0 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200; 1 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200; 5 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200; 12 on the stack → mid 564,167,216,192, you/battlefield 127,451,786,200
+[table-fit column] alice at 1280x800, you's column at 1280x800: graveyard 176px of the seat's 348px (50.6%, information only)
+[table-fit column] alice at 1280x800, them's column at 1280x800: graveyard 176px of the seat's 348px (50.6%, information only)
+[table-fit question] alice 1280x800: table 896x713; host 564,256,216,342; sheet 216x342 scroll 214x945 in 214x340; 2 columns of 92px; overflowing []
+  ✘  1 table-fit.spec.ts:1801:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column (7.6s)
+
+
+  1) table-fit.spec.ts:1801:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column 
+
+    Error: alice: with a question up the stack band clips no effect text (9rem asked=true band=144px what=229/229,229/229)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 109-277, box 95-231)",
+    +   "deals 2 damage to any target, and a seco: clipped by stack__item (text 109-277, box 95-231)",
+    + ]
+
+      1857 |           expect(asked.asked, `${f.name}: the board is in its asked state (${asked.asked})`).toContain('asked=true');
+      1858 |           expect(asked.texts, `${f.name}: the asked stack band measured the effect texts`).toBeGreaterThan(0);
+    > 1859 |           expect.soft(asked.clipped, `${f.name}: with a question up the stack band clips no effect text (${asked.asked})`).toEqual([]);
+           |                                                                                                                            ^
+      1860 |           await f.page.getByTestId('confirm-dialog').locator('[data-answer="yes"]').click();
+      1861 |           expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);
+      1862 |         }
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/table-fit.spec.ts:1859:124
+
+    Error: page.evaluate: Error: a battlefield has 0 rows, not 4
+        at fillCrowd (eval at evaluate (:311:30), <anonymous>:56:34)
+        at UtilityScript.evaluate (<anonymous>:313:16)
+        at UtilityScript.<anonymous> (<anonymous>:1:44)
+        at fillCrowd (eval at evaluate (:311:30), <anonymous>:56:34)
+        at UtilityScript.evaluate (<anonymous>:313:16)
+        at UtilityScript.<anonymous> (<anonymous>:1:44)
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/table-fit.spec.ts:2071:36
+
+    Error Context: .run/test-results/table-fit-the-canvas-is-st-f0aa9-rd-question-fits-its-column/error-context.md
+
+  1 failed
+    table-fit.spec.ts:1801:1 › the canvas is static as the stack fills, a crowded table fits too (8, 11, 16 and 20 permanents a side and a hand of 10, at 1280×800 and 1366×768, with no zone scrolling), and a 12-card question fits its column 

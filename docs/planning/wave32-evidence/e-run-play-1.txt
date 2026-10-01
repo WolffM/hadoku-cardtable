@@ -1,0 +1,514 @@
+[WebServer] [cardtable] play: no Forge (CARDTABLE_FORGE_JAR is not set) — POST /api/play/matches answers 503
+[WebServer] [cardtable] streamed Forge LIVE — 2 static container(s) at /stream/**, plus room-keyed streams at /stream/<room>/<seat>/ (see stream/index.ts)
+[WebServer] [e2e-harness] server :19008, edge :19108 — ready
+
+Running 2 tests using 1 worker
+
+[play-isolation] real capture: {"messages":26,"snapshots":2,"states":11,"opponentHandCards":199,"revealed":0,"handCards":44,"secrets":78,"probes":1014} → pass
+[play-isolation] bob's hand card 96 ("Sword of Feast and Famine"), face and all, spliced into alice's delta: FAIL — 5 violations, first: alice state #4: opponent 1's hand card 96 is named "Sword of Feast and Famine"
+[play-isolation] the bare name "Sword of Feast and Famine" in an unread field of alice's delta: FAIL — 1 violations, first: alice message #12 (s2c) carries "Sword of Feast and Famine" — card 96 from bob's hand or sideboard
+[play-isolation] a delta naming bob's hand card 96 on alice's side: FAIL — 2 violations, first: alice state #4: opponent 1's hand card 96 is named "Sword of Feast and Famine"
+[play-isolation] alice's snapshot seating her at 1: FAIL — 1 violations, first: alice: a snapshot seated it at 1, expected 0
+[play-isolation] alice's log empty: FAIL — 1 violations, first: alice: received no match snapshot at all
+  ✓  1 play.spec.ts:662:1 › the play isolation check FAILS when one seat is sent the other seat’s hand (committed fixture) (49ms)
+[play] the board alone, at the start: {"alice":{"forgeSays":"e2e-alice, you have won the coin toss.\n\nWould you like to play or draw?","forgeButtons":{"label1":"Play","enable1":true,"label2":"Draw","enable2":true},"openAsks":0,"controlsOnPage":5,"promptOnPage":0,"turnOnPage":"Start"},"bob":{"forgeSays":"Waiting for e2e-alice...","forgeButtons":{"label1":"OK","enable1":false,"label2":"Cancel","enable2":false},"openAsks":0,"controlsOnPage":4,"promptOnPage":0,"turnOnPage":"Start"}}
+[play] alice answered the opening prompt on their own board: "e2e-alice, you have won the coin toss.\n\nWould you like to play or draw?"
+[play] each seat's opening hand, against the deck that seat loaded: {"alice":{"seat":0,"deck":"Mystic Caw Go (Ben Stark)","hand":["plains","celestial colonnade","glacial fortress","preordain","seachrome coast","island","tectonic edge"],"onlyThisDeckCouldDeal":[]},"bob":{"seat":1,"deck":"Mystic Caw Go (Naoki Nakada)","hand":["sword of feast and famine","jace, the mind sculptor","celestial colonnade","celestial colonnade","squadron hawk","celestial colonnade","tumble magnet"],"onlyThisDeckCouldDeal":["tumble magnet"]}}
+[play] played by DRAGGING, not clicking: [{"name":"alice","id":49,"card":"Plains","type":"Basic Land — Plains","where":"hand"},{"name":"bob","id":91,"card":"Celestial Colonnade","type":"Land","where":"hand"},{"name":"alice","id":15,"card":"Celestial Colonnade","type":"Land","where":"hand"},{"name":"bob","id":89,"card":"Celestial Colonnade","type":"Land","where":"hand"},{"name":"alice","id":44,"card":"Glacial Fortress","type":"Land","where":"hand"},{"name":"alice","id":26,"card":"Preordain","type":"Sorcery","where":"hand"}]
+[play] spells that resolved with nobody pressing a button: {"unattended":{"card":"Day of Judgment","ms":6,"instant":true,"pressedSinceTheClick":["alice:selectButtonOk","bob:selectButtonOk"]},"casts":[{"card":"Day of Judgment","left":true,"arrived":true,"pressed":[]}],"passes":21,"everOffered":["Seachrome Coast (Land)","Island (Basic Land — Island)","Tectonic Edge (Land)","Glacial Fortress (Land)","Day of Judgment (Sorcery)","Jace, the Mind Sculptor (Legendary Planeswalker — Jace)","Sylvok Lifestaff (Artifact — Equipment)"]}
+{
+  "choice": {
+    "format": "2011-02-13",
+    "decks": [
+      {
+        "id": "pt-paris-2011-1-ben-stark",
+        "name": "Mystic Caw Go (Ben Stark)",
+        "cards": 26
+      },
+      {
+        "id": "pt-paris-2011-4-naoki-nakada",
+        "name": "Mystic Caw Go (Naoki Nakada)",
+        "cards": 29
+      }
+    ],
+    "onlyFirst": 10,
+    "onlySecond": 13
+  },
+  "dirs": {
+    "rooms": "/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/.run/play-rooms",
+    "work": "/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/.run/play-work/stack-ftpqjj",
+    "serverLog": "/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/.run/play-server.jsonl"
+  },
+  "twoDeckStartRefused": {
+    "status": 422,
+    "error": "a match against a person starts from a room: each player loads their own deck and readies up, then POST { room: <roomId> }"
+  },
+  "lockedRoom": {
+    "roomId": "r-2323eed9697b",
+    "tableWithoutMembership": 404
+  },
+  "roomId": "r-902f0b4f531b",
+  "pool": {
+    "format": "2011-02-13",
+    "bobReads": "2011-02-13 — Standard (MBS)"
+  },
+  "roomTable": {
+    "deckNames": [
+      "Mystic Caw Go (Ben Stark)",
+      "Mystic Caw Go (Naoki Nakada)"
+    ],
+    "names": [
+      "e2e-alice",
+      "e2e-bob"
+    ]
+  },
+  "startMs": 2888,
+  "matchId": "m-6046bf259567",
+  "seatDecks": [
+    {
+      "seat": 0,
+      "deck": "Mystic Caw Go (Ben Stark)"
+    },
+    {
+      "seat": 1,
+      "deck": "Mystic Caw Go (Naoki Nakada)"
+    }
+  ],
+  "uiAloneAtStart": {
+    "alice": {
+      "forgeSays": "e2e-alice, you have won the coin toss.\n\nWould you like to play or draw?",
+      "forgeButtons": {
+        "label1": "Play",
+        "enable1": true,
+        "label2": "Draw",
+        "enable2": true
+      },
+      "openAsks": 0,
+      "controlsOnPage": 5,
+      "promptOnPage": 0,
+      "turnOnPage": "Start"
+    },
+    "bob": {
+      "forgeSays": "Waiting for e2e-alice...",
+      "forgeButtons": {
+        "label1": "OK",
+        "enable1": false,
+        "label2": "Cancel",
+        "enable2": false
+      },
+      "openAsks": 0,
+      "controlsOnPage": 4,
+      "promptOnPage": 0,
+      "turnOnPage": "Start"
+    }
+  },
+  "coinTossThroughBoard": {
+    "who": "alice",
+    "says": "e2e-alice, you have won the coin toss.\n\nWould you like to play or draw?"
+  },
+  "openingHands": {
+    "alice": {
+      "seat": 0,
+      "deck": "Mystic Caw Go (Ben Stark)",
+      "hand": [
+        "plains",
+        "celestial colonnade",
+        "glacial fortress",
+        "preordain",
+        "seachrome coast",
+        "island",
+        "tectonic edge"
+      ],
+      "onlyThisDeckCouldDeal": []
+    },
+    "bob": {
+      "seat": 1,
+      "deck": "Mystic Caw Go (Naoki Nakada)",
+      "hand": [
+        "sword of feast and famine",
+        "jace, the mind sculptor",
+        "celestial colonnade",
+        "celestial colonnade",
+        "squadron hawk",
+        "celestial colonnade",
+        "tumble magnet"
+      ],
+      "onlyThisDeckCouldDeal": [
+        "tumble magnet"
+      ]
+    }
+  },
+  "forcedCards": [
+    {
+      "name": "bob",
+      "id": 96,
+      "card": "Sword of Feast and Famine",
+      "where": "flow"
+    },
+    {
+      "name": "bob",
+      "id": 119,
+      "card": "Jace, the Mind Sculptor",
+      "where": "flow"
+    }
+  ],
+  "draggedOntoTheBoard": [
+    {
+      "name": "alice",
+      "id": 49,
+      "card": "Plains",
+      "type": "Basic Land — Plains",
+      "where": "hand"
+    },
+    {
+      "name": "bob",
+      "id": 91,
+      "card": "Celestial Colonnade",
+      "type": "Land",
+      "where": "hand"
+    },
+    {
+      "name": "alice",
+      "id": 15,
+      "card": "Celestial Colonnade",
+      "type": "Land",
+      "where": "hand"
+    },
+    {
+      "name": "bob",
+      "id": 89,
+      "card": "Celestial Colonnade",
+      "type": "Land",
+      "where": "hand"
+    },
+    {
+      "name": "alice",
+      "id": 44,
+      "card": "Glacial Fortress",
+      "type": "Land",
+      "where": "hand"
+    },
+    {
+      "name": "alice",
+      "id": 26,
+      "card": "Preordain",
+      "type": "Sorcery",
+      "where": "hand"
+    }
+  ],
+  "resolvedUnattended": {
+    "found": {
+      "card": "Day of Judgment",
+      "ms": 6,
+      "instant": true,
+      "pressedSinceTheClick": [
+        "alice:selectButtonOk",
+        "bob:selectButtonOk"
+      ]
+    },
+    "casts": [
+      {
+        "card": "Day of Judgment",
+        "left": true,
+        "arrived": true,
+        "pressed": []
+      }
+    ],
+    "passes": 21,
+    "everOffered": [
+      "Seachrome Coast (Land)",
+      "Island (Basic Land — Island)",
+      "Tectonic Edge (Land)",
+      "Glacial Fortress (Land)",
+      "Day of Judgment (Sorcery)",
+      "Jace, the Mind Sculptor (Legendary Planeswalker — Jace)",
+      "Sylvok Lifestaff (Artifact — Equipment)"
+    ]
+  },
+  "turnReached": "10",
+  "gameAnswers": {
+    "alice": [
+      {
+        "callId": "s0-1",
+        "method": "getAbilityToPlay"
+      },
+      {
+        "callId": "s0-2",
+        "method": "getAbilityToPlay"
+      },
+      {
+        "callId": "s0-3",
+        "method": "getAbilityToPlay"
+      },
+      {
+        "callId": "s0-4",
+        "method": "getAbilityToPlay"
+      },
+      {
+        "callId": "s0-5",
+        "method": "getAbilityToPlay"
+      },
+      {
+        "callId": "s0-6",
+        "method": "order"
+      },
+      {
+        "callId": "s0-7",
+        "method": "order"
+      },
+      {
+        "callId": "s0-8",
+        "method": "getAbilityToPlay"
+      },
+      {
+        "callId": "s0-9",
+        "method": "getAbilityToPlay"
+      },
+      {
+        "callId": "s0-10",
+        "method": "getAbilityToPlay"
+      }
+    ],
+    "bob": [
+      {
+        "callId": "s1-1",
+        "method": "getAbilityToPlay"
+      },
+      {
+        "callId": "s1-2",
+        "method": "getAbilityToPlay"
+      },
+      {
+        "callId": "s1-3",
+        "method": "tempShowZones"
+      },
+      {
+        "callId": "s1-4",
+        "method": "tempShowZones"
+      }
+    ]
+  },
+  "clicks": [],
+  "cast": [
+    [],
+    []
+  ],
+  "handsActs": [
+    0,
+    0
+  ],
+  "bobProbe": {
+    "answer": true,
+    "ms": 49.891945
+  },
+  "refreshBoard": {
+    "chars": 2839,
+    "same": true
+  },
+  "refresh": {
+    "reloadToClickMs": 286,
+    "probe": {
+      "answer": true,
+      "ms": 344.615218
+    },
+    "callId": "s0-11",
+    "left": [
+      {
+        "reason": "transport close",
+        "stillHere": false
+      },
+      {
+        "reason": "client namespace disconnect",
+        "stillHere": true
+      }
+    ],
+    "rejoined": [
+      {
+        "fresh": false
+      },
+      {
+        "fresh": false
+      }
+    ],
+    "departing": [
+      {
+        "graceMs": 30000,
+        "openAsks": 1
+      }
+    ],
+    "returned": [
+      {
+        "openAsks": 1
+      }
+    ],
+    "abortsLogged": []
+  },
+  "agreement": {
+    "alice": {
+      "cursor": {
+        "epoch": "m-6046bf259567:1790843107643",
+        "seq": 591
+      },
+      "objects": 187,
+      "turn": "10",
+      "phase": "COMBAT_DECLARE_ATTACKERS"
+    },
+    "bob": {
+      "cursor": {
+        "epoch": "m-6046bf259567:1790843107643",
+        "seq": 554
+      },
+      "objects": 189,
+      "turn": "10",
+      "phase": "COMBAT_DECLARE_ATTACKERS"
+    }
+  },
+  "isolation": {
+    "ok": true,
+    "violations": [],
+    "counts": {
+      "messages": 1141,
+      "snapshots": 4,
+      "states": 360,
+      "opponentHandCards": 7745,
+      "revealed": 0,
+      "handCards": 54,
+      "secrets": 66,
+      "probes": 37809
+    }
+  },
+  "perSeat": {
+    "alice": {
+      "s2c": 587,
+      "snapshots": 3,
+      "viaPolling": 3,
+      "joins": 3,
+      "resyncs": 0,
+      "asks": [
+        "getAbilityToPlay",
+        "getAbilityToPlay",
+        "getAbilityToPlay",
+        "getAbilityToPlay",
+        "getAbilityToPlay",
+        "order",
+        "order",
+        "getAbilityToPlay",
+        "getAbilityToPlay",
+        "getAbilityToPlay",
+        "showConfirmDialog"
+      ],
+      "replies": 11
+    },
+    "bob": {
+      "s2c": 550,
+      "snapshots": 1,
+      "viaPolling": 0,
+      "joins": 1,
+      "resyncs": 0,
+      "asks": [
+        "getAbilityToPlay",
+        "getAbilityToPlay",
+        "tempShowZones",
+        "tempShowZones",
+        "showConfirmDialog"
+      ],
+      "replies": 5
+    }
+  },
+  "blockedArtRequests": 332,
+  "blockedOffOrigin": {
+    "cards.scryfall.io/normal/front": 332
+  },
+  "durationMs": 43225,
+  "serverRefused": [],
+  "probeWindows": [
+    {
+      "seat": 1,
+      "message": "e2e probe: bob, press the button that is not the default",
+      "openAsks": {
+        "alice": [],
+        "bob": []
+      }
+    },
+    {
+      "seat": 0,
+      "message": "e2e probe: alice, across a refresh",
+      "openAsks": {
+        "alice": [],
+        "bob": []
+      }
+    }
+  ],
+  "serverShutdown": [
+    {
+      "t": "2026-10-01T08:25:45.561Z",
+      "svc": "cardtable",
+      "evt": "shutdown-begin",
+      "signal": "SIGTERM"
+    },
+    {
+      "t": "2026-10-01T08:25:45.564Z",
+      "svc": "cardtable",
+      "evt": "shutdown-matches",
+      "handed": [
+        "m-6046bf259567"
+      ],
+      "ended": []
+    },
+    {
+      "t": "2026-10-01T08:25:45.564Z",
+      "svc": "cardtable",
+      "evt": "shutdown-jvms",
+      "killed": [
+        "spare-63a953cc09ac"
+      ],
+      "kept": [
+        "m-6046bf259567"
+      ],
+      "left": []
+    },
+    {
+      "t": "2026-10-01T08:25:45.565Z",
+      "svc": "cardtable",
+      "evt": "shutdown-done",
+      "signal": "SIGTERM",
+      "why": "closed",
+      "ms": 4,
+      "handed": 1,
+      "ended": 0
+    }
+  ],
+  "jvmFates": [
+    {
+      "id": "spare-f30baa3fec6f",
+      "pid": 3160279,
+      "run": "/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/.run/play-work/stack-ftpqjj/spare-f30baa3fec6f",
+      "handedOver": true,
+      "spare": false,
+      "alive": true,
+      "faults": []
+    },
+    {
+      "id": "spare-63a953cc09ac",
+      "pid": 3161105,
+      "run": "/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/.run/play-work/stack-ftpqjj/spare-63a953cc09ac",
+      "handedOver": false,
+      "spare": false,
+      "alive": false,
+      "faults": []
+    }
+  ],
+  "jvmsLeft": [
+    3160279
+  ],
+  "jvmsReaped": [
+    {
+      "pid": 3160279,
+      "run": "/home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/.run/play-work/stack-ftpqjj/spare-f30baa3fec6f",
+      "id": "m-6046bf259567"
+    }
+  ]
+}
+  ✓  2 play.spec.ts:681:1 › two friends play one Forge match: seats, prompts from both sides, a refresh with a question open, the board agrees with the server, isolation per envelope (43.3s)
+
+  2 passed (44.4s)

@@ -1,0 +1,17 @@
+[WebServer] [cardtable] play: no Forge (CARDTABLE_FORGE_JAR is not set) — POST /api/play/matches answers 503
+[WebServer] [cardtable] streamed Forge LIVE — 2 static container(s) at /stream/**, plus room-keyed streams at /stream/<room>/<seat>/ (see stream/index.ts)
+[WebServer] [e2e-harness] server :19008, edge :19108 — ready
+
+Running 7 tests using 1 worker
+
+  ✓  1 w31.spec.ts:85:1 › reload with a selection open: the London bottom pick survives a refresh and can be answered (P10) (9.0s)
+  ✓  2 w31.spec.ts:148:1 › a second browser on a held seat is a spectator: inert, refused by the server, promoted when the first leaves (9.7s)
+  ✓  3 w31.spec.ts:214:1 › a match that is gone shows the reason and a way back, with no board and no Join (467ms)
+  ✓  4 w31.spec.ts:241:1 › combat is one rail step outside combat and six inside; the rail GROWS into combat and shrinks after, centred and un-bulleted, same row height; a log name opens the one inspector (P1, P12, w32 Q3) (12.2s)
+  ✓  5 w31.spec.ts:393:1 › concede ends the game, and after the end Concede is off on both boards and the server refuses another (P18) (8.9s)
+[w31] light: 70 text runs measured, 0 over pictures; worst: [{"ratio":6.92,"text":"Basic Land — Plains","fg":"rgb(71, 85, 105)","bg":"rgb(241 245 249)","where":"span.card__type"},{"ratio":6.92,"text":"MBS","fg":"rgb(71, 85, 105)","bg":"rgb(241 245 249)","where":"span.setsym__code"},{"ratio":6.92,"text":"C","fg":"rgb(71, 85, 105)","bg":"rgb(241 245 249)","where":"span.card__rarity"},{"ratio":6.92,"text":"Land","fg":"rgb(71, 85, 105)","bg":"rgb(241 245 249)","where":"span.card__type"},{"ratio":6.92,"text":"WWK","fg":"rgb(71, 85, 105)","bg":"rgb(241 245 249)","where":"span.setsym__code"},{"ratio":6.92,"text":"R","fg":"rgb(71, 85, 105)","bg":"rgb(241 245 249)","where":"span.card__rarity"}]
+  ✓  6 w31.spec.ts:520:1 › the board in the light theme follows the theme and its text is legible (P4) (8.6s)
+[w31] ocean-light: 70 text runs measured, 0 over pictures; worst: [{"ratio":6.76,"text":"Basic Land — Plains","fg":"rgb(7, 89, 133)","bg":"rgb(207 250 254)","where":"span.card__type"},{"ratio":6.76,"text":"MBS","fg":"rgb(7, 89, 133)","bg":"rgb(207 250 254)","where":"span.setsym__code"},{"ratio":6.76,"text":"C","fg":"rgb(7, 89, 133)","bg":"rgb(207 250 254)","where":"span.card__rarity"},{"ratio":6.76,"text":"Land","fg":"rgb(7, 89, 133)","bg":"rgb(207 250 254)","where":"span.card__type"},{"ratio":6.76,"text":"WWK","fg":"rgb(7, 89, 133)","bg":"rgb(207 250 254)","where":"span.setsym__code"},{"ratio":6.76,"text":"R","fg":"rgb(7, 89, 133)","bg":"rgb(207 250 254)","where":"span.card__rarity"}]
+  ✓  7 w31.spec.ts:520:1 › the board in the ocean-light theme follows the theme and its text is legible (P4) (7.1s)
+
+  7 passed (56.8s)

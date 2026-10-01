@@ -1,0 +1,40 @@
+[WebServer] [cardtable] play: no Forge (CARDTABLE_FORGE_JAR is not set) — POST /api/play/matches answers 503
+[WebServer] [cardtable] streamed Forge LIVE — 2 static container(s) at /stream/**, plus room-keyed streams at /stream/<room>/<seat>/ (see stream/index.ts)
+[WebServer] [e2e-harness] server :19008, edge :19108 — ready
+
+Running 3 tests using 1 worker
+
+[w32 q5] End Turn: COMBAT_BEGIN > COMBAT_DECLARE_ATTACKERS > COMBAT_END > MAIN2 > END_OF_TURN; gaps 23, 13, 16, 18 ms; click to first 49 ms
+  ✘  1 w32.spec.ts:101:1 › the turn reads Start with no name under it (Q1); End Turn passes skipped phases at once, an ordinary pass keeps Forge's pace (Q5) (1.1m)
+  -  2 w32.spec.ts:168:1 › a seat with no creatures is never stopped at Declare Blockers (Q10); an ask over a lone stack spell never reaches the player (Q7)
+  -  3 w32.spec.ts:242:1 › changing the saved avatar mid-match redraws that seat's face on both boards, with no reload (Q6)
+
+
+  1) w32.spec.ts:101:1 › the turn reads Start with no name under it (Q1); End Turn passes skipped phases at once, an ordinary pass keeps Forge's pace (Q5) 
+
+    Error: an ordinary pass moved the game on
+
+    an ordinary pass moved the game on
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 3
+    Received:    2
+
+    Call Log:
+    - Timeout 60000ms exceeded while waiting on the predicate
+
+      153 |         return (await phasesOf(second.page)).filter((e) => e.t > passed).length;
+      154 |       }, { timeout: 60_000, message: 'an ordinary pass moved the game on' })
+    > 155 |       .toBeGreaterThanOrEqual(3);
+          |        ^
+      156 |     const passes = (await phasesOf(second.page)).filter((e) => e.t > passed && e.whose === 'yours');
+      157 |     const passGaps = gaps(passes);
+      158 |     console.log(`[w32 q5] plain pass: ${passes.map((e) => e.phase).join(' > ')}; gaps ${passGaps.join(', ')} ms`);
+        at /home/hadoku/repos/hadoku-cardtable/.claude/worktrees/w32-manager/e2e/w32.spec.ts:155:8
+
+    Error Context: .run/test-results/w32-the-turn-reads-Start-w-ab17e-pass-keeps-Forge-s-pace-Q5-/error-context.md
+
+  1 failed
+    w32.spec.ts:101:1 › the turn reads Start with no name under it (Q1); End Turn passes skipped phases at once, an ordinary pass keeps Forge's pace (Q5) 
+  2 did not run

@@ -335,9 +335,9 @@ function installSampler(): void {
         else {
           barBox = bar.getBoundingClientRect();
           if (!inside(barBox)) breach('button bar not wholly inside the window');
-          for (const id of ['live-button-ok', 'live-button-cancel']) {
-            if (bar.querySelector(`[data-testid="${id}"]`) === null) breach(`button bar without ${id}`);
-          }
+          // Wave 32 Q15b: Cancel is drawn only while Forge enables it, so only OK is always home.
+          if (bar.querySelector('[data-testid="live-button-ok"]') === null) breach('button bar without live-button-ok');
+          if (document.querySelectorAll('[data-testid="live-button-cancel"]').length > 1) breach('more than one live-button-cancel');
           /*
            * Wave 25 §C: *"i mostly hate all the text in the bottom right it's
            * totally useless"*. Forge's line and the log are in `live-logbook`
@@ -588,7 +588,7 @@ async function stateOf(f: Friend): Promise<Record<string, unknown>> {
     // Forge's own line, in the logbook now (wave 25 §C) — same id, new home.
     says: await f.page.getByTestId('live-says').textContent(),
     ok: await f.page.getByTestId('live-button-ok').isEnabled(),
-    cancel: await f.page.getByTestId('live-button-cancel').isEnabled(),
+    cancel: (await f.page.getByTestId('live-button-cancel').count()) > 0,
     prompt: await f.page.getByTestId('live-prompt').evaluateAll((els) => els.map((e) => e.getAttribute('data-method'))),
     // `evaluateAll`, not `textContent`: it resolves at once with nothing when the
     // window is closed, where `textContent` would wait out its whole timeout in
@@ -897,11 +897,11 @@ test(TITLE, async ({ browser }) => {
       const read = () =>
         f.page.evaluate(() => {
           const tier = (root: ParentNode, slot: string) =>
-            Array.from(root.querySelectorAll<HTMLElement>(`[data-zone="battlefield"] [data-arrange-slot="${slot}"] li.board-card`)).map((li) => {
+            Array.from(root.querySelectorAll<HTMLElement>(`[data-zone="battlefield"] [data-tier="${slot}"] li.board-card`)).map((li) => {
               const r = li.getBoundingClientRect();
               return { id: Number(li.dataset.cardId), land: /\bland\b/i.test(li.querySelector('.card__type')?.textContent ?? ''), left: r.left, top: r.top, width: r.width };
             });
-          const slotLeft = (root: ParentNode, slot: string) => root.querySelector(`[data-zone="battlefield"] [data-arrange-slot="${slot}"]`)?.getBoundingClientRect().left ?? NaN;
+          const slotLeft = (root: ParentNode, slot: string) => root.querySelector(`[data-zone="battlefield"] [data-tier="${slot}"]`)?.getBoundingClientRect().left ?? NaN;
           const seat = (sel: string) => {
             const root = document.querySelector(sel);
             if (root === null) throw new Error(`no ${sel}`);
@@ -1241,7 +1241,20 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
   };
   for (const zone of Array.from(document.querySelectorAll<HTMLElement>('.seat [data-zone="battlefield"]'))) {
     const rows = Array.from(zone.querySelectorAll<HTMLElement>('[data-board-row]'));
-    if (rows.length !== 4) throw new Error(`a battlefield has ${rows.length} rows, not 4`);
+    const tiers = Array.from(zone.querySelectorAll<HTMLElement>(':scope > .zone__tiers > ul[data-tier]'));
+    if (rows.length === 0 && tiers.length === 2) {
+      // Wave 32: a board that is not in the lane layout is two tiers (the opponent's always is),
+      // lands behind and the rest in front, each drawing `--cols` columns of the busier one.
+      const lands = share(counts.battlefield)[0]!;
+      const split: Record<string, number> = { back: lands, front: counts.battlefield - lands };
+      const cols = Math.max(...Object.values(split));
+      for (const ul of tiers) {
+        fillTo(ul, split[ul.dataset.tier ?? '']!, true);
+        ul.style.setProperty('--cols', String(cols));
+      }
+      continue;
+    }
+    if (rows.length !== 4) throw new Error(`a battlefield has ${rows.length} rows and ${tiers.length} tiers, not 4 rows or 2 tiers`);
     const want = share(counts.battlefield);
     /*
      * `data-empty` and `--cols` are React's, and a probe that puts cards in a
@@ -1306,7 +1319,21 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
               ];
         const zones = Array.from(document.querySelectorAll<HTMLElement>('.board [data-zone]')).map((zone): ZoneFit => {
           // A battlefield keeps its cards one level down, in its four rows.
-          const groups = Array.from(zone.querySelectorAll<HTMLElement>(':scope > ul.zone__rows > li[data-board-row]')).map(
+          const tierLists = Array.from(zone.querySelectorAll<HTMLElement>(':scope > .zone__tiers > ul[data-tier]'));
+          const tierGroups = tierLists.map(
+            (list): RowFit => ({
+              row: list.dataset.tier ?? '?',
+              cards: list.children.length,
+              empty: list.children.length === 0,
+              cols: Number(list.style.getPropertyValue('--cols')),
+              rows: getComputedStyle(list).gridTemplateRows.trim().split(/\s+/).filter((t) => t !== 'none' && t !== '').length,
+              box: [list.clientWidth, list.clientHeight],
+              scroll: [list.scrollWidth, list.scrollHeight],
+              cardW: widthsOf(Array.from(list.children) as HTMLElement[]),
+              grow: 0,
+            }),
+          );
+          const groups = tierGroups.length > 0 ? tierGroups : Array.from(zone.querySelectorAll<HTMLElement>(':scope > ul.zone__rows > li[data-board-row]')).map(
             (row): RowFit => {
               const inRow = Array.from(row.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li'));
               if (over(row)) overflowing.push(`the ${row.dataset.boardRow ?? '?'} row of ${inRow.length}`);
@@ -1327,11 +1354,17 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
             },
           );
           const cards =
-            groups.length > 0
-              ? Array.from(zone.querySelectorAll<HTMLElement>(':scope > ul.zone__rows > li > ul.zone__cards > li'))
-              : Array.from(zone.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li'));
+            tierGroups.length > 0
+              ? Array.from(zone.querySelectorAll<HTMLElement>(':scope > .zone__tiers > ul > li'))
+              : groups.length > 0
+                ? Array.from(zone.querySelectorAll<HTMLElement>(':scope > ul.zone__rows > li > ul.zone__cards > li'))
+                : Array.from(zone.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li'));
           const ul = zone.querySelector<HTMLElement>(
-            groups.length > 0 ? ':scope > ul.zone__rows > li:not([data-empty]) > ul.zone__cards' : ':scope > ul.zone__cards',
+            tierGroups.length > 0
+              ? ':scope > .zone__tiers > ul:not(:empty)'
+              : groups.length > 0
+                ? ':scope > ul.zone__rows > li:not([data-empty]) > ul.zone__cards'
+                : ':scope > ul.zone__cards',
           );
           const fit: ZoneFit = {
             zone: zone.dataset.zone ?? '?',
@@ -1448,7 +1481,7 @@ interface SeatColumn {
   graveyard: Box4;
   /** Null while exile holds nothing: the strip is drawn only while it holds a card. */
   exile: (Box4 & { count: number }) | null;
-  /** Exile zones that are drawn with `data-count="0"`: there must be none. */
+  /** Exile zones that are DISPLAYED with `data-count="0"` (the product hides an empty one with display: none): there must be none. */
   emptyExileDrawn: number;
   /** Elements in the seat drawn mirrored (a negative scale on x or y): there must be none. */
   mirrored: string[];
@@ -1497,8 +1530,8 @@ function measureColumns(): { you: SeatColumn; them: SeatColumn } {
       handCount: box(find('[data-testid="hand-count"]')),
       libraryCount: box(find('[data-testid="library-count"]')),
       graveyard: box(find('[data-zone="graveyard"]')),
-      exile: exile === null ? null : { ...box(exile), count: Number(exile.dataset.count ?? '0') },
-      emptyExileDrawn: Array.from(seat.querySelectorAll<HTMLElement>('[data-zone="exile"]')).filter((e) => Number(e.dataset.count ?? '0') === 0).length,
+      exile: exile === null || getComputedStyle(exile).display === 'none' ? null : { ...box(exile), count: Number(exile.dataset.count ?? '0') },
+      emptyExileDrawn: Array.from(seat.querySelectorAll<HTMLElement>('[data-zone="exile"]')).filter((e) => Number(e.dataset.count ?? '0') === 0 && getComputedStyle(e).display !== 'none').length,
       mirrored,
       handCard: card === null ? null : [card.offsetWidth, card.offsetHeight],
     };
@@ -1610,16 +1643,15 @@ function fillStack(n: number): Promise<StaticShot> {
 
 /**
  * Wave 32 (w31's open stack item): with a question up, the stack band must not clip
- * an effect's text (Ponder's is the operator's own example). Puts the board in the
- * asked state, fills the stack with long-text probes, and reports every text the
+ * an effect's text (Ponder's is the operator's own example). Reads the board in the
+ * asked state, with the stack filled with long-text probes, and reports every text the
  * band cuts off, by its own scroll box or by any clipping ancestor up to the band.
- * Runs in the page; the caller clears the probes.
+ * The caller has a REAL question open (the probe route): React owns `data-question`
+ * and strips a hand-set one at the next frame. Runs in the page; the caller clears the probes.
  */
 function stackTextClipped(): Promise<{ texts: number; clipped: string[]; asked: string }> {
   const mid = document.querySelector<HTMLElement>('.board__mid');
   if (mid === null) throw new Error('no stack band');
-  const had = mid.hasAttribute('data-question');
-  mid.setAttribute('data-question', '');
   const list = mid.querySelector<HTMLElement>('[data-zone="stack"] > ol.stack__items');
   if (list === null) throw new Error('no stack list');
   const sample = list.querySelector<HTMLElement>('.stack__item[data-probe]');
@@ -1641,8 +1673,7 @@ function stackTextClipped(): Promise<{ texts: number; clipped: string[]; asked: 
           }
           if (why !== '') clipped.push(`${t.textContent?.slice(0, 40)}: clipped by ${why}`);
         }
-        if (!had) mid.removeAttribute('data-question');
-        done({ texts: texts.length, clipped, asked: getComputedStyle(mid).getPropertyValue('--mid-h') });
+        done({ texts: texts.length, clipped, asked: `${getComputedStyle(mid).getPropertyValue('--mid-h')} asked=${mid.hasAttribute('data-question')} band=${Math.round(mid.getBoundingClientRect().height)}px what=${Array.from(mid.querySelectorAll('.stack__what')).map((i) => i.clientHeight + '/' + i.scrollHeight).join(',')}` });
       }),
     ),
   );
@@ -1843,12 +1874,25 @@ test(CROWD_TITLE, async ({ browser }) => {
         /* ── the canvas is static: fill the stack, and nothing else may move ── */
         const shots: StaticShot[] = [];
         for (const n of STACK_STEPS) shots.push(await f.page.evaluate(fillStack, n));
-        // The asked band: a long effect is readable with a question up (w31 left this open).
-        await f.page.evaluate(fillStack, 2);
-        const asked = await f.page.evaluate(stackTextClipped);
-        await f.page.evaluate(clearStack);
-        expect(asked.texts, `${f.name}: the asked stack band measured the effect texts`).toBeGreaterThan(0);
-        expect(asked.clipped, `${f.name}: with a question up the stack band clips no effect text (--mid-h ${asked.asked})`).toEqual([]);
+        // The asked band: a long effect is readable with a REAL question up (w31 left this open).
+        // The question is Forge's own, through the probe route, so `data-question` is React's.
+        {
+          const pending = alice.context.request.post(`${stack.origin}${PREFIX}/api/play/matches/${summary.matchId}/probe`, {
+            data: { seat: f === alice ? 0 : 1, message: 'e2e table fit: is the stack readable under a question?' },
+            timeout: 120_000,
+          });
+          pending.catch(() => undefined); // an assertion below must not be masked by the disposed context
+          await expect(f.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 60_000 });
+          await f.page.evaluate(fillStack, 2);
+          const asked = await f.page.evaluate(stackTextClipped);
+          if (SHOTS !== '') await f.page.screenshot({ path: resolve(SHOTS, `stack-asked-${f.name}-${f.page.viewportSize()!.width}.png`) });
+          await f.page.evaluate(clearStack);
+          expect(asked.asked, `${f.name}: the board is in its asked state (${asked.asked})`).toContain('asked=true');
+          expect(asked.texts, `${f.name}: the asked stack band measured the effect texts`).toBeGreaterThan(0);
+          expect.soft(asked.clipped, `${f.name}: with a question up the stack band clips no effect text (${asked.asked})`).toEqual([]);
+          await f.page.getByTestId('confirm-dialog').locator('[data-answer="yes"]').click();
+          expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);
+        }
         staticShots.push(...shots.map((s) => ({ who: f.name, ...s })));
         const base = shots[0]!;
         const where = `${f.name} at ${base.size}`;
@@ -1942,6 +1986,9 @@ test(CROWD_TITLE, async ({ browser }) => {
         {
           const cols = await f.page.evaluate(measureColumns);
           const tol = 3;
+          // Measured 24 px: the graveyard pile's own margin under the counts row. Anything near the
+          // avatar's height (~60) would be a second cell, which is the w26 layout this retires.
+          const GAP_MAX = 32;
           const overlapX = (a: Box4, b: Box4): boolean => a.left < b.right - 1 && b.left < a.right - 1;
           for (const side of ['you', 'them'] as const) {
             const c = cols[side];
@@ -1956,14 +2003,14 @@ test(CROWD_TITLE, async ({ browser }) => {
               expect(c.face.bottom, `${w}: the avatar is above the counts`).toBeLessThanOrEqual(counts.top + tol);
               expect(counts.bottom, `${w}: the counts are above the graveyard`).toBeLessThanOrEqual(c.graveyard.top + tol);
               // The graveyard takes what is left: it starts where the counts end ...
-              expect(c.graveyard.top - counts.bottom, `${w}: nothing but the counts sits between them and the graveyard`).toBeLessThanOrEqual(tol * 3);
+              expect(c.graveyard.top - counts.bottom, `${w}: nothing but the counts sits between them and the graveyard (a pile's own margin at most)`).toBeLessThanOrEqual(GAP_MAX);
               // ... and runs to the column's end (the exile strip, when there is one, is below it).
               const floor = c.exile === null ? c.seat.bottom : c.exile.top;
               expect(floor - c.graveyard.bottom, `${w}: the graveyard runs to the end of the column`).toBeLessThanOrEqual(tol * 3);
             } else {
               expect(c.graveyard.bottom, `${w}: the graveyard is above the counts`).toBeLessThanOrEqual(counts.top + tol);
               expect(counts.bottom, `${w}: the counts are above the avatar`).toBeLessThanOrEqual(c.face.top + tol);
-              expect(counts.top - c.graveyard.bottom, `${w}: nothing but the counts sits between them and the graveyard`).toBeLessThanOrEqual(tol * 3);
+              expect(counts.top - c.graveyard.bottom, `${w}: nothing but the counts sits between them and the graveyard (a pile's own margin at most)`).toBeLessThanOrEqual(GAP_MAX);
               const roof = c.exile === null ? c.seat.top : c.exile.bottom;
               expect(c.graveyard.top - roof, `${w}: the graveyard runs to the end of the column`).toBeLessThanOrEqual(tol * 3);
             }
@@ -2095,6 +2142,16 @@ test(CROWD_TITLE, async ({ browser }) => {
            */
           for (const z of bf) {
             const side = z.viewer ? 'your' : 'their';
+            if (z.groups.every((g) => g.row === 'front' || g.row === 'back')) {
+              // Not in the lane layout (the opponent's never is): two tiers, lands behind, the rest in front.
+              expect(z.groups.map((g) => g.row).sort(), `${where}: ${side} battlefield's tiers`).toEqual(['back', 'front']);
+              expect(z.groups.reduce((n, g) => n + g.cards, 0), `${where}: every card of ${side} battlefield is in a tier`).toBe(counts.battlefield);
+              for (const g of z.groups) {
+                expect(g.scroll[0], `${where}: ${side} ${g.row} tier scrolls sideways`).toBeLessThanOrEqual(g.box[0] + 1);
+                expect(g.scroll[1], `${where}: ${side} ${g.row} tier scrolls downward`).toBeLessThanOrEqual(g.box[1] + 1);
+              }
+              continue;
+            }
             expect(z.groups.map((g) => g.row), `${where}: ${side} battlefield's rows`).toEqual([...BOARD_ROWS]);
             const filled = z.groups.filter((g) => g.cards > 0);
             expect(filled.length, `${where}: ${side} battlefield spread over rows`).toBeGreaterThanOrEqual(3);

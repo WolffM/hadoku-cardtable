@@ -1,0 +1,11 @@
+[w32 q5] End Turn: COMBAT_BEGIN > COMBAT_DECLARE_ATTACKERS > COMBAT_END > MAIN2 > END_OF_TURN; gaps 214, 210, 213, 208 ms; click to first 237 ms
+  ✘  1 w32.spec.ts:110:1 › the turn reads Start with no name under it (Q1); End Turn passes skipped phases at once, the preference is scoped to the End Turn seat (Q5) (11.1s)
+    Error: End Turn: the median gap between auto-passed phases (214, 210, 213, 208 ms)
+      143 |     console.log(`[w32 q5] End Turn: ${own.filter((e) => e.whose === 'yours').map((e) => e.phase).join(' > ')}; gaps ${endTurnGaps.join(', ')} ms; click to first ${Math.round(withClick[1]! - withClick[0]!)} ms`);
+    > 145 |     expect(median(endTurnGaps), `End Turn: the median gap between auto-passed phases (${endTurnGaps.join(', ')} ms)`).toBeLessThan(60);
+    Error Context: .run/test-results/w32-the-turn-reads-Start-w-b11a6-ed-to-the-End-Turn-seat-Q5-/error-context.md
+  1 failed
+[w32 q5] End Turn: COMBAT_BEGIN > COMBAT_DECLARE_ATTACKERS > COMBAT_END > MAIN2 > END_OF_TURN; gaps 14, 19, 39, 49 ms; click to first 94 ms
+[w32 q5] plain pass: COMBAT_BEGIN > COMBAT_DECLARE_ATTACKERS; gaps 15 ms
+  ✓  1 w32.spec.ts:110:1 › the turn reads Start with no name under it (Q1); End Turn passes skipped phases at once, the preference is scoped to the End Turn seat (Q5) (7.9s)
+  1 passed (8.6s)
