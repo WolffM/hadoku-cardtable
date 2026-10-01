@@ -434,6 +434,38 @@ describe('dragging a card, and the targeter arrow', () => {
     expect(changes).toBeGreaterThan(0);
   });
 
+  it('Q11 — the head lands on the nearest of the card’s eight edge points to the tail, never its centre', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const overlay = overlayOf(canvas);
+    const mine = mineOf(m).battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Choose a target'), selectables([mine[0]!, mine[1]!], 1, 2)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    boxAt(overlay, 0, 0, 800, 600);
+    boxAt(cardEl(canvas, mine[0]!), 0, 0); // tail: centre (20, 28)
+
+    const tipAfterMovingOver = async (left: number, top: number): Promise<{ x: number; y: number }> => {
+      boxAt(cardEl(canvas, mine[1]!), left, top);
+      fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
+      fireEvent.pointerMove(cardEl(canvas, mine[1]!), { clientX: left + 20, clientY: top + 28 });
+      const line = await waitFor(() => {
+        const found = overlay.querySelector('[data-testid="targeter"] line');
+        expect(found?.getAttribute('x2')).not.toBeNull();
+        return found!;
+      });
+      const tip = { x: Number(line.getAttribute('x2')), y: Number(line.getAttribute('y2')) };
+      fireEvent.pointerCancel(window);
+      return tip;
+    };
+
+    // Target to the upper-left of nothing: far to the right and below — the
+    // nearest point to a tail at (20, 28) is the top-left CORNER.
+    expect(await tipAfterMovingOver(300, 100)).toEqual({ x: 300, y: 100 });
+    // Directly below the tail: the nearest point is the top MIDPOINT.
+    expect(await tipAfterMovingOver(0, 300)).toEqual({ x: 20, y: 300 });
+    // Never the centre, in either case.
+    expect(s.clientFrames()).toHaveLength(0);
+  });
+
   it('with no overlay root the arrow is not drawn, and the drag still sends', async () => {
     const { s, m, canvas } = await gestureBoard();
     // Lane A owns the overlay; a board drawn without one must still be
@@ -555,9 +587,17 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     // draggable. Claiming the press is what turned `e2e/table-fit.spec.ts` red.
     expect(cardEl(canvas, mine[0]!).getAttribute('draggable')).toBe('true');
 
-    fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
-    // Nothing claimed, so the native drag is left alone and arranging proceeds.
-    expect(fireEvent.dragStart(cardEl(canvas, mine[0]!), { bubbles: true, cancelable: true })).toBe(true);
+    // Nothing claimed: the press is not cancelled, and this layer does not stop
+    // the card's own `dragstart` from reaching it. (Whether the Board then lets
+    // the BROWSER drag run is the Board's — wave 32 cancels it for its own
+    // pointer drag — so the return value of `dragStart` is not asserted here.)
+    let reached = 0;
+    cardEl(canvas, mine[0]!).addEventListener('dragstart', () => {
+      reached += 1;
+    });
+    expect(fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 })).toBe(true);
+    fireEvent.dragStart(cardEl(canvas, mine[0]!), { bubbles: true, cancelable: true });
+    expect(reached).toBe(1);
     fireEvent.pointerMove(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
     expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')).toBeNull();
     fireEvent.pointerUp(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
@@ -738,9 +778,9 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     cardEl(canvas, land).addEventListener('dragstart', () => {
       laneA += 1;
     });
-    fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 });
+    expect(fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 })).toBe(true);
     // Nothing claimed, so lane A's arrange gesture keeps the press — and SEES it.
-    expect(fireEvent.dragStart(cardEl(canvas, land), { bubbles: true, cancelable: true })).toBe(true);
+    fireEvent.dragStart(cardEl(canvas, land), { bubbles: true, cancelable: true });
     expect(laneA).toBe(1);
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
     fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
@@ -760,8 +800,13 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     for (const f of [okBar(), prompt('Priority'), actionable([land])]) s.send(f);
     await waitFor(() => expect(boardInteraction(m).selectable.has(land)).toBe(true));
 
-    fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 });
-    expect(fireEvent.dragStart(cardEl(canvas, land), { bubbles: true, cancelable: true })).toBe(true);
+    let reached = 0;
+    cardEl(canvas, land).addEventListener('dragstart', () => {
+      reached += 1;
+    });
+    expect(fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 })).toBe(true);
+    fireEvent.dragStart(cardEl(canvas, land), { bubbles: true, cancelable: true });
+    expect(reached).toBe(1);
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
     fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(zone, { clientX: 200, clientY: 140 });
@@ -1004,6 +1049,66 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
   });
 });
 
+/*
+ * Wave 32 Q14 — pulling attackers back.
+ *
+ * Forge toggles: `InputAttack.onCardSelected` undeclares a creature that is
+ * already attacking (`InputAttack.java:208-218`). It does NOT keep a declared
+ * attacker in `setWeaklySelectable` (`pushAttackerCandidates` drops it,
+ * `PlayerControllerHuman.java:1613-1614`), so what puts one in the offer is
+ * `boardInteraction` (`../match.ts`, lane S) — these cases stand for that offer
+ * with a `setWeaklySelectable` that names the declared attacker, and prove what
+ * THIS layer does with it.
+ */
+describe('Q14 — a click or a box pulls declared attackers back', () => {
+  async function declared() {
+    const ctx = await declaringAttackersBoard();
+    const mine = mineOf(ctx.m).battlefield.map((c) => c.id);
+    const [a, b, free] = [mine[0]!, mine[1]!, mine[2]!];
+    ctx.s.send(attackingDelta([a, b]));
+    for (const f of notify([prompt('Declare attackers'), actionable([a, b, free])])) ctx.s.send(f);
+    await waitFor(() => expect(boardInteraction(ctx.m).selectable.size).toBe(3));
+    await waitFor(() => expect(mineOf(ctx.m).battlefield.find((c) => c.id === a)!.attacking).toBe(true));
+    boxAt(overlayOf(ctx.canvas), 0, 0, 800, 600);
+    boxAt(cardEl(ctx.canvas, a), 120, 120);
+    boxAt(cardEl(ctx.canvas, b), 180, 120);
+    boxAt(cardEl(ctx.canvas, free), 240, 120);
+    return { ...ctx, a, b, free };
+  }
+
+  const sweep = (canvas: HTMLElement, right: number) => {
+    const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
+    fireEvent.pointerDown(zone, { button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(zone, { clientX: right, clientY: 300 });
+    fireEvent.pointerUp(zone, { clientX: right, clientY: 300 });
+  };
+
+  it('a click on a declared attacker sends the one selectCard that undeclares it', async () => {
+    const { s, canvas, a } = await declared();
+    fireEvent.click(cardEl(canvas, a).querySelector('button')!);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', a]]);
+  });
+
+  it('a box over only declared attackers pulls every one of them back', async () => {
+    const { s, a, b, canvas } = await declared();
+    sweep(canvas, 230); // touches a and b, not the free creature
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s)).toEqual([
+      ['selectCard', a],
+      ['selectCard', b],
+    ]);
+  });
+
+  it('a box over declared AND undeclared creatures declares the undeclared and leaves the declared alone', async () => {
+    const { s, free, canvas } = await declared();
+    sweep(canvas, 400); // touches a, b and the free creature
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent(s)).toEqual([['selectCard', free]]);
+  });
+});
+
 /* ── §B.3 — blocking by drag ─────────────────────────────────────────── */
 
 describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () => {
@@ -1237,3 +1342,93 @@ function stackOrigin(m: LiveMatch, canvas: HTMLElement): number | null {
   }
   return null;
 }
+
+/* ── wave 32 Q7 — a spell on the stack is a target ───────────────────── */
+
+describe('Q7 — a "select target spell" question takes an arrow to the stack item', () => {
+  /** Mana Leak's question: a mandatory getChoices over StackItemViews, min = max = 1. */
+  const spellAsk = (callId: string, ids: number[]) =>
+    parseServerFrame({
+      kind: 'ask',
+      callId,
+      method: 'getChoices',
+      message: 'Select target spell',
+      min: 1,
+      max: 1,
+      choices: ids.map((id) => ({ key: `si-${id}`, label: `Spell ${id}`, ref: { kind: 'stackItem', id } })),
+      selected: [],
+    });
+
+  /** The stack's list is empty in the fixture; put the items the question names in it. */
+  function stackItems(canvas: HTMLElement, ids: number[]): Record<number, HTMLElement> {
+    const list = canvas.querySelector('[data-zone="stack"] .stack__items')!;
+    const out: Record<number, HTMLElement> = {};
+    for (const id of ids) {
+      const li = document.createElement('li');
+      li.setAttribute('data-stack-id', String(id));
+      list.append(li);
+      out[id] = li;
+    }
+    return out;
+  }
+
+  const replies = (s: ReplayServer) =>
+    s.clientFrames().map((f) => (f.ok && f.value.kind === 'reply' ? [f.value.method, f.value.result] : f));
+
+  it('a drag from the table onto the stack item answers the question with that item, and the arrow snaps to it', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const [wanted, other] = [701, 702];
+    const items = stackItems(canvas, [wanted, other]);
+    s.send(spellAsk('c-leak', [wanted, other]));
+    await waitFor(() => expect(m.asks).toHaveLength(1));
+
+    boxAt(overlayOf(canvas), 0, 0, 800, 600);
+    boxAt(items[wanted]!, 300, 100, 200, 60);
+    const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
+    fireEvent.pointerDown(zone, { button: 0, clientX: 40, clientY: 400 });
+    fireEvent.pointerMove(items[wanted]!, { clientX: 320, clientY: 120 });
+    const arrow = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(arrow.dataset.target).toBe(`stack:${wanted}`);
+    expect(arrow.dataset.snapped).toBe('true');
+    fireEvent.pointerUp(items[wanted]!, { clientX: 320, clientY: 120 });
+
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(replies(s)).toEqual([['getChoices', [`si-${wanted}`]]]);
+  });
+
+  it('a plain click on the stack item answers it too', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const items = stackItems(canvas, [701, 702]);
+    s.send(spellAsk('c-leak', [701, 702]));
+    await waitFor(() => expect(m.asks).toHaveLength(1));
+
+    fireEvent.pointerDown(items[702]!, { button: 0, clientX: 300, clientY: 100 });
+    fireEvent.pointerUp(items[702]!, { clientX: 300, clientY: 100 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(replies(s)).toEqual([['getChoices', ['si-702']]]);
+  });
+
+  it('a release on a stack item the question did NOT name sends nothing', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const items = stackItems(canvas, [701, 999]);
+    s.send(spellAsk('c-leak', [701, 702]));
+    await waitFor(() => expect(m.asks).toHaveLength(1));
+
+    const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
+    fireEvent.pointerDown(zone, { button: 0, clientX: 40, clientY: 400 });
+    fireEvent.pointerMove(items[999]!, { clientX: 320, clientY: 120 });
+    fireEvent.pointerUp(items[999]!, { clientX: 320, clientY: 120 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames()).toHaveLength(0);
+    expect(m.asks).toHaveLength(1);
+  });
+
+  it('with no question open, a press on a stack item starts and sends nothing', async () => {
+    const { s, canvas } = await gestureBoard();
+    const items = stackItems(canvas, [701]);
+    fireEvent.pointerDown(items[701]!, { button: 0, clientX: 300, clientY: 100 });
+    fireEvent.pointerUp(items[701]!, { clientX: 300, clientY: 100 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames()).toHaveLength(0);
+  });
+});

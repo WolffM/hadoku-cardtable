@@ -46,10 +46,12 @@ import { clearArrow, drawArrow } from './arrow.ts';
 import { commitDrag, commitMarquee, rectOf, type Rect } from './commit.ts';
 import { applyIntents, clearIntents } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
+import { commitStackTarget, stackAsk, stackItemUnder } from './stack.ts';
 import { boxOf, cardBox, centreOf, targetUnder } from './targets.ts';
 import {
   DRAG_SLOP_PX,
   type DragState,
+  type DropTarget,
   type GestureHandle,
   type GestureOptions,
   type MarqueeState,
@@ -137,6 +139,21 @@ export function installGestures(options: GestureOptions): GestureHandle {
     return null;
   }
 
+  /**
+   * What is under `node` that the pointer may aim at. While a question is up that
+   * Forge asked about the STACK (a counterspell's *"select target spell"*, Q7),
+   * the stack items it names are the targets; otherwise it is what Forge offered
+   * on the board.
+   */
+  function targetAt(node: EventTarget | null): DropTarget | null {
+    const asked = stackAsk(match);
+    if (asked !== null) {
+      const id = stackItemUnder(node, asked);
+      return id === null ? null : { kind: 'stack', id };
+    }
+    return targetUnder(node, boardInteraction(match));
+  }
+
   /** Draw whatever the current state means, into lane A's overlay. Absent overlay: nothing. */
   function paint(): void {
     const overlay = overlayOf();
@@ -159,12 +176,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
       drawMarquee(overlay, rectOf(marquee.press, marquee.at));
       next = 'marquee';
     } else {
-      const origin = hover !== null && match.selectables !== null ? clickOrigin() : null;
+      const origin = hover !== null && (match.selectables !== null || stackAsk(match) !== null) ? clickOrigin() : null;
       if (origin === null || hover === null) {
         clearArrow(overlay);
         clearMarquee(overlay);
       } else {
-        const target = targetUnder(hover.node, boardInteraction(match));
+        const target = targetAt(hover.node);
         const snap = target === null ? null : boxOf(canvas, target);
         const source = originId(origin);
         drawArrow(overlay, { from: centreOf(origin), to: hover.at, source, target, snap, mode: 'click' });
@@ -230,6 +247,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
      */
     if (nativelyDraggable(event.target) && !declaringCombat(match) && !payingMana(match)) return;
     const at = { x: event.clientX, y: event.clientY };
+    if (stackAsk(match) !== null && inside(event.target)) {
+      // A question about the stack: the press may start anywhere on the table, and
+      // the arrow leaves from the card being cast when it is on screen.
+      const origin = clickOrigin();
+      claim(event);
+      drag = { source: null, press: at, from: origin === null ? at : centreOf(origin), at, target: targetAt(event.target), moved: false };
+      hover = null;
+      paint();
+      return;
+    }
     const offered = boardInteraction(match);
     const under = targetUnder(event.target, offered);
     if (under !== null && under.kind === 'card') {
@@ -262,7 +289,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const at = { x: event.clientX, y: event.clientY };
     if (drag !== null) {
       const moved = drag.moved || past(drag.press, at);
-      drag = { ...drag, at, moved, target: targetUnder(event.target, boardInteraction(match)) };
+      drag = { ...drag, at, moved, target: targetAt(event.target) };
     } else if (marquee !== null) {
       marquee = { press: marquee.press, at, moved: marquee.moved || past(marquee.press, at) };
     } else {
@@ -279,6 +306,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
     hover = null;
     paint();
     if (heldDrag !== null) {
+      if (stackAsk(match) !== null) {
+        // The release IS the answer, a click on the item as much as a drag onto it.
+        const id = stackItemUnder(event.target, stackAsk(match)!);
+        if (id !== null) commitStackTarget(match, id);
+        return;
+      }
       if (heldDrag.moved) commitDrag(match, heldDrag, event.target);
       return;
     }

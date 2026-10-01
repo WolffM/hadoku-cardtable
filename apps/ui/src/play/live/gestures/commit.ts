@@ -61,7 +61,7 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
   const single = match.selectables !== null && match.selectables.max <= 1;
   if (source !== null && !single && !selectCard(match, source)) return;
   if (target.kind === 'card') selectCard(match, target.id);
-  else selectPlayer(match, target.id);
+  else if (target.kind === 'player') selectPlayer(match, target.id);
 }
 
 /** A rectangle in client coordinates. */
@@ -95,16 +95,40 @@ function overlaps(a: Rect, b: DOMRect): boolean {
  * whose offer disappears part-way through the sweep (Forge answering between
  * two frames) stops there rather than being forced out. Returns what was
  * actually sent, in DOM order, so a caller can say what happened.
+ *
+ * ## Wave 32 Q14 — a box over declared attackers pulls them back
+ *
+ * Forge's `InputAttack.onCardSelected` toggles: a click on a creature already
+ * attacking undeclares it (`InputAttack.java:208-218`). So a box is a TOGGLE
+ * too, and a box that swept both kinds must not undo half of what it meant:
+ *
+ *  - it touches at least one creature that is not yet attacking → it DECLARES,
+ *    and only those (the ones already attacking are left alone);
+ *  - it touches ONLY creatures already attacking → it pulls every one of them
+ *    back.
  */
 export function commitMarquee(match: LiveMatch, rect: Rect, root: ParentNode): number[] {
   const offered = boardInteraction(match).selectable;
-  const sent: number[] = [];
+  const hits: number[] = [];
   for (const { id, el } of cardElements(root)) {
     if (!offered.has(id)) continue;
     if (!overlaps(rect, el.getBoundingClientRect())) continue;
-    if (selectCard(match, id)) sent.push(id);
+    hits.push(id);
   }
+  const attacking = attackingCards(match);
+  const fresh = hits.filter((id) => !attacking.has(id));
+  const toSend = fresh.length > 0 ? fresh : hits;
+  const sent: number[] = [];
+  for (const id of toSend) if (selectCard(match, id)) sent.push(id);
   return sent;
+}
+
+/** This seat's own creatures Forge says are attacking — its `Attacking` property, off the view. */
+function attackingCards(match: LiveMatch): ReadonlySet<number> {
+  const out = new Set<number>();
+  const me = match.view?.players.find((p) => p.isViewer);
+  for (const c of me?.battlefield ?? []) if (c.attacking) out.add(c.id);
+  return out;
 }
 
 export type { DropTarget };

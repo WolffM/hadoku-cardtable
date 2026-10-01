@@ -13,6 +13,8 @@
  * test here.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
@@ -388,5 +390,13 @@ describe('a card name elsewhere on the page (the log)', () => {
     theirCard().appendChild(name);
     hover(name);
     expect(panel()).toBeNull();
+  });
+});
+
+/** Wave 32 Q16 (G's half): the preview is a popover, above card labels and the rail. */
+describe('Q16 — the inspector sits at the popover layer', () => {
+  it('writes z-index: var(--z-popover, 40) on the panel, with the number as the fallback', () => {
+    const css = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/inspect', 'inspect.css'), 'utf8');
+    expect(css).toMatch(/\n\.inspect \{[^}]*z-index: var\(--z-popover, 40\);/);
   });
 });

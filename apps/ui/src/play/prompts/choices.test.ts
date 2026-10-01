@@ -501,3 +501,10 @@ describe('§A.8 — a list prompt draws its own controls, and breaks Forge’s t
     expect(title.textContent).toBe('Choose a colour');
   });
 });
+
+/** Wave 32 Q16 (G's half): the sheet is a popover, above card labels and the rail. */
+describe('Q16 — a prompt sheet sits at the popover layer', () => {
+  it('writes z-index: var(--z-popover, 40) on the sheet, with the number as the fallback', () => {
+    expect(PROMPTS_CSS).toMatch(/\n\.prompt \{[^}]*z-index: var\(--z-popover, 40\);/);
+  });
+});

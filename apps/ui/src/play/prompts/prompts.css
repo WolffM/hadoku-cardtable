@@ -28,6 +28,8 @@
  */
 .prompt {
   position: relative;
+  /* A popover sits above the table's card labels and the rail (wave 32 Q16, `--z-popover` in `styles.css`). */
+  z-index: var(--z-popover, 40);
   display: flex;
   flex-direction: column;
   gap: 10px;

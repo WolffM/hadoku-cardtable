@@ -28,6 +28,8 @@
 
 .inspect {
   position: absolute;
+  /* A popover: above card labels and P/T (wave 32 Q16, `--z-popover` in `styles.css`). */
+  z-index: var(--z-popover, 40);
   /* The floor; `index.ts` sets the real width inline from the placement math. */
   width: 16.5rem;
   /* Never the element under the pointer — see the header. */

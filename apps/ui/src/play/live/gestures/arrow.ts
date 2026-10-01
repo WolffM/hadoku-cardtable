@@ -12,7 +12,7 @@
  * too, from the same function, into the same overlay. `data-mode` says which
  * gesture drew it, and it is the only thing that is new.
  */
-import { centreOf } from './targets.ts';
+import { centreOf, edgePointNearest } from './targets.ts';
 import type { DropTarget, Point } from './types.ts';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -42,7 +42,7 @@ const SPREAD = 0.42;
  */
 export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
   const box = overlay.getBoundingClientRect();
-  const tip = spec.snap === null ? spec.to : centreOf(spec.snap);
+  const tip = spec.snap === null ? spec.to : tipOn(spec.snap, spec);
   const x1 = spec.from.x - box.left;
   const y1 = spec.from.y - box.top;
   const x2 = tip.x - box.left;
@@ -77,6 +77,14 @@ export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
   shaft.setAttribute('x2', String(x2));
   shaft.setAttribute('y2', String(y2));
   svg.querySelector('polygon')!.setAttribute('points', points);
+}
+
+/**
+ * A card is hit at the nearest of eight points on its edge to the tail (Q11); a
+ * player's face, which is a round avatar and not a card, keeps its centre.
+ */
+function tipOn(snap: Element, spec: ArrowSpec): Point {
+  return spec.target?.kind === 'player' ? centreOf(snap) : edgePointNearest(snap, spec.from);
 }
 
 /** Take the arrow away. Absent is fine — this is called on every gesture end. */

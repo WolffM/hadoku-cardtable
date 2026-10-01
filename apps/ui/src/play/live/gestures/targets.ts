@@ -12,6 +12,33 @@ export function centreOf(el: Element): Point {
 }
 
 /**
+ * Where an arrow's head lands on a card: the nearest of EIGHT points on its
+ * edge — the four corners and the four edge midpoints — to the arrow's origin.
+ * Never the centre (wave 32 Q11: *"snaps to the nearest of eight points on the
+ * card's edge"*). Ties go to the first in the order below, which is only ever
+ * reached when `from` sits exactly on a symmetry axis of the box.
+ */
+export function edgePointNearest(el: Element, from: Point): Point {
+  const r = el.getBoundingClientRect();
+  const xs = [r.left, r.left + r.width / 2, r.right];
+  const ys = [r.top, r.top + r.height / 2, r.bottom];
+  let best: Point | null = null;
+  let bestD = Infinity;
+  for (let row = 0; row < 3; row += 1) {
+    for (let col = 0; col < 3; col += 1) {
+      if (row === 1 && col === 1) continue; // the centre is not on the edge
+      const p = { x: xs[col]!, y: ys[row]! };
+      const d = Math.hypot(p.x - from.x, p.y - from.y);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+  }
+  return best!;
+}
+
+/**
  * A card's box. `data-board-card` first, `data-card-id` (lane A's name, same
  * value on the same element) second. Both are on the `<li>`, so either finds
  * the whole card rather than something inside it.
@@ -29,7 +56,9 @@ export function faceBox(root: ParentNode, id: number): Element | null {
 }
 
 export function boxOf(root: ParentNode, target: DropTarget): Element | null {
-  return target.kind === 'card' ? cardBox(root, target.id) : faceBox(root, target.id);
+  if (target.kind === 'card') return cardBox(root, target.id);
+  if (target.kind === 'stack') return root.querySelector(`[data-stack-id="${target.id}"]`);
+  return faceBox(root, target.id);
 }
 
 /** A board id: digits only. See `boardId` on why that matters. */

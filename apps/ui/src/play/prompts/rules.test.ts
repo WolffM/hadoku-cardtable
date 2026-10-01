@@ -156,7 +156,7 @@ describe('autoAnswer', () => {
     expect(autoAnswer({ ...two, abilities: [] })).toBeNull();
   });
 
-  it('answers only getAbilityToPlay: everything else with one legal reply is the server’s', () => {
+  it('answers only getAbilityToPlay and a lone stack target: everything else with one legal reply is the server’s', () => {
     // `apps/server/src/play/auto.ts`'s `onlyAnswer` owns the rest, and its own
     // suite holds it. Two statements of one policy is what this keeps out.
     for (const ask of [
@@ -198,6 +198,35 @@ describe('autoAnswer', () => {
     expect(autoAnswer({ ...reveal, min: 0, max: 0 })).toBeNull();
     // A one-card reveal is still a reveal, not a question with one answer.
     expect(autoAnswer({ ...reveal, choices: [reveal.choices[0]!] })).toBeNull();
+  });
+
+  /*
+   * Wave 32 Q7 — *"if there's only one spell on the stack then the target of
+   * Mana Leak is obvious"*. Forge asks it as a mandatory getChoices over
+   * StackItemViews (`TargetSelection.chooseCardFromStack`), min = max = 1.
+   */
+  describe('a counterspell’s target (Q7)', () => {
+    const base = askFor('getChoices');
+    const bolt = { key: 'si-7', label: 'Lightning Bolt', ref: { kind: 'stackItem', id: 7 } } as const;
+    const leak = { ...base, min: 1, max: 1, choices: [bolt], selected: [] };
+
+    it('answers the one spell on the stack, and says which', () => {
+      expect(autoAnswer(leak)).toEqual({ method: 'getChoices', reply: ['si-7'], why: 'Lightning Bolt' });
+    });
+
+    it('asks when two spells are legal: that is a real choice', () => {
+      const two = { ...leak, choices: [bolt, { ...bolt, key: 'si-8', ref: { kind: 'stackItem', id: 8 } } as const] };
+      expect(autoAnswer(two)).toBeNull();
+    });
+
+    it('asks when the targeting is optional — declining is the player’s', () => {
+      expect(autoAnswer({ ...leak, min: 0 })).toBeNull();
+    });
+
+    it('asks when the one option is not a stack item — that is the server’s rule, not this one', () => {
+      expect(autoAnswer({ ...leak, choices: [{ ...bolt, ref: { kind: 'card', id: 7 } }] })).toBeNull();
+      expect(autoAnswer({ ...leak, choices: [{ ...bolt, ref: null }] })).toBeNull();
+    });
   });
 
   it('never answers a confirm, not even a one-button one — declining is the player’s', () => {

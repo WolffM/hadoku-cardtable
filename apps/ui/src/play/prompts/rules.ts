@@ -545,18 +545,47 @@ export function sideboardProblems(ask: AskOf<'sideboard'>, reply: ReplyOf<'sideb
  * player's own controller by the effect, so a seat is asked **only when Forge
  * revealed to it** — the UI never decides to share.
  */
-export type AutoAnswer = {
-  method: 'getAbilityToPlay';
-  reply: ReplyOf<'getAbilityToPlay'>;
-  /**
-   * What was played, in Forge's own words: the offer's `label`. Said on the
-   * board (`../live/match.ts`'s `noteAutoAnswered`) — a shortcut nobody can see
-   * is indistinguishable from a board that swallowed the click.
-   */
-  why: string;
-};
+export type AutoAnswer =
+  | {
+      method: 'getAbilityToPlay';
+      reply: ReplyOf<'getAbilityToPlay'>;
+      /**
+       * What was played, in Forge's own words: the offer's `label`. Said on the
+       * board (`../live/match.ts`'s `noteAutoAnswered`) — a shortcut nobody can see
+       * is indistinguishable from a board that swallowed the click.
+       */
+      why: string;
+    }
+  | {
+      /** Wave 32 Q7: the one spell on the stack a counterspell can target. */
+      method: 'getChoices';
+      reply: ReplyOf<'getChoices'>;
+      why: string;
+    };
+
+/**
+ * The stack item a `getChoices` ask is choosing between, or null when it is not
+ * that kind of ask.
+ *
+ * Forge asks *"select target spell"* through `TargetSelection.chooseCardFromStack`
+ * (`TargetSelection.java:299-343`), which calls `getGui().one(...)` — a
+ * mandatory `getChoices` with `min = max = 1` — whose options are
+ * `StackItemView`s, and which the bridge projects with `ref.kind === 'stackItem'`
+ * (`PlayBridge.java:288`). `oneOrNone` is the optional variant (`min = 0`) and
+ * stays a question: declining is the player's. Shared with `gestures/stack.ts`,
+ * which draws the arrow to the same items.
+ */
+export function stackItemChoices(ask: AskOf<BlockingMethod>): { key: string; stackItemId: number; label: string }[] | null {
+  if (ask.method !== 'getChoices') return null;
+  const out: { key: string; stackItemId: number; label: string }[] = [];
+  for (const choice of ask.choices) {
+    if (choice.ref?.kind === 'stackItem') out.push({ key: choice.key, stackItemId: choice.ref.id, label: choice.label });
+  }
+  return out.length === 0 ? null : out;
+}
 
 export function autoAnswer(ask: AskOf<BlockingMethod>): AutoAnswer | null {
+  if (ask.method === 'getChoices') return onlyStackTarget(ask);
   if (ask.method !== 'getAbilityToPlay') return null;
   // Exactly one, and nothing else: two abilities are a real choice, and zero
   // is Forge asking about nothing, which the picker shows as "None" only.
@@ -572,4 +601,18 @@ export function autoAnswer(ask: AskOf<BlockingMethod>): AutoAnswer | null {
     reply: parsed.data as ReplyOf<'getAbilityToPlay'>,
     why: only.label ?? `ability #${only.id}`,
   };
+}
+
+/**
+ * *"If there's only one spell on the stack then the target of Mana Leak is
+ * obvious"* (operator, wave 32 Q7). Exactly one option, it is a stack item, and
+ * the ask is mandatory and takes exactly one — so there is one legal reply and no
+ * question. A rule, not a branch: the same `autoAnswer` that answers a lone
+ * ability, off for full control and for a spectator by its one caller.
+ */
+function onlyStackTarget(ask: AskOf<'getChoices'>): AutoAnswer | null {
+  if (ask.min !== 1 || ask.max !== 1 || ask.choices.length !== 1) return null;
+  const only = stackItemChoices(ask)?.[0];
+  if (only === undefined || getChoicesProblems(ask, [only.key]).length > 0) return null;
+  return { method: 'getChoices', reply: [only.key], why: only.label };
 }

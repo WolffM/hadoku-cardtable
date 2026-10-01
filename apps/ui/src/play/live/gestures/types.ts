@@ -17,8 +17,8 @@ export interface GestureHandle {
   dispose(): void;
 }
 
-/** What the pointer is over, when Forge has offered it. */
-export type DropTarget = { kind: 'card'; id: number } | { kind: 'player'; id: number };
+/** What the pointer is over, when Forge has offered it. `stack` is a spell on the stack an open ask names (Q7). */
+export type DropTarget = { kind: 'card'; id: number } | { kind: 'player'; id: number } | { kind: 'stack'; id: number };
 
 /** A point in CLIENT coordinates. Every gesture measures in these and converts once, at the draw. */
 export interface Point {
