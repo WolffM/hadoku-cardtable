@@ -64,7 +64,7 @@ afterEach(async () => {
 	harness = null;
 });
 
-async function boot(options: { devIdentity?: boolean; disconnectGraceMs?: number } = {}): Promise<Harness> {
+async function boot(options: { devIdentity?: boolean; disconnectGraceMs?: number; probe?: boolean } = {}): Promise<Harness> {
 	const { factory, hosts } = replayFactory();
 	const logs: Record<string, unknown>[] = [];
 	const app = express();
@@ -83,6 +83,7 @@ async function boot(options: { devIdentity?: boolean; disconnectGraceMs?: number
 		joinWaitMs: 1000,
 		devIdentity: options.devIdentity,
 		disconnectGraceMs: options.disconnectGraceMs,
+		probe: options.probe,
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
@@ -244,6 +245,57 @@ describe('POST /api/play/matches', () => {
 		const res = await response;
 		expect(res.status).toBe(500);
 		expect(((await res.json()) as { error: string }).error).toContain('precon');
+	});
+});
+
+/*
+ * Wave 33 §S, shape 1 — "a scenario is a TEST facility, never a production one.
+ * It is honoured only when the server runs with CARDTABLE_PLAY_PROBE=1 …
+ * A request carrying `scenario` without the flag is refused, not ignored."
+ * This is the HTTP-layer half of that rule: `attachPlay`'s `deps.probe` is what
+ * `index.ts` sets from the environment variable (never on in production), and
+ * the gate lives ahead of `matches.create` so a scenario can never spend a JVM
+ * it was refused.
+ */
+describe('POST /api/play/matches: scenario needs the probe flag', () => {
+	const SCENARIO = 'humanlife=20\nailife=20\n';
+
+	it('refuses a scenario with the probe flag off, before any JVM is spent', async () => {
+		const h = await boot({ probe: false });
+		const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
+			method: 'POST',
+			headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
+			body: JSON.stringify({ scenario: SCENARIO }),
+		});
+		expect(res.status).toBe(400);
+		expect(await res.json()).toEqual({ error: 'scenario-needs-probe' });
+		expect(h.hosts).toHaveLength(0);
+	});
+
+	it('refuses a scenario when the flag is simply absent (the production default)', async () => {
+		const h = await boot();
+		const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
+			method: 'POST',
+			headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
+			body: JSON.stringify({ scenario: SCENARIO }),
+		});
+		expect(res.status).toBe(400);
+		expect(await res.json()).toEqual({ error: 'scenario-needs-probe' });
+		expect(h.hosts).toHaveLength(0);
+	});
+
+	it('accepts a scenario with the flag on, and carries the text onto the match spec', async () => {
+		const h = await boot({ probe: true });
+		const { status } = await startMatch(h, 'alice', { scenario: SCENARIO });
+		expect(status).toBe(201);
+		expect(h.hosts[0]?.spec.scenario).toBe(SCENARIO);
+	});
+
+	it('still starts an ordinary match with the flag on and no scenario', async () => {
+		const h = await boot({ probe: true });
+		const { status } = await startMatch(h);
+		expect(status).toBe(201);
+		expect(h.hosts[0]?.spec.scenario).toBeUndefined();
 	});
 });
 
@@ -1137,5 +1189,27 @@ describe('POST /api/play/matches names (wave 31 §S)', () => {
 		expect(seats[0]?.name).toBe('Hadoku');
 		expect('name' in (seats[1] as object)).toBe(false);
 		expect(h.hosts[0]?.spec.seats.map((s) => s.name)).toEqual(['Hadoku', 'Seat 2']);
+	});
+});
+
+describe('parseStartBody: scenario (wave 33 §S, shape 1)', () => {
+	it('carries the text onto the spec unchanged', () => {
+		const r = parseStartBody({ scenario: 'humanlife=20\nailife=5\n' });
+		expect(r.ok && r.spec.scenario).toBe('humanlife=20\nailife=5\n');
+	});
+
+	it('is absent on the spec when the body has none', () => {
+		const r = parseStartBody({});
+		expect(r.ok && 'scenario' in r.spec).toBe(false);
+	});
+
+	it('refuses an empty scenario, a non-string one, and one over 64 KiB', () => {
+		expect(parseStartBody({ scenario: '' }).ok).toBe(false);
+		expect(parseStartBody({ scenario: 7 }).ok).toBe(false);
+		expect(parseStartBody({ scenario: 'x'.repeat(64 * 1024 + 1) }).ok).toBe(false);
+	});
+
+	it('is still an unknown field alongside everything else parseStartBody refuses', () => {
+		expect(parseStartBody({ scenario: 'ok', bogus: 1 })).toEqual({ ok: false, error: 'unknown field bogus' });
 	});
 });

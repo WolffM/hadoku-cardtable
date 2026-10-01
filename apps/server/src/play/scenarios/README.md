@@ -1,0 +1,126 @@
+# Scenarios
+
+A scenario is a Forge puzzle file's `[state]` section, verbatim — nothing more.
+`GameState.parse` (forge-game, `GameState.java`) reads it line by line, one
+`key=value` per line, and `GameState.applyToGame` applies it once the match's
+mulligan step is over and before either seat is given priority (the start-game
+hook — see `bridge/PlayBridge.java`'s `hostMatch()`). `human…` keys apply to
+seat 0, `ai…` keys to seat 1 — both ordinary human-controlled seats here, never
+Forge's own AI.
+
+A `.state` file may use `#` comment lines, but **no blank lines**:
+`GameState.splitLine` reads `line.charAt(0)` unconditionally, so an empty line
+in the section throws. (Blank lines are fine between file-level sections in a
+real `.pzl`, where `FileSection.parseSections` has already stripped them before
+`Puzzle.loadGameState` ever sees the list — nothing strips them for a scenario
+assembled as raw text, so this file format is stricter than a `.pzl`.)
+
+## The keys a test needs
+
+Life, hand, battlefield, turn/phase — see `forge/forge-gui/res/puzzle/*.pzl`
+in a checkout that has the submodule (this worktree does not); every key below
+was instead read from `forge-build`'s `GameState.java` (the parse-side,
+`parseLine`) and `GameState.applyGameOnThread`/`setupPlayerState` (the apply
+side) in `/home/hadoku/.cache/cardtable-w8/forge-build`.
+
+| Key | Applies to | What it does |
+| --- | --- | --- |
+| `turn=N` | the game | `Game`'s turn counter (cosmetic unless a card reads it). |
+| `activeplayer=human\|ai` | the game | whose turn it is. |
+| `activephase=PHASE` | the game | **jumps** the phase pointer with `PhaseHandler.devModeSet` — no phase-begin/end effects run, so nothing already in play "reacts" to landing here. `PHASE` is a `PhaseType` enum name (`MAIN1`, `UPKEEP`, `COMBAT_DECLARE_ATTACKERS`, `COMBAT_DECLARE_BLOCKERS`, …). |
+| `activephaseadvance=PHASE` | the game | **walks** forward from `activephase` to `PHASE` with `PhaseHandler.devAdvanceToPhase`, running `onPhaseEnd`/`onPhaseBegin` for every step crossed — this IS how a trigger that fires "at the beginning of \_\_\_" (upkeep, draw, …) actually fires. Use `activephase` for the step just BEFORE the one you want triggers from, and this for the one you want them from. |
+| `human…life=N` / `ai…life=N` | that seat | starting life (applied after state effects; a value `<= 0` is force-set again at the very end, so a scenario *can* start a seat dead-adjacent). |
+| `human…hand=Card;Card` | that seat | clears the zone first, every seat, every zone — the hand this scenario hands you is the WHOLE hand. |
+| `human…battlefield=Card;Card\|Prop:Val` | that seat | ditto, for the battlefield. A card can carry `\|Tapped:True`, `\|Attacking` (attacks the opponent directly — see below), `\|Id:N` (so another line can reference this exact object), and more (`GameState.java:1235`, `processCardsForZone`). |
+| `human…library=Card;Card` | that seat | ditto. **Leave this empty and a draw step loses the game outright** (an empty library is a loss on the next draw) — every scenario here gives both seats a small library of basic lands so a stray draw during a test does not crash it. |
+| `human…graveyard=` | that seat | ditto; empty is fine and is what every scenario here uses. |
+
+### Combat, specifically
+
+Setting `activephase=COMBAT_DECLARE_ATTACKERS` or `COMBAT_DECLARE_BLOCKERS`
+does one more thing beyond the jump: `GameState.applyGameOnThread` reads every
+battlefield card's `|Attacking` marker (no `:ID` → attacks the DEFENDING
+PLAYER directly) into `Combat`, fires `GameEventAttackersDeclared`, and — only
+when the target phase is `COMBAT_DECLARE_BLOCKERS` — calls
+`PhaseHandler.devAdvanceToPhase(COMBAT_DECLARE_BLOCKERS)` **itself**, which is
+exactly the walk that opens the real `InputBlock` for the defender if they
+have anything able to block.
+
+**Do NOT set `activephase=COMBAT_DECLARE_BLOCKERS` directly if the defender
+has a creature you need Forge to actually offer.** `GameState.applyGameOnThread`
+runs this combat block BEFORE its own unconditional `checkStateEffects(true)`
+— so landing straight on `COMBAT_DECLARE_BLOCKERS` makes Forge decide who may
+block one state-effects pass before a scripted creature's characteristics
+have ever been settled. Measured: a real, untapped, non-sick creature placed
+this way was offered as a blocker ZERO times (`wave33-evidence/s3-blockers.md`
+has the full repro). `no-creatures.state` and `one-creature.state` instead
+set `activephase=COMBAT_DECLARE_ATTACKERS` (which does not have this problem:
+`handleCombat` only calls `devAdvanceToPhase` when the target phase IS
+`COMBAT_DECLARE_BLOCKERS`), and the test itself drives the one remaining step
+— the attacker's own priority stop at Declare Attackers Step — through the
+NORMAL game loop, by which point state effects have run. A scenario that only
+needs attackers already declared, with no blocker-eligibility question at
+stake (`attackers-declared.state`), has no such problem landing directly on
+`COMBAT_DECLARE_ATTACKERS` — nothing there depends on blocker characteristics.
+
+### Why this is safe to call from the start-game hook, on the game thread
+
+`HostedMatch.startGame`'s `game.getAction().invoke(() -> … match.startGame(…))`
+already dispatches onto Forge's game thread (`GameAction.java:280-294`); the
+hook (`PhaseHandler.setupFirstTurn`, `:1018-1021`) runs synchronously on
+whatever thread called `startFirstTurn` — the SAME game thread. Blocking
+inside the hook (an `InputBlock` ask, an upkeep trigger's `order` ask, …)
+*parks that game thread*, exactly as every ordinary ask during play already
+does — there is nothing phase-advance-specific about it. `GameState.applyToGame`
+itself re-wraps the call in `game.getAction().invoke(() -> applyGameOnThread(game))`
+(`GameState.java:582-583`), and `GameAction.invoke` checks
+`ThreadUtil.isGameThread()` first and runs the proc INLINE when already on it
+(`GameAction.java:2526-2531`) — so this never leaves the thread it started on
+and cannot deadlock. See `wave33-evidence/s1-harness.md`.
+
+## The scenarios
+
+| File | Proves | Used by |
+| --- | --- | --- |
+| `lone-spell.state` | seat 1 casts a 0-cost creature; seat 0 holds a counterspell and 3 untapped Islands with the stack holding exactly that one spell. | Q7 |
+| `two-spells.state` | seat 1 holds TWO different 0-cost creatures and casts both (holding priority across both casts — see the note below); seat 0 holds a counterspell and 3 untapped Islands. | Q7, second half — "with two on the stack an arrow picks one" |
+| `no-creatures.state` | seat 0 has a creature attacking the player directly; seat 1 has NO creature, landing in the Declare Blockers window with nothing to assign. | Q10 |
+| `one-creature.state` | as above, but seat 1 holds one untapped, non-sick creature able to block. | Q12 |
+| `two-triggers.state` | **NOT VERIFIED** — intended: seat 0 controls two Dark Confidants, meant to fire simultaneously at Upkeep. Measured against a real match: life never drops, by either of two designs tried. See the file's own header and `wave33-evidence/s3-blockers.md`'s "Q8". No test exercises it. | Q8 (open) |
+| `own-spell.state` | seat 0 holds a 0-cost creature and enough untapped lands; after casting, the stack holds exactly that spell. | Q17 |
+| `attackers-declared.state` | seat 0's creature is ALREADY an attacker (no click needed) with the game landed in Declare Attackers Step. | Q14 |
+| `ponder.state` | seat 0 holds Ponder and 3 untapped Islands, nothing else on the stack. | Ponder's stack text |
+| `auto-target.state` | seat 0 holds Doom Blade and enough mana; seat 1's battlefield holds exactly ONE creature — the only legal target for it. Confirmed: `TargetCards` reaches the wire once the target is selected (a card click — `setSelectables`/`setHighlighted`, not an `ask` — see `wave33-evidence/s3-blockers.md`). | the auto-target arrow (first list's item 8) |
+| `glint-hawk.state` | seat 0 controls Prodigal Sorcerer (a permanent with a non-mana activated ability that uses the stack and needs a target); seat 1 is the opponent. | Q18 — how Forge identifies a stack ABILITY (source = the permanent still on the battlefield) versus a stack SPELL. |
+
+Every scenario sets `turn=1`, both seats' life to 20, and a small library of
+basic lands for both seats (so an incidental draw never loses the game) unless
+its own claim needs otherwise. None uses `activeplayer=ai`/`activephase=` to
+mean "Forge's own AI" — both seats are human-controlled; "ai" is only the
+`.pzl` convention for seat 1's keys (`GameState.getPlayerState`).
+
+### `two-spells.state`: getting TWO stack items from the SAME caster
+
+Casting a second spell while the first is still on the stack needs the caster
+to ACT again before the server auto-passes their priority window for them
+(`match.ts`'s `maybeAutoPass`, Q17's default: a caster does not stop on its
+own spell unless it has something left to do). A driver that reacts to wire
+frames one macrotask later is normally too late — the auto-pass command is
+sent in the same synchronous handling of the `updateButtons` frame that
+precedes it. Two ways around that, neither requiring a scenario change:
+
+- **Full control.** Turn on seat 1's full-control escape hatch
+  (`forge:full-control` / `Match.setFullControl(1, true)`) before casting the
+  first spell. Full control never auto-passes for that seat, so the server
+  waits for an explicit click after EACH cast — cast the first 0-cost
+  creature, wait for the stack-1 priority window, cast the second, THEN seat
+  0 sees `Stack: 2 to Resolve`.
+- **A stricter stop policy** (`CARDTABLE_PLAY_STOP_POLICY`, `auto.ts`'s
+  `STRICT_PAYMENT_POLICY`/a custom one) that does not auto-pass on an empty
+  actionable set — less surgical than full control, since it affects every
+  window for that seat, not just this one.
+
+Either way, seat 0's Mana Leak then answers `getChoices` with BOTH stack
+items as choices (`min: 0, max: 1`, same shape as `lone-spell.state`'s ask but
+with two `choices` entries) — the UI's job is drawing the arrow to whichever
+one the player picks.

@@ -1,0 +1,28 @@
+# Q10 — "no creatures, no block". Seat 0 (human)'s creature is ALREADY an
+# attacker (the |Attacking marker; no ":ID" means it attacks the defending
+# PLAYER directly — GameState.java's handleCombat). `activephase` lands the
+# game in Declare ATTACKERS Step rather than jumping straight to Declare
+# Blockers: `GameState.applyGameOnThread` calls `checkStateEffects(true)`
+# AFTER `handleCombat` but the SAME call that lands on COMBAT_DECLARE_BLOCKERS
+# walks there (via `devAdvanceToPhase`, which opens the real block input)
+# BEFORE that check ever runs — a scripted battlefield creature's
+# characteristics are then one state-effects pass stale when Forge decides
+# who may block (measured: `defender.getCreaturesInPlay()` came up empty for
+# a real, untapped, non-sick creature placed this way — see
+# `wave33-evidence/s3-blockers.md`). Landing on Declare ATTACKERS instead lets
+# the scenario harness's own unconditional `checkStateEffects(true)` run
+# first; the test drives the one remaining step (the attacker's own priority
+# stop) through the NORMAL game loop, which settles state on every pass.
+turn=1
+activeplayer=human
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite|Attacking
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

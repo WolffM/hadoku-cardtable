@@ -1,0 +1,18 @@
+# Q18 — how Forge identifies a stack ABILITY (its id is the permanent still on
+# the battlefield) versus a stack SPELL (whose card is not), and what makes an
+# ability a legal target of something else. Seat 0 (human) controls Prodigal
+# Sorcerer: a permanent with exactly one non-mana activated ability (uses the
+# stack, needs a target), not summoning sick. Seat 1 (ai) is the target.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Prodigal Sorcerer
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

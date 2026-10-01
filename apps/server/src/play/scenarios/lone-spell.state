@@ -1,0 +1,17 @@
+# Q7 — the opponent casts a spell and you hold a counterspell. Seat 1 (ai) has
+# an uncontested Main Phase 1 and a free creature to cast; seat 0 (human) holds
+# Mana Leak and enough untapped mana to pay it, so that once seat 1 casts its
+# spell seat 0 is given priority with exactly one spell on the stack.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Mana Leak
+humanbattlefield=Island;Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Memnite
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

@@ -265,6 +265,19 @@ export interface MatchSpec {
 	seats: [SeatSpec, SeatSpec];
 	/** Seeds Forge's shuffles and the precon pick, for a repeatable test run. Omitted in play. */
 	seed?: number;
+	/**
+	 * Wave 33 §S — a TEST-only starting position: the text of a Forge puzzle file's
+	 * `[state]` section (`humanlife=`, `humanhand=`, `humanbattlefield=`,
+	 * `activephase=`, … — `GameState.parseLine` in the deploy tree's forge-build
+	 * cache has the full key list), with `human…` keys applying to seat 0 and
+	 * `ai…` keys to seat 1. `bridgeConfig` spreads it onto `config.json` like every
+	 * other `MatchSpec` field; `PlayBridge.java`'s `configFrom` reads it and
+	 * `BridgeGui.hostMatch` applies it from `HostedMatch`'s own start-game hook —
+	 * see that method's doc. Omitted in play: `socket.ts`'s `parseStartBody`
+	 * accepts this key only behind `CARDTABLE_PLAY_PROBE=1` and refuses it
+	 * otherwise, so production never sends one.
+	 */
+	scenario?: string;
 }
 
 type AbortReason = (typeof AbortReasonSchema)['_zod']['output'];

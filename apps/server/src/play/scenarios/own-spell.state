@@ -1,0 +1,17 @@
+# Q17 — "my own spell shouldn't hold priority for me". Seat 0 (human) has an
+# uncontested Main Phase 1 and a free creature to cast, with nothing on the
+# opposing battlefield to respond with. The TEST casts the spell and reads
+# whether the caster is given a real stop on its own spell.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Memnite
+humanbattlefield=
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

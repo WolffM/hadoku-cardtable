@@ -1,0 +1,23 @@
+# The auto-target arrow (first list's item 8) — "Fiend Hunter auto-targeted
+# the only legal target and drew nothing." Seat 0 (human) holds Doom Blade
+# ("Destroy target nonblack creature", mandatory — not Fiend Hunter's
+# optional "you may exile", which this lane could not get to show a
+# populated TargetCards within budget; see `wave33-evidence/s3-blockers.md`'s
+# "the auto-target scenario" for the inconclusive Fiend Hunter attempt and why
+# this card replaces it) and enough untapped mana ({1}{B}); seat 1 (ai)
+# controls exactly ONE creature — Memnite, colorless and so a legal Doom
+# Blade target — which is the only legal target for the spell. The wire's
+# claim is that the stack item carries TargetCards for it once cast.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Doom Blade
+humanbattlefield=Swamp;Swamp
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Memnite
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

@@ -1,0 +1,20 @@
+# Q12 — the same attack as no-creatures.state, except seat 1 (ai) holds ONE
+# untapped, non-sick creature able to block. The Declare Blockers window
+# should stay open and the block should be assignable. `activephase` lands on
+# Declare ATTACKERS, not Declare Blockers — see no-creatures.state's comment
+# for why landing straight on Declare Blockers measurably loses the
+# characteristics check Forge needs to offer this exact creature as a
+# blocker.
+turn=1
+activeplayer=human
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite|Attacking
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Memnite
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

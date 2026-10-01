@@ -1,0 +1,32 @@
+# Q8 — "order these triggers" without full control, and the real ordering ask
+# with it. NOT VERIFIED — see `wave33-evidence/s3-blockers.md`, "Q8" for the
+# full account. Two designs were tried against a real match and neither got
+# seat 0's life to actually drop (the one observable proof the Dark Confidant
+# triggers fired at all):
+#   1. `activephase=UPKEEP` + `activephaseadvance=UPKEEP` (a synthetic jump):
+#      `GameState`'s general phase-advance has no equivalent to
+#      `handleCombat`'s own `addAllTriggeredAbilitiesToStack()` call, so the
+#      trigger condition is registered but never materialised onto the stack.
+#   2. This file's current shape — landing in the OPPONENT's Cleanup Step and
+#      driving Cleanup→Untap→Upkeep→Draw→Main1→Combat through ordinary
+#      priority passes (the same mechanism every real game uses): life was
+#      STILL 20 by the time the drive reached seat 0's Declare Attackers
+#      Step. Whether that is this scenario genuinely not producing the
+#      triggers, or a flaw in the test's own drive loop (pressing every
+#      `Priority:` window blindly, which could race past the one upkeep
+#      stop that mattered before anything inspected it), was not resolved
+#      within budget. No `.jvm.test.ts` exercises this file — do not assume
+#      it works.
+turn=1
+activeplayer=ai
+activephase=CLEANUP
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Dark Confidant;Dark Confidant
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

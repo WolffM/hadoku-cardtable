@@ -11,6 +11,10 @@
  * claim is about gaps in milliseconds.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type JvmHostConfig } from './host.js';
@@ -23,6 +27,17 @@ export const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPA
 
 export function deck(name: string, lines: readonly string[]): string {
 	return `[metadata]\nName=${name}\n[main]\n${lines.join('\n')}\n`;
+}
+
+/**
+ * Wave 33 §S, shape 1 — the text of `scenarios/<name>.state`, read fresh every
+ * call (these are tiny files read once per test, not a hot path). `name` is
+ * the file's basename without `.state`; see `scenarios/README.md` for the key
+ * format and what each one proves.
+ */
+export function scenarioText(name: string): string {
+	const here = dirname(fileURLToPath(import.meta.url));
+	return readFileSync(join(here, 'scenarios', `${name}.state`), 'utf8');
 }
 
 export async function waitUntil(p: () => boolean, label: string, ms: number): Promise<void> {
@@ -101,6 +116,15 @@ export interface ScenarioOptions {
 	policy?: StopPolicy;
 	/** Answers by method for asks `answerAsks` would otherwise answer plainly. */
 	reply?: (frame: ServerFrame & Record<string, unknown>) => unknown;
+	/**
+	 * Wave 33 §S, shape 1 — the text of a Forge puzzle file's `[state]` section
+	 * (`human…` keys for seat 0, `ai…` for seat 1). Built straight into the
+	 * `MatchSpec` this helper hands `registry.create`, bypassing `socket.ts`'s
+	 * probe gate entirely: that gate is an HTTP-layer concern and every caller of
+	 * this file already is a test. The mulligan still runs before it applies —
+	 * `keepHands`/`passUntil` answer it exactly as they do for any other match.
+	 */
+	scenario?: string;
 }
 
 export async function startScenario(config: JvmHostConfig, options: ScenarioOptions): Promise<Scenario> {
@@ -130,6 +154,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 			{ name: names[0], ai: false, deck: options.decks[0] },
 			{ name: names[1], ai: false, deck: options.decks[1] },
 		],
+		...(options.scenario === undefined ? {} : { scenario: options.scenario }),
 	});
 	const started = await match.whenRunning(120_000);
 	if (!started.ok) throw new Error(`match did not start: ${started.error}`);
@@ -250,9 +275,20 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 					.filter((i) => i >= 0)
 					.pop();
 				if (at === undefined || handled.has(at)) continue;
-				handled.add(at);
 				const msg = (sent[at]?.envelope.frame as unknown as { message: string }).message;
-				if (msg.startsWith('Priority:') || self.buttons(seat)?.enable1 !== true) continue;
+				if (msg.startsWith('Priority:')) {
+					// Not this seat's to press at all — never retried, so mark it now.
+					handled.add(at);
+					continue;
+				}
+				// `enable1` can lag the prompt text by one wire frame (Forge's two
+				// notifies are not atomic): only mark `at` handled once the press is
+				// actually sent, or a prompt seen one tick too early is marked
+				// "handled" forever without ever being clicked, and a scenario that
+				// lands straight on this question (no turns played first to let the
+				// race settle) hangs on it permanently. Retried on the next call.
+				if (self.buttons(seat)?.enable1 !== true) continue;
+				handled.add(at);
 				self.ok(seat);
 			}
 		},
@@ -262,6 +298,42 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 		},
 	};
 	return self;
+}
+
+/**
+ * Press through the coin toss and the keep-or-mulligan question for BOTH
+ * seats, then stop — so the caller can switch to `answerAsks()` alone and
+ * never call `keepHands()` again. That matters for a scenario that lands
+ * straight in a combat window: `keepHands()` presses OK on ANY enabled,
+ * non-`Priority:` prompt, so calling it once that window has arrived would
+ * decline a block it never got to look at (the same reason
+ * `blockers.jvm.test.ts`'s own `attack()` built a custom loop instead of
+ * reusing `passUntil`, which also calls `keepHands()` every tick).
+ *
+ * A scenario landing straight on the FIRST real prompt (no turns played to
+ * let a wire race settle first) makes a narrower race in `keepHands()`
+ * itself visible: `showPromptMessage` and its `updateButtons` are not sent
+ * atomically, and an EMPTY prompt (nothing sent to a seat yet) is not "done"
+ * — it is "not started", and would otherwise satisfy "not mulliganish" on
+ * the very first poll tick. The 90 s budget is deliberately generous: this
+ * step runs on a shared host alongside other lanes' own jar suites, and a
+ * contended host (swapping, several idle Forge JVMs from other waves) has
+ * been measured taking 10–70 s for the SAME two presses.
+ */
+export async function finishMulligan(s: Scenario): Promise<void> {
+	const isMulliganish = (msg: string): boolean => !msg.startsWith('Priority:') && /keep your hand|play or draw/i.test(msg);
+	await waitUntil(
+		() => {
+			s.keepHands();
+			s.answerAsks();
+			return [0, 1].every((seat) => {
+				const msg = s.prompt(seat);
+				return msg !== '' && !isMulliganish(msg);
+			});
+		},
+		'both seats to finish the coin toss and the keep-or-mulligan question',
+		90_000,
+	);
 }
 
 const MAIN1 = /^Phase: Main phase, precombat$/m;

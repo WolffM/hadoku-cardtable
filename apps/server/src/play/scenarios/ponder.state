@@ -1,0 +1,15 @@
+# Ponder's text, fully readable, while it is on the stack. Seat 0 (human)
+# holds Ponder and enough untapped mana to cast it with nothing to respond.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Ponder
+humanbattlefield=Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

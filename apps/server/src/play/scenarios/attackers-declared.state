@@ -1,0 +1,18 @@
+# Q14 — clicking an ALREADY-declared attacker, and pulling it back. Seat 0
+# (human)'s creature is already attacking (the |Attacking marker) and the
+# game lands in Declare Attackers Step itself (not Declare Blockers — unlike
+# the blockers scenarios, this one must NOT walk past the declare-attackers
+# window, since the claim is about interacting with it).
+turn=1
+activeplayer=human
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite|Attacking
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

@@ -32,6 +32,7 @@ import forge.card.mana.ManaCost;
 import forge.deck.CardPool;
 import forge.deck.Deck;
 import forge.deck.io.DeckSerializer;
+import forge.game.Game;
 import forge.game.GameEntityView;
 import forge.game.GameState;
 import forge.game.GameView;
@@ -74,6 +75,7 @@ import forge.localinstance.properties.ForgeNetPreferences;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.localinstance.skin.FSkinProp;
 import forge.model.FModel;
+import forge.player.PlayerControllerHuman;
 import forge.player.PlayerZoneUpdate;
 import forge.player.PlayerZoneUpdates;
 import forge.toolbox.MouseTriggerEvent;
@@ -115,6 +117,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -198,6 +201,17 @@ public final class PlayBridge {
      */
     static Long seed = null;
 
+    /**
+     * Optional. Wave 33 §S — a TEST-only starting position: the text of a Forge puzzle
+     * file's {@code [state]} section ({@code humanlife=}, {@code humanhand=}, … — see
+     * {@code GameState.parseLine}), applied to the match once the mulligan step is over
+     * and before either seat is given priority. {@code null} for an ordinary match. The
+     * Node side only ever sets this behind {@code CARDTABLE_PLAY_PROBE=1}
+     * ({@code socket.ts}'s {@code parseStartBody}); the bridge itself does not gate it —
+     * a production server simply never sends it.
+     */
+    static String scenario = null;
+
     static synchronized void emit(final JsonObject line) {
         line.addProperty("match", matchId);
         protocol.println(GSON.toJson(line));
@@ -233,6 +247,7 @@ public final class PlayBridge {
     static List<SeatConfig> configFrom(final JsonObject root) {
         matchId = root.get("matchId").getAsString();
         seed = root.has("seed") && !root.get("seed").isJsonNull() ? root.get("seed").getAsLong() : null;
+        scenario = root.has("scenario") && !root.get("scenario").isJsonNull() ? root.get("scenario").getAsString() : null;
         final List<SeatConfig> seats = new ArrayList<>();
         for (final JsonElement e : root.getAsJsonArray("seats")) {
             final JsonObject s = e.getAsJsonObject();
@@ -569,6 +584,57 @@ public final class PlayBridge {
     static final Map<Integer, SeatGui> SEATS = new ConcurrentHashMap<>();
 
     /**
+     * Wave 33 §S item 4 — the concede race, ORDERED shut rather than merely
+     * narrowed. {@code false} until the {@code gameover} line is emitted,
+     * exactly once ({@link #gameOverEmitted}'s {@code compareAndSet} is the
+     * only writer).
+     *
+     * <p>The race: a browser learns the game is over from an ORDINARY
+     * wire-synced {@code GameView} property (the client's {@code
+     * view.gameOver}, `apps/ui/src/play/adapter.ts`'s {@code readBool(game,
+     * 'GameOver')}) — carried by whatever {@code setGameView}/{@code
+     * applyDelta} call happens to include it. {@code Match.status} only
+     * becomes {@code 'over'} once THIS bridge emits a {@code gameover} line;
+     * before wave 33 that line came only from {@link #watchForGameOver}, a
+     * thread polling {@code game.isGameOver()} on its own clock — so a client
+     * could see the end and a reconnect-and-second-concede could reach the
+     * server before the next poll tick, landing on {@code Match.status ===
+     * 'running'} and skipping the refusal entirely (measured: 3 of 10 runs of
+     * `e2e/w31.spec.ts`'s concede test; see {@code wave33-evidence/s4-concede.md}).
+     *
+     * <p>{@link #maybeEmitGameOverFirst()} closes this by ORDER rather than by
+     * a narrower window: called at the top of {@link SeatGui#setGameView} and
+     * {@link SeatGui#applyDelta} — the only two places a {@code GameOver}
+     * property can reach a seat's wire — it checks the SAME live {@code Game}
+     * {@link #LOBBY} already reads for {@link SeatGui#liveMulliganFlag()}, and
+     * if it is over, emits {@code gameover} BEFORE the frame that is about to
+     * carry {@code GameOver} to the client. Both lines go out on the same
+     * `stdout` stream, read by Node in that same order (`host.ts`'s line
+     * reader, one JSON object per line) and processed by {@code match.ts}'s
+     * `onLine` synchronously in arrival order — so {@code Match.status} is
+     * {@code 'over'} before the state frame that lets any client learn the
+     * same thing is even written, let alone acted on. {@link #watchForGameOver}
+     * stays as a backstop for the one case this does not cover — the match
+     * ending with no seat connected to notice via a frame at all (a bot vs
+     * bot match, out of scope for this bridge, but cheap to keep correct for).
+     */
+    static final AtomicBoolean gameOverEmitted = new AtomicBoolean(false);
+
+    /** See {@link #gameOverEmitted}'s doc. Idempotent; safe to call from any seat's thread. */
+    static void maybeEmitGameOverFirst() {
+        final ServerGameLobby lobby = LOBBY;
+        if (lobby == null || lobby.getHostedMatch() == null) { return; }
+        final var game = lobby.getHostedMatch().getGame();
+        if (game == null || !game.isGameOver()) { return; }
+        if (!gameOverEmitted.compareAndSet(false, true)) { return; }
+        final JsonObject o = line("gameover");
+        final var outcome = game.getOutcome();
+        o.addProperty("winner", outcome == null || outcome.getWinningLobbyPlayer() == null
+                ? null : outcome.getWinningLobbyPlayer().getName());
+        emit(o);
+    }
+
+    /**
      * Each seat client's Netty thread, mapped to its seat. See {@link BridgeGui} for why
      * the bridge needs to know which thread is a client's.
      */
@@ -733,6 +799,8 @@ public final class PlayBridge {
 
         @Override
         public void setGameView(final GameView gameView, final long sequenceNumber) {
+            // Wave 33 §S item 4 — before anything else: see `maybeEmitGameOverFirst`'s doc.
+            maybeEmitGameOverFirst();
             super.setGameView(gameView, sequenceNumber);
             final GameView view = getGameView();
             if (view == null) { return; }
@@ -767,6 +835,8 @@ public final class PlayBridge {
 
         @Override
         public void applyDelta(final DeltaPacket packet) {
+            // Wave 33 §S item 4 — before anything else: see `maybeEmitGameOverFirst`'s doc.
+            maybeEmitGameOverFirst();
             // A REAL packet that happens to carry Mulligan (every normal input syncs
             // fine; only InputLondonMulligan's two no-sync calls do not, see
             // `syncMulliganFlag`) is what this seat was just told — record it so a
@@ -1548,8 +1618,119 @@ public final class PlayBridge {
          * {@code GuiDesktop.hostMatch} registers the match with the desktop's
          * {@code FControl}, which a headless process never creates (NPE at
          * {@code GuiDesktop.java:394}, observed on the first run of this bridge).
+         *
+         * <p><b>Wave 33 §S — the scenario hook.</b> {@link #scenario}, when set, is
+         * parsed once per match and applied from {@code HostedMatch}'s own
+         * {@code startGameHook} — the identical seam Forge's own puzzle screens use
+         * ({@code PuzzleScreen.java:63}: {@code hostedMatch.setStartGameHook(() ->
+         * chosen.applyToGame(hostedMatch.getGame()))}). That hook runs from
+         * {@code PhaseHandler.setupFirstTurn} ({@code :1018-1021}), AFTER
+         * {@code MulliganService.perform()} ({@code GameAction.java:2351-2373}) and
+         * before priority is given to either seat ({@code givePriorityToPlayer} is
+         * still false) — so the mulligan still happens and a scenario starts the game
+         * already in its scripted position.
+         *
+         * <p><b>Verified safe to call directly, not from a second {@code invoke}.</b>
+         * {@code setupFirstTurn} runs on whatever thread called
+         * {@code startFirstTurn} — here, the game thread {@code HostedMatch.startGame}
+         * already dispatched onto via {@code game.getAction().invoke(() -> …
+         * match.startGame(currentGame, startGameHook) …)} ({@code HostedMatch.java:280-294}).
+         * {@code GameState.applyToGame} itself calls {@code game.getAction().invoke(() ->
+         * applyGameOnThread(game))} ({@code GameState.java:582-583}), and
+         * {@code GameAction.invoke} checks {@code ThreadUtil.isGameThread()} first and
+         * runs the proc INLINE when it is already on it ({@code GameAction.java:2526-2531}
+         * — the only other branch hands off to the game thread pool, which would be the
+         * deadlock risk this comment is here to rule out). So the call chain
+         * {@code startGameHook -> applyToGame -> invoke} never leaves the thread it
+         * started on; see {@code wave33-evidence/s1-harness.md}.
+         *
+         * <p><b>Why {@link #refreshActionable} runs after the scenario applies.</b>
+         * Wave 33 §S, the "empty actionable set at MAIN1" finding
+         * (measured in {@code wave33-evidence/s3-blockers.md}): the FIRST
+         * {@code chooseSpellAbilityToPlay()} of the match runs during the natural
+         * UNTAP step, before this hook has replaced anyone's hand, and caches its
+         * (correctly empty, for UNTAP) result in {@code PlayerControllerHuman}'s
+         * {@code cachedActionableCards}. {@code InputPassPriority.showNormalPrompt()}
+         * — what actually SENDS {@code setWeaklySelectable} for an ordinary priority
+         * window — calls {@code pushActionableCards(false)} directly, which reuses
+         * that cached set verbatim rather than rescanning
+         * ({@code PlayerControllerHuman.java:1550-1590}: only recomputes when the
+         * cache is {@code null}). A scenario that replaces the hand AFTER that first
+         * cache fill therefore ships a stale, empty set to the very first priority
+         * window it opens — confirmed directly: {@code AvailableActions.collectActionable}
+         * called fresh, by hand, at the moment {@code setWeaklySelectable} sends {@code []},
+         * finds the scripted card correctly. Forcing one more
+         * {@code pushActionableCards(false)} per human seat right after the scenario
+         * applies — before the game thread ever reaches a real priority window —
+         * overwrites the stale cache with a fresh scan of the FINAL, scripted zones.
          */
-        @Override public HostedMatch hostMatch() { return new HostedMatch(); }
+        @Override public HostedMatch hostMatch() {
+            final HostedMatch hm = new HostedMatch();
+            final String text = scenario;
+            if (text != null) {
+                final GameState state = new GameState();
+                state.parse(Arrays.asList(text.split("\\r?\\n")));
+                hm.setStartGameHook(() -> {
+                    state.applyToGame(hm.getGame());
+                    refreshActionable(hm.getGame());
+                });
+            }
+            return hm;
+        }
+
+        /**
+         * Force a fresh {@code setWeaklySelectable} push for every human seat, so a
+         * scenario's scripted hand/battlefield is what the first priority window
+         * offers — see {@link #hostMatch}'s doc for why the default push is stale.
+         *
+         * <p><b>Why {@code pushActionableCards(false)} alone is not enough</b> —
+         * found by the manager re-running this exact test twice (1 fail, 1 pass).
+         * {@code pushActionableCards} ({@code PlayerControllerHuman.java:1550-1590})
+         * does NOT recompute the actionable set itself when not paying a cost:
+         * {@code :1572-1574}, {@code else if (cachedActionableCards != null) {
+         * actionable.addAll(cachedActionableCards); }}. That field
+         * ({@code :1539}, {@code private Set<CardView> cachedActionableCards})
+         * is only ever (re)computed by {@code chooseSpellAbilityToPlay()}
+         * ({@code :1664}/{@code :1668}/{@code :1672}) — and THIS method runs from
+         * the START-GAME HOOK, before the main loop has called
+         * {@code chooseSpellAbilityToPlay()} even once, so whatever the field holds
+         * is leftover from BEFORE the scenario applied (sometimes still {@code null}
+         * from construction, sometimes non-null — empirically, from the mulligan
+         * step's own input, timing-dependent — which is exactly why the failure was
+         * intermittent rather than constant). Calling {@code pushActionableCards(false)}
+         * while that stale value is non-null resends IT, not a fresh scan.
+         *
+         * <p>The fix: null the field directly (reflection on a {@code private} Forge
+         * field — no Forge file is changed, and this bridge already reads Forge
+         * internals this way for {@link SeatGui#liveMulliganFlag()}) immediately
+         * before calling {@code pushActionableCards(false)}. With the field null,
+         * {@code pushActionableCards}'s OWN {@code else} branch ({@code :1575-1578})
+         * runs a fresh {@code AvailableActions.collectActionable} scan instead of
+         * reusing anything — and since {@code pushActionableCards} never WRITES this
+         * field (only reads it), it is still null afterward, so
+         * {@code chooseSpellAbilityToPlay}'s own first real call (once the main loop
+         * starts) is guaranteed to take its own fresh-scan branch too
+         * ({@code :1659-1661}, unconditional whenever {@code cachedActionableCards}
+         * is null), rather than finding a non-null value some other caller already
+         * wrote.
+         */
+        private static void refreshActionable(final Game game) {
+            if (game == null) { return; }
+            for (final var player : game.getPlayers()) {
+                if (player.getController() instanceof PlayerControllerHuman human) {
+                    try {
+                        final java.lang.reflect.Field cache = PlayerControllerHuman.class.getDeclaredField("cachedActionableCards");
+                        cache.setAccessible(true);
+                        cache.set(human, null);
+                    } catch (final ReflectiveOperationException e) {
+                        // Forge's own field renamed under us: fall through and push
+                        // whatever's cached rather than fail the match over a highlight.
+                        System.err.println("[bridge] refreshActionable: cachedActionableCards reflection failed: " + e);
+                    }
+                    human.pushActionableCards(false);
+                }
+            }
+        }
         @Override public void showSpellShop() { }
         @Override public void showBazaar() { }
         @Override public int showOptionDialog(final String message, final String title, final FSkinProp icon,
@@ -1817,19 +1998,38 @@ public final class PlayBridge {
 
     static final CountDownLatch STOP = new CountDownLatch(1);
 
+    /**
+     * Wave 33 §S item 4 — the concede race, now a BACKSTOP only. Until wave 33
+     * this loop, polling at 500 ms, was the ONLY way the {@code gameover} line
+     * was ever emitted — and {@code GameOver} itself reaches a browser far
+     * faster, as an ordinary wire-synced {@code GameView} property (the
+     * client's {@code view.gameOver}, `apps/ui/src/play/adapter.ts:861`), so a
+     * client could learn the game had ended and a reconnect-and-second-concede
+     * could beat this loop's next tick to the server, landing on
+     * {@code Match.status === 'running'} and skipping the refusal entirely
+     * (measured: 3 of 10 runs of `e2e/w31.spec.ts`'s concede test; see
+     * `wave33-evidence/s4-concede.md`).
+     *
+     * <p>The real fix is {@link #maybeEmitGameOverFirst()}, called from
+     * {@link SeatGui#setGameView} and {@link SeatGui#applyDelta} — the only
+     * two places a {@code GameOver} property can reach a seat's wire — which
+     * closes the race by ORDER: the {@code gameover} line is always written
+     * before the state frame that would let any client learn the same thing,
+     * on the same stream, read by Node in that order. This loop still exists
+     * for the one case that reasoning does not cover — a match nobody is
+     * connected to, so no seat's {@code setGameView}/{@code applyDelta} ever
+     * runs to trigger it — and shares {@link #gameOverEmitted} with it, so
+     * whichever notices first is the one that emits.
+     */
     static void watchForGameOver(final ServerGameLobby lobby) {
         try {
             while (true) {
                 final HostedMatch match = lobby.getHostedMatch();
                 if (match != null && match.getGame() != null && match.getGame().isGameOver()) {
-                    final JsonObject o = line("gameover");
-                    final var outcome = match.getGame().getOutcome();
-                    o.addProperty("winner", outcome == null || outcome.getWinningLobbyPlayer() == null
-                            ? null : outcome.getWinningLobbyPlayer().getName());
-                    emit(o);
+                    maybeEmitGameOverFirst();
                     return;
                 }
-                Thread.sleep(500);
+                Thread.sleep(20);
             }
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();

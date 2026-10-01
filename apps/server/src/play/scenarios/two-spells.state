@@ -1,0 +1,20 @@
+# Q7, second half — "with two on the stack an arrow picks one". Seat 1 (ai)
+# holds TWO different free (0-cost) spells and an uncontested Main Phase 1;
+# seat 0 (human) holds Mana Leak and enough untapped mana. Unlike
+# lone-spell.state, getting TWO stack items from the SAME caster needs seat 1
+# to hold priority across both casts rather than being auto-passed between
+# them — see scenarios/README.md's note on this file for the one extra step
+# a driver needs that lone-spell.state does not.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Mana Leak
+humanbattlefield=Island;Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Memnite;Ornithopter
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

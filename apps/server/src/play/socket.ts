@@ -259,7 +259,7 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
 }
 
 /**
- * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], avatarIds?: [string?, string?], names?: [string?, string?] }`.
+ * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], avatarIds?: [string?, string?], names?: [string?, string?], scenario?: string }`.
  *
  * `names` (wave 31 §S) is what Forge shows for each seat, in seat order — see
  * {@link sanitizeSeatName}. Unlike `avatarIds` it IS the Forge player's name,
@@ -271,12 +271,22 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
  * `ai` — never on `seats[].name`, which is what Forge renders to both seats —
  * via {@link MatchSpecWithIdentity} (`match.ts`'s header has the argument for
  * why that type lives there and not on `host.ts`'s `SeatSpec`).
+ *
+ * `scenario` (wave 33 §S, shape 1) is the text of a Forge puzzle file's
+ * `[state]` section — `human…` keys for seat 0, `ai…` keys for seat 1 — carried
+ * straight onto {@link MatchSpec.scenario} (`host.ts`'s header has the argument
+ * for why it lives there). This function does NOT gate it on the probe flag:
+ * that is a server concern (`attachPlay`'s `deps.probe`, which this module
+ * does not see), checked by the caller in `attachPlay`'s `POST /matches`
+ * handler before a match is ever created.
  */
 export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | { ok: false; error: string } {
 	const b = (body ?? {}) as Record<string, unknown>;
 	if (typeof b !== 'object' || Array.isArray(b)) return { ok: false, error: 'body must be an object' };
 	for (const key of Object.keys(b)) {
-		if (key !== 'opponent' && key !== 'decks' && key !== 'avatarIds' && key !== 'names') return { ok: false, error: `unknown field ${key}` };
+		if (key !== 'opponent' && key !== 'decks' && key !== 'avatarIds' && key !== 'names' && key !== 'scenario') {
+			return { ok: false, error: `unknown field ${key}` };
+		}
 	}
 	const opponent = b.opponent ?? 'human';
 	if (opponent !== 'human' && opponent !== 'ai') return { ok: false, error: "opponent is 'human' or 'ai'" };
@@ -298,6 +308,13 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 		const raw = b.names;
 		if (!Array.isArray(raw) || raw.length !== 2) return { ok: false, error: 'names is a two-element array' };
 		names = uniqueSeatNames([sanitizeSeatName(raw[0]), sanitizeSeatName(raw[1])]);
+	}
+	let scenario: string | undefined;
+	if (b.scenario !== undefined) {
+		if (typeof b.scenario !== 'string' || b.scenario.length === 0 || b.scenario.length > 64 * 1024) {
+			return { ok: false, error: 'scenario is the text of a puzzle [state] section (at most 64 KiB)' };
+		}
+		scenario = b.scenario;
 	}
 	// `CARDTABLE_PLAY_SEED` fixes Forge's shuffles, the coin toss and the precon
 	// pick (`play/README.md`, `MatchSpec.seed`), and `bridgeConfig` spreads the
@@ -349,6 +366,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 			},
 		],
 		...(Number.isFinite(seed) ? { seed } : {}),
+		...(scenario === undefined ? {} : { scenario }),
 	};
 	return { ok: true, spec };
 }
@@ -476,6 +494,16 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		const parsed = parseStartBody(req.body);
 		if (!parsed.ok) {
 			res.status(400).json({ error: parsed.error });
+			return;
+		}
+		// Wave 33 §S, shape 1: a scenario is a TEST facility, never a production
+		// one — honoured only behind `CARDTABLE_PLAY_PROBE=1` (`deps.probe`, which
+		// `index.ts` sets from exactly that variable). A request carrying `scenario`
+		// without the flag is refused, not silently ignored: a test that thinks its
+		// scripted position applied would otherwise watch an ordinary shuffled game
+		// and misread everything that followed.
+		if (parsed.spec.scenario !== undefined && deps.probe !== true) {
+			res.status(400).json({ error: 'scenario-needs-probe' });
 			return;
 		}
 		// A match started now would be handed a JVM this process is about to stop
