@@ -24,6 +24,13 @@
   /* No pile: no fan, so every `calc` below reads zero on a lone card. */
   --pile-fan: 0px;
 
+  /*
+   * Q16: every card is its own stacking context, so the marks, the badge and the
+   * counters inside it (`--z-card-badge`, `styles.css`) are ordered among
+   * themselves and can no longer paint over the stack, a prompt or a menu —
+   * their z-indexes used to be 6 on the page's own scale.
+   */
+  isolation: isolate;
   width: var(--card-w, 5.5rem);
   max-width: 100%;
 }
@@ -102,7 +109,6 @@
 }
 
 .board-card[data-pile-size] > .board-card__face {
-  z-index: 5;
   width: calc(100% - var(--pile-fan));
 }
 
@@ -122,7 +128,8 @@
   position: absolute;
   top: calc(var(--at) * var(--stack-step));
   left: calc(var(--at) * var(--stack-step));
-  z-index: calc(4 - var(--at));
+  /* Behind the base card's face, which is at z-index auto in the same context. */
+  z-index: calc(var(--at) * -1);
   width: calc(100% - var(--pile-fan));
   max-width: none;
 }
@@ -139,7 +146,7 @@
  * The state layer needs no fan adjustment: a pile's fan narrows the base card's
  * face from the RIGHT and offsets the cards behind it down and right, so the
  * marks (top-left) and the counters (bottom-left) are already inside the face.
- * Only the P/T badge, which hangs off the top-right, pays the fan — see
+ * Only the P/T badge, which hangs off the right edge, pays the fan — see
  * `.board-card__pt` below.
  */
 
@@ -171,9 +178,10 @@
  */
 .board-card__pt {
   position: absolute;
-  top: 2px;
+  /* Bottom-right, where a printed card has it (Q13, asked twice). */
+  bottom: 2px;
   right: calc(2px + var(--pile-fan));
-  z-index: 6;
+  z-index: var(--z-card-badge, 1);
   display: flex;
   align-items: baseline;
   gap: 1px;
@@ -252,12 +260,12 @@
  */
 
 /*
- * The marks, down the card's TOP-LEFT corner — the P/T badge has the top-right
+ * The marks, down the card's TOP-LEFT corner — the P/T badge has the bottom-right
  * and the counters have the bottom-left, so the three never collide.
  */
 .board-card__marks {
   position: absolute;
-  z-index: 6;
+  z-index: var(--z-card-badge, 1);
   top: 2px;
   left: 2px;
   display: flex;
@@ -350,7 +358,7 @@
  */
 .board-card__counters {
   position: absolute;
-  z-index: 6;
+  z-index: var(--z-card-badge, 1);
   bottom: 2px;
   left: 2px;
   display: flex;
@@ -541,7 +549,20 @@ button.board-card__face:focus-visible {
   fill: var(--ink-dim);
 }
 
-/* Whose turn it is, on the thing you are already looking at. */
+/*
+ * Whose turn it is, on the thing you are already looking at (wave 32 Q1b): a ring
+ * around the avatar, the way the operator asked, in place of the words "their
+ * turn" in the counts. It is a box-shadow on the art's own box, so it rings the
+ * drawn mark and a watchparty character's picture alike, and it adds no size —
+ * a seat's tracks do not move when the turn passes.
+ */
+.face[data-active] .face__art {
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--bg-raised),
+    0 0 0 4px var(--accent);
+}
+
 .face[data-active] .face__plate {
   stroke: var(--ink-dim);
   stroke-width: 2;
@@ -730,8 +751,7 @@ button.face__hit:focus-visible {
   aspect-ratio: 488 / 680;
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) * 0.75);
-  background:
-    radial-gradient(120% 90% at 50% 38%, var(--bg-raised) 0%, var(--bg-card) 62%, var(--bg) 100%);
+  background: radial-gradient(120% 90% at 50% 38%, var(--bg-raised) 0%, var(--bg-card) 62%, var(--bg) 100%);
   overflow: hidden;
 }
 

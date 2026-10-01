@@ -147,6 +147,29 @@
  * Lane B moved nothing here, as this file's own rule predicts: it renders
  * `Board` alone, and B owns nothing `Board` imports.
  *
+ * Re-recorded in Wave 32 lane B (Q9 the one left column, Q4a the two tiers, Q4b
+ * the pointer drag, Q1b the turn ring): 41256 -> 41864, +608, and every character
+ * is accounted for. Measured the strong way — the HEAD `Board.tsx` and this one
+ * rendered side by side, split on `><`, and the line multisets subtracted:
+ *
+ *   +48  two `<div class="seat__side">` (24 each): the column that wraps a seat's
+ *        bar and its piles, which are one column now
+ *   +24  four `</div>`: two close those wrappers, two close the tiers' wrappers
+ *   +72  two `<div class="zone__tiers">` (25), the opponent's `data-tiers="mirrored"` (47)
+ *   +10  two more `</ul>` (5 each): each battlefield's one list is two
+ *  +285  the four tier lists, `<ul class="zone__cards" data-tier=… style="--cols:N">`
+ *        (the viewer's two also carry `data-arrange-slot`)
+ *   -82  the two battlefield lists they replace (41 each)
+ *   +25  ` data-arrange-slot="hand"` on the viewer's hand list
+ *  +251  ten ` data-arrange-card="<slot>"` on the draggable cards: back x4 (25), front x1
+ *        (26), hand x5 (25). The opponent has none: nothing of theirs is draggable.
+ *   +17  ` style="--cols:2"` on the opponent's card-backs list (Q2: same grid as a hand)
+ *   -42  `<span class="seat__flag">their turn</span>`: the turn is a ring now (Q1b)
+ *  ─────
+ *  +608  41256 -> 41864, and 48 + 24 + 72 + 10 + 285 - 82 + 25 + 251 + 17 - 42 = 608 exactly.
+ *
+ * `draggable="true"` is unchanged at 10, the seam the gestures layer stands down on.
+ *
  * Re-recorded in Wave 31 §A (lane A, P3 and P5): 41422 -> 41256, and every one
  * of the 166 characters is accounted for — the operator asked for the visible
  * `(you)` to go and for Regroup to be deleted:
@@ -278,8 +301,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = '757f9892b6078bf0a4977fe40d7bf93f687b47fb897c02f9eebddeb9701817e7';
-const BASELINE_LENGTH = 41256;
+const BASELINE_SHA256 = '9d2ec18cbad3bbc4f252ac0fa48960b0de5fd8bb4584d42f256a430adcab27d4';
+const BASELINE_LENGTH = 41864;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

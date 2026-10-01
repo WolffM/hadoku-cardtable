@@ -26,7 +26,7 @@ import {
   type BoardCard,
   type BoardView,
 } from './adapter.ts';
-import { Board, forgetArrangements, type BoardInteraction, type BoardLayout } from './Board.tsx';
+import { Board, forgetArrangements, snapTo, type BoardInteraction, type BoardLayout } from './Board.tsx';
 import { boardFromFixture, loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
 import { cardStateKey, deltaKey, expectWirePackets, isAnnotationKey, WireType, type WireObject } from './wire.ts';
@@ -99,6 +99,79 @@ function renderBoard(
  * that was ours, was deleted in wave 31 §A.3, so every button is Forge's.
  */
 const forgeButtons = (container: HTMLElement) => container.querySelectorAll('button');
+
+/* ── the pointer drag, driven in jsdom (wave 32 Q4b) ──────────────────── */
+
+/**
+ * jsdom lays nothing out, and the drag snaps by geometry, so a test that drags
+ * has to give the board one. `layOut` stamps a fake `getBoundingClientRect` on the
+ * viewer's slots (stacked 200px apart, each 1000 × 100) and on the base card of
+ * every pile in them (60 × 84, 70px apart), which is all `Board.tsx` reads.
+ * `dragCard` then drives the whole gesture the way a pointer does — press, a move
+ * past the slop, a move to the target, release — so what is asserted is what the
+ * board does with real pointer events, not a call into its internals.
+ */
+const CARD_W = 60;
+const CARD_H = 84;
+
+function stubBox(el: Element, left: number, top: number, width: number, height: number): void {
+  (el as HTMLElement).getBoundingClientRect = () =>
+    ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+}
+
+function layOut(container: HTMLElement): void {
+  const slots = [...container.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-arrange-slot]')];
+  slots.forEach((slot, i) => {
+    const top = i * 200;
+    stubBox(slot, 0, top, 1000, 100);
+    const list = slot.matches('.zone__cards') ? slot : slot.querySelector<HTMLElement>(':scope > .zone__cards')!;
+    [...list.querySelectorAll(':scope > li.board-card')].forEach((li, j) => stubBox(li, 10 + j * 70, top + 8, CARD_W, CARD_H));
+  });
+}
+
+/** Where to let go: a place on a card (`top` / `bottom` third, left half = `before`, right half = `after`), a whole slot, or a bare point. */
+type DragTo =
+  | { card: number; at: 'before' | 'after' | 'top' | 'bottom' }
+  | { slot: string }
+  | { point: { x: number; y: number } };
+
+function pointFor(container: HTMLElement, to: DragTo): { x: number; y: number } {
+  if ('point' in to) return to.point;
+  if ('slot' in to) {
+    const slot = container.querySelector<HTMLElement>(`.seat[data-viewer] [data-arrange-slot="${to.slot}"]`)!;
+    const box = slot.getBoundingClientRect();
+    return { x: box.right - 20, y: (box.top + box.bottom) / 2 };
+  }
+  const box = container.querySelector<HTMLElement>(`.seat[data-viewer] [data-card-id="${to.card}"]`)!.getBoundingClientRect();
+  const mid = (box.top + box.bottom) / 2;
+  if (to.at === 'before') return { x: box.left + 5, y: mid };
+  if (to.at === 'after') return { x: box.right - 5, y: mid };
+  return { x: box.left + 10, y: to.at === 'top' ? box.top + 10 : box.bottom - 10 };
+}
+
+/** The drag's own pointer, so a second `dragCard` is a second press. */
+const POINTER = { pointerId: 1, isPrimary: true, pointerType: 'mouse' } as const;
+
+/**
+ * Press `cardId`, move past the slop, move to `to`, and — unless `hold` — let go.
+ * With `hold` the drag is left in flight, for a test that reads the ghost and the
+ * indicator; `release()` ends it.
+ */
+function dragCard(container: HTMLElement, cardId: number, to: DragTo, hold = false): () => void {
+  layOut(container);
+  const from = container.querySelector<HTMLElement>(`.seat[data-viewer] [data-card-id="${cardId}"]`)!;
+  const box = from.getBoundingClientRect();
+  const start = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  const end = pointFor(container, to);
+  fireEvent.pointerDown(from, { ...POINTER, button: 0, clientX: start.x, clientY: start.y });
+  fireEvent.pointerMove(window, { ...POINTER, clientX: start.x + 12, clientY: start.y + 12 });
+  fireEvent.pointerMove(window, { ...POINTER, clientX: end.x, clientY: end.y });
+  const release = () => {
+    fireEvent.pointerUp(window, { ...POINTER, clientX: end.x, clientY: end.y });
+  };
+  if (!hold) release();
+  return release;
+}
 
 /**
  * §A.4. The operator, 2026-09-27: *"i dont understand what 'turn bar' and 'seat 1
@@ -766,22 +839,25 @@ describe('the canvas is static', () => {
     const zones = [...board.querySelectorAll<HTMLElement>('[data-zone]')];
     // 4 zones a seat, both seats, and the stack.
     expect(zones.map((z) => `${z.dataset.owner}/${z.dataset.zone}`)).toEqual([
-      // Both piles are in `.seat__piles` again (§A.2), which is the left column's
-      // LOWER cell now rather than a full-height column of its own — so a seat's
-      // markup reads battlefield, graveyard, exile, hand. The set is the same
-      // nine zones it has always been.
-      'them/battlefield',
+      // Both piles are in `.seat__piles`, the REST of the seat's one left column
+      // (wave 32 Q9) — so a seat's markup reads graveyard, exile, battlefield,
+      // hand. The set is the same nine zones it has always been.
       'them/graveyard',
       'them/exile',
+      'them/battlefield',
       'them/hand',
       'table/stack',
-      'you/battlefield',
       'you/graveyard',
       'you/exile',
+      'you/battlefield',
       'you/hand',
     ]);
     for (const z of zones) {
-      expect(z.querySelector(':scope > ul, :scope > ol'), `${z.dataset.owner} ${z.dataset.zone} still has its list`).not.toBeNull();
+      // A default battlefield's lists are its two tiers, under `.zone__tiers`.
+      expect(
+        z.querySelector(':scope > ul, :scope > ol, :scope > .zone__tiers > ul'),
+        `${z.dataset.owner} ${z.dataset.zone} still has its list`,
+      ).not.toBeNull();
       expect(z.dataset.count).toBe('0');
     }
   });
@@ -795,9 +871,9 @@ describe('the canvas is static', () => {
      */
     expect(declarationIn('.board', 'grid-template-rows')).toBe('minmax(0, 1fr) minmax(0, 1fr)');
     /*
-     * A seat is two card rows, no head row and ONE narrow column (§A.2): the
-     * furniture beside the battlefield, the piles beside the hand. Nothing about
-     * it is sized by what it holds.
+     * A seat is two card rows, no head row and ONE narrow column (wave 32 Q9) that
+     * spans both of them: the avatar, the counts, then the piles. Nothing about it
+     * is sized by what it holds.
      */
     expect(declarationIn('.board .seat', 'grid-template-columns')).toBe('var(--who-w) minmax(0, 1fr)');
     expect(declarationIn('.board .seat', 'grid-template-rows')).toBe('minmax(0, 4fr) minmax(0, 2.6fr)');
@@ -814,16 +890,17 @@ describe('the canvas is static', () => {
      * ours from theirs still rests on `(you)`, on `data-viewer` and on the ink,
      * which is what wave 20 was actually about.
      */
-    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('minmax(0, 1fr) var(--mana-h) auto');
-    expect(declarationIn('.board .seat__counts', 'grid-row')).toBe('1');
+    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--mana-h) var(--counts-h)');
+    expect(declarationIn('.board .seat__ident', 'grid-row')).toBe('1');
     expect(declarationIn('.board .seat__mana', 'grid-row')).toBe('2');
-    expect(declarationIn('.board .seat__ident', 'grid-row')).toBe('3');
-    expect(declarationIn('.board .seat[data-viewer] .seat__who', 'grid-template-rows')).toBe(
-      'auto var(--mana-h) minmax(0, 1fr)',
+    expect(declarationIn('.board .seat__counts', 'grid-row')).toBe('3');
+    // The opponent's bar is the mirror: counts first, the avatar last, against the centre line.
+    expect(declarationIn('.board .seat:not([data-viewer]) .seat__who', 'grid-template-rows')).toBe(
+      'var(--counts-h) var(--mana-h) auto',
     );
-    expect(declarationIn('.board .seat[data-viewer] .seat__ident', 'grid-row')).toBe('1');
-    expect(declarationIn('.board .seat[data-viewer] .seat__mana', 'grid-row')).toBe('2');
-    expect(declarationIn('.board .seat[data-viewer] .seat__counts', 'grid-row')).toBe('3');
+    expect(declarationIn('.board .seat:not([data-viewer]) .seat__ident', 'grid-row')).toBe('3');
+    expect(declarationIn('.board .seat:not([data-viewer]) .seat__mana', 'grid-row')).toBe('2');
+    expect(declarationIn('.board .seat:not([data-viewer]) .seat__counts', 'grid-row')).toBe('1');
     // The graveyard left the bar entirely, and the bar's track for it with it.
     expect(BOARD_RULES, 'the bar no longer has a graveyard track').not.toContain('--grave-h');
     expect(BOARD_RULES).not.toContain('--grave-w');
@@ -839,17 +916,15 @@ describe('the canvas is static', () => {
     expect(declarationIn('.board__mid', 'width')).toBe('var(--live-col-w, 24.1%)');
     expect(declarationIn('.board__mid', 'grid-template-columns')).toBe('minmax(0, 1fr)');
     expect(BOARD_RULES).not.toContain('--faces-w');
-    // The piles cell holds BOTH piles, stacked in ONE `fr` column and two `fr`
-    // rows (item 9, wave 30: no more side by side, which read as the graveyard
-    // itself being double-stacked) — neither is ever sized by what is in it.
-    // The graveyard has the bigger share — it is the one that fills up — and a
-    // ratio is still a fixed track.
+    // The piles are ONE column (item 9, wave 30), and since wave 32 Q9 they are
+    // whatever the avatar and the counts leave of the seat's one left column: the
+    // graveyard takes the row that is left, and exile is an `auto` strip.
     expect(declarationIn('.seat__piles', 'grid-template-columns')).toBe('minmax(0, 1fr)');
-    expect(declarationIn('.seat__piles', 'grid-template-rows')).toBe('minmax(0, 4fr) minmax(0, 1fr)');
-    // The left column is one cell per seat ROW, mirrored: furniture beside the
-    // battlefield, piles beside the hand, on both sides of the table.
-    expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'who field' 'piles hand'");
-    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-areas')).toBe("'piles hand' 'who field'");
+    expect(declarationIn('.seat__piles', 'grid-template-rows')).toBe('minmax(0, 1fr) auto');
+    expect(declarationIn('.seat__piles', 'flex')).toBe('1 1 0');
+    // The left column spans BOTH seat rows, on both sides of the table.
+    expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'side field' 'side hand'");
+    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-areas')).toBe("'side hand' 'side field'");
     /*
      * The labels left on the board are a battlefield's four LANE names, and each
      * is a `--row-head-h` strip across the top of its own lane — a lane is tall
@@ -1177,33 +1252,29 @@ describe('the seat’s vertical bar (#9)', () => {
       expect([...bar.querySelectorAll<HTMLElement>('[data-zone]')].map((z) => z.dataset.zone)).toEqual([]);
     }
     expect([...board.querySelectorAll<HTMLElement>('[data-zone]')].map((z) => `${z.dataset.owner}/${z.dataset.zone}`)).toEqual([
-      // Battlefield, then the two piles of the left column's lower cell, then the
-      // hand — and still the same nine zones.
-      'them/battlefield',
+      // The two piles of the left column, then the battlefield, then the hand —
+      // and still the same nine zones.
       'them/graveyard',
       'them/exile',
+      'them/battlefield',
       'them/hand',
       'table/stack',
-      'you/battlefield',
       'you/graveyard',
       'you/exile',
+      'you/battlefield',
       'you/hand',
     ]);
   });
 
   /**
-   * §A.2, and it is the operator's own drag rather than a rule: the left column is
-   * TWO cells — the furniture level with the seat's battlefield, the piles level
-   * with its hand — so for the viewer the graveyard sits under their own portrait
-   * and for the opponent over theirs. Wave 25 §E settled that in words by putting
-   * the graveyard inside the bar; this geometry gets it there without that.
-   *
-   * Three halves, because any one alone would pass a board that still draws it in
-   * the old full-height column: the piles have to be back in `.seat__piles`, the
-   * seat's areas have to put `.seat__piles` in the row the HAND is in, and the
-   * bar's own tracks have to stop reserving anything for a zone.
+   * Wave 32 Q9 (the operator: *"please place avatar, then the two counts, then the
+   * rest of the space graveyard"*, and of any percentage *"honestly it's just a
+   * guess"*). The seat's left column is ONE column, the seat's whole height: the
+   * bar — avatar, mana, counts — in fixed tracks, then the piles with everything
+   * that is left. It REVERSES wave 26 §A.2's two cells, so a graveyard confined to
+   * the hand's rows is the regression this reads for.
    */
-  it('puts the piles in the left column’s lower cell, beside the hand', () => {
+  it('puts the piles in the REST of one left column: avatar, counts, then the graveyard takes the space', () => {
     const { seat } = renderBoard(view);
     for (const p of view.players) {
       const bar = seat(p.id).querySelector<HTMLElement>('[data-player-bar]')!;
@@ -1211,23 +1282,43 @@ describe('the seat’s vertical bar (#9)', () => {
       expect([...bar.children].map((c) => c.className), `seat ${p.id}'s bar, in order`).toEqual(
         ['seat__ident', 'seat__mana', 'seat__counts'],
       );
-      const piles = seat(p.id).querySelector<HTMLElement>('.seat__piles')!;
+      const side = seat(p.id).querySelector<HTMLElement>(':scope > .seat__side')!;
+      expect([...side.children].map((c) => c.className), `seat ${p.id}'s column: the bar, then the piles`).toEqual([
+        'seat__who',
+        'seat__piles',
+      ]);
+      const piles = side.querySelector<HTMLElement>('.seat__piles')!;
       expect(
         [...piles.querySelectorAll<HTMLElement>(':scope > [data-zone]')].map((z) => z.dataset.zone),
-        `seat ${p.id}'s piles cell`,
+        `seat ${p.id}'s piles`,
       ).toEqual(['graveyard', 'exile']);
       expect(seat(p.id).querySelectorAll('[data-zone="graveyard"]'), 'one graveyard, not a copy').toHaveLength(1);
     }
-    /*
-     * The areas, so "in the piles cell" is also "level with the hand" — and the
-     * mirror, so the viewer reads portrait-then-piles down the page and the
-     * opponent piles-then-portrait.
-     */
-    expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'who field' 'piles hand'");
-    expect(declarationIn('.board .seat:not([data-viewer])', 'grid-template-areas')).toBe("'piles hand' 'who field'");
-    // And the bar reserves nothing for a zone any more.
-    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('minmax(0, 1fr) var(--mana-h) auto');
+    // One column spanning both seat rows, the piles `flex: 1` — no fraction anywhere.
+    expect(declarationIn('.board .seat', 'grid-template-areas')).toBe("'side field' 'side hand'");
+    expect(declarationIn('.board .seat__side', 'grid-area')).toBe('side');
+    expect(declarationIn('.board .seat__side', 'display')).toBe('flex');
+    expect(declarationIn('.board .seat__side', 'flex-direction')).toBe('column');
+    expect(declarationIn('.seat__piles', 'flex')).toBe('1 1 0');
+    expect(declarationIn('.board .seat__who', 'flex'), 'the bar takes what it needs and no more').toBe('none');
+    // The bar is fixed tracks: avatar, mana, counts — so the graveyard starts at one place.
+    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--mana-h) var(--counts-h)');
     expect(BOARD_RULES).not.toContain('seat__who > .zone--graveyard');
+    // The retired w26 geometry is not still there.
+    expect(BOARD_RULES).not.toContain("'piles hand'");
+    expect(BOARD_RULES).not.toContain("'who field'");
+  });
+
+  it('Q9: the opponent’s column is the vertical mirror, and exile is a strip that exists only while it holds a card', () => {
+    // The mirror is the order only: text and faces are never turned.
+    expect(declarationIn('.board .seat:not([data-viewer]) > .seat__side', 'flex-direction')).toBe('column-reverse');
+    expect(declarationIn('.seat:not([data-viewer]) .seat__piles', 'grid-template-rows')).toBe('auto minmax(0, 1fr)');
+    expect(declarationIn('.board .seat:not([data-viewer]) .zone--graveyard', 'justify-content')).toBe('flex-end');
+    expect(declarationIn('.board .seat .zone--exile[data-count=\'0\']', 'display')).toBe('none');
+    expect(declarationIn('.board .seat .zone--exile', 'max-height'), 'a strip, not a second pile').toBe('3.6rem');
+    // The attribute that rule reads is the zone's own count.
+    const { zone } = renderBoard(view);
+    expect(zone(0, 'exile').dataset.count).toBe(String(view.players.find((p) => p.isViewer)!.exile.length));
   });
 
   it('tells ours from theirs: no visible (you); the seat says data-viewer and its accessible name says (you)', () => {
@@ -1258,7 +1349,8 @@ describe('the seat’s vertical bar (#9)', () => {
     for (const p of view.players) {
       const bar = seat(p.id).querySelector<HTMLElement>('[data-player-bar]')!;
       const flags = [...bar.querySelectorAll('.seat__flag')].map((f) => f.textContent);
-      expect(flags, `seat ${p.id}'s flags`).toEqual(['their turn', 'priority', 'lost']);
+      // No "their turn" in words any more: whose turn it is is a ring round the avatar (Q1b).
+      expect(flags, `seat ${p.id}'s flags`).toEqual(['priority', 'lost']);
       // Every one of them is in the counts block, never the avatar block.
       for (const f of bar.querySelectorAll('.seat__flag')) {
         expect(f.closest('.seat__counts'), 'a flag is in the counts track').not.toBeNull();
@@ -1366,9 +1458,10 @@ describe('the DOM contract', () => {
 describe('the battlefield’s rows (#10)', () => {
   const ROWS = ['lands', 'artifacts', 'creatures', 'other'];
 
-  it('draws all four rows, labelled and counted, on both sides and at every count', () => {
+  it('draws all four rows, labelled and counted, on YOUR side — the opponent’s is always the default board (Q15c)', () => {
     const { seat, zone } = renderBoard();
-    for (const id of [0, 1]) {
+    expect(seat(1).querySelectorAll('[data-board-row]'), 'the layout preference is mine only').toHaveLength(0);
+    for (const id of [0]) {
       const rows = [...zone(id, 'battlefield').querySelectorAll<HTMLElement>('[data-board-row]')];
       expect(rows.map((r) => r.dataset.boardRow), `seat ${id}'s rows, in order`).toEqual(ROWS);
       // A lane reports its PILES, one `<li>` each, not every card in them, and
@@ -1406,13 +1499,11 @@ describe('the battlefield’s rows (#10)', () => {
     expect(rowIds(0, 'creatures')).toEqual([21]);
     expect(rowIds(0, 'artifacts')).toEqual([]);
     expect(rowIds(0, 'other')).toEqual([]);
-    // Seat 1: an `Artifact Land` is a land, an `Artifact Creature` a creature.
+    // Seat 1 is drawn in the default layout whatever mine is (Q15c), where an
+    // `Artifact Land` is a land (the back row) and an `Artifact Creature` is not.
     const them = view.players.find((p) => p.id === 1)!;
     expect(them.battlefield.find((c) => c.id === 116)!.card.typeLine).toBe('Artifact Land');
     expect(them.battlefield.find((c) => c.id === 67)!.card.typeLine).toBe('Artifact Creature — Goblin');
-    expect(rowIds(1, 'lands')).toEqual([87, 78, 93, 83, 116, 118]);
-    expect(rowIds(1, 'creatures')).toEqual([99, 67]);
-    expect(rowIds(1, 'artifacts')).toEqual([]);
   });
 
   it('files a plain artifact, an enchantment and a planeswalker where they belong', () => {
@@ -1452,21 +1543,14 @@ describe('the battlefield’s rows (#10)', () => {
  * is THEIRS — persisted per match in the client, keyed by card id, and it
  * survives a resync. It sends NOTHING to the engine."*
  *
- * `fireEvent.dragStart` carries no `DataTransfer` in jsdom, which is exactly
- * why `Board.tsx` remembers the dragged card itself and treats the transfer as
- * a courtesy to the browser.
+ * The drag is a pointer drag (wave 32 Q4b), so these tests press, move and
+ * release real pointer events on a fake layout (`dragCard`, above) — there is no
+ * `dragstart` any more.
  */
 describe('drag to arrange (#10)', () => {
-  /** Drag a card onto another card, or onto a row's own box. */
+  /** Drag a card in front of another card, or onto a row's own box. */
   function drag(container: HTMLElement, cardId: number, onto: { card: number } | { row: string }) {
-    const from = container.querySelector<HTMLElement>(`[data-card-id="${cardId}"]`)!;
-    const to =
-      'card' in onto
-        ? container.querySelector<HTMLElement>(`[data-card-id="${onto.card}"]`)!
-        : container.querySelector<HTMLElement>(`.seat[data-viewer] [data-board-row="${onto.row}"]`)!;
-    fireEvent.dragStart(from);
-    fireEvent.dragOver(to);
-    fireEvent.drop(to);
+    dragCard(container, cardId, 'card' in onto ? { card: onto.card, at: 'before' } : { slot: onto.row });
   }
 
   it('reorders within a row', () => {
@@ -1571,15 +1655,15 @@ describe('drag to arrange (#10)', () => {
     expect(container.querySelectorAll('[data-arrange-reset]'), 'Regroup is gone (§A.3)').toHaveLength(0);
   });
 
-  it('a card dragged onto the opponent’s battlefield stays where it was', () => {
-    const { container, rowIds } = renderBoard();
-    const from = container.querySelector<HTMLElement>('[data-card-id="8"]')!;
-    fireEvent.dragStart(from);
-    const theirs = container.querySelector<HTMLElement>('.seat:not([data-viewer]) [data-board-row="lands"]')!;
-    fireEvent.dragOver(theirs);
-    fireEvent.drop(theirs);
+  it('a card let go over the opponent’s battlefield stays where it was', () => {
+    const { container, rowIds, zone } = renderBoard();
+    // Far from every slot of ours: nowhere to snap, so nothing moves.
+    dragCard(container, 8, { point: { x: 500, y: -1500 } });
     expect(rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
-    expect(rowIds(1, 'lands')).toEqual([87, 78, 93, 83, 116, 118]);
+    const tier = (name: string) =>
+      [...zone(1, 'battlefield').querySelectorAll<HTMLElement>(`[data-tier="${name}"] > .board-card`)].map((c) => Number(c.dataset.cardId));
+    expect(tier('back'), 'their lands are exactly as the engine sent them').toEqual([87, 78, 93, 83, 116, 118]);
+    expect(tier('front')).toEqual([99, 67]);
   });
 });
 
@@ -1596,38 +1680,12 @@ describe('drag to arrange (#10)', () => {
  * pass unchanged, and it is not the behaviour a browser gets.
  */
 describe('drag to stack (#1, #19)', () => {
-  const TOP = 100;
-  const HEIGHT = 90;
-
-  /** A box for one card: thirds at 130 and 160. */
-  function withBox(el: HTMLElement): HTMLElement {
-    el.getBoundingClientRect = () =>
-      ({ top: TOP, bottom: TOP + HEIGHT, height: HEIGHT, left: 0, right: 70, width: 70, x: 0, y: TOP, toJSON: () => ({}) }) as DOMRect;
-    return el;
-  }
-
-  const AT = { top: TOP + 10, middle: TOP + HEIGHT / 2, bottom: TOP + HEIGHT - 10 } as const;
-
   /**
-   * A drop carrying a pointer height, which `fireEvent.drop(el, { clientY })`
-   * does NOT: **jsdom has no `DragEvent`**, so testing-library falls back to a
-   * plain `Event` and every `MouseEvent` field of the init is dropped on the
-   * floor. `Board.tsx` reads `clientY` because that is what a browser's real
-   * `DragEvent` carries, so the test has to put it there itself.
+   * Drop `cardId` on `ontoId`, in the named third of its box (`middle` is the
+   * reorder: the left half of the middle band is "in front of it").
    */
-  function dropAt(el: HTMLElement, clientY: number): void {
-    const event = new Event('drop', { bubbles: true, cancelable: true });
-    Object.defineProperty(event, 'clientY', { value: clientY });
-    fireEvent(el, event);
-  }
-
-  /** Drop `cardId` on `ontoId`, in the named third of its box. */
-  function dragOnto(container: HTMLElement, cardId: number, ontoId: number, where: keyof typeof AT) {
-    const from = container.querySelector<HTMLElement>(`[data-card-id="${cardId}"]`)!;
-    const to = withBox(container.querySelector<HTMLElement>(`[data-card-id="${ontoId}"]`)!);
-    fireEvent.dragStart(from);
-    fireEvent.dragOver(to);
-    dropAt(to, AT[where]);
+  function dragOnto(container: HTMLElement, cardId: number, ontoId: number, where: 'top' | 'middle' | 'bottom') {
+    dragCard(container, cardId, { card: ontoId, at: where === 'middle' ? 'before' : where });
   }
 
   /** The viewer's lands lane, as columns of piles: each column bottom card first. */
@@ -1661,12 +1719,14 @@ describe('drag to stack (#1, #19)', () => {
 
   it('builds a pile of three and lets the player choose the order inside it', () => {
     const { container } = renderBoard();
+    // A pile is targeted through its base card (the one the others fan from), so
+    // the order inside it is chosen by which side of the base each card is put on.
     dragOnto(container, 24, 8, 'top');
-    dragOnto(container, 6, 24, 'top');
-    expect(columns(container)).toEqual([[8, 24, 6], [25]]);
-    // And a member of the pile can be re-stacked under another member.
-    dragOnto(container, 6, 24, 'bottom');
+    dragOnto(container, 6, 8, 'top');
     expect(columns(container)).toEqual([[8, 6, 24], [25]]);
+    // And a member of the pile can be re-stacked UNDER the base.
+    dragOnto(container, 6, 8, 'bottom');
+    expect(columns(container)).toEqual([[6, 8, 24], [25]]);
   });
 
   it('a pile is one column: the lane asks for one card of width per pile', () => {
@@ -1685,7 +1745,7 @@ describe('drag to stack (#1, #19)', () => {
   it('keeps every card’s own data-card-id, unique across the board, at every depth', () => {
     const { container } = renderBoard();
     dragOnto(container, 24, 8, 'top');
-    dragOnto(container, 6, 24, 'top');
+    dragOnto(container, 6, 8, 'top');
     const board = container.querySelector<HTMLElement>('.board')!;
     const ids = [...board.querySelectorAll<HTMLElement>('.board-card')].map((c) => c.dataset.cardId);
     expect(ids).toHaveLength(24);
@@ -1708,10 +1768,7 @@ describe('drag to stack (#1, #19)', () => {
     const { container } = renderBoard();
     dragOnto(container, 25, 8, 'top');
     expect(columns(container)).toEqual([[8, 25], [24], [6]]);
-    const lane = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="lands"]')!;
-    fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="25"]')!);
-    fireEvent.dragOver(lane);
-    fireEvent.drop(lane);
+    dragCard(container, 25, { slot: 'lands' });
     expect(columns(container), '25 is its own column again, at the row’s end').toEqual([[8], [24], [6], [25]]);
   });
 
@@ -1760,10 +1817,7 @@ describe('drag to stack (#1, #19)', () => {
     dragOnto(container, 24, 8, 'top');
     dragOnto(container, 6, 8, 'bottom');
     dragOnto(container, 25, 24, 'middle');
-    const lane = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="other"]')!;
-    fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="24"]')!);
-    fireEvent.dragOver(lane);
-    fireEvent.drop(lane);
+    dragCard(container, 24, { slot: 'other' });
 
     // The board really did move — so the zero below is not "nothing happened".
     expect(container.querySelector('.seat[data-viewer] [data-board-row="other"]')!.querySelectorAll('.board-card')).toHaveLength(1);
@@ -1781,22 +1835,19 @@ describe('drag to stack (#1, #19)', () => {
     // Nothing on their side is draggable or a drop target in the first place.
     expect(seat(1).querySelectorAll('.board-card[draggable]')).toHaveLength(0);
 
-    const theirs = (id: number) => container.querySelector<HTMLElement>(`.seat:not([data-viewer]) [data-card-id="${id}"]`)!;
-    // Their own card onto their own card, in the stacking third.
-    fireEvent.dragStart(theirs(78));
-    const onto = withBox(theirs(87));
-    fireEvent.dragOver(onto);
-    dropAt(onto, AT.top);
-    // And one of OURS onto one of theirs, which is the drag they might do by
+    // Their own card: a press on it starts nothing, so there is no ghost.
+    const theirCard = container.querySelector<HTMLElement>('.seat:not([data-viewer]) [data-card-id="78"]')!;
+    fireEvent.pointerDown(theirCard, { ...POINTER, button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(window, { ...POINTER, clientX: 80, clientY: 80 });
+    expect(container.querySelector('[data-arrange-ghost]'), 'nothing of theirs is picked up').toBeNull();
+    fireEvent.pointerUp(window, { ...POINTER, clientX: 80, clientY: 80 });
+    // And one of OURS let go over theirs, which is the drag they might do by
     // accident: their side may not become a place we arrange.
-    fireEvent.dragStart(container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"]')!);
-    const mine = withBox(theirs(93));
-    fireEvent.dragOver(mine);
-    dropAt(mine, AT.top);
+    dragCard(container, 8, { point: { x: 500, y: -1500 } });
 
-    const theirLane = container.querySelector<HTMLElement>('.seat:not([data-viewer]) [data-board-row="lands"]')!;
+    const theirLane = container.querySelector<HTMLElement>('.seat:not([data-viewer]) [data-tier="back"]')!;
     expect(
-      [...theirLane.querySelectorAll<HTMLElement>(':scope > ul.zone__cards > li.board-card')].map((c) => Number(c.dataset.cardId)),
+      [...theirLane.querySelectorAll<HTMLElement>(':scope > li.board-card')].map((c) => Number(c.dataset.cardId)),
       'their lands are exactly as the engine sent them',
     ).toEqual([87, 78, 93, 83, 116, 118]);
     expect(theirLane.querySelectorAll('.board-card__pile'), 'nothing on their side is a pile').toHaveLength(0);
@@ -1854,10 +1905,7 @@ describe('drag to stack (#1, #19)', () => {
     it('holds after the player rearranges, moves the host, and stacks something else on it', () => {
       const { container } = renderBoard(equipped());
       // Move the host into another lane, twice, and stack a land on it.
-      const other = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="other"]')!;
-      fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="21"]')!);
-      fireEvent.dragOver(other);
-      fireEvent.drop(other);
+      dragCard(container, 21, { slot: 'other' });
       expect(columns(container, 'other'), 'the gear went with its creature').toEqual([[21, 901]]);
       dragOnto(container, 8, 21, 'top');
       expect(columns(container, 'other'), 'the land is on the pile and the gear is still in it').toEqual([[21, 901, 8]]);
@@ -1866,10 +1914,7 @@ describe('drag to stack (#1, #19)', () => {
 
     it('cannot be pulled apart: dragging the gear out puts it straight back', () => {
       const { container } = renderBoard(equipped());
-      const lands = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="lands"]')!;
-      fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="901"]')!);
-      fireEvent.dragOver(lands);
-      fireEvent.drop(lands);
+      dragCard(container, 901, { slot: 'lands' });
       expect(columns(container, 'lands'), 'the gear is not a card of the lands lane').toEqual([[8], [24], [6], [25]]);
       expect(columns(container, 'creatures'), 'it is back on its creature').toEqual([[21, 901]]);
       // Nor by stacking it onto an unrelated card.
@@ -2030,14 +2075,7 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
      * redrawn.
      */
     const built = renderBoard(view);
-    const base = built.container.querySelector<HTMLElement>('[data-card-id="8"]')!;
-    base.getBoundingClientRect = () =>
-      ({ top: 100, bottom: 190, height: 90, left: 0, right: 70, width: 70, x: 0, y: 100, toJSON: () => ({}) }) as DOMRect;
-    fireEvent.dragStart(built.container.querySelector<HTMLElement>('[data-card-id="24"]')!);
-    fireEvent.dragOver(base);
-    const drop = new Event('drop', { bubbles: true, cancelable: true });
-    Object.defineProperty(drop, 'clientY', { value: 110 });
-    fireEvent(base, drop);
+    dragCard(built.container, 24, { card: 8, at: 'top' });
     expect(
       built.container.querySelector('[data-card-id="8"] > .board-card__pile > [data-card-id="24"]'),
       '24 is stacked on 8',
@@ -2084,10 +2122,7 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
     // A creature the player has moved into the lands lane is still a creature,
     // and still the attack gesture's while attackers are being declared.
     const built = renderBoard(view);
-    const lane = built.container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="lands"]')!;
-    fireEvent.dragStart(built.container.querySelector<HTMLElement>('[data-card-id="21"]')!);
-    fireEvent.dragOver(lane);
-    fireEvent.drop(lane);
+    dragCard(built.container, 21, { slot: 'lands' });
     expect(built.rowIds(0, 'lands'), 'the creature is in the lands lane now').toEqual([8, 24, 6, 25, 21]);
 
     cleanup();
@@ -2144,16 +2179,9 @@ describe('drag to arrange your own hand (#2)', () => {
     [...handOf(container).querySelectorAll<HTMLElement>('.board-card')].map((c) => Number(c.dataset.cardId));
   const draggableInHand = (container: HTMLElement) => handOf(container).querySelectorAll('.board-card[draggable="true"]');
 
-  /** Drag a card onto another card, or onto the hand's own list. */
+  /** Drag a card in front of another card, or onto the hand's own list. */
   function drag(container: HTMLElement, cardId: number, onto: { card: number } | 'the hand'): void {
-    const from = container.querySelector<HTMLElement>(`[data-card-id="${cardId}"]`)!;
-    const to =
-      onto === 'the hand'
-        ? handOf(container).querySelector<HTMLElement>(':scope > ul.zone__cards')!
-        : container.querySelector<HTMLElement>(`[data-card-id="${onto.card}"]`)!;
-    fireEvent.dragStart(from);
-    fireEvent.dragOver(to);
-    fireEvent.drop(to);
+    dragCard(container, cardId, onto === 'the hand' ? { slot: 'hand' } : { card: onto.card, at: 'before' });
   }
 
   it('makes every card of the viewer’s own hand draggable, and a drop reorders it', () => {
@@ -2208,10 +2236,7 @@ describe('drag to arrange your own hand (#2)', () => {
   it('is per match: another match starts from the view’s order', () => {
     const { container, rowIds } = renderBoard(view);
     drag(container, hand.at(-1)!, { card: hand[0]! });
-    fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="8"]')!);
-    const lane = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="other"]')!;
-    fireEvent.dragOver(lane);
-    fireEvent.drop(lane);
+    dragCard(container, 8, { slot: 'other' });
     expect(handIds(container)).not.toEqual(hand);
     expect(rowIds(0, 'other')).toEqual([8]);
 
@@ -2226,15 +2251,9 @@ describe('drag to arrange your own hand (#2)', () => {
 
   it('stacks nothing: a drop in the top third of a hand card is still a reorder', () => {
     const { container } = renderBoard(view);
-    const onto = container.querySelector<HTMLElement>(`[data-card-id="${hand[0]!}"]`)!;
-    // A real box, and a pointer in its top third — which on a BATTLEFIELD means
-    // "stack on top of this card" (`dropOnCard`). A hand does not stack.
-    onto.getBoundingClientRect = () =>
-      ({ top: 100, height: 90, bottom: 190, left: 0, right: 40, width: 40, x: 0, y: 100, toJSON: () => ({}) }) as DOMRect;
-    const from = container.querySelector<HTMLElement>(`[data-card-id="${hand.at(-1)!}"]`)!;
-    fireEvent.dragStart(from);
-    fireEvent.dragOver(onto);
-    fireEvent.drop(onto, { clientY: 110 });
+    // A pointer in a card's top third — which on a BATTLEFIELD means "stack on top
+    // of this card" (`snapTo`). A hand does not stack.
+    dragCard(container, hand.at(-1)!, { card: hand[0]!, at: 'top' });
     expect(handIds(container)).toEqual([hand.at(-1)!, ...hand.slice(0, -1)]);
     expect(handOf(container).querySelectorAll('[data-pile-size], [data-pile-depth]'), 'no pile in a hand').toHaveLength(0);
   });
@@ -2276,10 +2295,7 @@ describe('drag to arrange your own hand (#2)', () => {
   it('never moves a card between zones, and never touches the opponent’s hand', () => {
     const { container, rowIds, seat } = renderBoard(view);
     // A hand card dropped on a battlefield lane: neither zone moves.
-    const lane = container.querySelector<HTMLElement>('.seat[data-viewer] [data-board-row="lands"]')!;
-    fireEvent.dragStart(container.querySelector<HTMLElement>(`[data-card-id="${hand[0]!}"]`)!);
-    fireEvent.dragOver(lane);
-    fireEvent.drop(lane);
+    dragCard(container, hand[0]!, { slot: 'lands' });
     expect(rowIds(0, 'lands'), 'the battlefield did not take a card out of hand').toEqual([8, 24, 6, 25]);
     expect(handIds(container), 'and the hand still holds it').toEqual(hand);
     // A permanent dropped in the hand: the same, from the other side.
@@ -2676,12 +2692,7 @@ describe('cards find their place (§A.3, §A.4)', () => {
     // in none of its piles. It must not land in the middle of an order they
     // chose, and it must not join a pile.
     const before = renderBoard();
-    const drag = (cardId: number, ontoId: number) => {
-      fireEvent.dragStart(before.container.querySelector<HTMLElement>(`[data-card-id="${cardId}"]`)!);
-      const onto = before.container.querySelector<HTMLElement>(`[data-card-id="${ontoId}"]`)!;
-      fireEvent.dragOver(onto);
-      fireEvent.drop(onto);
-    };
+    const drag = (cardId: number, ontoId: number) => dragCard(before.container, cardId, { card: ontoId, at: 'before' });
     drag(25, 8);
     expect(lanes(before.container, 'lands')).toEqual([[25], [8], [24], [6]]);
     cleanup();
@@ -2697,17 +2708,8 @@ describe('cards find their place (§A.3, §A.4)', () => {
   });
 
   it('a card dropped ON a card stacks with an offset, drawn exactly as an attachment is', () => {
-    const TOP = 100;
-    const HEIGHT = 90;
     const { container } = renderBoard();
-    const onto = container.querySelector<HTMLElement>('[data-card-id="8"]')!;
-    onto.getBoundingClientRect = () =>
-      ({ top: TOP, bottom: TOP + HEIGHT, height: HEIGHT, left: 0, right: 70, width: 70, x: 0, y: TOP, toJSON: () => ({}) }) as DOMRect;
-    fireEvent.dragStart(container.querySelector<HTMLElement>('[data-card-id="25"]')!);
-    fireEvent.dragOver(onto);
-    const drop = new Event('drop', { bubbles: true, cancelable: true });
-    Object.defineProperty(drop, 'clientY', { value: TOP + 10 });
-    fireEvent(onto, drop);
+    dragCard(container, 25, { card: 8, at: 'top' });
 
     expect(lanes(container, 'lands'), '25 is stacked on 8, and the lane is a column shorter').toEqual([[8, 25], [24], [6]]);
     // The MARKUP is the attachment's markup: a `ul.board-card__pile` inside the
@@ -2757,7 +2759,7 @@ describe('a full row keeps its names legible at the 960 budget (§A.1)', () => {
   const token = (selector: string, name: string): number => px(declarationIn(selector, name));
   /** The one rule that sizes a card's column, in a hand and in a battlefield lane. */
   const GRID =
-    '.seat > .zone--battlefield .zone__row > .zone__cards,\n.seat > .zone--battlefield > .zone__cards,\n.seat[data-viewer] > .zone--hand > .zone__cards';
+    '.seat > .zone--battlefield .zone__row > .zone__cards,\n.seat > .zone--battlefield > .zone__cards,\n.seat > .zone--battlefield .zone__tiers > .zone__cards,\n.seat[data-viewer] > .zone--hand > .zone__cards';
   /** The rule that gives a row zone its `--card-max`, shared by a battlefield and a hand. */
   const ROW_ZONE = '.seat > .zone--battlefield,\n.seat[data-viewer] > .zone--hand';
 
@@ -3152,19 +3154,34 @@ describe('item 11 — one board by default, four lanes as the alternate', () => 
     const me = view.players.find((p) => p.isViewer)!;
     const them = view.players.find((p) => !p.isViewer)!;
     const { container } = render(createElement(Board, { view }));
-    const flatIds = (playerId: number) => {
+    /** The ids a tier draws, in order. A tier is a list directly under `.zone__tiers`; no row wrapper. */
+    const tierIds = (playerId: number, tier: 'front' | 'back') => {
       const zone = container.querySelector<HTMLElement>(
         `[data-testid="player"][data-player-id="${playerId}"] [data-zone="battlefield"]`,
       )!;
-      const list = zone.querySelector<HTMLElement>(':scope > ul.zone__cards')!;
-      expect(list, 'a flat list directly under the zone, no row wrapper between').not.toBeNull();
+      const list = zone.querySelector<HTMLElement>(`:scope > .zone__tiers > ul.zone__cards[data-tier="${tier}"]`)!;
+      expect(list, 'a tier list directly under the zone’s tiers, no row wrapper between').not.toBeNull();
       return [...list.querySelectorAll<HTMLElement>(':scope > li.board-card')].map((c) => Number(c.dataset.cardId));
     };
-    // Nothing lost, nothing duplicated, nothing reordered — arrival order,
-    // exactly as `group()` gives it before any player has dragged anything.
-    expect(flatIds(me.id)).toEqual(me.battlefield.map((c) => c.id));
-    expect(flatIds(them.id)).toEqual(them.battlefield.map((c) => c.id));
-    expect(flatIds(me.id).length, 'a real mix of types is on this seat’s board').toBeGreaterThan(1);
+    // Q4a: lands in the BACK row, everything else in the FRONT row, each in the
+    // view's own order — nothing lost, nothing duplicated.
+    for (const player of [me, them]) {
+      const lands = player.battlefield.filter((c) => /\bLand\b/.test(c.card.typeLine.split('—')[0]!)).map((c) => c.id);
+      const rest = player.battlefield.filter((c) => !lands.includes(c.id)).map((c) => c.id);
+      expect(tierIds(player.id, 'back'), `seat ${player.id}'s back row is its lands`).toEqual(lands);
+      expect(tierIds(player.id, 'front'), `seat ${player.id}'s front row is everything else`).toEqual(rest);
+    }
+    expect(tierIds(me.id, 'back').length + tierIds(me.id, 'front').length, 'a real mix of types is on this seat’s board').toBeGreaterThan(1);
+    expect(container.querySelectorAll('[data-board-row]'), 'no type sections in the default').toHaveLength(0);
+  });
+
+  it('Q4a: the viewer’s front row is the upper one and the opponent’s is the mirror — back row on top', () => {
+    const view = boardFromFixture(fixture);
+    const { container } = render(createElement(Board, { view }));
+    const order = (id: number) =>
+      [...container.querySelectorAll<HTMLElement>(`[data-testid="player"][data-player-id="${id}"] .zone__tiers > ul`)].map((u) => u.dataset.tier);
+    expect(order(view.players.find((p) => p.isViewer)!.id), 'towards the centre line first').toEqual(['front', 'back']);
+    expect(order(view.players.find((p) => !p.isViewer)!.id), 'their front row is the one nearest the centre').toEqual(['back', 'front']);
   });
 
   /*
@@ -3187,7 +3204,7 @@ describe('item 11 — one board by default, four lanes as the alternate', () => 
    */
   it('the single list shares the lanes’ own sizing grid — same --card-max, same --rows device, not the hand’s fallback size', () => {
     const gridSelector =
-      '.seat > .zone--battlefield .zone__row > .zone__cards,\n.seat > .zone--battlefield > .zone__cards,\n.seat[data-viewer] > .zone--hand > .zone__cards';
+      '.seat > .zone--battlefield .zone__row > .zone__cards,\n.seat > .zone--battlefield > .zone__cards,\n.seat > .zone--battlefield .zone__tiers > .zone__cards,\n.seat[data-viewer] > .zone--hand > .zone__cards';
     expect(
       declarationIn(gridSelector, 'display'),
       'the single list is in the SAME shared grid rule as the lanes and the hand',
@@ -3195,13 +3212,12 @@ describe('item 11 — one board by default, four lanes as the alternate', () => 
     expect(declarationIn(gridSelector, 'grid-auto-flow')).toBe('column');
     expect(declarationIn(gridSelector, '--card-w')).toContain('var(--card-max)');
     expect(
-      declarationIn('.seat > .zone--battlefield > .zone__cards', '--card-slack'),
-      'its own slack override exists — the list is not silently falling back to the hand’s',
+      declarationIn('.seat > .zone--battlefield .zone__tiers > .zone__cards', '--card-slack'),
+      'the tier lists have their own slack override — they are not silently falling back to the hand’s',
     ).toBe('6px');
-    expect(
-      declarationIn('.zone__rows,\n.zone--hand > .zone__cards,\n.seat > .zone--battlefield > .zone__cards', '--rows'),
-      'and it is in the SAME --rows ladder as the alternate’s zone__rows and the hand, not stuck at the fallback 1',
-    ).toMatch(/^calc\(1 \+ clamp\(/);
+    // Two tiers, so a card is sized for two rows of cards in the zone's own height.
+    expect(declarationIn('.zone__tiers', '--rows'), 'a card is sized for TWO tiers in the zone’s height').toBe('2');
+    expect(declarationIn('.zone__tiers', 'grid-template-rows')).toBe('repeat(2, minmax(0, 1fr))');
   });
 
   it('boardLayout="type-separated" still renders the four labelled lanes — the alternate is not deleted', () => {
@@ -3211,59 +3227,43 @@ describe('item 11 — one board by default, four lanes as the alternate', () => 
     expect(rows.map((r) => r.dataset.boardRow)).toEqual(
       expect.arrayContaining(['lands', 'artifacts', 'creatures', 'other']),
     );
-    // Four lanes a SEAT, both seats.
-    expect(container.querySelectorAll('[data-board-row]')).toHaveLength(8);
+    // Four lanes on YOUR seat; the opponent's board is always the default one (Q15c).
+    expect(container.querySelectorAll('.seat[data-viewer] [data-board-row]')).toHaveLength(4);
+    expect(container.querySelectorAll('.seat:not([data-viewer]) [data-board-row]')).toHaveLength(0);
+    expect(container.querySelectorAll('.seat:not([data-viewer]) .zone__tiers')).toHaveLength(1);
   });
 
   it('wave 24’s placement model is not replaced by the default — a drop still stacks, reorders and joins the end, in the one lane', () => {
-    /*
-     * The exact device `describe('drag to stack (#1, #19)')` above already
-     * uses against the alternate's own lanes: a real box on the target (jsdom
-     * lays nothing out, and no geometry reads as the old plain reorder), and
-     * `clientY` forced onto a plain `Event` (`fireEvent.drop(el, { clientY })`
-     * drops it — jsdom has no real `DragEvent`).
-     */
-    const TOP = 100;
-    const HEIGHT = 90;
-    const AT = { top: TOP + 10, middle: TOP + HEIGHT / 2, bottom: TOP + HEIGHT - 10 } as const;
-    function withBox(el: HTMLElement): HTMLElement {
-      el.getBoundingClientRect = () =>
-        ({ top: TOP, bottom: TOP + HEIGHT, height: HEIGHT, left: 0, right: 70, width: 70, x: 0, y: TOP, toJSON: () => ({}) }) as DOMRect;
-      return el;
-    }
-    function dropAt(el: HTMLElement, clientY: number): void {
-      const event = new Event('drop', { bubbles: true, cancelable: true });
-      Object.defineProperty(event, 'clientY', { value: clientY });
-      fireEvent(el, event);
-    }
-
     const { container } = renderBoard(boardFromFixture(fixture), undefined, 'single');
     const me = boardFromFixture(fixture).players.find((p) => p.isViewer)!;
     const cardEl = (id: number) => container.querySelector<HTMLElement>(`.seat[data-viewer] [data-card-id="${id}"]`)!;
-    const flatIds = () => {
-      const zone = container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"]')!;
-      const list = zone.querySelector<HTMLElement>(':scope > ul.zone__cards')!;
+    const tier = (name: string) => {
+      const list = container.querySelector<HTMLElement>(`.seat[data-viewer] [data-tier="${name}"]`)!;
       return [...list.querySelectorAll<HTMLElement>(':scope > li.board-card')].map((c) => Number(c.dataset.cardId));
     };
 
-    const [first, second, third] = me.battlefield.map((c) => c.id);
-    const before = flatIds();
-    expect(before.length, 'a real mix of types is on this seat’s battlefield').toBeGreaterThan(2);
+    // 8, 24, 6, 25 are lands (the back row); 21 is the creature (the front row).
+    const [first, second, third] = [8, 24, 21];
+    expect(me.battlefield.map((c) => c.id)).toEqual(expect.arrayContaining([first, second, third]));
+    expect(tier('back')).toEqual([8, 24, 6, 25]);
+    expect(tier('front')).toEqual([21]);
 
     // Stack ON TOP: `second` dropped on the upper third of `first`.
-    fireEvent.dragStart(cardEl(second!));
-    fireEvent.dragOver(withBox(cardEl(first!)));
-    dropAt(cardEl(first!), AT.top);
-    expect(cardEl(first!).querySelector('.board-card__pile'), 'a pile, inside the one lane').not.toBeNull();
-    expect(flatIds(), 'one column fewer — second joined first’s pile').toEqual(before.filter((id) => id !== second));
+    dragCard(container, second, { card: first, at: 'top' });
+    expect(cardEl(first).querySelector('.board-card__pile'), 'a pile, inside the one tier').not.toBeNull();
+    expect(tier('back'), 'one column fewer — second joined first’s pile').toEqual([8, 6, 25]);
 
-    // Reorder: `third` dropped on the MIDDLE third of `first`'s pile lands in
-    // front of it — still one lane, no type row anywhere.
-    fireEvent.dragStart(cardEl(third!));
-    fireEvent.dragOver(withBox(cardEl(first!)));
-    dropAt(cardEl(first!), AT.middle);
-    expect(flatIds()[0]).toBe(third);
+    // Complete freedom (Q4b): the creature goes into the BACK row, in front of `first` —
+    // there is no bucket a card is confined to.
+    dragCard(container, third, { card: first, at: 'before' });
+    expect(tier('back')[0]).toBe(third);
+    expect(tier('front'), 'and the front row is an empty slot now').toEqual([]);
     expect(container.querySelectorAll('[data-board-row]'), 'still no type sections').toHaveLength(0);
+
+    // And back into the EMPTY front row, which is a slot like any other.
+    dragCard(container, third, { slot: 'front' });
+    expect(tier('front')).toEqual([third]);
+    expect(tier('back')).toEqual([8, 6, 25]);
   });
 });
 
@@ -3309,21 +3309,17 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
     expect(nameOf(base, ids[0]!), 'and no map at all is what it always was').not.toBe('Hadoku');
   });
 
-  it('P2: the graveyard takes at least 75% of the left column’s pile cell, exile is the strip', () => {
+  it('P2 / Q9: no share of the column is written for the graveyard — it takes what the avatar and counts leave', () => {
+    // Wave 31's `4fr / 1fr` inside the hand's cell is gone, and so is the idea of a figure.
     const rows = declarationIn('.seat__piles', 'grid-template-rows')!;
-    const [grave, exile] = [...rows.matchAll(/minmax\(0,\s*([\d.]+)fr\)/g)].map((m) => Number.parseFloat(m[1]!));
-    const gap = Number.parseFloat(declarationIn('.seat__piles', 'gap')!);
-    // The cell is the hand's row: 2.6/6.6 of a seat of a 400px half-canvas at 1280×800.
-    // Test the share across the heights a cell can be, from far below that to far above.
-    for (const height of [64, 100, 150, 240, 400]) {
-      const share = (((height - gap) * grave!) / (grave! + exile!)) / height;
-      expect(share, `graveyard share of a ${height}px pile cell`).toBeGreaterThanOrEqual(0.75);
-    }
-    expect(exile!, 'exile keeps a strip, not nothing').toBeGreaterThan(0);
-    // The counts spend none of it: they are in the furniture cell, on one row.
+    expect(rows, 'the graveyard row is `1fr`, not a ratio of a ratio').toBe('minmax(0, 1fr) auto');
+    expect(BOARD_RULES).not.toMatch(/\d+(?:\.\d+)?fr\s+minmax\(0,\s*1fr\)/);
+    expect(BOARD_RULES).not.toMatch(/\b[0-9.]+%\s+of the (?:column|cell)/);
+    // The counts spend none of it: they are in the bar, on one row, in their own track.
     const { seat } = renderBoard();
     expect(seat(0).querySelector('.seat__piles [data-testid="hand-count"]')).toBeNull();
     expect(declarationIn('.board .seat__counts', 'flex-direction')).toBe('row');
+    expect(declarationIn('.board .seat', '--counts-h'), 'a flag arriving mid-game moves nothing under it').toBe('2.2rem');
   });
 
   it('P5: Regroup is gone from the markup, the stylesheet and the source', () => {
@@ -3353,5 +3349,333 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
     for (const c of ['white', 'blue', 'black', 'red', 'green']) {
       expect(BOARD_RULES).toContain(`var(--c-${c})`);
     }
+  });
+});
+
+/* ── wave 32 lane B: the board surface, and a drag that is ours ───────── */
+
+describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
+  const view = boardFromFixture(fixture);
+
+  it('Q2: the opponent’s hand is drawn at the card size of yours, from the same tokens', () => {
+    const theirs = '.seat:not([data-viewer]) > .zone--hand';
+    const mine = '.seat[data-viewer] > .zone--hand';
+    // The cap and the slack are the viewer's own, not a size of their own.
+    expect(declarationIn(theirs, '--card-max')).toBe(declarationIn(mine, '--card-max'));
+    expect(declarationIn(theirs, '--card-slack')).toBe(declarationIn(`${mine} > .zone__cards`, '--card-slack'));
+    // `--card-w` is derived from the zone's height the way the hand's is, not a fixed 4rem.
+    const w = declarationIn(theirs, '--card-w')!;
+    expect(w).toContain('var(--card-max)');
+    expect(w).toContain('100cqh');
+    expect(w).not.toContain('4rem');
+    expect(declarationIn(theirs, 'container')).toBe('row-zone / size');
+    // A back is a whole column of that grid, and the grid shrinks to the width down to the same floor.
+    expect(declarationIn('.seat:not([data-viewer]) > .zone--hand > .card-backs', '--card-back-w')).toBe('100%');
+    expect(declarationIn('.seat:not([data-viewer]) > .zone--hand > .card-backs', 'grid-auto-columns')).toContain(
+      'var(--card-min)',
+    );
+  });
+
+  it('Q2: the strip tells the stylesheet how many backs it holds, as a hand of faces does', () => {
+    const { zone } = renderBoard(view);
+    const backs = zone(1, 'hand').querySelector<HTMLElement>('ul.card-backs')!;
+    const them = view.players.find((p) => !p.isViewer)!;
+    expect(backs.style.getPropertyValue('--cols')).toBe(String(them.handCount));
+    expect(backs.querySelectorAll('[data-card-back]')).toHaveLength(them.handCount);
+  });
+
+  it('Q13: power/toughness sits in the card’s BOTTOM-right corner, clear of the counters and the marks', () => {
+    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom')).toBe('2px');
+    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'top'), 'it no longer hangs off the top').toBeUndefined();
+    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'right')).toContain('--pile-fan');
+    // The other two corners it must not collide with.
+    expect(declarationInCss(CARD_CSS, '.board-card__counters', 'left')).toBe('2px');
+    expect(declarationInCss(CARD_CSS, '.board-card__marks', 'top')).toBe('2px');
+  });
+
+  it('Q1b: whose turn it is is a ring round the avatar, and the words are gone', () => {
+    const active: BoardView = { ...view, players: view.players.map((p, i) => ({ ...p, isActive: i === 0 })) };
+    const { container } = renderBoard(active);
+    const faces = [...container.querySelectorAll<HTMLElement>('[data-player-face]')];
+    expect(faces.filter((f) => f.dataset.active === 'true')).toHaveLength(1);
+    const ring = declarationInCss(CARD_CSS, '.face[data-active] .face__art', 'box-shadow')!;
+    expect(ring, 'a ring, in the accent').toContain('var(--accent)');
+    expect(declarationInCss(CARD_CSS, '.face[data-active] .face__art', 'border-radius')).toBe('50%');
+    expect(container.textContent).not.toMatch(/their turn/i);
+  });
+
+  it('Q16: card badges sit on the shared scale, inside a stacking context of the card’s own', () => {
+    for (const sel of ['.board-card__pt', '.board-card__marks', '.board-card__counters']) {
+      expect(declarationInCss(CARD_CSS, sel, 'z-index'), sel).toBe('var(--z-card-badge, 1)');
+    }
+    expect(declarationInCss(CARD_CSS, '.board-card', 'isolation')).toBe('isolate');
+    // No literal that outranks the scale survives in the card's own sheet.
+    expect(withoutComments(CARD_CSS)).not.toMatch(/z-index:\s*(?:[2-9]|\d\d+)\s*;/);
+    // The pile is behind its base card's face, inside the same context.
+    expect(declarationInCss(CARD_CSS, '.board-card__pile > .board-card', 'z-index')).toBe('calc(var(--at) * -1)');
+    // And what the card must sit UNDER is on the overlay rung of the same scale.
+    expect(declarationIn('.board__mid', 'z-index')).toBe('var(--z-overlay, 20)');
+    expect(declarationIn('.staging', 'z-index')).toBe('var(--z-overlay, 20)');
+  });
+
+  it('stack: a question moves the band’s top up and gives it room for a long effect; the band is sized by state alone', () => {
+    expect(Number.parseFloat(declarationIn('.board', '--mid-h-asked')!), 'roomier than w31’s 5.75rem').toBeGreaterThanOrEqual(8.5);
+    expect(declarationIn('.board__mid[data-question]', '--mid-h')).toBe('var(--mid-h-asked)');
+    expect(declarationIn('.board__mid[data-question]', 'top'), 'out of flow, so moving it moves no track').toBe('var(--board-gap)');
+    expect(declarationIn('.board__mid', 'position')).toBe('absolute');
+    const { container } = renderBoard(withStack(view, 5), { ...spyInteraction([]).interaction, questionOpen: true });
+    expect(container.querySelector('[data-testid="board-mid"]')!.hasAttribute('data-question')).toBe(true);
+    // The band's height never reads how many items there are.
+    expect(BOARD_RULES).not.toMatch(/--mid-h[^;]*(?:--items|--stack-n|--count)/);
+  });
+});
+
+describe('wave 32 §B — Q4a: where a permanent goes by default', () => {
+  /** The viewer's two tiers' ids, in the order they draw them. */
+  const tiers = (container: HTMLElement) => {
+    const ids = (name: string) =>
+      [...container.querySelectorAll<HTMLElement>(`.seat[data-viewer] [data-tier="${name}"] > li.board-card`)].map((c) => Number(c.dataset.cardId));
+    return { back: ids('back'), front: ids('front') };
+  };
+
+  /** The fixture with one more permanent of the given type, as Forge would send it. */
+  function withPermanent(base: BoardView, id: number, typeLine: string): BoardView {
+    const me = base.players.find((p) => p.isViewer)!;
+    const seed = me.battlefield[0]!;
+    return {
+      ...base,
+      players: base.players.map((p) =>
+        !p.isViewer ? p : { ...p, battlefield: [...p.battlefield, { ...seed, id, card: { ...seed.card, cardId: `w${id}`, typeLine } }] },
+      ),
+    };
+  }
+
+  it('a land joins the end of the BACK row and anything else the end of the FRONT row, left to right', () => {
+    const base = boardFromFixture(fixture);
+    const { container } = renderBoard(withPermanent(withPermanent(base, 701, 'Basic Land — Island'), 702, 'Artifact — Equipment'), undefined, 'single');
+    expect(tiers(container)).toEqual({ back: [8, 24, 6, 25, 701], front: [21, 702] });
+  });
+
+  it('there is no direction rule that reads a row right to left', () => {
+    // The brief's "found, unverified": `board.css` was checked for `direction` / `rtl` / `row-reverse` and has none.
+    expect(BOARD_RULES).not.toMatch(/direction:\s*rtl|flex-direction:\s*row-reverse|justify-content:\s*(?:end|flex-end)\s*;\s*\n\s*\}\s*\n\s*\.zone__cards/);
+    expect(declarationIn('.seat > .zone--battlefield .zone__tiers > .zone__cards', 'justify-content')).toBeUndefined();
+  });
+
+  it('the tiers are slots even while empty, so a card can be put in either', () => {
+    const base = boardFromFixture(fixture);
+    const bare: BoardView = {
+      ...base,
+      players: base.players.map((p) => (p.isViewer ? { ...p, battlefield: [] } : p)),
+    };
+    const { container } = renderBoard(bare, undefined, 'single');
+    for (const name of ['front', 'back']) {
+      expect(container.querySelector(`.seat[data-viewer] [data-arrange-slot="${name}"]`), `an empty ${name} row is a slot`).not.toBeNull();
+    }
+    // The opponent's board is not ours to arrange: no slot on it.
+    expect(container.querySelector('.seat:not([data-viewer]) [data-arrange-slot]')).toBeNull();
+  });
+});
+
+describe('wave 32 §B — Q4b: the drag that is ours', () => {
+  const view = boardFromFixture(fixture);
+  const boardOf = (c: HTMLElement) => c.querySelector<HTMLElement>('.board')!;
+
+  /** A bare layout for the pure snap: two slots, the first holding two piles, the second empty. */
+  const box = (left: number, top: number, w: number, h: number) => ({ left, top, right: left + w, bottom: top + h });
+  const slots = [
+    { slot: 'front' as const, box: box(0, 0, 400, 100), piles: [{ id: 1, box: box(10, 8, 60, 84) }, { id: 2, box: box(80, 8, 60, 84) }] },
+    { slot: 'back' as const, box: box(0, 200, 400, 100), piles: [] },
+  ];
+
+  it('snapTo: the nearest place in a row — before, after, the end, and the thirds of a card', () => {
+    expect(snapTo(slots, 15, 50)?.target, 'left half of a card: before it').toEqual({ kind: 'before', id: 1 });
+    expect(snapTo(slots, 65, 50)?.target, 'right half of the first: in front of the second').toEqual({ kind: 'before', id: 2 });
+    expect(snapTo(slots, 135, 50)?.target, 'right half of the last: the end').toEqual({ kind: 'end' });
+    expect(snapTo(slots, 300, 50)?.target, 'past the last card: the end').toEqual({ kind: 'end' });
+    expect(snapTo(slots, 40, 14)?.target, 'top third: on top of it').toEqual({ kind: 'stack', id: 1, onTop: true });
+    expect(snapTo(slots, 40, 86)?.target, 'bottom third: under it').toEqual({ kind: 'stack', id: 1, onTop: false });
+  });
+
+  it('snapTo: an EMPTY slot snaps, the nearest slot wins, and far from every slot is nowhere', () => {
+    const empty = snapTo(slots, 200, 250)!;
+    expect(empty.slot).toBe('back');
+    expect(empty.target).toEqual({ kind: 'end' });
+    expect(empty.card, 'an empty slot has no card to hang the bar on').toBeNull();
+    // In the gap between the two rows it goes to the nearer one.
+    expect(snapTo(slots, 200, 120)?.slot).toBe('front');
+    expect(snapTo(slots, 200, 180)?.slot).toBe('back');
+    // Far from everything: no snap, so the drop does nothing.
+    expect(snapTo(slots, 200, -900)).toBeNull();
+    expect(snapTo([], 0, 0)).toBeNull();
+  });
+
+  it('snapTo: a hand does not stack — the thirds are not read there', () => {
+    const hand = [{ slot: 'hand' as const, box: box(0, 0, 400, 100), piles: [{ id: 7, box: box(10, 8, 60, 84) }] }];
+    expect(snapTo(hand, 15, 14)?.target).toEqual({ kind: 'before', id: 7 });
+    expect(snapTo(hand, 60, 86)?.target).toEqual({ kind: 'end' });
+  });
+
+  it('draws OUR ghost and indicator while a card is held, and removes every trace on release', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    const release = dragCard(container, 24, { card: 8, at: 'before' }, true);
+    const board = boardOf(container);
+    const ghost = board.querySelector<HTMLElement>(':scope > [data-arrange-ghost]')!;
+    expect(ghost, 'the ghost').not.toBeNull();
+    expect(ghost.dataset.arrangeGhost).toBe('24');
+    expect(ghost.querySelector('.card__name')!.textContent, 'it is the card, not a browser picture').toBe(
+      container.querySelector('.seat[data-viewer] [data-card-id="24"] .card__name')!.textContent,
+    );
+    expect(ghost.getAttribute('aria-hidden')).toBe('true');
+    expect(ghost.hasAttribute('data-card-id'), 'no id twice on the board').toBe(false);
+    expect(ghost.querySelector('[data-card-id]'), 'nor inside it').toBeNull();
+    expect(board.querySelectorAll('[data-card-id="24"]'), 'the real card is the only one carrying its id').toHaveLength(1);
+    expect(board.hasAttribute('data-arrange-active')).toBe(true);
+    expect(container.querySelector('[data-card-id="24"]')!.hasAttribute('data-arrange-dragging'), 'the source stays, dimmed').toBe(true);
+    const bar = board.querySelector<HTMLElement>(':scope > [data-arrange-indicator]')!;
+    expect(bar.hasAttribute('hidden')).toBe(false);
+    expect(bar.dataset.arrangeKind).toBe('before');
+    expect(bar.dataset.arrangeSlot).toBe('back');
+    expect(container.querySelector('[data-card-id="8"]')!.getAttribute('data-arrange-target'), 'the card it is on').toBe('before');
+    expect(container.querySelector('.seat[data-viewer] [data-arrange-slot="back"]')!.getAttribute('data-arrange-target')).toBe('before');
+    // Nothing has moved yet: the drag is a preview until it is let go.
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['8', '24', '6', '25']);
+
+    release();
+    expect(board.querySelector('[data-arrange-ghost], [data-arrange-indicator]'), 'ghost and bar are gone').toBeNull();
+    expect(board.hasAttribute('data-arrange-active')).toBe(false);
+    expect(container.querySelectorAll('[data-arrange-dragging], [data-arrange-target]'), 'and every mark').toHaveLength(0);
+    // And the card went where the bar said.
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['24', '8', '6', '25']);
+  });
+
+  it('the ghost follows the pointer, and the indicator names stack-top, stack-bottom and end as the pointer moves', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    layOut(container);
+    const from = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="24"]')!;
+    const at = (id: number) => container.querySelector<HTMLElement>(`.seat[data-viewer] [data-card-id="${id}"]`)!.getBoundingClientRect();
+    const start = { x: at(24).left + 30, y: at(24).top + 40 };
+    fireEvent.pointerDown(from, { ...POINTER, button: 0, clientX: start.x, clientY: start.y });
+    fireEvent.pointerMove(window, { ...POINTER, clientX: start.x + 20, clientY: start.y });
+    const board = boardOf(container);
+    const ghost = board.querySelector<HTMLElement>('[data-arrange-ghost]')!;
+    const bar = board.querySelector<HTMLElement>('[data-arrange-indicator]')!;
+    const move = (x: number, y: number) => fireEvent.pointerMove(window, { ...POINTER, clientX: x, clientY: y });
+
+    move(300, 120);
+    const first = { left: ghost.style.left, top: ghost.style.top };
+    move(340, 160);
+    expect({ left: ghost.style.left, top: ghost.style.top }, 'the ghost moved with the pointer').not.toEqual(first);
+    expect(Number.parseFloat(ghost.style.left) - Number.parseFloat(first.left)).toBe(40);
+    expect(ghost.style.width, 'at the card’s own size').toBe('60px');
+
+    move(at(6).left + 10, at(6).top + 10);
+    expect(bar.dataset.arrangeKind).toBe('stack-top');
+    move(at(6).left + 10, at(6).bottom - 10);
+    expect(bar.dataset.arrangeKind).toBe('stack-bottom');
+    move(at(25).right + 200, at(25).top + 40);
+    expect(bar.dataset.arrangeKind).toBe('end');
+    move(500, 600);
+    expect(bar.hasAttribute('hidden'), 'far from every slot there is no target').toBe(true);
+    fireEvent.pointerUp(window, { ...POINTER, clientX: 500, clientY: 600 });
+    expect(container.querySelector('[data-arrange-ghost]')).toBeNull();
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId), 'released nowhere: nothing moved').toEqual(['8', '24', '6', '25']);
+  });
+
+  it('snaps to any slot in either row, empty ones included', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    dragCard(container, 8, { slot: 'front' });
+    const ids = (name: string) => [...container.querySelectorAll<HTMLElement>(`.seat[data-viewer] [data-tier="${name}"] > li`)].map((c) => Number(c.dataset.cardId));
+    expect(ids('front'), 'a land put in the front row, at its end').toEqual([21, 8]);
+    expect(ids('back')).toEqual([24, 6, 25]);
+    // Drain a row, then put a card in the EMPTY row.
+    for (const id of [24, 6, 25]) dragCard(container, id, { slot: 'front' });
+    expect(ids('back'), 'the back row is empty now').toEqual([]);
+    dragCard(container, 21, { slot: 'back' });
+    expect(ids('back')).toEqual([21]);
+  });
+
+  it('works under a finger: a touch pointer drags exactly as a mouse does', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    layOut(container);
+    const touch = { pointerId: 7, isPrimary: true, pointerType: 'touch' } as const;
+    const from = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="25"]')!;
+    const b = from.getBoundingClientRect();
+    fireEvent.pointerDown(from, { ...touch, button: 0, clientX: b.left + 5, clientY: b.top + 5 });
+    fireEvent.pointerMove(window, { ...touch, clientX: b.left + 30, clientY: b.top + 30 });
+    expect(container.querySelector('[data-arrange-ghost]'), 'a finger lifts the card').not.toBeNull();
+    const first = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"]')!.getBoundingClientRect();
+    fireEvent.pointerMove(window, { ...touch, clientX: first.left + 5, clientY: first.top + 40 });
+    fireEvent.pointerUp(window, { ...touch, clientX: first.left + 5, clientY: first.top + 40 });
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['25', '8', '24', '6']);
+    expect(declarationIn('.board .seat .board-card[draggable=\'true\']', 'touch-action'), 'or the browser claims it to scroll').toBe('none');
+  });
+
+  it('a press that never moves is a plain click, and the click after a real drag is swallowed', () => {
+    const { interaction, onSelectCard } = spyInteraction([8]);
+    const { container } = renderBoard(view, interaction, 'single');
+    layOut(container);
+    const face = () => container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"] > button.board-card__face')!;
+    // Press and release in place: a click, which selects.
+    const li = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"]')!;
+    fireEvent.pointerDown(li, { ...POINTER, button: 0, clientX: 20, clientY: 20 });
+    fireEvent.pointerMove(window, { ...POINTER, clientX: 21, clientY: 21 });
+    fireEvent.pointerUp(window, { ...POINTER, clientX: 21, clientY: 21 });
+    expect(container.querySelector('[data-arrange-ghost]'), 'under the slop there is no drag').toBeNull();
+    fireEvent.click(face());
+    expect(onSelectCard).toHaveBeenCalledTimes(1);
+    // A real drag, then the click the browser sends after it: not a selection.
+    dragCard(container, 8, { slot: 'front' });
+    fireEvent.click(face());
+    expect(onSelectCard, 'letting go of a drag is not a click on what it ended over').toHaveBeenCalledTimes(1);
+  });
+
+  it('Escape and pointercancel put the card down where it was', () => {
+    for (const how of ['escape', 'cancel'] as const) {
+      const { container } = renderBoard(view, undefined, 'single');
+      dragCard(container, 25, { card: 8, at: 'before' }, true);
+      expect(container.querySelector('[data-arrange-ghost]')).not.toBeNull();
+      if (how === 'escape') fireEvent.keyDown(window, { key: 'Escape' });
+      else fireEvent.pointerCancel(window, { ...POINTER });
+      expect(container.querySelector('[data-arrange-ghost], [data-arrange-indicator], [data-arrange-dragging]'), how).toBeNull();
+      fireEvent.pointerUp(window, { ...POINTER, clientX: 0, clientY: 0 });
+      expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId), how).toEqual(['8', '24', '6', '25']);
+      cleanup();
+      forgetArrangements();
+    }
+  });
+
+  it('stands down on a press the gestures layer already claimed (combat, a payment)', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    layOut(container);
+    // `install.ts` claims a press by cancelling it, on the canvas, before the window sees it.
+    const claim = (e: Event) => e.preventDefault();
+    container.addEventListener('pointerdown', claim);
+    dragCard(container, 25, { card: 8, at: 'before' }, true);
+    expect(container.querySelector('[data-arrange-ghost]'), 'a claimed press is not ours').toBeNull();
+    fireEvent.pointerUp(window, { ...POINTER, clientX: 0, clientY: 0 });
+    container.removeEventListener('pointerdown', claim);
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['8', '24', '6', '25']);
+  });
+
+  it('cancels the browser’s own drag, and keeps no HTML5 drag-and-drop in the source', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    const li = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"]')!;
+    expect(li.getAttribute('draggable'), 'still the seam the gestures layer stands down on').toBe('true');
+    // `fireEvent` returns false when the event was cancelled: the browser's ghost never starts.
+    expect(fireEvent.dragStart(li), 'dragstart is cancelled').toBe(false);
+    const source = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'Board.tsx'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    expect(source).not.toMatch(/dataTransfer|onDrop\b|onDragOver\b|onDragEnd\b|dropEffect|effectAllowed|DragEvent/);
+  });
+
+  it('a hand drag snaps within the hand only: over the battlefield a hand card is nowhere', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    const hand = view.players.find((p) => p.isViewer)!.hand!.map((c) => c.id);
+    dragCard(container, hand[0]!, { slot: 'front' });
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-zone="hand"] .board-card')].map((c) => Number((c as HTMLElement).dataset.cardId))).toEqual(hand);
+    dragCard(container, hand[0]!, { slot: 'hand' });
+    expect([...container.querySelectorAll('.seat[data-viewer] [data-zone="hand"] .board-card')].map((c) => Number((c as HTMLElement).dataset.cardId))).toEqual([...hand.slice(1), hand[0]!]);
   });
 });

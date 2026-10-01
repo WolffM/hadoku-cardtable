@@ -368,7 +368,7 @@
  * width at which a card's NAME stops being readable, and no further (§A.1).
  */
 
-import { useEffect, useReducer, useRef, type CSSProperties, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useReducer, useRef, type CSSProperties, type ReactNode } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
@@ -517,8 +517,12 @@ export type BoardLayout = 'single' | 'type-separated';
 
 /** The type-separated alternate's rows, top to bottom. Every battlefield draws all four. */
 const BOARD_ROWS = ['lands', 'artifacts', 'creatures', 'other'] as const;
-/** The single-layout default's one lane: everything, in placement order. */
-const SINGLE_ROWS = ['all'] as const;
+/**
+ * The single-layout default's two tiers (wave 32 Q4a): the BACK row is lands and
+ * the FRONT row is everything else, each filled left to right. Where a permanent
+ * goes by default — a player may put any card in either row (Q4b).
+ */
+const SINGLE_ROWS = ['front', 'back'] as const;
 type BoardRow = (typeof BOARD_ROWS)[number] | (typeof SINGLE_ROWS)[number];
 
 /** Which rows a layout draws, and in what order `--cols` sums them. */
@@ -531,8 +535,21 @@ const ROW_LABEL: Readonly<Record<BoardRow, string>> = {
   artifacts: 'Artifacts',
   creatures: 'Creatures',
   other: 'Other',
-  all: '',
+  front: '',
+  back: '',
 };
+
+/** A fresh, empty set of piles per row — one place that names every `BoardRow`. */
+function emptyRows<T>(): Record<BoardRow, T[]> {
+  return {
+    lands: [],
+    artifacts: [],
+    creatures: [],
+    other: [],
+    front: [],
+    back: [],
+  };
+}
 
 /**
  * A permanent's TYPE, off its own type line. This is a fact about the card —
@@ -561,7 +578,8 @@ function permanentType(card: BoardCard): (typeof BOARD_ROWS)[number] {
  * is new here — the alternate is `permanentType`, unchanged.
  */
 function visualRow(card: BoardCard, layout: BoardLayout): BoardRow {
-  return layout === 'single' ? 'all' : permanentType(card);
+  if (layout === 'single') return permanentType(card) === 'lands' ? 'back' : 'front';
+  return permanentType(card);
 }
 
 /**
@@ -609,7 +627,9 @@ const cardsIn = (piles: readonly Pile[]): number => piles.reduce((n, p) => n + p
  * lane is a size container whose contents contribute nothing to its box.
  */
 const cols = (rows: Grouped, layout: BoardLayout): number =>
-  rowsForLayout(layout).reduce((n, row) => n + rows[row].length, 0);
+  layout === 'single'
+    ? Math.max(rows.front.length, rows.back.length)
+    : rowsForLayout(layout).reduce((n, row) => n + rows[row].length, 0);
 
 /**
  * Every match's arrangement, in the browser and nowhere else — not on the
@@ -641,7 +661,7 @@ export function forgetArrangements(): void {
  */
 function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangement, layout: BoardLayout): Grouped {
   const byId = new Map(cards.map((c) => [c.id, c]));
-  const rows: Record<BoardRow, BoardCard[][]> = { lands: [], artifacts: [], creatures: [], other: [], all: [] };
+  const rows: Record<BoardRow, BoardCard[][]> = emptyRows();
   const placed = new Set<number>();
   for (const row of rowsForLayout(layout)) {
     for (const pile of arranged[slotKey(playerId, row)] ?? []) {
@@ -706,7 +726,7 @@ function withAttachments(
     }
   };
 
-  const out: Record<BoardRow, BoardCard[][]> = { lands: [], artifacts: [], creatures: [], other: [], all: [] };
+  const out: Record<BoardRow, BoardCard[][]> = emptyRows();
   /** Which pile array a host ended up in, so its attachments can be spliced into it. */
   const home = new Map<number, BoardCard[]>();
   for (const row of rowsForLayout(layout)) {
@@ -747,26 +767,162 @@ function withAttachments(
  * In a HAND a card is one target, `before` — nothing stacks in a hand, so the
  * thirds are not read there at all.
  */
-type DropTarget =
-  | { kind: 'end' }
-  | { kind: 'before'; id: number }
-  | { kind: 'stack'; id: number; onTop: boolean };
+type DropTarget = { kind: 'end' } | { kind: 'before'; id: number } | { kind: 'stack'; id: number; onTop: boolean };
+
+/** A box in viewport pixels — what `getBoundingClientRect` gives, minus the methods. */
+export interface Box {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
 
 /**
- * A drop on a card, read off the pointer's height in that card's box.
- *
- * With no geometry to read it is a reorder, which is what a drop on a card has
- * always meant. Both halves of "no geometry" happen for real: an element with no
- * layout has a zero-height rect, and `clientY` is absent whenever the drop was
- * not a real `DragEvent` — jsdom has no `DragEvent` at all, so a suite that
- * wants the stacking thirds has to give the element a box AND put `clientY` on
- * the event it dispatches, exactly as a browser does.
+ * A slot the dragged card may land in, as the geometry the snap reads: the slot's
+ * own box, and the box of the BASE card of each pile in it, in drawing order. An
+ * empty slot has no piles and is still a slot — that is the point of it.
  */
-function dropOnCard(rect: { top: number; height: number }, clientY: number | undefined, id: number): DropTarget {
-  const at = clientY === undefined || !(rect.height > 0) ? NaN : (clientY - rect.top) / rect.height;
-  if (at < 1 / 3) return { kind: 'stack', id, onTop: true };
-  if (at > 2 / 3) return { kind: 'stack', id, onTop: false };
-  return { kind: 'before', id };
+export interface SlotGeometry {
+  readonly slot: ArrangeSlot;
+  readonly box: Box;
+  readonly piles: readonly { readonly id: number; readonly box: Box }[];
+}
+
+/** What the pointer is snapped to: where the card will land, and the bar that says so. */
+export interface Snap {
+  readonly slot: ArrangeSlot;
+  readonly target: DropTarget;
+  /**
+   * The indicator: `before` a card, `end` of a slot, or a `stack` on the top or
+   * bottom of one. Attached to a card (`card`, the pile base it is drawn on) or,
+   * for an empty slot, to the slot alone.
+   */
+  readonly kind: 'before' | 'end' | 'stack-top' | 'stack-bottom';
+  readonly card: number | null;
+  readonly bar: {
+    readonly left: number;
+    readonly top: number;
+    readonly width: number;
+    readonly height: number;
+  };
+}
+
+/** How far a point is from a box: nought inside it, the straight line to the nearest edge outside. */
+function distanceTo(box: Box, x: number, y: number): number {
+  const dx = Math.max(box.left - x, 0, x - box.right);
+  const dy = Math.max(box.top - y, 0, y - box.bottom);
+  return Math.hypot(dx, dy);
+}
+
+const BAR = 3;
+/** How far from every slot a pointer may be and still snap. Past it the drop is nowhere, and does nothing. */
+const SNAP_RADIUS = 80;
+
+/**
+ * The slot, and the place in it, that a pointer at `(x, y)` snaps to (wave 32 Q4b:
+ * *"i should have complete freedom about what card slot i can drag cards to"*).
+ *
+ * **Nearest, not containing.** The slot is the one whose box the pointer is in or,
+ * failing that, nearest to — so a card let go in the gap between two rows, or
+ * beside a lane, still lands somewhere sensible instead of nowhere — but only
+ * within `SNAP_RADIUS` of one: a card let go over the opponent's side is nowhere. Empty slots
+ * count: with no piles in it a slot snaps to `end`, which is how a card is put in
+ * an empty row.
+ *
+ * Within the slot it is the nearest pile. Over a pile's own box a battlefield card
+ * reads the thirds it always did — the top third stacks on it, the bottom third
+ * stacks under it — and the middle band splits at the centre into "in front of
+ * this pile" and "after it". A hand does not stack (its slot is `hand`): it is only
+ * ever before or after. "After" the last pile is the slot's `end`; after any other
+ * it is in front of the next one.
+ *
+ * Pure, and in pixels: `Board.test.ts` drives it with boxes, since jsdom lays
+ * nothing out.
+ */
+export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Snap | null {
+  let best: SlotGeometry | null = null;
+  let bestDistance = Infinity;
+  for (const slot of slots) {
+    const d = distanceTo(slot.box, x, y);
+    if (d < bestDistance) {
+      best = slot;
+      bestDistance = d;
+    }
+  }
+  if (best === null || bestDistance > SNAP_RADIUS) return null;
+  const { slot, box, piles } = best;
+  const stacking = slot !== 'hand';
+  if (piles.length === 0) {
+    const height = Math.min(box.bottom - box.top, 96);
+    return {
+      slot,
+      target: { kind: 'end' },
+      kind: 'end',
+      card: null,
+      bar: {
+        left: box.left + 4,
+        top: (box.top + box.bottom - height) / 2,
+        width: BAR,
+        height,
+      },
+    };
+  }
+  let at = 0;
+  let nearest = Infinity;
+  piles.forEach((pile, i) => {
+    const d = distanceTo(pile.box, x, y);
+    if (d < nearest) {
+      at = i;
+      nearest = d;
+    }
+  });
+  const pile = piles[at]!;
+  const { left, top, right, bottom } = pile.box;
+  const height = bottom - top;
+  const inside = nearest === 0;
+  if (stacking && inside && height > 0) {
+    const third = (y - top) / height;
+    if (third < 1 / 3) {
+      return {
+        slot,
+        target: { kind: 'stack', id: pile.id, onTop: true },
+        kind: 'stack-top',
+        card: pile.id,
+        bar: { left, top: top - BAR / 2, width: right - left, height: BAR + 1 },
+      };
+    }
+    if (third > 2 / 3) {
+      return {
+        slot,
+        target: { kind: 'stack', id: pile.id, onTop: false },
+        kind: 'stack-bottom',
+        card: pile.id,
+        bar: {
+          left,
+          top: bottom - BAR / 2 - 1,
+          width: right - left,
+          height: BAR + 1,
+        },
+      };
+    }
+  }
+  if (x < (left + right) / 2) {
+    return {
+      slot,
+      target: { kind: 'before', id: pile.id },
+      kind: 'before',
+      card: pile.id,
+      bar: { left: left - BAR - 1, top, width: BAR, height },
+    };
+  }
+  const next = piles[at + 1];
+  return {
+    slot,
+    target: next === undefined ? { kind: 'end' } : { kind: 'before', id: next.id },
+    kind: next === undefined ? 'end' : 'before',
+    card: next === undefined ? pile.id : next.id,
+    bar: { left: right + 1, top, width: BAR, height },
+  };
 }
 
 /**
@@ -791,7 +947,7 @@ function withMove(
   layout: BoardLayout,
 ): Arrangement {
   const active = rowsForLayout(layout);
-  const piles: Record<BoardRow, number[][]> = { lands: [], artifacts: [], creatures: [], other: [], all: [] };
+  const piles: Record<BoardRow, number[][]> = emptyRows();
   for (const r of active) {
     piles[r] = rows[r].map((p) => p.map((c) => c.id).filter((id) => id !== cardId)).filter((p) => p.length > 0);
   }
@@ -863,24 +1019,20 @@ function withHandMove(
 }
 
 /**
- * The drag, as the markup sees it. Present only on the viewer's own battlefield
- * and their own hand; every other zone gets `undefined` and renders no drag
- * affordance at all.
+ * The drag, as the markup sees it: a marker, present only on the viewer's own
+ * battlefield and their own hand. Every other zone gets `undefined` and renders
+ * no drag affordance and no slot box.
+ *
+ * It carries nothing because nothing in the markup runs the drag any more: the
+ * pointer events are `Board`'s own, on `window` (`useArrangeDrag`), and the markup
+ * only says WHICH cards are pick-up-able (`data-arrange-card`) and which boxes are
+ * slots (`data-arrange-slot`).
  */
 interface Arranging {
-  start(event: DragEvent, cardId: number): void;
-  over(event: DragEvent): void;
-  /**
-   * Dropped on a card. On a battlefield, which third of its box decides
-   * stack-above, stack-below or reorder; in a hand it is a reorder and the
-   * thirds are not read.
-   */
-  dropOn(event: DragEvent<HTMLElement>, slot: ArrangeSlot, cardId: number): void;
-  /** Dropped on the slot's own box — a row's, or the hand's list: its end, on its own. */
-  dropInto(event: DragEvent, slot: ArrangeSlot): void;
-  /** A drag that ended anywhere — including outside the board — carries nothing now. */
-  end(): void;
+  readonly enabled: true;
 }
+
+const ARRANGING: Arranging = { enabled: true };
 
 /**
  * A stack item's rules text, with its `{…}` symbols drawn as pips.
@@ -915,7 +1067,10 @@ function RulesText({ text }: { text: string }) {
  * badge says the whole thing in words in its accessible name. The glyphs are
  * geometry, not typography that might not render: `▲` and `▼`.
  */
-const PT_MARK: Readonly<Record<'buffed' | 'hurt', string>> = { buffed: '▲', hurt: '▼' };
+const PT_MARK: Readonly<Record<'buffed' | 'hurt', string>> = {
+  buffed: '▲',
+  hurt: '▼',
+};
 
 /**
  * A creature's power and toughness, as the operator asked for them (#12, #18):
@@ -1210,18 +1365,15 @@ function CardOnBoard({
    * gaps, which is every moment the game is not asking this seat something.
    */
   const handStandsDown =
-    slot === 'hand' &&
-    (selectable || interaction?.selectionOpen === true || interaction?.declaringAttackers === true);
+    slot === 'hand' && (selectable || interaction?.selectionOpen === true || interaction?.declaringAttackers === true);
   /**
    * Whether this card may be PICKED UP. Whether a card may be DROPPED ON is a
-   * different question — `arrangeable` below — because a card the player cannot
-   * pick up is still a place they can put one: without that, a drop on a pinned
-   * card bubbles to the zone's own box and the card lands at the END of the slot
-   * instead of in front of what it was dropped on.
+   * different question and needs no markup: the snap reads every pile's box in the
+   * slot, pinned cards included, so a card the player cannot pick up is still a
+   * place they can put one.
    */
   const draggable =
     arranging !== undefined && slot !== undefined && !inOpenSelection && !itsAttackToDeclare && !handStandsDown;
-  const arrangeable = arranging !== undefined && slot !== undefined;
   const above = pile === undefined ? [] : pile.slice(1);
 
   return (
@@ -1249,11 +1401,19 @@ function CardOnBoard({
       data-attached={(entry.attachedToId ?? null) !== null || undefined}
       data-pile-size={above.length > 0 ? pile!.length : undefined}
       data-pile-depth={depth > 0 ? depth : undefined}
+      /*
+       * `draggable="true"` is kept as the SEAM, not as the mechanism: the gestures
+       * layer stands down on a natively-draggable element
+       * (`live/gestures/install.ts: nativelyDraggable`), and that is exactly the
+       * set of presses this card owns. The BROWSER's own drag never runs — the
+       * press is cancelled by `useArrangeDrag` and `dragstart` is cancelled here as
+       * a backstop — because the drag is ours (wave 32 Q4b), with our own ghost.
+       * `data-arrange-card` names the slot the card is in and is what the pointer
+       * handler looks for.
+       */
       draggable={draggable || undefined}
-      onDragStart={draggable ? (e) => arranging.start(e, entry.id) : undefined}
-      onDragEnd={draggable ? () => arranging.end() : undefined}
-      onDragOver={arrangeable ? (e) => arranging.over(e) : undefined}
-      onDrop={arrangeable ? (e) => arranging.dropOn(e, slot, entry.id) : undefined}
+      data-arrange-card={draggable ? slot : undefined}
+      onDragStart={draggable ? (e) => e.preventDefault() : undefined}
     >
       {selectable ? (
         <button
@@ -1328,8 +1488,7 @@ function Zone({
          * and not by a row count, so writing it there would be dead markup.
          */
         style={zone === 'hand' ? ({ '--cols': cards.length } as CSSProperties) : undefined}
-        onDragOver={arranging === undefined ? undefined : (e) => arranging.over(e)}
-        onDrop={arranging === undefined ? undefined : (e) => arranging.dropInto(e, 'hand')}
+        data-arrange-slot={arranging === undefined ? undefined : 'hand'}
       >
         {cards.map((c) => (
           <CardOnBoard
@@ -1425,7 +1584,14 @@ function Battlefield({
   const rows = group(player.battlefield, player.id, arranged, layout);
 
   if (layout === 'single') {
-    const piles = rows.all;
+    /*
+     * Two tiers, back (lands) and front (everything else), each its own list and
+     * each a slot a card may be put in even while it is empty. The viewer's front
+     * tier is the upper one — towards the centre line — and the opponent's is the
+     * mirror: their back row is on top and their front row nearest the middle.
+     * `--cols` is the busier tier's, so a land under a creature is the same width.
+     */
+    const tiers: readonly ('front' | 'back')[] = ownerSide === 'them' ? ['back', 'front'] : ['front', 'back'];
     return (
       <ZoneShell
         owner={player.name}
@@ -1435,30 +1601,33 @@ function Battlefield({
         count={player.battlefield.length}
       >
         {/*
-         * One flat list, no row wrapper and no `data-board-row` anywhere —
-         * that absence is what `Board.test.ts` reads as "the default has no
-         * type sections". `--cols` drives the same row-count and card-width
-         * arithmetic `board.css` already gives the hand (`.zone--hand >
-         * .zone__cards`): this list IS the zone's own size container, the way
-         * the hand's list is, because there is no lane to nest it in.
+         * No row wrapper and no `data-board-row` anywhere — that absence is what
+         * `Board.test.ts` reads as "the default has no type sections". A tier is
+         * not a type section: it is `data-arrange-slot`, and where a card goes by
+         * default rather than a bucket it is confined to.
          */}
-        <ul
-          className="zone__cards"
-          style={{ '--cols': cols(rows, layout) } as CSSProperties}
-          onDragOver={arranging === undefined ? undefined : (e) => arranging.over(e)}
-          onDrop={arranging === undefined ? undefined : (e) => arranging.dropInto(e, 'all')}
-        >
-          {piles.map((pile) => (
-            <CardOnBoard
-              key={pile[0]!.id}
-              entry={pile[0]!}
-              interaction={interaction}
-              arranging={arranging}
-              slot="all"
-              pile={pile}
-            />
+        <div className="zone__tiers" data-tiers={ownerSide === 'them' ? 'mirrored' : undefined}>
+          {tiers.map((tier) => (
+            <ul
+              key={tier}
+              className="zone__cards"
+              data-tier={tier}
+              style={{ '--cols': cols(rows, layout) } as CSSProperties}
+              data-arrange-slot={arranging === undefined ? undefined : tier}
+            >
+              {rows[tier].map((pile) => (
+                <CardOnBoard
+                  key={pile[0]!.id}
+                  entry={pile[0]!}
+                  interaction={interaction}
+                  arranging={arranging}
+                  slot={tier}
+                  pile={pile}
+                />
+              ))}
+            </ul>
           ))}
-        </ul>
+        </div>
       </ZoneShell>
     );
   }
@@ -1495,8 +1664,7 @@ function Battlefield({
              * not this number.
              */
             style={{ '--cols': rows[row].length } as CSSProperties}
-            onDragOver={arranging === undefined ? undefined : (e) => arranging.over(e)}
-            onDrop={arranging === undefined ? undefined : (e) => arranging.dropInto(e, row)}
+            data-arrange-slot={arranging === undefined ? undefined : row}
           >
             <h5 className="zone__row-head">
               {ROW_LABEL[row]} <span className="zone__count">{cardsIn(rows[row])}</span>
@@ -1548,7 +1716,7 @@ function HiddenHand({ player }: { player: BoardPlayer }) {
       data-owner="them"
       data-count={player.handCount}
     >
-      <ul className="card-backs" aria-hidden="true">
+      <ul className="card-backs" aria-hidden="true" style={{ '--cols': player.handCount } as CSSProperties}>
         {Array.from({ length: player.handCount }, (_, i) => (
           <li key={i} className="card-back" data-card-back="" />
         ))}
@@ -1743,59 +1911,85 @@ function PlayerArea({
        * viewer the portrait is above and the graveyard below it, which is the
        * operator's own geometry (`board-layout-2026-09-27.md`).
        */}
-      <div className="seat__who" data-player-bar="">
-        <div className="seat__ident">
-          <PlayerFace player={player} interaction={interaction} />
-          <h3 className="seat__name">
-            {selectable ? (
-              <button
-                type="button"
-                className="seat__select"
-                aria-label={`Select ${player.name}`}
-                onClick={() => interaction.onSelectPlayer(player.id)}
-              >
-                {name}
-              </button>
-            ) : (
-              name
-            )}
-          </h3>
+      <div className="seat__side">
+        <div className="seat__who" data-player-bar="">
+          <div className="seat__ident">
+            <PlayerFace player={player} interaction={interaction} />
+            <h3 className="seat__name">
+              {selectable ? (
+                <button
+                  type="button"
+                  className="seat__select"
+                  aria-label={`Select ${player.name}`}
+                  onClick={() => interaction.onSelectPlayer(player.id)}
+                >
+                  {name}
+                </button>
+              ) : (
+                name
+              )}
+            </h3>
+          </div>
+          <ManaPool player={player} />
+          {/*
+           * The counts, as MARKS rather than words (item 10): *"can we get symbols
+           * to display hand/deck size instead of words?"* Two drawn symbols —
+           * a fanned hand and a stacked library — each with its number beside it,
+           * in a column 72px wide where `hand 7` and `library 46` were most of the
+           * ink. They are ours, drawn here as geometry like the player mark and the
+           * state marks: no font to miss the glyph, no WotC symbol anywhere near it.
+           *
+           * The test ids do not move — `hand-count` and `library-count` are read by
+           * `Board.test.ts` and are the only handle anything has on these two
+           * numbers — and each carries the words in its accessible name, so the
+           * symbol is for the eye and the label is for everything else.
+           */}
+          <div className="seat__counts">
+            <span className="seat__count" data-testid="hand-count" aria-label={`hand ${player.handCount}`}>
+              <svg className="seat__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M3.4 5.6 6 13.4l3.1-1-2.6-7.8Z" />
+                <path d="M7.2 4.4h3.1v9H7.2Z" />
+                <path d="m11.1 4.6 2.9.9-2.2 7.6-2.4-.8Z" />
+              </svg>
+              <span aria-hidden="true">{player.handCount}</span>
+            </span>
+            <span className="seat__count" data-testid="library-count" aria-label={`library ${player.libraryCount}`}>
+              <svg className="seat__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M2.8 11.4h10.4v1.9H2.8Z" />
+                <path d="M2.8 8.1h10.4V10H2.8Z" />
+                <path d="M2.8 4.8h10.4v1.9H2.8Z" />
+                <path d="M2.8 2.4h10.4v1.5H2.8Z" />
+              </svg>
+              <span aria-hidden="true">{player.libraryCount}</span>
+            </span>
+            {player.hasPriority && <span className="seat__flag">priority</span>}
+            {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
+          </div>
         </div>
-        <ManaPool player={player} />
         {/*
-         * The counts, as MARKS rather than words (item 10): *"can we get symbols
-         * to display hand/deck size instead of words?"* Two drawn symbols —
-         * a fanned hand and a stacked library — each with its number beside it,
-         * in a column 72px wide where `hand 7` and `library 46` were most of the
-         * ink. They are ours, drawn here as geometry like the player mark and the
-         * state marks: no font to miss the glyph, no WotC symbol anywhere near it.
-         *
-         * The test ids do not move — `hand-count` and `library-count` are read by
-         * `Board.test.ts` and are the only handle anything has on these two
-         * numbers — and each carries the words in its accessible name, so the
-         * symbol is for the eye and the label is for everything else.
+         * The piles, in the REST of the seat's one left column — under the avatar and
+         * the counts, with everything they leave (wave 32 Q9). The opponent's column
+         * is the vertical mirror (`board.css`, `column-reverse`): exile strip,
+         * graveyard, counts, avatar nearest the centre. Graveyard first: it is the
+         * one that fills up, and the one that gets the space.
          */}
-        <div className="seat__counts">
-          <span className="seat__count" data-testid="hand-count" aria-label={`hand ${player.handCount}`}>
-            <svg className="seat__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-              <path d="M3.4 5.6 6 13.4l3.1-1-2.6-7.8Z" />
-              <path d="M7.2 4.4h3.1v9H7.2Z" />
-              <path d="m11.1 4.6 2.9.9-2.2 7.6-2.4-.8Z" />
-            </svg>
-            <span aria-hidden="true">{player.handCount}</span>
-          </span>
-          <span className="seat__count" data-testid="library-count" aria-label={`library ${player.libraryCount}`}>
-            <svg className="seat__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-              <path d="M2.8 11.4h10.4v1.9H2.8Z" />
-              <path d="M2.8 8.1h10.4V10H2.8Z" />
-              <path d="M2.8 4.8h10.4v1.9H2.8Z" />
-              <path d="M2.8 2.4h10.4v1.5H2.8Z" />
-            </svg>
-            <span aria-hidden="true">{player.libraryCount}</span>
-          </span>
-          {player.isActive && <span className="seat__flag">their turn</span>}
-          {player.hasPriority && <span className="seat__flag">priority</span>}
-          {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
+        <div className="seat__piles">
+          <Zone
+            owner={player.name}
+            ownerSide={side}
+            zone="graveyard"
+            label="Graveyard"
+            cards={player.graveyard}
+            interaction={interaction}
+          />
+          <Zone
+            owner={player.name}
+            ownerSide={side}
+            zone="exile"
+            label="Exile"
+            cards={player.exile}
+            interaction={interaction}
+          />
         </div>
       </div>
 
@@ -1807,23 +2001,6 @@ function PlayerArea({
         arranged={arranged}
         layout={layout}
       />
-      {/*
-       * The piles, in the LOWER cell of the seat's left column — beside the hand,
-       * which for the viewer puts the graveyard under their own portrait and for
-       * the opponent puts it over theirs (`board-layout-2026-09-27.md`'s
-       * `.seat__piles` rows). Graveyard first: it is the one that fills up.
-       */}
-      <div className="seat__piles">
-        <Zone
-          owner={player.name}
-          ownerSide={side}
-          zone="graveyard"
-          label="Graveyard"
-          cards={player.graveyard}
-          interaction={interaction}
-        />
-        <Zone owner={player.name} ownerSide={side} zone="exile" label="Exile" cards={player.exile} interaction={interaction} />
-      </div>
       {player.hand !== null ? (
         <Zone
           owner={player.name}
@@ -1905,6 +2082,272 @@ function StackItem({ item, interaction }: { item: StackEntry; interaction: Board
  * operator's list and it is the whole point of this component's shape.
  */
 /**
+ * The drag that is ours (wave 32 Q4b). The operator: *"it still has the basic
+ * 'html picture drag' ghost. we should have our own proper ghost and target
+ * indicator when something wants to snap to a nearby card slot,"* and *"i should
+ * have complete freedom about what card slot i can drag cards to."*
+ *
+ * Pointer events on `window`, no HTML5 drag: so there is no browser ghost to
+ * suppress, and touch works because a finger is a pointer. The sequence:
+ *
+ *   1. `pointerdown` on a card carrying `data-arrange-card`, **after** the gestures
+ *      layer has had it. That layer claims a press by cancelling it
+ *      (`install.ts: claim`) — in combat declaration and a mana payment, where a
+ *      permanent's press is Forge's answer — and a press already claimed is not
+ *      ours. Otherwise we cancel it ourselves, which is what keeps the browser's
+ *      own drag from starting from the same press. A press that never moves stays
+ *      a plain click.
+ *   2. `pointermove` past `SLOP` pixels: the drag begins. The card's `<li>` is
+ *      dimmed in place (`data-arrange-dragging`), a clone of it — the GHOST,
+ *      `data-arrange-ghost`, stripped of every id so card ids stay unique — is
+ *      drawn lifted under the pointer, and from then on every move re-snaps.
+ *   3. Each move finds the nearest slot of the card's own zone and the nearest
+ *      place in it (`snapTo`, which counts empty slots), and draws the INDICATOR
+ *      bar there (`data-arrange-indicator`, `data-arrange-kind`) and lights the
+ *      slot and card it is on (`data-arrange-target`).
+ *   4. `pointerup` commits to the snap; `pointercancel` and Escape do not. The
+ *      `click` that follows a real drag is swallowed once.
+ *
+ * Nothing is sent to Forge. Everything it draws is removed again on every exit.
+ */
+const SLOP = 4;
+
+function useArrangeDrag(
+  root: { readonly current: HTMLElement | null },
+  enabled: boolean,
+  commit: (cardId: number, slot: ArrangeSlot, target: DropTarget) => void,
+): void {
+  /** Always the latest `commit`: the listeners are installed once and must not go stale. */
+  const latest = useRef(commit);
+  latest.current = commit;
+
+  useEffect(() => {
+    const board = root.current;
+    if (board === null || !enabled) return undefined;
+
+    interface Press {
+      readonly pointerId: number;
+      readonly li: HTMLElement;
+      readonly cardId: number;
+      readonly slot: ArrangeSlot;
+      readonly x: number;
+      readonly y: number;
+      ghost: HTMLElement | null;
+      indicator: HTMLElement | null;
+      snap: Snap | null;
+      marked: Element[];
+      grab: { x: number; y: number };
+    }
+    let press: Press | null = null;
+    /** The one-shot that eats the click after a real drag; removed unused rather than left to eat the next one. */
+    let eatClick: (() => void) | null = null;
+
+    const boardBox = (): DOMRect => board.getBoundingClientRect();
+
+    /** Every slot of the viewer's seat — all zones, so the snap can tell which one the pointer is really over. */
+    const geometry = (): SlotGeometry[] => {
+      const out: SlotGeometry[] = [];
+      for (const el of board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-arrange-slot]')) {
+        const named = el.getAttribute('data-arrange-slot') as ArrangeSlot;
+        const list = el.matches('.zone__cards') ? el : el.querySelector<HTMLElement>(':scope > .zone__cards');
+        const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card') ?? [])].map((li) => ({
+          id: Number(li.dataset.cardId),
+          box: li.getBoundingClientRect(),
+        }));
+        out.push({ slot: named, box: el.getBoundingClientRect(), piles });
+      }
+      return out;
+    };
+
+    const clearMarks = (p: Press): void => {
+      for (const el of p.marked) el.removeAttribute('data-arrange-target');
+      p.marked = [];
+    };
+
+    const draw = (p: Press, x: number, y: number): void => {
+      const box = boardBox();
+      if (p.ghost !== null) {
+        p.ghost.style.left = `${x - box.left - p.grab.x}px`;
+        p.ghost.style.top = `${y - box.top - p.grab.y}px`;
+      }
+      const found = snapTo(geometry(), x, y);
+      /*
+       * A card only ever lands in the zone it came from: over the battlefield a
+       * hand card is nowhere, and so is a permanent over the hand. (Playing a card
+       * out of a hand is Forge's — a card it offered is not arrangeable at all.)
+       */
+      const snap = found !== null && (found.slot === 'hand') === (p.slot === 'hand') ? found : null;
+      p.snap = snap;
+      clearMarks(p);
+      if (snap === null) {
+        p.indicator?.setAttribute('hidden', '');
+        return;
+      }
+      const slotEl = [...board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-arrange-slot]')].find(
+        (el) => el.getAttribute('data-arrange-slot') === snap.slot,
+      );
+      if (slotEl !== undefined) {
+        slotEl.setAttribute('data-arrange-target', snap.kind);
+        p.marked.push(slotEl);
+      }
+      if (snap.card !== null) {
+        const cardEl = board.querySelector(`.seat[data-viewer] li.board-card[data-card-id="${snap.card}"]`);
+        if (cardEl !== null) {
+          cardEl.setAttribute('data-arrange-target', snap.kind);
+          p.marked.push(cardEl);
+        }
+      }
+      const bar = p.indicator;
+      if (bar === null) return;
+      bar.removeAttribute('hidden');
+      bar.setAttribute('data-arrange-kind', snap.kind);
+      bar.setAttribute('data-arrange-slot', snap.slot);
+      bar.style.width = `${snap.bar.width}px`;
+      bar.style.height = `${snap.bar.height}px`;
+      bar.style.left = `${snap.bar.left - box.left}px`;
+      bar.style.top = `${snap.bar.top - box.top}px`;
+    };
+
+    /** The press has moved far enough to be a drag: draw the ghost and the indicator. */
+    const begin = (p: Press, x: number, y: number): void => {
+      const at = p.li.getBoundingClientRect();
+      const ghost = p.li.cloneNode(true) as HTMLElement;
+      ghost.querySelector(':scope > .board-card__pile')?.remove();
+      for (const el of [ghost, ...ghost.querySelectorAll<HTMLElement>('*')]) {
+        for (const attr of [
+          'data-card-id',
+          'data-board-card',
+          'data-arrange-card',
+          'data-arrange-dragging',
+          'data-arrange-target',
+          'draggable',
+          'data-selectable',
+          'data-can-act',
+        ]) {
+          el.removeAttribute(attr);
+        }
+      }
+      ghost.setAttribute('data-arrange-ghost', String(p.cardId));
+      ghost.setAttribute('aria-hidden', 'true');
+      ghost.setAttribute('inert', '');
+      ghost.style.width = `${at.width}px`;
+      ghost.style.setProperty('--card-w', `${at.width}px`);
+      p.grab = { x: x - at.left, y: y - at.top };
+      const indicator = document.createElement('div');
+      indicator.setAttribute('data-arrange-indicator', '');
+      indicator.setAttribute('aria-hidden', 'true');
+      indicator.setAttribute('hidden', '');
+      board.append(ghost, indicator);
+      p.ghost = ghost;
+      p.indicator = indicator;
+      p.li.setAttribute('data-arrange-dragging', '');
+      board.setAttribute('data-arrange-active', '');
+      draw(p, x, y);
+    };
+
+    const end = (): void => {
+      const p = press;
+      press = null;
+      window.removeEventListener('keydown', onKey, true);
+      if (p === null) return;
+      clearMarks(p);
+      p.ghost?.remove();
+      p.indicator?.remove();
+      p.li.removeAttribute('data-arrange-dragging');
+      board.removeAttribute('data-arrange-active');
+    };
+
+    const forgetClick = (): void => {
+      eatClick?.();
+      eatClick = null;
+    };
+
+    const onDown = (event: PointerEvent): void => {
+      forgetClick();
+      if (press !== null || event.button !== 0 || !event.isPrimary) return;
+      // Claimed by the gestures layer: combat declaration, a payment. Not ours.
+      if (event.defaultPrevented) return;
+      const target = event.target;
+      if (!(target instanceof Element) || !board.contains(target)) return;
+      const li = target.closest<HTMLElement>('li.board-card');
+      const slot = li?.getAttribute('data-arrange-card');
+      if (li === null || li === undefined || slot === null || slot === undefined) return;
+      // Ours now: the browser's own drag must not start from this press.
+      if (event.cancelable) event.preventDefault();
+      press = {
+        pointerId: event.pointerId,
+        li,
+        cardId: Number(li.dataset.cardId),
+        slot: slot as ArrangeSlot,
+        x: event.clientX,
+        y: event.clientY,
+        ghost: null,
+        indicator: null,
+        snap: null,
+        marked: [],
+        grab: { x: 0, y: 0 },
+      };
+      window.addEventListener('keydown', onKey, true);
+    };
+
+    const onMove = (event: PointerEvent): void => {
+      const p = press;
+      if (p === null || event.pointerId !== p.pointerId) return;
+      if (p.ghost === null) {
+        if (Math.hypot(event.clientX - p.x, event.clientY - p.y) < SLOP) return;
+        begin(p, event.clientX, event.clientY);
+        return;
+      }
+      draw(p, event.clientX, event.clientY);
+    };
+
+    const onUp = (event: PointerEvent): void => {
+      const p = press;
+      if (p === null || event.pointerId !== p.pointerId) return;
+      const dragged = p.ghost !== null;
+      if (dragged) draw(p, event.clientX, event.clientY);
+      const snap = p.snap;
+      end();
+      if (!dragged) return;
+      // The release of a real drag is not a click on what it ended over.
+      const swallow = (click: Event): void => {
+        click.stopPropagation();
+        click.preventDefault();
+        forgetClick();
+      };
+      window.addEventListener('click', swallow, true);
+      const timer = setTimeout(forgetClick, 0);
+      eatClick = () => {
+        clearTimeout(timer);
+        window.removeEventListener('click', swallow, true);
+      };
+      if (snap !== null) latest.current(p.cardId, snap.slot, snap.target);
+    };
+
+    function onKey(event: KeyboardEvent): void {
+      if (event.key === 'Escape') end();
+    }
+
+    const onCancel = (event: PointerEvent): void => {
+      if (press !== null && event.pointerId === press.pointerId) end();
+    };
+
+    window.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    return () => {
+      window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      forgetClick();
+      end();
+    };
+  }, [root, enabled]);
+}
+
+/**
  * Item 17.2 — the operator: *"when playing a card, it should get put in the
  * 'decision area' and the arrow should draw from there."*
  *
@@ -1931,7 +2374,13 @@ function StagingArea({ card, interaction }: { card: BoardCard; interaction: Boar
   );
 }
 
-function StackView({ stack, interaction }: { stack: readonly StackEntry[]; interaction: BoardInteraction | undefined }) {
+function StackView({
+  stack,
+  interaction,
+}: {
+  stack: readonly StackEntry[];
+  interaction: BoardInteraction | undefined;
+}) {
   return (
     <section className="stack" aria-label="Stack" data-zone="stack" data-owner="table" data-count={stack.length}>
       <h3 className="zone__head">
@@ -1995,27 +2444,20 @@ export function Board({
   const key = matchKey(view);
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const arranged = ARRANGED.get(key) ?? NO_ARRANGEMENT;
-  /** The card a drag is carrying. A ref: it changes nothing that is drawn. */
-  const carried = useRef<number | null>(null);
-
   /**
-   * One drop, applied. Everything a drop does is here: it stops the browser's
-   * default, keeps the slot's own box from also seeing a drop that landed on a
-   * card, and writes the store. It sends NOTHING — there is no sender in this
-   * scope, no ask, no reply; a rearrange is invisible to Forge by construction.
+   * One drop, applied. Everything a drop does is here: it writes the store and asks
+   * for a frame. It sends NOTHING — there is no sender in this scope, no ask, no
+   * reply; a rearrange is invisible to Forge by construction.
    *
-   * A card only ever lands in the zone it was picked up from: the drop checks
+   * A card only ever lands in the zone it was picked up from: the commit checks
    * that the carried card is in that zone of the viewer's own view, so a hand
-   * card dropped on a battlefield row and a permanent dropped in the hand both
-   * do nothing at all. Moving a card between zones is Forge's, never ours.
+   * card snapped to a battlefield row and a permanent snapped into the hand both
+   * do nothing at all (the snap itself only offers the card's own zone, so this
+   * is the second lock, not the first). Moving a card between zones is Forge's,
+   * never ours.
    */
-  const place = (event: DragEvent, slot: ArrangeSlot, target: DropTarget): void => {
-    const cardId = carried.current;
-    carried.current = null;
-    if (viewer === undefined || cardId === null) return;
-    event.preventDefault();
-    // A card dropped on a card is not also dropped on the box under it.
-    event.stopPropagation();
+  const commit = (cardId: number, slot: ArrangeSlot, target: DropTarget): void => {
+    if (viewer === undefined) return;
     if (target.kind !== 'end' && target.id === cardId) return;
     if (slot === 'hand') {
       const hand = viewer.hand;
@@ -2038,53 +2480,9 @@ export function Board({
     }
     redraw();
   };
+  useArrangeDrag(root, viewer !== undefined, commit);
 
-  const arranging: Arranging | undefined =
-    viewer === undefined
-      ? undefined
-      : {
-          start(event, cardId) {
-            carried.current = cardId;
-            /*
-             * A card INSIDE a pile is inside the `<li>` of the card it is
-             * stacked on, and `dragstart` bubbles — so without this the base
-             * card's own handler runs next and overwrites which card is being
-             * carried. Dragging the equipment off a creature dragged the
-             * creature instead. Every one of this lane's handlers is on a card
-             * or a row and none of them wants its ancestor's copy.
-             */
-            event.stopPropagation();
-            const data = event.dataTransfer as DataTransfer | undefined;
-            if (data !== undefined) {
-              data.effectAllowed = 'move';
-              data.setData('text/plain', String(cardId));
-            }
-          },
-          over(event) {
-            if (carried.current === null) return;
-            // Without this the browser refuses the drop.
-            event.preventDefault();
-            const data = event.dataTransfer as DataTransfer | undefined;
-            if (data !== undefined) data.dropEffect = 'move';
-          },
-          dropOn(event, slot, cardId) {
-            // Nothing stacks in a hand, so the thirds of the box are not read
-            // there: a drop on a card puts the carried card in front of it.
-            if (slot === 'hand') {
-              place(event, slot, { kind: 'before', id: cardId });
-              return;
-            }
-            const box = event.currentTarget as HTMLElement | null;
-            const rect = box?.getBoundingClientRect?.() ?? { top: 0, height: 0 };
-            place(event, slot, dropOnCard(rect, event.clientY, cardId));
-          },
-          dropInto(event, slot) {
-            place(event, slot, { kind: 'end' });
-          },
-          end() {
-            carried.current = null;
-          },
-        };
+  const arranging: Arranging | undefined = viewer === undefined ? undefined : ARRANGING;
 
   return (
     <section className="board" aria-label="Game board" ref={root}>
@@ -2096,7 +2494,8 @@ export function Board({
             interaction={interaction}
             arranging={undefined}
             arranged={arranged}
-            layout={boardLayout}
+            /* Mine only (Q15c): the opponent's board is always the default one. */
+            layout="single"
           />
         ))}
       </div>
@@ -2110,7 +2509,11 @@ export function Board({
        * `e2e/table-fit.spec.ts`, which appends `<li>`s without going through
        * React, still sees the stack appear when it fills it.
        */}
-      <div className="board__mid" data-testid="board-mid" data-question={interaction?.questionOpen === true || undefined}>
+      <div
+        className="board__mid"
+        data-testid="board-mid"
+        data-question={interaction?.questionOpen === true || undefined}
+      >
         <StackView stack={view.stack} interaction={interaction} />
       </div>
 
