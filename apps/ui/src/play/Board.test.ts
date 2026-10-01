@@ -3376,6 +3376,16 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     );
   });
 
+  it('stack: a long effect scrolls INSIDE the item — the band’s row is bounded, so nothing is clipped (real-Forge e2e)', () => {
+    // An `auto` row left `.stack__items`' `height: 100%` with nothing to resolve
+    // against, the item grew past the band, and `overflow: hidden` cut both ends.
+    expect(declarationIn('.stack', 'grid-template-rows'), 'one row, the band’s own height').toBe('minmax(0, 1fr)');
+    expect(declarationIn('.stack__what', 'min-height')).toBe('0');
+    expect(declarationIn('.stack__what', 'max-height'), 'bounded by the item').toBe('100%');
+    expect(declarationIn('.stack__what', 'overflow-y'), 'the last resort is a scroll, not a clip').toBe('auto');
+    expect(declarationIn('.stack__item', 'overflow')).toBe('hidden');
+  });
+
   it('Q2: the strip tells the stylesheet how many backs it holds, as a hand of faces does', () => {
     const { zone } = renderBoard(view);
     const backs = zone(1, 'hand').querySelector<HTMLElement>('ul.card-backs')!;

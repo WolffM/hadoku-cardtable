@@ -1362,6 +1362,14 @@
 .stack {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
+  /*
+   * ONE bounded row (wave 32, the real-Forge e2e's clip): with an `auto` row the
+   * list's `height: 100%` had nothing definite to resolve against, so a long
+   * effect grew the item past the band and `.stack__item`'s `overflow: hidden`
+   * cut both ends. The row is the band's height, so the item is, so
+   * `.stack__what` can scroll inside it instead.
+   */
+  grid-template-rows: minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 3px 8px;
@@ -1457,6 +1465,9 @@
   flex-direction: column;
   gap: 1px;
   min-width: 0;
+  /* Bounded by the item, so a long effect scrolls HERE instead of being clipped. */
+  min-height: 0;
+  max-height: 100%;
   overflow-y: auto;
   overflow-wrap: anywhere;
   scrollbar-width: thin;
