@@ -747,6 +747,25 @@ describe('a member\'s avatar', () => {
 		expect(avatarOf(lobby.list()[0], ALICE.id)?.avatarId).toBe('wanderer');
 	});
 
+	it('tells a subscriber when it CHANGES, and stays quiet for a re-assert (Q6)', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Live', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		const heard: unknown[] = [];
+		const off = lobby.onAvatarChange((c) => heard.push(c));
+		lobby.setAvatar(made.room.id, ALICE.id, 'mage');
+		lobby.setAvatar(made.room.id, ALICE.id, 'mage');
+		lobby.setAvatar(made.room.id, ALICE.id, null);
+		expect(heard).toEqual([
+			{ roomId: made.room.id, memberId: ALICE.id, avatarId: 'mage' },
+			{ roomId: made.room.id, memberId: ALICE.id, avatarId: null },
+		]);
+		off();
+		lobby.setAvatar(made.room.id, ALICE.id, 'rogue');
+		expect(heard).toHaveLength(2);
+	});
+
 	it('is each member\'s own — setting one leaves everybody else alone', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Two of us', gameType: 'constructed-1v1', clientMode: 'builtin' });

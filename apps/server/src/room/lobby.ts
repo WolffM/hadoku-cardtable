@@ -393,6 +393,15 @@ export const ROOM_IDLE_MS = 12 * 60 * 60_000;
  */
 export const ROOM_STALE_MS = 30 * 60_000;
 
+export interface AvatarChange {
+	roomId: string;
+	memberId: string;
+	/** The new, normalised value; null when it was cleared. */
+	avatarId: string | null;
+}
+
+export type AvatarChangeListener = (change: AvatarChange) => void;
+
 export interface Lobby {
 	list(): RoomView[];
 	/**
@@ -431,6 +440,13 @@ export interface Lobby {
 	 * actually changed.
 	 */
 	setAvatar(roomId: string, memberId: string, avatarId: string | null): boolean;
+	/**
+	 * Be told when a member's avatar actually CHANGES (never on an idempotent
+	 * re-assert). This is how a match already running learns of it: the seat was
+	 * told the avatar once, at the start, and the room is the only thing that
+	 * hears the change. Returns the unsubscribe.
+	 */
+	onAvatarChange(listener: AvatarChangeListener): () => void;
 	/**
 	 * Deal the room's draft: the point at which a draft room stops being a lobby.
 	 *
@@ -724,6 +740,7 @@ class FileLobby implements Lobby {
 	#store: FileRoomStore;
 	#now: () => number;
 	#log: LobbyLog;
+	readonly #avatarListeners = new Set<AvatarChangeListener>();
 	#rooms = new Map<string, RoomRecord>();
 	/**
 	 * The newest `createdAt` minted or restored so far.
@@ -960,7 +977,22 @@ class FileLobby implements Lobby {
 		// The id itself, not the member's: which character somebody picked is not
 		// a secret, and a log line that could not name it could not be read.
 		this.#log({ event: 'room-avatar', roomId, avatarId: next ?? null });
+		for (const listener of [...this.#avatarListeners]) {
+			try {
+				listener({ roomId, memberId, avatarId: next ?? null });
+			} catch (err) {
+				// A broken subscriber must not undo a change that is already stored.
+				this.#log({ event: 'room-avatar-listener-failed', roomId, error: (err as Error).message });
+			}
+		}
 		return true;
+	}
+
+	onAvatarChange(listener: AvatarChangeListener): () => void {
+		this.#avatarListeners.add(listener);
+		return () => {
+			this.#avatarListeners.delete(listener);
+		};
 	}
 
 	startDraft(roomId: string, callerId: string): StartDraftResult {

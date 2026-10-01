@@ -51,7 +51,8 @@ import { useHadokuTheme, type Theme } from '@wolffm/themes';
 // evidence beside them. `watchpartyOrigin` used to be a private function here;
 // it moved because `avatarSquareUrl` needs the same string and two derivations
 // of one origin is how the chrome and the faces come to disagree about it.
-import { accountAvatarId, watchpartyOrigin } from './avatar.ts';
+import { accountAvatarId, selectedAvatarId, watchpartyOrigin } from './avatar.ts';
+import { watchAvatar } from './avatarWatch.ts';
 import { roomsClient, type RoomIdentityClient } from '../rooms/api.ts';
 
 /**
@@ -196,26 +197,36 @@ function useAvatarAssert(roomId: string | null, userId: string | null, client: R
   useEffect(() => {
     if (roomId === null || userId === null) return;
     let live = true;
+    let generation = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const attempt = (avatarId: string, n: number): void => {
+    const attempt = (avatarId: string, n: number, mine: number = generation): void => {
       // A refusal is the server saying this viewer is not in that room YET: a
       // joiner's first screen asserts before the room screen has joined them,
       // and an avatar that never lands is a seat with no face when the match
       // starts. Try again a few times, then give up; it is a cosmetic.
       const retry = (): void => {
         const delay = AVATAR_RETRY_MS[n];
-        if (live && delay !== undefined) timer = setTimeout(() => attempt(avatarId, n + 1), delay);
+        if (live && mine === generation && delay !== undefined) timer = setTimeout(() => attempt(avatarId, n + 1, mine), delay);
       };
       // `setAvatar` resolves an outcome rather than rejecting on a refusal.
       client.setAvatar(roomId, avatarId).then((outcome) => {
         if (!outcome.ok) retry();
       }, retry);
     };
-    void accountAvatarId(userId).then((avatarId) => {
-      if (live && avatarId !== null) attempt(avatarId, 0);
+    // Watched, not read once: a pick made in watchparty's chrome while the match
+    // is open must reach the board (Q6). A newer id supersedes an older id's retries.
+    const stop = watchAvatar({
+      readAccount: () => accountAvatarId(userId),
+      readCache: () => selectedAvatarId(userId),
+      assert: (avatarId) => {
+        clearTimeout(timer);
+        generation += 1;
+        attempt(avatarId, 0);
+      },
     });
     return () => {
       live = false;
+      stop();
       clearTimeout(timer);
     };
   }, [roomId, userId, client]);

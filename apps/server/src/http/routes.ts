@@ -181,6 +181,13 @@ export interface TablesRooms {
 	setPlayerState(roomId: string, memberId: string, state: unknown): boolean;
 	/** False when there is no such room. */
 	setMatch(roomId: string, matchId: string | null): boolean;
+	/**
+	 * Told when a member's avatar changes (Q6). Optional like the rest of the
+	 * room's surface: a registry that cannot say simply never updates a live seat.
+	 */
+	onAvatarChange?(
+		listener: (change: { roomId: string; memberId: string; avatarId: string | null }) => void,
+	): () => void;
 }
 
 /** The subset of `play`'s `MatchRegistry` a table uses, for the same reason. */
@@ -189,6 +196,9 @@ export interface TablesMatches {
 		| {
 				status: string;
 				claim(participantId: string): { ok: true; seat: number } | { ok: false; error: string };
+				seatOf(participantId: string): number | null;
+				/** Wave 32 shape 1: updates the seat and re-sends `forge:seats` to every socket. */
+				setSeatAvatar(seat: number, avatarId: string | null): void;
 				stop(): void;
 		  }
 		| undefined;
@@ -349,6 +359,26 @@ function playersOf(rooms: TablesRooms, room: RoomViewLike): TablePlayer[] {
 	return held.sort((a, b) => a.state.seatedAt - b.state.seatedAt);
 }
 
+/**
+ * Carry a member's changed avatar to the seat they hold in their room's running
+ * match. A member with no seat there (not claimed, no match, match gone) is a
+ * no-op: the avatar is already in the room and the next match reads it from there.
+ */
+export function relayAvatarToMatch(
+	rooms: TablesRooms,
+	registry: TablesMatches | null,
+	change: { roomId: string; memberId: string; avatarId: string | null },
+): void {
+	if (registry === null) return;
+	const matchId = rooms.get(change.roomId)?.matchId ?? null;
+	if (matchId === null) return;
+	const match = registry.get(matchId);
+	if (match === undefined || match.status !== 'starting' && match.status !== 'running') return;
+	const seat = match.seatOf(change.memberId);
+	if (seat === null) return;
+	match.setSeatAvatar(seat, change.avatarId);
+}
+
 export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	const log = deps.log ?? defaultLog;
 	const library = deps.library ?? loadTablesLibrary(deps.repoRoot);
@@ -466,6 +496,14 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	/* ── a room's table: one slot per player, each their own ────────── */
 
 	const rooms = deps.rooms ?? null;
+
+	// Q6: a match is told a seat's avatar once, at its start. A member who changes
+	// theirs afterwards reaches the board through the room, which is the only
+	// place that hears it. Subscribed here because this is the one file that holds
+	// both the room registry and play's match registry.
+	rooms?.onAvatarChange?.((change) => {
+		relayAvatarToMatch(rooms, deps.matches?.() ?? null, change);
+	});
 
 	/**
 	 * The room this caller may act in, or null. One answer covers "no such

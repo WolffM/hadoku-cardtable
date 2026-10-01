@@ -84,3 +84,47 @@ describe('the chrome’s dim and faint ink', () => {
     expect(worst).toEqual([]);
   });
 });
+
+/*
+ * Wave 32 (a w31 leftover): `--accent` as TEXT was 1.56:1 in izakaya-light and
+ * 2.28:1 in ocean-light. `--accent-ink` is the text token; `--accent` stays the
+ * fill. The mix is computed the way `color-mix(in srgb, …)` does it: per channel
+ * in gamma space.
+ */
+describe('the accent as text', () => {
+  const mixOf = /--accent-ink:\s*color-mix\(in srgb,\s*var\(--accent\)\s*(\d+)%,\s*var\(--ink\)\)/.exec(ownCss);
+  const share = mixOf === null ? 1 : Number(mixOf[1]) / 100;
+
+  it('is a mix toward the ink, and the fill token is still the theme primary', () => {
+    expect(mixOf).not.toBeNull();
+    expect(ownCss).toMatch(/--accent:\s*var\(--color-primary,\s*#7bb0ff\);/);
+  });
+
+  it('clears 4.5:1 on the page and on a card in every theme (the old accent did not)', () => {
+    const failures: string[] = [];
+    let oldWorst = Infinity;
+    for (const t of themes) {
+      const primary = hex(t.vars.primary);
+      const ink = hex(t.vars.text);
+      if (primary === null || ink === null) continue;
+      const mixed = primary.map((c, i) => Math.round(c * share + ink[i] * (1 - share))) as Rgb;
+      const c = Math.min(contrast(mixed, t.bg), contrast(mixed, t.card));
+      oldWorst = Math.min(oldWorst, contrast(primary, t.bg), contrast(primary, t.card));
+      if (c < 4.5) failures.push(`${t.name}: ${c.toFixed(2)}`);
+    }
+    expect(failures).toEqual([]);
+    // The reason the token exists: the raw accent is under 3:1 somewhere.
+    expect(oldWorst).toBeLessThan(3);
+  });
+
+  it('is what the stylesheet draws glyphs with: no `color: var(--accent)` left in styles.css', () => {
+    expect(ownCss).not.toMatch(/(^|[^-])color:\s*var\(--accent\)/m);
+  });
+});
+
+describe('the stacking scale (wave 32 shape 2)', () => {
+  it('declares the four layers on :root, in order', () => {
+    const z = (n: string): number => Number(new RegExp(`--z-${n}:\\s*(\\d+);`).exec(ownCss)?.[1] ?? Number.NaN);
+    expect([z('board'), z('card-badge'), z('overlay'), z('popover')]).toEqual([0, 1, 20, 40]);
+  });
+});

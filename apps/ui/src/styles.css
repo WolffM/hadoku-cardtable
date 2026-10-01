@@ -55,8 +55,29 @@
   --ink-dim: var(--color-text-secondary, var(--color-text, #99a1ae));
   --ink-faint: var(--color-text-secondary, var(--color-text, #6a7280));
   --accent: var(--color-primary, #7bb0ff);
+  /*
+   * The accent as TEXT (wave 32, a w31 leftover). `--accent` is the theme's fill
+   * colour and stays exactly that: as text it is 1.56:1 in izakaya-light and
+   * 2.28:1 in ocean-light. This mixes it toward the theme's own ink, which keeps
+   * the hue and clears 4.5:1 on the page and on a card in all 18 themes
+   * (`screens/tokens.test.ts` measures it, and pins the 35%). Use `--accent-ink`
+   * wherever the accent is the colour of a glyph; use `--accent` for a fill or a
+   * border.
+   */
+  --accent-ink: color-mix(in srgb, var(--accent) 35%, var(--ink));
   --on-accent: var(--color-on-primary, #10131a);
   --warn: var(--color-warning, #ffb057);
+
+  /*
+   * The stacking scale (wave 32 Q16). Three layers that used to be bare numbers
+   * in five stylesheets, so a card's P/T badge could land over a prompt.
+   * Consumers write `var(--z-popover, 40)` with the number as the fallback, so
+   * the order in which lanes land does not matter.
+   */
+  --z-board: 0;
+  --z-card-badge: 1;
+  --z-overlay: 20; /* rail, controls, the stack */
+  --z-popover: 40; /* prompts, dialogs, the inspector, menus */
 
   /* Our colour-pie hues. Deliberately not the printed ones. */
   --c-white: #d8cfae;
@@ -791,7 +812,7 @@ button {
 }
 
 .seat__you {
-  color: var(--accent);
+  color: var(--accent-ink);
   font-size: 10px;
 }
 
@@ -824,7 +845,7 @@ button {
 }
 
 .seat--waiting .seat__clock {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 /*
