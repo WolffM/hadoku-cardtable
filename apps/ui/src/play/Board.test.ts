@@ -25,6 +25,7 @@ import {
   type ArtIdIndex,
   type BoardCard,
   type BoardView,
+  type StackEntry,
 } from './adapter.ts';
 import { Board, forgetArrangements, snapTo, type BoardInteraction, type BoardLayout } from './Board.tsx';
 import { boardFromFixture, loadPackets, PLAY_FIXTURES } from './fixtures.ts';
@@ -615,6 +616,45 @@ describe('BoardInteraction', () => {
     expect(item.dataset.selectable).toBe('true');
     fireEvent.click(within(item).getByRole('button'));
     expect(onSelectCard.mock.calls).toEqual([[spell.sourceCardId]]);
+  });
+
+  /*
+   * Q18 (wave 33 §B.1), reported while w32 ran: Glint Hawk Idol's own trigger
+   * drew as clickable on the stack. Its `sourceCardId` is the permanent on
+   * the battlefield, which Forge offers for its own (re-)activation, so the
+   * stack entry became a second button for the SAME action — a click on it
+   * called `onSelectCard(sourceId)`, exactly what clicking the permanent
+   * does. Only a SPELL's card may ever be selectable by id this way (above);
+   * an ability's never is, however Forge's `selectable` set reads at the
+   * moment.
+   */
+  it('Q18: an ABILITY entry on the stack is never selectable by its card id, even while Forge offers that permanent', () => {
+    const permanent = me.battlefield[0]!;
+    const abilityEntry: StackEntry = {
+      id: 999001,
+      description: 'Deals 2 damage to any target.',
+      sourceCardId: permanent.id,
+      sourceName: permanent.card.name,
+      sourceCard: permanent.card,
+      controllerName: me.name,
+      isAbility: true,
+    };
+    const withAbilityOnStack: BoardView = { ...view, stack: [abilityEntry] };
+    // Forge really is offering this card id — for the permanent's own activation.
+    const { interaction, onSelectCard } = spyInteraction([permanent.id]);
+    const { container } = renderBoard(withAbilityOnStack, interaction);
+
+    const item = container.querySelector<HTMLElement>(`[data-stack-id="${abilityEntry.id}"]`)!;
+    expect(item.dataset.selectable, 'inert, unlike a spell entry above').toBeUndefined();
+    expect(item.querySelector('button'), 'no button inside the stack entry').toBeNull();
+    fireEvent.click(item);
+    expect(onSelectCard).not.toHaveBeenCalled();
+
+    // The permanent itself is still exactly as clickable as Forge said.
+    const cardFace = container.querySelector<HTMLElement>(`[data-board-card="${permanent.id}"] > .board-card__face`)!;
+    expect(cardFace.tagName).toBe('BUTTON');
+    fireEvent.click(cardFace);
+    expect(onSelectCard.mock.calls).toEqual([[permanent.id]]);
   });
 
   it('an id Forge names that is not on the board makes nothing clickable', () => {
@@ -3286,7 +3326,14 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
     // The life is the face's last child after the mark, in flow: the card.css rule
     // that used to lay it over the avatar is overridden to `static` in the seat.
     const hit = seat(me.id).querySelector('.face__hit')!;
-    expect([...hit.children].map((c) => (c.getAttribute('class') ?? '').split(' ')[0])).toEqual(['face__art', 'face__life']);
+    // Wave 33 shape 3 inserted `.seat__ring` between the mark and the life
+    // badge — decorative, `aria-hidden`, and absolutely positioned, so it
+    // changes none of this test's own claims about the other two.
+    expect([...hit.children].map((c) => (c.getAttribute('class') ?? '').split(' ')[0])).toEqual([
+      'face__art',
+      'seat__ring',
+      'face__life',
+    ]);
     expect(declarationInCss(CARD_CSS, '.seat__ident .face__life', 'position')).toBe('static');
     expect(declarationInCss(CARD_CSS, '.seat__ident .face__art', 'width')).toBe('var(--face-w)');
   });
@@ -3418,9 +3465,36 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     const { container } = renderBoard(active);
     const faces = [...container.querySelectorAll<HTMLElement>('[data-player-face]')];
     expect(faces.filter((f) => f.dataset.active === 'true')).toHaveLength(1);
-    const ring = declarationInCss(CARD_CSS, '.face[data-active] .face__art', 'box-shadow')!;
+    const ring = declarationInCss(CARD_CSS, '.seat[data-active] .seat__ring', 'box-shadow')!;
     expect(ring, 'a ring, in the accent').toContain('var(--accent)');
-    expect(declarationInCss(CARD_CSS, '.face[data-active] .face__art', 'border-radius')).toBe('50%');
+    expect(declarationInCss(CARD_CSS, '.seat__ring', 'border-radius')).toBe('50%');
+    expect(container.textContent).not.toMatch(/their turn/i);
+  });
+
+  /*
+   * ── wave 33 shape 3: the ring hook ─────────────────────────────────────
+   *
+   * w32 drew the ring but no test asserted the HOOK a selector could use to
+   * find it. This is the hook: the seat's own section carries `data-active`
+   * exactly while `player.isActive`, and the ring is a real element inside
+   * it, `.seat__ring` — not merely a box-shadow nobody can select.
+   */
+  it('wave 33 §B.3: the active seat’s SECTION carries data-active, and .seat__ring lives inside it', () => {
+    const active: BoardView = { ...view, players: view.players.map((p, i) => ({ ...p, isActive: i === 0 })) };
+    const { container, seat } = renderBoard(active);
+    const activePlayer = active.players.find((p) => p.isActive)!;
+    const inactivePlayer = active.players.find((p) => !p.isActive)!;
+    expect(seat(activePlayer.id).dataset.active).toBe('true');
+    expect(seat(inactivePlayer.id).dataset.active).toBeUndefined();
+    // Every seat draws its ring element, whether or not it is lit right now —
+    // the canvas is static, so the hook does not appear only when active.
+    for (const p of active.players) {
+      const ring = seat(p.id).querySelector('.seat__ring');
+      expect(ring, `seat ${p.id} has a ring element`).not.toBeNull();
+    }
+    // And it really is INSIDE the section the hook promises, not a sibling.
+    const ring = seat(activePlayer.id).querySelector('.seat__ring')!;
+    expect(ring.closest('[data-testid="player"]')).toBe(seat(activePlayer.id));
     expect(container.textContent).not.toMatch(/their turn/i);
   });
 
@@ -3697,5 +3771,65 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect([...container.querySelectorAll('.seat[data-viewer] [data-zone="hand"] .board-card')].map((c) => Number((c as HTMLElement).dataset.cardId))).toEqual(hand);
     dragCard(container, hand[0]!, { slot: 'hand' });
     expect([...container.querySelectorAll('.seat[data-viewer] [data-zone="hand"] .board-card')].map((c) => Number((c as HTMLElement).dataset.cardId))).toEqual([...hand.slice(1), hand[0]!]);
+  });
+});
+
+/*
+ * ── wave 33 §B — shape 2 (target ids), poison counters, --accent-ink ────
+ */
+describe('wave 33 §B', () => {
+  it('shape 2: targetCardIds/targetPlayerIds come off the stack item’s own TargetCards/TargetPlayers, empty when it names none', () => {
+    const state = new Map(foldPackets(loadPackets(fixture)).state);
+    const key = deltaKey(WireType.StackItem, 48);
+    const item = state.get(key)!;
+    state.set(key, {
+      ...item,
+      TargetCards: { t: 'list', v: [{ t: 'int', v: 67 }] },
+      TargetPlayers: { t: 'list', v: [{ t: 'int', v: 1 }] },
+    } as WireObject);
+    const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+    const targeted = adapted.stack.find((s) => s.id === 48)!;
+    expect(targeted.targetCardIds).toEqual([67]);
+    expect(targeted.targetPlayerIds).toEqual([1]);
+    // The OTHER stack item was never touched: empty, never missing.
+    const untouched = adapted.stack.find((s) => s.id !== 48)!;
+    expect(untouched.targetCardIds).toEqual([]);
+    expect(untouched.targetPlayerIds).toEqual([]);
+  });
+
+  it('item 4: a seat’s poison/energy/experience counters draw beside its hand/library counts, and only when non-zero', () => {
+    const state = new Map(foldPackets(loadPackets(fixture)).state);
+    const key = deltaKey(WireType.Player, 1);
+    const them = state.get(key)!;
+    state.set(key, {
+      ...them,
+      Counters: {
+        t: 'multiset',
+        v: [
+          ['Poison', 7],
+          ['Energy', 3],
+          ['Experience', 0],
+        ],
+      },
+    } as WireObject);
+    const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+    const { seat } = renderBoard(adapted);
+    const theirBar = seat(1).querySelector<HTMLElement>('[data-player-bar]')!;
+    const counters = [...theirBar.querySelectorAll('.seat__counter')].map((c) => c.textContent).sort();
+    // Zero experience draws nothing — never a drawn zero.
+    expect(counters).toEqual(['3 energy', '7 poison']);
+    expect(theirBar.querySelector('[data-counter="poison"]')!.textContent).toBe('7 poison');
+    // The viewer's own seat was never given any and shows none.
+    expect(seat(0).querySelectorAll('.seat__counter')).toHaveLength(0);
+  });
+
+  it('with no player counters at all — the fixture path’s own default — nothing is drawn, the safe default every fixture renders in', () => {
+    const { seat } = renderBoard(boardFromFixture(fixture));
+    expect(seat(0).querySelectorAll('.seat__counter')).toHaveLength(0);
+    expect(seat(1).querySelectorAll('.seat__counter')).toHaveLength(0);
+  });
+
+  it('item 5: the seat’s flags are --accent-ink, not --accent, as text', () => {
+    expect(declarationIn('.seat__flag', 'color')).toBe('var(--accent-ink)');
   });
 });

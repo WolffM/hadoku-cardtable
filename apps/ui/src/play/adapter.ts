@@ -293,6 +293,26 @@ export interface BoardPlayer {
    */
   manaPool?: readonly ManaInPool[];
   /**
+   * Player-level counters — poison, energy, experience, and anything else
+   * Forge tracks on the PLAYER rather than a card (wave 33 item 4, the first
+   * list's item 4: *"poison/infect counters are shown nowhere."*).
+   *
+   * Read off the SAME wire property a card's own counters use —
+   * `GameEntityView.updateCounters` sets `TrackableProperty.Counters` from
+   * `CounterMapType` on both `CardView` and `PlayerView` alike, because both
+   * extend `GameEntityView` (`GameEntityView.java:94-97`, verified in the
+   * cached build). A player's multiset holds `CounterEnumType.POISON` /
+   * `ENERGY` / `EXPERIENCE` (`CounterEnumType.java:496-500`) under the SAME
+   * `Counters` key a card's `+1/+1` lives under — `countersOf` already reads
+   * it, unchanged, for either kind of object.
+   *
+   * OPTIONAL for the same reason `manaPool` above is: `toBoardView` always
+   * sets it, and a `BoardPlayer` typed out by hand in a suite testing
+   * something else need not restate the wire. Absent means "nothing known",
+   * which draws the same as an empty list — never a drawn zero.
+   */
+  counters?: readonly { name: string; count: number }[];
+  /**
    * The watchparty character this seat picked, as an id — wave 28 item 4's
    * render half, populated for real as of wave 29 §A.6-8.
    *
@@ -330,6 +350,33 @@ export interface StackEntry {
   sourceCard: DraftCard | null;
   controllerName: string | null;
   isAbility: boolean;
+  /**
+   * Wave 33 agreed shape 2: this item's targets, from `StackItemView`'s own
+   * `TargetCards` / `TargetPlayers` (`TrackableProperty.java:225-226`, both set
+   * from `SpellAbilityStackInstance.getTargetChoices()` — `StackItemView.java`,
+   * `updateTargetCards`/`updateTargetPlayers`). Both cross as the same
+   * `list`-of-`int` shape every other entity collection does (`readIds`),
+   * empty when the item targets nothing of that kind — never missing.
+   *
+   * **Not how a Stifle-like ability is targeted.** Forge's own targeting for
+   * "counter target activated or triggered ability" does not use these at
+   * all: `TargetSelection.chooseCardFromStack` (`forge-gui/.../player/TargetSelection.java:299-342`)
+   * asks a GENERIC list-choice (`getGui().one`/`oneOrNone`) over the
+   * `StackItemView`s themselves, which is one of Forge's own prompts, not a
+   * `setSelectables` card offer. So `interaction.selectable` never contains a
+   * stack item id for this purpose, and clicking a stack entry can never BE
+   * that answer; these two fields exist for drawing an ARROW from a resolved
+   * target (shape 2's stated purpose — G's lane), not for making an entry
+   * clickable.
+   *
+   * OPTIONAL for the same reason `BoardPlayer.manaPool` is: `toBoardView`
+   * always sets both, and a `StackEntry` typed out by hand in a suite testing
+   * something else (`inspect/index.test.ts`) need not restate the wire.
+   * Absent means "nothing known", which draws no arrow — the same answer an
+   * empty list gives.
+   */
+  targetCardIds?: readonly number[];
+  targetPlayerIds?: readonly number[];
 }
 
 export interface BoardView {
@@ -771,6 +818,7 @@ export function toBoardView(
       graveyard: cardsIn(readIds(p, 'Graveyard')),
       exile: cardsIn(readIds(p, 'Exile')),
       manaPool: readManaPool(p, 'Mana'),
+      counters: countersOf(p),
       // The key must be ABSENT for a seat with none — never `avatarId:
       // undefined` — so an in-process `'avatarId' in player` reader and a JSON
       // reader agree (`D-avatar-field.md` §3).
@@ -795,6 +843,8 @@ export function toBoardView(
       sourceCard: source?.card ?? null,
       controllerName: activator === null ? null : nameOfPlayer(activator),
       isAbility: readBool(item, 'Ability'),
+      targetCardIds: readIds(item, 'TargetCards'),
+      targetPlayerIds: readIds(item, 'TargetPlayers'),
     };
   });
 

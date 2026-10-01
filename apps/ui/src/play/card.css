@@ -552,12 +552,24 @@ button.board-card__face:focus-visible {
 /*
  * Whose turn it is, on the thing you are already looking at (wave 32 Q1b): a ring
  * around the avatar, the way the operator asked, in place of the words "their
- * turn" in the counts. It is a box-shadow on the art's own box, so it rings the
- * drawn mark and a watchparty character's picture alike, and it adds no size —
- * a seat's tracks do not move when the turn passes.
+ * turn" in the counts. It adds no size — a seat's tracks do not move when the
+ * turn passes.
+ *
+ * Wave 33 shape 3: the ring is its OWN element, `.seat__ring`, always in the
+ * markup over the avatar's own box (`Board.tsx`'s `PlayerFace`), lit by a
+ * box-shadow exactly while this face's SEAT — `<section data-testid="player">`,
+ * `.seat[data-active]` — is the active player. It rings the drawn mark and a
+ * watchparty character's picture alike, because it sits over `.face__art`
+ * rather than being drawn by it.
  */
-.face[data-active] .face__art {
+.seat__ring {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
+  pointer-events: none;
+}
+
+.seat[data-active] .seat__ring {
   box-shadow:
     0 0 0 2px var(--bg-raised),
     0 0 0 4px var(--accent);

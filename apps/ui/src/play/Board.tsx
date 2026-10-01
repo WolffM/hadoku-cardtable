@@ -1742,6 +1742,16 @@ function HiddenHand({ player }: { player: BoardPlayer }) {
  * here and nowhere else, so the number a seat shows is the number the avatar
  * shows. `e2e/play.spec.ts` reads it inside `[data-testid="player"]` and
  * compares it to the view, so its text is the number and nothing else.
+ *
+ * ## The active-player ring (wave 33 shape 3)
+ *
+ * `.seat__ring` is the ring itself — an element that exists on every face,
+ * always, drawn over the avatar's own box, lit by `card.css` exactly while
+ * its ANCESTOR `<section data-testid="player">` (`PlayerArea`, below) carries
+ * `data-active`. That attribute is the section's, not the face's, because
+ * that is the hook the wave agreed on and the one an e2e spec can select
+ * without reaching into this component's own markup. No test asserted the
+ * ring before this; this is what lets one.
  */
 function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction: BoardInteraction | undefined }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
@@ -1774,6 +1784,13 @@ function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction:
         /* `alt=""`: the seat's name is right beside it and says who this is. */
         <img className="face__art face__avatar" src={avatar} alt="" data-testid="seat-avatar" />
       )}
+      {/*
+       * The ring itself (shape 3): always in the markup, over the avatar's own
+       * box, drawn only while `card.css` sees an active ancestor. Decorative —
+       * the fact is said in words on the seat's own `aria-label`/section, not
+       * here — so it is `aria-hidden` and `pointer-events: none`.
+       */}
+      <span className="seat__ring" aria-hidden="true" />
       <span className="face__life" data-testid="life">
         {player.life}
       </span>
@@ -1865,6 +1882,37 @@ function ManaPool({ player }: { player: BoardPlayer }) {
   );
 }
 
+/**
+ * Player-level counters — poison, energy, experience, and anything else Forge
+ * tracks on the PLAYER rather than a card (wave 33 item 4): *"poison/infect
+ * counters are shown nowhere."*
+ *
+ * Read off `BoardPlayer.counters`, which `adapter.ts` fills from the SAME wire
+ * property a card's own counters use (`GameEntityView.Counters`, shared by
+ * `PlayerView` and `CardView`). Drawn beside the seat's hand/library counts —
+ * the same track, the same size — and only when non-zero: a seat with none of
+ * these shows nothing here, the same contract every other optional mark on
+ * this board keeps.
+ */
+function PlayerCounters({ player }: { player: BoardPlayer }) {
+  const counters = (player.counters ?? []).filter((c) => c.count !== 0);
+  if (counters.length === 0) return null;
+  return (
+    <>
+      {counters.map((c) => (
+        <span
+          key={c.name}
+          className="seat__counter"
+          data-counter={c.name.toLowerCase()}
+          aria-label={`${c.count} ${c.name.toLowerCase()}`}
+        >
+          {c.count} {c.name.toLowerCase()}
+        </span>
+      ))}
+    </>
+  );
+}
+
 function PlayerArea({
   player,
   interaction,
@@ -1894,6 +1942,9 @@ function PlayerArea({
       data-player-id={player.id}
       data-viewer={player.isViewer || undefined}
       data-selectable={selectable || undefined}
+      // Wave 33 shape 3: the hook a test asserts the ring from, exactly while
+      // this seat is the active player (`card.css`'s `.seat[data-active]`).
+      data-active={player.isActive || undefined}
       aria-label={player.isViewer ? `${player.name} (you)` : player.name}
     >
       {/*
@@ -1962,6 +2013,7 @@ function PlayerArea({
               </svg>
               <span aria-hidden="true">{player.libraryCount}</span>
             </span>
+            <PlayerCounters player={player} />
             {player.hasPriority && <span className="seat__flag">priority</span>}
             {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
           </div>
@@ -2029,10 +2081,35 @@ function PlayerArea({
  * One item on the stack: its source card, drawn, beside what it is doing.
  * `sourceCard` is the adapter's own resolved face, so the art here goes
  * through the same resolver as every other card — nothing builds a URL.
+ *
+ * ## Q18 — an ability entry is not clickable, and that is the fix (wave 33 §B.1)
+ *
+ * `item.sourceCardId` names the CARD a stack item came from, and for an
+ * ABILITY that card is the permanent on the battlefield — the same id Forge's
+ * `setSelectables` offers for that permanent's own (re-)activation. Before this
+ * fix, any ability whose source happened to be currently selectable drew as a
+ * button here too, and clicking it called `onSelectCard(sourceId)` — the exact
+ * same action as clicking the permanent itself, which is not an action on the
+ * STACK ITEM at all. Only a SPELL entry's card is never simultaneously "on the
+ * battlefield, offered for activation", so only a spell entry may be
+ * selectable by its card id; an ability entry (`item.isAbility`) never is.
+ *
+ * **This is not how a Stifle-like ability is targeted, and nothing here needs
+ * to be.** Verified against Forge's own source
+ * (`forge-gui/.../player/TargetSelection.java:299-342`,
+ * `chooseCardFromStack`): "counter target activated or triggered ability"
+ * does not go through `setSelectables` / `interaction.selectable` at all. It
+ * builds a list of the stack's own `StackItemView`s and asks a GENERIC
+ * list-choice (`getGui().one` / `oneOrNone`) — one of Forge's own prompts
+ * (G's lane, `prompts/**`), not a card offer. So a stack entry is never made
+ * clickable FOR that purpose, with this fix or without it; `targetCardIds` /
+ * `targetPlayerIds` (`adapter.ts`, shape 2) exist only so an arrow can be
+ * drawn from a resolved target, never to make the entry itself an answer.
  */
 function StackItem({ item, interaction }: { item: StackEntry; interaction: BoardInteraction | undefined }) {
   const sourceId = item.sourceCardId;
-  const selectable = interaction !== undefined && sourceId !== null && interaction.selectable.has(sourceId);
+  const selectable =
+    interaction !== undefined && sourceId !== null && !item.isAbility && interaction.selectable.has(sourceId);
   const body = (
     <>
       {item.sourceCard !== null && (

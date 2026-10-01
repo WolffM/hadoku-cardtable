@@ -4,6 +4,46 @@
  *
  * ## The baseline
  *
+ * Re-recorded in Wave 33 §B for shape 3 (the active-player ring hook): 41864
+ * -> 41985, +121, and every one of the characters is accounted for —
+ * measured the strong way, by rendering the fixture with and without the
+ * change and diffing the real strings:
+ *
+ *  +102  two `<span class="seat__ring" aria-hidden="true"></span>` (51 each),
+ *        one per seat's `PlayerFace` — the ring is now a real element, always
+ *        in the markup, lit by `card.css` only while its seat's `<section
+ *        data-testid="player">` carries `data-active`. Before this wave the
+ *        ring was a `box-shadow` on `.face__art` with no element of its own.
+ *   +19  ` data-active="true"` on the viewer's `<section data-testid="player">`
+ *        — shape 3's other half. The viewer (id 0) is this fixture's active
+ *        player, so exactly one seat gains the attribute; the opponent's
+ *        section gains none (`data-active={player.isActive || undefined}`).
+ *    ±0  `.face`'s own `data-active` is unchanged (still set directly from
+ *        `player.isActive`, as before this wave) — this delta is additive,
+ *        not a move.
+ *    ±0  item 1 (Q18) changes a BRANCH CONDITION on `StackItem`'s
+ *        selectability, not markup, and this render passes no `interaction`
+ *        prop at all — `selectable` is false either way, with or without the
+ *        fix.
+ *    ±0  item 2 (shape 2, `targetCardIds`/`targetPlayerIds`) is carried on
+ *        `StackEntry` but drawn nowhere by this lane — G's arrow is the
+ *        reader. The fixture's own spell (id 48) already carries a real
+ *        target (`[67]`, checked directly against `toBoardView`'s output),
+ *        and it changes nothing here.
+ *    ±0  item 4 (player counters) draws nothing for either seat: this
+ *        fixture's `PlayerView.Counters` is empty for both (checked directly
+ *        against `toBoardView`'s output), so `PlayerCounters` renders `null`
+ *        for both, same as before this wave (the component did not exist).
+ *    ±0  item 5 (`--accent-ink`) is a token swap inside an existing
+ *        declaration's VALUE, in a stylesheet this test never reads.
+ *  ─────
+ *  +121  41864 -> 41985, and 102 + 19 = 121 exactly.
+ *
+ * Checked the strong way: reverting `../Board.tsx` and `../card.css` alone
+ * (to their pre-wave-33 content) makes this test PASS at the previous pin,
+ * which is what proves the whole delta is those two files and that
+ * `../adapter.ts` and `../fixtures.ts` did not move any markup.
+ *
  * Re-recorded in Wave 30 §A for item 11: `single` — one undivided battlefield,
  * no type sections — is now `boardLayout`'s default, and `fixtureMarkup()`
  * renders `<Board>` with no `boardLayout` prop at all, so this pin is exactly
@@ -301,8 +341,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = '9d2ec18cbad3bbc4f252ac0fa48960b0de5fd8bb4584d42f256a430adcab27d4';
-const BASELINE_LENGTH = 41864;
+const BASELINE_SHA256 = 'ef016932555785ee317cb6dcae8362fe176c680b28894497381dedd79653465b';
+const BASELINE_LENGTH = 41985;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

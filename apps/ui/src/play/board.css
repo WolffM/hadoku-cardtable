@@ -601,10 +601,24 @@
 }
 
 .seat__flag {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .seat__flag--lost {
+  color: var(--warn);
+}
+
+/*
+ * Player-level counters (wave 33 item 4) — poison, energy, experience. Same
+ * track, same size as the hand/library counts beside them; a negative one
+ * (poison) reads the same way `.seat__flag--lost` does, because ten of it
+ * ends the game the same way losing already does.
+ */
+.seat__counter {
+  font-variant-numeric: tabular-nums;
+}
+
+.seat__counter[data-counter='poison'] {
   color: var(--warn);
 }
 
