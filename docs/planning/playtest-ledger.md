@@ -122,12 +122,12 @@ All planned in **wave 32** (`docs/planning/wave32-2026-10-01.md`).
 | Q1 | drop "0 Nobody"; show `Start`; ring the active player's avatar | 1 | shipped w32; ring now tested w33 | `5312231`, `4744c57`; the ring is asserted by `w33.spec` (10 of 10) | the active player has a ring round their avatar; turn 0 reads `Start` |  |
 | Q2 | opponent's hand the same card size, mirrored | 1 | shipped w32 | `4744c57`; mutation-tested (opponent hand 4rem: 4 fail) | their hand cards are the same size as yours |  |
 | Q3 | phase names centred and un-bulleted; rail grows in combat | 1 (follow-up on P1) | shipped w32; rows fixed w33 (unit tests only) | `9bd535b`: rail rows are one measured height (`--live-h`). **No e2e fails when the fix is reverted**; the 2.16 px "flake" was the test (a second page never resized), fixed in E | rail rows the same height in and out of combat |  |
-| Q4 | lands back row, others front; free placement; own drag ghost and snap indicator | 2 (with P11) | shipped w32 | `4744c57`: pointer drag with our own ghost, indicator and snap; two-tier default placement; frames `wave32-evidence/q4-drag-*.png`. **Touch not tried on a device** | drag a card: our ghost, a landing indicator, snaps to a slot; lands in the back row, the rest in front, filling left to right |  |
+| Q4 | lands back row, others front; free placement; own drag ghost and snap indicator | 3 (with P11, R9) | reopened → shipped w32 | `4744c57`: pointer drag with our own ghost, indicator and snap; two-tier default placement; frames `wave32-evidence/q4-drag-*.png`. **Touch not tried on a device** | drag a card: our ghost, a landing indicator, snaps to a slot; lands in the back row, the rest in front, filling left to right |  |
 | Q5 | skipped phases should not crawl | 1 | shipped w32 | `9a70f47`; real Forge: End Turn gaps 5-11 ms against 206-211 ms reverted (`endturn.jvm`, 3 of 3 re-run by the tracker) | click End Turn: the phases go by at once |  |
 | Q6 | an avatar change does not reach the game | 1 | shipped w32 | `d2fc75b`, `9a70f47`; `w32.spec` avatar test (mutation: fails reverted). A **cleared** avatar is not noticed (watchparty) | change your avatar in the chat; your face in the game changes |  |
 | Q7 | Mana Leak: arrow to a stack item; shortcut when one target | 1 | shipped w32; half-verified w33 | e2e asserts the outcome (the lone spell is countered, no target ask), 10 of 10. **The two-spells half (an arrow picks one) is unobservable: see the Full Control bug below** | a lone spell answers itself |  |
 | Q8 | "order simultaneous abilities" only in full control | 1 | shipped w32; exercised w34 | `5c2192f`: a real-Forge scenario with two different upkeep triggers (Dark Confidant + Phyrexian Arena); `scenario-order.jvm` 2/2 (tracker re-ran). Two *identical* triggers never ask in Forge, which is why w33 could not reach it | two different triggers at once: no ordering question unless in full control |  |
-| Q9 | one column: avatar, counts, graveyard the rest; opponent mirrored | 3 (with L9, P2) | shipped w32 (look at it) | `4744c57`: graveyard takes the rest of the column; **measured 50.6% of the column at 1280x800** (information only). Opponent mirrored | avatar, counts, then a tall graveyard; the opponent mirrored, nothing upside-down |  |
+| Q9 | one column: avatar, counts, graveyard the rest; opponent mirrored | 4 (with L9, P2, R3) | reopened → shipped w32 (look at it) | `4744c57`: graveyard takes the rest of the column; **measured 50.6% of the column at 1280x800** (information only). Opponent mirrored | avatar, counts, then a tall graveyard; the opponent mirrored, nothing upside-down |  |
 | Q10 | no Declare Blockers stop without creatures | 1 | shipped w32; now exercised w33 | real Forge scenarios (`scenario-blockers.jvm`) and e2e 10 of 10 | attack into a player with no creatures: no blockers stop |  |
 | Q11 | arrow snaps to 8 points on the card edge | 1 | shipped w32 | `3b9c22c`; `gestures.test` + `arrow.spec` pass | a target arrow ends on a corner or edge midpoint of the card, not its centre |  |
 | Q12 | could not assign blockers at all | 1 (related to L15) | shipped w32; now exercised w33 | scenario e2e 10 of 10 (blockers assignable, the block prompt appears) | be attacked: "Select creatures to block" appears |  |
@@ -150,6 +150,29 @@ Not a play-test item: the operator's review of the deck picker. **Selection is r
 | DL2 | colour balance, with a lean toward what was best | 1 | shipped w34 | 96 decks; colour spread as selected | each colour is about equally represented |  |
 | DL3 | style balance (aggro, midrange, combo): a few of the rarest, fewer of the most common | 1 | shipped w34 | **2014 lost its only combo deck**: three chosen decks had a card mtgtop8 exports as "Unknown Card" and were swapped for the next alternate (2011 UB Control → Elves; 2014 UWr Control → Orzhov Control; 2014 Reanimator → Jund Aggro) |  |  |
 | DL4 | eras: no empty ones, a whole block at a time; yearly "power summer" 2008–2016 | 1 | shipped w34 | `7029898`: exactly nine eras reach the picker (the loader reads only catalogued dates; tracker mutation: a directory scan fails 2 of 3); every card resolves in Forge at the pin (1151 card/set pairs); a real match starts in each era (9/9, tracker re-ran). Default era 2016 | the era list is nine summers, 2008–2016; pick decks from several eras |  |
+
+## Playtest 4 — 2026-10-02, on `0.30.0` (w34), match `m-a1e09072057f`, two humans
+
+Operator: *"honestly, things are looking very good. i think its almost ready for the first alpha
+release."* Planned as **wave 35** unless noted.
+
+| ID | item | asked | status | evidence | check it by | your check |
+| --- | --- | --- | --- | --- | --- | --- |
+| R1 | chat collapsible (like watchparty's own) and drag-to-resize | 1 | open, **watchparty's** | `RoomChrome` exposes no collapse or resize prop (its `.d.ts`); needs an upstream request | | |
+| R2 | play/draw decision in the middle-right decision area, not the control bar; a coin-flip animation | 1 | planned w35 | | the coin flip and the play/draw choice appear where card decisions do | |
+| R3 | left column: counts much closer to the avatar | 4 (with L9, P2, Q9) | planned w35 | | | |
+| R4 | Thoughtseize: three steps (look at hand, choose, "looking at cards in your hand") should be one choice with the unchoosable cards greyed; the modal shows a scrollbar with nothing to scroll | 1 | planned w35, diagnose first | | cast Thoughtseize: one choice | |
+| R5 | highlight End Turn when there is nothing left to decide | 1 | planned w35 | | | |
+| R6 | a flicker when clicking End Turn | 1 | planned w35, diagnose first | | | |
+| R7 | cast by dragging the card out, with a targeting arrow from it (not click → card vanishes → pick a target), for nearly all cards | 1 (related to L6) | planned w35 | the long pole | drag Thoughtseize toward a player | |
+| R8 | the log button is an icon | 1 | planned w35 | | | |
+| R9 | move a card to ANY slot; it still snaps to the left-most free one | 3 (with P11, Q4) | reopened, planned w35 | w32 built snapping, but to the next free slot, not the one under the pointer | drop a card in the middle of the row: it stays there | |
+| R10 | a flicker of "Creature" and rules text when a creature taps to attack | 1 | planned w35, diagnose first | | | |
+| R11 | remove the turn counter from the phase bar (the log has it) | 1 | planned w35 | | | |
+| R12 | animations: tapping, creatures striking a face, floating combat text | 1 | **deferred to v2** (operator: *"we can ship that as part of v2… what we're building at the moment is essentially the 'simple mode' for low-end PCs"*) | | | |
+| R13 | Secluded Glen's "you may reveal a Faerie" was decided for me | 1 | planned w35, diagnose first | **not a client or server auto-answer**: the match log shows no auto-answered choice, and every choice took a person 2.7–112 s. So it never reached the seat as a question (Forge decided, or the server pressed OK on an input) | play Secluded Glen with a Faerie in hand: you are asked | |
+| R14 | Goblin Rogue token has no art | 1 | planned w35 | `art-ids.json` has **no token entries at all**: every token is art-less | make a token: it has art | |
+| R15 | lands cannot be tapped freely for mana before casting; show the pool as you tap; a card changed by an effect (Magus of the Moon) should show its new identity visually | 1 | planned w35 (lands need a **Forge fork change and a jar you install**) | **root cause:** Forge's clickable filter excludes every mana ability (`forge-ai/.../AvailableActions.java:82`, `!sa.isManaAbility()`), so a land is never clickable outside a payment. Not Magus | tap a land at priority: mana appears in your pool | |
 
 ## Asks outside a play-test — 2026-10-02
 
