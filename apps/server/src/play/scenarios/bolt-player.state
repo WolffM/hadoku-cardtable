@@ -1,0 +1,19 @@
+# For lane E (wave 35, R7 — casting is the Arena model, drag-to-target). Seat
+# 0 (human) holds Lightning Bolt ("deals 3 damage to any target.", {R} fixed
+# cost) and one untapped Mountain, an uncontested turn-1 Main Phase 1. "Any
+# target" includes a player directly (`ValidTgts$ Any`), so this is castable
+# at a PLAYER with no creature on either battlefield needed — exactly the
+# drag-to-a-player-and-release shape the spec drives.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt
+humanbattlefield=Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

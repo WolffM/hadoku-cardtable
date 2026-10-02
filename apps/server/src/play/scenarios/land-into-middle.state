@@ -1,0 +1,19 @@
+# For lane E (wave 35, R9 — "a card goes to ANY slot", third ask: a drop lands
+# in the slot under the pointer, in either row, empty slots included). Seat 0
+# (human) holds Island in hand with a land drop still available, and already
+# has TWO lands on the battlefield — Forest and Mountain, different names on
+# purpose so a dropped-into-the-middle land's resulting ORDER is readable from
+# the names alone, not just a count. An uncontested turn-1 Main Phase 1.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Island
+humanbattlefield=Forest;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

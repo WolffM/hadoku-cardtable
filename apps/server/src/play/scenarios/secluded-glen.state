@@ -1,0 +1,18 @@
+# R13 — "Secluded Glen's 'you may reveal a Faerie' was decided for me."
+# Seat 0 (human) holds Secluded Glen and one Faerie card (Faerie Seer) in an
+# uncontested Main Phase 1. The test PLAYS the land and watches whether Forge
+# asks seat 0 to reveal — and whether our own bridge/server forwards that ask
+# — or whether the land just enters (tapped or not) with nobody ever asked.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Secluded Glen;Faerie Seer
+humanbattlefield=
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

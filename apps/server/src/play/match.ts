@@ -100,6 +100,7 @@ import {
 	isBlocking,
 	isTierC,
 	safeParseServerFrame,
+	type ChoiceOption,
 	type ClientFrame,
 	type ServerFrame,
 } from '@hadoku/forge-wire';
@@ -339,6 +340,30 @@ export interface SeatState {
 	 * act in between, offers no different an answer than the one already given.
 	 */
 	lastAbilityToPlay: { hostCard: number; abilityId: number } | null;
+	/**
+	 * Wave 35 §S, R4 — a `getChoices` REVEAL (`min === max === -1`) held back to
+	 * see whether the very next ask to this seat is the real discard choice it
+	 * belongs to (Thoughtseize's "look at hand" step). See
+	 * {@link Match.onFrame}'s own header on the fold. Flushed as an ordinary ask
+	 * of its own if nothing claims it within {@link PENDING_REVEAL_FOLD_MS}.
+	 */
+	pendingReveal: { frame: Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>; timer: NodeJS.Timeout } | null;
+	/**
+	 * Synthetic asks this seat currently holds, keyed by the SYNTHETIC callId
+	 * (`chooseSingleEntityForEffect`'s own) — each maps back to the TWO real
+	 * Forge `getChoices` asks (the reveal, always answered `[]`, and the real
+	 * choice) a single browser reply must resolve. See {@link Match.onFrame}.
+	 */
+	mergedChoice: Map<string, { chooseCallId: string; keyByRef: Map<string, string> }>;
+	/**
+	 * Wave 35 §S, R4 — callIds Forge has ALREADY been answered for (a reveal's
+	 * one legal `[]`, sent the instant it arrived — see {@link Match.onFrame}'s
+	 * header), shown to this seat anyway so the information it carries is not
+	 * lost (`auto.ts`'s own rule: "a shortcut may remove a question; it may
+	 * never remove information"). A reply to one of these is the browser
+	 * dismissing a display, not answering Forge, and is consumed locally.
+	 */
+	displayOnlyAsks: Set<string>;
 }
 
 export interface MatchDeps {
@@ -417,6 +442,86 @@ export function newMatchId(): string {
 	return `m-${randomBytes(6).toString('hex')}`;
 }
 
+/* ── Wave 35 §S, R4: "Thoughtseize is one step" ───────────────────────────
+ *
+ * `DiscardEffect`'s `RevealYouChoose` mode (Thoughtseize, and any card shaped
+ * like it) resolves in THREE Forge asks, confirmed against a real jar
+ * (`scenario-thoughtseize.jvm.test.ts`, `wave35-evidence/s3-thoughtseize.md`):
+ *
+ *   1. `getChoices(message, -1, -1, wholeHand)` to the CASTER — a REVEAL
+ *      (Forge's own encoding of "nothing to choose, just look": `rules.ts`'s
+ *      `choiceBounds` reads the same `max <= 0` convention this file's
+ *      `onlyAnswer` already does for the identical case).
+ *   2. `getChoices(message, min, max, validOnly)` to the CASTER — the real
+ *      choice, already correctly excluding lands (`DiscardValid$ Card.nonLand`
+ *      is Forge's own filter, not ours).
+ *   3. `getChoices(message, -1, -1, [theOneCardTaken])` to the DISCARDER — a
+ *      second REVEAL, this time of just what was chosen, with no decision at
+ *      all.
+ *
+ * The operator's ruling (2026-10-02): fold 1 into 2 — the caster gets ONE
+ * choice showing the whole hand with the unchoosable cards greyed, the
+ * "Rampant Growth shape" `apps/ui/src/play/prompts/ChoicePrompts.tsx` already
+ * draws for `chooseSingleEntityForEffect`'s `delayedReveal` — and drop 3
+ * outright, because the opponent learns which card went from the log and
+ * their own graveyard.
+ *
+ * Both are applied here, generically, over the STRUCTURE of the asks —
+ * never a card name or a message string as the deciding fact, same rule
+ * `auto.ts`'s own header states for its shortcuts:
+ *
+ *  - "fold": a `getChoices` reveal (`min === max === -1`) immediately
+ *    followed (ignoring ordinary state/notify frames) by a `getChoices`
+ *    choice for the SAME SEAT whose `choices` are a subset of the reveal's.
+ *    `max === 1` only for now (`chooseSingleEntityForEffect` is singular) —
+ *    a `RevealYouChoose` with `NumCards` above 1 is left unmerged, a known
+ *    gap noted in the evidence doc rather than guessed at.
+ *  - "drop": a `getChoices` reveal whose `choices` are EXACTLY the card ids a
+ *    fold or an ordinary reply just sent Forge as a discard choice, for
+ *    EITHER seat — `Match.noteDiscardChoice` is the one place that sets it,
+ *    from every path that can answer a real discard choice.
+ */
+
+/**
+ * How long a held reveal waits for its matching choice before it is shown on
+ * its own, for the case nothing else disqualifies it first (an ask that
+ * arrives and does not match releases it at once, regardless of this timer).
+ * Short on purpose: every ordinary, non-folding reveal in the game — an
+ * opponent's hand shown by a tutor, a library search's "nothing found", any
+ * `RevealYouChoose`-shaped card this fold does not recognise — waits this
+ * long before it reaches the seat, and a measured real fold answers within
+ * 10-30ms of the reveal arriving, so this is generous headroom, not a target.
+ */
+const PENDING_REVEAL_FOLD_MS = 250;
+
+/**
+ * `InputPassPriority.showYieldSuggestionPrompt`'s own button labels
+ * (`en-US.properties`: `lblAccept`, `lblDecline`) — see
+ * {@link Match.maybeDeclineYieldSuggestion}'s own header (wave 35 §S item 2).
+ */
+const YIELD_ACCEPT_LABEL = 'Accept';
+const YIELD_DECLINE_LABEL = 'Decline';
+
+/** How long a just-sent discard choice stays eligible to silence its own echo. */
+const JUST_DISCARDED_TTL_MS = 5_000;
+
+/** The card ids a `getChoices` frame's `choices` name, in order. */
+function choiceCardIds(choices: readonly ChoiceOption[]): number[] {
+	const ids: number[] = [];
+	for (const c of choices) if (c.ref !== null && c.ref.kind === 'card') ids.push(c.ref.id);
+	return ids;
+}
+
+/** Every id of `small` is also in `big` — true for an empty `small` too, which never merges here (`.length > 0` guards every call site). */
+function isCardSubset(small: readonly number[], big: readonly number[]): boolean {
+	const set = new Set(big);
+	return small.every((id) => set.has(id));
+}
+
+function sameCardSet(a: readonly number[], b: ReadonlySet<number>): boolean {
+	return a.length === b.size && a.every((id) => b.has(id));
+}
+
 export class Match {
 	readonly id: string;
 	/** Minted per match-process start: a restart is a new epoch. */
@@ -445,6 +550,17 @@ export class Match {
 	private rejoined = false;
 	/** Armed by `resume`: a re-attached match nobody comes back to is stopped. */
 	private rejoinTimer: NodeJS.Timeout | null = null;
+	/**
+	 * Wave 35 §S, R4 — the card ids a discard choice JUST sent to Forge. The
+	 * next `getChoices` REVEAL (`min === max === -1`) whose `choices` are
+	 * exactly this set, for EITHER seat, is the discarder's own redundant
+	 * "you have been shown what was taken" confirmation (`DiscardEffect.java`'s
+	 * second `reveal()` call) — the operator's ruling is that nobody needs it,
+	 * because the log and the graveyard already say what went. Cleared on use
+	 * and by its own short timer, so a stale set can never survive to answer an
+	 * UNRELATED later reveal that happens to name the same cards.
+	 */
+	private justDiscarded: { ids: ReadonlySet<number>; timer: NodeJS.Timeout } | null = null;
 
 	constructor(
 		id: string,
@@ -501,6 +617,9 @@ export class Match {
 			autoPassed: 0,
 			says: [],
 			lastAbilityToPlay: null,
+			pendingReveal: null,
+			mergedChoice: new Map(),
+			displayOnlyAsks: new Set(),
 		}));
 		for (const [seat, owner] of (restore?.owners ?? []).entries()) {
 			const s = this.seats[seat];
@@ -782,7 +901,41 @@ export class Match {
 				if (ask.method !== frame.method) {
 					return { ok: false, error: `reply is for ${frame.method}, the open ask is ${ask.method}` };
 				}
+				const wasDisplayOnly = s.displayOnlyAsks.has(ask.callId);
 				this.closeAsk(s, ask.callId);
+				// Wave 35 §S, R4 — this ask is a reveal Forge was ALREADY answered
+				// for the instant it arrived (`onFrame`'s header); the browser's
+				// reply is it dismissing a display, not answering a live question,
+				// and goes nowhere — sending Forge a second reply for a callId it
+				// already resolved would only produce a harmless "stale" log line
+				// on its side at best.
+				if (wasDisplayOnly) {
+					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: frame.method, ms: this.now() - ask.sentAt, displayOnly: true });
+					return { ok: true };
+				}
+				// Wave 35 §S, R4 — the browser answered a SYNTHETIC ask standing in
+				// for the real discard choice (the reveal half was already answered
+				// `[]` the moment it arrived — Forge's game thread was parked inside
+				// it and would not even construct this choice until it was). Route
+				// the ref the browser picked back to the real `getChoices` key.
+				const merge = s.mergedChoice.get(frame.callId);
+				if (merge !== undefined) {
+					s.mergedChoice.delete(frame.callId);
+					const ref = frame.result as { kind: string; id: number } | null;
+					const key = ref === null ? undefined : merge.keyByRef.get(`${ref.kind}:${ref.id}`);
+					this.deps.log({
+						evt: 'ask-answered',
+						matchId: this.id,
+						seat,
+						callId: frame.callId,
+						method: 'chooseSingleEntityForEffect (R4 fold of a getChoices discard choice)',
+						ms: this.now() - ask.sentAt,
+					});
+					const chosenKeys = key === undefined ? [] : [key];
+					this.command({ t: 'reply', seat, callId: merge.chooseCallId, result: chosenKeys });
+					if (ref !== null && ref.kind === 'card') this.noteJustDiscarded(new Set([ref.id]));
+					return { ok: true };
+				}
 				// Wave 34 §S4 — remember what THIS seat actually chose for a
 				// `getAbilityToPlay`, so a repeat of Forge's own asking (see
 				// `auto.ts`'s `repeatedAbilityToPlay`) does not need a second click.
@@ -790,6 +943,11 @@ export class Match {
 					const hostCard = (ask.frame as unknown as { hostCard: { id: number } }).hostCard.id;
 					const abilityId = (frame.result as { id: number }).id;
 					s.lastAbilityToPlay = { hostCard, abilityId };
+				}
+				// Wave 35 §S, R4 — a real (unmerged) discard choice answered plainly:
+				// its own later echo to the discarder still needs no confirmation.
+				if (frame.method === 'getChoices' && ask.frame.kind === 'ask' && ask.frame.method === 'getChoices' && ask.frame.min > 0) {
+					this.noteDiscardChoice(ask.frame.choices, frame.result as string[]);
 				}
 				this.deps.log({
 					evt: 'ask-answered',
@@ -1000,47 +1158,81 @@ export class Match {
 		}
 
 		if (frame.kind === 'ask' && isBlocking(frame.method)) {
-			// Wave 34 §S4 — ahead of the full-control gate on purpose: Forge
-			// re-asking its OWN already-answered `getAbilityToPlay` is not a
-			// question full control exists to surface (`auto.ts`'s
-			// `repeatedAbilityToPlay` doc has the trace). Checked before
-			// `onlyAnswer` so it also wins over a policy that would otherwise
-			// leave this as a real ask.
-			const repeat = frame.method === 'getAbilityToPlay' ? repeatedAbilityToPlay(frame, s.lastAbilityToPlay) : null;
-			if (repeat !== null && frame.method === 'getAbilityToPlay') {
-				s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (repeat.result as { id: number }).id };
+			// Wave 35 §S, R4 — "Thoughtseize is one step". Full header above
+			// `newMatchId`. A `getChoices` REVEAL (`min === max === -1`) is either
+			// the discarder's redundant echo of a choice just answered (dropped,
+			// unconditionally), or — same as every OTHER such reveal, per
+			// `onlyAnswer`'s own existing rule — gets Forge's one legal answer,
+			// `[]`, AT ONCE: `DiscardEffect`'s own `reveal()` call PARKS Forge's
+			// single game thread right here, and it will not even construct
+			// whatever comes next until this is answered, so "hold it and see
+			// what follows" is not an option the way it is for an ordinary ask.
+			// Its `choices` are kept a moment longer, in case the very next ask
+			// is the real discard choice they belong to.
+			if (frame.method === 'getChoices' && frame.min === -1 && frame.max === -1) {
+				const ids = choiceCardIds(frame.choices);
+				if (ids.length > 0 && this.justDiscarded !== null && sameCardSet(ids, this.justDiscarded.ids)) {
+					clearTimeout(this.justDiscarded.timer);
+					this.justDiscarded = null;
+					s.autoAnswered += 1;
+					this.deps.log({
+						evt: 'ask-auto-answered',
+						matchId: this.id,
+						seat: s.seat,
+						callId: frame.callId,
+						method: frame.method,
+						why: 'reveals exactly what a discard choice just took — no confirmation needed (R4)',
+					});
+					this.command({ t: 'reply', seat: s.seat, callId: frame.callId, result: [] });
+					return;
+				}
+				if (s.pendingReveal !== null) {
+					// A second reveal arrived before anything claimed the first: it
+					// was never going to merge with this one either. Show it rather
+					// than drop it — same rule as every other unmerged reveal.
+					clearTimeout(s.pendingReveal.timer);
+					const orphaned = s.pendingReveal;
+					s.pendingReveal = null;
+					this.openDisplayOnlyReveal(s, orphaned.frame);
+				}
+				const revealFrame = frame;
+				const timer = setTimeout(() => {
+					if (s.pendingReveal?.frame !== revealFrame) return;
+					s.pendingReveal = null;
+					this.openDisplayOnlyReveal(s, revealFrame);
+				}, PENDING_REVEAL_FOLD_MS);
+				timer.unref();
+				s.pendingReveal = { frame: revealFrame, timer };
 				s.autoAnswered += 1;
 				this.deps.log({
 					evt: 'ask-auto-answered',
 					matchId: this.id,
 					seat: s.seat,
-					callId: repeat.callId,
-					method: repeat.method,
-					why: repeat.why,
+					callId: frame.callId,
+					method: frame.method,
+					why: 'a reveal — its one legal answer, held a moment for a possible R4 fold',
 				});
-				this.command({ t: 'reply', seat: s.seat, callId: repeat.callId, result: repeat.result });
+				this.command({ t: 'reply', seat: s.seat, callId: frame.callId, result: [] });
 				return;
 			}
-			// A question with one answer is not a question (`auto.ts`). Answered
-			// here, the browser never sees the ask at all — no modal to dismiss.
-			const auto = s.fullControl ? null : onlyAnswer(frame, s.policy);
-			if (auto !== null) {
-				s.autoAnswered += 1;
-				this.deps.log({
-					evt: 'ask-auto-answered',
-					matchId: this.id,
-					seat: s.seat,
-					callId: auto.callId,
-					method: auto.method,
-					why: auto.why,
-				});
-				this.command({ t: 'reply', seat: s.seat, callId: auto.callId, result: auto.result });
-				return;
+			const pending = s.pendingReveal;
+			if (pending !== null) {
+				clearTimeout(pending.timer);
+				s.pendingReveal = null;
+				const chooseIds = frame.method === 'getChoices' ? choiceCardIds(frame.choices) : [];
+				if (frame.method === 'getChoices' && frame.max === 1 && chooseIds.length > 0 && isCardSubset(chooseIds, choiceCardIds(pending.frame.choices))) {
+					this.openMergedChoice(s, pending.frame, frame);
+					return;
+				}
+				// Not a match: this ask was never the discard choice the held reveal
+				// belongs to. Forge already has the reveal's answer (`[]`, sent the
+				// instant it arrived); show it to the seat now, unchanged, rather
+				// than let it vanish — then `frame` still needs its own ordinary
+				// handling below.
+				this.openDisplayOnlyReveal(s, pending.frame);
 			}
-			const callId = frame.callId;
-			const timer = setTimeout(() => this.abortAsk(s, callId, 'timeout'), this.deps.askTimeoutMs);
-			timer.unref();
-			s.asks.set(callId, { callId, method: frame.method, frame, sentAt: this.now(), timer });
+			this.openAsk(s, frame);
+			return;
 		} else if (frame.method === 'showPromptMessage') {
 			s.prompt = frame;
 		} else if (frame.method === 'updateButtons') {
@@ -1072,6 +1264,7 @@ export class Match {
 		}
 		this.send(s, frame);
 		if (frame.method === 'showPromptMessage') this.trackPayment(s, frame.message);
+		if (frame.method === 'updateButtons') this.maybeDeclineYieldSuggestion(s);
 		if (frame.method === 'updateButtons') this.maybeAutoPass(s);
 		/*
 		 * The payment input enables Auto (`updateButtons`) BEFORE it says what it
@@ -1208,6 +1401,56 @@ export class Match {
 			creatures: s.projector.creatureCount(),
 			stackTopActivator: s.projector.stackTopActivator(),
 		};
+	}
+
+	/**
+	 * Wave 35 §S item 2 — the swallowed first OK press, chased to its cause.
+	 *
+	 * `InputPassPriority.showMessage` (`forge-gui/.../InputPassPriority.java`)
+	 * does not always show the normal "Priority: …" prompt: when the seat has
+	 * no available action, it can show a YIELD SUGGESTION instead — Forge's
+	 * own "You have no available actions. Yield until your turn?" /
+	 * "You cannot respond to the stack. Yield until stack clears?" — with
+	 * buttons labelled **"Accept"/"Decline"**, not "OK"/"End Turn"
+	 * (`en-US.properties`: `lblAccept`, `lblDecline`). Button 1 is still wired
+	 * to the SAME `selectButtonOk` act, but `InputPassPriority.onOk()` branches
+	 * on its own `pendingSuggestion` field: while a suggestion is pending,
+	 * pressing button 1 does not pass priority at all — it records the
+	 * suggestion's accept/decline bookkeeping and then calls `showNormalPrompt()`
+	 * AGAIN, re-showing the real "Priority: …" / "OK"/"End Turn" prompt without
+	 * ever calling `stop()`. A seat that presses "OK" meaning "pass priority" —
+	 * because, in every ordinary window, OK always means that — spends that
+	 * press on a question it never knew it was being asked, and the window
+	 * looks exactly as it did: `scenario-ability-repeat.jvm.test.ts`'s Ponder
+	 * case measured this directly (5 of 10 runs stuck at "Stack: 1 to Resolve"
+	 * after one press, every one unstuck by a second). `maybeAutoPass`'s own
+	 * window classification cannot catch this upstream: the suggestion's
+	 * prompt text never matches `^Priority: ` (`auto.ts`'s `PRIORITY` regex),
+	 * so `readPromptFacts` already calls it `'other'` and refuses to press
+	 * anything there — this is a DIFFERENT button bar, not a misclassified one.
+	 *
+	 * The fix: decline it, unconditionally and the instant it appears, before
+	 * either a human or a script can ever see it. **Not gated on
+	 * `s.fullControl`** — unlike every other shortcut in this file, this one
+	 * is not "an answer with fewer than two options" or "a stop with nothing to
+	 * do"; it is Forge SILENTLY reinterpreting the next ordinary press as an
+	 * answer to a question nobody asked for. Declining is the policy-neutral
+	 * choice regardless: it leaves the seat exactly where "ask me every time"
+	 * (full control's own default) already puts it — Forge's own
+	 * `onCancel()` branch for a pending suggestion calls `declineSuggestion`
+	 * and then `showNormalPrompt()`, the SAME re-show `onOk()`'s accept branch
+	 * reaches — so nothing about the real decision changes, only the
+	 * confusing extra button bar never reaches the wire's `updateButtons`
+	 * consumer disguised as an ordinary one.
+	 */
+	private maybeDeclineYieldSuggestion(s: SeatState): void {
+		if (s.ai || this.status !== 'running') return;
+		const buttons = s.buttons;
+		if (buttons === null || buttons.method !== 'updateButtons') return;
+		if (buttons.label1 !== YIELD_ACCEPT_LABEL || buttons.label2 !== YIELD_DECLINE_LABEL) return;
+		if (!buttons.enable2) return;
+		this.deps.log({ evt: 'yield-suggestion-declined', matchId: this.id, seat: s.seat });
+		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonCancel' } });
 	}
 
 	/**
@@ -1379,6 +1622,156 @@ export class Match {
 		const ask = s.asks.get(callId);
 		if (ask !== undefined) clearTimeout(ask.timer);
 		s.asks.delete(callId);
+		s.displayOnlyAsks.delete(callId);
+	}
+
+	/** `noteDiscardChoice`'s common tail: see the module header above {@link newMatchId}. */
+	private noteJustDiscarded(ids: ReadonlySet<number>): void {
+		if (ids.size === 0) return;
+		if (this.justDiscarded !== null) clearTimeout(this.justDiscarded.timer);
+		const timer = setTimeout(() => {
+			this.justDiscarded = null;
+		}, JUST_DISCARDED_TTL_MS);
+		timer.unref();
+		this.justDiscarded = { ids, timer };
+	}
+
+	/** {@link Match.noteJustDiscarded}, from a `getChoices` reply's chosen KEYS. */
+	private noteDiscardChoice(choices: readonly ChoiceOption[], keys: readonly string[]): void {
+		const ids = new Set<number>();
+		for (const k of keys) {
+			const c = choices.find((c) => c.key === k);
+			if (c !== undefined && c.ref !== null && c.ref.kind === 'card') ids.add(c.ref.id);
+		}
+		this.noteJustDiscarded(ids);
+	}
+
+	/**
+	 * Register and show one ask, after Forge's own re-ask shortcut and "one
+	 * legal reply is not a question" have each had a chance to answer it first
+	 * — the ask-opening half of `onFrame`'s generic tail, factored out so a
+	 * reveal buffered for R4's fold (see the module header above
+	 * {@link newMatchId}) can be released exactly as if it had arrived on its
+	 * own. Nothing else in that tail applies to an ask frame (every other
+	 * branch there gates on a notify method an ask never carries), so sending
+	 * it here is complete, not a partial duplicate.
+	 */
+	private openAsk(s: SeatState, frame: Extract<ServerFrame, { kind: 'ask' }>): void {
+		const repeat = frame.method === 'getAbilityToPlay' ? repeatedAbilityToPlay(frame, s.lastAbilityToPlay) : null;
+		if (repeat !== null && frame.method === 'getAbilityToPlay') {
+			s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (repeat.result as { id: number }).id };
+			s.autoAnswered += 1;
+			this.deps.log({
+				evt: 'ask-auto-answered',
+				matchId: this.id,
+				seat: s.seat,
+				callId: repeat.callId,
+				method: repeat.method,
+				why: repeat.why,
+			});
+			this.command({ t: 'reply', seat: s.seat, callId: repeat.callId, result: repeat.result });
+			return;
+		}
+		const auto = s.fullControl ? null : onlyAnswer(frame, s.policy);
+		if (auto !== null) {
+			s.autoAnswered += 1;
+			this.deps.log({
+				evt: 'ask-auto-answered',
+				matchId: this.id,
+				seat: s.seat,
+				callId: auto.callId,
+				method: auto.method,
+				why: auto.why,
+			});
+			// Wave 35 §S, R4 — a discard choice Forge left only one legal reply for
+			// (`onlyAnswer`'s own "one option") still owes its later echo nothing.
+			if (frame.method === 'getChoices' && frame.min > 0) this.noteDiscardChoice(frame.choices, auto.result as string[]);
+			this.command({ t: 'reply', seat: s.seat, callId: auto.callId, result: auto.result });
+			return;
+		}
+		const callId = frame.callId;
+		const timer = setTimeout(() => this.abortAsk(s, callId, 'timeout'), this.deps.askTimeoutMs);
+		timer.unref();
+		s.asks.set(callId, { callId, method: frame.method, frame, sentAt: this.now(), timer });
+		this.send(s, frame);
+	}
+
+	/**
+	 * Fold the just-answered `getChoices` reveal (`reveal`, held in
+	 * `s.pendingReveal` — already replied to `[]`, since Forge's game thread
+	 * would not construct the real choice until it was; see `onFrame`'s own
+	 * header) and the real discard choice right behind it (`choose`, still a
+	 * live, unanswered ask) into ONE ask the browser actually answers —
+	 * `chooseSingleEntityForEffect`, reusing its existing `delayedReveal`
+	 * (already drawn by `apps/ui/src/play/prompts/ChoicePrompts.tsx`'s
+	 * `DelayedRevealNote`, the "Rampant Growth shape"): the whole revealed hand
+	 * stays visible, only the valid cards are clickable. See the module header
+	 * above {@link newMatchId} for the ruling and the structural match that
+	 * gets here.
+	 *
+	 * `owner` is the match's OTHER seat — correct for the 2-seat games this
+	 * engine plays; a `DelayedReveal` naming the wrong of several opponents
+	 * would need more than this to pick the right one, and nothing here claims
+	 * to.
+	 */
+	private openMergedChoice(
+		s: SeatState,
+		reveal: Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>,
+		choose: Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>,
+	): void {
+		const other = this.seats.find((o) => o !== s);
+		const optionRefs = choose.choices.filter((c): c is ChoiceOption & { ref: NonNullable<ChoiceOption['ref']> } => c.ref !== null);
+		const revealCards = reveal.choices
+			.map((c) => c.ref)
+			.filter((r): r is Extract<NonNullable<ChoiceOption['ref']>, { kind: 'card' }> => r !== null && r.kind === 'card');
+		const merged = {
+			kind: 'ask',
+			callId: choose.callId,
+			method: 'chooseSingleEntityForEffect',
+			title: choose.message,
+			optionList: optionRefs.map((c) => c.ref),
+			delayedReveal: {
+				cards: revealCards,
+				zones: ['Hand'],
+				owner: { kind: 'player', id: other?.playerId ?? -1 },
+				messagePrefix: reveal.message,
+			},
+			isOptional: choose.min === 0,
+		} as unknown as Extract<ServerFrame, { kind: 'ask'; method: 'chooseSingleEntityForEffect' }>;
+		s.mergedChoice.set(choose.callId, {
+			chooseCallId: choose.callId,
+			keyByRef: new Map(optionRefs.map((c) => [`${c.ref.kind}:${c.ref.id}`, c.key])),
+		});
+		const timer = setTimeout(() => this.abortAsk(s, choose.callId, 'timeout'), this.deps.askTimeoutMs);
+		timer.unref();
+		s.asks.set(choose.callId, { callId: choose.callId, method: 'chooseSingleEntityForEffect', frame: merged, sentAt: this.now(), timer });
+		this.send(s, merged);
+	}
+
+	/**
+	 * Show a reveal Forge has ALREADY been answered for (its `[]`, sent the
+	 * instant it arrived — see `onFrame`'s header), exactly as the browser saw
+	 * it before this fold existed: the SAME frame, the SAME callId, registered
+	 * as an ordinary open ask. The manager's regression report on this fold:
+	 * `auto.ts:551-569` is explicit that a reveal "stays on screen" because
+	 * answering it "would take the reveal away from the player" — every
+	 * `getChoices` reveal this fold does NOT recognise as the front half of a
+	 * discard choice (an opponent's hand shown by a tutor, Secluded Glen's
+	 * reveal to the other seat, a `RevealYouChoose` card with more than one
+	 * card to take, …) must still reach the seat, unchanged.
+	 *
+	 * The browser's reply is consumed here and never forwarded — Forge has
+	 * nothing left waiting on this callId, and sending it a second reply for
+	 * one it already resolved would only produce a harmless "stale" bridge log
+	 * line at best. `s.displayOnlyAsks` marks the callId so `fromClient`'s
+	 * `reply` case knows to stop there.
+	 */
+	private openDisplayOnlyReveal(s: SeatState, frame: Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>): void {
+		s.displayOnlyAsks.add(frame.callId);
+		const timer = setTimeout(() => this.abortAsk(s, frame.callId, 'timeout'), this.deps.askTimeoutMs);
+		timer.unref();
+		s.asks.set(frame.callId, { callId: frame.callId, method: frame.method, frame, sentAt: this.now(), timer });
+		this.send(s, frame);
 	}
 
 	private closeAllAsks(): void {
@@ -1397,6 +1790,11 @@ export class Match {
 		const ask = s.asks.get(callId);
 		if (ask === undefined) return;
 		this.closeAsk(s, callId);
+		// This callId may be R4's synthetic `chooseSingleEntityForEffect` fold —
+		// the reveal half was already answered the moment it arrived (see
+		// `onFrame`'s own header), so only the real discard choice below it is
+		// still open and needs the abort.
+		s.mergedChoice.delete(callId);
 		this.deps.log({ evt: 'ask-aborted', matchId: this.id, seat: s.seat, callId, method: ask.method, reason });
 		this.command({ t: 'abort', seat: s.seat, callId, reason });
 	}

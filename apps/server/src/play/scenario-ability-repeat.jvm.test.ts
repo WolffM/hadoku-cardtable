@@ -117,11 +117,25 @@ describe.skipIf(!available.ok)(title, () => {
 				// Drive the cast through: answer the one getAbilityToPlay ask the
 				// client actually sees, the target question, and tap Islands for the
 				// Pay Mana Cost window — exactly what a Full Control player does.
+				// Mana Leak is {1}{U}: TWO lands, so `tappedLands` tracks every id
+				// already clicked rather than capping at one — but never re-clicks
+				// an id already IN that set, which is the actual bug this guards:
+				// re-evaluating `!tapped` on every ~25ms poll tick can select the
+				// SAME land a second time whenever this script's own local fold lags
+				// Forge's actual state by one tick, which wave 35 §S's own item 2
+				// evidence (`wave35-evidence/s2-swallowed-press.md`) traced to an
+				// extra, unwanted click landing the Ponder case below on a DIFFERENT
+				// priority window ("Undo (1)" instead of "End Turn") that a single,
+				// already-spent press was never aimed at.
+				const tappedLands = new Set<number>();
 				await waitUntil(() => {
 					s.answerAsks();
 					if (/Pay Mana Cost/.test(s.prompt(0))) {
-						const untapped = s.zone(0, 'Battlefield').find((c) => c.land && !c.tapped);
-						if (untapped !== undefined) s.select(0, untapped.id);
+						const untapped = s.zone(0, 'Battlefield').find((c) => c.land && !c.tapped && !tappedLands.has(c.id));
+						if (untapped !== undefined) {
+							tappedLands.add(untapped.id);
+							s.select(0, untapped.id);
+						}
 					}
 					return /Stack: 2 to Resolve/.test(s.prompt(0));
 				}, "Mana Leak to reach the stack (Stack: 2 to Resolve)", 30_000);
@@ -166,11 +180,17 @@ describe.skipIf(!available.ok)(title, () => {
 				// anything. Press it once, the first time the stack shows exactly
 				// Ponder waiting and the button is live.
 				let passedOwnPriority = false;
+				// `tappedLands`: see the Mana Leak case's own note above on why a
+				// land, once clicked, must never be clicked again on a later tick.
+				const tappedLands = new Set<number>();
 				await waitUntil(() => {
 					s.answerAsks();
 					if (/Pay Mana Cost/.test(s.prompt(0))) {
-						const untapped = s.zone(0, 'Battlefield').find((c) => c.land && !c.tapped);
-						if (untapped !== undefined) s.select(0, untapped.id);
+						const untapped = s.zone(0, 'Battlefield').find((c) => c.land && !c.tapped && !tappedLands.has(c.id));
+						if (untapped !== undefined) {
+							tappedLands.add(untapped.id);
+							s.select(0, untapped.id);
+						}
 					} else if (
 						!passedOwnPriority &&
 						/Stack: 1 to Resolve/.test(s.prompt(0)) &&

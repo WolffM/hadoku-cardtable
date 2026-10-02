@@ -1,0 +1,19 @@
+# For lane E (wave 35, R14 — token art). Seat 0 (human) holds Raise the Alarm
+# ("Create two 1/1 white Soldier creature tokens.", {1}{W}) and two untapped
+# Plains, an uncontested turn-1 Main Phase 1 — castable at once, no combat or
+# targeting needed, so the spec can go straight from cast to "two tokens on
+# the battlefield, each with art" (or without, before `art-ids.json` is
+# extended to tokens).
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Raise the Alarm
+humanbattlefield=Plains;Plains
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

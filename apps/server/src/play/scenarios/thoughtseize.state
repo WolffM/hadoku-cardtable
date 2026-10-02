@@ -1,0 +1,22 @@
+# R4 — Thoughtseize's steps. Seat 0 (human) holds Thoughtseize and one
+# untapped Swamp (enough for {B}), an uncontested turn-1 Main Phase 1. Seat 1
+# (ai, human-controlled) holds TWO nonland cards (Elvish Mystic, Goblin Guide)
+# AND a land (Mountain) in hand — two valid choices, not one, so the real
+# "choose" step reaches the wire rather than being collapsed by the server's
+# own `onlyAnswer` ("one option") shortcut the way a single-nonland hand
+# would (see `wave35-evidence/s3-thoughtseize.md`'s note on the first,
+# accidentally-degenerate scenario draft). The land must never be offered —
+# Thoughtseize's DiscardValid is Card.nonLand.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Thoughtseize;Swamp
+humanbattlefield=Swamp
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Elvish Mystic;Goblin Guide;Mountain
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

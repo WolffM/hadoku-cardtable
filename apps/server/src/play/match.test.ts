@@ -1154,3 +1154,91 @@ describe('wave 31 §S: seat names', () => {
 		expect('name' in (b as object)).toBe(false);
 	});
 });
+
+describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed', () => {
+	/**
+	 * A `getChoices` reveal (`min === max === -1`) — the shape ANY reveal
+	 * takes, Thoughtseize's "look at hand" step among them. `auto.ts:551-569`
+	 * is explicit that this shape "stays on screen" because answering it
+	 * "would take the reveal away from the player" — the regression this
+	 * block guards is R4's fold doing exactly that for every OTHER reveal in
+	 * the game (an opponent's hand shown by a tutor, a library search coming
+	 * up empty, Secluded Glen's reveal to the other seat, …), not just
+	 * Thoughtseize's own.
+	 */
+	function revealFrame(callId: string, ids: number[]) {
+		return {
+			kind: 'ask' as const,
+			callId,
+			method: 'getChoices' as const,
+			message: "Looking at cards in B's hand",
+			min: -1,
+			max: -1,
+			choices: ids.map((id, i) => ({ key: `c${i}`, label: `Card ${id}`, ref: { kind: 'card' as const, id } })),
+			selected: [],
+		};
+	}
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('nothing claims it: Forge is answered at once, but the seat still sees it, unchanged, once the fold window passes', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		const frame = revealFrame('x-reveal-1', [900, 901, 902]);
+		h.host.push({ t: 'frame', seat: 0, frame });
+
+		// Forge's game thread is parked inside the reveal and will not build
+		// whatever comes next until it is answered — so this is immediate,
+		// not deferred to the fold window below.
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 'x-reveal-1', result: [] }]);
+		// But the seat has not been shown anything yet — the window is still open.
+		expect(h.sent.some((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-reveal-1')).toBe(false);
+
+		vi.advanceTimersByTime(1000);
+
+		const shown = h.sent.find((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-reveal-1');
+		expect(shown?.envelope.frame).toEqual(frame);
+
+		// The browser dismissing it sends Forge nothing further — it was
+		// already told, and a second reply for a callId it has already
+		// resolved is not owed one.
+		const dismiss = ClientFrameSchema.parse({ kind: 'reply', callId: 'x-reveal-1', method: 'getChoices', result: [] });
+		expect(h.match.fromClient(0, dismiss)).toEqual({ ok: true });
+		expect(h.host.commands).toHaveLength(1);
+	});
+
+	it('a disqualifying ask arrives first: the reveal reaches the seat AT ONCE, not after the fold window', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: revealFrame('x-reveal-2', [910]) });
+		// An ask that cannot possibly be this reveal's discard choice (not even
+		// `getChoices`) arrives right behind it — no need to wait out the timer.
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 'x-other', method: 'openZones', controller: { kind: 'player', id: 0 }, zones: [], players: [], backupLastZones: false } });
+
+		const shown = h.sent.find((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-reveal-2');
+		expect(shown).toBeDefined();
+		const other = h.sent.find((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-other');
+		expect(other).toBeDefined();
+	});
+
+	it('two reveals back to back: the first is shown too, not dropped for the second', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: revealFrame('x-reveal-3', [920]) });
+		h.host.push({ t: 'frame', seat: 0, frame: revealFrame('x-reveal-4', [921]) });
+		vi.advanceTimersByTime(1000);
+
+		expect(h.host.commands).toEqual([
+			{ t: 'reply', seat: 0, callId: 'x-reveal-3', result: [] },
+			{ t: 'reply', seat: 0, callId: 'x-reveal-4', result: [] },
+		]);
+		for (const callId of ['x-reveal-3', 'x-reveal-4']) {
+			expect(h.sent.some((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === callId)).toBe(true);
+		}
+	});
+});
