@@ -1036,6 +1036,109 @@ describe('POST /api/rooms/:id/ready', () => {
 	});
 });
 
+/* ── R16: leave, and the leader handoff ─────────────────────────────────── */
+
+describe('POST /api/rooms/:id/leave', () => {
+	it('removes the member and answers the room, with no body required', async () => {
+		const dir = await tempDir();
+		const h = await openApp(dir);
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+
+		const res = await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'bob' });
+		expect(res.status).toBe(200);
+		const after = res.json() as import('../room/lobby.ts').RoomView;
+		expect(after.members.map((m) => m.name)).toEqual(['user-alice']);
+		// Bob's own row says he is no longer the leader and no longer ready —
+		// true either way, since he is not a member any more.
+		const asBob = (await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'bob' })).json() as {
+			you: { leader: boolean; ready: boolean };
+		};
+		expect(asBob.you).toEqual({ leader: false, ready: false });
+
+		// And it is persisted: still gone after a restart, over the SAME dir.
+		const reopened = await openApp(dir);
+		expect(
+			(reopened.lobby.get(room.id) as import('../room/lobby.ts').RoomView | undefined)?.members.map((m) => m.name),
+		).toEqual(['user-alice']);
+	});
+
+	it('hands leadership to whoever remains and joined earliest when the leader leaves', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'carol' });
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+
+		const left = await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'alice' });
+		expect(left.status).toBe(200);
+		const after = left.json() as import('../room/lobby.ts').RoomView;
+		// Carol joined before Bob, so Carol leads.
+		expect(after.leader).toBe(after.members.find((m) => m.name === 'user-carol')?.id);
+		expect(after.members.map((m) => m.name)).toEqual(['user-carol', 'user-bob']);
+
+		const asCarol = (await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'carol' })).json() as {
+			you: { leader: boolean };
+		};
+		expect(asCarol.you.leader).toBe(true);
+	});
+
+	it('answers a non-member with the SAME 404 as a missing room and a malformed id', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night' } })).json() as
+			import('../room/lobby.ts').RoomView;
+
+		const nonMember = await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'carol' });
+		const missing = await call(h, 'POST', '/api/rooms/r-000000000000/leave', { as: 'carol' });
+		const malformed = await call(h, 'POST', '/api/rooms/NOT_AN_ID/leave', { as: 'carol' });
+		expect([nonMember.status, missing.status, malformed.status]).toEqual([404, 404, 404]);
+		expect(nonMember.text).toBe(missing.text);
+		expect(nonMember.text).toBe(malformed.text);
+		expect(nonMember.json()).toEqual(roomsMod.NO_MATCH);
+		// Nothing was written: alice is still the only member.
+		expect(
+			((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).members,
+		).toHaveLength(1);
+	});
+
+	it('refuses an unexpected body field, and a caller the edge could not name', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night' } })).json() as
+			import('../room/lobby.ts').RoomView;
+
+		const sneaky = await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'alice', body: { sneaky: 1 } });
+		expect(sneaky.status).toBe(400);
+		expect(sneaky.json()).toEqual({ error: 'unknown field(s): sneaky' });
+
+		const ghost = await call(h, 'POST', `/api/rooms/${room.id}/leave`, { headers: anonymousHeaders() });
+		expect(ghost.status).toBe(403);
+		expect((ghost.json() as { error: string }).error).toContain('the edge did not name you');
+		// Neither refusal removed alice.
+		expect(
+			((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).members,
+		).toHaveLength(1);
+	});
+
+	it('hides a room from the list the instant its last member leaves — no stale wait', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		expect(
+			((await call(h, 'GET', '/api/rooms', { as: 'bob' })).json() as { rooms: { id: string }[] }).rooms.map((r) => r.id),
+		).toEqual([room.id]);
+
+		const left = await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'alice' });
+		expect(left.status).toBe(200);
+
+		expect(
+			((await call(h, 'GET', '/api/rooms', { as: 'bob' })).json() as { rooms: { id: string }[] }).rooms,
+		).toEqual([]);
+		// Still there for a direct GET — a listing rule, not a deletion.
+		expect((await call(h, 'GET', `/api/rooms/${room.id}`)).status).toBe(200);
+	});
+});
+
 describe('POST /api/rooms/:id/start', () => {
 	it('starts the draft once every member is ready, for either member, idempotently', async () => {
 		const h = await openApp(await tempDir());

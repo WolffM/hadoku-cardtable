@@ -364,6 +364,15 @@ export type StartDraftResult =
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-ready' };
 
 /**
+ * `not-member` covers a room that does not exist too (same bucket `join` and
+ * `setReady` already use): there is no sentence a caller who is not in a room
+ * needs that is different from "no such room".
+ */
+export type LeaveResult =
+	| { ok: true; room: RoomView }
+	| { ok: false; reason: 'no-room' | 'not-member' };
+
+/**
  * How long a room may sit untouched before the lobby forgets it.
  *
  * Rooms used to be permanent: `create` had no opposite, and neither `leave`
@@ -467,6 +476,42 @@ export interface Lobby {
 	startDraft(roomId: string, callerId: string): StartDraftResult;
 	/** false when there is no such room. Persisted. */
 	setMatch(roomId: string, matchId: string | null): boolean;
+	/**
+	 * Let go of a match that has finished or is simply gone (R16): clears
+	 * `matchId` and drops every member's readiness and table state, the same
+	 * wholesale reset `setFormat` makes when the pool moves out from under a
+	 * held deck. A verdict and a ready flag taken for the match that just ended
+	 * are not a verdict or a readiness for its REMATCH — the operator's own
+	 * shape (`"rematch" … takes the users back to the room where decks are to
+	 * be selected`), so both seats land back on deck selection rather than a
+	 * picker that still thinks it is holding a legal hand from the last game.
+	 *
+	 * Idempotent: a room with no match does nothing and still answers `true`.
+	 * `false` only when there is no such room. The caller — `http/routes.ts`'s
+	 * `liveMatchId`, the one place that can ask play's match registry whether a
+	 * room's `matchId` is still a match anybody could play — decides WHEN to
+	 * call this; this file has no opinion on match status at all.
+	 */
+	releaseMatch(roomId: string): boolean;
+	/**
+	 * A member steps out. Removed from `members`; their deck hold and ready
+	 * flag go with their row, exactly as `setFormat`'s reset drops one member's
+	 * worth of state. If the member who leaves is the LEADER, leadership passes
+	 * to whichever remaining member joined EARLIEST (operator ruling, R16) —
+	 * not simply the next one in the array, which happens to be join order
+	 * today but is restated by `joinedAt` so a future reordering cannot change
+	 * who leads by accident.
+	 *
+	 * A room left by its last member is not deleted here — the idle sweep still
+	 * owns deletion — but is dropped from `offered()` the instant it empties,
+	 * rather than waiting out `ROOM_STALE_MS` with nobody in it to see the
+	 * delay.
+	 *
+	 * `no-room` and `not-member` are two reasons here (like `startDraft`'s);
+	 * `http/rooms.ts` answers the SAME 404 for both, the same bucket `setReady`
+	 * already falls into with its bare `false`.
+	 */
+	leave(roomId: string, memberId: string): LeaveResult;
 	create(caller: Caller, input: CreateRoomInput): CreateResult;
 	/** Idempotent for an existing member, who needs no password again. */
 	join(roomId: string, caller: Caller, password?: string): JoinResult;
@@ -851,9 +896,13 @@ class FileLobby implements Lobby {
 		return [...this.#rooms.values()]
 			.filter(
 				(r) =>
-					r.matchId !== null ||
-					r.draftStartedAt !== null ||
-					Math.max(r.updatedAt, this.#polledAt.get(r.id) ?? 0) > cutoff,
+					// An empty room is hidden AT ONCE (R16) — there is nobody left to poll
+					// it, so waiting out `staleMs` would advertise it, untouched, for up to
+					// thirty more minutes after its last member walked out.
+					r.members.length > 0 &&
+					(r.matchId !== null ||
+						r.draftStartedAt !== null ||
+						Math.max(r.updatedAt, this.#polledAt.get(r.id) ?? 0) > cutoff),
 			)
 			.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
 			.map((r) => this.#view(r));
@@ -893,6 +942,41 @@ class FileLobby implements Lobby {
 		room.matchId = matchId;
 		this.#persist(room);
 		return true;
+	}
+
+	releaseMatch(roomId: string): boolean {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return false;
+		// Idempotent, and a no-op write is not persisted: a room with no match
+		// answers true without touching disk, the same discipline `setAvatar`
+		// keeps for its own idempotent case.
+		if (room.matchId === null) return true;
+		room.matchId = null;
+		for (const member of room.members) {
+			member.ready = false;
+			member.state = undefined;
+		}
+		this.#persist(room);
+		this.#log({ event: 'room-match-released', roomId });
+		return true;
+	}
+
+	leave(roomId: string, memberId: string): LeaveResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		const index = room.members.findIndex((m) => m.id === memberId);
+		if (index === -1) return { ok: false, reason: 'not-member' };
+		const wasLeader = room.leader === memberId;
+		room.members.splice(index, 1);
+		// The operator's ruling: leadership passes to whoever remaining joined
+		// EARLIEST, not to array order (today the same thing, since `join`
+		// appends — restated explicitly so that stops being an assumption).
+		if (wasLeader && room.members.length > 0) {
+			room.leader = room.members.reduce((earliest, m) => (m.joinedAt < earliest.joinedAt ? m : earliest)).id;
+		}
+		this.#persist(room);
+		this.#log({ event: 'room-left', roomId, members: room.members.length, newLeader: room.leader });
+		return { ok: true, room: this.#view(room) };
 	}
 
 	create(caller: Caller, input: CreateRoomInput): CreateResult {

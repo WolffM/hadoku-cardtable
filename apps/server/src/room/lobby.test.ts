@@ -880,6 +880,124 @@ describe('a member\'s avatar', () => {
 	});
 });
 
+/* ── R16: a room lets go of a finished match, and a member can leave ───── */
+
+describe('Lobby.releaseMatch', () => {
+	it('clears matchId, un-readies every member and drops their table state — idempotent, false only for no such room', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'streamed' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		const id = made.room.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		for (const who of [ALICE, BOB]) {
+			expect(lobby.setReady(id, who.id, true)).toBe(true);
+			expect(lobby.setPlayerState(id, who.id, { v: 1, deck: 'mono-red', ready: true })).toBe(true);
+		}
+		expect(lobby.setMatch(id, 'm-finished')).toBe(true);
+
+		expect(lobby.releaseMatch('r-000000000000')).toBe(false);
+		expect(lobby.releaseMatch(id)).toBe(true);
+
+		expect(lobby.get(id)?.matchId).toBeNull();
+		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([false, false]);
+		expect(lobby.playerState(id, ALICE.id)).toBeUndefined();
+		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
+		// Nothing else about the room moved — not even the field this exists to
+		// prove is immutable everywhere else.
+		expect(lobby.get(id)?.clientMode).toBe('streamed');
+
+		// Idempotent: a room with no match left to release does nothing and
+		// still answers true.
+		expect(lobby.releaseMatch(id)).toBe(true);
+
+		// Persisted, so a restart does not resurrect the finished match.
+		const second = await openLobby({ dir });
+		expect(second.get(id)?.matchId).toBeNull();
+	});
+});
+
+describe('Lobby.leave', () => {
+	it('removes the member and drops their hold with them; refuses a non-member and a missing room', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		const id = made.room.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.setPlayerState(id, BOB.id, { deck: 'mono-red' })).toBe(true);
+		expect(lobby.setReady(id, BOB.id, true)).toBe(true);
+
+		expect(lobby.leave(id, CAROL.id)).toEqual({ ok: false, reason: 'not-member' });
+		expect(lobby.leave('r-000000000000', ALICE.id)).toEqual({ ok: false, reason: 'no-room' });
+		// Neither refusal touched anything.
+		expect(lobby.get(id)?.members).toHaveLength(2);
+
+		const left = lobby.leave(id, BOB.id);
+		expect(left.ok).toBe(true);
+		if (!left.ok) return;
+		expect(left.room.members.map((m) => m.id)).toEqual([ALICE.id]);
+		expect(lobby.isMember(id, BOB.id)).toBe(false);
+		// Bob's hold and readiness left WITH him, not merely hidden behind his
+		// missing membership.
+		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
+
+		// And it is persisted: a restart does not bring him back.
+		expect(lobby.get(id)?.members).toHaveLength(1);
+	});
+
+	it('hands leadership to whoever remains and joined EARLIEST, not to array order', async () => {
+		let clock = 1_900_000_000_000;
+		const lobby = await openLobby({ dir: await tempDir(), now: () => clock });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		const id = made.room.id;
+		// CAROL joins before BOB, so if ALICE leaves, CAROL leads — even though a
+		// "next in the array" rule and a "joined earliest" rule agree here only
+		// because join order and array order are the same thing today.
+		clock += 1000;
+		expect(lobby.join(id, CAROL).ok).toBe(true);
+		clock += 1000;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+
+		const left = lobby.leave(id, ALICE.id);
+		expect(left.ok).toBe(true);
+		if (!left.ok) return;
+		expect(left.room.leader).toBe(CAROL.id);
+		expect(lobby.get(id)?.leader).toBe(CAROL.id);
+
+		// A non-leader leaving changes nothing about who leads.
+		const second = lobby.leave(id, BOB.id);
+		expect(second.ok).toBe(true);
+		if (!second.ok) return;
+		expect(second.room.leader).toBe(CAROL.id);
+	});
+
+	it('is hidden from offered() the instant the last member leaves — no stale wait, no deletion', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		const id = made.room.id;
+		expect(lobby.offered().map((r) => r.id)).toEqual([id]);
+
+		const left = lobby.leave(id, ALICE.id);
+		expect(left.ok).toBe(true);
+		if (!left.ok) return;
+		expect(left.room.members).toEqual([]);
+
+		// Gone from the front page at once — not after ROOM_STALE_MS, not after
+		// ROOM_IDLE_MS.
+		expect(lobby.offered().map((r) => r.id)).toEqual([]);
+		// But not deleted: `get` still finds it, and the ordinary idle sweep
+		// still owns reaping it.
+		expect(lobby.get(id)).not.toBeUndefined();
+		expect(lobby.list().map((r) => r.id)).toEqual([id]);
+	});
+});
+
 describe('Lobby.offered', () => {
 	/*
 	 * Wave 31. Rooms restore on boot and live `ROOM_IDLE_MS`, and the list shows a

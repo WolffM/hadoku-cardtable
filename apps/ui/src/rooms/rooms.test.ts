@@ -311,6 +311,15 @@ describe('the room writes', () => {
     expect(calls).toEqual([{ url: '/cardtable/api/rooms/r-cube/start', method: 'POST', body: {} }]);
   });
 
+  it('leaves the room with an empty body, and answers with the room (R16, the result screen’s Main menu)', async () => {
+    const emptied = room({ id: 'r-cube', name: 'Cube night', members: [] });
+    const { calls, client } = writes(() => json(200, emptied));
+
+    const outcome = await client.leave('r-cube');
+    expect(outcome).toEqual({ ok: true, room: emptied });
+    expect(calls).toEqual([{ url: '/cardtable/api/rooms/r-cube/leave', method: 'POST', body: {} }]);
+  });
+
   it('hands back the server’s own refusal, in its words, for both writes', async () => {
     const refused = writes(() => json(409, { error: 'somebody in this room is not ready yet' }));
     const start = await refused.client.start('r-cube');

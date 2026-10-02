@@ -182,6 +182,13 @@ export interface TablesRooms {
 	/** False when there is no such room. */
 	setMatch(roomId: string, matchId: string | null): boolean;
 	/**
+	 * Clears `matchId` and un-readies every member (R16): what `liveMatchId`
+	 * calls instead of `setMatch(id, null)` once it finds the match is finished
+	 * or gone, so a returning player lands on deck selection rather than a
+	 * picker still holding a verdict for the game that just ended.
+	 */
+	releaseMatch(roomId: string): boolean;
+	/**
 	 * Told when a member's avatar changes (Q6). Optional like the rest of the
 	 * room's surface: a registry that cannot say simply never updates a live seat.
 	 */
@@ -521,10 +528,28 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 
 	/**
 	 * The room's match if it is still one you could play, and null otherwise —
-	 * clearing a match id the registry has forgotten. Rooms persist across a
-	 * restart and matches do not, so after a deploy every room that was playing
-	 * holds the id of a match that no longer exists; without this, that room
-	 * could never start another one.
+	 * releasing a match id the registry has forgotten OR has marked finished.
+	 * Rooms persist across a restart and matches do not, so after a deploy
+	 * every room that was playing holds the id of a match that no longer
+	 * exists; without this, that room could never start another one.
+	 *
+	 * **`over` releases too, not only `stopped`/`failed` (R16).** A finished
+	 * match sits in `over` for `overGraceMs` (ten minutes) before its host
+	 * actually stops — the window that lets a disconnected player's socket
+	 * still catch the final frame. Treating only `stopped`/`failed` as "not
+	 * live" left a room holding a genuinely-finished match for that whole
+	 * window, so reading the room during it (the "Rematch" button's own next
+	 * step) sent a returning player straight back into the game that just
+	 * ended rather than to deck selection. The match itself is untouched here
+	 * — this only decides whether the ROOM still points at it — so a player
+	 * still on the match screen mid-grace is unaffected.
+	 *
+	 * This is the one place in the server that can ask play's match registry
+	 * about a room's match, so it is also where the room is told to let go of
+	 * it (`releaseMatch`, not a bare `setMatch(id, null)`): releasing clears
+	 * both the matchId AND every member's readiness, because a ready flag and
+	 * a deck hold taken for the finished game are not a readiness or a hold
+	 * for its rematch.
 	 */
 	function liveMatchId(room: RoomViewLike): string | null {
 		if (room.matchId === null) return null;
@@ -532,8 +557,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// No registry to ask: report what the room holds rather than clearing it.
 		if (registry === null || rooms === null) return room.matchId;
 		const match = registry.get(room.matchId);
-		if (match !== undefined && match.status !== 'stopped' && match.status !== 'failed') return room.matchId;
-		rooms.setMatch(room.id, null);
+		const finished = match === undefined || match.status === 'over' || match.status === 'stopped' || match.status === 'failed';
+		if (!finished) return room.matchId;
+		rooms.releaseMatch(room.id);
 		log({ evt: 'room-match-cleared', room: room.id, matchId: room.matchId });
 		return null;
 	}
@@ -565,6 +591,14 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * own words, and somebody else's is the ROOM's pool in the third person.
 	 */
 	function tableView(room: RoomViewLike, me: string): Record<string, unknown> {
+		// `liveMatchId` FIRST: when it releases a finished match it also un-readies
+		// every member and drops their table state (`Lobby.releaseMatch`), and
+		// `playersOf` has to read the room AFTER that write or this very response
+		// would show a still-ready player for a match it also reports as gone —
+		// which is the exact "rematch bounces you back" bug restated one field
+		// over. The two were a snapshot-then-write race the one time this read
+		// also happens to be what triggers the release (R16).
+		const matchId = liveMatchId(room);
 		const players = rooms === null ? [] : playersOf(rooms, room);
 		return {
 			room: {
@@ -578,7 +612,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// `format` and sent anyway, so a client does not have to know the
 				// spelling of the prefix to draw a table on a drafted pool.
 				draftId: draftIdOfPool(room.format),
-				matchId: liveMatchId(room),
+				matchId,
 				seats: TABLE_SEATS,
 			},
 			// `player` is "I have a deck at this table"; `leader` is "this room's

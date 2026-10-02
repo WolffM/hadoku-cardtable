@@ -352,6 +352,17 @@ export interface RoomsClient {
   /** Your own readiness in this room. The server resolves who you are. */
   ready(roomId: string, ready: boolean): Promise<RoomOutcome>;
   /**
+   * Step out of a room (R16): removed from `members`, your ready flag and deck
+   * hold gone with you. If you were the leader, leadership passes to whoever
+   * remains and joined earliest — the server's ruling, not a choice made here.
+   *
+   * This is the result screen's "Main menu" button: leave, then go to the
+   * lobby list. "Rematch" never calls this — it stays a member and navigates
+   * straight to the room, which has already let go of the finished match by
+   * the time anyone reads it.
+   */
+  leave(roomId: string): Promise<RoomOutcome>;
+  /**
    * Set the table's pool. The LEADER's call: anyone else gets the server's
    * `only the room leader…` refusal, in its own words, and the screen does not
    * offer the control in the first place.
@@ -531,6 +542,10 @@ export function roomsClient(
 
     ready(roomId, ready) {
       return write(`/${encodeURIComponent(roomId)}/ready`, { ready }, 'Could not change your readiness');
+    },
+
+    leave(roomId) {
+      return write(`/${encodeURIComponent(roomId)}/leave`, {}, 'Could not leave the room');
     },
 
     setFormat(roomId, format) {

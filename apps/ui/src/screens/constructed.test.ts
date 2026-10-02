@@ -768,6 +768,7 @@ describe('a room’s table', () => {
         ready: async () => ({ ok: false as const, message: 'not used' }),
         start: async () => ({ ok: false as const, message: 'not used' }),
         setFormat: async () => ({ ok: false as const, message: 'not used' }),
+        leave: async () => ({ ok: false as const, message: 'not used' }),
         join: async (roomId: string, password?: string) => {
           joins.push(roomId);
           passwords.push(password);

@@ -11,6 +11,7 @@
  *   GET   /api/rooms/:id        → 200 RoomView | 404
  *   POST  /api/rooms/:id/join   { password? }                   → 200 RoomView | 404 | 429
  *   POST  /api/rooms/:id/ready  { ready }                       → 200 RoomView | 400 | 403 | 404
+ *   POST  /api/rooms/:id/leave  {} or no body                   → 200 RoomView | 403 | 404
  *   POST  /api/rooms/:id/identity { avatarId }                 → 200 RoomView | 400 | 403 | 404
  *   POST  /api/rooms/:id/start  {} or no body                   → 200 RoomView | 403 | 404 | 409
  *   PATCH /api/rooms/:id        { gameType } | { format }       → 200 RoomView | 403 | 404 | 409
@@ -434,6 +435,35 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const room = lobby.get(id);
 		if (room === undefined) return noMatch(res);
 		res.json(roomBody(room, caller.id));
+	});
+
+	/**
+	 * A member steps out of their own room (R16). No body: `parseStart`'s shape
+	 * is reused because the refusal for an unexpected field is identical and a
+	 * second function would say the same thing twice.
+	 *
+	 * If the leader leaves, leadership passes to whoever remaining joined
+	 * earliest — `lobby.leave`'s own ruling, not this file's. A non-member and
+	 * a room that does not exist are the server's usual single 404, same as
+	 * `ready` and `start`: there is no sentence someone who was never in a room
+	 * needs that differs from "no such room".
+	 *
+	 * This is the "Main menu" half of the result screen's two buttons (L's
+	 * seam): leave, then navigate to the lobby list. "Rematch" does not call
+	 * this at all — it stays a member and goes straight to the room, which by
+	 * then has already let go of the finished match (`liveMatchId` in
+	 * `http/routes.ts`).
+	 */
+	rooms.post('/:id/leave', (req: Request, res: Response) => {
+		const parsed = parseStart(req.body);
+		if (!parsed.ok) return badRequest(res, parsed.error);
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'leave');
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id)) return noMatch(res);
+		const result = lobby.leave(id, caller.id);
+		if (!result.ok) return noMatch(res);
+		res.json(roomBody(result.room, caller.id));
 	});
 
 	/**

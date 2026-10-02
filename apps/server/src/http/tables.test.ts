@@ -325,6 +325,16 @@ function fakeLobby(): FakeLobby {
 			room.matchId = matchId;
 			return true;
 		},
+		releaseMatch(roomId) {
+			const room = held.get(roomId);
+			if (room === undefined) return false;
+			room.matchId = null;
+			// Every member's table state (the deck hold and its own `ready`) is
+			// opaque to this fake, same as the real lobby: dropped whole, like
+			// `setFormat` drops it when the pool moves.
+			room.state.clear();
+			return true;
+		},
 	};
 }
 
@@ -1240,6 +1250,69 @@ describe('a room table', () => {
 		const seen = await view(h, 'alice');
 		expect((seen.body.room as { matchId: string | null }).matchId).toBeNull();
 		expect((await startRoom(h, 'alice')).status).toBe(201);
+	});
+
+	/**
+	 * R16. `over` sits for `overGraceMs` (ten minutes) before a host actually
+	 * stops, and before this fix only `stopped`/`failed` released a room's
+	 * match — so reading the room during that whole window (exactly what
+	 * clicking "Rematch" does next) sent a returning player straight back into
+	 * the match that just ended. A REAL `Match`, driven to `over` by a genuine
+	 * `gameover` line on its host, not a fake registry: the fact under test is
+	 * `match.ts`'s own status transition reaching `liveMatchId`.
+	 */
+	it('releases the room once its match is OVER, not only once it is stopped or failed', async () => {
+		const h = await boot();
+		openRoom(h);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		const started = await startRoom(h, 'alice');
+		expect(started.status).toBe(201);
+		const matchId = started.body.matchId as string;
+		expect(h.matches.get(matchId)?.status).toBe('running');
+
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: null });
+		expect(h.matches.get(matchId)?.status).toBe('over');
+
+		const seen = await view(h, 'alice');
+		expect((seen.body.room as { matchId: string | null }).matchId).toBeNull();
+		// Un-matched AND un-readied: `releaseMatch` drops the whole table hold
+		// (deck, verdict, ready), the same wholesale reset `setFormat` makes when
+		// the pool moves — a verdict taken for the game that just ended is not a
+		// verdict for its rematch. A player with no hold is not in `players` at
+		// all (`playersOf` filters on having one), which is what "lands on deck
+		// selection" looks like from this route: nobody's chosen anything yet.
+		expect(players(seen.body)).toEqual([]);
+		expect(h.lobby.room(ROOM)?.matchId).toBeNull();
+
+		// Reverted (comment out the `=== 'over'` arm of `finished` in
+		// `liveMatchId`): this exact assertion is what fails — `matchId` comes
+		// back as the finished match's id instead of null. 1 failed.
+		// Restored: passes. 1 passed.
+
+		// The room is free to start a new match from scratch.
+		await putDeck(h, 'alice', deckBody(UG_POLYMORPH));
+		await putDeck(h, 'bob', deckBody(SECOND_DECK));
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		// NOT `startRoom`/`start()`: both assume `h.hosts` starts empty, which is
+		// true for every OTHER test (one `boot()`, one match) and false here —
+		// this is the SECOND match on one harness. Reused as-is, `start()` would
+		// see `h.hosts.length` already > 0, skip waiting for the NEW host, and
+		// push `OPENING` to the FIRST (already-finished) one instead — exactly
+		// `socket.test.ts`'s own `startMatch` pattern, done by hand.
+		const hostsBefore = h.hosts.length;
+		const pending = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
+		const deadline = Date.now() + 3000;
+		while (h.hosts.length <= hostsBefore) {
+			if (Date.now() > deadline) break;
+			await new Promise((r) => setTimeout(r, 5));
+		}
+		(h.hosts.at(-1) as ReplayHost).push(...OPENING);
+		const again = await pending;
+		expect(again.status).toBe(201);
+		expect(again.body.matchId).not.toBe(matchId);
 	});
 
 	/**
