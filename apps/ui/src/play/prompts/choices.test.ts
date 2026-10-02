@@ -72,18 +72,21 @@ describe('getChoices', () => {
 
   /**
    * First list item 13: "Choose X" / `NumTimes` / a keyword-cost count never
-   * leaves the wire as anything but `getChoices` whose choices are Forge's own
-   * integers — see `rules.test.ts`'s `numericChoiceRange`. A fixture built the
-   * same way `AbstractGuiGame.getInteger` builds it: a straight 0..N run.
+   * leaves the wire as anything but `getChoices` whose choices LABEL Forge's
+   * own integers — see `rules.test.ts`'s `numericChoiceRange`. The KEY is
+   * never the integer: `PlayBridge.choices()` keys every entry positionally,
+   * `"c" + index` (`PlayBridge.java:1186`), measured against a real match
+   * (wave 34 §G item 1, `docs/planning/wave34-evidence/g1-choose-x-slider.md`)
+   * — a fixture with `key === label` tests a shape Forge never actually sends.
    */
-  const announceXAsk = (max: number, otherKey?: string) => ({
+  const announceXAsk = (max: number, withOther = false) => ({
     ...askFor('getChoices'),
     message: 'Choose X for Fireball',
     min: 0,
     max: 1,
     choices: [
-      ...Array.from({ length: max + 1 }, (_, n) => ({ key: String(n), label: String(n), ref: null })),
-      ...(otherKey === undefined ? [] : [{ key: otherKey, label: 'Other…', ref: null }]),
+      ...Array.from({ length: max + 1 }, (_, n) => ({ key: `c${n}`, label: String(n), ref: null })),
+      ...(withOther ? [{ key: `c${max + 1}`, label: 'Other…', ref: null }] : []),
     ],
     selected: [],
   });
@@ -101,13 +104,14 @@ describe('getChoices', () => {
       expect(queryAllByTestId('prompt-choice')).toHaveLength(0);
     });
 
-    it('dragging it answers the value dragged to, as the key Forge offered', () => {
+    it('dragging it answers Forge’s own key for the value dragged to — not the raw dragged number', () => {
       const { getByTestId, answers, submit } = mountPrompt('getChoices', announceXAsk(5));
       const slider = getByTestId('prompt-slider') as HTMLInputElement;
       fireEvent.change(slider, { target: { value: '3' } });
       expect(getByTestId('prompt-slider-value').textContent).toBe('3');
       fireEvent.click(submit());
-      expect(answers).toEqual([['3']]);
+      // The wire key for X=3 is "c3", never the bare "3" the input reported.
+      expect(answers).toEqual([['c3']]);
       expectWireReply('getChoices', answers[0]);
     });
 
@@ -117,11 +121,11 @@ describe('getChoices', () => {
       expect(slider.max).toBe('2');
     });
 
-    it('an Other… entry is a button beside the slider, and picking it answers Forge’s own key', () => {
-      const { getByTestId, answers, submit } = mountPrompt('getChoices', announceXAsk(9, 'lblOtherInteger'));
+    it('an Other… entry is a button beside the slider, and picking it answers Forge’s own key for it', () => {
+      const { getByTestId, answers, submit } = mountPrompt('getChoices', announceXAsk(9, true));
       fireEvent.click(getByTestId('prompt-slider-other'));
       fireEvent.click(submit());
-      expect(answers).toEqual([['lblOtherInteger']]);
+      expect(answers).toEqual([['c10']]);
       expectWireReply('getChoices', answers[0]);
     });
 
@@ -129,6 +133,23 @@ describe('getChoices', () => {
       const { getAllByTestId, queryByTestId } = mountPrompt('getChoices', askFor('getChoices'));
       expect(queryByTestId('prompt-slider')).toBeNull();
       expect(getAllByTestId('prompt-choice')).toHaveLength(5);
+    });
+
+    /*
+     * Wave 34 §G item 1: w33's screenshot showed OK faint at X=0. The slider
+     * always carries exactly one value (`chosen` is a one-element array from
+     * mount — see the component header), so `getChoicesProblems` against an
+     * `oneOrNone` ask (`min: 0, max: 1`) can never see zero or two selections
+     * here; this is the mutation-testable claim that OK answers "enabled" at
+     * every legal reading of the drag, not only the default.
+     */
+    it('OK stays enabled at every legal value, min through max — not only the default', () => {
+      const { getByTestId, submit } = mountPrompt('getChoices', announceXAsk(5));
+      const slider = getByTestId('prompt-slider') as HTMLInputElement;
+      for (let n = 0; n <= 5; n++) {
+        fireEvent.change(slider, { target: { value: String(n) } });
+        expect(submit().disabled, `X=${n}`).toBe(false);
+      }
     });
   });
 

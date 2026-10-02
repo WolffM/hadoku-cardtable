@@ -68,3 +68,74 @@ describe('PromptShell — OK and Clear sit outside the scroll, always visible', 
     expect(rule![1]).toMatch(/overflow-y:\s*auto/);
   });
 });
+
+/*
+ * Wave 34 §G item 1 — OK was "faint" at X=0 in w33's Choose-X screenshot, and
+ * not because it was disabled: `.prompt__submit` had NO rule of its own, so it
+ * fell through to the browser's native button face under `button { color:
+ * inherit }` (`styles.css`) — pale theme ink on a light native grey, in every
+ * theme, at every value, disabled or not. "Readable" is a contrast number, not
+ * `disabled === false`, so this measures it the way `screens/tokens.test.ts`
+ * measures `--accent-ink`: read the real `@wolffm/themes` stylesheet, resolve
+ * the two tokens the rule actually uses, and compute WCAG contrast per theme.
+ */
+describe('OK is styled for real contrast, not just enabled (wave 34 §G item 1)', () => {
+  type Rgb = [number, number, number];
+
+  function hex(v: string | undefined): Rgb | null {
+    if (v === undefined) return null;
+    const t = v.trim();
+    if (t === 'white') return [255, 255, 255];
+    if (t === 'black') return [0, 0, 0];
+    const m = /^#([0-9a-f]{6})$/i.exec(t);
+    if (m === null) return null;
+    const h = m[1]!;
+    return [0, 2, 4].map((i) => Number.parseInt(h.slice(i, i + 2), 16)) as Rgb;
+  }
+  const channel = (x: number): number => (x / 255 <= 0.03928 ? x / 255 / 12.92 : ((x / 255 + 0.055) / 1.055) ** 2.4);
+  const lum = (c: Rgb): number => 0.2126 * channel(c[0]) + 0.7152 * channel(c[1]) + 0.0722 * channel(c[2]);
+  const contrast = (a: Rgb, b: Rgb): number => {
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+
+  const themeCssPath = resolve(import.meta.dirname ?? 'apps/ui/src/play/prompts', '../../../node_modules/@wolffm/themes/src/style.css');
+  const themeCss = readFileSync(themeCssPath, 'utf8').replaceAll('\r\n', '\n');
+  const themes: { name: string; primary: Rgb; onPrimary: Rgb }[] = [];
+  for (const m of themeCss.matchAll(/^([^\n{}/]+(?:,\n[^\n{}/]+)*)\{\n([\s\S]*?)^\}/gm)) {
+    const v = Object.fromEntries([...m[2].matchAll(/--color-([a-z-]+):\s*([^;]+);/g)].map((x) => [x[1], x[2]]));
+    const [primary, onPrimary] = [hex(v.primary), hex(v['on-primary'])];
+    if (primary === null || onPrimary === null) continue;
+    const name = /data-theme='([a-z-]+)'/.exec(m[1]!)?.[1] ?? 'light';
+    themes.push({ name, primary, onPrimary });
+  }
+
+  it('.prompt__submit fills with the accent and sets an explicit text colour — never left to the browser default', () => {
+    const rule = /\.prompt__submit \{([^}]*)\}/.exec(PROMPTS_CSS);
+    expect(rule, '.prompt__submit has its own rule').not.toBeNull();
+    expect(rule![1]).toMatch(/background:\s*var\(--accent\)/);
+    // --on-accent, not --ink or --accent-ink: those are text colours FOR a
+    // page/card background, not for text drawn on the accent itself as a fill.
+    expect(rule![1]).toMatch(/color:\s*var\(--on-accent\)/);
+  });
+
+  it('reads at least 16 real themes from the package', () => {
+    expect(themes.length).toBeGreaterThanOrEqual(16);
+  });
+
+  it('--accent/--on-accent clears 4.5:1 in every theme the package ships', () => {
+    const worst: string[] = [];
+    for (const t of themes) {
+      const c = contrast(t.onPrimary, t.primary);
+      if (c < 4.5) worst.push(`${t.name}: ${c.toFixed(2)}`);
+    }
+    expect(worst).toEqual([]);
+  });
+
+  it('the fallback pair (no theme loaded) also clears 4.5:1', () => {
+    // styles.css: --accent: var(--color-primary, #7bb0ff); --on-accent: var(--color-on-primary, #10131a);
+    const accent = hex('#7bb0ff')!;
+    const onAccent = hex('#10131a')!;
+    expect(contrast(onAccent, accent)).toBeGreaterThanOrEqual(4.5);
+  });
+});

@@ -95,28 +95,33 @@ describe('getChoices', () => {
 
 /**
  * `chooseNumber`/`getInteger` (announce X, `NumTimes`, keyword-cost counts)
- * never leaves the wire as anything but a `getChoices` whose `choices` are the
- * integers themselves (first list item 13). Nothing marks the ask as numeric,
- * so this is read structurally — and these are the shapes that must, and must
- * not, read as one.
+ * never leaves the wire as anything but a `getChoices` whose `choices` LABEL
+ * the integers themselves (first list item 13) — the KEY is never the
+ * integer: `PlayBridge.choices()` keys every entry `"c" + index`, positional,
+ * regardless of what it means (`PlayBridge.java:1186`; measured against a
+ * real match, `docs/planning/wave34-evidence/g1-choose-x-slider.md`). Nothing
+ * marks the ask as numeric, so this is read structurally from the LABELS —
+ * and these are the shapes that must, and must not, read as one.
  */
 describe('numericChoiceRange', () => {
-  const numeric = (keys: string[]): AskOf<'getChoices'> => ({
+  /** Forge's own key scheme: positional, never the value. */
+  const numeric = (values: readonly (string | number)[]): AskOf<'getChoices'> => ({
     ...askFor('getChoices'),
-    choices: keys.map((k) => ({ key: k, label: k, ref: null })),
+    choices: values.map((v, i) => ({ key: `c${i}`, label: String(v), ref: null })),
   });
 
-  it('reads a plain 0..N range', () => {
-    expect(numericChoiceRange(numeric(['0', '1', '2', '3']))).toEqual({ min: 0, max: 3, otherKey: undefined });
+  it('reads a plain 0..N range, and keys it positionally — never the integer', () => {
+    expect(numericChoiceRange(numeric([0, 1, 2, 3]))).toEqual({ min: 0, max: 3, keys: ['c0', 'c1', 'c2', 'c3'], otherKey: undefined });
   });
 
-  it('reads a range that does not start at zero', () => {
-    expect(numericChoiceRange(numeric(['2', '3', '4']))).toEqual({ min: 2, max: 4, otherKey: undefined });
+  it('reads a range that does not start at zero, still keyed from c0', () => {
+    expect(numericChoiceRange(numeric([2, 3, 4]))).toEqual({ min: 2, max: 4, keys: ['c0', 'c1', 'c2'], otherKey: undefined });
   });
 
-  it("carries Forge's own Other… entry separately from the range it caps", () => {
-    const ask = numeric(['0', '1', '2', 'lblOtherInteger']);
-    expect(numericChoiceRange(ask)).toEqual({ min: 0, max: 2, otherKey: 'lblOtherInteger' });
+  it("carries Forge's own Other… entry separately from the range it caps, by its own real key", () => {
+    // Forge's actual wording (`lblOtherInteger`'s resolved text), not the L10N key.
+    const ask = numeric([0, 1, 2, 'Other…']);
+    expect(numericChoiceRange(ask)).toEqual({ min: 0, max: 2, keys: ['c0', 'c1', 'c2'], otherKey: 'c3' });
   });
 
   it('is not fooled by a word list (colours), even though it is also all getChoices', () => {
@@ -124,29 +129,35 @@ describe('numericChoiceRange', () => {
     expect(numericChoiceRange(colors)).toBeNull();
   });
 
-  it('is not fooled by a card/player list, even when its keys happen to be digits', () => {
+  it('is not fooled by a card/player list, even when its labels happen to be digits', () => {
     const ask = {
       ...askFor('getChoices'),
       choices: [
-        { key: '0', label: '0', ref: { kind: 'card' as const, id: 67 } },
-        { key: '1', label: '1', ref: null },
+        { key: 'c0', label: '0', ref: { kind: 'card' as const, id: 67 } },
+        { key: 'c1', label: '1', ref: null },
       ],
     };
     expect(numericChoiceRange(ask)).toBeNull();
   });
 
   it('refuses a gap in the sequence', () => {
-    expect(numericChoiceRange(numeric(['0', '1', '3']))).toBeNull();
+    expect(numericChoiceRange(numeric([0, 1, 3]))).toBeNull();
   });
 
-  it('refuses a key whose label disagrees with it — not Forge’s own toString() of the integer', () => {
-    const ask = numeric(['0', '1']);
-    ask.choices[1] = { key: '1', label: 'one', ref: null };
+  it('refuses a non-numeric label anywhere but the trailing Other… entry', () => {
+    const ask = {
+      ...askFor('getChoices'),
+      choices: [
+        { key: 'c0', label: '0', ref: null },
+        { key: 'c1', label: 'one', ref: null },
+        { key: 'c2', label: '2', ref: null },
+      ],
+    };
     expect(numericChoiceRange(ask)).toBeNull();
   });
 
   it('refuses a single choice (needs at least two to see a sequence) and an empty list', () => {
-    expect(numericChoiceRange(numeric(['0']))).toBeNull();
+    expect(numericChoiceRange(numeric([0]))).toBeNull();
     expect(numericChoiceRange(numeric([]))).toBeNull();
   });
 });

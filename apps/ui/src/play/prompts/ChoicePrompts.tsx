@@ -105,11 +105,17 @@ function UnofferedRow({ row, lookup }: { row: SearchRow; lookup: PromptLookup })
  * list) and answers with that choice's own key, byte-identical to what the
  * radio rendering would have sent.
  *
+ * The drag reports a raw integer string (the DOM range input's own `value`);
+ * `range.keys[n - range.min]` is what turns that into the wire key Forge
+ * actually offered for `n` — measured against a real match (wave 34 §G item
+ * 1) to never be the integer itself (`NumericChoiceRange.keys`'s own doc).
+ *
  * `range.otherKey`, when Forge's own cutoff sat below its true max, is a
  * plain button beside the slider: picking it sends Forge's "Other…" choice
- * exactly as a click would have, and the free-text follow-up it provokes is
- * `showInputDialog`, already answered by `DialogPrompts.tsx` — nothing here
- * chains the two asks itself.
+ * exactly as a click would have (it is already a real key, no translation
+ * needed), and the free-text follow-up it provokes is `showInputDialog`,
+ * already answered by `DialogPrompts.tsx` — nothing here chains the two asks
+ * itself.
  */
 function NumberChoiceSlider({
   range,
@@ -131,7 +137,7 @@ function NumberChoiceSlider({
         step={1}
         value={value ?? range.min}
         aria-label={`between ${range.min} and ${range.max}`}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(range.keys[Number.parseInt(e.target.value, 10) - range.min]!)}
       />
       <output className="prompt__slider-value" data-testid="prompt-slider-value">
         {value ?? range.min}
@@ -158,8 +164,10 @@ export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoi
   const [chosen, setChosen] = useState<string[]>(() => {
     const selected = ask.selected.filter((k) => known.has(k));
     // A slider always shows a value; Forge's own default reading for `getInteger`
-    // (`AbstractGuiGame.java:791-813`) is the range's minimum.
-    if (selected.length === 0 && range !== null) return [String(range.min)];
+    // (`AbstractGuiGame.java:791-813`) is the range's minimum — `range.keys[0]`
+    // is the WIRE KEY that answers it, never `String(range.min)` (wave 34 §G
+    // item 1: Forge's own key is never the integer — see `NumericChoiceRange`).
+    if (selected.length === 0 && range !== null) return [range.keys[0]!];
     return selected;
   });
   // Reply in the order Forge listed the options, not the order they were clicked.
@@ -172,7 +180,10 @@ export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoi
 
   if (range !== null) {
     const key = chosen[0] ?? null;
-    const value = key !== null && key !== range.otherKey ? Number.parseInt(key, 10) : null;
+    // The key is never the integer (wave 34 §G item 1) — its VALUE is its
+    // position in `range.keys`, offset by `range.min`.
+    const index = key === null ? -1 : range.keys.indexOf(key);
+    const value = index >= 0 ? range.min + index : null;
     return (
       <PromptShell method="getChoices" title={ask.message} problems={problems} onSubmit={submit}>
         <NumberChoiceSlider range={range} value={value} onChange={(k) => setChosen([k])} />

@@ -427,6 +427,36 @@
   gap: 8px;
 }
 
+/*
+ * OK (wave 34 §G item 1). `button` (`styles.css`) sets `color: inherit` and
+ * nothing else, so with no rule of its own this drew as the BROWSER's native
+ * button face — light grey on every platform tested — under `--ink`'s pale
+ * text. A dark-theme light-on-light-grey button is "faint" whether or not it
+ * is disabled; w33's screenshot caught it at X=0, but every value showed the
+ * same faint button, `disabled` or not. The fix is the fill-token pair
+ * `styles.css` already uses for the one other "this IS the primary action"
+ * surface in the app (`.fixtures__on`): `--accent` as the fill, `--on-accent`
+ * as the text — the theme package's own token for text ON a `--color-primary`
+ * surface, so it is legible by the theme author's own design, in every theme
+ * (`PromptShell.test.ts` checks the pair's contrast the way `screens/
+ * tokens.test.ts` checks `--accent-ink`'s). `:disabled` keeps the same colours
+ * and only drops opacity (the `.button:disabled` convention), so a genuinely
+ * unanswerable prompt still reads as a real button, dimmed, never as this bug.
+ */
+.prompt__submit {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--on-accent);
+  padding: 6px 14px;
+  font-weight: 600;
+}
+
+.prompt__submit:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .prompt__choice {
   width: 100%;
   text-align: left;

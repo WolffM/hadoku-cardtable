@@ -152,3 +152,31 @@ Tests  2 failed | 171 passed | 1 skipped (174)
 × a reveal Forge pre-rendered with CardView.toString() > resolves art from the card's own facts, never from the label
 × order over cards Forge pre-rendered > resolves each item's art from the card's own facts, never from the label
 restored: Tests  173 passed | 1 skipped (174), exit 0
+
+## wave 34 §G item 1 — the Choose X slider: real-contrast OK (PromptShell.tsx / prompts.css)
+# .prompt__submit rule deleted from prompts.css, restoring the pre-item-1 file
+# exactly (no background/colour of its own — the global `button` rule's
+# native-face bug this whole item was about).
+exit 1
+Tests  1 failed | 7 passed (8)   [PromptShell.test.ts alone]
+× OK is styled for real contrast, not just enabled (wave 34 §G item 1) > .prompt__submit fills with the accent and sets an explicit text colour — never left to the browser default
+restored: Tests 8 passed (8), exit 0
+
+## wave 34 §G item 1 — numericChoiceRange's key===label assumption (rules.ts / ChoicePrompts.tsx)
+# rules.ts and ChoicePrompts.tsx reverted to the committed pre-item-1 version:
+# numericChoiceRange required `c.key === c.label` (both the bare integer);
+# the default selection used `String(range.min)` as a KEY; the slider's value
+# display parsed the chosen KEY as an integer. None of these ever match
+# Forge's real wire shape (`key: "c" + index`, measured against a real match,
+# see g1-choose-x-slider.md) — this mutation IS the pre-fix, shipped state.
+exit 1
+Tests  9 failed | 94 passed (103)   [rules.test.ts + choices.test.ts + choose-x.jvm.test.ts]
+× numericChoiceRange > reads a plain 0..N range, and keys it positionally — never the integer
+× numericChoiceRange > reads a range that does not start at zero, still keyed from c0
+× numericChoiceRange > carries Forge's own Other… entry separately from the range it caps, by its own real key
+× "Choose X" (item 13): a slider, not a radio list > dragging it answers Forge's own key for the value dragged to — not the raw dragged number
+× "Choose X" (item 13): a slider, not a radio list > an Other… entry is a button beside the slider, and picking it answers Forge's own key for it
+× "Choose X" (item 13): a slider, not a radio list > OK stays enabled at every legal value, min through max — not only the default
+  (3 more: fixture/structural assertions depending on the same shape)
+× the Choose X slider, against a real Forge match > renders the real ask as a slider … [TIMES OUT — the numeric ask is never recognised at all, so the test's own `reply` hook never fires and the real match hangs waiting for an answer it never gets]
+restored: rules.test.ts 69 passed, choices.test.ts 33 passed, choose-x.jvm.test.ts 1 passed (jar run), exit 0 each
