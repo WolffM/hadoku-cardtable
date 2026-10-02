@@ -57,8 +57,34 @@ export async function answerPrompt(page: Page): Promise<{ method: string; callId
     case 'chooseSingleEntityForEffect':
     case 'chooseEntitiesForEffect': {
       const choices = sheet.locator('input[data-testid="prompt-choice"]');
-      for (let i = 0; i < (await choices.count()) && !(await submittable()); i++) {
-        if (!(await choices.nth(i).isChecked())) await choices.nth(i).click();
+      const count = await choices.count();
+      // The file's own header: "the default, the first option" — not
+      // "decline, because declining is already a legal answer." An ask whose
+      // bounds allow zero (`ask.min === 0`, e.g. an "Up to 1" single-target
+      // choice) is submittable with nothing ticked from the start, so the old
+      // loop below (which only ticks while NOT YET submittable) never ran at
+      // all and silently answered "none" — observed against a real match
+      // (wave 34 §E1, Full Control): Mana Leak's own lone legal target is
+      // asked as optional on the wire, and answering "no target" is accepted
+      // by Forge but leaves the spell with nothing to do, so the cast never
+      // reaches the stack. Ticking the first offered, choosable option
+      // (`UnofferedRow` renders no `prompt-choice` input, so this never picks
+      // something not actually offered) before the submittable-loop makes
+      // the driver's OWN stated default real for every ask shape that has at
+      // least one real choice, optional or not.
+      //
+      // `{ force: true }`: a CARD choice's input sits under its own
+      // `ChoiceTile` inside the same `<label>` (`PromptShell.tsx`'s
+      // `promptCardTile`), which Playwright's actionability check sees as
+      // intercepting pointer events on the raw input even though a real
+      // click anywhere in the label toggles it natively — measured against
+      // this exact ask (a single card target). `force` still clicks the
+      // INPUT itself, not a different element; a plain-text choice (no
+      // card tile) has nothing to intercept it and behaves identically
+      // either way.
+      if (count > 0 && !(await choices.first().isChecked())) await choices.first().click({ force: true });
+      for (let i = 1; i < count && !(await submittable()); i++) {
+        if (!(await choices.nth(i).isChecked())) await choices.nth(i).click({ force: true });
       }
       await submit.click();
       break;

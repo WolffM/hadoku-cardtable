@@ -1373,13 +1373,52 @@ test(LIVE_TITLE, async ({ browser }) => {
         continue;
       }
 
+      // ── Hands off. From here the only actor allowed is the server —
+      // EXCEPT a target. Wave 34 (D's new library) found a real gap here:
+      // `ValidTgts$ Any` (Incinerate, and the same shape as Mana Leak's own
+      // ask — `wave34-evidence/e-findings.md`'s §E1 section) can reach the
+      // browser as a BOARD-LEVEL target request — no `live-prompt` at all,
+      // `data-selectable` on player avatars/cards instead, `says()` reading
+      // "Select any target", OK disabled, Cancel enabled — which this loop
+      // used to have no way to answer at all (`answerPrompt` only drives
+      // `live-prompt` asks), so a hand that draws a spell needing one with
+      // nothing else castable just stalls out the whole 20s watch. A target
+      // click is still the server's own answer, not a client decision that
+      // changes the claim this test makes ("nobody presses a button FOR THE
+      // RESOLUTION" — targeting is part of announcing the spell, same as the
+      // Pay Mana Cost click nearby).
+      const clickOfferedTarget = async (f: Friend): Promise<boolean> => {
+        if ((await f.page.getByTestId('live-prompt').count()) > 0) return false;
+        const opponent = f.page.locator('[data-testid="player"]:not([data-viewer])[data-selectable]');
+        if ((await opponent.count()) > 0) {
+          await opponent.first().locator('button').first().click({ timeout: 2_000 }).catch(() => {});
+          return true;
+        }
+        const anyPlayer = f.page.locator('[data-testid="player"][data-selectable]');
+        if ((await anyPlayer.count()) > 0) {
+          await anyPlayer.first().locator('button').first().click({ timeout: 2_000 }).catch(() => {});
+          return true;
+        }
+        // Never the hand: a selectable card there is a DIFFERENT castable
+        // spell being offered, not a target for this one.
+        const card = f.page.locator('[data-zone]:not([data-zone="hand"]) [data-board-card][data-selectable]');
+        if ((await card.count()) > 0) {
+          await card.first().locator('button').first().click({ timeout: 2_000 }).catch(() => {});
+          return true;
+        }
+        return false;
+      };
+
       // ── Hands off. From here the only actor allowed is the server.
       const t0 = Date.now();
       const instant = await arrived(spell.id);
       let landed = instant;
       const watchUntil = Date.now() + 20_000;
       while (!landed && Date.now() < watchUntil) {
-        for (const f of [alice, bob]) await answerPrompt(f.page);
+        for (const f of [alice, bob]) {
+          await answerPrompt(f.page);
+          await clickOfferedTarget(f);
+        }
         landed = await arrived(spell.id);
         if (!landed) await new Promise((r) => setTimeout(r, 250));
       }

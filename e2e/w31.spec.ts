@@ -336,7 +336,7 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
     // Combat is over in a few hundred milliseconds when nobody attacks, so it is
     // WATCHED for from here on rather than waited for after the log check below.
     // The same loop answers the asks the game raises (a scry), as every spec does.
-    const seen: { combat: { who: string; names: string[]; rows: number; box: number[]; rowH: number[] } | null; maxH: number; lastRow: number; lastDiag: Awaited<ReturnType<typeof railDiag>> | null; error: unknown } = { combat: null, maxH: 0, lastRow: 0, lastDiag: null, error: null };
+    const seen: { combat: { who: string; names: string[]; rows: number; box: number[]; rowH: number[] } | null; maxH: number; lastRow: number; lastRowHeights: number[] | null; lastDiag: Awaited<ReturnType<typeof railDiag>> | null; error: unknown } = { combat: null, maxH: 0, lastRow: 0, lastRowHeights: null, lastDiag: null, error: null };
     let watching = true;
     const watcher = (async () => {
       try {
@@ -349,11 +349,13 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
                 const m = await f.page.evaluate(() => {
                   const rail = document.querySelector('[data-testid="live-phases"][data-combat]');
                   if (rail === null) return null;
-                  return { h: rail.getBoundingClientRect().height, row: Math.max(...Array.from(rail.querySelectorAll('.live__step')).map((e) => e.getBoundingClientRect().height)) };
+                  const rows = Array.from(rail.querySelectorAll('.live__step')).map((e) => e.getBoundingClientRect().height);
+                  return { h: rail.getBoundingClientRect().height, row: Math.max(...rows), rows };
                 });
                 if (m !== null) {
                   seen.maxH = Math.max(seen.maxH, m.h);
                   seen.lastRow = m.row;
+                  seen.lastRowHeights = m.rows;
                   seen.lastDiag = await railDiag(f);
                 }
               }
@@ -408,6 +410,19 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
 
       // Into combat: the six steps are there, in place of the one, and the rail did not move.
       await expect.poll(() => seen.combat !== null || seen.error !== null, { timeout: 120_000, message: 'the game reached a combat step' }).toBe(true);
+      // Wave 34 §E2: the watcher is stopped (the `finally` below) the moment
+      // THIS poll notices `seen.combat`, which can be well inside the rail's
+      // own 0.3s CSS grow transition (`live.css`'s `transition: height 0.3s
+      // ease`) — this poll and the watcher's 100ms sampling loop are two
+      // independent async loops with no ordering guarantee between them.
+      // Measured: two separate 10-run batches both caught the SAME near-miss
+      // height (183.43px against a 184.72px threshold) on 2/10 runs each —
+      // not random host noise (the numbers repeat too closely for that), a
+      // deterministic race in how early this stops sampling. A plain wait for
+      // the transition's own duration, plus margin, before the `finally`
+      // below ends the watcher, gives it the extra 100ms-spaced samples the
+      // CSS transition itself needs to be caught fully grown.
+      if (seen.error === null) await alice.page.waitForTimeout(400);
     } finally {
       watching = false;
       await watcher;
@@ -430,18 +445,52 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
     // brief a window), one more taken now, which is still inside combat
     // (combat.who's page) and still better than nothing.
     const insideDiag = seen.lastDiag ?? (await railDiag(combat.who === 'alice' ? alice : bob));
-    // Wave 33 §L1: `--rail-row-h` is one formula, read identically whether
-    // `.live__steps` holds 8 rows or 13 — the row's box no longer depends on
-    // how many siblings are sharing the rail's height, so in and out of
-    // combat is the same number by construction, not by a loose tolerance.
-    // When this misses, the diff is explained by `.live` itself having a
-    // different measured height between the two samples (formula:
-    // row = (0.35·liveH - 29) / 13) — these numbers say what moved it.
+    // Wave 34 §E2: a cross-state tolerance alone does not catch `.live__step`
+    // going back to `flex: 1 1 0` (`wave33-evidence/m-ci-and-mutations.md`: "the
+    // e2e rail test still PASSES 3/3" against that exact revert) — the drift a
+    // shared-flex-total split produces is sampled across two DIFFERENT moments
+    // (an early, pre-combat read and a mid/post-transition one), so its size
+    // depends on how much the live chrome drifted between those two reads, not
+    // on whether the bug is present; `wave33-evidence/l1-rail-rows.md` measured
+    // that drift anywhere from ~0.19px to ~2.16px on the same fixed code, which
+    // straddles any single cross-state tolerance that still leaves headroom for
+    // real measurement noise.
+    //
+    // What `--rail-row-h` actually changed, and what a revert cannot fake: each
+    // row reads ONE shared CSS value — not a fraction of whatever height
+    // `.live__steps` happens to have RIGHT NOW split `n` ways — so every row
+    // inside a single, unchanging state (sampled at one instant, no cross-state
+    // timing involved at all) must read the bit-identical number. `flex: 1 1 0`
+    // cannot do that: it distributes the container's leftover whole pixels
+    // across siblings unevenly, which is why l1-rail-rows.md measured real
+    // intra-state spread on the old code (8 rows spanning 18.84–19.84px, 13
+    // rows spanning 19.02–20.03px) and exactly 0.000px on the fixed one, twice,
+    // by two independent methods. This is the assertion that actually isolates
+    // L's fix from the sampling noise above.
+    const outsideSpread = Math.max(...outsideLook!.rowHeights) - Math.min(...outsideLook!.rowHeights);
+    const insideRowHeights = seen.lastRowHeights ?? combat.rowH;
+    const insideSpread = Math.max(...insideRowHeights) - Math.min(...insideRowHeights);
+    expect(
+      outsideSpread,
+      `every row OUTSIDE combat reads the same height, not a share of the rail's current total — heights ${JSON.stringify(outsideLook!.rowHeights)}`,
+    ).toBeLessThanOrEqual(0.02);
+    expect(
+      insideSpread,
+      `every row INSIDE combat reads the same height too — heights ${JSON.stringify(insideRowHeights)}`,
+    ).toBeLessThanOrEqual(0.02);
+    // The original cross-state claim, kept, and tightened from the old 1px
+    // tolerance (itself loosened from 2px by §L1) to 0.02px: `--rail-row-h`
+    // does not depend on the row COUNT (it is a fixed `/13` in the formula,
+    // not `/var(--rail-rows)`), so the fixed code reads the identical number
+    // whether 8 or 13 rows are showing — not merely a close one. When this
+    // misses, the diff is explained by `.live` itself having a different
+    // measured height between the two samples (formula: row = (0.35·liveH -
+    // 29) / 13) — these numbers say what moved it.
     expect(
       Math.abs(insideRow - outsideRow),
       `a rail row is as tall out of combat (${outsideRow}) as in it (${insideRow}) — ` +
         `outside: ${JSON.stringify(outsideDiag)} — inside: ${JSON.stringify(insideDiag)}`,
-    ).toBeLessThanOrEqual(1);
+    ).toBeLessThanOrEqual(0.02);
     // ... and it shrinks afterwards, by CSS alone (the box is measured, not a class).
     await expect
       .poll(async () => {
