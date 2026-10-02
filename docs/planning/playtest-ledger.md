@@ -150,10 +150,10 @@ Not a play-test item: the operator's review of the deck picker. **Selection is r
 
 | ID | item | asked | status | evidence | check it by | your check |
 | --- | --- | --- | --- | --- | --- | --- |
-| DL1 | duplicate decks never get in (4 Tempered Steel lists: keep the one that went furthest) | 1 | planned | rule in `tools/select_decks.py`: same cards (60%), same colours and 45%, or same archetype name and 30% count as one deck; the best finish stays | one deck per archetype in an era | |
-| DL2 | colour balance, with a lean toward what was best | 1 | planned | the 96 selected decks play W 40, U 42, B 41, R 41, G 41 | each colour is about equally represented | |
-| DL3 | style balance (aggro, midrange, combo): a few of the rarest, fewer of the most common | 1 | planned | aggro 32, midrange 25, control 26, combo 13; style is a heuristic, see the table in the review | | |
-| DL4 | eras: no empty ones, a whole block at a time; yearly "power summer" 2008–2016 | 1 | planned | nine eras, one per year, the Standard just before the fall rotation. **2009 (4 decks) and 2010 (8) are thin** (mtgtop8 coverage and the July core-set rotation) | the era list is nine years, not nine mid-season snapshots | |
+| DL1 | duplicate decks never get in (4 Tempered Steel lists: keep the one that went furthest) | 1 | planned w34 (lane D) | rule in `tools/select_decks.py`: same cards (60%), same colours and 45%, or same archetype name and 30% count as one deck; the best finish stays | one deck per archetype in an era | |
+| DL2 | colour balance, with a lean toward what was best | 1 | planned w34 (lane D) | the 96 selected decks play W 40, U 42, B 41, R 41, G 41 | each colour is about equally represented | |
+| DL3 | style balance (aggro, midrange, combo): a few of the rarest, fewer of the most common | 1 | planned w34 (lane D) | aggro 32, midrange 25, control 26, combo 13; style is a heuristic, see the table in the review | | |
+| DL4 | eras: no empty ones, a whole block at a time; yearly "power summer" 2008–2016 | 1 | planned w34 (lane D) | nine eras, one per year, the Standard just before the fall rotation. **2009 (4 decks) and 2010 (8) are thin** (mtgtop8 coverage and the July core-set rotation) | the era list is nine years, not nine mid-season snapshots | |
 
 ## Regressions
 
