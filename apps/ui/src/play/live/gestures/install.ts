@@ -474,11 +474,34 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (under !== null && under.kind === 'card') {
       const box = cardBox(canvas, under.id);
       claim(event);
-      // Arena casting (R7) — see the module header. Only a card in the
-      // viewer's own hand is ever lifted; a battlefield land now offered for
-      // its mana ability (wave 35 §F) is not in anyone's hand and this is
-      // false for it, so it drags exactly as it always has.
-      const castFromHand = isHandCard(match, under.id);
+      /*
+       * Arena casting (R7) — see the module header. Only a card in the
+       * viewer's own hand is ever lifted; a battlefield land now offered for
+       * its mana ability (wave 35 §F) is not in anyone's hand and this is
+       * false for it, so it drags exactly as it always has.
+       *
+       * **Priority's own offer ONLY — never a selection's, and never an
+       * ask's.** Found by lane E against a real Forge (R13, Secluded Glen):
+       * `InputSelectEntitiesFromList` (`"reveal a Faerie?"`) opens a
+       * `setSelectables` that itself NAMES the hand card, so `isHandCard`
+       * alone claimed that press for the lift too — the click never reached
+       * Forge, and the seat silently fell through to whatever a cancelled
+       * input does next (the land arrived tapped, with no cast having
+       * happened). A card Forge is actively asking the seat to CHOOSE is not
+       * one it is offering to be CAST, and the two can share the same id.
+       * `match.asks.length > 0` already empties `offered` entirely
+       * (`boardInteraction`'s own guard), so that half holds without a
+       * separate check here; `match.selectables === null` is the one this
+       * bug needed; `weaklySelectable.has(id)` on top of both is the precise
+       * positive case — Forge's own priority-time "you could cast this",
+       * never `highlighted`/`mulliganHand`/combat's unions, none of which a
+       * press on a hand card should ever read as "lift and cast".
+       */
+      const castFromHand =
+        isHandCard(match, under.id) &&
+        match.selectables === null &&
+        match.asks.length === 0 &&
+        (match.weaklySelectable?.has(under.id) ?? false);
       if (castFromHand) suppressClick = true;
       drag = {
         source: under.id,

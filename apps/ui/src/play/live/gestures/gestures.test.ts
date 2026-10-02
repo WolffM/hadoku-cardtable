@@ -1708,6 +1708,93 @@ describe('R7 — Arena casting: sent at the settle, the gesture stays open for w
 });
 
 /*
+ * R13 — found by lane E against a real Forge (Secluded Glen): Forge can open
+ * a SELECTION that itself NAMES a hand card — `InputSelectEntitiesFromList`'s
+ * "reveal a Faerie?", a discard-from-hand choice, any
+ * `InputSelectEntitiesFromList`/`InputSelectTargets` over the hand — and
+ * `isHandCard` alone claimed that press for the Arena lift too, same as a
+ * genuine cast offer. The click never reached Forge (swallowed by
+ * `suppressClick`, same as a real cast's native click), and the seat fell
+ * through to whatever a cancelled input does next — the real-browser report
+ * was a land arriving tapped with no cast ever sent. A card Forge is asking
+ * the seat to CHOOSE is not one it is offering to CAST, even sharing an id,
+ * and a selection or an open ask always outranks the lift — the ordinary
+ * click/drag this layer already had before this wave answers it instead.
+ */
+describe('R13 — a hand card named by an open selection or ask is an ordinary click, never the Arena lift', () => {
+  it('a selection naming a hand card: no lift, and a plain click sends selectCard at once', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    // Secluded Glen's own shape: the selection names the hand card directly,
+    // not Forge's priority-time actionable set.
+    for (const f of notify([prompt('Reveal a Faerie?'), selectables([hand[0]!], 0, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
+    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'no lift while a selection is open').toBeNull();
+    fireEvent.pointerUp(face, { clientX: 10, clientY: 10 });
+    // Not suppressed this time — this press was never claimed as a cast.
+    expect(fireEvent.click(face), 'the native click reaches Board, unclaimed').toBe(true);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+  });
+
+  it('a selection naming a hand card: a drag still works the pre-wave way — commitDrag on release, no settle/arrow', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Reveal a Faerie?'), selectables([hand[0]!], 0, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'never settles — this was never a cast').toBeNull();
+    expect(s.clientFrames(), 'the pre-wave drag sends nothing until release').toHaveLength(0);
+    fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
+  });
+
+  it('an open ASK naming nothing offered: a hand card otherwise actionable still does not lift', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    // The actionable set alone would make this card castable — but an open
+    // ask empties `boardInteraction`'s whole offer first (`match.ts`'s own
+    // guard), so the card is not even "under" the press.
+    const dialogAsk = parseServerFrame({
+      kind: 'ask',
+      callId: 'c-ask',
+      method: 'showOptionDialog',
+      message: 'Choose one',
+      title: 'Choose',
+      icon: null,
+      options: ['A', 'B'],
+      defaultOption: 0,
+    });
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!]), dialogAsk])) s.send(f);
+    await waitFor(() => expect(m.asks).toHaveLength(1));
+
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'an open ask outranks the actionable set').toBeNull();
+    fireEvent.pointerUp(cardEl(canvas, hand[0]!), { clientX: 10, clientY: 10 });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(s.clientFrames(), 'nothing sent — this press claimed no gesture of ours').toHaveLength(0);
+  });
+
+  it('no selection, no ask, the card IS in the actionable set: lifts exactly as before', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
+  });
+});
+
+/*
  * R9 — a cast goes to ANY slot. `selectCard` alone never told `Board` WHERE
  * the player put the card, so a newly-arrived permanent always appended to
  * the end of its row (lane B's finding, `b.md`). `Board.tsx` exports
