@@ -269,6 +269,32 @@ with how many times it
 has been asked, what shipped, and a column for the operator's own ✅/❌ after a real
 game. Only the operator marks an item verified.
 
+## Wave 34 landed and was re-verified by the tracker (2026-10-02)
+
+`0.30.0`, `f62ee46..0af9761`, deployed 04:54 UTC (restart after the build), CI green on both jobs. The
+tracker's bot commit (`f62ee46`, Play vs Forge AI) landed under it and survived the rebase.
+
+**Re-run by the tracker on the deployed commit:** `pnpm check` 3194 passed; `library-resolve.jvm` 1/1;
+`library-match.jvm` 9/9 (a real match per era); `scenario-order.jvm` (Q8) 2/2; `choose-x.jvm` 1/1;
+D's loader mutated back to a directory scan fails 2 of 3, restored 3/3; per-era deck counts
+12/4/8/12/12/12/12/12/12.
+
+**What the notes did not catch:**
+
+- **`scenario-ability-repeat.jvm` (the Full Control fix's own test) fails intermittently: 2 of 4,
+  then 3 of 6 in the tracker's runs.** Not the fix: Ponder is asked once (`stackAsks=1`) every time.
+  The failing runs show the test pressed OK once and the seat still sits at "Stack: 1 to Resolve",
+  OK enabled. A local retry of the press after 3 s passed 6/6, one run needing the retry. **A first
+  OK press after casting can be swallowed** (seen in 4 of 12 runs), the same shape as Q12's root
+  cause (Forge's buttons arrive before its input is live). Proven at the server level only; a person
+  in a browser may or may not hit it. Wave 35.
+- **The combat-rail e2e failed once in three full CI-set runs** (rail grew 18.7 px against a
+  required 20; 5 of 5 alone). Flaky in the full run, not a lane regression.
+- **L13's "max = mana available" is not met** (the manager said so): Forge offers 0-9 + Other for a
+  mana X and sends no mana figure. Needs a bridge field or the operator's ruling.
+- **The library swapped three decks for their alternates** (mtgtop8 "Unknown Card" exports), and
+  **2014 now has no combo deck.**
+
 ## Wave 33 landed and was re-verified by the tracker (2026-10-02)
 
 `0.29.0`, pushed as `48481dc..24d0cc9`; redeploy 22:59:08-22:59:44 UTC, bundles built 22:59:46-48, pm2

@@ -38,25 +38,21 @@ sections, not here. Say the word and they come in.
 
 ## Check these in your next game
 
-**Only what a person can judge**, and only what no known bug will get in the way of. Everything
-a test proves has been left out on purpose so a play-test is not spent on it. Updated after wave 33.
+**Only what a person can judge**, and nothing a known bug will spoil. Updated after wave 34.
+**You can play this one alone now:** make a room, stay alone, press **Play vs Forge AI**.
 
-**Look and feel:**
+**New since the last game:**
 
-1. **Drag (Q4):** our own ghost, a landing indicator, snaps to a slot; lands in the back row, the rest in front, filling left to right. Does it *feel* right?
-2. **Left column (Q9):** avatar, counts, then a tall graveyard; the opponent mirrored. Is the graveyard tall enough (it measures about half the column)?
-3. **Card size on a small board (Q4):** six or fewer permanents now give smaller cards (you approved this; check you still like it).
-4. **Phase rail (Q3):** centred, un-bulleted, grows in combat, rows the same height out of combat.
-5. **Active player ring (Q1)** and `Start` at turn 0.
-6. **Header gear (Q15):** one gear holds board layout and "always stop at end step".
-7. **Picker (L3):** OK and Clear stay visible with a long list.
-8. **Poison counters (L4):** appear when you have them; the energy line is known to clip.
+1. **The bot (B1):** does Forge's AI play a sensible game with the deck it drew?
+2. **The deck library (DL1–DL4):** nine summer eras; are the decks fun, varied, and different from each other? Note 2009 has 4 decks and 2010 has 8.
+3. **Full Control:** turn it on and respond to the AI's spell with an instant; it should work now. If your first OK after casting seems to do nothing, press again and tell me (a known intermittent, see below).
+4. **Ponder:** its look-at-three and shuffle questions should reach you.
 
-**Do not spend a game on these (known gaps):** responding to an opponent's spell with **Full Control on** (does nothing: wave 34), the **order of simultaneous triggers** (Q8, never exercised), **Ponder** (its follow-up questions are sometimes answered for you), the **Choose X slider** (L13, unit-tested only), and **two spells on the stack with an arrow** (Q7's second half).
+**Look and feel, still unchecked:** drag (Q4), the left column (Q9), card size on small boards, the phase rail (Q3), the active-player ring (Q1), the header gear (Q15), the picker's OK (L3), poison counters (L4), the Choose X slider (L13).
 
-**Tests prove it:** End Turn passes phases at once (Q5); blockers can be assigned (Q12); no blockers stop without creatures (Q10); pulling attackers back (Q14); your own spell does not hold priority (Q17); a stack ability is not clickable (Q18); an auto-target arrow (L8); P/T bottom-right; opponent hand size; eight snap points; avatar change reaches the game.
+**Do not spend a game on:** two spells on the stack with an arrow picking one (Q7's second half, not built yet).
 
-**From w31, still unchecked by you:** mulligan order, Gitaxian Probe at 0 mana, reload mid-decision, second browser spectates, gone-match page, stale rooms.
+**From w31, still unchecked:** mulligan order, Gitaxian Probe at 0 mana, reload mid-decision, second browser spectates, gone-match page, stale rooms.
 
 ---
 
@@ -69,7 +65,7 @@ Numbering is the operator's (there was no item 19).
 | L1 | mulligan broken: only `Auto` live, hand dead | 1 | shipped w30, w31 | `de0928f` (flag reaches the seat), `be615f1` + fork `917bb193` (order); real-Forge tests | take a mulligan: hand lights up, pick a card | |
 | L2 | the end step waits on the opponent | 1 | shipped w30 | default off, setting in w30 (`5b6c73e`); **moving to the header menu in w32 (Q15)** | end a turn with a land played; it should not stop at their end step | |
 | L3 | picker `OK` / `Clear choice` below the panel, not at the bottom of a scroll | 1 | shipped w33 | `461b52a`: OK and Clear stay below a scrolling list; mutation: un-wrapping the body fails 3 of 4. **Unit and screenshot only** | open any selector with a long list: OK is visible without scrolling |  |
-| L4 | poison/infect counters shown nowhere | 1 | shipped w33 (unit and screenshot only) | `b165952`: poison/energy/experience beside the counts; no scenario sets poison. **The energy line is clipped under the opponent's side column at 1280×800** | poison counters appear when you have them |  |
+| L4 | poison/infect counters shown nowhere | 1 | shipped w33, w34 | `5ee8a83`: counters draw as P3 / E7 / XP2 inside their column (full word on hover); live `poison.state` screenshots; `w34.spec` counter specs fail when reverted | poison counters appear when you have them, inside your column |  |
 | L5 | delete `Leave`; `Concede` is enough | 1 | shipped w30 | w30 lane A | no `Leave` button | |
 | L6 | arrow snapping/effect not shown when casting | 1 | partly | w29 staging area; **8-point snap is Q11, w32** | cast a targeted spell; the card shows in staging with the arrow starting there | |
 | L7 | avatars not showing | 3 (L7, P3b, Q6) | partly | w29 carried the field; w31 fixed the 404 and the account read; **unset avatar waits on watchparty; live change is Q6, w32** | | |
@@ -78,7 +74,7 @@ Numbering is the operator's (there was no item 19).
 | L10 | z-order: cards, then effects on cards, then popups | 2 (L10, Q16) | open → Q16 | w32 | counters and P/T sit under any open popup | |
 | L11 | one undivided board, type-separated as the alternate | ≥3 | shipped w30 | `5b6c73e`, `fc56164`; board `single` is the default | cards sit on one surface, no lane labels | |
 | L12 | holding priority after casting | 2 (L12, Q17) | open → Q17 | w32 diagnoses first; not `passStackWindows` | cast a spell; you do not keep priority | |
-| L13 | `Choose X` as a slider, capped at available mana | 1 | shipped w33 (unit tests only) | `461b52a`: a slider; Forge's own X max is already the available mana. **No scenario asks for X**; the screenshot shows OK faint at X=0 | Choose X is a slider capped at the mana you have |  |
+| L13 | `Choose X` as a slider, capped at available mana | 1 | shipped w34, **one ruling open** | `11a7a22`: the slider reads Forge's real range and OK has contrast; `choose-x.jvm` 1/1 (tracker re-ran). **Not capped at your mana:** Forge itself offers 0-9 plus "Other" for a mana X and sends no mana figure. Capping needs a new field from the bridge, or your ruling that Forge's own range is fine | Choose X is a slider; OK is readable |  |
 | L14 | P/T drawn bottom-right, over where it normally sits | 2 (L14, Q13) | open → Q13 | w32 | | |
 | L15 | blockers: an arrow from each attacker; blockers highlight blue | 1 (Q12 is a related, different symptom) | open → Q12 | w32 (Q12 first needs a repro) | | |
 | L16 | delete `Call Back` | 1 | shipped w30 | w30 lane A | no `Call Back` button | |
@@ -130,7 +126,7 @@ All planned in **wave 32** (`docs/planning/wave32-2026-10-01.md`).
 | Q5 | skipped phases should not crawl | 1 | shipped w32 | `9a70f47`; real Forge: End Turn gaps 5-11 ms against 206-211 ms reverted (`endturn.jvm`, 3 of 3 re-run by the tracker) | click End Turn: the phases go by at once |  |
 | Q6 | an avatar change does not reach the game | 1 | shipped w32 | `d2fc75b`, `9a70f47`; `w32.spec` avatar test (mutation: fails reverted). A **cleared** avatar is not noticed (watchparty) | change your avatar in the chat; your face in the game changes |  |
 | Q7 | Mana Leak: arrow to a stack item; shortcut when one target | 1 | shipped w32; half-verified w33 | e2e asserts the outcome (the lone spell is countered, no target ask), 10 of 10. **The two-spells half (an arrow picks one) is unobservable: see the Full Control bug below** | a lone spell answers itself |  |
-| Q8 | "order simultaneous abilities" only in full control | 1 | shipped w32, **still unverified** | `auto.test` only. The scenario could not reach the position (a state jump never materialises Upkeep triggers); the test was deleted, not left red | two triggers: no ordering question unless in full control |  |
+| Q8 | "order simultaneous abilities" only in full control | 1 | shipped w32; exercised w34 | `5c2192f`: a real-Forge scenario with two different upkeep triggers (Dark Confidant + Phyrexian Arena); `scenario-order.jvm` 2/2 (tracker re-ran). Two *identical* triggers never ask in Forge, which is why w33 could not reach it | two different triggers at once: no ordering question unless in full control |  |
 | Q9 | one column: avatar, counts, graveyard the rest; opponent mirrored | 3 (with L9, P2) | shipped w32 (look at it) | `4744c57`: graveyard takes the rest of the column; **measured 50.6% of the column at 1280x800** (information only). Opponent mirrored | avatar, counts, then a tall graveyard; the opponent mirrored, nothing upside-down |  |
 | Q10 | no Declare Blockers stop without creatures | 1 | shipped w32; now exercised w33 | real Forge scenarios (`scenario-blockers.jvm`) and e2e 10 of 10 | attack into a player with no creatures: no blockers stop |  |
 | Q11 | arrow snaps to 8 points on the card edge | 1 | shipped w32 | `3b9c22c`; `gestures.test` + `arrow.spec` pass | a target arrow ends on a corner or edge midpoint of the card, not its centre |  |
@@ -150,10 +146,16 @@ Not a play-test item: the operator's review of the deck picker. **Selection is r
 
 | ID | item | asked | status | evidence | check it by | your check |
 | --- | --- | --- | --- | --- | --- | --- |
-| DL1 | duplicate decks never get in (4 Tempered Steel lists: keep the one that went furthest) | 1 | planned w34 (lane D) | rule in `tools/select_decks.py`: same cards (60%), same colours and 45%, or same archetype name and 30% count as one deck; the best finish stays | one deck per archetype in an era | |
-| DL2 | colour balance, with a lean toward what was best | 1 | planned w34 (lane D) | the 96 selected decks play W 40, U 42, B 41, R 41, G 41 | each colour is about equally represented | |
-| DL3 | style balance (aggro, midrange, combo): a few of the rarest, fewer of the most common | 1 | planned w34 (lane D) | aggro 32, midrange 25, control 26, combo 13; style is a heuristic, see the table in the review | | |
-| DL4 | eras: no empty ones, a whole block at a time; yearly "power summer" 2008–2016 | 1 | planned w34 (lane D) | nine eras, one per year, the Standard just before the fall rotation. **2009 (4 decks) and 2010 (8) are thin** (mtgtop8 coverage and the July core-set rotation) | the era list is nine years, not nine mid-season snapshots | |
+| DL1 | duplicate decks never get in (4 Tempered Steel lists: keep the one that went furthest) | 1 | shipped w34 | `7029898`: one deck per archetype by the selection rules | one deck per archetype in an era |  |
+| DL2 | colour balance, with a lean toward what was best | 1 | shipped w34 | 96 decks; colour spread as selected | each colour is about equally represented |  |
+| DL3 | style balance (aggro, midrange, combo): a few of the rarest, fewer of the most common | 1 | shipped w34 | **2014 lost its only combo deck**: three chosen decks had a card mtgtop8 exports as "Unknown Card" and were swapped for the next alternate (2011 UB Control → Elves; 2014 UWr Control → Orzhov Control; 2014 Reanimator → Jund Aggro) |  |  |
+| DL4 | eras: no empty ones, a whole block at a time; yearly "power summer" 2008–2016 | 1 | shipped w34 | `7029898`: exactly nine eras reach the picker (the loader reads only catalogued dates; tracker mutation: a directory scan fails 2 of 3); every card resolves in Forge at the pin (1151 card/set pairs); a real match starts in each era (9/9, tracker re-ran). Default era 2016 | the era list is nine summers, 2008–2016; pick decks from several eras |  |
+
+## Asks outside a play-test — 2026-10-02
+
+| ID | item | asked | status | evidence | check it by | your check |
+| --- | --- | --- | --- | --- | --- | --- |
+| B1 | add a bot so I do not have to play against myself | 1 | shipped `0.29.1` (live in `0.30.0`) | `f62ee46`: **Play vs Forge AI** when you are alone in a room; the bot plays a random library deck legal in the room's era. Server and UI guards each fail when reverted; a real-Forge AI seat with a library deck runs; a real browser reached the AI's own turn once | make a room, stay alone, pick a deck, press Play vs Forge AI | |
 
 ## Regressions
 
