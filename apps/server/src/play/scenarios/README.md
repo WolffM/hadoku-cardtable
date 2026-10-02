@@ -34,6 +34,7 @@ side) in `/home/hadoku/.cache/cardtable-w8/forge-build`.
 | `human…battlefield=Card;Card\|Prop:Val` | that seat | ditto, for the battlefield. A card can carry `\|Tapped:True`, `\|Attacking` (attacks the opponent directly — see below), `\|Id:N` (so another line can reference this exact object), and more (`GameState.java:1235`, `processCardsForZone`). |
 | `human…library=Card;Card` | that seat | ditto. **Leave this empty and a draw step loses the game outright** (an empty library is a loss on the next draw) — every scenario here gives both seats a small library of basic lands so a stray draw during a test does not crash it. |
 | `human…graveyard=` | that seat | ditto; empty is fine and is what every scenario here uses. |
+| `human…counters=KEY=N,KEY=N` | that seat | player-level counters (poison, energy, experience, …), applied via `GameState.applyCountersToGameEntity` (`GameState.java:1127-1134`). `KEY` is a `CounterEnumType` constant NAME, not a display label (`POISON`, `ENERGY`, `EXPERIENCE` — `CounterEnumType.java:496-500`); `CounterType.getType` resolves it case-sensitively against the enum before falling back to a keyword or custom counter. Used by `poison.state`. |
 
 ### Combat, specifically
 
@@ -99,7 +100,9 @@ and cannot deadlock. See `wave33-evidence/s1-harness.md`.
 | `two-spells.state` | seat 1 holds TWO different 0-cost creatures and casts both (holding priority across both casts — see the note below); seat 0 holds a counterspell and 3 untapped Islands. | Q7, second half — "with two on the stack an arrow picks one" |
 | `no-creatures.state` | seat 0 has a creature attacking the player directly; seat 1 has NO creature, landing in the Declare Blockers window with nothing to assign. | Q10 |
 | `one-creature.state` | as above, but seat 1 holds one untapped, non-sick creature able to block. | Q12 |
-| `two-triggers.state` | **NOT VERIFIED** — intended: seat 0 controls two Dark Confidants, meant to fire simultaneously at Upkeep. Measured against a real match: life never drops, by either of two designs tried. See the file's own header and `wave33-evidence/s3-blockers.md`'s "Q8". No test exercises it. | Q8 (open) |
+| `two-triggers.state` | **VERIFIED wave 34.** Seat 0 controls Dark Confidant AND Phyrexian Arena — two DIFFERENT upkeep triggers (not two of the same card; see the file's own header for why that matters: `PlayerControllerHuman.orderSimultaneousSa` only prompts when the triggers' own text differs or `OrderDuplicates` is set, so two identical Dark Confidants never produced an ask at all, by design). Lands in the opponent's Cleanup Step; a driver passes ordinary priority stops through Untap to seat 0's own Upkeep, where both triggers are queued together. | Q8 |
+| `choose-x.state` | Seat 0 holds Fireball (`{X}{R}`) and five untapped Mountains — paying `{R}` leaves exactly 4 mana for X, a known, checkable slider bound (min 0, max 4). Seat 1 is the spell's only legal target and holds nothing to respond with. | §G item 1 (the Choose X slider) |
+| `poison.state` | Seat 0 lands in an ordinary, uncontested Main Phase 1 with POISON, ENERGY and EXPERIENCE counters all already non-zero (`humancounters=POISON=3,ENERGY=7,EXPERIENCE=2`; poison kept under the lethal ten). | §B item 1 (the energy line clips) |
 | `own-spell.state` | seat 0 holds a 0-cost creature and enough untapped lands; after casting, the stack holds exactly that spell. | Q17 |
 | `attackers-declared.state` | seat 0's own uncontested Main Phase 1, with one untapped, non-sick creature on the battlefield and NOTHING pre-declared — the test presses priority forward so Forge's own live `InputAttack` opens for real. | Q14 |
 | `ponder.state` | seat 0 holds Ponder and 3 untapped Islands, nothing else on the stack. | Ponder's stack text |

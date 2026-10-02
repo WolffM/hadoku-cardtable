@@ -1,0 +1,25 @@
+# The energy-line/poison-column claim (wave 34 §B item 1, w33 B's own
+# screenshot: the energy line clips under the opponent's side column at
+# 1280x800). Seat 0 (human) lands in an ordinary, uncontested Main Phase 1
+# with THREE counter types already non-zero on the player (`GameState`'s
+# `humancounters=KEY=N,KEY=N` — `GameState.java:1127-1134`,
+# `applyCountersToGameEntity`, keyed by `CounterEnumType`'s own constant names:
+# `POISON`, `ENERGY`, `EXPERIENCE` — `CounterEnumType.java:496-500`), so a
+# screenshot of this scenario shows poison, energy AND experience all at once,
+# not just one counter type standing in for the claim. Poison is kept under
+# the lethal ten (`GameRules`'s poison state-based action) so the match stays
+# up long enough to screenshot.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humancounters=POISON=3,ENERGY=7,EXPERIENCE=2
+humanhand=
+humanbattlefield=Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

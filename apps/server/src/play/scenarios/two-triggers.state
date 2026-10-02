@@ -1,29 +1,39 @@
 # Q8 — "order these triggers" without full control, and the real ordering ask
-# with it. NOT VERIFIED — see `wave33-evidence/s3-blockers.md`, "Q8" for the
-# full account. Two designs were tried against a real match and neither got
-# seat 0's life to actually drop (the one observable proof the Dark Confidant
-# triggers fired at all):
-#   1. `activephase=UPKEEP` + `activephaseadvance=UPKEEP` (a synthetic jump):
-#      `GameState`'s general phase-advance has no equivalent to
-#      `handleCombat`'s own `addAllTriggeredAbilitiesToStack()` call, so the
-#      trigger condition is registered but never materialised onto the stack.
-#   2. This file's current shape — landing in the OPPONENT's Cleanup Step and
-#      driving Cleanup→Untap→Upkeep→Draw→Main1→Combat through ordinary
-#      priority passes (the same mechanism every real game uses): life was
-#      STILL 20 by the time the drive reached seat 0's Declare Attackers
-#      Step. Whether that is this scenario genuinely not producing the
-#      triggers, or a flaw in the test's own drive loop (pressing every
-#      `Priority:` window blindly, which could race past the one upkeep
-#      stop that mattered before anything inspected it), was not resolved
-#      within budget. No `.jvm.test.ts` exercises this file — do not assume
-#      it works.
+# with it. VERIFIED wave 34 — see `wave34-evidence/s3-q8.md` for the full
+# account; this header has the one-line version.
+#
+# w33's two designs (a synthetic `activephase=UPKEEP`+`activephaseadvance=UPKEEP`
+# jump, and TWO Dark Confidants driven here through ordinary priority passes)
+# never got an ordering ask at all, by DESIGN, not by a test bug:
+# `PlayerControllerHuman.orderSimultaneousSa` (`PlayerControllerHuman.java:2243-
+# 2271`) only prompts when the simultaneous abilities' own `toString()`s
+# DIFFER, or a trigger carries `OrderDuplicates$ True` — and two Dark
+# Confidants are the IDENTICAL trigger text twice, so Forge decides the order
+# itself and asks nothing (`needPrompt` stays false the whole loop). That is
+# also why w33 never saw life drop: not a broken scenario, a real-rules
+# no-op Forge is entitled to take.
+#
+# This file now pairs Dark Confidant with Phyrexian Arena instead — two
+# DIFFERENT upkeep triggers, same controller, same timing, whose `toString()`s
+# differ — which DOES hit `needPrompt = true` and produces a genuine
+# `order` ask (`showRememberCheckbox: true`, two `sourceChoices`) the instant
+# both triggers are queued, independent of Dark Confidant's own reveal/life
+# mechanics (Phyrexian Arena's trigger body has no ambiguity of its own: draw
+# one, lose 1 life, no targets, no choice).
+#
+# Still landing in the OPPONENT's Cleanup Step and driving Cleanup→Untap→
+# Upkeep through ordinary priority passes/asks (the same mechanism every real
+# game uses) — a caller must stop and read `s.asks`/the stack the MOMENT
+# `Phase: Upkeep step` is reached, before auto-answering anything further, or
+# the order ask (real, under full control) or its auto-answer (default
+# policy) is missed.
 turn=1
 activeplayer=ai
 activephase=CLEANUP
 humanlife=20
 ailife=20
 humanhand=
-humanbattlefield=Dark Confidant;Dark Confidant
+humanbattlefield=Dark Confidant;Phyrexian Arena
 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
 humangraveyard=
 aihand=
