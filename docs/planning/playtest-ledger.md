@@ -38,23 +38,23 @@ sections, not here. Say the word and they come in.
 
 ## Check these in your next game
 
-**Only what a person can judge.** Everything a test can prove has been moved out of this
-list on purpose, so a play-test is not spent re-checking it. If any of the "tests prove
-it" items below looks wrong in play, that is a bug in the test and worth telling me.
+**Only what a person can judge**, and only what no known bug will get in the way of. Everything
+a test proves has been left out on purpose so a play-test is not spent on it. Updated after wave 33.
 
-**You have to look (feel, size, appearance):**
+**Look and feel:**
 
-1. **Drag (Q4):** a card follows your pointer with our own ghost, shows where it will land, and snaps to a slot. Does it *feel* right? Do lands start in the back row and everything else in front?
-2. **Left column (Q9):** avatar, then the counts, then a tall graveyard; the opponent mirrored, nothing upside-down. Is the graveyard tall enough? (It measures about half the column.)
-3. **Card size on a small board (Q4):** with six or fewer permanents the cards are now *smaller* than before (the board is always two tiers). Do you want that?
-4. **Phase rail (Q3):** centred, un-bulleted, grows in combat. Are the rows still visibly stretched out of combat?
-5. **Active player ring (Q1)** and **`Start`** at turn 0: no test checks the ring.
-6. **Your own spell no longer holds priority (Q17):** cast a creature and the stack resolves without you holding priority. This is a behaviour change; say if you want it back.
-7. **Header gear (Q15):** one gear holds board layout and "always stop at end step"; the old settings button is gone.
+1. **Drag (Q4):** our own ghost, a landing indicator, snaps to a slot; lands in the back row, the rest in front, filling left to right. Does it *feel* right?
+2. **Left column (Q9):** avatar, counts, then a tall graveyard; the opponent mirrored. Is the graveyard tall enough (it measures about half the column)?
+3. **Card size on a small board (Q4):** six or fewer permanents now give smaller cards (you approved this; check you still like it).
+4. **Phase rail (Q3):** centred, un-bulleted, grows in combat, rows the same height out of combat.
+5. **Active player ring (Q1)** and `Start` at turn 0.
+6. **Header gear (Q15):** one gear holds board layout and "always stop at end step".
+7. **Picker (L3):** OK and Clear stay visible with a long list.
+8. **Poison counters (L4):** appear when you have them; the energy line is known to clip.
 
-**Tests prove it (do not spend a game on these):** End Turn passes phases at once (Q5, real Forge, 5-11 ms gaps); blockers can be assigned (Q12, found and fixed: the server pressed OK twice, it was not summoning sickness); no Declare Blockers stop without creatures (Q10); P/T bottom-right (Q13); the opponent's hand matches yours (Q2); arrows snap to eight points (Q11); avatar change reaches the game (Q6); z-order of labels under popovers (Q16).
+**Do not spend a game on these (known gaps):** responding to an opponent's spell with **Full Control on** (does nothing: wave 34), the **order of simultaneous triggers** (Q8, never exercised), **Ponder** (its follow-up questions are sometimes answered for you), the **Choose X slider** (L13, unit-tested only), and **two spells on the stack with an arrow** (Q7's second half).
 
-**Shipped but never exercised in a real game by any test (be suspicious):** Mana Leak with one spell on the stack answering itself (Q7), pulling attackers back (Q14), ordering of simultaneous abilities (Q8). These are why the next wave builds scripted scenarios first.
+**Tests prove it:** End Turn passes phases at once (Q5); blockers can be assigned (Q12); no blockers stop without creatures (Q10); pulling attackers back (Q14); your own spell does not hold priority (Q17); a stack ability is not clickable (Q18); an auto-target arrow (L8); P/T bottom-right; opponent hand size; eight snap points; avatar change reaches the game.
 
 **From w31, still unchecked by you:** mulligan order, Gitaxian Probe at 0 mana, reload mid-decision, second browser spectates, gone-match page, stale rooms.
 
@@ -68,17 +68,17 @@ Numbering is the operator's (there was no item 19).
 | --- | --- | --- | --- | --- | --- | --- |
 | L1 | mulligan broken: only `Auto` live, hand dead | 1 | shipped w30, w31 | `de0928f` (flag reaches the seat), `be615f1` + fork `917bb193` (order); real-Forge tests | take a mulligan: hand lights up, pick a card | |
 | L2 | the end step waits on the opponent | 1 | shipped w30 | default off, setting in w30 (`5b6c73e`); **moving to the header menu in w32 (Q15)** | end a turn with a land played; it should not stop at their end step | |
-| L3 | picker `OK` / `Clear choice` below the panel, not at the bottom of a scroll | 1 | planned w33 | w33 lane G: OK and Clear below the panel, the list scrolls inside | open any selector; OK is visible without scrolling |  |
-| L4 | poison/infect counters shown nowhere | 1 | planned w33 | w33 lane B: poison (and energy/experience) beside the counts |  |  |
+| L3 | picker `OK` / `Clear choice` below the panel, not at the bottom of a scroll | 1 | shipped w33 | `461b52a`: OK and Clear stay below a scrolling list; mutation: un-wrapping the body fails 3 of 4. **Unit and screenshot only** | open any selector with a long list: OK is visible without scrolling |  |
+| L4 | poison/infect counters shown nowhere | 1 | shipped w33 (unit and screenshot only) | `b165952`: poison/energy/experience beside the counts; no scenario sets poison. **The energy line is clipped under the opponent's side column at 1280×800** | poison counters appear when you have them |  |
 | L5 | delete `Leave`; `Concede` is enough | 1 | shipped w30 | w30 lane A | no `Leave` button | |
 | L6 | arrow snapping/effect not shown when casting | 1 | partly | w29 staging area; **8-point snap is Q11, w32** | cast a targeted spell; the card shows in staging with the arrow starting there | |
 | L7 | avatars not showing | 3 (L7, P3b, Q6) | partly | w29 carried the field; w31 fixed the 404 and the account read; **unset avatar waits on watchparty; live change is Q6, w32** | | |
-| L8 | an auto-targeted effect still needs its arrow on the stack (Fiend Hunter) | 1 | planned w33 | w33 lanes B, G: the stack entry carries its targets (`TargetCards`, on Forge's wire) and an arrow is drawn |  |  |
+| L8 | an auto-targeted effect still needs its arrow on the stack (Fiend Hunter) | 1 | shipped w33 | `461b52a` + `b165952`: the stack entry carries its targets; an arrow is drawn; `w33.spec` Doom Blade 10 of 10, mutation: the arrow disabled fails 2 of 2 | an effect with one target (Fiend Hunter) shows its arrow on the stack |  |
 | L9 | graveyard double-stacked | 3 (L9, P2, Q9) | reopened → P2, Q9 | w30 made it one stack; the layout was then reported again | | |
 | L10 | z-order: cards, then effects on cards, then popups | 2 (L10, Q16) | open → Q16 | w32 | counters and P/T sit under any open popup | |
 | L11 | one undivided board, type-separated as the alternate | ≥3 | shipped w30 | `5b6c73e`, `fc56164`; board `single` is the default | cards sit on one surface, no lane labels | |
 | L12 | holding priority after casting | 2 (L12, Q17) | open → Q17 | w32 diagnoses first; not `passStackWindows` | cast a spell; you do not keep priority | |
-| L13 | `Choose X` as a slider, capped at available mana | 1 | planned w33 | w33 lane G: a slider; the cap is whatever Forge's ask carries |  |  |
+| L13 | `Choose X` as a slider, capped at available mana | 1 | shipped w33 (unit tests only) | `461b52a`: a slider; Forge's own X max is already the available mana. **No scenario asks for X**; the screenshot shows OK faint at X=0 | Choose X is a slider capped at the mana you have |  |
 | L14 | P/T drawn bottom-right, over where it normally sits | 2 (L14, Q13) | open → Q13 | w32 | | |
 | L15 | blockers: an arrow from each attacker; blockers highlight blue | 1 (Q12 is a related, different symptom) | open → Q12 | w32 (Q12 first needs a repro) | | |
 | L16 | delete `Call Back` | 1 | shipped w30 | w30 lane A | no `Call Back` button | |
@@ -123,24 +123,24 @@ All planned in **wave 32** (`docs/planning/wave32-2026-10-01.md`).
 
 | ID | item | asked | status | evidence | check it by | your check |
 | --- | --- | --- | --- | --- | --- | --- |
-| Q1 | drop "0 Nobody"; show `Start`; ring the active player's avatar | 1 | shipped w32 | `5312231` (Start, no name), `4744c57` (ring); `w32.spec` Q1 passes. **No test asserts the ring on the active avatar** | the active player has a circle round their avatar; turn 0 reads `Start` |  |
+| Q1 | drop "0 Nobody"; show `Start`; ring the active player's avatar | 1 | shipped w32; ring now tested w33 | `5312231`, `4744c57`; the ring is asserted by `w33.spec` (10 of 10) | the active player has a ring round their avatar; turn 0 reads `Start` |  |
 | Q2 | opponent's hand the same card size, mirrored | 1 | shipped w32 | `4744c57`; mutation-tested (opponent hand 4rem: 4 fail) | their hand cards are the same size as yours |  |
-| Q3 | phase names centred and un-bulleted; rail grows in combat | 1 (follow-up on P1) | shipped w32 (test flaky) | `5312231`; the e2e that measures it fails **3 of 5 runs**: out-of-combat rail rows measured 17.5 px against 15.4 px in combat (tolerance 2). The rows still differ slightly | rail names centred, un-bulleted; grows in combat. **Are the rows still visibly stretched out of combat?** |  |
+| Q3 | phase names centred and un-bulleted; rail grows in combat | 1 (follow-up on P1) | shipped w32; rows fixed w33 (unit tests only) | `9bd535b`: rail rows are one measured height (`--live-h`). **No e2e fails when the fix is reverted**; the 2.16 px "flake" was the test (a second page never resized), fixed in E | rail rows the same height in and out of combat |  |
 | Q4 | lands back row, others front; free placement; own drag ghost and snap indicator | 2 (with P11) | shipped w32 | `4744c57`: pointer drag with our own ghost, indicator and snap; two-tier default placement; frames `wave32-evidence/q4-drag-*.png`. **Touch not tried on a device** | drag a card: our ghost, a landing indicator, snaps to a slot; lands in the back row, the rest in front, filling left to right |  |
 | Q5 | skipped phases should not crawl | 1 | shipped w32 | `9a70f47`; real Forge: End Turn gaps 5-11 ms against 206-211 ms reverted (`endturn.jvm`, 3 of 3 re-run by the tracker) | click End Turn: the phases go by at once |  |
 | Q6 | an avatar change does not reach the game | 1 | shipped w32 | `d2fc75b`, `9a70f47`; `w32.spec` avatar test (mutation: fails reverted). A **cleared** avatar is not noticed (watchparty) | change your avatar in the chat; your face in the game changes |  |
-| Q7 | Mana Leak: arrow to a stack item; shortcut when one target | 1 | shipped w32, **not verified in a browser** | `3b9c22c`, `ea309c1`; unit tests only. The e2e that should drive it **passed vacuously** (the game never reached a stack ask) | cast Mana Leak against one spell on the stack: it should answer itself; with two, drag an arrow to the one you mean |  |
-| Q8 | "order simultaneous abilities" only in full control | 1 | shipped w32 (unit tests only) | `9a70f47`; `auto.test` mutation 3 fail. Never driven against real Forge | two triggers at once: no ordering question unless you are in full control |  |
+| Q7 | Mana Leak: arrow to a stack item; shortcut when one target | 1 | shipped w32; half-verified w33 | e2e asserts the outcome (the lone spell is countered, no target ask), 10 of 10. **The two-spells half (an arrow picks one) is unobservable: see the Full Control bug below** | a lone spell answers itself |  |
+| Q8 | "order simultaneous abilities" only in full control | 1 | shipped w32, **still unverified** | `auto.test` only. The scenario could not reach the position (a state jump never materialises Upkeep triggers); the test was deleted, not left red | two triggers: no ordering question unless in full control |  |
 | Q9 | one column: avatar, counts, graveyard the rest; opponent mirrored | 3 (with L9, P2) | shipped w32 (look at it) | `4744c57`: graveyard takes the rest of the column; **measured 50.6% of the column at 1280x800** (information only). Opponent mirrored | avatar, counts, then a tall graveyard; the opponent mirrored, nothing upside-down |  |
-| Q10 | no Declare Blockers stop without creatures | 1 | shipped w32, **e2e vacuous** | `9a70f47`; unit + `blockers.jvm` (3 of 3 re-run by the tracker). The browser test never met a blockers window | attack into a player with no creatures: no Declare Blockers stop |  |
+| Q10 | no Declare Blockers stop without creatures | 1 | shipped w32; now exercised w33 | real Forge scenarios (`scenario-blockers.jvm`) and e2e 10 of 10 | attack into a player with no creatures: no blockers stop |  |
 | Q11 | arrow snaps to 8 points on the card edge | 1 | shipped w32 | `3b9c22c`; `gestures.test` + `arrow.spec` pass | a target arrow ends on a corner or edge midpoint of the card, not its centre |  |
-| Q12 | could not assign blockers at all | 1 (related to L15) | shipped w32 (root cause found and fixed) | **Not summoning sickness.** `9a70f47`: Forge sends the block input's buttons before its prompt, and the server pressed OK a second time, skipping "Select creatures to block". Re-run by the tracker: reverting the fix fails `blockers.jvm` on exactly that prompt, restoring it passes | be attacked with a creature on your side: "Select creatures to block" appears and you can assign blockers |  |
+| Q12 | could not assign blockers at all | 1 (related to L15) | shipped w32; now exercised w33 | scenario e2e 10 of 10 (blockers assignable, the block prompt appears) | be attacked: "Select creatures to block" appears |  |
 | Q13 | P/T bottom-right | 2 (with L14) | shipped w32 | `4744c57`; mutation-tested (P/T top: 1 fails) | P/T sits in the card's bottom-right corner |  |
-| Q14 | click or box-select attackers to pull them back | 1 | shipped w32, **unverified against real Forge** | `3b9c22c` + `9a70f47`; unit tests only | in Declare Attackers, click an attacker, or drag a box over several: they come back |  |
+| Q14 | click or box-select attackers to pull them back | 1 | shipped w32; now exercised w33 | `502b289`: opens Forge's live attack input so a declared attacker can be called back; scenario e2e 10 of 10 | click a declared attacker: it comes back |  |
 | Q15 | settings into the header menu; explain Cancel; layout is mine only | 1 | shipped w32 | `5312231`: settings in the header gear (button and panel deleted), Cancel only when Forge enables it, layout applies to your board only (`4744c57`); `w32.spec` header-menu helpers pass | one gear in the header holds board layout and "always stop at end step" |  |
 | Q16 | card labels under popovers | 2 (with L10) | shipped w32 (accent text remains) | `d2fc75b` `--z-*` scale used by B, L, G. **`--accent` is still used as text** in `live.css`, `prompts.css`, `board.css` (w33) | card labels and P/T sit under any open popover |  |
-| Q17 | holding priority on my own spells | 2 (with L12) | shipped w32; **operator approved the change 2026-10-01** | `9a70f47`: your own spell no longer holds priority (`priority.jvm` 3 of 3 re-run). **This is a behaviour change only you can approve**: after casting you do not get priority back to cast a second spell on top, unless in full control | cast a creature: the stack resolves without you holding priority. Is that what you wanted? |  |
-| Q18 | an activated ability on the stack (Glint Hawk Idol) shows as clickable; only the card on the board should be activatable | 1 | planned w33 | **root cause found:** for an ability, `sourceCardId` is the permanent, which Forge offers for its own activation, so `StackItem` (`Board.tsx:1858`) draws a button whose click is `onSelectCard(sourceId)`, the same action as clicking the card. Not cosmetic. w32 was already dispatched; its lane-G manager was told as information for Q7 (stack targets share the collision) **Planned w33 lane B** | click a stack ability: nothing happens |  |
+| Q17 | holding priority on my own spells | 2 (with L12) | shipped w32, approved; now exercised w33 | `w33.spec` Q17 10 of 10; mutation: the actionable refresh removed fails 3 of 3 | cast a creature: the stack resolves without you holding priority |  |
+| Q18 | an activated ability on the stack (Glint Hawk Idol) shows as clickable; only the card on the board should be activatable | 1 | shipped w33 | `b165952`, `57664ab`: a stack ability is never selectable by its card id. e2e with a real activated ability (Shivan Dragon) 10 of 10; with the first scenario (a tap ability) it passed vacuously and was reworked | click a stack ability: nothing happens |  |
 
 ---
 

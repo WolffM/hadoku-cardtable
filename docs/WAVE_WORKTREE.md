@@ -21,14 +21,18 @@ from outside git is absent unless the scaffold puts it there:
 
 ## What bit in wave 33 (2026-10-01)
 
-1. **The handoff pointed RES at the wrong Forge.** It said
+1. **The handoff pointed RES at a different Forge checkout than the pin.** It said
    `~/.cache/cardtable-w8/forge-build/forge-gui/res`. That tree is at Forge
-   `2ad70eb`; the pin, and the jar built from it, is `917bb193`. So every
-   local jar and e2e run that wave used older card scripts than the jar, and
-   every Forge line number a lane cited came from older source. CI and
-   production read the main checkout's `forge/forge-gui/res` (`ci.yml`
-   forge-e2e env; hadoku_site's wrapper), and CI was green, so nothing shipped
-   wrong. But "verified locally" was against a different Forge.
+   `2ad70eb`; the pin, and the jar built from it, is `917bb193`. **Corrected by
+   the tracker, 2026-10-02: the `res` directories are byte-identical** (`diff -rq`
+   of the two trees prints nothing; the two fork commits differ only in
+   `LondonMulligan.java` and `AvailableActions.java`, both Java), so the card
+   scripts the runs used were the same as the jar's, and no local verification
+   was invalidated (the tracker re-ran w33's suites on the pinned `res`: the same
+   results). What WAS different is the Java *source* in the old tree: a Forge line
+   number a lane cited from it can be stale. CI and production read the main
+   checkout's `forge/forge-gui/res` (`ci.yml` forge-e2e env; hadoku_site's
+   wrapper). The mismatch is still worth preventing, as hygiene.
    **Check:** `git -C <path> rev-parse HEAD` must equal
    `git -C ~/repos/hadoku-cardtable submodule status forge`.
 2. **A run without the jar env looks like a pass.** The manager's first

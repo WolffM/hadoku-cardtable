@@ -269,6 +269,29 @@ with how many times it
 has been asked, what shipped, and a column for the operator's own ✅/❌ after a real
 game. Only the operator marks an item verified.
 
+## Wave 33 landed and was re-verified by the tracker (2026-10-02)
+
+`0.29.0`, pushed as `48481dc..24d0cc9`; redeploy 22:59:08-22:59:44 UTC, bundles built 22:59:46-48, pm2
+restarted 22:59:48 (after the build); `CARDTABLE_PLAY_PROBE` is **unset** in every server process and the
+served bundle carries the `scenario-needs-probe` refusal. CI green on `24d0cc9` and, after a re-run, on
+`491743d`. **Re-run by the tracker on the pinned Forge `res`:** `pnpm check` (2998 passed); eight real-Forge
+suites (blockers, endturn, priority, five `scenario-*`) all pass; **CI's exact spec set (`play`, `table-fit`,
+`w31`, `w32`, `w33`) three times, 22 of 22 each, 3.7-3.9 min, no skipped titles.** The two tests that failed
+3 of 5 in w32 are stable.
+
+- **Two reds on later docs commits were not product failures.** `2857942`: `check` timed out on `jit-claw-5`
+  (the slow claw). `491743d`: `forge-e2e` was refused by the CI throttle (host free memory 1.8 GB against the
+  8 GB limit, from leftover wave JVMs); re-run green once memory was free. Four more leaked CI spare JVMs
+  (cwd deleted) were cleared.
+- **The manager's "older card scripts" claim is wrong, and the stale path was the tracker's instruction.**
+  The `res` directories are byte-identical (zero differing paths); the fork commits differ only in two Java
+  files. No local verification was invalidated. `docs/WAVE_WORKTREE.md` is corrected.
+- **Not exercised by any test:** Q8 (the ordering ask); the Choose X slider; poison counters beyond a
+  screenshot; L's rail fix (no e2e fails when it is reverted).
+- **A real bug found by E, for wave 34:** with **Full Control on** and an opponent's spell on the stack,
+  clicking your own instant to respond does nothing (`e-findings.md` §E1). Also Ponder's follow-up asks are
+  sometimes auto-answered (§E2), and the energy line clips at 1280x800.
+
 ## Wave 33 planned (2026-10-01): a game a test can set up
 
 `docs/planning/wave33-2026-10-01.md`, not yet dispatched. Operator rulings 2026-10-01 on w32's
