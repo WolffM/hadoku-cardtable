@@ -118,6 +118,35 @@ describe('every card a match can contain has art', () => {
     expect(scryfallIdFor(KNOWN, 'Not A Card Anyone Printed', 'XYZ')).toBeUndefined();
     expect(artUrlFor('Not A Card Anyone Printed', 'XYZ')).toBeNull();
   });
+
+  /*
+   * R14 (wave 35). The operator: a Goblin Rogue token drew no art, because the
+   * table had NO token entries at all. `adapter.ts` asks for a token exactly
+   * as it asks for anything else — `scryfallIdFor(artIds, name, setCode)` —
+   * and Forge's wire `Name` for a token is `"<the printed name> Token"` for
+   * the overwhelming majority of tokens (`build-art-ids.ts`'s `forgeTokenWireNames`
+   * reads the real convention off Forge's own `tokenscripts/*.txt` rather than
+   * assuming it, which is also why this suffix is correct for "Goblin Rogue"
+   * and not applied to a token that copies a specific real card by name).
+   */
+  it('resolves a creature token by its Forge wire name, "<name> Token"', () => {
+    for (const name of ['Goblin Rogue', 'Zombie', 'Soldier', 'Treasure', 'Clue']) {
+      const wireName = `${name} Token`;
+      expect(scryfallIdFor(KNOWN, wireName, ''), wireName).toMatch(UUID);
+      const url = artUrlFor(wireName, '');
+      expect(url, wireName).not.toBeNull();
+      expect(ALLOWED_ART_HOSTS).toContain(new URL(url!).origin);
+    }
+  });
+
+  it('never doubles the "Token" suffix for a token that copies a specific real card by name', () => {
+    // Kher Keep's token is a copy of the actual printed "Kobolds of Kher
+    // Keep" — Forge's own tokenscript names it with NO " Token" suffix, so
+    // the row (and the lookup) must be the bare name, not the bare name plus
+    // "Token" twice over or once wrongly.
+    expect(TABLE.ids['Kobolds of Kher Keep Token']).toBeUndefined();
+    expect(scryfallIdFor(KNOWN, 'Kobolds of Kher Keep', ''), 'Kobolds of Kher Keep').toMatch(UUID);
+  });
 });
 
 describe('the committed table', () => {

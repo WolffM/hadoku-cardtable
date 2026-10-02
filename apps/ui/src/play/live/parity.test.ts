@@ -4,6 +4,19 @@
  *
  * ## The baseline
  *
+ * Re-recorded in Wave 35 §B for R10 (the flicker fix): 41985 -> 42753, +768,
+ * fully accounted for — measured the strong way, rendering the fixture with
+ * and without `Board.tsx`'s change and diffing the real strings. This
+ * fixture's 24 cards Forge has not offered (`interaction` is omitted here, so
+ * EVERY card is inert) each move from `<div class="board-card__face">...</div>`
+ * (36 characters of tags) to `<button type="button" class="board-card__face"
+ * disabled="">...</button>` (68 characters of tags) — +32 characters × 24 =
+ * +768 exactly, and nothing else in the tree changed (card.css's selectable
+ * styling moved off the `button` tag to `[data-selectable]`, which is a
+ * stylesheet this test never reads). R16 (the game-over banner's removal)
+ * contributes nothing here: this fixture's `view.gameOver` is false, so the
+ * deleted `<p class="board__over">` branch never rendered for it either way.
+ *
  * Re-recorded in Wave 33 §B for shape 3 (the active-player ring hook): 41864
  * -> 41985, +121, and every one of the characters is accounted for —
  * measured the strong way, by rendering the fixture with and without the
@@ -341,8 +354,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = 'ef016932555785ee317cb6dcae8362fe176c680b28894497381dedd79653465b';
-const BASELINE_LENGTH = 41985;
+const BASELINE_SHA256 = 'ec67395c3a5d04707749a1d0a3688b29fa681922817ba6bdbe0c9814c1924874';
+const BASELINE_LENGTH = 42753;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

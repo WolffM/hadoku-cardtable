@@ -332,6 +332,17 @@
 }
 
 /*
+ * R15 (wave 35): a permanent whose current characteristics disagree with its
+ * printed ones (Magus of the Moon's nonbasic-lands-are-Mountains) wears this
+ * mark — `--accent-ink`, an existing token already used for an informational
+ * flag (`.seat__flag`), not the gestures lane's own `--accent` (an offer) or
+ * `--warn` (a danger), so it cannot be misread as either of those.
+ */
+.board-card__mark[data-mark='changed'] {
+  color: var(--accent-ink);
+}
+
+/*
  * A token (item 14): *"wolf-token has no art."*
  *
  * It has no art because it has no row in `art-ids.json`, which is not this lane's
@@ -397,22 +408,30 @@
   color: var(--c-red);
 }
 
-/* ── selectable: Forge said this card may be chosen ──────────────────── */
-
-button.board-card__face {
+/*
+ * ── selectable: Forge said this card may be chosen ────────────────────
+ *
+ * R10 (wave 35): `.board-card__face` is always a `<button>` now (it used to
+ * switch between `button` and `div`, which is what caused the flicker this
+ * file's `Board.tsx` comment above `CardOnBoard`'s face explains) — a
+ * `disabled` one when the card is not selectable. So these can no longer key
+ * off the TAG; they key off `[data-selectable]`, the same attribute the `<li>`
+ * already carried, which is unaffected by the element-type fix.
+ */
+.board-card[data-selectable] > .board-card__face {
   cursor: pointer;
 }
 
-button.board-card__face .card {
+.board-card[data-selectable] > .board-card__face .card {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-button.board-card__face:hover .card {
+.board-card[data-selectable] > .board-card__face:hover .card {
   translate: 0 -3px;
 }
 
-button.board-card__face:focus-visible {
+.board-card[data-selectable] > .board-card__face:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 3px;
 }
@@ -445,7 +464,7 @@ button.board-card__face:focus-visible {
   box-shadow: 0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
 }
 
-.board-card[data-can-act][data-selectable] > button.board-card__face .card {
+.board-card[data-can-act][data-selectable] > .board-card__face .card {
   box-shadow:
     0 0 0 2px var(--accent),
     0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);

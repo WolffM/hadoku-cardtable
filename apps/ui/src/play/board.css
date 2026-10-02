@@ -191,8 +191,12 @@
  * 'turn bar' and 'seat 1 live' are relevant for so i think these should just be
  * deleted."* Turn and phase are the rail's (`live/live.css`), which wave 26 §B
  * widened to 8.4% so they can be read. Nothing hidden was left behind in its
- * place. `.board__over` is the one thing it carried that is not the rail's — the
- * game ENDING — and it is out of flow now, beside `.board__warn`.
+ * place.
+ *
+ * `.board__over`, the `game over` banner. Wave 35, R16: the result screen
+ * (two buttons, Rematch / Main menu) replaces it. `LiveBoard` (lane L) now
+ * draws that screen over the board and owns the `.board__over` styling in
+ * `live/live.css`; this file no longer defines the class at all.
  *
  * No WotC marks in anything drawn here: states are words ("tapped"), life is a
  * number, a player is a circle and a bust we drew, and the stack is a list.
@@ -299,30 +303,6 @@
 .board .card__head {
   flex-wrap: wrap;
   min-width: 0;
-}
-
-/*
- * The game is over. Out of flow, like the missing-card alert beside it: it
- * appears mid-game, and a track that appears is exactly what the static rule
- * forbids. It is the one thing the deleted turn bar carried that is neither the
- * rail's nor on the operator's delete list, and four e2e assertions read it.
- */
-.board__over {
-  position: absolute;
-  z-index: var(--z-overlay, 20);
-  top: var(--board-gap);
-  left: 50%;
-  translate: -50% 0;
-  margin: 0;
-  padding: 2px 10px;
-  background: var(--bg-raised);
-  border: 1px solid var(--warn);
-  border-radius: var(--radius);
-  color: var(--warn);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-  white-space: nowrap;
 }
 
 /*
@@ -497,11 +477,16 @@
 }
 
 /*
- * The vertical bar: the seat's avatar, life, name, mana pool and counts, in
- * three fixed tracks — the avatar's own height, `--mana-h` and `--counts-h` — so
+ * The vertical bar: the seat's avatar, life, name, counts and mana pool, in
+ * three fixed tracks — the avatar's own height, `--counts-h` and `--mana-h` — so
  * the graveyard under it starts at the same place at nought mana and at six
- * colours. The viewer's bar has the avatar first; the opponent's is the mirror,
- * counts first and the avatar last, against the centre line.
+ * colours. R3 (wave 35, the fourth ask, with L9/P2/Q9): the operator's own
+ * words were "avatar, counts, [then] the rest", and wave 32's build put the
+ * mana pool between them — so the counts never actually sat next to the
+ * avatar. **The counts are now the track right after the avatar**; the mana
+ * pool moves to the far side, next to the graveyard, which is where the
+ * counts used to be. The viewer's bar has the avatar first; the opponent's is
+ * the mirror, mana first and the avatar last, against the centre line.
  *
  * (Wave 31 §A.3 deleted `Regroup`, which used to be a fourth track here.)
  */
@@ -509,7 +494,7 @@
   flex: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto var(--mana-h) var(--counts-h);
+  grid-template-rows: auto var(--counts-h) var(--mana-h);
   gap: 3px;
   min-width: 0;
   min-height: 0;
@@ -520,27 +505,27 @@
   grid-row: 1;
 }
 
-.board .seat__mana {
+.board .seat__counts {
   grid-row: 2;
 }
 
-.board .seat__counts {
+.board .seat__mana {
   grid-row: 3;
 }
 
 .board .seat:not([data-viewer]) .seat__who {
-  grid-template-rows: var(--counts-h) var(--mana-h) auto;
+  grid-template-rows: var(--mana-h) var(--counts-h) auto;
 }
 
 .board .seat:not([data-viewer]) .seat__ident {
   grid-row: 3;
 }
 
-.board .seat:not([data-viewer]) .seat__mana {
+.board .seat:not([data-viewer]) .seat__counts {
   grid-row: 2;
 }
 
-.board .seat:not([data-viewer]) .seat__counts {
+.board .seat:not([data-viewer]) .seat__mana {
   grid-row: 1;
 }
 

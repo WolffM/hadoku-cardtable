@@ -203,6 +203,21 @@ export interface BoardCard {
   attacking: boolean;
   blocking: boolean;
   token: boolean;
+  /**
+   * R15 (wave 35), agreed shape 1. Set when an effect has changed what this
+   * permanent IS — Magus of the Moon's `AddType$ Mountain` reads a nonbasic
+   * land's current type line as `Land — Mountain`, which the wire gives us
+   * directly (`Type`, read live, no adapter change needed for that half) —
+   * but ONLY when our own card data knows the card's PRINTED type line and it
+   * disagrees with the current one (`POOL_PRINTED_TYPE_LINE`, same 534-card
+   * cube-only ceiling `printed` above already accepts, for the same reason:
+   * the wire carries no printed-type field to compare against). `name` is the
+   * card's own (unchanged) name — Magus's effect never renames the land, only
+   * retypes it — carried so a reader (the inspector, lane G's) can look the
+   * PRINTED card up by it. `null` when nothing is known to have changed, which
+   * is also the honest answer for a card our data has never heard of.
+   */
+  changedFrom?: { name: string } | null;
 }
 
 /** How one of a card's two numbers stands against its printed base. */
@@ -402,6 +417,8 @@ export interface AdaptOptions {
   artIds?: ArtIdIndex;
   /** Where a card's PRINTED power/toughness is looked up. Defaults to `POOL_PRINTED_PT`. */
   printedPT?: PrintedPTIndex;
+  /** Where a card's PRINTED type line is looked up, for `changedFrom` (R15). Defaults to `POOL_PRINTED_TYPE_LINE`. */
+  printedType?: PrintedTypeLineIndex;
   /**
    * Every seat's watchparty character, keyed by Forge PLAYER id — item 4, wave
    * 29 §A.6-8. Absent (the fixture path's default) draws every seat with the
@@ -460,6 +477,36 @@ export function printedPTIndex(
  */
 export const POOL_PRINTED_PT: PrintedPTIndex = printedPTIndex(
   (poolData as { cards: { name: string; power?: string; toughness?: string }[] }).cards,
+);
+
+// ── what a card's printed TYPE LINE is (R15) ─────────────────────────────────
+
+/** Printed type line by card name, lower-cased. A name it does not hold has no printed type to compare against. */
+export type PrintedTypeLineIndex = ReadonlyMap<string, string>;
+
+/**
+ * A printed-type-line index over anything shaped like our card data. Same
+ * shape and the same coverage limit as {@link printedPTIndex}: keyed by name
+ * alone, first write wins.
+ */
+export function printedTypeLineIndex(cards: readonly { name?: unknown; typeLine?: unknown }[]): PrintedTypeLineIndex {
+  const index = new Map<string, string>();
+  for (const card of cards) {
+    if (typeof card.name !== 'string' || typeof card.typeLine !== 'string' || card.typeLine.length === 0) continue;
+    const key = card.name.trim().toLowerCase();
+    if (!index.has(key)) index.set(key, card.typeLine);
+  }
+  return index;
+}
+
+/**
+ * Every printed type line the browser knows: the drafted cube's own pool —
+ * the same 534-card ceiling `POOL_PRINTED_PT` already accepts, for the same
+ * reason (the wire carries no printed-type field, and nothing here is wired
+ * to the committed `decks/` lists the way art is).
+ */
+export const POOL_PRINTED_TYPE_LINE: PrintedTypeLineIndex = printedTypeLineIndex(
+  (poolData as { cards: { name: string; typeLine?: string }[] }).cards,
 );
 
 // ── which Scryfall id a card is ──────────────────────────────────────────
@@ -688,6 +735,7 @@ function toBoardCard(
   artIds: ArtIdIndex,
   printedPT: PrintedPTIndex,
   onBattlefield = false,
+  printedType: PrintedTypeLineIndex = POOL_PRINTED_TYPE_LINE,
 ): BoardCard | null {
   const view = state.get(deltaKey(WireType.Card, id));
   if (view === undefined) return null;
@@ -732,6 +780,12 @@ function toBoardCard(
   // a creature on the battlefield, so it is only reported there.
   const arrivedThisTurn = onBattlefield && core.includes('Creature') && readBool(view, 'Sickness');
   const printedBase = core.includes('Creature') ? printedPT.get(name.trim().toLowerCase()) : undefined;
+  // R15, shape 1: a permanent's current type line disagreeing with the one
+  // our own data knows for its (unchanged) name. Scoped to the battlefield —
+  // a continuous type-changing effect (Magus of the Moon's `AddType$
+  // Mountain`) only applies there, and a card elsewhere just reads printed.
+  const printedLine = onBattlefield ? printedType.get(name.trim().toLowerCase()) : undefined;
+  const changedFrom = printedLine !== undefined && printedLine !== card.typeLine ? { name } : null;
 
   return {
     id,
@@ -751,6 +805,7 @@ function toBoardCard(
     attacking: readBool(view, 'Attacking'),
     blocking: readBool(view, 'Blocking'),
     token: readBool(view, 'Token'),
+    changedFrom,
   };
 }
 
@@ -776,7 +831,14 @@ export const PHASE_LABEL: Readonly<Record<string, string>> = {
 export function toBoardView(
   state: WireState,
   seq: number,
-  { viewerPlayerId, artIds = KNOWN_ART_IDS, printedPT = POOL_PRINTED_PT, avatarByPlayerId, nameByPlayerId }: AdaptOptions,
+  {
+    viewerPlayerId,
+    artIds = KNOWN_ART_IDS,
+    printedPT = POOL_PRINTED_PT,
+    printedType = POOL_PRINTED_TYPE_LINE,
+    avatarByPlayerId,
+    nameByPlayerId,
+  }: AdaptOptions,
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === WireType.Game);
   const missing: number[] = [];
@@ -784,7 +846,7 @@ export function toBoardView(
   const cardsIn = (ids: number[], onBattlefield = false): BoardCard[] => {
     const out: BoardCard[] = [];
     for (const id of ids) {
-      const c = toBoardCard(state, id, artIds, printedPT, onBattlefield);
+      const c = toBoardCard(state, id, artIds, printedPT, onBattlefield, printedType);
       if (c === null) missing.push(id);
       else out.push(c);
     }
@@ -833,7 +895,7 @@ export function toBoardView(
   const stack: StackEntry[] = readIds(game, 'Stack').map((sid) => {
     const item = state.get(deltaKey(WireType.StackItem, sid));
     const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;
-    const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds, printedPT) : null;
+    const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds, printedPT, false, printedType) : null;
     const activator = prop(item, 'ActivatingPlayer') !== undefined ? readInt(item, 'ActivatingPlayer') : null;
     return {
       id: sid,

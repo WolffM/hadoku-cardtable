@@ -20,6 +20,7 @@ import poolData from '../draft/pool.json';
 import {
   artIdIndex,
   CUBE_ART_IDS,
+  printedTypeLineIndex,
   scryfallIdFor,
   toBoardView,
   type ArtIdIndex,
@@ -27,7 +28,16 @@ import {
   type BoardView,
   type StackEntry,
 } from './adapter.ts';
-import { Board, forgetArrangements, snapTo, type BoardInteraction, type BoardLayout } from './Board.tsx';
+import {
+  Board,
+  forgetArrangements,
+  forgetPendingPlacements,
+  notePlayedTo,
+  previewPlayedTo,
+  snapTo,
+  type BoardInteraction,
+  type BoardLayout,
+} from './Board.tsx';
 import { boardFromFixture, loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
 import { cardStateKey, deltaKey, expectWirePackets, isAnnotationKey, WireType, type WireObject } from './wire.ts';
@@ -97,9 +107,14 @@ function renderBoard(
 
 /**
  * Forge's own controls are the cards and the seats. `Regroup`, the one control
- * that was ours, was deleted in wave 31 §A.3, so every button is Forge's.
+ * that was ours, was deleted in wave 31 §A.3, so every ENABLED button is
+ * Forge's. R10 (wave 35) made every card face a real `<button>` always (fixing
+ * a flicker a `button`/`div` element-type switch caused — see `Board.tsx`'s
+ * comment above `CardOnBoard`'s face), `disabled` when Forge has not offered
+ * it, so "is a button" no longer distinguishes offered from not; "is an
+ * ENABLED button" still does, and is what every test below now reads.
  */
-const forgeButtons = (container: HTMLElement) => container.querySelectorAll('button');
+const forgeButtons = (container: HTMLElement) => container.querySelectorAll('button:not([disabled])');
 
 /* ── the pointer drag, driven in jsdom (wave 32 Q4b) ──────────────────── */
 
@@ -183,9 +198,10 @@ function dragCard(container: HTMLElement, cardId: number, to: DragTo, hold = fal
  * `e2e/table-fit.spec.ts` and `e2e/arrow.spec.ts` are re-pointed at `live-turn`
  * by §B.
  *
- * The one thing it carried that is neither the rail's nor on the operator's
- * delete list is the game ENDING, so `.board__over` survives — out of flow,
- * beside the missing-card alert, where four e2e assertions still find it.
+ * The `game over` banner it also carried (`.board__over`) is gone too, as of
+ * wave 35 (R16): the operator's result screen (Rematch / Main menu) replaces
+ * it, drawn by `LiveBoard` (lane L) over the board, not by `Board` itself. See
+ * seam 4 in `docs/planning/wave35-2026-10-02.md`'s wave file.
  */
 describe('the turn bar is deleted (§A.4)', () => {
   it('draws no bar, and leaves nothing of it behind under any name', () => {
@@ -205,16 +221,14 @@ describe('the turn bar is deleted (§A.4)', () => {
     expect(declarationIn('.board', 'grid-template-areas'), 'and the board has no bar row').toBe("'them' 'you'");
   });
 
-  it('keeps the game-over line, out of flow', () => {
+  it('draws no game-over banner of its own; the result screen is LiveBoard\'s', () => {
     const base = boardFromFixture(fixture);
     const { container } = renderBoard({ ...base, gameOver: true });
-    const over = container.querySelector<HTMLElement>('.board__over')!;
-    expect(over, 'the line is drawn when the game is over').not.toBeNull();
-    expect(over.textContent).toBe('game over');
-    expect(declarationIn('.board__over', 'position'), 'and it cannot push a track').toBe('absolute');
-    cleanup();
-    const { container: live } = renderBoard(base);
-    expect(live.querySelector('.board__over'), 'and not while the game runs').toBeNull();
+    expect(container.querySelector('.board__over'), 'Board draws no banner, even when the game is over').toBeNull();
+    expect(container.textContent, 'and no "game over" text anywhere').not.toContain('game over');
+    // The stylesheet went with it: Board owns no `.board__over` rule any more.
+    // (`.board__overlay` is a different, surviving selector and must not match.)
+    expect(BOARD_RULES).not.toMatch(/\.board__over\b(?!lay)/);
   });
 });
 
@@ -577,14 +591,22 @@ describe('BoardInteraction', () => {
     expect(onSelectPlayer).not.toHaveBeenCalled();
   });
 
-  it('an inert card is not a button and a click on it calls nothing', () => {
+  /**
+   * R10 (wave 35): an inert card's face is still a `<button>` — see the
+   * comment above `CardOnBoard`'s face in `Board.tsx` for why the element type
+   * no longer switches — but it is `disabled`, which keeps every behaviour
+   * this test pins: out of the tab order, not clickable, and reported nowhere.
+   */
+  it('an inert card is a DISABLED button, and a click on it calls nothing', () => {
     const { interaction, onSelectCard } = spyInteraction(picks);
     const { container } = renderBoard(view, interaction);
     const inert = [...container.querySelectorAll<HTMLElement>('[data-board-card]:not([data-selectable])')];
     // 5 + 8 battlefield, 3 + 3 graveyard, 5 in hand: 24 cards, 4 of them picked.
     expect(inert).toHaveLength(24 - picks.length);
     for (const card of inert) {
-      expect(card.querySelector('button')).toBeNull();
+      const face = card.querySelector('button.board-card__face')!;
+      expect(face, 'still a button').not.toBeNull();
+      expect(face.hasAttribute('disabled'), 'but disabled, so out of the tab order').toBe(true);
       fireEvent.click(card.querySelector('.board-card__face')!);
       fireEvent.click(card.querySelector('[data-testid="card"]')!);
     }
@@ -661,6 +683,43 @@ describe('BoardInteraction', () => {
     const { interaction } = spyInteraction([987654]);
     const { container } = renderBoard(view, interaction);
     expect(forgeButtons(container)).toHaveLength(0);
+  });
+
+  /**
+   * R10 (wave 35), diagnosed: a creature taps to attack and, for one frame,
+   * "Creature" and its rules text flicker over the art. Root cause — `live/match.ts`'s
+   * `declaredAttackers` only re-adds a just-declared attacker to `selectable` once
+   * Forge's `buttons` show "Call Back", a signal separate from the view's own
+   * `Attacking` flag, so there is a real window where `selectable` goes
+   * true → false → true for the same card across consecutive renders. Before this
+   * fix, `CardOnBoard` drew `.board-card__face` as a `<button>` when selectable and
+   * a `<div>` otherwise — an element-TYPE change, which React can only satisfy by
+   * unmounting the old node and mounting a new one. That tore down `CardTile`'s
+   * `<img>` each time, and for the frame before the fresh one painted, the text
+   * underneath (normally hidden behind the art) showed through.
+   *
+   * This proves the fix structurally rather than by screenshot timing: the face
+   * node's IDENTITY survives a selectable → inert → selectable round trip. Mutate
+   * `CardOnBoard` back to the old `button`/`div` ternary and this fails (counts in
+   * the lane report).
+   */
+  it("R10: a card's face never remounts when Forge toggles whether it may be chosen", () => {
+    const id = me.battlefield[0]!.id;
+    const { interaction: offered } = spyInteraction([id]);
+    const { interaction: inert } = spyInteraction([]);
+    const { container, rerender } = renderBoard(view, offered);
+    const faceOf = () => container.querySelector<HTMLElement>(`[data-board-card="${id}"] > .board-card__face`)!;
+    const first = faceOf();
+    expect(first.tagName, 'offered: a real button').toBe('BUTTON');
+    rerender(createElement(Board, { view, interaction: inert, boardLayout: 'type-separated' }));
+    const second = faceOf();
+    expect(second, 'the SAME node, not a new one, once Forge withdraws the offer').toBe(first);
+    expect(second.tagName, 'still a button, now disabled').toBe('BUTTON');
+    expect(second.hasAttribute('disabled')).toBe(true);
+    rerender(createElement(Board, { view, interaction: offered, boardLayout: 'type-separated' }));
+    const third = faceOf();
+    expect(third, 'and still the same node once Forge re-offers it').toBe(first);
+    expect(third.hasAttribute('disabled')).toBe(false);
   });
 });
 
@@ -930,17 +989,19 @@ describe('the canvas is static', () => {
      * ours from theirs still rests on `(you)`, on `data-viewer` and on the ink,
      * which is what wave 20 was actually about.
      */
-    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--mana-h) var(--counts-h)');
+    // R3 (wave 35, fourth ask): the counts are the track right after the avatar;
+    // the mana pool moved to the far track, beside the graveyard.
+    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--counts-h) var(--mana-h)');
     expect(declarationIn('.board .seat__ident', 'grid-row')).toBe('1');
-    expect(declarationIn('.board .seat__mana', 'grid-row')).toBe('2');
-    expect(declarationIn('.board .seat__counts', 'grid-row')).toBe('3');
-    // The opponent's bar is the mirror: counts first, the avatar last, against the centre line.
+    expect(declarationIn('.board .seat__counts', 'grid-row')).toBe('2');
+    expect(declarationIn('.board .seat__mana', 'grid-row')).toBe('3');
+    // The opponent's bar is the mirror: mana first, the avatar last, against the centre line.
     expect(declarationIn('.board .seat:not([data-viewer]) .seat__who', 'grid-template-rows')).toBe(
-      'var(--counts-h) var(--mana-h) auto',
+      'var(--mana-h) var(--counts-h) auto',
     );
     expect(declarationIn('.board .seat:not([data-viewer]) .seat__ident', 'grid-row')).toBe('3');
-    expect(declarationIn('.board .seat:not([data-viewer]) .seat__mana', 'grid-row')).toBe('2');
-    expect(declarationIn('.board .seat:not([data-viewer]) .seat__counts', 'grid-row')).toBe('1');
+    expect(declarationIn('.board .seat:not([data-viewer]) .seat__counts', 'grid-row')).toBe('2');
+    expect(declarationIn('.board .seat:not([data-viewer]) .seat__mana', 'grid-row')).toBe('1');
     // The graveyard left the bar entirely, and the bar's track for it with it.
     expect(BOARD_RULES, 'the bar no longer has a graveyard track').not.toContain('--grave-h');
     expect(BOARD_RULES).not.toContain('--grave-w');
@@ -1186,6 +1247,36 @@ describe('the table as the operator blocked it (§A)', () => {
       expect(pool.children, `seat ${p.id} draws no pip`).toHaveLength(0);
     }
   });
+
+  /**
+   * R15 (wave 35): "the mana pool shows each colour as lands are tapped." The
+   * pool itself already existed (§A.6, above); this is the one thing left to
+   * prove given lane F's own change (the installed jar now offers a tap-only
+   * mana ability at priority, so a land can be tapped before casting anything)
+   * — that THIS component updates when the wire's `Mana` does, with no stale
+   * cache or memo standing between them. Two renders of the SAME match, empty
+   * then not — exactly the shape a tap produces over the real wire (`Mana`
+   * arrives on the next `PlayerView`, nothing about the card that was tapped) —
+   * proves it without needing a live Forge process in this suite: whether the
+   * tap itself reaches the wire is lane F/S's own `lands.jvm.test.ts`.
+   */
+  it('updates reactively when a land is tapped mid-game: the pool goes from empty to coloured on the same seat', () => {
+    const { container, rerender } = renderBoard(view);
+    const seatOf = () => container.querySelector<HTMLElement>('[data-testid="player"][data-player-id="0"]')!;
+    const poolOf = () => seatOf().querySelector<HTMLElement>('[data-mana-pool]')!;
+    expect(poolOf().dataset.manaTotal, 'before: nothing tapped yet').toBe('0');
+    expect(poolOf().children).toHaveLength(0);
+
+    rerender(createElement(Board, { view: withMana(0, [[8, 1]]), boardLayout: 'type-separated' }));
+
+    expect(poolOf().dataset.manaTotal, 'after: one land tapped for red').toBe('1');
+    const pips = [...poolOf().querySelectorAll<HTMLElement>('[data-mana]')].map((m) => [m.dataset.mana, m.dataset.manaCount]);
+    expect(pips).toEqual([['R', '1']]);
+
+    // And tapping a second land grows the SAME pool rather than replacing it with a fresh one.
+    rerender(createElement(Board, { view: withMana(0, [[8, 1], [1, 1]]), boardLayout: 'type-separated' }));
+    expect(poolOf().dataset.manaTotal).toBe('2');
+  });
 });
 
 /* ── no rotated text ─────────────────────────────────────────────────── */
@@ -1310,17 +1401,25 @@ describe('the seat’s vertical bar (#9)', () => {
    * Wave 32 Q9 (the operator: *"please place avatar, then the two counts, then the
    * rest of the space graveyard"*, and of any percentage *"honestly it's just a
    * guess"*). The seat's left column is ONE column, the seat's whole height: the
-   * bar — avatar, mana, counts — in fixed tracks, then the piles with everything
+   * bar — avatar, counts, mana — in fixed tracks, then the piles with everything
    * that is left. It REVERSES wave 26 §A.2's two cells, so a graveyard confined to
    * the hand's rows is the regression this reads for.
+   *
+   * R3 (wave 35, the fourth ask): Q9's build put the mana pool BETWEEN the avatar
+   * and the counts, which is not what the operator asked for ("avatar, [the]
+   * counts, then the rest") — the counts were never actually next to the avatar.
+   * The three elements' MARKUP order (asserted as a set below, not a sequence) is
+   * unchanged; what changed is the `grid-row` each is given, asserted by the CSS
+   * checks above and by the dedicated R3 test below, which is what decides the
+   * order a player actually sees.
    */
   it('puts the piles in the REST of one left column: avatar, counts, then the graveyard takes the space', () => {
     const { seat } = renderBoard(view);
     for (const p of view.players) {
       const bar = seat(p.id).querySelector<HTMLElement>('[data-player-bar]')!;
       expect(bar.querySelector('[data-zone]'), `seat ${p.id}'s bar holds no zone`).toBeNull();
-      expect([...bar.children].map((c) => c.className), `seat ${p.id}'s bar, in order`).toEqual(
-        ['seat__ident', 'seat__mana', 'seat__counts'],
+      expect(new Set([...bar.children].map((c) => c.className)), `seat ${p.id}'s bar holds exactly these three`).toEqual(
+        new Set(['seat__ident', 'seat__mana', 'seat__counts']),
       );
       const side = seat(p.id).querySelector<HTMLElement>(':scope > .seat__side')!;
       expect([...side.children].map((c) => c.className), `seat ${p.id}'s column: the bar, then the piles`).toEqual([
@@ -1341,12 +1440,45 @@ describe('the seat’s vertical bar (#9)', () => {
     expect(declarationIn('.board .seat__side', 'flex-direction')).toBe('column');
     expect(declarationIn('.seat__piles', 'flex')).toBe('1 1 0');
     expect(declarationIn('.board .seat__who', 'flex'), 'the bar takes what it needs and no more').toBe('none');
-    // The bar is fixed tracks: avatar, mana, counts — so the graveyard starts at one place.
-    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--mana-h) var(--counts-h)');
+    // The bar is fixed tracks: avatar, counts, mana (R3) — so the graveyard starts at one place.
+    expect(declarationIn('.board .seat__who', 'grid-template-rows')).toBe('auto var(--counts-h) var(--mana-h)');
     expect(BOARD_RULES).not.toContain('seat__who > .zone--graveyard');
     // The retired w26 geometry is not still there.
     expect(BOARD_RULES).not.toContain("'piles hand'");
     expect(BOARD_RULES).not.toContain("'who field'");
+  });
+
+  /**
+   * R3 (wave 35, the fourth ask: L9, P2, Q9, R3). The operator's own words
+   * ("avatar, then the two counts, then the rest of the space graveyard")
+   * never actually happened: wave 32's build put the mana pool between the
+   * avatar and the counts. Read the `grid-row` each track is given and prove
+   * the ORDER it implies is avatar, counts, mana — not avatar, mana, counts.
+   */
+  it('R3: the counts are the track right after the avatar, not the mana pool', () => {
+    const rowOf = (selector: string): number => Number(declarationIn(selector, 'grid-row'));
+    const viewerOrder = (
+      [
+        ['ident', rowOf('.board .seat__ident')],
+        ['counts', rowOf('.board .seat__counts')],
+        ['mana', rowOf('.board .seat__mana')],
+      ] as const
+    )
+      .slice()
+      .sort((a, b) => a[1] - b[1])
+      .map(([name]) => name);
+    expect(viewerOrder, 'top to bottom: avatar, counts, mana').toEqual(['ident', 'counts', 'mana']);
+    const opponentOrder = (
+      [
+        ['ident', rowOf('.board .seat:not([data-viewer]) .seat__ident')],
+        ['counts', rowOf('.board .seat:not([data-viewer]) .seat__counts')],
+        ['mana', rowOf('.board .seat:not([data-viewer]) .seat__mana')],
+      ] as const
+    )
+      .slice()
+      .sort((a, b) => a[1] - b[1])
+      .map(([name]) => name);
+    expect(opponentOrder, 'the mirror: mana, counts, avatar').toEqual(['mana', 'counts', 'ident']);
   });
 
   it('Q9: the opponent’s column is the vertical mirror, and exile is a strip that exists only while it holds a card', () => {
@@ -3037,9 +3169,82 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(marks).toEqual(['blocking', 'token']);
     expect(card(container).getAttribute('data-token')).toBe('true');
     // The three outlines a card can already wear belong to the two gesture states
-    // and nothing here may add a fourth colour to that conversation.
+    // and nothing here may add a fourth colour to that conversation. `--accent-ink`
+    // (R15's own `changed` mark, below) is a different, legitimate token, so only
+    // the raw `--accent` itself is checked for.
     const layer = withoutComments(CARD_CSS).slice(withoutComments(CARD_CSS).indexOf('.board-card__marks {'));
-    expect(layer, 'the state layer never draws in the accent').not.toMatch(/\.board-card__mark[^}]*--accent/);
+    expect(layer, 'the state layer never draws in the accent').not.toMatch(/\.board-card__mark[^}]*--accent(?!-)/);
+  });
+
+  /**
+   * R15 (wave 35), agreed shape 1: a permanent whose characteristics were
+   * changed by an effect (Magus of the Moon's "nonbasic lands are Mountains")
+   * shows its new identity — the type line is already drawn as-is, from the
+   * wire, with no adapter change needed — with a visible "changed" treatment,
+   * and carries the printed card's own name for a reader to find it by
+   * (`apps/ui/src/play/inspect/**` is lane G's; this exposes `changedFrom` for
+   * it rather than drawing an inspector here).
+   */
+  it('a changed permanent (R15) wears its own corner mark, naming the printed card, never the accent', () => {
+    const { container } = renderBoard(withState({ changedFrom: { name: 'Wasteland' } }));
+    const marks = [...card(container).querySelectorAll<HTMLElement>('.board-card__mark')].map((m) => m.dataset.mark);
+    expect(marks).toEqual(['changed']);
+    const mark = card(container).querySelector<HTMLElement>('.board-card__mark[data-mark="changed"]')!;
+    expect(mark.querySelector('svg.board-card__mark-art'), 'drawn, not a glyph a font might not have').not.toBeNull();
+    expect(mark.title, 'the printed card is named for a reader to find it by').toBe('changed from Wasteland');
+    expect(mark.textContent, 'and said for anything that cannot see the mark').toBe('changed from Wasteland');
+    const layer = withoutComments(CARD_CSS).slice(withoutComments(CARD_CSS).indexOf('.board-card__marks {'));
+    // `--accent-ink` is a different, legitimate token (an existing flag's own
+    // ink) — only the gestures lane's raw `--accent` itself is forbidden here.
+    expect(layer, 'the state layer never draws in the accent').not.toMatch(/\.board-card__mark[^}]*--accent(?!-)/);
+  });
+
+  it('an unchanged permanent (the common case) wears no "changed" mark at all', () => {
+    const { container } = renderBoard(withState({ changedFrom: null }));
+    expect(card(container).querySelector('.board-card__mark[data-mark="changed"]')).toBeNull();
+  });
+
+  /**
+   * R15, the ADAPTER's own half of the feature (the two tests above are
+   * `Board.tsx`'s drawing of a hand-built `changedFrom`; this is
+   * `toBoardCard` actually computing one). The fixture's Izzet Guildgate
+   * (id 8, current type line "Land — Gate") stands in for Magus of the Moon's
+   * target without needing a live Magus match: supplying a `printedType`
+   * index that disagrees with the card's CURRENT wire type line is exactly
+   * the shape a real continuous effect produces (the wire always wins; only
+   * what counts as "printed" is swapped here). Scoped to the battlefield, the
+   * same way `printed` (P/T) already is, and for the identical reason —
+   * off the battlefield there is no continuous effect left to have changed it.
+   */
+  it("R15: the adapter sets changedFrom when the wire's current type line disagrees with our own printed data", () => {
+    const state = foldPackets(loadPackets(fixture)).state;
+    const guildgateId = 8;
+    const land = (v: BoardView) => v.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === guildgateId)!;
+
+    const agrees = printedTypeLineIndex([{ name: 'Izzet Guildgate', typeLine: 'Land — Gate' }]);
+    const same = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedType: agrees });
+    expect(land(same).card.typeLine, 'a precondition: this is really the wire’s current type line').toBe('Land — Gate');
+    expect(land(same).changedFrom, 'our own data agrees with the wire: nothing changed').toBeNull();
+
+    const disagrees = printedTypeLineIndex([{ name: 'Izzet Guildgate', typeLine: 'Land' }]);
+    const changed = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedType: disagrees });
+    expect(land(changed).changedFrom, 'a mismatch sets it, naming the card').toEqual({ name: 'Izzet Guildgate' });
+
+    // No printed data for this name at all (the default, cube-only index): no claim either way.
+    const unknown = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
+    expect(land(unknown).changedFrom, 'a card our data has never heard of is not "changed"').toBeNull();
+
+    // Off the battlefield the same shape of mismatch fires nothing: a graveyard
+    // card is never under a continuous battlefield effect. Fire Urchin (id 20,
+    // "Creature — Elemental") is this fixture's own graveyard card, given a
+    // printed type line that disagrees with ITS current one the same way.
+    const grave = printedTypeLineIndex([{ name: 'Fire Urchin', typeLine: 'Creature — Something Else' }]);
+    const graveyard = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedType: grave }).players.find(
+      (p) => p.isViewer,
+    )!.graveyard;
+    const fireUrchin = graveyard.find((c) => c.id === 20)!;
+    expect(fireUrchin.card.typeLine, 'a precondition').toBe('Creature — Elemental');
+    expect(fireUrchin.changedFrom, 'a graveyard card is never "changed"').toBeNull();
   });
 
   it('counters are a badge with a number: +1/+1 is compact, a named counter falls back to its name', () => {
@@ -3689,6 +3894,35 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(ids('back')).toEqual([21]);
   });
 
+  /**
+   * R9 (wave 35, third ask). The operator's own words at the second ask were
+   * "it still snaps to the left-most free one"; the settled ruling is the
+   * drop lands in the slot UNDER THE POINTER, in either row, empty slots
+   * included, and the indicator names exactly that slot. The test above
+   * covers the single layout, which is the default the operator plays on;
+   * this one covers the type-separated alternate (`BOARD_ROWS`), where a
+   * card's TYPE decides its row only until the player overrides it — a land
+   * can be dragged into the creatures lane and stays there, not reclassified
+   * back to lands on the next render.
+   */
+  it('snaps to any row of the type-separated alternate too, including a row of a different type', () => {
+    const { container } = renderBoard(view, undefined, 'type-separated');
+    const idsIn = (row: string) => [...container.querySelectorAll<HTMLElement>(`.seat[data-viewer] [data-arrange-slot="${row}"] > .zone__cards > li`)].map((c) => Number(c.dataset.cardId));
+    const before = idsIn('lands');
+    expect(before.length, 'at least one land to move').toBeGreaterThan(0);
+    const land = before[0]!;
+    const creaturesBefore = idsIn('creatures');
+    expect(creaturesBefore, 'a precondition: the creatures row does not already hold the land').not.toContain(land);
+    dragCard(container, land, { slot: 'creatures' });
+    expect(idsIn('creatures'), 'the land landed in the creatures row, not snapped back to lands').toEqual([...creaturesBefore, land]);
+    expect(idsIn('lands'), 'and left the lands row').not.toContain(land);
+    // The indicator names exactly the slot under the pointer while the drag is held, not the card's own type's row.
+    const release = dragCard(container, idsIn('artifacts')[0] ?? land, { slot: 'other' }, true);
+    const bar = container.querySelector<HTMLElement>('.board > [data-arrange-indicator]')!;
+    expect(bar.dataset.arrangeSlot, 'the indicator is the slot under the pointer').toBe('other');
+    release();
+  });
+
   it('works under a finger: a touch pointer drags exactly as a mouse does', () => {
     const { container } = renderBoard(view, undefined, 'single');
     layOut(container);
@@ -3771,6 +4005,119 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect([...container.querySelectorAll('.seat[data-viewer] [data-zone="hand"] .board-card')].map((c) => Number((c as HTMLElement).dataset.cardId))).toEqual(hand);
     dragCard(container, hand[0]!, { slot: 'hand' });
     expect([...container.querySelectorAll('.seat[data-viewer] [data-zone="hand"] .board-card')].map((c) => Number((c as HTMLElement).dataset.cardId))).toEqual([...hand.slice(1), hand[0]!]);
+  });
+});
+
+/*
+ * ── R9 (wave 35): a cast's drop point, handed to Board by the gestures lane ──
+ *
+ * The real-browser investigation this wave logged found the arrange-drag
+ * mechanic itself correct end to end (same-row, cross-row, a genuinely
+ * vacated slot, hand reorder, stacking — all survive a real resync and real
+ * incremental deltas). What it found NOT built: a card Forge has OFFERED is
+ * never arrangeable (`handStandsDown`), so a cast's drop point had nowhere to
+ * land — the permanent that eventually arrives always joins the end of its
+ * type row, which reads as "always snaps to the left-most free slot" on a
+ * near-empty early-game board. `notePlayedTo`/`previewPlayedTo` are the seam
+ * with the gestures lane's cast drag (`live/gestures/cast.ts`); this suite
+ * drives them exactly the way that file will, with no knowledge of its code.
+ */
+describe('R9 (wave 35): notePlayedTo hands a cast’s drop point to Board', () => {
+  const base = boardFromFixture(fixture);
+  afterEach(() => forgetPendingPlacements());
+
+  /** A new land, not yet anywhere in `base` — the shape a cast eventually produces on the battlefield. */
+  const newLand = (id: number): BoardCard => ({
+    id,
+    card: {
+      cardId: `w${id}`,
+      name: 'Mountain',
+      manaCost: [],
+      manaValue: 0,
+      colors: [],
+      typeLine: 'Basic Land — Mountain',
+      oracleText: '',
+      setCode: '',
+      collectorNumber: '',
+      rarity: 'common',
+    },
+    tapped: false,
+    summoningSick: false,
+    damage: 0,
+    counters: [],
+    attacking: false,
+    blocking: false,
+    token: false,
+  });
+
+  const withNewLand = (id: number): BoardView => ({
+    ...base,
+    players: base.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: [...p.battlefield, newLand(id)] })),
+  });
+
+  const backIds = (container: HTMLElement) =>
+    [...container.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-tier="back"] > li')].map((c) => c.dataset.cardId);
+
+  it('a card with a pending placement lands where it was dropped, not appended (mutation: reverted, it appends instead)', () => {
+    const { container, rerender } = renderBoard(base, undefined, 'single');
+    layOut(container);
+    expect(backIds(container), 'the fixture’s own lands, before anything new arrives').toEqual(['8', '24', '6', '25']);
+
+    const targetBox = container.querySelector<HTMLElement>('[data-card-id="24"]')!.getBoundingClientRect();
+    notePlayedTo(99001, { x: targetBox.left + 5, y: targetBox.top + targetBox.height / 2 });
+
+    rerender(createElement(Board, { view: withNewLand(99001), boardLayout: 'single' }));
+    expect(backIds(container), 'landed exactly before 24, where it was dropped').toEqual(['8', '99001', '24', '6', '25']);
+  });
+
+  it('without a pending placement, a new card appends as today (the default this feature must not disturb)', () => {
+    const { container, rerender } = renderBoard(base, undefined, 'single');
+    layOut(container);
+    rerender(createElement(Board, { view: withNewLand(99002), boardLayout: 'single' }));
+    expect(backIds(container), 'appended to the end, exactly as before this wave').toEqual(['8', '24', '6', '25', '99002']);
+  });
+
+  it('a stale (TTL-expired) pending placement is ignored, same as having none', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      const { container, rerender } = renderBoard(base, undefined, 'single');
+      layOut(container);
+      const targetBox = container.querySelector<HTMLElement>('[data-card-id="24"]')!.getBoundingClientRect();
+      notePlayedTo(99003, { x: targetBox.left + 5, y: targetBox.top + targetBox.height / 2 });
+
+      vi.setSystemTime(20_000); // past the 15s TTL
+      rerender(createElement(Board, { view: withNewLand(99003), boardLayout: 'single' }));
+      expect(backIds(container), 'too old to use: falls back to the append default').toEqual(['8', '24', '6', '25', '99003']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a point that hits no slot at all (off the battlefield) records nothing', () => {
+    const { container, rerender } = renderBoard(base, undefined, 'single');
+    layOut(container);
+    notePlayedTo(99004, { x: -5000, y: -5000 });
+    rerender(createElement(Board, { view: withNewLand(99004), boardLayout: 'single' }));
+    expect(backIds(container)).toEqual(['8', '24', '6', '25', '99004']);
+  });
+
+  it('previewPlayedTo draws and clears the same indicator bar an arrange-drag uses, without touching arrangement', () => {
+    const { container } = renderBoard(base, undefined, 'single');
+    layOut(container);
+    const targetBox = container.querySelector<HTMLElement>('[data-card-id="24"]')!.getBoundingClientRect();
+    previewPlayedTo({ x: targetBox.left + 5, y: targetBox.top + targetBox.height / 2 });
+    const bar = container.querySelector<HTMLElement>('.board > [data-arrange-indicator]')!;
+    expect(bar.hasAttribute('hidden'), 'shown while over a slot').toBe(false);
+    expect(bar.dataset.arrangeKind).toBe('before');
+    expect(bar.dataset.arrangeSlot).toBe('back');
+    expect(container.querySelector('[data-card-id="24"]')!.getAttribute('data-arrange-target')).toBe('before');
+
+    previewPlayedTo(null);
+    expect(bar.hasAttribute('hidden'), 'hidden on null').toBe(true);
+    expect(container.querySelector('[data-card-id="24"]')!.hasAttribute('data-arrange-target'), 'and the mark is cleared').toBe(false);
+    // Unlike notePlayedTo, this never wrote a pending placement.
+    expect(backIds(container)).toEqual(['8', '24', '6', '25']);
   });
 });
 

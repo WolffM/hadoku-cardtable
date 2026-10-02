@@ -368,7 +368,7 @@
  * width at which a card's NAME stops being readable, and no further (§A.1).
  */
 
-import { useEffect, useReducer, useRef, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, type CSSProperties, type ReactNode } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
@@ -925,6 +925,146 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
   };
 }
 
+// ── R9: a cast's drop point, remembered until the permanent arrives ─────────
+
+/**
+ * A cast's intended battlefield slot, remembered by the card's own (stable)
+ * id until Forge actually plays it — the seam with the gestures lane's cast
+ * drag, which otherwise has nowhere to record "where you dropped it" (a card
+ * Forge has offered is never arrangeable, `CardOnBoard`'s `handStandsDown`,
+ * because dragging it out of hand is how it is PLAYED). Module-level like
+ * `ARRANGED`: a resync may remount `Board` and a cast in flight must outlive
+ * that exactly the same way a rearrange does.
+ */
+interface PendingPlacement {
+  /** Never `'hand'` — a cast lands on the battlefield by definition; see `notePlayedTo`. */
+  readonly slot: BoardRow;
+  readonly target: DropTarget;
+  readonly expiresAt: number;
+}
+const PENDING_PLACEMENTS = new Map<number, PendingPlacement>();
+/** How long a pending placement waits for its card. A cast that never resolves (countered, cancelled) just ages out — nothing else cleans it up. */
+const PENDING_PLACEMENT_TTL_MS = 15_000;
+
+/** Forget every pending placement. For a test that wants a clean slate, the same reason `forgetArrangements` exists. */
+export function forgetPendingPlacements(): void {
+  PENDING_PLACEMENTS.clear();
+}
+
+/**
+ * Every slot of the viewer's own battlefield, read straight from the live DOM
+ * — the same shape `useArrangeDrag`'s own `geometry()` reads (and the same
+ * selector), but callable from OUTSIDE an active drag, which is what
+ * `notePlayedTo`/`previewPlayedTo` need: a cast's release is not an arrange
+ * gesture and has no `Press` of its own to read it from.
+ */
+function liveViewerGeometry(): SlotGeometry[] {
+  const out: SlotGeometry[] = [];
+  for (const el of document.querySelectorAll<HTMLElement>('.board .seat[data-viewer] [data-arrange-slot]')) {
+    const named = el.getAttribute('data-arrange-slot') as ArrangeSlot;
+    const list = el.matches('.zone__cards') ? el : el.querySelector<HTMLElement>(':scope > .zone__cards');
+    const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card') ?? [])].map((li) => ({
+      id: Number(li.dataset.cardId),
+      box: li.getBoundingClientRect(),
+    }));
+    out.push({ slot: named, box: el.getBoundingClientRect(), piles });
+  }
+  return out;
+}
+
+/**
+ * R9 (wave 35), the seam with the gestures lane's cast drag
+ * (`live/gestures/cast.ts`). The permanent a cast eventually produces always
+ * joined the end of its type row — indistinguishable, on a near-empty
+ * early-game board, from "always snaps to the left-most free slot", which is
+ * what the operator reported, and verified NOT to be a bug in the arrange
+ * drag itself (see the real-browser investigation this wave logged).
+ *
+ * Called once, at the moment a cast releases over the battlefield — `cardId`
+ * is the HAND card's own id, which IS the battlefield id it will arrive
+ * under: Forge's `TrackableObject.id` is `final` and no code path on a zone
+ * change reconstructs a `Card` (only token CREATION does, and a token is
+ * never cast from a hand) — checked against
+ * `forge/forge-game/src/main/java/forge/trackable/TrackableObject.java` and
+ * the zone-change paths, not assumed. `point` hit-tests through the exact
+ * same `snapTo` an arrange-drag's own indicator uses, against the live DOM —
+ * "where the indicator would have shown" and "where this card lands" are
+ * answered by the same function. A point that hits no slot (released off the
+ * battlefield, or nothing to hit-test against) records nothing, same as a
+ * drag indicator going `hidden`.
+ */
+export function notePlayedTo(cardId: number, point: { x: number; y: number }): void {
+  const snap = snapTo(liveViewerGeometry(), point.x, point.y);
+  // A cast lands ON THE BATTLEFIELD by definition — 'hand' is in the same
+  // geometry list (the hand is arrangeable too) but is never a meaningful
+  // target for "where a newly played permanent goes".
+  if (snap === null || snap.slot === 'hand') return;
+  PENDING_PLACEMENTS.set(cardId, { slot: snap.slot, target: snap.target, expiresAt: Date.now() + PENDING_PLACEMENT_TTL_MS });
+}
+
+/**
+ * The SAME indicator bar an arrange-drag draws (`[data-arrange-indicator]`,
+ * `card.css`'s existing rules — no new stylesheet here), driven for a cast in
+ * flight instead: call on every pointer move while a castable card is lifted
+ * over the battlefield; `null` clears it (release, Escape, leaving the
+ * battlefield). Cannot collide with a real arrange-drag's own indicator — the
+ * two gestures are mutually exclusive on any one card (`handStandsDown`,
+ * above), and this one only ever targets the viewer's own board, same as that
+ * one. The element is created once and reused (hidden between calls, the same
+ * economy `useArrangeDrag`'s indicator uses), and re-parented if `Board`
+ * itself remounted since the last call.
+ */
+let previewEl: HTMLElement | null = null;
+let previewMarked: Element[] = [];
+export function previewPlayedTo(point: { x: number; y: number } | null): void {
+  const clearMarks = (): void => {
+    for (const el of previewMarked) el.removeAttribute('data-arrange-target');
+    previewMarked = [];
+  };
+  const board = document.querySelector<HTMLElement>('.board');
+  if (board === null) return;
+  if (previewEl === null) {
+    previewEl = document.createElement('div');
+    previewEl.setAttribute('data-arrange-indicator', '');
+    previewEl.setAttribute('aria-hidden', 'true');
+    previewEl.setAttribute('hidden', '');
+  }
+  if (!board.contains(previewEl)) board.append(previewEl);
+  if (point === null) {
+    previewEl.setAttribute('hidden', '');
+    clearMarks();
+    return;
+  }
+  const snap = snapTo(liveViewerGeometry(), point.x, point.y);
+  clearMarks();
+  if (snap === null) {
+    previewEl.setAttribute('hidden', '');
+    return;
+  }
+  const box = board.getBoundingClientRect();
+  previewEl.removeAttribute('hidden');
+  previewEl.setAttribute('data-arrange-kind', snap.kind);
+  previewEl.setAttribute('data-arrange-slot', snap.slot);
+  previewEl.style.width = `${snap.bar.width}px`;
+  previewEl.style.height = `${snap.bar.height}px`;
+  previewEl.style.left = `${snap.bar.left - box.left}px`;
+  previewEl.style.top = `${snap.bar.top - box.top}px`;
+  const slotEl = [...board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-arrange-slot]')].find(
+    (el) => el.getAttribute('data-arrange-slot') === snap.slot,
+  );
+  if (slotEl !== undefined) {
+    slotEl.setAttribute('data-arrange-target', snap.kind);
+    previewMarked.push(slotEl);
+  }
+  if (snap.card !== null) {
+    const cardEl = board.querySelector(`.seat[data-viewer] li.board-card[data-card-id="${snap.card}"]`);
+    if (cardEl !== null) {
+      cardEl.setAttribute('data-arrange-target', snap.kind);
+      previewMarked.push(cardEl);
+    }
+  }
+}
+
 /**
  * The arrangement after a drag: `cardId` lands in `row`, at `target`.
  *
@@ -1189,7 +1329,7 @@ function PowerToughness({ entry }: { entry: BoardCard }) {
  */
 
 /** A state that draws as a corner mark. The rest of them draw as themselves. */
-type StateMark = 'sick' | 'blocking' | 'token';
+type StateMark = 'sick' | 'blocking' | 'token' | 'changed';
 
 /**
  * The marks, as geometry we drew rather than a typeface that might not have the
@@ -1203,12 +1343,21 @@ const MARK_ART: Readonly<Record<StateMark, string>> = {
   blocking: 'M8 1.6l5.4 2v4.3c0 3.2-2.3 5.6-5.4 6.5-3.1-.9-5.4-3.3-5.4-6.5V3.6Z',
   /* A four-point spark: the game made this one. */
   token: 'M8 1.2l1.7 5.1 5.1 1.7-5.1 1.7L8 14.8l-1.7-5.1L1.2 8l5.1-1.7Z',
+  /*
+   * R15 (wave 35): two arrows chasing each other in a circle — "this is not
+   * what it was printed as", the same idea a "morph" or "shapeshift" glyph
+   * carries, and neither an outline nor the accent (those are the gestures
+   * lane's, for "offered" and "pointed at").
+   */
+  changed:
+    'M8 2a6 6 0 0 1 5.6 3.9l1.3-.6-.4 3-2.7-1.6 1.3-.6A4.6 4.6 0 0 0 8 3.4Zm0 11a6 6 0 0 1-5.6-3.9l-1.3.6.4-3 2.7 1.6-1.3.6A4.6 4.6 0 0 0 8 12.6Z',
 };
 
 const MARK_WORD: Readonly<Record<StateMark, string>> = {
   sick: 'summoning sick',
   blocking: 'blocking',
   token: 'token',
+  changed: 'changed',
 };
 
 /**
@@ -1216,21 +1365,35 @@ const MARK_WORD: Readonly<Record<StateMark, string>> = {
  * way. The word rides along visually hidden (`card.css`): the picture is for
  * the player and the word is for anything that cannot see it, which is the same
  * split the P/T badge makes between its marker glyph and its accessible name.
+ *
+ * R15: `changed` carries one more thing than the others — `changedFrom.name`,
+ * the printed card's own name, in a visible `title` (a pointer) and folded
+ * into the mark's own accessible word (everything else) — the inspector
+ * reaching the printed card itself is lane G's (`play/inspect/**`), not
+ * drawn here, but the name it would need is exposed right on this mark.
  */
 function StateMarks({ entry }: { entry: BoardCard }) {
   const marks: StateMark[] = [];
   if (entry.summoningSick) marks.push('sick');
   if (entry.blocking) marks.push('blocking');
   if (entry.token) marks.push('token');
+  if (entry.changedFrom != null) marks.push('changed');
   if (marks.length === 0) return null;
   return (
     <ul className="board-card__marks" aria-label={`${entry.card.name} status`}>
       {marks.map((mark) => (
-        <li key={mark} className="board-card__mark" data-mark={mark}>
+        <li
+          key={mark}
+          className="board-card__mark"
+          data-mark={mark}
+          title={mark === 'changed' ? `changed from ${entry.changedFrom!.name}` : undefined}
+        >
           <svg className="board-card__mark-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
             <path d={MARK_ART[mark]} />
           </svg>
-          <span className="board-card__mark-word">{MARK_WORD[mark]}</span>
+          <span className="board-card__mark-word">
+            {mark === 'changed' ? `changed from ${entry.changedFrom!.name}` : MARK_WORD[mark]}
+          </span>
         </li>
       ))}
     </ul>
@@ -1415,20 +1578,33 @@ function CardOnBoard({
       data-arrange-card={draggable ? slot : undefined}
       onDragStart={draggable ? (e) => e.preventDefault() : undefined}
     >
-      {selectable ? (
-        <button
-          type="button"
-          className="board-card__face"
-          aria-label={`Select ${entry.card.name}${entry.tapped ? ', tapped' : ''}`}
-          onClick={() => interaction.onSelectCard(entry.id)}
-        >
-          <CardTile card={entry.card} />
-        </button>
-      ) : (
-        <div className="board-card__face">
-          <CardTile card={entry.card} />
-        </div>
-      )}
+      {/*
+       * R10 (wave 35), diagnosed: this used to be a `<button>` when `selectable`
+       * and a plain `<div>` otherwise. `selectable` folds in `declaredAttackers`
+       * (`live/match.ts`), which only counts a just-declared attacker once
+       * Forge's `buttons` update shows "Call Back" — a SEPARATE signal from the
+       * view's own `Attacking` flag, so there is a real window, between the two
+       * arriving, where a creature is `attacking` but not yet (again) selectable.
+       * Switching DOM element type (`button` → `div` → `button`) across that
+       * window unmounts this whole subtree each time — a fresh `<img>` with
+       * nothing painted over the text underneath it for a frame, which is
+       * exactly "a flicker of 'Creature' and rules text when a creature taps to
+       * attack." The face is now always the same element — a `<button>`,
+       * `disabled` when not selectable — so the window in the data can no
+       * longer cause a window in the DOM. The selectable-only styling moved
+       * from a `button.board-card__face` tag selector to
+       * `.board-card[data-selectable] > .board-card__face` in `card.css`,
+       * which was the only thing still keyed off the tag.
+       */}
+      <button
+        type="button"
+        className="board-card__face"
+        disabled={!selectable}
+        aria-label={selectable ? `Select ${entry.card.name}${entry.tapped ? ', tapped' : ''}` : undefined}
+        onClick={selectable ? () => interaction.onSelectCard(entry.id) : undefined}
+      >
+        <CardTile card={entry.card} />
+      </button>
       {onBattlefield && <PowerToughness entry={entry} />}
       {onBattlefield && <StateMarks entry={entry} />}
       {onBattlefield && <Counters entry={entry} />}
@@ -2589,6 +2765,43 @@ export function Board({
   };
   useArrangeDrag(root, viewer !== undefined, commit);
 
+  /*
+   * R9: fold in any PENDING placement (`notePlayedTo`, above) for a card that
+   * has just shown up on the viewer's own battlefield — once, synchronously
+   * before paint (`useLayoutEffect`, not `useEffect`), so there is no
+   * append-then-snap flash: by the time the browser paints this frame, the
+   * card is already where the cast's drop point said it should be. A card
+   * with no pending placement, or a stale (TTL-expired) one, is left to
+   * `group()`'s own default — appended to the end of its type row, exactly
+   * today's behaviour.
+   */
+  useLayoutEffect(() => {
+    if (viewer === undefined) return;
+    const now = Date.now();
+    let next = arranged;
+    let changed = false;
+    for (const card of viewer.battlefield) {
+      const pending = PENDING_PLACEMENTS.get(card.id);
+      if (pending === undefined) continue;
+      PENDING_PLACEMENTS.delete(card.id);
+      if (pending.expiresAt < now) continue;
+      next = withMove(
+        group(viewer.battlefield, viewer.id, next, boardLayout),
+        viewer.id,
+        next,
+        card.id,
+        pending.slot,
+        pending.target,
+        boardLayout,
+      );
+      changed = true;
+    }
+    if (changed) {
+      ARRANGED.set(key, next);
+      redraw();
+    }
+  }, [viewer, arranged, key, boardLayout]);
+
   const arranging: Arranging | undefined = viewer === undefined ? undefined : ARRANGING;
 
   return (
@@ -2637,19 +2850,18 @@ export function Board({
       )}
 
       {/*
-       * Out of flow, all three of them: none may move a track when it appears.
+       * Out of flow: the missing-card alert may appear mid-game and a track
+       * that appears is exactly what the static rule forbids.
        *
-       * `board__over` is the one thing the turn bar carried that is not the
-       * rail's and was not on the operator's delete list — the game ENDING is
-       * not the turn number — so it moved out here instead of going with the
-       * bar. `e2e/play.spec.ts` and `e2e/table-fit.spec.ts` read it in four
-       * places as "the game finished early", and it still answers to `.board__over`.
+       * The old `game over` banner (`.board__over`) that used to render here
+       * is GONE (wave 35, R16, the manager's ruling on seam 4 in
+       * `docs/planning/wave35-2026-10-02.md`): `LiveBoard` (lane L) now draws
+       * a full result screen over the board when `view.gameOver`, as
+       * `<section data-testid="game-result" class="board__over">`, styled
+       * entirely in `live.css`. `Board` itself draws no game-over text and
+       * owns no `.board__over` rule — see `Board.test.ts`'s
+       * "the turn bar is deleted" describe block.
        */}
-      {view.gameOver && (
-        <p className="board__over" role="status">
-          game over
-        </p>
-      )}
       {view.missingCardIds.length > 0 && (
         <p className="board__warn" role="alert">
           {view.missingCardIds.length} card(s) named by a zone never arrived: {view.missingCardIds.join(', ')}
