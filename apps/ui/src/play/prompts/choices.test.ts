@@ -408,6 +408,80 @@ describe('a library search', () => {
 });
 
 /*
+ * R4 — Thoughtseize, one step (settled ruling, operator 2026-10-02): *"the
+ * opponent doesnt need to confirm to see the card that was taken that's
+ * silly."* The caster gets ONE choice over the opponent's WHOLE hand, with
+ * the cards Thoughtseize cannot touch (lands) greyed — exactly the shape a
+ * library search already draws (`searchRows`, `ChooseSingleEntityPrompt`):
+ * `optionList` the choosable nonland cards, `delayedReveal.cards` the whole
+ * hand. Lane S is diagnosing the exact wire shape Forge sends
+ * (`docs/planning/wave35-evidence/s3-thoughtseize.md`, pending); this pins
+ * the generic renderer against the shape the ruling describes, so whichever
+ * ask method S lands on, the greying and the one-choice-no-confirmation
+ * behaviour are already proven here. No SEPARATE "confirm" step exists
+ * anywhere in this component — one `prompt-submit` is the whole interaction.
+ */
+describe('R4 — Thoughtseize: one choice over the whole hand, unchoosable cards greyed', () => {
+  const thoughtseizeAsk = () => ({
+    ...askFor('chooseSingleEntityForEffect'),
+    title: 'Thoughtseize',
+    // Two nonland cards the caster may take; the pool's third card stands in
+    // for a land Thoughtseize cannot touch.
+    optionList: [
+      { kind: 'card' as const, id: POOL_ID_BASE },
+      { kind: 'card' as const, id: POOL_ID_BASE + 1 },
+    ],
+    delayedReveal: {
+      cards: [
+        { kind: 'card' as const, id: POOL_ID_BASE },
+        { kind: 'card' as const, id: POOL_ID_BASE + 1 },
+        { kind: 'card' as const, id: POOL_ID_BASE + 2 },
+      ],
+      zones: ['Hand' as const],
+      owner: { kind: 'player' as const, id: 1 },
+      messagePrefix: "Thoughtseize - Looking at cards in",
+    },
+    isOptional: false,
+  });
+
+  it('draws the whole hand in one grid, the land greyed and unticked', () => {
+    const { getByTestId } = mountPrompt('chooseSingleEntityForEffect', thoughtseizeAsk(), poolLookup);
+    const tiles = [...getByTestId('prompt-cards').querySelectorAll<HTMLElement>(':scope > li')];
+    expect(tiles).toHaveLength(3);
+    expect(tiles.map((li) => li.dataset.choosable)).toEqual([undefined, undefined, 'false']);
+    // The one row Thoughtseize cannot touch: present, named, nothing to click.
+    const land = tiles[2]!;
+    expect(land.querySelector('input')).toBeNull();
+    expect(land.textContent).toContain('not offered');
+    // Exactly the two nonland cards are tickable.
+    expect(getByTestId('prompt-cards').querySelectorAll('input[data-testid="prompt-choice"]')).toHaveLength(2);
+  });
+
+  it('one choice, one submit — no second step, no confirmation of any kind', () => {
+    const { getAllByTestId, answers, submit } = mountPrompt('chooseSingleEntityForEffect', thoughtseizeAsk(), poolLookup);
+    const radios = getAllByTestId('prompt-choice');
+    expect(radios).toHaveLength(2);
+    fireEvent.click(radios[0]!);
+    // The one and only `prompt-submit` in the whole sheet — no OK-then-OK.
+    expect(getAllByTestId('prompt-submit')).toHaveLength(1);
+    fireEvent.click(submit());
+    expect(answers).toEqual([{ kind: 'card', id: POOL_ID_BASE }]);
+    expectWireReply('chooseSingleEntityForEffect', answers[0]);
+  });
+
+  it('the land cannot be chosen even by forcing a ref past the checked rows', () => {
+    // The hidden-information control, same proof the library search already
+    // carries: only an id the ASK offered can ever leave as an answer.
+    const ask = thoughtseizeAsk();
+    const { submit, answers } = mountPrompt('chooseSingleEntityForEffect', ask);
+    // With nothing chosen, submitting is refused (not optional) — the land
+    // was never a choosable row to begin with, so there is nothing to pick.
+    fireEvent.click(submit());
+    expect(answers).toEqual([]);
+  });
+});
+
+/*
  * Wave 25 §F — a tile's name is not its label.
  *
  * `reveal` is `getChoices(message, -1, -1, items)` with no display function

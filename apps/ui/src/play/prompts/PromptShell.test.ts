@@ -65,7 +65,95 @@ describe('PromptShell — OK and Clear sit outside the scroll, always visible', 
     expect(rule, '.prompt__body has its own rule').not.toBeNull();
     expect(rule![1]).toMatch(/min-height:\s*0/);
     expect(rule![1]).toMatch(/flex:\s*1 1 auto/);
+    // R4, second half: NOT unconditionally `overflow-y: auto` any more — see
+    // `.prompt__body[data-overflowing]` below and `useBodyOverflow`'s own
+    // header. The bare rule draws nothing until that attribute says there is
+    // really something below the fold.
+    expect(rule![1]).toMatch(/overflow-y:\s*visible/);
+  });
+
+  it('only scrolls once `data-overflowing` says there is something to scroll to', () => {
+    const rule = /\.prompt__body\[data-overflowing\] \{([^}]*)\}/.exec(PROMPTS_CSS);
+    expect(rule, '.prompt__body[data-overflowing] has its own rule').not.toBeNull();
     expect(rule![1]).toMatch(/overflow-y:\s*auto/);
+  });
+});
+
+/*
+ * R4, second half — *"the modal shows a scrollbar with nothing to scroll."*
+ * `useBodyOverflow` measures `scrollHeight` against `clientHeight` rather
+ * than trusting `overflow: auto` to decide on its own (jsdom reports both as
+ * 0 by default, so every case here stubs them, the same way `gestures.test.ts`
+ * stubs `getBoundingClientRect` for a layout jsdom does not compute).
+ */
+describe('PromptShell — no scrollbar when nothing overflows (R4)', () => {
+  function stubBox(el: Element, scrollHeight: number, clientHeight: number): void {
+    Object.defineProperty(el, 'scrollHeight', { value: scrollHeight, configurable: true });
+    Object.defineProperty(el, 'clientHeight', { value: clientHeight, configurable: true });
+  }
+
+  it('a short list that fits its box carries no `data-overflowing`', () => {
+    const { container, rerender } = render(
+      createElement(
+        PromptShell,
+        { method: 'getChoices', title: 'Choose a card to discard', onSubmit: () => {} },
+        createElement('ul', null, createElement('li', null, 'one')),
+      ),
+    );
+    const body = container.querySelector('.prompt__body')!;
+    stubBox(body, 120, 200); // content shorter than the box: nothing to scroll
+    // A changed `children` reference re-runs the effect, so this is measured
+    // against the stubbed numbers and not jsdom's vacuous default 0/0.
+    rerender(
+      createElement(
+        PromptShell,
+        { method: 'getChoices', title: 'Choose a card to discard', onSubmit: () => {} },
+        createElement('ul', null, createElement('li', null, 'one, still')),
+      ),
+    );
+    expect(body.hasAttribute('data-overflowing')).toBe(false);
+  });
+
+  it('a list genuinely taller than its box gets `data-overflowing`, so it — and only it — scrolls', () => {
+    const { container, rerender } = render(
+      createElement(
+        PromptShell,
+        { method: 'getChoices', title: 'Choose a card', onSubmit: () => {} },
+        createElement('ul', { 'data-testid': 'list' }, createElement('li', null, 'one')),
+      ),
+    );
+    const body = container.querySelector('.prompt__body')!;
+    stubBox(body, 900, 200); // content much taller than the box: a real overflow
+    // Re-render with a changed `children` reference so the effect's
+    // dependency fires and re-measures against the stubbed numbers.
+    rerender(
+      createElement(
+        PromptShell,
+        { method: 'getChoices', title: 'Choose a card', onSubmit: () => {} },
+        createElement('ul', { 'data-testid': 'list' }, createElement('li', null, 'one, again')),
+      ),
+    );
+    expect(body.getAttribute('data-overflowing')).toBe('true');
+  });
+
+  it('a sub-pixel rounding (`scrollHeight` one px over) is still "nothing to scroll" — the 1px slack', () => {
+    const { container, rerender } = render(
+      createElement(
+        PromptShell,
+        { method: 'getChoices', title: 'Choose a card', onSubmit: () => {} },
+        createElement('ul', null, createElement('li', null, 'one')),
+      ),
+    );
+    const body = container.querySelector('.prompt__body')!;
+    stubBox(body, 201, 200); // exactly the sub-pixel case R4 reported
+    rerender(
+      createElement(
+        PromptShell,
+        { method: 'getChoices', title: 'Choose a card', onSubmit: () => {} },
+        createElement('ul', null, createElement('li', null, 'one, again')),
+      ),
+    );
+    expect(body.hasAttribute('data-overflowing')).toBe(false);
   });
 });
 

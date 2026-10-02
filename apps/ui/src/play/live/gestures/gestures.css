@@ -119,6 +119,26 @@
   outline: none;
 }
 
+/*
+ * Arena casting (R7): a hand card, picked up by a press OR a click, follows
+ * the pointer (`./cast.ts`'s `drawCastLift` sets `left`/`top` in client
+ * coordinates, `position: fixed` is what makes those the same units) until it
+ * settles over the viewer's own battlefield. Settled is the SAME rule — the
+ * module simply stops moving `left`/`top` once it is — so there is nothing
+ * here to tell the two stages apart; only the targeter arrow (unchanged,
+ * `.targeter` above) moves from the settle on.
+ *
+ * `pointer-events: none` for the reason every other overlay mark has it: a
+ * lifted card must never become the element a drop or a hover resolves to, or
+ * a card could be dropped on itself.
+ */
+[data-cast-lift] {
+  position: fixed;
+  z-index: var(--z-popover, 40);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
 /* A drag is a drag, not a text selection. */
 [data-gesture-canvas][data-dragging],
 [data-gesture-canvas][data-marquee] {

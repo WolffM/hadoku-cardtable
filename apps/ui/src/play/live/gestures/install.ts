@@ -40,10 +40,86 @@
  * Every send goes through `./commit.ts` into `../match.ts`'s `selectCard` /
  * `selectPlayer`, which re-check Forge's CURRENT offer. A gesture can pick the
  * wrong thing; it cannot put an id on the wire that Forge did not name.
+ *
+ * ## Arena casting (R7): click and drag become one interaction
+ *
+ * A press on a card Forge offered already starts the drag above — that part
+ * is unchanged. What is new is `./cast.ts`'s `isHandCard`: when the card a
+ * press started on is sitting in the VIEWER's own hand (never a battlefield
+ * permanent — a land offered for its mana ability, wave 35 §F, is a
+ * battlefield card and this is false for it), the drag is tagged
+ * `stage: 'lifted'` from the press itself, before the slop, so a PLAIN CLICK
+ * lifts it exactly as a drag does — the operator's *"clicking can also make
+ * the card follow your mouse so that seems the same as drag to me."* `paint()`
+ * draws the lifted card following the pointer (`drawCastLift`) and no arrow.
+ *
+ * ### The cast is sent AT THE SETTLE, not at release
+ *
+ * The moment the pointer crosses into the viewer's own battlefield
+ * (`overOwnBattlefield`), the stage becomes `'settled'`, `selectCard(source)`
+ * is sent right there (`onPointerMove`, `drag.cast` turns `true`), the card is
+ * pinned at that spot, and from then only the targeter arrow moves — the
+ * operator: *"the card settles there... and from then on only the targeting
+ * arrow follows the pointer."* The gesture is NOT over: Forge may reply, over
+ * the wire, with a fresh targeting ask while this press is still held (or,
+ * for a click-lift, still armed — see below), and the SAME held gesture is
+ * what answers it: `targetAt`/`boardInteraction` read `match.selectables` on
+ * every move, so the instant Forge's reply opens one, the arrow starts
+ * snapping to real legal targets, unchanged machinery, the same eight snap
+ * points every other drag already draws. The eventual release (or the next
+ * press, for a click-lift) reaches `./commit.ts`'s `commitDrag` with `source`
+ * forced to `null` — once cast, this gesture must never send `source` again —
+ * so a release over a legal target sends only the target, and a release
+ * anywhere else sends nothing further: "a card without targets is cast by
+ * releasing it over the battlefield" already happened, at the settle, and a
+ * release with no target ask open is just that cast's quiet end.
+ *
+ * ### Cancelling AFTER the cast is Forge's own Cancel, not silence
+ *
+ * Before the settle, nothing has been sent, so Escape or a drop back on the
+ * hand is simply letting go — `cancelCastNetwork` is a no-op. After the
+ * settle, Forge is parked on the targeting ask the cast opened
+ * (`InputSelectTargets`, which answers to exactly the same button bar every
+ * other yes/no question in this layer already presses),
+ * so the one correct way out is `pressButton(match, 'cancel')` — the SAME
+ * sender the control bar's own Cancel button uses, which already refuses
+ * itself when Forge has not enabled it (a mandatory target with candidates on
+ * the board cannot be backed out of, by Forge's own rule, and this layer does
+ * not pretend otherwise).
+ *
+ * ### A plain click is the same gesture, just without the button held
+ *
+ * A plain click's `pointerup` (zero `moved`) does NOT end the gesture: it
+ * flips `held` to `false` and nothing more. `onPointerMove` is a bare
+ * `window` listener that never checks button state, so the card keeps
+ * following the pointer, keeps settling, keeps sending at the settle, exactly
+ * as a held drag does — the operator's *"clicking can also make the card
+ * follow your mouse so that seems the same as drag to me."* The NEXT press
+ * (`onPointerDown`'s very first check) is what resolves it: a drop back on
+ * the hand cancels, anything else finishes the cast through the same path a
+ * drag's release uses.
+ *
+ * A plain click's `pointerup` ALSO fires a native `click` right after it with
+ * no intervening movement, and that click would otherwise reach the card's
+ * own `onClick` in `Board.tsx` and send a premature `selectCard` before this
+ * layer ever gets to decide anything — `suppressClick` marks exactly the
+ * presses this module has claimed as an Arena cast, and the capturing `click`
+ * listener on `canvas` swallows that one native click the same way
+ * `onDragStart` already swallows the native HTML5 drag — before React's own
+ * delegated handler, attached to this same element, ever sees it.
  */
-import { boardInteraction, declaringAttackers, declaringCombat, payingMana, subscribe } from '../match.ts';
+import {
+  boardInteraction,
+  declaringAttackers,
+  declaringCombat,
+  payingMana,
+  pressButton,
+  selectCard,
+  subscribe,
+} from '../match.ts';
 import { autoTargetArrows } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
+import { isHandCard, overOwnBattlefield, overOwnHand, clearAllCastLifts, clearCastLift, drawCastLift } from './cast.ts';
 import { commitDrag, commitMarquee, rectOf, type Rect } from './commit.ts';
 import { applyIntents, clearIntents } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
@@ -72,6 +148,15 @@ export function installGestures(options: GestureOptions): GestureHandle {
   /** What was drawn last, so `onChange` fires on a change and not on every move. */
   let shape = '';
   let live = true;
+  /**
+   * Set the moment a press is claimed as an Arena cast (R7) — see the module
+   * header's last section — and consumed by the capturing `click` listener
+   * below, which is the only thing that ever reads it. Reset at the top of
+   * every `pointerdown` so a press that never produces a click (a real drag,
+   * released somewhere else entirely) cannot leave it stuck for an unrelated
+   * later click.
+   */
+  let suppressClick = false;
 
   const overlayOf = (): HTMLElement | null => canvas.querySelector<HTMLElement>('[data-board-overlay]');
 
@@ -167,6 +252,22 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (overlay === null) {
       // The arrow is guidance, not the gesture: with no overlay nothing is
       // drawn and every send below still happens.
+    } else if (drag !== null && drag.stage === 'lifted') {
+      // Arena casting (R7), before the settle: the card follows the pointer
+      // and there is no arrow yet — nothing has been aimed at anything.
+      clearArrow(overlay);
+      clearMarquee(overlay);
+      if (drag.source !== null) drawCastLift(canvas, drag.source, drag.at, false);
+      next = `lift:${drag.source ?? ''}`;
+    } else if (drag !== null && drag.stage === 'settled') {
+      // Arena casting (R7), after the settle: pinned at the staging spot, and
+      // only the arrow — the same one every other drag draws — moves from here.
+      clearMarquee(overlay);
+      const from = drag.stagedAt ?? drag.from;
+      if (drag.source !== null) drawCastLift(canvas, drag.source, from, true);
+      const snap = drag.target === null ? null : boxOf(canvas, drag.target);
+      drawArrow(overlay, { from, to: drag.at, source: drag.source, target: drag.target, snap, mode: 'drag' });
+      next = `settled:${drag.source ?? ''}:${drag.target === null ? '' : `${drag.target.kind}:${drag.target.id}`}`;
     } else if (drag !== null && drag.moved) {
       const snap = drag.target === null ? null : boxOf(canvas, drag.target);
       drawArrow(overlay, { from: drag.from, to: drag.at, source: drag.source, target: drag.target, snap, mode: 'drag' });
@@ -229,10 +330,63 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (event.cancelable) event.preventDefault();
   }
 
+  /**
+   * Arena casting (R7) only. Clears this gesture's own lift — purely local,
+   * no network effect, safe to call unconditionally once a gesture is ending.
+   */
+  function dropCastLift(state: DragState): void {
+    if (state.source !== null) clearCastLift(canvas, state.source);
+  }
+
+  /**
+   * Arena casting (R7) only. The network half of a CANCEL — Escape, or a drop
+   * back on the hand. Before the settle nothing was ever sent, so this is a
+   * no-op; after it, Forge is parked on the targeting ask the cast opened,
+   * and the one correct way out is the same `selectButtonCancel` the control
+   * bar's own Cancel button already sends — see the module header.
+   */
+  function cancelCastNetwork(state: DragState): void {
+    if (state.cast) pressButton(match, 'cancel');
+  }
+
+  /**
+   * Arena casting (R7) only. The network half of ENDING a gesture whose cast
+   * was already sent at the settle — a real drag's release, or the press that
+   * resolves a click-armed one. `source: null` is the whole point of the
+   * call: `commitDrag` must never resend it, only ever answer a target ask
+   * that is open NOW (see the module header). A gesture that never settled
+   * (dropped off the battlefield, or back on the hand, before crossing in)
+   * sent nothing at all, so there is nothing to finish either.
+   */
+  function finishCast(state: DragState, node: EventTarget | null): void {
+    if (!state.cast) return;
+    commitDrag(match, { ...state, source: null }, node);
+  }
+
   function onPointerDown(event: PointerEvent): void {
     // Left button only: a right-click is Forge's own menu on the desktop and
     // is not this gesture's to take.
     if (event.button !== 0) return;
+    /*
+     * Arena casting (R7): a click-armed gesture (`held: false`) does not end
+     * at its own release — it keeps following the pointer with no button
+     * held (the module header's own section explains why) until THIS press
+     * resolves it. Ahead of every other branch below: the resolving press
+     * may land on anything at all, including something that would otherwise
+     * start an unrelated gesture of its own.
+     */
+    if (drag !== null && drag.stage !== null && !drag.held) {
+      claim(event);
+      const held = drag;
+      drag = null;
+      dropCastLift(held);
+      paint();
+      if (overOwnHand(event.target)) cancelCastNetwork(held);
+      else finishCast(held, event.target);
+      return;
+    }
+    // Reset at the top of every FRESH press — see the flag's own doc comment.
+    suppressClick = false;
     /*
      * Lane A's arrange gesture owns a press on a natively-draggable element —
      * EVEN one Forge offered. At ordinary priority Forge's actionable set names
@@ -257,7 +411,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // the arrow leaves from the card being cast when it is on screen.
       const origin = clickOrigin();
       claim(event);
-      drag = { source: null, press: at, from: origin === null ? at : centreOf(origin), at, target: targetAt(event.target), moved: false };
+      drag = {
+        source: null,
+        press: at,
+        from: origin === null ? at : centreOf(origin),
+        at,
+        target: targetAt(event.target),
+        moved: false,
+        stage: null,
+        stagedAt: null,
+        cast: false,
+        held: true,
+      };
       hover = null;
       paint();
       return;
@@ -267,7 +432,24 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (under !== null && under.kind === 'card') {
       const box = cardBox(canvas, under.id);
       claim(event);
-      drag = { source: under.id, press: at, from: box === null ? at : centreOf(box), at, target: under, moved: false };
+      // Arena casting (R7) — see the module header. Only a card in the
+      // viewer's own hand is ever lifted; a battlefield land now offered for
+      // its mana ability (wave 35 §F) is not in anyone's hand and this is
+      // false for it, so it drags exactly as it always has.
+      const castFromHand = isHandCard(match, under.id);
+      if (castFromHand) suppressClick = true;
+      drag = {
+        source: under.id,
+        press: at,
+        from: box === null ? at : centreOf(box),
+        at,
+        target: under,
+        moved: false,
+        stage: castFromHand ? 'lifted' : null,
+        stagedAt: null,
+        cast: false,
+        held: true,
+      };
       hover = null;
       paint();
       return;
@@ -285,7 +467,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // there is often no offered card to drag FROM.
     if (match.selectables === null) return;
     claim(event);
-    drag = { source: null, press: at, from: at, at, target: under, moved: false };
+    drag = { source: null, press: at, from: at, at, target: under, moved: false, stage: null, stagedAt: null, cast: false, held: true };
     hover = null;
     paint();
   }
@@ -294,7 +476,19 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const at = { x: event.clientX, y: event.clientY };
     if (drag !== null) {
       const moved = drag.moved || past(drag.press, at);
-      drag = { ...drag, at, moved, target: targetAt(event.target) };
+      let next: DragState = { ...drag, at, moved, target: targetAt(event.target) };
+      /*
+       * Arena casting (R7): the settle, and THE cast. Once it happens it is
+       * not undone for the rest of this gesture — `stagedAt` and `cast` are
+       * both set exactly once, here, regardless of whether a button is still
+       * held (a click-armed gesture settles from a bare hover move, same as
+       * a held drag) — see the module header's "sent AT THE SETTLE" section.
+       */
+      if (next.stage === 'lifted' && overOwnBattlefield(event.target)) {
+        next = { ...next, stage: 'settled', stagedAt: at, cast: true };
+        if (next.source !== null) selectCard(match, next.source);
+      }
+      drag = next;
     } else if (marquee !== null) {
       marquee = { press: marquee.press, at, moved: marquee.moved || past(marquee.press, at) };
     } else {
@@ -304,17 +498,42 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   function onPointerUp(event: PointerEvent): void {
+    /*
+     * Arena casting (R7): a plain click (zero `moved`) does NOT end the
+     * gesture — it ARMS it (`held: false`) and keeps tracking the pointer
+     * with no button down, same as a held drag, until the next press
+     * resolves it (`onPointerDown`'s own top-of-function check). Every other
+     * kind of drag, and a real Arena drag (`moved: true`), still ends here
+     * exactly as before.
+     */
+    if (drag !== null && drag.stage !== null && !drag.moved) {
+      drag = { ...drag, held: false };
+      paint();
+      return;
+    }
     const heldDrag = drag;
     const heldMarquee = marquee;
     drag = null;
     marquee = null;
     hover = null;
+    if (heldDrag !== null) dropCastLift(heldDrag);
     paint();
     if (heldDrag !== null) {
       if (stackAsk(match) !== null) {
         // The release IS the answer, a click on the item as much as a drag onto it.
         const id = stackItemUnder(event.target, stackAsk(match)!);
         if (id !== null) commitStackTarget(match, id);
+        return;
+      }
+      if (heldDrag.stage !== null) {
+        // Arena casting (R7): the cast already went at the settle (or never
+        // did, and `finishCast` is a no-op). A drop back on the hand is the
+        // one new cancel; `finishCast` is everything else, release included.
+        if (overOwnHand(event.target)) {
+          cancelCastNetwork(heldDrag);
+          return;
+        }
+        finishCast(heldDrag, event.target);
         return;
       }
       if (heldDrag.moved) commitDrag(match, heldDrag, event.target);
@@ -326,9 +545,24 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   function onPointerCancel(): void {
+    if (drag !== null) {
+      dropCastLift(drag);
+      if (drag.stage !== null) cancelCastNetwork(drag);
+    }
     drag = null;
     marquee = null;
     hover = null;
+    paint();
+  }
+
+  /** Arena casting (R7): Escape cancels cleanly, from either stage, held or armed. */
+  function onKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return;
+    if (drag === null || drag.stage === null) return;
+    const held = drag;
+    drag = null;
+    dropCastLift(held);
+    cancelCastNetwork(held);
     paint();
   }
 
@@ -359,11 +593,30 @@ export function installGestures(options: GestureOptions): GestureHandle {
     event.stopPropagation();
   }
 
+  /**
+   * Arena casting (R7)'s other capture: the native `click` a plain press
+   * leaves behind, for a press this module is about to settle ITSELF through
+   * `commitDrag` (see `onPointerUp` and the module header's last section).
+   * Same technique as `onDragStart` just above and the same reason — before
+   * React's own delegated handler on this element ever sees it — except this
+   * one is conditional: every click this module did NOT just claim passes
+   * through untouched, exactly as before this wave (`suppressClick` is false
+   * for anything but a hand-card lift).
+   */
+  function onClickCapture(event: Event): void {
+    if (!suppressClick) return;
+    suppressClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('dragstart', onDragStart, true);
+  canvas.addEventListener('click', onClickCapture, true);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
+  window.addEventListener('keydown', onKeyDown);
 
   /*
    * Forge spoke, or React redrew. Both change what this layer must show — the
@@ -390,9 +643,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
       live = false;
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('dragstart', onDragStart, true);
+      canvas.removeEventListener('click', onClickCapture, true);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
+      window.removeEventListener('keydown', onKeyDown);
       observer.disconnect();
       unsubscribe();
       const overlay = overlayOf();
@@ -400,6 +655,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clearAutoTargetArrows(overlay);
       clearMarquee(overlay);
       clearIntents(canvas);
+      clearAllCastLifts(canvas);
       canvas.removeAttribute(CANVAS_ATTR);
       canvas.removeAttribute('data-dragging');
       canvas.removeAttribute('data-marquee');
