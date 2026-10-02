@@ -173,6 +173,7 @@ release."* Planned as **wave 35** unless noted.
 | R13 | Secluded Glen's "you may reveal a Faerie" was decided for me | 1 | planned w35, diagnose first | **not a client or server auto-answer**: the match log shows no auto-answered choice, and every choice took a person 2.7–112 s. So it never reached the seat as a question (Forge decided, or the server pressed OK on an input) | play Secluded Glen with a Faerie in hand: you are asked | |
 | R14 | Goblin Rogue token has no art | 1 | planned w35 | `art-ids.json` has **no token entries at all**: every token is art-less | make a token: it has art | |
 | R15 | lands cannot be tapped freely for mana before casting; show the pool as you tap; a card changed by an effect (Magus of the Moon) should show its new identity visually | 1 | planned w35 (lands need a **Forge fork change and a jar you install**) | **root cause:** Forge's clickable filter excludes every mana ability (`forge-ai/.../AvailableActions.java:82`, `!sa.isManaAbility()`), so a land is never clickable outside a payment. Not Magus | tap a land at priority: mana appears in your pool | |
+| R16 | a real victory/defeat screen; the "game over" toast at the top is ugly | 1 | planned w35 | today it is one line, `<p class="board__over">game over</p>` (`Board.tsx:2648`); the adapter knows `gameOver` and each player's `hasLost` | win, lose and concede: a full result screen, not a toast | |
 
 ## Asks outside a play-test — 2026-10-02
 
