@@ -253,6 +253,10 @@ jobs:
       # "failed once" turned out to be "fails 3 of 5"); w33 exists because
       # two of w32's own e2e cases passed vacuously. None of the three is a
       # gate on anything until it runs here on every push and PR.
+      #
+      # Wave 34 §E: `w34.spec.ts` joins — Full Control responding to an
+      # opponent's spell, Ponder's decisions reaching a click, Q8's ordering
+      # ask, the Choose X slider, and the player counters' column.
       - name: E2E — two friends play a real Forge match, and the table fits
         env:
           CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
@@ -261,5 +265,5 @@ jobs:
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/forge-e2e-report.json
         run: |
           rm -f "$PLAYWRIGHT_JSON_OUTPUT_FILE"
-          pnpm --filter @hadoku/e2e test play.spec.ts table-fit.spec.ts w31.spec.ts w32.spec.ts w33.spec.ts
+          pnpm --filter @hadoku/e2e test play.spec.ts table-fit.spec.ts w31.spec.ts w32.spec.ts w33.spec.ts w34.spec.ts
           jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null || { echo "::error::e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1) — a skipped test is not a pass"; exit 1; }
