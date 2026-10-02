@@ -683,6 +683,35 @@ describe('a room’s table', () => {
     });
   });
 
+  it('alone in the room, Play vs Forge AI starts a bot match from the room', async () => {
+    const server = await mountRoom({ players: [], matchId: null });
+    await pick(BEN_STARK);
+    const bot = screen.getByTestId('play-vs-bot');
+    await waitFor(() => expect((bot as HTMLButtonElement).disabled).toBe(false));
+    await act(async () => {
+      fireEvent.click(bot);
+    });
+    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+    expect(lastCall(server.calls, '/play/matches')).toEqual({
+      url: '/cardtable/api/play/matches',
+      method: 'POST',
+      body: { room: ROOM, bot: true },
+    });
+  });
+
+  it('offers no bot when a second person is in the room', async () => {
+    await mountRoom({
+      players: [opponent({ ready: false })],
+      matchId: null,
+      members: [
+        { id: 'p-alice', name: 'user-alice' },
+        { id: 'p-bob', name: 'user-bob' },
+      ],
+    });
+    await pick(BEN_STARK);
+    expect(screen.queryByTestId('play-vs-bot')).toBeNull();
+  });
+
   it('follows the match the OTHER player started, having pressed nothing', async () => {
     const server = await mountRoom({ players: [opponent({ ready: true })], matchId: null });
     // The other browser started it; this one learns from the poll.

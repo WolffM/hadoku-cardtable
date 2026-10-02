@@ -171,6 +171,8 @@ export interface TablesClient {
   ready(roomId: string, ready: boolean): Promise<TableOutcome>;
   /** Start the room's match. Either player may; the server answers one match. */
   startRoom(roomId: string): Promise<StartOutcome>;
+  /** The room's only player against Forge's AI, which plays a random library deck legal in the room's pool. */
+  startVsBot(roomId: string): Promise<StartOutcome>;
 }
 
 async function readJson(res: Response): Promise<Record<string, unknown>> {
@@ -244,6 +246,11 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
     startRoom: async (roomId) => {
       // 201 started it; 200 is the match the other player already started.
       const { status, body } = await post('play/matches', { room: roomId });
+      if ((status === 201 || status === 200) && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
+      return { ok: false, error: errorOf(body, status), seats: null };
+    },
+    startVsBot: async (roomId) => {
+      const { status, body } = await post('play/matches', { room: roomId, bot: true });
       if ((status === 201 || status === 200) && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
       return { ok: false, error: errorOf(body, status), seats: null };
     },

@@ -799,11 +799,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	/** `{ room }`: the product's start. Both players' own decks, assembled here. */
 	function startFromRoom(req: Request, res: Response, next: NextFunction, body: Record<string, unknown>): void {
 		for (const key of Object.keys(body)) {
-			if (key !== 'room') {
+			if (key !== 'room' && key !== 'bot') {
 				res.status(400).json({ error: `body: unknown field ${key}` });
 				return;
 			}
 		}
+		if (body.bot !== undefined && body.bot !== true) {
+			res.status(400).json({ error: 'body.bot is true or absent' });
+			return;
+		}
+		const vsBot = body.bot === true;
 		const roomId = body.room;
 		if (typeof roomId !== 'string' || roomId.trim() === '') {
 			res.status(400).json({ error: 'body.room is a room id' });
@@ -828,14 +833,30 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return;
 		}
 		const players = playersOf(rooms, room);
-		if (players.length < TABLE_SEATS) {
-			res.status(409).json({ error: 'both players have to load a deck first' });
-			return;
-		}
-		const waiting = players.find((p) => !p.state.ready);
-		if (waiting !== undefined) {
-			res.status(409).json({ error: `${waiting.member.name} is not ready yet` });
-			return;
+		if (vsBot) {
+			// One person against Forge's AI, from a room (the operator, 2026-10-02:
+			// "would be nice to be able to add a bot so i dont have to play against
+			// myself everytime"). Only when the caller is the room's ONLY member:
+			// with two people in the room they play each other, and a bot start
+			// would take the table out from under the second one.
+			if (room.members.length !== 1) {
+				res.status(409).json({ error: 'a bot game is for a room with one player in it' });
+				return;
+			}
+			if (players.length !== 1) {
+				res.status(409).json({ error: 'load a deck first' });
+				return;
+			}
+		} else {
+			if (players.length < TABLE_SEATS) {
+				res.status(409).json({ error: 'both players have to load a deck first' });
+				return;
+			}
+			const waiting = players.find((p) => !p.state.ready);
+			if (waiting !== undefined) {
+				res.status(409).json({ error: `${waiting.member.name} is not ready yet` });
+				return;
+			}
 		}
 		// BOTH decks against the ROOM's pool, which is what makes the pool a
 		// property of the table: one rule, applied to both seats, independent of who
@@ -875,6 +896,22 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				return;
 			}
 		}
+		// The bot's deck: a random library deck that is legal in the room's own
+		// pool, checked by the same gate as the player's. A drafted pool has no
+		// library deck that is legal in it, so a drafted room cannot have a bot.
+		let botDeck: string | null = null;
+		if (vsBot) {
+			const owner = players[0]!.member.id;
+			const legal = library.decks.filter((d) => {
+				const v = checkSeat({ deck: { dck: d.text }, rules: roomRules(room) }, contextFor(owner));
+				return !('error' in v) && v.legal;
+			});
+			if (legal.length === 0) {
+				res.status(409).json({ error: `no deck in the library is legal in ${poolName(room)}, so the bot has nothing to play` });
+				return;
+			}
+			botDeck = legal[Math.floor(Math.random() * legal.length)]!.text;
+		}
 		const registry = deps.matches?.() ?? null;
 		if (registry === null) {
 			res.status(503).json({ error: 'this server cannot seat a room at a match (no match registry)' });
@@ -900,7 +937,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					return answer({ error: refused });
 				}
 				rooms.setMatch(room.id, matchId);
-				log({ evt: 'room-match-started', room: room.id, matchId, decks: players.map((p) => p.state.verdict.deckName) });
+				log({ evt: 'room-match-started', room: room.id, matchId, decks: players.map((p) => p.state.verdict.deckName), ...(vsBot ? { opponent: 'ai' } : {}) });
 			}
 			return answer(payload);
 		}) as typeof res.json;
@@ -910,6 +947,19 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// `decks`, each the room member's own `avatarId` — already the lobby's
 		// two-state shape (a non-blank string, or absent; see `RoomViewLike.members`
 		// above and `D-avatar-field.md` §3), never Forge's own view of the seat.
+		if (vsBot) {
+			// Seat 1 is Forge's AI. `avatarIds` and `names` stay pairs (play
+			// refuses anything else); the AI seat's entries are absent, so play
+			// names it itself.
+			req.body = {
+				opponent: 'ai',
+				decks: [players[0]!.state.text, botDeck],
+				avatarIds: [players[0]!.member.avatarId, undefined],
+				names: [players[0]!.member.name, undefined],
+			};
+			next();
+			return;
+		}
 		req.body = {
 			opponent: 'human',
 			decks: players.map((p) => p.state.text),

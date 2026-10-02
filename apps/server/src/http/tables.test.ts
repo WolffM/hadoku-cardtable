@@ -853,6 +853,70 @@ describe('a room table', () => {
 	});
 
 	/*
+	 * A bot (the operator, 2026-10-02): the room's only member plays Forge's AI.
+	 * The bot's deck is a random library deck legal in the room's own pool, and
+	 * the player is seated in their own deck's seat, exactly as a room start does.
+	 */
+	describe('against a bot', () => {
+		const startBot = (h: Harness, user: string, body: Record<string, unknown> = { room: ROOM, bot: true }) =>
+			start(h, body, '/api/play/matches', 'application/json', edgeHeaders(user));
+
+		it("starts the room's only player against Forge's AI with a legal library deck in seat 2", async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice', avatarId: 'wanderer' }]);
+			expect((await putDeck(h, 'alice', deckBody(BEN_STARK))).status).toBe(200);
+
+			const res = await startBot(h, 'alice');
+			expect(res.status).toBe(201);
+			expect(h.specs).toHaveLength(1);
+			const seats = h.specs[0]!.seats as { deck: string | null; ai: boolean; name?: string; avatarId?: string }[];
+			expect(seats[0]?.deck).toBe(library.deck(BEN_STARK)?.text);
+			expect(seats[0]?.ai).toBe(false);
+			expect(seats[0]?.avatarId).toBe('wanderer');
+			expect(seats[1]?.ai).toBe(true);
+			// The bot plays a real library deck, and one that is legal in this room's pool.
+			const botDeck = library.decks.find((d) => d.text === seats[1]?.deck);
+			expect(botDeck).toBeDefined();
+			// Checked the way a player's own deck is, in a second room on the same pool.
+			h.lobby.open('r-check', [{ id: ALICE, name: 'user-alice' }], undefined, h.lobby.room(ROOM)?.format);
+			const verdict = await putDeck(h, 'alice', deckBody(botDeck!.id), 'r-check');
+			expect(verdict.status).toBe(200);
+			expect(players(verdict.body)[0]?.legal).toBe(true);
+
+			const matchId = res.body.matchId as string;
+			expect(h.matches.get(matchId)?.seatOf(ALICE)).toBe(0);
+			expect(h.lobby.room(ROOM)?.matchId).toBe(matchId);
+		});
+
+		it('is refused when a second person is in the room: they play each other', async () => {
+			const h = await boot();
+			openRoom(h);
+			await bothLoaded(h);
+			const res = await startBot(h, 'alice');
+			expect(res.status).toBe(409);
+			expect(res.body.error).toMatch(/one player/);
+			expect(h.specs).toHaveLength(0);
+		});
+
+		it('is refused until the player has loaded a deck', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
+			const res = await startBot(h, 'alice');
+			expect(res.status).toBe(409);
+			expect(h.specs).toHaveLength(0);
+		});
+
+		it('refuses a bot field that is not true', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
+			expect((await putDeck(h, 'alice', deckBody(BEN_STARK))).status).toBe(200);
+			const res = await startBot(h, 'alice', { room: ROOM, bot: 'yes' });
+			expect(res.status).toBe(400);
+			expect(h.specs).toHaveLength(0);
+		});
+	});
+
+	/*
 	 * Item 4's server half (wave 29 §B), one hop further than the table-view
 	 * test below: `startFromRoom` puts each player's `avatarId` on the SPEC
 	 * Forge is launched with, in the same seat order as `decks` — never on

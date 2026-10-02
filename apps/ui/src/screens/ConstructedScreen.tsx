@@ -1239,6 +1239,25 @@ function RoomTableScreen({
     if (matchId !== null) navigate({ kind: 'match', matchId });
   }, [matchId]);
 
+  const startVsBot = (): void => {
+    setStartRefusal(null);
+    setStarting(true);
+    client
+      .startVsBot(roomId)
+      .then((outcome) => {
+        if (outcome.ok) {
+          navigate({ kind: 'match', matchId: outcome.matchId });
+          return;
+        }
+        setStartRefusal(outcome.error);
+        setStarting(false);
+      })
+      .catch((err: unknown) => {
+        setStartRefusal(err instanceof Error ? err.message : String(err));
+        setStarting(false);
+      });
+  };
+
   // Both ready: either browser may ask, and the server answers one match to both.
   // A draft room never reaches this — it seats nobody at the table — and says so
   // explicitly, because `startRoom` is one of the calls `routes.ts` 409s for it.
@@ -1696,6 +1715,22 @@ function RoomTableScreen({
                     >
                       Random
                     </button>
+                    {/*
+                     * Alone in the room: play Forge's AI instead of waiting for
+                     * someone (the operator, 2026-10-02). The bot plays a random
+                     * library deck legal in this room's pool; the server picks it.
+                     */}
+                    {(view?.members.length ?? 0) === 1 && (
+                      <button
+                        type="button"
+                        className="deckpick__random"
+                        data-testid="play-vs-bot"
+                        disabled={busy || starting || mine === null || !mine.legal || matchId !== null}
+                        onClick={startVsBot}
+                      >
+                        Play vs Forge AI
+                      </button>
+                    )}
                   </div>
                   {actionError !== null && (
                     <p className="lobby__error" role="alert" data-testid="table-error">
