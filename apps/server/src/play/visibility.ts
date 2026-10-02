@@ -396,6 +396,18 @@ export interface SeatProjector {
 	 * the table for everyone to read, so this is public by construction.
 	 */
 	stackTopActivator(): number | null;
+	/**
+	 * The ids of this seat's OWN battlefield permanents that are LANDS, by
+	 * current type line — wave 35's follow-up to lane F's land-tapping fix
+	 * (R15). The fact behind "tapping my own land for mana is not, by itself, a
+	 * reason to hold priority" (`auto.ts`'s `nonLandSources`, read by
+	 * `decideStop`). Same construction as {@link creatureCount}: public by
+	 * being on the table, a card whose face is unknown is NOT counted as a
+	 * land (the opposite default from `creatureCount`'s "when in doubt it's a
+	 * creature" — here, doubt must never suppress a real stop, so an unreadable
+	 * card counts as "not a land" and keeps the window open).
+	 */
+	ownBattlefieldLandIds(): ReadonlySet<number>;
 }
 
 export function createProjector(viewer: number | null = null): SeatProjector {
@@ -542,6 +554,20 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 				if (core === null || core.includes('Creature')) creatures += 1;
 			}
 			return creatures;
+		},
+		ownBattlefieldLandIds(): ReadonlySet<number> {
+			const ids = new Set<number>();
+			if (who === null) return ids;
+			const player = raw.get(keyOf(TYPE.player, who));
+			if (player === undefined) return ids;
+			for (const id of idsOf(player, 'Battlefield')) {
+				const card = raw.get(keyOf(TYPE.card, id));
+				const face = raw.get(keyOf(TYPE.cardState, id * 16 + (intOf(card, 'CurrentState') ?? 0)));
+				const type = tagged(face, 'Type') as { t: string; core?: unknown } | undefined;
+				const core = type?.t === 'cardtype' && Array.isArray(type.core) ? (type.core as unknown[]) : null;
+				if (core !== null && core.includes('Land')) ids.add(id);
+			}
+			return ids;
 		},
 	};
 }

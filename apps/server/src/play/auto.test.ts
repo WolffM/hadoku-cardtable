@@ -1452,6 +1452,11 @@ function firstOwnCard(h: Harness, seat: number): { id: number; key: number; name
  * own facts explicitly.
  */
 function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnType<typeof readPromptFacts> {
+	// `nonLandSources` defaults to whatever `sources` ends up being: none of
+	// these fixtures' ids are meant to represent a land (wave 35's land
+	// exclusion is tested on its own, below), so the two fields agree unless a
+	// case overrides `nonLandSources` itself.
+	const sources = over.sources ?? [];
 	return {
 		window: 'priority',
 		phase: 'COMBAT_DECLARE_BLOCKERS',
@@ -1463,7 +1468,8 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 		cost: null,
 		alternativePayment: false,
 		noWayToPay: false,
-		sources: [],
+		sources,
+		nonLandSources: sources,
 		plannedSources: [],
 		openAsks: 0,
 		creatures: null,
@@ -1473,8 +1479,13 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 }
 
 /** Notes for a seat sitting in one window, for the adapter's own tests. */
-function notesFor(message: string, bar: ServerFrame, actionable: readonly number[] | null = null): SeatNotes {
-	return { playerId: 1, prompt: prompt(message, 1), buttons: bar, actionable, openAsks: 0 };
+function notesFor(
+	message: string,
+	bar: ServerFrame,
+	actionable: readonly number[] | null = null,
+	ownBattlefieldLandIds?: ReadonlySet<number>,
+): SeatNotes {
+	return { playerId: 1, prompt: prompt(message, 1), buttons: bar, actionable, openAsks: 0, ownBattlefieldLandIds };
 }
 
 describe('the adapter is the ONLY prose reader, and it is named', () => {
@@ -1585,7 +1596,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			expect(decideStop(unknown, policy)).toBeNull();
 		}
 		// Forge's own "nothing here" still passes it, label and all.
-		expect(decideStop({ ...unknown, sources: [] }, DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
+		expect(decideStop({ ...unknown, sources: [], nonLandSources: [] }, DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
 	});
 
 	it('the default policy is Arena’s stop set, field by field — wave 28, item 5, minus the end step wave 30 removed', () => {
@@ -1637,8 +1648,8 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		// And the leak argument, as an assertion: the decision does not depend on
 		// what the seat holds. An empty hand reaches the same answer, so the pass
 		// says nothing about the hand.
-		expect(decideStop({ ...upkeepHoldingSlip, sources: [] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
-		expect(decideStop({ ...upkeepHoldingSlip, sources: [61, 62, 63] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
+		expect(decideStop({ ...upkeepHoldingSlip, sources: [], nonLandSources: [] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
+		expect(decideStop({ ...upkeepHoldingSlip, sources: [61, 62, 63], nonLandSources: [61, 62, 63] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
 		// The same window under the superseded default is the bug, in one line.
 		expect(decideStop(upkeepHoldingSlip, EVERY_PRIORITY_POLICY)).toBeNull();
 		// The opponent's upkeep too — *"it's stopping everywhere"*.
@@ -1687,7 +1698,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		expect(decideStop(theirBlockers, DEFAULT_STOP_POLICY)).toBeNull();
 		// A held instant still has a window on the opponent's turn — item 5's own
 		// trade, unreversed: it moved from "always open" to "declare-blockers only".
-		expect(decideStop({ ...theirBlockers, sources: [] }, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop({ ...theirBlockers, sources: [], nonLandSources: [] }, DEFAULT_STOP_POLICY)).toBeNull();
 		// The setting §A's panel writes through `Match.setStopPolicy` turns the end
 		// step back into a stop, same mechanism as every other preference here —
 		// not a second code path, a wider `stopOnTheirTurn`.
@@ -1737,6 +1748,58 @@ describe('NEVER shortcut (1): a stop with a legal action and something at stake'
 		expect(
 			decideStop(facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', sources: [61] }), ARENA_STOP_POLICY),
 		).toBeNull();
+	});
+});
+
+/*
+ * Wave 35 §S, R2 follow-up — lane E's `play.spec.ts` ("a spell resolves
+ * unattended") measured this failing 5 of 5 real-Forge runs after lane F's
+ * land-tapping fix (R15): every untapped land with a mana ability is now in
+ * the SAME actionable set `sources` reads, so "the set is non-empty" stopped
+ * meaning "there is a real decision" — on an ordinary turn with any land
+ * left untapped, the "pass when nothing to do" shortcut above could no
+ * longer ever fire. `decideStop` now reads `nonLandSources` for this one
+ * check (every other read above, and all of `decidePay`'s, are untouched and
+ * still use the raw `sources` — a land IS a legitimate payment source).
+ */
+describe('wave 35 §S follow-up — the viewer’s own battlefield lands do not count as "something to do"', () => {
+	// Phase `null` (Forge's own spelling the adapter did not recognise) is what
+	// reaches `decideStop`'s FINAL "nothing to do" check in this file's own
+	// existing convention (see `unknown`, above): the default `facts()` phase,
+	// `COMBAT_DECLARE_BLOCKERS` on the opponent's turn, is itself a mandatory
+	// stop under `DEFAULT_STOP_POLICY.stopOnTheirTurn` and returns null before
+	// `sources`/`nonLandSources` are ever read — the land exclusion needs a
+	// phase that is NOT already decided by an earlier branch.
+	const unclassified = (over: Partial<ReturnType<typeof readPromptFacts>> = {}) =>
+		facts({ phase: null, phaseLabel: 'Fourth main phase', myTurn: true, ...over });
+
+	it('passes when the actionable set names ONLY the seat’s own battlefield land(s)', () => {
+		expect(decideStop(unclassified({ sources: [67], nonLandSources: [] }), DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
+		expect(decideStop(unclassified({ sources: [67, 68], nonLandSources: [] }), DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
+	});
+
+	it('is still NOT passed when anything else is also actionable — a land does not hide a real decision', () => {
+		expect(decideStop(unclassified({ sources: [67, 90], nonLandSources: [90] }), DEFAULT_STOP_POLICY)).toBeNull();
+	});
+
+	it('is still NOT passed on silence: `nonLandSources: null` is "Forge has not said", same as `sources: null`', () => {
+		expect(decideStop(unclassified({ sources: null, nonLandSources: null }), DEFAULT_STOP_POLICY)).toBeNull();
+	});
+
+	it('payment decisions are UNCHANGED: a land is still a real, visible payment source', () => {
+		const payment = facts({ window: 'payment', cost: '{R}', sources: [67], nonLandSources: [], plannedSources: [] });
+		expect(decidePay(payment, DEFAULT_STOP_POLICY)).toBe('{R}');
+	});
+
+	it('readPromptFacts itself: nonLandSources is sources minus SeatNotes.ownBattlefieldLandIds, sources untouched', () => {
+		const read = readPromptFacts(notesFor(PRIORITY_MESSAGE, buttons(true), [67, 90], new Set([67])));
+		expect(read.sources).toEqual([67, 90]);
+		expect(read.nonLandSources).toEqual([90]);
+	});
+
+	it('readPromptFacts: no `ownBattlefieldLandIds` at all (the unit suites’ own callers) leaves nonLandSources equal to sources', () => {
+		const read = readPromptFacts(notesFor(PRIORITY_MESSAGE, buttons(true), [67, 90]));
+		expect(read.nonLandSources).toEqual(read.sources);
 	});
 });
 

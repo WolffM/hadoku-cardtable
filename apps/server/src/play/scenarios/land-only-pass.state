@@ -1,0 +1,25 @@
+# Wave 35 §S follow-up — the "nothing to do" auto-pass regression lane E found
+# in play.spec.ts ("a spell resolves unattended" failed 5/5 after F's R15 land
+# fix): `decideStop` only auto-passed a priority window when Forge's
+# actionable set was EMPTY, and R15 now puts every untapped tap-only-mana land
+# in that set at ordinary priority, so a seat with any untapped land left is
+# never idle by that old measure.
+#
+# Seat 0 (human) can cast a 1-mana creature while leaving ONE Mountain
+# untapped; seat 1 (ai — an ordinary human-controlled seat, never Forge's AI,
+# per this file's own README) has matching untapped Mountains and an empty
+# hand, so once the spell is on the stack seat 1 has nothing real to do at
+# all — only land. See auto-pass-land.jvm.test.ts.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Raging Goblin
+humanbattlefield=Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

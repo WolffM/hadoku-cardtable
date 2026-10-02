@@ -893,6 +893,7 @@ export class Match {
 				// paid and `trackPayment` must not report one (item 7). The same note
 				// covers the player's own press and `maybeCancelUnpayable`'s.
 				if (frame.method === 'selectButtonCancel' && s.payment !== null) s.paymentCancelled = true;
+				this.disableStaleButtons(s);
 				this.command({ t: 'act', seat, frame });
 				return { ok: true };
 			case 'reply': {
@@ -1262,10 +1263,64 @@ export class Match {
 		} else if (frame.method === 'clearWeaklySelectable') {
 			s.weakly = null;
 		}
-		this.send(s, frame);
-		if (frame.method === 'showPromptMessage') this.trackPayment(s, frame.message);
-		if (frame.method === 'updateButtons') this.maybeDeclineYieldSuggestion(s);
-		if (frame.method === 'updateButtons') this.maybeAutoPass(s);
+		/*
+		 * Wave 35 §S follow-up, item 3 (Q17's "transient-stack race",
+		 * `w33.spec.ts`, flaking 1-in-3 to 1-in-6 once R15 made the window
+		 * reachable more often): `updateButtons` used to be forwarded to the
+		 * browser UNCONDITIONALLY, with `maybeAutoPass` only deciding AFTER —
+		 * so a window this seat's own `decideStop` was always going to auto-pass
+		 * (its own spell sitting on the stack) still reached the wire with OK
+		 * live for however long the auto-pass command took to round-trip back
+		 * through the bridge. That is a real stop, however briefly, not a test
+		 * artefact — `enabledOk` on the real board really did read `true` for a
+		 * window nothing ever asked the player to look at.
+		 *
+		 * The fix is NOT to withhold this frame outright: the board's buttons
+		 * persist from whatever `updateButtons` arrived last, so dropping the
+		 * frame for a window that follows a genuine stop (own main phase,
+		 * typically — the carve-out that is ALWAYS a stop regardless of
+		 * `passWhenNothingToDo`) leaves that EARLIER stop's own enabled OK
+		 * showing through the whole auto-passed window instead — strictly
+		 * worse, confirmed directly: the first version of this fix (pure
+		 * suppression) still failed this exact e2e 1/1, for exactly that reason.
+		 * Both buttons are sent disabled instead, so the board reflects "nothing
+		 * to do here" the instant the window opens, same moment `maybeAutoPass`
+		 * decides it — then presses OK itself. `maybeAutoPass` only reads
+		 * `s.prompt`/`s.buttons`/`s.actionable`, already updated above (the REAL
+		 * frame, kept for every other decision this file makes), so deciding
+		 * here instead of after costs it nothing.
+		 */
+		let outgoing = frame;
+		if (frame.method === 'updateButtons') {
+			this.maybeDeclineYieldSuggestion(s);
+			if (this.maybeAutoPass(s)) outgoing = { ...frame, enable1: false, enable2: false, focus1: false };
+		}
+		this.send(s, outgoing);
+		/*
+		 * Wave 35 §S follow-up, item 3, continued — the race above still missed
+		 * once in 10 real-jar e2e runs after the fix directly above landed.
+		 * Root cause, confirmed from the SAME wave-20 note two lines down:
+		 * `updateButtons` can arrive BEFORE the `showPromptMessage` that
+		 * describes the window it belongs to (`InputPayMana.updateMessage`'s
+		 * own order is the documented example) — so `maybeAutoPass`, triggered
+		 * only on `updateButtons`, can run against a STALE `s.prompt` that
+		 * still reads the PREVIOUS (genuinely-a-stop) window, decide correctly
+		 * for THAT stale snapshot ("this is a real stop, don't pass"), and then
+		 * never be asked again once `showPromptMessage` catches `s.prompt` up
+		 * to the true stack-non-empty window — unless this NEW prompt's
+		 * `updateButtons` happens to differ from the last one Forge sent, nothing
+		 * re-triggers it. Re-running it here, on `showPromptMessage` too (same
+		 * dual-trigger `maybeAutoPay` already uses two lines down, for the exact
+		 * same reason), catches that case: if it now decides to pass, the
+		 * `updateButtons` already on the wire for this window was sent enabled,
+		 * so a disabled one goes out to correct it.
+		 */
+		if (frame.method === 'showPromptMessage') {
+			this.trackPayment(s, frame.message);
+			if (this.maybeAutoPass(s) && s.buttons !== null && s.buttons.method === 'updateButtons') {
+				this.send(s, { ...s.buttons, enable1: false, enable2: false, focus1: false });
+			}
+		}
 		/*
 		 * The payment input enables Auto (`updateButtons`) BEFORE it says what it
 		 * is paying for (`showPromptMessage`) — `InputPayMana.updateMessage` sets
@@ -1400,6 +1455,7 @@ export class Match {
 			openAsks: s.asks.size,
 			creatures: s.projector.creatureCount(),
 			stackTopActivator: s.projector.stackTopActivator(),
+			ownBattlefieldLandIds: s.projector.ownBattlefieldLandIds(),
 		};
 	}
 
@@ -1454,6 +1510,37 @@ export class Match {
 	}
 
 	/**
+	 * Wave 35 §S follow-up, item 3 — Q17's "transient-stack race"
+	 * (`w33.spec.ts`), diagnosed past the `maybeAutoPass` ordering fix above
+	 * (which closes a DIFFERENT gap and was not, on its own, enough — measured
+	 * directly: the race still reproduced 1/1 with only that fix in place).
+	 *
+	 * The actual mechanism: Forge tells the client the STACK changed (an
+	 * `applyDelta` carrying the new zone) before it tells the client anything
+	 * about the NEXT priority window's buttons — that only arrives once
+	 * `InputPassPriority` runs again, a separate, later step. So the instant a
+	 * seat plays a card, the board can already show it on the stack while the
+	 * buttons still read whatever `updateButtons` last said — which, for an
+	 * `own main phase` stop, is a REAL, correctly-enabled OK (wave 20 #7's
+	 * carve-out: that phase is always a stop). Nothing was wrong with that
+	 * frame when it arrived; it is just stale the moment this seat acts on it.
+	 *
+	 * The fix: the instant this seat's own act is forwarded, whatever buttons
+	 * it was just shown are no longer trustworthy — Forge has not spoken since
+	 * — so they are disabled here, locally, before the act even reaches the
+	 * bridge. Forge's own next `updateButtons` (whatever it says) overwrites
+	 * this the moment it arrives, same as any other frame.
+	 */
+	private disableStaleButtons(s: SeatState): void {
+		const buttons = s.buttons;
+		if (buttons === null || buttons.method !== 'updateButtons') return;
+		if (!buttons.enable1 && !buttons.enable2) return;
+		const disabled = { ...buttons, enable1: false, enable2: false, focus1: false };
+		s.buttons = disabled;
+		this.send(s, disabled);
+	}
+
+	/**
 	 * Pass a stop the seat cannot act in — **silently**.
 	 *
 	 * Wave 25 §D, item 3. This used to `say` `auto-passed <phase>`, and the
@@ -1463,14 +1550,18 @@ export class Match {
 	 * named is on the turn bar and the phase rail already, so it told the seat
 	 * nothing the board was not showing. The LOG entry stays: that is where a pass
 	 * nobody expected gets diagnosed, and it costs the player nothing.
+	 *
+	 * Returns whether it passed — wave 35 §S follow-up, item 3: the caller uses
+	 * this to suppress the `updateButtons` frame that would otherwise show the
+	 * player a stop they were never actually given (Q17's transient-stack race).
 	 */
-	private maybeAutoPass(s: SeatState): void {
-		if (s.fullControl || s.ai || this.status !== 'running') return;
+	private maybeAutoPass(s: SeatState): boolean {
+		if (s.fullControl || s.ai || this.status !== 'running') return false;
 		// The prompt in hand was already passed on, so these buttons belong to the input
 		// AFTER it (see `SeatState.passedOn`): not ours to press for.
-		if (s.prompt !== null && s.prompt === s.passedOn) return;
+		if (s.prompt !== null && s.prompt === s.passedOn) return false;
 		const phase = autoPassReason(this.notesOf(s), s.policy);
-		if (phase === null) return;
+		if (phase === null) return false;
 		s.passedOn = s.prompt;
 		s.autoPassed += 1;
 		// Forge clears the set as the input stops; drop ours with it so the next
@@ -1478,6 +1569,7 @@ export class Match {
 		s.actionable = null;
 		this.deps.log({ evt: 'auto-passed', matchId: this.id, seat: s.seat, phase });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
+		return true;
 	}
 
 	/**
