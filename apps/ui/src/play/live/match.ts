@@ -1247,6 +1247,42 @@ export function payingMana(match: LiveMatch): boolean {
 }
 
 /**
+ * Nothing is left for this seat to decide right now — wave 35 §S shape 3, the
+ * seam L's End Turn highlight (R5) reads.
+ *
+ * Three facts, all Forge's own:
+ *
+ *  - **no open ask** (`asks.length === 0`) — nothing is waiting on a reply;
+ *  - **no open selection** (`selectables === null`) — `InputSelectTargets` and
+ *    `InputSelectEntitiesFromList` are the only two inputs that publish one
+ *    (see the module header), and neither is "nothing to decide";
+ *  - **Forge's own actionable set is the explicit empty one.** `weaklySelectable`
+ *    carries three states, not two — see that field's own note — and only the
+ *    middle one answers this question. `null` means Forge has not published an
+ *    actionable set AT ALL since the last `clearWeaklySelectable` (a payment
+ *    input mid-flight, the London mulligan, the gap between priority ending and
+ *    the next input starting): there may still be something to decide, Forge
+ *    simply has not said. A non-empty set is Forge naming at least one card
+ *    worth a click. The empty `Set` is `pushActionableCards` finding nothing —
+ *    "nothing on this board is worth clicking", Forge's own signal for a
+ *    priority window with no legal action but passing, which is the one case
+ *    this predicate exists to name.
+ *
+ * `view !== null` guards the moment before any state has folded at all, when
+ * every field above still reads its unset default and would otherwise agree
+ * for the wrong reason.
+ */
+export function nothingToDecide(match: LiveMatch): boolean {
+  return (
+    match.view !== null &&
+    match.asks.length === 0 &&
+    match.selectables === null &&
+    match.weaklySelectable !== null &&
+    match.weaklySelectable.size === 0
+  );
+}
+
+/**
  * This seat is declaring attackers or blockers — the two moments when a press on
  * one of its OWN battlefield cards is an answer to Forge rather than a tidy-up.
  *

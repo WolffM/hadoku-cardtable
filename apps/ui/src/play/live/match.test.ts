@@ -31,6 +31,7 @@ import {
   isBlockAssignment,
   ingest,
   MAX_RESYNCS_WITHOUT_PROGRESS,
+  nothingToDecide,
   pressButton,
   selectCard,
   selectPlayer,
@@ -725,6 +726,82 @@ describe('clicking the board: only what Forge offered', () => {
     expect([...m.selectables!.cards]).toEqual([theirs[0]]);
     expect(m.weaklySelectable).toBeNull();
     expect(selectCard(m, theirs[0]!)).toBe(true);
+  });
+});
+
+/*
+ * `nothingToDecide` — wave 35 §S shape 3. Three states for `weaklySelectable`
+ * (null, empty, non-empty) and two for `selectables`/`asks`, and only ONE
+ * combination is "nothing to decide": no ask, no selection, and Forge's
+ * actionable set explicitly empty.
+ */
+describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', () => {
+  it('false before any state has folded at all', () => {
+    // No snapshot has landed, so every field this reads still holds its unset
+    // default — `view` most of all, which is the guard that keeps them from
+    // agreeing for the wrong reason.
+    const inert: MatchTransport = { on: () => {}, emit: () => {}, request: () => {}, disconnect: () => {} };
+    const m = startMatch({ matchId: 'nobody-joined-yet', transport: inert });
+    expect(m.view).toBeNull();
+    expect(nothingToDecide(m)).toBe(false);
+    closeMatch(m);
+  });
+
+  it('false when Forge has named nothing yet (weaklySelectable is null, not empty)', async () => {
+    const { m } = await fullGame();
+    expect(m.weaklySelectable).toBeNull();
+    expect(nothingToDecide(m)).toBe(false);
+  });
+
+  it('false while a selection is open, even with an empty actionable set underneath', async () => {
+    const { s, m } = await fullGame();
+    const { theirs } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([])]);
+    expect(nothingToDecide(m)).toBe(true);
+    await sendAndApply(s, m, [selectables([theirs[0]!], 1, 1)]);
+    expect(m.selectables).not.toBeNull();
+    expect(nothingToDecide(m)).toBe(false);
+    await barrier(s, m, theirs[0]!);
+  });
+
+  it('false while an ask is open, even with an empty actionable set underneath', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority'), actionable([])]);
+    expect(nothingToDecide(m)).toBe(true);
+    await sendAndApply(s, m, [optionAsk('ask-1')]);
+    expect(currentAsk(m)).not.toBeNull();
+    expect(nothingToDecide(m)).toBe(false);
+    expect(abortAsk(m, 'ask-1', 'cancelled', 'test cleanup')).toBe(true);
+  });
+
+  it('false when Forge named at least one actionable card', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([mine[0]!])]);
+    expect(nothingToDecide(m)).toBe(false);
+    await barrier(s, m, mine[0]!);
+  });
+
+  it('true at a priority window with no open ask, no selection, and an explicit empty actionable set', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([])]);
+    expect(m.asks.length).toBe(0);
+    expect(m.selectables).toBeNull();
+    expect(m.weaklySelectable).toEqual(new Set());
+    expect(nothingToDecide(m)).toBe(true);
+    // And it goes false again the instant Forge names something.
+    await sendAndApply(s, m, [actionable([mine[0]!])]);
+    expect(nothingToDecide(m)).toBe(false);
+  });
+
+  it('clearWeaklySelectable un-decides it: Forge stopped saying "nothing", it did not start saying "something"', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority'), actionable([])]);
+    expect(nothingToDecide(m)).toBe(true);
+    await sendAndApply(s, m, [clearActionable()]);
+    expect(m.weaklySelectable).toBeNull();
+    expect(nothingToDecide(m)).toBe(false);
   });
 });
 
