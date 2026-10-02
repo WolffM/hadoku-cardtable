@@ -422,8 +422,21 @@
    * The counts' track: the two marks on one line and, under them, the flags the
    * game raises ("priority", "lost"). Fixed, so a flag arriving mid-game cannot
    * move the graveyard that starts under it.
+   *
+   * Wave 34 §B: at 2.2rem this clipped the THIRD line — w33's own screenshot
+   * (`wave33-evidence/b-poison-and-ability.png`) shows "energy" cut off under
+   * the opponent's column once poison and energy are both non-zero, because
+   * `.seat__counts` wraps one item per line at this column's width (`--who-w`)
+   * and is `overflow: hidden`. With poison, energy AND experience all non-zero
+   * (`poison.state`) that is hand+library sharing one line plus three more —
+   * four lines — and 2.2rem (one line of hand/library plus not quite two more)
+   * was never enough. 3.6rem fits four lines of `.seat__counts`' own
+   * font-size/line-height/row-gap with room to spare (measured: ~56px needed,
+   * 57.6px given), stays a fixed track like every other one on this board, and
+   * does not touch `--who-w`, which `e2e/table-fit.spec.ts` derives thresholds
+   * from.
    */
-  --counts-h: 2.2rem;
+  --counts-h: 3.6rem;
 
   display: grid;
   align-items: stretch;

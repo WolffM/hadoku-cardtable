@@ -3366,7 +3366,7 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
     const { seat } = renderBoard();
     expect(seat(0).querySelector('.seat__piles [data-testid="hand-count"]')).toBeNull();
     expect(declarationIn('.board .seat__counts', 'flex-direction')).toBe('row');
-    expect(declarationIn('.board .seat', '--counts-h'), 'a flag arriving mid-game moves nothing under it').toBe('2.2rem');
+    expect(declarationIn('.board .seat', '--counts-h'), 'a flag arriving mid-game moves nothing under it').toBe('3.6rem');
   });
 
   it('P5: Regroup is gone from the markup, the stylesheet and the source', () => {
@@ -3831,5 +3831,75 @@ describe('wave 33 §B', () => {
 
   it('item 5: the seat’s flags are --accent-ink, not --accent, as text', () => {
     expect(declarationIn('.seat__flag', 'color')).toBe('var(--accent-ink)');
+  });
+});
+
+/*
+ * ── wave 34 §B — the energy line no longer clips ────────────────────────
+ *
+ * w33 B's own screenshot (`wave33-evidence/b-poison-and-ability.png`) shows
+ * the THIRD line of `.seat__counts` cut off under the opponent's column: with
+ * poison and energy both non-zero the box (`--counts-h`, fixed, `overflow:
+ * hidden`) had room for barely two lines. `poison.state` (lane S) carries
+ * poison, energy AND experience together, which is four lines once the hand
+ * and library counts are drawn beside them (hand+library share a line at this
+ * column's width; each player counter does not — measured in a real browser
+ * against the real `board.css`+`card.css`, not asserted here, since jsdom does
+ * no layout).
+ *
+ * jsdom cannot lay the box out, so this is a structural proof rather than a
+ * pixel one: it reads `.seat__counts`' own declared font-size/line-height/
+ * row-gap and `--counts-h` straight out of `board.css`'s text and checks the
+ * box is tall enough to hold four such lines with no gap left over — the same
+ * arithmetic a real browser does when it decides whether the fourth line fits
+ * inside an `overflow: hidden` box. A revert to the old 2.2rem comes up short
+ * by about 20px and fails this the same way the browser clipped it.
+ */
+describe('wave 34 §B', () => {
+  it('item 1: --counts-h holds four lines of .seat__counts at its own font-size/line-height/row-gap, with poison, energy and experience all non-zero', () => {
+    const fontSizePx = Number(declarationIn('.board .seat__counts', 'font-size')!.replace('px', ''));
+    const lineHeight = Number(declarationIn('.board .seat__counts', 'line-height'));
+    const rowGapPx = Number(declarationIn('.board .seat__counts', 'row-gap')!.replace('px', ''));
+    expect(fontSizePx > 0 && lineHeight > 0 && rowGapPx >= 0, 'the box-model inputs this test reads must themselves be real declarations').toBe(true);
+    // hand+library share the first line (narrow icon+number pairs); poison,
+    // energy and experience each wrap to a line of their own at --who-w's
+    // width (measured against the real stylesheet; see the comment above).
+    const LINES = 4;
+    const neededPx = fontSizePx * lineHeight * LINES + rowGapPx * (LINES - 1);
+    const countsHRem = Number(declarationIn('.board .seat', '--counts-h')!.replace('rem', ''));
+    const ROOT_FONT_PX = 16;
+    const countsHPx = countsHRem * ROOT_FONT_PX;
+    expect(countsHPx, `--counts-h is ${countsHRem}rem (${countsHPx}px); four lines need ${neededPx}px`).toBeGreaterThanOrEqual(neededPx);
+  });
+
+  it('item 1: a seat with poison, energy and experience all non-zero draws all five marks (hand, library, and the three player counters)', () => {
+    const state = new Map(foldPackets(loadPackets(fixture)).state);
+    const key = deltaKey(WireType.Player, 1);
+    const them = state.get(key)!;
+    state.set(key, {
+      ...them,
+      Counters: {
+        t: 'multiset',
+        v: [
+          ['Poison', 7],
+          ['Energy', 3],
+          ['Experience', 5],
+        ],
+      },
+    } as WireObject);
+    const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+    const { seat } = renderBoard(adapted);
+    const theirBar = seat(1).querySelector<HTMLElement>('[data-player-bar]')!;
+    expect(theirBar.querySelector('[data-testid="hand-count"]')).not.toBeNull();
+    expect(theirBar.querySelector('[data-testid="library-count"]')).not.toBeNull();
+    const counters = [...theirBar.querySelectorAll('.seat__counter')].map((c) => c.textContent).sort();
+    expect(counters).toEqual(['3 energy', '5 experience', '7 poison']);
+    // Still inside the SAME box as the hand/library counts (item 1's brief:
+    // "stay inside their column") — not promoted to a track of its own.
+    expect(theirBar.querySelectorAll('.seat__counts').length).toBe(1);
+    const counts = theirBar.querySelector('.seat__counts')!;
+    for (const el of [...counts.querySelectorAll('[data-testid="hand-count"], [data-testid="library-count"], .seat__counter')]) {
+      expect(counts.contains(el)).toBe(true);
+    }
   });
 });
