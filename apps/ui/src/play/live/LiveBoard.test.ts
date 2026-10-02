@@ -508,12 +508,18 @@ describe('Forge asks with buttons, not only with asks', () => {
  * `boardInteraction` offers it; the click goes to `selectCard`, which checks
  * Forge's CURRENT state before sending.
  *
- * `:not([disabled])` (wave 35 R10, lane B): a battlefield card's face is now
- * always a `<button>`, `disabled` when not selectable, so switching element
- * type across a selectability window cannot flicker the DOM under it any
- * more (`Board.tsx`'s own note on `.board-card__face`). This file's queries
- * updated to match — "clickable" is "an ENABLED button here now", not "a
- * button exists at all".
+ * `[data-selectable]` (wave 35 R10, lane B, twice over): a battlefield card's
+ * face is now always a `<button>`, so "a button exists" stopped meaning
+ * "selectable" the first time (B's flicker fix). It briefly read
+ * `button:not([disabled])` here; B's own follow-up (a real browser never
+ * dispatches pointer events to, or bubbles them past, a `disabled` form
+ * control — jsdom does not reproduce that, so a disabled card's arrange-drag
+ * could never start on a real mouse) switched the face to
+ * `tabIndex={-1}` instead, so `disabled` stopped existing on it at all. The
+ * board's own selectable marker — `data-selectable` on the card's OUTER
+ * wrapper, `[data-board-card]`'s own element — is the one fact that has not
+ * moved under this file twice; these queries read that now, and press the
+ * inner `<button>` (found inside it) to fire the click.
  */
 describe('clicking a card on the live board', () => {
   function notify(raw: unknown[]) {
@@ -524,8 +530,8 @@ describe('clicking a card on the live board', () => {
     const { s, m, container } = await liveBoard();
     const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
     const [target, other] = [mine[0]!, mine[1]!];
-    const button = (id: number) => container.querySelector<HTMLButtonElement>(`[data-board-card="${id}"] button:not([disabled])`);
-    expect(button(target)).toBeNull();
+    const selectableCard = (id: number) => container.querySelector<HTMLElement>(`[data-board-card="${id}"][data-selectable]`);
+    expect(selectableCard(target)).toBeNull();
 
     for (const f of notify([
       { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Select a target', card: null },
@@ -533,23 +539,23 @@ describe('clicking a card on the live board', () => {
     ])) {
       s.send(f);
     }
-    await waitFor(() => expect(button(target)).not.toBeNull());
-    expect(button(other)).toBeNull();
-    expect(container.querySelector(`[data-board-card="${target}"]`)!.hasAttribute('data-selectable')).toBe(true);
+    await waitFor(() => expect(selectableCard(target)).not.toBeNull());
+    expect(selectableCard(other)).toBeNull();
 
-    fireEvent.click(button(target)!);
+    fireEvent.click(selectableCard(target)!.querySelector('button')!);
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(s.clientFrames()[0]).toEqual({
       ok: true,
       value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: target }, otherCardViewsToSelect: [], triggerEvent: null },
     });
-    // Spent: not a button again until Forge speaks.
-    await waitFor(() => expect(button(target)).toBeNull());
+    // Spent: not selectable again until Forge speaks — asserted by the wire
+    // above (exactly one frame sent) and by the marker going away here.
+    await waitFor(() => expect(selectableCard(target)).toBeNull());
 
     s.send(parseServerFrame({ kind: 'notify', method: 'clearSelectables' }));
     await waitFor(() => expect(m.selectables).toBeNull());
-    expect(button(target)).toBeNull();
-    expect(button(other)).toBeNull();
+    expect(selectableCard(target)).toBeNull();
+    expect(selectableCard(other)).toBeNull();
     expect(selectCard(m, target)).toBe(false);
     expect(m.stats.replies).toBe(1);
   });
@@ -1925,7 +1931,7 @@ describe('what the board is told about Forge’s input', () => {
     // satisfy it, which is how an inverted field got past an earlier version of
     // the case below.
     await waitFor(() => expect(m.selectables).not.toBeNull());
-    await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"] button:not([disabled])`)).not.toBeNull());
+    await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"][data-selectable]`)).not.toBeNull());
     expect(captured.interaction!.selectionOpen).toBe(true);
     // Exactly `match.selectables !== null`, which is also what `boardInteraction`
     // put on `LiveClickables` — one source, so the two can never disagree.
@@ -1935,7 +1941,7 @@ describe('what the board is told about Forge’s input', () => {
 
     s.send(notify({ kind: 'notify', method: 'clearSelectables' }));
     await waitFor(() => expect(m.selectables).toBeNull());
-    await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"] button:not([disabled])`)).toBeNull());
+    await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"][data-selectable]`)).toBeNull());
     expect(captured.interaction!.selectionOpen).toBe(false);
   });
 
