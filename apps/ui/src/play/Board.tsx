@@ -1883,6 +1883,24 @@ function ManaPool({ player }: { player: BoardPlayer }) {
 }
 
 /**
+ * The three known player-counter names abbreviate to a short, DISTINCT glyph
+ * — never the same first letter twice — so a seat can show all three on the
+ * one line `--counts-h` has room for without widening the track (wave 34 §B,
+ * below). "XP" for experience is the common-usage shorthand; poison and
+ * energy keep their own initial since neither collides with it.
+ */
+const PLAYER_COUNTER_ABBREV: Readonly<Record<string, string>> = {
+  Poison: 'P',
+  Energy: 'E',
+  Experience: 'XP',
+};
+
+/** Any OTHER name Forge ever puts on a player falls back to its own initial, capitalised. */
+function playerCounterAbbrev(name: string): string {
+  return PLAYER_COUNTER_ABBREV[name] ?? name.slice(0, 1).toUpperCase();
+}
+
+/**
  * Player-level counters — poison, energy, experience, and anything else Forge
  * tracks on the PLAYER rather than a card (wave 33 item 4): *"poison/infect
  * counters are shown nowhere."*
@@ -1893,6 +1911,16 @@ function ManaPool({ player }: { player: BoardPlayer }) {
  * the same track, the same size — and only when non-zero: a seat with none of
  * these shows nothing here, the same contract every other optional mark on
  * this board keeps.
+ *
+ * Wave 34 §B: the glyph is a short abbreviation (`P3`, `E7`, `XP2`), not the
+ * word (`3 poison`). `e2e/table-fit.spec.ts`'s Q9/Q2 column check measures
+ * the gap between the HAND/LIBRARY marks' own rendered box and the graveyard
+ * — a gap that tracks `--counts-h` itself, not how much of it the counters
+ * fill — so growing the track to fit a longer word moved the graveyard
+ * (measured: 46.3px of "nothing but a pile's own margin", GAP_MAX 32). The
+ * word, in full, is still here: in `title` for a pointer and `aria-label` for
+ * everything else — nothing about the counter's MEANING is abbreviated, only
+ * its glyph.
  */
 function PlayerCounters({ player }: { player: BoardPlayer }) {
   const counters = (player.counters ?? []).filter((c) => c.count !== 0);
@@ -1904,9 +1932,11 @@ function PlayerCounters({ player }: { player: BoardPlayer }) {
           key={c.name}
           className="seat__counter"
           data-counter={c.name.toLowerCase()}
+          title={`${c.count} ${c.name.toLowerCase()}`}
           aria-label={`${c.count} ${c.name.toLowerCase()}`}
         >
-          {c.count} {c.name.toLowerCase()}
+          {playerCounterAbbrev(c.name)}
+          {c.count}
         </span>
       ))}
     </>

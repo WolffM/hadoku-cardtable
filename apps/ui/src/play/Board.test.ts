@@ -3366,7 +3366,7 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
     const { seat } = renderBoard();
     expect(seat(0).querySelector('.seat__piles [data-testid="hand-count"]')).toBeNull();
     expect(declarationIn('.board .seat__counts', 'flex-direction')).toBe('row');
-    expect(declarationIn('.board .seat', '--counts-h'), 'a flag arriving mid-game moves nothing under it').toBe('3.6rem');
+    expect(declarationIn('.board .seat', '--counts-h'), 'a flag arriving mid-game moves nothing under it').toBe('2.2rem');
   });
 
   it('P5: Regroup is gone from the markup, the stylesheet and the source', () => {
@@ -3797,7 +3797,7 @@ describe('wave 33 §B', () => {
     expect(untouched.targetPlayerIds).toEqual([]);
   });
 
-  it('item 4: a seat’s poison/energy/experience counters draw beside its hand/library counts, and only when non-zero', () => {
+  it('item 4: a seat’s poison/energy/experience counters draw beside its hand/library counts, abbreviated, and only when non-zero', () => {
     const state = new Map(foldPackets(loadPackets(fixture)).state);
     const key = deltaKey(WireType.Player, 1);
     const them = state.get(key)!;
@@ -3817,8 +3817,14 @@ describe('wave 33 §B', () => {
     const theirBar = seat(1).querySelector<HTMLElement>('[data-player-bar]')!;
     const counters = [...theirBar.querySelectorAll('.seat__counter')].map((c) => c.textContent).sort();
     // Zero experience draws nothing — never a drawn zero.
-    expect(counters).toEqual(['3 energy', '7 poison']);
-    expect(theirBar.querySelector('[data-counter="poison"]')!.textContent).toBe('7 poison');
+    expect(counters).toEqual(['E3', 'P7']);
+    const poison = theirBar.querySelector<HTMLElement>('[data-counter="poison"]')!;
+    // Wave 34 §B: the GLYPH is abbreviated (`--counts-h` cannot grow without
+    // moving the graveyard, `e2e/table-fit.spec.ts`'s Q9/Q2 column check) —
+    // the full word is not gone, it moved to `title`/`aria-label`.
+    expect(poison.textContent).toBe('P7');
+    expect(poison.getAttribute('title')).toBe('7 poison');
+    expect(poison.getAttribute('aria-label')).toBe('7 poison');
     // The viewer's own seat was never given any and shows none.
     expect(seat(0).querySelectorAll('.seat__counter')).toHaveLength(0);
   });
@@ -3835,44 +3841,66 @@ describe('wave 33 §B', () => {
 });
 
 /*
- * ── wave 34 §B — the energy line no longer clips ────────────────────────
+ * ── wave 34 §B — the energy line no longer clips, and the graveyard stays put ──
  *
  * w33 B's own screenshot (`wave33-evidence/b-poison-and-ability.png`) shows
  * the THIRD line of `.seat__counts` cut off under the opponent's column: with
  * poison and energy both non-zero the box (`--counts-h`, fixed, `overflow:
- * hidden`) had room for barely two lines. `poison.state` (lane S) carries
- * poison, energy AND experience together, which is four lines once the hand
- * and library counts are drawn beside them (hand+library share a line at this
- * column's width; each player counter does not — measured in a real browser
- * against the real `board.css`+`card.css`, not asserted here, since jsdom does
- * no layout).
+ * hidden`) had room for barely two lines, and `poison.state` (lane S) carries
+ * poison, energy AND experience together.
  *
- * jsdom cannot lay the box out, so this is a structural proof rather than a
- * pixel one: it reads `.seat__counts`' own declared font-size/line-height/
- * row-gap and `--counts-h` straight out of `board.css`'s text and checks the
- * box is tall enough to hold four such lines with no gap left over — the same
- * arithmetic a real browser does when it decides whether the fourth line fits
- * inside an `overflow: hidden` box. A revert to the old 2.2rem comes up short
- * by about 20px and fails this the same way the browser clipped it.
+ * The first attempt at this fix GREW `--counts-h` to fit a fourth line (one
+ * per counter, the full word). That clipped nothing, but
+ * `e2e/table-fit.spec.ts`'s Q9/Q2 column check reads the graveyard's own top
+ * edge straight off the hand/library marks' rendered box — a gap that tracks
+ * the TRACK, not the content — so the grown track moved the graveyard by
+ * exactly the growth (measured: 46.3px of "nothing but a pile's own margin",
+ * `GAP_MAX` 32). `--counts-h` is back at the original 2.2rem (asserted
+ * above, in "P2 / Q9"); what changed instead is the counter's OWN glyph:
+ * `PLAYER_COUNTER_ABBREV` (`Board.tsx`) draws `P7`, `E3`, `XP5` — short
+ * enough that all three share hand+library's second line rather than each
+ * claiming one of their own. The word itself is not gone: `title` and
+ * `aria-label` still carry it in full (asserted on the wave 33 §B case above,
+ * which this design also has to keep passing).
+ *
+ * jsdom cannot lay the box out — whether three abbreviations truly share one
+ * line at `--who-w`'s width is a real-browser claim, measured against the
+ * real stylesheet in `wave34-evidence/b-poison-live-*.png` and the scratch
+ * repro that produced them, not asserted here. What IS asserted here,
+ * structurally: the three known counters abbreviate to three DIFFERENT
+ * glyphs (so nothing in `PLAYER_COUNTER_ABBREV` can silently collide and
+ * merge two counters' text into one), and the rendered glyph for each is
+ * short — never as long as the word it stands for.
  */
 describe('wave 34 §B', () => {
-  it('item 1: --counts-h holds four lines of .seat__counts at its own font-size/line-height/row-gap, with poison, energy and experience all non-zero', () => {
-    const fontSizePx = Number(declarationIn('.board .seat__counts', 'font-size')!.replace('px', ''));
-    const lineHeight = Number(declarationIn('.board .seat__counts', 'line-height'));
-    const rowGapPx = Number(declarationIn('.board .seat__counts', 'row-gap')!.replace('px', ''));
-    expect(fontSizePx > 0 && lineHeight > 0 && rowGapPx >= 0, 'the box-model inputs this test reads must themselves be real declarations').toBe(true);
-    // hand+library share the first line (narrow icon+number pairs); poison,
-    // energy and experience each wrap to a line of their own at --who-w's
-    // width (measured against the real stylesheet; see the comment above).
-    const LINES = 4;
-    const neededPx = fontSizePx * lineHeight * LINES + rowGapPx * (LINES - 1);
-    const countsHRem = Number(declarationIn('.board .seat', '--counts-h')!.replace('rem', ''));
-    const ROOT_FONT_PX = 16;
-    const countsHPx = countsHRem * ROOT_FONT_PX;
-    expect(countsHPx, `--counts-h is ${countsHRem}rem (${countsHPx}px); four lines need ${neededPx}px`).toBeGreaterThanOrEqual(neededPx);
+  it('item 1: the three known player counters abbreviate to three different, short glyphs — never the word itself', () => {
+    for (const name of ['Poison', 'Energy', 'Experience']) {
+      const state = new Map(foldPackets(loadPackets(fixture)).state);
+      const key = deltaKey(WireType.Player, 1);
+      const them = state.get(key)!;
+      state.set(key, { ...them, Counters: { t: 'multiset', v: [[name, 9]] } } as WireObject);
+      const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+      const { seat } = renderBoard(adapted);
+      const el = seat(1).querySelector<HTMLElement>('.seat__counter')!;
+      expect(el.textContent!.length, `${name}'s glyph "${el.textContent}" is shorter than the word itself`).toBeLessThan(`9 ${name.toLowerCase()}`.length);
+      expect(el.textContent, `${name}'s glyph carries the count`).toContain('9');
+      expect(el.textContent!.toLowerCase(), `${name}'s glyph is not the bare word`).not.toBe(name.toLowerCase());
+    }
+    // And the three glyphs (the digit stripped) are pairwise distinct — no collision to merge two counters into one.
+    const glyphOf = (name: string): string => {
+      const state = new Map(foldPackets(loadPackets(fixture)).state);
+      const key = deltaKey(WireType.Player, 1);
+      const them = state.get(key)!;
+      state.set(key, { ...them, Counters: { t: 'multiset', v: [[name, 9]] } } as WireObject);
+      const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+      const { seat } = renderBoard(adapted);
+      return seat(1).querySelector<HTMLElement>('.seat__counter')!.textContent!.replace(/9/g, '');
+    };
+    const glyphs = ['Poison', 'Energy', 'Experience'].map(glyphOf);
+    expect(new Set(glyphs).size, `the three glyphs ${JSON.stringify(glyphs)} must be pairwise distinct`).toBe(3);
   });
 
-  it('item 1: a seat with poison, energy and experience all non-zero draws all five marks (hand, library, and the three player counters)', () => {
+  it('item 1: a seat with poison, energy and experience all non-zero draws all five marks (hand, library, and the three player counters), each with the full word in title and aria-label', () => {
     const state = new Map(foldPackets(loadPackets(fixture)).state);
     const key = deltaKey(WireType.Player, 1);
     const them = state.get(key)!;
@@ -3892,8 +3920,10 @@ describe('wave 34 §B', () => {
     const theirBar = seat(1).querySelector<HTMLElement>('[data-player-bar]')!;
     expect(theirBar.querySelector('[data-testid="hand-count"]')).not.toBeNull();
     expect(theirBar.querySelector('[data-testid="library-count"]')).not.toBeNull();
-    const counters = [...theirBar.querySelectorAll('.seat__counter')].map((c) => c.textContent).sort();
-    expect(counters).toEqual(['3 energy', '5 experience', '7 poison']);
+    const counters = [...theirBar.querySelectorAll<HTMLElement>('.seat__counter')];
+    expect(counters.map((c) => c.textContent).sort()).toEqual(['E3', 'P7', 'XP5']);
+    expect(counters.map((c) => c.getAttribute('title')).sort()).toEqual(['3 energy', '5 experience', '7 poison']);
+    expect(counters.map((c) => c.getAttribute('aria-label')).sort()).toEqual(['3 energy', '5 experience', '7 poison']);
     // Still inside the SAME box as the hand/library counts (item 1's brief:
     // "stay inside their column") — not promoted to a track of its own.
     expect(theirBar.querySelectorAll('.seat__counts').length).toBe(1);
@@ -3901,5 +3931,12 @@ describe('wave 34 §B', () => {
     for (const el of [...counts.querySelectorAll('[data-testid="hand-count"], [data-testid="library-count"], .seat__counter')]) {
       expect(counts.contains(el)).toBe(true);
     }
+  });
+
+  it('item 1: --counts-h is unchanged from before this wave — table-fit\'s graveyard-gap reads the hand/library marks\' own box, not the track, so any growth of the track (even empty growth) moves the graveyard', () => {
+    // Pinned here too (not only in "P2 / Q9" above) because this is the exact
+    // regression the manager caught: 3.6rem read back as 46.3px of
+    // "nothing but a pile's own margin" against table-fit's GAP_MAX of 32.
+    expect(declarationIn('.board .seat', '--counts-h')).toBe('2.2rem');
   });
 });
