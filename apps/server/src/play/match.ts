@@ -112,6 +112,7 @@ import {
 	onlyAnswer,
 	paymentCost,
 	paymentLine,
+	repeatedAbilityToPlay,
 	type Payment,
 	type SeatNotes,
 	type StopPolicy,
@@ -310,6 +311,34 @@ export interface SeatState {
 	 * rather than Forge's.
 	 */
 	says: ServerFrame[];
+	/**
+	 * Wave 34 §S4 — the host card + ability id of the last `getAbilityToPlay`
+	 * this seat was actually given an answer for, whether the browser answered
+	 * it or {@link onFrame}'s own repeat-collapse did.
+	 *
+	 * Forge's own engine asks `getAbilityToPlay` TWICE (sometimes more) for one
+	 * real decision: once from whatever `Input` read the click
+	 * (`InputPassPriority.onCardSelected`, or `InputPayMana`'s mana-ability
+	 * path), and again, unconditionally, from forge-game's `PlaySpellAbility.
+	 * chooseOptionalAdditionalCosts` — which calls `getAbilityToPlay` a SECOND
+	 * time with a singleton list holding the exact ability already chosen, to
+	 * cover an "alternate additional cost" keyword almost no card has. Measured
+	 * against a real jar for a spell cast, an AI's own cast, and a land's mana
+	 * ability alike — never fewer than two rounds, sometimes three, always with
+	 * NO client act in between the rounds. See
+	 * `docs/planning/wave34-evidence/s4-repeated-ask.md`.
+	 *
+	 * Tracked here so a repeat round that offers the SAME single ability this
+	 * seat was just given an answer for can be answered the same way without a
+	 * second click — regardless of full control, because it is not a second
+	 * decision, it is Forge re-asking the first one. `null` until the first
+	 * `getAbilityToPlay` of the match is answered, and overwritten by every one
+	 * after — a stale match is harmless: the ability id only ever repeats for
+	 * the SAME physical card object while it is still being cast, and a
+	 * genuinely new ask for that id, later, having survived every other ask and
+	 * act in between, offers no different an answer than the one already given.
+	 */
+	lastAbilityToPlay: { hostCard: number; abilityId: number } | null;
 }
 
 export interface MatchDeps {
@@ -471,6 +500,7 @@ export class Match {
 			autoAnswered: 0,
 			autoPassed: 0,
 			says: [],
+			lastAbilityToPlay: null,
 		}));
 		for (const [seat, owner] of (restore?.owners ?? []).entries()) {
 			const s = this.seats[seat];
@@ -753,6 +783,14 @@ export class Match {
 					return { ok: false, error: `reply is for ${frame.method}, the open ask is ${ask.method}` };
 				}
 				this.closeAsk(s, ask.callId);
+				// Wave 34 §S4 — remember what THIS seat actually chose for a
+				// `getAbilityToPlay`, so a repeat of Forge's own asking (see
+				// `auto.ts`'s `repeatedAbilityToPlay`) does not need a second click.
+				if (frame.method === 'getAbilityToPlay' && frame.result !== null && typeof frame.result === 'object') {
+					const hostCard = (ask.frame as unknown as { hostCard: { id: number } }).hostCard.id;
+					const abilityId = (frame.result as { id: number }).id;
+					s.lastAbilityToPlay = { hostCard, abilityId };
+				}
 				this.deps.log({
 					evt: 'ask-answered',
 					matchId: this.id,
@@ -962,6 +1000,27 @@ export class Match {
 		}
 
 		if (frame.kind === 'ask' && isBlocking(frame.method)) {
+			// Wave 34 §S4 — ahead of the full-control gate on purpose: Forge
+			// re-asking its OWN already-answered `getAbilityToPlay` is not a
+			// question full control exists to surface (`auto.ts`'s
+			// `repeatedAbilityToPlay` doc has the trace). Checked before
+			// `onlyAnswer` so it also wins over a policy that would otherwise
+			// leave this as a real ask.
+			const repeat = frame.method === 'getAbilityToPlay' ? repeatedAbilityToPlay(frame, s.lastAbilityToPlay) : null;
+			if (repeat !== null && frame.method === 'getAbilityToPlay') {
+				s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (repeat.result as { id: number }).id };
+				s.autoAnswered += 1;
+				this.deps.log({
+					evt: 'ask-auto-answered',
+					matchId: this.id,
+					seat: s.seat,
+					callId: repeat.callId,
+					method: repeat.method,
+					why: repeat.why,
+				});
+				this.command({ t: 'reply', seat: s.seat, callId: repeat.callId, result: repeat.result });
+				return;
+			}
 			// A question with one answer is not a question (`auto.ts`). Answered
 			// here, the browser never sees the ask at all — no modal to dismiss.
 			const auto = s.fullControl ? null : onlyAnswer(frame, s.policy);

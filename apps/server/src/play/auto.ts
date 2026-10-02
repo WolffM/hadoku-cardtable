@@ -606,6 +606,49 @@ export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP
 	}
 }
 
+/**
+ * Wave 34 §S4 — Forge's own answer to a `getAbilityToPlay` it is re-asking
+ * itself, not the player.
+ *
+ * `onlyAnswer` never answers `getAbilityToPlay` (its own comment says why: a
+ * one-ability offer of it is answered on the BROWSER side, by `autoAnswer` in
+ * `apps/ui/src/play/prompts/rules.ts`, when full control is off). That still
+ * leaves full control staring at a genuine Forge quirk, confirmed against a
+ * real jar: casting ANY single ability — a spell, an activated ability, even
+ * tapping a land for mana — sends `getAbilityToPlay` TWICE, with the SAME
+ * host card and the SAME one ability both times, from TWO different places:
+ * once from whichever `Input` read the click (`InputPassPriority.
+ * onCardSelected`, `InputPayManaOfCostPayment`'s mana-ability path), and a
+ * second time, unconditionally, from forge-game's own `PlaySpellAbility.
+ * chooseOptionalAdditionalCosts` — called in the gap BETWEEN two Inputs
+ * (measured directly off a live match's own `InputQueue`: this seat's active
+ * Input is already `null` by the second round, not a new `Input` instance —
+ * ruling out "a different Input re-entering"), to offer an alternate
+ * additional cost almost no card has. No act, no reply, no retry of ours
+ * sits between the two rounds. Full trace in
+ * `docs/planning/wave34-evidence/s4-repeated-ask.md`.
+ *
+ * That second round is not a new decision for the player to make: it is
+ * Forge re-asking the one it already has the answer to. Pure over `last`
+ * (`SeatState.lastAbilityToPlay`, the host card + ability id this seat was
+ * just given an answer for) and the frame — answers a `getAbilityToPlay`
+ * offering exactly that one ability again, with that same ability,
+ * regardless of policy or full control, because collapsing it removes no
+ * decision the player could have made differently. A DIFFERENT host card (a
+ * land's own mana ability, offered once and never repeated in the same
+ * trace) never matches, so this never reaches past the one ask it exists for.
+ */
+export function repeatedAbilityToPlay(
+	frame: ServerFrame,
+	last: { hostCard: number; abilityId: number } | null,
+): AutoAnswer | null {
+	if (frame.kind !== 'ask' || frame.method !== 'getAbilityToPlay' || last === null) return null;
+	if (frame.abilities.length !== 1) return null;
+	const only = frame.abilities[0];
+	if (only === undefined || frame.hostCard.id !== last.hostCard || only.id !== last.abilityId) return null;
+	return ok(frame.callId, frame.method, only, 'forge re-asked its own already-answered getAbilityToPlay');
+}
+
 /* ── What a seat was last told ───────────────────────────────────────── */
 
 /** What a seat was last told, as far as the stop decisions are concerned. */
