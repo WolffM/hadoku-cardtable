@@ -4,9 +4,18 @@
  *
  * ## The baseline
  *
- * Re-recorded in Wave 35 §B for R10 (the flicker fix): 41985 -> 42753, +768,
- * fully accounted for — measured the strong way, rendering the fixture with
- * and without `Board.tsx`'s change and diffing the real strings. This
+ * Re-recorded in Wave 35 §B a second time, for R10's OWN follow-up fix
+ * (`disabled` → `tabIndex={-1}`, found by lane E's real-browser e2e run: a
+ * `disabled` element never receives a pointer event in a real browser, which
+ * broke the arrange-drag's own press for every inert card — jsdom does not
+ * reproduce that suppression, so the first round of unit tests could not
+ * catch it): 42753 -> 42801, +48, fully accounted for — the SAME 24 inert
+ * cards each trade ` disabled=""` (12 characters) for ` tabindex="-1"` (14
+ * characters), +2 × 24 = +48 exactly, and nothing else changed.
+ *
+ * Re-recorded in Wave 35 §B for R10 (the flicker fix) itself: 41985 -> 42753,
+ * +768, fully accounted for — measured the strong way, rendering the fixture
+ * with and without `Board.tsx`'s change and diffing the real strings. This
  * fixture's 24 cards Forge has not offered (`interaction` is omitted here, so
  * EVERY card is inert) each move from `<div class="board-card__face">...</div>`
  * (36 characters of tags) to `<button type="button" class="board-card__face"
@@ -354,8 +363,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = 'ec67395c3a5d04707749a1d0a3688b29fa681922817ba6bdbe0c9814c1924874';
-const BASELINE_LENGTH = 42753;
+const BASELINE_SHA256 = 'a0d906c474c7c03ce10498df75953c6792bdb6d5f885cc2de405cb4540b2887c';
+const BASELINE_LENGTH = 42801;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

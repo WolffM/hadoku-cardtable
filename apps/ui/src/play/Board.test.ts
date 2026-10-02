@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
 
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { createProjector, type StateFrame } from '../../../server/src/play/visibility.ts';
@@ -107,14 +107,19 @@ function renderBoard(
 
 /**
  * Forge's own controls are the cards and the seats. `Regroup`, the one control
- * that was ours, was deleted in wave 31 §A.3, so every ENABLED button is
- * Forge's. R10 (wave 35) made every card face a real `<button>` always (fixing
- * a flicker a `button`/`div` element-type switch caused — see `Board.tsx`'s
- * comment above `CardOnBoard`'s face), `disabled` when Forge has not offered
- * it, so "is a button" no longer distinguishes offered from not; "is an
- * ENABLED button" still does, and is what every test below now reads.
+ * that was ours, was deleted in wave 31 §A.3, so every button NOT taken out of
+ * the tab order is Forge's. R10 (wave 35) made every card face a real
+ * `<button>` always (fixing a flicker a `button`/`div` element-type switch
+ * caused — see `Board.tsx`'s comment above `CardOnBoard`'s face),
+ * `tabIndex={-1}` when Forge has not offered it — NOT `disabled`, a second
+ * R10 fix found live by lane E's e2e run: a real browser never dispatches a
+ * pointer event to, or bubbles one past, a `disabled` element, so a disabled
+ * card's arrange-drag could never start on a real mouse (jsdom does not
+ * reproduce that suppression, which is why no unit test caught it the first
+ * time). So "is a button" no longer distinguishes offered from not; "is a
+ * button still in the tab order" does, and is what every test below now reads.
  */
-const forgeButtons = (container: HTMLElement) => container.querySelectorAll('button:not([disabled])');
+const forgeButtons = (container: HTMLElement) => container.querySelectorAll('button:not([tabindex="-1"])');
 
 /* ── the pointer drag, driven in jsdom (wave 32 Q4b) ──────────────────── */
 
@@ -594,19 +599,27 @@ describe('BoardInteraction', () => {
   /**
    * R10 (wave 35): an inert card's face is still a `<button>` — see the
    * comment above `CardOnBoard`'s face in `Board.tsx` for why the element type
-   * no longer switches — but it is `disabled`, which keeps every behaviour
-   * this test pins: out of the tab order, not clickable, and reported nowhere.
+   * no longer switches — but it is `tabIndex={-1}`, NOT `disabled` (a second
+   * R10 fix, found live: a real browser suppresses pointer events on a
+   * `disabled` element, which breaks the arrange-drag's own press; jsdom does
+   * not reproduce that, so no unit test caught it the first time). `tabIndex`
+   * alone keeps every behaviour this test pins: out of the tab order, not
+   * clickable (no `onClick` to call), and reported nowhere.
    */
-  it('an inert card is a DISABLED button, and a click on it calls nothing', () => {
+  it('an inert card is a button taken OUT of the tab order, and a click on it calls nothing', () => {
     const { interaction, onSelectCard } = spyInteraction(picks);
     const { container } = renderBoard(view, interaction);
     const inert = [...container.querySelectorAll<HTMLElement>('[data-board-card]:not([data-selectable])')];
     // 5 + 8 battlefield, 3 + 3 graveyard, 5 in hand: 24 cards, 4 of them picked.
     expect(inert).toHaveLength(24 - picks.length);
     for (const card of inert) {
-      const face = card.querySelector('button.board-card__face')!;
+      const face = card.querySelector<HTMLButtonElement>('button.board-card__face')!;
       expect(face, 'still a button').not.toBeNull();
-      expect(face.hasAttribute('disabled'), 'but disabled, so out of the tab order').toBe(true);
+      expect(face.tabIndex, 'out of the tab order, not disabled').toBe(-1);
+      // Never `disabled`: a real browser suppresses a pointer event on a
+      // disabled element entirely (jsdom does not, which is why this needs
+      // its own assertion rather than relying on the real-browser repro).
+      expect(face.hasAttribute('disabled'), 'disabled would break the arrange-drag in a real browser').toBe(false);
       fireEvent.click(card.querySelector('.board-card__face')!);
       fireEvent.click(card.querySelector('[data-testid="card"]')!);
     }
@@ -714,12 +727,12 @@ describe('BoardInteraction', () => {
     rerender(createElement(Board, { view, interaction: inert, boardLayout: 'type-separated' }));
     const second = faceOf();
     expect(second, 'the SAME node, not a new one, once Forge withdraws the offer').toBe(first);
-    expect(second.tagName, 'still a button, now disabled').toBe('BUTTON');
-    expect(second.hasAttribute('disabled')).toBe(true);
+    expect(second.tagName, 'still a button, now out of the tab order').toBe('BUTTON');
+    expect(second.tabIndex).toBe(-1);
     rerender(createElement(Board, { view, interaction: offered, boardLayout: 'type-separated' }));
     const third = faceOf();
     expect(third, 'and still the same node once Forge re-offers it').toBe(first);
-    expect(third.hasAttribute('disabled')).toBe(false);
+    expect(third.tabIndex).toBe(0);
   });
 });
 
@@ -4100,6 +4113,34 @@ describe('R9 (wave 35): notePlayedTo hands a cast’s drop point to Board', () =
     notePlayedTo(99004, { x: -5000, y: -5000 });
     rerender(createElement(Board, { view: withNewLand(99004), boardLayout: 'single' }));
     expect(backIds(container)).toEqual(['8', '24', '6', '25', '99004']);
+  });
+
+  /**
+   * The race lane E's real e2e run actually hit: G calls `notePlayedTo` at
+   * the drag's SETTLE (first crossing into the battlefield), not only at
+   * release — Forge can play the card before the pointer reaches its final
+   * spot, so the settle's placement lands it, and the release's later, more
+   * accurate call has to find an ALREADY-PRESENT card and move it, with no
+   * new Forge frame due to prompt a fresh render on its own.
+   */
+  it('a later notePlayedTo moves a card that already arrived from an earlier one (the settle-then-release race)', () => {
+    const { container, rerender } = renderBoard(base, undefined, 'single');
+    layOut(container);
+
+    // SETTLE: an early placement, landing the card before card 6.
+    const sixBox = container.querySelector<HTMLElement>('[data-card-id="6"]')!.getBoundingClientRect();
+    act(() => notePlayedTo(99005, { x: sixBox.left + 5, y: sixBox.top + sixBox.height / 2 }));
+    rerender(createElement(Board, { view: withNewLand(99005), boardLayout: 'single' }));
+    expect(backIds(container), 'landed at the settle’s position').toEqual(['8', '24', '99005', '6', '25']);
+
+    // RELEASE: a later, more accurate placement for the SAME card, now
+    // already on the battlefield — no `rerender()` call follows this one,
+    // because in production no new Forge frame arrives between settle and
+    // release either.
+    layOut(container);
+    const twentyFourBox = container.querySelector<HTMLElement>('[data-card-id="24"]')!.getBoundingClientRect();
+    act(() => notePlayedTo(99005, { x: twentyFourBox.left + 5, y: twentyFourBox.top + twentyFourBox.height / 2 }));
+    expect(backIds(container), 'moved to the release’s position, with no explicit rerender').toEqual(['8', '99005', '24', '6', '25']);
   });
 
   it('previewPlayedTo draws and clears the same indicator bar an arrange-drag uses, without touching arrangement', () => {

@@ -368,7 +368,15 @@
  * width at which a card's NAME stops being readable, and no further (§A.1).
  */
 
-import { useEffect, useLayoutEffect, useReducer, useRef, type CSSProperties, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
@@ -946,9 +954,39 @@ const PENDING_PLACEMENTS = new Map<number, PendingPlacement>();
 /** How long a pending placement waits for its card. A cast that never resolves (countered, cancelled) just ages out — nothing else cleans it up. */
 const PENDING_PLACEMENT_TTL_MS = 15_000;
 
+/**
+ * `notePlayedTo` is called from OUTSIDE React (the gestures lane's cast
+ * drag), so writing `PENDING_PLACEMENTS` alone does not make any mounted
+ * `Board` look again — a plain `Map` mutation is invisible to React. This is
+ * the external store `useSyncExternalStore` subscribes to: a version that
+ * bumps on every `notePlayedTo` call, so a render that already happened (the
+ * card already on the battlefield from an EARLIER call) gets re-examined
+ * instead of sitting stale. Found live: G's actual call site is the DRAG'S
+ * SETTLE (first crossing into the battlefield, near the hand), not the
+ * release — Forge can play the card before the pointer ever reaches its
+ * final resting point, so the settle's placement gets consumed while the
+ * card is still mid-flight, and the release's later, more accurate call
+ * needs to find a card that is now already present and MOVE it, not just
+ * seed where it will land.
+ */
+let pendingVersion = 0;
+const pendingListeners = new Set<() => void>();
+function bumpPendingVersion(): void {
+  pendingVersion += 1;
+  for (const listener of pendingListeners) listener();
+}
+function subscribePending(listener: () => void): () => void {
+  pendingListeners.add(listener);
+  return () => pendingListeners.delete(listener);
+}
+function getPendingVersion(): number {
+  return pendingVersion;
+}
+
 /** Forget every pending placement. For a test that wants a clean slate, the same reason `forgetArrangements` exists. */
 export function forgetPendingPlacements(): void {
   PENDING_PLACEMENTS.clear();
+  pendingVersion = 0;
 }
 
 /**
@@ -980,18 +1018,28 @@ function liveViewerGeometry(): SlotGeometry[] {
  * what the operator reported, and verified NOT to be a bug in the arrange
  * drag itself (see the real-browser investigation this wave logged).
  *
- * Called once, at the moment a cast releases over the battlefield — `cardId`
- * is the HAND card's own id, which IS the battlefield id it will arrive
- * under: Forge's `TrackableObject.id` is `final` and no code path on a zone
- * change reconstructs a `Card` (only token CREATION does, and a token is
- * never cast from a hand) — checked against
+ * Safe to call MORE THAN ONCE for the same card — and in production it is:
+ * G's real call site is the drag's SETTLE (first crossing into the
+ * battlefield, near the hand), not only the release, because Forge can play
+ * the card before the pointer ever reaches its final resting point. Each
+ * call hit-tests `point` through the exact same `snapTo` an arrange-drag's
+ * own indicator uses, against the live DOM, and OVERWRITES whatever this
+ * `cardId` had recorded before — the latest point wins, whether the card is
+ * still in hand (the common case: a placement is seeded for an arrival that
+ * has not happened yet) or ALREADY on the battlefield (the settle already
+ * landed it, and this is the release's more accurate follow-up — `Board`'s
+ * own effect, woken by `bumpPendingVersion` below, re-examines every
+ * currently-visible battlefield card on each call, not only newly-arriving
+ * ones, so an already-present card is simply MOVED via the same `withMove`
+ * path a real arrange-drop uses). Either way a point that hits no slot, or
+ * hits `'hand'`, records nothing, same as a drag indicator going `hidden`.
+ *
+ * `cardId` is the HAND card's own id, which IS the battlefield id it
+ * arrives/sits under: Forge's `TrackableObject.id` is `final` and no code
+ * path on a zone change reconstructs a `Card` (only token CREATION does, and
+ * a token is never cast from a hand) — checked against
  * `forge/forge-game/src/main/java/forge/trackable/TrackableObject.java` and
- * the zone-change paths, not assumed. `point` hit-tests through the exact
- * same `snapTo` an arrange-drag's own indicator uses, against the live DOM —
- * "where the indicator would have shown" and "where this card lands" are
- * answered by the same function. A point that hits no slot (released off the
- * battlefield, or nothing to hit-test against) records nothing, same as a
- * drag indicator going `hidden`.
+ * the zone-change paths, not assumed.
  */
 export function notePlayedTo(cardId: number, point: { x: number; y: number }): void {
   const snap = snapTo(liveViewerGeometry(), point.x, point.y);
@@ -1000,6 +1048,11 @@ export function notePlayedTo(cardId: number, point: { x: number; y: number }): v
   // target for "where a newly played permanent goes".
   if (snap === null || snap.slot === 'hand') return;
   PENDING_PLACEMENTS.set(cardId, { slot: snap.slot, target: snap.target, expiresAt: Date.now() + PENDING_PLACEMENT_TTL_MS });
+  // `PENDING_PLACEMENTS` is a plain `Map`; mutating it is invisible to
+  // React. This is what wakes every mounted `Board` (`useSyncExternalStore`,
+  // below) to re-examine its CURRENT battlefield — covering both "a new
+  // arrival" and "a card that arrived already and now needs to move".
+  bumpPendingVersion();
 }
 
 /**
@@ -1589,17 +1642,28 @@ function CardOnBoard({
        * window unmounts this whole subtree each time — a fresh `<img>` with
        * nothing painted over the text underneath it for a frame, which is
        * exactly "a flicker of 'Creature' and rules text when a creature taps to
-       * attack." The face is now always the same element — a `<button>`,
-       * `disabled` when not selectable — so the window in the data can no
-       * longer cause a window in the DOM. The selectable-only styling moved
-       * from a `button.board-card__face` tag selector to
-       * `.board-card[data-selectable] > .board-card__face` in `card.css`,
-       * which was the only thing still keyed off the tag.
+       * attack." The face is now always the same element — a `<button>` — so
+       * the window in the data can no longer cause a window in the DOM. The
+       * selectable-only styling moved from a `button.board-card__face` tag
+       * selector to `.board-card[data-selectable] > .board-card__face` in
+       * `card.css`, which was the only thing still keyed off the tag.
+       *
+       * NOT `disabled` (found live, by lane E's e2e run): a real browser never
+       * dispatches pointer events to, or bubbles them past, a `disabled` form
+       * control — the HTML spec's own behaviour, which jsdom does not
+       * reproduce (every unit test here fired `pointerdown` directly on the
+       * element and jsdom delivered it regardless), so this shipped a second
+       * regression the first one's own tests could not see: a disabled card's
+       * arrange-drag could never START on a real mouse, because
+       * `useArrangeDrag`'s board-level listener never saw the press at all.
+       * `tabIndex={-1}` keeps the same accessibility outcome (out of the tab
+       * order) without touching whether the browser delivers pointer events —
+       * `onClick` being `undefined` already keeps a click from doing anything.
        */}
       <button
         type="button"
         className="board-card__face"
-        disabled={!selectable}
+        tabIndex={selectable ? undefined : -1}
         aria-label={selectable ? `Select ${entry.card.name}${entry.tapped ? ', tapped' : ''}` : undefined}
         onClick={selectable ? () => interaction.onSelectCard(entry.id) : undefined}
       >
@@ -2766,14 +2830,31 @@ export function Board({
   useArrangeDrag(root, viewer !== undefined, commit);
 
   /*
-   * R9: fold in any PENDING placement (`notePlayedTo`, above) for a card that
-   * has just shown up on the viewer's own battlefield — once, synchronously
+   * R9: woken by `notePlayedTo` (a plain `Map` write is invisible to React
+   * otherwise) so the effect below re-examines the board on EVERY call, not
+   * only when `viewer`/`arranged` happen to change for some other reason —
+   * the race the live suite caught: G's actual call site is the drag's
+   * SETTLE, so by the time the (more accurate) RELEASE call happens the card
+   * is usually already on the battlefield, sitting wherever the settle's
+   * placement put it, with no new Forge frame due to prompt a re-render.
+   */
+  const pendingVersion = useSyncExternalStore(subscribePending, getPendingVersion, getPendingVersion);
+
+  /*
+   * R9: fold in any PENDING placement (`notePlayedTo`, above) for a card the
+   * viewer's battlefield currently shows — once per placement, synchronously
    * before paint (`useLayoutEffect`, not `useEffect`), so there is no
    * append-then-snap flash: by the time the browser paints this frame, the
-   * card is already where the cast's drop point said it should be. A card
-   * with no pending placement, or a stale (TTL-expired) one, is left to
-   * `group()`'s own default — appended to the end of its type row, exactly
-   * today's behaviour.
+   * card is already where the cast's drop point said it should be. This
+   * covers BOTH a card newly arriving with a pending placement AND a card
+   * that was already present and has just been told, by a second
+   * `notePlayedTo` call, to move — `withMove` filters the card out of
+   * wherever it currently sits before reinserting it, exactly as a real
+   * arrange-drop does, so "already there" and "just arrived" need no
+   * separate handling. A card with no pending placement, or a stale
+   * (TTL-expired) one, is left alone — `group()`'s own default for an
+   * arrival (appended to the end of its type row) or wherever it already
+   * was arranged, exactly today's behaviour either way.
    */
   useLayoutEffect(() => {
     if (viewer === undefined) return;
@@ -2800,7 +2881,9 @@ export function Board({
       ARRANGED.set(key, next);
       redraw();
     }
-  }, [viewer, arranged, key, boardLayout]);
+    // `pendingVersion` is read only to be a dependency — every `notePlayedTo`
+    // call must re-run this effect, whether or not anything else changed.
+  }, [viewer, arranged, key, boardLayout, pendingVersion]);
 
   const arranging: Arranging | undefined = viewer === undefined ? undefined : ARRANGING;
 

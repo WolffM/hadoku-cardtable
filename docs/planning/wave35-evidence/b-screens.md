@@ -108,3 +108,95 @@ to this lane's process and killed every Vite dev server on the host, including a
 lane's (confirmed: the port-5799 server that was open earlier in this session, likely
 lane G's, is gone). I did not realize this until after the fact. If any lane still
 needs its dev server, it will need restarting (`pnpm --filter @hadoku/ui dev`).
+
+## Lane E's e2e findings, post-push — three items, all addressed
+
+### (1) R9b race — fixed
+
+See `/tmp/claude-1000/w35-seams/b.md`'s "R9 seam — IMPLEMENTED" update. G's real call
+site is the drag's SETTLE, not only the release, so `notePlayedTo` is now safe to call
+more than once for the same card: a `useSyncExternalStore`-backed version wakes every
+mounted `Board` on every call, and the existing `useLayoutEffect` already handled "card
+already present, told to move" correctly (`withMove` filters a card out of wherever it
+currently sits before reinserting it) — the only real gap was that nothing told React to
+look again. New `Board.test.ts` case: "a later notePlayedTo moves a card that already
+arrived from an earlier one (the settle-then-release race)" — mutation: reverted (the
+version bump commented out): 1 failed/197 passed; restored: 198/198.
+
+### (2) table-fit.spec.ts: left-column spacing, 57.28px against a 32px max
+
+Root cause confirmed: the invariant (`nothing but the counts sits between them and the
+graveyard`, `GAP_MAX = 32`) encodes the PRE-R3 column order (avatar → mana pool →
+counts → graveyard, where counts WAS adjacent to the graveyard). R3 moved the mana pool
+to sit between the counts and the graveyard instead (avatar → counts → mana pool →
+graveyard), which is the intended, operator-mandated order — so the invariant's
+assumption is now simply wrong, not a bug in `board.css`. Confirmed numerically too:
+`--mana-h` is `1.9rem` (30.4px) and the measured 57.28px gap is that plus the original
+~27px pile-margin allowance — exactly the mana pool's own fixed-height track now sitting
+in what the invariant assumed was empty space.
+
+**Not fixed in my files, per the brief's own instruction ("tell me exactly what it
+should now say and I'll route it to E")** — this is `e2e/table-fit.spec.ts`,
+lane E's file. Exact proposed fix, for the manager to route:
+
+1. Add one field to `measureColumns()`'s per-seat object (both the `SeatColumn`
+   interface and the `one()` builder, `e2e/table-fit.spec.ts` around line 1527 /1579):
+   `manaPool: box(find('[data-mana-pool]'))`.
+2. Replace the single "counts → graveyard, gap ≤ GAP_MAX" check (lines ~2070-2082) with
+   two checks, counts → mana pool → graveyard in order (mirrored for `them`, where it
+   reads graveyard → mana pool → counts, the same vertical mirror the rest of the column
+   already is):
+
+```ts
+// 'you':
+expect(c.face.bottom, `${w}: the avatar is above the counts`).toBeLessThanOrEqual(counts.top + tol);
+expect(counts.bottom, `${w}: the counts are above the mana pool`).toBeLessThanOrEqual(c.manaPool.top + tol);
+expect(c.manaPool.top - counts.bottom, `${w}: nothing but a pile's own margin sits between the counts and the mana pool`).toBeLessThanOrEqual(GAP_MAX);
+expect(c.manaPool.bottom, `${w}: the mana pool is above the graveyard`).toBeLessThanOrEqual(c.graveyard.top + tol);
+expect(c.graveyard.top - c.manaPool.bottom, `${w}: nothing but a pile's own margin sits between the mana pool and the graveyard`).toBeLessThanOrEqual(GAP_MAX);
+// floor check unchanged
+
+// 'them' (mirror):
+expect(c.graveyard.bottom, `${w}: the graveyard is above the mana pool`).toBeLessThanOrEqual(c.manaPool.top + tol);
+expect(c.manaPool.top - c.graveyard.bottom, `${w}: nothing but a pile's own margin sits between the graveyard and the mana pool`).toBeLessThanOrEqual(GAP_MAX);
+expect(c.manaPool.bottom, `${w}: the mana pool is above the counts`).toBeLessThanOrEqual(counts.top + tol);
+expect(counts.top - c.manaPool.bottom, `${w}: nothing but a pile's own margin sits between the mana pool and the counts`).toBeLessThanOrEqual(GAP_MAX);
+expect(counts.bottom, `${w}: the counts are above the avatar`).toBeLessThanOrEqual(c.face.top + tol);
+// roof check unchanged
+```
+
+This keeps `GAP_MAX` exactly as a "nothing but a pile's own margin" tolerance between
+each TRUE pair of adjacent tracks, rather than widening it to swallow the mana pool's
+own (fixed, known) height — which would silently stop catching a REAL gap regression of
+similar size in the future.
+
+### (3) table-fit.spec.ts: a tapped land draws no arrange-drag ghost — fixed, was mine
+
+Root cause: R10's own fix (making every card face always a `<button>`, `disabled` when
+not selectable) broke the arrange-drag's own press for every NON-selectable card in a
+REAL browser — a `disabled` form element never receives, and never bubbles, a pointer
+event (the HTML spec's own behaviour). jsdom does not reproduce that suppression (RTL's
+`fireEvent.pointerDown` dispatches directly to the target regardless of `disabled`),
+which is why none of R10's own unit tests caught it the first time — a real tapped,
+non-selectable card is exactly the `{ghost:0, indicator:1, pickedUp:0}` shape lane E
+found (the stray `indicator:1` was almost certainly a leftover from an earlier drag in
+the same test, not from the blocked press).
+
+Fixed in `Board.tsx`: `disabled={!selectable}` → `tabIndex={selectable ? undefined :
+-1}`. Keeps the same accessibility outcome (out of the tab order) without suppressing
+pointer events — `onClick` already being `undefined` when not selectable means a click
+still does nothing. `parity.test.ts`'s byte-pin re-recorded again (+48, the 24 inert
+cards each trading ` disabled=""` for ` tabindex="-1"`, +2 chars × 24, fully accounted
+for). `Board.test.ts`'s existing `disabled`-reading assertions updated to read
+`tabIndex`/absence of `disabled` instead (not new tests — the underlying behaviour these
+pin is unchanged, only which attribute expresses it).
+
+**Verified fixed in a REAL browser**, since jsdom cannot prove this (that's the whole
+nature of the bug): `b-r10-tapped-drag-fixed.png` + the trace — card 8 (Izzet Guildgate,
+`data-tapped`, not `data-selectable`, the exact fixture card lane E's own run hit) now
+shows `midway: { ghost: 1, indicator: 1, pickedUp: 1 }` (was `{0, 1, 0}`), and the card
+visibly moves on release. Same scratch-script method as the R9 investigation: a
+standalone Playwright script run from this lane's own scratch flow (written, run,
+deleted — never the shared MCP browser), a replay server, and `pnpm --filter @hadoku/ui
+dev` on port 5173 (not reserved). Vite was stopped by its exact PID this time, not
+`pkill`.
