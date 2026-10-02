@@ -350,6 +350,32 @@ export function parsePoolFixture(json: unknown): PoolFixture {
  * `Constructed` row: 60 minimum, 15 sideboard, 4 copies. Standard has had no
  * restricted list since 2003 and the snapshots this library uses carry none.
  */
+/**
+ * Snow-covered basics, under the same ordinary names `isBasicLand` already
+ * exempts from the copy limit (`deck.ts`'s five, Wastes deliberately excluded).
+ *
+ * Forge's own `canHaveAnyNumberOf` tests `isBasicLand()`, which is TYPE-based
+ * (`CardType.isBasicLand`, forge-core `CardType.java:520`) — a snow basic's
+ * type line is `Basic Snow Land — Mountain`, so Forge exempts it exactly as it
+ * does `Mountain`. `@hadoku/deck`'s own `isBasicLand` is name-based and
+ * deliberately narrow (five names, "and notably not Wastes"), so it does not
+ * know these five exist. Rather than widen that general rule for one era's
+ * decks, the pool builder — which already supplies `anyNumberOf` for
+ * format-specific exemptions like Relentless Rats — supplies these too. Found
+ * transcribing the 2008 power-summer era (wave 34 lane D): Coldsnap was legal
+ * there and five of its twelve decks play more than four of one snow basic
+ * (Michael Jacob's Red Deck Wins plays 22 Snow-Covered Mountain, load-bearing
+ * for Skred). Harmless for every other era, none of which has Coldsnap in its
+ * legal sets.
+ */
+const SNOW_BASIC_LAND_NAMES: readonly string[] = [
+  'Snow-Covered Plains',
+  'Snow-Covered Island',
+  'Snow-Covered Swamp',
+  'Snow-Covered Mountain',
+  'Snow-Covered Forest',
+];
+
 export function poolFromFixture(fixture: PoolFixture): FormatPool {
   return {
     name: fixture.name,
@@ -358,5 +384,6 @@ export function poolFromFixture(fixture: PoolFixture): FormatPool {
     // See `poolNameKeys`.
     legal: new Set(fixture.cards.flatMap(poolNameKeys)),
     banned: new Set(fixture.banned),
+    anyNumberOf: new Set(SNOW_BASIC_LAND_NAMES),
   };
 }

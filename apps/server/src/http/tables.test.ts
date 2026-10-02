@@ -10,8 +10,9 @@
  *
  * The decks and pools are the committed library (`decks/`), read by the same
  * loader production uses. The illegal case is real history, not an invented
- * card: Standard as of 2011-07-01 banned Jace, the Mind Sculptor and
- * Stoneforge Mystic, and Ben Stark won PT Paris with four of each.
+ * card: Standard as of 2011-07-15 banned Jace, the Mind Sculptor and
+ * Stoneforge Mystic, and 2010's UG Polymorph (Antoine Ruel) played four Jaces
+ * a year earlier, when it was still legal.
  */
 
 import express from 'express';
@@ -43,23 +44,45 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '../../../..');
 const CUBE_FILE = resolve(REPO_ROOT, 'apps/ui/src/draft/pool.json');
 
-const BEN_STARK = 'pt-paris-2011-1-ben-stark';
-const PAUL_RIETZL = 'pt-paris-2011-2-paul-rietzl';
 /**
- * Two more real decks, because a room has ONE pool (wave 25 §A) and a test that
- * needs one legal deck and one illegal one now needs both of them in the SAME
- * pool. Both PT Paris decks are illegal after the bans, so the old pairing —
- * alice illegal in 2011-07-01, bob legal in 2011-02-13 — is no longer a table
- * that can exist. Derived from the real library, not invented:
- *   - `AADIL` is legal in 2011-07-01 and BEN_STARK is not (the bans).
- *   - `EDGAR` is legal in 2011-05-14 and not in 2011-02-13 (a later set).
+ * Real cross-era history, the way `library.test.ts`'s own "failure path"
+ * section uses it: 2010's UG Polymorph (Antoine Ruel) plays four Jace, the
+ * Mind Sculptor, legal in its own era (`Standard (M11)`, 2010-07-16) and
+ * banned the moment `Standard (M12)` (2011-07-15) takes effect — two of its
+ * other cards (Essence Scatter, Polymorph) are ALSO illegal there, rotated out
+ * independently of the ban, which is real Magic history and not tidied away.
  */
-const AADIL = 'scg-orlando-2011-7-aadil-qadir';
-const EDGAR = 'scg-orlando-2011-1-edgar-flores';
-const PT_PARIS = '2011-02-13';
-const AFTER_BANS = '2011-07-01';
-const SCG_ORLANDO = '2011-05-14';
-const PT_DKA = '2012-02-12';
+const UG_POLYMORPH = 'power-2010-3-antoine-ruel-ug-polymorph';
+const POWER_2010 = '2010-07-16';
+const POWER_2011 = '2011-07-15';
+const POWER_2012 = '2012-07-13';
+/**
+ * Two more real decks, because a room has ONE pool (wave 25 §A) and a test
+ * that needs one legal deck and one illegal one now needs both of them in the
+ * SAME pool. `ELDRAZI_GREEN` is one of the twelve decks the 2011 era's own
+ * catalogue carries, so it is legal in `POWER_2011` by construction
+ * (`validate-library.ts`, 0 issues) — the same pool `UG_POLYMORPH` fails.
+ */
+const ELDRAZI_GREEN = 'power-2011-1-daniel-royde-eldrazi-green';
+/**
+ * The generic "second real deck", legal in `POWER_2010` alongside
+ * `UG_POLYMORPH` (both native to the 2010 era), used wherever a test needs
+ * "another deck" and nothing more specific — including every `bothLoaded`
+ * call, which opens a room on `POWER_2010` by default.
+ */
+const SECOND_DECK = 'power-2010-1-emanuele-giusti-jund';
+/** A real deck native to the 2011 era, used ONLY for the one test that needs a deck legal in `POWER_2011` and not in `POWER_2010`. */
+const CAW_BLADE = 'power-2011-1-marcello-calvetta-caw-blade';
+/**
+ * Legal in literally any pool: a basic land is exempt from both the
+ * pool-membership check and the copy limit (`format.ts`), so sixty Islands
+ * passes every era's gate with zero issues. Used where a test needs a SECOND
+ * deck that stays legal across a room's format change — no real two decks in
+ * this library's nine eras are guaranteed to both survive a jump between two
+ * of them, because each era is deliberately the far side of a full rotation
+ * from its neighbours (`catalog.ts`'s own header).
+ */
+const ALWAYS_LEGAL_DCK = '[metadata]\nName=Basics\nDeck Type=Constructed\n[Main]\n60 Island\n';
 
 let routesMod: typeof import('./routes.ts');
 let playMod: typeof import('../play/socket.ts');
@@ -96,9 +119,9 @@ describe('the library', () => {
 		// pinned here duplicates a fact `LIBRARY` already states. The shape pin
 		// that SHOULD fail when a collection appears lives in
 		// `packages/deck/src/library/library.test.ts`, once, on purpose.
-		expect(library.formats.map((f) => f.id)).toContain(PT_PARIS);
-		expect(library.formats.map((f) => f.id)).toContain(PT_DKA);
-		expect(library.formats.map((f) => f.pool.name)).toContain('Standard (MBS)');
+		expect(library.formats.map((f) => f.id)).toContain(POWER_2010);
+		expect(library.formats.map((f) => f.id)).toContain(POWER_2012);
+		expect(library.formats.map((f) => f.pool.name)).toContain('Standard (M11)');
 		expect(library.decks).toHaveLength(LIBRARY.flatMap((c: LibraryCollection) => c.decks).length);
 	});
 
@@ -108,8 +131,8 @@ describe('the library', () => {
 				id: 'broken',
 				directory: 'decks/no-such-collection',
 				event: 'nothing',
-				format: 'Standard (MBS)',
-				date: PT_PARIS,
+				format: 'Standard (M11)',
+				date: POWER_2010,
 				source: 'nowhere',
 				decks: [{ id: 'ghost', file: 'ghost.dck' }],
 			},
@@ -117,9 +140,11 @@ describe('the library', () => {
 		expect(broken.decks).toEqual([]);
 		expect(broken.faults).toHaveLength(1);
 		expect(broken.faults[0]).toContain('ghost.dck');
-		// The formats still load: one broken deck costs one entry, not the picker.
-		// Count derived from the frozen pools, not restated here.
-		expect(broken.formats.length).toBeGreaterThanOrEqual(3);
+		// The format still loads: one broken deck costs one entry, not the picker.
+		// Exactly one, because the loader reads pools for the PASSED-IN library's
+		// own dates (wave 34 §D), and this synthetic library names only one.
+		expect(broken.formats).toHaveLength(1);
+		expect(broken.formats[0]?.id).toBe(POWER_2010);
 	});
 });
 
@@ -130,7 +155,7 @@ describe('checkSeat', () => {
 
 	// Every deck, checked against ITS OWN collection's format rather than one
 	// hardcoded date. The previous version iterated the whole library against
-	// PT_PARIS, which was correct only while the library held one collection —
+	// POWER_2010, which was correct only while the library held one collection —
 	// the same shape of bug as asserting a collection's size against a
 	// library-wide total. A DKA deck is legal in DKA and is not legal in a 2011
 	// pool, and both of those are the right answer.
@@ -142,7 +167,7 @@ describe('checkSeat', () => {
 			LIBRARY.flatMap((c: LibraryCollection) => c.decks.map((d) => [d.id, c.date] as [string, string])),
 		);
 		for (const d of library.decks) {
-			const format = formatOf.get(d.id) ?? PT_PARIS;
+			const format = formatOf.get(d.id) ?? POWER_2010;
 			const v = checkSeat({ deck: { library: d.id }, rules: { kind: 'standard', format } }, ctx);
 			expect(v, `${d.id} in ${format}`).toMatchObject({ legal: true, issues: [], note: null });
 		}
@@ -184,38 +209,46 @@ describe('checkSeat', () => {
 		const reachable = new Set([...offered.values()].flat());
 		expect(library.decks.filter((d) => !reachable.has(d.id)).map((d) => d.id)).toEqual([]);
 
-		// And the filter does NARROW: the bans cost the list the decks that
-		// played the banned cards, Ben Stark's among them.
-		expect(offered.get(PT_PARIS)).toContain(BEN_STARK);
-		expect(offered.get(AFTER_BANS)).not.toContain(BEN_STARK);
-		expect(offered.get(AFTER_BANS)?.length).toBeLessThan(offered.get(PT_PARIS)?.length ?? 0);
+		// And the filter does NARROW: a deck offered by its own era is not
+		// necessarily offered by another — UG Polymorph is legal in 2010 and the
+		// bans (plus the rotation that comes with a year passing) cost it 2011.
+		// Comparing the two eras' TOTAL counts would not show this: 2011 offers
+		// more decks overall than 2010 simply because it has more decks native to
+		// it (12 against 8), which has nothing to do with the ban.
+		expect(offered.get(POWER_2010)).toContain(UG_POLYMORPH);
+		expect(offered.get(POWER_2011)).not.toContain(UG_POLYMORPH);
 	});
 
-	it('refuses the same deck after the bans, naming each banned card', () => {
-		const v = checkSeat({ deck: { library: BEN_STARK }, rules: { kind: 'standard', format: AFTER_BANS } }, ctx) as SeatVerdict;
+	it('refuses the same deck a year later, naming the banned card and the rotation', () => {
+		const v = checkSeat({ deck: { library: UG_POLYMORPH }, rules: { kind: 'standard', format: POWER_2011 } }, ctx) as SeatVerdict;
 		expect(v.legal).toBe(false);
+		// Real cross-era history, not tidied: Essence Scatter and Polymorph rotated
+		// out independently of the ban, so the deck fails three ways, not one.
 		expect(v.issues.map((i) => [i.kind, i.cardName])).toEqual([
+			['not-in-pool', 'Essence Scatter'],
+			['not-in-pool', 'Polymorph'],
 			['banned', 'Jace, the Mind Sculptor'],
-			['banned', 'Stoneforge Mystic'],
 		]);
-		expect(v.issues[0]?.message).toBe('plays 4x Jace, the Mind Sculptor, which Standard (2011-07-01) bans');
+		expect(v.issues.find((i) => i.kind === 'banned')?.message).toBe(
+			'plays 4x Jace, the Mind Sculptor, which Standard (M12) bans',
+		);
 		// Not a fault in the deck, and said separately.
-		expect(v.note).toContain('is built for "Standard (MBS)"');
+		expect(v.note).toContain('is built for "Standard (M11)"');
 	});
 
 	it('checks pasted .dck text the same way as a library deck', () => {
-		const text = library.deck(BEN_STARK)?.text ?? '';
-		const pasted = checkSeat({ deck: { dck: text }, rules: { kind: 'standard', format: AFTER_BANS } }, ctx) as SeatVerdict;
-		const byId = checkSeat({ deck: { library: BEN_STARK }, rules: { kind: 'standard', format: AFTER_BANS } }, ctx) as SeatVerdict;
+		const text = library.deck(UG_POLYMORPH)?.text ?? '';
+		const pasted = checkSeat({ deck: { dck: text }, rules: { kind: 'standard', format: POWER_2011 } }, ctx) as SeatVerdict;
+		const byId = checkSeat({ deck: { library: UG_POLYMORPH }, rules: { kind: 'standard', format: POWER_2011 } }, ctx) as SeatVerdict;
 		expect(pasted.issues).toEqual(byId.issues);
 		expect(pasted.text).toBe(byId.text);
 	});
 
 	it('answers an unknown deck or format as unresolved, not as an illegal deck', () => {
-		expect(checkSeat({ deck: { library: 'nope' }, rules: { kind: 'standard', format: PT_PARIS } }, ctx)).toEqual({
+		expect(checkSeat({ deck: { library: 'nope' }, rules: { kind: 'standard', format: POWER_2010 } }, ctx)).toEqual({
 			error: 'no library deck "nope"',
 		});
-		expect(checkSeat({ deck: { library: BEN_STARK }, rules: { kind: 'standard', format: '1999-01-01' } }, ctx)).toEqual({
+		expect(checkSeat({ deck: { library: UG_POLYMORPH }, rules: { kind: 'standard', format: '1999-01-01' } }, ctx)).toEqual({
 			error: 'no format "1999-01-01"',
 		});
 	});
@@ -260,7 +293,7 @@ function fakeLobby(): FakeLobby {
 		return room !== undefined && room.members.some((m) => m.id === memberId) ? room : undefined;
 	};
 	return {
-		open(id, members, gameType = 'constructed-1v1', format = PT_PARIS) {
+		open(id, members, gameType = 'constructed-1v1', format = POWER_2010) {
 			// The first member is the leader, as `lobby.create` makes the creator one.
 			const room: FakeRoom = {
 				id,
@@ -419,14 +452,14 @@ describe('POST /api/play/matches, gated', () => {
 		const h = await boot();
 		const res = await start(h, {
 			opponent: 'ai',
-			seats: [standard(BEN_STARK, PT_PARIS), standard(PAUL_RIETZL, PT_PARIS)],
+			seats: [standard(UG_POLYMORPH, POWER_2010), standard(SECOND_DECK, POWER_2010)],
 		});
 		expect(res.status).toBe(201);
 		expect(typeof res.body.matchId).toBe('string');
 		expect(h.specs).toHaveLength(1);
 		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([
-			readFileSync(resolve(REPO_ROOT, 'decks/standard-2011-02-13-pt-paris/1-ben-stark-mystic-caw-go.dck'), 'utf8'),
-			readFileSync(resolve(REPO_ROOT, 'decks/standard-2011-02-13-pt-paris/2-paul-rietzl-boros-landfall.dck'), 'utf8'),
+			readFileSync(resolve(REPO_ROOT, 'decks/standard-2010/3-antoine-ruel-ug-polymorph.dck'), 'utf8'),
+			readFileSync(resolve(REPO_ROOT, 'decks/standard-2010/1-emanuele-giusti-jund.dck'), 'utf8'),
 		]);
 	});
 
@@ -434,17 +467,17 @@ describe('POST /api/play/matches, gated', () => {
 		const h = await boot();
 		const res = await call(h, 'POST', '/api/play/matches', {
 			opponent: 'ai',
-			seats: [standard(BEN_STARK, AFTER_BANS), standard(PAUL_RIETZL, AFTER_BANS)],
+			seats: [standard(UG_POLYMORPH, POWER_2011), standard(SECOND_DECK, POWER_2011)],
 		});
 		expect(res.status).toBe(422);
 		expect(res.body.error).toBe(
-			'Seat 1\'s deck "Mystic Caw Go (Ben Stark)" is not legal in Standard (2011-07-01): ' +
-				'plays 4x Jace, the Mind Sculptor, which Standard (2011-07-01) bans (and 1 more)',
+			'Seat 1\'s deck "UG Polymorph (Antoine Ruel)" is not legal in Standard (M12): ' +
+				'plays 1x Essence Scatter, which is not in Standard (M12) (and 2 more)',
 		);
 		const seats = res.body.seats as { legal: boolean; issues: { cardName: string }[] }[];
-		// Every PT Paris Top 8 deck played one of the two; the refusal leads with seat 1.
+		// Both of these 2010 decks have rotated out of the 2011 pool; the refusal leads with seat 1.
 		expect(seats.map((s) => s.legal)).toEqual([false, false]);
-		expect(seats[0]?.issues.map((i) => i.cardName)).toEqual(['Jace, the Mind Sculptor', 'Stoneforge Mystic']);
+		expect(seats[0]?.issues.map((i) => i.cardName)).toEqual(['Essence Scatter', 'Polymorph', 'Jace, the Mind Sculptor']);
 		// The .dck text stays on the server.
 		expect(JSON.stringify(res.body)).not.toContain('[metadata]');
 		expect(h.specs).toEqual([]);
@@ -452,7 +485,7 @@ describe('POST /api/play/matches, gated', () => {
 
 	it('refuses a raw .dck that skipped the gate', async () => {
 		const h = await boot();
-		const text = library.deck(BEN_STARK)?.text;
+		const text = library.deck(UG_POLYMORPH)?.text;
 		const res = await call(h, 'POST', '/api/play/matches', { opponent: 'ai', decks: [text, null] });
 		expect(res.status).toBe(422);
 		expect(res.body.error).toContain('a deck must be checked');
@@ -468,11 +501,11 @@ describe('POST /api/play/matches, gated', () => {
 
 	it('answers a malformed body or an unknown deck with 400, not a verdict', async () => {
 		const h = await boot();
-		const bad = await call(h, 'POST', '/api/play/matches', { seats: [standard(BEN_STARK, PT_PARIS)] });
+		const bad = await call(h, 'POST', '/api/play/matches', { seats: [standard(UG_POLYMORPH, POWER_2010)] });
 		expect(bad).toMatchObject({ status: 400, body: { error: 'seats is a two-element array' } });
 		const unknown = await call(h, 'POST', '/api/play/matches', {
 			opponent: 'ai',
-			seats: [standard(BEN_STARK, PT_PARIS), standard('nope', PT_PARIS)],
+			seats: [standard(UG_POLYMORPH, POWER_2010), standard('nope', POWER_2010)],
 		});
 		expect(unknown).toMatchObject({ status: 400, body: { error: 'seat 2: no library deck "nope"', seat: 1 } });
 		expect(h.specs).toEqual([]);
@@ -484,7 +517,7 @@ describe('POST /api/play/matches, gated', () => {
 			h,
 			'POST',
 			'/api/play/matches',
-			{ seats: [standard(BEN_STARK, PT_PARIS), standard(PAUL_RIETZL, PT_PARIS)] },
+			{ seats: [standard(UG_POLYMORPH, POWER_2010), standard(SECOND_DECK, POWER_2010)] },
 			edgeHeaders('mallory', 'public'),
 		);
 		expect(res.status).toBe(404);
@@ -499,21 +532,22 @@ describe('the catalog routes', () => {
 		const formats = await call(h, 'GET', '/api/tables/formats');
 		expect(formats.status).toBe(200);
 		const rows = (formats.body.formats as { id: string; banned: string[] }[]).map((f) => [f.id, f.banned]);
-		expect(rows).toContainEqual([PT_PARIS, []]);
-		expect(rows).toContainEqual([AFTER_BANS, ['Jace, the Mind Sculptor', 'Stoneforge Mystic']]);
-		expect(rows).toContainEqual([PT_DKA, []]);
+		expect(rows).toContainEqual([POWER_2010, []]);
+		expect(rows).toContainEqual([POWER_2011, ['Jace, the Mind Sculptor', 'Stoneforge Mystic']]);
+		expect(rows).toContainEqual([POWER_2012, []]);
 		const decks = await call(h, 'GET', '/api/tables/decks');
 		const list = decks.body.decks as { id: string; name: string; main: { count: number }[] }[];
 		expect(list).toHaveLength(LIBRARY.flatMap((c: LibraryCollection) => c.decks).length);
-		expect(list[0]).toMatchObject({ id: BEN_STARK, name: 'Mystic Caw Go (Ben Stark)' });
+		// The very first deck in catalog order: the oldest era, first deck chosen.
+		expect(list[0]).toMatchObject({ id: 'power-2008-1-michael-jacob-red-deck-wins', name: 'Red Deck Wins (Michael Jacob)' });
 		expect(list[0]?.main.reduce((n, e) => n + e.count, 0)).toBe(60);
 	});
 
 	it('checks a deck without starting anything', async () => {
 		const h = await boot();
-		const res = await call(h, 'POST', '/api/tables/check', standard(BEN_STARK, AFTER_BANS));
+		const res = await call(h, 'POST', '/api/tables/check', standard(UG_POLYMORPH, POWER_2011));
 		expect(res.status).toBe(200);
-		expect(res.body).toMatchObject({ legal: false, rulesName: 'Standard (2011-07-01)' });
+		expect(res.body).toMatchObject({ legal: false, rulesName: 'Standard (M12)' });
 		expect(h.specs).toEqual([]);
 	});
 });
@@ -552,7 +586,7 @@ describe('a drafted deck', () => {
 			opponent: 'ai',
 			seats: [
 				{ deck: { dck: text }, rules: { kind: 'draft', draftId: 'amber-lantern-k7q4' } },
-				standard(PAUL_RIETZL, PT_PARIS),
+				standard(SECOND_DECK, POWER_2010),
 			],
 		});
 		expect(res.status).toBe(201);
@@ -560,7 +594,7 @@ describe('a drafted deck', () => {
 		// prebuilt 60 in seat 2, and both arrive in the SAME field of the SAME spec
 		// Forge is launched with — each exactly the text its own rule checked.
 		expect(h.specs).toHaveLength(1);
-		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([text, library.deck(PAUL_RIETZL)?.text]);
+		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([text, library.deck(SECOND_DECK)?.text]);
 	});
 
 	it('refuses a card the caller did not draft, by name', async () => {
@@ -609,10 +643,10 @@ describe('a drafted deck', () => {
  */
 describe('bypass routes, each refused with the card named', () => {
 	const LOTUS = '4 Black Lotus|LEA';
-	const legalText = (): string => library.deck(PAUL_RIETZL)?.text ?? '';
+	const legalText = (): string => library.deck(SECOND_DECK)?.text ?? '';
 	const seatsFor = (dck: string) => ({
 		opponent: 'ai',
-		seats: [{ deck: { dck }, rules: { kind: 'standard', format: PT_PARIS } }, standard(BEN_STARK, PT_PARIS)],
+		seats: [{ deck: { dck }, rules: { kind: 'standard', format: POWER_2010 } }, standard(UG_POLYMORPH, POWER_2010)],
 	});
 	/** Put `insert` just before the sideboard, so the lines after it are the sideboard in both readers. */
 	const beforeSideboard = (insert: string): string => {
@@ -718,7 +752,7 @@ describe('bypass routes, each refused with the card named', () => {
 			expectRefusedNamingLotus(res, h);
 			const seats = res.body.seats as { issues: { kind: string }[] }[];
 			expect(seats[0]?.issues[0]?.kind).toBe(kind);
-			expect(res.body.error).toMatch(/^Seat 1's deck "Boros Landfall \(Paul Rietzl\)" is not legal in Standard \(MBS\): plays 4x Black Lotus /);
+			expect(res.body.error).toMatch(/^Seat 1's deck "Jund \(Emanuele Giusti\)" is not legal in Standard \(M11\): plays 4x Black Lotus /);
 
 			const check = await call(h, 'POST', '/api/tables/check', seatsFor(text()).seats[0]);
 			expect(check.status).toBe(200);
@@ -731,7 +765,7 @@ describe('bypass routes, each refused with the card named', () => {
 		const h = await boot();
 		const res = await call(h, 'POST', '/api/play/matches', seatsFor(beforeSideboard(`[Planes]\n${LOTUS}`)));
 		expect(res.body.error).toBe(
-			'Seat 1\'s deck "Boros Landfall (Paul Rietzl)" is not legal in Standard (MBS): plays 4x Black Lotus in [planes], ' +
+			'Seat 1\'s deck "Jund (Emanuele Giusti)" is not legal in Standard (M11): plays 4x Black Lotus in [planes], ' +
 				'which is not the main deck or sideboard — Forge would read it, and move ordinary cards from it into the main deck',
 		);
 	});
@@ -762,7 +796,7 @@ describe('bypass routes, each refused with the card named', () => {
 		const text = `${dckTextOf(deck)}\n[Planes]\n${LOTUS}\n`;
 		const res = await call(h, 'POST', '/api/play/matches', {
 			opponent: 'ai',
-			seats: [{ deck: { dck: text }, rules: { kind: 'draft', draftId: 'amber-lantern-k7q4' } }, standard(BEN_STARK, PT_PARIS)],
+			seats: [{ deck: { dck: text }, rules: { kind: 'draft', draftId: 'amber-lantern-k7q4' } }, standard(UG_POLYMORPH, POWER_2010)],
 		});
 		expectRefusedNamingLotus(res, h);
 	});
@@ -819,8 +853,8 @@ describe('a room table', () => {
 
 	/** Both members seated with a legal deck, each choosing only their own. */
 	async function bothLoaded(h: Harness): Promise<void> {
-		expect((await putDeck(h, 'alice', deckBody(BEN_STARK))).status).toBe(200);
-		expect((await putDeck(h, 'bob', deckBody(PAUL_RIETZL))).status).toBe(200);
+		expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
+		expect((await putDeck(h, 'bob', deckBody(SECOND_DECK))).status).toBe(200);
 	}
 
 	it('starts the match from the room, each player in the seat their own deck is in', async () => {
@@ -831,8 +865,8 @@ describe('a room table', () => {
 		const second = await setReady(h, 'bob');
 		expect(second.status).toBe(200);
 		expect(players(second.body).map((p) => [p.deckName, p.ready])).toEqual([
-			['Mystic Caw Go (Ben Stark)', true],
-			['Boros Landfall (Paul Rietzl)', true],
+			['UG Polymorph (Antoine Ruel)', true],
+			['Jund (Emanuele Giusti)', true],
 		]);
 
 		const res = await startRoom(h, 'alice');
@@ -842,7 +876,7 @@ describe('a room table', () => {
 		// The decks Forge is launched with, in the order the two players loaded
 		// them — each the text that player's own rule checked, byte for byte.
 		expect(h.specs).toHaveLength(1);
-		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([library.deck(BEN_STARK)?.text, library.deck(PAUL_RIETZL)?.text]);
+		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([library.deck(UG_POLYMORPH)?.text, library.deck(SECOND_DECK)?.text]);
 
 		// And the seats are BOUND, so neither browser can arrive into the other
 		// player's deck: `Match.claim` is otherwise first-come-first-served.
@@ -864,13 +898,13 @@ describe('a room table', () => {
 		it("starts the room's only player against Forge's AI with a legal library deck in seat 2", async () => {
 			const h = await boot();
 			h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice', avatarId: 'wanderer' }]);
-			expect((await putDeck(h, 'alice', deckBody(BEN_STARK))).status).toBe(200);
+			expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
 
 			const res = await startBot(h, 'alice');
 			expect(res.status).toBe(201);
 			expect(h.specs).toHaveLength(1);
 			const seats = h.specs[0]!.seats as { deck: string | null; ai: boolean; name?: string; avatarId?: string }[];
-			expect(seats[0]?.deck).toBe(library.deck(BEN_STARK)?.text);
+			expect(seats[0]?.deck).toBe(library.deck(UG_POLYMORPH)?.text);
 			expect(seats[0]?.ai).toBe(false);
 			expect(seats[0]?.avatarId).toBe('wanderer');
 			expect(seats[1]?.ai).toBe(true);
@@ -909,7 +943,7 @@ describe('a room table', () => {
 		it('refuses a bot field that is not true', async () => {
 			const h = await boot();
 			h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
-			expect((await putDeck(h, 'alice', deckBody(BEN_STARK))).status).toBe(200);
+			expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
 			const res = await startBot(h, 'alice', { room: ROOM, bot: 'yes' });
 			expect(res.status).toBe(400);
 			expect(h.specs).toHaveLength(0);
@@ -939,7 +973,7 @@ describe('a room table', () => {
 		expect(res.status).toBe(201);
 		expect(h.specs).toHaveLength(1);
 		const seats = h.specs[0]?.seats as ({ avatarId?: string } | undefined)[];
-		// Alice's deck (`BEN_STARK`) is seat 0 and bob's (`PAUL_RIETZL`) is seat 1
+		// Alice's deck (`UG_POLYMORPH`) is seat 0 and bob's (`SECOND_DECK`) is seat 1
 		// (`bothLoaded`), so this is also an assertion that the identity travels
 		// in the SAME order as the deck it rides beside.
 		expect(seats[0]?.avatarId).toBe('wanderer');
@@ -1073,14 +1107,14 @@ describe('a room table', () => {
 		const h = await boot();
 		const res = await call(h, 'POST', '/api/play/matches', {
 			opponent: 'human',
-			seats: [standard(BEN_STARK, PT_PARIS), standard(PAUL_RIETZL, PT_PARIS)],
+			seats: [standard(UG_POLYMORPH, POWER_2010), standard(SECOND_DECK, POWER_2010)],
 		});
 		expect(res.status).toBe(422);
 		expect(res.body.error).toContain('starts from a room');
 		expect(h.specs).toEqual([]);
 		// The default opponent is 'human', so the shape is closed without one too.
 		const bare = await call(h, 'POST', '/api/play/matches', {
-			seats: [standard(BEN_STARK, PT_PARIS), standard(PAUL_RIETZL, PT_PARIS)],
+			seats: [standard(UG_POLYMORPH, POWER_2010), standard(SECOND_DECK, POWER_2010)],
 		});
 		expect(bare.status).toBe(422);
 		expect(h.specs).toEqual([]);
@@ -1093,10 +1127,10 @@ describe('a room table', () => {
 		const outsider = await view(h, 'carol');
 		expect(missing).toEqual({ status: 404, body: { error: 'no such room' } });
 		expect(outsider).toEqual(missing);
-		expect(await call(h, 'PUT', '/api/tables/rooms/r-nope/deck', deckBody(BEN_STARK), edgeHeaders('alice'))).toEqual(
+		expect(await call(h, 'PUT', '/api/tables/rooms/r-nope/deck', deckBody(UG_POLYMORPH), edgeHeaders('alice'))).toEqual(
 			missing,
 		);
-		expect(await putDeck(h, 'carol', deckBody(BEN_STARK))).toEqual(missing);
+		expect(await putDeck(h, 'carol', deckBody(UG_POLYMORPH))).toEqual(missing);
 		expect(await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('carol'))).toEqual(missing);
 		expect(await call(h, 'POST', '/api/play/matches', { room: 'r-nope' }, edgeHeaders('alice'))).toEqual(missing);
 		expect(h.specs).toEqual([]);
@@ -1105,24 +1139,28 @@ describe('a room table', () => {
 
 	it('blocks only the player whose deck is illegal, naming the card', async () => {
 		const h = await boot();
-		// One pool for the table, and BEN_STARK is the deck the bans cost: alice is
-		// illegal in it and AADIL is legal in the same pool, so the asymmetry under
+		// One pool for the table, and UG_POLYMORPH is the deck the bans cost: alice is
+		// illegal in it and ELDRAZI_GREEN is legal in the same pool, so the asymmetry under
 		// test is between two decks rather than between two players' formats.
-		openRoom(h, undefined, AFTER_BANS);
-		const loaded = await putDeck(h, 'alice', deckBody(BEN_STARK));
+		openRoom(h, undefined, POWER_2011);
+		const loaded = await putDeck(h, 'alice', deckBody(UG_POLYMORPH));
 		expect(loaded.status).toBe(200);
-		expect(players(loaded.body)[0]).toMatchObject({ legal: false, issueCount: 2 });
+		expect(players(loaded.body)[0]).toMatchObject({ legal: false, issueCount: 3 });
 		expect(players(loaded.body)[0]?.verdict?.issues.map((i) => i.cardName)).toEqual([
+			'Essence Scatter',
+			'Polymorph',
 			'Jace, the Mind Sculptor',
-			'Stoneforge Mystic',
 		]);
 
 		const refused = await setReady(h, 'alice');
 		expect(refused.status).toBe(422);
-		expect(refused.body.error).toContain('Jace, the Mind Sculptor');
+		// The refusal leads with the FIRST issue, which for this deck is a
+		// rotated-out card rather than the ban — both are real faults of the
+		// same deck a year on.
+		expect(refused.body.error).toContain('Essence Scatter');
 
 		// The other player is untouched by it: they load, they ready.
-		expect((await putDeck(h, 'bob', deckBody(AADIL))).status).toBe(200);
+		expect((await putDeck(h, 'bob', deckBody(ELDRAZI_GREEN))).status).toBe(200);
 		expect((await setReady(h, 'bob')).status).toBe(200);
 
 		const blocked = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
@@ -1132,7 +1170,7 @@ describe('a room table', () => {
 
 		// And a legal deck unblocks it: same player, same room, same pool — what
 		// changes is the deck, because the pool is not the player's to change.
-		expect((await putDeck(h, 'alice', deckBody(AADIL))).status).toBe(200);
+		expect((await putDeck(h, 'alice', deckBody(ELDRAZI_GREEN))).status).toBe(200);
 		expect((await setReady(h, 'alice')).status).toBe(200);
 		expect((await startRoom(h, 'bob')).status).toBe(201);
 	});
@@ -1143,7 +1181,7 @@ describe('a room table', () => {
 		await bothLoaded(h);
 		await setReady(h, 'alice');
 		await setReady(h, 'bob');
-		const reloaded = await putDeck(h, 'alice', deckBody(PAUL_RIETZL));
+		const reloaded = await putDeck(h, 'alice', deckBody(SECOND_DECK));
 		expect(players(reloaded.body).map((p) => p.ready)).toEqual([false, true]);
 		const res = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
 		expect(res).toMatchObject({ status: 409, body: { error: 'user-alice is not ready yet' } });
@@ -1154,10 +1192,10 @@ describe('a room table', () => {
 		const h = await boot();
 		h.lobby.open(ROOM, [...MEMBERS, { id: CAROL, name: 'user-carol' }]);
 		await bothLoaded(h);
-		const third = await putDeck(h, 'carol', deckBody(BEN_STARK));
+		const third = await putDeck(h, 'carol', deckBody(UG_POLYMORPH));
 		expect(third).toMatchObject({ status: 409, body: { error: 'this table already has two players' } });
 		// There is no field that names a member — a body that invents one is refused.
-		const named = await putDeck(h, 'carol', { ...deckBody(BEN_STARK), member: ALICE });
+		const named = await putDeck(h, 'carol', { ...deckBody(UG_POLYMORPH), member: ALICE });
 		expect(named).toMatchObject({ status: 400, body: { error: 'body: unknown field member' } });
 		// Carol sees the table, as a member of the room who is not playing — and she
 		// is not its leader either, which alice is.
@@ -1168,16 +1206,16 @@ describe('a room table', () => {
 
 	it('shows the other player’s state without their issues or their .dck', async () => {
 		const h = await boot();
-		openRoom(h, undefined, AFTER_BANS);
-		await putDeck(h, 'alice', deckBody(BEN_STARK));
-		await putDeck(h, 'bob', deckBody(AADIL));
+		openRoom(h, undefined, POWER_2011);
+		await putDeck(h, 'alice', deckBody(UG_POLYMORPH));
+		await putDeck(h, 'bob', deckBody(ELDRAZI_GREEN));
 		const seen = await view(h, 'bob');
 		const [mine, theirs] = [players(seen.body)[1], players(seen.body)[0]];
 		expect(mine).toMatchObject({ you: true, legal: true });
 		expect(mine?.verdict).not.toBeNull();
 		// Alice's faults reach Bob as a count and a name, never as a card list:
 		// a draft verdict would say what she drafted.
-		expect(theirs).toMatchObject({ you: false, legal: false, issueCount: 2, deckName: 'Mystic Caw Go (Ben Stark)' });
+		expect(theirs).toMatchObject({ you: false, legal: false, issueCount: 3, deckName: 'UG Polymorph (Antoine Ruel)' });
 		expect(theirs?.verdict).toBeNull();
 		expect(JSON.stringify(seen.body)).not.toContain('[metadata]');
 	});
@@ -1185,7 +1223,7 @@ describe('a room table', () => {
 	it('refuses a table in a room that is not constructed 1v1', async () => {
 		const h = await boot();
 		h.lobby.open(ROOM, [...MEMBERS], 'draft');
-		const res = await putDeck(h, 'alice', deckBody(BEN_STARK));
+		const res = await putDeck(h, 'alice', deckBody(UG_POLYMORPH));
 		expect(res.status).toBe(409);
 		expect(res.body.error).toContain('constructed-1v1');
 		expect(await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'))).toMatchObject({ status: 409 });
@@ -1245,7 +1283,7 @@ describe('a room table', () => {
 		// rather than a pool of the caller's choosing.
 		const asIs = await putDeck(h, 'alice', { deck: { dck: text } });
 		expect(asIs.status).toBe(200);
-		expect(players(asIs.body)[0]).toMatchObject({ legal: false, rulesName: 'Standard (MBS)' });
+		expect(players(asIs.body)[0]).toMatchObject({ legal: false, rulesName: 'Standard (M11)' });
 
 		// And `/api/tables/check` still takes rules, because it starts nothing and
 		// belongs to no room: this is where a drafted deck is still checked.
@@ -1265,7 +1303,7 @@ describe('a room table', () => {
 		openRoom(h);
 		const empty = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
 		expect(empty).toMatchObject({ status: 409, body: { error: 'both players have to load a deck first' } });
-		await putDeck(h, 'alice', deckBody(BEN_STARK));
+		await putDeck(h, 'alice', deckBody(UG_POLYMORPH));
 		await setReady(h, 'alice');
 		const alone = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
 		expect(alone.status).toBe(409);
@@ -1294,7 +1332,7 @@ describe('a room table', () => {
 	it('refuses a PUT deck that carries rules', async () => {
 		const h = await boot();
 		openRoom(h);
-		const refused = await putDeck(h, 'alice', standard(BEN_STARK, AFTER_BANS));
+		const refused = await putDeck(h, 'alice', standard(UG_POLYMORPH, POWER_2011));
 		expect(refused.status).toBe(400);
 		expect(refused.body.error).toBe(
 			"body: unknown field rules — a table's rules are its room's format, which only the room leader changes",
@@ -1303,55 +1341,58 @@ describe('a room table', () => {
 		expect(players((await view(h, 'alice')).body)).toEqual([]);
 		// And `rules` is refused even smuggled in beside a deck that would be fine,
 		// which is what makes this a stated refusal rather than a silent ignore.
-		expect((await putDeck(h, 'alice', { ...deckBody(BEN_STARK), rules: null })).status).toBe(400);
-		expect((await putDeck(h, 'alice', deckBody(BEN_STARK))).status).toBe(200);
+		expect((await putDeck(h, 'alice', { ...deckBody(UG_POLYMORPH), rules: null })).status).toBe(400);
+		expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
 	});
 
 	it('checks the deck against the ROOM’s pool, and says so in the verdict', async () => {
 		const h = await boot();
 		// The same deck, the same body, two rooms on two pools: the verdict follows
 		// the ROOM. Nothing in the request says which pool, because nothing may.
-		h.lobby.open('r-mbs', [...MEMBERS], undefined, PT_PARIS);
-		h.lobby.open('r-bans', [...MEMBERS], undefined, AFTER_BANS);
+		h.lobby.open('r-mbs', [...MEMBERS], undefined, POWER_2010);
+		h.lobby.open('r-bans', [...MEMBERS], undefined, POWER_2011);
 
-		const inMbs = await putDeck(h, 'alice', deckBody(BEN_STARK), 'r-mbs');
+		const inMbs = await putDeck(h, 'alice', deckBody(UG_POLYMORPH), 'r-mbs');
 		expect(inMbs.status).toBe(200);
-		expect(players(inMbs.body)[0]).toMatchObject({ legal: true, rulesName: 'Standard (MBS)' });
-		expect((inMbs.body.room as { format: string }).format).toBe(PT_PARIS);
+		expect(players(inMbs.body)[0]).toMatchObject({ legal: true, rulesName: 'Standard (M11)' });
+		expect((inMbs.body.room as { format: string }).format).toBe(POWER_2010);
 
-		const inBans = await putDeck(h, 'alice', deckBody(BEN_STARK), 'r-bans');
+		const inBans = await putDeck(h, 'alice', deckBody(UG_POLYMORPH), 'r-bans');
 		expect(inBans.status).toBe(200);
-		expect(players(inBans.body)[0]).toMatchObject({ legal: false, rulesName: 'Standard (2011-07-01)' });
-		expect((inBans.body.room as { format: string }).format).toBe(AFTER_BANS);
+		expect(players(inBans.body)[0]).toMatchObject({ legal: false, rulesName: 'Standard (M12)' });
+		expect((inBans.body.room as { format: string }).format).toBe(POWER_2011);
 	});
 
 	it('refuses a start when a deck is illegal in the room’s pool though legal in another', async () => {
 		const h = await boot();
-		// Both decks legal in SCG Orlando's pool, both players ready, the match
-		// would start. Then the room is on PT Paris's pool instead — where EDGAR is
-		// not legal and PAUL_RIETZL still is.
-		const room = openRoom(h, undefined, SCG_ORLANDO);
-		expect((await putDeck(h, 'alice', deckBody(EDGAR))).status).toBe(200);
-		expect((await putDeck(h, 'bob', deckBody(PAUL_RIETZL))).status).toBe(200);
+		// Both legal in the 2011 era's pool: CAW_BLADE is native to it, and sixty
+		// Islands is legal in any pool by construction (a basic is exempt from both
+		// the pool-membership check and the copy limit). Both players ready, the
+		// match would start. Then the room moves to the 2010 era's pool instead —
+		// where CAW_BLADE plays cards (Mana Leak|M12, Gideon Jura, Timely
+		// Reinforcements…) that did not exist yet, and the Islands still do.
+		const room = openRoom(h, undefined, POWER_2011);
+		expect((await putDeck(h, 'alice', deckBody(CAW_BLADE))).status).toBe(200);
+		expect((await putDeck(h, 'bob', { deck: { dck: ALWAYS_LEGAL_DCK } })).status).toBe(200);
 		expect((await setReady(h, 'alice')).status).toBe(200);
 		expect((await setReady(h, 'bob')).status).toBe(200);
 
 		// Set directly, which is a state the leader's setter would never leave
 		// behind — it drops every hold and both ready flags. That is the point: the
 		// start route does not trust the stored verdict, it checks the room's pool.
-		room.format = PT_PARIS;
+		room.format = POWER_2010;
 		const refused = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
 		expect(refused.status).toBe(422);
-		expect(refused.body.error).toBe("user-alice's deck is not legal in Standard (MBS)");
+		expect(refused.body.error).toBe("user-alice's deck is not legal in Standard (M11)");
 		// The card is NOT named: bob pressed start, and what is wrong with alice's
 		// deck is alice's to read.
-		expect(JSON.stringify(refused.body)).not.toContain('Batterskull');
+		expect(JSON.stringify(refused.body)).not.toContain('Squadron Hawk');
 		expect(refused.body.verdict).toBeUndefined();
 		expect(refused.body.issues).toBeUndefined();
 		expect(h.specs).toEqual([]);
 
 		// Back on the pool both decks are legal in, the same two holds start.
-		room.format = SCG_ORLANDO;
+		room.format = POWER_2011;
 		expect((await startRoom(h, 'bob')).status).toBe(201);
 	});
 
@@ -1371,14 +1412,14 @@ describe('a room table', () => {
 	it('answers 409 for a room whose pool this server does not have', async () => {
 		const h = await boot();
 		const room = openRoom(h, undefined, '1999-01-01');
-		const loaded = await putDeck(h, 'alice', deckBody(BEN_STARK));
+		const loaded = await putDeck(h, 'alice', deckBody(UG_POLYMORPH));
 		expect(loaded).toMatchObject({
 			status: 409,
 			body: { error: 'this room\'s format "1999-01-01" is not one this server has' },
 		});
 		// A room that goes unknown UNDER a loaded table refuses the start too, and
 		// with the same sentence: nothing is checked against a pool nobody froze.
-		room.format = PT_PARIS;
+		room.format = POWER_2010;
 		await bothLoaded(h);
 		await setReady(h, 'alice');
 		await setReady(h, 'bob');

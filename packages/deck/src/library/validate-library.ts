@@ -27,12 +27,14 @@
  *
  * ## `--date`
  *
- * Overrides every deck's own date, which is how the ban path is exercised
- * against real data: `--date=2011-07-01` validates the Pro Tour Paris Top 8
- * against the Standard that banned Jace, the Mind Sculptor and Stoneforge
- * Mystic. Under an override the format mismatch is expected and reported as a
- * note rather than a fault, and a non-zero exit is the POINT rather than a
- * failure — the header of each run says which mode it is in.
+ * Overrides every deck's own date, which is how a cross-era check is exercised
+ * against real data: `--date=2011-07-15` validates the whole library against
+ * the Standard that banned Jace, the Mind Sculptor and Stoneforge Mystic —
+ * 2010's UG Polymorph (Antoine Ruel), which plays four Jace, fails it, and so
+ * does every deck playing a card that era's sets do not carry. Under an
+ * override the format mismatch is expected and reported as a note rather than
+ * a fault, and a non-zero exit is the POINT rather than a failure — the header
+ * of each run says which mode it is in.
  */
 
 import { createReadStream, readFileSync } from 'node:fs';

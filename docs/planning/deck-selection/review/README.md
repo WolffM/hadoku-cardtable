@@ -20,13 +20,13 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | [2008](2008.md) | Standard (EVE) | 2008-07-25 → 2008-10-03 | 21 | 12 | 3 | 6 | 5 | 5 | 4 | 4 | 4 | 3 | 1 |
 | [2009](2009.md) | Standard (M10) | 2009-07-17 → 2009-10-02 | 4 | 4 | 2 | 1 | 3 | 1 | 2 | 3 | 0 | 1 | 0 |
 | [2010](2010.md) | Standard (M11) | 2010-07-16 → 2010-10-01 | 8 | 8 | 2 | 6 | 3 | 4 | 3 | 1 | 2 | 3 | 2 |
-| [2011](2011.md) | Standard (M12) | 2011-07-15 → 2011-09-30 | 23 | 12 | 4 | 5 | 3 | 5 | 4 | 4 | 2 | 3 | 3 |
+| [2011](2011.md) | Standard (M12) | 2011-07-15 → 2011-09-30 | 23 | 12 | 4 | 4 | 2 | 5 | 5 | 5 | 2 | 2 | 3 |
 | [2012](2012.md) | Standard (M13) | 2012-07-13 → 2012-10-05 | 39 | 12 | 5 | 5 | 4 | 4 | 5 | 4 | 4 | 2 | 2 |
 | [2013](2013.md) | Standard (M14) | 2013-07-19 → 2013-09-27 | 38 | 12 | 7 | 5 | 7 | 6 | 7 | 4 | 3 | 3 | 2 |
-| [2014](2014.md) | Standard (M15) | 2014-07-18 → 2014-09-26 | 35 | 12 | 6 | 4 | 5 | 5 | 5 | 4 | 3 | 4 | 1 |
+| [2014](2014.md) | Standard (M15) | 2014-07-18 → 2014-09-26 | 35 | 12 | 5 | 3 | 6 | 5 | 5 | 5 | 3 | 4 | 0 |
 | [2015](2015.md) | Standard (ORI) | 2015-07-17 → 2015-10-02 | 39 | 12 | 6 | 5 | 6 | 6 | 5 | 4 | 3 | 3 | 2 |
 | [2016](2016.md) | Standard (EMN) | 2016-07-22 → 2016-09-30 | 26 | 12 | 5 | 5 | 5 | 5 | 6 | 4 | 4 | 4 | 0 |
-| **all** | | | | **96** | 40 | 42 | 41 | 41 | 41 | 32 | 25 | 26 | 13 |
+| **all** | | | | **96** | 39 | 40 | 41 | 41 | 42 | 34 | 25 | 25 | 12 |
 
 ## How each archetype was judged (style)
 
@@ -57,7 +57,7 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2010 | Vampires | aggro | label |
 | 2010 | Open Filigree | midrange | default |
 | 2011 | Caw-Blade | control | cards |
-| 2011 | UB Control | control | label |
+| 2011 | Elves | aggro | label |
 | 2011 | Eldrazi Green | midrange | default |
 | 2011 | Tempered Steel | aggro | label |
 | 2011 | RUG Twin Pod | combo | label |
@@ -102,8 +102,8 @@ Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style i
 | 2014 | Boros Aggro | aggro | label |
 | 2014 | Gruul Team | midrange | default |
 | 2014 | Devotion to Green | midrange | default |
-| 2014 | UWr Control | control | label |
-| 2014 | Reanimator | combo | label |
+| 2014 | Orzhov Control | control | label |
+| 2014 | Jund Aggro | aggro | label |
 | 2015 | Abzan Midrange | aggro | cards |
 | 2015 | Red Deck Wins | aggro | label |
 | 2015 | Devotion to Green | midrange | default |

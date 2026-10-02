@@ -86,17 +86,17 @@ function makeSocket() {
 /* ── the stub API ────────────────────────────────────────────────────── */
 
 const FORMATS = [
-  { id: '2011-02-13', name: 'Standard (MBS)', effective: '2011-02-04', sets: ['SOM', 'MBS'], banned: [], cardCount: 1204, source: 'x' },
+  { id: '2016-07-22', name: 'Standard (EMN)', effective: '2016-07-22', sets: ['DTK', 'EMN'], banned: [], cardCount: 1441, source: 'x' },
 ];
 const DECKS = [
   {
-    id: 'pt-paris-2011-2-paul-rietzl',
-    collection: 'pt-paris-2011-standard',
-    name: 'Boros Landfall (Paul Rietzl)',
-    format: 'Standard (MBS)',
-    date: '2011-02-13',
-    provenance: 'Pro Tour Paris 2011: Boros Landfall (Paul Rietzl)',
-    citation: 'https://www.mtgtop8.com/event?e=1016&f=ST',
+    id: 'power-2016-1-finespoo-collected-bant',
+    collection: 'power-summer-2016',
+    name: 'Collected Bant (finespoo)',
+    format: 'Standard (EMN)',
+    date: '2016-07-22',
+    provenance: 'WMCQ: Collected Bant (finespoo)',
+    citation: 'https://www.mtgtop8.com/event?e=12896&f=ST',
     main: [{ count: 60, name: 'Mountain' }],
     sideboard: [],
   },
@@ -176,9 +176,9 @@ describe('build.ts', () => {
 
   it('seats a library opponent in the Standard it was played in', () => {
     const d = DECKS[0]!;
-    expect(librarySeat(d, FORMATS)).toEqual({ deck: { library: d.id }, rules: { kind: 'standard', format: '2011-02-13' } });
-    const later = [...FORMATS, { ...FORMATS[0]!, id: '2012-10-05' }];
-    expect(librarySeat({ ...d, date: '1999-01-01' }, later).rules).toEqual({ kind: 'standard', format: '2012-10-05' });
+    expect(librarySeat(d, FORMATS)).toEqual({ deck: { library: d.id }, rules: { kind: 'standard', format: '2016-07-22' } });
+    const later = [...FORMATS, { ...FORMATS[0]!, id: '2017-10-05' }];
+    expect(librarySeat({ ...d, date: '1999-01-01' }, later).rules).toEqual({ kind: 'standard', format: '2017-10-05' });
   });
 
   it('knows a finished pool from an unfinished one and from a spectator', () => {
@@ -279,7 +279,7 @@ describe('DeckScreen', () => {
       opponent: 'ai',
       seats: [
         { deck: { dck: checked }, rules: { kind: 'draft', draftId: DRAFT_ID } },
-        { deck: { library: 'pt-paris-2011-2-paul-rietzl' }, rules: { kind: 'standard', format: '2011-02-13' } },
+        { deck: { library: 'power-2016-1-finespoo-collected-bant' }, rules: { kind: 'standard', format: '2016-07-22' } },
       ],
     });
   });
@@ -298,7 +298,7 @@ describe('DeckScreen', () => {
             { kind: 'more-copies-than-drafted', message: 'plays 1x Black Lotus but drafted 0', cardName: 'Black Lotus', count: 1, limit: 0 },
           ],
         },
-        { deckName: 'Boros Landfall (Paul Rietzl)', rulesName: 'Standard (MBS)', legal: true, issues: [], note: null },
+        { deckName: 'Collected Bant (finespoo)', rulesName: 'Standard (EMN)', legal: true, issues: [], note: null },
       ],
     };
     const api = stubApi({ check: () => shortVerdict(10), start: { status: 422, body: refusal } });

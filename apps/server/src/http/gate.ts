@@ -86,7 +86,7 @@ export interface WireIssue {
 
 export interface SeatVerdict {
 	deckName: string;
-	/** The rule's display name: `Standard (2011-07-01)`, `your pool from amber-lantern-k7q4`. */
+	/** The rule's display name: `Standard (EMN)`, `your pool from amber-lantern-k7q4`. */
 	rulesName: string;
 	legal: boolean;
 	/** Every fault, in `@hadoku/deck`'s reporting order. Empty means legal. */

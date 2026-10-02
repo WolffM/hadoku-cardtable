@@ -15,9 +15,26 @@
  *   - **decks** — `LIBRARY` in `@hadoku/deck/library`: a manifest of `.dck`
  *     files, each carrying its own name, format, date and citation.
  *
- * The files are enumerated from the catalog and from the pools directory, and
- * nothing is hardcoded here: a new collection or a new frozen pool appears in
- * the picker with no edit to this module.
+ * The files are enumerated from the catalog, and nothing is hardcoded here: a
+ * new era appears in the picker with no edit to this module.
+ *
+ * ## Only the catalogued eras are offered — never every file in `decks/pools/`
+ *
+ * Wave 34 §D: this used to `readdirSync` the whole `decks/pools/` directory and
+ * offer every `standard-<date>.generated.json` it found as a format — which is
+ * how the operator once saw nine "eras" that were really one 18-month window,
+ * including `2011-07-01`, a TEST fixture (`build-pool-fixture.ts`'s own header
+ * says why it exists: to demonstrate the ban path on real data, not to be
+ * played). A fixture that happens to sit in that directory for a test's sake
+ * is not a format a room can be started in.
+ *
+ * So the set of dates offered is `[...new Set(library.map(c => c.date))]` —
+ * exactly the catalogued collections' own dates, in the order `library` lists
+ * them — and a pool file is read only for a date that appears there. A stray
+ * fixture dropped into `decks/pools/` under an uncatalogued date is invisible
+ * to the picker no matter what it is named; `rooms.test.ts`'s "a fixture pool
+ * that is not catalogued never reaches the picker" proves it with exactly such
+ * a file, in a temp fixture tree.
  *
  * ## A verdict, not a throw
  *
@@ -28,7 +45,7 @@
  * missing entry is SAID somewhere, which is what `faults` and the boot log are.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { FormatPool } from '@hadoku/deck';
@@ -37,6 +54,7 @@ import {
 	deckPath,
 	loadLibraryDeck,
 	parsePoolFixture,
+	poolFixturePath,
 	poolFromFixture,
 	type LibraryCollection,
 	type LibraryDeck,
@@ -70,14 +88,13 @@ export interface TablesLibrary {
 	deck(id: string): TableDeck | undefined;
 }
 
-/** `standard-2011-07-01.generated.json` → `2011-07-01`. */
-const POOL_FILE = /^standard-(\d{4}-\d{2}-\d{2})\.generated\.json$/;
-
 /**
- * Read every frozen pool and every catalogued deck under `repoRoot`.
+ * Read every catalogued era's frozen pool, and every catalogued deck, under
+ * `repoRoot`.
  *
  * `library` is injectable so a test can hand in a catalog that points at a
- * broken file; production passes nothing and gets `LIBRARY`.
+ * broken file, or at a shorter list of eras than production's; production
+ * passes nothing and gets `LIBRARY`.
  */
 export function loadTablesLibrary(
 	repoRoot: string,
@@ -85,16 +102,14 @@ export function loadTablesLibrary(
 ): TablesLibrary {
 	const faults: string[] = [];
 
+	// Exactly the catalogued eras' own dates — never a directory scan. See the
+	// module doc for why: `decks/pools/` can hold a date no collection claims
+	// (a test fixture, an in-progress era) and that date must stay invisible to
+	// the picker no matter what file name it has.
+	const dates = [...new Set(library.map((c) => c.date))];
 	const formats: TableFormat[] = [];
-	const poolsDir = join(repoRoot, 'decks', 'pools');
-	let poolFiles: string[] = [];
-	try {
-		poolFiles = readdirSync(poolsDir).filter((f) => POOL_FILE.test(f)).sort();
-	} catch (err) {
-		faults.push(`${poolsDir}: ${(err as Error).message}`);
-	}
-	for (const file of poolFiles) {
-		const path = join(poolsDir, file);
+	for (const date of dates) {
+		const path = join(repoRoot, poolFixturePath(date));
 		try {
 			const fixture = parsePoolFixture(JSON.parse(readFileSync(path, 'utf8')) as unknown);
 			formats.push({ id: fixture.date, fixture, pool: poolFromFixture(fixture) });

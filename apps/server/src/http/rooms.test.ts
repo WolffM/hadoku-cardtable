@@ -223,8 +223,9 @@ describe('POST /api/rooms', () => {
 		expect(room.members.map((m) => m.ready)).toEqual([false]);
 		expect(room.leader).toBe(room.creator);
 		// The NEWEST frozen pool, which is the operator's choice and the opposite of
-		// what this defaulted to before: `formats[0]` is 2011-02-13, so every room
-		// used to start eighteen months behind the newest pool the server has.
+		// what this defaulted to before: `formats[0]` is the oldest power-summer era
+		// (2008-07-25), so every room used to start eight years behind the newest
+		// pool the server has.
 		expect(room.format).toBe(NEWEST_POOL);
 		expect(room.format).not.toBe(OLDEST_POOL);
 		expect(POOLS.length).toBeGreaterThan(1);

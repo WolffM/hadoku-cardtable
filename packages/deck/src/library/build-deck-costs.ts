@@ -14,21 +14,22 @@
  * dropdown could not, because the only place a browser learns about a library
  * deck is `GET /api/tables/decks`, which sends card NAMES and no costs.
  *
- * The nine fixtures are 913 KB between them and hold the whole legal pool of
- * nine Standard eras — roughly 1200 cards each. The 49 catalogued decks play
- * **342 distinct cards, 296 of which have a mana cost at all** (the other 46
- * are lands, and a land has no coloured pip). So the slice a dropdown needs is
- * 8 KB, and that is what this writes: the same cost strings, from the same
- * fixtures, narrowed to the cards that are actually in a deck.
+ * The nine fixtures are a little over 1.1 MB between them and hold the whole
+ * legal pool of nine power-summer Standard eras — roughly 1200-2100 cards
+ * each. The 96 catalogued decks play **981 distinct cards, 813 of which have
+ * a mana cost at all** (the other 168 are lands, and a land has no coloured
+ * pip). So the slice a dropdown needs is some 27 KB, and that is what this
+ * writes: the same cost strings, from the same fixtures, narrowed to the
+ * cards that are actually in a deck.
  *
  * ## Why a generated module rather than a wire field
  *
  * Either would work, and the wire is arguably tidier. The reason it is here is
- * that the map is **static**: the library is 49 committed files and the pools
+ * that the map is **static**: the library is 96 committed files and the pools
  * are nine committed files, so the answer cannot change between two requests,
  * and a route that recomputed it per request would be a cache with extra steps.
  * A generated module also keeps the data on the same side of the boundary as
- * `catalog.ts`, which is already a committed manifest of the same 49 files.
+ * `catalog.ts`, which is already a committed manifest of the same 96 files.
  *
  * ## The copy is guarded, which is the only reason a copy is allowed
  *

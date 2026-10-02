@@ -103,7 +103,7 @@ built for — shown, never refused on.
 | play's raw body with no/null decks | untouched → play (Forge's random precons, the dev tooling) |
 
 `error` on a 422 leads with the seat, the deck and the first card:
-`Seat 1's deck "Mystic Caw Go (Ben Stark)" is not legal in Standard (2011-07-01): plays 4x Jace, the Mind Sculptor, which Standard (2011-07-01) bans (and 1 more)`.
+`Seat 1's deck "UG Polymorph (Antoine Ruel)" is not legal in Standard (M12): plays 1x Essence Scatter, which is not in Standard (M12) (and 2 more)`.
 The `.dck` text is never sent back.
 
 ## The edits this lane needs in files it does not own

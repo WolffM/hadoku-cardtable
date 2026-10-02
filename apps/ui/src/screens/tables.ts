@@ -171,7 +171,13 @@ export interface TablesClient {
   ready(roomId: string, ready: boolean): Promise<TableOutcome>;
   /** Start the room's match. Either player may; the server answers one match. */
   startRoom(roomId: string): Promise<StartOutcome>;
-  /** The room's only player against Forge's AI, which plays a random library deck legal in the room's pool. */
+  /**
+   * Start a match against Forge's AI from a room where you are the only
+   * member — the server picks a random library deck legal in the room's pool
+   * for the bot's seat (`apps/server/src/http/routes.ts`'s `startFromRoom`,
+   * `vsBot` arm). Refused with a second member in the room, before a deck is
+   * loaded, or for a drafted pool (no library deck is legal in one).
+   */
   startVsBot(roomId: string): Promise<StartOutcome>;
 }
 
@@ -250,8 +256,10 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
       return { ok: false, error: errorOf(body, status), seats: null };
     },
     startVsBot: async (roomId) => {
+      // Always 201: a bot match is yours alone to start, so there is no other
+      // player's already-started match to catch up to, unlike `startRoom`.
       const { status, body } = await post('play/matches', { room: roomId, bot: true });
-      if ((status === 201 || status === 200) && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
+      if (status === 201 && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
       return { ok: false, error: errorOf(body, status), seats: null };
     },
   };
@@ -292,8 +300,9 @@ export function pickRandom<T>(items: readonly T[], rand: () => number = secureRa
  * The newest frozen pool — the last element, not the first.
  *
  * `GET /api/tables/formats` sends them "in date order, oldest first"
- * (`apps/server/src/http/library.ts`), so `formats[0]` is `standard-2011-02-13`
- * and every room used to open on it. The room's own default is the NEWEST pool
+ * (`apps/server/src/http/library.ts`), so `formats[0]` is the OLDEST
+ * power-summer era (`2008-07-25`) and every room used to open on it. The
+ * room's own default is the NEWEST pool
  * (operator, 2026-09-27), and this is the same arithmetic on the client side —
  * used only as the fallback for a room whose record has not been read yet, or a
  * server too old to send one. Never as a second opinion about a room that

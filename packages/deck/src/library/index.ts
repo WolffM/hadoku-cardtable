@@ -36,10 +36,10 @@ export {
   DECKS_ROOT,
   LIBRARY,
   POOL_FIXTURE_DATES,
-  PT_PARIS_2011_STANDARD,
   deckPath,
   libraryDeckPaths,
   poolFixturePath,
+  slugifyForLibrary,
   type LibraryCollection,
   type LibraryEntry,
 } from './catalog.ts';
@@ -48,7 +48,7 @@ export {
  * The cost of every card the library plays, for a caller with no filesystem.
  *
  * Generated from the same `decks/pools/*.generated.json` the fixtures are, by
- * `build-deck-costs.ts`, and 10 KB rather than the 913 KB the nine whole
+ * `build-deck-costs.ts`, and some 27 KB rather than the 1.1+ MB the nine whole
  * fixtures are. It exists because the room screen's deck dropdown folds a
  * library deck's colours in the BROWSER, where `readFileSync` is not a thing
  * and `GET /api/tables/decks` sends card names without costs.

@@ -1,0 +1,38 @@
+[metadata]
+Name=Orzhov Control (Edvin Marsson)
+Deck Type=Constructed
+Format=Standard (EMN)
+Effective=2016-07-22
+Source URL=https://www.mtgtop8.com/event?e=12550&d=272415&f=ST
+Comment=Grand Prix Manchester 2016 - Trial Winners: Edvin Marsson, 1st, Orzhov Control. Transcribed from mtgtop8 deck 272415.
+[Main]
+3 Plains|SOI
+6 Swamp|SOI
+1 Blighted Fen|BFZ
+3 Westvale Abbey|SOI
+4 Caves of Koilos|ORI
+4 Shambling Vent|BFZ
+4 Forsaken Sanctuary|SOI
+3 Secure the Wastes|DTK
+2 Hallowed Moonlight|ORI
+3 Grasp of Darkness|OGW
+2 Ultimate Price|DTK
+3 Anguished Unmaking|SOI
+2 Ruinous Path|BFZ
+3 Transgress the Mind|BFZ
+1 Planar Outburst|BFZ
+4 Read the Bones|ORI
+4 Languish|ORI
+2 Sorin, Grim Nemesis|SOI
+2 Ob Nixilis Reignited|BFZ
+4 Gideon, Ally of Zendikar|BFZ
+[Sideboard]
+2 Duress|DTK
+1 Bearer of Silence|OGW
+2 Eldrazi Displacer|OGW
+2 Thought-Knot Seer|OGW
+3 Kalitas, Traitor of Ghet|OGW
+2 Dead Weight|SOI
+1 Linvala, the Preserver|OGW
+1 Ultimate Price|DTK
+1 Transgress the Mind|BFZ

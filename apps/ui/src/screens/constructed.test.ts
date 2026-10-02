@@ -11,10 +11,9 @@
  * the other half — that what the server says reaches the person, and that what
  * the person chose reaches the server.
  *
- * The answers are real history, the same case the server test uses: Ben
- * Stark's PT Paris deck is legal in Standard (MBS) and banned out of Standard
- * as of 2011-07-01, for four Jace, the Mind Sculptor and four Stoneforge
- * Mystic.
+ * The answers are real history, the same case the server test uses: 2010's UG
+ * Polymorph (Antoine Ruel) is legal in Standard (M11) and banned out of
+ * Standard as of 2011-07-15, for four Jace, the Mind Sculptor.
  *
  * ## And the room's OTHER game (w23)
  *
@@ -89,51 +88,66 @@ afterEach(() => {
  */
 const SCREENS_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/screens', 'screens.css'), 'utf8');
 
+/**
+ * Real cross-era history, the way `apps/server/src/http/tables.test.ts` and
+ * `packages/deck/src/library/library.test.ts` both use it: 2010's UG Polymorph
+ * (Antoine Ruel) plays four Jace, the Mind Sculptor, legal in its own era
+ * (`Standard (M11)`, 2010-07-16) and banned the moment `Standard (M12)`
+ * (2011-07-15) takes effect. This file stubs the SERVER's answer rather than
+ * asking the real gate for it (that proof is the other two files' job), so the
+ * banned verdict below states only the ban itself and leaves out the two
+ * rotation faults the real gate also reports for this exact pairing — the
+ * point here is how the SCREEN shows a banned deck, not how many faults it has.
+ */
+// `sets` below is trimmed to the three blocks "the era's set symbols" groups,
+// not the era's full real set list (2010-07-16's real pool also carries ALA,
+// CFX, ARB and M10 — `decks/pools/standard-2010-07-16.generated.json`) — this
+// mock is reused by that section purely for its block-grouping shape, which
+// is unaffected by trimming a mock field nothing here reads for legality.
 const FORMATS = [
-  { id: '2011-02-13', name: 'Standard (MBS)', effective: '2011-02-04', sets: ['ZEN', 'WWK', 'ROE', 'M11', 'SOM', 'MBS'], banned: [], cardCount: 1204, source: 'x' },
+  { id: '2010-07-16', name: 'Standard (M11)', effective: '2010-07-16', sets: ['ZEN', 'WWK', 'ROE', 'M11', 'SOM', 'MBS'], banned: [], cardCount: 1477, source: 'x' },
   {
-    id: '2011-07-01',
-    name: 'Standard (2011-07-01)',
-    effective: '2011-07-01',
+    id: '2011-07-15',
+    name: 'Standard (M12)',
+    effective: '2011-07-15',
     sets: ['ZEN', 'WWK', 'ROE', 'M11', 'SOM', 'MBS', 'NPH'],
     banned: ['Jace, the Mind Sculptor', 'Stoneforge Mystic'],
-    cardCount: 1377,
+    cardCount: 1511,
     source: 'x',
   },
 ];
 
 const deck = (id: string, name: string) => ({
   id,
-  collection: 'pt-paris-2011-standard',
+  collection: 'power-summer-2010',
   name,
-  format: 'Standard (MBS)',
-  date: '2011-02-13',
-  provenance: `Pro Tour Paris 2011: ${name}`,
-  citation: 'https://www.mtgtop8.com/event?e=1016&f=ST',
+  format: 'Standard (M11)',
+  date: '2010-07-16',
+  provenance: `Championnat de France 2010: ${name}`,
+  citation: 'https://www.mtgtop8.com/event?e=459&f=ST',
   main: [{ count: 60, name: 'Island' }],
   sideboard: [{ count: 15, name: 'Plains' }],
 });
 
-const BEN_STARK = 'pt-paris-2011-1-ben-stark';
-const PAUL_RIETZL = 'pt-paris-2011-2-paul-rietzl';
-const DECKS = [deck(BEN_STARK, 'Mystic Caw Go (Ben Stark)'), deck(PAUL_RIETZL, 'Boros Landfall (Paul Rietzl)')];
+const UG_POLYMORPH = 'power-2010-3-antoine-ruel-ug-polymorph';
+const SECOND_DECK = 'power-2010-1-emanuele-giusti-jund';
+const DECKS = [deck(UG_POLYMORPH, 'UG Polymorph (Antoine Ruel)'), deck(SECOND_DECK, 'Jund (Emanuele Giusti)')];
 
 const LEGAL = (deckName: string, rulesName: string): Verdict => ({ deckName, rulesName, legal: true, issues: [], note: null });
 
 const BANNED: Verdict = {
-  deckName: 'Mystic Caw Go (Ben Stark)',
-  rulesName: 'Standard (2011-07-01)',
+  deckName: 'UG Polymorph (Antoine Ruel)',
+  rulesName: 'Standard (M12)',
   legal: false,
   issues: [
-    { kind: 'banned', message: 'plays 4x Jace, the Mind Sculptor, which Standard (2011-07-01) bans', cardName: 'Jace, the Mind Sculptor', count: 4, limit: 0 },
-    { kind: 'banned', message: 'plays 4x Stoneforge Mystic, which Standard (2011-07-01) bans', cardName: 'Stoneforge Mystic', count: 4, limit: 0 },
+    { kind: 'banned', message: 'plays 4x Jace, the Mind Sculptor, which Standard (M12) bans', cardName: 'Jace, the Mind Sculptor', count: 4, limit: 0 },
   ],
-  note: 'deck "Mystic Caw Go (Ben Stark)" is built for "Standard (MBS)" as of 2011-02-13, but the pool supplied is "Standard (2011-07-01)"',
+  note: 'deck "UG Polymorph (Antoine Ruel)" is built for "Standard (M11)" as of 2010-07-16, but the pool supplied is "Standard (M12)"',
 };
 
 const REFUSAL =
-  'Seat 1\'s deck "Mystic Caw Go (Ben Stark)" is not legal in Standard (2011-07-01): ' +
-  'plays 4x Jace, the Mind Sculptor, which Standard (2011-07-01) bans (and 1 more)';
+  'Seat 1\'s deck "UG Polymorph (Antoine Ruel)" is not legal in Standard (M12): ' +
+  'plays 4x Jace, the Mind Sculptor, which Standard (M12) bans';
 
 const ROOM = 'r-friday';
 const MATCH = 'm-0123456789ab';
@@ -150,8 +164,8 @@ function opponent(over: Partial<RoomPlayer> = {}): RoomPlayer {
     seat: 0,
     name: 'user-bob',
     you: false,
-    deckName: 'Boros Landfall (Paul Rietzl)',
-    rulesName: 'Standard (MBS)',
+    deckName: 'Jund (Emanuele Giusti)',
+    rulesName: 'Standard (M11)',
     legal: true,
     issueCount: 0,
     ready: false,
@@ -272,7 +286,7 @@ function stubServer(table: Table) {
   const verdictOf = (deckId: string, formatId: string): Verdict => {
     const name = decks().find((d) => d.id === deckId)?.name ?? '?';
     const format = FORMATS.find((f) => f.id === formatId);
-    if (format?.id === '2011-07-01' && deckId === BEN_STARK) return BANNED;
+    if (format?.id === '2011-07-15' && deckId === UG_POLYMORPH) return BANNED;
     return LEGAL(name, format?.name ?? '?');
   };
   const verdictFor = (choice: SeatChoice): Verdict =>
@@ -553,9 +567,9 @@ describe('a room’s table', () => {
   it('shows both players, and says who is being waited on', async () => {
     await mountRoom({ players: [opponent()], matchId: null });
     expect(screen.getByTestId('room-seat-0').textContent).toContain('user-bob');
-    expect(screen.getByTestId('room-seat-0-deck').textContent).toBe('Boros Landfall (Paul Rietzl)');
-    // The format is a cell, not a clause: "legal in Standard (MBS)" is gone.
-    expect(screen.getByTestId('room-seat-0-rules').textContent).toBe('Standard (MBS)');
+    expect(screen.getByTestId('room-seat-0-deck').textContent).toBe('Jund (Emanuele Giusti)');
+    // The format is a cell, not a clause: "legal in Standard (M11)" is gone.
+    expect(screen.getByTestId('room-seat-0-rules').textContent).toBe('Standard (M11)');
     expect(screen.getByTestId('room-seat-0-legal').textContent).toBe('legal');
     expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('not ready');
     expect(screen.getByTestId('room-seat-1-empty')).toBeTruthy();
@@ -621,7 +635,7 @@ describe('a room’s table', () => {
   it('loads YOUR deck only when it is chosen, with no button to press', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
     expect(screen.queryByTestId('load-deck')).toBeNull();
-    await pick(PAUL_RIETZL);
+    await pick(SECOND_DECK);
 
     const put = lastCall(server.calls, `/tables/rooms/${ROOM}/deck`);
     expect(put).toEqual({
@@ -630,9 +644,9 @@ describe('a room’s table', () => {
       // One deck, no seat number, no field that could name another member —
       // and no `rules`: the ROOM's pool is what it is checked against, and a
       // body that named one would be a 400 (see the stub).
-      body: { deck: { library: PAUL_RIETZL } },
+      body: { deck: { library: SECOND_DECK } },
     });
-    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (MBS)');
+    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (M11)');
     expect(screen.getByTestId('room-seat-1').textContent).toContain('(you)');
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false);
   });
@@ -640,20 +654,19 @@ describe('a room’s table', () => {
   /*
    * The POOL moving under a chosen deck is now the only way to hold an illegal
    * one: the dropdown offers nothing else. Both halves are asserted — the
-   * verdict names the banned cards, and the deck drops off the list — because
+   * verdict names the banned card, and the deck drops off the list — because
    * the second is what stops Ready coming back to life over it.
    */
   it('an illegal deck blocks YOUR ready and names the card, and nobody else’s', async () => {
     const server = await mountRoom({ players: [opponent({ ready: true })], matchId: null });
-    await pick(BEN_STARK);
-    await pickPool('2011-07-01');
+    await pick(UG_POLYMORPH);
+    await pickPool('2011-07-15');
 
     const verdict = screen.getByTestId('verdict-mine').textContent ?? '';
     expect(verdict).toContain('Jace, the Mind Sculptor');
-    expect(verdict).toContain('Stoneforge Mystic');
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
     // The pool that bans it no longer offers it, and nothing is chosen.
-    await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
+    await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
     expect(chosen()).toBe('');
     // The other player was stood down BY THE POOL MOVING, which is the server's
     // rule and not this deck's fault: what they readied with is not what the
@@ -668,7 +681,7 @@ describe('a room’s table', () => {
 
   it('starts the match once both are ready, without either choosing the other’s deck', async () => {
     const server = await mountRoom({ players: [opponent({ ready: true })], matchId: null });
-    await pick(BEN_STARK);
+    await pick(UG_POLYMORPH);
     await act(async () => {
       fireEvent.click(screen.getByTestId('ready-toggle'));
     });
@@ -685,7 +698,7 @@ describe('a room’s table', () => {
 
   it('alone in the room, Play vs Forge AI starts a bot match from the room', async () => {
     const server = await mountRoom({ players: [], matchId: null });
-    await pick(BEN_STARK);
+    await pick(UG_POLYMORPH);
     const bot = screen.getByTestId('play-vs-bot');
     await waitFor(() => expect((bot as HTMLButtonElement).disabled).toBe(false));
     await act(async () => {
@@ -708,7 +721,7 @@ describe('a room’s table', () => {
         { id: 'p-bob', name: 'user-bob' },
       ],
     });
-    await pick(BEN_STARK);
+    await pick(UG_POLYMORPH);
     expect(screen.queryByTestId('play-vs-bot')).toBeNull();
   });
 
@@ -769,7 +782,7 @@ describe('a room’s table', () => {
                   creator: 'p-alice',
                   leader: 'p-alice',
                   gameType: 'constructed-1v1',
-                  format: '2011-02-13',
+                  format: '2010-07-16',
                   you: { leader: true, ready: false },
                   clientMode: 'builtin' as const,
                   locked: false,
@@ -861,7 +874,7 @@ describe('a room’s table', () => {
   });
 
   it('tells a third person there is no seat, rather than a picker that cannot work', async () => {
-    await mountRoom({ players: [opponent(), opponent({ name: 'user-carol', deckName: 'Mystic Caw Go (Ben Stark)' })], matchId: null });
+    await mountRoom({ players: [opponent(), opponent({ name: 'user-carol', deckName: 'UG Polymorph (Antoine Ruel)' })], matchId: null });
     expect(screen.getByTestId('room-spectator').textContent).toContain('Table full');
     expect(screen.queryByTestId('deck-mine')).toBeNull();
     expect(screen.getByTestId('room-seat-1').textContent).toContain('user-carol');
@@ -873,7 +886,7 @@ describe('a room’s table', () => {
       matchId: null,
       refuseStart: { status: 409, error: 'user-bob is not ready yet' },
     });
-    await pick(BEN_STARK);
+    await pick(UG_POLYMORPH);
     await act(async () => {
       fireEvent.click(screen.getByTestId('ready-toggle'));
     });
@@ -908,7 +921,7 @@ describe('the deck picker', () => {
     expect(chosen()).toBe('');
     expect(ready.disabled).toBe(true);
 
-    await pick(PAUL_RIETZL);
+    await pick(SECOND_DECK);
     await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
   });
 
@@ -916,26 +929,26 @@ describe('the deck picker', () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
     // The pool the room opens on is legal for both, so both are on offer.
     await deckPicker();
-    expect(offered()).toEqual([BEN_STARK, PAUL_RIETZL]);
+    expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]);
 
-    await pickPool('2011-07-01');
+    await pickPool('2011-07-15');
     // The pool that bans Jace and Stoneforge offers one of the two decks.
-    await waitFor(() => expect(offered()).toEqual([PAUL_RIETZL]));
+    await waitFor(() => expect(offered()).toEqual([SECOND_DECK]));
 
     // It is the SERVER's answer, one request per deck per pool — not arithmetic
     // done here over a set list the browser was never sent.
     const checks = server.calls.filter((c) => c.url.endsWith('/tables/check'));
     expect(checks.map((c) => c.body)).toEqual(
       expect.arrayContaining([
-        { deck: { library: BEN_STARK }, rules: { kind: 'standard', format: '2011-07-01' } },
-        { deck: { library: PAUL_RIETZL }, rules: { kind: 'standard', format: '2011-07-01' } },
+        { deck: { library: UG_POLYMORPH }, rules: { kind: 'standard', format: '2011-07-15' } },
+        { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2011-07-15' } },
       ]),
     );
 
     // And a pool already answered for is not asked again.
     const asked = checks.length;
-    await pickPool('2011-02-13');
-    await waitFor(() => expect(offered()).toContain(BEN_STARK));
+    await pickPool('2010-07-16');
+    await waitFor(() => expect(offered()).toContain(UG_POLYMORPH));
     expect(server.calls.filter((c) => c.url.endsWith('/tables/check')).length).toBe(asked);
   });
 
@@ -945,7 +958,7 @@ describe('the deck picker', () => {
     // said out loud rather than swallowed.
     await mountRoom({ players: [opponent()], matchId: null, checkFails: true });
     await deckPicker();
-    expect(offered()).toEqual([BEN_STARK, PAUL_RIETZL]);
+    expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]);
     await waitFor(() => expect(screen.getByTestId('table-error').textContent).toContain('the gate is restarting'));
   });
 
@@ -964,18 +977,18 @@ describe('the deck picker', () => {
    */
   it('will not ready up on a hold the pool moved out from under, when the re-send failed', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
-    await pick(BEN_STARK);
+    await pick(UG_POLYMORPH);
     await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
 
     server.table.deckFails = true;
-    await pickPool('2011-07-01');
+    await pickPool('2011-07-15');
 
     // The re-send is refused, in the server's own words.
     await waitFor(() => expect(screen.getByTestId('table-error').textContent).toContain('the room is restarting'));
     // Nothing was checked against the new pool, so there is no verdict to show.
     await waitFor(() => expect(screen.queryByTestId('verdict-mine')).toBeNull());
     // The deck is off the list, nothing is chosen, and Ready stays dead.
-    await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
+    await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
     expect(chosen()).toBe('');
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
   });
@@ -985,22 +998,22 @@ describe('the deck picker', () => {
     const server = await mountRoom({ players: [opponent()], matchId: null }, () => 0.99);
     await pressRandom();
 
-    expect(chosen()).toBe(PAUL_RIETZL);
-    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: PAUL_RIETZL } });
+    expect(chosen()).toBe(SECOND_DECK);
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: SECOND_DECK } });
     // `Random` is never what gets loaded: it resolves to a deck id.
     const loads = server.calls.filter((c) => c.url.endsWith('/deck'));
     expect(loads.map((c) => JSON.stringify(c.body))).not.toContain(expect.stringContaining('__random__'));
   });
 
   it('Random cannot roll a deck the pool bans, because the pool narrowed the list first', async () => {
-    // 0 lands on the FIRST offered deck, which in this pool is not Ben Stark's.
+    // 0 lands on the FIRST offered deck, which in this pool is not UG Polymorph's.
     const server = await mountRoom({ players: [opponent()], matchId: null }, () => 0);
-    await pickPool('2011-07-01');
-    await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
+    await pickPool('2011-07-15');
+    await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
     await pressRandom();
-    expect(chosen()).toBe(PAUL_RIETZL);
+    expect(chosen()).toBe(SECOND_DECK);
     expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in');
-    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: PAUL_RIETZL } });
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: SECOND_DECK } });
   });
 
   /*
@@ -1010,7 +1023,7 @@ describe('the deck picker', () => {
    */
   it('explains nothing: no provenance, no set list, no card counts', async () => {
     await mountRoom({ players: [opponent()], matchId: null });
-    await pick(BEN_STARK);
+    await pick(UG_POLYMORPH);
     const card = screen.getByTestId('deck-mine').closest('section') as HTMLElement;
 
     expect(card.textContent).not.toContain('Pro Tour Paris 2011');
@@ -1020,7 +1033,7 @@ describe('the deck picker', () => {
     expect(screen.queryByTestId('format-detail')).toBeNull();
     // The one surviving sentence is the server's verdict, which is a finding
     // about YOUR deck and not an explanation of the screen.
-    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (MBS)');
+    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (M11)');
 
     // No source link. Operator, 2026-09-30: *"the 'source' link is unecessary"*.
     // The attribution it carried is not lost: every `.dck` keeps its `Source URL`
@@ -1031,15 +1044,15 @@ describe('the deck picker', () => {
 
   it('re-sends the deck when the pool moves, so the held verdict is never one from another pool', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
-    await pick(PAUL_RIETZL);
+    await pick(SECOND_DECK);
     const loadsBefore = server.calls.filter((c) => c.url.endsWith('/deck')).length;
-    await pickPool('2011-07-01');
+    await pickPool('2011-07-15');
 
     // A second PUT, naming the same deck and no rules at all — the room's pool
     // is what the server checks it against, and the room's pool has moved.
     await waitFor(() => expect(server.calls.filter((c) => c.url.endsWith('/deck')).length).toBe(loadsBefore + 1));
-    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: PAUL_RIETZL } });
-    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (2011-07-01)');
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: SECOND_DECK } });
+    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (M12)');
   });
 
   /*
@@ -1055,18 +1068,18 @@ describe('the deck picker', () => {
       seat: 0,
       name: 'user-alice',
       you: true,
-      deckName: 'Boros Landfall (Paul Rietzl)',
-      rulesName: 'Standard (MBS)',
+      deckName: 'Jund (Emanuele Giusti)',
+      rulesName: 'Standard (M11)',
       legal: true,
       issueCount: 0,
       ready: true,
-      verdict: LEGAL('Boros Landfall (Paul Rietzl)', 'Standard (MBS)'),
-      choice: { deck: { library: PAUL_RIETZL }, rules: { kind: 'standard', format: '2011-02-13' } },
+      verdict: LEGAL('Jund (Emanuele Giusti)', 'Standard (M11)'),
+      choice: { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } },
     };
     // The other player is NOT ready, so nothing starts while this is watched.
     const server = await mountRoom({ players: [opponent(), held], matchId: null });
     // The picker opens on the deck the server holds…
-    await waitFor(() => expect(chosen()).toBe(PAUL_RIETZL));
+    await waitFor(() => expect(chosen()).toBe(SECOND_DECK));
     // …and over a dozen polls it never writes one.
     await act(async () => {
       await new Promise((r) => setTimeout(r, 120));
@@ -1089,25 +1102,25 @@ describe('the deck picker', () => {
  * screen that cannot set the table, and a control everybody has is the defect.
  */
 describe('the table’s pool', () => {
-  const POOL_NAME = '2011-02-13 — Standard (MBS)';
+  const POOL_NAME = '2010-07-16 — Standard (M11)';
 
   it('gives the LEADER a control that moves it, and writes it to the room', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
     const select = screen.getByTestId('format') as HTMLSelectElement;
-    expect(select.value).toBe('2011-02-13');
+    expect(select.value).toBe('2010-07-16');
     expect(screen.queryByTestId('format-fixed')).toBeNull();
 
-    await pickPool('2011-07-01');
+    await pickPool('2011-07-15');
 
     // One PATCH on the room itself, with `{ format }` and nothing else — the
     // same route and allow-list that carries `{ gameType }`.
     const patches = server.calls.filter((c) => c.method === 'PATCH');
     expect(patches).toEqual([
-      { url: `/cardtable/api/rooms/${ROOM}`, method: 'PATCH', body: { format: '2011-07-01' } },
+      { url: `/cardtable/api/rooms/${ROOM}`, method: 'PATCH', body: { format: '2011-07-15' } },
     ]);
     // And the deck list follows the room, not the press: the pool the room is
     // now on is the one the gate was asked about.
-    await waitFor(() => expect(offered()).toEqual([PAUL_RIETZL]));
+    await waitFor(() => expect(offered()).toEqual([SECOND_DECK]));
   });
 
   it('gives a NON-leader no pool control at all, only the value the room is on', async () => {
@@ -1118,32 +1131,32 @@ describe('the table’s pool', () => {
     const fixed = screen.getByTestId('format-fixed');
     expect(fixed.tagName).toBe('SPAN');
     expect(fixed.textContent).toBe(POOL_NAME);
-    expect(fixed.dataset.format).toBe('2011-02-13');
+    expect(fixed.dataset.format).toBe('2010-07-16');
     // And there is now no `<select>` on the card AT ALL: the pool is theirs to
     // read, and the deck chooser stopped being a dropdown in wave 28 §C.
     expect(screen.getByTestId('deck-mine').closest('section')!.querySelectorAll('select')).toHaveLength(0);
 
     // Their one input still works, and the pool is never written by them.
-    await pick(PAUL_RIETZL);
-    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (MBS)');
+    await pick(SECOND_DECK);
+    expect(screen.getByTestId('verdict-mine').textContent).toContain('Legal in Standard (M11)');
     expect(server.calls.filter((c) => c.method === 'PATCH')).toHaveLength(0);
   });
 
   it('follows the pool the leader moved it to, on a browser that pressed nothing', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null, leader: false });
-    await pick(BEN_STARK);
+    await pick(UG_POLYMORPH);
     await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
 
     // The leader's browser moved it; this one learns it from the room poll.
-    server.table.format = '2011-07-01';
+    server.table.format = '2011-07-15';
 
     // The held deck is re-sent — this seat's verdict was cleared by the change
     // too — and the pool that bans it names the cards and takes it off the list.
     await waitFor(() => expect(screen.getByTestId('verdict-mine').textContent).toContain('Jace, the Mind Sculptor'));
-    expect(screen.getByTestId('format-fixed').textContent).toBe('2011-07-01 — Standard (2011-07-01)');
-    await waitFor(() => expect(offered()).not.toContain(BEN_STARK));
+    expect(screen.getByTestId('format-fixed').textContent).toBe('2011-07-15 — Standard (M12)');
+    await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
-    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: BEN_STARK } });
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: UG_POLYMORPH } });
   });
 
   it('says who the leader is with a mark and a name, and no sentence about it', async () => {
@@ -1173,14 +1186,15 @@ describe('the table’s pool', () => {
 
   it('falls back to the NEWEST pool, not the oldest, when the room does not say', async () => {
     // The room record carries no pool — an older server, or a body that lost
-    // the field. `formats[0]` is 2011-02-13 and is where every room used to
-    // open; the fallback is the LAST element, the same default the server
+    // the field. `formats[0]` is the oldest power-summer era (2008-07-25) and
+    // is where every room used to open; the fallback is the LAST element, the
+    // same default the server
     // applies at create (operator, 2026-09-27: newest).
     const server = await mountRoom({ players: [opponent()], matchId: null, format: '' });
-    await waitFor(() => expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2011-07-01'));
+    await waitFor(() => expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2011-07-15'));
     const checks = server.calls.filter((c) => c.url.endsWith('/tables/check'));
     expect(checks).not.toHaveLength(0);
-    expect(checks.every((c) => (c.body as SeatChoice).rules.kind === 'standard' && (c.body as { rules: { format: string } }).rules.format === '2011-07-01')).toBe(true);
+    expect(checks.every((c) => (c.body as SeatChoice).rules.kind === 'standard' && (c.body as { rules: { format: string } }).rules.format === '2011-07-15')).toBe(true);
   });
 
   it('hands back the server’s refusal and leaves the pool where the room has it', async () => {
@@ -1190,12 +1204,12 @@ describe('the table’s pool', () => {
       refusePatch: { status: 409, error: 'this room is drafting; the game type cannot change now' },
     });
     await act(async () => {
-      fireEvent.change(screen.getByTestId('format'), { target: { value: '2011-07-01' } });
+      fireEvent.change(screen.getByTestId('format'), { target: { value: '2011-07-15' } });
     });
     await waitFor(() => expect(screen.getByTestId('table-error').textContent).toContain('this room is drafting'));
     // Nothing local moved: the select still reads what the ROOM is on.
-    expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2011-02-13');
-    expect(server.table.format).toBe('2011-02-13');
+    expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2010-07-16');
+    expect(server.table.format).toBe('2010-07-16');
   });
 });
 
@@ -1921,8 +1935,8 @@ function realDeck(collectionId: string, file: string): TableDeck {
   };
 }
 
-const UW_DELVER = realDeck('pt-dark-ascension-2012-standard', '6-matthew-costa-uw-delver.dck');
-const MONO_GREEN = realDeck('scg-kansas-city-2012-standard', '2-nick-marriott-mono-green-infect.dck');
+const UW_DELVER = realDeck('power-summer-2012', '1-todd-anderson-uw-delver.dck');
+const MONO_GREEN = realDeck('power-summer-2012', '1-cj-steele-infect.dck');
 
 describe('the deck dropdown shows its colours', () => {
 
@@ -2024,11 +2038,11 @@ describe('the deck dropdown shows its colours', () => {
     // `deckColorsByName` reads as "no coloured pip".
     await mountRoom({ players: [], matchId: null });
     await deckPicker();
-    expect(deckRow(BEN_STARK).dataset['colors']).toBe('');
-    expect(rowName(deckRow(BEN_STARK))).toBe('Mystic Caw Go (Ben Stark)');
+    expect(deckRow(UG_POLYMORPH).dataset['colors']).toBe('');
+    expect(rowName(deckRow(UG_POLYMORPH))).toBe('UG Polymorph (Antoine Ruel)');
     // A colourless deck's row says the word rather than drawing nothing.
-    expect(within(deckRow(BEN_STARK)).getByTestId('deck-colors').textContent).toBe('colourless');
-    await pick(BEN_STARK);
+    expect(within(deckRow(UG_POLYMORPH)).getByTestId('deck-colors').textContent).toBe('colourless');
+    await pick(UG_POLYMORPH);
     expect(pips()).toEqual([]);
     expect(within(chosenRow()).getByTestId('deck-colors').textContent).toBe('colourless');
   });
@@ -2051,11 +2065,11 @@ describe('Ready and Random come before the deck list, and the era note is not pr
 
   it('does not print which era a deck was built for', async () => {
     // BANNED carries the server's era note (`libraryPoolMismatch`): "deck X is
-    // built for Standard (MBS) as of …, but the pool supplied is …". It is not a
+    // built for Standard (M11) as of …, but the pool supplied is …". It is not a
     // fault in the deck, and the operator called it useless. The findings stay.
     await mountRoom({ players: [], matchId: null });
-    await pick(BEN_STARK);
-    await pickPool('2011-07-01');
+    await pick(UG_POLYMORPH);
+    await pickPool('2011-07-15');
     const verdict = await screen.findByTestId('verdict-mine');
     expect(verdict.textContent).toContain('Jace, the Mind Sculptor');
     expect(verdict.textContent).not.toContain('built for');

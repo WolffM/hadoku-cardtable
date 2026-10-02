@@ -113,7 +113,7 @@ export const ROOM_ID_RE = /^[a-z0-9-]{1,40}$/;
 /**
  * The pool a room's table plays in. Two kinds, one string:
  *
- *   `2011-07-01`              a frozen Standard era — a `TableFormat.id` from
+ *   `2016-07-22`              a frozen Standard era — a `TableFormat.id` from
  *                             `http/library.ts`, which is the pool's date
  *   `draft:amber-lantern-k7q4` a DRAFTED pool — the pod every player at this
  *                             table drafted from (`draftPoolId`)
@@ -216,9 +216,10 @@ let newestFrozen: FormatId | null = null;
  * The NEWEST frozen pool, which is what a new room starts on.
  *
  * `library.formats` is "in date order, oldest first" (`http/library.ts`), so the
- * newest is the LAST element — `formats[0]` is 2011-02-13 and every room used to
- * start there. Lazy and memoised, because a lobby that never mints a room and
- * restores no pre-format record should not read `decks/pools` at all.
+ * newest is the LAST element — `formats[0]` is the oldest power-summer era
+ * (`2008-07-25`) and every room used to start there. Lazy and memoised, because
+ * a lobby that never mints a room and restores no pre-format record should not
+ * read `decks/pools` at all.
  */
 export function newestFormat(): FormatId {
 	if (newestFrozen !== null) return newestFrozen;

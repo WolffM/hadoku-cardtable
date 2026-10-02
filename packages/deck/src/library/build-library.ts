@@ -1,65 +1,65 @@
 /*
- * Transcribes library collections from mtgtop8's own exports into the `.dck`
+ * Transcribes the deck library from mtgtop8's own exports into the `.dck`
  * files under `decks/`.
  *
  * Run from the repo root, once, when the library changes:
  *
- *   node packages/deck/src/library/build-library.ts                 # every collection below
- *   node packages/deck/src/library/build-library.ts --only=<id>     # one collection, by catalog id
+ *   node packages/deck/src/library/build-library.ts                 # every era
+ *   node packages/deck/src/library/build-library.ts --only=2011     # one era
  *
- * It covers the collections listed in `SOURCES`, which is every collection
- * transcribed by this script: PT Paris 2011 and the four SCG Open collections
- * added for the NPH, M12, AVR and M13 eras. Worlds 2011, GP Hiroshima 2011 and
- * PT Dark Ascension 2012 were transcribed by hand from the same source before
- * this script took a list, and are not re-derived here.
+ * ## What it reads
  *
- * It needs the network; nothing else in this lane does, and CI never runs it.
- * The committed `.dck` files are the artefact.
+ * The nine power-summer eras this wave replaced the old library with
+ * (`docs/planning/deck-selection/eras.json`) and, for each, the `chosen` list
+ * `tools/select_decks.py` wrote (`docs/planning/deck-selection/selections/
+ * selection-<year>.json` — deck id, event id, archetype, player, event name
+ * and finish for each of the 96 decks the selection chose; `review/README.md`
+ * has the rules it chose them by). Nothing here re-selects: this script is a
+ * parse from the selection's own numbers to committed files, same as the
+ * collections it replaces were a parse from a hand-picked Top 8 to committed
+ * files.
  *
  * ## Why a script and not hand-typed files
  *
  * Because a hand-typed decklist is a decklist nobody can check. This script
  * fetches mtgtop8's machine-readable export for each deck id, so the
- * transcription step is a parse rather than a person, and re-running it against
- * the same ids reproduces the same bytes. The `Source URL` written into every
- * file is the exact page the list came off.
+ * transcription step is a parse rather than a person, and re-running it
+ * against the same ids reproduces the same bytes. The `Source URL` written
+ * into every file is the exact page the list came off.
  *
- * ## Why it writes through `writeDck`
+ * ## The cache
  *
- * So the committed files are, by construction, in the exact form
- * `loadPrebuiltDeck` → `writePrebuiltDeck` puts back out. `library.test.ts`
- * asserts that round trip byte-for-byte on every file; had the files been
- * written by string concatenation, that assertion would have been testing this
- * script's formatting rather than the writer.
+ * mtgtop8 is one fetch per deck and this library is 96 decks, so a re-run
+ * reads a local cache first (`--cache=<dir>`, default `/tmp/deck-export-cache`)
+ * and only reaches the network for an id it has not seen, writing what it
+ * fetches back into the cache for next time. Polite either way: one request
+ * every 500ms when the network is actually used. Nothing else in this lane
+ * needs the network, and CI never runs this script.
  *
  * ## What it does NOT do
  *
- * It does not check legality. `validate-library.ts` does that, against the real
- * corpus, and keeping them apart is deliberate: a fetch that silently dropped a
- * card should fail a validation run, not be patched up by the fetcher.
+ * It does not check legality. `validate-library.ts` does that, against the
+ * real corpus, and keeping them apart is deliberate: a fetch that silently
+ * dropped a card should fail a validation run, not be patched up by the
+ * fetcher. It also does not choose which decks go in the library — that is
+ * `tools/select_decks.py`'s job, and this script is downstream of its output.
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { DeckEntry, DeckFile } from '@hadoku/carddata/dck';
 
 import { writeDck, type DckSpelling } from '../dck-write.ts';
-import {
-  PT_PARIS_2011_STANDARD,
-  SCG_INDIANAPOLIS_2012_STANDARD,
-  SCG_KANSAS_CITY_2012_STANDARD,
-  SCG_ORLANDO_2011_STANDARD,
-  SCG_RICHMOND_2011_STANDARD,
-  deckPath,
-  type LibraryCollection,
-} from './catalog.ts';
-import { LIBRARY_PROVENANCE_KEY, LIBRARY_SOURCE_KEY } from './library.ts';
 import { PREBUILT_DATE_KEY, PREBUILT_FORMAT_KEY } from '../prebuilt.ts';
+import { LIBRARY, deckPath, slugifyForLibrary, type LibraryCollection } from './catalog.ts';
+import { LIBRARY_PROVENANCE_KEY, LIBRARY_SOURCE_KEY } from './library.ts';
 
 /** `packages/deck/src/library` → the repo root. */
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const SELECTIONS_DIR = join(REPO_ROOT, 'docs', 'planning', 'deck-selection', 'selections');
+const DEFAULT_CACHE = '/tmp/deck-export-cache';
 
 /**
  * `Format` and `Effective` are ours, so `dck-write.ts`'s `FORGE_METADATA_KEYS`
@@ -80,104 +80,90 @@ const LIBRARY_SPELLING: DckSpelling = {
 };
 
 /**
- * One deck as mtgtop8 files it. `deckId` is the `d=` parameter on the event
- * page; `placing` and `player` are read off that page's Top 8 table.
+ * mtgtop8 set codes this library's 1151 distinct (card, set) pairs have needed
+ * to correct, found by checking every one against Forge's own card database at
+ * the pinned jar (not against the corpus — see below for why that is not the
+ * same question).
+ *
+ * **Blanket fixups**, applied regardless of card name. mtgtop8 spells most
+ * sets the three letters Scryfall and Forge both use — 39 of the 40 distinct
+ * codes this library's decks use agreed outright. The one that did not:
+ * Coldsnap. mtgtop8 exports it `[CS]`; the real corpus's own `set` field for
+ * every Coldsnap printing is `csp`, and every other code already agrees with
+ * that corpus, so `CS` is normalised to match it. (Forge itself is actually
+ * lenient here — `CardEdition`'s `Code2=CS` for Coldsnap means Forge's own
+ * `getCard(name, "CS")` already resolves correctly, checked directly against
+ * the pinned jar. The fixup is for consistency with the corpus and with the
+ * other 39 codes, not because Forge would otherwise fail.)
  */
-interface SourceDeck {
-  readonly file: string;
-  readonly deckId: number;
-  readonly player: string;
-  readonly placing: string;
-  readonly archetype: string;
-}
-
-/** A catalog collection and the mtgtop8 event its decks came off. */
-interface SourceCollection {
-  readonly collection: LibraryCollection;
-  readonly eventId: number;
-  readonly decks: readonly SourceDeck[];
-}
+const SET_CODE_FIXUPS: ReadonlyMap<string, string> = new Map([['CS', 'CSP']]);
 
 /**
- * Pro Tour Paris 2011's Top 8, in finishing order, as
- * https://www.mtgtop8.com/event?e=1016&f=ST lists them. Placings are joint from
- * third down, which is how a single-elimination Top 8 is reported and how the
- * source reports it.
+ * **Per-card fixups** — mtgtop8 labels a reprint under the main set's code
+ * when the card was actually only reprinted on that set's "timeshifted" bonus
+ * sheet, which Forge (and Scryfall) catalogue as a SEPARATE edition. Found the
+ * same way as the blanket fixups: checking every (card, set) pair this library
+ * uses against Forge's own card database — `CardDb.getCardFromSet` returns
+ * null for exactly these six under `TSP`, because Forge has no Time Spiral
+ * printing of them at all, only a Time Spiral TIMESHIFTED (`TSB`) one. mtgtop8
+ * exports all six as `[TSP] <name>` regardless; the corpus confirms `tsb` is
+ * each one's only printing inside the 2008 era's legal sets.
+ *
+ * Keyed by `"Name|WRONG_SET"` so a fix never touches a different card that
+ * happens to share a set code with one of these.
  */
-const PT_PARIS_2011_TOP_8: readonly SourceDeck[] = [
-  { file: '1-ben-stark-mystic-caw-go.dck', deckId: 209238, player: 'Ben Stark', placing: '1st', archetype: 'Mystic Caw Go' },
-  { file: '2-paul-rietzl-boros-landfall.dck', deckId: 209239, player: 'Paul Rietzl', placing: '2nd', archetype: 'Boros Landfall' },
-  { file: '3-vincent-lemoine-boros-landfall.dck', deckId: 209236, player: 'Vincent Lemoine', placing: '3rd-4th', archetype: 'Boros Landfall' },
-  { file: '4-naoki-nakada-mystic-caw-go.dck', deckId: 209242, player: 'Naoki Nakada', placing: '3rd-4th', archetype: 'Mystic Caw Go' },
-  { file: '5-nico-bohny-fauna-quest.dck', deckId: 209237, player: 'Nico Bohny', placing: '5th-8th', archetype: 'Fauna Quest' },
-  { file: '6-tom-martell-mystic-caw-go.dck', deckId: 209241, player: 'Tom Martell', placing: '5th-8th', archetype: 'Mystic Caw Go' },
-  { file: '7-shintaro-ishimura-mystic-caw-go.dck', deckId: 209243, player: 'Shintaro Ishimura', placing: '5th-8th', archetype: 'Mystic Caw Go' },
-  { file: '8-patrick-chapin-tezzeret-control.dck', deckId: 209240, player: 'Patrick Chapin', placing: '5th-8th', archetype: 'Tezzeret Control' },
-];
+const CARD_SET_FIXUPS: ReadonlyMap<string, string> = new Map([
+  ['Avalanche Riders|TSP', 'TSB'],
+  ['Disintegrate|TSP', 'TSB'],
+  ['Lord of Atlantis|TSP', 'TSB'],
+  ['Pendelhaven|TSP', 'TSB'],
+  ['Shadow Guildmage|TSP', 'TSB'],
+  ['Wall of Roots|TSP', 'TSB'],
+]);
 
-/*
- * The four era collections. Each is the Top 8 of one StarCityGames Open, cut
- * to the best-placed deck of each archetype as mtgtop8 names it (see
- * `catalog.ts` for why). Placings, players and archetype labels are copied off
- * the event page; the archetype label is mtgtop8's own, verbatim.
- */
+/** One deck the selection chose, as `selection-<year>.json` records it. */
+interface ChosenDeck {
+  readonly deck: number;
+  readonly event: number;
+  readonly archetype: string;
+  readonly player: string;
+  readonly event_name: string;
+  readonly rank: string;
+}
 
-/** SCG Open Orlando, 2011-05-14 — https://www.mtgtop8.com/event?e=1571&f=ST */
-const SCG_ORLANDO_2011: readonly SourceDeck[] = [
-  { file: '1-edgar-flores-caw-blade.dck', deckId: 212091, player: 'Edgar Flores', placing: '1st', archetype: 'Caw-Blade' },
-  { file: '2-michael-strunk-grixis-twin-exarch.dck', deckId: 212092, player: 'Michael Strunk', placing: '2nd', archetype: 'Grixis Twin Exarch' },
-  { file: '3-tim-landale-rug-twin-exarch.dck', deckId: 212093, player: 'Tim Landale', placing: '3rd', archetype: 'RUG Twin Exarch' },
-  { file: '4-kitt-holland-kozilek-caw-blade.dck', deckId: 212094, player: 'Kitt Holland', placing: '4th', archetype: 'Kozilek Caw-Blade' },
-  { file: '7-aadil-qadir-br-vampires.dck', deckId: 212097, player: 'Aadil Qadir', placing: '7th', archetype: 'Br Vampires' },
-  { file: '8-miguel-rondon-valakut-ramp.dck', deckId: 212098, player: 'Miguel Rondon', placing: '8th', archetype: 'Valakut Ramp' },
-];
+interface SelectionFile {
+  readonly era: { readonly year: number; readonly format: string; readonly start: string };
+  readonly chosen: readonly ChosenDeck[];
+}
 
-/** SCG Open Richmond, 2011-08-14 — https://www.mtgtop8.com/event?e=1910&f=ST */
-const SCG_RICHMOND_2011: readonly SourceDeck[] = [
-  { file: '1-pat-cox-valakut-ramp.dck', deckId: 213773, player: 'Pat Cox', placing: '1st', archetype: 'Valakut Ramp' },
-  { file: '2-kyle-rose-caw-blade.dck', deckId: 213774, player: 'Kyle Rose', placing: '2nd', archetype: 'Caw-Blade' },
-  { file: '3-shaheen-soorani-ub-control.dck', deckId: 213775, player: 'Shaheen Soorani', placing: '3rd-4th', archetype: 'UB Control' },
-  { file: '5-thomas-cole-boros-landfall.dck', deckId: 213779, player: 'Thomas Cole', placing: '5th-8th', archetype: 'Boros Landfall' },
-  { file: '5-robbie-auchter-red-deck-wins.dck', deckId: 213777, player: 'Robbie Auchter', placing: '5th-8th', archetype: 'Red Deck Wins' },
-  { file: '5-ian-shore-rug-pod.dck', deckId: 213780, player: 'Ian Shore', placing: '5th-8th', archetype: 'RUG Pod' },
-];
+/** `'1'` → `'1st'`, `'3-4'` → `'3rd-4th'`, `'5-8'` → `'5th-8th'`. Ranks never exceed 8 in this selection. */
+function ordinal(n: number): string {
+  if (n % 10 === 1 && n % 100 !== 11) return `${String(n)}st`;
+  if (n % 10 === 2 && n % 100 !== 12) return `${String(n)}nd`;
+  if (n % 10 === 3 && n % 100 !== 13) return `${String(n)}rd`;
+  return `${String(n)}th`;
+}
 
-/** SCG Open Indianapolis, 2012-06-16 — https://www.mtgtop8.com/event?e=2767&f=ST */
-const SCG_INDIANAPOLIS_2012: readonly SourceDeck[] = [
-  { file: '1-ross-merriam-uw-delver.dck', deckId: 217906, player: 'Ross Merriam', placing: '1st', archetype: 'UW Delver' },
-  { file: '2-michael-marlow-bu-zombies.dck', deckId: 217907, player: 'Michael Marlow', placing: '2nd', archetype: 'BU Zombies' },
-  { file: '3-dan-musser-rug-pod.dck', deckId: 217910, player: 'Dan Musser', placing: '3rd-4th', archetype: 'RUG Pod' },
-  { file: '5-logan-mize-kessig-titan.dck', deckId: 217912, player: 'Logan Mize', placing: '5th-8th', archetype: 'Kessig Titan' },
-  { file: '5-robbie-cordell-solar-flare.dck', deckId: 217909, player: 'Robbie Cordell', placing: '5th-8th', archetype: 'Solar Flare' },
-  { file: '5-ian-farnung-tezzeret-control.dck', deckId: 217913, player: 'Ian Farnung', placing: '5th-8th', archetype: 'Tezzeret Control' },
-];
+function placingOf(rank: string): string {
+  return rank
+    .split('-')
+    .map((part) => ordinal(Number(part)))
+    .join('-');
+}
 
-/** SCG Open Kansas City, 2012-08-11 — https://www.mtgtop8.com/event?e=2814&f=ST */
-const SCG_KANSAS_CITY_2012: readonly SourceDeck[] = [
-  { file: '1-mike-prokop-uw-delver.dck', deckId: 218164, player: 'Mike Prokop', placing: '1st', archetype: 'UW Delver' },
-  { file: '2-nick-marriott-mono-green-infect.dck', deckId: 218165, player: 'Nick Marriott', placing: '2nd', archetype: 'Mono Green Infect' },
-  { file: '3-robert-berni-blue-kessig.dck', deckId: 218167, player: 'Robert Berni', placing: '3rd-4th', archetype: 'Blue Kessig' },
-  { file: '3-eric-holmes-naya-pod.dck', deckId: 218166, player: 'Eric Holmes', placing: '3rd-4th', archetype: 'Naya Pod' },
-  { file: '5-scott-ouderkirk-gr-aggro.dck', deckId: 218169, player: 'Scott Ouderkirk', placing: '5th-8th', archetype: 'Gr Aggro' },
-  { file: '5-matthew-dennis-zombie-pod.dck', deckId: 218171, player: 'Matthew Dennis', placing: '5th-8th', archetype: 'Zombie Pod' },
-];
-
-const SOURCES: readonly SourceCollection[] = [
-  { collection: PT_PARIS_2011_STANDARD, eventId: 1016, decks: PT_PARIS_2011_TOP_8 },
-  { collection: SCG_ORLANDO_2011_STANDARD, eventId: 1571, decks: SCG_ORLANDO_2011 },
-  { collection: SCG_RICHMOND_2011_STANDARD, eventId: 1910, decks: SCG_RICHMOND_2011 },
-  { collection: SCG_INDIANAPOLIS_2012_STANDARD, eventId: 2767, decks: SCG_INDIANAPOLIS_2012 },
-  { collection: SCG_KANSAS_CITY_2012_STANDARD, eventId: 2814, decks: SCG_KANSAS_CITY_2012 },
-];
+/** The leading number of a (possibly joint) rank — `'5-8'` → `5`. Used as the filename's sort prefix. */
+function rankNumber(rank: string): number {
+  return Number(rank.split('-')[0]);
+}
 
 /** mtgtop8's plain-text export for one deck. `f=` is only a filename hint. */
 function exportUrl(deckId: number): string {
-  return `https://www.mtgtop8.com/dec?d=${deckId}&f=ST`;
+  return `https://www.mtgtop8.com/dec?d=${String(deckId)}&f=ST`;
 }
 
 /** The page a human should open to check the list. */
 function deckPageUrl(eventId: number, deckId: number): string {
-  return `https://www.mtgtop8.com/event?e=${eventId}&d=${deckId}&f=ST`;
+  return `https://www.mtgtop8.com/event?e=${String(eventId)}&d=${String(deckId)}&f=ST`;
 }
 
 /**
@@ -205,12 +191,16 @@ function parseDecExport(text: string, what: string): DecList {
     if (matched === null) {
       throw new Error(`${what}: cannot parse export line ${JSON.stringify(raw)}`);
     }
-    const [, count, set, name] = matched;
+    const [, count, rawSet, rawName] = matched;
+    const name = (rawName as string).trim();
+    const upperSet = (rawSet as string).toUpperCase();
+    const blanketFixed = SET_CODE_FIXUPS.get(upperSet) ?? upperSet;
+    const set = CARD_SET_FIXUPS.get(`${name}|${upperSet}`) ?? blanketFixed;
     const entry: DeckEntry = {
       count: Number(count),
       card: {
-        name: name.trim(),
-        set: set.toUpperCase(),
+        name,
+        set,
         collectorNumber: null,
         artIndex: 1,
         foil: false,
@@ -231,11 +221,11 @@ function totalCount(entries: readonly DeckEntry[]): number {
 
 function buildDeckFile(
   collection: LibraryCollection,
-  source: SourceDeck,
-  eventId: number,
+  source: ChosenDeck,
   list: DecList,
 ): DeckFile {
   const name = `${source.archetype} (${source.player})`;
+  const placing = placingOf(source.rank);
   // Insertion order is the written order, so this is the header layout:
   // what the deck is, then what it is legal in, then where it came from.
   const metadata = new Map<string, string>([
@@ -243,10 +233,10 @@ function buildDeckFile(
     ['deck type', 'Constructed'],
     [PREBUILT_FORMAT_KEY.toLowerCase(), collection.format],
     [PREBUILT_DATE_KEY.toLowerCase(), collection.date],
-    [LIBRARY_SOURCE_KEY.toLowerCase(), deckPageUrl(eventId, source.deckId)],
+    [LIBRARY_SOURCE_KEY.toLowerCase(), deckPageUrl(source.event, source.deck)],
     [
       LIBRARY_PROVENANCE_KEY.toLowerCase(),
-      `${collection.event}: ${source.player}, ${source.placing}, ${source.archetype}. Transcribed from mtgtop8 deck ${source.deckId}.`,
+      `${source.event_name}: ${source.player}, ${placing}, ${source.archetype}. Transcribed from mtgtop8 deck ${String(source.deck)}.`,
     ],
   ]);
 
@@ -256,10 +246,31 @@ function buildDeckFile(
   return { name, metadata, sections };
 }
 
+/** The file this deck is written to, repo-root-relative-within-its-collection. */
+export function fileNameFor(source: ChosenDeck): string {
+  return `${String(rankNumber(source.rank))}-${slugifyForLibrary(source.player)}-${slugifyForLibrary(source.archetype)}.dck`;
+}
+
 async function fetchText(url: string): Promise<string> {
   const response = await fetch(url, { headers: { 'user-agent': 'hadoku-cardtable/0.1 (deck library build)' } });
   if (!response.ok) throw new Error(`${url}: HTTP ${String(response.status)}`);
   return await response.text();
+}
+
+/** Delay between network fetches, so a cold cache is still polite. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function cachedExport(deckId: number, cacheDir: string): Promise<string> {
+  const cachePath = join(cacheDir, `${String(deckId)}.dec`);
+  if (existsSync(cachePath)) return readFileSync(cachePath, 'utf8');
+
+  const text = await fetchText(exportUrl(deckId));
+  mkdirSync(cacheDir, { recursive: true });
+  writeFileSync(cachePath, text, 'utf8');
+  await sleep(500);
+  return text;
 }
 
 function arg(name: string): string | null {
@@ -268,27 +279,40 @@ function arg(name: string): string | null {
   return null;
 }
 
+/** A collection's year, off its own `Effective` date — `'2008-07-25'` → `2008`. No separate field to drift from it. */
+function yearOf(collection: LibraryCollection): string {
+  return collection.date.slice(0, 4);
+}
+
 async function main(): Promise<void> {
   const only = arg('only');
-  const chosen = SOURCES.filter((s) => only === null || s.collection.id === only);
-  if (chosen.length === 0) throw new Error(`--only=${String(only)} names no collection this script transcribes`);
+  const cacheDir = arg('cache') ?? DEFAULT_CACHE;
+  const years = LIBRARY.map(yearOf).filter((y) => only === null || y === only);
+  if (years.length === 0) throw new Error(`--only=${String(only)} names no era this script transcribes`);
 
-  for (const { collection, eventId, decks } of chosen) {
+  for (const collection of LIBRARY) {
+    if (!years.includes(yearOf(collection))) continue;
+    const selectionPath = join(SELECTIONS_DIR, `selection-${yearOf(collection)}.json`);
+    const selection = JSON.parse(readFileSync(selectionPath, 'utf8')) as SelectionFile;
+
     const outDir = join(REPO_ROOT, collection.directory);
     mkdirSync(outDir, { recursive: true });
-    console.log(`== ${collection.id}`);
+    console.log(`== ${collection.id} (${String(selection.chosen.length)} decks)`);
 
-    for (const source of decks) {
-      const what = `${source.player} (mtgtop8 ${String(source.deckId)})`;
-      const list = parseDecExport(await fetchText(exportUrl(source.deckId)), what);
-      const file = buildDeckFile(collection, source, eventId, list);
-      const entry = collection.decks.find((d) => d.file === source.file);
-      if (entry === undefined) throw new Error(`${what}: ${source.file} is not in the catalog`);
+    for (const source of selection.chosen) {
+      const what = `${source.player} (mtgtop8 ${String(source.deck)})`;
+      const text = await cachedExport(source.deck, cacheDir);
+      const list = parseDecExport(text, what);
+      const file = buildDeckFile(collection, source, list);
+      const entry = collection.decks.find((d) => d.file === fileNameFor(source));
+      if (entry === undefined) {
+        throw new Error(`${what}: ${fileNameFor(source)} is not in catalog.ts's ${collection.id} — catalog.ts and the selection have drifted`);
+      }
 
       const target = join(REPO_ROOT, deckPath(collection, entry));
       writeFileSync(target, writeDck(file, { spelling: LIBRARY_SPELLING }), 'utf8');
       console.log(
-        `${source.file}: main ${String(totalCount(list.main))}, sideboard ${String(totalCount(list.sideboard))}`,
+        `  ${fileNameFor(source)}: main ${String(totalCount(list.main))}, sideboard ${String(totalCount(list.sideboard))}`,
       );
     }
   }

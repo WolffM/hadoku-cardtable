@@ -22,6 +22,23 @@
  * carried on purpose, because it is checkable: `library.test.ts` asserts every
  * deck file in a collection agrees with its collection's row, so a deck filed
  * under the wrong format fails the build rather than sitting there wrong.
+ *
+ * ## Wave 34: nine power-summer eras, replacing the old nine-collection library
+ *
+ * The library used to be eight mid-season tournament collections, all but one
+ * from an 18-month window (2011-02 to 2012-08) — 49 decks, several of them the
+ * same archetype four times over. The operator asked for the opposite shape:
+ * one era per year, 2008-2016, each the Standard in force just before that
+ * year's fall rotation, each with twelve decks searched for colour and style
+ * spread rather than hand-picked from one event's Top 8.
+ *
+ * `docs/planning/deck-selection/` is where that selection happened —
+ * `eras.json` names the nine snapshots, `selections/selection-<year>.json` has
+ * the 96 decks `tools/select_decks.py` chose and why, `review/<year>.md` is the
+ * human-readable report per era, and `review/README.md` has the rules. This
+ * file is downstream of that selection: `build-library.ts` transcribes exactly
+ * the `chosen` list, in order, into the `.dck` files below. Re-selecting is a
+ * data edit to that tool, not an edit here.
  */
 
 /** One deck file in a collection. */
@@ -43,7 +60,7 @@ export interface LibraryCollection {
   readonly format: string;
   /** `YYYY-MM-DD`. Every deck's `Effective` key must match. */
   readonly date: string;
-  /** Where the collection as a whole came from. */
+  /** Where the collection as a whole came from — the selection's own review doc. */
   readonly source: string;
   readonly decks: readonly LibraryEntry[];
 }
@@ -52,285 +69,328 @@ export interface LibraryCollection {
 export const DECKS_ROOT = 'decks';
 
 /**
- * Pro Tour Paris 2011, the Standard portion — the complete Top 8.
- *
- * Chosen because it is a **complete, closed set** rather than a hand-picked
- * eight: "the Top 8 of one event" has an unambiguous membership test, so nobody
- * has to wonder which decks were left out or why. It is also the format this
- * repo's own tooling can say the most about — the snapshot in force is
- * `Standard (MBS)`, effective 2011-02-04, and the very next rotation row
- * (2011-07-01) bans two cards that four of these eight decks play, which makes
- * the library its own regression test for the ban path.
- *
- * Four of the eight are the same archetype. That is not sampling laziness; it
- * is what that Top 8 was. Caw-Blade broke out at this tournament.
+ * Slugify a player or archetype name for a library filename or id: strip
+ * accents, lowercase, collapse everything that is not `[a-z0-9]` to one `-`.
+ * `build-library.ts` uses this to derive both the `.dck` filename and the
+ * entry id from the selection's own `player`/`archetype` strings, so the two
+ * can never drift from each other by a hand-typed difference.
  */
-export const PT_PARIS_2011_STANDARD: LibraryCollection = {
-  id: 'pt-paris-2011-standard',
-  directory: `${DECKS_ROOT}/standard-2011-02-13-pt-paris`,
-  event: 'Pro Tour Paris 2011, Standard portion, Top 8',
-  format: 'Standard (MBS)',
-  date: '2011-02-13',
-  source: 'https://www.mtgtop8.com/event?e=1016&f=ST',
-  decks: [
-    { id: 'pt-paris-2011-1-ben-stark', file: '1-ben-stark-mystic-caw-go.dck' },
-    { id: 'pt-paris-2011-2-paul-rietzl', file: '2-paul-rietzl-boros-landfall.dck' },
-    { id: 'pt-paris-2011-3-vincent-lemoine', file: '3-vincent-lemoine-boros-landfall.dck' },
-    { id: 'pt-paris-2011-4-naoki-nakada', file: '4-naoki-nakada-mystic-caw-go.dck' },
-    { id: 'pt-paris-2011-5-nico-bohny', file: '5-nico-bohny-fauna-quest.dck' },
-    { id: 'pt-paris-2011-6-tom-martell', file: '6-tom-martell-mystic-caw-go.dck' },
-    { id: 'pt-paris-2011-7-shintaro-ishimura', file: '7-shintaro-ishimura-mystic-caw-go.dck' },
-    { id: 'pt-paris-2011-8-patrick-chapin', file: '8-patrick-chapin-tezzeret-control.dck' },
-  ],
-};
-
+export function slugifyForLibrary(s: string): string {
+  const stripped = s.normalize('NFKD').replace(/\p{M}/gu, '');
+  return stripped
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
 
 /**
- * Pro Tour Dark Ascension 2012, the Standard portion — the complete Top 8.
- *
- * The second collection, and chosen for a reason the first cannot serve: the
- * operator's first real test is **playing a Standard game against someone**, in
- * the window between New Phyrexia and Return to Ravnica. Paris 2011 is a
- * different format (Scars/Zendikar, pre-New Phyrexia) and four of its eight
- * decks are illegal after the 2011-07-01 bans, which makes it a fine ban-path
- * regression test and a poor thing to actually play.
- *
- * The snapshot in force is `Standard (DKA)` — **SOM, MBS, NPH, M12, ISD, DKA,
- * no bans** — which is the Innistrad-era format at its most recognisable:
- * Kessig Wolf Run ramp, three flavours of Delver, and Birthing Pod.
- *
- * Five archetypes across eight decks, so two people can pick genuinely
- * different decks. As with Paris, this is a complete Top 8 rather than a
- * hand-picked eight: membership has an unambiguous test.
- *
- * Every card was resolved against the real corpus restricted to those six sets
- * before the files were written — **zero cards failed**, which is why the set
- * code on every line is derived rather than guessed.
+ * The 2008 power summer — `Standard (EVE)`, 2008-07-25 to 2008-10-03, the last
+ * Standard snapshot before that fall's rotation. 21 legal candidate decks from
+ * that summer's Nationals, Pro Tours, Grand Prix and SCG/PTQ events (`docs/planning/
+ * deck-selection/review/2008.md` has the full table and the ones dropped as illegal or
+ * near-duplicate); 12 chosen, one per archetype, searched for colour and style
+ * spread: W 3, U 6, B 5, R 5, G 4;
+ * aggro 4, midrange 4, control 3, combo 1.
  */
-export const PT_DARK_ASCENSION_2012_STANDARD: LibraryCollection = {
-  id: 'pt-dark-ascension-2012-standard',
-  directory: `${DECKS_ROOT}/standard-2012-02-12-pt-dark-ascension`,
-  event: 'Pro Tour Dark Ascension 2012, Standard portion, Top 8',
-  format: 'Standard (DKA)',
-  date: '2012-02-12',
-  source: 'https://www.mtgtop8.com/event?e=2518&f=ST',
+export const POWER_SUMMER_2008_STANDARD: LibraryCollection = {
+  id: 'power-summer-2008',
+  directory: `${DECKS_ROOT}/standard-2008`,
+  event: "2008 power summer \u2014 Standard (EVE), 2008-07-25 \u2192 2008-10-03",
+  format: "Standard (EVE)",
+  date: "2008-07-25",
+  source: 'docs/planning/deck-selection/review/2008.md',
   decks: [
-    { id: 'pt-dka-2012-1-brian-kibler', file: '1-brian-kibler-kessig-titan.dck' },
-    { id: 'pt-dka-2012-2-paulo-vitor-damo-da-rosa', file: '2-paulo-vitor-damo-da-rosa-kessig-titan.dck' },
-    { id: 'pt-dka-2012-3-mamoru-nagai', file: '3-mamoru-nagai-black-kessig.dck' },
-    { id: 'pt-dka-2012-4-jon-finkel', file: '4-jon-finkel-uwb-delver.dck' },
-    { id: 'pt-dka-2012-5-lukas-blohon', file: '5-lukas-blohon-naya-pod.dck' },
-    { id: 'pt-dka-2012-6-matthew-costa', file: '6-matthew-costa-uw-delver.dck' },
-    { id: 'pt-dka-2012-7-denniz-rachid', file: '7-denniz-rachid-uw-human-delver.dck' },
-    { id: 'pt-dka-2012-8-jelger-wiegersma', file: '8-jelger-wiegersma-uwb-delver.dck' },
+    { id: "power-2008-1-michael-jacob-red-deck-wins", file: "1-michael-jacob-red-deck-wins.dck" },
+    { id: "power-2008-1-jonathan-randle-ub-faeries", file: "1-jonathan-randle-ub-faeries.dck" },
+    { id: "power-2008-1-william-cavaglieri-torrent", file: "1-william-cavaglieri-torrent.dck" },
+    { id: "power-2008-1-masashi-oiso-uw-blink-reveillark", file: "1-masashi-oiso-uw-blink-reveillark.dck" },
+    { id: "power-2008-1-tom-van-lamoen-swans-control", file: "1-tom-van-lamoen-swans-control.dck" },
+    { id: "power-2008-2-sam-black-elves", file: "2-sam-black-elves.dck" },
+    { id: "power-2008-2-akihiro-takakuwa-gassy-knoll", file: "2-akihiro-takakuwa-gassy-knoll.dck" },
+    { id: "power-2008-3-russ-j-davies-doran", file: "3-russ-j-davies-doran.dck" },
+    { id: "power-2008-3-stephane-soubrier-merfolks", file: "3-stephane-soubrier-merfolks.dck" },
+    { id: "power-2008-5-shouhei-yamamoto-4c-reveillark-control", file: "5-shouhei-yamamoto-4c-reveillark-control.dck" },
+    { id: "power-2008-1-paul-cheon-uw-pickles", file: "1-paul-cheon-uw-pickles.dck" },
+    { id: "power-2008-3-armin-birner-manaramp", file: "3-armin-birner-manaramp.dck" },
   ],
 };
-
 
 /**
- * Worlds 2011, San Francisco, the Standard portion — the complete Top 8.
- *
- * The Innistrad-era format (`Standard (ISD)`: SOM, MBS, NPH, M12, ISD), which
- * is the window between the New Phyrexia bans and Dark Ascension. Added for the
- * operator's request for roughly five decks per era across the New
- * Phyrexia-to-Return to Ravnica span.
- *
- * ## Two things about this Top 8 that are real, and are not transcription slips
- *
- * **Four of the eight are byte-identical.** Woods, Damo da Rosa, Scott-Vargas
- * and Utter-Leyton all played the same 75-card Tempered Steel list. That is the
- * Channel Fireball team deck, and the duplication is the historical fact rather
- * than a copy-paste: the files are kept separate because the collection is "the
- * Top 8", whose membership test is unambiguous, and dropping three would make a
- * reader wonder what was cut.
- *
- * **There is no black deck.** Basics across all eight are Plains, Island,
- * Mountain and Forest — no Swamp anywhere. Black is represented in the library
- * by the Dark Ascension collection (Nagai's Black Kessig, and two UWb Delver
- * lists), but *this era* has no black entry, and an era-level colour sweep
- * should expect that rather than treat it as missing data.
- *
- * Every card was resolved against the real corpus restricted to the five legal
- * sets before the files were written; zero failed.
+ * The 2009 power summer — `Standard (M10)`, 2009-07-17 to 2009-10-02, the last
+ * Standard snapshot before that fall's rotation. 4 legal candidate decks from
+ * that summer's Nationals, Pro Tours, Grand Prix and SCG/PTQ events (`docs/planning/
+ * deck-selection/review/2009.md` has the full table and the ones dropped as illegal or
+ * near-duplicate); 4 chosen, one per archetype, searched for colour and style
+ * spread: W 2, U 1, B 3, R 1, G 2;
+ * aggro 3, midrange 0, control 1, combo 0.
  */
-export const WORLDS_2011_STANDARD: LibraryCollection = {
-  id: 'worlds-2011-standard',
-  directory: `${DECKS_ROOT}/standard-2011-11-20-worlds`,
-  event: 'Worlds 2011 (San Francisco), Standard portion, Top 8',
-  format: 'Standard (ISD)',
-  date: '2011-11-20',
-  source: 'https://www.mtgtop8.com/event?e=2245&f=ST',
+export const POWER_SUMMER_2009_STANDARD: LibraryCollection = {
+  id: 'power-summer-2009',
+  directory: `${DECKS_ROOT}/standard-2009`,
+  event: "2009 power summer \u2014 Standard (M10), 2009-07-17 \u2192 2009-10-02",
+  format: "Standard (M10)",
+  date: "2009-07-17",
+  source: 'docs/planning/deck-selection/review/2009.md',
   decks: [
-    { id: 'worlds-2011-1-junya-iyanaga', file: '1-junya-iyanaga-kessig-titan.dck' },
-    { id: 'worlds-2011-2-richard-bland', file: '2-richard-bland-gw-aggro.dck' },
-    { id: 'worlds-2011-3-david-caplan', file: '3-david-caplan-red-deck-wins.dck' },
-    { id: 'worlds-2011-4-conley-woods', file: '4-conley-woods-tempered-steel.dck' },
-    { id: 'worlds-2011-5-craig-wescoe', file: '5-craig-wescoe-saint-ww-with-leaks.dck' },
-    { id: 'worlds-2011-6-paulo-vitor-damo-da-rosa', file: '6-paulo-vitor-damo-da-rosa-tempered-steel.dck' },
-    { id: 'worlds-2011-7-luis-scott-vargas', file: '7-luis-scott-vargas-tempered-steel.dck' },
-    { id: 'worlds-2011-8-josh-utter-leyton', file: '8-josh-utter-leyton-tempered-steel.dck' },
+    { id: "power-2009-1-mongilardi-gilles-elf-rock", file: "1-mongilardi-gilles-elf-rock.dck" },
+    { id: "power-2009-2-jonathan-cano-jund-aggro", file: "2-jonathan-cano-jund-aggro.dck" },
+    { id: "power-2009-3-guillaume-matignon-faeries", file: "3-guillaume-matignon-faeries.dck" },
+    { id: "power-2009-3-hannes-kerem-kithkins", file: "3-hannes-kerem-kithkins.dck" },
   ],
 };
-
 
 /**
- * Grand Prix Hiroshima 2011 — one deck, and the only collection here that is
- * NOT a complete Top 8.
- *
- * ## Why one deck, and what its membership rule is
- *
- * The other collections are "the Top 8 of one event", whose membership has an
- * unambiguous test. This one's rule is different and is stated so it is equally
- * unambiguous: **the black deck the ISD era was otherwise missing.**
- *
- * Worlds 2011's Top 8 — the era's other collection — plays no Swamp at all
- * across eight decks. That is a true fact about that tournament rather than a
- * gap in transcription, but it left the library unable to offer a black deck in
- * `Standard (ISD)`. Asahara's Solar Flare, 3rd-4th at GP Hiroshima three weeks
- * earlier and in the same format, fills it: three Swamps, Liliana of the Veil,
- * Doom Blade and Unburial Rites.
- *
- * It is WUB rather than two colours. Searched for a strictly two-colour or
- * mono-black deck in the era and did not find one at a comparable finish —
- * ISD-era Standard's black deck *was* Solar Flare. Recorded rather than left
- * implied, so nobody re-runs that search.
- *
- * ## The maindeck is 61 cards, and that is correct
- *
- * Asahara registered 61. It is legal (60 is a minimum, not a target) and it is
- * what mtgtop8 holds. A validator that rounds it to 60 is wrong, not the deck.
- *
- * ## Its pool file duplicates Worlds 2011's
- *
- * Both dates resolve to the same snapshot — `Standard (ISD)`, effective
- * 2011-09-30 — so `standard-2011-10-30` and `standard-2011-11-20` have
- * identical card lists. Kept separate because a collection is validated against
- * its own date, and giving this one Worlds' date to save a file would put an
- * October event under a November heading.
+ * The 2010 power summer — `Standard (M11)`, 2010-07-16 to 2010-10-01, the last
+ * Standard snapshot before that fall's rotation. 8 legal candidate decks from
+ * that summer's Nationals, Pro Tours, Grand Prix and SCG/PTQ events (`docs/planning/
+ * deck-selection/review/2010.md` has the full table and the ones dropped as illegal or
+ * near-duplicate); 8 chosen, one per archetype, searched for colour and style
+ * spread: W 2, U 6, B 3, R 4, G 3;
+ * aggro 1, midrange 2, control 3, combo 2.
  */
-export const GP_HIROSHIMA_2011_STANDARD: LibraryCollection = {
-  id: 'gp-hiroshima-2011-standard',
-  directory: `${DECKS_ROOT}/standard-2011-10-30-gp-hiroshima`,
-  event: "Grand Prix Hiroshima 2011, Standard — the era's black deck",
-  format: 'Standard (ISD)',
-  date: '2011-10-30',
-  source: 'https://www.mtgtop8.com/event?e=2171&f=ST',
-  decks: [{ id: 'gp-hiroshima-2011-3-akira-asahara', file: '3-akira-asahara-solar-flare.dck' }],
+export const POWER_SUMMER_2010_STANDARD: LibraryCollection = {
+  id: 'power-summer-2010',
+  directory: `${DECKS_ROOT}/standard-2010`,
+  event: "2010 power summer \u2014 Standard (M11), 2010-07-16 \u2192 2010-10-01",
+  format: "Standard (M11)",
+  date: "2010-07-16",
+  source: 'docs/planning/deck-selection/review/2010.md',
+  decks: [
+    { id: "power-2010-2-guillaume-matignon-ur-pyromancer", file: "2-guillaume-matignon-ur-pyromancer.dck" },
+    { id: "power-2010-3-antoine-ruel-ug-polymorph", file: "3-antoine-ruel-ug-polymorph.dck" },
+    { id: "power-2010-1-emanuele-giusti-jund", file: "1-emanuele-giusti-jund.dck" },
+    { id: "power-2010-2-isaiah-ley-u-g-polymorph", file: "2-isaiah-ley-u-g-polymorph.dck" },
+    { id: "power-2010-5-lucas-florent-turboland", file: "5-lucas-florent-turboland.dck" },
+    { id: "power-2010-5-adam-fox-grixis-control", file: "5-adam-fox-grixis-control.dck" },
+    { id: "power-2010-5-max-malesch-vampires", file: "5-max-malesch-vampires.dck" },
+    { id: "power-2010-5-niels-viaene-open-filigree", file: "5-niels-viaene-open-filigree.dck" },
+  ],
 };
 
-/*
- * ## The four era collections, and their membership rule
+/**
+ * The 2011 power summer — `Standard (M12)`, 2011-07-15 to 2011-09-30, the last
+ * Standard snapshot before that fall's rotation. 23 legal candidate decks from
+ * that summer's Nationals, Pro Tours, Grand Prix and SCG/PTQ events (`docs/planning/
+ * deck-selection/review/2011.md` has the full table and the ones dropped as illegal or
+ * near-duplicate); 12 chosen, one per archetype, searched for colour and style
+ * spread: W 4, U 4, B 2, R 5, G 5;
+ * aggro 5, midrange 2, control 2, combo 3.
  *
- * The operator's window is New Phyrexia to Return to Ravnica, 2011-05-13 to
- * 2012-10-05: six Standard snapshots in Forge's rotation table. The four
- * collections below fill the four that had no decks — `Standard (NPH)`,
- * `Standard (M12)`, `Standard (AVR)` and `Standard (M13)`.
+ * Banned: Jace, the Mind Sculptor, Stoneforge Mystic.
  *
- * Each is **one StarCityGames Open's Top 8, cut to the best-placed deck of each
- * archetype as mtgtop8 labels it**. The operator asked for roughly five decks
- * per era, and a complete Top 8 of that period is mostly one deck — four to six
- * copies of Caw-Blade or UW Delver — so the cut keeps what can be played
- * against each other and drops the mirrors. The rule is still mechanical: the
- * archetype label is mtgtop8's, verbatim, and "best-placed" is the source's
- * placing, with joint placings resolved by the order the event page lists them.
- * Nobody chose which decks to keep.
- *
- * Why SCG Opens rather than Grand Prix: for each of these eras, the event whose
- * cut fields all five colours was an Open. GP Singapore 2011 (NPH) has no green
- * deck in its Top 8, GP Pittsburgh 2011 (M12) no black one, US Nationals 2011
- * no green one; GP Minneapolis 2012 (AVR) is four flavours of Delver plus a
- * single Swamp; and the M13 era had no paper GP or Pro Tour Standard Top 8 on
- * mtgtop8 at all — the 2012 World Magic Cup is a team event filed by country.
- * The five-colour rule is per era (`library.test.ts` checks it), and a single
- * event that meets it beats two events stitched together, because a collection
- * is one event, one date and one pool.
- *
- * Every deck is checked against its own era's generated pool in
- * `library.test.ts`, by name, one test per deck.
+ * Ali Antrazi's UB Control (mtgtop8 deck 213699) is in the selection's
+ * `chosen` list but is NOT here: its mtgtop8 export contains an unresolvable
+ * `2 [] Unknown Card` line (found transcribing this era, wave 34 lane D), so it
+ * cannot be transcribed. Swapped for Xinlin Ye's Elves, the next-best
+ * alternate not already an archetype in this era
+ * (`selections/selection-2011.json` records the swap).
  */
-
-/** SCG Open Orlando 2011 — the New Phyrexia era, `Standard (NPH)`, before the Jace/Stoneforge bans. */
-export const SCG_ORLANDO_2011_STANDARD: LibraryCollection = {
-  id: 'scg-orlando-2011-standard',
-  directory: `${DECKS_ROOT}/standard-2011-05-14-scg-orlando`,
-  event: 'StarCityGames Open Orlando 2011, Standard, Top 8',
-  format: 'Standard (NPH)',
-  date: '2011-05-14',
-  source: 'https://www.mtgtop8.com/event?e=1571&f=ST',
+export const POWER_SUMMER_2011_STANDARD: LibraryCollection = {
+  id: 'power-summer-2011',
+  directory: `${DECKS_ROOT}/standard-2011`,
+  event: "2011 power summer \u2014 Standard (M12), 2011-07-15 \u2192 2011-09-30",
+  format: "Standard (M12)",
+  date: "2011-07-15",
+  source: 'docs/planning/deck-selection/review/2011.md',
   decks: [
-    { id: 'scg-orlando-2011-1-edgar-flores', file: '1-edgar-flores-caw-blade.dck' },
-    { id: 'scg-orlando-2011-2-michael-strunk', file: '2-michael-strunk-grixis-twin-exarch.dck' },
-    { id: 'scg-orlando-2011-3-tim-landale', file: '3-tim-landale-rug-twin-exarch.dck' },
-    { id: 'scg-orlando-2011-4-kitt-holland', file: '4-kitt-holland-kozilek-caw-blade.dck' },
-    { id: 'scg-orlando-2011-7-aadil-qadir', file: '7-aadil-qadir-br-vampires.dck' },
-    { id: 'scg-orlando-2011-8-miguel-rondon', file: '8-miguel-rondon-valakut-ramp.dck' },
+    { id: "power-2011-1-marcello-calvetta-caw-blade", file: "1-marcello-calvetta-caw-blade.dck" },
+    { id: "power-2011-1-xinlin-ye-elves", file: "1-xinlin-ye-elves.dck" },
+    { id: "power-2011-1-daniel-royde-eldrazi-green", file: "1-daniel-royde-eldrazi-green.dck" },
+    { id: "power-2011-1-ryuuichiro-ishida-tempered-steel", file: "1-ryuuichiro-ishida-tempered-steel.dck" },
+    { id: "power-2011-1-marc-anderson-rug-twin-pod", file: "1-marc-anderson-rug-twin-pod.dck" },
+    { id: "power-2011-1-joel-calafell-ur-twin-exarch", file: "1-joel-calafell-ur-twin-exarch.dck" },
+    { id: "power-2011-1-helge-nelson-red-deck-wins", file: "1-helge-nelson-red-deck-wins.dck" },
+    { id: "power-2011-1-pat-cox-valakut-ramp", file: "1-pat-cox-valakut-ramp.dck" },
+    { id: "power-2011-1-luke-tsavousis-uw-control", file: "1-luke-tsavousis-uw-control.dck" },
+    { id: "power-2011-1-james-combrink-br-vampires", file: "1-james-combrink-br-vampires.dck" },
+    { id: "power-2011-2-fujimoto-tomoya-gw-pod", file: "2-fujimoto-tomoya-gw-pod.dck" },
+    { id: "power-2011-1-brucehendrix-ub-infect", file: "1-brucehendrix-ub-infect.dck" },
   ],
 };
 
-/** SCG Open Richmond 2011 — the Magic 2012 era, `Standard (M12)`, Jace and Stoneforge banned. */
-export const SCG_RICHMOND_2011_STANDARD: LibraryCollection = {
-  id: 'scg-richmond-2011-standard',
-  directory: `${DECKS_ROOT}/standard-2011-08-14-scg-richmond`,
-  event: 'StarCityGames Open Richmond 2011, Standard, Top 8',
-  format: 'Standard (M12)',
-  date: '2011-08-14',
-  source: 'https://www.mtgtop8.com/event?e=1910&f=ST',
+/**
+ * The 2012 power summer — `Standard (M13)`, 2012-07-13 to 2012-10-05, the last
+ * Standard snapshot before that fall's rotation. 39 legal candidate decks from
+ * that summer's Nationals, Pro Tours, Grand Prix and SCG/PTQ events (`docs/planning/
+ * deck-selection/review/2012.md` has the full table and the ones dropped as illegal or
+ * near-duplicate); 12 chosen, one per archetype, searched for colour and style
+ * spread: W 5, U 5, B 4, R 4, G 5;
+ * aggro 4, midrange 4, control 2, combo 2.
+ */
+export const POWER_SUMMER_2012_STANDARD: LibraryCollection = {
+  id: 'power-summer-2012',
+  directory: `${DECKS_ROOT}/standard-2012`,
+  event: "2012 power summer \u2014 Standard (M13), 2012-07-13 \u2192 2012-10-05",
+  format: "Standard (M13)",
+  date: "2012-07-13",
+  source: 'docs/planning/deck-selection/review/2012.md',
   decks: [
-    { id: 'scg-richmond-2011-1-pat-cox', file: '1-pat-cox-valakut-ramp.dck' },
-    { id: 'scg-richmond-2011-2-kyle-rose', file: '2-kyle-rose-caw-blade.dck' },
-    { id: 'scg-richmond-2011-3-shaheen-soorani', file: '3-shaheen-soorani-ub-control.dck' },
-    { id: 'scg-richmond-2011-5-thomas-cole', file: '5-thomas-cole-boros-landfall.dck' },
-    { id: 'scg-richmond-2011-5-robbie-auchter', file: '5-robbie-auchter-red-deck-wins.dck' },
-    { id: 'scg-richmond-2011-5-ian-shore', file: '5-ian-shore-rug-pod.dck' },
+    { id: "power-2012-1-todd-anderson-uw-delver", file: "1-todd-anderson-uw-delver.dck" },
+    { id: "power-2012-1-caleb-durward-naya-pod", file: "1-caleb-durward-naya-pod.dck" },
+    { id: "power-2012-1-han-kyu-br-zombies", file: "1-han-kyu-br-zombies.dck" },
+    { id: "power-2012-1-cj-steele-infect", file: "1-cj-steele-infect.dck" },
+    { id: "power-2012-1-michael-lee-gw-naya-aggro", file: "1-michael-lee-gw-naya-aggro.dck" },
+    { id: "power-2012-1-john-cuvelier-kessig-titan", file: "1-john-cuvelier-kessig-titan.dck" },
+    { id: "power-2012-1-jeremy-dombek-solar-flare", file: "1-jeremy-dombek-solar-flare.dck" },
+    { id: "power-2012-1-levi-mochan-tezzeret-control", file: "1-levi-mochan-tezzeret-control.dck" },
+    { id: "power-2012-2-samy-younis-kessig-u", file: "2-samy-younis-kessig-u.dck" },
+    { id: "power-2012-1-doug-potter-ub-control", file: "1-doug-potter-ub-control.dck" },
+    { id: "power-2012-1-mikael-conrow-gw-token", file: "1-mikael-conrow-gw-token.dck" },
+    { id: "power-2012-1-adam-bubacz-zombie-pod", file: "1-adam-bubacz-zombie-pod.dck" },
   ],
 };
 
-/** SCG Open Indianapolis 2012 — the Avacyn Restored era, `Standard (AVR)`. */
-export const SCG_INDIANAPOLIS_2012_STANDARD: LibraryCollection = {
-  id: 'scg-indianapolis-2012-standard',
-  directory: `${DECKS_ROOT}/standard-2012-06-16-scg-indianapolis`,
-  event: 'StarCityGames Open Indianapolis 2012, Standard, Top 8',
-  format: 'Standard (AVR)',
-  date: '2012-06-16',
-  source: 'https://www.mtgtop8.com/event?e=2767&f=ST',
+/**
+ * The 2013 power summer — `Standard (M14)`, 2013-07-19 to 2013-09-27, the last
+ * Standard snapshot before that fall's rotation. 38 legal candidate decks from
+ * that summer's Nationals, Pro Tours, Grand Prix and SCG/PTQ events (`docs/planning/
+ * deck-selection/review/2013.md` has the full table and the ones dropped as illegal or
+ * near-duplicate); 12 chosen, one per archetype, searched for colour and style
+ * spread: W 7, U 5, B 7, R 6, G 7;
+ * aggro 4, midrange 3, control 3, combo 2.
+ */
+export const POWER_SUMMER_2013_STANDARD: LibraryCollection = {
+  id: 'power-summer-2013',
+  directory: `${DECKS_ROOT}/standard-2013`,
+  event: "2013 power summer \u2014 Standard (M14), 2013-07-19 \u2192 2013-09-27",
+  format: "Standard (M14)",
+  date: "2013-07-19",
+  source: 'docs/planning/deck-selection/review/2013.md',
   decks: [
-    { id: 'scg-indianapolis-2012-1-ross-merriam', file: '1-ross-merriam-uw-delver.dck' },
-    { id: 'scg-indianapolis-2012-2-michael-marlow', file: '2-michael-marlow-bu-zombies.dck' },
-    { id: 'scg-indianapolis-2012-3-dan-musser', file: '3-dan-musser-rug-pod.dck' },
-    { id: 'scg-indianapolis-2012-5-logan-mize', file: '5-logan-mize-kessig-titan.dck' },
-    { id: 'scg-indianapolis-2012-5-robbie-cordell', file: '5-robbie-cordell-solar-flare.dck' },
-    { id: 'scg-indianapolis-2012-5-ian-farnung', file: '5-ian-farnung-tezzeret-control.dck' },
+    { id: "power-2013-1-sean-weihe-jund-midrange", file: "1-sean-weihe-jund-midrange.dck" },
+    { id: "power-2013-1-adam-van-fleet-gruul-aggro", file: "1-adam-van-fleet-gruul-aggro.dck" },
+    { id: "power-2013-1-nicholas-mudd-aristocrats", file: "1-nicholas-mudd-aristocrats.dck" },
+    { id: "power-2013-1-tom-strong-reanimator", file: "1-tom-strong-reanimator.dck" },
+    { id: "power-2013-1-jacobgagnon-uwr-midrange", file: "1-jacobgagnon-uwr-midrange.dck" },
+    { id: "power-2013-1-ryan-hipp-uwx-midrange", file: "1-ryan-hipp-uwx-midrange.dck" },
+    { id: "power-2013-1-reid-duke-bant-control", file: "1-reid-duke-bant-control.dck" },
+    { id: "power-2013-1-ian-kendall-rakdos-aggro", file: "1-ian-kendall-rakdos-aggro.dck" },
+    { id: "power-2013-1-joe-lossett-human-reanimator", file: "1-joe-lossett-human-reanimator.dck" },
+    { id: "power-2013-1-todd-anderson-uwr-control", file: "1-todd-anderson-uwr-control.dck" },
+    { id: "power-2013-1-othon-voutsis-golgari-control", file: "1-othon-voutsis-golgari-control.dck" },
+    { id: "power-2013-1-thomas-mcveigh-bug-persist-aggro", file: "1-thomas-mcveigh-bug-persist-aggro.dck" },
   ],
 };
 
-/** SCG Open Kansas City 2012 — the Magic 2013 era, `Standard (M13)`, the last before Return to Ravnica. */
-export const SCG_KANSAS_CITY_2012_STANDARD: LibraryCollection = {
-  id: 'scg-kansas-city-2012-standard',
-  directory: `${DECKS_ROOT}/standard-2012-08-11-scg-kansas-city`,
-  event: 'StarCityGames Open Kansas City 2012, Standard, Top 8',
-  format: 'Standard (M13)',
-  date: '2012-08-11',
-  source: 'https://www.mtgtop8.com/event?e=2814&f=ST',
+/**
+ * The 2014 power summer — `Standard (M15)`, 2014-07-18 to 2014-09-26, the last
+ * Standard snapshot before that fall's rotation. 35 legal candidate decks from
+ * that summer's Nationals, Pro Tours, Grand Prix and SCG/PTQ events (`docs/planning/
+ * deck-selection/review/2014.md` has the full table and the ones dropped as illegal or
+ * near-duplicate); 12 chosen, one per archetype, searched for colour and style
+ * spread: W 5, U 3, B 6, R 5, G 5;
+ * aggro 5, midrange 3, control 4, combo 0.
+ *
+ * Two decks the selection chose are NOT here — both found transcribing this
+ * era (wave 34 lane D), both for the same reason: an unresolvable
+ * `[] Unknown Card` line in mtgtop8's own export.
+ *
+ *   - Rob Catton's UWr Control (mtgtop8 deck 238190) → Rosmarudin Faizal's
+ *     Orzhov Control, the top-scoring alternate not already an archetype here.
+ *   - Albert Bayrante's Reanimator (mtgtop8 deck 246524) → Jordan Welzbacher's
+ *     Jund Aggro, the next clean alternate (no alternate for this era is
+ *     combo-style, so the era loses its only combo deck).
+ *
+ * `selections/selection-2014.json` records both swaps.
+ */
+export const POWER_SUMMER_2014_STANDARD: LibraryCollection = {
+  id: 'power-summer-2014',
+  directory: `${DECKS_ROOT}/standard-2014`,
+  event: "2014 power summer \u2014 Standard (M15), 2014-07-18 \u2192 2014-09-26",
+  format: "Standard (M15)",
+  date: "2014-07-18",
+  source: 'docs/planning/deck-selection/review/2014.md',
   decks: [
-    { id: 'scg-kansas-city-2012-1-mike-prokop', file: '1-mike-prokop-uw-delver.dck' },
-    { id: 'scg-kansas-city-2012-2-nick-marriott', file: '2-nick-marriott-mono-green-infect.dck' },
-    { id: 'scg-kansas-city-2012-3-robert-berni', file: '3-robert-berni-blue-kessig.dck' },
-    { id: 'scg-kansas-city-2012-3-eric-holmes', file: '3-eric-holmes-naya-pod.dck' },
-    { id: 'scg-kansas-city-2012-5-scott-ouderkirk', file: '5-scott-ouderkirk-gr-aggro.dck' },
-    { id: 'scg-kansas-city-2012-5-matthew-dennis', file: '5-matthew-dennis-zombie-pod.dck' },
+    { id: "power-2014-1-mik-red-devotion-to-blue", file: "1-mik-red-devotion-to-blue.dck" },
+    { id: "power-2014-1-dan-jessup-devotion-to-black", file: "1-dan-jessup-devotion-to-black.dck" },
+    { id: "power-2014-1-scott-lipp-selesnya-aggro", file: "1-scott-lipp-selesnya-aggro.dck" },
+    { id: "power-2014-1-manuel-orellana-red-deck-wins", file: "1-manuel-orellana-red-deck-wins.dck" },
+    { id: "power-2014-1-jonas-zimmermann-golgari-control", file: "1-jonas-zimmermann-golgari-control.dck" },
+    { id: "power-2014-1-omar-beldon-uw-control", file: "1-omar-beldon-uw-control.dck" },
+    { id: "power-2014-1-gerard-fabiano-esper-control", file: "1-gerard-fabiano-esper-control.dck" },
+    { id: "power-2014-1-neil-hartman-boros-aggro", file: "1-neil-hartman-boros-aggro.dck" },
+    { id: "power-2014-1-zach-stern-gruul-team", file: "1-zach-stern-gruul-team.dck" },
+    { id: "power-2014-1-hal-brady-devotion-to-green", file: "1-hal-brady-devotion-to-green.dck" },
+    { id: "power-2014-1-rosmarudin-faizal-orzhov-control", file: "1-rosmarudin-faizal-orzhov-control.dck" },
+    { id: "power-2014-1-jordan-welzbacher-jund-aggro", file: "1-jordan-welzbacher-jund-aggro.dck" },
   ],
 };
 
-/** Every collection in the library, oldest format first. */
+/**
+ * The 2015 power summer — `Standard (ORI)`, 2015-07-17 to 2015-10-02, the last
+ * Standard snapshot before that fall's rotation. 39 legal candidate decks from
+ * that summer's Nationals, Pro Tours, Grand Prix and SCG/PTQ events (`docs/planning/
+ * deck-selection/review/2015.md` has the full table and the ones dropped as illegal or
+ * near-duplicate); 12 chosen, one per archetype, searched for colour and style
+ * spread: W 6, U 5, B 6, R 6, G 5;
+ * aggro 4, midrange 3, control 3, combo 2.
+ */
+export const POWER_SUMMER_2015_STANDARD: LibraryCollection = {
+  id: 'power-summer-2015',
+  directory: `${DECKS_ROOT}/standard-2015`,
+  event: "2015 power summer \u2014 Standard (ORI), 2015-07-17 \u2192 2015-10-02",
+  format: "Standard (ORI)",
+  date: "2015-07-17",
+  source: 'docs/planning/deck-selection/review/2015.md',
+  decks: [
+    { id: "power-2015-1-andrea-mengucci-abzan-midrange", file: "1-andrea-mengucci-abzan-midrange.dck" },
+    { id: "power-2015-1-jory-white-red-deck-wins", file: "1-jory-white-red-deck-wins.dck" },
+    { id: "power-2015-1-alex-bastecki-devotion-to-green", file: "1-alex-bastecki-devotion-to-green.dck" },
+    { id: "power-2015-1-robert-sabol-jeskai-midrange", file: "1-robert-sabol-jeskai-midrange.dck" },
+    { id: "power-2015-1-michael-deidolori-esper-control", file: "1-michael-deidolori-esper-control.dck" },
+    { id: "power-2015-1-ryota09-ur-artifacts", file: "1-ryota09-ur-artifacts.dck" },
+    { id: "power-2015-1-ray-tautic-abzan-rally", file: "1-ray-tautic-abzan-rally.dck" },
+    { id: "power-2015-1-alejandro-dupuy-de-lome-mardu-aggro", file: "1-alejandro-dupuy-de-lome-mardu-aggro.dck" },
+    { id: "power-2015-1-david-jones-abzan-control", file: "1-david-jones-abzan-control.dck" },
+    { id: "power-2015-1-yoon-soo-han-ub-control", file: "1-yoon-soo-han-ub-control.dck" },
+    { id: "power-2015-1-marco-panteghini-see-the-unwritten", file: "1-marco-panteghini-see-the-unwritten.dck" },
+    { id: "power-2015-1-michael-earnshaw-jeskai-ascendancy", file: "1-michael-earnshaw-jeskai-ascendancy.dck" },
+  ],
+};
+
+/**
+ * The 2016 power summer — `Standard (EMN)`, 2016-07-22 to 2016-09-30, the last
+ * Standard snapshot before that fall's rotation. 26 legal candidate decks from
+ * that summer's Nationals, Pro Tours, Grand Prix and SCG/PTQ events (`docs/planning/
+ * deck-selection/review/2016.md` has the full table and the ones dropped as illegal or
+ * near-duplicate); 12 chosen, one per archetype, searched for colour and style
+ * spread: W 5, U 5, B 5, R 5, G 6;
+ * aggro 4, midrange 4, control 4, combo 0.
+ */
+export const POWER_SUMMER_2016_STANDARD: LibraryCollection = {
+  id: 'power-summer-2016',
+  directory: `${DECKS_ROOT}/standard-2016`,
+  event: "2016 power summer \u2014 Standard (EMN), 2016-07-22 \u2192 2016-09-30",
+  format: "Standard (EMN)",
+  date: "2016-07-22",
+  source: 'docs/planning/deck-selection/review/2016.md',
+  decks: [
+    { id: "power-2016-1-finespoo-collected-bant", file: "1-finespoo-collected-bant.dck" },
+    { id: "power-2016-1-osyp-lebedowicz-selesnya-aggro", file: "1-osyp-lebedowicz-selesnya-aggro.dck" },
+    { id: "power-2016-1-jacob-hagen-simic-ramp", file: "1-jacob-hagen-simic-ramp.dck" },
+    { id: "power-2016-1-bradpitkeeper-weenie-white", file: "1-bradpitkeeper-weenie-white.dck" },
+    { id: "power-2016-1-aya-grixis-control", file: "1-aya-grixis-control.dck" },
+    { id: "power-2016-1-joshua-dickerson-green-ramp", file: "1-joshua-dickerson-green-ramp.dck" },
+    { id: "power-2016-1-todd-anderson-izzet-machinegun", file: "1-todd-anderson-izzet-machinegun.dck" },
+    { id: "power-2016-1-bradpitkeeper-mono-black-aggro", file: "1-bradpitkeeper-mono-black-aggro.dck" },
+    { id: "power-2016-2-wakizaka-hironari-naya-pw", file: "2-wakizaka-hironari-naya-pw.dck" },
+    { id: "power-2016-1-edvin-marsson-orzhov-control", file: "1-edvin-marsson-orzhov-control.dck" },
+    { id: "power-2016-1-lucas-giuliani-golgari-control", file: "1-lucas-giuliani-golgari-control.dck" },
+    { id: "power-2016-1-fujiwara-takashi-mardu-control", file: "1-fujiwara-takashi-mardu-control.dck" },
+  ],
+};
+
+/** Every collection in the library, oldest era first. */
 export const LIBRARY: readonly LibraryCollection[] = [
-  PT_PARIS_2011_STANDARD,
-  SCG_ORLANDO_2011_STANDARD,
-  SCG_RICHMOND_2011_STANDARD,
-  GP_HIROSHIMA_2011_STANDARD,
-  WORLDS_2011_STANDARD,
-  PT_DARK_ASCENSION_2012_STANDARD,
-  SCG_INDIANAPOLIS_2012_STANDARD,
-  SCG_KANSAS_CITY_2012_STANDARD,
+  POWER_SUMMER_2008_STANDARD,
+  POWER_SUMMER_2009_STANDARD,
+  POWER_SUMMER_2010_STANDARD,
+  POWER_SUMMER_2011_STANDARD,
+  POWER_SUMMER_2012_STANDARD,
+  POWER_SUMMER_2013_STANDARD,
+  POWER_SUMMER_2014_STANDARD,
+  POWER_SUMMER_2015_STANDARD,
+  POWER_SUMMER_2016_STANDARD,
 ];
 
 /**
@@ -354,7 +414,8 @@ export function libraryDeckPaths(library: readonly LibraryCollection[] = LIBRARY
  *
  * One fixture per collection date, named after the date rather than the
  * collection, because two collections from the same Standard share a pool and
- * regenerating it twice would be two chances to disagree.
+ * regenerating it twice would be two chances to disagree. In this library every
+ * era has its own unique date, so there is one fixture per era.
  */
 export function poolFixturePath(date: string): string {
   return `${DECKS_ROOT}/pools/standard-${date}.generated.json`;
@@ -362,25 +423,12 @@ export function poolFixturePath(date: string): string {
 
 /**
  * Every date a pool is frozen for, which is every date a fixture file exists
- * for. `build-pool-fixture.ts`'s header says why each one is here.
+ * for. `build-pool-fixture.ts`'s header says why each one is here — one per
+ * era, its `Effective` date.
  *
  * Here rather than in that script because two OTHER things now read the list —
  * `build-deck-costs.ts` and the drift guard in `library.test.ts` — and that
  * script cannot be imported for it: it loads the 183 MB corpus at module scope.
  * A list of committed files belongs beside the function that names them anyway.
- *
- * Eight of the nine are collection dates (`LIBRARY`); `2011-07-01` is the
- * Jace/Stoneforge ban pool, which no collection is filed under and which exists
- * so the library has a pool its own decks FAIL in.
  */
-export const POOL_FIXTURE_DATES: readonly string[] = [
-  '2011-02-13',
-  '2011-05-14',
-  '2011-07-01',
-  '2011-08-14',
-  '2011-10-30',
-  '2011-11-20',
-  '2012-02-12',
-  '2012-06-16',
-  '2012-08-11',
-];
+export const POOL_FIXTURE_DATES: readonly string[] = LIBRARY.map((c) => c.date);

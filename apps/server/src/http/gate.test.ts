@@ -34,8 +34,9 @@ import { loadTablesLibrary } from './library.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '../../../..');
 const DRAFT = 'amber-lantern-k7q4';
-const PAUL_RIETZL = 'pt-paris-2011-2-paul-rietzl';
-const PT_PARIS = '2011-02-13';
+/** A real library deck, legal in its own era (`Standard (M13)`, 2012) and from before Return to Ravnica (October 2012), which is what makes adding a Hallowed Fountain below an illegal card rather than a legal reprint. */
+const UW_DELVER = 'power-2012-1-todd-anderson-uw-delver';
+const POWER_2012 = '2012-07-13';
 
 const cube = loadPool(resolve(REPO_ROOT, 'apps/ui/src/draft/pool.json'));
 if (!cube.ok) throw new Error(`cube pool did not load: ${cube.detail}`);
@@ -140,8 +141,8 @@ describe('a drafted deck with basic lands', () => {
 
 describe('the Standard arm is unchanged', () => {
 	it('still refuses a land that is not in the format pool', () => {
-		const base = library.deck(PAUL_RIETZL)?.text ?? '';
-		const standard = (dck: string) => ({ deck: { dck }, rules: { kind: 'standard' as const, format: PT_PARIS } });
+		const base = library.deck(UW_DELVER)?.text ?? '';
+		const standard = (dck: string) => ({ deck: { dck }, rules: { kind: 'standard' as const, format: POWER_2012 } });
 		expect((checkSeat(standard(base), ctx) as SeatVerdict).legal).toBe(true);
 		const v = checkSeat(standard(withMain(base, '4 Hallowed Fountain|RTR')), ctx) as SeatVerdict;
 		expect(v.legal).toBe(false);
@@ -189,7 +190,7 @@ describe.skipIf(!available.ok)(title, () => {
 	it('hands Forge the checked text and the match runs', async () => {
 		if (!available.ok) return;
 		const mine = checkSeat(drafted(draftedDeckText()), ctx) as SeatVerdict;
-		const theirs = checkSeat({ deck: { library: PAUL_RIETZL }, rules: { kind: 'standard', format: PT_PARIS } }, ctx) as SeatVerdict;
+		const theirs = checkSeat({ deck: { library: UW_DELVER }, rules: { kind: 'standard', format: POWER_2012 } }, ctx) as SeatVerdict;
 		expect([mine.legal, theirs.legal]).toEqual([true, true]);
 
 		const raw: BridgeLine[] = [];

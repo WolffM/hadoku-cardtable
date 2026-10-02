@@ -504,114 +504,6 @@
    "label_count": 18
   },
   {
-   "deck": 238190,
-   "event": 6646,
-   "archetype": "UWr Control",
-   "player": "Rob Catton",
-   "event_name": "PTQ Journey Into Nyx (Sheffield, England)",
-   "stars": 3,
-   "rank": "1",
-   "date": "2014-02-16",
-   "summer": false,
-   "s": 0.8,
-   "f": {
-    "spells": 34,
-    "lands": 26,
-    "creatures": 1,
-    "counters": 7,
-    "sweepers": 6,
-    "draw": 8,
-    "burn": 6,
-    "avg_cmc": 3.32,
-    "pips": {
-     "W": 26.0,
-     "U": 37.0,
-     "B": 0,
-     "R": 10.0,
-     "G": 0
-    },
-    "colors": [
-     "W",
-     "U",
-     "R"
-    ],
-    "names": {
-     "Azorius Charm": 2,
-     "Izzet Charm": 2,
-     "Syncopate": 1,
-     "Mizzium Mortars": 3,
-     "Last Breath": 1,
-     "Detention Sphere": 4,
-     "Dissolve": 2,
-     "Counterflux": 2,
-     "Warleader's Helix": 1,
-     "Jace, Architect of Thought": 3,
-     "Supreme Verdict": 4,
-     "Assemble the Legion": 2,
-     "Elspeth, Sun's Champion": 2,
-     "Aetherling": 1,
-     "Sphinx's Revelation": 4
-    }
-   },
-   "style": "control",
-   "style_why": "label",
-   "label_count": 12
-  },
-  {
-   "deck": 246524,
-   "event": 8074,
-   "archetype": "Reanimator",
-   "player": "Albert Bayrante",
-   "event_name": "WMCQ - Philippines #1",
-   "stars": 3,
-   "rank": "2",
-   "date": "2014-08-17",
-   "summer": true,
-   "s": 0.6666666666666666,
-   "f": {
-    "spells": 38,
-    "lands": 20,
-    "creatures": 20,
-    "counters": 0,
-    "sweepers": 0,
-    "draw": 0,
-    "burn": 0,
-    "avg_cmc": 3.68,
-    "pips": {
-     "W": 17.0,
-     "U": 0,
-     "B": 18.0,
-     "R": 0,
-     "G": 32.0
-    },
-    "colors": [
-     "W",
-     "B",
-     "G"
-    ],
-    "names": {
-     "Elvish Mystic": 4,
-     "Sylvan Caryatid": 4,
-     "Satyr Wayfinder": 4,
-     "Courser of Kruphix": 4,
-     "Blood Baron of Vizkopa": 3,
-     "Angel of Serenity": 3,
-     "Sylvan Primordial": 2,
-     "Grisly Salvage": 4,
-     "Obzedat's Aid": 4,
-     "Whip of Erebos": 2,
-     "Vraska the Unseen": 2,
-     "Ajani, Mentor of Heroes": 1,
-     "Garruk, Apex Predator": 1
-    }
-   },
-   "style": "combo",
-   "style_why": "label",
-   "label_count": 3
-  }
- ],
- "alternates": [
-  {
    "deck": 246643,
    "event": 8094,
    "archetype": "Orzhov Control",
@@ -711,6 +603,116 @@
    "style": "aggro",
    "style_why": "label",
    "label_count": 48
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 246524,
+   "event": 8074,
+   "archetype": "Reanimator",
+   "player": "Albert Bayrante",
+   "event_name": "WMCQ - Philippines #1",
+   "stars": 3,
+   "rank": "2",
+   "date": "2014-08-17",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 38,
+    "lands": 20,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.68,
+    "pips": {
+     "W": 17.0,
+     "U": 0,
+     "B": 18.0,
+     "R": 0,
+     "G": 32.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Elvish Mystic": 4,
+     "Sylvan Caryatid": 4,
+     "Satyr Wayfinder": 4,
+     "Courser of Kruphix": 4,
+     "Blood Baron of Vizkopa": 3,
+     "Angel of Serenity": 3,
+     "Sylvan Primordial": 2,
+     "Grisly Salvage": 4,
+     "Obzedat's Aid": 4,
+     "Whip of Erebos": 2,
+     "Vraska the Unseen": 2,
+     "Ajani, Mentor of Heroes": 1,
+     "Garruk, Apex Predator": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 3,
+   "swapped_out_reason": "mtgtop8 export for deck 246524 contains an unresolvable \"2 [] Unknown Card\" line (wave 34 lane D); replaced by deck 233978 (Jund Aggro, Jordan Welzbacher), the next clean alternate (the higher-scoring UWr Control alternate was already used for this era's other swap)."
+  },
+  {
+   "deck": 238190,
+   "event": 6646,
+   "archetype": "UWr Control",
+   "player": "Rob Catton",
+   "event_name": "PTQ Journey Into Nyx (Sheffield, England)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2014-02-16",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 1,
+    "counters": 7,
+    "sweepers": 6,
+    "draw": 8,
+    "burn": 6,
+    "avg_cmc": 3.32,
+    "pips": {
+     "W": 26.0,
+     "U": 37.0,
+     "B": 0,
+     "R": 10.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Azorius Charm": 2,
+     "Izzet Charm": 2,
+     "Syncopate": 1,
+     "Mizzium Mortars": 3,
+     "Last Breath": 1,
+     "Detention Sphere": 4,
+     "Dissolve": 2,
+     "Counterflux": 2,
+     "Warleader's Helix": 1,
+     "Jace, Architect of Thought": 3,
+     "Supreme Verdict": 4,
+     "Assemble the Legion": 2,
+     "Elspeth, Sun's Champion": 2,
+     "Aetherling": 1,
+     "Sphinx's Revelation": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 12,
+   "swapped_out_reason": "mtgtop8 export for deck 238190 contains an unresolvable \"SB: 2 [] Unknown Card\" line (wave 34 lane D); replaced by deck 246643 (Orzhov Control, Rosmarudin Faizal), the top-scoring alternate not already an archetype in this era."
   },
   {
    "deck": 244202,

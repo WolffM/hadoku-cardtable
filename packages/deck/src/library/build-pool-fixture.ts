@@ -29,19 +29,23 @@
  *
  * ## Why these dates
  *
- * `2011-02-13` is the library's own date — the pool the decks must be legal in.
+ * One per power-summer era (`catalog.ts`'s `POOL_FIXTURE_DATES`, which is just
+ * `LIBRARY.map(c => c.date)`): each era's own `Effective` date, the last
+ * Standard snapshot before that year's fall rotation. Every deck is validated
+ * against the pool for the era it was chosen into — `2008-07-25` (EVE),
+ * `2009-07-17` (M10), `2010-07-16` (M11), `2011-07-15` (M12, the Jace/
+ * Stoneforge ban already in force), `2012-07-13` (M13), `2013-07-19` (M14),
+ * `2014-07-18` (M15), `2015-07-17` (ORI), `2016-07-22` (EMN).
  *
- * `2011-07-01` is the pool the same decks must FAIL in, and it is real data, not
- * a contrivance: that row of Forge's rotation table is the Jace/Stoneforge ban
- * (`Archived/Standard/2011-07-01.txt`), and four of the eight Top 8 decks play
- * both cards. A failure path demonstrated with a card that was genuinely banned
- * on a date that genuinely happened is worth more than a tampered list, so the
- * library ships both poles.
- *
- * Every other date is a collection's own date, one per collection, so each
- * deck is validated against the pool for the day it was played: `2011-05-14`
- * (NPH), `2011-08-14` (M12), `2011-10-30` and `2011-11-20` (ISD), `2012-02-12`
- * (DKA), `2012-06-16` (AVR) and `2012-08-11` (M13).
+ * Wave 34 replaced the library's previous nine dates with these: the old ones
+ * were eight mid-season collections and a deliberate FAILURE pool
+ * (`2011-07-01`, the two-week Jace/Stoneforge ban row with no collection
+ * filed under it) — real data, but a demonstration fixture rather than an
+ * era anyone played a season in, and `apps/server/src/http/library.ts` used to
+ * leak it into the picker as a ninth "era" because it read every file in
+ * `decks/pools/` rather than the catalogue. The loader now reads exactly the
+ * catalogued eras' own dates, so a fixture of this kind can exist again
+ * without reaching the picker — but this library does not ship one.
  */
 
 import { createReadStream, mkdirSync, writeFileSync } from 'node:fs';

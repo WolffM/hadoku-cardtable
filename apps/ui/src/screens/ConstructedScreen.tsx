@@ -91,7 +91,8 @@
  * A room whose record has not been read yet, or a server that sends no
  * `format`, falls back to the NEWEST pool (`newestFormat`) — the same default
  * the server applies at create, and deliberately not `formats[0]`, which is
- * 2011-02-13 and is where every room used to open.
+ * the oldest power-summer era (2008-07-25) and is where every room used to
+ * open.
  *
  * Each option also says what COLOUR its deck is (wave 27 §D), folded out of the
  * deck's own card list by the one fold `DeckView.tsx` exports — see
@@ -269,9 +270,10 @@ interface ArtCandidate {
  * This is the rule, and it is the most expensive card rather than the first
  * non-land because the expensive card is the one the deck is usually NAMED
  * after: it gives Primeval Titan for Kessig Titan, Geist of Saint Traft for UW
- * Delver, Etched Champion for Tempered Steel and Avenger of Zendikar for Valakut
- * Ramp. "First non-land" would give whatever the transcription happened to list
- * first, which for these files is alphabetical inside the creature block.
+ * Delver, Tempered Steel for the archetype of the same name and Avenger of
+ * Zendikar for Valakut Ramp. "First non-land" would give whatever the
+ * transcription happened to list first, which for these files is alphabetical
+ * inside the creature block.
  *
  * Copies before name because two six-drops is common and the four-of is the
  * deck's plan; name last so the answer is total and a re-render cannot flicker.
@@ -2113,8 +2115,8 @@ function LeaderMark({ name, you }: { name: string | null; you: boolean }) {
  *
  * The cells are laid out in named areas over two lines (`screens.css`): who
  * and the two states above, the deck and the format below. One line truncated
- * "Mystic Caw Go (Naoki Nakada)" to "My…" in the column this card actually
- * gets, which is the cheap look again by another route.
+ * "4c Reveillark Control (Shouhei Yamamoto)" to "4c…" in the column this card
+ * actually gets, which is the cheap look again by another route.
  *
  * The name and `(you)` stay in ONE text node, with that space: `e2e/play.spec`
  * matches `e2e-alice (you)`, and cells in a grid put no whitespace between
