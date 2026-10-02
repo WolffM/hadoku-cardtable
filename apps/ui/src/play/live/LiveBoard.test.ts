@@ -17,18 +17,22 @@ import { parseServerFrame } from '@hadoku/forge-wire';
 
 import type { BoardInteraction, BoardLayout } from '../Board.tsx';
 import { HeaderSettingsHost, HeaderSettingsProvider } from '../../chrome/HeaderSettings.tsx';
-import { PHASE_LABEL, type BoardView } from '../adapter.ts';
+import { PHASE_LABEL, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { deltaKey, WireType } from '../wire.ts';
 import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
 import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
 import {
+  endingSentence,
+  gameOutcome,
   isMatchGone,
   LiveBoard,
   liveStatus,
   MATCH_GONE_SENTENCE,
+  reasonLost,
   refusalOf,
   statusText,
+  useCrawlGuard,
   type LiveStatus,
 } from './LiveBoard.tsx';
 import {
@@ -36,6 +40,7 @@ import {
   boardInteraction,
   closeMatch,
   currentAsk,
+  nothingToDecide,
   pressButton,
   selectCard,
   socketIoMatchTransport,
@@ -46,6 +51,20 @@ import {
 import type { PlayPrefs } from './prefs.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, type ReplayServer } from './replay-server.ts';
 import { parseMatchAck } from './transport.ts';
+
+/*
+ * `../../rooms/api.ts` (lane R) is mocked here so R16's "Main menu" path can
+ * be asserted without a real HTTP call: `GameResultScreen` (`LiveBoard.tsx`)
+ * calls `roomsClient().leave(roomId)` and this is the one place that method is
+ * exercised in this file. `leave.mockClear()` between tests keeps one test's
+ * call out of the next's assertions.
+ */
+const roomsClientState = vi.hoisted(() => ({
+  leave: vi.fn(async (_roomId: string) => ({ ok: true as const, room: {} as never })),
+}));
+vi.mock('../../rooms/api.ts', () => ({
+  roomsClient: () => ({ leave: roomsClientState.leave }),
+}));
 
 /*
  * `Board` is mocked to CAPTURE the props it is handed and then render the real
@@ -107,6 +126,7 @@ afterEach(async () => {
   server = null;
   prefsState.prefs = null;
   prefsState.saved = [];
+  roomsClientState.leave.mockClear();
 });
 
 /**
@@ -398,19 +418,30 @@ describe('Forge asks with buttons, not only with asks', () => {
     return raw.map((r) => parseServerFrame(r));
   }
 
-  it('draws the coin toss and sends the click Forge is waiting for', async () => {
-    const { s, m, getByTestId } = await liveBoard();
+  /*
+   * R2, wave 35: the coin toss / play-draw question moved OFF the control bar
+   * and into the decision area (`PlayOrDrawPrompt`, lane G) — this used to
+   * assert `live-button-ok`/`live-button-cancel` drew `Play`/`Draw`; now the
+   * control bar's own OK is disabled and Cancel does not render at all while
+   * `PlayOrDrawPrompt` owns the question. See `g.md` for the full shape.
+   */
+  it('the coin toss / play-draw question renders in the decision area, not the control bar, and sends the click Forge is waiting for', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
 
     for (const f of buttonFrames('Seat 1, you have won the coin toss.\n\nPlay or draw?', 'Play', 'Draw')) {
       s.send(f);
     }
 
-    await waitFor(() => expect(getByTestId('live-button-ok').textContent).toBe('Play'));
-    expect(getByTestId('live-says').textContent).toContain('coin toss');
-    expect(getByTestId('live-button-cancel').textContent).toBe('Draw');
+    await waitFor(() => expect(getByTestId('live-play-or-draw-host')).toBeTruthy());
+    expect(getByTestId('live-play-or-draw').textContent).toContain('coin toss');
+    expect(getByTestId('live-play-or-draw-play').textContent).toBe('Play');
+    expect(getByTestId('live-play-or-draw-draw').textContent).toBe('Draw');
+    // The control bar does not ALSO draw it: OK is disabled, Cancel is gone.
+    expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled, 'OK cannot double-fire the answer').toBe(true);
+    expect(queryByTestId('live-button-cancel'), 'the bar’s own second button does not also render').toBeNull();
 
     const before = m.stats.replies;
-    fireEvent.click(getByTestId('live-button-ok'));
+    fireEvent.click(getByTestId('live-play-or-draw-play'));
 
     await waitFor(() => expect(m.stats.replies).toBe(before + 1));
     await waitFor(() =>
@@ -476,6 +507,13 @@ describe('Forge asks with buttons, not only with asks', () => {
  * The board's cards, clicked. `Board` draws a card as a button only when
  * `boardInteraction` offers it; the click goes to `selectCard`, which checks
  * Forge's CURRENT state before sending.
+ *
+ * `:not([disabled])` (wave 35 R10, lane B): a battlefield card's face is now
+ * always a `<button>`, `disabled` when not selectable, so switching element
+ * type across a selectability window cannot flicker the DOM under it any
+ * more (`Board.tsx`'s own note on `.board-card__face`). This file's queries
+ * updated to match — "clickable" is "an ENABLED button here now", not "a
+ * button exists at all".
  */
 describe('clicking a card on the live board', () => {
   function notify(raw: unknown[]) {
@@ -486,7 +524,7 @@ describe('clicking a card on the live board', () => {
     const { s, m, container } = await liveBoard();
     const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
     const [target, other] = [mine[0]!, mine[1]!];
-    const button = (id: number) => container.querySelector<HTMLButtonElement>(`[data-board-card="${id}"] button`);
+    const button = (id: number) => container.querySelector<HTMLButtonElement>(`[data-board-card="${id}"] button:not([disabled])`);
     expect(button(target)).toBeNull();
 
     for (const f of notify([
@@ -1887,7 +1925,7 @@ describe('what the board is told about Forge’s input', () => {
     // satisfy it, which is how an inverted field got past an earlier version of
     // the case below.
     await waitFor(() => expect(m.selectables).not.toBeNull());
-    await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"] button`)).not.toBeNull());
+    await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"] button:not([disabled])`)).not.toBeNull());
     expect(captured.interaction!.selectionOpen).toBe(true);
     // Exactly `match.selectables !== null`, which is also what `boardInteraction`
     // put on `LiveClickables` — one source, so the two can never disagree.
@@ -1897,7 +1935,7 @@ describe('what the board is told about Forge’s input', () => {
 
     s.send(notify({ kind: 'notify', method: 'clearSelectables' }));
     await waitFor(() => expect(m.selectables).toBeNull());
-    await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"] button`)).toBeNull());
+    await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"] button:not([disabled])`)).toBeNull());
     expect(captured.interaction!.selectionOpen).toBe(false);
   });
 
@@ -2606,7 +2644,7 @@ describe('wave 33 §L1: the rail’s rows are the same height in and out of comb
       '.live__gone-back',
       ".live__buttons .live__toggle[aria-pressed='true']",
       ".live__log-button[aria-expanded='true']",
-      ".live__phases[data-whose='yours'] .live__turn-n",
+      ".live__turn[data-whose='yours'] .live__turn-n",
       '.live__step[data-current] .live__step-name',
     ]) {
       expect(declarations(css, sel), sel).toContain('color: var(--accent-ink)');
@@ -2615,5 +2653,300 @@ describe('wave 33 §L1: the rail’s rows are the same height in and out of comb
     expect(declarations(css, ".live__buttons .live__toggle[aria-pressed='true']")).toContain(
       'border-color: var(--accent)',
     );
+  });
+});
+
+/*
+ * ── Wave 35 lane L ──────────────────────────────────────────────────────
+ */
+
+describe('R11 — the turn counter leaves the phase bar for the logbook', () => {
+  it('live-turn / live-turn-n live in the logbook now, not the rail; data-turn/data-whose stay on the rail', async () => {
+    const { getByTestId } = await liveBoard();
+    const rail = getByTestId('live-phases');
+    const logbook = getByTestId('live-logbook');
+    const turn = getByTestId('live-turn');
+    expect(rail.contains(turn), 'the turn line left the rail').toBe(false);
+    expect(logbook.contains(turn), 'and lives in the logbook').toBe(true);
+    expect(getByTestId('live-turn-n').textContent).toBe('14');
+    // The specs’ hook is kept, on the rail, regardless of where the turn text moved.
+    expect(rail.dataset.turn).toBe('14');
+    expect(rail.dataset.whose).toMatch(/^(yours|theirs|nobody)$/);
+  });
+});
+
+describe('R8 — the log button is an icon with an accessible name', () => {
+  it('draws no visible "Log" text, carries aria-label, and its glyph is decorative', async () => {
+    const { getByTestId } = await liveBoard();
+    const toggle = getByTestId('live-log-toggle');
+    expect(toggle.textContent?.trim()).toBe('');
+    expect(toggle.getAttribute('aria-label')).toBe('Log');
+    expect(toggle.querySelector('svg[aria-hidden="true"]'), 'the glyph itself says nothing twice').not.toBeNull();
+  });
+});
+
+describe('R5 — End Turn is highlighted when there is nothing left to decide', () => {
+  const clearSelectables = () => parseServerFrame({ kind: 'notify', method: 'clearSelectables' });
+  const weaklySelectable = (ids: number[]) =>
+    parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
+  const bar2 = (label2: string) =>
+    parseServerFrame({
+      kind: 'notify',
+      method: 'updateButtons',
+      owner: { kind: 'player', id: 0 },
+      label1: 'OK',
+      label2,
+      enable1: true,
+      enable2: true,
+      focus1: true,
+    });
+
+  it('highlights the SECOND button (End Turn is Forge’s label2, never label1) exactly when nothingToDecide is true', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    s.send(clearSelectables());
+    s.send(bar2('End Turn'));
+    await waitFor(() => expect(getByTestId('live-button-cancel').textContent).toBe('End Turn'));
+    expect(getByTestId('live-button-cancel').hasAttribute('data-highlight'), 'Forge has not said "nothing" yet').toBe(false);
+    expect(getByTestId('live-button-ok').hasAttribute('data-highlight'), 'the highlight is never on OK').toBe(false);
+
+    s.send(weaklySelectable([]));
+    await waitFor(() => expect(nothingToDecide(m)).toBe(true));
+    await waitFor(() => expect(getByTestId('live-button-cancel').hasAttribute('data-highlight')).toBe(true));
+    expect(getByTestId('live-button-ok').hasAttribute('data-highlight')).toBe(false);
+
+    // Forge names something: the highlight comes off at once.
+    const someCard = m.view!.players.find((p) => p.isViewer)!.battlefield[0]!.id;
+    s.send(weaklySelectable([someCard]));
+    await waitFor(() => expect(getByTestId('live-button-cancel').hasAttribute('data-highlight')).toBe(false));
+  });
+});
+
+describe('R6 — the End Turn flicker: the rail’s resize transition is suppressed during a crawl', () => {
+  function CrawlProbe({ phase }: { phase: string }) {
+    const crawling = useCrawlGuard(phase);
+    return createElement('div', { 'data-testid': 'crawl-probe', 'data-crawl': crawling ? '' : undefined });
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('a single phase change never arms the guard', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+    const { getByTestId } = render(createElement(CrawlProbe, { phase: 'MAIN1' }));
+    expect(getByTestId('crawl-probe').hasAttribute('data-crawl')).toBe(false);
+  });
+
+  it('two phase changes under 80ms apart arm it, and it lifts after the cooldown', () => {
+    vi.useFakeTimers();
+    const now = vi.spyOn(performance, 'now');
+    now.mockReturnValue(1000);
+    const { getByTestId, rerender } = render(createElement(CrawlProbe, { phase: 'MAIN1' }));
+    now.mockReturnValue(1040);
+    rerender(createElement(CrawlProbe, { phase: 'COMBAT_BEGIN' }));
+    expect(getByTestId('crawl-probe').hasAttribute('data-crawl')).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(260);
+    });
+    expect(getByTestId('crawl-probe').hasAttribute('data-crawl')).toBe(false);
+  });
+
+  it('two phase changes 80ms or more apart do not arm it — one ordinary change is not a crawl', () => {
+    const now = vi.spyOn(performance, 'now');
+    now.mockReturnValue(1000);
+    const { getByTestId, rerender } = render(createElement(CrawlProbe, { phase: 'MAIN1' }));
+    now.mockReturnValue(1200);
+    rerender(createElement(CrawlProbe, { phase: 'COMBAT_BEGIN' }));
+    expect(getByTestId('crawl-probe').hasAttribute('data-crawl')).toBe(false);
+  });
+
+  it('the transition is off while data-crawl is set, in the stylesheet', () => {
+    const css = liveCss();
+    expect(declarations(css, '.live__phases[data-crawl]')).toContain('transition: none');
+  });
+});
+
+describe('R16 — Victory, Defeat or Draw, and how it ended (pure logic)', () => {
+  function fakePlayer(overrides: Partial<BoardPlayer> & Pick<BoardPlayer, 'id' | 'name'>): BoardPlayer {
+    return {
+      isViewer: false,
+      isActive: false,
+      hasPriority: false,
+      hasLost: false,
+      life: 20,
+      hand: null,
+      handCount: 0,
+      libraryCount: 40,
+      battlefield: [],
+      graveyard: [],
+      exile: [],
+      ...overrides,
+    };
+  }
+  function fakeView(players: BoardPlayer[], gameOverFlag = true): BoardView {
+    return {
+      seq: 1,
+      title: 't',
+      turn: 5,
+      phase: null,
+      phaseLabel: '',
+      activePlayerId: null,
+      players,
+      stack: [],
+      gameOver: gameOverFlag,
+      missingCardIds: [],
+    };
+  }
+  const matchWithView = (view: BoardView | null): LiveMatch => ({ view }) as unknown as LiveMatch;
+
+  it('the viewer lost, the opponent did not: Defeat', () => {
+    const view = fakeView([
+      fakePlayer({ id: 0, name: 'You', isViewer: true, hasLost: true, life: 0 }),
+      fakePlayer({ id: 1, name: 'Them' }),
+    ]);
+    expect(gameOutcome(matchWithView(view))).toBe('defeat');
+  });
+
+  it('the opponent lost, the viewer did not: Victory', () => {
+    const view = fakeView([
+      fakePlayer({ id: 0, name: 'You', isViewer: true }),
+      fakePlayer({ id: 1, name: 'Them', hasLost: true, life: 0 }),
+    ]);
+    expect(gameOutcome(matchWithView(view))).toBe('victory');
+  });
+
+  it('both lost, or neither: Draw', () => {
+    const bothLost = fakeView([
+      fakePlayer({ id: 0, name: 'You', isViewer: true, hasLost: true, life: 0 }),
+      fakePlayer({ id: 1, name: 'Them', hasLost: true, life: 0 }),
+    ]);
+    expect(gameOutcome(matchWithView(bothLost))).toBe('draw');
+    const neitherLost = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true }), fakePlayer({ id: 1, name: 'Them' })]);
+    expect(gameOutcome(matchWithView(neitherLost))).toBe('draw');
+  });
+
+  it('null while the game is not over, and before any view exists', () => {
+    const notOver = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true })], false);
+    expect(gameOutcome(matchWithView(notOver))).toBeNull();
+    expect(gameOutcome(matchWithView(null))).toBeNull();
+  });
+
+  it('reasonLost reads life, poison, decking and concede off facts already on BoardPlayer, in that priority', () => {
+    expect(reasonLost(fakePlayer({ id: 0, name: 'A', life: 0 }))).toBe('life');
+    expect(reasonLost(fakePlayer({ id: 0, name: 'A', life: 3, counters: [{ name: 'Poison', count: 10 }] }))).toBe('poison');
+    expect(reasonLost(fakePlayer({ id: 0, name: 'A', life: 3, libraryCount: 0 }))).toBe('decking');
+    expect(reasonLost(fakePlayer({ id: 0, name: 'A', life: 3, libraryCount: 12 }))).toBe('concede');
+    // Life wins over poison when both happen to read true at once — checked first.
+    expect(
+      reasonLost(fakePlayer({ id: 0, name: 'A', life: 0, counters: [{ name: 'Poison', count: 10 }] })),
+    ).toBe('life');
+  });
+
+  it('endingSentence names every loser by name and reason; null when nobody lost', () => {
+    const view = fakeView([
+      fakePlayer({ id: 0, name: 'You', isViewer: true, hasLost: true, life: 0 }),
+      fakePlayer({ id: 1, name: 'Them' }),
+    ]);
+    expect(endingSentence(view)).toBe('You — life total reached 0');
+    expect(endingSentence(fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true })]))).toBeNull();
+  });
+});
+
+describe('R16 — the result screen, drawn over the board', () => {
+  const GAME_KEY = String(deltaKey(WireType.Game, 1));
+  const gameOverDelta = (seq: number, loserId: number) =>
+    parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: {
+          seq,
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: {},
+          objectDeltas: {
+            [GAME_KEY]: { _type: WireType.Game, _id: 1, GameOver: { t: 'bool', v: true } },
+            [String(deltaKey(WireType.Player, loserId))]: {
+              _type: WireType.Player,
+              _id: loserId,
+              HasLost: { t: 'bool', v: true },
+              Life: { t: 'int', v: 0 },
+            },
+          },
+          events: [],
+        },
+      },
+    });
+
+  it('Defeat, over the still-visible board, with no known room: both buttons fall back to the lobby', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
+    s.send(gameOverDelta(m.view!.seq + 1, viewerId));
+
+    await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('defeat'));
+    expect(getByTestId('game-result').textContent).toContain('Defeat');
+    expect(getByTestId('game-result').textContent).toContain('life total reached 0');
+    // Over the board, which stays visible behind it (shape 4).
+    expect(document.querySelector('.board'), 'the board is still drawn underneath').not.toBeNull();
+
+    expect((getByTestId('game-result-rematch') as HTMLAnchorElement).getAttribute('href')).toBe('#/');
+
+    fireEvent.click(getByTestId('game-result-menu'));
+    expect(roomsClientState.leave, 'no room to leave').not.toHaveBeenCalled();
+    await waitFor(() => expect(globalThis.location.hash).toBe('#/'));
+  });
+
+  it('Victory: the opponent lost — and with a known room, Rematch goes to it and Main menu leaves it first', async () => {
+    const s = (server = await startReplayServer());
+    const m = (match = startMatch({
+      matchId: s.matchId,
+      transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
+    }));
+    const utils = render(createElement(LiveBoard, { match: m, roomId: 'r-1' }));
+    await waitFor(() => expect(m.stats.snapshots).toBe(1));
+    const frames = fixtureFrames();
+    for (const f of frames) s.send(f);
+    await waitFor(() => expect(m.stats.applied).toBe(frames.length), { timeout: 10_000 });
+    await waitFor(() => expect(utils.getByTestId('live-turn-n').textContent).toBe('14'));
+
+    const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
+    s.send(gameOverDelta(m.view!.seq + 1, opponentId));
+    await waitFor(() => expect(utils.getByTestId('game-result').dataset.result).toBe('victory'));
+    expect(utils.getByTestId('game-result').textContent).toContain('Victory');
+
+    expect((utils.getByTestId('game-result-rematch') as HTMLAnchorElement).getAttribute('href')).toBe('#/room/r-1');
+
+    fireEvent.click(utils.getByTestId('game-result-menu'));
+    await waitFor(() => expect(roomsClientState.leave).toHaveBeenCalledWith('r-1'));
+    await waitFor(() => expect(globalThis.location.hash).toBe('#/'));
+  });
+
+  it('Draw: both players hasLost — neither Victory nor Defeat', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
+    const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'applyDelta',
+        payload: {
+          packet: {
+            seq: m.view!.seq + 1,
+            checksum: 0,
+            checksumProperties: [],
+            newObjects: {},
+            objectDeltas: {
+              [GAME_KEY]: { _type: WireType.Game, _id: 1, GameOver: { t: 'bool', v: true } },
+              [String(deltaKey(WireType.Player, viewerId))]: { _type: WireType.Player, _id: viewerId, HasLost: { t: 'bool', v: true } },
+              [String(deltaKey(WireType.Player, opponentId))]: { _type: WireType.Player, _id: opponentId, HasLost: { t: 'bool', v: true } },
+            },
+            events: [],
+          },
+        },
+      }),
+    );
+    await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('draw'));
+    expect(getByTestId('game-result').textContent).toContain('Draw');
   });
 });

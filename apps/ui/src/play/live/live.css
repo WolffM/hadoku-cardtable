@@ -456,6 +456,36 @@
 }
 
 /*
+ * R5: End Turn, highlighted when there is nothing left to decide
+ * (`nothingToDecide`, `match.ts` shape 3 — `LiveBoard.tsx`'s `highlightEndTurn`).
+ * The accent border every other "on" affordance in this file uses (Full
+ * control pressed, the log open), plus a slow pulse so it reads as "nudging
+ * you" rather than "selected" — guarded by `prefers-reduced-motion` like the
+ * rail's own transition.
+ */
+.live__buttons button[data-highlight] {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  animation: live-ok-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-ok-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live__buttons button[data-highlight] {
+    animation: none;
+  }
+}
+
+/*
  * The prompt: **a fixed column, floating over the board** (wave 26 §B.1).
  *
  * It was centred in the room above the cluster (wave 20 §C.3, *"it should be
@@ -870,17 +900,14 @@
   right: var(--live-gutter);
   width: 36px;
   height: 32px;
-  padding: 1px 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 1px solid var(--line);
   border-radius: 5px;
   background: var(--bg-raised);
   color: var(--ink-dim);
-  font: inherit;
-  font-size: 11px;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   cursor: pointer;
 }
 
@@ -891,6 +918,15 @@
 .live__log-button[aria-expanded='true'] {
   border-color: var(--accent);
   color: var(--accent-ink);
+}
+
+/* R8: the button is an icon now — three bars, read as "lines of text". `fill`
+   rather than `stroke` so it stays crisp at 16px; `currentColor` so the open
+   state's colour change (above) recolours the glyph with no rule of its own. */
+.live__log-icon {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
 }
 
 /*
@@ -924,6 +960,103 @@
 .live__ask .live__danger {
   border-color: var(--warn);
   color: var(--warn);
+}
+
+/*
+ * R16: the result screen, in place of `Board`'s old `game over` toast
+ * (`LiveBoard.tsx`'s `GameResultScreen`). `.board__over` is the class that
+ * banner used to own — lane B deleted the banner and its rule, and the name is
+ * kept here on purpose: five e2e checks read it as "the game has ended"
+ * (`play.spec.ts`, `table-fit.spec.ts`, `w31.spec.ts`).
+ *
+ * Absolutely positioned over the WHOLE match box, same as `.live__ask`, so it
+ * pushes no track the fit spec measures — the table underneath keeps its size
+ * and stays visible through the dimmed backdrop, which is the "over the board,
+ * which stays visible behind it" the brief asks for. The backdrop reuses the
+ * same raw black-with-alpha the prompt sheet's own shadow already uses in this
+ * file (`.live__prompt > .confirm`) rather than inventing a new token.
+ */
+.board__over {
+  position: absolute;
+  z-index: var(--z-popover, 40);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 55%);
+}
+
+.live__result {
+  align-items: center;
+  min-width: 18rem;
+  text-align: center;
+}
+
+.live__result .confirm__actions {
+  justify-content: center;
+}
+
+.live__result-ending {
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+/* Victory/Defeat read with the same hues the log already uses for a life gain
+   and for damage (`--c-green`, `--warn`) — no new colour, just the existing
+   tokens applied to a third place. A draw stays the title's own ink. */
+.board__over[data-result='victory'] .confirm__title {
+  color: var(--c-green);
+}
+
+.board__over[data-result='defeat'] .confirm__title {
+  color: var(--warn);
+}
+
+.live__result-faces {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin: 2px 0;
+}
+
+.live__result-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The loser's face recedes, the same `opacity` treatment `.live__step[data-past]` already uses. */
+.live__result-face[data-lost] {
+  opacity: 0.6;
+}
+
+.live__result-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  fill: var(--ink-dim);
+  background: var(--bg-card);
+}
+
+.live__result-name {
+  max-width: 7rem;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The anchor (Rematch) reads as the same control the button (Main menu) beside
+   it is — `.button` sets no colour or underline of its own, so a plain `<a>`
+   would otherwise draw with the browser's own link blue. */
+.live__result .confirm__actions a.button {
+  color: var(--ink);
+  text-decoration: none;
+  text-align: center;
 }
 
 /*
@@ -1041,29 +1174,52 @@
   --rail-rows: 13;
 }
 
+/*
+ * R6, wave 35: the End Turn flicker. `data-combat` flips on every turn, and
+ * `endturn.jvm.test.ts` proves an End Turn click crawls Forge through its
+ * phases under 50ms apart — several flips inside this rule's own 0.3s
+ * transition window, which retargets it mid-flight on every one of them
+ * rather than letting it finish, and THAT judder is what reads as a flicker
+ * (see `LiveBoard.tsx`'s `useCrawlGuard` for the full diagnosis). Turning the
+ * transition off for exactly that span converts a visibly thrashing resize
+ * into an instant, unanimated snap — invisible at crawl speed — while a real,
+ * human-paced combat entry still gets the smooth grow Q3 asked for, because
+ * `data-crawl` never arms for a single ordinary phase change.
+ */
+.live__phases[data-crawl] {
+  transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .live__phases {
     transition: none;
   }
 }
 
-/* Whose turn, and which one. The number is the only number here, and it is
-   Forge's own turn counter — nothing is chosen by it. */
+/*
+ * Whose turn, and which one. The number is the only number here, and it is
+ * Forge's own turn counter — nothing is chosen by it.
+ *
+ * Wave 35 R11 moved this out of `.live__phases` and into `.live__logbook`
+ * (the operator: *"the log has it"*) — the rail kept the tight 8.4% column
+ * for the thirteen step names and nothing else. `data-whose` lives on THIS
+ * element now rather than being read off an ancestor, because its new parent
+ * is the logbook, not the rail.
+ */
 .live__turn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex: none;
   margin: 0;
-  line-height: 1.05;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--ink-dim);
 }
 
 .live__turn-n {
-  font-size: 14px;
   font-weight: 600;
   color: var(--ink);
 }
 
-.live__phases[data-whose='yours'] .live__turn-n {
+.live__turn[data-whose='yours'] .live__turn-n {
   color: var(--accent-ink);
 }
 

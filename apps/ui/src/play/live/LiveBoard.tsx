@@ -103,8 +103,10 @@
  *  - **the phase rail is 8.4% wide and every step says its name.** At 32px it
  *    could draw marks and the current step only, with every other name clipped;
  *    the operator widened it to ~108px deliberately, so the phases are to be
- *    READ. It also carries the only turn indicator on the page, because §A
- *    deleted the turn bar — `live-turn` is what the specs read now.
+ *    READ. §A deleted the turn bar, and wave 35 (R11) moved the turn counter
+ *    itself off the rail and into the logbook — "the log has it" — so
+ *    `live-turn` is drawn there now; the rail keeps `data-turn` / `data-whose`
+ *    for the specs that read them off `live-phases`.
  *  - **the controls are 112×84**, five buttons, directly under the rail — item
  *    5 (wave 30) deleted `Leave` and item 7 put `Settings` in the slot it
  *    vacated, so the five wave 25 took the prose out of are still five. Wave
@@ -246,10 +248,13 @@ import { Component, useEffect, useId, useLayoutEffect, useRef, useState, useSync
 import type { DraftCard } from '@hadoku/shared';
 import { usePrefs } from '@wolffm/prefs-client/react';
 
-import { routeHash } from '../../screens/route.ts';
-import { PHASE_LABEL, type BoardView } from '../adapter.ts';
+import { navigate, routeHash } from '../../screens/route.ts';
+import { roomsClient } from '../../rooms/api.ts';
+import { avatarSquareUrl } from '../../room/avatar.ts';
+import { PHASE_LABEL, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
 import { lookupFromState, plainRulesText, withAbilityLabels } from '../prompts/lookup.ts';
+import { isPlayOrDrawPrompt, PlayOrDrawPrompt } from '../prompts/PlayOrDrawPrompt.tsx';
 import { autoAnswer } from '../prompts/rules.ts';
 import { isPromptMethod, PromptFor, type AskOf, type PromptMethod } from '../prompts/index.ts';
 import { ConfirmDialog } from './ConfirmDialog.tsx';
@@ -262,6 +267,7 @@ import {
   concede,
   currentAsk,
   declaringAttackers,
+  nothingToDecide,
   noteAutoAnswered,
   payingMana,
   pressButton,
@@ -800,6 +806,77 @@ function railRows(inCombat: boolean): RailRow[] {
 }
 
 /**
+ * R6: a real gap, not a guess — see `docs/planning/wave35-evidence/l4-flicker.md`
+ * for the full derivation. The short version:
+ *
+ *  - Pressing `End Turn` arms Forge's own `skipPhaseDelay` (`PlayBridge.java`'s
+ *    `setPhaseDelayOff`), and `apps/server/src/play/endturn.jvm.test.ts` proves
+ *    against a REAL match that the phases from that click to the end step then
+ *    arrive **under 50 ms apart** — a crawl, not a sequence a person watches one
+ *    step at a time.
+ *  - Every turn, crawled or not, passes through the six `combat` steps
+ *    (`PHASE_ORDER` above) even with no attackers — so `inCombat` flips
+ *    true-then-false on EVERY turn, and `.live__phases[data-combat]` (`live.css`,
+ *    wave 26 §B.2 / 33 §L1) changes `--rail-rows` under a `transition: height
+ *    0.3s ease` built for a human-paced combat (Q3, wave 32).
+ *  - During the crawl, that flip happens several times inside the transition's
+ *    own 300 ms window. A CSS transition retargeted mid-flight does not finish
+ *    and restart cleanly — it animates toward whatever the LATEST target is —
+ *    so a `0.3s` transition re-armed every `<50ms` for the length of the crawl
+ *    (anywhere from a few hundred ms to over a second, `endturn.jvm.test.ts`'s
+ *    own `upToEnd.length` of phases) renders as the rail visibly JUDDERING open
+ *    and shut for that whole span — the flicker. Nothing here remounts (no
+ *    `key` on this element or its ancestors depends on the phase or the turn);
+ *    it is one real box, animating toward a target that will not hold still.
+ *  - The control cluster (`.live__buttons`) was checked too: Forge sends
+ *    `updateButtons` only at a real decision point, and the crawl's own proof
+ *    (`endturn.jvm.test.ts`) is entirely `applyDelta`/`Phase` traffic with no
+ *    button frames inside the crawled span, so the cluster has nothing to
+ *    thrash on and is not implicated.
+ *
+ * The fix stays data-correct and test-stable: `data-combat`, `data-phase`,
+ * `data-turn` and the row list are UNCHANGED, still computed straight off
+ * `view` with no delay (every existing assertion about them is exact, not
+ * eventual). What changes is `data-crawl` (`useCrawlGuard` below) — a
+ * recently-retriggered-too-fast flag `live.css` reads to turn the TRANSITION
+ * off for exactly the span that would otherwise judder, so a crawl SNAPS
+ * through its sizes instead of animating through all of them, and a real,
+ * human-paced entry into combat still gets the smooth grow Q3 asked for.
+ */
+const CRAWL_GAP_MS = 80;
+const CRAWL_COOLDOWN_MS = 250;
+
+/**
+ * True while `phase` has changed at least twice faster than a person reacts
+ * (`CRAWL_GAP_MS` apart), and for a short cooldown after the last fast change —
+ * long enough for the rail's own 300 ms transition to have nothing left to
+ * finish animating when crawl mode lifts. A single ordinary phase change (the
+ * common case, one step at a time) never sets it: the first change after any
+ * gap only RECORDS the time, it takes a SECOND change inside the window to
+ * call it a crawl.
+ */
+export function useCrawlGuard(phase: string | null): boolean {
+  const [crawling, setCrawling] = useState(false);
+  const lastChangeAt = useRef<number | null>(null);
+  useEffect(() => {
+    const now = performance.now();
+    const previous = lastChangeAt.current;
+    lastChangeAt.current = now;
+    if (previous !== null && now - previous < CRAWL_GAP_MS) {
+      setCrawling(true);
+      const id = setTimeout(() => setCrawling(false), CRAWL_COOLDOWN_MS);
+      return () => clearTimeout(id);
+    }
+    return undefined;
+    // `phase` (not `view`): a prop that changes on every state frame, combat or
+    // not, would arm the cooldown for frames that never touch `data-combat` at
+    // all (a target or a says-only update), re-arming the timer for no reason
+    // this guard cares about.
+  }, [phase]);
+  return crawling;
+}
+
+/**
  * The phase rail. Presentation only — turn, step and whose turn all come off
  * the view that was already on screen (see the module header).
  *
@@ -815,16 +892,22 @@ function railRows(inCombat: boolean): RailRow[] {
  * was. The current step is still marked three ways — its mark is the long one,
  * its name is the accent, and it carries `aria-current="step"`.
  *
- * It is also the ONLY turn indicator on the page now that §A has deleted the
- * turn bar. `live-turn` is the row, and `live-turn-n` is Forge's own turn
- * counter alone — two ids, because the row reads `14theirs` and a spec that
- * wants the number should not have to take it apart.
+ * **Wave 35 R11 moved the visible turn counter off this rail and into the
+ * logbook** (the operator's "the log has it"): `live-turn` / `live-turn-n` are
+ * drawn there now, by `LiveBoard` itself, not by this component. `data-turn`
+ * and `data-whose` stay on THIS element regardless, because `e2e/w32.spec.ts`
+ * and `e2e/w33.spec.ts` read them off the rail by `data-testid="live-phases"`
+ * and a hidden logbook must not make either attribute unreadable.
+ *
+ * **Wave 35 R6**: `data-crawl` turns the resize transition off while the phase
+ * is changing faster than a person could watch it (see `useCrawlGuard` above).
  */
 function PhaseRail({ view }: { view: BoardView }) {
   const at = PHASE_ORDER.findIndex((p) => p.phase === view.phase);
   const whose = whoseTurn(view);
   const inCombat = at >= 0 && PHASE_ORDER[at]!.group === 'combat';
   const rows = railRows(inCombat);
+  const crawling = useCrawlGuard(view.phase);
   return (
     <div
       className="live__phases"
@@ -833,12 +916,8 @@ function PhaseRail({ view }: { view: BoardView }) {
       data-phase={view.phase ?? ''}
       data-turn={view.turn}
       data-combat={inCombat ? '' : undefined}
+      data-crawl={crawling ? '' : undefined}
     >
-      <p className="live__turn" data-testid="live-turn">
-        <span className="live__turn-n" data-testid="live-turn-n">
-          {view.turn > 0 ? view.turn : 'Start'}
-        </span>
-      </p>
       <ol className="live__steps" aria-label="Phase">
         {rows.map(({ phase, group, last }, i) => {
           const current = phase === view.phase;
@@ -986,6 +1065,176 @@ const INERT_CLICKABLES: LiveClickables = {
   selectionOpen: false,
 };
 
+/* ── R16: a result screen, not a toast ──────────────────────────────────
+ *
+ * Today's whole answer to "the game ended" was `Board`'s one-line `game over`
+ * banner (`.board__over`). The operator asked for a real screen: who won, how,
+ * both players' names and faces, and a way onward — `docs/planning/wave35-2026-10-02.md`'s
+ * R16, with the Rematch/Main-menu ruling settled 2026-10-02.
+ *
+ * Lane B (shape 4) deleted the banner and its `.board__over` rule; that class
+ * name is this component's now, kept on purpose because five e2e checks read
+ * it as "the game has ended" (`play.spec.ts`, `table-fit.spec.ts`,
+ * `w31.spec.ts`) and a renamed class would silently stop meaning that to them.
+ *
+ * ## Victory, Defeat or Draw — from the viewer's OWN board
+ *
+ * `BoardPlayer.hasLost` is already on the wire for both seats (adapter.ts), so
+ * this needs no new field: the viewer lost and the opponent did not → Defeat;
+ * the opponent lost and the viewer did not → Victory; both or neither → Draw
+ * (the operator's own three-way split). A spectator reads the SEAT they are
+ * watching, same as everywhere else in this file.
+ *
+ * ## How it ended — read off the board, not asked of Forge
+ *
+ * Nothing on today's wire tells a browser WHY a player lost — `winner` is a
+ * name on a REST poll (`apps/server/src/play/socket.ts`'s `/matches/:id`), not
+ * a reason, and reaches neither this file nor `match.ts`; `GameEventGameOutcome`
+ * (`packages/forge-wire`'s `outcomeStrings`) is modelled but never leaves the
+ * bridge (`PlayBridge.java` sends `"events": []` on every delta — see this
+ * file's own header on why). Magic has exactly four ways a player loses, and
+ * three of them are already visible facts on the SAME `BoardPlayer` `hasLost`
+ * comes from: life at or below zero, ten-plus poison counters, and an empty
+ * library (the "drawn from nothing" shape — Forge marks the loss the moment a
+ * draw fails, so a decked player's library reads 0 here). A loser with none of
+ * those is the fourth way: conceding changes nothing else about their board,
+ * so it is the one case left once the other three are ruled out — not a
+ * guess, a complete partition of the four causes this wave scopes to.
+ */
+export type GameOutcome = 'victory' | 'defeat' | 'draw';
+
+/** Victory/Defeat/Draw, from the viewer's own side. `null` while the game is not over. */
+export function gameOutcome(match: LiveMatch): GameOutcome | null {
+  const view = match.view;
+  if (view === null || !view.gameOver) return null;
+  const viewerLost = view.players.find((p) => p.isViewer)?.hasLost ?? false;
+  const opponentLost = view.players.find((p) => !p.isViewer)?.hasLost ?? false;
+  if (viewerLost === opponentLost) return 'draw';
+  return viewerLost ? 'defeat' : 'victory';
+}
+
+/** The four ways a Magic game modelled here ends. See the section header for the derivation. */
+export type GameEndReason = 'life' | 'poison' | 'decking' | 'concede';
+
+const END_REASON_WORDS: Readonly<Record<GameEndReason, string>> = {
+  life: 'life total reached 0',
+  poison: '10 or more poison counters',
+  decking: 'an empty library',
+  concede: 'conceding',
+};
+
+/** Why THIS player lost, read off facts already on their `BoardPlayer`. Exported for its own test. */
+export function reasonLost(player: BoardPlayer): GameEndReason {
+  if (player.life <= 0) return 'life';
+  const poison = (player.counters ?? []).find((c) => c.name === 'Poison');
+  if (poison !== undefined && poison.count >= 10) return 'poison';
+  if (player.libraryCount === 0) return 'decking';
+  return 'concede';
+}
+
+/** One sentence per loser (almost always one; a double-loss draw gets both). `null` when nobody lost. */
+export function endingSentence(view: BoardView): string | null {
+  const losers = view.players.filter((p) => p.hasLost);
+  if (losers.length === 0) return null;
+  return losers.map((p) => `${p.name} — ${END_REASON_WORDS[reasonLost(p)]}`).join(' · ');
+}
+
+const OUTCOME_TITLE: Readonly<Record<GameOutcome, string>> = {
+  victory: 'Victory',
+  defeat: 'Defeat',
+  draw: 'Draw',
+};
+
+/**
+ * A player's face, for the result screen. Not `Board.tsx`'s `PlayerFace`
+ * (unexported, and drawn for a different job — a clickable target with a life
+ * badge): this reuses only the FACT lane A's own face draws from —
+ * `avatarSquareUrl(player.avatarId)`, the one accessor, no new image host —
+ * and draws its own, smaller mark so this file's styling stays in `live.css`
+ * and does not lean on `board.css`'s private class names.
+ */
+function ResultFace({ player }: { player: BoardPlayer }) {
+  const avatar = player.avatarId === undefined ? null : avatarSquareUrl(player.avatarId);
+  return (
+    <div className="live__result-face" data-lost={player.hasLost || undefined}>
+      {avatar === null ? (
+        <svg className="live__result-avatar" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+          <circle cx="24" cy="19" r="10" />
+          <path d="M8 42a16 16 0 0 1 32 0Z" />
+        </svg>
+      ) : (
+        <img className="live__result-avatar" src={avatar} alt="" />
+      )}
+      <span className="live__result-name">{player.name}</span>
+    </div>
+  );
+}
+
+/**
+ * The result screen itself (shape 4 + shape 5): drawn over the board — which
+ * stays visible behind it, per the brief — when `view.gameOver`.
+ *
+ * **Rematch** goes to the room's own deck selection: `roomId`'s route, a plain
+ * anchor, the same "go there" pattern `live--gone`'s own back-link already uses
+ * in this file. It sends nothing — the room letting go of a FINISHED match is
+ * the server's own job (lane R, shape 5), so opening the room after a game
+ * shows deck selection on its own.
+ *
+ * **Main menu** leaves the room (`roomsClient().leave`, lane R shape 5) and
+ * THEN goes to the lobby — in that order, `finally`, so a leave that fails
+ * still lands the player somewhere rather than stranding them on a result
+ * screen for a room that may already be gone. `navigate`, not another anchor,
+ * because this one has a side effect to sequence first.
+ *
+ * Without a known room (`roomId === null` — a `#/match/<id>` link from
+ * elsewhere, or a room list that failed to load; see `MatchScreen.tsx`'s own
+ * comment on the same fact), there is no room to return to OR to leave: both
+ * buttons fall back to the lobby, the same degradation `live--gone` already
+ * makes for its one link.
+ */
+function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string | null }) {
+  const view = match.view!;
+  const outcome = gameOutcome(match)!;
+  const viewer = view.players.find((p) => p.isViewer);
+  const opponent = view.players.find((p) => !p.isViewer);
+  const ending = endingSentence(view);
+  const titleId = useId();
+  const [leaving, setLeaving] = useState(false);
+
+  const onMainMenu = (): void => {
+    setLeaving(true);
+    const left: Promise<unknown> = roomId === null ? Promise.resolve() : roomsClient().leave(roomId);
+    void left.finally(() => navigate({ kind: 'lobby' }));
+  };
+
+  return (
+    <section className="board__over" data-testid="game-result" data-result={outcome} role="dialog" aria-labelledby={titleId}>
+      <div className="confirm live__result">
+        <h2 className="confirm__title" id={titleId}>
+          {OUTCOME_TITLE[outcome]}
+        </h2>
+        {ending !== null && <p className="confirm__message live__result-ending">{ending}</p>}
+        <div className="live__result-faces">
+          {viewer !== undefined && <ResultFace player={viewer} />}
+          {opponent !== undefined && <ResultFace player={opponent} />}
+        </div>
+        <div className="confirm__actions">
+          <a
+            className="button"
+            data-testid="game-result-rematch"
+            href={routeHash(roomId === null ? { kind: 'lobby' } : { kind: 'room', roomId })}
+          >
+            Rematch
+          </a>
+          <button type="button" className="button" data-testid="game-result-menu" disabled={leaving} onClick={onMainMenu}>
+            Main menu
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export interface LiveBoardProps {
   match: LiveMatch;
   /**
@@ -1052,6 +1301,16 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    */
   const paying = !spectator && !askOpen && payingMana(match);
   /*
+   * R2: the coin toss / play-draw question. Not an `ask` — Forge resolves the
+   * toss itself and asks only the winner one question through the same
+   * notify-only `prompt`/`buttons` channel every other yes/no in the control
+   * bar already uses (`PlayerControllerHuman.chooseStartingPlayer`, lane G's
+   * `g.md`). `isPlayOrDrawPrompt` (`../prompts/PlayOrDrawPrompt.tsx`, G's,
+   * presentational only) reads it off `bar` alone, the same field
+   * `showsSecondButton` already reads.
+   */
+  const playOrDraw = !spectator && !askOpen && isPlayOrDrawPrompt(bar);
+  /*
    * What the log can put a face to, and whose lines are whose. Both come off the
    * board view the viewer is already looking at — see `cardsNamedInView` for why
    * that is the leak-free source — and both are `null`/empty before the first
@@ -1060,6 +1319,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const logCards = cardsNamedInView(match.view);
   const logIds = cardIdsNamedInView(match.view);
   const theirName = match.view?.players.find((p) => !p.isViewer)?.name ?? null;
+  /** R11: the turn counter moved off the rail and into the logbook. */
+  const whoseTurnNow = match.view === null ? 'nobody' : whoseTurn(match.view);
   const offered = spectator ? INERT_CLICKABLES : boardInteraction(match);
   const interaction: BoardInteraction = {
     /*
@@ -1140,7 +1401,20 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * `SettingsPanel`, because `<Board>` needs it whether or not Settings is
    * ever opened.
    */
-  const showsSecondButton = !spectator && !askOpen && bar !== null && bar.enable2 && offersSecondButton(match);
+  const showsSecondButton = !spectator && !askOpen && !playOrDraw && bar !== null && bar.enable2 && offersSecondButton(match);
+  /*
+   * R5: End Turn is highlighted when there is nothing left to decide.
+   *
+   * `End Turn` is Forge's SECOND button, not its first (`PlayBridge.java`'s own
+   * `END_TURN_LABEL`, `InputPassPriority`'s cancel slot — `secondLabel`/
+   * `showsSecondButton` above draw it; button one is `OK`, which passes the
+   * current step without skipping ahead). `nothingToDecide` (`./match.ts`,
+   * shape 3) is the one place "nothing left to decide" is answered — no open
+   * ask, no open selection, and Forge's own actionable set is the explicit
+   * empty one — so the highlight lands on the button that actually reads `End
+   * Turn`, gated on it being shown at all, never a new affordance of its own.
+   */
+  const highlightEndTurn = showsSecondButton && nothingToDecide(match);
   const [boardLayout, setBoardLayout] = useState<BoardLayout>(PLAY_PREFS_DEFAULTS.boardLayout);
   /*
    * Item 6's persistence, and item 2/6's wire message.
@@ -1340,6 +1614,24 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        */}
       <div className="live__logbook" data-testid="live-logbook" id={logbookId} hidden={!logOpen}>
         {/*
+         * The turn counter (R11, wave 35): *"remove the turn counter from the
+         * phase bar (the log has it)."* It used to be the rail's own `.live__turn`
+         * (§C.2); the rail kept the tight 8.4% column for the thirteen step
+         * names and nothing else, and this is where the number went. Same test
+         * ids (`live-turn`, `live-turn-n`) as before the move — only the
+         * ELEMENT'S PARENT changed, not the name a spec finds it by. `data-whose`
+         * is on this element directly (not inherited from `.live__phases`, which
+         * it no longer shares a parent with) so `live.css` can still colour the
+         * number when it is the viewer's turn.
+         */}
+        {match.view !== null && (
+          <p className="live__turn" data-testid="live-turn" data-whose={whoseTurnNow}>
+            <span className="live__turn-n" data-testid="live-turn-n">
+              {match.view.turn > 0 ? match.view.turn : 'Start'}
+            </span>
+          </p>
+        )}
+        {/*
          * What Forge is waiting on, exactly as Forge said it. This is the line
          * that used to be the cluster's top row; it kept its test id because it
          * is the only place Forge's own message is readable and another lane's
@@ -1369,6 +1661,14 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * `aria-expanded` and `aria-controls` naming the panel it opens, and still
        * pressable at any time for the reason Full control is: it is a preference
        * about what is on screen.
+       *
+       * **R8, wave 35: the button is an icon**, not the word "Log" — a page
+       * line and the button that opens it said the same word twice. The
+       * accessible name moves to `aria-label` (screen readers announce that
+       * over any visible text anyway) and `title` stays for the pointer
+       * tooltip; the glyph itself is `aria-hidden`, the same convention every
+       * other inline icon in this codebase follows (`Board.tsx`'s mark and
+       * count icons).
        */}
       <button
         type="button"
@@ -1376,10 +1676,15 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         data-testid="live-log-toggle"
         aria-expanded={logOpen}
         aria-controls={logbookId}
+        aria-label="Log"
         title="The log"
         onClick={() => setLogOpen(!logOpen)}
       >
-        Log
+        <svg className="live__log-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M2.5 3.5h11v1.6h-11Z" />
+          <path d="M2.5 7.2h11v1.6h-11Z" />
+          <path d="M2.5 10.9h7.4v1.6h-7.4Z" />
+        </svg>
       </button>
       {/*
        * The control cluster (§C.1). One container, every frame, the same
@@ -1403,7 +1708,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           type="button"
           className="live__ok"
           data-testid="live-button-ok"
-          disabled={spectator || ask !== null || bar === null || !bar.enable1}
+          disabled={spectator || ask !== null || bar === null || !bar.enable1 || playOrDraw}
           onClick={() => pressButton(match, 'ok')}
         >
           {bar === null || bar.label1 === '' ? 'OK' : bar.label1}
@@ -1416,12 +1721,16 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
          * or a target. So it is drawn ONLY while Forge has it enabled, in Forge's
          * own word; a permanently present, mostly disabled `Cancel` told the
          * player nothing and sat beside OK as a button that did nothing.
+         *
+         * `data-highlight` (R5) lands HERE, not on OK: `End Turn` is this
+         * button's label, never button one's (see `highlightEndTurn`'s own note).
          */}
         {showsSecondButton && (
           <button
             type="button"
             className="live__cancel"
             data-testid="live-button-cancel"
+            data-highlight={highlightEndTurn ? '' : undefined}
             onClick={() => pressButton(match, 'cancel')}
           >
             {secondLabel(match)}
@@ -1470,6 +1779,24 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         </div>
       )}
       {paying && <PaymentWindow match={match} />}
+      {/*
+       * R2: the coin toss / play-draw question, in the decision area (shape 2)
+       * rather than the control bar — lane G's `g.md` has the full shape.
+       * `onPlay`/`onDraw` are `pressButton`, the same sender the control bar's
+       * own OK/Cancel use, so a press here is indistinguishable from one there
+       * as far as the wire is concerned.
+       */}
+      {playOrDraw && (
+        <div className="live__prompt" data-testid="live-play-or-draw-host">
+          <PlayOrDrawPrompt
+            message={plainRulesText(match.prompt ?? '')}
+            enablePlay={bar?.enable1 ?? false}
+            enableDraw={bar?.enable2 ?? false}
+            onPlay={() => pressButton(match, 'ok')}
+            onDraw={() => pressButton(match, 'cancel')}
+          />
+        </div>
+      )}
       {conceding && !spectator && !over && (
         <ConcedeAsk
           onConcede={() => {
@@ -1479,6 +1806,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           onCancel={() => setConceding(false)}
         />
       )}
+      {/* R16: Victory/Defeat/Draw, in place of the toast (`Board`'s old `game over` banner). Over the board, which stays visible behind it. */}
+      {match.view !== null && match.view.gameOver && <GameResultScreen match={match} roomId={roomId} />}
       {/*
        * The match's settings live in the HEADER's gear popout (wave 32 Q15), not
        * here: this draws them into it while it is open, and nothing at all
