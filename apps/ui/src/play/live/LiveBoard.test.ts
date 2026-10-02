@@ -2714,10 +2714,29 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     await waitFor(() => expect(getByTestId('live-button-cancel').hasAttribute('data-highlight')).toBe(true));
     expect(getByTestId('live-button-ok').hasAttribute('data-highlight')).toBe(false);
 
-    // Forge names something: the highlight comes off at once.
-    const someCard = m.view!.players.find((p) => p.isViewer)!.battlefield[0]!.id;
-    s.send(weaklySelectable([someCard]));
+    // Forge names a real decision (a non-land permanent): the highlight comes off at once.
+    // By type line, not a hard-coded id — lane F's land-tapping fix means an
+    // untapped land in the actionable set is the common case, not a decision
+    // `nothingToDecide` counts (see the next case).
+    const viewerBattlefield = m.view!.players.find((p) => p.isViewer)!.battlefield;
+    const nonLand = viewerBattlefield.find((c) => !c.card.typeLine.includes('Land'))!.id;
+    s.send(weaklySelectable([nonLand]));
+    await waitFor(() => expect(nothingToDecide(m)).toBe(false));
     await waitFor(() => expect(getByTestId('live-button-cancel').hasAttribute('data-highlight')).toBe(false));
+  });
+
+  it('an actionable set naming only the viewer’s own battlefield LAND keeps End Turn highlighted (lane F’s land-tapping fix)', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    s.send(clearSelectables());
+    s.send(bar2('End Turn'));
+    await waitFor(() => expect(getByTestId('live-button-cancel').textContent).toBe('End Turn'));
+
+    const viewerBattlefield = m.view!.players.find((p) => p.isViewer)!.battlefield;
+    const land = viewerBattlefield.find((c) => c.card.typeLine.includes('Land'))!.id;
+    s.send(weaklySelectable([land]));
+    await waitFor(() => expect(nothingToDecide(m)).toBe(true));
+    await waitFor(() => expect(getByTestId('live-button-cancel').hasAttribute('data-highlight')).toBe(true));
+    expect(getByTestId('live-button-ok').hasAttribute('data-highlight')).toBe(false);
   });
 });
 
