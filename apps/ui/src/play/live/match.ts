@@ -1247,6 +1247,25 @@ export function payingMana(match: LiveMatch): boolean {
 }
 
 /**
+ * `id` is one of the viewer's OWN battlefield permanents, and it is a land —
+ * `nothingToDecide`'s one approximation, added once lane F's land-tapping fix
+ * put every untapped land with a mana ability into `weaklySelectable` at
+ * ordinary priority (wave 35, follow-up to shape 3): without this, End Turn
+ * would almost never highlight on the viewer's own turn, since an untapped
+ * land is the common case, not the exception.
+ *
+ * "Land" is read off the CURRENT type line (`card.typeLine`, live off the
+ * wire's `Type` — the same field `changedFrom` already reads), never the
+ * printed card, so an effect that turns a permanent into a land (or out of
+ * one) is honoured exactly as Forge currently sees it.
+ */
+function isOwnBattlefieldLand(view: BoardView, id: number): boolean {
+  const me = view.players.find((p) => p.isViewer);
+  const card = me?.battlefield.find((c) => c.id === id);
+  return card !== undefined && card.card.typeLine.includes('Land');
+}
+
+/**
  * Nothing is left for this seat to decide right now — wave 35 §S shape 3, the
  * seam L's End Turn highlight (R5) reads.
  *
@@ -1256,30 +1275,40 @@ export function payingMana(match: LiveMatch): boolean {
  *  - **no open selection** (`selectables === null`) — `InputSelectTargets` and
  *    `InputSelectEntitiesFromList` are the only two inputs that publish one
  *    (see the module header), and neither is "nothing to decide";
- *  - **Forge's own actionable set is the explicit empty one.** `weaklySelectable`
- *    carries three states, not two — see that field's own note — and only the
- *    middle one answers this question. `null` means Forge has not published an
- *    actionable set AT ALL since the last `clearWeaklySelectable` (a payment
- *    input mid-flight, the London mulligan, the gap between priority ending and
- *    the next input starting): there may still be something to decide, Forge
- *    simply has not said. A non-empty set is Forge naming at least one card
- *    worth a click. The empty `Set` is `pushActionableCards` finding nothing —
- *    "nothing on this board is worth clicking", Forge's own signal for a
- *    priority window with no legal action but passing, which is the one case
- *    this predicate exists to name.
+ *  - **Forge's own actionable set, minus the viewer's own battlefield lands,
+ *    is empty.** `weaklySelectable` carries three states, not two — see that
+ *    field's own note — and only a published (non-null) set answers this
+ *    question at all. `null` means Forge has not published an actionable set
+ *    AT ALL since the last `clearWeaklySelectable` (a payment input
+ *    mid-flight, the London mulligan, the gap between priority ending and the
+ *    next input starting): there may still be something to decide, Forge
+ *    simply has not said.
+ *
+ *    A published set that names only the viewer's OWN lands is Forge's
+ *    "tap one of these for mana" offer — true at nearly every ordinary
+ *    priority window since lane F's land-tapping fix, and not a decision this
+ *    highlight should chase: tapping a land for mana is never, by itself, the
+ *    reason to hold priority. **Approximation, on purpose**: a MANLAND (a
+ *    land with its own non-mana activated ability — an animate effect, say)
+ *    is filtered out exactly the same as a plain one, so `nothingToDecide`
+ *    can read `true` while that ability is technically still available. This
+ *    predicate only ever feeds a HIGHLIGHT (a hint that End Turn is a
+ *    reasonable next click), never a gate on an action, so an occasional
+ *    false "nothing to decide" costs nothing it could not already cost
+ *    before Forge offered any actionable set at all.
  *
  * `view !== null` guards the moment before any state has folded at all, when
  * every field above still reads its unset default and would otherwise agree
  * for the wrong reason.
  */
 export function nothingToDecide(match: LiveMatch): boolean {
-  return (
-    match.view !== null &&
-    match.asks.length === 0 &&
-    match.selectables === null &&
-    match.weaklySelectable !== null &&
-    match.weaklySelectable.size === 0
-  );
+  const view = match.view;
+  if (view === null) return false;
+  if (match.asks.length > 0) return false;
+  if (match.selectables !== null) return false;
+  if (match.weaklySelectable === null) return false;
+  for (const id of match.weaklySelectable) if (!isOwnBattlefieldLand(view, id)) return false;
+  return true;
 }
 
 /**

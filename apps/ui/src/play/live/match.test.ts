@@ -514,6 +514,30 @@ function ids(m: LiveMatch): { mine: number[]; theirs: number[] } {
   return { mine, theirs };
 }
 
+/** The id of a NON-land on the viewer's own battlefield — the fixture's first slot is a land. */
+function myNonLand(m: LiveMatch): number {
+  const me = m.view!.players.find((p) => p.isViewer)!;
+  const card = me.battlefield.find((c) => !c.card.typeLine.includes('Land'));
+  if (card === undefined) throw new Error('the fixture has no non-land card on the viewer’s battlefield');
+  return card.id;
+}
+
+/** The id of a LAND on the viewer's own battlefield. */
+function myLand(m: LiveMatch): number {
+  const me = m.view!.players.find((p) => p.isViewer)!;
+  const card = me.battlefield.find((c) => c.card.typeLine.includes('Land'));
+  if (card === undefined) throw new Error('the fixture has no land on the viewer’s battlefield');
+  return card.id;
+}
+
+/** The id of a card in the viewer's own HAND matching `wantLand` (true: a land; false: a non-land). */
+function myHandCard(m: LiveMatch, wantLand: boolean): number {
+  const me = m.view!.players.find((p) => p.isViewer)!;
+  const card = (me.hand ?? []).find((c) => c.card.typeLine.includes('Land') === wantLand);
+  if (card === undefined) throw new Error(`the fixture's hand has no ${wantLand ? 'land' : 'non-land'} card`);
+  return card.id;
+}
+
 const cardAct = (id: number) => ({
   ok: true,
   value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null },
@@ -774,24 +798,25 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
     expect(abortAsk(m, 'ask-1', 'cancelled', 'test cleanup')).toBe(true);
   });
 
-  it('false when Forge named at least one actionable card', async () => {
+  it('false when Forge named at least one actionable NON-land card', async () => {
     const { s, m } = await fullGame();
-    const { mine } = ids(m);
-    await sendAndApply(s, m, [prompt('Priority'), actionable([mine[0]!])]);
+    const nonLand = myNonLand(m);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([nonLand])]);
     expect(nothingToDecide(m)).toBe(false);
-    await barrier(s, m, mine[0]!);
+    await barrier(s, m, nonLand);
   });
 
   it('true at a priority window with no open ask, no selection, and an explicit empty actionable set', async () => {
     const { s, m } = await fullGame();
-    const { mine } = ids(m);
+    const nonLand = myNonLand(m);
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([])]);
     expect(m.asks.length).toBe(0);
     expect(m.selectables).toBeNull();
     expect(m.weaklySelectable).toEqual(new Set());
     expect(nothingToDecide(m)).toBe(true);
-    // And it goes false again the instant Forge names something.
-    await sendAndApply(s, m, [actionable([mine[0]!])]);
+    // And it goes false again the instant Forge names something that is NOT
+    // one of the viewer's own lands.
+    await sendAndApply(s, m, [actionable([nonLand])]);
     expect(nothingToDecide(m)).toBe(false);
   });
 
@@ -802,6 +827,40 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
     await sendAndApply(s, m, [clearActionable()]);
     expect(m.weaklySelectable).toBeNull();
     expect(nothingToDecide(m)).toBe(false);
+  });
+
+  /*
+   * Lane F's land-tapping fix (wave 35) put every untapped land with a mana
+   * ability into `weaklySelectable` at ordinary priority — so an actionable
+   * set naming ONLY the viewer's own battlefield lands is now the common
+   * case, not "Forge found nothing", and must still read as "nothing to
+   * decide" or End Turn would almost never highlight on the viewer's own
+   * turn. The approximation is scoped tightly: a land anywhere OTHER than
+   * the viewer's own battlefield (their hand, the opponent's board) is still
+   * a real decision.
+   */
+  it('true when the actionable set names ONLY the viewer’s own battlefield land(s)', async () => {
+    const { s, m } = await fullGame();
+    const land = myLand(m);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([land])]);
+    expect(nothingToDecide(m)).toBe(true);
+    await barrier(s, m, land);
+  });
+
+  it('false for a land on the OPPONENT’s battlefield — only the viewer’s OWN battlefield lands are ignored', async () => {
+    const { s, m } = await fullGame();
+    const { theirs } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([theirs[0]!])]);
+    expect(nothingToDecide(m)).toBe(false);
+    await barrier(s, m, theirs[0]!);
+  });
+
+  it('false for a castable creature in hand', async () => {
+    const { s, m } = await fullGame();
+    const creature = myHandCard(m, false);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([creature])]);
+    expect(nothingToDecide(m)).toBe(false);
+    await barrier(s, m, creature);
   });
 });
 
