@@ -33,12 +33,18 @@
  * away from it can reach. `e2e/arrow.spec.ts` is where real boxes are measured.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement, useSyncExternalStore } from 'react';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
 
 import { Board } from '../../Board.tsx';
+// The namespace, alongside the named `Board` import above, purely so R9's
+// tests can `vi.spyOn` the two placement functions `cast.ts`/`install.ts`
+// call across the lane boundary (`b.md`) without reaching into lane B's own
+// `PENDING_PLACEMENTS` or its hit-testing — this file's job is "did G call
+// the seam right", never "did B's geometry answer right".
+import * as BoardModule from '../../Board.tsx';
 import {
   boardInteraction,
   closeMatch,
@@ -66,6 +72,7 @@ afterEach(async () => {
   if (server !== null) await server.close();
   server = null;
   document.body.innerHTML = '';
+  vi.restoreAllMocks();
 });
 
 /**
@@ -1697,5 +1704,137 @@ describe('R7 — Arena casting: sent at the settle, the gesture stays open for w
     // nothing legal sends nothing.
     await new Promise((r) => setTimeout(r, 50));
     expect(s.clientFrames()).toHaveLength(0);
+  });
+});
+
+/*
+ * R9 — a cast goes to ANY slot. `selectCard` alone never told `Board` WHERE
+ * the player put the card, so a newly-arrived permanent always appended to
+ * the end of its row (lane B's finding, `b.md`). `Board.tsx` exports
+ * `notePlayedTo`/`previewPlayedTo` for exactly this; these cases are about
+ * THIS lane's half of the contract — that the seam is called at the right
+ * moments with the right arguments — never about `Board`'s own hit-testing
+ * geometry, which is lane B's own suite's job (`Board.test.ts`).
+ */
+describe('R9 — a cast tells Board where it landed, through the seam B provides', () => {
+  it('calls notePlayedTo once, at the settle — the same point the cast itself sent at', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    expect(noteSpy).not.toHaveBeenCalled(); // lifted, not yet settled
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(noteSpy).toHaveBeenCalledTimes(1);
+    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 400, y: 300 });
+  });
+
+  it('calls notePlayedTo a SECOND time at a release over the battlefield — the later call wins', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // settle — first call
+    fireEvent.pointerMove(myBattlefield, { clientX: 650, clientY: 500 }); // still held, still on the battlefield
+    fireEvent.pointerUp(myBattlefield, { clientX: 700, clientY: 520 }); // the release — second call, a DIFFERENT point
+    expect(noteSpy).toHaveBeenCalledTimes(2);
+    expect(noteSpy).toHaveBeenNthCalledWith(1, hand[0], { x: 400, y: 300 });
+    expect(noteSpy).toHaveBeenNthCalledWith(2, hand[0], { x: 700, y: 520 });
+  });
+
+  it('does NOT call notePlayedTo again if the release lands off the viewer’s own battlefield — the settle’s call stands', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // settle — the one call
+    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
+    fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
+    expect(noteSpy).toHaveBeenCalledTimes(1);
+    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 400, y: 300 });
+  });
+
+  it('a click-lift settles and notes placement without ever holding the button — the resolving press is the "release" call', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
+
+    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(face, { clientX: 10, clientY: 10 }); // the click: arms, does not settle yet
+    expect(noteSpy).not.toHaveBeenCalled();
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // no button held: settles on its own
+    expect(noteSpy).toHaveBeenCalledTimes(1);
+    fireEvent.pointerDown(myBattlefield, { button: 0, clientX: 600, clientY: 480 }); // the resolving press
+    fireEvent.pointerUp(myBattlefield, { clientX: 600, clientY: 480 });
+    expect(noteSpy).toHaveBeenCalledTimes(2);
+    expect(noteSpy).toHaveBeenNthCalledWith(2, hand[0], { x: 600, y: 480 });
+  });
+
+  it('previewPlayedTo tracks the pointer while lifted or settled over the battlefield, and goes null off it', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myHand, { clientX: 60, clientY: 714 }); // lifted, still over the hand — no preview
+    expect(previewSpy).toHaveBeenLastCalledWith(null);
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // settles — preview follows
+    expect(previewSpy).toHaveBeenLastCalledWith({ x: 400, y: 300 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 450, clientY: 320 }); // still settled, still tracked
+    expect(previewSpy).toHaveBeenLastCalledWith({ x: 450, y: 320 });
+    fireEvent.pointerUp(myBattlefield, { clientX: 450, clientY: 320 });
+    expect(previewSpy).toHaveBeenLastCalledWith(null); // cleared at the end
+  });
+
+  it('previewPlayedTo is cleared on Escape, same as the lift itself', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(previewSpy).toHaveBeenLastCalledWith({ x: 400, y: 300 });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(previewSpy).toHaveBeenLastCalledWith(null);
+    fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
+  });
+
+  it('neither function is ever called for a BATTLEFIELD card (a land tapped for mana, say) — R9 is a hand-cast-only seam', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
+    const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');
+    const mine = mineOf(m).battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(noteSpy).not.toHaveBeenCalled();
+    expect(previewSpy).not.toHaveBeenCalled();
   });
 });

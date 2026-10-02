@@ -107,6 +107,22 @@
  * listener on `canvas` swallows that one native click the same way
  * `onDragStart` already swallows the native HTML5 drag — before React's own
  * delegated handler, attached to this same element, ever sees it.
+ *
+ * ## R9 — a cast goes to ANY slot, not the end of the row
+ *
+ * `selectCard` alone tells Forge WHAT to cast, never WHERE the player put it,
+ * so a newly-arrived permanent used to append to the end of its type row
+ * every time (lane B's own finding, `b.md`). `Board.tsx` exports two plain
+ * functions for exactly this gap, `notePlayedTo(cardId, point)` and
+ * `previewPlayedTo(point | null)` — read across the lane boundary like every
+ * other cross-lane import in this file, never written to. `notePlayedTo` is
+ * called twice at most: once at the settle (`onPointerMove`, alongside
+ * `selectCard`) and again at the release IF that release is genuinely over
+ * the viewer's own battlefield (`noteReleasePlacement`) — the later call
+ * wins, which is where the player actually let go. `previewPlayedTo` is
+ * driven on every move while lifted or settled, the same cadence the arrow
+ * already moves at, and cleared (`clearPlacementPreview`) at every ending:
+ * a finish, a cancel, Escape, or disposal mid-flight.
  */
 import {
   boardInteraction,
@@ -117,6 +133,10 @@ import {
   selectCard,
   subscribe,
 } from '../match.ts';
+// R9 (lane B's seam, `b.md`): where a cast lands on the battlefield. Plain
+// functions, not components — reading them across the lane boundary is the
+// agreed seam, same as every other cross-lane import in this file.
+import { notePlayedTo, previewPlayedTo } from '../../Board.tsx';
 import { autoTargetArrows } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
 import { isHandCard, overOwnBattlefield, overOwnHand, clearAllCastLifts, clearCastLift, drawCastLift } from './cast.ts';
@@ -363,6 +383,23 @@ export function installGestures(options: GestureOptions): GestureHandle {
     commitDrag(match, { ...state, source: null }, node);
   }
 
+  /**
+   * R9: tell `Board` a second time where this cast landed — "the later call
+   * wins, that's where the player let go" (the manager's own words). Only
+   * when the cast was actually sent (nothing to place before the settle) AND
+   * the release is genuinely over the viewer's own battlefield; released
+   * anywhere else (onto an opponent to answer a target ask, say), the
+   * settle-time call (`onPointerMove`) already made still stands.
+   */
+  function noteReleasePlacement(state: DragState, point: Point, node: EventTarget | null): void {
+    if (state.cast && state.source !== null && overOwnBattlefield(node)) notePlayedTo(state.source, point);
+  }
+
+  /** R9: let go of the placement preview. Arena-cast gestures only — nothing else ever draws one. */
+  function clearPlacementPreview(state: DragState): void {
+    if (state.stage !== null) previewPlayedTo(null);
+  }
+
   function onPointerDown(event: PointerEvent): void {
     // Left button only: a right-click is Forge's own menu on the desktop and
     // is not this gesture's to take.
@@ -380,9 +417,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const held = drag;
       drag = null;
       dropCastLift(held);
+      clearPlacementPreview(held);
       paint();
-      if (overOwnHand(event.target)) cancelCastNetwork(held);
-      else finishCast(held, event.target);
+      if (overOwnHand(event.target)) {
+        cancelCastNetwork(held);
+      } else {
+        noteReleasePlacement(held, { x: event.clientX, y: event.clientY }, event.target);
+        finishCast(held, event.target);
+      }
       return;
     }
     // Reset at the top of every FRESH press — see the flag's own doc comment.
@@ -486,8 +528,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
        */
       if (next.stage === 'lifted' && overOwnBattlefield(event.target)) {
         next = { ...next, stage: 'settled', stagedAt: at, cast: true };
-        if (next.source !== null) selectCard(match, next.source);
+        if (next.source !== null) {
+          selectCard(match, next.source);
+          // R9: the first placement call — "at the moment your gesture sends
+          // the cast" (the manager's own words). The release may call again
+          // and win; this is what a card gets if the pointer never moves again.
+          notePlayedTo(next.source, at);
+        }
       }
+      // R9: the live preview, for every move while lifted or settled —
+      // whichever slot `point` currently hits, or none once the pointer
+      // leaves the viewer's own battlefield.
+      if (next.stage !== null) previewPlayedTo(overOwnBattlefield(event.target) ? at : null);
       drag = next;
     } else if (marquee !== null) {
       marquee = { press: marquee.press, at, moved: marquee.moved || past(marquee.press, at) };
@@ -516,7 +568,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
     drag = null;
     marquee = null;
     hover = null;
-    if (heldDrag !== null) dropCastLift(heldDrag);
+    if (heldDrag !== null) {
+      dropCastLift(heldDrag);
+      clearPlacementPreview(heldDrag);
+    }
     paint();
     if (heldDrag !== null) {
       if (stackAsk(match) !== null) {
@@ -533,6 +588,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
           cancelCastNetwork(heldDrag);
           return;
         }
+        // R9: the release's own placement call — it wins over the settle's.
+        noteReleasePlacement(heldDrag, { x: event.clientX, y: event.clientY }, event.target);
         finishCast(heldDrag, event.target);
         return;
       }
@@ -547,6 +604,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   function onPointerCancel(): void {
     if (drag !== null) {
       dropCastLift(drag);
+      clearPlacementPreview(drag);
       if (drag.stage !== null) cancelCastNetwork(drag);
     }
     drag = null;
@@ -562,6 +620,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const held = drag;
     drag = null;
     dropCastLift(held);
+    clearPlacementPreview(held);
     cancelCastNetwork(held);
     paint();
   }
@@ -656,6 +715,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clearMarquee(overlay);
       clearIntents(canvas);
       clearAllCastLifts(canvas);
+      // R9: a gesture disposed mid-flight (a remount, a resync) leaves no
+      // placement preview behind either.
+      if (drag !== null && drag.stage !== null) previewPlayedTo(null);
       canvas.removeAttribute(CANVAS_ATTR);
       canvas.removeAttribute('data-dragging');
       canvas.removeAttribute('data-marquee');
