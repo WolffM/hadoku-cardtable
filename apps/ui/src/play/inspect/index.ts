@@ -220,6 +220,33 @@ function inspectedCardFrom(node: EventTarget | null, root: ParentNode): InspectT
  * the preference, not a fallback — a preview that opened to the right was what
  * the operator asked to change — so the flip to the right only happens when the
  * left side cannot hold the panel inside the board.
+ *
+ * ## T1 (wave 36): the vertical clamp, for a card that is ITSELF in the hand
+ *
+ * `floorTop` is the hand zone's own top — correct as the one thing the panel
+ * must never cross for a battlefield card or a stack item, both always well
+ * above it. But a HAND card's own top sits BELOW `floorTop` (the zone's box
+ * includes the padding above the row; measured on the real board,
+ * `docs/planning/wave36-evidence/g1-zoom.md`), and the old clamp —
+ * `Math.min(hover.top, Math.max(ceilingTop + GAP, floorTop - GAP - height))`
+ * — used `floorTop` there regardless, so the result depended on the HAND
+ * ZONE alone and never on which card, or where in the row, was actually
+ * hovered: two different hand cards clamped to the identical pixel. That is
+ * what "misaligned" meant for this case — the panel did not track the card
+ * it was enlarging.
+ *
+ * `clampFloor` fixes this without touching any other case: it is `floorTop`
+ * widened to the hovered card's own top when that card already reaches or
+ * sits past the zone's edge (a hand card), and otherwise `floorTop` itself,
+ * unchanged — `Math.max` picks whichever is LOWER on screen (the larger
+ * number), which is the hand card's own top exactly when the card is in the
+ * hand (its top is already below the zone's own). The panel's bottom then
+ * clears THIS card without crossing into the row (every sibling in the same
+ * row starts no higher than this card's own top either, so nothing next to
+ * it is covered), instead of being pinned to a position the hand zone alone
+ * determines. For every other case (`hover.top <= floorTop`, the whole
+ * existing `place.test.ts` suite), `clampFloor` is `floorTop` and nothing
+ * changes.
  */
 export function placeInspector(
   hover: Rect,
@@ -234,7 +261,10 @@ export function placeInspector(
   let left = hover.left - GAP - width;
   if (left < board.left + GAP) left = hover.right + GAP;
   if (left + width > board.right - GAP) left = Math.min(Math.max(hover.left, board.left + GAP), board.right - GAP - width);
-  const top = Math.min(Math.max(hover.top, ceilingTop + GAP), Math.max(ceilingTop + GAP, floorTop - GAP - height));
+  // See "T1" above: only differs from `floorTop` when the hovered card's own
+  // top already sits at or past the hand zone's edge — a hand card.
+  const clampFloor = Math.max(floorTop, hover.top);
+  const top = Math.min(Math.max(hover.top, ceilingTop + GAP), Math.max(ceilingTop + GAP, clampFloor - GAP - height));
   return { left, top, width };
 }
 

@@ -99,4 +99,55 @@ describe('placeInspector', () => {
     expect(spot.width).toBe(0);
     expect(spot.width).toBeGreaterThanOrEqual(0);
   });
+
+  /*
+   * Wave 36 T1 — hovering a card that is ITSELF in the viewer's own hand.
+   * Measured on the real board (`docs/planning/wave36-evidence/g1-zoom.md`):
+   * a hand card's own `top` sits a few px BELOW the hand zone's registered
+   * `top` (the zone's box includes the padding above the row), so `hover.top
+   * > hand.top` here — an input the rest of this file never exercises, since
+   * every other case hovers something well above the hand.
+   *
+   * Before this fix the vertical clamp's upper bound was `hand.top - GAP -
+   * height` unconditionally: a value that depends only on the hand ZONE, never
+   * on the hovered card. Two different cards in the hand — even at different
+   * heights — clamped to the exact same pixel. That is what "the hover zoom
+   * is misaligned" meant here: the panel did not track what it was enlarging.
+   */
+  it('clamps to the HOVERED CARD’s own top, not just the hand zone’s, when the card is in the hand', () => {
+    const hand: Rect = { left: 0, top: 700, right: 1200, bottom: 800 };
+    const hover: Rect = { left: 100, top: 710, right: 200, bottom: 760 };
+    const spot = placeInspector(hover, BOARD, hand);
+    // Full preferred size: plenty of room overall (ceiling to the hand's top).
+    expect(spot.width).toBe(PREF_W);
+    const height = spot.width * CARD_TALL;
+    // The old, buggy value — `hand.top - GAP - height` — ignores `hover` entirely.
+    const oldBuggyTop = hand.top - GAP - height;
+    expect(spot.top).not.toBeCloseTo(oldBuggyTop, 5);
+    // The fixed value: bottom-anchored to THIS card's own top, not the zone's.
+    expect(spot.top).toBeCloseTo(hover.top - GAP - height, 10);
+    expect(spot.top + height).toBeLessThanOrEqual(hover.top - GAP + 1e-9);
+  });
+
+  it('tracks two DIFFERENT hand cards to two different positions — not one fixed slot for the whole hand', () => {
+    const hand: Rect = { left: 0, top: 700, right: 1200, bottom: 800 };
+    const lowerCard: Rect = { left: 100, top: 710, right: 200, bottom: 760 };
+    const higherFannedCard: Rect = { left: 300, top: 740, right: 400, bottom: 790 };
+    const spotLower = placeInspector(lowerCard, BOARD, hand);
+    const spotHigher = placeInspector(higherFannedCard, BOARD, hand);
+    // Under the old code both would equal `hand.top - GAP - height` — identical,
+    // regardless of which card. Fixed, each tracks its own card's top.
+    expect(spotLower.top).not.toBeCloseTo(spotHigher.top, 5);
+    expect(spotHigher.top - spotLower.top).toBeCloseTo(higherFannedCard.top - lowerCard.top, 10);
+  });
+
+  it('is unchanged for every ordinary case — the fix only applies when the hovered card is past the hand’s own top', () => {
+    const hand: Rect = { left: 0, top: 500, right: 1200, bottom: 800 };
+    const hover: Rect = { left: 100, top: 100, right: 150, bottom: 150 };
+    expect(hover.top).toBeLessThan(hand.top);
+    const spot = placeInspector(hover, BOARD, hand);
+    // Top-aligned with the card, exactly as every pre-existing case above —
+    // `clampFloor` reduces to `hand.top` here, so this is the old formula.
+    expect(spot.top).toBe(hover.top);
+  });
 });
