@@ -96,4 +96,68 @@ describe.skipIf(!available.ok)(title, () => {
 		},
 		120_000,
 	);
+
+	it(
+		'T3: once the attacker is declared and the window closed with one OK, the priority window in the same step passes on its own — no second OK',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 14, decks: DECKS, scenario: scenarioText('attackers-declared') });
+			try {
+				await finishMulligan(s);
+				const memnite = await waitUntil(
+					() => {
+						s.answerAsks();
+						return s.zone(0, 'Battlefield').some((c) => c.creature && !c.tapped && !c.sick);
+					},
+					"seat 0's board to reflect the scripted, attack-ready creature",
+					20_000,
+				).then(() => s.zone(0, 'Battlefield').find((c) => c.creature));
+				if (memnite === undefined) throw new Error('no attack-ready creature on seat 0’s battlefield');
+				let pressedMain1 = false;
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						if (/^Select creatures to attack/.test(s.prompt(0))) return true;
+						const msg = s.prompt(0);
+						if (!pressedMain1 && /^Priority:/.test(msg) && /Main phase, precombat/.test(msg) && s.buttons(0)?.enable1 === true) {
+							pressedMain1 = true;
+							s.ok(0);
+						}
+						return false;
+					},
+					"Forge's live declare-attackers window to open",
+					20_000,
+				);
+				s.select(0, memnite.id);
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						return s.buttons(0)?.label2 === 'Call Back';
+					},
+					'the creature to be declared, showing "Call Back"',
+					10_000,
+				);
+				// The ONE press the declaration needs. From here the test presses nothing.
+				s.ok(0);
+				let emptyStopSeen = false;
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						const msg = s.prompt(0);
+						if (/^Priority:/.test(msg) && /Declare Attackers Step/.test(msg) && s.buttons(0)?.enable1 === true) emptyStopSeen = true;
+						return /^Priority:/.test(msg) && !/Declare Attackers Step/.test(msg);
+					},
+					'the Declare Attackers step to end with no further press',
+					20_000,
+				);
+				expect(
+					s.logs.some((l) => l.evt === 'auto-passed' && l.phase === 'Declare Attackers Step'),
+					`the server passed the post-declaration window (the empty stop was ${emptyStopSeen ? '' : 'never '}offered to the seat)`,
+				).toBe(true);
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
 });

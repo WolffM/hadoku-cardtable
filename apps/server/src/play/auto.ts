@@ -291,6 +291,23 @@ export interface StopPolicy {
 	 */
 	readonly skipEmptyBlockStop: boolean;
 	/**
+	 * The Declare Attackers stop IS the declaration (T3).
+	 *
+	 * The operator, 2026-10-03: *"theres an extra ok after declare attackers which
+	 * doesn't make sense."* `stopOnMyTurn` names COMBAT_DECLARE_ATTACKERS so the seat
+	 * gets Forge's attack input. Once that input closes, Forge gives the same seat
+	 * priority in the same step, and that window was stopped AGAIN as "a stop
+	 * phase" with nothing offered — a second OK with nothing in it
+	 * (`wave36-evidence/e3-extra-ok.md`). With this on, the post-declaration
+	 * priority window is judged by {@link passWhenNothingToDo} like any other
+	 * window: it passes when nothing but lands is actionable, and still stops when
+	 * a spell could be cast — a pump after attackers are declared is real play.
+	 * The attack input itself is not a priority window, so it is never pressed for.
+	 *
+	 * Full control keeps the stop, as it keeps every stop.
+	 */
+	readonly attackStopIsTheDeclaration: boolean;
+	/**
 	 * Pass priority after casting: a window whose top-of-stack item the seat itself
 	 * activated is passed whatever the seat could do (Q17).
 	 *
@@ -383,6 +400,7 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	answerOneAnswerAsks: true,
 	// Q10, wave 32. *"no creatures, no block."*
 	skipEmptyBlockStop: true,
+	attackStopIsTheDeclaration: true,
 	// Q17, wave 32. *"holding priority on my own spells is weird."*
 	passOwnSpell: true,
 	// Q8, wave 32. Ordering is a full-control thing: Forge's own order unless asked.
@@ -466,6 +484,7 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	costConfirm: 'ask',
 	answerOneAnswerAsks: false,
 	skipEmptyBlockStop: false,
+	attackStopIsTheDeclaration: false,
 	passOwnSpell: false,
 	orderSimultaneous: 'ask',
 };
@@ -998,6 +1017,11 @@ function blockStopIsEmpty(policy: StopPolicy, facts: PromptFacts): boolean {
 	return policy.skipEmptyBlockStop && facts.phase === 'COMBAT_DECLARE_BLOCKERS' && facts.creatures === 0;
 }
 
+/** The seat's own Declare Attackers step after the attack input: the stop was the declaration ({@link StopPolicy.attackStopIsTheDeclaration}). */
+function attackStopIsDone(policy: StopPolicy, facts: PromptFacts): boolean {
+	return policy.attackStopIsTheDeclaration && facts.myTurn && facts.phase === 'COMBAT_DECLARE_ATTACKERS';
+}
+
 /**
  * The phase label to pass, or null when the player must be asked.
  *
@@ -1016,12 +1040,17 @@ export function decideStop(facts: PromptFacts, policy: StopPolicy): string | nul
 	if (facts.window !== 'priority') return null;
 
 	if (facts.stackEmpty) {
-		// The phase the player asked to hold priority in. Nothing below overrides it —
-		// except the one stop that exists only so a creature can block (Q10).
-		if (isStopPhase(policy, facts) && !blockStopIsEmpty(policy, facts)) return null;
-		// Forge's `skipPhases`: a phase outside the stop set goes past whatever the
-		// seat could have done there (#20).
-		if (skipsThisTurn(policy, facts)) return facts.phaseLabel ?? 'priority';
+		// The post-declaration priority window of the seat's own attack step is not
+		// a "think" stop like Main 1 (T3): it falls through to the nothing-to-do
+		// rule below, so it passes only when nothing but lands is actionable.
+		if (!attackStopIsDone(policy, facts)) {
+			// The phase the player asked to hold priority in. Nothing below overrides it —
+			// except the one stop that exists only so a creature can block (Q10).
+			if (isStopPhase(policy, facts) && !blockStopIsEmpty(policy, facts)) return null;
+			// Forge's `skipPhases`: a phase outside the stop set goes past whatever the
+			// seat could have done there (#20).
+			if (skipsThisTurn(policy, facts)) return facts.phaseLabel ?? 'priority';
+		}
 	} else if (!policy.passStackWindows) {
 		return null;
 	} else if (policy.passOwnSpell && facts.stackTopMine) {

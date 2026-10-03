@@ -837,6 +837,56 @@ describe('Q10: the Declare Blockers stop is skipped when the seat controls no cr
 });
 
 /** Put one item on the stack, activated by `activator`, through the same state channel Forge uses. */
+/*
+ * T3 (2026-10-03) — *"theres an extra ok after declare attackers which doesn't make
+ * sense."* The attack input is the stop; the priority window Forge opens for the
+ * same seat right after it, in the same step, passes when nothing is left to do.
+ */
+describe('T3: the Declare Attackers stop is the declaration — the priority window after it passes when nothing is left to do', () => {
+	const MY_ATTACK_MESSAGE = 'Priority: A\nTurn: 4 (A)\nPhase: Declare Attackers Step\nStack: Empty';
+	const after = (over: Partial<ReturnType<typeof readPromptFacts>> = {}) =>
+		facts({ phase: 'COMBAT_DECLARE_ATTACKERS', phaseLabel: 'Declare Attackers Step', myTurn: true, ...over });
+
+	it('decideStop: nothing actionable passes; a castable spell stops; an unknown set stops; full control stops; Main 1 is untouched', () => {
+		expect(decideStop(after(), DEFAULT_STOP_POLICY)).toBe('Declare Attackers Step');
+		expect(decideStop(after({ sources: [67] }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(after({ sources: null, nonLandSources: null }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(after(), FULL_CONTROL_POLICY)).toBeNull();
+		expect(decideStop(after(), { ...DEFAULT_STOP_POLICY, attackStopIsTheDeclaration: false })).toBeNull();
+		// The OPPONENT's attack step is not a stop of ours at all and stays as it was.
+		expect(decideStop(after({ myTurn: false }), DEFAULT_STOP_POLICY)).toBe('Declare Attackers Step');
+		// Main 1 with nothing to do is still a stop: this rule is the attack step's alone.
+		expect(decideStop(facts({ phase: 'MAIN1', phaseLabel: 'Main phase, precombat', myTurn: true }), DEFAULT_STOP_POLICY)).toBeNull();
+	});
+
+	it('through the match: the attack input is never pressed for; the empty priority window after it is passed', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
+		push(h, 0, prompt('Select creatures to attack B or select player/card you wish to attack.', me));
+		push(h, 0, buttons(true, me));
+		expect(h.host.commands.filter((c) => c.t === 'act'), 'the declaration itself is the player’s').toEqual([]);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
+		push(h, 0, prompt(MY_ATTACK_MESSAGE, me));
+		push(h, 0, buttons(true, me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
+			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } },
+		]);
+		expect(h.logs.filter((l) => l.evt === 'auto-passed')).toEqual([
+			{ evt: 'auto-passed', matchId: h.match.id, seat: 0, phase: 'Declare Attackers Step' },
+		]);
+	});
+
+	it('through the match: a castable spell after the declaration keeps the stop', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(h, 0, prompt(MY_ATTACK_MESSAGE, me));
+		push(h, 0, buttons(true, me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+	});
+});
+
 function putOnStack(h: Harness, seat: number, itemId: number, activator: number): void {
 	const gameKey = String(((3 << 28) | 1) >>> 0);
 	push(h, seat, {
@@ -1614,6 +1664,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			skipEmptyBlockStop: true,
 			passOwnSpell: true,
 			orderSimultaneous: 'forge',
+			attackStopIsTheDeclaration: true,
 		});
 		// It was adopted WHOLESALE, not just its `skipNonStopPhases` — the stop sets
 		// are the half that keeps a held instant castable at all.
@@ -1666,7 +1717,6 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 	 */
 	it('the windows a held instant is actually cast in are still stops', () => {
 		const stops: [PhaseType, string, boolean][] = [
-			['COMBAT_DECLARE_ATTACKERS', 'Declare Attackers Step', true],
 			['COMBAT_DECLARE_BLOCKERS', 'Declare Blockers Step', false],
 			['MAIN1', 'Main phase, precombat', true],
 			['MAIN2', 'Main phase, postcombat', true],
@@ -1676,6 +1726,12 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 				expect(decideStop(facts({ phase, phaseLabel, myTurn, sources }), DEFAULT_STOP_POLICY), phase).toBeNull();
 			}
 		}
+		// The seat's own Declare Attackers step is the one stop that is NOT a
+		// priority window in its own right: the attack input was the stop (T3,
+		// below). It stays a window only while there is something to cast in it.
+		const myAttack = { phase: 'COMBAT_DECLARE_ATTACKERS' as const, phaseLabel: 'Declare Attackers Step', myTurn: true };
+		expect(decideStop(facts({ ...myAttack, sources: [61], nonLandSources: [61] }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(facts({ ...myAttack, sources: [] }), DEFAULT_STOP_POLICY)).toBe('Declare Attackers Step');
 	});
 
 	/*
