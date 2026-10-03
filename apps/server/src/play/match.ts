@@ -113,6 +113,7 @@ import {
 	onlyAnswer,
 	paymentCost,
 	paymentLine,
+	readPromptFacts,
 	repeatedAbilityToPlay,
 	type Payment,
 	type SeatNotes,
@@ -170,6 +171,9 @@ import {
 	type StateFrame,
 	type WireObj,
 } from './visibility.js';
+
+/** Trace every stop decision (`stop-decided`) — probe mode only, see `maybeAutoPass`. */
+const TRACE_STOPS = process.env.CARDTABLE_PLAY_PROBE === '1';
 
 export type MatchStatus = 'starting' | 'running' | 'over' | 'failed' | 'stopped';
 
@@ -1560,7 +1564,33 @@ export class Match {
 		// The prompt in hand was already passed on, so these buttons belong to the input
 		// AFTER it (see `SeatState.passedOn`): not ours to press for.
 		if (s.prompt !== null && s.prompt === s.passedOn) return false;
-		const phase = autoPassReason(this.notesOf(s), s.policy);
+		const notes = this.notesOf(s);
+		const phase = autoPassReason(notes, s.policy);
+		/*
+		 * Behind `CARDTABLE_PLAY_PROBE=1` (the e2e harness's servers): every
+		 * decision, kept or passed, with the facts it was made on. 2026-10-03's
+		 * three CI-only reds each ended on a first priority prompt the server
+		 * never answered, and the log had only the passes — a stop that was
+		 * KEPT left no line, so which fact kept it could not be read.
+		 */
+		if (TRACE_STOPS) {
+			const f = readPromptFacts(notes);
+			this.deps.log({
+				evt: 'stop-decided',
+				matchId: this.id,
+				seat: s.seat,
+				decision: phase ?? 'kept',
+				window: f.window,
+				phase: f.phase,
+				myTurn: f.myTurn,
+				stackEmpty: f.stackEmpty,
+				mine: f.mine,
+				sources: f.sources?.length ?? null,
+				nonLandSources: f.nonLandSources?.length ?? null,
+				openAsks: f.openAsks,
+				buttons: s.buttons !== null && s.buttons.method === 'updateButtons' ? [s.buttons.enable1, s.buttons.enable2] : null,
+			});
+		}
 		if (phase === null) return false;
 		s.passedOn = s.prompt;
 		s.autoPassed += 1;

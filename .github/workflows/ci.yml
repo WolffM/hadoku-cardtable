@@ -317,6 +317,9 @@ jobs:
           name: forge-e2e-evidence-${{ github.run_attempt }}
           retention-days: 14
           if-no-files-found: warn
+          # `e2e/.run/` is a dot-directory and the action skips those by
+          # default — the first upload (run 37155619558) carried only the report.
+          include-hidden-files: true
           path: |
             e2e/.run/test-results/**
             e2e/.run/*.jsonl

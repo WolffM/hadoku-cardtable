@@ -14,6 +14,7 @@ import type { RawCapture } from '../frames.ts';
 import { SESSION_COOKIE } from '../identities.ts';
 import { keepPrefsLocal } from '../prefsLocal.ts';
 import { PLAY_EDGE_ORIGIN } from './harness.ts';
+import { registerFriendContext } from './open-friends.ts';
 import { playMessagesOf, type PlayMessage } from './frames.ts';
 
 export interface Friend {
@@ -33,6 +34,7 @@ function isPolling(url: string): boolean {
 
 export async function openFriend(browser: Browser, name: string): Promise<Friend> {
   const context = await browser.newContext();
+  registerFriendContext(context);
   await context.addCookies([
     { name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' },
   ]);

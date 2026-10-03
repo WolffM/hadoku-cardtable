@@ -154,9 +154,24 @@ async function castCard(page: Page, cardId: number): Promise<void> {
  * already run. Never touches the defending seat.
  */
 async function passDeclareAttackers(page: Page): Promise<void> {
-  await expect.poll(() => says(page), { timeout: 15_000, message: 'the attacker reaches their own priority at Declare Attackers Step' }).toMatch(/Declare Attackers Step/i);
-  await expect.poll(() => enabledOk(page).count(), { timeout: 10_000, message: 'the attacker\'s OK is enabled' }).toBeGreaterThan(0);
-  await enabledOk(page).click();
+  // T3 (`StopPolicy.attackStopIsTheDeclaration`, 2026-10-03): with nothing
+  // castable, the attacker's own priority window at Declare Attackers passes
+  // on its own now — the scenario's declared attack WAS the stop. So this
+  // waits for EITHER that window with its OK (and presses it once) OR the
+  // step already behind us, and never presses OK anywhere else.
+  const past = /^(COMBAT_DECLARE_BLOCKERS|COMBAT_FIRST_STRIKE_DAMAGE|COMBAT_DAMAGE|COMBAT_END|END_OF_COMBAT|MAIN2)$/;
+  await expect
+    .poll(
+      async () => {
+        const phase = (await phaseOf(page))?.phase ?? '';
+        if (past.test(phase)) return 'past';
+        if (/Declare Attackers Step/i.test(await says(page)) && (await enabledOk(page).count()) > 0) return 'stop';
+        return `${phase}: ${await says(page)}`;
+      },
+      { timeout: 25_000, message: 'the attacker either reaches their own priority at Declare Attackers Step or is already past it' },
+    )
+    .toMatch(/^(past|stop)$/);
+  if ((await enabledOk(page).count()) > 0 && /Declare Attackers Step/i.test(await says(page))) await enabledOk(page).click();
 }
 
 /** Press OK (or, failing that, Cancel/"End Turn") to keep a match moving with no particular goal but to advance it. */

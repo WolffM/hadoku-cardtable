@@ -17,20 +17,31 @@ The operator handed the three open play-test items to the tracker directly;
 - **T11 measured, no change**: the board fits beside the chat at its 640 px max
   (table 576 px at 1280×800; 6 cards a row). Numbers in the ledger row.
 - **CI `forge-e2e` is red on every push today and the cause is NOT reproducible
-  locally**: `32ed75b` R13+§E1, `812dea1` R13+T1, `f7ad0b8` Q7 — each a scenario
-  match that was UP (`boardUp` passed) and then answered `forge:join … unknown-match`
-  (Q7's page snapshot). Locally the same start passes 12/12 (~7.3 s each) and R13/T1
-  pass. No server log survived any of the three: the harness opened ONE
-  `play-server.jsonl` with `'w'` per stack, and `e2e/.run/` is wiped by the next run.
-  **Hardening shipped in this commit:** per-stack server logs
-  (`play-server-<stack>.jsonl`), the failing test's JVM run dir kept in CI
-  (`CARDTABLE_E2E_WORK_DIRS_KEPT=96`), an `actions/upload-artifact` of the evidence on
-  failure, a host-load line at the start of the step, and a wait for the fixed e2e
-  ports (a wave worktree's run on 19008/19028/19108/19128 makes the two runs fail
-  each other). **Open:** the next red carries its evidence; read `jvm-exited`,
-  `spare-died`, `match-gone{status}` in the failing stack's log before touching a
-  spec. `check` is red only for watchparty-ui 0.40.5's unguarded `ResizeObserver`
-  (watchparty #148, theirs).
+  locally**: `32ed75b` R13+§E1, `812dea1` R13+T1, `f7ad0b8` Q7, `bac5e97` R4+T8 (+Q10,
+  a real T3 fallout: its helper waited for the very stop T3 removes — re-aimed).
+  Each red is a scenario spec failing its first "the seat is offered its card"
+  precondition. The page's `unknown-match` text in the snapshots is NOT the cause:
+  it is taken after `stack.stop()` runs in the test's own `finally`. From the
+  per-stack logs pulled off the runner by hand (`bac5e97`'s run): the match is
+  normal — Forge ready, two seats claimed, no JVM exit — then Forge raises the
+  first priority prompt of turn 1 about a second after the seat's socket handover
+  (`left` → `spectator-promoted`; every page connects twice) and the server never
+  answers it: no `auto-passed`, no relay, for the whole timeout. A passing stack
+  answers the same prompt within milliseconds. Correlation, not proof: the failing
+  test is the one with the most leaked browser contexts in its stretch (26 and 20
+  stale pages reconnecting to the new stack); a synthetic repro with 24 stale
+  pages passed 6/6 locally, so that is hygiene, not the fix. Locally the same
+  start passes 12/12 (~7.3 s). **Shipped:** per-stack server logs
+  (`play-server-<stack>.jsonl`), the failing JVM's run dir kept in CI
+  (`CARDTABLE_E2E_WORK_DIRS_KEPT=96`), an on-failure artifact
+  (`forge-e2e-evidence-<attempt>`, `include-hidden-files` — the first one
+  carried only the report), a host-load line, a wait for the fixed e2e ports,
+  `startPlayStack` closing every context an earlier test left open, and a
+  `stop-decided` trace of EVERY stop decision with its facts, probe mode only
+  (the harness's servers) — a kept stop used to leave no line. **Open:** the
+  next red's artifact has the stack's `stop-decided` lines around the unanswered
+  prompt; read those before touching a spec. `check` is red only for
+  watchparty-ui 0.40.5's unguarded `ResizeObserver` (watchparty #148, theirs).
 
 Last swept: 2026-09-16. **Wave 5 LANDED — all four lanes, one push, deployed.**
 `20346e1`+`2e88af1`+`9a99fa3` H · `a530349` F · `0465c08` G · `fcf8c13` E, plus

@@ -104,6 +104,7 @@ import { basename, join, resolve, sep } from 'node:path';
 
 import { startEdge } from '../edge.ts';
 import { PLAY_SEED } from '../playSeed.ts';
+import { closeStaleFriends } from './open-friends.ts';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
 const SERVER_JS = resolve(ROOT, 'apps/server/dist/index.js');
@@ -375,6 +376,9 @@ async function waitForHealth(server: ChildProcess): Promise<void> {
 }
 
 export async function startPlayStack(forge: { jar: string; res: string }): Promise<PlayStack> {
+  // The previous test's pages, if it left them open — see `open-friends.ts`.
+  const closed = await closeStaleFriends();
+  if (closed > 0) console.log(`[play-stack] closed ${closed} browser context(s) left open by an earlier test`);
   if (!existsSync(SERVER_JS) || !existsSync(resolve(BUILT_WEB_DIR, 'index.html'))) {
     throw new Error(`no built app: need ${SERVER_JS} and ${BUILT_WEB_DIR}/index.html — build @hadoku/ui and @hadoku/server first`);
   }
