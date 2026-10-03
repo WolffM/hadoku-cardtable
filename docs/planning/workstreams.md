@@ -38,9 +38,25 @@ The operator handed the three open play-test items to the tracker directly;
   carried only the report), a host-load line, a wait for the fixed e2e ports,
   `startPlayStack` closing every context an earlier test left open, and a
   `stop-decided` trace of EVERY stop decision with its facts, probe mode only
-  (the harness's servers) — a kept stop used to leave no line. **Open:** the
-  next red's artifact has the stack's `stop-decided` lines around the unanswered
-  prompt; read those before touching a spec. `check` is red only for
+  (the harness's servers) — a kept stop used to leave no line. **Read from `fba269b`'s
+  artifact (4 reds: table-fit, R7, T8, T1; host load 12.8 — a game was running on
+  the CI host):** the two 159 s lone-spell stacks each park on **seat 1's own
+  scripted MAIN1 priority with an EMPTY actionable set** (`stop-decided seat 1
+  priority MAIN1 myTurn sources 0 → kept`, Forge `Turn 1, MAIN1, Active=Bob`,
+  then no frame for 150 s); the passing neighbour's first priority is seat 0's
+  MAIN1 (`Active=Alice`) and Memnite is offered. R7's 53 s stack: seat 0's MAIN1
+  with `sources 0` and Lightning Bolt in the scripted hand. That is the
+  scenario-start race `PlayBridge.java`'s own `refreshActionable` comment calls
+  intermittent — Forge's `cachedActionableCards`, computed before the start-game
+  hook replaces the hand, reaching the first priority window — plus the
+  scenario's `activeplayer` landing on different seats in a passing and a failing
+  run of the SAME `.state`. Not a product bug a player meets (scenarios are
+  e2e-only); every red today was a scenario precondition. **w37 item (engine lane,
+  alone):** make scenario application deterministic in the bridge (apply, then
+  force a fresh priority input rather than a cache null), and have
+  `startScenarioMatch` assert the applied state (`activeplayer`, the scripted
+  hand on the board) before any spec polls `offered` — a precondition that fails
+  by name, not a 150 s timeout. `check` is red only for
   watchparty-ui 0.40.5's unguarded `ResizeObserver` (watchparty #148, theirs).
 
 Last swept: 2026-09-16. **Wave 5 LANDED — all four lanes, one push, deployed.**
