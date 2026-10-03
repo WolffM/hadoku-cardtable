@@ -4,6 +4,34 @@
 records. Every row carries the evidence it was checked against, not the doc that
 claimed it.
 
+**2026-10-03 — tracker's own fixes after w36 (Fable session), newest first.**
+The operator handed the three open play-test items to the tracker directly;
+`docs/planning/playtest-ledger.md` has the rows.
+
+- **T12 shipped `812dea1`** (UI 0.32.1, deployed 20:23 UTC): Secluded Glen's reveal
+  no longer cancelled by w36's click-armed cast. R13 e2e 10/10 locally after.
+- **T3 shipped `f7ad0b8`** (server 0.32.1, pm2 restart 20:39:11 UTC): the Declare
+  Attackers stop is the declaration; the empty priority window after it auto-passes
+  (`StopPolicy.attackStopIsTheDeclaration`). Real-Forge case in
+  `scenario-combat.jvm.test.ts`; mutation-tested both ways.
+- **T11 measured, no change**: the board fits beside the chat at its 640 px max
+  (table 576 px at 1280×800; 6 cards a row). Numbers in the ledger row.
+- **CI `forge-e2e` is red on every push today and the cause is NOT reproducible
+  locally**: `32ed75b` R13+§E1, `812dea1` R13+T1, `f7ad0b8` Q7 — each a scenario
+  match that was UP (`boardUp` passed) and then answered `forge:join … unknown-match`
+  (Q7's page snapshot). Locally the same start passes 12/12 (~7.3 s each) and R13/T1
+  pass. No server log survived any of the three: the harness opened ONE
+  `play-server.jsonl` with `'w'` per stack, and `e2e/.run/` is wiped by the next run.
+  **Hardening shipped in this commit:** per-stack server logs
+  (`play-server-<stack>.jsonl`), the failing test's JVM run dir kept in CI
+  (`CARDTABLE_E2E_WORK_DIRS_KEPT=96`), an `actions/upload-artifact` of the evidence on
+  failure, a host-load line at the start of the step, and a wait for the fixed e2e
+  ports (a wave worktree's run on 19008/19028/19108/19128 makes the two runs fail
+  each other). **Open:** the next red carries its evidence; read `jvm-exited`,
+  `spare-died`, `match-gone{status}` in the failing stack's log before touching a
+  spec. `check` is red only for watchparty-ui 0.40.5's unguarded `ResizeObserver`
+  (watchparty #148, theirs).
+
 Last swept: 2026-09-16. **Wave 5 LANDED — all four lanes, one push, deployed.**
 `20346e1`+`2e88af1`+`9a99fa3` H · `a530349` F · `0465c08` G · `fcf8c13` E, plus
 the manager's lockfile commit `5cc9773`. CI green on `5cc9773`; the redeploy

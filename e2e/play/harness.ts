@@ -100,7 +100,7 @@ import {
 } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve, sep } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 
 import { startEdge } from '../edge.ts';
 import { PLAY_SEED } from '../playSeed.ts';
@@ -125,7 +125,14 @@ const STACK_DIR_PREFIX = 'stack-';
  * first — a crashed run's diagnostics are worth reading, an unbounded pile of
  * them is not. Nothing a process is standing in is ever pruned, whoever's it is.
  */
-const STALE_WORK_DIRS_KEPT = 6;
+/**
+ * How many finished stacks' work dirs survive `pruneWorkRoot`. 6 is enough for
+ * a developer's loop; CI sets `CARDTABLE_E2E_WORK_DIRS_KEPT` high enough that
+ * the FAILING test's JVM run dir (its `bridge.stderr.txt`, `jvm.json`) is
+ * still there when the job uploads its evidence — with 6, test 14's dir was
+ * gone by test 21 (2026-10-03, Q7's `unknown-match` red had nothing to read).
+ */
+const STALE_WORK_DIRS_KEPT = Number(process.env.CARDTABLE_E2E_WORK_DIRS_KEPT ?? '6');
 
 export const PLAY_EDGE_PORT = Number(process.env.CARDTABLE_E2E_PLAY_EDGE_PORT ?? '19128');
 export const PLAY_SERVER_PORT = Number(process.env.CARDTABLE_E2E_PLAY_SERVER_PORT ?? '19028');
@@ -389,7 +396,12 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
   mkdirSync(PLAY_WORK_ROOT, { recursive: true });
   pruneWorkRoot();
   const workDir = mkdtempSync(join(PLAY_WORK_ROOT, STACK_DIR_PREFIX));
-  const serverLogFile = resolve(RUN_DIR, 'play-server.jsonl');
+  // One log PER STACK, named after its work dir, in `RUN_DIR` (which nothing
+  // prunes mid-run). It used to be one `play-server.jsonl` opened with `'w'`
+  // by every stack, so a 48-test CI run kept only the last stack's server log
+  // and a failure in test 29 had no server side to read by the time the job
+  // ended (2026-10-03, R13). `PlayStack.serverLogFile` is how a spec finds it.
+  const serverLogFile = resolve(RUN_DIR, `play-server-${basename(workDir)}.jsonl`);
   const serverLog = createWriteStream(serverLogFile, { flags: 'w' });
   const secret = randomBytes(24).toString('hex');
 

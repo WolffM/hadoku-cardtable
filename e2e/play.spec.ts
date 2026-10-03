@@ -113,7 +113,8 @@
  *   with minimum counts so a check that examined nothing cannot pass.
  *
  * Evidence (gitignored, text only) goes to `e2e/.run/`: `play-*.captures.json`,
- * `play-server.jsonl`, `play-summary.json`.
+ * `play-server-<stack>.jsonl` (one per stack, `stack.serverLogFile`),
+ * `play-summary.json`.
  */
 
 import { mkdirSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs';

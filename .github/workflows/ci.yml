@@ -268,13 +268,62 @@ jobs:
       # pop-up (the mulligan, a shockland's pay-2-life), the waiting indicator,
       # Cavern's chosen type, the arrangement surviving a reload, the one-line
       # stack, and the hover zoom against its card.
+      # The e2e ports are fixed (`e2e/identities.ts`, `e2e/play/harness.ts`:
+      # 19008/19028/19108/19128) and this runner is the operator's own host, so
+      # a wave session running the same specs holds the same ports — and the
+      # two runs then fail EACH OTHER in ways that read like product bugs
+      # (2026-10-03: R13 red on CI, 10/10 green in the worktree). Wait for the
+      # ports, up to ten minutes, and name the holder if they stay held: a
+      # red that says "ports held by pid N" costs no diagnosis.
+      - name: E2E — the ports are free, or wait
+        run: |
+          for i in $(seq 1 60); do
+            held=$(ss -ltnH '( sport = :19008 or sport = :19028 or sport = :19108 or sport = :19128 )' 2>/dev/null)
+            [ -z "$held" ] && { [ "$i" -gt 1 ] && echo "::notice::e2e ports came free after $((i*10)) s"; exit 0; }
+            [ "$i" -eq 1 ] && echo "e2e ports held, waiting:" && echo "$held"
+            sleep 10
+          done
+          echo "::error::e2e ports still held after 10 min — another e2e run (a wave worktree?) owns them:"
+          ss -ltnp '( sport = :19008 or sport = :19028 or sport = :19108 or sport = :19128 )' || true
+          exit 1
+
       - name: E2E — two friends play a real Forge match, and the table fits
         env:
           CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
           CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
           PW_TEST_REPORTER: json
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/forge-e2e-report.json
+          # Every stack's JVM run dir survives the run (see `harness.ts`), so
+          # the evidence step below can send the failing one's stderr.
+          CARDTABLE_E2E_WORK_DIRS_KEPT: '96'
         run: |
+          # What the host looked like when the run started — the first thing a
+          # flaky red needs and the one thing the log never had.
+          echo "host at start: $(uptime)"; free -m | sed -n 2p
           rm -f "$PLAYWRIGHT_JSON_OUTPUT_FILE"
           pnpm --filter @hadoku/e2e test play.spec.ts table-fit.spec.ts w31.spec.ts w32.spec.ts w33.spec.ts w34.spec.ts w35.spec.ts w36.spec.ts
           jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null || { echo "::error::e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1) — a skipped test is not a pass"; exit 1; }
+
+      # The evidence a red needs, kept past the job. Playwright's per-test
+      # error context and the harness's per-stack server logs live under
+      # `e2e/.run/`, which the NEXT run wipes — on 2026-10-03 two reds
+      # (R13, T1) had nothing left to read by the time anyone looked. Text
+      # only: of the JVM run dirs (`play-work/`) just the bridge's stderr and
+      # the two small json files, never Forge's `res/` or `cache/`.
+      - name: E2E evidence (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: forge-e2e-evidence-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            e2e/.run/test-results/**
+            e2e/.run/*.jsonl
+            e2e/.run/*.json
+            e2e/.run/*.log
+            e2e/.run/play-logs/**
+            e2e/.run/play-work/*/*/bridge.stderr.txt
+            e2e/.run/play-work/*/*/jvm.json
+            e2e/.run/play-work/*/*/config.json
+            ${{ runner.temp }}/forge-e2e-report.json
