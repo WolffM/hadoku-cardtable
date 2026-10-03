@@ -48,8 +48,8 @@ exercise the mechanism at all.
 
 New: `scenarios/land-only-pass.state` + `auto-pass-land.jvm.test.ts`.
 
-Seat 0 holds Raging Goblin (`{R}`) and two untapped Mountains (one stays
-untapped after casting); seat 1 holds nothing and has two untapped Mountains
+Seat 0 holds Raging Goblin (`{R}`) and three untapped Mountains (two stay
+untapped after casting); seat 1 holds nothing and has one untapped Mountain
 of its own. Seat 0 casts; its own post-cast window auto-passes via
 `policy.passOwnSpell` unconditionally (not the branch under test). Seat 1's
 window — stack non-empty, not their spell on top — falls through
@@ -58,38 +58,70 @@ window — stack non-empty, not their spell on top — falls through
 
 Asserted: seat 1's actionable set is non-empty and is EXACTLY their own
 untapped lands; seat 1 is logged `auto-passed`; the spell resolves onto
-seat 0's battlefield without any click from seat 1.
+seat 0's battlefield without any click from seat 1. Every assertion about
+seat 1's window is read from the RECORDED history (`s.sent`/`s.logs`) once
+the whole cast has resolved — never from a live poll of either seat's
+prompt text, which the manager caught as racy by construction (both seats'
+windows can open and auto-pass between two 25 ms polls).
 
-Note: the scenario harness's own very first `setWeaklySelectable` push after
-a scenario applies is a known, pre-existing, timing-dependent race (see
-`PlayBridge.java`'s `refreshActionable` doc comment) — confirmed separately
-(a standalone repro) that it sometimes ships a stale empty set for 40+
-seconds with no further push until a selection forces Forge to recompute.
-This test does not depend on that first push: it drives seat 0's cast by
-selecting the scripted hand card directly (a legal selection is honoured
-regardless of what the stale highlight said) and reads seat 1's actionable
-set only once the spell is genuinely on the stack, well past where that race
-has settled.
+### The manager's two follow-up corrections
+
+1. **The payment loop re-clicked the same land every tick** before Forge's
+   reply tapped it (the identical bug `scenario-ability-repeat.jvm.test.ts`
+   already had). Fixed with a `Set` of already-clicked ids, same pattern.
+2. **Waiting on seat 0's own prompt TEXT for "Stack: 1 to Resolve" is racy**:
+   `passOwnSpell` can pass that window before a 25 ms poll ever samples it.
+   Fixed: seat 0's wait reads the STACK ZONE itself (`GameView.Stack`, off
+   this seat's own folded state) instead, which persists regardless of how
+   fast the window opens and closes.
+
+Chasing these down a 10/10 count surfaced a THIRD, pre-existing issue,
+unrelated to either correction: the scenario harness's very first
+`selectCard` after a scenario applies is occasionally a silent no-op against
+Forge's own stale actionable cache (`PlayBridge.java`'s `refreshActionable`
+doc — the same race already documented there for the HIGHLIGHT, here it is
+the selection itself). Measured directly, interleaved against
+`two-mana-pass.state` (3 Mountains, otherwise identical shape) under
+identical host load in the same batch: `land-only-pass.state` with only ONE
+Mountain on the caster's battlefield failed roughly half of all runs at the
+cast itself; raising it to THREE Mountains (no other change) brought that to
+16/18 across two further batches — the opposite of the obvious guess that a
+simpler scenario races less. Not explained further than that measurement.
+Fixed two ways together: (a) three Mountains instead of one, (b) the
+`select` is retried, harmlessly, for as long as the card still sits
+unselected in hand (a `selectCard` against a card Forge does not currently
+consider legal is a no-op, not a toggle — confirmed directly: retrying never
+produced a double-cast or any other side effect across every run in this
+investigation).
 
 ### Counts
 
 - **Unit** (`auto.test.ts`, `decideStop`'s land-exclusion describe block):
   reverted → 1/170 fail (exactly the land-only-passes case, `expected null to
   be 'Fourth main phase'`); restored → 170/170 pass.
-- **Real Forge** (`auto-pass-land.jvm.test.ts`, isolated branch):
-  - **Reverted**: 1/1 run fails, with exactly the predicted symptom —
-    `timed out waiting for Raging Goblin to resolve onto the battlefield
-    without any click from seat 1` (seat 1 is never auto-passed; the window
-    stays open on nothing but its own lands).
-  - **Restored**: 5/6 runs pass cleanly. 1 run failed at an EARLIER wait
-    (seat 0's own "Pay Mana Cost" prompt, immediately after the revert→restore
-    round-trip) — a different failure mode than the regression's own symptom,
-    consistent with the pre-existing scenario-harness timing race described
-    above (host contention right after a flock-serialized prior run), not a
-    recurrence of the regression. Re-run immediately after: clean pass, and
-    one further pair of runs after that: both clean. No run in the restored
-    state ever reproduced the reverted run's specific failure.
+- **Real Forge, the actual regression** (`auto-pass-land.jvm.test.ts`):
+  reverted → 1/1 fails with exactly the predicted symptom (`timed out waiting
+  for Raging Goblin to resolve onto the battlefield without any click from
+  seat 1`); restored → the mechanism itself passes every time it gets a clean
+  cast (confirmed separately via `two-mana-pass.jvm.test.ts`, a DIFFERENT
+  2-mana cast through a genuine multi-source Auto payment window, 5/5 clean
+  with no retry needed at all, plus 1/1 clean over the real socket path —
+  `socket-two-mana-pass.jvm.test.ts`).
+- **Real Forge, this specific test's own cast-registration race** (the
+  pre-existing issue above, orthogonal to the regression fix): post-fix
+  (3 Mountains + retry), four separate batches on this host today: 7/8, 9/10,
+  9/10, and one earlier interleaved comparison of 4/4 isolated from host
+  contention — **25/28 (89%) overall**, every failure the identical,
+  pre-existing cast-registration symptom (never the regression's own
+  symptom), and every batch run on a host shared with other lanes' own jar
+  suites and CI runners (`uptime` load average measured 2.5–7.6 across these
+  runs; a leaked orphaned e2e server process from earlier in this session,
+  found and killed mid-investigation, was itself responsible for one bad
+  batch). Not a clean 10/10 — the residual is a real, pre-existing,
+  host-load-sensitive Forge/bridge timing race this lane did not introduce
+  and that an apps/server-level retry cannot fully close, not a sign the
+  land-exclusion fix itself is unreliable.
 
-## `pnpm --filter @hadoku/server typecheck`
+## `pnpm --filter @hadoku/server typecheck` / `eslint`
 
-Clean (exit 0) with the fix restored.
+Both clean.

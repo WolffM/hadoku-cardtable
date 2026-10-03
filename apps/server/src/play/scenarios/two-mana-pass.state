@@ -1,0 +1,17 @@
+# Wave 35 §S follow-up, item 1 regression chase — a 2-mana cast (needing a
+# genuine Forge "Auto" multi-source payment window, not the 1-source
+# shortcut `decidePay` answers directly) while both seats hold an untapped
+# land left over. See `two-mana-pass.jvm.test.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Goblin Piker
+humanbattlefield=Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

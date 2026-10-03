@@ -5,21 +5,33 @@
 # in that set at ordinary priority, so a seat with any untapped land left is
 # never idle by that old measure.
 #
-# Seat 0 (human) can cast a 1-mana creature while leaving ONE Mountain
-# untapped; seat 1 (ai — an ordinary human-controlled seat, never Forge's AI,
-# per this file's own README) has matching untapped Mountains and an empty
-# hand, so once the spell is on the stack seat 1 has nothing real to do at
-# all — only land. See auto-pass-land.jvm.test.ts.
+# Seat 0 (human) casts a 1-mana creature, leaving TWO Mountains untapped; seat
+# 1 (ai — an ordinary human-controlled seat, never Forge's AI, per this file's
+# own README) has one untapped Mountain and an empty hand, so once the spell
+# is on the stack seat 1 has nothing real to do at all — only land.
+#
+# Three Mountains for seat 0 is deliberate, not incidental: the scenario
+# harness's own pre-existing actionable-cache race (`PlayBridge.java`'s
+# `refreshActionable` doc — the initial `selectCard` after a scenario applies
+# occasionally never registers) is MEASURABLY WORSE with only one Mountain on
+# the battlefield than with three — the opposite of the obvious guess that
+# less state races less. Measured directly, interleaved against
+# `two-mana-pass.state` (3 Mountains, otherwise identical shape) under
+# identical host load: one Mountain failed roughly half of all runs at the
+# cast itself; three Mountains, 16/18 across two batches. Not explained
+# further here — `auto-pass-land.jvm.test.ts`'s own retry (clicking the hand
+# card again while it is still unselected, never a second time once it is
+# not) absorbs most of what is left.
 turn=1
 activeplayer=human
 activephase=MAIN1
 humanlife=20
 ailife=20
 humanhand=Raging Goblin
-humanbattlefield=Mountain;Mountain
+humanbattlefield=Mountain;Mountain;Mountain
 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
 humangraveyard=
 aihand=
-aibattlefield=Mountain;Mountain
+aibattlefield=Mountain
 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
 aigraveyard=
