@@ -218,6 +218,21 @@ export interface BoardCard {
    * is also the honest answer for a card our data has never heard of.
    */
   changedFrom?: { name: string } | null;
+  /**
+   * Wave 36 T7, the operator: *"Cavern of Souls shows its chosen type."*
+   * Forge's `ChosenType` (`TrackableProperty.java:65`, `StringType`,
+   * `tier-c.ts:353`) is the value an `AddType$ ChosenType`-style ability
+   * resolved at resolution time — Cavern of Souls' creature type, and
+   * anything else that carries the same property. Read off the CardView
+   * (`view`, not the face): it is not part of a printed face, it is a fact
+   * Forge is currently tracking about this permanent, the same shelf
+   * `AttachedCards` and `Tapped` sit on.
+   *
+   * `null` for "nothing chosen" — absent on the wire, or a blank string
+   * (Forge may send either for a card that has not chosen yet, or one with
+   * no such ability at all) — never a drawn empty label.
+   */
+  chosenType?: string | null;
 }
 
 /** How one of a card's two numbers stands against its printed base. */
@@ -392,6 +407,20 @@ export interface StackEntry {
    */
   targetCardIds?: readonly number[];
   targetPlayerIds?: readonly number[];
+  /**
+   * Wave 36 T8, the operator's own words: *"Alice · Lightning Bolt → Bob"* —
+   * the stack's one line names its target. This is `targetCardIds` /
+   * `targetPlayerIds` ABOVE, resolved to the names the board already knows
+   * (a target card's name off the same wire `toBoardCard` reads any other
+   * card by, a target player's off the same seat-identity-aware name
+   * `BoardPlayer.name` carries) and joined, so `Board.tsx` draws a name and
+   * never an id. Several targets join with a comma; no target is `null`,
+   * never a drawn "→" with nothing after it.
+   *
+   * OPTIONAL for the same reason the two id lists above are: a `StackEntry`
+   * typed out by hand (Q18's test, this file) need not restate the wire.
+   */
+  targetLabel?: string | null;
 }
 
 export interface BoardView {
@@ -786,6 +815,9 @@ function toBoardCard(
   // Mountain`) only applies there, and a card elsewhere just reads printed.
   const printedLine = onBattlefield ? printedType.get(name.trim().toLowerCase()) : undefined;
   const changedFrom = printedLine !== undefined && printedLine !== card.typeLine ? { name } : null;
+  // T7: a blank string is the same "nothing chosen" absence is, never a drawn label.
+  const chosenTypeRaw = readStr(view, 'ChosenType');
+  const chosenType = chosenTypeRaw !== null && chosenTypeRaw.trim() !== '' ? chosenTypeRaw.trim() : null;
 
   return {
     id,
@@ -806,6 +838,7 @@ function toBoardCard(
     blocking: readBool(view, 'Blocking'),
     token: readBool(view, 'Token'),
     changedFrom,
+    chosenType,
   };
 }
 
@@ -892,11 +925,25 @@ export function toBoardView(
   const nameOfPlayer = (pid: number): string | null =>
     readStr(state.get(deltaKey(WireType.Player, pid)), 'Name');
 
+  // T8: the stack's one line names a target by the same seat-identity-aware
+  // name the board draws everywhere else, not Forge's raw `PlayerView.Name`.
+  const playerNameById = new Map(players.map((p) => [p.id, p.name]));
+
   const stack: StackEntry[] = readIds(game, 'Stack').map((sid) => {
     const item = state.get(deltaKey(WireType.StackItem, sid));
     const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;
     const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds, printedPT, false, printedType) : null;
     const activator = prop(item, 'ActivatingPlayer') !== undefined ? readInt(item, 'ActivatingPlayer') : null;
+    const targetCardIds = readIds(item, 'TargetCards');
+    const targetPlayerIds = readIds(item, 'TargetPlayers');
+    // T8: resolved NAMES, never ids — a card by the same resolver every other
+    // card on the board goes through, a player by the board's own name.
+    const targetNames = [
+      ...targetCardIds.map(
+        (tid) => toBoardCard(state, tid, artIds, printedPT, false, printedType)?.card.name ?? `card ${tid}`,
+      ),
+      ...targetPlayerIds.map((pid) => playerNameById.get(pid) ?? `player ${pid}`),
+    ];
     return {
       id: sid,
       description: readStr(item, 'Description') ?? readStr(item, 'Key') ?? `stack item ${sid}`,
@@ -905,8 +952,9 @@ export function toBoardView(
       sourceCard: source?.card ?? null,
       controllerName: activator === null ? null : nameOfPlayer(activator),
       isAbility: readBool(item, 'Ability'),
-      targetCardIds: readIds(item, 'TargetCards'),
-      targetPlayerIds: readIds(item, 'TargetPlayers'),
+      targetCardIds,
+      targetPlayerIds,
+      targetLabel: targetNames.length > 0 ? targetNames.join(', ') : null,
     };
   });
 

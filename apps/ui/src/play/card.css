@@ -409,6 +409,34 @@
 }
 
 /*
+ * T7 (wave 36), the operator: *"Cavern of Souls shows its chosen type."* The
+ * one corner the other three badges leave free — marks are top-left, the P/T
+ * badge is bottom-right, the counters are bottom-left (the comments above
+ * name all three) — same capsule language as the rest of the state layer: an
+ * opaque background over the art, out of flow, clipped to the card, and
+ * `pointer-events: none` so it may never eat a click Forge offered or move
+ * the card's own box.
+ */
+.board-card__chosen-type {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  top: 2px;
+  right: calc(2px + var(--pile-fan));
+  max-width: calc(100% - 4px - var(--pile-fan));
+  padding: 0 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
  * ── selectable: Forge said this card may be chosen ────────────────────
  *
  * R10 (wave 35): `.board-card__face` is always a `<button>` now (it used to

@@ -4,6 +4,49 @@
  *
  * ## The baseline
  *
+ * Re-recorded in Wave 36 §B for T8 (third ask): *"the stack shows what is
+ * happening, not all the text."* `StackItem` no longer draws
+ * `item.description` at all — Forge's own resolved prose, which used to sit
+ * in a `.stack__text` span beside the name — and draws `controllerName` (who)
+ * BEFORE `sourceName` (what, moved up from second) with a `.stack__sep`
+ * between them, then `.stack__target` (at what, new this wave) when
+ * `targetLabel` is not null. 42801 -> 42550, -251, and every one of the 251
+ * characters is accounted for — measured the strong way, rendering the
+ * fixture with and without this wave's `Board.tsx` and diffing the two stack
+ * `<li>`s directly (both items' art, type, cost and rules-text markup is
+ * untouched; only `.stack__what`'s own children moved):
+ *
+ *  -214  item 49 (Fire Urchin's trigger, an ability, no target): removed
+ *        `<span class="stack__text"><span>Whenever you cast an instant or
+ *        sorcery spell, Fire Urchin gets +1/+0 until end of turn. [Card:
+ *        Direct Current (1), Activator: Bob (Capturing), SpellAbility: Direct
+ *        Current deals 2 damage to any target.]</span></span>` (249 chars);
+ *        added one `<span class="stack__sep"> · </span>` (35) ahead of the
+ *        (unchanged) `.stack__source` span that now follows `.stack__controller`
+ *        instead of leading it. 35 - 249 = -214.
+ *   -37  item 48 (Direct Current, the spell, target card 67 "Goblin
+ *        Replica"): removed `<span class="stack__text"><span>Direct Current
+ *        (1) - Direct Current (1) deals 2 damage to Goblin Replica
+ *        (67).</span></span>` (124 chars); added the same `.stack__sep` (35)
+ *        plus `<span class="stack__target"> → Goblin Replica</span>` (52) —
+ *        `targetLabel` resolved from this item's own `TargetCards: [67]`
+ *        (wave 33's own field, read this wave for the first time) through the
+ *        SAME card resolver every other name on the board goes through. 35 +
+ *        52 - 124 = -37.
+ *  ─────
+ *  -251  42801 -> 42550, and -214 - 37 = -251 exactly. `T6` (the hand's
+ *        uncapped `--card-w`), `T7` (`ChosenType`) and `T10` (the
+ *        `sessionStorage` hydration) move NOTHING here: this fixture's cards
+ *        carry no `ChosenType`, hand card height is a stylesheet number this
+ *        test never reads, and `sessionStorage` starts empty for a fixture
+ *        render with no prior arrangement.
+ *
+ * Checked the strong way, as the paragraph below demands: reverting
+ * `../Board.tsx` and `../adapter.ts` ALONE (to their pre-wave-36 content, in a
+ * scratch copy of this directory with the two swapped back) renders 42801 at
+ * the same sha256 this pin carried before; the working tree's two files alone
+ * render 42550. `../card.css` and `../fixtures.ts` did not move.
+ *
  * Re-recorded in Wave 35 §B a second time, for R10's OWN follow-up fix
  * (`disabled` → `tabIndex={-1}`, found by lane E's real-browser e2e run: a
  * `disabled` element never receives a pointer event in a real browser, which
@@ -363,8 +406,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = 'a0d906c474c7c03ce10498df75953c6792bdb6d5f885cc2de405cb4540b2887c';
-const BASELINE_LENGTH = 42801;
+const BASELINE_SHA256 = '310ce7e6fc1306c4622e72845a0ba98e0506044a2283db739862b6c66a9c6a55';
+const BASELINE_LENGTH = 42550;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

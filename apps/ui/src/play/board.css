@@ -806,7 +806,6 @@
 .seat > .zone--battlefield,
 .seat[data-viewer] > .zone--hand {
   --rows: 1;
-  --card-max: 7.5rem;
 
   container: row-zone / size;
   display: grid;
@@ -821,6 +820,14 @@
 
 /* A battlefield is the table: the darkest surface here, sunken into the seat. */
 .seat > .zone--battlefield {
+  /*
+   * T6 (wave 36) moved this off the shared rule above: it is the
+   * battlefield's own density limit against a crowded lane, and since T6 a
+   * hand card has no ceiling of this kind at all (`.zone__cards`' own
+   * `--card-w` override, below, no longer reads a `--card-max` for the hand
+   * — see its comment for why).
+   */
+  --card-max: 7.5rem;
   /*
    * A lane with nothing in it: enough for its own label, horizontal, and
    * nothing more. "Creatures 0" is the longest of the four at this type size.
@@ -951,8 +958,6 @@
  * than the seat, hatched, with a lit top edge where the cards come over it.
  */
 .seat[data-viewer] > .zone--hand {
-  --card-max: 7rem;
-
   /* The right pad is the overlays' (`--right-gutter`, on the shared rule above). */
   padding: 0 0 0 2px;
   padding-right: var(--right-gutter);
@@ -1010,10 +1015,23 @@
   padding: var(--card-pad);
 }
 
-/* The hand's label is a column, so it costs this list no height at all. */
+/*
+ * The hand's label is a column, so it costs this list no height at all.
+ *
+ * T6 (wave 36), the operator's own words: *"a hand card is as tall as its
+ * row allows."* The shared rule above wraps `--card-w` in `min(var(--card-max),
+ * …)` — a ceiling the battlefield needs (`--card-max: 7.5rem`, its own density
+ * limit against eleven permanents in one lane) and your hand does not: a hand
+ * holds a handful of cards and the row it has earned is the size they should
+ * draw at, not a fixed rem value smaller than that room. This redeclares
+ * `--card-w` WITHOUT the cap — the identical formula, `var(--card-max)`
+ * simply never appears in it — so the only ceiling left is the row's own
+ * height, exactly the words above.
+ */
 .seat[data-viewer] > .zone--hand > .zone__cards {
   --card-slack: 8px;
   --card-pad: 4px 3px;
+  --card-w: calc((100cqh - (var(--rows) - 1) * var(--cards-gap) - var(--card-slack)) / var(--rows) / var(--card-tall));
 }
 
 /* A lane's container is the lane, which is the whole height of the slot; what
@@ -1160,17 +1178,21 @@
  * The opponent's hand is backs, and they are the SAME SIZE as yours (wave 32 Q2:
  * the operator wanted the opponent's hand drawn at the card size of their own,
  * mirrored to the top of the table). So it reads the same tokens the viewer's
- * hand does — `--card-max`, `--card-slack`, the `100cqh`-derived `--card-w` and
- * the grid's `--card-min` floor — rather than a size of its own, and it is a size
+ * hand does — `--card-slack`, the `100cqh`-derived `--card-w` and the grid's
+ * `--card-min` floor — rather than a size of its own, and it is a size
  * container for the same reason: the card is sized from the BOX. The row is an
  * `fr` like yours (2.6 against the battlefield's 4), so their first draw moves
  * nothing, and its lit edge is at the foot (the mirror of yours at the top).
+ *
+ * T6 (wave 36): the viewer's own `--card-w` dropped its `var(--card-max)`
+ * ceiling — "a hand card is as tall as its row allows" — and this is the SAME
+ * tokens the comment above promises, so it drops the identical ceiling the
+ * identical way, never `--card-max` at all any more.
  */
 .seat:not([data-viewer]) > .zone--hand {
-  --card-max: 7rem;
   --card-slack: 8px;
   --card-pad: 4px 3px;
-  --card-w: min(var(--card-max), calc((100cqh - var(--card-slack)) / var(--card-tall)));
+  --card-w: calc((100cqh - var(--card-slack)) / var(--card-tall));
 
   container: row-zone / size;
   display: grid;
@@ -1380,8 +1402,9 @@
    * ONE bounded row (wave 32, the real-Forge e2e's clip): with an `auto` row the
    * list's `height: 100%` had nothing definite to resolve against, so a long
    * effect grew the item past the band and `.stack__item`'s `overflow: hidden`
-   * cut both ends. The row is the band's height, so the item is, so
-   * `.stack__what` can scroll inside it instead.
+   * cut both ends. The row is the band's height, so the item is — and since
+   * wave 36 (T8) the item's own text is one clipped line rather than a second
+   * scroll, so this bound is what keeps the ART a fixed height too.
    */
   grid-template-rows: minmax(0, 1fr);
   align-items: center;
@@ -1439,13 +1462,21 @@
 /*
  * Wave 31 §A.4, the operator's P9: *"stack height is poorly configured, the
  * textbox for ponder is not readable."* The item is the band's whole width (one
- * item at a time, the rest a sideways scroll away) rather than a fixed 16rem, so
- * nothing is clipped at its right edge, and its text 13px rather than 12px, in a band that is 12rem rather than 9.25rem —
+ * item at a time, the rest a sideways scroll away) rather than a fixed 16rem,
  * sized ONCE (`--mid-h`, and `--mid-h-asked` while a question stands in front of
  * it), never by how many items there are, so the canvas stays as static as it
- * was. Ponder's full text (about 200 characters) fits without scrolling; an
- * effect longer than that still scrolls inside `.stack__what`, the last resort,
- * and the compact band a question forces is the one place that happens sooner.
+ * was.
+ *
+ * T8 (wave 36), third ask — the operator: *"the stack shows what is happening,
+ * not all the text."* Before this wave the item ALSO carried Forge's full
+ * resolved description below the name, wrapping and, past Ponder's length,
+ * scrolling inside `.stack__what`. That is gone outright: one line (below),
+ * and the full rules text is the inspector's, on hover, not this box's — so
+ * there is nothing left here for a question's compact band to make room FOR,
+ * and the whole "while a question is open, drop the art and the caption and
+ * let the text wrap" treatment this rule used to carry (wave 32's real-Forge
+ * e2e) went with it. One line fits the compact band exactly as it fits the
+ * roomy one.
  */
 .stack__item {
   flex: 0 0 100%;
@@ -1474,48 +1505,23 @@
   width: var(--stack-card-w);
 }
 
-.stack__what {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-  /* Bounded by the item, so a long effect scrolls HERE instead of being clipped. */
-  min-height: 0;
-  max-height: 100%;
-  overflow-y: auto;
-  overflow-wrap: anywhere;
-  scrollbar-width: thin;
-}
-
 /*
- * A question is up (wave 32, the real-Forge e2e): the band is the one place the
- * effect is read, and the chrome beside the text left it ~80px of column — a word
- * a line, six to eight lines, scrolling. So while a question stands, the band
- * gives the text its whole width: the "STACK n" caption and the art tile are
- * dropped (the name still says what it is), and the name, kind and controller sit
- * on ONE wrapping line above the text instead of beside it. Chosen by question
- * state alone, never by how many items there are; the scroll stays the last resort.
+ * ONE line — who, what, at what — and `text-overflow: ellipsis` is what "no
+ * scrolling text" (T8) means in CSS: a sentence long enough to miss still
+ * clips as a unit rather than wrapping, scrolling, or growing the item.
+ * `display: block` rather than `flex`: ellipsis only measures an element's
+ * own inline content, and this box's children (`.stack__controller`,
+ * `.stack__source`, `.stack__target`) are plain inline `<span>`s for exactly
+ * that reason — a flex row would let each clip on its own instead of the
+ * sentence clipping as a whole.
  */
-.board__mid[data-question] .stack {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.board__mid[data-question] .stack > .zone__head,
-.board__mid[data-question] .stack__art {
-  display: none;
-}
-
-.board__mid[data-question] .stack__what {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  align-items: baseline;
-  column-gap: 6px;
-  align-self: flex-start;
-}
-
-.board__mid[data-question] .stack__text {
-  flex: 1 0 100%;
+.stack__what {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stack__source {
@@ -1523,15 +1529,12 @@
 }
 
 .stack__kind,
-.stack__controller {
+.stack__controller,
+.stack__sep,
+.stack__target {
   color: var(--ink-dim);
   font-weight: 400;
   font-size: 12px;
-}
-
-.stack__text {
-  font-size: 13px;
-  line-height: 1.3;
 }
 
 /* ── the staging area: a card being played (item 17.2) ─────────────── */

@@ -70,6 +70,14 @@ afterEach(() => {
   // The arrangement outlives a mount on purpose (it has to survive a resync),
   // so each test starts from the default grouping.
   forgetArrangements();
+  // T10 (wave 36): the arrangement is now ALSO in `sessionStorage`, keyed by
+  // match and seat — and the fixture's match key is the SAME string across
+  // most of this file's tests, so a drag in one test would otherwise
+  // rehydrate into the next one the moment it calls `ARRANGED.get` through
+  // `sessionStorage` rather than starting from nothing. `forgetArrangements`
+  // alone (in-memory only) is what the T10 reload test below depends on NOT
+  // also clearing storage mid-test; this is the per-test boundary instead.
+  sessionStorage.clear();
 });
 
 const fixture = PLAY_FIXTURES[0]!;
@@ -357,7 +365,19 @@ describe('the stack', () => {
     expect(stack.dataset.count).toBe('2');
     const items = [...stack.querySelectorAll('.stack__source')].map((n) => n.textContent);
     expect(items).toEqual(['Fire Urchin · ability', 'Direct Current']);
-    expect(stack.textContent).toContain('deals 2 damage to Goblin Replica (67)');
+    // T8 (wave 36): Forge's own resolved prose is no longer drawn on the board
+    // at all — the one line is built from structured facts, not this sentence.
+    expect(stack.textContent, 'the full sentence is the inspector’s, not the band’s').not.toContain(
+      'deals 2 damage to Goblin Replica (67)',
+    );
+    // Both items share one controller (both the viewer's own, this fixture’s
+    // one player to cast or trigger anything at this point in the capture).
+    expect([...stack.querySelectorAll('.stack__controller')].map((n) => n.textContent)).toEqual([
+      'Bob (Capturing)',
+      'Bob (Capturing)',
+    ]);
+    // Only the spell (Direct Current) names a target; the trigger does not.
+    expect([...stack.querySelectorAll('.stack__target')].map((n) => n.textContent)).toEqual([' → Goblin Replica']);
   });
 });
 
@@ -800,26 +820,18 @@ describe('item 17.2 — a card being played is staged, and leaves its hand slot'
 
 describe('marks', () => {
   /**
-   * §A.7. The board spelled `{T}` out as the word TAP while the tap symbol was a
-   * mark we had decided not to reproduce. **D20 settled that the other way** —
-   * the operator, 2026-09-27: *"naw we're not drawing our own"* — so the symbol
-   * ships from the Mana pack and `CardTile` has drawn `ms-tap` in a card's own
-   * rules text since wave 26 §C. The stack's text was the last place still
-   * writing the word, and it now goes through the same `ManaPip`.
+   * §A.7 drew `{T}` as the tap symbol inside the stack's own full-text line
+   * (D20). **Superseded by T8 (wave 36), third ask**: the operator said the
+   * stack shows what is happening, not all the text, so `item.description` —
+   * Forge's own prose, `{T}` and all — is no longer drawn on the board at
+   * all; `StackItem`'s one line is built from structured facts (who, what, at
+   * what), never from the description string. `ManaPip`/`RulesText` in this
+   * file went with it (`Board.tsx` no longer imports either). The tap symbol
+   * still ships from the Mana pack and `CardTile` still draws it in a card's
+   * own printed rules text — unchanged, and proven by the inspector's own
+   * suite (`inspect/index.test.ts`), which is what a hover now shows instead
+   * of this board drawing a second copy of it.
    */
-  it('draws {T} in the stack’s text as the tap SYMBOL, not the word TAP', () => {
-    const view = boardFromFixture(fixture);
-    const withTap: BoardView = { ...view, stack: [{ ...view.stack[0]!, description: '{T}: Add {R}.' }] };
-    const { container } = renderBoard(withTap);
-    const text = container.querySelector<HTMLElement>('.stack__text')!;
-    expect(text.textContent, 'neither the word nor the braces are left in the text').toBe(': Add .');
-    expect(
-      [...text.querySelectorAll<HTMLElement>('.pip')].map((p) => p.dataset.token),
-      'both symbols are pips, and the tap one is a pip like any other',
-    ).toEqual(['T', 'R']);
-    expect(text.querySelector('.ms-tap'), 'drawn from the Mana pack’s own glyph (D20)').not.toBeNull();
-  });
-
   it('draws costs as our own pips, and every card resolved', () => {
     const { view, zone } = renderBoard();
     expect(view.missingCardIds).toEqual([]);
@@ -2945,8 +2957,14 @@ describe('a full row keeps its names legible at the 960 budget (§A.1)', () => {
   /** The one rule that sizes a card's column, in a hand and in a battlefield lane. */
   const GRID =
     '.seat > .zone--battlefield .zone__row > .zone__cards,\n.seat > .zone--battlefield > .zone__cards,\n.seat > .zone--battlefield .zone__tiers > .zone__cards,\n.seat[data-viewer] > .zone--hand > .zone__cards';
-  /** The rule that gives a row zone its `--card-max`, shared by a battlefield and a hand. */
-  const ROW_ZONE = '.seat > .zone--battlefield,\n.seat[data-viewer] > .zone--hand';
+  /**
+   * The rule that gives a battlefield lane its `--card-max`. T6 (wave 36) moved
+   * this off the selector `.seat > .zone--battlefield` used to share with the
+   * hand — a hand card has no such ceiling any more — so this reads the
+   * battlefield's own, more specific rule rather than the pair they used to
+   * both sit on.
+   */
+  const ROW_ZONE = '.seat > .zone--battlefield';
 
   /** Every `--rows` formula in file order: the base band, then >= 3, 4, 5, 6, 8, 10. */
   const ladder = (): { above: number; steps: number[] }[] => {
@@ -3596,8 +3614,7 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
     expect(code).not.toMatch(/regroup\s*\(|withoutSeat|ARRANGE_SLOTS|data-arrange-reset/);
   });
 
-  it('P9: a stack effect is read at 13px in an item as wide as the band, and the band is one size per state, not per item', () => {
-    expect(Number.parseFloat(declarationIn('.stack__text', 'font-size')!)).toBeGreaterThanOrEqual(13);
+  it('P9: a stack item is as wide as the band, and the band is one size per state, not per item', () => {
     expect(declarationIn('.stack__item', 'flex')).toBe('0 0 100%');
     // The band is sized by state (`--mid-h`, `--mid-h-asked`) and nothing else:
     // no rule of the stack sizes itself by what it holds.
@@ -3625,12 +3642,15 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
   it('Q2: the opponent’s hand is drawn at the card size of yours, from the same tokens', () => {
     const theirs = '.seat:not([data-viewer]) > .zone--hand';
     const mine = '.seat[data-viewer] > .zone--hand';
-    // The cap and the slack are the viewer's own, not a size of their own.
-    expect(declarationIn(theirs, '--card-max')).toBe(declarationIn(mine, '--card-max'));
+    // T6 (wave 36): neither side caps a hand card below what its own row
+    // allows any more — the "same tokens" promise now means NEITHER declares
+    // `--card-max` at all, not that the two happen to agree on a number.
+    expect(declarationIn(theirs, '--card-max'), 'no ceiling, on either side').toBeUndefined();
+    expect(declarationIn(mine, '--card-max'), 'no ceiling, on either side').toBeUndefined();
     expect(declarationIn(theirs, '--card-slack')).toBe(declarationIn(`${mine} > .zone__cards`, '--card-slack'));
-    // `--card-w` is derived from the zone's height the way the hand's is, not a fixed 4rem.
+    // `--card-w` is derived from the zone's height the way the hand's is, not a fixed 4rem, and not capped.
     const w = declarationIn(theirs, '--card-w')!;
-    expect(w).toContain('var(--card-max)');
+    expect(w, 'T6: no cap left to read').not.toContain('var(--card-max)');
     expect(w).toContain('100cqh');
     expect(w).not.toContain('4rem');
     expect(declarationIn(theirs, 'container')).toBe('row-zone / size');
@@ -3641,23 +3661,33 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     );
   });
 
-  it('stack: a long effect scrolls INSIDE the item — the band’s row is bounded, so nothing is clipped (real-Forge e2e)', () => {
-    // An `auto` row left `.stack__items`' `height: 100%` with nothing to resolve
-    // against, the item grew past the band, and `overflow: hidden` cut both ends.
+  /*
+   * T8 (wave 36) rewrote this: the item's own text is now ONE clipped line,
+   * never a second scroll — "a long effect scrolls INSIDE the item" was
+   * exactly the behaviour the operator's third ask removed. The band's row
+   * is still bounded (so the ART stays a fixed height), but there is no
+   * `.stack__what` scrollbar left to pin.
+   */
+  it('stack: the item’s text is one clipped line, not a second scroll — the band’s row is still bounded', () => {
     expect(declarationIn('.stack', 'grid-template-rows'), 'one row, the band’s own height').toBe('minmax(0, 1fr)');
-    expect(declarationIn('.stack__what', 'min-height')).toBe('0');
-    expect(declarationIn('.stack__what', 'max-height'), 'bounded by the item').toBe('100%');
-    expect(declarationIn('.stack__what', 'overflow-y'), 'the last resort is a scroll, not a clip').toBe('auto');
+    expect(declarationIn('.stack__what', 'white-space'), 'no scrolling text (T8): it clips as one line').toBe(
+      'nowrap',
+    );
+    expect(declarationIn('.stack__what', 'text-overflow')).toBe('ellipsis');
+    expect(declarationIn('.stack__what', 'overflow-y'), 'the scroll T8 removed is gone, not hidden').toBeUndefined();
     expect(declarationIn('.stack__item', 'overflow')).toBe('hidden');
   });
 
-  it('stack: under a question the effect gets the band’s whole width — no caption, no art, name above the text', () => {
-    expect(declarationIn('.board__mid[data-question] .stack', 'grid-template-columns')).toBe('minmax(0, 1fr)');
-    expect(declarationIn('.board__mid[data-question] .stack > .zone__head,\n.board__mid[data-question] .stack__art', 'display')).toBe('none');
-    expect(declarationIn('.board__mid[data-question] .stack__what', 'flex-direction')).toBe('row');
-    expect(declarationIn('.board__mid[data-question] .stack__what', 'flex-wrap')).toBe('wrap');
-    expect(declarationIn('.board__mid[data-question] .stack__text', 'flex')).toBe('1 0 100%');
-    // Chosen by question state alone, never by what the stack holds.
+  /*
+   * T8 removed the whole "while a question is open, give the text the band's
+   * width" treatment along with the text it was making room for — one line
+   * fits the compact band exactly as it fits the roomy one, so there is
+   * nothing left keyed on `[data-question]` for the stack to do differently.
+   */
+  it('stack: T8 left no question-specific stack rule behind', () => {
+    expect(BOARD_RULES).not.toContain('.board__mid[data-question] .stack');
+    // Chosen by question state alone, never by what the stack holds — the
+    // part of the old rule's OWN claim that still has to hold with it gone.
     expect(BOARD_RULES).not.toMatch(/\.stack[^{]*:has\([^)]*nth/);
   });
 
@@ -4326,5 +4356,230 @@ describe('wave 34 §B', () => {
     // regression the manager caught: 3.6rem read back as 46.3px of
     // "nothing but a pile's own margin" against table-fit's GAP_MAX of 32.
     expect(declarationIn('.board .seat', '--counts-h')).toBe('2.2rem');
+  });
+});
+
+/*
+ * ── wave 36 §B — T6, T7, T8, T10 ─────────────────────────────────────────
+ *
+ * One case per item, each reading the thing that item changed. See the
+ * lane's report for mutation counts (revert each change, this case fails;
+ * restore, it passes).
+ */
+
+describe('wave 36 §B — T6: a hand card is as tall as its row allows', () => {
+  it('the viewer’s hand — and the opponent’s, same tokens — size their card from the row alone, no --card-max ceiling', () => {
+    const mine = '.seat[data-viewer] > .zone--hand > .zone__cards';
+    const theirs = '.seat:not([data-viewer]) > .zone--hand';
+    const battlefield = declarationIn('.seat > .zone--battlefield', '--card-max');
+    // The battlefield KEEPS its density cap — only the hand's own was lifted.
+    expect(battlefield, 'the battlefield’s own cap is untouched by T6').toBe('7.5rem');
+    for (const [selector, label] of [
+      [mine, 'the viewer’s hand'],
+      [theirs, 'the opponent’s hand'],
+    ] as const) {
+      const w = declarationIn(selector, '--card-w')!;
+      expect(w, `${label}: no ceiling left to read`).not.toContain('var(--card-max)');
+      expect(w, `${label}: still driven by the row’s own height`).toContain('100cqh');
+    }
+  });
+});
+
+describe('wave 36 §B — T7: a card with ChosenType wears a small label', () => {
+  const base = boardFromFixture(fixture);
+  /** The viewer's first battlefield card, with (or without) a chosen type. */
+  const withChosenType = (chosenType: string | null, cardId = 21): BoardView => ({
+    ...base,
+    players: base.players.map((p) =>
+      !p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === cardId ? { ...c, chosenType } : c)) },
+    ),
+  });
+  const card = (container: HTMLElement, id = 21) => container.querySelector<HTMLElement>(`[data-card-id="${id}"]`)!;
+
+  it('Cavern of Souls (stand-in: this fixture’s own battlefield card) shows its chosen type', () => {
+    const { container } = renderBoard(withChosenType('Elf'));
+    const label = card(container).querySelector<HTMLElement>('.board-card__chosen-type')!;
+    expect(label, 'a small label on the card').not.toBeNull();
+    expect(label.textContent).toBe('Elf');
+    // The full rules text stays the inspector's: this label names only the
+    // word, not a second copy of the oracle text the hover already shows.
+    expect(label.getAttribute('title')).toBe('Elf');
+  });
+
+  it('the label is out of flow and takes no click, like the rest of the state layer', () => {
+    expect(declarationInCss(CARD_CSS, '.board-card__chosen-type', 'position')).toBe('absolute');
+    expect(declarationInCss(CARD_CSS, '.board-card__chosen-type', 'pointer-events')).toBe('none');
+    // The one corner the marks (top-left), the P/T badge (bottom-right) and
+    // the counters (bottom-left) leave free.
+    expect(declarationInCss(CARD_CSS, '.board-card__chosen-type', 'top')).toBe('2px');
+    expect(declarationInCss(CARD_CSS, '.board-card__chosen-type', 'right')).toContain('--pile-fan');
+  });
+
+  it('a card with nothing chosen (the common case) wears no label at all', () => {
+    const { container } = renderBoard(withChosenType(null));
+    expect(card(container).querySelector('.board-card__chosen-type')).toBeNull();
+  });
+
+  /*
+   * The adapter's own half: a blank `ChosenType` on the WIRE normalises to
+   * `null` in `toBoardCard` — never a drawn empty label. (`ChosenTypeLabel`
+   * itself trusts the adapter's normalisation and does not re-check; a
+   * `BoardCard` built by hand with a raw blank string, as the fixture-view
+   * cases above do for `'Elf'` and `null`, is not a shape the adapter would
+   * ever hand it, so this is tested at the layer that actually does the
+   * trimming.)
+   */
+  it('adapter: a blank ChosenType on the wire normalises to null, not an empty string', () => {
+    const state = new Map(foldPackets(loadPackets(fixture)).state);
+    const key = deltaKey(WireType.Card, 21);
+    const view = state.get(key)!;
+    state.set(key, { ...view, ChosenType: { t: 'str', v: '   ' } } as WireObject);
+    const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
+    const me = adapted.players.find((p) => p.isViewer)!;
+    expect(me.battlefield.find((c) => c.id === 21)!.chosenType).toBeNull();
+  });
+
+  it('adapter: a real ChosenType on the wire comes through, trimmed', () => {
+    const state = new Map(foldPackets(loadPackets(fixture)).state);
+    const key = deltaKey(WireType.Card, 21);
+    const view = state.get(key)!;
+    state.set(key, { ...view, ChosenType: { t: 'str', v: '  Elf  ' } } as WireObject);
+    const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
+    const me = adapted.players.find((p) => p.isViewer)!;
+    expect(me.battlefield.find((c) => c.id === 21)!.chosenType).toBe('Elf');
+  });
+
+  it('is drawn on the battlefield only, not in a hand or a graveyard', () => {
+    const view = withChosenType('Elf');
+    const withHand: BoardView = {
+      ...view,
+      players: view.players.map((p) =>
+        !p.isViewer || p.hand === null ? p : { ...p, hand: p.hand.map((c, i) => (i === 0 ? { ...c, chosenType: 'Elf' } : c)) },
+      ),
+    };
+    const { zone } = renderBoard(withHand);
+    expect(zone(0, 'hand').querySelector('.board-card__chosen-type'), 'not off the battlefield').toBeNull();
+  });
+});
+
+describe('wave 36 §B — T8: the stack shows one line, art plus who/what/target, never the full sentence', () => {
+  it('no item draws a second, scrolling copy of its text — `.stack__text` is gone from the markup entirely', () => {
+    const { container } = renderBoard();
+    // "the stack" describe block above already pins the exact one-line
+    // content for this fixture's two real items; this is the structural
+    // claim T8 makes beyond that: nothing on the board carries the class
+    // that used to hold the full sentence.
+    expect(container.querySelectorAll('.stack__text')).toHaveLength(0);
+    for (const what of container.querySelectorAll<HTMLElement>('.stack__what')) {
+      // One line: no element inside it may itself wrap onto a second —
+      // `white-space: nowrap` (pinned in board.css) is what the stylesheet
+      // enforces; this is the DOM half, that nothing BUT inline spans sit in it.
+      expect([...what.children].every((c) => c.tagName === 'SPAN')).toBe(true);
+    }
+  });
+
+  it('the band’s own box does not depend on how many items are on the stack (the canvas stays static)', () => {
+    // `.board__mid`'s height is `var(--mid-h)`, a NAMED size with no `:has()`
+    // or sibling-count selector reading the list — already pinned above
+    // ("is roomy by default…", "P9…"); this adds the DOM half: the markup for
+    // ONE item carries no size-affecting inline style tied to the count.
+    const view = boardFromFixture(fixture);
+    // Unique ids per copy (React's own key, and this board's DOM-uniqueness
+    // invariant) — `[0, 1, 2]` x the fixture's 2 real items is 6 distinct ids.
+    const tripled: BoardView = {
+      ...view,
+      stack: [0, 1, 2].flatMap((n) => view.stack.map((item) => ({ ...item, id: item.id + n * 1000 }))),
+    };
+    const { container } = renderBoard(tripled);
+    const items = container.querySelectorAll('.stack__item');
+    expect(items).toHaveLength(6);
+    for (const item of items) expect((item as HTMLElement).style.length, 'no inline size of its own').toBe(0);
+    expect(declarationIn('.board__mid', 'height')).toBe('var(--mid-h)');
+  });
+});
+
+describe('wave 36 §B — T10: the arrangement survives a reload (D1)', () => {
+  afterEach(() => {
+    forgetArrangements();
+    sessionStorage.clear();
+  });
+
+  it('a drag written this tab is still there after `ARRANGED` itself is forgotten — sessionStorage, not memory, is what carried it', () => {
+    const view = boardFromFixture(fixture);
+    const me = view.players.find((p) => p.isViewer)!;
+    const [first, second] = me.battlefield.filter((c) => /\bLand\b/i.test(c.card.typeLine)).map((c) => c.id);
+    expect(first, 'a precondition: two lands to reorder').not.toBeUndefined();
+    expect(second).not.toBeUndefined();
+
+    const { container, unmount } = renderBoard(view, undefined, 'single');
+    layOut(container);
+    // Move `second` in front of `first` — a real rearrange, in a real row.
+    dragCard(container, second!, { card: first!, at: 'before' });
+    // Scoped to the VIEWER's own seat: both seats draw a `[data-tier="back"]`
+    // list in 'single' layout, and the opponent's is first in document order.
+    const tier = (c: HTMLElement) => {
+      const list = c.querySelector<HTMLElement>('.seat[data-viewer] [data-tier="back"]')!;
+      return [...list.querySelectorAll<HTMLElement>(':scope > li.board-card')].map((li) => Number(li.dataset.cardId));
+    };
+    const moved = tier(container);
+    expect(moved[0], 'the drag really did move it').toBe(second);
+
+    // "Reload": the in-memory store is gone, as it would be after a real
+    // page load starts the JS over. `sessionStorage` (this tab's own) is not
+    // touched — that is the whole point of the feature.
+    unmount();
+    forgetArrangements();
+
+    const { container: reloaded } = renderBoard(view, undefined, 'single');
+    expect(tier(reloaded), 'restored from sessionStorage, slot AND row, with no drag at all this time').toEqual(moved);
+  });
+
+  it('a DIFFERENT match starts from the view’s own order — sessionStorage is keyed by match too, not just by seat', () => {
+    const view = boardFromFixture(fixture);
+    const me = view.players.find((p) => p.isViewer)!;
+    const [first, second] = me.battlefield.filter((c) => /\bLand\b/i.test(c.card.typeLine)).map((c) => c.id);
+    const lands = me.battlefield.filter((c) => /\bLand\b/i.test(c.card.typeLine)).map((c) => c.id);
+    const rest = me.battlefield.filter((c) => !/\bLand\b/i.test(c.card.typeLine)).map((c) => c.id);
+
+    const { container, unmount } = renderBoard(view, undefined, 'single');
+    layOut(container);
+    dragCard(container, second!, { card: first!, at: 'before' });
+    unmount();
+    forgetArrangements();
+
+    const tierOf = (c: HTMLElement, name: string) =>
+      [...c.querySelectorAll<HTMLElement>(`.seat[data-viewer] [data-tier="${name}"] > li.board-card`)].map((li) =>
+        Number(li.dataset.cardId),
+      );
+    const otherMatch: BoardView = { ...view, title: `${view.title} #2` };
+    const { container: other } = renderBoard(otherMatch, undefined, 'single');
+    // The DEFAULT grouping (lands in back, the rest in front, each in the
+    // view's own order) — not the other match's reorder, and not a flat
+    // view-order either: a fresh 'single' board is still tier-grouped.
+    expect(tierOf(other, 'back'), 'untouched by the other match’s drag').toEqual(lands);
+    expect(tierOf(other, 'front')).toEqual(rest);
+  });
+
+  it('a blocked or unavailable sessionStorage costs the tidying, never a crash', () => {
+    const view = boardFromFixture(fixture);
+    const me = view.players.find((p) => p.isViewer)!;
+    const [first, second] = me.battlefield.filter((c) => /\bLand\b/i.test(c.card.typeLine)).map((c) => c.id);
+    const real = globalThis.sessionStorage;
+    const blocked: Pick<Storage, 'getItem' | 'setItem'> = {
+      getItem() {
+        throw new Error('blocked');
+      },
+      setItem() {
+        throw new Error('blocked');
+      },
+    };
+    Object.defineProperty(globalThis, 'sessionStorage', { value: blocked, configurable: true });
+    try {
+      const { container } = renderBoard(view, undefined, 'single');
+      layOut(container);
+      expect(() => dragCard(container, second!, { card: first!, at: 'before' })).not.toThrow();
+    } finally {
+      Object.defineProperty(globalThis, 'sessionStorage', { value: real, configurable: true });
+    }
   });
 });

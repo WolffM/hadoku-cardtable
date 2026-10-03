@@ -82,6 +82,14 @@
  *     seat, holding card ids — so a new view, a new mount, or both, redraw the
  *     same arrangement. `forgetArrangements()` empties it, for a test that
  *     wants the default grouping back.
+ *   - **It survives a RELOAD too** (T10, wave 36, D1). `ARRANGED` alone does
+ *     not — it is JavaScript memory, and a reload starts the page's
+ *     JavaScript over — so every write also goes to `sessionStorage`, keyed
+ *     by match AND seat, and the first read of a match-and-seat this TAB has
+ *     not seen since loading hydrates `ARRANGED` from it. Per TAB, not per
+ *     browser or device: `sessionStorage`, not `localStorage`, on purpose
+ *     (the tracker's own default, open to being overruled). See `setArranged`
+ *     / `arrangementFor`, below.
  *
  * A card the arrangement names that is no longer on the battlefield is
  * ignored, and a permanent that arrives while an arrangement stands joins the
@@ -379,7 +387,6 @@ import {
 } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
-import { ManaPip } from '../components/ManaPip.tsx';
 import { avatarSquareUrl } from '../room/avatar.ts';
 import {
   boardPT,
@@ -644,6 +651,13 @@ const cols = (rows: Grouped, layout: BoardLayout): number =>
  * wire, not in the view, not in React state, because a resync may remount the
  * board and React state would go with it. Keyed by the match so two matches in
  * one session do not inherit each other's tidying.
+ *
+ * T10 (wave 36, found during w35), D1: a RELOAD must not lose it — this map
+ * alone does, because it is JavaScript memory and a reload starts the page's
+ * JavaScript over. `sessionStorage` (below) is the part of this that
+ * survives a reload; this map stays the part every render reads, so nothing
+ * downstream of `arranged = ARRANGED.get(key) ?? NO_ARRANGEMENT` has to know
+ * persistence exists at all.
  */
 const ARRANGED = new Map<string, Arrangement>();
 
@@ -655,6 +669,105 @@ function matchKey(view: BoardView): string {
 /** Forget every match's arrangement. For a test that wants the default grouping. */
 export function forgetArrangements(): void {
   ARRANGED.clear();
+}
+
+/*
+ * ── T10: the arrangement survives a reload (D1) ─────────────────────────
+ *
+ * The operator's own ledger item: *"the board arrangement is lost on
+ * reload."* D1 (the tracker's default, not overruled): kept PER TAB
+ * (`sessionStorage`, not `localStorage`) and keyed by match AND seat — a
+ * reload of the same tab sees its own tidying back; a different browser or a
+ * different seat does not, which is also why only THIS viewer's own slots are
+ * ever written (every `ARRANGED.set` call in this file passes `viewer.id`,
+ * never an opponent's).
+ *
+ * `sessionStorage` can throw on read or write — a private window, cleared
+ * site data, a blocked third-party context (the same list `sound/mute.ts`
+ * documents for `localStorage`) — so every access is inside a `try`/`catch`
+ * that falls back to "nothing persisted": a blocked store costs a player
+ * their tidying across a reload, never a blank board.
+ */
+
+const ARRANGED_SESSION_PREFIX = 'cardtable.play.arranged.v1:';
+
+function arrangedSessionKey(key: string, viewerId: number): string {
+  return `${ARRANGED_SESSION_PREFIX}${key}:${viewerId}`;
+}
+
+/** This seat's own slots of an arrangement — the only slice `sessionStorage` ever holds. */
+function seatSlice(arrangement: Arrangement, viewerId: number): Arrangement {
+  const prefix = `${viewerId}:`;
+  const out: Record<string, readonly (readonly number[])[]> = {};
+  for (const [k, v] of Object.entries(arrangement)) if (k.startsWith(prefix)) out[k] = v;
+  return out;
+}
+
+/**
+ * What `sessionStorage` says this match-and-seat's arrangement was, trusting
+ * nothing about its shape — it is this tab's own past write, but a schema can
+ * still move under it (`.v1`) and a hand-edited value is not impossible.
+ * `null` for "nothing to restore", which is also the answer for anything that
+ * fails to parse as the shape this file writes.
+ */
+function readArrangedSession(key: string, viewerId: number): Arrangement | null {
+  let raw: string | null;
+  try {
+    raw = globalThis.sessionStorage?.getItem(arrangedSessionKey(key, viewerId)) ?? null;
+  } catch {
+    return null;
+  }
+  if (raw === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const prefix = `${viewerId}:`;
+    const out: Record<string, readonly (readonly number[])[]> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      // Never trust a foreign seat's key, even inside this tab's own storage.
+      if (!k.startsWith(prefix) || !Array.isArray(v)) continue;
+      const piles: number[][] = [];
+      for (const pile of v) {
+        if (!Array.isArray(pile) || !pile.every((n) => typeof n === 'number')) continue;
+        piles.push(pile);
+      }
+      out[k] = piles;
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort write of this seat's own slice. Never throws, never blocks a drop. */
+function writeArrangedSession(key: string, viewerId: number, arrangement: Arrangement): void {
+  try {
+    globalThis.sessionStorage?.setItem(arrangedSessionKey(key, viewerId), JSON.stringify(seatSlice(arrangement, viewerId)));
+  } catch {
+    // Nothing to do: the tidying holds for this page and is simply not
+    // remembered across the next reload.
+  }
+}
+
+/** Every write to `ARRANGED` goes through here, so persistence cannot be forgotten at one call site. */
+function setArranged(key: string, viewerId: number, next: Arrangement): void {
+  ARRANGED.set(key, next);
+  writeArrangedSession(key, viewerId, next);
+}
+
+/**
+ * This match-and-seat's arrangement, hydrating `ARRANGED` from
+ * `sessionStorage` the first time this TAB sees it (a real reload starts
+ * `ARRANGED` empty; a resync-remount within the same tab does not, and the
+ * `ARRANGED.get` below is what keeps that case free of a redundant parse).
+ */
+function arrangementFor(key: string, viewerId: number): Arrangement {
+  const cached = ARRANGED.get(key);
+  if (cached !== undefined) return cached;
+  const restored = readArrangedSession(key, viewerId);
+  if (restored === null) return NO_ARRANGEMENT;
+  ARRANGED.set(key, restored);
+  return restored;
 }
 
 /**
@@ -1228,31 +1341,6 @@ interface Arranging {
 const ARRANGING: Arranging = { enabled: true };
 
 /**
- * A stack item's rules text, with its `{…}` symbols drawn as pips.
- *
- * This used to rewrite `{T}` to the literal word `TAP`, because the tap symbol
- * was a mark we had decided not to reproduce. **D20 (2026-09-27) settled that
- * the other way** — the operator: *"naw we're not drawing our own"* — and the
- * symbol now ships from the Mana pack, so `ManaPip` knows `T` and `CardTile`
- * already draws `ms-tap` in a card's own rules text. The word was the last place
- * on the board that still spelled it out.
- *
- * A token the fonts have no glyph for still renders, as itself in a plain
- * capsule; that is `ManaPip`'s contract and not this function's business.
- */
-function RulesText({ text }: { text: string }) {
-  const pieces = text.split(/(\{[^}]{1,5}\})/g).filter((p) => p !== '');
-  return (
-    <>
-      {pieces.map((piece, i) => {
-        const symbol = /^\{([^}]{1,5})\}$/.exec(piece);
-        return symbol === null ? <span key={i}>{piece}</span> : <ManaPip key={i} token={symbol[1]!} />;
-      })}
-    </>
-  );
-}
-
-/**
  * What a buffed or a hurt number wears BESIDES its colour.
  *
  * Settled at dispatch: *colour may never be the only signal*. So each state
@@ -1488,6 +1576,30 @@ function Counters({ entry }: { entry: BoardCard }) {
 }
 
 /**
+ * T7 (wave 36), the operator's own words: *"Cavern of Souls shows its chosen
+ * type."* `adapter.ts`'s `chosenType` is Forge's `ChosenType` — the creature
+ * type an `AddType$ ChosenType`-style ability resolved for THIS permanent —
+ * and any card that carries it wears the same small label, not only Cavern of
+ * Souls by name: the wire names no card, only the property.
+ *
+ * Top-right: the P/T badge has the bottom-right, the marks have the top-left
+ * and the counters have the bottom-left (`card.css`'s own corner map), so this
+ * is the one corner nothing else claims. The full card — oracle text
+ * included, through the SAME inspector every other battlefield card already
+ * opens on hover (`data-card-id` on the `<li>` this sits inside) — is what
+ * answers "the full text on hover"; this label only needs to say the word.
+ */
+function ChosenTypeLabel({ entry }: { entry: BoardCard }) {
+  const chosenType = entry.chosenType;
+  if (chosenType === null || chosenType === undefined) return null;
+  return (
+    <span className="board-card__chosen-type" title={chosenType}>
+      {chosenType}
+    </span>
+  );
+}
+
+/**
  * One card, and — when it is the bottom of a pile — everything stacked on it.
  *
  * The pile's own `<li>` IS the bottom card, and the cards above it are a nested
@@ -1672,6 +1784,7 @@ function CardOnBoard({
       {onBattlefield && <PowerToughness entry={entry} />}
       {onBattlefield && <StateMarks entry={entry} />}
       {onBattlefield && <Counters entry={entry} />}
+      {onBattlefield && <ChosenTypeLabel entry={entry} />}
       {above.length > 0 && (
         <ul className="board-card__pile" aria-label={`Stacked on ${entry.card.name}`}>
           {above.map((c, i) => (
@@ -2372,14 +2485,37 @@ function PlayerArea({
  * builds a list of the stack's own `StackItemView`s and asks a GENERIC
  * list-choice (`getGui().one` / `oneOrNone`) — one of Forge's own prompts
  * (G's lane, `prompts/**`), not a card offer. So a stack entry is never made
- * clickable FOR that purpose, with this fix or without it; `targetCardIds` /
- * `targetPlayerIds` (`adapter.ts`, shape 2) exist only so an arrow can be
- * drawn from a resolved target, never to make the entry itself an answer.
+ * clickable FOR that purpose, with this fix or without it.
+ *
+ * ## T8 (wave 36), third ask: ONE line, not the full text
+ *
+ * The operator: *"the stack shows what is happening, not all the text"* — one
+ * line reading who, what, and at what (their own example: *"Alice · Lightning
+ * Bolt → Bob"*), the full rules text only in the inspector on hover, through
+ * the SAME mechanism every other card on this board already opens one with:
+ * `data-source-card` on this `<li>` is what `inspect/index.ts` reads (its own
+ * `inspectedCardFrom`), and that is unchanged by this fix — the inspector
+ * clones `.stack__art`'s own `CardTile`, oracle text included, so nothing here
+ * has to draw a second copy of it to satisfy "the full text on hover".
+ *
+ * Before this wave `item.description` — Forge's own resolved prose, e.g.
+ * *"Direct Current (1) deals 2 damage to Goblin Replica (67)"* — was rendered
+ * in full beside the art, wrapped onto as many lines as it needed and
+ * scrolling inside `.stack__what` when it ran long (`board.css`'s own history
+ * on `.stack__what`). That is exactly the "all the text" the operator is
+ * naming: a sentence of Forge's own prose is not a status line, and it is not
+ * bounded to one. So `item.description` is no longer drawn here at all — the
+ * one line is built from the same structured facts a hover already shows via
+ * the card it names: who (`controllerName`), what (`sourceName`, "ability"
+ * marked beside it), and at what (`targetLabel`, wave 33's `targetCardIds` /
+ * `targetPlayerIds` resolved to names by `adapter.ts`, shape 2 extended for
+ * this wave).
  */
 function StackItem({ item, interaction }: { item: StackEntry; interaction: BoardInteraction | undefined }) {
   const sourceId = item.sourceCardId;
   const selectable =
     interaction !== undefined && sourceId !== null && !item.isAbility && interaction.selectable.has(sourceId);
+  const targetLabel = item.targetLabel ?? null;
   const body = (
     <>
       {item.sourceCard !== null && (
@@ -2387,15 +2523,24 @@ function StackItem({ item, interaction }: { item: StackEntry; interaction: Board
           <CardTile card={item.sourceCard} />
         </span>
       )}
+      {/*
+       * ONE line: who · what → target. A plain `<span>`, not a flex row, so
+       * `text-overflow: ellipsis` (`board.css`) clips the whole sentence as a
+       * unit rather than each piece scrolling or wrapping on its own — "no
+       * scrolling text" is the point, not merely "no scrollbar".
+       */}
       <span className="stack__what">
+        {item.controllerName !== null && (
+          <>
+            <span className="stack__controller">{item.controllerName}</span>
+            <span className="stack__sep"> · </span>
+          </>
+        )}
         <span className="stack__source">
           {item.sourceName ?? 'unknown source'}
           {item.isAbility && <span className="stack__kind"> · ability</span>}
         </span>
-        {item.controllerName !== null && <span className="stack__controller">{item.controllerName}</span>}
-        <span className="stack__text">
-          <RulesText text={item.description} />
-        </span>
+        {targetLabel !== null && <span className="stack__target"> → {targetLabel}</span>}
       </span>
     </>
   );
@@ -2790,7 +2935,11 @@ export function Board({
    */
   const key = matchKey(view);
   const [, redraw] = useReducer((n: number) => n + 1, 0);
-  const arranged = ARRANGED.get(key) ?? NO_ARRANGEMENT;
+  // T10: hydrated from `sessionStorage` the first time this tab sees this
+  // match-and-seat (a real reload, not merely a resync-remount). There is no
+  // viewer to key a seat's own storage by when none is identified, so that
+  // case reads the in-memory store alone, exactly as it always did.
+  const arranged = viewer === undefined ? (ARRANGED.get(key) ?? NO_ARRANGEMENT) : arrangementFor(key, viewer.id);
   /**
    * One drop, applied. Everything a drop does is here: it writes the store and asks
    * for a frame. It sends NOTHING — there is no sender in this scope, no ask, no
@@ -2809,11 +2958,12 @@ export function Board({
     if (slot === 'hand') {
       const hand = viewer.hand;
       if (hand === null || !hand.some((c) => c.id === cardId)) return;
-      ARRANGED.set(key, withHandMove(handOrder(hand, viewer.id, arranged), viewer.id, arranged, cardId, target));
+      setArranged(key, viewer.id, withHandMove(handOrder(hand, viewer.id, arranged), viewer.id, arranged, cardId, target));
     } else {
       if (!viewer.battlefield.some((c) => c.id === cardId)) return;
-      ARRANGED.set(
+      setArranged(
         key,
+        viewer.id,
         withMove(
           group(viewer.battlefield, viewer.id, arranged, boardLayout),
           viewer.id,
@@ -2878,7 +3028,7 @@ export function Board({
       changed = true;
     }
     if (changed) {
-      ARRANGED.set(key, next);
+      setArranged(key, viewer.id, next);
       redraw();
     }
     // `pendingVersion` is read only to be a dependency — every `notePlayedTo`
