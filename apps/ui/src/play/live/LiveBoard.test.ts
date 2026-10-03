@@ -26,6 +26,7 @@ import {
   endingSentence,
   gameOutcome,
   isMatchGone,
+  isWaitingForOpponent,
   LiveBoard,
   liveStatus,
   MATCH_GONE_SENTENCE,
@@ -1081,8 +1082,12 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
     // The cluster still holds five children — item 7 put `Settings` in the
     // slot item 5's deletion of `Leave` vacated — and is still a sibling of
     // the board, drawn after it: the chrome is around the canvas, not in it.
+    // `live__waiting` leads (wave 36 T2): this fixture never sends an
+    // `updateButtons`, so no ask and no enabled bar means "my move" is false
+    // and the calm indicator is up — see `isWaitingForOpponent`'s own test.
     const live = container.querySelector('.live')!;
     expect([...live.children].map((el) => el.className)).toEqual([
+      'live__waiting',
       'board',
       'live__phases',
       'live__logbook',
@@ -2973,5 +2978,228 @@ describe('R16 — the result screen, drawn over the board', () => {
     );
     await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('draw'));
     expect(getByTestId('game-result').textContent).toContain('Draw');
+  });
+});
+
+/*
+ * ── Wave 36 lane L ──────────────────────────────────────────────────────
+ */
+
+describe('T5 — the current phase’s highlight on the rail is stronger', () => {
+  it('the current row gets a tinted background and an accent-bar box-shadow, theme tokens only', () => {
+    const current = declarations(liveCss(), '.live__step[data-current]');
+    expect(current).toContain('background: color-mix(in srgb, var(--accent) 16%, transparent)');
+    expect(current).toContain('box-shadow: inset 3px 0 0 0 var(--accent)');
+    // No raw colours: every value here is a theme token, or `color-mix` of one.
+    expect(current).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+
+  it('is a box-shadow, not a border: the row keeps sharing --rail-row-h exactly (wave 33 §L1’s own guarantee)', () => {
+    const current = declarations(liveCss(), '.live__step[data-current]');
+    expect(current, 'a border would add to the box model every row shares').not.toContain('border');
+  });
+
+  it('the text treatment (weight, colour) is unchanged — the row highlight is additive', () => {
+    expect(declarations(liveCss(), '.live__step[data-current] .live__step-name')).toBe(
+      'font-weight: 600; color: var(--accent-ink);',
+    );
+  });
+
+  it('a real rendered rail still carries exactly one data-current row, for the highlight to land on', async () => {
+    const { container } = await liveBoard();
+    const current = [...container.querySelectorAll('.live__step')].filter((el) => el.hasAttribute('data-current'));
+    expect(current).toHaveLength(1);
+    expect(current[0]!.textContent).toBe('Main 1');
+  });
+});
+
+describe('T2 — a calm "waiting for the other player"', () => {
+  const updateButtons = (enable1: boolean, label1 = 'OK', label2 = 'Cancel') =>
+    parseServerFrame({
+      kind: 'notify',
+      method: 'updateButtons',
+      owner: { kind: 'player', id: 0 },
+      label1,
+      label2,
+      enable1,
+      enable2: true,
+      focus1: enable1,
+    });
+
+  it('is up by default — no ask, no enabled bar — and names the opponent', async () => {
+    const { m, getByTestId } = await liveBoard();
+    const theirName = m.view!.players.find((p) => !p.isViewer)!.name;
+    const waiting = await waitFor(() => getByTestId('live-waiting'));
+    expect(waiting.textContent).toBe(`Waiting for ${theirName}…`);
+    expect(isWaitingForOpponent(m)).toBe(true);
+  });
+
+  it('is gone the instant Forge enables the viewer’s own OK — that is "my move"', async () => {
+    const { s, m, queryByTestId } = await liveBoard();
+    s.send(updateButtons(true));
+    await waitFor(() => expect(m.buttons?.enable1).toBe(true));
+    expect(isWaitingForOpponent(m)).toBe(false);
+    expect(queryByTestId('live-waiting')).toBeNull();
+  });
+
+  it('comes back the moment pressButton resets enable1 — a stale enabled bar does not linger as "my move"', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    s.send(updateButtons(true));
+    await waitFor(() => expect(queryByTestId('live-waiting')).toBeNull());
+    pressButton(m, 'ok');
+    await waitFor(() => getByTestId('live-waiting'));
+    expect(isWaitingForOpponent(m)).toBe(true);
+  });
+
+  it('is gone while an ask is open for the viewer, even with a stale enabled bar left standing', async () => {
+    const { s, m, queryByTestId } = await liveBoard();
+    s.send(updateButtons(true));
+    await waitFor(() => expect(queryByTestId('live-waiting')).toBeNull());
+    pressButton(m, 'ok');
+    await waitFor(() => expect(queryByTestId('live-waiting')).not.toBeNull());
+    s.send(confirmAsk('c-wait'));
+    await waitFor(() => expect(currentAsk(m)).not.toBeNull());
+    expect(isWaitingForOpponent(m)).toBe(false);
+  });
+
+  it('is gone during a mana payment — the one state neither an open ask nor bar.enable1 alone would catch', async () => {
+    const { s, m } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    s.send(updateButtons(true, 'Auto', 'Cancel'));
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'showPromptMessage',
+        player: { kind: 'player', id: 0 },
+        message: 'Pay Mana Cost: {1}',
+        card: { kind: 'card', id: mine[0]! },
+      }),
+    );
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'setWeaklySelectable',
+        cards: mine.map((id) => ({ kind: 'card', id })),
+      }),
+    );
+    await waitFor(() => expect(m.promptCard).toBe(mine[0]!));
+    expect(isWaitingForOpponent(m)).toBe(false);
+  });
+
+  it('never shows for a spectator, even with nothing enabled for the viewer', async () => {
+    const { m, rerender, queryByTestId } = await liveBoard();
+    Object.assign(m, { spectator: true });
+    rerender(createElement(LiveBoard, { match: m }));
+    expect(isWaitingForOpponent(m)).toBe(false);
+    expect(queryByTestId('live-waiting')).toBeNull();
+  });
+
+  it('never shows once the game has ended — the result screen says so instead', async () => {
+    const { m, rerender, queryByTestId } = await liveBoard();
+    m.view = { ...m.view!, gameOver: true };
+    rerender(createElement(LiveBoard, { match: m }));
+    expect(isWaitingForOpponent(m)).toBe(false);
+    expect(queryByTestId('live-waiting')).toBeNull();
+  });
+
+  it('never shows before the match has a view at all', async () => {
+    const s = (server = await startReplayServer());
+    const m = (match = startMatch({
+      matchId: s.matchId,
+      transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
+    }));
+    const { queryByTestId } = render(createElement(LiveBoard, { match: m }));
+    await waitFor(() => expect(m.stats.snapshots).toBe(1));
+    expect(m.view).toBeNull();
+    expect(isWaitingForOpponent(m)).toBe(false);
+    expect(queryByTestId('live-waiting')).toBeNull();
+  });
+});
+
+/*
+ * ── T4 (shape 1, lane G’s `ConfirmPrompt`) — every yes/no that is an ANSWER
+ * moves to the decision area; a priority pass and a mana payment stay on the
+ * control bar. See `docs/planning/wave36-evidence/g-shape1.md`.
+ */
+describe('T4 — every yes/no confirm is the pop-up, never the control bar', () => {
+  function buttonFrames(message: string, label1: string, label2: string) {
+    return [
+      parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null }),
+      parseServerFrame({
+        kind: 'notify',
+        method: 'updateButtons',
+        owner: { kind: 'player', id: 0 },
+        label1,
+        label2,
+        enable1: true,
+        enable2: true,
+        focus1: true,
+      }),
+    ];
+  }
+
+  it('the shockland’s "pay 2 life?" (Yes/No) renders in the decision area, and the bar’s own OK/Cancel do not', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    for (const f of buttonFrames('Watery Grave\n\nPay 2 life?', 'Yes', 'No')) s.send(f);
+
+    await waitFor(() => expect(getByTestId('live-confirm-host')).toBeTruthy());
+    expect(getByTestId('live-confirm').textContent).toContain('Pay 2 life?');
+    expect(getByTestId('prompt-confirm-yes').textContent).toBe('Yes');
+    expect(getByTestId('prompt-confirm-no').textContent).toBe('No');
+    expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled, 'OK cannot double-fire the answer').toBe(true);
+    expect(queryByTestId('live-button-cancel'), 'the bar’s own second button does not also render').toBeNull();
+
+    const before = m.stats.replies;
+    fireEvent.click(getByTestId('prompt-confirm-yes'));
+    await waitFor(() => expect(m.stats.replies).toBe(before + 1));
+    expect(
+      s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonOk'),
+    ).toBe(true);
+  });
+
+  it('the "No" side sends Forge’s cancel, the same sender the bar already uses', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    for (const f of buttonFrames('Watery Grave\n\nPay 2 life?', 'Yes', 'No')) s.send(f);
+    await waitFor(() => getByTestId('prompt-confirm-no'));
+
+    fireEvent.click(getByTestId('prompt-confirm-no'));
+    await waitFor(() => expect(m.stats.replies).toBe(1));
+    expect(
+      s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonCancel'),
+    ).toBe(true);
+  });
+
+  it('the mulligan’s Keep/Mulligan is the same pop-up, with Forge’s own words', async () => {
+    const { s, getByTestId } = await liveBoard();
+    for (const f of buttonFrames('Keep this hand of seven?', 'Keep', 'Mulligan')) s.send(f);
+
+    await waitFor(() => getByTestId('live-confirm-host'));
+    expect(getByTestId('prompt-confirm-yes').textContent).toBe('Keep');
+    expect(getByTestId('prompt-confirm-no').textContent).toBe('Mulligan');
+  });
+
+  it('an ordinary priority pass (OK/End Turn) stays on the control bar — the pop-up never opens for it', async () => {
+    const { s, getByTestId, queryByTestId } = await liveBoard();
+    for (const f of buttonFrames('Priority: you', 'OK', 'End Turn')) s.send(f);
+
+    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
+    expect(getByTestId('live-button-cancel').textContent).toBe('End Turn');
+    expect(queryByTestId('live-confirm-host')).toBeNull();
+  });
+
+  it('a mana payment (Auto/Cancel) stays off the pop-up too — AUTO_PAY_LABEL is one of the excluded mechanical words', async () => {
+    const { s, getByTestId, queryByTestId } = await liveBoard();
+    for (const f of buttonFrames('Pay Mana Cost: {1}', 'Auto', 'Cancel')) s.send(f);
+
+    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
+    expect(queryByTestId('live-confirm-host')).toBeNull();
+  });
+
+  it('the coin toss keeps PlayOrDrawPrompt — the two pop-ups are mutually exclusive by construction', async () => {
+    const { s, getByTestId, queryByTestId } = await liveBoard();
+    for (const f of buttonFrames('You have won the coin toss.\n\nPlay or draw?', 'Play', 'Draw')) s.send(f);
+
+    await waitFor(() => getByTestId('live-play-or-draw-host'));
+    expect(queryByTestId('live-confirm-host')).toBeNull();
   });
 });

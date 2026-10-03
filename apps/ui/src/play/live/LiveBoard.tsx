@@ -254,6 +254,7 @@ import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
 import { lookupFromState, plainRulesText, withAbilityLabels } from '../prompts/lookup.ts';
+import { isConfirmPrompt, ConfirmPrompt } from '../prompts/ConfirmPrompt.tsx';
 import { isPlayOrDrawPrompt, PlayOrDrawPrompt } from '../prompts/PlayOrDrawPrompt.tsx';
 import { autoAnswer } from '../prompts/rules.ts';
 import { isPromptMethod, PromptFor, type AskOf, type PromptMethod } from '../prompts/index.ts';
@@ -334,6 +335,55 @@ export function isSpectator(match: LiveMatch): boolean {
 /** The server's `ended` frame has arrived (`LiveMatch.over`, shape 4). */
 export function isOver(match: LiveMatch): boolean {
   return (match as { over?: boolean }).over === true;
+}
+
+/* ── T2: a calm "waiting for the other player" (wave 36 §L) ───────────── */
+
+/**
+ * Whether the viewer has something to do RIGHT NOW: an open ask, a mana
+ * payment, or Forge's bar with button one enabled.
+ *
+ * Forge parks each seat's own thread on its own input and nothing else —
+ * this client never sees the OPPONENT's ask, their `buttons`, or their
+ * prompt; see the module header ("Which player is 'me'") and `match.ts`'s
+ * own header on why every one of these fields is this seat's alone. So
+ * there is no fact this client could read that says "the opponent is
+ * answering a question" directly; the only honest signal is the negative
+ * space of its OWN three — while none of them hold, Forge's threads are
+ * necessarily elsewhere, which on a two-seat game means the other seat
+ * (holding priority, mid-ask, or mid-payment on their own side).
+ *
+ * `bar.enable1` alone, not `bar !== null`: `pressButton` resets `enable1`
+ * to `false` the moment it sends (`match.ts`), and nothing re-enables it
+ * until Forge's NEXT `updateButtons` — so a stale bar from the viewer's own
+ * last turn reads as "not my move" the instant the press lands, rather than
+ * lingering true until a fresh frame overwrites it.
+ */
+function myMoveNow(match: LiveMatch): boolean {
+  if (isSpectator(match)) return false;
+  if (currentAsk(match) !== null) return true;
+  if (payingMana(match)) return true;
+  const bar = match.buttons;
+  return bar !== null && bar.enable1;
+}
+
+/**
+ * T2. Operator: a clear, calm indicator ("Waiting for Bob…") whenever the
+ * opponent holds priority or is answering a question, gone the instant it is
+ * the viewer's move. `myMoveNow`'s negation is exactly that instant — see its
+ * own note for why there is no more direct signal to read.
+ *
+ * `false` with no board (`view === null`) and once the game has ended: both
+ * already have their own line (the five-state status line; `GameResultScreen`),
+ * and "waiting" would be a second, disagreeing thing to say on the same page.
+ * `false` for a spectator too — a watcher is not making a move for either
+ * seat to wait on.
+ */
+export function isWaitingForOpponent(match: LiveMatch): boolean {
+  if (isSpectator(match)) return false;
+  const view = match.view;
+  if (view === null || view.gameOver) return false;
+  return !myMoveNow(match);
 }
 
 /** `forge:join was refused: unknown-match` → `unknown-match`. */
@@ -1311,6 +1361,19 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    */
   const playOrDraw = !spectator && !askOpen && isPlayOrDrawPrompt(bar);
   /*
+   * T4 (shape 1, lane G): every Forge yes/no that is an ANSWER rather than a
+   * priority pass — the shockland's "pay 2 life?", the mulligan's
+   * Keep/Mulligan, a scry's Top/Bottom, any other `InputConfirm` text — moves
+   * to the decision area the same way R2 already moved the coin toss.
+   * `isConfirmPrompt` (`../prompts/ConfirmPrompt.tsx`, G's, presentational
+   * only) already excludes the coin toss by construction, so checking both
+   * here is belt-and-suspenders, not a real race: the two can never both be
+   * true for the same bar.
+   */
+  const confirmPrompt = !spectator && !askOpen && !playOrDraw && isConfirmPrompt(bar);
+  /** T2: gone the instant it is the viewer's move — see `isWaitingForOpponent`'s own note. */
+  const waitingForOpponent = isWaitingForOpponent(match);
+  /*
    * What the log can put a face to, and whose lines are whose. Both come off the
    * board view the viewer is already looking at — see `cardsNamedInView` for why
    * that is the leak-free source — and both are `null`/empty before the first
@@ -1401,7 +1464,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * `SettingsPanel`, because `<Board>` needs it whether or not Settings is
    * ever opened.
    */
-  const showsSecondButton = !spectator && !askOpen && !playOrDraw && bar !== null && bar.enable2 && offersSecondButton(match);
+  const showsSecondButton =
+    !spectator && !askOpen && !playOrDraw && !confirmPrompt && bar !== null && bar.enable2 && offersSecondButton(match);
   /*
    * R5: End Turn is highlighted when there is nothing left to decide.
    *
@@ -1595,6 +1659,22 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           {alert}
         </p>
       )}
+      {/*
+       * T2: a calm "waiting for the other player". Out of flow and
+       * pointer-transparent, same perch and treatment as the spectator
+       * banner above — the two never show together (`isWaitingForOpponent`
+       * is false for a spectator), so sharing the slot costs nothing. Not a
+       * `data-live-line`: that marker is for the five-state status line and
+       * the in-match error, and this is neither — it is gone the instant it
+       * is the viewer's own move, which a live match's one-line rule (§B.5)
+       * was never about.
+       */}
+      {waitingForOpponent && (
+        <p className="live__waiting" role="status" data-testid="live-waiting">
+          <span className="live__waiting-dot" aria-hidden="true" />
+          Waiting for {theirName ?? 'the other player'}…
+        </p>
+      )}
       {match.view !== null && <Board view={match.view} interaction={interaction} boardLayout={boardLayout} />}
       {/* Out of flow, over the board's right edge: it moves no canvas box. */}
       {match.view !== null && <PhaseRail view={match.view} />}
@@ -1708,7 +1788,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           type="button"
           className="live__ok"
           data-testid="live-button-ok"
-          disabled={spectator || ask !== null || bar === null || !bar.enable1 || playOrDraw}
+          disabled={spectator || ask !== null || bar === null || !bar.enable1 || playOrDraw || confirmPrompt}
           onClick={() => pressButton(match, 'ok')}
         >
           {bar === null || bar.label1 === '' ? 'OK' : bar.label1}
@@ -1794,6 +1874,29 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             enableDraw={bar?.enable2 ?? false}
             onPlay={() => pressButton(match, 'ok')}
             onDraw={() => pressButton(match, 'cancel')}
+          />
+        </div>
+      )}
+      {/*
+       * T4 (shape 1): every yes/no that is an ANSWER, in the decision area —
+       * the operator's *"i hate yes/no on control bar. should always be the
+       * big pop up."* `onYes`/`onNo` are `pressButton`, the same sender the
+       * control bar's own OK/Cancel use (`ConfirmPrompt.tsx`'s own header has
+       * the precedent), so a press here is indistinguishable from one there
+       * as far as the wire is concerned. The bar itself draws neither button
+       * while this is up (`showsSecondButton`/the OK button's own `disabled`,
+       * both above).
+       */}
+      {confirmPrompt && bar !== null && (
+        <div className="live__prompt" data-testid="live-confirm-host">
+          <ConfirmPrompt
+            message={plainRulesText(match.prompt ?? '')}
+            label1={bar.label1}
+            label2={bar.label2}
+            enable1={bar.enable1}
+            enable2={bar.enable2}
+            onYes={() => pressButton(match, 'ok')}
+            onNo={() => pressButton(match, 'cancel')}
           />
         </div>
       )}
