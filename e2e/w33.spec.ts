@@ -180,14 +180,24 @@ test(titled('Q7 — with exactly one spell on the stack, a counterspell targets 
     // and Memnite (free) to cast; alice (seat 0) holds Mana Leak + 3 Islands.
     const { alice, bob } = await startScenarioMatch(browser, stack, 'lone-spell');
 
-    // 45s, not 15: every "a scenario sets up" precondition in this file was
+    // 90s, not 15: every "a scenario sets up" precondition in this file was
     // bumped here (wave 35 §E) after a reproducible occasional timeout on
     // this exact kind of poll — a fresh Forge JVM's own startup
     // (`startPlayStack`) can take longer than 15s on a loaded host, and this
     // file's `test.describe.configure({ mode: 'serial' })` makes ONE such
-    // flake skip every test after it, not just fail its own. A startup-time
-    // margin on the PRECONDITION only, never on an assertion this file tests.
-    await expect.poll(() => offered(bob.page), { timeout: 45_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' }).not.toEqual([]);
+    // flake skip every test after it, not just fail its own. Bumped twice
+    // more in the SAME full forge-e2e CI-set run (41 tests deep — the
+    // heaviest cumulative host load this file runs under, never missed in
+    // isolation): 45s missed on one test, then a DIFFERENT test's own
+    // precondition missed at 60s — whichever JVM spin-up happens to land
+    // under the worst of the host's load at the time varies run to run, so
+    // every one of these got the same, generous 90s margin rather than
+    // chasing the next one individually. `test.setTimeout` on every test
+    // with one of these was bumped to 3 minutes alongside it, so the
+    // precondition's own margin cannot crowd out the rest of the test. A
+    // startup-time margin on the PRECONDITION only, never on an assertion
+    // this file tests.
+    await expect.poll(() => offered(bob.page), { timeout: 90_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' }).not.toEqual([]);
     const memnite = (await offered(bob.page))[0]!;
     await castCard(bob.page, memnite);
 
@@ -285,7 +295,7 @@ test(titled('Q10 — a seat with no creatures is never stopped at Declare Blocke
 test(titled('Q12 — a seat with one creature gets the block window, can assign it, and it is highlighted selectable'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  test.setTimeout(2 * 60_000);
+  test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
     // one-creature.state: same attack, except bob holds ONE untapped, non-sick
@@ -296,7 +306,7 @@ test(titled('Q12 — a seat with one creature gets the block window, can assign 
     const { alice, bob } = await startScenarioMatch(browser, stack, 'one-creature');
     await passDeclareAttackers(alice.page);
 
-    await expect.poll(() => says(bob.page), { timeout: 45_000, message: 'the block window is open for bob — the precondition "one-creature" sets up' }).toMatch(/select creatures to block/i);
+    await expect.poll(() => says(bob.page), { timeout: 90_000, message: 'the block window is open for bob — the precondition "one-creature" sets up' }).toMatch(/select creatures to block/i);
     const mine = bob.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card');
     await expect(mine, 'exactly the one creature is on the defender\'s board').toHaveCount(1);
     const myId = Number(await mine.first().getAttribute('data-board-card'));
@@ -422,7 +432,7 @@ test(titled('Q14 — clicking a declared attacker undeclares it; a box over it p
 test(titled('Q17 — casting your own spell does not stop you at priority while it sits on the stack'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  test.setTimeout(2 * 60_000);
+  test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
     // own-spell.state: alice (seat 0) has an uncontested MAIN1 and a free
@@ -430,7 +440,7 @@ test(titled('Q17 — casting your own spell does not stop you at priority while 
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
     void bob;
 
-    await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'alice is offered her free creature — the precondition "own-spell" sets up' }).not.toEqual([]);
+    await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered her free creature — the precondition "own-spell" sets up' }).not.toEqual([]);
     const card = (await offered(alice.page))[0]!;
     await clickHandCard(alice.page, card);
 
@@ -555,7 +565,7 @@ test(titled('Q1b — the active-player ring is on the active seat\'s section, an
 test(titled('Ponder\'s full oracle text is readable while it sits on the stack'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  test.setTimeout(2 * 60_000);
+  test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
     // ponder.state: alice (seat 0) holds Ponder and 3 Islands; nothing to respond with.
@@ -575,7 +585,7 @@ test(titled('Ponder\'s full oracle text is readable while it sits on the stack')
     const { alice, bob } = await startScenarioMatch(browser, stack, 'ponder');
     void bob;
 
-    await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
+    await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
     await alice.page.getByTestId('live-full-control').click();
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
     const card = (await offered(alice.page))[0]!;
@@ -600,7 +610,7 @@ test(titled('Ponder\'s full oracle text is readable while it sits on the stack')
 test(titled('a stack item carries its target, and the board draws an arrow to it (the Doom Blade case)'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  test.setTimeout(2 * 60_000);
+  test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
     // auto-target.state: alice (seat 0) holds Doom Blade and 2 Swamps; bob
@@ -625,7 +635,7 @@ test(titled('a stack item carries its target, and the board draws an arrow to it
     await alice.page.getByTestId('live-full-control').click();
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
 
-    await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'alice is offered Doom Blade — the precondition "auto-target" sets up' }).not.toEqual([]);
+    await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered Doom Blade — the precondition "auto-target" sets up' }).not.toEqual([]);
     const card = (await offered(alice.page))[0]!;
     await clickHandCard(alice.page, card);
 

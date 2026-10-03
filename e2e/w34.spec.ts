@@ -174,7 +174,7 @@ test(titled('§E1 — with Full Control on, clicking an instant in response to t
     // free creature (Memnite); alice holds Mana Leak + 3 Islands.
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'lone-spell');
 
-    await expect.poll(() => offered(bob.page), { timeout: 15_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' }).not.toEqual([]);
+    await expect.poll(() => offered(bob.page), { timeout: 90_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' }).not.toEqual([]);
     const memnite = (await offered(bob.page))[0]!;
     await castCard(bob.page, memnite);
 
@@ -247,7 +247,7 @@ async function page_answerOnce(page: Page): Promise<void> {
 test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a real ask, and a click resolves it'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  test.setTimeout(2 * 60_000);
+  test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
     // ponder.state: alice holds Ponder and 3 untapped Islands; nothing on
@@ -256,7 +256,7 @@ test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a r
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'ponder');
 
     const myHandCount = alice.page.locator('.seat[data-viewer] [data-testid="hand-count"]');
-    await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
+    await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
     const handBefore = Number((await myHandCount.getAttribute('aria-label'))?.match(/\d+/)?.[0] ?? '-1');
     const card = (await offered(alice.page))[0]!;
     // NOT `castCard`: its own drain loop calls the generic `answerPrompt`
@@ -282,8 +282,14 @@ test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a r
     // dual-list widget Q8's simultaneous-trigger ordering uses), not a
     // dedicated `manipulateCardList` ask as an earlier draft of this spec
     // assumed.
+    // 90s, not 15: the same occasional host-load margin this wave's other
+    // "sets up"/reaches-the-browser preconditions needed, bumped twice (30s
+    // was still not enough once, in the SAME full forge-e2e CI-set run —
+    // whichever JVM spin-up lands under the worst of the host's load varies
+    // run to run, so every one of these got the same generous margin rather
+    // than chasing the next one individually). Never missed in isolation.
     await expect
-      .poll(() => promptMethod(alice.page), { timeout: 15_000, message: 'Ponder\'s own decision reaches the browser as an ask — the precondition this spec needs' })
+      .poll(() => promptMethod(alice.page), { timeout: 90_000, message: 'Ponder\'s own decision reaches the browser as an ask — the precondition this spec needs' })
       .toBe('order');
 
     // The mechanism, pinned directly — same check as §E1's, and worth making
@@ -487,7 +493,7 @@ test(titled('Q8 — two simultaneous triggers raise no ordering ask by default, 
 test(titled('the Choose X slider renders (not a checkbox fallback), defaults to the minimum, and OK is legible at every legal value including Forge\'s own cap'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  test.setTimeout(2 * 60_000);
+  test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
     // choose-x.state (lane S, §S item 4): Fireball + five untapped Mountains.
@@ -508,7 +514,10 @@ test(titled('the Choose X slider renders (not a checkbox fallback), defaults to 
     const { alice, bob } = await startScenarioMatch(browser, stack, 'choose-x');
     void bob;
 
-    await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered her X spell — the precondition "choose-x" sets up' }).not.toEqual([]);
+    // 30s, not 15: the same host-load margin as this file's other "sets up"
+    // preconditions (missed once in the full forge-e2e CI-set run, never in
+    // isolation).
+    await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered her X spell — the precondition "choose-x" sets up' }).not.toEqual([]);
     const card = (await offered(alice.page))[0]!;
     await clickHandCard(alice.page, card);
 
@@ -636,7 +645,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1366, height: 768
   test(titled(`poison, energy and experience counters are all visible and stay inside their seat's column at ${viewport.width}×${viewport.height}`), async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
-    test.setTimeout(2 * 60_000);
+    test.setTimeout(3 * 60_000);
     const stack = await startPlayStack(forge);
     try {
       // poison.state (lane S, §S item 4): a seat with poison and energy
@@ -647,7 +656,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1366, height: 768
       await alice.page.setViewportSize(viewport);
 
       const counters = alice.page.locator('.seat__counter');
-      await expect.poll(() => counters.count(), { timeout: 15_000, message: 'at least one player counter is drawn — the precondition "poison" sets up' }).toBeGreaterThan(0);
+      await expect.poll(() => counters.count(), { timeout: 90_000, message: 'at least one player counter is drawn — the precondition "poison" sets up' }).toBeGreaterThan(0);
       const names = await counters.evaluateAll((els) => els.map((e) => e.getAttribute('data-counter')));
       expect(names, 'poison and energy are both drawn (the scenario\'s own two counters)').toEqual(expect.arrayContaining(['poison', 'energy']));
       for (let i = 0; i < names.length; i++) {

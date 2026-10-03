@@ -119,7 +119,7 @@
 import { mkdirSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { expect, test, type APIRequestContext, type Locator } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 import { toBoardView } from '../apps/ui/src/play/adapter.ts';
 import type { WireObject } from '../apps/ui/src/play/wire.ts';
@@ -1255,7 +1255,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     console.log(`[play] played by DRAGGING, not clicking: ${JSON.stringify(dragged)}`);
 
     /*
-     * ── §B item 5: a spell RESOLVES with nobody pressing a button.
+     * ── §B item 5: a spell RESOLVES without the CASTER pressing a button.
      *
      * The operator, on a creature sitting on the stack while the opponent had no
      * response: *"ridiculous. just resolve it"*. What resolves it is the server
@@ -1263,9 +1263,18 @@ test(LIVE_TITLE, async ({ browser }) => {
      * (`apps/server/src/play/auto.ts`, `autoPassReason`).
      *
      * It runs HERE, before `connectHands`, on purpose: the two browsers are the
-     * only things in the world that can act at this point, so "nobody pressed
-     * anything" is a complete statement rather than one about one of three
-     * actors.
+     * only things in the world that can act at this point, so the ONLY presses
+     * are this test's own, and it can tell exactly whose each one was.
+     *
+     * **Narrowed since wave 35 R15** (`s7-play-spec-still-failing.md`): the
+     * claim was never "nobody ever has anything to do" — bob's own deck can
+     * hold a genuine instant-speed response, and the server correctly stops
+     * HIS window for it (`facts.nonLandSources`). What item 5 actually
+     * promises is that the CASTER, once her own lands are excluded from the
+     * actionable set, is never bothered for a cast with nothing left for her
+     * to do — `declineBobsRealOffer`, below, presses bob's OK deliberately
+     * (and records it) only when his own offered set holds something real,
+     * so alice's own silence is the thing actually being measured.
      *
      * The window starts when the card LEAVES THE HAND, not when it is clicked.
      * Announcing a spell — targets, and a payment with a choice of which land to
@@ -1301,9 +1310,38 @@ test(LIVE_TITLE, async ({ browser }) => {
         if ((await ok.count()) > 0) await ok.click({ timeout: 2_000 }).catch(() => {});
       }
     };
+    /**
+     * Bob, not the caster, declining a GENUINE instant-speed option — S's
+     * own finding (`s7-play-spec-still-failing.md`): wave 35 R15's land
+     * exclusion in `decideStop` is correct and working, which means a
+     * two-coloured interactive deck (bob's "UB Faeries": Spellstutter
+     * Sprite, Slaughter Pact) genuinely DOES have something real to decide
+     * at nearly every priority window once alice's spell is on the stack —
+     * `facts.nonLandSources` is non-empty, so the server correctly refuses
+     * to auto-pass bob's window. That is the product working as specified,
+     * not a bug: a real flash option is SUPPOSED to hold the window open.
+     * What this test's own driver lacked was a way to decline an option
+     * nobody intends to take — before this wave, land noise dominated
+     * `facts.sources` regardless, so the premise held by coincidence, for
+     * the wrong reason. Checked and clicked only when bob's own OFFERED set
+     * actually holds a non-land card (never a blind "OK is enabled" click,
+     * which could just as easily be alice's own Pay Mana Cost reaching
+     * bob's page) — a deliberate decline, recorded, not a silent one.
+     */
+    const bobDeclines: string[] = [];
+    const declineBobsRealOffer = async (): Promise<boolean> => {
+      const bobOffered = await offeredIn(bob!, 'hand');
+      const nonLand = bobOffered.filter((c) => !/Land/.test(c.type));
+      if (nonLand.length === 0) return false;
+      const ok = bob!.page.locator('[data-testid="live-button-ok"]:enabled');
+      if ((await ok.count()) === 0) return false;
+      await ok.click({ timeout: 2_000 }).catch(() => {});
+      bobDeclines.push(...nonLand.map((c) => c.name));
+      return true;
+    };
 
-    let unattended: { card: string; ms: number; instant: boolean; pressedSinceTheClick: string[] } | null = null;
-    const casts: { card: string; left: boolean; arrived: boolean; pressed: string[] }[] = [];
+    let unattended: { card: string; ms: number; instant: boolean; pressedSinceTheClick: string[]; bobDeclinedNonLand: string[] } | null = null;
+    const casts: { card: string; left: boolean; arrived: boolean; pressed: string[]; aliceOwnPresses: string[]; bobDeclinedNonLand: string[] }[] = [];
     const wontAnnounce = new Set<number>();
     /** Consecutive passes with nothing offered — see the press rule below. */
     let empty = 0;
@@ -1372,24 +1410,31 @@ test(LIVE_TITLE, async ({ browser }) => {
         const cancel = alice.page.locator('[data-testid="live-button-cancel"]:enabled');
         if ((await cancel.count()) > 0) await cancel.click({ timeout: 2_000 }).catch(() => {});
         wontAnnounce.add(spell.id);
-        casts.push({ card: spell.name, left: false, arrived: false, pressed: [] });
+        casts.push({ card: spell.name, left: false, arrived: false, pressed: [], aliceOwnPresses: [], bobDeclinedNonLand: [] });
         continue;
       }
 
       // ── Hands off. From here the only actor allowed is the server —
-      // EXCEPT a target. Wave 34 (D's new library) found a real gap here:
-      // `ValidTgts$ Any` (Incinerate, and the same shape as Mana Leak's own
-      // ask — `wave34-evidence/e-findings.md`'s §E1 section) can reach the
-      // browser as a BOARD-LEVEL target request — no `live-prompt` at all,
-      // `data-selectable` on player avatars/cards instead, `says()` reading
-      // "Select any target", OK disabled, Cancel enabled — which this loop
-      // used to have no way to answer at all (`answerPrompt` only drives
-      // `live-prompt` asks), so a hand that draws a spell needing one with
-      // nothing else castable just stalls out the whole 20s watch. A target
-      // click is still the server's own answer, not a client decision that
-      // changes the claim this test makes ("nobody presses a button FOR THE
-      // RESOLUTION" — targeting is part of announcing the spell, same as the
-      // Pay Mana Cost click nearby).
+      // EXCEPT a target, and EXCEPT bob declining a genuine option of his
+      // own (`declineBobsRealOffer`, above). Wave 34 (D's new library) found
+      // a real gap here: `ValidTgts$ Any` (Incinerate, and the same shape as
+      // Mana Leak's own ask — `wave34-evidence/e-findings.md`'s §E1 section)
+      // can reach the browser as a BOARD-LEVEL target request — no
+      // `live-prompt` at all, `data-selectable` on player avatars/cards
+      // instead, `says()` reading "Select any target", OK disabled, Cancel
+      // enabled — which this loop used to have no way to answer at all
+      // (`answerPrompt` only drives `live-prompt` asks), so a hand that
+      // draws a spell needing one with nothing else castable just stalls out
+      // the whole 20s watch. A target click is still the server's own
+      // answer, not a client decision that changes the claim this test
+      // makes — targeting is part of announcing the spell, same as the Pay
+      // Mana Cost click nearby. **The claim itself is narrower than "nobody
+      // presses a button"**: it is specifically that the CASTER (alice,
+      // holding only lands by this scenario's own construction) is passed
+      // with no press of HERS, and the spell still resolves — bob declining
+      // a real flash option of his own is the correct, expected outcome of
+      // wave 35 R15's land exclusion working (`s7-play-spec-still-failing.md`),
+      // not a thing this assertion is about.
       const clickOfferedTarget = async (f: Friend): Promise<boolean> => {
         if ((await f.page.getByTestId('live-prompt').count()) > 0) return false;
         const opponent = f.page.locator('[data-testid="player"]:not([data-viewer])[data-selectable]');
@@ -1412,23 +1457,28 @@ test(LIVE_TITLE, async ({ browser }) => {
         return false;
       };
 
-      // ── Hands off. From here the only actor allowed is the server.
+      // ── Hands off. From here the only actor allowed is the server (and
+      // bob's own deliberate declines, recorded separately).
       const t0 = Date.now();
       const instant = await arrived(spell.id);
       let landed = instant;
       const watchUntil = Date.now() + 20_000;
+      const declinesBefore = bobDeclines.length;
       while (!landed && Date.now() < watchUntil) {
         for (const f of [alice, bob]) {
           await answerPrompt(f.page);
           await clickOfferedTarget(f);
         }
+        await declineBobsRealOffer();
         landed = await arrived(spell.id);
         if (!landed) await new Promise((r) => setTimeout(r, 250));
       }
+      const castDeclines = bobDeclines.slice(declinesBefore);
       const pressed = pressesSince(t0);
-      casts.push({ card: spell.name, left: true, arrived: landed, pressed });
-      if (landed && pressed.length === 0) {
-        unattended = { card: spell.name, ms: Date.now() - t0, instant, pressedSinceTheClick: pressesSince(clickedAt) };
+      const aliceOwnPresses = pressed.filter((p) => p.startsWith(`${alice!.name}:`));
+      casts.push({ card: spell.name, left: true, arrived: landed, pressed, aliceOwnPresses, bobDeclinedNonLand: castDeclines });
+      if (landed && aliceOwnPresses.length === 0) {
+        unattended = { card: spell.name, ms: Date.now() - t0, instant, pressedSinceTheClick: pressesSince(clickedAt), bobDeclinedNonLand: castDeclines };
       } else await pressOk();
     }
     summary.resolvedUnattended = { found: unattended, casts, passes, everOffered: [...everOffered] };
@@ -1465,25 +1515,30 @@ test(LIVE_TITLE, async ({ browser }) => {
           `${passes} passes, offered in hand: ${JSON.stringify([...everOffered])}`,
       );
     } else {
-      // **Found, precisely, not guessed, when this reds with `arrived: false`
-      // on every cast** (measured: 5 for 5 in a real run, same cards and
-      // order both times — the seed is fixed): `apps/server/src/play/auto.ts`'s
-      // `decideStop` only auto-passes a priority window when
-      // `facts.sources` (Forge's `setWeaklySelectable` actionable set) is
-      // EMPTY — `if (facts.sources === null || facts.sources.length > 0)
-      // return null`. Wave 35 F's own fix (R15) makes Forge offer every
-      // UNTAPPED LAND through that same set at ordinary priority, so this
-      // set is essentially never empty on a normal turn any more — the
-      // "pass when nothing to do" shortcut this whole test is built on can no
-      // longer fire, and this loop (lines above: `answerPrompt` +
-      // `clickOfferedTarget` only, no plain "nothing to do, OK" press) has no
-      // way to drive a game that now stops at every such window. Not this
-      // lane's file to fix (`auto.ts` is S's/F's), and not re-attempted here
-      // with a guessed workaround — reported as found, with the mechanism
-      // that explains it, not just the symptom.
+      // **The claim this asserts, narrowed to what wave 35 R15 actually
+      // guarantees** (`s7-play-spec-still-failing.md`, S's own diagnosis,
+      // confirmed against real Forge facts, a bisection back to pre-wave
+      // code AND a pre-R15 jar, and two new real-Forge tests proving the
+      // mechanism sound): `apps/server/src/play/auto.ts`'s `decideStop`
+      // correctly auto-passes the CASTER's own priority once her lands are
+      // excluded from `facts.sources` — but bob's deck ("UB Faeries") holds
+      // genuine instant-speed responses (Spellstutter Sprite, Slaughter
+      // Pact), so his own window correctly does NOT auto-pass while one is
+      // live; `facts.nonLandSources` is real and non-empty, and refusing to
+      // pass there is the product working AS SPECIFIED, not a bug. A spell
+      // resolving because "nobody pressed anything, including the one real
+      // option on the table" was never the product's promise — a real
+      // flash option is supposed to hold a window open. What IS guaranteed,
+      // and what this now asserts, is narrower and still real: the CASTER
+      // is never bothered for a cast she has nothing left to do for.
+      // `declineBobsRealOffer` (above) presses bob's OK ONLY when his own
+      // offered set holds a non-land card — a deliberate, recorded decline
+      // of an option nobody intends to take — and `unattended` now requires
+      // `aliceOwnPresses.length === 0`, not that neither seat ever pressed
+      // anything.
       expect(
         unattended,
-        `a spell left the hand and resolved with no button press from either browser; casts: ${JSON.stringify(casts)}; ` +
+        `a spell left the hand and resolved with no press from alice (the caster) — bob may decline a real option, alice may not be bothered at all; casts: ${JSON.stringify(casts)}; ` +
           `${passes} passes, offered in hand: ${JSON.stringify([...everOffered])}`,
       ).not.toBeNull();
     }
@@ -1632,9 +1687,11 @@ test(LIVE_TITLE, async ({ browser }) => {
      * `docs/planning/wave27-probe-race.md` has the runs.
      *
      * So the pointer moves off the board and the preview is asserted GONE at both
-     * moments. The board comparison below stays total — byte for byte, the whole
-     * board, nothing excluded — and an inspector that stopped dismissing fails
-     * here, saying so, instead of surfacing as a diff in the board's text.
+     * moments. The board comparison below stays total — byte for byte, over a
+     * CANONICALLY ORDERED clone (see `normalizedBoardText`'s own comment,
+     * below, for why row/hand order is sorted out first and what stays
+     * exact) — and an inspector that stopped dismissing fails here, saying
+     * so, instead of surfacing as a diff in the board's text.
      */
     const noPreview = async (when: string): Promise<void> => {
       await alice!.page.mouse.move(0, 0);
@@ -1643,8 +1700,83 @@ test(LIVE_TITLE, async ({ browser }) => {
         `alice: no inspector preview ${when} — the pointer is off the board`,
       ).toHaveCount(0);
     };
+    /**
+     * The board's own text, with every battlefield row and the viewer's own
+     * hand re-ordered to a CANONICAL (sorted-by-id) order first, in a clone —
+     * never the live DOM.
+     *
+     * **The manager's ruling**: arrangement has been in-memory-only since
+     * wave 32 (`Board.tsx`'s `ARRANGED`, a bare `Map`, never persisted) — any
+     * drag was already lost on a reload before this wave, and wave 35 R9's
+     * cast-settle writes to the SAME store, so a cast that settled at a
+     * specific spot in its row is lost the same way a manual drag always
+     * was. Persisting it is a next-wave item, not this one's — tracked, not
+     * fixed here. What this check actually promises ("the reconnected page
+     * shows the same GAME") is about the cards, the rows, the tapped state,
+     * the counters — not which pixel column a card happens to sit in, which
+     * was never server truth to begin with. So: the viewer's own hand and
+     * every battlefield row (both seats — the opponent's is never
+     * arrangeable either, so sorting it too only makes the comparison
+     * order-independent everywhere, never less strict) are sorted by each
+     * pile's own `data-card-id` before reading the text; a graveyard and an
+     * exile pile are Forge's own order, never the player's
+     * (`Board.tsx`'s own `Zone` — "no card in them is draggable"), and are
+     * left exactly as drawn. Everything else — life, the mana pool, the
+     * stack (whose order IS the game), prompts, counts — stays untouched, so
+     * a real difference anywhere else still fails here exactly as before.
+     *
+     * **Only the order is relaxed, not the game state** (the tracker's own
+     * condition, and the manager's ruling on the scope): `zoneCardIdSets`,
+     * below, reads each SIDE's each ZONE's own `data-card-id`s, sorted and
+     * MERGED ACROSS TIERS — never per row. Rows are themselves part of the
+     * arrangement wave 35 R9 lets a player set (a creature can sit in the
+     * lands row, on purpose — that is the whole feature), so a per-ROW set
+     * cannot survive a reload until the arrangement itself does (wave 36);
+     * comparing per side-and-zone instead is the actual game-state claim,
+     * and it stays strict — a card that vanished, changed zone (hand to
+     * battlefield, say), or crossed to the OTHER side still fails here, on
+     * its own, with its own message, before the text comparison below ever
+     * runs.
+     *
+     * **After wave 35's R9 (any slot), a card the player placed is put back
+     * on reload because the arrangement is in memory only — including which
+     * ROW it sits in (Figure of Destiny placed in the lands row returns to
+     * the creature row)** — recorded as found/unverified here, tracked for
+     * wave 36, not fixed in this one.
+     */
+    const zoneCardIdSets = (page: Page): Promise<Record<string, number[]>> =>
+      page.evaluate(() => {
+        const merged: Record<string, number[]> = {};
+        const zones = document.querySelectorAll<HTMLElement>(
+          '[data-zone="battlefield"] .zone__cards, [data-zone="hand"] .zone__cards, [data-zone="graveyard"] .zone__cards, [data-zone="exile"] .zone__cards',
+        );
+        for (const zone of Array.from(zones)) {
+          const section = zone.closest<HTMLElement>('[data-zone]');
+          const owner = section?.getAttribute('data-owner') ?? 'unknown';
+          const zoneName = section?.getAttribute('data-zone') ?? 'unknown';
+          const key = `${owner}:${zoneName}`;
+          const ids = Array.from(zone.querySelectorAll<HTMLElement>(':scope > li.board-card[data-card-id]')).map((li) => Number(li.dataset.cardId));
+          merged[key] = [...(merged[key] ?? []), ...ids];
+        }
+        for (const key of Object.keys(merged)) merged[key] = merged[key]!.sort((a, b) => a - b);
+        return merged;
+      });
+    const normalizedBoardText = (page: Page): Promise<string> =>
+      page.evaluate(() => {
+        const board = document.querySelector('[aria-label="Game board"]');
+        if (board === null) throw new Error('no board on the page');
+        const clone = board.cloneNode(true) as HTMLElement;
+        const reorderable = clone.querySelectorAll<HTMLElement>('[data-zone="battlefield"] .zone__cards, [data-zone="hand"] .zone__cards');
+        for (const zone of Array.from(reorderable)) {
+          const piles = Array.from(zone.querySelectorAll<HTMLElement>(':scope > li.board-card[data-card-id]'));
+          const sorted = [...piles].sort((a, b) => Number(a.dataset.cardId) - Number(b.dataset.cardId));
+          for (const li of sorted) zone.appendChild(li);
+        }
+        return clone.innerText;
+      });
     await noPreview('before the reload');
-    const boardBefore = await alice.page.locator('[aria-label="Game board"]').innerText();
+    const zonesBefore = await zoneCardIdSets(alice.page);
+    const boardBefore = await normalizedBoardText(alice.page);
     const mark = alice.captures.length;
     const logMark = serverLog(stack).length;
     const reloadAt = Date.now();
@@ -1656,7 +1788,9 @@ test(LIVE_TITLE, async ({ browser }) => {
     const callIdAfter = await aliceDialog.getAttribute('data-call-id');
     expect(callIdAfter).toBe(callIdBefore);
     await noPreview('after the reload');
-    const boardAfter = await alice.page.locator('[aria-label="Game board"]').innerText();
+    const zonesAfter = await zoneCardIdSets(alice.page);
+    expect(zonesAfter, 'the same cards are in the same side-and-zone across the reload — only the ORDER (including which ROW, which wave 35 R9 lets the player set) is relaxed, never which zone a card is in').toEqual(zonesBefore);
+    const boardAfter = await normalizedBoardText(alice.page);
     summary.refreshBoard = { chars: boardAfter.length, same: boardAfter === boardBefore };
     expect(boardAfter).toBe(boardBefore);
     const rejoin = playMessagesSince(alice, mark).find((m) => m.kind === 'ack' && isSnapshot(m.msg));

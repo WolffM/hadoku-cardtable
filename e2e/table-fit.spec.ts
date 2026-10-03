@@ -982,13 +982,24 @@ test(TITLE, async ({ browser }) => {
       // never resumed before this point) — this phase can still change
       // without a click (Forge's own combat progression), so the wait is for
       // the WINDOW to pass, not for a bot to stop acting.
+      // A combat-declare window does not pass itself: Forge waits for the
+      // seat's own decision (attack with none, block with none), and the
+      // bots are paused for this whole section (above) — nobody else will
+      // ever click it. A PASSIVE poll measured 30s of nothing in the full
+      // CI-set run (heavier host load, more turns reached by this point) and
+      // timed out still sitting in `COMBAT_DECLARE_ATTACKERS`. So: press OK
+      // ourselves while waiting — the same "declare nothing, move on"
+      // mechanism `w33.spec.ts`'s own `passDeclareAttackers` uses — rather
+      // than only watching for the window to end on its own.
       const notDeclaring = /^COMBAT_DECLARE_(ATTACKERS|BLOCKERS)$/;
-      await expect
-        .poll(() => f.page.getByTestId('live-phases').getAttribute('data-phase'), {
-          timeout: 30_000,
-          message: `${f.name}: the match is sitting in a combat-declare window — install.ts claims a press on the viewer's own battlefield there, so this drag is not testing the arrange gesture at all`,
-        })
-        .not.toMatch(notDeclaring);
+      const declareDeadline = Date.now() + 30_000;
+      while (notDeclaring.test((await f.page.getByTestId('live-phases').getAttribute('data-phase')) ?? '')) {
+        if (Date.now() > declareDeadline) {
+          throw new Error(`${f.name}: still sitting in a combat-declare window after 30s of pressing OK — install.ts claims a press on the viewer's own battlefield there, so this drag is not testing the arrange gesture at all`);
+        }
+        if ((await enabledOk(f).count()) > 0) await enabledOk(f).click({ timeout: 2_000 }).catch(() => {});
+        await f.page.waitForTimeout(250);
+      }
       const phaseNow = await f.page.getByTestId('live-phases').getAttribute('data-phase');
       expect(phaseNow, `${f.name}: the precondition this drag needs — out of a combat-declare window`).not.toMatch(notDeclaring);
       // Re-read, not the `seats` snapshot taken before the wait above: the
