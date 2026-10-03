@@ -48,11 +48,11 @@ The operator handed the three open play-test items to the tracker directly;
   with `sources 0` and Lightning Bolt in the scripted hand. That is the
   scenario-start race `PlayBridge.java`'s own `refreshActionable` comment calls
   intermittent — Forge's `cachedActionableCards`, computed before the start-game
-  hook replaces the hand, reaching the first priority window — plus the
-  scenario's `activeplayer` landing on different seats in a passing and a failing
-  run of the SAME `.state`. Not a product bug a player meets (scenarios are
-  e2e-only); every red today was a scenario precondition. **w37 item (engine lane,
-  alone):** make scenario application deterministic in the bridge (apply, then
+  hook replaces the hand, reaching the first priority window. (An earlier line
+  here said the active seat differed between a passing and a failing run; that
+  compared different specs and is retracted: passing `lone-spell` stacks `eQkqXQ`
+  and `YsVAFC` have the same `Active=Bob`, with sources 1.) Not a product bug a player meets (scenarios are
+  e2e-only); every red today was a scenario precondition. **Wave 37 (`docs/planning/wave37-2026-10-03.md`, scaffolded 2026-10-03):** make scenario application deterministic in the bridge (apply, then
   force a fresh priority input rather than a cache null), and have
   `startScenarioMatch` assert the applied state (`activeplayer`, the scripted
   hand on the board) before any spec polls `offered` — a precondition that fails
