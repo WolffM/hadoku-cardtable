@@ -362,6 +362,11 @@ export function isOver(match: LiveMatch): boolean {
 function myMoveNow(match: LiveMatch): boolean {
   if (isSpectator(match)) return false;
   if (currentAsk(match) !== null) return true;
+  // An open selection (a reveal, a discard, a target to click) is the viewer's
+  // move even while the bar's OK is disabled: it stays disabled until the
+  // selection is satisfied. Found on Secluded Glen's reveal (T12), where the
+  // page read "Waiting for Bob…" over the viewer's own choice.
+  if (match.selectables !== null) return true;
   if (payingMana(match)) return true;
   const bar = match.buttons;
   return bar !== null && bar.enable1;

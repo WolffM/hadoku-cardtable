@@ -1667,6 +1667,32 @@ describe('R7 — Arena casting: sent at the settle, the gesture stays open for w
    * (a stale hit-test being trusted) cannot arise any more, reflowed sibling
    * or not. This pins that guarantee rather than the old point-fix.
    */
+  it('a click-armed cast whose resolution opens a selection naming a HAND card: the press on that card ANSWERS it, it is not a drop back on the hand (T12, Secluded Glen)', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    expect(hand.length).toBeGreaterThan(1);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!]), okBar()])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const land = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
+    // The Arena click: lift, release (still armed), settle over the battlefield — the cast goes out.
+    fireEvent.pointerDown(land, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(land, { clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
+    // Forge resolves the land's own ETB into a selection naming the OTHER hand card (the Faerie to reveal).
+    for (const f of notify([prompt('Secluded Glen (1)\n\nSelect 1 Faerie card(s) to reveal (or: enters tapped. )'), selectables([hand[1]!], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    const faerie = cardEl(canvas, hand[1]!).querySelector<HTMLButtonElement>('button')!;
+    fireEvent.pointerDown(faerie, { button: 0, clientX: 60, clientY: 10 });
+    fireEvent.pointerUp(faerie, { clientX: 60, clientY: 10 });
+    fireEvent.click(faerie);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s), 'the Faerie is SELECTED; nothing cancelled the reveal').toEqual([['selectCard', hand[0]!], ['selectCard', hand[1]!]]);
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+  });
+
   it('two clicks with no movement into the battlefield never send anything, even onto a reflowed SIBLING', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);

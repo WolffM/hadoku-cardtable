@@ -3034,6 +3034,16 @@ describe('T2 — a calm "waiting for the other player"', () => {
     expect(isWaitingForOpponent(m)).toBe(true);
   });
 
+  it('is gone while a SELECTION is open for the viewer, even with the bar’s OK disabled — a reveal or a discard is their move (T12)', async () => {
+    const { s, m, queryByTestId } = await liveBoard();
+    const hand = m.view!.players.find((p) => p.isViewer)!.hand!.map((c) => c.id);
+    s.send(updateButtons(false));
+    s.send(parseServerFrame({ kind: 'notify', method: 'setSelectables', cards: [{ kind: 'card', id: hand[0]! }], min: 1, max: 1 }));
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    expect(isWaitingForOpponent(m)).toBe(false);
+    expect(queryByTestId('live-waiting')).toBeNull();
+  });
+
   it('is gone the instant Forge enables the viewer’s own OK — that is "my move"', async () => {
     const { s, m, queryByTestId } = await liveBoard();
     s.send(updateButtons(true));

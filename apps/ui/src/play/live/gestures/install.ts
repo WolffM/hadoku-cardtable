@@ -251,6 +251,21 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * the stack items it names are the targets; otherwise it is what Forge offered
    * on the board.
    */
+  /**
+   * The card under `node` is one an OPEN selection names. A press on it while a
+   * click-armed cast is still out is an ANSWER to that selection, never a drop
+   * back on the hand: Secluded Glen's "reveal a Faerie" opens exactly such a
+   * selection — naming a hand card — within ~90 ms of the land's own cast
+   * settling, so the armed gesture is still there when the player clicks the
+   * Faerie. Treating that press as "back on the hand" sent Forge's Cancel into
+   * the reveal, and the land entered tapped every time (ledger T12, the wave 36
+   * regression; it was latent in wave 35 and timing-dependent).
+   */
+  function namedByOpenSelection(node: EventTarget | null): boolean {
+    const t = targetAt(node);
+    return t !== null && t.kind === 'card' && match.selectables !== null && match.selectables.cards.has(t.id);
+  }
+
   function targetAt(node: EventTarget | null): DropTarget | null {
     const asked = stackAsk(match);
     if (asked !== null) {
@@ -419,7 +434,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       dropCastLift(held);
       clearPlacementPreview(held);
       paint();
-      if (overOwnHand(event.target)) {
+      if (overOwnHand(event.target) && !namedByOpenSelection(event.target)) {
         cancelCastNetwork(held);
       } else {
         noteReleasePlacement(held, { x: event.clientX, y: event.clientY }, event.target);
