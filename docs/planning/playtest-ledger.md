@@ -194,7 +194,7 @@ oddity at a specific stop may come from it (T3 is the candidate). Nothing from w
 | T7 | Cavern of Souls does not show its chosen creature type | 1 | open → w36 | | the Cavern shows the type it named | |
 | T8 | the stack's scrolling is ugly; show what is happening on the stack without all the text | 3 (with P9, R-stack) | reopened → w36 | w32/w33 made the text readable by scrolling it; the operator wants a different depiction (e.g. card art + one line, full text on hover) | | |
 | T9 | Spirit token has no art | 2 (with R14) | planned w35 | R14: `art-ids.json` had no token entries at all; w35 lane B adds them. Not deployed when reported | a Spirit token has art | |
-| T10 | (found by the w35 manager, not reported) the board arrangement is lost on a reload: a card you placed in a slot goes back to its default position | 0 | open → w36 | the arrangement has been in memory only since w32; w35's "any slot" (R9) makes it visible. w35's reload test compares row order loosely because of it | move a card, reload: it stays where you put it | |
+| T10 | (found by the w35 manager, not reported) the board arrangement is lost on a reload: a card you placed goes back to its default slot AND row (R9 lets a card sit in another type's row, e.g. Figure of Destiny in the lands row; a reload puts it back in its type row) | 0 | open → w36 | the arrangement has been in memory only since w32; w35's "any slot" (R9) makes it visible. w35's reload test compares row order loosely because of it | move a card, reload: it stays where you put it | |
 
 ## Asks outside a play-test — 2026-10-02
 
