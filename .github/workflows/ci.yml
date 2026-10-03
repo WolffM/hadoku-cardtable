@@ -257,6 +257,12 @@ jobs:
       # Wave 34 §E: `w34.spec.ts` joins — Full Control responding to an
       # opponent's spell, Ponder's decisions reaching a click, Q8's ordering
       # ask, the Choose X slider, and the player counters' column.
+      #
+      # Wave 35 §E: `w35.spec.ts` joins — Secluded Glen's reveal, the
+      # swallowed OK press, Thoughtseize's one choice, token art, a land
+      # tapped at priority (F's jar, installed 2026-10-02), End Turn's
+      # highlight, the turn counter's move into the logbook, and the
+      # result-screen/Rematch/Main-menu/leader-handoff flow.
       - name: E2E — two friends play a real Forge match, and the table fits
         env:
           CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
@@ -265,5 +271,5 @@ jobs:
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/forge-e2e-report.json
         run: |
           rm -f "$PLAYWRIGHT_JSON_OUTPUT_FILE"
-          pnpm --filter @hadoku/e2e test play.spec.ts table-fit.spec.ts w31.spec.ts w32.spec.ts w33.spec.ts w34.spec.ts
+          pnpm --filter @hadoku/e2e test play.spec.ts table-fit.spec.ts w31.spec.ts w32.spec.ts w33.spec.ts w34.spec.ts w35.spec.ts
           jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null || { echo "::error::e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1) — a skipped test is not a pass"; exit 1; }

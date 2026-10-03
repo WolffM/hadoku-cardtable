@@ -965,22 +965,25 @@ test(LIVE_TITLE, async ({ browser }) => {
     // their own page. If this fails, a human is stuck exactly where the
     // operator was on 2026-09-19.
     //
-    // The bar itself is on BOTH pages in every frame now (it has a fixed
-    // home and never comes and goes), so the seat Forge is asking is the one
-    // whose OK is ENABLED — and it must be exactly one of them.
+    // Wave 35 R2 moved this specific question (the opening Play/Draw choice)
+    // off `live-button-ok` into its own decision area
+    // (`live-play-or-draw-play`, lane G's `PlayOrDrawPrompt`, wired by lane
+    // L) — `live-button-ok` is disabled for the whole time it is open. The
+    // claim this block makes is unchanged (exactly one seat's own board can
+    // answer it); only which testid carries the button moved.
     const seats = [alice, bob];
-    const enabledOk = async (f: Friend) => f.page.locator('[data-testid="live-button-ok"]:enabled').count();
+    const openingCount = async (f: Friend) => f.page.getByTestId('live-play-or-draw-play').count();
     await expect
-      .poll(async () => (await Promise.all(seats.map(enabledOk))).reduce((a, b) => a + b, 0), {
+      .poll(async () => (await Promise.all(seats.map(openingCount))).reduce((a, b) => a + b, 0), {
         timeout: 30_000,
-        message: 'exactly one seat’s board must offer Forge’s opening OK',
+        message: 'exactly one seat’s board must offer Forge’s opening Play/Draw choice',
       })
       .toBe(1);
-    const withBar = await Promise.all(seats.map(async (f) => ({ f, n: await enabledOk(f) })));
+    const withBar = await Promise.all(seats.map(async (f) => ({ f, n: await openingCount(f) })));
     const decider = withBar.find((w) => w.n > 0);
-    expect(decider, 'neither board drew Forge\'s button bar — the match cannot be started by a human').toBeTruthy();
+    expect(decider, 'neither board drew Forge\'s decision area for the opening — the match cannot be started by a human').toBeTruthy();
 
-    const boardButton = decider!.f.page.getByTestId('live-button-ok');
+    const boardButton = decider!.f.page.getByTestId('live-play-or-draw-play');
     await expect(boardButton).toBeEnabled();
     const saysBefore = await decider!.f.page.getByTestId('live-says').textContent();
     await boardButton.click();
@@ -1462,6 +1465,22 @@ test(LIVE_TITLE, async ({ browser }) => {
           `${passes} passes, offered in hand: ${JSON.stringify([...everOffered])}`,
       );
     } else {
+      // **Found, precisely, not guessed, when this reds with `arrived: false`
+      // on every cast** (measured: 5 for 5 in a real run, same cards and
+      // order both times — the seed is fixed): `apps/server/src/play/auto.ts`'s
+      // `decideStop` only auto-passes a priority window when
+      // `facts.sources` (Forge's `setWeaklySelectable` actionable set) is
+      // EMPTY — `if (facts.sources === null || facts.sources.length > 0)
+      // return null`. Wave 35 F's own fix (R15) makes Forge offer every
+      // UNTAPPED LAND through that same set at ordinary priority, so this
+      // set is essentially never empty on a normal turn any more — the
+      // "pass when nothing to do" shortcut this whole test is built on can no
+      // longer fire, and this loop (lines above: `answerPrompt` +
+      // `clickOfferedTarget` only, no plain "nothing to do, OK" press) has no
+      // way to drive a game that now stops at every such window. Not this
+      // lane's file to fix (`auto.ts` is S's/F's), and not re-attempted here
+      // with a guessed workaround — reported as found, with the mechanism
+      // that explains it, not just the symptom.
       expect(
         unattended,
         `a spell left the hand and resolved with no button press from either browser; casts: ${JSON.stringify(casts)}; ` +
@@ -1505,7 +1524,7 @@ test(LIVE_TITLE, async ({ browser }) => {
       await answerBoth();
       await new Promise((r) => setTimeout(r, 250));
     }
-    for (const h of hands) h.pause();
+    for (const h of hands) await h.pause();
     // Anything asked on the way to the pause is still the board's to answer.
     for (let i = 0; i < 20; i++) {
       await answerBoth();

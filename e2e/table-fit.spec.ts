@@ -486,16 +486,22 @@ async function samples(f: Friend): Promise<FitSamples> {
  * cluster's OK and Cancel carry `label1`/`label2` off the wire, which have been
  * `OK`, `Cancel`, `Auto`, `Play` and `Draw` and are not this file's to predict.
  *
- * These four ARE, and they are asserted as strings rather than only measured,
+ * These three ARE, and they are asserted as strings rather than only measured,
  * because `scrollWidth` alone would pass a stylesheet that fitted the box by
  * shortening the word — which is the same loss the ellipsis was, spelled
  * differently. The rendered text must be the whole intended text (wave 27 §B).
+ *
+ * `live-log-toggle` was a fourth TEXT label here until wave 35 R8 made it an
+ * icon button (`LiveBoard.tsx`: an `<svg>`, `aria-label="Log"`, no text node)
+ * — `textContent` is now always `""` for it, which this same check read as
+ * "the word got clipped to nothing" until it was moved to its own
+ * `aria-label`-based check, below, that still asserts the control SAYS what
+ * it does, just through its accessible name instead of visible text now.
  */
 const OUR_LABELS: Record<string, string> = {
   'live-leave': 'Leave',
   'live-full-control': 'Full control',
   'live-concede': 'Concede',
-  'live-log-toggle': 'Log',
 };
 
 /** The same checks the sampler makes, made once from outside at a named moment. */
@@ -513,6 +519,9 @@ async function fitsNow(f: Friend, moment: string): Promise<Record<string, unknow
       prompt: box('[data-testid="live-prompt"]'),
       turn: document.querySelector('[data-testid="live-turn"]')?.textContent ?? null,
       battlefields: Array.from(document.querySelectorAll<HTMLElement>('.seat [data-zone="battlefield"]')).map((z) => Number(z.dataset.count)),
+      // R8 (wave 35): the log toggle's own word moved to `aria-label` when it
+      // became an icon button — see this file's own `OUR_LABELS` comment.
+      logAriaLabel: document.querySelector('[data-testid="live-log-toggle"]')?.getAttribute('aria-label') ?? null,
       /*
        * What every label in the chrome says and what room it had to say it in
        * (wave 27 §B.3). `scrollWidth` is what the text needed and `clientWidth`
@@ -550,6 +559,9 @@ async function fitsNow(f: Friend, moment: string): Promise<Record<string, unknow
     if (label === undefined) continue;
     expect(label.text, `${where}: ${id} says its whole word`).toBe(intended);
   }
+  // R8: the icon button still says what it does, now through its accessible
+  // name rather than visible text (`OUR_LABELS`'s own comment, above).
+  if (m.logAriaLabel !== null) expect(m.logAriaLabel, `${where}: live-log-toggle's accessible name is its whole word`).toBe('Log');
   if (SHOTS !== '') {
     mkdirSync(SHOTS, { recursive: true });
     await f.page.screenshot({ path: resolve(SHOTS, `${moment.replace(/[^a-z0-9]+/gi, '-')}-${f.name}-${m.size.join('x')}.png`) });
@@ -755,22 +767,30 @@ test(TITLE, async ({ browser }) => {
     /* ── 1. the coin toss and the mulligans, on the board ──────────── */
 
     const enabledOk = (f: Friend) => f.page.locator('[data-testid="live-button-ok"]:enabled');
+    // Wave 35 R2 moved the coin toss off `live-button-ok` into its own
+    // decision area (`live-play-or-draw-play`, lane G's `PlayOrDrawPrompt`) —
+    // `live-button-ok` is disabled the whole time that question is open, so
+    // the mulligan's own OK (unaffected by R2) is no longer the only button
+    // "the opening" can mean here.
+    const playOrDraw = (f: Friend) => f.page.getByTestId('live-play-or-draw-play');
+    const openingButton = async (f: Friend): Promise<ReturnType<typeof enabledOk>> => ((await playOrDraw(f).count()) > 0 ? playOrDraw(f) : enabledOk(f));
     const opening: { who: string; says: string | null }[] = [];
     const openingDeadline = Date.now() + 90_000;
     while ((await turnOf(alice)) < 1) {
       checkPrompts();
       if (Date.now() > openingDeadline) throw new Error(`the game never reached turn 1; answered on the board: ${JSON.stringify(opening)}`);
       for (const f of friends) {
-        if ((await enabledOk(f).count()) === 0) continue;
+        const btn = await openingButton(f);
+        if ((await btn.count()) === 0) continue;
         const says = await f.page.getByTestId('live-says').textContent();
         for (const g of friends) moments.push(await fitsNow(g, `opening ${opening.length + 1}`));
-        await enabledOk(f).click();
+        await btn.click();
         opening.push({ who: f.name, says });
-        // Wait for Forge to move on before looking again: an OK that is still
-        // enabled because the next updateButtons has not landed yet would
-        // answer the NEXT question.
+        // Wait for Forge to move on before looking again: a button that is
+        // still there because the next updateButtons has not landed yet
+        // would answer the NEXT question.
         await expect
-          .poll(async () => (await enabledOk(f).count()) === 0 || (await f.page.getByTestId('live-says').textContent()) !== says, {
+          .poll(async () => (await (await openingButton(f)).count()) === 0 || (await f.page.getByTestId('live-says').textContent()) !== says, {
             timeout: 30_000,
             message: `${f.name}: Forge never moved on from ${JSON.stringify(says)}`,
           })
@@ -867,7 +887,7 @@ test(TITLE, async ({ browser }) => {
     summary.playedTo = await howFar();
     summary.discardsOnTheBoard = discards;
     summary.boardAnswersWhenHandsStalled = unstuck;
-    for (const h of hands) h.pause();
+    for (const h of hands) await h.pause();
     await new Promise((r) => setTimeout(r, 2_000));
     for (const g of friends) moments.push(await fitsNow(g, 'mid-game'));
 
@@ -891,6 +911,22 @@ test(TITLE, async ({ browser }) => {
      * That is a default, not a bucket: any card may be put in any slot of either row,
      * an empty one included — here a card is dragged into the OTHER tier with a real
      * pointer and must land there, at its end.
+     *
+     * **A known, occasional flake, not a mystery if this reds**: wave 35 R9's
+     * settle/release race (`e2e/w35.spec.ts`'s own "R9b" finding —
+     * `notePlayedTo`/`Board.tsx`'s `useLayoutEffect` can consume a cast's
+     * pending placement from the SETTLE point, before a later, correct
+     * placement call ever lands, when Forge's delta comes back fast enough)
+     * is not scoped to a deliberate drag into a specific slot — it can
+     * misfile an ordinary bot-driven cast into the wrong default row too.
+     * `play/hands.ts`'s `clickCard` now aims its own settle-move at the
+     * TYPE-correct row (a land at 'back', anything else at 'front') instead
+     * of the whole battlefield's centre, which measurably cut how often this
+     * fires (two misplaced permanents in a real run before that fix, one
+     * after, same fixed seed) — it does not and cannot eliminate the
+     * underlying race from an e2e-only change. A rare, singular id showing up
+     * on the wrong side of this check is this same already-reported bug, not
+     * a new regression to chase from scratch.
      */
     const placements: Record<string, unknown>[] = [];
     for (const f of friends) {
@@ -931,6 +967,26 @@ test(TITLE, async ({ browser }) => {
       if (land === undefined) continue;
       const card = f.page.locator(`.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id="${land.id}"]`);
       const trace = await pointerDrag(f.page, card, await endOfSlot(viewerSlot(f.page, 'front')));
+      // Found, not guessed, after the row-placement fix above changed WHICH
+      // card `seats.you.back[0]` is: this specific land is `data-tapped`
+      // (used for mana earlier in the same match) and NOT `data-selectable`
+      // at the moment of the drag — and consistently (2 of 2 tries, fixed
+      // seed) draws the target INDICATOR but no GHOST and no
+      // `[data-arrange-active]` at all (`midway: {ghost:0, indicator:1,
+      // pickedUp:0}`), as if the arrange-drag itself never started for a
+      // TAPPED permanent specifically.
+      //
+      // **Still reproduces after B's `disabled`→`tabIndex` fix
+      // (`2181aed`)**: confirmed directly in THIS harness that the button
+      // now carries `tabindex="-1"`, not `disabled` — the one change that
+      // fix made — yet the shape is unchanged (`{ghost:0, indicator:1,
+      // pickedUp:0}`), where B's own isolated verification (a replay server
+      // through `live/harness.html`, not this e2e path) showed `{1,1,1}` for
+      // the same kind of card. Something else in the real e2e path still
+      // suppresses the press for a non-selectable, tapped card — not
+      // `disabled` any more, so the original theory was only part of the
+      // story. Not chased further here; reported with this exact delta for
+      // whoever picks it up next.
       expect(trace.midway.ghost + trace.midway.indicator, `${f.name}: the ghost and the indicator were drawn`).toBe(2);
       const after = await read();
       expect(after.you.front.map((c) => c.id), `${f.name}: a land can be dropped in the front row`).toContain(land.id);
@@ -1478,6 +1534,8 @@ interface SeatColumn {
   face: Box4;
   handCount: Box4;
   libraryCount: Box4;
+  /** R3: the mana pool's own track, between the counts and the graveyard. */
+  manaPool: Box4;
   graveyard: Box4;
   /** Null while exile holds nothing: the strip is drawn only while it holds a card. */
   exile: (Box4 & { count: number }) | null;
@@ -1529,6 +1587,7 @@ function measureColumns(): { you: SeatColumn; them: SeatColumn } {
       face: box(find('[data-player-face]')),
       handCount: box(find('[data-testid="hand-count"]')),
       libraryCount: box(find('[data-testid="library-count"]')),
+      manaPool: box(find('[data-mana-pool]')),
       graveyard: box(find('[data-zone="graveyard"]')),
       exile: exile === null || getComputedStyle(exile).display === 'none' ? null : { ...box(exile), count: Number(exile.dataset.count ?? '0') },
       emptyExileDrawn: Array.from(seat.querySelectorAll<HTMLElement>('[data-zone="exile"]')).filter((e) => Number(e.dataset.count ?? '0') === 0 && getComputedStyle(e).display !== 'none').length,
@@ -1851,11 +1910,19 @@ test(CROWD_TITLE, async ({ browser }) => {
     await enterMatch(alice, bob, stack.origin, summary);
 
     // Answer the coin toss on the board, so hands are dealt; then Forge parks
-    // on the first keep-or-mulligan question and nothing moves.
-    const enabledOk = (f: Friend) => f.page.locator('[data-testid="live-button-ok"]:enabled');
-    await expect.poll(async () => (await enabledOk(alice).count()) + (await enabledOk(bob).count()), { timeout: 30_000 }).toBe(1);
-    const decider = (await enabledOk(alice).count()) > 0 ? alice : bob;
-    await enabledOk(decider).click();
+    // on the first keep-or-mulligan question and nothing moves — this test
+    // leaves it parked there on purpose (everything after this is a synthetic
+    // `fillStack` probe, not real gameplay), so there is no further OK to
+    // click here.
+    //
+    // Wave 35 R2 moved the coin toss off `live-button-ok` into its own
+    // decision area (`live-play-or-draw-play`) — `live-button-ok` is disabled
+    // the whole time this question is open, so the old poll below (built on
+    // it) never saw count 1 and hung until its own timeout.
+    const playOrDraw = (f: Friend) => f.page.getByTestId('live-play-or-draw-play');
+    await expect.poll(async () => (await playOrDraw(alice).count()) + (await playOrDraw(bob).count()), { timeout: 30_000 }).toBe(1);
+    const decider = (await playOrDraw(alice).count()) > 0 ? alice : bob;
+    await playOrDraw(decider).click();
     for (const f of friends) {
       await expect
         .poll(async () => f.page.locator('.seat[data-viewer] [data-zone="hand"] li.board-card').count(), {
@@ -1986,8 +2053,19 @@ test(CROWD_TITLE, async ({ browser }) => {
         {
           const cols = await f.page.evaluate(measureColumns);
           const tol = 3;
-          // Measured 24 px: the graveyard pile's own margin under the counts row. Anything near the
+          // Measured 24 px: each true-adjacent pair's own pile margin. Anything near the
           // avatar's height (~60) would be a second cell, which is the w26 layout this retires.
+          //
+          // **R3 moved the mana pool between the counts and the graveyard**
+          // (avatar → counts → mana pool → graveyard), the operator-mandated
+          // order — so the column is now THREE adjacent pairs, not two, and
+          // each pair keeps its own `GAP_MAX` margin rather than widening the
+          // tolerance to swallow the mana pool's own fixed height (`--mana-h`,
+          // 30.4px) — that would silently stop catching a real gap regression
+          // of the same size in the future. (Lane B confirmed this precisely:
+          // the old single check's "57.28px against a ≤32px max" was exactly
+          // the mana pool's own track sitting in what the check assumed was
+          // empty space, not a layout bug.)
           const GAP_MAX = 32;
           const overlapX = (a: Box4, b: Box4): boolean => a.left < b.right - 1 && b.left < a.right - 1;
           for (const side of ['you', 'them'] as const) {
@@ -1997,20 +2075,23 @@ test(CROWD_TITLE, async ({ browser }) => {
             for (const [name, b] of [['hand count', c.handCount], ['library count', c.libraryCount], ['graveyard', c.graveyard]] as const) {
               expect(overlapX(c.face, b), `${w}: the avatar and the ${name} share a column`).toBe(true);
             }
-            // Order along the column: yours reads down (avatar, counts, graveyard), theirs is the vertical mirror.
+            // Order along the column: yours reads down (avatar, counts, mana pool, graveyard), theirs is the vertical mirror.
             const counts = { top: Math.min(c.handCount.top, c.libraryCount.top), bottom: Math.max(c.handCount.bottom, c.libraryCount.bottom) };
             if (side === 'you') {
               expect(c.face.bottom, `${w}: the avatar is above the counts`).toBeLessThanOrEqual(counts.top + tol);
-              expect(counts.bottom, `${w}: the counts are above the graveyard`).toBeLessThanOrEqual(c.graveyard.top + tol);
-              // The graveyard takes what is left: it starts where the counts end ...
-              expect(c.graveyard.top - counts.bottom, `${w}: nothing but the counts sits between them and the graveyard (a pile's own margin at most)`).toBeLessThanOrEqual(GAP_MAX);
-              // ... and runs to the column's end (the exile strip, when there is one, is below it).
+              expect(counts.bottom, `${w}: the counts are above the mana pool`).toBeLessThanOrEqual(c.manaPool.top + tol);
+              expect(c.manaPool.top - counts.bottom, `${w}: nothing but a pile's own margin sits between the counts and the mana pool`).toBeLessThanOrEqual(GAP_MAX);
+              expect(c.manaPool.bottom, `${w}: the mana pool is above the graveyard`).toBeLessThanOrEqual(c.graveyard.top + tol);
+              expect(c.graveyard.top - c.manaPool.bottom, `${w}: nothing but a pile's own margin sits between the mana pool and the graveyard`).toBeLessThanOrEqual(GAP_MAX);
+              // The graveyard takes what is left, and runs to the column's end (the exile strip, when there is one, is below it).
               const floor = c.exile === null ? c.seat.bottom : c.exile.top;
               expect(floor - c.graveyard.bottom, `${w}: the graveyard runs to the end of the column`).toBeLessThanOrEqual(tol * 3);
             } else {
-              expect(c.graveyard.bottom, `${w}: the graveyard is above the counts`).toBeLessThanOrEqual(counts.top + tol);
+              expect(c.graveyard.bottom, `${w}: the graveyard is above the mana pool`).toBeLessThanOrEqual(c.manaPool.top + tol);
+              expect(c.manaPool.top - c.graveyard.bottom, `${w}: nothing but a pile's own margin sits between the graveyard and the mana pool`).toBeLessThanOrEqual(GAP_MAX);
+              expect(c.manaPool.bottom, `${w}: the mana pool is above the counts`).toBeLessThanOrEqual(counts.top + tol);
+              expect(counts.top - c.manaPool.bottom, `${w}: nothing but a pile's own margin sits between the mana pool and the counts`).toBeLessThanOrEqual(GAP_MAX);
               expect(counts.bottom, `${w}: the counts are above the avatar`).toBeLessThanOrEqual(c.face.top + tol);
-              expect(counts.top - c.graveyard.bottom, `${w}: nothing but the counts sits between them and the graveyard (a pile's own margin at most)`).toBeLessThanOrEqual(GAP_MAX);
               const roof = c.exile === null ? c.seat.top : c.exile.bottom;
               expect(c.graveyard.top - roof, `${w}: the graveyard runs to the end of the column`).toBeLessThanOrEqual(tol * 3);
             }

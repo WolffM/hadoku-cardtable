@@ -321,6 +321,16 @@ test(TITLE, async ({ browser }) => {
           ids = await offered(alice);
           if (ids.length >= 2) break;
         }
+        // Wave 35 R2 moved the coin toss off `live-button-ok` into its own
+        // decision area (`live-play-or-draw-play`) — `live-button-ok` is
+        // disabled the whole time that question is open, so it had to be
+        // checked first or this loop never got past turn 0.
+        const playOrDraw = f.page.getByTestId('live-play-or-draw-play');
+        if ((await playOrDraw.count()) > 0) {
+          await playOrDraw.click();
+          log.push(`${f.name} pressed Play`);
+          continue;
+        }
         const ok = f.page.getByTestId('live-button-ok');
         if (await ok.isEnabled()) {
           await ok.click();

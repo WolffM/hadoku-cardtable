@@ -91,7 +91,10 @@ async function toFirstPriority(alice: Friend, bob: Friend): Promise<Friend> {
     for (const f of [alice, bob]) {
       await answerPrompt(f.page);
       const text = await says(f.page);
-      if (/play or draw/i.test(text) && (await enabledOk(f.page).count()) > 0) await enabledOk(f.page).click();
+      // Wave 35 R2 moved this question off `live-button-ok` into its own
+      // decision area; `live-button-ok` is disabled the whole time it is
+      // open, so the old click here hung forever once that landed.
+      if (/play or draw/i.test(text) && (await f.page.getByTestId('live-play-or-draw-play').count()) > 0) await f.page.getByTestId('live-play-or-draw-play').click();
       else if (/keep your hand/i.test(text) && (await enabledOk(f.page).count()) > 0) await enabledOk(f.page).click();
       else if ((await secondButton(f.page)) === 'End Turn') return f;
     }

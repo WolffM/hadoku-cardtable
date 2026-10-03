@@ -130,9 +130,19 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
       }
       mark(false);
       if (clickedFor.get(f) === text) continue; // already answered this exact question; wait for Forge's reply
-      if ((await enabledOk(f.page).count()) > 0) {
+      // Wave 35 R2: the coin toss / play-draw question moved into its own
+      // decision-area host (`live-play-or-draw-host`, lane G's
+      // `PlayOrDrawPrompt`, wired by lane L) — `live-button-ok` is now
+      // DISABLED for the whole time this question is open (L's own mutation-
+      // tested guard), so the old `enabledOk` click below never fires for it
+      // and this loop hung forever on "Would you like to play or draw?"
+      // until this branch was added. The mulligan's own two questions ("keep
+      // your hand", "return N card(s)") are unaffected by R2 and still
+      // answer through the control bar's OK, unchanged.
+      const button = /play or draw/i.test(text) ? f.page.getByTestId('live-play-or-draw-play') : enabledOk(f.page);
+      if ((await button.count()) > 0) {
         clickedFor.set(f, text);
-        await enabledOk(f.page).click();
+        await button.click();
       }
     }
     if (aClear && bClear) return;

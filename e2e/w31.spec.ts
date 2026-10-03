@@ -31,7 +31,7 @@
 
 import { readFileSync } from 'node:fs';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type ElementHandle, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
 import { connectHands } from './play/hands.ts';
@@ -51,6 +51,17 @@ const titled = (t: string): string => (forge.ok ? t : `${t} — SKIPPED: ${forge
 
 const says = async (page: Page): Promise<string> => (await page.getByTestId('live-says').textContent()) ?? '';
 const enabledOk = (page: Page) => page.locator('[data-testid="live-button-ok"]:enabled');
+/**
+ * The coin toss / play-draw question's own control (R2, wave 35) — NOT
+ * `enabledOk`: `live-button-ok` is disabled for the whole time this question
+ * is open (`playFirst`'s own comment), so a check built on it can never see
+ * count 1 here. `LiveBoard.tsx`'s `playOrDraw` gate is `!spectator &&
+ * !askOpen && isPlayOrDrawPrompt(bar)` — a SPECTATOR never gets this
+ * component mounted at all, so "no enabled play-or-draw in the spectator
+ * window" is a plain `toHaveCount(0)` on this same locator, same as it
+ * always was on `enabledOk`.
+ */
+const playOrDrawPlay = (page: Page) => page.getByTestId('live-play-or-draw-play');
 const handCards = (page: Page) => page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]');
 
 /** The forge ids the board currently offers (`data-selectable`), ascending. */
@@ -71,10 +82,19 @@ function serverLog(stack: PlayStack): Record<string, unknown>[] {
     .map((l) => JSON.parse(l) as Record<string, unknown>);
 }
 
-/** Alice wins the toss on this seed: press Play, and wait for her keep-or-mulligan. */
+/**
+ * Alice wins the toss on this seed: press Play, and wait for her keep-or-mulligan.
+ *
+ * Wave 35 R2 moved this question off `live-button-ok` into its own decision
+ * area (`live-play-or-draw-host`, lane G's `PlayOrDrawPrompt`, wired by lane
+ * L) — `live-button-ok` is disabled for the whole time this question is
+ * open, so the old click below hung forever once that landed. Click the new
+ * button instead; everything after the toss (the mulligan) is unaffected by
+ * R2 and still answers through the control bar.
+ */
 async function playFirst(alice: Friend): Promise<void> {
   await expect(alice.page.getByTestId('live-says')).toContainText(/play or draw/i, { timeout: 30_000 });
-  await enabledOk(alice.page).click();
+  await alice.page.getByTestId('live-play-or-draw-play').click();
   await expect(alice.page.getByTestId('live-says')).toContainText(/keep your hand/i, { timeout: 30_000 });
 }
 
@@ -155,7 +175,7 @@ test(titled('a second browser on a held seat is a spectator: inert, refused by t
     const bob = await openFriend(browser, 'bob');
     const { matchId } = await enterMatch(alice, bob, stack.origin);
     await expect(alice.page.getByTestId('live-says')).toContainText(/play or draw/i, { timeout: 30_000 });
-    await expect(enabledOk(alice.page), 'the first window holds the question').toHaveCount(1);
+    await expect(playOrDrawPlay(alice.page), 'the first window holds the question').toBeEnabled();
 
     // The second window: same account, same seat.
     const second = await openFriend(browser, 'alice');
@@ -166,7 +186,7 @@ test(titled('a second browser on a held seat is a spectator: inert, refused by t
     expect(await banner(alice).count(), 'the controlling window is not').toBe(0);
     // It can SEE the same question, and cannot answer it.
     await expect(second.page.getByTestId('live-says')).toContainText(/play or draw/i);
-    await expect(enabledOk(second.page), 'no enabled OK in the spectator window').toHaveCount(0);
+    await expect(playOrDrawPlay(second.page), 'no play-or-draw control in the spectator window').toHaveCount(0);
     await expect(second.page.getByTestId('live-concede')).not.toBeEnabled();
 
     // The page is not the enforcement: a raw socket for the same seat sends the
@@ -187,13 +207,13 @@ test(titled('a second browser on a held seat is a spectator: inert, refused by t
     }
     await alice.page.waitForTimeout(1500);
     await expect(alice.page.getByTestId('live-says'), 'the refused OK did not answer the toss').toContainText(/play or draw/i);
-    await expect(enabledOk(alice.page)).toHaveCount(1);
+    await expect(playOrDrawPlay(alice.page)).toBeEnabled();
 
     // The first window closes: the second is promoted, without a reload, and can act.
     await alice.context.close();
     await expect(banner(second), 'promotion lifts the banner').toHaveCount(0, { timeout: 30_000 });
-    await expect(enabledOk(second.page), 'and hands it the question').toHaveCount(1, { timeout: 30_000 });
-    await enabledOk(second.page).click();
+    await expect(playOrDrawPlay(second.page), 'and hands it the question').toBeEnabled({ timeout: 30_000 });
+    await playOrDrawPlay(second.page).click();
     await expect(second.page.getByTestId('live-says')).toContainText(/keep your hand/i, { timeout: 30_000 });
 
     // A REFRESH is the same path: the new socket can open before the old one's
@@ -294,6 +314,33 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
         };
       });
 
+    // Wave 35 §E2: the rail's growth is a CSS transition (`live.css`'s
+    // `transition: height 0.3s ease`), and height is a layout property — every
+    // frame of that transition costs main-thread work, so a loaded host (the
+    // full CI set, not this spec run alone) can draw 300ms of transition out
+    // over a longer stretch of wall-clock time. A fixed sleep after detecting
+    // combat is a guess at that stretch, and it was wrong once already
+    // (tracker: grew 18.7px against a required 20, failed 1 of 3 full-run
+    // attempts, 5/5 clean alone — the margin was not the bug, the guessed
+    // duration was). Waiting for the number to actually stop moving is correct
+    // at any host speed, so this polls the live rail's own height until two
+    // reads `pollMs` apart agree, instead of sleeping for a duration and
+    // hoping it was enough.
+    const waitForStableRail = async (f: Friend, { pollMs = 50, epsilon = 0.01, timeout = 15_000 } = {}): Promise<number> => {
+      const start = Date.now();
+      let last: number | null = null;
+      while (Date.now() - start < timeout) {
+        const h = await f.page.evaluate(() => {
+          const rail = document.querySelector('[data-testid="live-phases"][data-combat]');
+          return rail === null ? null : rail.getBoundingClientRect().height;
+        });
+        if (h !== null && last !== null && Math.abs(h - last) <= epsilon) return h;
+        last = h;
+        await new Promise((r) => setTimeout(r, pollMs));
+      }
+      throw new Error(`the rail's height never stabilized (last read: ${last})`);
+    };
+
     // Before the game has a phase at all: combat is ONE row.
     const outside = await names(alice);
     expect(outside.filter((n) => /combat/i.test(n)), 'one combat row outside combat').toEqual(['Combat']);
@@ -384,29 +431,99 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
     try {
       // P12: a log line names a card the board has drawn; hovering the NAME enlarges
       // that tile through the document inspector. Open the log and wait for a name.
+      //
+      // NOT paused yet here: `hands` (the bots) are what actually plays the
+      // cards this log needs something to name in the first place — pausing
+      // before this wait starves the log of content and times out at 90s
+      // (measured directly: the very first attempt at this fix paused too
+      // early and hit exactly that, "a log line names a card…" timing out
+      // with `element(s) not found`, not the hover race this fix targets).
       await alice.page.getByTestId('live-log-toggle').click();
-      const logName = alice.page.locator('[data-log-card][data-inspect-ids]:not([data-inspect-ids=""])').first();
-      await expect(logName, 'a log line names a card that has a tile on the page').toBeVisible({ timeout: 90_000 });
+      // `inspectedCardFrom` (`inspect/index.ts`) only shows a log name whose
+      // id STILL has a board tile — "a card with no tile drawn... enlarges
+      // nothing". A spell that already resolved and left play (an instant,
+      // most often) still carries `data-inspect-ids` but names nothing the
+      // inspector can show, so `.first()` of every named log line is not
+      // good enough: measured directly, it picked "Incinerate" — cast,
+      // resolved, gone to the graveyard (shown there as a count, no
+      // `[data-card-id]` tile) — and the inspector correctly opened nothing
+      // at all, read as a false failure before this was understood. Filter
+      // for a name whose id the PAGE ITSELF can still resolve to a tile — a
+      // land is certain to qualify, since nothing this spec does removes one
+      // from the battlefield.
+      const hasTile = async (): Promise<ElementHandle<HTMLElement> | null> =>
+        alice.page.evaluateHandle(() => {
+          const spans = Array.from(document.querySelectorAll<HTMLElement>('[data-log-card][data-inspect-ids]:not([data-inspect-ids=""])'));
+          for (const span of spans) {
+            const ids = (span.getAttribute('data-inspect-ids') ?? '').split(',');
+            if (ids.some((id: string) => id !== '' && document.querySelector(`[data-card-id="${id}"]`) !== null)) return span;
+          }
+          return null;
+        }, undefined).then(async (h) => {
+          const el = h.asElement() as ElementHandle<HTMLElement> | null;
+          if (el === null) await h.dispose();
+          return el;
+        });
+      let logNameHandle: ElementHandle<HTMLElement> | null = null;
+      await expect
+        .poll(
+          async () => {
+            logNameHandle = await hasTile();
+            return logNameHandle !== null;
+          },
+          { timeout: 90_000, message: 'a log line names a card that still has a tile on the page' },
+        )
+        .toBe(true);
       expect(await alice.page.getByTestId('live-log-peek').count(), 'there is no second hover surface in the log').toBe(0);
-      // Pinned to ONE element handle, not re-resolved: `logName` is `.first()`
-      // of a list the real game log keeps growing live. Reading `named` off
-      // the locator and then calling `.hover()` on it again re-queries
-      // "whichever line is first NOW" — if a new log line landed in
-      // between (the window is small, but this ran against a live match,
-      // not a mock), the name just read and the element actually hovered
-      // can be two different cards (measured: expected "Glacial Fortress",
-      // got "Tectonic Edge" — a different card's tooltip, not a broken
-      // hover). A handle fixes both reads to the SAME node regardless of
-      // what the log does afterward.
-      const logNameHandle = await logName.elementHandle();
+      // Paused for this whole precision window — BEFORE resolving the
+      // element handle, not after reading its text (a second draft of this
+      // fix put the pause there instead and still hit the race below, by
+      // one tick: `named` was read, then an ALREADY-IN-FLIGHT bot tick's own
+      // settle-move landed, before `.hover()` ever ran). `await`ed: wave 35
+      // R7's `clickCard` can make a single tick span more than one await, so
+      // a synchronous `pause()` only stops the NEXT tick — `play/hands.ts`'s
+      // own `pause()` now waits out a tick already running too, which is
+      // what actually closes this. `hands[0]` (alice's own bot) clicks cards
+      // on this SAME page to keep the game moving; wave 35 R7 means a card
+      // click can now move ALICE'S OWN MOUSE (settling an Arena-cast
+      // gesture) — a real, measured race against this block's own
+      // `logNameHandle.hover()` / `mouse.move(2, 2)` (4 of 5 runs failed here
+      // with no pause at all; `wave35-evidence/e-runs.md`). `pause()`/
+      // `resume()` is this file's own documented tool for exactly this ("hold
+      // it still while a spec measures the board" — `play/hands.ts`'s header).
+      for (const h of hands) await h.pause();
+      // Re-resolved ONE more time, now that both bots are paused — the poll
+      // above can leave `logNameHandle` pointing at a span from a moment ago,
+      // and even with a tile-backed name (a land) the earlier text-vs-element
+      // race is still real: `.live__log` is pinned-to-bottom
+      // (`justify-content: flex-end`), so a line arriving while bots were
+      // still live could have shifted everything up, or React could have
+      // reused this exact node for a different line (both measured directly
+      // against the OLD, hover-based version of this block: a pre-hover
+      // snapshot went stale once, a post-hover one still raced a reflow the
+      // next time). Both are moot now: fetched fresh after the pause, with
+      // both bots confirmed idle, nothing is left to move it.
+      const fresh = await hasTile();
+      if (fresh !== null) logNameHandle = fresh;
       if (logNameHandle === null) throw new Error('the log name vanished between becoming visible and being handled');
       const named = ((await logNameHandle.textContent()) ?? '').trim();
-      await logNameHandle.hover();
+      // The fix for the inspector's own race (not this spec's precondition):
+      // `.hover()` hit-tests PIXELS, and even a tile-backed name's line can
+      // still slide out from under a remembered bounding box while the panel
+      // reflows (`.live__log`'s `flex-end` again). `inspect/index.ts`'s own
+      // header: "the keyboard gets what the pointer gets: a card name in the
+      // log is a tab stop, and focusing it shows the card the same way
+      // hovering it does" (`onFocusIn` reads `event.target` directly, no
+      // coordinate hit-test at all) — `.focus()`/`.blur()` on this SAME
+      // pinned handle exercises that already-supported keyboard path instead
+      // of working around the pointer one.
+      await logNameHandle.focus();
       const inspected = alice.page.locator('[data-board-overlay] [data-inspect]');
       await expect(inspected, 'the inspector the board already has opens on the log name').toHaveCount(1, { timeout: 5_000 });
       await expect(inspected).toContainText(named);
-      await alice.page.mouse.move(2, 2);
-      await expect(inspected, 'and closes when the pointer leaves').toHaveCount(0, { timeout: 5_000 });
+      await logNameHandle.evaluate((el) => el.blur());
+      await expect(inspected, 'and closes when focus leaves').toHaveCount(0, { timeout: 5_000 });
+      for (const h of hands) h.resume();
 
       // Into combat: the six steps are there, in place of the one, and the rail did not move.
       await expect.poll(() => seen.combat !== null || seen.error !== null, { timeout: 120_000, message: 'the game reached a combat step' }).toBe(true);
@@ -414,15 +531,15 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
       // THIS poll notices `seen.combat`, which can be well inside the rail's
       // own 0.3s CSS grow transition (`live.css`'s `transition: height 0.3s
       // ease`) — this poll and the watcher's 100ms sampling loop are two
-      // independent async loops with no ordering guarantee between them.
-      // Measured: two separate 10-run batches both caught the SAME near-miss
-      // height (183.43px against a 184.72px threshold) on 2/10 runs each —
-      // not random host noise (the numbers repeat too closely for that), a
-      // deterministic race in how early this stops sampling. A plain wait for
-      // the transition's own duration, plus margin, before the `finally`
-      // below ends the watcher, gives it the extra 100ms-spaced samples the
-      // CSS transition itself needs to be caught fully grown.
-      if (seen.error === null) await alice.page.waitForTimeout(400);
+      // independent async loops with no ordering guarantee between them. Wave
+      // 35 §E2 replaced the fixed-duration sleep that used to sit here (it
+      // guessed how long the transition's wall-clock stretch would be and
+      // guessed wrong under full-run load) with `waitForStableRail`, which
+      // waits for the rail's own height to actually stop changing on
+      // whichever seat (`seen.combat.who`) saw combat first — correct
+      // regardless of host speed, because it is watching the real signal
+      // instead of a guessed duration.
+      if (seen.error === null) await waitForStableRail(seen.combat!.who === 'alice' ? alice : bob);
     } finally {
       watching = false;
       await watcher;

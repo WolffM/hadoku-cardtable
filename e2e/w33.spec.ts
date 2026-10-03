@@ -85,6 +85,28 @@ async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'): Prom
 }
 
 /**
+ * Click a hand card and settle the Arena-cast gesture (wave 35 R7) that a
+ * plain click only ARMS for any card in the viewer's own hand — confirmed by
+ * a real-browser trace, the same regression lane E's `hands.ts` and
+ * `w35.spec.ts`'s own `castByClick` fix: without this, EVERY bare
+ * `[data-board-card] button` click in this file that targets a HAND card
+ * (a cast, never a declared-attacker click on a card already on the
+ * battlefield, where `isHandCard` is false and this is a no-op) sends
+ * nothing to Forge at all, and a loop polling the stack for a change
+ * (`castCard`, Q17's own wait) just spins until its own deadline — or,
+ * worse, a test that treats "nothing happened yet" as "already resolved"
+ * passes VACUOUSLY (Q17: "no stop was ever seen" trivially holds when
+ * nothing was ever cast to be stopped at all).
+ */
+async function clickHandCard(page: Page, cardId: number): Promise<void> {
+  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
+  const lifted = await page.locator(`[data-board-card="${cardId}"]`).getAttribute('data-cast-lift').catch(() => null);
+  if (lifted !== 'lifted') return;
+  const box = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
+  if (box !== null) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });
+}
+
+/**
  * Click a hand card to cast it, then drain whatever Forge asks next: a
  * `getAbilityToPlay` choice (the generic "what do you want to do" ask, which
  * a seat holding priority over a non-empty stack gets instead of the board
@@ -99,7 +121,7 @@ async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'): Prom
  */
 async function castCard(page: Page, cardId: number): Promise<void> {
   const stackBefore = await stackCount(page);
-  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
+  await clickHandCard(page, cardId);
   for (let i = 0; i < 60; i++) {
     // The click's own round trip has not necessarily landed yet — never
     // decide "nothing to answer, must be done" off the PRE-click state, or a
@@ -158,7 +180,14 @@ test(titled('Q7 — with exactly one spell on the stack, a counterspell targets 
     // and Memnite (free) to cast; alice (seat 0) holds Mana Leak + 3 Islands.
     const { alice, bob } = await startScenarioMatch(browser, stack, 'lone-spell');
 
-    await expect.poll(() => offered(bob.page), { timeout: 15_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' }).not.toEqual([]);
+    // 45s, not 15: every "a scenario sets up" precondition in this file was
+    // bumped here (wave 35 §E) after a reproducible occasional timeout on
+    // this exact kind of poll — a fresh Forge JVM's own startup
+    // (`startPlayStack`) can take longer than 15s on a loaded host, and this
+    // file's `test.describe.configure({ mode: 'serial' })` makes ONE such
+    // flake skip every test after it, not just fail its own. A startup-time
+    // margin on the PRECONDITION only, never on an assertion this file tests.
+    await expect.poll(() => offered(bob.page), { timeout: 45_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' }).not.toEqual([]);
     const memnite = (await offered(bob.page))[0]!;
     await castCard(bob.page, memnite);
 
@@ -267,7 +296,7 @@ test(titled('Q12 — a seat with one creature gets the block window, can assign 
     const { alice, bob } = await startScenarioMatch(browser, stack, 'one-creature');
     await passDeclareAttackers(alice.page);
 
-    await expect.poll(() => says(bob.page), { timeout: 15_000, message: 'the block window is open for bob — the precondition "one-creature" sets up' }).toMatch(/select creatures to block/i);
+    await expect.poll(() => says(bob.page), { timeout: 45_000, message: 'the block window is open for bob — the precondition "one-creature" sets up' }).toMatch(/select creatures to block/i);
     const mine = bob.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card');
     await expect(mine, 'exactly the one creature is on the defender\'s board').toHaveCount(1);
     const myId = Number(await mine.first().getAttribute('data-board-card'));
@@ -401,9 +430,9 @@ test(titled('Q17 — casting your own spell does not stop you at priority while 
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
     void bob;
 
-    await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered her free creature — the precondition "own-spell" sets up' }).not.toEqual([]);
+    await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'alice is offered her free creature — the precondition "own-spell" sets up' }).not.toEqual([]);
     const card = (await offered(alice.page))[0]!;
-    await alice.page.locator(`[data-board-card="${card}"] button`).first().click();
+    await clickHandCard(alice.page, card);
 
     // While it is on the stack — however briefly — no ask or stop is ever
     // directed back at alice for her OWN cast.
@@ -546,7 +575,7 @@ test(titled('Ponder\'s full oracle text is readable while it sits on the stack')
     const { alice, bob } = await startScenarioMatch(browser, stack, 'ponder');
     void bob;
 
-    await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
+    await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
     await alice.page.getByTestId('live-full-control').click();
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
     const card = (await offered(alice.page))[0]!;
@@ -596,9 +625,9 @@ test(titled('a stack item carries its target, and the board draws an arrow to it
     await alice.page.getByTestId('live-full-control').click();
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
 
-    await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered Doom Blade — the precondition "auto-target" sets up' }).not.toEqual([]);
+    await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'alice is offered Doom Blade — the precondition "auto-target" sets up' }).not.toEqual([]);
     const card = (await offered(alice.page))[0]!;
-    await alice.page.locator(`[data-board-card="${card}"] button`).first().click();
+    await clickHandCard(alice.page, card);
 
     // Supply the target: a click on bob's one creature. Per S (wave 33, the
     // scenario's wire shape): choosing a CARD target is never an ask — it

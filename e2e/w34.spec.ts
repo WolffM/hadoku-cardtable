@@ -104,10 +104,52 @@ async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'): Prom
   return true;
 }
 
+/**
+ * The coin toss / play-draw question's own control (wave 35 R2) —
+ * `live-button-ok` is disabled the whole time it is open, so a loop built
+ * only on `enabledOk`/`clickOnce` can stall on it forever. Same fix as
+ * `play/scenario.ts`'s own internal driving; needed a second time here
+ * because `page_answerOnce` (below) keeps polling long AFTER
+ * `startScenarioMatch` returns (`driveToOrderDecision`'s own loop, Q8) —
+ * measured directly: bob stuck on "you have won the coin toss... would you
+ * like to play or draw?" for the full 60s this test allows, 3 of 3 tries.
+ */
+async function clickOncePlayOrDraw(page: Page): Promise<boolean> {
+  const btn = page.getByTestId('live-play-or-draw-play');
+  if ((await btn.count()) === 0) return false;
+  const key = 'play-or-draw';
+  if (lastClicked.get(page) === key) return false;
+  lastClicked.set(page, key);
+  try {
+    await btn.click({ timeout: 1_000 });
+  } catch {
+    lastClicked.delete(page);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Click a hand card and settle the Arena-cast gesture (wave 35 R7) that a
+ * plain click only ARMS for any card in the viewer's own hand — the same
+ * regression (and the same fix) `w33.spec.ts`'s own `clickHandCard` and
+ * `e2e/play/hands.ts`'s `clickCard` carry; see either's comment for the full
+ * story. Without this, every bare `[data-board-card] button` click in this
+ * file that targets a HAND card sends nothing to Forge at all, and
+ * `castCard`'s own poll just spins until its own deadline.
+ */
+async function clickHandCard(page: Page, cardId: number): Promise<void> {
+  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
+  const lifted = await page.locator(`[data-board-card="${cardId}"]`).getAttribute('data-cast-lift').catch(() => null);
+  if (lifted !== 'lifted') return;
+  const box = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
+  if (box !== null) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+}
+
 /** Click a hand card to cast it, then drain whatever Forge asks next (Pay Mana Cost, a generic ability choice). */
 async function castCard(page: Page, cardId: number): Promise<void> {
   const stackBefore = await stackCount(page);
-  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
+  await clickHandCard(page, cardId);
   for (let i = 0; i < 60; i++) {
     await page.waitForTimeout(50);
     await answerPrompt(page);
@@ -196,6 +238,7 @@ test(titled('§E1 — with Full Control on, clicking an instant in response to t
 async function page_answerOnce(page: Page): Promise<void> {
   await answerPrompt(page);
   if ((await livePrompt(page).count()) > 0) return;
+  if (await clickOncePlayOrDraw(page)) return;
   if ((await enabledOk(page).count()) > 0) await clickOnce(page, await says(page), 'ok');
 }
 
@@ -222,7 +265,7 @@ test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a r
     // to look at it — measured directly, this is not hypothetical). This
     // loop stops the INSTANT an `order` ask is showing, before calling
     // `answerPrompt` on that tick, leaving it open to inspect below.
-    await alice.page.locator(`[data-board-card="${card}"] button`).first().click();
+    await clickHandCard(alice.page, card);
     for (let i = 0; i < 100 && (await promptMethod(alice.page)) !== 'order'; i++) {
       await alice.page.waitForTimeout(50);
       await answerPrompt(alice.page);
@@ -467,7 +510,7 @@ test(titled('the Choose X slider renders (not a checkbox fallback), defaults to 
 
     await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered her X spell — the precondition "choose-x" sets up' }).not.toEqual([]);
     const card = (await offered(alice.page))[0]!;
-    await alice.page.locator(`[data-board-card="${card}"] button`).first().click();
+    await clickHandCard(alice.page, card);
 
     const slider = alice.page.getByTestId('prompt-slider');
     await expect(slider, 'Forge\'s X ask reaches the browser as the slider, not a radio list — the precondition this spec needs').toBeVisible({ timeout: 15_000 });
