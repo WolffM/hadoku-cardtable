@@ -1,8 +1,11 @@
 # For lane E (wave 36, T7 — a card's ChosenType shows on the card). Seat 0
 # (human) controls Cavern of Souls with Goblin already chosen, an uncontested
 # turn-1 Main Phase 1. `|ChosenType:Goblin` is GameState's own card property
-# (parsed `GameState.java:1375`, applied `:1032-1034`), so no ETB choice has to
-# be played through to get a ChosenType onto the wire.
+# (parsed `GameState.java:1375`, applied `:1032-1034`), but applying the state
+# still fires Cavern's own "As Cavern of Souls enters, choose a creature type"
+# replacement, so seat 0 is ASKED for a type right after the mulligan (seen:
+# the "Choose a creature type" dialog, `openAsks: 1` in the server log). The
+# spec answers that ask; the type it picks is what the card must show.
 turn=1
 activeplayer=human
 activephase=MAIN1
