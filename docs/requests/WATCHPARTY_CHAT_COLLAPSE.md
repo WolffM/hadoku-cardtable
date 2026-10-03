@@ -1,6 +1,6 @@
 # Request to `hadoku-watchparty`: let a RoomChrome host collapse and resize the chat
 
-**Filed 2026-10-02 by the cardtable tracker. Status: request, not yet sent.**
+**DONE 2026-10-03:** `@wolffm/watchparty-ui` 0.40.5 (`d5099fb0`), live in cardtable since 13:01 UTC.
 
 ```sh
 cd /home/hadoku/repos/hadoku-watchparty && claude

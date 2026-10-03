@@ -1,3 +1,6 @@
+> **DONE 2026-10-03** (`hadoku_site` `dca96e3d`): `treekill: false` live in pm2, proven in an isolated
+> daemon; a production hand-over has not happened yet to show a `match-adopted` line.
+
 # Request to `hadoku_site`: stop pm2 tree-killing cardtable's handed-over match JVMs
 
 **Filed 2026-09-30 by the cardtable tracker.** One line in `ecosystem.config.cjs`.
