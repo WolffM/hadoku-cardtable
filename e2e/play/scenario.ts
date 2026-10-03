@@ -43,6 +43,7 @@ import { resolve } from 'node:path';
 import { expect, type Browser, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './browser.ts';
+import { confirmYes } from './confirm.ts';
 import type { PlayStack } from './harness.ts';
 import { TURN_TEXT } from './turn.ts';
 
@@ -124,6 +125,20 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
     ] as const) {
       const text = await says(f.page);
       if (text === '') continue; // not loaded yet: neither clear nor an open question to answer
+      // The mulligan is over the instant a real ASK opens (`live-prompt`,
+      // e.g. a replacement effect's own choice — Cavern of Souls' "choose a
+      // creature type" on ETB, once a scenario applies itself after the
+      // mulligan). `live-says` is Forge's status LINE, and it can still read
+      // the stale "Do you want to keep your hand?" for a tick after the ask
+      // opens (a separate wire field, not a signal this ask-driven step
+      // overwrites) — checked for `live-prompt` FIRST, before the text
+      // regex, so that staleness never reads as "still mid-mulligan" and
+      // spins here (clicking nothing, since the bar/confirm the text implies
+      // is long gone) until the whole loop's own cap gives up.
+      if ((await f.page.getByTestId('live-prompt').count()) > 0) {
+        mark(true);
+        continue;
+      }
       if (!openQuestion.test(text)) {
         mark(true);
         continue;
@@ -136,10 +151,19 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
       // DISABLED for the whole time this question is open (L's own mutation-
       // tested guard), so the old `enabledOk` click below never fires for it
       // and this loop hung forever on "Would you like to play or draw?"
-      // until this branch was added. The mulligan's own two questions ("keep
-      // your hand", "return N card(s)") are unaffected by R2 and still
-      // answer through the control bar's OK, unchanged.
-      const button = /play or draw/i.test(text) ? f.page.getByTestId('live-play-or-draw-play') : enabledOk(f.page);
+      // until this branch was added.
+      //
+      // Wave 36 T4: "keep your hand?" moved the SAME way, into its own
+      // `ConfirmPrompt` pop-up (`prompt-confirm-yes`/`prompt-confirm-no`,
+      // `e2e/play/confirm.ts`) — Keep is button 1 (`prompt-confirm-yes`),
+      // never Mulligan, same default this helper always took. Only "return N
+      // card(s)" (the bottom-pick SELECTION, not a confirm) is unaffected and
+      // still answers through the control bar's OK.
+      const button = /play or draw/i.test(text)
+        ? f.page.getByTestId('live-play-or-draw-play')
+        : /keep your hand/i.test(text)
+          ? confirmYes(f.page)
+          : enabledOk(f.page);
       if ((await button.count()) > 0) {
         clickedFor.set(f, text);
         await button.click();
@@ -148,7 +172,21 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
     if (aClear && bClear) return;
     await alice.page.waitForTimeout(150);
   }
-  throw new Error(`the mulligan never settled on both sides: alice "${await says(alice.page)}" | bob "${await says(bob.page)}"`);
+  // Not stuck on the wire: a real ask (e.g. a scenario's own ETB replacement
+  // choice, applied right after the mulligan) had opened and was answered
+  // correctly — `live-says` just still read the stale "keep your hand?" line
+  // for a seat whose mulligan was already over, which is exactly what the
+  // `live-prompt` check above now catches before this loop ever gets here.
+  // If this still throws, something genuinely never got answered — the dump
+  // is what to hand whoever looks at it.
+  const dump = async (f: Friend) => ({
+    says: await says(f.page),
+    ok: await enabledOk(f.page).count(),
+    cancel: await f.page.getByTestId('live-button-cancel').count(),
+    confirmYes: await confirmYes(f.page).count(),
+    confirmHost: await f.page.getByTestId('live-confirm-host').count(),
+  });
+  throw new Error(`the mulligan never settled on both sides: alice ${JSON.stringify(await dump(alice))} | bob ${JSON.stringify(await dump(bob))}`);
 }
 
 /**

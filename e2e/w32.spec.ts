@@ -32,6 +32,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
+import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { enterMatch } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -94,8 +95,12 @@ async function toFirstPriority(alice: Friend, bob: Friend): Promise<Friend> {
       // Wave 35 R2 moved this question off `live-button-ok` into its own
       // decision area; `live-button-ok` is disabled the whole time it is
       // open, so the old click here hung forever once that landed.
+      //
+      // Wave 36 T4: "keep your hand?" moved the same way, into its own
+      // `ConfirmPrompt` pop-up — Keep is `prompt-confirm-yes`, the same
+      // default this helper always took.
       if (/play or draw/i.test(text) && (await f.page.getByTestId('live-play-or-draw-play').count()) > 0) await f.page.getByTestId('live-play-or-draw-play').click();
-      else if (/keep your hand/i.test(text) && (await enabledOk(f.page).count()) > 0) await enabledOk(f.page).click();
+      else if (/keep your hand/i.test(text) && (await confirmYes(f.page).count()) > 0) await answerConfirm(f.page, 'yes');
       else if ((await secondButton(f.page)) === 'End Turn') return f;
     }
     await alice.page.waitForTimeout(250);

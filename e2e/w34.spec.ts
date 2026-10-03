@@ -46,6 +46,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
+import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { enabledOk, matchUrl, readScenario, says, startScenarioMatch } from './play/scenario.ts';
@@ -239,6 +240,14 @@ async function page_answerOnce(page: Page): Promise<void> {
   await answerPrompt(page);
   if ((await livePrompt(page).count()) > 0) return;
   if (await clickOncePlayOrDraw(page)) return;
+  // Wave 36 T4: any OTHER Forge yes/no (Ponder's own "shuffle?"/reorder
+  // follow-up, the opening mulligan, …) moved off `live-button-ok` into its
+  // own `ConfirmPrompt` pop-up — answered the same default this driver
+  // always took when it still rode the bar: the first ("yes") button.
+  if ((await confirmYes(page).count()) > 0) {
+    await answerConfirm(page, 'yes');
+    return;
+  }
   if ((await enabledOk(page).count()) > 0) await clickOnce(page, await says(page), 'ok');
 }
 

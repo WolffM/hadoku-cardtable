@@ -124,6 +124,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 import { toBoardView } from '../apps/ui/src/play/adapter.ts';
 import type { WireObject } from '../apps/ui/src/play/wire.ts';
 import { messages, openFriend, type Friend } from './play/browser.ts';
+import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { isSnapshot, type Frame, type PlayMessage, type ServerEnvelope } from './play/frames.ts';
 import { connectHands, type Hands } from './play/hands.ts';
 import { answerPrompt, SELF_ANSWERING } from './play/prompts.ts';
@@ -1155,6 +1156,15 @@ test(LIVE_TITLE, async ({ browser }) => {
       for (const f of [alice, bob]) {
         // Anything Forge ASKS is still answered by the board, by clicking.
         await answerPrompt(f.page);
+        // Wave 36 T4: the opening mulligan's Keep/Mulligan (the one yes/no
+        // this phase of the game can show, on this fixed seed) moved off
+        // `live-button-ok` into its own `ConfirmPrompt` pop-up — answered
+        // immediately, the same default ("keep") this spec always reached
+        // via the idle-OK fallback below before T4 moved it off the bar.
+        if ((await confirmYes(f.page).count()) > 0) {
+          await answerConfirm(f.page, 'yes');
+          continue;
+        }
         // The cleanup discard stops the whole game, and this budget would
         // otherwise blame the drag for it. It can only ever fire on Forge's own
         // discard prompt, so it cannot consume a card this loop is trying to
@@ -1701,78 +1711,55 @@ test(LIVE_TITLE, async ({ browser }) => {
       ).toHaveCount(0);
     };
     /**
-     * The board's own text, with every battlefield row and the viewer's own
-     * hand re-ordered to a CANONICAL (sorted-by-id) order first, in a clone —
-     * never the live DOM.
+     * The board's own text, read directly off the live DOM — no reordering.
      *
-     * **The manager's ruling**: arrangement has been in-memory-only since
-     * wave 32 (`Board.tsx`'s `ARRANGED`, a bare `Map`, never persisted) — any
-     * drag was already lost on a reload before this wave, and wave 35 R9's
-     * cast-settle writes to the SAME store, so a cast that settled at a
-     * specific spot in its row is lost the same way a manual drag always
-     * was. Persisting it is a next-wave item, not this one's — tracked, not
-     * fixed here. What this check actually promises ("the reconnected page
-     * shows the same GAME") is about the cards, the rows, the tapped state,
-     * the counters — not which pixel column a card happens to sit in, which
-     * was never server truth to begin with. So: the viewer's own hand and
-     * every battlefield row (both seats — the opponent's is never
-     * arrangeable either, so sorting it too only makes the comparison
-     * order-independent everywhere, never less strict) are sorted by each
-     * pile's own `data-card-id` before reading the text; a graveyard and an
-     * exile pile are Forge's own order, never the player's
-     * (`Board.tsx`'s own `Zone` — "no card in them is draggable"), and are
-     * left exactly as drawn. Everything else — life, the mana pool, the
-     * stack (whose order IS the game), prompts, counts — stays untouched, so
-     * a real difference anywhere else still fails here exactly as before.
-     *
-     * **Only the order is relaxed, not the game state** (the tracker's own
-     * condition, and the manager's ruling on the scope): `zoneCardIdSets`,
-     * below, reads each SIDE's each ZONE's own `data-card-id`s, sorted and
-     * MERGED ACROSS TIERS — never per row. Rows are themselves part of the
-     * arrangement wave 35 R9 lets a player set (a creature can sit in the
-     * lands row, on purpose — that is the whole feature), so a per-ROW set
-     * cannot survive a reload until the arrangement itself does (wave 36);
-     * comparing per side-and-zone instead is the actual game-state claim,
-     * and it stays strict — a card that vanished, changed zone (hand to
-     * battlefield, say), or crossed to the OTHER side still fails here, on
-     * its own, with its own message, before the text comparison below ever
-     * runs.
-     *
-     * **After wave 35's R9 (any slot), a card the player placed is put back
-     * on reload because the arrangement is in memory only — including which
-     * ROW it sits in (Figure of Destiny placed in the lands row returns to
-     * the creature row)** — recorded as found/unverified here, tracked for
-     * wave 36, not fixed in this one.
+     * **Tightened for wave 36 T10**: wave 35 left this relaxed (sorted by
+     * `data-card-id`, merged across tiers) because arrangement was
+     * in-memory-only (`Board.tsx`'s `ARRANGED`, a bare `Map`, never
+     * persisted) — any drag, or R9's cast-settle into a specific row slot,
+     * was lost on every reload, so comparing exact order/row would have
+     * failed on the feature working as shipped. T10 persists `ARRANGED` to
+     * `sessionStorage` per match and seat (D1) and restores it — slot AND
+     * row — before the first paint after a reload, so the reconnected page
+     * is now expected to be BYTE IDENTICAL, not just the same cards in the
+     * same zones. `zoneCardIdSets`, below, is the per-row, order-preserving
+     * half of that same claim; this is the whole-board half.
      */
-    const zoneCardIdSets = (page: Page): Promise<Record<string, number[]>> =>
-      page.evaluate(() => {
-        const merged: Record<string, number[]> = {};
-        const zones = document.querySelectorAll<HTMLElement>(
-          '[data-zone="battlefield"] .zone__cards, [data-zone="hand"] .zone__cards, [data-zone="graveyard"] .zone__cards, [data-zone="exile"] .zone__cards',
-        );
-        for (const zone of Array.from(zones)) {
-          const section = zone.closest<HTMLElement>('[data-zone]');
-          const owner = section?.getAttribute('data-owner') ?? 'unknown';
-          const zoneName = section?.getAttribute('data-zone') ?? 'unknown';
-          const key = `${owner}:${zoneName}`;
-          const ids = Array.from(zone.querySelectorAll<HTMLElement>(':scope > li.board-card[data-card-id]')).map((li) => Number(li.dataset.cardId));
-          merged[key] = [...(merged[key] ?? []), ...ids];
-        }
-        for (const key of Object.keys(merged)) merged[key] = merged[key]!.sort((a, b) => a - b);
-        return merged;
-      });
     const normalizedBoardText = (page: Page): Promise<string> =>
       page.evaluate(() => {
         const board = document.querySelector('[aria-label="Game board"]');
         if (board === null) throw new Error('no board on the page');
-        const clone = board.cloneNode(true) as HTMLElement;
-        const reorderable = clone.querySelectorAll<HTMLElement>('[data-zone="battlefield"] .zone__cards, [data-zone="hand"] .zone__cards');
-        for (const zone of Array.from(reorderable)) {
-          const piles = Array.from(zone.querySelectorAll<HTMLElement>(':scope > li.board-card[data-card-id]'));
-          const sorted = [...piles].sort((a, b) => Number(a.dataset.cardId) - Number(b.dataset.cardId));
-          for (const li of sorted) zone.appendChild(li);
+        return (board as HTMLElement).innerText;
+      });
+    /**
+     * Every zone's own card ids, PER ROW, in DOM order — never merged across
+     * rows and never sorted (wave 36 T10 tightens this back from wave 35's
+     * per-side-per-zone relaxation, now that the arrangement — which row,
+     * and which order within it — survives a reload).
+     *
+     * A battlefield row is one `.zone__cards` list: the default (single)
+     * layout keys each by its own `data-tier` (`front`/`back`), the
+     * type-separated layout by `data-board-row`; a hand or a pile with
+     * neither (never multi-row) falls back to its own zone name. A
+     * graveyard and an exile pile are Forge's own order, never the
+     * player's, and nothing here changes that — they are still read, just
+     * never reordered (they never were).
+     */
+    const zoneCardIdSets = (page: Page): Promise<Record<string, number[]>> =>
+      page.evaluate(() => {
+        const result: Record<string, number[]> = {};
+        const zones = document.querySelectorAll<HTMLElement>(
+          '[data-zone="battlefield"] .zone__cards, [data-zone="hand"] .zone__cards, [data-zone="graveyard"] .zone__cards, [data-zone="exile"] .zone__cards',
+        );
+        for (const [i, zone] of Array.from(zones).entries()) {
+          const section = zone.closest<HTMLElement>('[data-zone]');
+          const owner = section?.getAttribute('data-owner') ?? 'unknown';
+          const zoneName = section?.getAttribute('data-zone') ?? 'unknown';
+          const row = zone.closest<HTMLElement>('[data-board-row]')?.getAttribute('data-board-row') ?? zone.getAttribute('data-tier') ?? String(i);
+          const key = `${owner}:${zoneName}:${row}`;
+          result[key] = Array.from(zone.querySelectorAll<HTMLElement>(':scope > li.board-card[data-card-id]')).map((li) => Number(li.dataset.cardId));
         }
-        return clone.innerText;
+        return result;
       });
     await noPreview('before the reload');
     const zonesBefore = await zoneCardIdSets(alice.page);
@@ -1789,7 +1776,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     expect(callIdAfter).toBe(callIdBefore);
     await noPreview('after the reload');
     const zonesAfter = await zoneCardIdSets(alice.page);
-    expect(zonesAfter, 'the same cards are in the same side-and-zone across the reload — only the ORDER (including which ROW, which wave 35 R9 lets the player set) is relaxed, never which zone a card is in').toEqual(zonesBefore);
+    expect(zonesAfter, 'wave 36 T10: the same cards, in the same zone, in the same ROW, in the same ORDER, across the reload — the arrangement (D1, sessionStorage per match and seat) is restored before the first paint').toEqual(zonesBefore);
     const boardAfter = await normalizedBoardText(alice.page);
     summary.refreshBoard = { chars: boardAfter.length, same: boardAfter === boardBefore };
     expect(boardAfter).toBe(boardBefore);

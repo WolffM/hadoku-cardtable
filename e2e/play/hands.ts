@@ -66,6 +66,17 @@ interface Look {
    * in for "something pressable is showing".
    */
   playOrDraw: boolean;
+  /**
+   * Wave 36 T4: every OTHER Forge yes/no (the opening mulligan's
+   * Keep/Mulligan, a shockland's pay-2-life, any other `InputConfirm`) is
+   * now ALSO off `live-button-ok`/`live-button-cancel`, in its own
+   * decision-area pop-up (`e2e/play/confirm.ts`). Before this, the mulligan
+   * was answered by this bot's own generic "press OK" fallback below
+   * (`live-button-ok`'s label was Forge's "Keep") — that fallback goes dark
+   * the instant the question moves, so this needs its own flag the same way
+   * `playOrDraw` already does.
+   */
+  confirmYes: boolean;
 }
 
 async function look(f: Friend): Promise<Look | null> {
@@ -88,6 +99,7 @@ async function look(f: Friend): Promise<Look | null> {
         opponentSelectable: document.querySelector('[data-testid="player"]:not([data-viewer])[data-selectable] .seat__select') !== null,
         ask: document.querySelector('[data-testid="live-prompt"]') !== null,
         playOrDraw: document.querySelector('[data-testid="live-play-or-draw-play"]') !== null,
+        confirmYes: document.querySelector('[data-testid="prompt-confirm-yes"]') !== null,
       };
     });
   } catch {
@@ -232,6 +244,15 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
     // nothing at all, forever.
     if (s.playOrDraw) {
       await act('Play (the coin toss)', s, pressPlayOrDraw);
+      return;
+    }
+    // Wave 36 T4: a yes/no confirm (the opening mulligan's Keep/Mulligan,
+    // a shockland's pay-2-life, any other InputConfirm) is answered the way
+    // this bot always defaulted when it still rode `live-button-ok`: the
+    // first ("yes") button — never Mulligan, never No, on purpose (the file's
+    // own header: this bot keeps whatever hand it is dealt).
+    if (s.confirmYes) {
+      await act('Confirm: yes (default)', s, () => f.page.getByTestId('prompt-confirm-yes').click({ timeout: 2_000 }));
       return;
     }
     if (s.me !== '' && msg.startsWith(`Priority: ${s.me}`)) {

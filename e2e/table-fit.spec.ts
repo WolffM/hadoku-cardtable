@@ -127,6 +127,7 @@ import { resolve } from 'node:path';
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
+import { confirmYes } from './play/confirm.ts';
 import { connectHands, type Hands } from './play/hands.ts';
 import { forgeAvailability, RUN_DIR, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -601,6 +602,9 @@ async function stateOf(f: Friend): Promise<Record<string, unknown>> {
     says: await f.page.getByTestId('live-says').textContent(),
     ok: await f.page.getByTestId('live-button-ok').isEnabled(),
     cancel: (await f.page.getByTestId('live-button-cancel').count()) > 0,
+    // Wave 36 T4: a yes/no confirm pop-up, separate from `prompt` (a
+    // `live-prompt` ask) and from the control bar above.
+    confirm: await confirmYes(f.page).count(),
     prompt: await f.page.getByTestId('live-prompt').evaluateAll((els) => els.map((e) => e.getAttribute('data-method'))),
     // `evaluateAll`, not `textContent`: it resolves at once with nothing when the
     // window is closed, where `textContent` would wait out its whole timeout in
@@ -773,7 +777,11 @@ test(TITLE, async ({ browser }) => {
     // the mulligan's own OK (unaffected by R2) is no longer the only button
     // "the opening" can mean here.
     const playOrDraw = (f: Friend) => f.page.getByTestId('live-play-or-draw-play');
-    const openingButton = async (f: Friend): Promise<ReturnType<typeof enabledOk>> => ((await playOrDraw(f).count()) > 0 ? playOrDraw(f) : enabledOk(f));
+    // Wave 36 T4: "keep your hand?" is a `ConfirmPrompt` pop-up now, not the
+    // control bar — Keep is `prompt-confirm-yes` (button 1), the same
+    // default this loop always took (it never deliberately mulligans).
+    const openingButton = async (f: Friend): Promise<ReturnType<typeof enabledOk>> =>
+      (await playOrDraw(f).count()) > 0 ? playOrDraw(f) : (await confirmYes(f.page).count()) > 0 ? confirmYes(f.page) : enabledOk(f);
     const opening: { who: string; says: string | null }[] = [];
     const openingDeadline = Date.now() + 90_000;
     while ((await turnOf(alice)) < 1) {
@@ -867,6 +875,9 @@ test(TITLE, async ({ browser }) => {
         const cancel = f.page.locator('[data-testid="live-button-cancel"]:enabled');
         const options = [];
         if ((await enabledOk(f).count()) > 0) options.push(enabledOk(f));
+        // Wave 36 T4: a stuck yes/no confirm (the same shape as the old
+        // stuck-OK case, now in its own pop-up) defaults to yes.
+        if ((await confirmYes(f.page).count()) > 0) options.push(confirmYes(f.page));
         const choices = await selectable.count();
         if (choices > 0) options.push(selectable.nth(Math.floor(attempt / 2) % choices));
         if ((await cancel.count()) > 0) options.push(cancel);
@@ -1676,12 +1687,17 @@ function fillStack(n: number): Promise<StaticShot> {
     const wrap = document.createElement('span');
     wrap.className = 'stack__art';
     wrap.appendChild(art.cloneNode(true));
+    // Wave 36 T8: `Board.tsx`'s own `StackItem` — one line, built the same
+    // order it renders (`controller` · `source[ · ability]`[ → `target`]),
+    // no separate long-text child any more (`.stack__text` is gone: the full
+    // text moved to the inspector, on hover, never the band).
     const what = document.createElement('span');
     what.className = 'stack__what';
     what.innerHTML =
-      '<span class="stack__source">Probe<span class="stack__kind"> · ability</span></span>' +
       '<span class="stack__controller">someone</span>' +
-      '<span class="stack__text">deals 2 damage to any target, and a second line of text so the item is as tall as one ever gets</span>';
+      '<span class="stack__sep"> · </span>' +
+      '<span class="stack__source">Probe<span class="stack__kind"> · ability</span></span>' +
+      '<span class="stack__target"> → Bob</span>';
     body.append(wrap, what);
     li.appendChild(body);
     list.appendChild(li);
@@ -1748,12 +1764,17 @@ function fillStack(n: number): Promise<StaticShot> {
 }
 
 /**
- * Wave 32 (w31's open stack item): with a question up, the stack band must not clip
- * an effect's text (Ponder's is the operator's own example). Reads the board in the
- * asked state, with the stack filled with long-text probes, and reports every text the
- * band cuts off, by its own scroll box or by any clipping ancestor up to the band.
- * The caller has a REAL question open (the probe route): React owns `data-question`
- * and strips a hand-set one at the next frame. Runs in the page; the caller clears the probes.
+ * Wave 32 (w31's open stack item), re-aimed for wave 36 T8: the claim used to
+ * be "a long effect's text is readable, not clipped, in the band" (Ponder's
+ * own example) — T8 settled that differently: each item is one line
+ * (`.stack__what`, ellipsis-clipped as a unit) and the FULL text moved to the
+ * inspector, on hover, never the band (`Board.tsx`'s own `StackItem` header).
+ * So "readable with a question up" now means the one line still renders,
+ * still clips as a unit (no vertical scroll inside it — T8's own "no
+ * scrolling text"), rather than "the long text is not cut off" (there is no
+ * long text left to cut off). The caller has a REAL question open (the probe
+ * route): React owns `data-question` and strips a hand-set one at the next
+ * frame. Runs in the page; the caller clears the probes.
  */
 function stackTextClipped(): Promise<{ texts: number; clipped: string[]; asked: string }> {
   const mid = document.querySelector<HTMLElement>('.board__mid');
@@ -1766,20 +1787,16 @@ function stackTextClipped(): Promise<{ texts: number; clipped: string[]; asked: 
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         const clipped: string[] = [];
-        const texts = Array.from(mid.querySelectorAll<HTMLElement>('.stack__text'));
+        const texts = Array.from(mid.querySelectorAll<HTMLElement>('.stack__what'));
         for (const t of texts) {
-          const r = t.getBoundingClientRect();
-          let why = t.scrollHeight > t.clientHeight + 1 ? `its own box (${t.scrollHeight}>${t.clientHeight})` : '';
-          for (let a = t.parentElement; why === '' && a !== null && a !== mid.parentElement; a = a.parentElement) {
-            const cs = getComputedStyle(a);
-            // Only the vertical axis: the stack scrolls SIDEWAYS inside its slot by design.
-            if (cs.overflowY === 'visible') continue;
-            const ar = a.getBoundingClientRect();
-            if (r.bottom > ar.bottom + 1 || r.top < ar.top - 1) why = `${a.className || a.tagName} (text ${Math.round(r.top)}-${Math.round(r.bottom)}, box ${Math.round(ar.top)}-${Math.round(ar.bottom)})`;
-          }
-          if (why !== '') clipped.push(`${t.textContent?.slice(0, 40)}: clipped by ${why}`);
+          // T8's own claim, in CSS: `white-space: nowrap; overflow: hidden;
+          // text-overflow: ellipsis` — a line that is too long clips AS A
+          // UNIT (fine, by design) but must never grow a vertical scrollbar
+          // inside its own box (not fine: that is the "all the text,
+          // scrolling" shape the operator asked to remove).
+          if (t.scrollHeight > t.clientHeight + 1) clipped.push(`${t.textContent?.slice(0, 40)}: scrolls vertically inside its own line (${t.scrollHeight}>${t.clientHeight})`);
         }
-        done({ texts: texts.length, clipped, asked: `${getComputedStyle(mid).getPropertyValue('--mid-h')} asked=${mid.hasAttribute('data-question')} band=${Math.round(mid.getBoundingClientRect().height)}px what=${Array.from(mid.querySelectorAll('.stack__what')).map((i) => i.clientHeight + '/' + i.scrollHeight).join(',')}` });
+        done({ texts: texts.length, clipped, asked: `${getComputedStyle(mid).getPropertyValue('--mid-h')} asked=${mid.hasAttribute('data-question')} band=${Math.round(mid.getBoundingClientRect().height)}px what=${texts.map((i) => i.clientHeight + '/' + i.scrollHeight).join(',')}` });
       }),
     ),
   );
@@ -1988,7 +2005,11 @@ test(CROWD_TITLE, async ({ browser }) => {
         /* ── the canvas is static: fill the stack, and nothing else may move ── */
         const shots: StaticShot[] = [];
         for (const n of STACK_STEPS) shots.push(await f.page.evaluate(fillStack, n));
-        // The asked band: a long effect is readable with a REAL question up (w31 left this open).
+        // The asked band: each item's one line is still readable, and never
+        // scrolls vertically, with a REAL question up (w31 left this open;
+        // wave 36 T8 replaced "a long effect's full text is readable in the
+        // band" with "one line, full text on hover, never a scroll" — see
+        // `stackTextClipped`'s own header).
         // The question is Forge's own, through the probe route, so `data-question` is React's.
         {
           const pending = alice.context.request.post(`${stack.origin}${PREFIX}/api/play/matches/${summary.matchId}/probe`, {
@@ -2002,8 +2023,8 @@ test(CROWD_TITLE, async ({ browser }) => {
           if (SHOTS !== '') await f.page.screenshot({ path: resolve(SHOTS, `stack-asked-${f.name}-${f.page.viewportSize()!.width}.png`) });
           await f.page.evaluate(clearStack);
           expect(asked.asked, `${f.name}: the board is in its asked state (${asked.asked})`).toContain('asked=true');
-          expect(asked.texts, `${f.name}: the asked stack band measured the effect texts`).toBeGreaterThan(0);
-          expect.soft(asked.clipped, `${f.name}: with a question up the stack band clips no effect text (${asked.asked})`).toEqual([]);
+          expect(asked.texts, `${f.name}: the asked stack band measured each item's one-line text`).toBeGreaterThan(0);
+          expect.soft(asked.clipped, `${f.name}: with a question up, no item's one line grows a vertical scroll (${asked.asked})`).toEqual([]);
           await f.page.getByTestId('confirm-dialog').locator('[data-answer="yes"]').click();
           expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);
         }

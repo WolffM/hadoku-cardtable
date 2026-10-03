@@ -34,6 +34,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type ElementHandle, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
+import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { connectHands } from './play/hands.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { enterMatch } from './play/enter.ts';
@@ -116,12 +117,19 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
     // Mulligan. Whichever order Forge asks in (wave 31 §F moved the bottom pick to
     // AFTER the keep), the seat ends at "Return N card(s) to the bottom" with its
     // hand offered: that is a selection, and it is what must survive.
-    await alice.page.getByTestId('live-button-cancel').click();
+    //
+    // Wave 36 T4: Keep/Mulligan is a yes/no `ConfirmPrompt` now, not the
+    // control bar — Mulligan is button 2 (`prompt-confirm-no`).
+    await answerConfirm(alice.page, 'no');
     const bottom = alice.page.getByTestId('live-says');
     // Bob keeps whatever he is dealt when he is asked; alice keeps the new seven.
+    // Wave 36 T4: bob's own "keep your hand?" moved off the bar into its own
+    // `ConfirmPrompt` pop-up too — this loop's `enabledOk` click for him was
+    // missed blast radius (only alice's explicit Mulligan/Keep sites above
+    // were moved): his own Keep is button 1, `confirmYes`.
     for (let i = 0; i < 60 && !/return \d+ card/i.test(await says(alice.page)); i++) {
       for (const f of [alice, bob]) {
-        if (/keep your hand/i.test(await says(f.page)) && (await enabledOk(f.page).count()) > 0) await enabledOk(f.page).click();
+        if (/keep your hand/i.test(await says(f.page)) && (await confirmYes(f.page).count()) > 0) await answerConfirm(f.page, 'yes');
       }
       await alice.page.waitForTimeout(500);
     }
@@ -147,13 +155,14 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
     // once the card is back nothing asks her to keep again. Forge did it the other
     // way round, so the operator saw mulligan, put one back, "keep?" again.
     // Bob still has to keep his own hand; alice must not be asked again meanwhile.
+    // Wave 36 T4: both sides' "keep your hand?" is a `ConfirmPrompt` pop-up now.
     let askedAgain = false;
     for (let i = 0; i < 60 && !/^Priority: /.test(await says(alice.page)); i++) {
       if (/keep your hand/i.test(await says(alice.page))) {
         askedAgain = true;
-        if ((await enabledOk(alice.page).count()) > 0) await enabledOk(alice.page).click();
+        if ((await confirmYes(alice.page).count()) > 0) await answerConfirm(alice.page, 'yes');
       }
-      if (/keep your hand/i.test(await says(bob.page)) && (await enabledOk(bob.page).count()) > 0) await enabledOk(bob.page).click();
+      if (/keep your hand/i.test(await says(bob.page)) && (await confirmYes(bob.page).count()) > 0) await answerConfirm(bob.page, 'yes');
       await alice.page.waitForTimeout(250);
     }
     expect(askedAgain, 'no second keep-or-mulligan after the bottom pick').toBe(false);
@@ -221,8 +230,9 @@ test(titled('a second browser on a held seat is a spectator: inert, refused by t
     await second.page.reload();
     await boardUp(second.page);
     await expect(banner(second), 'a refresh never leaves the player locked out of their own seat').toHaveCount(0, { timeout: 30_000 });
-    await expect(enabledOk(second.page)).toHaveCount(1, { timeout: 30_000 });
-    await enabledOk(second.page).click();
+    // Wave 36 T4: "keep your hand?" is a `ConfirmPrompt` pop-up now, not the bar.
+    await expect(confirmYes(second.page)).toHaveCount(1, { timeout: 30_000 });
+    await answerConfirm(second.page, 'yes');
     await expect(second.page.getByTestId('live-says'), 'and the keep went through').not.toContainText(/keep your hand/i, { timeout: 30_000 });
   } finally {
     await stack.stop();
@@ -377,7 +387,7 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
     expect(outsideBoxes.alice, 'the rail has a box to keep').not.toBeNull();
 
     await playFirst(alice);
-    await alice.page.getByTestId('live-button-ok').click(); // keep
+    await answerConfirm(alice.page, 'yes'); // keep — wave 36 T4: Keep/Mulligan is a ConfirmPrompt now
     hands.push(await connectHands(alice, 0), await connectHands(bob, 1));
 
     // Combat is over in a few hundred milliseconds when nobody attacks, so it is

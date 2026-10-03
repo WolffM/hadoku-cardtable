@@ -62,6 +62,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
+import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
 const PREFIX = '/cardtable';
@@ -329,6 +330,15 @@ test(TITLE, async ({ browser }) => {
         if ((await playOrDraw.count()) > 0) {
           await playOrDraw.click();
           log.push(`${f.name} pressed Play`);
+          continue;
+        }
+        // Wave 36 T4: the opening mulligan's Keep/Mulligan (and any other
+        // yes/no) moved the same way, into its own `ConfirmPrompt` pop-up —
+        // default to Keep, the same answer the bare OK click below used to
+        // give it when it still rode `live-button-ok`.
+        if (await confirmYes(f.page).count()) {
+          await answerConfirm(f.page, 'yes');
+          log.push(`${f.name} answered a confirm: yes`);
           continue;
         }
         const ok = f.page.getByTestId('live-button-ok');

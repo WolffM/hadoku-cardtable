@@ -560,9 +560,9 @@ test(titled('Q1b — the active-player ring is on the active seat\'s section, an
   }
 });
 
-/* ── 9. Ponder's full text is readable on the stack ──────────────────────── */
+/* ── 9. Ponder's full text is readable, in the inspector, on hover ──────── */
 
-test(titled('Ponder\'s full oracle text is readable while it sits on the stack'), async ({ browser }) => {
+test(titled('Ponder\'s full oracle text is readable via the inspector, on hover, while it sits on the stack'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -582,6 +582,14 @@ test(titled('Ponder\'s full oracle text is readable while it sits on the stack')
     // Ponder ON the stack (full control for the caster, same empty-stack
     // case Q18/Doom Blade already use safely) and read its text straight off
     // the stack item, before any of that sequence ever starts.
+    //
+    // **Re-aimed for wave 36 T8**: the band itself no longer carries the full
+    // text at all (`.stack__text` is gone — `Board.tsx`'s own `StackItem`
+    // header: "the operator… not a sentence… that is exactly the 'all the
+    // text' the operator is naming"). The claim this test pins is now where
+    // T8 settled it: the full text is the INSPECTOR's, on hover, through the
+    // same `data-source-card` mechanism every other card on the board opens
+    // one with.
     const { alice, bob } = await startScenarioMatch(browser, stack, 'ponder');
     void bob;
 
@@ -596,10 +604,20 @@ test(titled('Ponder\'s full oracle text is readable while it sits on the stack')
     const item = alice.page.locator('.stack__item', { hasText: /ponder/i });
     await expect(item, 'Ponder\'s own stack entry is drawn').toHaveCount(1);
 
-    const text = item.locator('.stack__text');
-    const clip = await text.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, content: el.textContent ?? '' }));
-    expect(clip.scrollHeight, 'the full oracle text fits with no clipped overflow').toBeLessThanOrEqual(clip.clientHeight + 1);
-    expect(clip.content, 'the full oracle text is present, not truncated').toMatch(/look at the top 3 cards/i);
+    // The band's own line clips as a unit (T8) — no vertical scroll inside it.
+    const line = item.locator('.stack__what');
+    const lineClip = await line.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
+    expect(lineClip.scrollHeight, 'the one line never grows a vertical scroll inside itself').toBeLessThanOrEqual(lineClip.clientHeight + 1);
+
+    // The full oracle text is the inspector's, on hover.
+    await item.hover();
+    const panel = alice.page.locator('[data-board-overlay] [data-inspect]');
+    await expect(panel, 'hovering the stack item opens the inspector').toBeVisible();
+    // Forge's own oracle text spells it out ("top three", not "top 3" — the
+    // pre-existing regex here was never actually exercised against the real
+    // card text until this test read it from the inspector instead of a
+    // stand-in; confirmed verbatim: "Look at the top three cards of your library…").
+    await expect(panel, 'the inspector carries Ponder\'s full oracle text, not truncated').toContainText(/look at the top three cards/i);
   } finally {
     await stack.stop();
   }
