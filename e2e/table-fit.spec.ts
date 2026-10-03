@@ -963,30 +963,66 @@ test(TITLE, async ({ browser }) => {
       if (y(seats.them.back) !== null && y(seats.them.front) !== null) expect(y(seats.them.back)!, `${f.name}: their back row is above their front row`).toBeLessThan(y(seats.them.front)!);
 
       // Complete freedom: a land goes to the front row's end, then back.
-      const land = seats.you.back[0];
+      //
+      // **A real precondition, not assumed**: `live/gestures/install.ts`'s
+      // `onPointerDown` deliberately yields a press on the viewer's OWN
+      // battlefield to attack/block DECLARATION, not the arrange-drag, for
+      // exactly the two windows `declaringCombat` names —
+      // `COMBAT_DECLARE_ATTACKERS` (this seat is the attacker) and
+      // `COMBAT_DECLARE_BLOCKERS` (this seat is the blocker) — and that guard
+      // does not filter by permanent type, a tapped land included. B found
+      // this is where the "ghost:0, indicator:1, pickedUp:0" reproduced: on
+      // this fixed seed the match is sitting in `COMBAT_DECLARE_ATTACKERS` on
+      // the viewer's own turn (turn 13) at exactly this point, so the drag
+      // below was never an arrange-drag at all — `install.ts` is doing
+      // exactly what it documents. Not a product bug; this spec's own gap is
+      // not checking (or waiting out) a combat-declare window before
+      // asserting "any card, any slot". The bots are already paused for this
+      // whole section (`for (const h of hands) await h.pause();`, above,
+      // never resumed before this point) — this phase can still change
+      // without a click (Forge's own combat progression), so the wait is for
+      // the WINDOW to pass, not for a bot to stop acting.
+      const notDeclaring = /^COMBAT_DECLARE_(ATTACKERS|BLOCKERS)$/;
+      await expect
+        .poll(() => f.page.getByTestId('live-phases').getAttribute('data-phase'), {
+          timeout: 30_000,
+          message: `${f.name}: the match is sitting in a combat-declare window — install.ts claims a press on the viewer's own battlefield there, so this drag is not testing the arrange gesture at all`,
+        })
+        .not.toMatch(notDeclaring);
+      const phaseNow = await f.page.getByTestId('live-phases').getAttribute('data-phase');
+      expect(phaseNow, `${f.name}: the precondition this drag needs — out of a combat-declare window`).not.toMatch(notDeclaring);
+      // Re-read, not the `seats` snapshot taken before the wait above: the
+      // board is not frozen just because the bots are paused (Forge's own
+      // combat progression moved it past the declare window on its own), so
+      // which card is `back[0]` — or whether one still is — can have changed
+      // while this poll waited.
+      const freshSeats = await read();
+      const land = freshSeats.you.back[0];
       if (land === undefined) continue;
       const card = f.page.locator(`.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id="${land.id}"]`);
       const trace = await pointerDrag(f.page, card, await endOfSlot(viewerSlot(f.page, 'front')));
-      // Found, not guessed, after the row-placement fix above changed WHICH
-      // card `seats.you.back[0]` is: this specific land is `data-tapped`
-      // (used for mana earlier in the same match) and NOT `data-selectable`
-      // at the moment of the drag — and consistently (2 of 2 tries, fixed
-      // seed) draws the target INDICATOR but no GHOST and no
-      // `[data-arrange-active]` at all (`midway: {ghost:0, indicator:1,
-      // pickedUp:0}`), as if the arrange-drag itself never started for a
-      // TAPPED permanent specifically.
+      // This drag's own history, kept short now that it is resolved (two
+      // real, separate bugs, both fixed, each confirmed with real data, not
+      // a guess):
       //
-      // **Still reproduces after B's `disabled`→`tabIndex` fix
-      // (`2181aed`)**: confirmed directly in THIS harness that the button
-      // now carries `tabindex="-1"`, not `disabled` — the one change that
-      // fix made — yet the shape is unchanged (`{ghost:0, indicator:1,
-      // pickedUp:0}`), where B's own isolated verification (a replay server
-      // through `live/harness.html`, not this e2e path) showed `{1,1,1}` for
-      // the same kind of card. Something else in the real e2e path still
-      // suppresses the press for a non-selectable, tapped card — not
-      // `disabled` any more, so the original theory was only part of the
-      // story. Not chased further here; reported with this exact delta for
-      // whoever picks it up next.
+      // 1. On this fixed seed, this exact moment fell inside
+      //    `COMBAT_DECLARE_ATTACKERS` — `install.ts` deliberately claims a
+      //    press on the viewer's own battlefield there for attack
+      //    declaration, a tapped land included, which is correct, documented
+      //    behaviour, not a bug. Fixed above: wait out any combat-declare
+      //    window before dragging, with a fresh board read afterward.
+      // 2. B's R10 `disabled`→`tabIndex` fix (`2181aed`) was necessary but
+      //    not sufficient: once (1) was fixed, the count read 3, not 2 —
+      //    `play/w32.ts`'s `DRAG_HOOKS.indicator` matched TWO separate
+      //    `[data-arrange-indicator]` elements, R9's own reusable cast-preview
+      //    singleton (`Board.tsx`'s `previewPlayedTo`, left behind `hidden`
+      //    from an earlier bot-driven cast) and the arrange-reorder drag's own
+      //    live one — both share the identical attribute. Confirmed directly
+      //    (manager's own diagnostic request: logged every indicator's
+      //    outerHTML at the midway point) that the stale one carried
+      //    `hidden=""` — correctly cleared, not a skipped-clear bug — so the
+      //    fix is `play/w32.ts`'s own selector, `:not([hidden])`, not
+      //    anything in `Board.tsx` or `install.ts`.
       expect(trace.midway.ghost + trace.midway.indicator, `${f.name}: the ghost and the indicator were drawn`).toBe(2);
       const after = await read();
       expect(after.you.front.map((c) => c.id), `${f.name}: a land can be dropped in the front row`).toContain(land.id);

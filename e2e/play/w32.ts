@@ -62,10 +62,25 @@ export const centre = (b: Box): { x: number; y: number } => ({ x: b.x + b.width 
 /**
  * The board's observable drag surface (`docs/planning/wave32-evidence/q4-drag-interaction.md`).
  * `data-arrange-slot` is on every slot box permanently; the rest exist only mid-drag.
+ *
+ * **`indicator` excludes `[hidden]`, found diagnosing a real e2e red** (the
+ * manager's own request, logged every `[data-arrange-indicator]`'s
+ * outerHTML at the midway point): wave 35 R9 gave the Arena-cast gesture its
+ * OWN reusable preview indicator (`Board.tsx`'s `previewPlayedTo` — "the
+ * element is created once and reused (hidden between calls)"), a SEPARATE
+ * singleton from the pre-existing arrange-REORDER drag's own indicator,
+ * both drawn with the identical `data-arrange-indicator` attribute. Once a
+ * session has used BOTH gestures at least once, both singletons exist in the
+ * DOM permanently — one hidden (whichever gesture last finished), one live
+ * — so a bare `[data-arrange-indicator]` count can read 2 even though only
+ * ONE is actually drawn. Confirmed directly: the stale element from an
+ * earlier bot-driven cast DID carry `hidden=""` (correctly cleared, not a
+ * skipped-clear bug to route anywhere) — this was always a test-side
+ * counting gap, not a product one.
  */
 export const DRAG_HOOKS = {
   ghost: '[data-arrange-ghost]',
-  indicator: '[data-arrange-indicator]',
+  indicator: '[data-arrange-indicator]:not([hidden])',
   pickedUp: '[data-arrange-active]',
 } as const;
 
