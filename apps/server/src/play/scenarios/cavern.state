@@ -1,0 +1,18 @@
+# For lane E (wave 36, T7 — a card's ChosenType shows on the card). Seat 0
+# (human) controls Cavern of Souls with Goblin already chosen, an uncontested
+# turn-1 Main Phase 1. `|ChosenType:Goblin` is GameState's own card property
+# (parsed `GameState.java:1375`, applied `:1032-1034`), so no ETB choice has to
+# be played through to get a ChosenType onto the wire.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Cavern of Souls|ChosenType:Goblin
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

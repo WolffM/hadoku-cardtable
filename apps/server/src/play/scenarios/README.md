@@ -114,6 +114,8 @@ and cannot deadlock. See `wave33-evidence/s1-harness.md`.
 | `bolt-player.state` | seat 0 holds Lightning Bolt (`{R}`, "deals 3 damage to any target") and one untapped Mountain, an uncontested turn-1 Main Phase 1; no creature on either battlefield, so the only legal targets are the two players. | lane E, wave 35 — the R7 drag-to-a-player-casts-at-them e2e spec. |
 | `land-into-middle.state` | seat 0 holds Island in hand (land drop still available) and already has TWO lands on the battlefield — Forest and Mountain, different names so a drop's resulting ORDER is readable from the names, not just a count — an uncontested turn-1 Main Phase 1. | lane E, wave 35 — the R9 "any slot" spec: a drop lands in the slot under the pointer, mid-row, not just appended. |
 | `land-only-pass.state` | seat 0 holds Raging Goblin (`{R}`) and TWO untapped Mountains (one stays untapped after casting); seat 1 holds nothing and has two untapped Mountains of its own, an uncontested turn-1 Main Phase 1. | wave 35 §S follow-up — the `decideStop`/R15 land-exclusion regression lane E found in `play.spec.ts` ("a spell resolves unattended"); see `auto-pass-land.jvm.test.ts`. |
+| `shockland.state` | seat 0 holds Steam Vents, no land played, uncontested Main Phase 1; playing it opens the card's own "pay 2 life?" (InputConfirm Yes/No). | wave 36 T4 (the confirm pop-up) |
+| `cavern.state` | seat 0 controls Cavern of Souls with `ChosenType:Goblin` already set (GameState's own card property), uncontested Main Phase 1. | wave 36 T7 (ChosenType on the card) |
 
 Every scenario sets `turn=1`, both seats' life to 20, and a small library of
 basic lands for both seats (so an incidental draw never loses the game) unless

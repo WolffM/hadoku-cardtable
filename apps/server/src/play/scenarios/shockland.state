@@ -1,0 +1,20 @@
+# For lane E (wave 36, T4 — every yes/no is the decision-area pop-up). Seat 0
+# (human) holds Steam Vents in an uncontested turn-1 Main Phase 1 with no land
+# played yet. Playing it hits the card's own replacement ("As Steam Vents
+# enters, you may pay 2 life", `UnlessCost$ PayLife<2>` in
+# `res/cardsfolder/s/steam_vents.txt`), which reaches InputConfirm's Yes/No
+# pair (`PlayerControllerHuman.confirmReplacementEffect` → `confirmPayment` →
+# `HumanCostDecision.visit(CostPayLife)`) — the confirm the pop-up must carry.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Steam Vents
+humanbattlefield=
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
