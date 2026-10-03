@@ -511,6 +511,18 @@
   font-weight: 600;
 }
 
+/* ── every Forge yes/no that is a question, not a priority pass (T4) ──── */
+
+.prompt-confirm .prompt__actions {
+  justify-content: center;
+}
+
+.prompt-confirm__message {
+  /* Forge's own prose may carry its own line breaks (`ConfirmPrompt.tsx`'s header). */
+  white-space: pre-line;
+  text-align: center;
+}
+
 /* ── the coin toss and play/draw question (R2) ───────────────────────── */
 
 .prompt-playdraw .prompt__actions {
