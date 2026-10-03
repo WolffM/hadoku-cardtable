@@ -1,5 +1,7 @@
 # v2 board design round — room for doodads
 
+> **Parked for v2** (2026-10-03). See `README.md`.
+
 **Goal:** a board that still plays a whole game of Magic at 1280×800 with nothing scrolling, AND leaves
 real estate for a themed table with **clickable doodads** to fidget with while the other player thinks.
 

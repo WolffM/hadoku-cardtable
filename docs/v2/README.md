@@ -1,6 +1,6 @@
 # Cardtable v2 — the high-fidelity table
 
-**Status: planning.** Nothing here is scheduled. Started 2026-10-02 at the operator's request: *"i'm
+**Status: PARKED until v2** (operator, 2026-10-03: *"we can't do art yet, we gotta park that for v2. write it up in a doc though."*). Nothing here is scheduled; v1's alpha comes first. Started 2026-10-02 at the operator's request: *"i'm
 gonna want a pretty huge batch of effects, art, and animations before we can ship v2. gotta start
 scaffolding what to hand off to the art team… i would like it if we could figure out a way to build
 the board in more of a 'hearthstone-like' way in which we can put fun doodads and stuff around the board

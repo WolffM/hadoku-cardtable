@@ -95,7 +95,7 @@ Numbering is the operator's (there was no item 19).
 | P6 | page boundary; remove the black canvas border | 1 | shipped w31 | `ef0f07d`, `78308ab`; edges measured 0 px off the header | table and chat edges line up with the header | |
 | P7 | mulligan asks *keep?* again after putting a card back | 1 | shipped w31 | fork `917bb193`, jar installed; real-Forge test fails on the old jar, passes on the new | see "next game" 1 | |
 | P8 | Gitaxian Probe unplayable at zero mana | 1 | shipped w31 | fork `917bb193`; the old jar offers `[]`, the new jar offers it | see "next game" 2 | |
-| P9 | stack height; Ponder's text unreadable | 1 | partly | readable when no question is open; **with a question open the band still clips (w32 B)** | | |
+| P9 | stack height; Ponder's text unreadable | 3 (with T8) | reopened → T8 | readable when no question is open; **with a question open the band still clips (w32 B)** |  |  |
 | P10 | reload with a decision open soft-locks | 1 | shipped w31 | `685d598`; `w31.spec.ts` (London bottom pick across a reload) | see "next game" 3 | |
 | P11 | drag is too hard, no animation, browser ghost | 2 (P11, Q4) | planned w32 | wave 32 lane B, last task | | |
 | P12 | the log's own hover display | 1 | shipped w31 | `ef0f07d` | hover a card name in the log | |
@@ -171,9 +171,29 @@ release."* Planned as **wave 35** unless noted.
 | R11 | remove the turn counter from the phase bar (the log has it) | 1 | planned w35 | | | |
 | R12 | animations: tapping, creatures striking a face, floating combat text | 1 | **deferred to v2** (operator: *"we can ship that as part of v2… what we're building at the moment is essentially the 'simple mode' for low-end PCs"*) | | | |
 | R13 | Secluded Glen's "you may reveal a Faerie" was decided for me | 1 | planned w35, diagnose first | **not a client or server auto-answer**: the match log shows no auto-answered choice, and every choice took a person 2.7–112 s. So it never reached the seat as a question (Forge decided, or the server pressed OK on an input) | play Secluded Glen with a Faerie in hand: you are asked | |
-| R14 | Goblin Rogue token has no art | 1 | planned w35 | `art-ids.json` has **no token entries at all**: every token is art-less | make a token: it has art | |
+| R14 | Goblin Rogue token has no art | 2 (with T9) | planned w35 (not yet deployed when T9 was reported) | `art-ids.json` has **no token entries at all**: every token is art-less | make a token: it has art |  |
 | R15 | lands cannot be tapped freely for mana before casting; show the pool as you tap; a card changed by an effect (Magus of the Moon) should show its new identity visually | 1 | planned w35 (lands need a **Forge fork change and a jar you install**) | **root cause:** Forge's clickable filter excludes every mana ability (`forge-ai/.../AvailableActions.java:82`, `!sa.isManaAbility()`), so a land is never clickable outside a payment. Not Magus | tap a land at priority: mana appears in your pool | |
 | R16 | a real victory/defeat screen, not the "game over" toast; **Rematch** (back to the room's deck selection) and **Main menu** (to the lobby list); if the leader picks Main menu and the other Rematch, the other becomes leader | 1 | planned w35 | today it is one line, `<p class="board__over">game over</p>` (`Board.tsx:2648`); the adapter knows `gameOver` and each player's `hasLost`. **Rooms have no "leave" today** (members only accumulate), and a finished match holds its room for ten minutes, which would bounce a Rematch back to the old match: w35 lane R | win, lose and concede: a full result screen, not a toast |  |
+
+## Playtest 5 — 2026-10-03 (01:02 UTC), match `m-b81d965aa0fb`, two humans
+
+**Played on a half-landed build:** the server was still `0.30.0`, but wave 35's Forge jar (lands
+tappable) had been installed into production at 09:59 PDT, before w35's server code that handles the
+newly-offered lands. So every land was clickable at priority with the old auto-pass logic. Auto-passing
+was NOT broken wholesale (153 auto-passes in 89 min, the same rate as the game before the swap), but an
+oddity at a specific stop may come from it (T3 is the candidate). Nothing from w35 was live otherwise.
+
+| ID | item | asked | status | evidence | check it by | your check |
+| --- | --- | --- | --- | --- | --- | --- |
+| T1 | the hover zoom (inspector) is misaligned | 1 | open → w36 | | hover a card: the zoom sits where it should | |
+| T2 | show when you are waiting on the other player | 1 | open → w36 | | while they decide, the board says so | |
+| T3 | an extra OK after declaring attackers that makes no sense | 1 | open → w36, **diagnose first** | candidate cause: the half-landed build (the new jar offers lands, the old server does not ignore them); re-test on w35 before fixing | declare attackers: no extra OK | |
+| T4 | a shockland's pay-2-life choice is yes/no on the control bar; never put yes/no there, always the big pop-up | 1 (related to R2) | open → w36 | R2 (w35) moves the play/draw question to the decision area; this generalises it to EVERY yes/no | play a shockland: the choice is a pop-up | |
+| T5 | the current phase's highlight should be stronger | 1 (the Q3 family) | open → w36 | | | |
+| T6 | cards grow to the full height of the hand | 1 | open → w36 | | | |
+| T7 | Cavern of Souls does not show its chosen creature type | 1 | open → w36 | | the Cavern shows the type it named | |
+| T8 | the stack's scrolling is ugly; show what is happening on the stack without all the text | 3 (with P9, R-stack) | reopened → w36 | w32/w33 made the text readable by scrolling it; the operator wants a different depiction (e.g. card art + one line, full text on hover) | | |
+| T9 | Spirit token has no art | 2 (with R14) | planned w35 | R14: `art-ids.json` had no token entries at all; w35 lane B adds them. Not deployed when reported | a Spirit token has art | |
 
 ## Asks outside a play-test — 2026-10-02
 

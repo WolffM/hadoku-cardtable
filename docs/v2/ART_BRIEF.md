@@ -1,5 +1,7 @@
 # v2 art brief — for the art team
 
+> **Parked for v2** (2026-10-03). See `README.md`.
+
 **From:** the cardtable project (a private card-game table for a group of friends).
 **Status:** draft for the operator to review before it goes to the team. Sections marked **[operator]**
 need their decision first.
