@@ -619,7 +619,7 @@
 .seat[data-active] .seat__ring {
   box-shadow:
     0 0 0 2px var(--bg-raised),
-    0 0 0 4px var(--accent);
+    0 0 0 6px var(--accent);
 }
 
 .face[data-active] .face__plate {
@@ -697,6 +697,8 @@
 
 .seat__ident .face__life {
   position: static;
+  /* Clears the ring's box-shadow glow, which extends a few px past the mark's edge. */
+  margin-top: 6px;
   min-width: 1.5rem;
   padding: 0 4px;
   font-size: 11px;

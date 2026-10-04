@@ -67,10 +67,9 @@
  * Placement (`placeInspector`, pure, tested on real numbers) keeps the
  * enlarged card inside the board and NEVER over the viewer's own hand: it
  * shrinks to the room above the hand zone before it will ever reach it. It
- * anchors on the hovered card's TOP-LEFT — the operator, 2026-09-26, wave 22
- * item #6 — flipping to the card's right when the left has no room, then over
- * the card itself: covering the battlefield is the price of reading a card;
- * covering the hand never is.
+ * anchors to the hovered card's RIGHT, always: covering the battlefield is
+ * the price of reading a card; covering the hand never is. A hand card is
+ * the one exception, on both axes (below).
  *
  * ## Staleness, on purpose
  *
@@ -210,43 +209,37 @@ function inspectedCardFrom(node: EventTarget | null, root: ParentNode): InspectT
  *
  *   - never over the viewer's own hand: the panel's bottom stays a `GAP`
  *     above the hand zone's top, or the board's bottom when there is no hand
- *     zone to read;
- *   - never outside the board: it flips sides, then clamps, before it will
- *     cross an edge;
+ *     zone to read — except a HAND card itself, which anchors to its own top
+ *     instead (below), and so never needs this clamp;
+ *   - never outside the board: it clamps at the board's right edge and at
+ *     its top, shifting as little as needed to stay inside — never by
+ *     flipping sides;
  *   - never bigger than the room above the hand: it shrinks first.
  *
- * The anchor is the hovered card's TOP-LEFT (#6): the panel's top edge lines up
- * with the card's, and it sits to the card's LEFT. The card's own left edge is
- * the preference, not a fallback — a preview that opened to the right was what
- * the operator asked to change — so the flip to the right only happens when the
- * left side cannot hold the panel inside the board.
+ * ## Horizontal and vertical anchor
  *
- * ## T1 (wave 36): the vertical clamp, for a card that is ITSELF in the hand
+ * The panel opens on the hovered card's RIGHT, always — `left = hover.right +
+ * GAP`, never computed against the left edge. The only clamp for this case is
+ * the board's own right edge, and it shifts the panel left exactly as far as
+ * it must to stay inside — it never jumps to the other side of the card.
+ *
+ * A HAND card is the one exception, on BOTH axes. Its panel's bottom-LEFT
+ * corner sits exactly on the card's own top-left corner — `left = hover.left`,
+ * `top = hover.top - height`, no `GAP` between them, because the hand row is
+ * what the panel is standing on. It still grows up and to the right from
+ * there; the right-edge and top clamps below apply to it exactly as they do
+ * to every other case.
+ *
+ * ## Telling a hand card apart from everything else
  *
  * `floorTop` is the hand zone's own top — correct as the one thing the panel
  * must never cross for a battlefield card or a stack item, both always well
  * above it. But a HAND card's own top sits BELOW `floorTop` (the zone's box
- * includes the padding above the row; measured on the real board,
- * `docs/planning/wave36-evidence/g1-zoom.md`), and the old clamp —
- * `Math.min(hover.top, Math.max(ceilingTop + GAP, floorTop - GAP - height))`
- * — used `floorTop` there regardless, so the result depended on the HAND
- * ZONE alone and never on which card, or where in the row, was actually
- * hovered: two different hand cards clamped to the identical pixel. That is
- * what "misaligned" meant for this case — the panel did not track the card
- * it was enlarging.
- *
- * `clampFloor` fixes this without touching any other case: it is `floorTop`
- * widened to the hovered card's own top when that card already reaches or
- * sits past the zone's edge (a hand card), and otherwise `floorTop` itself,
- * unchanged — `Math.max` picks whichever is LOWER on screen (the larger
- * number), which is the hand card's own top exactly when the card is in the
- * hand (its top is already below the zone's own). The panel's bottom then
- * clears THIS card without crossing into the row (every sibling in the same
- * row starts no higher than this card's own top either, so nothing next to
- * it is covered), instead of being pinned to a position the hand zone alone
- * determines. For every other case (`hover.top <= floorTop`, the whole
- * existing `place.test.ts` suite), `clampFloor` is `floorTop` and nothing
- * changes.
+ * includes the padding above the row), so testing `hover.top` against
+ * `hand.top` — not just checking `hand !== null` — is what tells a hand card
+ * apart from everything else, and it is what the anchor above keys off of.
+ * Two different hand cards (even fanned to different heights) anchor to two
+ * different pixels, because each uses its OWN `hover.top`, never the zone's.
  */
 export function placeInspector(
   hover: Rect,
@@ -258,13 +251,22 @@ export function placeInspector(
   const availableHeight = Math.max(0, floorTop - GAP - (ceilingTop + GAP));
   const width = Math.max(0, Math.min(PREF_W, availableHeight / CARD_TALL, board.right - board.left - 2 * GAP));
   const height = width * CARD_TALL;
-  let left = hover.left - GAP - width;
-  if (left < board.left + GAP) left = hover.right + GAP;
-  if (left + width > board.right - GAP) left = Math.min(Math.max(hover.left, board.left + GAP), board.right - GAP - width);
-  // See "T1" above: only differs from `floorTop` when the hovered card's own
-  // top already sits at or past the hand zone's edge — a hand card.
-  const clampFloor = Math.max(floorTop, hover.top);
-  const top = Math.min(Math.max(hover.top, ceilingTop + GAP), Math.max(ceilingTop + GAP, clampFloor - GAP - height));
+
+  // A hand card: see the doc comment above for why `hover.top` (not
+  // `hand.top`) is the test. Its corner anchor is exact — no GAP — because it
+  // stands on the card.
+  const isHandCard = hand !== null && hover.top >= hand.top;
+
+  let left = isHandCard ? hover.left : hover.right + GAP;
+  let top = isHandCard
+    ? hover.top - height
+    : Math.min(Math.max(hover.top, ceilingTop + GAP), Math.max(ceilingTop + GAP, floorTop - GAP - height));
+
+  // Clamp only at the board's right edge (shift left as little as needed)
+  // and the board's top — the only two edges either anchor above can cross.
+  if (left + width > board.right - GAP) left = board.right - GAP - width;
+  if (top < ceilingTop + GAP) top = ceilingTop + GAP;
+
   return { left, top, width };
 }
 
