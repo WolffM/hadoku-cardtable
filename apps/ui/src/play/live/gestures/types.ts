@@ -43,7 +43,12 @@ export interface DragState {
    * that press a drag before the pointer had moved at all.
    */
   press: Point;
-  /** Where the arrow starts, in client coordinates: the source's centre. */
+  /**
+   * Where the arrow starts, in client coordinates: the source's centre at
+   * press time. For a lifted hand card (`lifted`), this doubles as the
+   * float-back HOME point — the card slides back to exactly where it was
+   * picked up, never to wherever the hand has reflowed to since.
+   */
   from: Point;
   /** Where the pointer is, in client coordinates. */
   at: Point;
@@ -51,46 +56,27 @@ export interface DragState {
   /** The pointer has travelled past `DRAG_SLOP_PX`. */
   moved: boolean;
   /**
-   * Arena casting (R7): set only when `source` is a card Forge offered that is
-   * sitting in the VIEWER'S OWN HAND right now — never a battlefield permanent
-   * (a land offered for its mana ability, say), and never a combat, payment or
-   * source-less drag. `null` for every one of those; unchanged otherwise.
+   * True only when `source` is a card Forge offered that is sitting in the
+   * VIEWER'S OWN HAND right now — never a battlefield permanent (a land
+   * offered for its mana ability, say), and never a combat, payment or
+   * source-less drag. False for every one of those.
    *
-   * `'lifted'` from the press (even before the slop — a plain click lifts it
-   * too, see `install.ts`'s header) until the pointer first crosses into
-   * `[data-zone="battlefield"][data-owner="you"]`; `'settled'` from that frame
-   * on. `./install.ts`'s `paint()` reads this to decide whether to draw the
-   * card following the pointer (`lifted`) or pin it at `stagedAt` and let only
-   * the targeter arrow move (`settled`) — the operator's own words for the
-   * Arena model.
+   * While true, the card follows the pointer (`./install.ts`'s
+   * `onPointerMove` draws it via `./cast.ts`'s `drawCastLift`), and nothing
+   * reaches Forge until the gesture ends — `./install.ts`'s `resolveLift` is
+   * the one place that happens, reading `./cast.ts`'s `needsTarget` and
+   * `overOwnHand`/`overOwnBattlefield` against the release point.
    */
-  stage: 'lifted' | 'settled' | null;
+  lifted: boolean;
   /**
-   * Where the card settled, in client coordinates — null until `stage` becomes
-   * `'settled'`, then fixed for the rest of this gesture. The arrow's tail
-   * once settled; the ghost's pinned position either way.
-   */
-  stagedAt: Point | null;
-  /**
-   * Arena casting (R7) only — `false` for every other kind of drag. True from
-   * the instant `stage` becomes `'settled'`: THAT is when `selectCard(source)`
-   * is sent (`install.ts`'s `onPointerMove`), not at release — the operator's
-   * ruling casts at the settle, and the round trip to whatever target ask
-   * Forge opens next happens WHILE the gesture is still held. Once true, the
-   * gesture's own `source` must never be sent again; `./commit.ts`'s
-   * `commitDrag` is still how a release answers a target ask that arrived in
-   * the meantime, called with `source: null` so it only ever sends the target.
-   */
-  cast: boolean;
-  /**
-   * Arena casting (R7) only — always `true` for every other kind of drag,
-   * which still ends at its own `pointerup` exactly as before. For an Arena
-   * cast, `false` from the moment a PLAIN CLICK's `pointerup` fires (zero
-   * `moved`): the operator's ruling is that clicking "make[s] the card follow
-   * your mouse" with no button held, same as a drag, until a LATER press
-   * resolves it (`install.ts`'s `onPointerDown`, the check at its very top).
-   * `onPointerMove` keeps tracking and settling regardless of this flag — it
-   * is a plain `window` listener, not gated on any button state.
+   * Always `true` for every kind of drag that is not a lifted hand card,
+   * which still ends at its own `pointerup` exactly as before. For a lifted
+   * hand card, `false` from the moment a PLAIN CLICK's `pointerup` fires
+   * (zero `moved`): a click lifts the card with no button held, the same as
+   * a drag, until a LATER press resolves it (`install.ts`'s `onPointerDown`,
+   * the check at its very top). `onPointerMove` keeps tracking the card
+   * regardless of this flag — it is a plain `window` listener, not gated on
+   * any button state.
    */
   held: boolean;
 }

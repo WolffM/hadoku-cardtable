@@ -120,13 +120,14 @@
 }
 
 /*
- * Arena casting (R7): a hand card, picked up by a press OR a click, follows
- * the pointer (`./cast.ts`'s `drawCastLift` sets `left`/`top` in client
- * coordinates, `position: fixed` is what makes those the same units) until it
- * settles over the viewer's own battlefield. Settled is the SAME rule — the
- * module simply stops moving `left`/`top` once it is — so there is nothing
- * here to tell the two stages apart; only the targeter arrow (unchanged,
- * `.targeter` above) moves from the settle on.
+ * A hand card, picked up by a press OR a click, follows the pointer
+ * (`./cast.ts`'s `drawCastLift` sets `left`/`top` in client coordinates,
+ * `position: fixed` is what makes those the same units) until the gesture
+ * ends. `'lifted'`: still following the pointer, deciding what a release
+ * would mean. `'parked'`: a card that needed a target has been cast, at the
+ * release, and this is pinned exactly where it was let go while the
+ * targeter arrow (`.targeter` above) moves from there. `'returning'`:
+ * floating back to the hand — see the animation rule below.
  *
  * `pointer-events: none` for the reason every other overlay mark has it: a
  * lifted card must never become the element a drop or a hover resolves to, or
@@ -137,6 +138,79 @@
   z-index: var(--z-popover, 40);
   transform: translate(-50%, -50%);
   pointer-events: none;
+}
+
+/*
+ * Floating back to the hand — a no-target card released off the viewer's own
+ * battlefield, any card released over the hand, or a cancel. `./cast.ts`'s
+ * `floatCastLiftHome` is what moves `left`/`top` to the home point this
+ * transitions toward; `FLOAT_BACK_MS` there is this number, so the clean-up
+ * that lets the card go waits for the same animation it is timing.
+ */
+[data-cast-lift='returning'] {
+  transition:
+    left 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
+    top 300ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-cast-lift='returning'] {
+    transition: none;
+  }
+}
+
+/*
+ * The verdict label above a lifted card — "let go: play it", "let go: back
+ * to hand", "let go: choose a target" — read straight off the attribute
+ * `./cast.ts`'s `verdictFor` writes. No label once a cast has parked
+ * (`drawCastLift` clears it there) — the targeter arrow is the guidance from
+ * then on, same as any other cast.
+ */
+[data-cast-lift][data-cast-verdict]::after {
+  content: attr(data-cast-verdict);
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  font: 500 11px var(--font-ui, inherit);
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+}
+
+/*
+ * The other two cues, both on LANE A's own zone markup — the same technique
+ * `[data-cast-lift]` already uses on a card's `<li>`. Scoped to
+ * `[data-owner="you"]`: an opponent's zones never light up for the viewer's
+ * own drag.
+ *
+ * The battlefield lights up only for a card that needs no target
+ * (`./cast.ts`'s `updateDropCues` removes `data-drop` outright for a card
+ * that needs one — it never lands in a row, so highlighting the battlefield
+ * for it would promise something that drops it on the floor): solid while
+ * the pointer is over it (`ok`, it would be played there), a dimmer hint
+ * elsewhere (`hint`, it would float back).
+ */
+[data-zone='battlefield'][data-owner='you'][data-drop='ok'] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+[data-zone='battlefield'][data-owner='you'][data-drop='hint'] {
+  outline: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: -1px;
+}
+
+/* The hand's own cancel cue: ANY lifted card over the hand returns, whatever it is. */
+[data-zone='hand'][data-owner='you'][data-cancel-hint] {
+  outline: 2px solid var(--warn);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
 }
 
 /* A drag is a drag, not a text selection. */

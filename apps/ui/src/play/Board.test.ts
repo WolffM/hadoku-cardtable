@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { createProjector, type StateFrame } from '../../../server/src/play/visibility.ts';
@@ -4057,20 +4057,16 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
 });
 
 /*
- * ── R9 (wave 35): a cast's drop point, handed to Board by the gestures lane ──
+ * ── a cast's drop point, handed to Board by the gestures lane ──
  *
- * The real-browser investigation this wave logged found the arrange-drag
- * mechanic itself correct end to end (same-row, cross-row, a genuinely
- * vacated slot, hand reorder, stacking — all survive a real resync and real
- * incremental deltas). What it found NOT built: a card Forge has OFFERED is
- * never arrangeable (`handStandsDown`), so a cast's drop point had nowhere to
- * land — the permanent that eventually arrives always joins the end of its
- * type row, which reads as "always snaps to the left-most free slot" on a
- * near-empty early-game board. `notePlayedTo`/`previewPlayedTo` are the seam
- * with the gestures lane's cast drag (`live/gestures/cast.ts`); this suite
- * drives them exactly the way that file will, with no knowledge of its code.
+ * A card Forge has OFFERED is never arrangeable (`handStandsDown`), so a
+ * cast's drop point has nowhere to land on its own — left alone, the
+ * permanent that eventually arrives always joins the end of its type row.
+ * `notePlayedTo`/`previewPlayedTo` are the seam with the gestures lane's cast
+ * gesture (`live/gestures/cast.ts`); this suite drives them exactly the way
+ * that file will, with no knowledge of its code.
  */
-describe('R9 (wave 35): notePlayedTo hands a cast’s drop point to Board', () => {
+describe('notePlayedTo hands a cast’s drop point to Board', () => {
   const base = boardFromFixture(fixture);
   afterEach(() => forgetPendingPlacements());
 
@@ -4148,34 +4144,6 @@ describe('R9 (wave 35): notePlayedTo hands a cast’s drop point to Board', () =
     notePlayedTo(99004, { x: -5000, y: -5000 });
     rerender(createElement(Board, { view: withNewLand(99004), boardLayout: 'single' }));
     expect(backIds(container)).toEqual(['8', '24', '6', '25', '99004']);
-  });
-
-  /**
-   * The race lane E's real e2e run actually hit: G calls `notePlayedTo` at
-   * the drag's SETTLE (first crossing into the battlefield), not only at
-   * release — Forge can play the card before the pointer reaches its final
-   * spot, so the settle's placement lands it, and the release's later, more
-   * accurate call has to find an ALREADY-PRESENT card and move it, with no
-   * new Forge frame due to prompt a fresh render on its own.
-   */
-  it('a later notePlayedTo moves a card that already arrived from an earlier one (the settle-then-release race)', () => {
-    const { container, rerender } = renderBoard(base, undefined, 'single');
-    layOut(container);
-
-    // SETTLE: an early placement, landing the card before card 6.
-    const sixBox = container.querySelector<HTMLElement>('[data-card-id="6"]')!.getBoundingClientRect();
-    act(() => notePlayedTo(99005, { x: sixBox.left + 5, y: sixBox.top + sixBox.height / 2 }));
-    rerender(createElement(Board, { view: withNewLand(99005), boardLayout: 'single' }));
-    expect(backIds(container), 'landed at the settle’s position').toEqual(['8', '24', '99005', '6', '25']);
-
-    // RELEASE: a later, more accurate placement for the SAME card, now
-    // already on the battlefield — no `rerender()` call follows this one,
-    // because in production no new Forge frame arrives between settle and
-    // release either.
-    layOut(container);
-    const twentyFourBox = container.querySelector<HTMLElement>('[data-card-id="24"]')!.getBoundingClientRect();
-    act(() => notePlayedTo(99005, { x: twentyFourBox.left + 5, y: twentyFourBox.top + twentyFourBox.height / 2 }));
-    expect(backIds(container), 'moved to the release’s position, with no explicit rerender').toEqual(['8', '99005', '24', '6', '25']);
   });
 
   it('previewPlayedTo draws and clears the same indicator bar an arrange-drag uses, without touching arrangement', () => {

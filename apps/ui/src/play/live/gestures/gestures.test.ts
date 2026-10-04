@@ -56,6 +56,7 @@ import {
   type LiveMatch,
 } from '../match.ts';
 import { fixtureFrames, startReplayServer, type ReplayServer } from '../replay-server.ts';
+import { needsTarget, verdictFor } from './cast.ts';
 import { installGestures } from './index.ts';
 import type { GestureHandle } from './types.ts';
 
@@ -233,6 +234,37 @@ function boxAt(el: Element, left: number, top: number, w = 40, h = 56): void {
 
 const mineOf = (m: LiveMatch) => m.view!.players.find((p) => p.isViewer)!;
 const theirsOf = (m: LiveMatch) => m.view!.players.find((p) => !p.isViewer)!;
+
+describe('needsTarget — which cards need a target', () => {
+  it('Instant, Sorcery, and an Aura subtype do', () => {
+    expect(needsTarget('Instant')).toBe(true);
+    expect(needsTarget('Sorcery')).toBe(true);
+    expect(needsTarget('Enchantment — Aura')).toBe(true);
+    expect(needsTarget('Tribal Sorcery — Goblin')).toBe(true);
+  });
+  it('everything else does not, including a null type line', () => {
+    expect(needsTarget('Creature — Bear')).toBe(false);
+    expect(needsTarget('Basic Land — Mountain')).toBe(false);
+    expect(needsTarget('Artifact')).toBe(false);
+    expect(needsTarget('Enchantment')).toBe(false);
+    expect(needsTarget('Planeswalker — Jace')).toBe(false);
+    expect(needsTarget(null)).toBe(false);
+  });
+});
+
+describe('verdictFor — the text shown on a lifted card', () => {
+  it('a card needing no target', () => {
+    expect(verdictFor(false, false, true)).toBe('let go: play it');
+    expect(verdictFor(false, false, false)).toBe('let go: back to hand');
+    expect(verdictFor(false, true, false)).toBe('let go: back to hand');
+    expect(verdictFor(false, true, true)).toBe('let go: back to hand');
+  });
+  it('a card needing a target: anywhere outside the hand reads the same, whatever is under the pointer', () => {
+    expect(verdictFor(true, false, false)).toBe('let go: choose a target');
+    expect(verdictFor(true, false, true)).toBe('let go: choose a target');
+    expect(verdictFor(true, true, false)).toBe('let go: back to hand');
+  });
+});
 
 /* ── wave 20, re-homed from ../LiveBoard.test.ts ──────────────────────── */
 
@@ -1445,133 +1477,187 @@ describe('Q7 — a "select target spell" question takes an arrow to the stack it
 });
 
 /*
- * R7 — Arena casting. The operator, 2026-10-02: a castable hand card is
- * lifted by a press OR a click, follows the pointer, settles the moment it
- * crosses into the viewer's own battlefield, and from there only the
- * targeter arrow moves; releasing or clicking on a legal target answers the
- * target question. Manager's correction, same day: the cast is sent AT THE
- * SETTLE, not at release — Forge's own round trip to whatever targeting ask
- * it opens next happens WHILE the gesture is still held (or, for a
- * click-lift, still armed with no button down); the eventual release only
- * ever answers THAT ask, never resends the card. `./cast.ts`'s
- * `CAST_LIFT_ATTR` is the seam — `data-cast-lift` on the card's own `<li>`,
- * `'lifted'` then `'settled'`.
+ * Casting a hand card. Nothing reaches Forge until the release: a press on a
+ * card Forge offered in the VIEWER's own hand lifts it (following the
+ * pointer, drawing the cues below), and the release decides, from the
+ * card's CURRENT type line, what happens next — see `./cast.ts`'s
+ * `needsTarget`.
  */
-describe('R7 — Arena casting: sent at the settle, the gesture stays open for whatever Forge asks next', () => {
-  it('settling sends the cast immediately — not at release — and a release with no target ask open sends nothing more', async () => {
+describe('casting a hand card: nothing reaches Forge until the release', () => {
+  it('lifting a card sends nothing while it is lifted, held or click-armed', async () => {
     const { s, m, canvas } = await gestureBoard();
     const overlay = overlayOf(canvas);
     const hand = mineOf(m).hand!.map((c) => c.id);
-    expect(hand.length).toBeGreaterThan(0);
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!, hand[1]!])])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
-    // Lifted from the press itself — before the slop, and before any arrow.
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
     expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull();
 
-    // Follows the pointer while still over nothing of the viewer's own battlefield. Nothing sent yet.
     fireEvent.pointerMove(document.body, { clientX: 60, clientY: 60 });
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
-    expect(s.clientFrames()).toHaveLength(0);
-
-    // Crossing into the viewer's own battlefield settles it AND sends the cast — right here, not at release.
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('settled');
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'still lifted — no settle any more').toBe('lifted');
     expect(cardEl(canvas, hand[0]!).style.left).toBe('400px');
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
-    const arrow = await waitFor(() => overlay.querySelector<SVGElement>('[data-testid="targeter"]')!);
-    expect(arrow.dataset.source).toBe(String(hand[0]));
+    expect(s.clientFrames(), 'nothing sent while merely lifted').toHaveLength(0);
 
-    // It stays exactly there even as the pointer keeps moving: only the arrow follows.
-    fireEvent.pointerMove(myBattlefield, { clientX: 500, clientY: 320 });
-    expect(cardEl(canvas, hand[0]!).style.left).toBe('400px');
-    expect(s.clientFrames()).toHaveLength(1); // still just the one cast — no ask has opened
+    fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1)); // the first card's own release
 
-    // Released with no target ask pending: the cast already happened, so this sends nothing further.
-    fireEvent.pointerUp(myBattlefield, { clientX: 500, clientY: 320 });
-    await new Promise((r) => setTimeout(r, 30));
-    expect(s.clientFrames(), 'the release is the quiet end of an already-sent cast').toHaveLength(1);
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
-    await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull());
+    fireEvent.pointerDown(cardEl(canvas, hand[1]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(cardEl(canvas, hand[1]!), { clientX: 10, clientY: 10 }); // click-arms
+    expect(cardEl(canvas, hand[1]!).getAttribute('data-cast-lift'), 'click-armed — still nothing sent').toBe('lifted');
+    expect(s.clientFrames()).toHaveLength(1); // unchanged — the second card is only click-armed
   });
 
-  /*
-   * The scenario the manager asked for by name: Forge's reply to the cast —
-   * a fresh targeting ask — arrives WHILE the drag is still held, and the
-   * SAME gesture answers it on release. `selectables(...)` here stands in for
-   * that reply (`match.ts`'s `boardInteraction` makes every player a legal
-   * target the instant any selection is open, the same fact the pre-existing
-   * "onto the opponent's seat" case already relies on).
-   */
-  it('a target ask that arrives mid-drag (Forge answering the cast) is answered by the SAME release — cast, then target, two frames total', async () => {
+  it('a no-target card released over the viewer’s own battlefield is played, once, at the release point', async () => {
     const { s, m, canvas } = await gestureBoard();
-    const overlay = overlayOf(canvas);
+    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1)); // the cast, sent at the settle
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(myBattlefield.getAttribute('data-drop'), 'the battlefield lights up, solid, over it').toBe('ok');
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-verdict')).toBe('let go: play it');
+
+    fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
-
-    // Forge's reply: a fresh targeting ask, naming every player legal — still mid-gesture, button still held.
-    s.send(selectables([], 0, 1));
-    await waitFor(() => expect(m.selectables).not.toBeNull());
-
-    fireEvent.pointerMove(faceEl(canvas, 1), { clientX: 500, clientY: 50 });
-    const arrow = await waitFor(() => overlay.querySelector<SVGElement>('[data-testid="targeter"]')!);
-    expect(arrow.dataset.target).toBe('player:1');
-    expect(arrow.dataset.snapped).toBe('true');
-
-    fireEvent.pointerUp(faceEl(canvas, 1), { clientX: 500, clientY: 50 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
-    expect(sent(s), 'the cast once, the target once — never the card a second time').toEqual([
-      ['selectCard', hand[0]!],
-      ['selectPlayer', 1],
-    ]);
+    expect(noteSpy).toHaveBeenCalledTimes(1);
+    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 400, y: 300 });
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+    expect(myBattlefield.hasAttribute('data-drop'), 'the cue clears with the release').toBe(false);
   });
 
-  it('a plain click lifts the card, and it keeps following the pointer with NO button held, until it settles on its own', async () => {
+  it('a no-target card released off the viewer’s own battlefield floats back, and nothing is sent', async () => {
     const { s, m, canvas } = await gestureBoard();
-    const overlay = overlayOf(canvas);
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
-    const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
-    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
-    fireEvent.pointerUp(face, { clientX: 10, clientY: 10 }); // the click — the gesture does NOT end here
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'still lifted after the click').toBe('lifted');
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(document.body, { clientX: 900, clientY: 900 });
+    expect(myBattlefield.getAttribute('data-drop'), 'a dim hint, not the solid cue').toBe('hint');
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-verdict')).toBe('let go: back to hand');
+
+    fireEvent.pointerUp(document.body, { clientX: 900, clientY: 900 });
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'floating back').toBe('returning');
+    await new Promise((r) => setTimeout(r, 350));
     expect(s.clientFrames()).toHaveLength(0);
-    // The browser fires this right after a real click; jsdom needs it asked
-    // for. Swallowed in the capture phase — `dispatchEvent` says so itself —
-    // so Board's own `onClick` never sends a premature `selectCard`.
-    expect(fireEvent.click(face), 'the native click is swallowed, not answered').toBe(false);
-
-    // No button held anywhere — a bare hover move still carries it, and it still settles and casts.
-    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('settled');
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
-    await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).not.toBeNull());
-
-    // The NEXT press — a second click, still no target ask open — resolves it cleanly. One interaction, one cast.
-    fireEvent.pointerDown(myBattlefield, { button: 0, clientX: 400, clientY: 300 });
-    fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
-    await new Promise((r) => setTimeout(r, 30));
-    expect(s.clientFrames(), 'still exactly the one cast').toHaveLength(1);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
   });
 
-  it('Escape BEFORE the settle cancels silently: nothing was ever sent, so there is nothing to undo', async () => {
+  it('any card released over the hand floats back, and nothing is sent, whatever the card is', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!, hand[2]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
+
+    for (const id of [hand[0]!, hand[2]!]) {
+      fireEvent.pointerDown(cardEl(canvas, id), { button: 0, clientX: 10, clientY: 10 });
+      fireEvent.pointerMove(myHand, { clientX: 30, clientY: 20 });
+      expect(myHand.hasAttribute('data-cancel-hint'), `card ${id} over its own hand`).toBe(true);
+      expect(cardEl(canvas, id).getAttribute('data-cast-verdict')).toBe('let go: back to hand');
+      fireEvent.pointerUp(myHand, { clientX: 30, clientY: 20 });
+      expect(myHand.hasAttribute('data-cancel-hint'), 'cleared with the release').toBe(false);
+    }
+    await new Promise((r) => setTimeout(r, 350));
+    expect(s.clientFrames()).toHaveLength(0);
+  });
+
+  it('a card that needs a target is cast at the release, wherever it was released outside the hand, and parks there', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[2]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(myBattlefield.hasAttribute('data-drop'), 'a targeted card never lands in a row — no battlefield cue').toBe(false);
+    expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-verdict')).toBe('let go: choose a target');
+    expect(s.clientFrames()).toHaveLength(0);
+
+    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
+    fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', hand[2]!]]);
+    expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-lift')).toBe('parked');
+    expect(cardEl(canvas, hand[2]!).hasAttribute('data-cast-verdict'), 'no verdict once parked').toBe(false);
+    expect(cardEl(canvas, hand[2]!).style.left).toBe('500px');
+  });
+
+  it('once Forge opens the target ask, the click-targeting arrow draws from the parked card, and a click answers it', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const overlay = overlayOf(canvas);
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[2]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
+    fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+
+    s.send(selectables([], 0, 1)); // every player legal, same shape every other click-target case uses
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    fireEvent.pointerMove(faceEl(canvas, 1), { clientX: 500, clientY: 50 });
+    const arrow = await waitFor(() => overlay.querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(arrow.dataset.source).toBe(String(hand[2]));
+    expect(arrow.dataset.target).toBe('player:1');
+
+    // A real click is always a press and a release on the same element first —
+    // the press alone sends nothing (zero movement), and the native click that
+    // follows is what Board's own markup answers with.
+    const faceButton = faceEl(canvas, 1).querySelector<HTMLButtonElement>('button')!;
+    fireEvent.pointerDown(faceButton, { button: 0, clientX: 500, clientY: 50 });
+    fireEvent.pointerUp(faceButton, { clientX: 500, clientY: 50 });
+    fireEvent.click(faceButton);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s)).toEqual([
+      ['selectCard', hand[2]!],
+      ['selectPlayer', 1],
+    ]);
+  });
+
+  it('a click lifts the card with no button held; the next press is the release, at its own point', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
+
+    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
+    fireEvent.pointerUp(face, { clientX: 10, clientY: 10 }); // the click — arms, does not resolve
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'still lifted after the click').toBe('lifted');
+    expect(s.clientFrames()).toHaveLength(0);
+    expect(fireEvent.click(face), 'the native click is swallowed, not answered').toBe(false);
+
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // no button held: still tracked
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-verdict')).toBe('let go: play it');
+    expect(s.clientFrames()).toHaveLength(0);
+
+    // The NEXT press is the release — plays here, not wherever the click let go.
+    fireEvent.pointerDown(myBattlefield, { button: 0, clientX: 600, clientY: 480 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
+    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 600, y: 480 });
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+  });
+
+  it('Escape before any cast cancels silently — nothing was ever sent', async () => {
     const { s, m, canvas } = await gestureBoard();
     const overlay = overlayOf(canvas);
     const hand = mineOf(m).hand!.map((c) => c.id);
@@ -1583,90 +1669,44 @@ describe('R7 — Arena casting: sent at the settle, the gesture stays open for w
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
 
     fireEvent.keyDown(window, { key: 'Escape' });
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('returning');
     expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull();
 
-    // The same press, now abandoned, sends nothing on release.
     fireEvent.pointerUp(document.body, { clientX: 300, clientY: 300 });
     await new Promise((r) => setTimeout(r, 50));
     expect(s.clientFrames()).toHaveLength(0);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
   });
 
-  /*
-   * After the settle, Forge is parked on the targeting ask the cast opened —
-   * walking away client-side would leave that input dangling. The one
-   * correct way out is `selectButtonCancel`, the SAME sender the control
-   * bar's own Cancel button already uses (`InputSelectTargets.onCancel`
-   * answers to it). Needs a real button bar in the fixture (`okBar()`) —
-   * `pressButton` refuses when `match.buttons` is null, same as every other
-   * Cancel press in this layer.
-   */
-  it('Escape AFTER the settle sends Forge’s own Cancel — the control bar’s one sender, not silence', async () => {
+  it('Escape while a cast is parked and Forge is asking sends Forge’s own Cancel, not silence', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!]), okBar()])) s.send(f);
+    for (const f of notify([prompt('Priority'), actionable([hand[2]!]), okBar()])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
 
-    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1)); // the cast
-    // Forge opens the cast's target selection: the question a Cancel answers.
+    fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
+    fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
     await waitFor(() => expect(m.selectables).not.toBeNull());
 
     fireEvent.keyDown(window, { key: 'Escape' });
     await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
-    expect(sent(s)).toEqual([['selectCard', hand[0]!], ['selectButtonCancel']]);
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
-  });
-
-  it('a drop back on the hand BEFORE the settle cancels silently — the cast never happened', async () => {
-    const { s, m, canvas } = await gestureBoard();
-    const hand = mineOf(m).hand!.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-    const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
-
-    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(document.body, { clientX: 300, clientY: 300 }); // lifted, never crosses the battlefield
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
-    fireEvent.pointerMove(myHand, { clientX: 20, clientY: 20 });
-    fireEvent.pointerUp(myHand, { clientX: 20, clientY: 20 });
-
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
-  });
-
-  it('a drop back on the hand AFTER the settle sends Forge’s own Cancel, not silence — the cast already went out', async () => {
-    const { s, m, canvas } = await gestureBoard();
-    const hand = mineOf(m).hand!.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!]), okBar()])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-    const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
-    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
-
-    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 }); // settles, sends the cast
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1)); // Forge asks for the target
-    await waitFor(() => expect(m.selectables).not.toBeNull());
-    fireEvent.pointerMove(myHand, { clientX: 20, clientY: 20 }); // and back
-    fireEvent.pointerUp(myHand, { clientX: 20, clientY: 20 });
-
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
-    expect(sent(s)).toEqual([['selectCard', hand[0]!], ['selectButtonCancel']]);
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+    expect(sent(s)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
+    expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-lift')).toBe('returning');
   });
 
   /*
-   * The operator, 2026-10-03: "after i put down a battlefield forge the game
-   * immediately ended my turn." A land is played the moment it settles, Forge
-   * goes straight back to priority, and its button 2 is End Turn. A drop back
-   * on the hand, or Escape, must send nothing then: no question is open.
+   * A no-target card has nothing left to cancel once it is lifted but not yet
+   * cast, whatever the control bar's button 2 currently means — a priority
+   * window's own button 2 is commonly End Turn, and a naive cancel that
+   * pressed it regardless would end the turn instead of merely letting go of
+   * the card.
    */
-  it('a gesture never presses End Turn: after the settle, with no selection and no payment open, a drop on the hand or Escape sends nothing', async () => {
+  it('right-click before any cast sends nothing, whatever button 2 currently means on the control bar', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     const endTurnBar = parseServerFrame({
@@ -1679,129 +1719,91 @@ describe('R7 — Arena casting: sent at the settle, the gesture stays open for w
       enable2: true,
       focus1: true,
     });
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!, hand[1]!]), endTurnBar])) s.send(f);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!]), endTurnBar])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
     const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
-    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 }); // the land is played here
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     fireEvent.pointerMove(myHand, { clientX: 20, clientY: 20 });
-    fireEvent.pointerUp(myHand, { clientX: 20, clientY: 20 });
-
-    fireEvent.pointerDown(cardEl(canvas, hand[1]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
-    fireEvent.keyDown(window, { key: 'Escape' });
-
+    fireEvent.pointerDown(myHand, { button: 2, clientX: 20, clientY: 20 });
     await new Promise((r) => setTimeout(r, 50));
-    expect(sent(s), 'two plays, and no selectButtonCancel').toEqual([['selectCard', hand[0]!], ['selectCard', hand[1]!]]);
+    expect(sent(s), 'nothing sent — not even the bar’s own End Turn').toEqual([]);
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'floats back, same as any other cancel').toBe('returning');
   });
 
-  /*
-   * Driving this against a REAL browser surfaced the original shape of this
-   * bug (jsdom's zeroed layout cannot reproduce it): the lift carries
-   * `pointer-events: none` so it cannot absorb a drop, so the instant it
-   * leaves the hand's flex flow its next sibling slides left to fill the
-   * gap. Now that the cast is sent only at the settle and `finishCast` is a
-   * no-op before it, resolving two clicks with NO movement into the
-   * battlefield can never read a target at all — settled or not, there is
-   * nothing to read `event.target` for — so the bug's whole precondition
-   * (a stale hit-test being trusted) cannot arise any more, reflowed sibling
-   * or not. This pins that guarantee rather than the old point-fix.
-   */
-  // CI 37181078518: a land played by click stayed drawn pinned at the settle
-  // point, 342.6 px into its row, until some later press ended the gesture.
-  it('a click-armed land that has left the hand, with Forge asking nothing, ends its gesture: no lift, and the next press is not claimed', async () => {
-    const { s, m, canvas } = await gestureBoard();
-    const me = mineOf(m);
-    const hand = me.hand!.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!]), okBar()])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
-    const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
-    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerUp(face, { clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('settled');
-
-    // Forge plays it: out of the hand, onto the battlefield, nothing asked.
-    const ids = (xs: number[]) => ({ t: 'list', v: xs.map((v) => ({ t: 'int', v })) });
-    s.send(
-      stateDelta({
-        [String((1 << 28) | me.id)]: {
-          _type: 1,
-          _id: me.id,
-          Hand: ids(hand.slice(1)),
-          Battlefield: ids([...me.battlefield.map((c) => c.id), hand[0]!]),
-        },
-      }),
-    );
-    await waitFor(() => expect(mineOf(m).hand!.some((c) => c.id === hand[0]!)).toBe(false));
-    await waitFor(() => expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull());
-
-    // The next press is the player's own again: a press on the empty battlefield is not claimed by a stale gesture.
-    const down = fireEvent.pointerDown(myBattlefield, { button: 0, clientX: 300, clientY: 300 });
-    expect(down, 'not preventDefault-ed by a gesture that should be over').toBe(true);
-    fireEvent.pointerUp(myBattlefield, { clientX: 300, clientY: 300 });
-    await new Promise((r) => setTimeout(r, 30));
-    expect(sent(s), 'still exactly the one play').toEqual([['selectCard', hand[0]!]]);
-  });
-
-  it('a click-armed cast whose resolution opens a selection naming a HAND card: the press on that card ANSWERS it, it is not a drop back on the hand (T12, Secluded Glen)', async () => {
+  it('right-click mid-target, while a cast is parked, sends exactly one selectButtonCancel', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
-    expect(hand.length).toBeGreaterThan(1);
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!]), okBar()])) s.send(f);
+    for (const f of notify([prompt('Priority'), actionable([hand[2]!]), okBar()])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
-    const land = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
-    // The Arena click: lift, release (still armed), settle over the battlefield — the cast goes out.
-    fireEvent.pointerDown(land, { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerUp(land, { clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 });
+    const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
+    fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
-    // Forge resolves the land's own ETB into a selection naming the OTHER hand card (the Faerie to reveal).
-    for (const f of notify([prompt('Secluded Glen (1)\n\nSelect 1 Faerie card(s) to reveal (or: enters tapped. )'), selectables([hand[1]!], 1, 1)])) s.send(f);
+    s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
     await waitFor(() => expect(m.selectables).not.toBeNull());
-    const faerie = cardEl(canvas, hand[1]!).querySelector<HTMLButtonElement>('button')!;
-    fireEvent.pointerDown(faerie, { button: 0, clientX: 60, clientY: 10 });
-    fireEvent.pointerUp(faerie, { clientX: 60, clientY: 10 });
-    fireEvent.click(faerie);
+
+    fireEvent.pointerDown(theirBattlefield, { button: 2, clientX: 500, clientY: 50 });
+    fireEvent.pointerDown(theirBattlefield, { button: 2, clientX: 500, clientY: 50 }); // a second right-click: nothing left to cancel
     await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
-    expect(sent(s), 'the Faerie is SELECTED; nothing cancelled the reveal').toEqual([['selectCard', hand[0]!], ['selectCard', hand[1]!]]);
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+    expect(sent(s)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
   });
 
-  it('two clicks with no movement into the battlefield never send anything, even onto a reflowed SIBLING', async () => {
+  it('a left click on nothing Forge’s selection names, while a cast is parked, cancels the same way', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
-    expect(hand.length).toBeGreaterThan(1);
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!, hand[1]!])])) s.send(f);
+    for (const f of notify([prompt('Priority'), actionable([hand[2]!]), okBar()])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
+    fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    // The zone itself, not a card inside it: nothing Forge's selection names.
+    fireEvent.pointerDown(theirBattlefield, { button: 0, clientX: 999, clientY: 999 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
+  });
+
+  it('a parked cast that Forge finishes without ever asking a question clears on its own', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[2]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
+    fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-lift')).toBe('parked');
+
+    s.send(prompt('Priority')); // Forge never opened a selection for this cast
+    await waitFor(() => expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-lift')).toBeNull());
+  });
+
+  it('the browser context menu is suppressed only while a gesture or cast is live', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
 
+    expect(fireEvent.contextMenu(canvas), 'no gesture live: the menu is allowed').toBe(true);
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerUp(cardEl(canvas, hand[0]!), { clientX: 10, clientY: 10 });
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
-    // The second press's `event.target` is the SIBLING — the reflow's doing,
-    // not the player's — and it is still inside the hand either way.
-    fireEvent.pointerDown(cardEl(canvas, hand[1]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerUp(cardEl(canvas, hand[1]!), { clientX: 10, clientY: 10 });
-
-    await new Promise((r) => setTimeout(r, 30));
-    expect(s.clientFrames(), 'never settled, so never sent — the sibling included').toHaveLength(0);
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+    expect(fireEvent.contextMenu(canvas), 'a lift is live: the menu is suppressed').toBe(false);
   });
 
   it('an offered BATTLEFIELD card is never lifted — only a hand card is, lands tappable for mana included', async () => {
     const { s, m, canvas } = await gestureBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
-    // Stands in for wave 35 §F's change: a battlefield permanent Forge now
-    // offers (a land, for its mana ability) — this layer must not treat it
-    // as a hand card to cast, whatever Forge offers it for.
+    // A battlefield permanent Forge offers (a land, for its mana ability, say)
+    // must not be treated as a hand card to cast, whatever Forge offers it for.
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
 
@@ -1809,33 +1811,26 @@ describe('R7 — Arena casting: sent at the settle, the gesture stays open for w
     fireEvent.pointerMove(document.body, { clientX: 300, clientY: 300 });
     expect(cardEl(canvas, mine[0]!).getAttribute('data-cast-lift')).toBeNull();
     fireEvent.pointerUp(document.body, { clientX: 300, clientY: 300 });
-    // Unchanged from before this wave: a drag of a battlefield card onto
-    // nothing legal sends nothing.
     await new Promise((r) => setTimeout(r, 50));
     expect(s.clientFrames()).toHaveLength(0);
   });
 });
 
 /*
- * R13 — found by lane E against a real Forge (Secluded Glen): Forge can open
- * a SELECTION that itself NAMES a hand card — `InputSelectEntitiesFromList`'s
- * "reveal a Faerie?", a discard-from-hand choice, any
- * `InputSelectEntitiesFromList`/`InputSelectTargets` over the hand — and
- * `isHandCard` alone claimed that press for the Arena lift too, same as a
- * genuine cast offer. The click never reached Forge (swallowed by
- * `suppressClick`, same as a real cast's native click), and the seat fell
- * through to whatever a cancelled input does next — the real-browser report
- * was a land arriving tapped with no cast ever sent. A card Forge is asking
- * the seat to CHOOSE is not one it is offering to CAST, even sharing an id,
- * and a selection or an open ask always outranks the lift — the ordinary
- * click/drag this layer already had before this wave answers it instead.
+ * Forge can open a SELECTION that itself NAMES a hand card —
+ * `InputSelectEntitiesFromList`'s "reveal a Faerie?", a discard-from-hand
+ * choice, any `InputSelectEntitiesFromList`/`InputSelectTargets` over the
+ * hand. `isHandCard` alone is not enough to claim that press for a lift: a
+ * card Forge is asking the seat to CHOOSE is not one it is offering to CAST,
+ * even sharing an id, and a selection or an open ask always outranks the
+ * lift — the ordinary click/drag this layer already had before answers it
+ * instead.
  */
-describe('R13 — a hand card named by an open selection or ask is an ordinary click, never the Arena lift', () => {
+describe('a hand card named by an open selection or ask is an ordinary click, never lifted', () => {
   it('a selection naming a hand card: no lift, and a plain click sends selectCard at once', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
-    // Secluded Glen's own shape: the selection names the hand card directly,
-    // not Forge's priority-time actionable set.
+    // The selection names the hand card directly, not Forge's priority-time actionable set.
     for (const f of notify([prompt('Reveal a Faerie?'), selectables([hand[0]!], 0, 1)])) s.send(f);
     await waitFor(() => expect(m.selectables).not.toBeNull());
 
@@ -1843,14 +1838,14 @@ describe('R13 — a hand card named by an open selection or ask is an ordinary c
     fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'no lift while a selection is open').toBeNull();
     fireEvent.pointerUp(face, { clientX: 10, clientY: 10 });
-    // Not suppressed this time — this press was never claimed as a cast.
+    // Not suppressed this time — this press was never claimed as a lift.
     expect(fireEvent.click(face), 'the native click reaches Board, unclaimed').toBe(true);
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
   });
 
-  it('a selection naming a hand card: a drag still works the pre-wave way — commitDrag on release, no settle/arrow', async () => {
+  it('a selection naming a hand card: a drag still works the pre-wave way — commitDrag on release, no lift/arrow', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Reveal a Faerie?'), selectables([hand[0]!], 0, 1)])) s.send(f);
@@ -1859,8 +1854,8 @@ describe('R13 — a hand card named by an open selection or ask is an ordinary c
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'never settles — this was never a cast').toBeNull();
-    expect(s.clientFrames(), 'the pre-wave drag sends nothing until release').toHaveLength(0);
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'never lifted — this was never a cast').toBeNull();
+    expect(s.clientFrames(), 'the ordinary drag sends nothing until release').toHaveLength(0);
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
@@ -1870,8 +1865,8 @@ describe('R13 — a hand card named by an open selection or ask is an ordinary c
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     // The actionable set alone would make this card castable — but an open
-    // ask empties `boardInteraction`'s whole offer first (`match.ts`'s own
-    // guard), so the card is not even "under" the press.
+    // ask empties `boardInteraction`'s whole offer first, so the card is not
+    // even "under" the press.
     const dialogAsk = parseServerFrame({
       kind: 'ask',
       callId: 'c-ask',
@@ -1904,16 +1899,15 @@ describe('R13 — a hand card named by an open selection or ask is an ordinary c
 });
 
 /*
- * R9 — a cast goes to ANY slot. `selectCard` alone never told `Board` WHERE
- * the player put the card, so a newly-arrived permanent always appended to
- * the end of its row (lane B's finding, `b.md`). `Board.tsx` exports
- * `notePlayedTo`/`previewPlayedTo` for exactly this; these cases are about
- * THIS lane's half of the contract — that the seam is called at the right
- * moments with the right arguments — never about `Board`'s own hit-testing
- * geometry, which is lane B's own suite's job (`Board.test.ts`).
+ * `selectCard` alone never told `Board` WHERE the player put a card, so a
+ * newly-arrived permanent always appended to the end of its row.
+ * `Board.tsx` exports `notePlayedTo`/`previewPlayedTo` for exactly this; these
+ * cases are about THIS lane's half of the contract — that the seam is called
+ * at the right moments with the right arguments — never about `Board`'s own
+ * hit-testing geometry, which is its own suite's job (`Board.test.ts`).
  */
-describe('R9 — a cast tells Board where it landed, through the seam B provides', () => {
-  it('calls notePlayedTo once, at the settle — the same point the cast itself sent at', async () => {
+describe('a cast tells Board where it landed, through the seam Board provides', () => {
+  it('calls notePlayedTo exactly once, at the release, with the release’s own point', async () => {
     const { s, m, canvas } = await gestureBoard();
     const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
     const hand = mineOf(m).hand!.map((c) => c.id);
@@ -1922,67 +1916,15 @@ describe('R9 — a cast tells Board where it landed, through the seam B provides
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
-    expect(noteSpy).not.toHaveBeenCalled(); // lifted, not yet settled
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(noteSpy, 'still lifted — nothing sent yet').not.toHaveBeenCalled();
+    fireEvent.pointerMove(myBattlefield, { clientX: 650, clientY: 500 });
+    fireEvent.pointerUp(myBattlefield, { clientX: 700, clientY: 520 });
     expect(noteSpy).toHaveBeenCalledTimes(1);
-    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 400, y: 300 });
+    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 700, y: 520 });
   });
 
-  it('calls notePlayedTo a SECOND time at a release over the battlefield — the later call wins', async () => {
-    const { s, m, canvas } = await gestureBoard();
-    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
-    const hand = mineOf(m).hand!.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
-
-    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // settle — first call
-    fireEvent.pointerMove(myBattlefield, { clientX: 650, clientY: 500 }); // still held, still on the battlefield
-    fireEvent.pointerUp(myBattlefield, { clientX: 700, clientY: 520 }); // the release — second call, a DIFFERENT point
-    expect(noteSpy).toHaveBeenCalledTimes(2);
-    expect(noteSpy).toHaveBeenNthCalledWith(1, hand[0], { x: 400, y: 300 });
-    expect(noteSpy).toHaveBeenNthCalledWith(2, hand[0], { x: 700, y: 520 });
-  });
-
-  it('does NOT call notePlayedTo again if the release lands off the viewer’s own battlefield — the settle’s call stands', async () => {
-    const { s, m, canvas } = await gestureBoard();
-    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
-    const hand = mineOf(m).hand!.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
-    const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
-
-    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // settle — the one call
-    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
-    fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
-    expect(noteSpy).toHaveBeenCalledTimes(1);
-    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 400, y: 300 });
-  });
-
-  it('a click-lift settles and notes placement without ever holding the button — the resolving press is the "release" call', async () => {
-    const { s, m, canvas } = await gestureBoard();
-    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
-    const hand = mineOf(m).hand!.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
-    const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
-
-    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerUp(face, { clientX: 10, clientY: 10 }); // the click: arms, does not settle yet
-    expect(noteSpy).not.toHaveBeenCalled();
-    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // no button held: settles on its own
-    expect(noteSpy).toHaveBeenCalledTimes(1);
-    fireEvent.pointerDown(myBattlefield, { button: 0, clientX: 600, clientY: 480 }); // the resolving press
-    fireEvent.pointerUp(myBattlefield, { clientX: 600, clientY: 480 });
-    expect(noteSpy).toHaveBeenCalledTimes(2);
-    expect(noteSpy).toHaveBeenNthCalledWith(2, hand[0], { x: 600, y: 480 });
-  });
-
-  it('previewPlayedTo tracks the pointer while lifted or settled over the battlefield, and goes null off it', async () => {
+  it('previewPlayedTo tracks the pointer for a no-target card over the viewer’s own battlefield, and goes null off it', async () => {
     const { s, m, canvas } = await gestureBoard();
     const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');
     const hand = mineOf(m).hand!.map((c) => c.id);
@@ -1992,14 +1934,27 @@ describe('R9 — a cast tells Board where it landed, through the seam B provides
     const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(myHand, { clientX: 60, clientY: 714 }); // lifted, still over the hand — no preview
+    fireEvent.pointerMove(myHand, { clientX: 60, clientY: 714 });
     expect(previewSpy).toHaveBeenLastCalledWith(null);
-    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // settles — preview follows
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     expect(previewSpy).toHaveBeenLastCalledWith({ x: 400, y: 300 });
-    fireEvent.pointerMove(myBattlefield, { clientX: 450, clientY: 320 }); // still settled, still tracked
+    fireEvent.pointerMove(myBattlefield, { clientX: 450, clientY: 320 });
     expect(previewSpy).toHaveBeenLastCalledWith({ x: 450, y: 320 });
     fireEvent.pointerUp(myBattlefield, { clientX: 450, clientY: 320 });
-    expect(previewSpy).toHaveBeenLastCalledWith(null); // cleared at the end
+    expect(previewSpy).toHaveBeenLastCalledWith(null);
+  });
+
+  it('previewPlayedTo is never called for a card that needs a target — it never lands in a row', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[2]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(previewSpy).not.toHaveBeenCalledWith({ x: 400, y: 300 });
   });
 
   it('previewPlayedTo is cleared on Escape, same as the lift itself', async () => {
@@ -2018,7 +1973,7 @@ describe('R9 — a cast tells Board where it landed, through the seam B provides
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
   });
 
-  it('neither function is ever called for a BATTLEFIELD card (a land tapped for mana, say) — R9 is a hand-cast-only seam', async () => {
+  it('neither function is ever called for a BATTLEFIELD card (a land tapped for mana, say)', async () => {
     const { s, m, canvas } = await gestureBoard();
     const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
     const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');

@@ -376,15 +376,7 @@
  * width at which a card's NAME stops being readable, and no further (§A.1).
  */
 
-import {
-  useEffect,
-  useLayoutEffect,
-  useReducer,
-  useRef,
-  useSyncExternalStore,
-  type CSSProperties,
-  type ReactNode,
-} from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, type CSSProperties, type ReactNode } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
 import { avatarSquareUrl } from '../room/avatar.ts';
@@ -1051,11 +1043,19 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
 /**
  * A cast's intended battlefield slot, remembered by the card's own (stable)
  * id until Forge actually plays it — the seam with the gestures lane's cast
- * drag, which otherwise has nowhere to record "where you dropped it" (a card
- * Forge has offered is never arrangeable, `CardOnBoard`'s `handStandsDown`,
- * because dragging it out of hand is how it is PLAYED). Module-level like
- * `ARRANGED`: a resync may remount `Board` and a cast in flight must outlive
- * that exactly the same way a rearrange does.
+ * gesture, which otherwise has nowhere to record "where you dropped it" (a
+ * card Forge has offered is never arrangeable, `CardOnBoard`'s
+ * `handStandsDown`, because dragging it out of hand is how it is PLAYED).
+ * Module-level like `ARRANGED`: a resync may remount `Board` and a cast in
+ * flight must outlive that exactly the same way a rearrange does.
+ *
+ * Written from OUTSIDE React (the gestures lane calls `notePlayedTo` once, at
+ * the release that sends the cast — before Forge has replied, so the card is
+ * not on the battlefield yet). A plain `Map` write is invisible to React, but
+ * nothing needs to wake a mounted `Board` early for it: the effect below
+ * reads this map as one of its own dependencies change, and the next thing
+ * that changes `viewer` IS Forge's reply adding the card to the battlefield —
+ * the ordinary re-render that follows already re-examines it.
  */
 interface PendingPlacement {
   /** Never `'hand'` — a cast lands on the battlefield by definition; see `notePlayedTo`. */
@@ -1067,39 +1067,9 @@ const PENDING_PLACEMENTS = new Map<number, PendingPlacement>();
 /** How long a pending placement waits for its card. A cast that never resolves (countered, cancelled) just ages out — nothing else cleans it up. */
 const PENDING_PLACEMENT_TTL_MS = 15_000;
 
-/**
- * `notePlayedTo` is called from OUTSIDE React (the gestures lane's cast
- * drag), so writing `PENDING_PLACEMENTS` alone does not make any mounted
- * `Board` look again — a plain `Map` mutation is invisible to React. This is
- * the external store `useSyncExternalStore` subscribes to: a version that
- * bumps on every `notePlayedTo` call, so a render that already happened (the
- * card already on the battlefield from an EARLIER call) gets re-examined
- * instead of sitting stale. Found live: G's actual call site is the DRAG'S
- * SETTLE (first crossing into the battlefield, near the hand), not the
- * release — Forge can play the card before the pointer ever reaches its
- * final resting point, so the settle's placement gets consumed while the
- * card is still mid-flight, and the release's later, more accurate call
- * needs to find a card that is now already present and MOVE it, not just
- * seed where it will land.
- */
-let pendingVersion = 0;
-const pendingListeners = new Set<() => void>();
-function bumpPendingVersion(): void {
-  pendingVersion += 1;
-  for (const listener of pendingListeners) listener();
-}
-function subscribePending(listener: () => void): () => void {
-  pendingListeners.add(listener);
-  return () => pendingListeners.delete(listener);
-}
-function getPendingVersion(): number {
-  return pendingVersion;
-}
-
 /** Forget every pending placement. For a test that wants a clean slate, the same reason `forgetArrangements` exists. */
 export function forgetPendingPlacements(): void {
   PENDING_PLACEMENTS.clear();
-  pendingVersion = 0;
 }
 
 /**
@@ -1124,28 +1094,14 @@ function liveViewerGeometry(): SlotGeometry[] {
 }
 
 /**
- * R9 (wave 35), the seam with the gestures lane's cast drag
- * (`live/gestures/cast.ts`). The permanent a cast eventually produces always
- * joined the end of its type row — indistinguishable, on a near-empty
- * early-game board, from "always snaps to the left-most free slot", which is
- * what the operator reported, and verified NOT to be a bug in the arrange
- * drag itself (see the real-browser investigation this wave logged).
- *
- * Safe to call MORE THAN ONCE for the same card — and in production it is:
- * G's real call site is the drag's SETTLE (first crossing into the
- * battlefield, near the hand), not only the release, because Forge can play
- * the card before the pointer ever reaches its final resting point. Each
- * call hit-tests `point` through the exact same `snapTo` an arrange-drag's
- * own indicator uses, against the live DOM, and OVERWRITES whatever this
- * `cardId` had recorded before — the latest point wins, whether the card is
- * still in hand (the common case: a placement is seeded for an arrival that
- * has not happened yet) or ALREADY on the battlefield (the settle already
- * landed it, and this is the release's more accurate follow-up — `Board`'s
- * own effect, woken by `bumpPendingVersion` below, re-examines every
- * currently-visible battlefield card on each call, not only newly-arriving
- * ones, so an already-present card is simply MOVED via the same `withMove`
- * path a real arrange-drop uses). Either way a point that hits no slot, or
- * hits `'hand'`, records nothing, same as a drag indicator going `hidden`.
+ * The seam with the gestures lane's cast gesture (`live/gestures/cast.ts`):
+ * where a cast's release said the resulting permanent should land, so it does
+ * not simply join the end of its type row. Called exactly once per cast, at
+ * the release — before Forge has replied, so the card is not on the
+ * battlefield yet. Hit-tests `point` through the exact same `snapTo` an
+ * arrange-drag's own indicator uses, against the live DOM. A point that hits
+ * no slot, or hits `'hand'`, records nothing, same as a drag indicator going
+ * `hidden`.
  *
  * `cardId` is the HAND card's own id, which IS the battlefield id it
  * arrives/sits under: Forge's `TrackableObject.id` is `final` and no code
@@ -1161,11 +1117,6 @@ export function notePlayedTo(cardId: number, point: { x: number; y: number }): v
   // target for "where a newly played permanent goes".
   if (snap === null || snap.slot === 'hand') return;
   PENDING_PLACEMENTS.set(cardId, { slot: snap.slot, target: snap.target, expiresAt: Date.now() + PENDING_PLACEMENT_TTL_MS });
-  // `PENDING_PLACEMENTS` is a plain `Map`; mutating it is invisible to
-  // React. This is what wakes every mounted `Board` (`useSyncExternalStore`,
-  // below) to re-examine its CURRENT battlefield — covering both "a new
-  // arrival" and "a card that arrived already and now needs to move".
-  bumpPendingVersion();
 }
 
 /**
@@ -2980,31 +2931,16 @@ export function Board({
   useArrangeDrag(root, viewer !== undefined, commit);
 
   /*
-   * R9: woken by `notePlayedTo` (a plain `Map` write is invisible to React
-   * otherwise) so the effect below re-examines the board on EVERY call, not
-   * only when `viewer`/`arranged` happen to change for some other reason —
-   * the race the live suite caught: G's actual call site is the drag's
-   * SETTLE, so by the time the (more accurate) RELEASE call happens the card
-   * is usually already on the battlefield, sitting wherever the settle's
-   * placement put it, with no new Forge frame due to prompt a re-render.
-   */
-  const pendingVersion = useSyncExternalStore(subscribePending, getPendingVersion, getPendingVersion);
-
-  /*
-   * R9: fold in any PENDING placement (`notePlayedTo`, above) for a card the
-   * viewer's battlefield currently shows — once per placement, synchronously
-   * before paint (`useLayoutEffect`, not `useEffect`), so there is no
-   * append-then-snap flash: by the time the browser paints this frame, the
-   * card is already where the cast's drop point said it should be. This
-   * covers BOTH a card newly arriving with a pending placement AND a card
-   * that was already present and has just been told, by a second
-   * `notePlayedTo` call, to move — `withMove` filters the card out of
-   * wherever it currently sits before reinserting it, exactly as a real
-   * arrange-drop does, so "already there" and "just arrived" need no
-   * separate handling. A card with no pending placement, or a stale
-   * (TTL-expired) one, is left alone — `group()`'s own default for an
-   * arrival (appended to the end of its type row) or wherever it already
-   * was arranged, exactly today's behaviour either way.
+   * Fold in any PENDING placement (`notePlayedTo`, above) for a card the
+   * viewer's battlefield currently shows — synchronously before paint
+   * (`useLayoutEffect`, not `useEffect`), so there is no append-then-snap
+   * flash: by the time the browser paints this frame, the card is already
+   * where the cast's drop point said it should be. `notePlayedTo` is called
+   * before Forge's reply adds the card to the battlefield, so the next
+   * change to `viewer` (that very reply) is already what re-runs this
+   * effect — no separate wake-up needed. A card with no pending placement,
+   * or a stale (TTL-expired) one, is left alone — `group()`'s own default
+   * for an arrival (appended to the end of its type row).
    */
   useLayoutEffect(() => {
     if (viewer === undefined) return;
@@ -3031,9 +2967,7 @@ export function Board({
       setArranged(key, viewer.id, next);
       redraw();
     }
-    // `pendingVersion` is read only to be a dependency — every `notePlayedTo`
-    // call must re-run this effect, whether or not anything else changed.
-  }, [viewer, arranged, key, boardLayout, pendingVersion]);
+  }, [viewer, arranged, key, boardLayout]);
 
   const arranging: Arranging | undefined = viewer === undefined ? undefined : ARRANGING;
 
