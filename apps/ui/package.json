@@ -20,7 +20,7 @@
     "@wolffm/prefs-client": "1.0.14",
     "@wolffm/rooms-protocol": "0.40.6",
     "@wolffm/task-ui-components": "4.8.4",
-    "@wolffm/themes": "5.8.7",
+    "@wolffm/themes": "5.8.8",
     "@wolffm/watchparty-ui": "0.40.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
