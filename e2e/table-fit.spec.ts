@@ -124,8 +124,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
+import { twoLegalDecks } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { confirmYes } from './play/confirm.ts';
 import { connectHands, type Hands } from './play/hands.ts';
@@ -451,24 +452,6 @@ function installSampler(): void {
 }
 
 /* ── driving ─────────────────────────────────────────────────────────── */
-
-/** A format and two library decks legal in it, the way the room's picker would offer them. */
-async function twoLegalDecks(api: APIRequestContext, origin: string): Promise<{ format: string; decks: [string, string] }> {
-  const base = `${origin}${PREFIX}/api/tables`;
-  const formats = ((await (await api.get(`${base}/formats`)).json()) as { formats: { id: string }[] }).formats;
-  const decks = ((await (await api.get(`${base}/decks`)).json()) as { decks: { id: string; name: string }[] }).decks;
-  // Draw-go decks first, as `play.spec.ts` does: they cast spells that ASK.
-  decks.sort((a, b) => Number(/Caw/.test(b.name)) - Number(/Caw/.test(a.name)));
-  for (const f of formats) {
-    const legal: string[] = [];
-    for (const d of decks) {
-      const res = await api.post(`${base}/check`, { data: { deck: { library: d.id }, rules: { kind: 'standard', format: f.id } } });
-      if (res.status() === 200 && ((await res.json()) as { legal: boolean }).legal) legal.push(d.id);
-      if (legal.length === 2) return { format: f.id, decks: [legal[0], legal[1]] };
-    }
-  }
-  throw new Error(`no format has two legal library decks (${formats.length} formats, ${decks.length} decks)`);
-}
 
 async function turnOf(f: Friend): Promise<number> {
   // `live-turn-n` is Forge's own counter and nothing else, which is why §B.2 gave

@@ -121,6 +121,11 @@ export async function pointerDrag(
   await page.mouse.down();
   // A first move past any dead-zone, then the long way round.
   await page.mouse.move(from.x + 8, from.y + 8, { steps: 3 });
+  // Armed here, before the midway sample, so "never armed" and "armed but
+  // sampled too early" fail with different messages.
+  await expect
+    .poll(() => page.locator(hooks.pickedUp).count(), { timeout: 3_000, message: 'the drag never armed: pickedUp stayed 0 after mouse.down' })
+    .toBeGreaterThan(0);
   const steps = 12;
   let midway: DragTrace['midway'] = { ghost: 0, indicator: 0, pickedUp: 0 };
   for (let i = 1; i <= steps; i++) {
@@ -150,6 +155,14 @@ export async function touchDrag(page: Page, card: Locator, to: { x: number; y: n
     cdp.send('Input.dispatchTouchEvent', { type, touchPoints: p === undefined ? [] : [{ x: p.x, y: p.y }] });
   try {
     await touch('touchStart', from);
+    // A first move past any dead-zone, same as `pointerDrag`: arming needs a
+    // move past `SLOP` first.
+    await touch('touchMove', { x: from.x + 8, y: from.y + 8 });
+    // Armed here, before the midway sample, so "never armed" and "armed but
+    // sampled too early" fail with different messages.
+    await expect
+      .poll(() => page.locator(DRAG_HOOKS.pickedUp).count(), { timeout: 3_000, message: 'the touch drag never armed: pickedUp stayed 0 after touchStart' })
+      .toBeGreaterThan(0);
     const steps = 12;
     let midway: DragTrace['midway'] = { ghost: 0, indicator: 0, pickedUp: 0 };
     for (let i = 1; i <= steps; i++) {

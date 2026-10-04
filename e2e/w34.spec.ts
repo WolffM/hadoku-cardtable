@@ -41,15 +41,26 @@
  * Serves the prebuilt `apps/ui/dist`: rebuild before running.
  */
 
-import { readFileSync } from 'node:fs';
-
 import { expect, test, type Page } from '@playwright/test';
 
+import {
+  castCard,
+  clickHandCard,
+  clickOnce,
+  enabledOk,
+  livePrompt,
+  makeTitled,
+  offered,
+  promptMethod,
+  says,
+  serverLog,
+  stackCount,
+} from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
-import { enabledOk, matchUrl, readScenario, says, startScenarioMatch } from './play/scenario.ts';
+import { matchUrl, readScenario, startScenarioMatch } from './play/scenario.ts';
 
 const PREFIX = '/cardtable';
 
@@ -70,40 +81,7 @@ const PREFIX = '/cardtable';
  */
 
 const forge = forgeAvailability();
-const titled = (t: string): string => (forge.ok ? t : `${t} — SKIPPED: ${forge.reason}`);
-
-/* ── shared reading of the board's own state (same contract as w33.spec.ts) ── */
-
-const stackCount = (page: Page): Promise<number> =>
-  page.locator('[data-zone="stack"]').evaluate((el) => Number(el.getAttribute('data-count') ?? '0'));
-
-async function offered(page: Page): Promise<number[]> {
-  const ids = await page.locator('[data-board-card][data-selectable]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
-  return ids.sort((a, b) => a - b);
-}
-
-const livePrompt = (page: Page) => page.getByTestId('live-prompt');
-const promptMethod = async (page: Page): Promise<string | null> => {
-  if ((await livePrompt(page).count()) === 0) return null;
-  return livePrompt(page).first().getAttribute('data-method');
-};
-
-/** One click per distinct board-message, per page (see w33.spec.ts for why this is not a bare `.click()`). */
-const lastClicked = new WeakMap<Page, string>();
-async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'): Promise<boolean> {
-  const key = `${which}:${text}`;
-  if (lastClicked.get(page) === key) return false;
-  const loc = which === 'ok' ? enabledOk(page) : page.locator('[data-testid="live-button-cancel"]:enabled');
-  if ((await loc.count()) === 0) return false;
-  lastClicked.set(page, key);
-  try {
-    await loc.click({ timeout: 1_000 });
-  } catch {
-    lastClicked.delete(page);
-    return false;
-  }
-  return true;
-}
+const titled = makeTitled(forge);
 
 /**
  * The coin toss / play-draw question's own control (wave 35 R2) —
@@ -114,53 +92,24 @@ async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'): Prom
  * `startScenarioMatch` returns (`driveToOrderDecision`'s own loop, Q8) —
  * measured directly: bob stuck on "you have won the coin toss... would you
  * like to play or draw?" for the full 60s this test allows, 3 of 3 tries.
+ * Its own `lastClicked`, separate from `board.ts`'s private one inside
+ * `clickOnce`: the two never share a key format, so splitting them changes
+ * nothing either function observes.
  */
+const lastClickedPlayOrDraw = new WeakMap<Page, string>();
 async function clickOncePlayOrDraw(page: Page): Promise<boolean> {
   const btn = page.getByTestId('live-play-or-draw-play');
   if ((await btn.count()) === 0) return false;
   const key = 'play-or-draw';
-  if (lastClicked.get(page) === key) return false;
-  lastClicked.set(page, key);
+  if (lastClickedPlayOrDraw.get(page) === key) return false;
+  lastClickedPlayOrDraw.set(page, key);
   try {
     await btn.click({ timeout: 1_000 });
   } catch {
-    lastClicked.delete(page);
+    lastClickedPlayOrDraw.delete(page);
     return false;
   }
   return true;
-}
-
-/**
- * Click a hand card and settle the Arena-cast gesture (wave 35 R7) that a
- * plain click only ARMS for any card in the viewer's own hand — the same
- * regression (and the same fix) `w33.spec.ts`'s own `clickHandCard` and
- * `e2e/play/hands.ts`'s `clickCard` carry; see either's comment for the full
- * story. Without this, every bare `[data-board-card] button` click in this
- * file that targets a HAND card sends nothing to Forge at all, and
- * `castCard`'s own poll just spins until its own deadline.
- */
-async function clickHandCard(page: Page, cardId: number): Promise<void> {
-  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
-  const lifted = await page.locator(`[data-board-card="${cardId}"]`).getAttribute('data-cast-lift').catch(() => null);
-  if (lifted !== 'lifted') return;
-  const box = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
-  if (box !== null) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-}
-
-/** Click a hand card to cast it, then drain whatever Forge asks next (Pay Mana Cost, a generic ability choice). */
-async function castCard(page: Page, cardId: number): Promise<void> {
-  const stackBefore = await stackCount(page);
-  await clickHandCard(page, cardId);
-  for (let i = 0; i < 60; i++) {
-    await page.waitForTimeout(50);
-    await answerPrompt(page);
-    const stillAsking = (await livePrompt(page).count()) > 0;
-    const text = await says(page);
-    if (/Pay Mana Cost/i.test(text)) { await clickOnce(page, text, 'ok'); continue; }
-    if (stillAsking) continue;
-    if ((await stackCount(page)) !== stackBefore) return;
-  }
-  throw new Error(`castCard(${cardId}) never saw the stack change — stuck on "${await says(page)}"`);
 }
 
 /* ── 1. §E1 — Full Control no longer swallows alice's own response ──────── */
@@ -277,6 +226,10 @@ test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a r
     await clickHandCard(alice.page, card);
     for (let i = 0; i < 100 && (await promptMethod(alice.page)) !== 'order'; i++) {
       await alice.page.waitForTimeout(50);
+      // The order ask can open DURING the wait above. Re-read the method
+      // here, before answering anything, so an order ask that opened mid-wait
+      // is left alone for the poll below rather than answered by this loop.
+      if ((await promptMethod(alice.page)) === 'order') break;
       await answerPrompt(alice.page);
       const text = await says(alice.page);
       if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
@@ -356,18 +309,12 @@ test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a r
  * (`ask-auto-answered` or `ask-answered`, `method: 'order'`), so this reads
  * `stack.serverLogFile` directly rather than inferring it from UI timing.
  */
-function serverLog(stack: { serverLogFile: string }): Record<string, unknown>[] {
-  return readFileSync(stack.serverLogFile, 'utf8')
-    .split('\n')
-    .filter((l) => l.startsWith('{'))
-    .map((l) => JSON.parse(l) as Record<string, unknown>);
-}
 
 /** Drive both seats forward, generically answering anything each shows, until the server's own log records an `order` decision (real or auto-answered) for `matchId`, or `timeoutMs` elapses. Stops AT that decision — never drives further, so a Mountain-only library never has the chance to deck a seat out on an unrelated later turn. */
 async function driveToOrderDecision(
   alice: { page: Page },
   bob: { page: Page },
-  stack: { serverLogFile: string },
+  stack: PlayStack,
   matchId: string,
   timeoutMs: number,
 ): Promise<Record<string, unknown>> {
@@ -618,9 +565,16 @@ test(titled('the Choose X slider renders (not a checkbox fallback), defaults to 
       if (!targeted && (await livePrompt(alice.page).count()) === 0 && (await targetPlayer.count()) > 0) {
         await targetPlayer.first().locator('button').first().click();
         targeted = true;
-      } else {
+      } else if (targeted) {
         await page_answerOnce(alice.page);
       }
+      // While `!targeted` and `targetPlayer` is not yet selectable, do
+      // NOTHING else this tick — `TargetMin$ 0` means the control bar's OK
+      // is already enabled before any target is chosen, so falling through
+      // to the generic `page_answerOnce` here would click OK and lock the
+      // cast in with zero targets, before the board ever renders bob as
+      // selectable (the exact race `w35.spec.ts`'s Thoughtseize targeting
+      // documents and guards against the same way).
       await alice.page.waitForTimeout(40);
     }
     await expect

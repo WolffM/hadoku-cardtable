@@ -42,6 +42,7 @@ import { resolve } from 'node:path';
 
 import { expect, type Browser, type Page } from '@playwright/test';
 
+import { enabledOk, says } from './board.ts';
 import { openFriend, type Friend } from './browser.ts';
 import { confirmYes } from './confirm.ts';
 import type { PlayStack } from './harness.ts';
@@ -124,8 +125,7 @@ async function awaitScenarioHand(page: Page, scenarioName: string, seat: 'human'
 
 export const matchUrl = (origin: string, matchId: string): string => `${origin}${PREFIX}/#/match/${matchId}`;
 
-export const says = async (page: Page): Promise<string> => (await page.getByTestId('live-says').textContent()) ?? '';
-export const enabledOk = (page: Page) => page.locator('[data-testid="live-button-ok"]:enabled');
+export { says, enabledOk };
 export const enabledCancel = (page: Page) => page.locator('[data-testid="live-button-cancel"]:enabled');
 
 async function boardUp(page: Page): Promise<void> {
