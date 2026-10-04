@@ -3212,4 +3212,53 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     await waitFor(() => getByTestId('live-play-or-draw-host'));
     expect(queryByTestId('live-confirm-host')).toBeNull();
   });
+
+  /*
+   * T4, finished: the bar's OK used to stay disabled but keep showing Forge's
+   * own word (`Keep`, `Yes`, `Play`, …) while the pop-up already shows that
+   * same word on its own button — a disabled bar repeating the unanswered
+   * question. The operator: *"never put yes/no there, always the big
+   * pop-up."* Pinned by `e2e/w36.spec.ts:171` on the real page; these two are
+   * the same guarantee at the unit level, for both pop-ups.
+   */
+  it('T4, finished: the bar’s OK reads the neutral "OK", not Forge’s word, while the yes/no pop-up is up', async () => {
+    const { s, getByTestId } = await liveBoard();
+    for (const f of buttonFrames('Keep this hand of seven?', 'Keep', 'Mulligan')) s.send(f);
+
+    await waitFor(() => getByTestId('live-confirm-host'));
+    expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(true);
+    expect(getByTestId('live-button-ok').textContent).toBe('OK');
+  });
+
+  it('T4, finished: the bar’s OK reads "OK", not "Play", while the coin-toss pop-up is up', async () => {
+    const { s, getByTestId } = await liveBoard();
+    for (const f of buttonFrames('You have won the coin toss.\n\nPlay or draw?', 'Play', 'Draw')) s.send(f);
+
+    await waitFor(() => getByTestId('live-play-or-draw-host'));
+    expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(true);
+    expect(getByTestId('live-button-ok').textContent).toBe('OK');
+  });
+
+  /*
+   * The stack band stands aside for a question (items 7 and 13,
+   * `Board.tsx`'s `data-question` on `board-mid`) — before this wave that
+   * only covered the fifteen `ask`s and a mana payment; the yes/no pop-up and
+   * the coin toss are two more things that cover the same column and used to
+   * leave the band roomy underneath them.
+   */
+  it('the stack band stands aside for the yes/no pop-up too, the same as any other question', async () => {
+    const { s, getByTestId, container } = await liveBoard();
+    for (const f of buttonFrames('Keep this hand of seven?', 'Keep', 'Mulligan')) s.send(f);
+
+    await waitFor(() => getByTestId('live-confirm-host'));
+    expect(container.querySelector('[data-testid="board-mid"]')?.hasAttribute('data-question')).toBe(true);
+  });
+
+  it('the stack band stands aside for the coin-toss pop-up too', async () => {
+    const { s, getByTestId, container } = await liveBoard();
+    for (const f of buttonFrames('You have won the coin toss.\n\nPlay or draw?', 'Play', 'Draw')) s.send(f);
+
+    await waitFor(() => getByTestId('live-play-or-draw-host'));
+    expect(container.querySelector('[data-testid="board-mid"]')?.hasAttribute('data-question')).toBe(true);
+  });
 });

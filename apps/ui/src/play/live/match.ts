@@ -36,8 +36,9 @@
  *
  * ## Every ask is rendered, and every ask is answered exactly once
  *
- * All fifteen blocking methods have a component — `showConfirmDialog` here in
- * `./ConfirmDialog.tsx`, the other fourteen in `../prompts/` — so an ask is
+ * All fifteen blocking methods have a component — `showConfirmDialog` drawn
+ * by `../prompts/ConfirmPrompt.tsx` straight from `LiveBoard.tsx`, the other
+ * fourteen dispatched through `../prompts/`'s own table — so an ask is
  * never refused for its method. Two rules keep Forge's thread from parking,
  * because `ReplyPool.get` is an untimed wait (`@hadoku/forge-wire`'s
  * `envelope.ts` header):
@@ -268,7 +269,7 @@ const MATCH_ENDED_TITLE = 'Match ended';
 /** Any blocking ask, as parsed. */
 export type LiveAsk = Extract<ServerFrame, { kind: 'ask' }>;
 
-/** The ask `./ConfirmDialog.tsx` draws. */
+/** The ask `../prompts/ConfirmPrompt.tsx` draws for `LiveBoard.tsx`. */
 export type ConfirmAsk = Extract<LiveAsk, { method: 'showConfirmDialog' }>;
 
 /* ── The transport seam ──────────────────────────────────────────────── */

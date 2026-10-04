@@ -1,17 +1,23 @@
 // @vitest-environment jsdom
 /**
  * R2 — the coin toss and play/draw question, in the decision area. See
- * `PlayOrDrawPrompt.tsx`'s own header for why this is identified by Forge's
+ * `ConfirmPrompt.tsx`'s own header for why this is identified by Forge's
  * exact button labels (the same practice `AUTO_PAY_LABEL`/`CALL_BACK_LABEL`
  * already use in `../live/match.ts`) rather than a regex over its prose, and
  * why the component never imports `LiveMatch` or sends anything itself.
+ *
+ * Wave 38 folded the standalone `PlayOrDrawPrompt` component into
+ * `ConfirmPrompt` (one component, one CSS family) — `isPlayOrDrawPrompt` and
+ * the two labels stayed exactly as they were; this file now proves the
+ * play/draw SHAPE of the shared component (`coin: true`, fixed button
+ * testids) rather than a component of its own.
  */
 
 import { createElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 
-import { DRAW_LABEL, isPlayOrDrawPrompt, PLAY_LABEL, PlayOrDrawPrompt } from './PlayOrDrawPrompt.tsx';
+import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, isPlayOrDrawPrompt } from './ConfirmPrompt.tsx';
 import type { LiveButtons } from '../live/match.ts';
 
 afterEach(cleanup);
@@ -45,17 +51,17 @@ describe('isPlayOrDrawPrompt', () => {
   });
 });
 
-describe('PlayOrDrawPrompt', () => {
+describe('ConfirmPrompt — the play/draw shape (coin, fixed testids), as LiveBoard.tsx renders it', () => {
   it('shows Forge’s own message and answers through its own callbacks, not a wire call of its own', () => {
     const onPlay = vi.fn();
     const onDraw = vi.fn();
     const { getByTestId, getByRole } = render(
-      createElement(PlayOrDrawPrompt, {
+      createElement(ConfirmPrompt, {
+        testId: 'live-play-or-draw',
         message: 'Seat 0, you have won the coin toss.\n\nWould you like to play or draw?',
-        enablePlay: true,
-        enableDraw: true,
-        onPlay,
-        onDraw,
+        coin: true,
+        button1: { label: PLAY_LABEL, enabled: true, testId: 'live-play-or-draw-play', onClick: onPlay },
+        button2: { label: DRAW_LABEL, enabled: true, testId: 'live-play-or-draw-draw', onClick: onDraw },
       }),
     );
     expect(getByRole('dialog')).not.toBeNull();
@@ -72,12 +78,12 @@ describe('PlayOrDrawPrompt', () => {
 
   it('disables whichever button Forge has not enabled', () => {
     const { getByTestId } = render(
-      createElement(PlayOrDrawPrompt, {
+      createElement(ConfirmPrompt, {
+        testId: 'live-play-or-draw',
         message: 'x',
-        enablePlay: true,
-        enableDraw: false,
-        onPlay: () => {},
-        onDraw: () => {},
+        coin: true,
+        button1: { label: PLAY_LABEL, enabled: true, testId: 'live-play-or-draw-play', onClick: () => {} },
+        button2: { label: DRAW_LABEL, enabled: false, testId: 'live-play-or-draw-draw', onClick: () => {} },
       }),
     );
     expect((getByTestId('live-play-or-draw-play') as HTMLButtonElement).disabled).toBe(false);
@@ -86,22 +92,40 @@ describe('PlayOrDrawPrompt', () => {
 
   it('draws the coin — `prompts.css` is what turns it off under prefers-reduced-motion, not a JS gate', () => {
     const { getByTestId } = render(
-      createElement(PlayOrDrawPrompt, { message: 'x', enablePlay: true, enableDraw: true, onPlay: () => {}, onDraw: () => {} }),
+      createElement(ConfirmPrompt, {
+        testId: 'live-play-or-draw',
+        message: 'x',
+        coin: true,
+        button1: { label: PLAY_LABEL, enabled: true, onClick: () => {} },
+        button2: { label: DRAW_LABEL, enabled: true, onClick: () => {} },
+      }),
     );
     expect(getByTestId('live-play-or-draw-coin')).toBeTruthy();
   });
 
-  it('preserves Forge’s own line break between the coin-toss line and the question', () => {
-    const { getByTestId } = render(
-      createElement(PlayOrDrawPrompt, {
-        message: 'Seat 0, you have won the coin toss.\n\nWould you like to play or draw?',
-        enablePlay: true,
-        enableDraw: true,
-        onPlay: () => {},
-        onDraw: () => {},
+  it('draws no coin at all for the bar-driven shape, which never passes `coin`', () => {
+    const { queryByTestId } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-confirm',
+        message: 'x',
+        button1: { label: 'Yes', enabled: true, onClick: () => {} },
+        button2: { label: 'No', enabled: true, onClick: () => {} },
       }),
     );
-    const message = getByTestId('live-play-or-draw').querySelector('.prompt-playdraw__message')!;
+    expect(queryByTestId('live-play-or-draw-coin')).toBeNull();
+  });
+
+  it('preserves Forge’s own line break between the coin-toss line and the question', () => {
+    const { getByTestId } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-play-or-draw',
+        message: 'Seat 0, you have won the coin toss.\n\nWould you like to play or draw?',
+        coin: true,
+        button1: { label: PLAY_LABEL, enabled: true, onClick: () => {} },
+        button2: { label: DRAW_LABEL, enabled: true, onClick: () => {} },
+      }),
+    );
+    const message = getByTestId('live-play-or-draw').querySelector('.confirm__message')!;
     expect(message.textContent).toBe('Seat 0, you have won the coin toss.\n\nWould you like to play or draw?');
   });
 });

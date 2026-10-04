@@ -11,16 +11,16 @@ import { cleanup, render } from '@testing-library/react';
 import { BLOCKING_METHODS, safeParseServerFrame } from '@hadoku/forge-wire';
 
 import { fixtureLookup, PROMPT_FIXTURES } from './fixtures.ts';
-import { isPromptMethod, LANE_B_METHOD, PROMPT_COMPONENTS, PROMPT_METHODS, PromptFor } from './index.ts';
+import { isPromptMethod, DIRECT_CONFIRM_METHOD, PROMPT_COMPONENTS, PROMPT_METHODS, PromptFor } from './index.ts';
 import { refName } from './lookup.ts';
 import type { AskOf, PromptMethod } from './types.ts';
 
 afterEach(cleanup);
 
 describe('the method census', () => {
-  it('covers the 15 blocking methods as 14 here plus lane B’s one', () => {
+  it('covers the 15 blocking methods as 14 here plus the one LiveBoard.tsx answers directly', () => {
     expect(PROMPT_METHODS).toHaveLength(14);
-    expect([...PROMPT_METHODS, LANE_B_METHOD].sort()).toEqual([...BLOCKING_METHODS].sort());
+    expect([...PROMPT_METHODS, DIRECT_CONFIRM_METHOD].sort()).toEqual([...BLOCKING_METHODS].sort());
     expect(Object.keys(PROMPT_COMPONENTS).sort()).toEqual([...PROMPT_METHODS].sort());
     expect(isPromptMethod('showConfirmDialog')).toBe(false);
     expect(isPromptMethod('setSelectables')).toBe(false);

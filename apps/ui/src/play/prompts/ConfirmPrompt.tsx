@@ -1,12 +1,26 @@
 /*
- * Every Forge yes/no that is a QUESTION, not a priority pass — wave 36 T4
- * (shape 1). Operator: *"i hate yes/no on control bar. should always be the
- * big pop up."* This is `PlayOrDrawPrompt.tsx`'s own pattern (a presentational
- * component over Forge's `updateButtons` bar, never the wire, never a regex
- * over prompt prose) generalised from one label pair to "every label pair that
- * is not one of Forge's own mechanical ones".
+ * Every two-button question Forge can ask through the decision area, in one
+ * component: the bar-derived yes/no (shockland's "pay 2 life?", the
+ * mulligan's Keep/Mulligan, …), the coin toss's Play/Draw, and
+ * `showConfirmDialog`'s own ask. Operator: *"i hate yes/no on control bar.
+ * should always be the big pop up."* These three were three components
+ * (`ConfirmPrompt`, `PlayOrDrawPrompt`, `../live/ConfirmDialog`) with three
+ * CSS families — the code-quality retro
+ * (`docs/planning/retro-code-quality-2026-10-03.md`) named that duplication —
+ * and this is the fold: one presentational component, driven by
+ * `ConfirmPromptProps.button1`/`button2`, with `coin`, `title` and `callId`
+ * the only things that differ between its three call sites, all in
+ * `LiveBoard.tsx`.
  *
- * ## The two Java shapes on this bar, and how `updateButtons` tells them apart
+ * NOT covered: `confirm`'s own ask (`DialogPrompts.tsx`'s `ConfirmAskPrompt`)
+ * — Forge's `GuiDialog.confirm`, answered through the generic `PromptShell`
+ * every other Tier-A dialog uses, with 1 or 2 buttons depending on
+ * `rules.ts`'s `confirmButtons`. That shell and that rule are outside this
+ * lane's files, and `dialogs.test.ts` (also outside them) pins its exact
+ * markup, so it stays its own thing; only its colliding `ConfirmPrompt`
+ * export name changed.
+ *
+ * ## The two Java shapes on the bar, and how `updateButtons` tells them apart
  *
  * `updateButtons` (`ProtocolMethod.java:41`) carries only `label1`, `label2`,
  * `enable1`, `enable2` — no "kind" flag. Forge puts two different THINGS on
@@ -40,8 +54,8 @@
  *    (`:74`, from `PlayerControllerHuman.mulliganKeepHand:1492`). The coin
  *    toss (`chooseBinary`'s `PlayOrDraw` case, `PlayerControllerHuman.java:
  *    1828-1829`) is the SAME `InputConfirm` shape with its own label pair,
- *    `Play`/`Draw` — already its own component, so this excludes it by name
- *    rather than re-deciding it.
+ *    `Play`/`Draw` — rendered here with the coin decoration, excluded from
+ *    `isConfirmPrompt` by name rather than re-decided.
  *
  * So the rule below is the complement of the mechanical set, not an allowlist
  * of known questions: Forge's card scripts hand `InputConfirm`/`chooseBinary`
@@ -63,22 +77,61 @@
  * taken unconditionally today. If a future run directory ever sets one of
  * those two prefs, this would need a third label check — written down here so
  * that change does not land quietly.
+ *
+ * ## The coin toss (R2)
+ *
+ * Forge resolves the toss itself — `GameAction.determineFirstTurnPlayer`
+ * picks the winner with `Aggregates.random` before anyone is asked anything
+ * — and only ever asks the WINNER the Play/Draw question, through the same
+ * bar every other yes/no uses: `PlayerControllerHuman.chooseStartingPlayer`
+ * (`PlayerControllerHuman.java:832-849`). The losing seat gets only a
+ * "waiting for opponent" line and no buttons, so `isPlayOrDrawPrompt` is
+ * naturally false for them. The flip (`coin`) is decoration only — Forge
+ * already knows the winner before either seat sees a pixel — and
+ * `../live/live.css`'s `prefers-reduced-motion` rule turns it off outright
+ * rather than skipping it in JS.
+ *
+ * ## `showConfirmDialog`
+ *
+ * `boolean showConfirmDialog(message, title, yesButtonText, noButtonText,
+ * defaultYes)` (`IGuiGame.java`; `@hadoku/forge-wire`'s `tier-a.ts`).
+ * `LiveBoard.tsx` reads the ask (`../live/match.ts`'s `ConfirmAsk`) and hands
+ * this component `title`/`message`/the two buttons/`callId`; this component
+ * still does not know a socket exists — `answerConfirm` is the only sender.
+ * `defaultYes` decides which button has focus, so Enter takes the engine's
+ * default — and ONLY focus (the spike that proved this seam,
+ * `docs/spikes/itoclient.md`, answered the opposite of the default both ways;
+ * a dialog that pre-answered would have failed it).
  */
 import { useId } from 'react';
 
 import { AUTO_PAY_LABEL, type LiveButtons } from '../live/match.ts';
-import { isPlayOrDrawPrompt } from './PlayOrDrawPrompt.tsx';
-import './prompts.css';
+import '../live/live.css';
 
 /** Forge's own `lblOK` (`en-US.properties:598`) — see the module header's mechanical set. */
 const BAR_OK_LABEL = 'OK';
+
+/** Forge's own two labels for the coin toss (`en-US.properties`'s `lblPlay`/`lblDraw`). */
+export const PLAY_LABEL = 'Play';
+export const DRAW_LABEL = 'Draw';
+
+/** True only for the coin-toss winner's own "play or draw" question — see the module header. */
+export function isPlayOrDrawPrompt(buttons: LiveButtons | null): boolean {
+  return (
+    buttons !== null &&
+    buttons.label1 === PLAY_LABEL &&
+    buttons.label2 === DRAW_LABEL &&
+    buttons.enable1 &&
+    buttons.enable2
+  );
+}
 
 /**
  * True for a Forge bar question that is an ANSWER (yes/no, Keep/Mulligan, a
  * scry's Top/Bottom, …), false for a priority pass, a mana payment, the
  * London mulligan's OK/Auto, an attack declaration, a default OK/Cancel
- * selection, or the coin toss (its own `PlayOrDrawPrompt`). See the module
- * header for the Forge citations behind each branch.
+ * selection, or the coin toss (its own branch below). See the module header
+ * for the Forge citations behind each branch.
  */
 export function isConfirmPrompt(bar: LiveButtons | null): boolean {
   if (bar === null || !bar.enable1 || !bar.enable2) return false;
@@ -86,53 +139,80 @@ export function isConfirmPrompt(bar: LiveButtons | null): boolean {
   return bar.label1 !== BAR_OK_LABEL && bar.label1 !== AUTO_PAY_LABEL && bar.label1 !== '';
 }
 
+/** One button: Forge's own label, whether it is pressable, and what pressing it sends. */
+export interface ConfirmPromptButton {
+  label: string;
+  enabled: boolean;
+  /** Fixed testid for a caller the blast radius requires one on; omitted where nothing reads one. */
+  testId?: string;
+  /** `showConfirmDialog`'s `defaultYes`/`!defaultYes` — which button is `data-default` and focused. */
+  isDefault?: boolean;
+  /** `showConfirmDialog`'s own answer shape — `data-answer`, read by `LiveBoard.test.ts`. */
+  answer?: 'yes' | 'no';
+  onClick: () => void;
+}
+
 export interface ConfirmPromptProps {
-  /** Forge's own prompt line verbatim (`showPromptMessage`'s message, the same field `PlayOrDrawPrompt` reads). */
+  /** The root element's testid — `live-confirm`, `live-play-or-draw`, or `confirm-dialog`. */
+  testId: string;
+  role?: 'dialog' | 'alertdialog';
+  /** `showConfirmDialog` only — Forge's own dialog title. */
+  title?: string;
+  /** Forge's own prompt line verbatim. */
   message: string;
-  /** Forge's own button text — never fixed, never retranslated here. Button 1 is `InputConfirm`'s `result = true` side. */
-  label1: string;
-  label2: string;
-  enable1: boolean;
-  enable2: boolean;
-  onYes: () => void;
-  onNo: () => void;
+  /** The coin-toss decoration (`.confirm__coin` in `../live/live.css`) — play/draw only. */
+  coin?: boolean;
+  /** `showConfirmDialog`'s callId, so `data-call-id` still finds the open ask. */
+  callId?: string;
+  button1: ConfirmPromptButton;
+  button2: ConfirmPromptButton;
 }
 
 /**
- * Presentational only — same contract as `PlayOrDrawPrompt`: never touches
- * `LiveMatch` or the wire. `LiveBoard.tsx` (lane L) mounts this in the
- * decision area whenever `isConfirmPrompt(match.buttons)` is true, leaves the
- * control bar empty while it is up, wires `onYes`/`onNo` to
- * `pressButton(match, 'ok' | 'cancel')` — the same sender every other button
- * already uses — and passes `match.buttons!.label1/2/enable1/2` and
- * `match.prompt` straight through.
+ * Presentational only — never touches `LiveMatch` or the wire. `LiveBoard.tsx`
+ * mounts this for all three of its two-button questions: `isConfirmPrompt`'s
+ * bar yes/no, `isPlayOrDrawPrompt`'s coin toss, and `ask.method ===
+ * 'showConfirmDialog'`. Every `onClick` it is handed is already one of
+ * `LiveBoard.tsx`'s own senders (`pressButton`/`answerConfirm`) — this
+ * component sends nothing itself.
  */
-export function ConfirmPrompt({ message, label1, label2, enable1, enable2, onYes, onNo }: ConfirmPromptProps) {
+export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, callId, button1, button2 }: ConfirmPromptProps) {
+  const titleId = useId();
   const messageId = useId();
   return (
-    <section className="prompt prompt-confirm" data-testid="live-confirm" role="dialog" aria-labelledby={messageId}>
-      <p className="prompt__message prompt-confirm__message" id={messageId}>
+    <section
+      className="confirm"
+      data-testid={testId}
+      data-call-id={callId}
+      role={role}
+      aria-labelledby={title !== undefined ? titleId : messageId}
+      aria-describedby={title !== undefined ? messageId : undefined}
+    >
+      {title !== undefined && (
+        <h2 className="confirm__title" id={titleId}>
+          {title}
+        </h2>
+      )}
+      {coin === true && <span className="confirm__coin" aria-hidden="true" data-testid="live-play-or-draw-coin" />}
+      <p className="confirm__message" id={messageId}>
         {message}
       </p>
-      <div className="prompt__actions">
-        <button
-          type="button"
-          className="prompt__submit"
-          data-testid="prompt-confirm-yes"
-          disabled={!enable1}
-          onClick={onYes}
-        >
-          {label1}
-        </button>
-        <button
-          type="button"
-          className="prompt__submit"
-          data-testid="prompt-confirm-no"
-          disabled={!enable2}
-          onClick={onNo}
-        >
-          {label2}
-        </button>
+      <div className="confirm__actions">
+        {[button1, button2].map((b, i) => (
+          <button
+            key={i}
+            type="button"
+            className="button confirm__button"
+            data-testid={b.testId}
+            data-answer={b.answer}
+            data-default={b.isDefault || undefined}
+            autoFocus={b.isDefault === true}
+            disabled={!b.enabled}
+            onClick={b.onClick}
+          >
+            {b.label}
+          </button>
+        ))}
       </div>
     </section>
   );

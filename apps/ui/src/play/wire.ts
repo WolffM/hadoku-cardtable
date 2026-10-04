@@ -35,7 +35,6 @@ export const WireType = {
   /** A `CardStateView` — one face/state of a card. */
   CardState: 4,
 } as const;
-export type WireTypeTag = (typeof WireType)[keyof typeof WireType];
 
 /**
  * A value in the property position. The tags are exactly the ones

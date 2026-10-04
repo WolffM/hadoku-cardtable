@@ -18,7 +18,7 @@
  * own "would you like to play or draw?" is the FIRST bar either seat ever
  * sees (`GameAction.determineFirstTurnPlayer` picks a winner, then
  * `PlayerControllerHuman.chooseStartingPlayer` asks ONLY the winner —
- * `PlayOrDrawPrompt.tsx`'s own header) — the mulligan's Keep/Mulligan comes
+ * `ConfirmPrompt.tsx`'s own header) — the mulligan's Keep/Mulligan comes
  * SECOND, once play/draw is answered (`MulliganService.runPlayerMulligans`'s
  * message even reads "you are going first!", which only makes sense once a
  * starting player is already settled). A first draft of this test waited for

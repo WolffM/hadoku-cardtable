@@ -29,14 +29,19 @@ import {
 
 import type { PromptLookup } from './lookup.ts';
 
-/** The one blocking method this directory does not own. */
-export const LANE_B_METHOD = 'showConfirmDialog' as const;
+/**
+ * The one blocking method `LiveBoard.tsx` answers directly instead of through
+ * this directory's `PROMPT_COMPONENTS` dispatch table — its ask shape
+ * (`ConfirmAsk`, a wire frame with a `callId`) is Tier A/B, not one of the
+ * fourteen `ServerFrame` ask unions this directory's components take.
+ */
+export const DIRECT_CONFIRM_METHOD = 'showConfirmDialog' as const;
 
-export type PromptMethod = Exclude<BlockingMethod, typeof LANE_B_METHOD>;
+export type PromptMethod = Exclude<BlockingMethod, typeof DIRECT_CONFIRM_METHOD>;
 
 /** The fourteen, in `BLOCKING_METHODS` (i.e. `ProtocolMethod`) order. */
 export const PROMPT_METHODS: readonly PromptMethod[] = BLOCKING_METHODS.filter(
-  (m): m is PromptMethod => m !== LANE_B_METHOD,
+  (m): m is PromptMethod => m !== DIRECT_CONFIRM_METHOD,
 );
 
 /** The parsed ask frame for one method. */

@@ -24,7 +24,7 @@ import {
   GetAbilityToPlayPrompt,
   GetChoicesPrompt,
 } from './ChoicePrompts.tsx';
-import { ConfirmPrompt, ShowInputDialogPrompt, ShowOptionDialogPrompt } from './DialogPrompts.tsx';
+import { ConfirmAskPrompt, ShowInputDialogPrompt, ShowOptionDialogPrompt } from './DialogPrompts.tsx';
 import { ManipulateCardListPrompt } from './ManipulateCardListPrompt.tsx';
 import { OrderPrompt } from './OrderPrompt.tsx';
 import { SideboardPrompt } from './SideboardPrompt.tsx';
@@ -39,7 +39,7 @@ export const PROMPT_COMPONENTS: { readonly [M in PromptMethod]: ComponentType<Pr
   assignGenericAmount: AssignGenericAmountPrompt,
   showOptionDialog: ShowOptionDialogPrompt,
   showInputDialog: ShowInputDialogPrompt,
-  confirm: ConfirmPrompt,
+  confirm: ConfirmAskPrompt,
   getChoices: GetChoicesPrompt,
   order: OrderPrompt,
   sideboard: SideboardPrompt,
@@ -76,7 +76,7 @@ export function PromptFor(props: AnyPromptProps) {
   return createElement(component, props);
 }
 
-export { PROMPT_METHODS, LANE_B_METHOD, checkedReply, PromptAnswerError } from './types.ts';
+export { PROMPT_METHODS, DIRECT_CONFIRM_METHOD, checkedReply, PromptAnswerError } from './types.ts';
 export type { AskOf, PromptMethod, PromptProps, ReplyOf } from './types.ts';
 export { EMPTY_LOOKUP, lookupFromState, withAbilityLabels, type PromptLookup } from './lookup.ts';
 export { DEFENDER_SENTINEL } from './rules.ts';

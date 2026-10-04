@@ -254,11 +254,9 @@ import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
 import { lookupFromState, plainRulesText, withAbilityLabels } from '../prompts/lookup.ts';
-import { isConfirmPrompt, ConfirmPrompt } from '../prompts/ConfirmPrompt.tsx';
-import { isPlayOrDrawPrompt, PlayOrDrawPrompt } from '../prompts/PlayOrDrawPrompt.tsx';
+import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, isConfirmPrompt, isPlayOrDrawPrompt } from '../prompts/ConfirmPrompt.tsx';
 import { autoAnswer } from '../prompts/rules.ts';
 import { isPromptMethod, PromptFor, type AskOf, type PromptMethod } from '../prompts/index.ts';
-import { ConfirmDialog } from './ConfirmDialog.tsx';
 import { installGestures } from './gestures/index.ts';
 import {
   abortAsk,
@@ -496,7 +494,19 @@ class PromptBoundary extends Component<BoundaryProps, { failed: boolean }> {
 
 function LivePrompt({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
   if (ask.method === 'showConfirmDialog') {
-    return <ConfirmDialog ask={ask} onAnswer={(yes) => answerConfirm(match, ask.callId, yes)} />;
+    const yes = ask.yesButtonText === '' ? 'Yes' : ask.yesButtonText;
+    const no = ask.noButtonText === '' ? 'No' : ask.noButtonText;
+    return (
+      <ConfirmPrompt
+        testId="confirm-dialog"
+        role="alertdialog"
+        title={ask.title === '' ? 'A question' : ask.title}
+        message={ask.message}
+        callId={ask.callId}
+        button1={{ label: yes, enabled: true, answer: 'yes', isDefault: ask.defaultYes, onClick: () => answerConfirm(match, ask.callId, true) }}
+        button2={{ label: no, enabled: true, answer: 'no', isDefault: !ask.defaultYes, onClick: () => answerConfirm(match, ask.callId, false) }}
+      />
+    );
   }
   if (!isPromptMethod(ask.method)) {
     // Unreachable while forge-wire's blocking set is the fifteen; a sixteenth
@@ -602,13 +612,16 @@ export type LogKind = 'payment' | 'damage' | 'life' | 'play' | 'control' | 'said
  * reads Forge's prose to decide what a button means is a client that breaks in
  * French.
  *
- * The button ITSELF stays in the DOM, disabled, and reads `Cancel`. It is not
- * removed: the control cluster is a fixed box with a fixed slot for each of its
- * children, and `e2e/table-fit.spec.ts` fails a frame in which that box is not
- * the box it was in every other frame. Disabled-and-neutral is also the
- * truthful reading outside declare-attackers, where this button is still
- * Forge's own generic Cancel (a mana payment's, for one) and unaffected by any
- * of this.
+ * The control cluster's OWN second button (`showsSecondButton`, below) is NOT
+ * drawn at all while this is false — wave 32 Q15b, *"what is the point of the
+ * cancel button?"*, deleted the old disabled-and-present button rather than
+ * keep a permanent `Cancel` that did nothing. `e2e/table-fit.spec.ts` still
+ * measures the CLUSTER'S box as fixed regardless (every other child of it is
+ * a real button that never disappears), so the cluster does not resize when
+ * this one slot comes and goes. The payment window's own cancel button
+ * (`live-payment-cancel`) is a second, separate button that DOES stay in the
+ * DOM disabled instead — it has its own fixed sheet, not the cluster's box,
+ * so there is nothing there for a vanishing child to break.
  */
 function offersSecondButton(match: LiveMatch): boolean {
   return !declaringAttackers(match);
@@ -1359,10 +1372,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * R2: the coin toss / play-draw question. Not an `ask` — Forge resolves the
    * toss itself and asks only the winner one question through the same
    * notify-only `prompt`/`buttons` channel every other yes/no in the control
-   * bar already uses (`PlayerControllerHuman.chooseStartingPlayer`, lane G's
-   * `g.md`). `isPlayOrDrawPrompt` (`../prompts/PlayOrDrawPrompt.tsx`, G's,
-   * presentational only) reads it off `bar` alone, the same field
-   * `showsSecondButton` already reads.
+   * bar already uses (`PlayerControllerHuman.chooseStartingPlayer`).
+   * `isPlayOrDrawPrompt` (`../prompts/ConfirmPrompt.tsx`, presentational
+   * only) reads it off `bar` alone, the same field `showsSecondButton`
+   * already reads.
    */
   const playOrDraw = !spectator && !askOpen && isPlayOrDrawPrompt(bar);
   /*
@@ -1415,12 +1428,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     declaringAttackers: declaringAttackers(match),
     /*
      * A question is in front of the board, so the stack stands aside (items 7 and
-     * 13). The two things that draw in that column are the fifteen prompts and
-     * the payment window, and both are decided a few lines below as `ask` and
-     * `paying` — this is the same pair, named once, so the stack cannot disagree
-     * with what is actually on screen.
+     * 13). Four things draw in that column: the fifteen prompts, the payment
+     * window, the coin toss and the yes/no pop-up — decided a few lines above
+     * as `ask`/`paying`/`playOrDraw`/`confirmPrompt`. This is the same four,
+     * named once, so the stack cannot disagree with what is actually on screen.
      */
-    questionOpen: askOpen || paying,
+    questionOpen: askOpen || paying || playOrDraw || confirmPrompt,
     /*
      * Item 16's glow: Forge's actionable set, and ONLY while nothing is
      * asking. `offered.selectable` IS that set already, whenever
@@ -1438,7 +1451,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      * same footprint). `boardCardById` is the one lookup, exported below for
      * its own test.
      */
-    stagedCardId: stagedHandCardId(match, offered, askOpen || paying),
+    stagedCardId: stagedHandCardId(match, offered, askOpen || paying || playOrDraw || confirmPrompt),
     onSelectCard: (cardId) => {
       if (!spectator) selectCard(match, cardId);
     },
@@ -1796,7 +1809,15 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           disabled={spectator || ask !== null || bar === null || !bar.enable1 || playOrDraw || confirmPrompt}
           onClick={() => pressButton(match, 'ok')}
         >
-          {bar === null || bar.label1 === '' ? 'OK' : bar.label1}
+          {/*
+           * T4: while the decision area's own pop-up owns this question
+           * (`playOrDraw`/`confirmPrompt`, both disable this button above
+           * too), the bar reads the neutral `OK` rather than Forge's own
+           * word — the pop-up already shows that word on its own button,
+           * and a disabled bar still saying "Keep" or "Yes" read as a
+           * second, unanswerable copy of the same question.
+           */}
+          {bar === null || bar.label1 === '' || playOrDraw || confirmPrompt ? 'OK' : bar.label1}
         </button>
         {/*
          * Forge's SECOND prompt button (wave 32 Q15b: *"what is the point of the
@@ -1873,12 +1894,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        */}
       {playOrDraw && (
         <div className="live__prompt" data-testid="live-play-or-draw-host">
-          <PlayOrDrawPrompt
+          <ConfirmPrompt
+            testId="live-play-or-draw"
             message={plainRulesText(match.prompt ?? '')}
-            enablePlay={bar?.enable1 ?? false}
-            enableDraw={bar?.enable2 ?? false}
-            onPlay={() => pressButton(match, 'ok')}
-            onDraw={() => pressButton(match, 'cancel')}
+            coin
+            button1={{ label: PLAY_LABEL, enabled: bar?.enable1 ?? false, testId: 'live-play-or-draw-play', onClick: () => pressButton(match, 'ok') }}
+            button2={{ label: DRAW_LABEL, enabled: bar?.enable2 ?? false, testId: 'live-play-or-draw-draw', onClick: () => pressButton(match, 'cancel') }}
           />
         </div>
       )}
@@ -1895,13 +1916,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {confirmPrompt && bar !== null && (
         <div className="live__prompt" data-testid="live-confirm-host">
           <ConfirmPrompt
+            testId="live-confirm"
             message={plainRulesText(match.prompt ?? '')}
-            label1={bar.label1}
-            label2={bar.label2}
-            enable1={bar.enable1}
-            enable2={bar.enable2}
-            onYes={() => pressButton(match, 'ok')}
-            onNo={() => pressButton(match, 'cancel')}
+            button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => pressButton(match, 'ok') }}
+            button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => pressButton(match, 'cancel') }}
           />
         </div>
       )}

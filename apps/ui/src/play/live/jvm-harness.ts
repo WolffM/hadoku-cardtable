@@ -49,13 +49,6 @@ export function forgeAvailability() {
   return jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
 }
 
-/** Forge's res/ — for reading bundled decks. Throws when not configured. */
-export function forgeRes(): string {
-  const a = forgeAvailability();
-  if (!a.ok) throw new Error(a.reason);
-  return a.config.res;
-}
-
 type Notify<M extends string> = Extract<ServerFrame, { method: M }>;
 
 /** What a seat was last told that the fold does not keep. */

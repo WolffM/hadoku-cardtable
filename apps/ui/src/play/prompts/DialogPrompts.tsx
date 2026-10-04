@@ -95,7 +95,7 @@ export function ShowInputDialogPrompt({ ask, onAnswer }: PromptProps<'showInputD
   );
 }
 
-export function ConfirmPrompt({ ask, onAnswer, lookup }: PromptProps<'confirm'>) {
+export function ConfirmAskPrompt({ ask, onAnswer, lookup }: PromptProps<'confirm'>) {
   const buttons = confirmButtons(ask);
   const answer = (reply: boolean) => {
     assertAnswerable('confirm', confirmProblems(ask, reply));
