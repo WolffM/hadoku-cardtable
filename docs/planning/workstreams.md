@@ -4,6 +4,34 @@
 records. Every row carries the evidence it was checked against, not the doc that
 claimed it.
 
+**2026-10-03 (late) — code-quality retrospective; wave 38 is consolidation plus w37's carry-over.**
+The operator asked whether waves 32–37 have been adding duplicate code and cruft. **Yes:**
+`docs/planning/retro-code-quality-2026-10-03.md` has the evidence, every item spot-checked by the
+tracker. In three days the repo added 92k lines and deleted 28k. Product source grew +6.6k against docs
++26.6k (0 deleted). Duplicates include:
+- the yes/no question (4 components, two of them exported as `ConfirmPrompt`);
+- two drag systems with different slop values;
+- the own-lands filter on both server and browser;
+- ask shortcuts in 4 places;
+- 16 e2e helper names copied 44 times.
+
+Separately, none of the 32 jar suites run in CI.
+**w37 verified from its closing note** (`ad3d84f`):
+- E `aa0c340` and A `ceeffab` are on main; server 0.32.2 is deployed.
+- forge-e2e on `ad3d84f`: `check` green, forge-e2e red. The reds are the three flakes w37 routed to w38,
+  not the scenario race.
+
+**Wave 38 (`docs/planning/wave38-2026-10-03.md`):** 8 items, 4 lanes.
+- **E** fixes the e2e flakes: §E2, Choose X, the R4Qi59 mulligan stall, table-fit.
+- **H** leaves one copy of each e2e helper.
+- **J** makes the jar suites a real signal: `auto.jvm` and Q12 green, the suites in CI, `arrow.spec`
+  in the forge-e2e list.
+- **U** builds one yes/no pop-up and finishes T4 (the bar's OK no longer reads `Keep`).
+
+No engine change. The decode-race measurement, the auto-pass consolidation and the land filter go to
+w39 (engine, its own wave); the drag unification and the e2e regroup go to w40. Operator decisions
+open: gate `redeploy.yml` on CI, stop committing evidence PNGs, archive this file.
+
 **2026-10-03 — tracker's own fixes after w36 (Fable session), newest first.**
 The operator handed the three open play-test items to the tracker directly;
 `docs/planning/playtest-ledger.md` has the rows.
