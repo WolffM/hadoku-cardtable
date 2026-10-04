@@ -13,6 +13,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # The full set, every night, whatever changed: what path selection (the
+  # `changes` job) skipped is still run within a day, and a pinned test that
+  # stopped failing, or vanished, is caught by the strict full-run judge.
+  schedule:
+    - cron: '0 10 * * *'
 
 # Queue, never cancel. A cancelled `forge-e2e` leaves its e2e servers running
 # on this self-hosted runner, reparented to systemd and holding the fixed e2e
@@ -26,8 +31,72 @@ concurrency:
 permissions:
   contents: read
   packages: read
+  actions: read
 
 jobs:
+  # ── Which slow jobs this push needs ───────────────────────────────────────
+  #
+  # A push is compared with the last commit on main whose CI run fully
+  # succeeded, not with its parent: a red or skipped run's changes stay in the
+  # range until a green run covers them. Measured on run 37222364036:
+  # forge-e2e 8 min, forge-jvm 20 min (UI suites 7, server suites 12).
+  #   docs, *.md, .claude/**                 nothing slow
+  #   unit tests only (*.test.ts, not e2e)    nothing slow; `check` runs them
+  #   apps/ui/src/play/** (not css, not the hover zoom), a UI jvm suite
+  #                                          e2e + UI jvm suites
+  #   other apps/ui/**, e2e/**               e2e
+  #   apps/server/**, packages/**, forge, the lockfile, package.json,
+  #   this file, scripts/**                  e2e + every jvm suite
+  #   anything unclassified                  everything
+  # Not a push (a PR, a manual run, the nightly schedule), no green base, a
+  # diverged range, or any error here: everything.
+  changes:
+    name: changes
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 5
+    outputs:
+      e2e: ${{ steps.pick.outputs.e2e }}
+      jvm_ui: ${{ steps.pick.outputs.jvm_ui }}
+      jvm_server: ${{ steps.pick.outputs.jvm_server }}
+    steps:
+      - name: Pick the jobs this change needs
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+          all() { echo "running everything: $1"; { echo e2e=true; echo jvm_ui=true; echo jvm_server=true; } >> "$GITHUB_OUTPUT"; exit 0; }
+          [ "$EVENT" = push ] || all "event is $EVENT"
+          api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/$1"; }
+          base=$(api "actions/workflows/ci.yml/runs?branch=main&status=success&per_page=1" | jq -r '.workflow_runs[0].head_sha // empty') || all "could not read the last green run"
+          [ -n "$base" ] || all "no green run on main yet"
+          cmp=$(api "compare/$base...$HEAD_SHA") || all "could not compare $base...$HEAD_SHA"
+          status=$(jq -r .status <<<"$cmp"); n=$(jq -r '.files | length' <<<"$cmp")
+          echo "last green $base; this push $HEAD_SHA; $status, $n files"
+          [ "$status" = ahead ] || [ "$status" = identical ] || all "range is $status"
+          [ "$n" -lt 300 ] || all "$n files, past what the compare API lists"
+          e2e=false; ui=false; server=false
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            case "$f" in
+              docs/*|*.md|.claude/*) ;;
+              apps/server/*|packages/*|forge|pnpm-lock.yaml|package.json|pnpm-workspace.yaml|.github/workflows/ci.yml|scripts/*)
+                e2e=true; ui=true; server=true ;;
+              apps/ui/*.jvm.test.ts) ui=true ;;
+              e2e/*) e2e=true ;;
+              *.test.ts|*.test.tsx) ;;
+              apps/ui/src/play/*.css|apps/ui/src/play/inspect/*) e2e=true ;;
+              apps/ui/src/play/*) e2e=true; ui=true ;;
+              apps/ui/*) e2e=true ;;
+              *) echo "unclassified: $f"; e2e=true; ui=true; server=true ;;
+            esac
+          done < <(jq -r '.files[].filename' <<<"$cmp")
+          echo "e2e=$e2e jvm_ui=$ui jvm_server=$server"
+          { echo "e2e=$e2e"; echo "jvm_ui=$ui"; echo "jvm_server=$server"; } >> "$GITHUB_OUTPUT"
+
   check:
     name: check
     # The fleet form. `vars.CI_RUNNER` holds the label set to schedule on:
@@ -198,6 +267,8 @@ jobs:
   # queues a newer push behind both rather than cancelling them.
   forge-e2e:
     name: forge-e2e
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: [self-hosted, pm2-host]
     # Measured on run 37184116178 (the 9-spec derived list): ~15 min of test time
     # with three reds burning their own budgets (play.spec alone 312 s), plus
@@ -389,8 +460,10 @@ jobs:
   # that dies before writing it is a red, not a silent pass.
   forge-jvm:
     name: forge-jvm
-    needs: forge-e2e
-    if: always()
+    needs: [changes, forge-e2e]
+    # always(): after forge-e2e whether it passed, failed or was skipped by
+    # `changes`, never beside it on the shared host.
+    if: always() && needs.changes.result == 'success' && (needs.changes.outputs.jvm_ui == 'true' || needs.changes.outputs.jvm_server == 'true')
     runs-on: [self-hosted, pm2-host]
     # The 32 suites took 1140 s (19 min) serially on this host, alone under a
     # lock (2026-10-04). ×1.5 is 28.5 min, plus checkout and install.
@@ -425,11 +498,18 @@ jobs:
           CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
           CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
           CARDTABLE_PLAY_WORK_DIR: ${{ runner.temp }}/cardtable-jvm-play
+          JVM_UI: ${{ needs.changes.outputs.jvm_ui }}
+          JVM_SERVER: ${{ needs.changes.outputs.jvm_server }}
         run: |
           mkdir -p "$CARDTABLE_PLAY_WORK_DIR"
           report="${{ runner.temp }}/forge-jvm-report.json"
           rm -f "$report"
-          files=$(git ls-files '*.jvm.test.ts')
+          # `changes` picks the groups; both together is the full set.
+          files=""
+          [ "$JVM_UI" = true ] && files="$files $(git ls-files 'apps/ui/*.jvm.test.ts')"
+          [ "$JVM_SERVER" = true ] && files="$files $(git ls-files 'apps/server/*.jvm.test.ts')"
+          extra=$(git ls-files '*.jvm.test.ts' | grep -vE '^apps/(ui|server)/' || true)
+          [ -z "$extra" ] || { echo "::error::jvm suites outside apps/ui and apps/server, which no group runs: $extra"; exit 1; }
           [ -n "$files" ] || { echo "::error::no *.jvm.test.ts tracked — nothing to run"; exit 1; }
           echo "jvm suites ($(printf '%s\n' "$files" | wc -l)):"
           echo "$files"
@@ -453,6 +533,10 @@ jobs:
       # A report that was never written is a red too, not a silent pass.
       - name: Every jvm suite ran, and nothing failed or skipped off the pinned lists
         if: always()
+        env:
+          # A partial run (one group) judges only the pinned tests it ran; the
+          # full run (both groups, every night at least) judges all of them.
+          FULL: ${{ needs.changes.outputs.jvm_ui == 'true' && needs.changes.outputs.jvm_server == 'true' }}
         run: |
           report="${{ runner.temp }}/forge-jvm-report.json"
           test -s "$report" || { echo "::error::$report is empty or missing — the jvm run did not finish writing its report"; exit 1; }
@@ -482,8 +566,12 @@ jobs:
           R4: casting Thoughtseize, against real Forge the land is never a legal choice: picking the land is refused by Forge itself
           LIST
           )
-          jq -e --argjson skips "$expected_skips" --argjson failing "$known_failing" --argjson flaky "$known_flaky" '
+          jq -e --argjson full "$FULL" --argjson skips "$expected_skips" --argjson failing "$known_failing" --argjson flaky "$known_flaky" '
             [.testResults[].assertionResults[]] as $all
+            | [$all[].fullName] as $ran
+            | def inrun: if $full then . else map(select(. as $n | $ran | index($n) != null)) end;
+              ($failing | inrun) as $failing
+            | ($skips | inrun) as $skips
             | ([$all[] | select(.status == "failed") | .fullName] | sort - $flaky) as $failed
             | ([$all[] | select(.status != "passed" and .status != "failed") | .fullName] | sort) as $skipped
             | {
@@ -493,7 +581,7 @@ jobs:
                 "pinned as skipped, did not skip": ($skips - $skipped),
                 "no tests at all": (if ($all | length) == 0 then ["the report holds no test"] else [] end)
               }
-            | . + {"pinned as flaky, not in the report": ($flaky - [$all[].fullName])}
+            | . + {"pinned as flaky, not in the report": (if $full then ($flaky - $ran) else [] end)}
             | with_entries(select(.value | length > 0))
             | if length == 0 then true else (., false) end
           ' "$report" || { echo "::error::the jvm report does not match the pinned lists (see the object above)"; exit 1; }
