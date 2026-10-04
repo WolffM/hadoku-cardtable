@@ -18,6 +18,8 @@ source rather than its reputation.
   images"* — `docs/LICENSING.md` §3.1 keeps that argument and records why it was
   overruled. Do not restore the old rule from a stale comment.
   `.gitignore` still refuses `*.jpg`/`*.png`/`cards/`, and that half is absolute.
+  Since 2026-10-03 that includes wave evidence screenshots under `docs/`: the
+  old `!docs/**/*.png` exception is gone. Never `git add -f` one.
 - ~~**Our own origin never serves an image.**~~ **Repealed 2026-09-19 (D18)**
   by the operator: *"i dont care to follow this strictness regarding the WOTC
   ip"*. Image URLs are no longer restricted by host, and `scripts/d13-gate.sh`

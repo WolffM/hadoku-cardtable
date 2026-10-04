@@ -1,6 +1,6 @@
 # Ask hadoku_site to redeploy the `cardtable` PM2 service.
 #
-# Lives here, runs on push to main. hadoku_site's redeploy-service.yml listens
+# Lives here, runs when CI finishes green on main (below). hadoku_site's redeploy-service.yml listens
 # for `repository_dispatch: redeploy_service` and delegates to mgmt-api, which
 # per its deploy-config.json does: git pull -> pnpm install && pnpm build ->
 # pm2 restart cardtable (serving 127.0.0.1:9008 behind the cloudflared tunnel,
@@ -27,24 +27,39 @@
 
 name: Redeploy on hadoku_site
 
+# ## Only a green CI deploys (operator, 2026-10-03)
+#
+# This used to run on every push to main, in parallel with CI, so a red build
+# reached production as fast as a green one. It now runs when the CI workflow
+# finishes on main, and dispatches only if that run succeeded. A red CI deploys
+# nothing; the next green run deploys everything that has accumulated.
+#
+# What gets deployed is main's head, not a chosen sha (mgmt-api pulls), so a
+# green run deploys only while it is still main's head. A push in the seconds
+# between that check and mgmt-api's pull is the remaining gap.
+#
+# `workflow_run` instead of a poll on push: a job waiting for CI would hold a
+# runner that CI's own jobs may be queued for.
+#
+# ## Why docs-only changes still do not deploy
+#
+# A deploy is not free: mgmt-api rebuilds and `pm2 restart`s cardtable. On
+# 2026-09-26 two docs-only pushes ended the operator's match four minutes
+# apart, which is why this file used `paths-ignore`. `workflow_run` has no path
+# filter, and comparing a green sha with its parent is wrong: CI keeps one
+# pending run per group, so a code push followed by a docs push can collapse
+# into one CI run on the docs commit. The `decide` job therefore diffs the green
+# sha against the sha this workflow last dispatched, and deploys when anything
+# outside docs/**, **/*.md and .claude/** changed in between.
+#
+# `workflow_dispatch` is the operator's override: it deploys main's head with
+# no gate.
+
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    # A deploy is not free: mgmt-api rebuilds and `pm2 restart`s cardtable,
-    # the process exits, and `host.ts`'s exit hook SIGKILLs every match JVM —
-    # so every live game ends and every socket drops. On 2026-09-26 two
-    # docs-only pushes (a wave plan and a retrospective) did exactly that to
-    # the operator mid-match, four minutes apart: `forge:join was refused:
-    # unknown-match`.
-    #
-    # Nothing under these paths can change what the server serves, so nothing
-    # under them is worth ending a game for. This is the cheap half of the
-    # fix; the durable half is making a match survive a restart at all, which
-    # the client's rejoin/resync machinery is already built for.
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - '.claude/**'
   workflow_dispatch:
 
 permissions: {}
@@ -54,8 +69,78 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  decide:
+    name: decide
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event != 'pull_request')
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
+      sha: ${{ steps.decide.outputs.sha }}
+    steps:
+      - name: Anything servable changed since the last dispatch?
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          GREEN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          api() { curl -fsS -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${REPO}/$1"; }
+          if [ "${EVENT}" = workflow_dispatch ]; then
+            echo "manual dispatch: deploying ${GITHUB_SHA} with no gate"
+            { echo deploy=true; echo "sha=${GITHUB_SHA}"; } >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "sha=${GREEN_SHA}" >> "$GITHUB_OUTPUT"
+          # mgmt-api ignores the dispatched sha and deploys main's head (hadoku_site
+          # redeploy-service.yml only logs it). So a green run deploys only while its
+          # sha IS main's head; if main has moved on, that newer commit's own CI run
+          # decides. CI keeps the newest pending run per group, so the head always
+          # gets one.
+          head=$(api "commits/main" | jq -r '.sha')
+          if [ "${head}" != "${GREEN_SHA}" ]; then
+            echo "main has moved on to ${head}; its own CI run decides"; echo deploy=false >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # The last sha a "dispatch redeploy" job of this workflow succeeded for.
+          # Runs from before this gate (push-triggered) count: same workflow, same job name.
+          last=""
+          for id in $(api "actions/workflows/redeploy.yml/runs?branch=main&status=success&per_page=30" | jq -r '.workflow_runs[].id'); do
+            if api "actions/runs/${id}/jobs" | jq -e '.jobs[] | select(.name == "dispatch redeploy" and .conclusion == "success")' > /dev/null; then
+              last=$(api "actions/runs/${id}" | jq -r '.head_sha'); break
+            fi
+          done
+          if [ -z "${last}" ]; then
+            echo "no earlier dispatch found in the last 30 runs: deploying"; echo deploy=true >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          cmp=$(api "compare/${last}...${GREEN_SHA}")
+          status=$(jq -r '.status' <<<"${cmp}")
+          files=$(jq -r '.files | length' <<<"${cmp}")
+          echo "last dispatched ${last}; green ${GREEN_SHA}; compare: ${status}, ${files} files"
+          if [ "${status}" = identical ] || [ "${status}" = behind ]; then
+            echo "nothing new since the last dispatch"; echo deploy=false >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # Diverged history, or more files than the compare API lists: deploy rather than guess.
+          if [ "${status}" != ahead ] || [ "${files}" -ge 300 ]; then
+            echo deploy=true >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          servable=$(jq -r '.files[].filename' <<<"${cmp}" | grep -vE '^(docs/|\.claude/)|\.md$' || true)
+          if [ -n "${servable}" ]; then
+            printf 'servable changes:\n%s\n' "${servable}"; echo deploy=true >> "$GITHUB_OUTPUT"
+          else
+            echo "docs-only since the last dispatch: not deploying"; echo deploy=false >> "$GITHUB_OUTPUT"
+          fi
+
   dispatch-redeploy:
     name: dispatch redeploy
+    needs: decide
+    if: needs.decide.outputs.deploy == 'true'
     # See ci.yml for why there is no `||` fallback here.
     runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 10
@@ -66,6 +151,7 @@ jobs:
       - name: Trigger redeploy_service on hadoku_site
         env:
           TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          SHA: ${{ needs.decide.outputs.sha }}
         run: |
           set -euo pipefail
           if [ -z "${TOKEN}" ]; then
@@ -77,9 +163,9 @@ jobs:
             -H "Authorization: token ${TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/WolffM/hadoku_site/dispatches \
-            -d "$(jq -n --arg sha "${GITHUB_SHA}" \
+            -d "$(jq -n --arg sha "${SHA}" \
                   '{event_type:"redeploy_service", client_payload:{service:"cardtable", sha:$sha}}')"
-          echo "Dispatched redeploy_service for 'cardtable' (sha ${GITHUB_SHA})"
+          echo "Dispatched redeploy_service for 'cardtable' (sha ${SHA})"
 
       # Nothing polls this repo, so a red run is seen by nobody unless it says
       # so itself. `always()` so recoveries report too — without the success
