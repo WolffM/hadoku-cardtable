@@ -226,11 +226,11 @@ test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a r
     await clickHandCard(alice.page, card);
     for (let i = 0; i < 100 && (await promptMethod(alice.page)) !== 'order'; i++) {
       await alice.page.waitForTimeout(50);
-      // The order ask can open DURING the wait above. Re-read the method
-      // here, before answering anything, so an order ask that opened mid-wait
-      // is left alone for the poll below rather than answered by this loop.
-      if ((await promptMethod(alice.page)) === 'order') break;
-      await answerPrompt(alice.page);
+      // The order ask can open at any instant (Ponder resolves on an
+      // auto-pass), so it is left open by the same read answerPrompt answers
+      // from: a separate check first still left one round trip between the
+      // check and the answer, and CI (37184116178) hit it.
+      await answerPrompt(alice.page, { leave: ['order'] });
       const text = await says(alice.page);
       if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
     }

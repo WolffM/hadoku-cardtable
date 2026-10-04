@@ -17,9 +17,15 @@ export const SELF_ANSWERING = new Set(['tempShowZones', 'openZones']);
 
 /**
  * Answer the prompt showing on `page`, if any. Returns its method and callId,
- * or null when nothing is showing or it answers itself.
+ * or null when nothing is showing, it answers itself, or its method is one the
+ * caller asked to `leave` open. `leave` is decided from the same read the
+ * answer is scoped to, so an ask that opens between a caller's own check and
+ * this call can never be answered by mistake.
  */
-export async function answerPrompt(page: Page): Promise<{ method: string; callId: string } | null> {
+export async function answerPrompt(
+  page: Page,
+  opts: { leave?: readonly string[] } = {},
+): Promise<{ method: string; callId: string } | null> {
   // Read both attributes in one step: a self-answering prompt can vanish
   // between two separate reads.
   const showing = await page
@@ -27,6 +33,7 @@ export async function answerPrompt(page: Page): Promise<{ method: string; callId
     .evaluateAll((els) => els.map((e) => ({ method: e.getAttribute('data-method') ?? '', callId: e.getAttribute('data-call-id') ?? '' })));
   const top = showing[0];
   if (top === undefined || SELF_ANSWERING.has(top.method)) return null;
+  if (opts.leave?.includes(top.method)) return null;
   const { method, callId } = top;
   const sheet = page.locator(`[data-testid="live-prompt"][data-call-id="${callId}"]`);
   const submit = sheet.getByTestId('prompt-submit');
