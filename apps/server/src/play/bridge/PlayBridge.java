@@ -1663,6 +1663,10 @@ public final class PlayBridge {
          * {@code pushActionableCards(false)} per human seat right after the scenario
          * applies — before the game thread ever reaches a real priority window —
          * overwrites the stale cache with a fresh scan of the FINAL, scripted zones.
+         *
+         * <p>That push still lost intermittently, and so did the real first window's:
+         * Wave 37 §A found the scan was right and the CLIENT dropped its cards on decode.
+         * {@link #resyncSeats} runs first for that; its doc is the cause.
          */
         @Override public HostedMatch hostMatch() {
             final HostedMatch hm = new HostedMatch();
@@ -1672,10 +1676,55 @@ public final class PlayBridge {
                 state.parse(Arrays.asList(text.split("\\r?\\n")));
                 hm.setStartGameHook(() -> {
                     state.applyToGame(hm.getGame());
+                    resyncSeats(hm.getGame());
                     refreshActionable(hm.getGame());
                 });
             }
             return hm;
+        }
+
+        /**
+         * Wave 37 §A — make every seat's client hold the scenario's cards before any
+         * frame that names them is decoded, so the first priority window offers exactly
+         * what the scripted zones make castable, every time.
+         *
+         * <p><b>The race.</b> The in-JVM client resolves a frame's card references while
+         * its netty thread DECODES the frame ({@code CObjectInputStream.resolveObject} →
+         * {@code TrackableSerializer.resolve}, {@code TrackableSerializer.java:136-141}: an
+         * id its tracker does not hold yet becomes {@code null}). The cards
+         * {@code applyToGame} just created reach the client in an {@code applyDelta},
+         * and a delta's new objects enter the tracker only when
+         * {@code NetworkGuiGame.applyDelta} runs ({@code NetworkGuiGame.java:66-107}, via
+         * {@code createObjectOnly}, {@code :427-462}) — dispatched to the GUI thread
+         * ({@code GameClientHandler} is {@code super(true)}, {@code GameClientHandler.java:38};
+         * {@code GameProtocolHandler.java:117-118}), which here is the seat's own
+         * {@code seat-N-ui} executor ({@link BridgeGui#invokeInEdtLater}). So a
+         * {@code setWeaklySelectable} decoded before that executor has applied the delta
+         * arrives with the scenario's cards dropped ({@link #refs} skips the nulls) —
+         * the empty first window CI failed on. Our own hook push lost it almost always;
+         * the real priority window's push lost it whenever the seat's executor was still
+         * behind its netty thread.
+         *
+         * <p><b>The fix is ordering, not timing.</b> {@code setResyncPending} is Forge's
+         * own resync request ({@code RemoteClientGuiGame.java:266-269}): the next
+         * {@code updateGameView} on the game thread — the one {@code setWeaklySelectable}
+         * performs before it sends ({@code :507-510}) — sends the full state as
+         * {@code setGameView} instead of a delta ({@code :223-227}, {@code :275-283}). The
+         * client registers a {@code setGameView}'s objects ON THE NETTY THREAD, in
+         * {@code beforeCall}, before the next frame on that channel is even decoded
+         * ({@code GameClientHandler.java:116-126}: {@code updateObjLookup} plus
+         * {@code refreshTrackerCardViews}). One channel, one netty thread, frames in
+         * order: every frame after it resolves the scenario's cards. Scenario-only — the
+         * hook is set only when {@link #scenario} is non-null.
+         */
+        private static void resyncSeats(final Game game) {
+            if (game == null) { return; }
+            for (final var player : game.getPlayers()) {
+                if (player.getController() instanceof PlayerControllerHuman human
+                        && human.getGui() instanceof RemoteClientGuiGame remote) {
+                    remote.setResyncPending();
+                }
+            }
         }
 
         /**

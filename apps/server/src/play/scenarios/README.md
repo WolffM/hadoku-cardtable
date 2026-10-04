@@ -92,6 +92,19 @@ itself re-wraps the call in `game.getAction().invoke(() -> applyGameOnThread(gam
 (`GameAction.java:2526-2531`) — so this never leaves the thread it started on
 and cannot deadlock. See `wave33-evidence/s1-harness.md`.
 
+### What the first priority window offers
+
+The first priority window after a scenario applies offers exactly what the
+scripted zones make castable, every time. Every scripted card is a NEW object
+to each seat's client. The client resolves card ids when its netty thread
+decodes a frame, but it registers a delta's new objects later, on the seat's
+`seat-N-ui` thread. So without help, an actionable set naming the scripted
+cards could arrive with those cards dropped. To prevent that, the hook asks
+Forge for a full-state resync (`resyncSeats` in `bridge/PlayBridge.java`). The
+client registers a full state on the netty thread before it decodes the next
+frame. `scenario-start.jvm.test.ts` checks this against the real jar. The cause
+is in `docs/planning/wave37-evidence/A-repro.md`.
+
 ## The scenarios
 
 | File | Proves | Used by |
