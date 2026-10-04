@@ -71,13 +71,24 @@ describe.skipIf(!available.ok)(title, () => {
 					15_000,
 				);
 				const logsBefore = s.logs.length;
+				const sentBefore = s.sent.length;
 				s.select(0, memnite.id);
 				// The precondition: the caster really was given priority with its OWN
-				// spell on the stack (not skipped straight to "resolved").
+				// spell on the stack (not skipped straight to "resolved"). Read from the
+				// recorded history, not the live prompt: `passOwnSpell` passes this
+				// window on the spot, so its prompt is the latest one for ~20 ms
+				// (measured) and a 25 ms poll can miss it (CI 37184116178).
 				await waitUntil(
 					() => {
 						s.answerAsks();
-						return /Stack: 1 to Resolve/.test(s.prompt(0));
+						return s.sent
+							.slice(sentBefore)
+							.some(
+								(x) =>
+									x.seat === 0 &&
+									x.envelope.frame.method === 'showPromptMessage' &&
+									/Stack: 1 to Resolve/.test((x.envelope.frame as unknown as { message: string }).message),
+							);
 					},
 					'the caster to be shown its own spell on the stack',
 					20_000,
