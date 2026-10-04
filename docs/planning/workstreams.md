@@ -29,8 +29,18 @@ Separately, none of the 32 jar suites run in CI.
 - **U** builds one yes/no pop-up and finishes T4 (the bar's OK no longer reads `Keep`).
 
 No engine change. The decode-race measurement, the auto-pass consolidation and the land filter go to
-w39 (engine, its own wave); the drag unification and the e2e regroup go to w40. Operator decisions
-open: gate `redeploy.yml` on CI, stop committing evidence PNGs, archive this file.
+w39 (engine, its own wave); the drag unification and the e2e regroup go to w40.
+**Operator decisions, 2026-10-03:**
+- **Redeploy is gated on CI** (`5cd53a4`). It runs on CI completing on main, and deploys only if the
+  run is green, its sha is still main's head (mgmt-api deploys main's head, not the dispatched sha), and
+  a non-docs path changed since the last dispatch. `workflow_dispatch` is the operator's ungated
+  override. Verified by running the `decide` script against the live API in three cases: docs-only →
+  skip; stale sha → skip; servable changes → deploy. actionlint is clean on the file. The first real
+  gated dispatch is still unobserved.
+- **Evidence PNGs are no longer committed** (`5cd53a4`, the `!docs/**/*.png` exception removed). The 60
+  already tracked stay.
+- The w38 manager was told both by message after dispatch.
+- Still open: archive this file.
 
 **2026-10-03 — tracker's own fixes after w36 (Fable session), newest first.**
 The operator handed the three open play-test items to the tracker directly;
