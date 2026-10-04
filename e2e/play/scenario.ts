@@ -71,6 +71,57 @@ export interface ScenarioMatch {
   matchId: string;
 }
 
+/** The named `[state]` key's value, split on `;`, empty-string dropped to `[]`. */
+function scenarioHand(scenario: string, key: 'humanhand' | 'aihand'): string[] {
+  const line = new RegExp(`^${key}=(.*)$`, 'm').exec(scenario)?.[1] ?? '';
+  return line.trim() === '' ? [] : line.split(';').map((name) => name.trim());
+}
+
+/** `true` when every name in `want` is present in `have` at least as many times (by name, order aside). */
+function handContains(have: string[], want: string[]): boolean {
+  const pool = [...have];
+  for (const name of want) {
+    const i = pool.indexOf(name);
+    if (i === -1) return false;
+    pool.splice(i, 1);
+  }
+  return true;
+}
+
+/**
+ * Wait (w37 §E.1) for the scenario's scripted hand to land on one seat's own
+ * page, by card NAME, read from the hand zone — every card there, selectable
+ * or not (`[data-board-card]`, no `[data-selectable]` filter: that filter is
+ * `e2e/play/hands.ts`'s own, built for a different question, "what can I
+ * click", and would make an empty-offered board look identical to a
+ * never-applied one — exactly the ambiguity this precondition exists to
+ * remove).
+ *
+ * This is deliberately NOT "something is offered" (`offered(page)` in the
+ * w33–w36 specs): an empty actionable set on a correctly-applied scenario is
+ * §A's own bug, and this precondition has to be able to tell that case apart
+ * from "the scenario never applied at all". Hand membership, not
+ * selectability, is the only signal that does.
+ *
+ * Checks CONTAINMENT, not equality: every scripted name must be present
+ * (counting duplicates), but an extra card the hand has picked up since
+ * apply — a trigger's own draw, say — does not fail this check. `want` empty
+ * is satisfied immediately: there is no card name to confirm presence of.
+ */
+async function awaitScenarioHand(page: Page, scenarioName: string, seat: 'human' | 'ai', want: string[]): Promise<void> {
+  const names = () =>
+    page.locator('[data-zone="hand"][data-owner="you"] [data-board-card] .card__name').allTextContents();
+  const deadline = Date.now() + 20_000;
+  let have = await names();
+  while (!handContains(have, want)) {
+    if (Date.now() >= deadline) {
+      throw new Error(`scenario "${scenarioName}" did not apply: ${seat} hand is ${JSON.stringify(have)}`);
+    }
+    await page.waitForTimeout(150);
+    have = await names();
+  }
+}
+
 export const matchUrl = (origin: string, matchId: string): string => `${origin}${PREFIX}/#/match/${matchId}`;
 
 export const says = async (page: Page): Promise<string> => (await page.getByTestId('live-says').textContent()) ?? '';
@@ -194,8 +245,13 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
  * /api/play/matches` with `{ opponent: 'human', decks: [null, null], names,
  * scenario }`, then alice's page is opened and settled onto the board FIRST
  * (so she claims seat 0, the `human…` seat) and bob's second. Both keep
- * whatever hand they are dealt. Returns once both boards are up with no
- * mulligan question outstanding on either side.
+ * whatever hand they are dealt, then (w37 §E.1) each seat's own hand is
+ * polled until it reads back as the scenario's scripted `human…hand=`/
+ * `ai…hand=` cards, by name — or this throws by scenario name inside the
+ * 20 s budget below, rather than let a caller's own "is anything offered"
+ * poll run out looking exactly like that. Returns once both boards are up,
+ * no mulligan question is outstanding on either side, and both scripted
+ * hands have landed.
  */
 export async function startScenarioMatch(browser: Browser, stack: PlayStack, scenarioName: string): Promise<ScenarioMatch> {
   const scenario = readScenario(scenarioName);
@@ -222,5 +278,16 @@ export async function startScenarioMatch(browser: Browser, stack: PlayStack, sce
   await boardUp(bob.page);
 
   await keepBothHands(alice, bob);
+
+  // w37 §E.1: fail by name, fast, if the scripted zones never land — rather
+  // than let the caller's own `offered(page)` poll time out looking
+  // identical to §A's "applied, nothing offered" bug. Both seats are checked
+  // concurrently: one seat's hand can land before the other's, and there is
+  // no ordering between them to wait on.
+  await Promise.all([
+    awaitScenarioHand(alice.page, scenarioName, 'human', scenarioHand(scenario, 'humanhand')),
+    awaitScenarioHand(bob.page, scenarioName, 'ai', scenarioHand(scenario, 'aihand')),
+  ]);
+
   return { alice, bob, matchId };
 }
