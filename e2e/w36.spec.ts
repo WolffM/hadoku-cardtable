@@ -154,11 +154,12 @@ test(titled('T4 — the opening Keep/Mulligan is a yes/no pop-up, and the contro
     await expect(decider.page.getByTestId('live-confirm-host'), 'it renders in the decision-area pop-up (shape 1)').toBeVisible();
     await expect(confirmYes(decider.page), 'button 1 is Keep, Forge\'s own word').toHaveText('Keep');
     await expect(confirmNo(decider.page), 'button 2 is Mulligan').toHaveText('Mulligan');
-    // The bar itself: OK keeps Forge's label but stays disabled, and Cancel
-    // does not render at all — the same shape w35 already proved for the
-    // coin toss, generalised.
+    // The bar itself: disabled, and reading OK rather than Forge's own label
+    // while the pop-up owns the question — the operator's own rule, "never
+    // put yes/no there, always the big pop-up" — and Cancel does not render
+    // at all, the same shape w35 already proved for the coin toss, generalised.
     await expect(decider.page.getByTestId('live-button-ok'), 'the bar\'s own OK is disabled while the pop-up owns the question').toBeDisabled();
-    await expect(decider.page.getByTestId('live-button-ok'), 'and still carries Forge\'s own label, unanswered').toHaveText('Keep');
+    await expect(decider.page.getByTestId('live-button-ok'), 'and reads OK, never Forge\'s own label, while the pop-up owns the question').toHaveText('OK');
     await expect(decider.page.getByTestId('live-button-cancel'), 'the bar draws no second button for it at all').toHaveCount(0);
 
     await answerConfirm(decider.page, 'yes');
