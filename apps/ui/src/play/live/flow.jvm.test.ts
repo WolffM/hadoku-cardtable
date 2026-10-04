@@ -697,14 +697,30 @@ describe.skipIf(!available.ok)(title, () => {
   });
 
   /*
-   * Item 9, *"'choose ability' often needs the click TWICE"* — reproduced, and
-   * the reason it was never a click problem: Forge asks the SAME one-ability
-   * offer twice for ONE `selectCard`, so a player who answered the first
-   * dialog was handed an identical second one. Both answer themselves now.
+   * Item 9, *"'choose ability' often needs the click TWICE"* — reproduced: Forge
+   * asks the SAME one-ability offer twice for ONE `selectCard`. This test used
+   * to prove that from the WIRE, asserting `record.repeatedOffers` (collected
+   * from asks actually EMITTED to the seat) was non-empty. The server now
+   * answers Forge's own repeat itself (`auto.ts`'s `repeatedAbilityToPlay`, read from
+   * `SeatState.lastAbilityToPlay`), BEFORE it is ever emitted — so
+   * `record.repeatedOffers` is empty by construction now, every run, and
+   * asserting it non-empty is asserting a bug that was fixed. Today's
+   * contract, proved from the two places that actually changed: the client
+   * still sees one ask for one click (`record.repeatedOffers` empty,
+   * `record.promptsWhileCasting` empty), and the server's own log shows it
+   * intercepted and answered Forge's repeat rather than Forge simply never
+   * repeating.
    */
-  it('Forge offers the same one ability twice for one click, and the player sees neither', () => {
+  it("Forge's own re-ask of the one ability is answered server-side: one click, one ask, the player sees neither", () => {
     expect(record.clicksForTheCast).toHaveLength(1);
-    expect(record.repeatedOffers.length, JSON.stringify(record.repeatedOffers)).toBeGreaterThan(0);
+    expect(record.repeatedOffers).toEqual([]);
+    const repeatAnswered = record.log.filter(
+      (e) =>
+        e.evt === 'ask-auto-answered' &&
+        e.method === 'getAbilityToPlay' &&
+        e.why === 'forge re-asked its own already-answered getAbilityToPlay',
+    );
+    expect(repeatAnswered.length, JSON.stringify(record.log)).toBeGreaterThan(0);
     expect(record.promptsWhileCasting).toEqual([]);
   });
 

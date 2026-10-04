@@ -413,8 +413,15 @@ export interface MatchDeps {
 /** What a seat is shown when its match fails. Title and wording are ours; the frame is forge-wire's. */
 export const MATCH_ENDED_TITLE = 'Match ended';
 
-/** How many `message` lines a seat keeps for a re-send after a snapshot. */
-const SAYS_KEPT = 8;
+/**
+ * How many `message` lines a seat keeps for a re-send after a snapshot.
+ *
+ * This used to be 8 — a few turns at most — so a reconnect mid-game refilled
+ * only the tail. Raised to the whole game with a generous cap, rather than
+ * removed outright, so a pathological match cannot grow this array without
+ * bound.
+ */
+const SAYS_KEPT = 2000;
 
 /**
  * The name this seat is entitled to see for a card, off its own projected

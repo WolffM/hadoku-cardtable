@@ -551,8 +551,6 @@ jobs:
           playing by clicking the board, against a real Forge match a player plays a land and casts spells — one targeted — by clicking their own board
           # Stalls after seat 1 answers its first confirm, every run, on main too. docs/planning/wave38-evidence/U-prompts-jvm-red.md
           the fifteen prompts against a real Forge match choices: confirm, order, tempShowZones, getChoices, showInputDialog, chooseSingleEntityForEffect
-          # Asserts Forge re-asks one ability twice; the server now answers the re-ask itself (c75060d), so it never repeats. docs/planning/wave38-evidence/U-flow-jvm-red.md
-          wave 20 lane B: turns that flow, against a real Forge match Forge offers the same one ability twice for one click, and the player sees neither
           LIST
           )
           known_flaky=$(pinned <<'LIST'

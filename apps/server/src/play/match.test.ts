@@ -1242,3 +1242,35 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		}
 	});
 });
+
+describe("V7: the whole game's log, not just its last few lines", () => {
+	/**
+	 * `setFullControl` is the simplest caller of `Match.say` that needs no
+	 * transcript to drive: each toggle away from the seat's current value
+	 * pushes exactly one `message` line (`match.ts`'s `say`). 31 toggles make
+	 * 31 lines — comfortably past both the old cap (8) and the "30+" the brief
+	 * asks for — with no fixture and no Forge frame involved.
+	 */
+	function sayLines(h: Harness, count: number): void {
+		for (let i = 0; i < count; i++) h.match.setFullControl(0, i % 2 === 0);
+	}
+
+	it('keeps more than the old 8-line cap, and replays all of it after a snapshot', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		const LINES = 31;
+		sayLines(h, LINES);
+
+		const before = h.sent.length;
+		const snap = h.match.snapshot(0);
+		if (!('frames' in snap)) throw new Error('expected a snapshot');
+		h.match.resendAfterSnapshot(0);
+
+		const resent = h.sent.slice(before).map((s) => s.envelope.frame as { method?: string; message?: string });
+		const messages = resent.filter((f) => f.method === 'message');
+		expect(messages).toHaveLength(LINES);
+		expect(messages.map((f) => f.message)).toEqual(
+			Array.from({ length: LINES }, (_, i) => (i % 2 === 0 ? 'full control on' : 'full control off')),
+		);
+	});
+});
