@@ -1711,6 +1711,45 @@ describe('R7 — Arena casting: sent at the settle, the gesture stays open for w
    * (a stale hit-test being trusted) cannot arise any more, reflowed sibling
    * or not. This pins that guarantee rather than the old point-fix.
    */
+  // CI 37181078518: a land played by click stayed drawn pinned at the settle
+  // point, 342.6 px into its row, until some later press ended the gesture.
+  it('a click-armed land that has left the hand, with Forge asking nothing, ends its gesture: no lift, and the next press is not claimed', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const me = mineOf(m);
+    const hand = me.hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!]), okBar()])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
+    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(face, { clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('settled');
+
+    // Forge plays it: out of the hand, onto the battlefield, nothing asked.
+    const ids = (xs: number[]) => ({ t: 'list', v: xs.map((v) => ({ t: 'int', v })) });
+    s.send(
+      stateDelta({
+        [String((1 << 28) | me.id)]: {
+          _type: 1,
+          _id: me.id,
+          Hand: ids(hand.slice(1)),
+          Battlefield: ids([...me.battlefield.map((c) => c.id), hand[0]!]),
+        },
+      }),
+    );
+    await waitFor(() => expect(mineOf(m).hand!.some((c) => c.id === hand[0]!)).toBe(false));
+    await waitFor(() => expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull());
+
+    // The next press is the player's own again: a press on the empty battlefield is not claimed by a stale gesture.
+    const down = fireEvent.pointerDown(myBattlefield, { button: 0, clientX: 300, clientY: 300 });
+    expect(down, 'not preventDefault-ed by a gesture that should be over').toBe(true);
+    fireEvent.pointerUp(myBattlefield, { clientX: 300, clientY: 300 });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(sent(s), 'still exactly the one play').toEqual([['selectCard', hand[0]!]]);
+  });
+
   it('a click-armed cast whose resolution opens a selection naming a HAND card: the press on that card ANSWERS it, it is not a drop back on the hand (T12, Secluded Glen)', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);

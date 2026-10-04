@@ -726,8 +726,29 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * was remounted and lost it — and both are answered by painting again.
    * `applyIntents` writes only where the value differs, so this is cheap.
    */
+  /**
+   * A click-armed cast ends at the next press, but a card that has left the hand
+   * with Forge asking nothing more about it — a played land, a spell that
+   * resolved — has nothing left for that press to do. Left open, the card was
+   * drawn pinned at the settle point on the battlefield (table-fit read a land
+   * 342.6 px from its row's edge, CI 37181078518) and the next press went to
+   * ending this gesture instead of to what it was aimed at.
+   */
+  function endLandedClickCast(): void {
+    const d = drag;
+    if (d === null || d.held || d.stage !== 'settled' || !d.cast || d.source === null) return;
+    if (isHandCard(match, d.source)) return;
+    if (match.selectables !== null || payingMana(match) || match.asks.length > 0 || stackAsk(match) !== null) return;
+    if (match.view?.stack.some((item) => item.sourceCardId === d.source)) return;
+    drag = null;
+    dropCastLift(d);
+    clearPlacementPreview(d);
+  }
+
   const unsubscribe = subscribe(match, () => {
-    if (live) paint();
+    if (!live) return;
+    endLandedClickCast();
+    paint();
   });
   const observer = new MutationObserver((records) => {
     if (!live) return;
