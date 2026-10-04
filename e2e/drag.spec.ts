@@ -258,17 +258,17 @@ test(titled('a land dragged past the hand and back is still in hand, with nothin
   }
 });
 
-/* ── 6. right-click cancels a cast whose open question is an ASK, not a selection ── */
+/* ── 6. right-click while a resolving spell asks a question sends nothing — the spell is already cast ── */
 
 /**
- * No scenario here holds a modal spell; the closest real case is
- * Thoughtseize, whose second question ("choose a card to discard") arrives
- * as an ASK, after its first question (choosing the player) closes as a
- * plain selection. Right-clicking once that ASK is the only thing open
- * exercises the same cancel path as a plain `selectables` target.
+ * Thoughtseize's discard choice (`chooseSingleEntityForEffect`) arrives
+ * while the spell is RESOLVING — its target already chosen, the spell
+ * already on the stack — not while a cast is still being aimed. There is no
+ * cast left to cancel at that point, so a right-click sends nothing, the
+ * ASK stays open, and Thoughtseize stays cast (not back in hand).
  */
 test(
-  titled('right-click cancels a cast whose open question is an ASK (not a selection)'),
+  titled('right-click while a resolving spell asks a question sends nothing — the spell is already cast'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
@@ -276,7 +276,6 @@ test(
     const stack = await startPlayStack(forge);
     try {
       const { alice, bob } = await startScenarioMatch(browser, stack, 'thoughtseize');
-      void bob;
 
       await expect.poll(() => offeredNamed(alice.page, 'Thoughtseize'), { timeout: 45_000, message: 'alice is offered Thoughtseize' }).not.toBeUndefined();
       const card = (await offeredNamed(alice.page, 'Thoughtseize'))!;
@@ -288,16 +287,24 @@ test(
       await expect.poll(() => opponentTarget.count(), { timeout: 10_000, message: "Thoughtseize's own player-target selection opened" }).toBeGreaterThan(0);
       await opponentTarget.first().locator('button').first().click();
 
-      // The second question: choose a card to discard. THIS is the ASK.
+      // The second question: choose a card to discard. THIS is the ASK —
+      // the spell is already resolving.
       await expect
         .poll(() => livePrompt(alice.page).first().getAttribute('data-method'), { timeout: 10_000, message: "Thoughtseize's own discard choice opened, as an ASK" })
         .toBe('chooseSingleEntityForEffect');
 
+      const before = actsSent(alice);
       await cancelCast(alice.page, 'right-click');
+      await alice.page.waitForTimeout(500);
 
-      await expect.poll(() => handCardNamed(alice.page, 'Thoughtseize'), { timeout: 10_000, message: "Forge's Cancel put Thoughtseize back in alice's hand" }).not.toBeUndefined();
-      expect(await livePrompt(alice.page).count(), "Thoughtseize's own ASK closed with the cancel").toBe(0);
-      expect(await stackCount(alice.page), 'nothing is on the stack').toBe(0);
+      expect(actsSent(alice), 'the right-click sent nothing — there is no cast left to cancel').toBe(before);
+      expect(await livePrompt(alice.page).count(), "Thoughtseize's own ASK is still open").toBeGreaterThan(0);
+      expect(await handCardNamed(alice.page, 'Thoughtseize'), 'Thoughtseize is not back in hand — it is already cast').toBeUndefined();
+
+      // Recover the match cleanly rather than leaving an orphaned ask open
+      // for `stack.stop()` to tear down mid-question.
+      await answerPrompt(alice.page);
+      await answerPrompt(bob.page);
     } finally {
       await stack.stop();
     }

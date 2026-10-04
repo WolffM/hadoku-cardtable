@@ -207,6 +207,9 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
       // spins here (clicking nothing, since the bar/confirm the text implies
       // is long gone) until the whole loop's own cap gives up.
       if ((await f.page.getByTestId('live-prompt').count()) > 0) {
+        // An open ask is as far past the handoff as priority is: the other
+        // seat may only ever wait on it.
+        anyPriorityReached = true;
         mark(true);
         continue;
       }

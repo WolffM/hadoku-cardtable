@@ -26,7 +26,8 @@ no second press, no network effect from the move) and its doc comment.
 | w36.spec.ts T1 | green (targeted re-run) | fixed, see below |
 | w36.spec.ts (T4 ×2, T2, T7, T10, T8) | green (full run) | untouched, no reason to regress |
 | drag.spec.ts: land outside/onto battlefield, targeted-spell+click, past-hand-and-back, ask-cancel diagnostic (5 of 6) | green | |
-| drag.spec.ts: right-click mid-aim (and all 7 drag.spec.ts tests) | green | fixed in G (escalated fix), e2e green |
+| drag.spec.ts: right-click mid-aim | green | fixed in G (escalated fix), e2e green |
+| drag.spec.ts: right-click while a resolving spell asks a question | green | test-side fix: Thoughtseize's discard ask arrives while the spell is resolving (already cast, already on the stack), so right-click correctly sends nothing — retitled and reasserted to match the game rules, not a G bug |
 | arrow.spec.ts | green | fixed in G (escalated fix), e2e green |
 | w35.spec.ts R7 | green | fixed in G (escalated fix), e2e green |
 | w35.spec.ts (everything else), w33, w34, play.spec, draft.spec, room-mode, streamed-live, w32 | green (one full run) | not re-run after later fixes; none of those fixes touch these files |
