@@ -1611,6 +1611,9 @@ describe('R7 — Arena casting: sent at the settle, the gesture stays open for w
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 });
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1)); // the cast
+    // Forge opens the cast's target selection: the question a Cancel answers.
+    s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
+    await waitFor(() => expect(m.selectables).not.toBeNull());
 
     fireEvent.keyDown(window, { key: 'Escape' });
     await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
@@ -1647,12 +1650,53 @@ describe('R7 — Arena casting: sent at the settle, the gesture stays open for w
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 }); // settles, sends the cast
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1)); // Forge asks for the target
+    await waitFor(() => expect(m.selectables).not.toBeNull());
     fireEvent.pointerMove(myHand, { clientX: 20, clientY: 20 }); // and back
     fireEvent.pointerUp(myHand, { clientX: 20, clientY: 20 });
 
     await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
     expect(sent(s)).toEqual([['selectCard', hand[0]!], ['selectButtonCancel']]);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+  });
+
+  /*
+   * The operator, 2026-10-03: "after i put down a battlefield forge the game
+   * immediately ended my turn." A land is played the moment it settles, Forge
+   * goes straight back to priority, and its button 2 is End Turn. A drop back
+   * on the hand, or Escape, must send nothing then: no question is open.
+   */
+  it('a gesture never presses End Turn: after the settle, with no selection and no payment open, a drop on the hand or Escape sends nothing', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    const endTurnBar = parseServerFrame({
+      kind: 'notify',
+      method: 'updateButtons',
+      owner: { kind: 'player', id: 0 },
+      label1: 'OK',
+      label2: 'End Turn',
+      enable1: true,
+      enable2: true,
+      focus1: true,
+    });
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!, hand[1]!]), endTurnBar])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 }); // the land is played here
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    fireEvent.pointerMove(myHand, { clientX: 20, clientY: 20 });
+    fireEvent.pointerUp(myHand, { clientX: 20, clientY: 20 });
+
+    fireEvent.pointerDown(cardEl(canvas, hand[1]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 300, clientY: 300 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent(s), 'two plays, and no selectButtonCancel').toEqual([['selectCard', hand[0]!], ['selectCard', hand[1]!]]);
   });
 
   /*

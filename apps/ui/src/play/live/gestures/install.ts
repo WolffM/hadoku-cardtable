@@ -376,12 +376,17 @@ export function installGestures(options: GestureOptions): GestureHandle {
   /**
    * Arena casting (R7) only. The network half of a CANCEL — Escape, or a drop
    * back on the hand. Before the settle nothing was ever sent, so this is a
-   * no-op; after it, Forge is parked on the targeting ask the cast opened,
-   * and the one correct way out is the same `selectButtonCancel` the control
-   * bar's own Cancel button already sends — see the module header.
+   * no-op. After it, the press is a cancel only while Forge is still asking
+   * about the cast: a target selection (`selectables`) or a mana payment. A
+   * land, or a spell that needed neither, is already done by then, Forge is
+   * back at priority, and its button 2 is End Turn — pressing it ended the
+   * operator's turn (2026-10-03, a Battlefield Forge dragged back over the
+   * hand). An open ask needs no check here: `pressButton` refuses during one.
    */
   function cancelCastNetwork(state: DragState): void {
-    if (state.cast) pressButton(match, 'cancel');
+    if (!state.cast) return;
+    if (match.selectables === null && !payingMana(match)) return;
+    pressButton(match, 'cancel');
   }
 
   /**
