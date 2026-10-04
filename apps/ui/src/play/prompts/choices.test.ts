@@ -559,6 +559,27 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     expect(nameFromForgeLabel('Island', 129)).toBe('Island');
   });
 
+  // The same report, as it really arrives (prompts.jvm, seat 1, 2026-10-03):
+  // the card object is in the state, but its face reached this seat with no
+  // name, so the lookup has facts and no name.
+  it('a card whose facts arrived without a name draws the art of the name inside its label', () => {
+    const nameless: PromptLookup = {
+      ...EMPTY_LOOKUP,
+      card: (id) =>
+        id === 47
+          ? { name: null, setCode: '', lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false }
+          : undefined,
+    };
+    const ask = {
+      ...revealAsk(),
+      choices: [{ key: 'c0', label: 'Island (47)', ref: { kind: 'card' as const, id: 47 } }],
+    };
+    const { getByTestId } = mountPrompt('getChoices', ask, nameless);
+    const grid = getByTestId('prompt-cards');
+    expect(grid.querySelector('.card__name')!.textContent).toBe('Island (47)');
+    expect(grid.querySelector('img.card__art')!.getAttribute('src')).toBe(cardImageUrl(KNOWN_ART_IDS.get('Island')!));
+  });
+
   it('a label whose parenthesis is not this card\'s id is not guessed at: no art', () => {
     const ask = {
       ...revealAsk(),

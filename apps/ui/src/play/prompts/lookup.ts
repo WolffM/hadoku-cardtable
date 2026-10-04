@@ -27,7 +27,13 @@ import type { WireState } from '../fold.ts';
 import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from '../wire.ts';
 
 export interface PromptCardFacts {
-  name: string;
+  /**
+   * The face's `Name`, or `null` when the card object reached this seat with
+   * no name on it: a card Forge is revealing from another player's hidden zone
+   * can arrive before its face does. Readers supply their own fallback, so no
+   * invented name ever becomes an art key.
+   */
+  name: string | null;
   /**
    * Forge's `SetCode` for the face on show — the other half of the art-id key.
    *
@@ -108,7 +114,7 @@ export function lookupFromState(state: WireState): PromptLookup {
       const loyaltyText = readStr(face, 'Loyalty');
       const loyalty = loyaltyText === null ? null : Number.parseInt(loyaltyText, 10);
       return {
-        name: readStr(face, 'Name') ?? readStr(view, 'Name') ?? `card #${id}`,
+        name: readStr(face, 'Name') ?? readStr(view, 'Name'),
         setCode: readStr(face, 'SetCode') ?? '',
         lethalDamage: readInt(view, 'LethalDamage'),
         loyalty: loyalty !== null && Number.isFinite(loyalty) ? loyalty : null,

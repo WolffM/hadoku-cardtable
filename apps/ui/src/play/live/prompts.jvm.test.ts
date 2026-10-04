@@ -303,7 +303,7 @@ function reportLabelProbe(run: LabelProbeRun): void {
     );
   }
   const suffixed = probes.filter((p) => FORGE_ID_SUFFIX.test(p.label));
-  const misses = probes.filter((p) => p.facts === undefined);
+  const misses = probes.filter((p) => p.facts === undefined || p.facts.name === null);
   console.log(
     `[prompts.jvm] §F.2 labels carrying Forge's "(id)" suffix: ${suffixed.length}/${probes.length}; ` +
       `lookup misses: ${misses.length}/${probes.length}`,
@@ -314,7 +314,7 @@ function reportLabelProbe(run: LabelProbeRun): void {
     expect(misses, 'every card a pre-rendered ask labelled was in the folded state').toEqual([]);
     for (const p of probes) {
       expect(p.facts?.name, `id ${p.id} has a real name, not the label`).not.toBe(p.label);
-      expect(p.facts?.name.length, `id ${p.id} has a non-empty name`).toBeGreaterThan(0);
+      expect(p.facts?.name?.length, `id ${p.id} has a non-empty name`).toBeGreaterThan(0);
     }
   }
   /*
