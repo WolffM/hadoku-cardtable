@@ -82,7 +82,7 @@ async function castThoughtseize(seed: number): Promise<{ s: Scenario; hand: Hand
 	if (!available.ok) throw new Error(available.reason);
 	const s = await startScenario(available.config, { seed, decks: DECKS, scenario: scenarioText('thoughtseize') });
 	await finishMulligan(s);
-	await waitUntil(() => s.zone(0, 'Hand').some((c) => c.name === 'Thoughtseize'), "seat 0's hand to reflect Thoughtseize", 20_000);
+	await waitUntil(() => s.zone(0, 'Hand').some((c) => c.name === 'Thoughtseize'), "seat 0's hand to reflect Thoughtseize", 20_000, s);
 	const seize = s.zone(0, 'Hand').find((c) => c.name === 'Thoughtseize');
 	const mystic = s.zone(1, 'Hand').find((c) => c.name === 'Elvish Mystic');
 	const guide = s.zone(1, 'Hand').find((c) => c.name === 'Goblin Guide');
@@ -112,6 +112,7 @@ async function castThoughtseize(seed: number): Promise<{ s: Scenario; hand: Hand
 		},
 		'Thoughtseize targeted and paid for',
 		20_000,
+		s,
 	);
 	return { s, hand: { seize, mystic, guide, mtn }, oppId, mark, t0 };
 }
@@ -130,6 +131,7 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 					'the merged chooseSingleEntityForEffect ask',
 					20_000,
+					s,
 				).then(
 					() =>
 						s.sent
@@ -160,7 +162,7 @@ describe.skipIf(!available.ok)(title, () => {
 
 				// Answer it: pick Elvish Mystic.
 				s.match.fromClient(0, { kind: 'reply', callId: mergedAsk.callId, method: 'chooseSingleEntityForEffect', result: { kind: 'card', id: hand.mystic.id } } as never);
-				await waitUntil(() => s.zone(1, 'Hand').length < 3, 'the discard to land', 20_000);
+				await waitUntil(() => s.zone(1, 'Hand').length < 3, 'the discard to land', 20_000, s);
 
 				// The discarder (seat 1) got no ask at all for this whole effect —
 				// the settled ruling: "nobody gets a confirmation afterwards."
@@ -208,6 +210,7 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 					'the merged ask',
 					20_000,
+					s,
 				).then(
 					() =>
 						s.sent
@@ -234,6 +237,7 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 					'the discard to resolve (with SOME valid card, never the land)',
 					20_000,
+					s,
 				);
 				console.log(
 					'[w35-s3-land-debug]',

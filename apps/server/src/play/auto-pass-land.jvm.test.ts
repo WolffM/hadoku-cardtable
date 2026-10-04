@@ -104,6 +104,7 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 					"seat 0's hand to reflect the scripted Raging Goblin",
 					20_000,
+					s,
 				).then(() => s.zone(0, 'Hand').find((c) => c.name === 'Raging Goblin'));
 				if (goblin === undefined) throw new Error('no Raging Goblin in hand');
 
@@ -126,6 +127,19 @@ describe.skipIf(!available.ok)(title, () => {
 						// not currently consider the card legal to select — retried while it
 						// still sits in hand and no payment window has opened yet, so a cast
 						// already under way is never clicked twice.
+						//
+						// Known hazard, NOT guarded here: retrying on every 25 ms tick can
+						// resend `selectCard` for the same card while Forge's game thread is
+						// still inside the FIRST `chooseSpellAbilityToPlay()` for it — see
+						// `B-auto-pass-land.md` for a reproduced failure and why no order-based
+						// signal (as opposed to a clock) was found to gate the retry on: in the
+						// one capture, the SAME 25 ms tick that sent the retry was also the
+						// very first tick after the original select, with zero new wire traffic
+						// from either seat in between — nothing arrives to tell this test
+						// whether the first attempt is still being processed or was silently
+						// dropped, so there is no signal to wait for, only a clock, which is
+						// not allowed. Left as the pre-existing behaviour; the CI line for this
+						// test stays pinned.
 						if (s.zone(0, 'Hand').some((c) => c.id === goblin.id) && !/Pay Mana Cost/.test(s.prompt(0))) {
 							s.select(0, goblin.id);
 						}
@@ -153,6 +167,7 @@ describe.skipIf(!available.ok)(title, () => {
 					// confirmed directly, mutation-testing this exact budget), and that
 					// cache has been measured taking several real seconds to catch up.
 					45_000,
+					s,
 				);
 
 				// The claim: seat 1 is passed anyway, by the SERVER, having never once
@@ -164,6 +179,7 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 					'Raging Goblin to resolve onto the battlefield without any click from seat 1',
 					20_000,
+					s,
 				);
 
 				// The precondition lane E's finding depends on, checked from the

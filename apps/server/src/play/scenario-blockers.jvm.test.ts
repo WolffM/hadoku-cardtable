@@ -69,31 +69,8 @@ async function passDeclareAttackers(s: Scenario, attacker: number): Promise<void
 		},
 		"the attacker's own Declare Attackers Step priority window to pass",
 		30_000,
+		s,
 	);
-}
-
-/**
- * Every prompt, button and offer either seat was sent, one line each (the game
- * state deltas left out), plus the server's own decisions — what a timed-out
- * wait needs to say which input opened, which closed, and who pressed what.
- */
-function frameTrail(s: Scenario): string {
-	const frames = s.sent
-		.filter(({ envelope }) => !['applyDelta', 'setGameView', 'openView'].includes(envelope.frame.method))
-		.map(({ seat, envelope }) => {
-			const f = envelope.frame as { kind: string; method: string; message?: string; enable1?: boolean; label1?: string; cards?: { id: number }[] };
-			const detail =
-				f.method === 'showPromptMessage'
-					? JSON.stringify(f.message)
-					: f.method === 'updateButtons'
-						? `${f.label1} enable1=${f.enable1}`
-						: f.cards !== undefined
-							? JSON.stringify(f.cards.map((c) => c.id))
-							: '';
-			return `s${seat} ${f.kind}:${f.method} ${detail}`;
-		});
-	const decisions = s.logs.filter((l) => typeof l.evt === 'string' && /^(auto-|ask-)/.test(l.evt)).map((l) => JSON.stringify(l));
-	return ['frames (whole match):', ...frames, 'server decisions (whole match):', ...decisions].join('\n');
 }
 
 describe.skipIf(!available.ok)(title, () => {
@@ -113,6 +90,7 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 					"the attacker's board to reflect the scripted creature",
 					20_000,
+					s,
 				);
 				await passDeclareAttackers(s, 0);
 				await waitUntil(
@@ -122,6 +100,7 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 					'the defender to be auto-passed through Declare Blockers with nothing to assign',
 					30_000,
+					s,
 				);
 				expect(
 					s.sent.some(
@@ -153,6 +132,7 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 					"the defender's board to reflect the scripted creature",
 					20_000,
+					s,
 				).then(() => s.zone(1, 'Battlefield').find((c) => c.creature));
 				if (blocker === undefined) throw new Error("no creature on seat 1's battlefield");
 				await passDeclareAttackers(s, 0);
@@ -163,9 +143,8 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 					'the block-assignment input to open for the defender',
 					30_000,
-				).catch((e: unknown) => {
-					throw new Error(`${String(e)}\n${frameTrail(s)}`);
-				});
+					s,
+				);
 				expect(s.buttons(1)?.enable1).toBe(true);
 				expect(s.logs.some((l) => l.evt === 'auto-passed' && l.seat === 1 && l.phase === 'Declare Blockers Step')).toBe(false);
 
@@ -185,9 +164,9 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(() => {
 					const view = [...s.state(1).values()].find((o) => o._type === 0 && o._id === blocker.id);
 					return (view?.Blocking as { v?: boolean } | undefined)?.v === true;
-				}, 'the creature to be declared blocking', 10_000);
+				}, 'the creature to be declared blocking', 10_000, s);
 				s.ok(1);
-				await waitUntil(() => /Declare Blockers Step/.test(s.prompt(1)), 'the priority window after the block', 10_000);
+				await waitUntil(() => /Declare Blockers Step/.test(s.prompt(1)), 'the priority window after the block', 10_000, s);
 			} finally {
 				await s.stop();
 			}

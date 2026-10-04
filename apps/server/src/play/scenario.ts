@@ -11,7 +11,8 @@
  * claim is about gaps in milliseconds.
  */
 
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,10 +41,75 @@ export function scenarioText(name: string): string {
 	return readFileSync(join(here, 'scenarios', `${name}.state`), 'utf8');
 }
 
-export async function waitUntil(p: () => boolean, label: string, ms: number): Promise<void> {
+/** How many of `sent`'s most recent entries go into the dump file (not the inline error text — see `lastMethods`). */
+const DUMP_FRAMES = 80;
+
+function slug(label: string): string {
+	return label
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '')
+		.slice(0, 80);
+}
+
+/** One `sent` entry, readably — the level of detail a timed-out wait needs to say what Forge offered and when. */
+function frameSummary(x: Stamped): Record<string, unknown> {
+	const f = x.envelope.frame as unknown as Record<string, unknown>;
+	const out: Record<string, unknown> = { seat: x.seat, t: Math.round(x.t), kind: f.kind, method: f.method };
+	if (f.callId !== undefined) out.callId = f.callId;
+	if (f.message !== undefined) out.message = f.message;
+	if (f.label1 !== undefined) out.buttons = { label1: f.label1, enable1: f.enable1, label2: f.label2, enable2: f.enable2 };
+	if (Array.isArray(f.cards)) out.cardIds = (f.cards as { id: number }[]).map((c) => c.id);
+	return out;
+}
+
+/**
+ * A timed-out `waitUntil` on a scenario is otherwise a bare "timed out" with
+ * nothing to diagnose from, and CI's `forge-jvm` job uploads no artifact.
+ * Writes the seat's own last frames, the server's `stop-decided`/
+ * `auto-passed` decisions, and the bridge's own stderr tail to one JSON file
+ * under `CARDTABLE_PLAY_WORK_DIR`, and returns a short line (the file's path
+ * plus the last 20 frame methods) to fold into the thrown error's message —
+ * the one place a CI log keeps it.
+ */
+function dumpOnTimeout(s: Scenario, label: string): string {
+	const dir = process.env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play');
+	const base = `${slug(label)}-${Date.now()}`;
+	const path = join(dir, `${base}.dump.json`);
+	const stderrPath = join(s.workDir, s.match.id, 'bridge.stderr.txt');
+	let stderrTail: string | null;
+	try {
+		stderrTail = readFileSync(stderrPath, 'utf8').slice(-8000);
+	} catch {
+		stderrTail = null;
+	}
+	const frames = s.sent.slice(-DUMP_FRAMES).map(frameSummary);
+	const decisions = s.logs.filter((l) => l.evt === 'stop-decided' || l.evt === 'auto-passed');
+	try {
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(path, JSON.stringify({ label, frames, decisions, stderrPath, stderrTail }, null, 2));
+	} catch (err) {
+		return `(dump write failed: ${err instanceof Error ? err.message : String(err)})`;
+	}
+	const lastMethods = s.sent
+		.slice(-20)
+		.map((x) => `s${x.seat}:${(x.envelope.frame as unknown as { method?: string }).method ?? x.envelope.frame.kind}`)
+		.join(', ');
+	return `dump: ${path} — last 20 frame methods: ${lastMethods}`;
+}
+
+/**
+ * `dump`, when given, is the scenario to capture on a timeout — every direct
+ * caller inside this file already has one in scope. Never changes whether or
+ * how long this waits; it only enriches what the thrown error says.
+ */
+export async function waitUntil(p: () => boolean, label: string, ms: number, dump?: Scenario): Promise<void> {
 	const deadline = Date.now() + ms;
 	while (!p()) {
-		if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
+		if (Date.now() > deadline) {
+			const detail = dump === undefined ? '' : ` (${dumpOnTimeout(dump, label)})`;
+			throw new Error(`timed out waiting for ${label}${detail}`);
+		}
 		await new Promise((r) => setTimeout(r, 25));
 	}
 }
@@ -84,6 +150,8 @@ export interface Card {
 
 export interface Scenario {
 	match: Match;
+	/** `JvmHostConfig.workDir` this match's JVM ran under — where its `bridge.stderr.txt` lives, for `waitUntil`'s dump. */
+	workDir: string;
 	sent: Stamped[];
 	lines: (BridgeLine & { t: string; hostT: number })[];
 	logs: Record<string, unknown>[];
@@ -168,6 +236,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 
 	const self: Scenario = {
 		match,
+		workDir: config.workDir,
 		sent,
 		lines,
 		logs,
@@ -328,6 +397,26 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
  * step runs on a shared host alongside other lanes' own jar suites, and a
  * contended host (swapping, several idle Forge JVMs from other waves) has
  * been measured taking 10–70 s for the SAME two presses.
+ *
+ * Diagnosed under `taskset -c 0` load, NOT fixed here: see
+ * `docs/planning/wave40-evidence/B-thoughtseize.md`. Forge's own transient
+ * `"Waiting for {name}..."` (`AbstractGuiGame.java` `lblWaitingForPlayer`),
+ * sent to whichever seat decided first while the other is still mid coin-toss
+ * or mid keep-or-mulligan, matches neither `/keep your hand|play or draw/i`
+ * nor `Priority:` — so both seats showing one AT THE SAME POLL TICK (a
+ * harmless, few-millisecond overlap in the ordinary case) can satisfy the
+ * exit condition below before either seat's REAL keep-or-mulligan question
+ * has been pressed. This function then returns, nothing calls `keepHands()`
+ * again, and the still-open keep prompt sits unanswered for the rest of the
+ * match. A first fix (classifying `"Waiting for "` as still mulligan-ish)
+ * mutation-tested WORSE — 6/6 fresh hangs, because that message is also
+ * Forge's generic "the other seat hasn't acted yet" status during perfectly
+ * ordinary LATER gameplay, not just the coin-toss handoff, and treating it as
+ * "still not done" made this function hang on that too. A second design (does
+ * this seat's `s.sent` history hold a REAL `Priority:` prompt yet, rather than
+ * classifying the current message at all) was written but never validated
+ * against a single run — left for whoever picks this up next, in the
+ * evidence file, rather than shipped unverified.
  */
 export async function finishMulligan(s: Scenario): Promise<void> {
 	const isMulliganish = (msg: string): boolean => !msg.startsWith('Priority:') && /keep your hand|play or draw/i.test(msg);
@@ -342,6 +431,7 @@ export async function finishMulligan(s: Scenario): Promise<void> {
 		},
 		'both seats to finish the coin toss and the keep-or-mulligan question',
 		90_000,
+		s,
 	);
 }
 
@@ -404,7 +494,7 @@ export async function passUntil(s: Scenario, done: () => boolean, label: string,
 			s.ok(seat);
 		}
 		return false;
-	}, label, ms);
+	}, label, ms, s);
 }
 
 /** Click `name` in the seat's hand and wait until it is on the battlefield with the stack empty again. */
@@ -412,13 +502,13 @@ export async function castNamed(s: Scenario, seat: number, name: string): Promis
 	await waitUntil(() => {
 		s.answerAsks();
 		return s.zone(seat, 'Hand').some((c) => c.name === name);
-	}, `seat ${seat} to hold a ${name}`, 20_000);
+	}, `seat ${seat} to hold a ${name}`, 20_000, s);
 	const card = s.zone(seat, 'Hand').find((c) => c.name === name);
 	if (card === undefined) throw new Error(`no ${name}`);
 	s.select(seat, card.id);
 	await waitUntil(() => {
 		s.answerAsks();
 		return !s.zone(seat, 'Hand').some((c) => c.id === card.id) && /^Stack: Empty$/m.test(s.prompt(seat)) && s.buttons(seat)?.enable1 === true;
-	}, `seat ${seat}'s ${name} to resolve`, 30_000);
+	}, `seat ${seat}'s ${name} to resolve`, 30_000, s);
 }
 

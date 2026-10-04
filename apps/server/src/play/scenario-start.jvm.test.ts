@@ -69,6 +69,7 @@ async function startOnce(c: Case, seed: number): Promise<Outcome> {
 				},
 				`seat ${c.seat}'s first priority window`,
 				90_000,
+				s,
 			);
 		} catch (err) {
 			const where = [0, 1].map((seat) => `seat ${seat}: ${JSON.stringify(s.prompt(seat))} ${JSON.stringify(s.buttons(seat))}`).join('; ');
