@@ -199,7 +199,11 @@ jobs:
   forge-e2e:
     name: forge-e2e
     runs-on: [self-hosted, pm2-host]
-    timeout-minutes: 20
+    # Measured on run 37184116178 (the 9-spec derived list): ~15 min of test time
+    # with three reds burning their own budgets (play.spec alone 312 s), plus
+    # install and build, plus up to 10 min of port wait. At 20 the job was
+    # CANCELLED, and a cancelled job orphans its e2e servers on the fixed ports.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6
 
@@ -265,6 +269,17 @@ jobs:
       # red that says "ports held by pid N" costs no diagnosis.
       - name: E2E — the ports are free, or wait
         run: |
+          # A holder whose cwd is THIS runner's own workspace is an orphan of an
+          # earlier CI run (this runner runs one job at a time, and forge-jvm
+          # binds none of these ports): one held 19008 for 10 hours on
+          # 2026-10-04 and failed every run behind it. Stop it. A holder from
+          # anywhere else (a wave worktree's local e2e) is waited for, as before.
+          for pid in $(ss -ltnpH '( sport = :19008 or sport = :19028 or sport = :19108 or sport = :19128 )' 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
+            case "$(readlink /proc/$pid/cwd 2>/dev/null)" in
+              "$GITHUB_WORKSPACE"*) echo "::warning::stopping orphaned e2e server pid $pid from an earlier run"; kill -TERM "$pid" || true ;;
+            esac
+          done
+          sleep 2
           for i in $(seq 1 60); do
             held=$(ss -ltnH '( sport = :19008 or sport = :19028 or sport = :19108 or sport = :19128 )' 2>/dev/null)
             [ -z "$held" ] && { [ "$i" -gt 1 ] && echo "::notice::e2e ports came free after $((i*10)) s"; exit 0; }
@@ -313,7 +328,9 @@ jobs:
       # only: of the JVM run dirs (`play-work/`) just the bridge's stderr and
       # the two small json files, never Forge's `res/` or `cache/`.
       - name: E2E evidence (on failure)
-        if: failure()
+        # cancelled() too: a run cut off by timeout-minutes is the one whose
+        # evidence matters most, and failure() alone uploaded nothing for it.
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v6
         with:
           name: forge-e2e-evidence-${{ github.run_attempt }}
@@ -332,6 +349,21 @@ jobs:
             e2e/.run/play-work/*/*/jvm.json
             e2e/.run/play-work/*/*/config.json
             ${{ runner.temp }}/forge-e2e-report.json
+
+      # Whatever this job started stops with it, passed, failed or cancelled: an
+      # e2e server still listening on a fixed port, or a Forge JVM under this
+      # workspace's e2e run dir. The port step above heals an orphan anyway; this
+      # keeps one from existing.
+      - name: E2E — stop this run's servers and JVMs
+        if: always()
+        run: |
+          for pid in $(ss -ltnpH '( sport = :19008 or sport = :19028 or sport = :19108 or sport = :19128 )' 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
+            case "$(readlink /proc/$pid/cwd 2>/dev/null)" in "$GITHUB_WORKSPACE"*) kill -TERM "$pid" || true ;; esac
+          done
+          for p in /proc/[0-9]*; do
+            case "$(readlink "$p/exe" 2>/dev/null)" in */bin/java) ;; *) continue ;; esac
+            case "$(readlink "$p/cwd" 2>/dev/null)" in "$GITHUB_WORKSPACE/e2e/.run"*) kill -TERM "${p#/proc/}" || true ;; esac
+          done
 
   # ── The jar-gated suites: a real child Forge JVM per test, run serially ──
   #
