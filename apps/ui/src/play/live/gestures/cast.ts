@@ -170,8 +170,13 @@ export function clearCastLift(root: ParentNode, id: number): void {
  * the attribute for `FLOAT_BACK_MS`, keeps the clean-up synchronous for a
  * caller that needs it to be.
  */
-export function floatCastLiftHome(root: ParentNode, id: number, home: Point, onDone: () => void): void {
-  const el = cardBox(root, id);
+export function floatCastLiftHome(
+  root: ParentNode,
+  id: number,
+  home: Point,
+  onDone: () => void,
+  el: Element | null = cardBox(root, id),
+): void {
   if (!(el instanceof HTMLElement)) {
     onDone();
     return;
@@ -195,6 +200,38 @@ export function floatCastLiftHome(root: ParentNode, id: number, home: Point, onD
   returnTimers.set(id, timer);
 }
 
+/** Marks the stand-in `parkedGhost` draws; it carries no card id, so `cardBox` never finds it. */
+export const CAST_GHOST_ATTR = 'data-cast-ghost';
+
+/**
+ * A detached copy of a card's own element, taken while it is still on the
+ * page, to stand in for it at the park point once React unmounts the real
+ * one: during target selection Forge has the card in neither the hand, the
+ * battlefield nor the stack, so the board renders no element for it.
+ */
+export function parkedGhost(root: ParentNode, id: number): HTMLElement | null {
+  const el = cardBox(root, id);
+  if (!(el instanceof HTMLElement)) return null;
+  const ghost = el.cloneNode(true) as HTMLElement;
+  // Nothing that finds a card by id or by test id may find the copy.
+  for (const node of [ghost, ...ghost.querySelectorAll('[data-board-card], [data-card-id], [data-testid]')]) {
+    node.removeAttribute('data-board-card');
+    node.removeAttribute('data-card-id');
+    node.removeAttribute('data-testid');
+  }
+  // Outside the zone it was drawn in, the zone's own sizing no longer reaches it.
+  const { width, height } = el.getBoundingClientRect();
+  if (width > 0 && height > 0) {
+    ghost.style.width = `${width}px`;
+    ghost.style.height = `${height}px`;
+  }
+  ghost.setAttribute(CAST_GHOST_ATTR, String(id));
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.inert = true;
+  ghost.removeAttribute(CAST_VERDICT_ATTR);
+  return ghost;
+}
+
 /** Every lift away, whoever it belonged to — on dispose, so a board left behind carries none, and every pending float-back timer with it. */
 export function clearAllCastLifts(root: ParentNode): void {
   for (const timer of returnTimers.values()) clearTimeout(timer);
@@ -205,4 +242,5 @@ export function clearAllCastLifts(root: ParentNode): void {
     el.style.removeProperty('left');
     el.style.removeProperty('top');
   }
+  for (const ghost of root.querySelectorAll(`[${CAST_GHOST_ATTR}]`)) ghost.remove();
 }

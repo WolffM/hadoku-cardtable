@@ -205,6 +205,12 @@ const phaseDelta = (phase: string, playerTurn: number): ServerFrame =>
 const attackingDelta = (ids: number[]): ServerFrame =>
   stateDelta(Object.fromEntries(ids.map((id) => [String(id), { _type: 0, _id: id, Attacking: { t: 'bool', v: true } }])));
 
+/** The viewer's hand as Forge now holds it — a card being cast leaves it the moment the cast goes out. */
+const handDelta = (ids: number[]): ServerFrame =>
+  stateDelta({
+    [String((1 << 28) | 0)]: { _type: 1, _id: 0, Hand: { t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) } },
+  });
+
 /** What actually left this client, as `[method, id]` pairs. The whole point of these tests. */
 const sent = (s: ReplayServer): unknown[] =>
   s.clientFrames().map((f) => {
@@ -1771,6 +1777,73 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(sent(s)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
   });
 
+  /*
+   * What real Forge does after the cast goes out: the card leaves the hand at
+   * once and is in no zone the board draws, the priority input closes, and
+   * only then does the target selection open. The board unmounts the card's
+   * element for the whole of the aim.
+   */
+  async function parkLikeForge() {
+    const board = await gestureBoard();
+    const { s, m, canvas } = board;
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[2]!]), okBar()])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
+
+    fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
+    fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+
+    s.send(handDelta(hand.filter((id) => id !== hand[2])));
+    s.send(prompt('Select any target'));
+    await waitFor(() => expect(canvas.querySelector(`[data-board-card="${hand[2]}"]`)).toBeNull());
+    s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    return { ...board, cast: hand[2]!, theirBattlefield };
+  }
+
+  it('a parked cast whose card the board no longer draws still answers a right-click with Forge’s Cancel', async () => {
+    const { s, canvas, theirBattlefield } = await parkLikeForge();
+    fireEvent.pointerDown(theirBattlefield, { button: 2, clientX: 500, clientY: 50 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s).at(-1)).toEqual(['selectButtonCancel']);
+    expect(canvas.querySelector('[data-cast-ghost]')?.getAttribute('data-cast-lift'), 'the stand-in floats home').toBe('returning');
+  });
+
+  it('a parked cast whose card the board no longer draws still answers Escape with Forge’s Cancel', async () => {
+    const { s } = await parkLikeForge();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s).at(-1)).toEqual(['selectButtonCancel']);
+  });
+
+  it('a pointercancel while a cast is parked and Forge is asking sends Forge’s Cancel', async () => {
+    const { s } = await parkLikeForge();
+    fireEvent.pointerCancel(window);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s).at(-1)).toEqual(['selectButtonCancel']);
+  });
+
+  it('a parked cast whose card the board no longer draws stays visible at the park point, and the arrow leaves from it', async () => {
+    const { canvas, m, cast } = await parkLikeForge();
+    const ghost = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${cast}"]`);
+    expect(ghost, 'a stand-in is drawn where the card was let go').not.toBeNull();
+    expect(ghost!.getAttribute('data-cast-lift')).toBe('parked');
+    expect(ghost!.style.left).toBe('500px');
+    expect(ghost!.hasAttribute('data-board-card'), 'the stand-in is never mistaken for the card').toBe(false);
+
+    const atRelease = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(atRelease.dataset.source, 'the arrow is out from the release, before the pointer moves again').toBe(String(cast));
+
+    const target = cardEl(canvas, theirsOf(m).battlefield[0]!.id);
+    fireEvent.pointerMove(target, { clientX: 520, clientY: 60 });
+    const arrow = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(arrow.dataset.source).toBe(String(cast));
+    expect(arrow.dataset.target).toBe(`card:${theirsOf(m).battlefield[0]!.id}`);
+  });
+
   it('a parked cast that Forge finishes without ever asking a question clears on its own', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
@@ -1784,8 +1857,12 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-lift')).toBe('parked');
 
-    s.send(prompt('Priority')); // Forge never opened a selection for this cast
-    await waitFor(() => expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-lift')).toBeNull());
+    // Forge never opened a selection for this cast: it left the hand, resolved, and is in the graveyard.
+    s.send(stateDelta({ [String((1 << 28) | 0)]: { _type: 1, _id: 0, Graveyard: { t: 'list', v: [{ t: 'int', v: hand[2]! }] } } }));
+    s.send(handDelta(hand.filter((id) => id !== hand[2])));
+    s.send(prompt('Priority'));
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull());
+    expect(canvas.querySelector('[data-cast-ghost]')).toBeNull();
   });
 
   it('the browser context menu is suppressed only while a gesture or cast is live', async () => {

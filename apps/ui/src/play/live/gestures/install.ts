@@ -74,12 +74,12 @@
  *  - a target is needed, anywhere outside the hand → `selectCard` (the cast)
  *    goes out now, the card is pinned at the release point (`drawCastLift`
  *    with `'parked'`), and this module's `parked` holds that fact until
- *    Forge's reply resolves it. The pre-existing click-targeting arrow
- *    (`paint()`'s fallback branch, unaffected by any of this) already draws
- *    from `match.lastSelectedCard`'s box, which IS this same pinned card, to
- *    wherever the pointer is now, so a fresh target ask is answered exactly
- *    like any other click-cast: no separate arrow logic is needed for this
- *    to work.
+ *    Forge's reply resolves it. While Forge asks for the target, the card is
+ *    in no zone the board draws, so React unmounts its element: a stand-in
+ *    copied at the release (`parkedGhost`) is drawn at the park point
+ *    instead, and the click-targeting arrow (`paint()`'s fallback branch)
+ *    leaves from `parked` itself rather than from a DOM lookup, so a target
+ *    ask is answered like any other click-cast.
  *
  * ### A click lifts; the next press is the release
  *
@@ -144,6 +144,7 @@ import {
   pressButton,
   selectCard,
   subscribe,
+  type LiveMatch,
 } from '../match.ts';
 // Where a cast lands on the battlefield — a plain function, not a component,
 // read across the lane boundary.
@@ -151,6 +152,7 @@ import { notePlayedTo, previewPlayedTo } from '../../Board.tsx';
 import { autoTargetArrows } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
 import {
+  CAST_LIFT_ATTR,
   clearAllCastLifts,
   clearCastLift,
   clearDropCues,
@@ -161,6 +163,7 @@ import {
   needsTarget,
   overOwnBattlefield,
   overOwnHand,
+  parkedGhost,
   updateDropCues,
   verdictFor,
 } from './cast.ts';
@@ -192,6 +195,21 @@ interface Parked {
   readonly source: number;
   readonly at: Point;
   readonly home: Point;
+  /** The card's stand-in at `at`, shown only while the board renders no element for the card itself. */
+  readonly ghost: HTMLElement | null;
+  /** Forge's state has shown the card out of the hand since the cast went out. */
+  leftHand: boolean;
+}
+
+/** Where Forge's state holds the card now: the viewer's hand, another zone the board draws, or nowhere it draws (mid-cast). */
+function whereIs(match: LiveMatch, id: number): 'hand' | 'drawn' | 'limbo' {
+  if (isHandCard(match, id)) return 'hand';
+  for (const p of match.view?.players ?? []) {
+    for (const zone of [p.battlefield, p.graveyard, p.exile]) {
+      if (zone.some((c) => c.id === id)) return 'drawn';
+    }
+  }
+  return 'limbo';
 }
 
 export function installGestures(options: GestureOptions): GestureHandle {
@@ -268,22 +286,27 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * target was never clicked at all, and its source is what the arrow should
    * leave from. No origin, no arrow — a tail from nowhere is not guidance.
    *
-   * This is also, unchanged, how a parked cast draws its arrow: `selectCard`
-   * (in `resolveLift`) sets `match.lastSelectedCard` to the parked card's id,
-   * and `cardBox` finds the very element `drawCastLift` pinned — the general
-   * click-targeting case and the parked-cast case are the same code path
-   * here.
+   * A parked cast comes first and is answered from `parked` itself, never
+   * from a DOM lookup alone: while Forge asks for its target the card is in
+   * no zone the board draws, so its element is usually gone and only the
+   * release point says where the arrow leaves from.
    */
-  function clickOrigin(): Element | null {
+  function clickOrigin(): { at: Point; source: number | null } | null {
+    // A parked card is where the player let go of it, whether or not the
+    // board still renders its element.
+    if (parked !== null) {
+      const box = cardBox(canvas, parked.source);
+      return { at: box === null ? parked.at : centreOf(box), source: parked.source };
+    }
     const held = match.lastSelectedCard;
     if (held !== null) {
       const box = cardBox(canvas, held);
-      if (box !== null) return box;
+      if (box !== null) return { at: centreOf(box), source: originId(box) };
     }
     for (const item of match.view?.stack ?? []) {
       if (item.sourceCardId === null) continue;
       const box = cardBox(canvas, item.sourceCardId);
-      if (box !== null) return box;
+      if (box !== null) return { at: centreOf(box), source: originId(box) };
     }
     return null;
   }
@@ -333,9 +356,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       drawMarquee(overlay, rectOf(marquee.press, marquee.at));
       next = 'marquee';
     } else {
-      // This is also how a parked cast draws its arrow, see `clickOrigin`'s
-      // own note: `match.lastSelectedCard` is the parked card the instant
-      // `resolveLift` sends it.
+      // This is also how a parked cast draws its arrow, see `clickOrigin`.
       const origin = hover !== null && (match.selectables !== null || stackAsk(match) !== null) ? clickOrigin() : null;
       if (origin === null || hover === null) {
         clearArrow(overlay);
@@ -343,8 +364,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
       } else {
         const target = targetAt(hover.node);
         const snap = target === null ? null : boxOf(canvas, target);
-        const source = originId(origin);
-        drawArrow(overlay, { from: centreOf(origin), to: hover.at, source, target, snap, mode: 'click' });
+        const source = origin.source;
+        drawArrow(overlay, { from: origin.at, to: hover.at, source, target, snap, mode: 'click' });
         clearMarquee(overlay);
         next = `click:${source ?? ''}:${target === null ? '' : `${target.kind}:${target.id}`}`;
       }
@@ -421,9 +442,48 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // A card that needs a target: the cast goes out now, wherever it was
     // released outside the hand, and the card parks right there.
     previewPlayedTo(null);
+    const ghost = parkedGhost(canvas, source);
     selectCard(match, source);
     drawCastLift(canvas, source, point, 'parked', null);
-    parked = { source, at: point, home: state.from };
+    parked = { source, at: point, home: state.from, ghost, leftHand: false };
+    // The pointer is at the park point now; the arrow follows it from there
+    // the moment Forge asks for the target, before the pointer next moves.
+    hover = { at: point, node };
+    paint();
+  }
+
+  /**
+   * The parked card's stand-in is on the page exactly while the board has no
+   * element of its own for the card: Forge holds a card being cast in none of
+   * the zones the board draws until its targets are chosen, so React
+   * unmounts it, and without the stand-in the player would see the card
+   * vanish the moment they let go of it.
+   */
+  function syncParkedGhost(): void {
+    if (parked === null || parked.ghost === null) return;
+    const { ghost } = parked;
+    if (cardBox(canvas, parked.source) !== null) {
+      ghost.remove();
+      return;
+    }
+    if (ghost.isConnected) return;
+    ghost.setAttribute(CAST_LIFT_ATTR, 'parked');
+    ghost.style.left = `${parked.at.x}px`;
+    ghost.style.top = `${parked.at.y}px`;
+    // Under the board, so its card styles still dress the stand-in, but
+    // outside every zone, so nothing counting a zone's cards counts it.
+    (canvas.querySelector('.board') ?? canvas).appendChild(ghost);
+  }
+
+  /** Let a parked card go — its own element, or its stand-in when the board has none. */
+  function releaseParked(p: Parked, floatHome: boolean): void {
+    const ghost = p.ghost !== null && p.ghost.isConnected ? p.ghost : null;
+    if (floatHome) {
+      floatCastLiftHome(canvas, p.source, p.home, () => ghost?.remove(), ghost ?? cardBox(canvas, p.source));
+    } else {
+      ghost?.remove();
+      clearCastLift(canvas, p.source);
+    }
   }
 
   /**
@@ -440,7 +500,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // and pressing Cancel regardless would reach whatever button 2 means
       // next.
       if (match.selectables !== null || payingMana(match)) pressButton(match, 'cancel');
-      floatCastLiftHome(canvas, p.source, p.home, () => {});
+      releaseParked(p, true);
+      paint();
       return;
     }
     if (drag !== null && drag.lifted) {
@@ -458,14 +519,25 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * open ask, and the card itself is off the stack too (it resolved, or the
    * selection closed without a question this layer answers) — needs no
    * cancel and no further input; it is simply over, so the lift comes off.
+   *
+   * Only once Forge's state has the card somewhere settled again: a zone the
+   * board draws, or back in the hand after having left it. Between the cast
+   * going out and Forge opening its target selection, nothing is open for a
+   * moment — the card is still in the hand on the first frames after the
+   * send, then in no zone at all — and settling in that gap would drop the
+   * parked cast just before Forge asks about it, leaving a right-click or
+   * Escape with nothing to cancel and the arrow with no origin.
    */
   function settleParkedIfResolved(): void {
     if (parked === null) return;
+    const where = whereIs(match, parked.source);
+    if (where !== 'hand') parked.leftHand = true;
     if (match.selectables !== null || payingMana(match) || match.asks.length > 0 || stackAsk(match) !== null) return;
     if (match.view?.stack.some((item) => item.sourceCardId === parked!.source)) return;
+    if (where === 'limbo' || (where === 'hand' && !parked.leftHand)) return;
     const p = parked;
     parked = null;
-    clearCastLift(canvas, p.source);
+    releaseParked(p, false);
   }
 
   function onPointerDown(event: PointerEvent): void {
@@ -538,7 +610,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       drag = {
         source: null,
         press: at,
-        from: origin === null ? at : centreOf(origin),
+        from: origin === null ? at : origin.at,
         at,
         target: targetAt(event.target),
         moved: false,
@@ -680,6 +752,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   function onPointerCancel(): void {
+    // The browser took the pointer away mid-aim: the same as letting go of
+    // the cast with right-click or Escape.
+    if (parked !== null && drag === null) {
+      cancelLive();
+      return;
+    }
     if (drag !== null && drag.lifted) {
       clearDropCues(canvas);
       previewPlayedTo(null);
@@ -762,6 +840,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   const unsubscribe = subscribe(match, () => {
     if (!live) return;
     settleParkedIfResolved();
+    syncParkedGhost();
     paint();
   });
   const observer = new MutationObserver((records) => {
@@ -771,6 +850,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const overlay = overlayOf();
     if (records.every((r) => overlay !== null && r.target instanceof Node && overlay.contains(r.target))) return;
     applyIntents(canvas, match);
+    syncParkedGhost();
   });
   observer.observe(canvas, { childList: true, subtree: true });
   paint();
