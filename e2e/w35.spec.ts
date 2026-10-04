@@ -873,19 +873,33 @@ test(titled('R5 — the End Turn button is highlighted exactly when there is not
   test.setTimeout(2 * 60_000);
   const endTurn = (page: Page) => page.getByTestId('live-button-cancel');
 
-  // Part 1 — nothing to decide: attackers-declared.state (lane S, already on
-  // disk) lands seat 0 at an uncontested Main Phase 1 with an EMPTY hand and
-  // one Memnite (no activated ability) on the battlefield — Forge's own
-  // actionable set has nothing to offer, `nothingToDecide`'s precondition.
+  // Part 1 — a creature that can still attack holds the turn. The operator,
+  // 2026-10-03: "the 'End Turn' button shouldn't be showing flashing if i have
+  // creatures that can still attack." attackers-declared.state is seat 0's
+  // Main Phase 1 with an empty hand and one untapped Memnite (no activated
+  // ability): Forge offers nothing, but combat is still to come.
   const stackA = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stackA, 'attackers-declared');
     void bob;
     await expect(endTurn(alice.page), 'Forge\'s second button is showing, labelled End Turn — the precondition this half needs').toHaveText('End Turn', { timeout: 15_000 });
+    expect(await offered(alice.page), 'nothing is offered — only the attack is left').toEqual([]);
+    await expect(endTurn(alice.page), 'End Turn is NOT highlighted while a creature can still attack').not.toHaveAttribute('data-highlight', '');
+  } finally {
+    await stackA.stop();
+  }
+
+  // Part 1b — nothing left: nothing-left.state is the same board in Main
+  // Phase 2, after combat, so nothing holds the turn.
+  const stackC = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stackC, 'nothing-left');
+    void bob;
+    await expect(endTurn(alice.page), 'Forge\'s second button is showing, labelled End Turn — the precondition this half needs').toHaveText('End Turn', { timeout: 15_000 });
     expect(await offered(alice.page), 'nothing is offered — the precondition "nothing to decide" needs').toEqual([]);
     await expect(endTurn(alice.page), 'End Turn is highlighted when there is nothing else to do').toHaveAttribute('data-highlight', '');
   } finally {
-    await stackA.stop();
+    await stackC.stop();
   }
 
   // Part 2 — something IS offered: glint-hawk.state (Shivan Dragon's own

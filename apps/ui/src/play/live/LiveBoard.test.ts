@@ -1885,7 +1885,6 @@ describe('the frame installs the gesture layer and owns none of it', () => {
  * `Board`, off the props it was called with.
  */
 describe('what the board is told about Forge’s input', () => {
-  const GAME_KEY = String(deltaKey(WireType.Game, 1));
   const notify = (raw: unknown) => parseServerFrame(raw);
   const selectables = (ids: number[], min: number, max: number) =>
     notify({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max });
@@ -1893,29 +1892,7 @@ describe('what the board is told about Forge’s input', () => {
     notify({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
   const prompt = (message: string) =>
     notify({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null });
-  /** A Game delta: the phase, and whose turn it is. Forge's own structured facts. */
-  const phase = (m: LiveMatch, name: string, playerTurn: number) =>
-    notify({
-      kind: 'notify',
-      method: 'applyDelta',
-      payload: {
-        packet: {
-          seq: m.view!.seq + 1,
-          checksum: 0,
-          checksumProperties: [],
-          newObjects: {},
-          objectDeltas: {
-            [GAME_KEY]: {
-              _type: WireType.Game,
-              _id: 1,
-              Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
-              PlayerTurn: { t: 'int', v: playerTurn },
-            },
-          },
-          events: [],
-        },
-      },
-    });
+  const phase = phaseDelta;
 
   it('no selection open and not declaring attackers, at rest', async () => {
     const { m } = await liveBoard();
@@ -2696,7 +2673,37 @@ describe('R8 — the log button is an icon with an accessible name', () => {
   });
 });
 
+/** A Game delta: the phase, and whose turn it is. Forge's own structured facts. */
+function phaseDelta(m: LiveMatch, name: string, playerTurn: number) {
+  return parseServerFrame({
+    kind: 'notify',
+    method: 'applyDelta',
+    payload: {
+      packet: {
+        seq: m.view!.seq + 1,
+        checksum: 0,
+        checksumProperties: [],
+        newObjects: {},
+        objectDeltas: {
+          [String(deltaKey(WireType.Game, 1))]: {
+            _type: WireType.Game,
+            _id: 1,
+            Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
+            PlayerTurn: { t: 'int', v: playerTurn },
+          },
+        },
+        events: [],
+      },
+    },
+  });
+}
+
 describe('R5 — End Turn is highlighted when there is nothing left to decide', () => {
+  // The fixture is the viewer's own MAIN1 with an untapped Fire Urchin: attacking
+  // is still to come there, so End Turn is not highlighted (attackersLeft). These
+  // cases start in MAIN2, after combat, and test their own reason.
+  const pastAttackers = (m: LiveMatch) => phaseDelta(m, 'MAIN2', m.view!.players.find((p) => p.isViewer)!.id);
+
   const clearSelectables = () => parseServerFrame({ kind: 'notify', method: 'clearSelectables' });
   const weaklySelectable = (ids: number[]) =>
     parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
@@ -2714,6 +2721,8 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
 
   it('highlights the SECOND button (End Turn is Forge’s label2, never label1) exactly when nothingToDecide is true', async () => {
     const { s, m, getByTestId } = await liveBoard();
+    s.send(pastAttackers(m));
+    await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
     s.send(clearSelectables());
     s.send(bar2('End Turn'));
     await waitFor(() => expect(getByTestId('live-button-cancel').textContent).toBe('End Turn'));
@@ -2738,6 +2747,8 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
 
   it('an actionable set naming only the viewer’s own battlefield LAND keeps End Turn highlighted (lane F’s land-tapping fix)', async () => {
     const { s, m, getByTestId } = await liveBoard();
+    s.send(pastAttackers(m));
+    await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
     s.send(clearSelectables());
     s.send(bar2('End Turn'));
     await waitFor(() => expect(getByTestId('live-button-cancel').textContent).toBe('End Turn'));

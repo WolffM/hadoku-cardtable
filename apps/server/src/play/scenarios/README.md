@@ -129,6 +129,7 @@ is in `docs/planning/wave37-evidence/A-repro.md`.
 | `land-only-pass.state` | seat 0 holds Raging Goblin (`{R}`) and TWO untapped Mountains (one stays untapped after casting); seat 1 holds nothing and has two untapped Mountains of its own, an uncontested turn-1 Main Phase 1. | wave 35 §S follow-up — the `decideStop`/R15 land-exclusion regression lane E found in `play.spec.ts` ("a spell resolves unattended"); see `auto-pass-land.jvm.test.ts`. |
 | `shockland.state` | seat 0 holds Steam Vents, no land played, uncontested Main Phase 1; playing it opens the card's own "pay 2 life?" (InputConfirm Yes/No). | wave 36 T4 (the confirm pop-up) |
 | `cavern.state` | seat 0 controls Cavern of Souls, uncontested Main Phase 1; applying it asks seat 0 for a creature type (Cavern's own replacement) right after the mulligan. | wave 36 T7 (ChosenType on the card) |
+| `nothing-left.state` | seat 0's own Main Phase 2, after combat: an empty hand and one Memnite (no activated ability), so nothing — not Forge's actionable set, not a possible attack — holds the turn. | End Turn's highlight (`e2e/w35.spec.ts` R5, part 1b), beside `attackers-declared.state`, where the same board in Main Phase 1 must NOT highlight it. |
 
 Every scenario sets `turn=1`, both seats' life to 20, and a small library of
 basic lands for both seats (so an incidental draw never loses the game) unless

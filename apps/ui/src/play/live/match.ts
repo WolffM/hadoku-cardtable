@@ -1266,6 +1266,33 @@ function isOwnBattlefieldLand(view: BoardView, id: number): boolean {
   return card !== undefined && card.card.typeLine.includes('Land');
 }
 
+/** The steps of the viewer's own turn in which attackers are still to come. */
+const BEFORE_ATTACKERS: ReadonlySet<string> = new Set(['UNTAP', 'UPKEEP', 'DRAW', 'MAIN1', 'COMBAT_BEGIN']);
+
+/**
+ * It is the viewer's turn, combat has not reached attackers yet, and the viewer
+ * controls a creature that could attack: untapped, not summoning sick (the
+ * adapter already lets haste through), no Defender. Forge never offers an
+ * attacker at a priority window — attacking is declared later, in its own
+ * step — so the actionable set alone would call this "nothing to decide", and
+ * End Turn there would skip combat.
+ *
+ * Approximation: an effect that stops a creature attacking without the
+ * Defender keyword (a Pacifism, say) still counts it as able.
+ */
+export function attackersLeft(view: BoardView): boolean {
+  const me = view.players.find((p) => p.isViewer);
+  if (me === undefined || !me.isActive) return false;
+  if (view.phase === null || !BEFORE_ATTACKERS.has(view.phase)) return false;
+  return me.battlefield.some(
+    (c) =>
+      c.card.typeLine.includes('Creature') &&
+      !c.tapped &&
+      !c.summoningSick &&
+      !(c.keywords ?? []).includes('Defender'),
+  );
+}
+
 /**
  * Nothing is left for this seat to decide right now — wave 35 §S shape 3, the
  * seam L's End Turn highlight (R5) reads.
@@ -1309,7 +1336,7 @@ export function nothingToDecide(match: LiveMatch): boolean {
   if (match.selectables !== null) return false;
   if (match.weaklySelectable === null) return false;
   for (const id of match.weaklySelectable) if (!isOwnBattlefieldLand(view, id)) return false;
-  return true;
+  return !attackersLeft(view);
 }
 
 /**

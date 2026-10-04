@@ -1,0 +1,16 @@
+# End Turn's highlight: the viewer's own postcombat main with nothing left to
+# decide. Memnite has no activated ability, the hand is empty, and combat is
+# over, so neither Forge's actionable set nor a possible attack holds the turn.
+turn=1
+activeplayer=human
+activephase=MAIN2
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

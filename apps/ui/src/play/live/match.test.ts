@@ -13,6 +13,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
 
+import type { BoardView } from '../adapter.ts';
 import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { deltaKey, WireType, type Tagged } from '../wire.ts';
 import {
@@ -32,6 +33,7 @@ import {
   ingest,
   MAX_RESYNCS_WITHOUT_PROGRESS,
   nothingToDecide,
+  attackersLeft,
   pressButton,
   selectCard,
   selectPlayer,
@@ -543,6 +545,27 @@ const cardAct = (id: number) => ({
   value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null },
 });
 
+/** The Game object's wire key, and one synthetic delta. */
+const GAME_KEY = String((WireType.Game << 28) | 1);
+let seq = FRAMES.length;
+function stateDelta(objectDeltas: Record<string, unknown>): ServerFrame {
+  seq += 1;
+  return parseServerFrame({
+    kind: 'notify',
+    method: 'applyDelta',
+    payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas, events: [] } },
+  });
+}
+const phase = (name: string, playerTurn: number) =>
+  stateDelta({
+    [GAME_KEY]: {
+      _type: WireType.Game,
+      _id: 1,
+      Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
+      PlayerTurn: { t: 'int', v: playerTurn },
+    },
+  });
+
 /** Send a known-good act and require it to be the first thing the server got. */
 async function barrier(s: ReplayServer, m: LiveMatch, id: number): Promise<void> {
   await sendAndApply(s, m, [prompt('barrier'), actionable([id])]);
@@ -760,6 +783,12 @@ describe('clicking the board: only what Forge offered', () => {
  * actionable set explicitly empty.
  */
 describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', () => {
+  // The fixture is the viewer's own MAIN1 with an untapped Fire Urchin, a state
+  // in which attacking is still to come (`attackersLeft`). Every case below
+  // moves to MAIN2 first, so it tests its own reason and not that one.
+  const viewerId = (m: LiveMatch) => m.view!.players.find((p) => p.isViewer)!.id;
+  const pastAttackers = (m: LiveMatch) => phase('MAIN2', viewerId(m));
+
   it('false before any state has folded at all', () => {
     // No snapshot has landed, so every field this reads still holds its unset
     // default — `view` most of all, which is the guard that keeps them from
@@ -780,7 +809,7 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
   it('false while a selection is open, even with an empty actionable set underneath', async () => {
     const { s, m } = await fullGame();
     const { theirs } = ids(m);
-    await sendAndApply(s, m, [prompt('Priority'), actionable([])]);
+    await sendAndApply(s, m, [pastAttackers(m), prompt('Priority'), actionable([])]);
     expect(nothingToDecide(m)).toBe(true);
     await sendAndApply(s, m, [selectables([theirs[0]!], 1, 1)]);
     expect(m.selectables).not.toBeNull();
@@ -790,7 +819,7 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
 
   it('false while an ask is open, even with an empty actionable set underneath', async () => {
     const { s, m } = await fullGame();
-    await sendAndApply(s, m, [prompt('Priority'), actionable([])]);
+    await sendAndApply(s, m, [pastAttackers(m), prompt('Priority'), actionable([])]);
     expect(nothingToDecide(m)).toBe(true);
     await sendAndApply(s, m, [optionAsk('ask-1')]);
     expect(currentAsk(m)).not.toBeNull();
@@ -801,7 +830,7 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
   it('false when Forge named at least one actionable NON-land card', async () => {
     const { s, m } = await fullGame();
     const nonLand = myNonLand(m);
-    await sendAndApply(s, m, [prompt('Priority'), actionable([nonLand])]);
+    await sendAndApply(s, m, [pastAttackers(m), prompt('Priority'), actionable([nonLand])]);
     expect(nothingToDecide(m)).toBe(false);
     await barrier(s, m, nonLand);
   });
@@ -809,7 +838,7 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
   it('true at a priority window with no open ask, no selection, and an explicit empty actionable set', async () => {
     const { s, m } = await fullGame();
     const nonLand = myNonLand(m);
-    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([])]);
+    await sendAndApply(s, m, [pastAttackers(m), prompt('Priority'), bar(true), actionable([])]);
     expect(m.asks.length).toBe(0);
     expect(m.selectables).toBeNull();
     expect(m.weaklySelectable).toEqual(new Set());
@@ -822,7 +851,7 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
 
   it('clearWeaklySelectable un-decides it: Forge stopped saying "nothing", it did not start saying "something"', async () => {
     const { s, m } = await fullGame();
-    await sendAndApply(s, m, [prompt('Priority'), actionable([])]);
+    await sendAndApply(s, m, [pastAttackers(m), prompt('Priority'), actionable([])]);
     expect(nothingToDecide(m)).toBe(true);
     await sendAndApply(s, m, [clearActionable()]);
     expect(m.weaklySelectable).toBeNull();
@@ -842,7 +871,7 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
   it('true when the actionable set names ONLY the viewer’s own battlefield land(s)', async () => {
     const { s, m } = await fullGame();
     const land = myLand(m);
-    await sendAndApply(s, m, [prompt('Priority'), actionable([land])]);
+    await sendAndApply(s, m, [pastAttackers(m), prompt('Priority'), actionable([land])]);
     expect(nothingToDecide(m)).toBe(true);
     await barrier(s, m, land);
   });
@@ -850,7 +879,7 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
   it('false for a land on the OPPONENT’s battlefield — only the viewer’s OWN battlefield lands are ignored', async () => {
     const { s, m } = await fullGame();
     const { theirs } = ids(m);
-    await sendAndApply(s, m, [prompt('Priority'), actionable([theirs[0]!])]);
+    await sendAndApply(s, m, [pastAttackers(m), prompt('Priority'), actionable([theirs[0]!])]);
     expect(nothingToDecide(m)).toBe(false);
     await barrier(s, m, theirs[0]!);
   });
@@ -858,10 +887,40 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
   it('false for a castable creature in hand', async () => {
     const { s, m } = await fullGame();
     const creature = myHandCard(m, false);
-    await sendAndApply(s, m, [prompt('Priority'), actionable([creature])]);
+    await sendAndApply(s, m, [pastAttackers(m), prompt('Priority'), actionable([creature])]);
     expect(nothingToDecide(m)).toBe(false);
     await barrier(s, m, creature);
   });
+  // The operator, 2026-10-03: "the 'End Turn' button shouldn't be showing
+  // flashing if i have creatures that can still attack."
+  it('false in the viewer\'s own MAIN1 with a creature that can still attack, even with only lands actionable', async () => {
+    const { s, m } = await fullGame();
+    const land = myLand(m);
+    await sendAndApply(s, m, [phase('MAIN1', viewerId(m)), prompt('Priority'), actionable([land])]);
+    expect(attackersLeft(m.view!)).toBe(true);
+    expect(nothingToDecide(m)).toBe(false);
+    await barrier(s, m, land);
+  });
+
+  it('attackersLeft: only the viewer\'s own turn, before attackers, with an untapped, unsick, non-Defender creature', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [phase('MAIN1', viewerId(m))]);
+    const view = m.view!;
+    expect(attackersLeft(view)).toBe(true);
+    const withMine = (f: (c: BoardView['players'][number]['battlefield'][number]) => object): BoardView => ({
+      ...view,
+      players: view.players.map((p) => (p.isViewer ? { ...p, battlefield: p.battlefield.map((c) => ({ ...c, ...f(c) })) } : p)),
+    });
+    expect(attackersLeft(withMine(() => ({ tapped: true }))), 'tapped').toBe(false);
+    expect(attackersLeft(withMine(() => ({ summoningSick: true }))), 'summoning sick').toBe(false);
+    expect(attackersLeft(withMine((c) => ({ keywords: [...(c.keywords ?? []), 'Defender'] }))), 'Defender').toBe(false);
+    for (const later of ['COMBAT_DECLARE_ATTACKERS', 'MAIN2', 'END_OF_TURN']) {
+      expect(attackersLeft({ ...view, phase: later }), later).toBe(false);
+    }
+    const theirTurn: BoardView = { ...view, players: view.players.map((p) => ({ ...p, isActive: !p.isViewer })) };
+    expect(attackersLeft(theirTurn), 'the opponent\'s turn').toBe(false);
+  });
+
 });
 
 /*
@@ -1490,26 +1549,6 @@ describe('payingMana: the payment input, and not a bar that outlived it', () => 
  * Nothing here reads Forge's prompt text, which is the wave's rule §0b.
  */
 describe('combat, off the state channel: the intent mark and the block target', () => {
-  /** The Game object's wire key, and one synthetic delta. */
-  const GAME_KEY = String((WireType.Game << 28) | 1);
-  let seq = FRAMES.length;
-  function stateDelta(objectDeltas: Record<string, unknown>): ServerFrame {
-    seq += 1;
-    return parseServerFrame({
-      kind: 'notify',
-      method: 'applyDelta',
-      payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas, events: [] } },
-    });
-  }
-  const phase = (name: string, playerTurn: number) =>
-    stateDelta({
-      [GAME_KEY]: {
-        _type: WireType.Game,
-        _id: 1,
-        Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
-        PlayerTurn: { t: 'int', v: playerTurn },
-      },
-    });
   const attacking = (cardIds: number[]) =>
     stateDelta(
       Object.fromEntries(cardIds.map((id) => [String(id), { _type: WireType.Card, _id: id, Attacking: { t: 'bool', v: true } }])),
