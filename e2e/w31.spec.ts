@@ -262,7 +262,7 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
     const bob = await openFriend(browser, 'bob');
     // BOTH seats, not just alice: the "outside" row-height sample is always
     // read off alice's page, but the "inside" one is read off WHICHEVER seat
-    // (`combat.who`) the watcher below sees combat on first — Forge's own
+    // (`combat.who`) the in-page recorder below sees settle in combat first — Forge's own
     // RNG decides that, not this test. Leaving bob at Playwright's unset
     // default (1280×720, `docClientH` 80px shorter than alice's 1280×800)
     // is exactly what produced the tracker's 2.16px "row height" gap: it was
@@ -308,30 +308,61 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
       });
 
     // Wave 35 §E2: the rail's growth is a CSS transition (`live.css`'s
-    // `transition: height 0.3s ease`), and height is a layout property — every
-    // frame of that transition costs main-thread work, so a loaded host (the
-    // full CI set, not this spec run alone) can draw 300ms of transition out
-    // over a longer stretch of wall-clock time. A fixed sleep after detecting
-    // combat is a guess at that stretch, and it was wrong once already
-    // (tracker: grew 18.7px against a required 20, failed 1 of 3 full-run
-    // attempts, 5/5 clean alone — the margin was not the bug, the guessed
-    // duration was). Waiting for the number to actually stop moving is correct
-    // at any host speed, so this polls the live rail's own height until two
-    // reads `pollMs` apart agree, instead of sleeping for a duration and
-    // hoping it was enough.
-    const waitForStableRail = async (f: Friend, { pollMs = 50, epsilon = 0.01, timeout = 15_000 } = {}): Promise<number> => {
-      const start = Date.now();
-      let last: number | null = null;
-      while (Date.now() - start < timeout) {
-        const h = await f.page.evaluate(() => {
+    // `transition: height 0.3s ease`), so its height is read only once it has
+    // stopped moving — two reads that agree — never after a guessed sleep.
+    //
+    // Wave 38: those reads happen IN the page, every animation frame, not from
+    // here. Combat with no attackers is on screen for about a tenth of a
+    // second: on the seeded game this spec plays, the server auto-passes every
+    // combat step of all three turns (`auto-passed`, both seats, no ask in
+    // between — the bots never get to hold it open) in 80–110 ms, and the game
+    // is over on turn 4. A Node-side read — the watcher's 100 ms loop, or one
+    // made after the poll below notices combat — lands after combat has gone,
+    // reads `[data-combat]` as null every time, and threw "the rail's height
+    // never stabilized (last read: null)" on every run. A frame loop
+    // advances on the same clock as the transition, so "the previous frame
+    // read the same height" is the settled rail at any host speed, and the
+    // first such frame is kept: the rail as it stood inside combat, read while
+    // it still was.
+    type RailSample = { names: string[]; rows: number; box: number[]; rowH: number[]; diag: { liveH: number | null; headerH: number | null; docClientH: number } };
+    const recordCombatRail = (f: Friend) =>
+      f.page.evaluate(() => {
+        const rec: { stable: RailSample | null; maxH: number } = { stable: null, maxH: 0 };
+        (window as unknown as { __combatRail: typeof rec }).__combatRail = rec;
+        let prev: number | null = null;
+        const tick = () => {
           const rail = document.querySelector('[data-testid="live-phases"][data-combat]');
-          return rail === null ? null : rail.getBoundingClientRect().height;
-        });
-        if (h !== null && last !== null && Math.abs(h - last) <= epsilon) return h;
-        last = h;
-        await new Promise((r) => setTimeout(r, pollMs));
+          if (rail === null) prev = null;
+          else {
+            const b = rail.getBoundingClientRect();
+            rec.maxH = Math.max(rec.maxH, b.height);
+            if (prev !== null && Math.abs(b.height - prev) <= 0.01) {
+              const h = (sel: string) => {
+                const el = document.querySelector(sel);
+                return el === null ? null : Math.round(el.getBoundingClientRect().height * 100) / 100;
+              };
+              rec.stable = {
+                names: Array.from(rail.querySelectorAll('.live__step-name')).map((n) => n.textContent?.trim() ?? ''),
+                rows: rail.querySelectorAll('.live__step').length,
+                box: [b.x, b.y, b.width, b.height],
+                rowH: Array.from(rail.querySelectorAll('.live__step')).map((e) => e.getBoundingClientRect().height),
+                diag: { liveH: h('.live'), headerH: h('.app-header'), docClientH: document.documentElement.clientHeight },
+              };
+              return;
+            }
+            prev = b.height;
+          }
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+    // Whichever seat settled in combat first — Forge's RNG decides that, not this test.
+    const settledCombatRail = async () => {
+      for (const f of [alice, bob]) {
+        const rec = await f.page.evaluate(() => (window as unknown as { __combatRail?: { stable: RailSample | null; maxH: number } }).__combatRail ?? null);
+        if (rec?.stable) return { who: f.name, maxH: rec.maxH, ...rec.stable };
       }
-      throw new Error(`the rail's height never stabilized (last read: ${last})`);
+      return null;
     };
 
     // Before the game has a phase at all: combat is ONE row.
@@ -369,51 +400,20 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
     expect(outsideLook!.alignName, 'phase names are centred in their row').toMatch(/center/);
     expect(outsideBoxes.alice, 'the rail has a box to keep').not.toBeNull();
 
+    for (const f of [alice, bob]) await recordCombatRail(f);
     await playFirst(alice);
     await answerConfirm(alice.page, 'yes'); // keep — wave 36 T4: Keep/Mulligan is a ConfirmPrompt now
     hands.push(await connectHands(alice, 0), await connectHands(bob, 1));
 
-    // Combat is over in a few hundred milliseconds when nobody attacks, so it is
-    // WATCHED for from here on rather than waited for after the log check below.
-    // The same loop answers the asks the game raises (a scry), as every spec does.
-    const seen: { combat: { who: string; names: string[]; rows: number; box: number[]; rowH: number[] } | null; maxH: number; lastRow: number; lastRowHeights: number[] | null; lastDiag: Awaited<ReturnType<typeof railDiag>> | null; error: unknown } = { combat: null, maxH: 0, lastRow: 0, lastRowHeights: null, lastDiag: null, error: null };
+    // Combat is MEASURED from here on by `recordCombatRail`, in the page; this
+    // loop only answers the asks the game raises (a scry), as every spec does.
+    const seen: { error: unknown } = { error: null };
+    const got: { rail: Awaited<ReturnType<typeof settledCombatRail>> } = { rail: null };
     let watching = true;
     const watcher = (async () => {
       try {
         while (watching) {
-          for (const f of [alice, bob]) {
-            await answerPrompt(f.page);
-            if (seen.combat !== null) {
-              // The rail's growth is a CSS transition: the first sight of combat is mid-way, so keep sampling the tallest it gets.
-              if (f.name === seen.combat.who) {
-                const m = await f.page.evaluate(() => {
-                  const rail = document.querySelector('[data-testid="live-phases"][data-combat]');
-                  if (rail === null) return null;
-                  const rows = Array.from(rail.querySelectorAll('.live__step')).map((e) => e.getBoundingClientRect().height);
-                  return { h: rail.getBoundingClientRect().height, row: Math.max(...rows), rows };
-                });
-                if (m !== null) {
-                  seen.maxH = Math.max(seen.maxH, m.h);
-                  seen.lastRow = m.row;
-                  seen.lastRowHeights = m.rows;
-                  seen.lastDiag = await railDiag(f);
-                }
-              }
-              continue;
-            }
-            const r = await f.page.evaluate(() => {
-              const e = document.querySelector('[data-testid="live-phases"][data-combat]');
-              if (e === null) return null;
-              const b = e.getBoundingClientRect();
-              return {
-                names: Array.from(document.querySelectorAll('.live__step-name')).map((n) => n.textContent?.trim() ?? ''),
-                rows: document.querySelectorAll('.live__step').length,
-                box: [b.x, b.y, b.width, b.height],
-                rowH: Array.from(document.querySelectorAll('.live__step')).map((s) => s.getBoundingClientRect().height),
-              };
-            });
-            if (r !== null) seen.combat = { who: f.name, ...r };
-          }
+          for (const f of [alice, bob]) await answerPrompt(f.page);
           await new Promise((r) => setTimeout(r, 100));
         }
       } catch (err) {
@@ -519,26 +519,18 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
       for (const h of hands) h.resume();
 
       // Into combat: the six steps are there, in place of the one, and the rail did not move.
-      await expect.poll(() => seen.combat !== null || seen.error !== null, { timeout: 120_000, message: 'the game reached a combat step' }).toBe(true);
-      // Wave 34 §E2: the watcher is stopped (the `finally` below) the moment
-      // THIS poll notices `seen.combat`, which can be well inside the rail's
-      // own 0.3s CSS grow transition (`live.css`'s `transition: height 0.3s
-      // ease`) — this poll and the watcher's 100ms sampling loop are two
-      // independent async loops with no ordering guarantee between them. Wave
-      // 35 §E2 replaced the fixed-duration sleep that used to sit here (it
-      // guessed how long the transition's wall-clock stretch would be and
-      // guessed wrong under full-run load) with `waitForStableRail`, which
-      // waits for the rail's own height to actually stop changing on
-      // whichever seat (`seen.combat.who`) saw combat first — correct
-      // regardless of host speed, because it is watching the real signal
-      // instead of a guessed duration.
-      if (seen.error === null) await waitForStableRail(seen.combat!.who === 'alice' ? alice : bob);
+      await expect
+        .poll(async () => (got.rail = await settledCombatRail()) !== null || seen.error !== null, {
+          timeout: 120_000,
+          message: 'the game reached a combat step and the rail settled in it',
+        })
+        .toBe(true);
     } finally {
       watching = false;
       await watcher;
     }
     if (seen.error !== null) throw seen.error;
-    const combat = seen.combat!;
+    const combat = got.rail!;
     expect(combat.names.filter((n) => /combat|attackers|blockers|damage/i.test(n)).length, `six combat steps in combat (${combat.names.join(', ')})`).toBe(6);
     expect(combat.names, 'the one "Combat" row is gone while they show').not.toContain('Combat');
     expect(combat.rows, 'the rail grows by the five extra rows').toBe(outsideCount + 5);
@@ -547,14 +539,11 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
     // right gutter, so it GROWS when combat begins (taller, same column) and moves no card.
     expect(combat.box[0], 'the rail keeps its column when combat expands it').toBeCloseTo(before.x, 0);
     expect(combat.box[2], 'and its width').toBeCloseTo(before.width, 0);
-    expect(Math.max(combat.box[3]!, seen.maxH), 'the rail is taller in combat than out of it (its tallest, once the transition settled)').toBeGreaterThan(before.height + 20);
-    const insideRow = seen.lastRow > 0 ? seen.lastRow : Math.max(...combat.rowH); // the settled sample, not the first (mid-transition) one
+    expect(Math.max(combat.box[3]!, combat.maxH), 'the rail is taller in combat than out of it (its tallest, once the transition settled)').toBeGreaterThan(before.height + 20);
+    const insideRow = Math.max(...combat.rowH); // the settled frame, not a mid-transition one
     const outsideRow = Math.max(...outsideLook!.rowHeights);
-    // The settled-sample diag, taken at the SAME instant as `seen.lastRow` —
-    // or, if combat never looped back into the "already seen" branch (too
-    // brief a window), one more taken now, which is still inside combat
-    // (combat.who's page) and still better than nothing.
-    const insideDiag = seen.lastDiag ?? (await railDiag(combat.who === 'alice' ? alice : bob));
+    // Taken in the SAME frame as `combat.rowH`, inside combat.
+    const insideDiag = combat.diag;
     // Wave 34 §E2: a cross-state tolerance alone does not catch `.live__step`
     // going back to `flex: 1 1 0` (`wave33-evidence/m-ci-and-mutations.md`: "the
     // e2e rail test still PASSES 3/3" against that exact revert) — the drift a
@@ -578,7 +567,7 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
     // by two independent methods. This is the assertion that actually isolates
     // L's fix from the sampling noise above.
     const outsideSpread = Math.max(...outsideLook!.rowHeights) - Math.min(...outsideLook!.rowHeights);
-    const insideRowHeights = seen.lastRowHeights ?? combat.rowH;
+    const insideRowHeights = combat.rowH;
     const insideSpread = Math.max(...insideRowHeights) - Math.min(...insideRowHeights);
     expect(
       outsideSpread,
