@@ -3716,6 +3716,11 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     const ring = declarationInCss(CARD_CSS, '.seat[data-active] .seat__ring', 'box-shadow')!;
     expect(ring, 'a ring, in the accent').toContain('var(--accent)');
     expect(declarationInCss(CARD_CSS, '.seat__ring', 'border-radius')).toBe('50%');
+    // A 50% radius is a circle only on a square box. In a seat's bar the
+    // ring's parent is the mark plus the life number under it, so the ring
+    // takes the mark's own square (the operator saw an oval, 2026-10-03).
+    expect(declarationInCss(CARD_CSS, '.seat__ident .seat__ring', 'width')).toBe('var(--face-w)');
+    expect(declarationInCss(CARD_CSS, '.seat__ident .seat__ring', 'height')).toBe('var(--face-w)');
     expect(container.textContent).not.toMatch(/their turn/i);
   });
 

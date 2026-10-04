@@ -683,6 +683,18 @@
   height: var(--face-w);
 }
 
+/*
+ * The ring circles the mark, not `.face__hit`: here that box is the mark AND the
+ * life number under it, so `inset: 0` stretched the ring into a tall oval. It
+ * takes the mark's own square, at the top of the column where the mark is.
+ */
+.seat__ident .seat__ring {
+  inset: 0 auto auto 50%;
+  width: var(--face-w);
+  height: var(--face-w);
+  transform: translateX(-50%);
+}
+
 .seat__ident .face__life {
   position: static;
   min-width: 1.5rem;
