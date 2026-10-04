@@ -17,7 +17,7 @@
     "@hadoku/draft": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
     "@hadoku/shared": "workspace:*",
-    "@wolffm/prefs-client": "1.0.13",
+    "@wolffm/prefs-client": "1.0.14",
     "@wolffm/rooms-protocol": "0.40.6",
     "@wolffm/task-ui-components": "4.8.4",
     "@wolffm/themes": "5.8.7",
