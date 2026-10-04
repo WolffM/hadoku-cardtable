@@ -59,8 +59,9 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 
 import { envelopesOf, type RawCapture } from './frames.ts';
 import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './identities.ts';
-import { keepPrefsLocal } from './prefsLocal.ts';
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
+import { keepPrefsLocal } from './prefsLocal.ts';
+import { roomIdFromHash } from './play/board.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -249,14 +250,6 @@ async function roomState(p: Player, roomId: string): Promise<RoomWire> {
   return (await res.json()) as RoomWire;
 }
 
-/** The hash a person could copy, once the app has navigated to the room. */
-async function roomIdFromHash(page: Page): Promise<string> {
-  await page.waitForFunction(() => /^#\/room\/[a-z0-9-]+$/.test(window.location.hash), null, {
-    timeout: UI_TIMEOUT,
-  });
-  const hash = await page.evaluate(() => window.location.hash);
-  return hash.replace('#/room/', '');
-}
 
 /**
  * Make a draft room the way a person does: the front page's create form.

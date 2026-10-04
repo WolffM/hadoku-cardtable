@@ -13,9 +13,8 @@ import { readFileSync } from 'node:fs';
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import type { Friend } from './browser.ts';
 import { enterMatch, twoLegalDecks } from './enter.ts';
-import type { ForgeAvailability, PlayStack } from './harness.ts';
+import type { ForgeAvailability } from './harness.ts';
 import { answerPrompt } from './prompts.ts';
 
 export { enterMatch, twoLegalDecks };
@@ -62,8 +61,14 @@ export async function promptMethod(page: Page): Promise<string | null> {
   return livePrompt(page).first().getAttribute('data-method');
 }
 
-/** The server's own JSONL log for a stack, parsed into one object per line. */
-export function serverLog(stack: PlayStack): Record<string, unknown>[] {
+/**
+ * The server's own JSONL log for a stack, parsed into one object per line.
+ * Takes `{ serverLogFile }` rather than the full `PlayStack`: a `PlayStack`
+ * satisfies it structurally, and a caller that only carries the log path
+ * (`w34.spec.ts`'s own `driveToOrderDecision`, for one) does not need to
+ * fake the rest of the interface to call this.
+ */
+export function serverLog(stack: { serverLogFile: string }): Record<string, unknown>[] {
   return readFileSync(stack.serverLogFile, 'utf8')
     .split('\n')
     .filter((l) => l.startsWith('{'))
@@ -102,21 +107,44 @@ export async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'
  * Click a hand card and settle the Arena-cast gesture that a plain click
  * only ARMS for any card in the viewer's own hand: the lift needs a pointer
  * move into the viewer's own battlefield before anything is sent to Forge
- * at all. One jump, not an animated move — an animated move's intermediate
- * points can themselves cross into the battlefield and get recorded as the
- * settle position before the move finishes, landing the card in the wrong
- * row (`play/hands.ts`'s own `clickCard` has the full measurement). Harmless
- * for a card that was never armed (a battlefield target, not a hand card):
- * no gesture started, so the follow-up move is a no-op.
+ * at all. Harmless for a card that was never armed (a battlefield target,
+ * not a hand card): no gesture started, so the follow-up move is a no-op.
+ *
+ * One jump, not an animated move — an animated move's intermediate points
+ * can themselves cross into the battlefield and get recorded as the settle
+ * position before the move finishes, landing the card in the wrong row
+ * (measured directly: two non-land permanents settled into the BACK row,
+ * the lands-only row, 2 of 2 tries, same ids both times, because an
+ * animated move's early steps already sat inside that row's box).
+ *
+ * `row`, when the caller knows which one a placement belongs in, aims the
+ * settle at that row's own box (`[data-arrange-slot]`) instead of the whole
+ * battlefield's centre, so the settle point lands exactly where a card's
+ * own default placement (a land to the back row, anything else to the
+ * front) would put it anyway. Omitted, it falls back to the
+ * battlefield-centre point, still correct for anything that is not itself a
+ * placement choice. `timeout` reaches the underlying `.click()` call, for a
+ * caller (a long-running bot, not a single assertion) that needs a shorter
+ * one than Playwright's default action timeout.
  */
-export async function clickHandCard(page: Page, cardId: number): Promise<void> {
-  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
+export async function clickHandCard(
+  page: Page,
+  cardId: number,
+  opts: { row?: 'back' | 'front'; timeout?: number } = {},
+): Promise<void> {
+  await page
+    .locator(`[data-board-card="${cardId}"] button`)
+    .first()
+    .click(opts.timeout === undefined ? undefined : { timeout: opts.timeout });
   const lifted = await page
     .locator(`[data-board-card="${cardId}"]`)
     .getAttribute('data-cast-lift')
     .catch(() => null);
   if (lifted !== 'lifted') return;
-  const box = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
+  const box =
+    opts.row === undefined
+      ? await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox()
+      : await page.locator(`.seat[data-viewer] [data-zone="battlefield"] [data-arrange-slot="${opts.row}"]`).boundingBox();
   if (box !== null) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 }
 
@@ -169,9 +197,14 @@ export async function roomIdFromHash(page: Page): Promise<string> {
  * client. The caller is already on the create form — this does not
  * navigate there, and does not assert anything about the form beyond what
  * it needs to fill in.
+ *
+ * Takes `{ page }` rather than a named `Friend` type: `play.spec.ts` and
+ * `room-mode.spec.ts` each have their own, differently-shaped `Friend`
+ * (different harness families — see `H-diffs.md`), and the only thing this
+ * ever touches is the page.
  */
 export async function createRoom(
-  f: Friend,
+  f: { page: Page },
   name: string,
   opts: { password?: string; mode?: 'builtin' | 'streamed' } = {},
 ): Promise<string> {

@@ -48,8 +48,8 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { enterMatch, livePrompt, makeTitled, offered, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
-import { enterMatch } from './play/enter.ts';
 import { playMessagesOf } from './play/frames.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -57,17 +57,9 @@ import { enabledOk, says, startScenarioMatch } from './play/scenario.ts';
 import { TURN_TEXT } from './play/turn.ts';
 
 const forge = forgeAvailability();
-const titled = (t: string): string => (forge.ok ? t : `${t} — SKIPPED: ${forge.reason}`);
+const titled = makeTitled(forge);
 
 /* ── shared reading of the board (same contracts as w33/w34.spec.ts) ────── */
-
-const stackCount = (page: Page): Promise<number> =>
-  page.locator('[data-zone="stack"]').evaluate((el) => Number(el.getAttribute('data-count') ?? '0'));
-
-async function offered(page: Page): Promise<number[]> {
-  const ids = await page.locator('[data-board-card][data-selectable]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
-  return ids.sort((a, b) => a - b);
-}
 
 /**
  * The offered card named `name`, or `undefined` if it is not (yet) among
@@ -88,7 +80,6 @@ async function offeredNamed(page: Page, name: string): Promise<number | undefine
   return cards.find((c) => c.name === name)?.id;
 }
 
-const livePrompt = (page: Page) => page.getByTestId('live-prompt');
 const promptMethodOf = async (page: Page): Promise<string | null> => {
   if ((await livePrompt(page).count()) === 0) return null;
   return livePrompt(page).first().getAttribute('data-method');

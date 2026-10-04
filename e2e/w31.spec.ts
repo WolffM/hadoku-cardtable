@@ -29,16 +29,14 @@
  * prebuilt `apps/ui/dist`: rebuild before running.
  */
 
-import { readFileSync } from 'node:fs';
-
 import { expect, test, type ElementHandle, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { connectHands } from './play/hands.ts';
 import { answerPrompt } from './play/prompts.ts';
-import { enterMatch } from './play/enter.ts';
-import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
+import { enterMatch, enabledOk, makeTitled, offered, says, serverLog } from './play/board.ts';
+import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { connectSio } from './play/sio.ts';
 import { TURN_TEXT } from './play/turn.ts';
 
@@ -46,12 +44,10 @@ test.describe.configure({ mode: 'serial' });
 
 const PREFIX = '/cardtable';
 const forge = forgeAvailability();
-const titled = (t: string): string => (forge.ok ? t : `${t} — SKIPPED: ${forge.reason}`);
+const titled = makeTitled(forge);
 
 /* ── what a page shows ───────────────────────────────────────────────── */
 
-const says = async (page: Page): Promise<string> => (await page.getByTestId('live-says').textContent()) ?? '';
-const enabledOk = (page: Page) => page.locator('[data-testid="live-button-ok"]:enabled');
 /**
  * The coin toss / play-draw question's own control (R2, wave 35) — NOT
  * `enabledOk`: `live-button-ok` is disabled for the whole time this question
@@ -65,22 +61,9 @@ const enabledOk = (page: Page) => page.locator('[data-testid="live-button-ok"]:e
 const playOrDrawPlay = (page: Page) => page.getByTestId('live-play-or-draw-play');
 const handCards = (page: Page) => page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]');
 
-/** The forge ids the board currently offers (`data-selectable`), ascending. */
-async function offered(page: Page): Promise<number[]> {
-  const ids = await page.locator('[data-board-card][data-selectable]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
-  return ids.sort((a, b) => a - b);
-}
-
 async function boardUp(page: Page): Promise<void> {
   await expect(page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('live-turn-n')).toHaveText(TURN_TEXT, { timeout: 30_000 });
-}
-
-function serverLog(stack: PlayStack): Record<string, unknown>[] {
-  return readFileSync(stack.serverLogFile, 'utf8')
-    .split('\n')
-    .filter((l) => l.startsWith('{'))
-    .map((l) => JSON.parse(l) as Record<string, unknown>);
 }
 
 /**

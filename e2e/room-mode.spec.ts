@@ -50,6 +50,7 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
+import { createRoom } from './play/board.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 
 test.describe.configure({ mode: 'serial' });
@@ -103,15 +104,14 @@ async function open(browser: Browser, name: string): Promise<Friend> {
   return friend;
 }
 
-/** The room id the app navigated to, off the hash a person could copy. */
-async function roomIdFromHash(page: Page): Promise<string> {
-  await page.waitForFunction(() => /^#\/room\/[a-z0-9-]+$/.test(window.location.hash), null, { timeout: 20_000 });
-  const hash = await page.evaluate(() => window.location.hash);
-  return hash.replace('#/room/', '');
-}
-
-/** Fills the create form, picks a mode, submits, and returns the new room's id. */
-async function createRoom(f: Friend, name: string, mode: 'builtin' | 'streamed'): Promise<string> {
+/**
+ * Fills the create form, picks a mode, submits, and returns the new room's
+ * id — this file's own pre- and post-submission checks (the mode radios'
+ * default state and labels, the draft option, and what actually went on the
+ * wire) around the shared `createRoom`, which only fills the form and
+ * submits it.
+ */
+async function createRoomChecked(f: Friend, name: string, mode: 'builtin' | 'streamed'): Promise<string> {
   await f.page.goto(`${PREFIX}/`);
   await expect(f.page.getByTestId('room-create')).toBeVisible();
 
@@ -131,12 +131,7 @@ async function createRoom(f: Friend, name: string, mode: 'builtin' | 'streamed')
   await expect(draftOption).not.toBeDisabled();
   await expect(draftOption).toHaveText('Draft');
 
-  await f.page.getByTestId('room-create-name').fill(name);
-  await f.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-  await f.page.getByTestId(`room-create-mode-${mode}`).check();
-  await f.page.getByTestId('room-create-submit').click();
-
-  const id = await roomIdFromHash(f.page);
+  const id = await createRoom(f, name, { mode });
   // What actually went on the wire, not what the form was showing.
   expect(f.creates.at(-1)).toMatchObject({ name, gameType: 'constructed-1v1', clientMode: mode });
   return id;
@@ -153,7 +148,7 @@ test.describe('the room decides which client', () => {
 
     /* ── our table ────────────────────────────────────────────────────── */
 
-    const builtinId = await createRoom(alice, `e2e builtin ${Date.now()}`, 'builtin');
+    const builtinId = await createRoomChecked(alice, `e2e builtin ${Date.now()}`, 'builtin');
     await expect(alice.page.getByTestId('constructed')).toBeVisible();
     // The mode in the header, and the deck picker a builtin room has always had.
     await expect(alice.page.getByTestId('room-client-mode')).toHaveText(
@@ -165,7 +160,7 @@ test.describe('the room decides which client', () => {
 
     /* ── Forge's full client ──────────────────────────────────────────── */
 
-    const streamedId = await createRoom(alice, `e2e streamed ${Date.now()}`, 'streamed');
+    const streamedId = await createRoomChecked(alice, `e2e streamed ${Date.now()}`, 'streamed');
     await expect(alice.page.getByTestId('constructed')).toBeVisible();
     await expect(alice.page.getByTestId('room-client-mode')).toContainText('Forge’s full client');
     await expect(alice.page.getByTestId('room-streams')).toBeVisible();

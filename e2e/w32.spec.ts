@@ -27,29 +27,25 @@
  * reaches it.
  */
 
-import { readFileSync } from 'node:fs';
-
 import { expect, test, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
-import { enterMatch } from './play/enter.ts';
-import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
+import { enterMatch, enabledOk, makeTitled, says, serverLog } from './play/board.ts';
+import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { turnNumber } from './play/turn.ts';
 
 test.describe.configure({ mode: 'serial' });
 
 const forge = forgeAvailability();
-const titled = (t: string): string => (forge.ok ? t : `${t} — SKIPPED: ${forge.reason}`);
+const titled = makeTitled(forge);
 
 /** Forge's own pace at a phase it is not set up to skip (`FControlGamePlayback.phasesDelay`), about 205 ms in the w31 log. */
 const FORGE_PACE_MS = 205;
 
 /* ── what a page shows ───────────────────────────────────────────────── */
 
-const says = async (page: Page): Promise<string> => (await page.getByTestId('live-says').textContent()) ?? '';
-const enabledOk = (page: Page) => page.locator('[data-testid="live-button-ok"]:enabled');
 const secondButton = async (page: Page): Promise<string | null> => {
   const b = page.getByTestId('live-button-cancel');
   return (await b.count()) > 0 && (await b.isEnabled()) ? ((await b.textContent()) ?? '').trim() : null;
@@ -106,13 +102,6 @@ async function toFirstPriority(alice: Friend, bob: Friend): Promise<Friend> {
     await alice.page.waitForTimeout(250);
   }
   throw new Error(`nobody reached priority with End Turn offered; alice: ${await says(alice.page)} | bob: ${await says(bob.page)}`);
-}
-
-function serverLog(stack: PlayStack): Record<string, unknown>[] {
-  return readFileSync(stack.serverLogFile, 'utf8')
-    .split('\n')
-    .filter((l) => l.startsWith('{'))
-    .map((l) => JSON.parse(l) as Record<string, unknown>);
 }
 
 /* ── 1. Start, and End Turn ──────────────────────────────────────────── */

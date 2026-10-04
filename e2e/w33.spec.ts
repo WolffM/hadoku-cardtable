@@ -18,6 +18,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { castCard, clickHandCard, clickOnce, makeTitled, offered, stackCount } from './play/board.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { enabledOk, says, startScenarioMatch } from './play/scenario.ts';
@@ -25,7 +26,7 @@ import { enabledOk, says, startScenarioMatch } from './play/scenario.ts';
 test.describe.configure({ mode: 'serial' });
 
 const forge = forgeAvailability();
-const titled = (t: string): string => (forge.ok ? t : `${t} — SKIPPED: ${forge.reason}`);
+const titled = makeTitled(forge);
 
 /* ── shared reading of the board's own state, never Forge's prompt text ── */
 
@@ -36,109 +37,6 @@ async function phaseOf(page: Page): Promise<{ phase: string; whose: string } | n
   const phase = await rail.getAttribute('data-phase');
   const whose = await rail.getAttribute('data-whose');
   return phase === null ? null : { phase, whose: whose ?? '' };
-}
-
-/** `[data-zone="stack"]`'s own `data-count` (`Board.tsx`) — never counted from children. */
-const stackCount = (page: Page): Promise<number> =>
-  page.locator('[data-zone="stack"]').evaluate((el) => Number(el.getAttribute('data-count') ?? '0'));
-
-/** The ids Forge currently offers (`data-selectable`), on `page`, ascending. */
-async function offered(page: Page): Promise<number[]> {
-  const ids = await page.locator('[data-board-card][data-selectable]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
-  return ids.sort((a, b) => a - b);
-}
-
-/**
- * One click per distinct board-message, per page — never a second one for the
- * SAME text before Forge's reply changes it. The board's OK/Cancel stays
- * visibly enabled for a moment after a click (the reply is a round trip,
- * worse under load), and a caller that re-clicks on every tick regardless
- * sends Forge more than one `selectButtonOk` for ONE question; Forge applies
- * the extra one to whatever it asks NEXT, which wedges the sequence
- * (measured against `one-creature.state`'s own mulligan: stuck on "keep your
- * hand?" with Keep enabled, forever). `play/scenario.ts`'s `keepBothHands`
- * hit the same thing and carries the same fix.
- */
-const lastClicked = new WeakMap<Page, string>();
-async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'): Promise<boolean> {
-  const key = `${which}:${text}`;
-  if (lastClicked.get(page) === key) return false;
-  const loc = which === 'ok' ? enabledOk(page) : page.locator('[data-testid="live-button-cancel"]:enabled');
-  if ((await loc.count()) === 0) return false;
-  lastClicked.set(page, key);
-  try {
-    // A SHORT timeout, not Playwright's default: `loc.count() > 0` above is
-    // already stale by the time this runs (a round trip can disable the
-    // button in between), and a bare `.click()` then auto-waits for up to
-    // the suite's full default action timeout for it to re-enable — tens of
-    // seconds spent on ONE lost race instead of retrying next tick, measured
-    // against Q18's Prodigal Sorcerer and the Doom Blade case. Losing this
-    // race is routine, not an error: unset `lastClicked` so the next tick's
-    // identical text is free to try again rather than being treated as
-    // "already answered".
-    await loc.click({ timeout: 1_000 });
-  } catch {
-    lastClicked.delete(page);
-    return false;
-  }
-  return true;
-}
-
-/**
- * Click a hand card and settle the Arena-cast gesture (wave 35 R7) that a
- * plain click only ARMS for any card in the viewer's own hand — confirmed by
- * a real-browser trace, the same regression lane E's `hands.ts` and
- * `w35.spec.ts`'s own `castByClick` fix: without this, EVERY bare
- * `[data-board-card] button` click in this file that targets a HAND card
- * (a cast, never a declared-attacker click on a card already on the
- * battlefield, where `isHandCard` is false and this is a no-op) sends
- * nothing to Forge at all, and a loop polling the stack for a change
- * (`castCard`, Q17's own wait) just spins until its own deadline — or,
- * worse, a test that treats "nothing happened yet" as "already resolved"
- * passes VACUOUSLY (Q17: "no stop was ever seen" trivially holds when
- * nothing was ever cast to be stopped at all).
- */
-async function clickHandCard(page: Page, cardId: number): Promise<void> {
-  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
-  const lifted = await page.locator(`[data-board-card="${cardId}"]`).getAttribute('data-cast-lift').catch(() => null);
-  if (lifted !== 'lifted') return;
-  const box = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
-  if (box !== null) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });
-}
-
-/**
- * Click a hand card to cast it, then drain whatever Forge asks next: a
- * `getAbilityToPlay` choice (the generic "what do you want to do" ask, which
- * a seat holding priority over a non-empty stack gets instead of the board
- * staying the only surface — `answerPrompt` picks its listed choice, which
- * with exactly one playable thing offered IS casting this card), then
- * "Pay Mana Cost" if the cost isn't free. Loops on "a live-prompt is still
- * open" rather than bailing the moment `says()` first reads something other
- * than "Pay Mana Cost": that early text is as likely to be the ability-ask
- * itself (still unanswered) as it is "already cast, nothing left to do" —
- * returning on sight of it one `answerPrompt` call in left Mana Leak's own
- * cast sitting on an unanswered `getAbilityToPlay`, forever (Q7).
- */
-async function castCard(page: Page, cardId: number): Promise<void> {
-  const stackBefore = await stackCount(page);
-  await clickHandCard(page, cardId);
-  for (let i = 0; i < 60; i++) {
-    // The click's own round trip has not necessarily landed yet — never
-    // decide "nothing to answer, must be done" off the PRE-click state, or a
-    // free creature's silent cast (no ask, ever) and a real cast whose
-    // Pay-Mana-Cost ask (or whatever `getAbilityToPlay` it goes through
-    // first) just hasn't arrived YET look identical for one tick (Q7's own
-    // Mana Leak: this returned on iteration 0, before the server had
-    // answered at all, leaving the cast never actually started).
-    await page.waitForTimeout(50);
-    await answerPrompt(page);
-    const stillAsking = (await page.getByTestId('live-prompt').count()) > 0;
-    const text = await says(page);
-    if (/Pay Mana Cost/i.test(text)) { await clickOnce(page, text, 'ok'); continue; }
-    if (stillAsking) continue;
-    if ((await stackCount(page)) !== stackBefore) return;
-  }
-  throw new Error(`castCard(${cardId}) never saw the stack change — stuck on "${await says(page)}"`);
 }
 
 /**

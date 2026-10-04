@@ -124,6 +124,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 
 import { toBoardView } from '../apps/ui/src/play/adapter.ts';
 import type { WireObject } from '../apps/ui/src/play/wire.ts';
+import { createRoom, serverLog } from './play/board.ts';
 import { messages, openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { isSnapshot, type Frame, type PlayMessage, type ServerEnvelope } from './play/frames.ts';
@@ -263,13 +264,6 @@ function gameAnswers(f: Friend): { callId: string; method: string }[] {
 function lastNotify(f: Friend, method: string): Frame | null {
   const all = framesIn(f).filter((fr) => fr.method === method);
   return all[all.length - 1] ?? null;
-}
-
-function serverLog(stack: PlayStack): Record<string, unknown>[] {
-  return readFileSync(stack.serverLogFile, 'utf8')
-    .split('\n')
-    .filter((l) => l.startsWith('{'))
-    .map((l) => JSON.parse(l) as Record<string, unknown>);
 }
 
 /* ── dragging on the board ───────────────────────────────────────────── */
@@ -600,24 +594,6 @@ function isExpectedOffOrigin(url: string): boolean {
 
 /* ── driving the product's room screens ──────────────────────────────── */
 
-/** `#/room/<id>` ids, as `lobby.ts` mints them: `r-` and 12 hex characters. */
-const ROOM_URL = /#\/room\/(r-[0-9a-f]{12})$/;
-
-/**
- * Create a room from the front page's form, the way a person does, and return
- * the id the browser was navigated to. A password makes a locked room.
- */
-async function createRoom(f: Friend, name: string, password?: string): Promise<string> {
-  await f.page.getByTestId('room-create-name').fill(name);
-  await f.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-  if (password !== undefined) await f.page.getByTestId('room-create-password').fill(password);
-  await f.page.getByTestId('room-create-submit').click();
-  await f.page.waitForURL(ROOM_URL, { timeout: 30_000 });
-  const id = ROOM_URL.exec(f.page.url())?.[1];
-  if (id === undefined) throw new Error(`${f.name}: created a room but landed on ${f.page.url()}`);
-  return id;
-}
-
 /** One row of this browser's room list, found by the id the row carries. */
 function roomRow(f: Friend, roomId: string): Locator {
   return f.page.locator(`[data-testid="room-row"][data-room-id="${roomId}"]`);
@@ -734,7 +710,7 @@ test(LIVE_TITLE, async ({ browser }) => {
 
     await alice.page.goto(`${origin}${PREFIX}/`);
     await expect(alice.page.getByTestId('rooms')).toBeVisible();
-    const lockedId = await createRoom(alice, `e2e locked ${Date.now()}`, 'hunter2');
+    const lockedId = await createRoom(alice, `e2e locked ${Date.now()}`, { password: 'hunter2' });
     await bob.page.goto(`${origin}${PREFIX}/`);
     const lockedRow = roomRow(bob, lockedId);
     await expect(lockedRow, 'bob sees a room he is not in').toBeVisible({ timeout: 20_000 });

@@ -20,23 +20,16 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { enterMatch, makeTitled, offered, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmNo, confirmYes } from './play/confirm.ts';
-import { enterMatch } from './play/enter.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { says, startScenarioMatch } from './play/scenario.ts';
 import { endOfSlot, pointerDrag, viewerSlot } from './play/w32.ts';
 
 const forge = forgeAvailability();
-const titled = (t: string): string => (forge.ok ? t : `${t} — SKIPPED: ${forge.reason}`);
-
-/* ── shared reading of the board, the same contract every wave-N file uses ── */
-
-async function offered(page: Page): Promise<number[]> {
-  const ids = await page.locator('[data-board-card][data-selectable]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
-  return ids.sort((a, b) => a - b);
-}
+const titled = makeTitled(forge);
 
 /**
  * `inspect/index.ts`'s own `GAP` export (8px) — copied rather than imported:
@@ -47,9 +40,6 @@ async function offered(page: Page): Promise<number[]> {
  * reaching into pure-logic modules).
  */
 const INSPECTOR_GAP = 8;
-
-const stackCount = (page: Page): Promise<number> =>
-  page.locator('[data-zone="stack"]').evaluate((el) => Number(el.getAttribute('data-count') ?? '0'));
 
 /**
  * Click a hand card to cast it, then settle the Arena-cast gesture (wave 35

@@ -23,6 +23,7 @@
  * it, and `pause()`/`resume()` hold it still while a spec measures the board.
  */
 
+import { clickHandCard } from './board.ts';
 import type { Friend } from './browser.ts';
 
 export interface Hands {
@@ -166,73 +167,25 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
   const pressPlayOrDraw = () => f.page.getByTestId('live-play-or-draw-play').click({ timeout: 2_000 });
   /**
    * Click a card to play/cast/choose it, then settle the Arena gesture (R7)
-   * the click only ARMS for any card in the viewer's own hand.
+   * the click only ARMS for any card in the viewer's own hand — delegates to
+   * `board.ts`'s `clickHandCard` (the "why" for the settle, the `row`
+   * placement fix, and the one-jump-not-animated fix all live there now).
+   * This bot plays lands and casts spells by clicking hand cards as its two
+   * most basic acts (`decide()`, below), so without the settle, every
+   * pre-existing spec that drives a real game via `connectHands` (most of
+   * `table-fit.spec.ts`, `play.spec.ts`, and the w31-w36 files that call it)
+   * would stall the instant it tried to play a land or cast anything, having
+   * done nothing Forge or the server would ever see.
    *
-   * **Wave 35 R7 regression, confirmed by a real-browser debug trace**:
-   * `isHandCard` (`gestures/cast.ts`) makes no exception for "this press is
-   * choosing an answer, not casting a spell" — a plain click on ANY hand
-   * card now only lifts it and waits for the (still unheld) pointer to cross
-   * into the viewer's own battlefield before anything is sent at all. This
-   * bot plays lands and casts spells by clicking hand cards as its two most
-   * basic acts (`decide()`, below), so without this every pre-existing spec
-   * that drives a real game via `connectHands` (most of `table-fit.spec.ts`,
-   * `play.spec.ts`, and the w31-w34 files that call it) would stall the
-   * instant it tried to play a land or cast anything, having done nothing
-   * Forge or the server would ever see. Harmless for a card NOT in hand
-   * (`isHandCard` false — a battlefield target, say): no gesture was ever
-   * armed, so the follow-up move is a no-op.
-   *
-   * **`row`, a SECOND regression this bot's own first fix introduced**: R9's
-   * `notePlayedTo` (`Board.tsx`) records whichever row the settle point
-   * lands in as the PERMANENT's placement, overriding `group()`'s own
-   * default (a land to the back row, anything else to the front —
-   * `table-fit.spec.ts`'s own "the back row holds lands only" invariant).
-   * The first draft of this settle-move always targeted the whole
-   * battlefield's geometric centre, which — on this board's own proportions
-   * — sits inside the BACK row's box: every card this bot ever cast, land or
-   * not, settled into the back row (measured: two non-land permanents, ids 9
-   * and 26, landed there in a real `table-fit.spec.ts` run, 2 of 2 tries,
-   * same ids both times — the match seed is fixed, so this was not chance).
-   * `row`, when the caller knows it (`decide()` does — it already branches on
-   * land vs. spell to pick WHICH card to click), aims the settle at that
-   * row's own box instead, so a bot-driven cast lands exactly where
-   * `group()`'s default would have put it anyway. Omitted (a selection
-   * answer, an unknown case), it falls back to the old centre-of-battlefield
-   * point — still correct for anything that is not itself an R9 slot choice.
-   *
-   * **One jump, not an animated move**: the first draft moved in 5 STEPS,
-   * which on a fast localhost round trip is its own version of the same
-   * race — `install.ts`'s settle fires on the FIRST pointermove that crosses
-   * into the viewer's own battlefield, which an animated move reaches a step
-   * or two before the row-correct final point, usually still over the
-   * NEARER row (back, approaching from the hand below); if Forge's delta for
-   * a one-mana creature comes back before the remaining steps finish — on
-   * this host, every time, for the very first cast of a real match, not a
-   * rare case — that early, wrong-row point is what gets recorded, and the
-   * later, correct arrival (`row`, aimed right) is already too late to
-   * matter (same `useLayoutEffect`-consumes-once mechanism "R9b" in
-   * `w35.spec.ts` found). A single, unanimated jump makes the FIRST (and
-   * only) pointermove event's own position the final, row-correct one, so
-   * there is no earlier point left to win that race.
+   * The short timeout is this bot's own: a spec driving its OWN precision
+   * mouse work concurrently (`w31.spec.ts`'s combat-rail test hovers a log
+   * name on the SAME page this bot runs on) is a real, measured race this
+   * halves but does not fully remove (4 of 5 runs — `wave35-evidence/e-runs.md`);
+   * such a spec still needs to `pause()`/`resume()` this bot around its own
+   * window, same as it already must for a board measurement (this file's
+   * own header).
    */
-  const clickCard = (id: number, row?: 'back' | 'front') => async () => {
-    await f.page.locator(`[data-board-card="${id}"] button`).first().click({ timeout: 2_000 });
-    // Checked directly (`data-cast-lift`), not assumed: this bot only
-    // touches the mouse again when a gesture was actually armed. A spec
-    // driving its OWN precision mouse work concurrently (`w31.spec.ts`'s
-    // combat-rail test hovers a log name on the SAME page this bot runs on)
-    // is a real, measured race this halves but does not fully remove (4 of
-    // 5 runs — `wave35-evidence/e-runs.md`); such a spec still needs to
-    // `pause()`/`resume()` this bot around its own window, same as it
-    // already must for a board measurement (this file's own header).
-    const lifted = await f.page.locator(`[data-board-card="${id}"]`).getAttribute('data-cast-lift').catch(() => null);
-    if (lifted !== 'lifted') return;
-    const target =
-      row === undefined
-        ? await f.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox()
-        : await f.page.locator(`.seat[data-viewer] [data-zone="battlefield"] [data-arrange-slot="${row}"]`).boundingBox();
-    if (target !== null) await f.page.mouse.move(target.x + target.width / 2, target.y + target.height / 2);
-  };
+  const clickCard = (id: number, row?: 'back' | 'front') => () => clickHandCard(f.page, id, { row, timeout: 2_000 });
 
   async function decide(s: Look): Promise<void> {
     const msg = s.says;
