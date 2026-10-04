@@ -101,6 +101,12 @@ function ids(o: WireObj | undefined, k: string): number[] {
 	return (v.v as { t?: string; v?: unknown }[]).filter((x) => x?.t === 'int' && typeof x.v === 'number').map((x) => x.v as number);
 }
 
+/**
+ * Forge's cleanup discard, a hand of eight. Its OK stays dead until a card is
+ * picked, so a driver that only presses a live OK parks there for good.
+ */
+const CLEANUP_DISCARD = /^Cleanup Phase\nSelect \d+ card\(s\) to discard/;
+
 function str(o: WireObj | undefined, k: string): string | null {
 	const v = o?.[k] as { t?: string; v?: unknown } | undefined;
 	return v !== undefined && v.t === 'str' && typeof v.v === 'string' ? v.v : null;
@@ -163,8 +169,13 @@ describe.skipIf(!available.ok)(title, () => {
 								stackEmpty: /^Stack: Empty$/m.test(f.message),
 								idle: notes[seat]!.actionable !== null && notes[seat]!.actionable!.length === 0,
 								// Wave 20 #7: a seat's own main phase is a stop whatever Forge
-								// says is actionable, so it is counted apart from the rest.
-								ownMain: isOwnMainPhaseEntry(f.message),
+								// says is actionable, so it is counted apart from the rest. Its
+								// own Declare Attackers step is in the same stop set, but under
+								// `attackStopIsTheDeclaration` the attack input was that stop and
+								// the priority window after it passes when there is nothing to do.
+								ownMain:
+									isOwnMainPhaseEntry(f.message) &&
+									!(DEFAULT_STOP_POLICY.attackStopIsTheDeclaration && /^Phase: Declare Attackers Step$/m.test(f.message)),
 								passed: false,
 							});
 						}
@@ -290,15 +301,19 @@ describe.skipIf(!available.ok)(title, () => {
 						n.prompt.startsWith(`Priority: ${me}`) && /Stack: Empty/.test(n.prompt) && /Phase: Main/.test(n.prompt) && turn?.[2] === me;
 					if (myMain) {
 						const key = `${seat}:${turn?.[1]}:${n.prompt.includes('precombat') ? 'pre' : 'post'}`;
+						// Only a card Forge offered, as the board's own `selectCard` does: a
+						// click Forge ignores (a second land in one turn) leaves the bar
+						// disabled by the server and no new window to re-enable it.
+						const offered = (id: number): boolean => n.actionable?.includes(id) === true;
 						const hand = zone(seat, 'Hand');
-						const land = hand.find((c) => c.land);
+						const land = hand.find((c) => c.land && offered(c.id));
 						if (land !== undefined && !acted.has(`${key}:land`)) {
 							acted.add(`${key}:land`);
 							match.fromClient(seat, select(land.id));
 							continue;
 						}
 						const untapped = zone(seat, 'Battlefield').filter((c) => c.land && !c.tapped).length;
-						const spell = hand.find((c) => c.name === 'Preordain');
+						const spell = hand.find((c) => c.name === 'Preordain' && offered(c.id));
 						if (spell !== undefined && untapped >= 1 && !acted.has(`${key}:cast`)) {
 							acted.add(`${key}:cast`);
 							casts += 1;
@@ -652,11 +667,24 @@ describe.skipIf(!available.ok)(title, () => {
 					const n = notes[seat]!;
 					const me = names[seat]!;
 					const turn = /Turn: (\d+) \(([^)]*)\)/.exec(n.prompt);
+					if (CLEANUP_DISCARD.test(n.prompt) && !n.ok) {
+						const at = sent.filter((x) => x.seat === seat && x.envelope.frame.method === 'showPromptMessage').length;
+						const card = zone(seat, 'Hand')[0];
+						if (card !== undefined && !acted.has(`${seat}:discard:${at}`)) {
+							acted.add(`${seat}:discard:${at}`);
+							match.fromClient(seat, select(card.id));
+						}
+						continue;
+					}
 					const myMain =
 						n.prompt.startsWith(`Priority: ${me}`) && /Stack: Empty/.test(n.prompt) && /Phase: Main/.test(n.prompt) && turn?.[2] === me;
 					if (myMain && seat === 0) {
 						const key = `${turn?.[1]}:${n.prompt.includes('precombat') ? 'pre' : 'post'}`;
-						const hand = zone(0, 'Hand');
+						// Only a card Forge offered, as the board's own `selectCard` does: a
+						// click Forge ignores (a second land in one turn) leaves the bar
+						// disabled by the server and no new window to re-enable it.
+						const offered = (id: number): boolean => live.actionable?.includes(id) === true;
+						const hand = zone(0, 'Hand').filter((c) => offered(c.id));
 						const board = zone(0, 'Battlefield');
 						const untapped = board.filter((c) => c.land && !c.tapped);
 						// A Stoneforge cast is the #22 window, and it needs two untapped lands.
@@ -667,7 +695,7 @@ describe.skipIf(!available.ok)(title, () => {
 							continue;
 						}
 						// An Evolving Wilds on the battlefield is the #16 window.
-						const wilds = board.find((c) => c.name === 'Evolving Wilds' && !c.tapped);
+						const wilds = board.find((c) => c.name === 'Evolving Wilds' && !c.tapped && offered(c.id));
 						if (wilds !== undefined && sacrificeRows().length === 0 && !acted.has(`${key}:wilds`)) {
 							acted.add(`${key}:wilds`);
 							match.fromClient(0, select(wilds.id));
@@ -1004,6 +1032,15 @@ describe.skipIf(!available.ok)(title, () => {
 					const n = notes[seat]!;
 					const me = names[seat]!;
 					const turn = /Turn: (\d+) \(([^)]*)\)/.exec(n.prompt);
+					if (CLEANUP_DISCARD.test(n.prompt) && !n.ok) {
+						const at = sent.filter((x) => x.seat === seat && x.envelope.frame.method === 'showPromptMessage').length;
+						const card = zone(seat, 'Hand')[0];
+						if (card !== undefined && !acted.has(`${seat}:discard:${at}`)) {
+							acted.add(`${seat}:discard:${at}`);
+							match.fromClient(seat, select(card.id));
+						}
+						continue;
+					}
 					// The targeting input for the cast in flight: neither a priority
 					// window nor a payment, and it is the one thing seat 0 owes Forge.
 					if (
@@ -1022,7 +1059,11 @@ describe.skipIf(!available.ok)(title, () => {
 						n.prompt.startsWith(`Priority: ${me}`) && /Stack: Empty/.test(n.prompt) && /Phase: Main/.test(n.prompt) && turn?.[2] === me;
 					if (myMain && seat === 0) {
 						const key = `${turn?.[1]}:${n.prompt.includes('precombat') ? 'pre' : 'post'}`;
-						const hand = zone(0, 'Hand');
+						// Only a card Forge offered, as the board's own `selectCard` does: a
+						// click Forge ignores (a second land in one turn) leaves the bar
+						// disabled by the server and no new window to re-enable it.
+						const offered = (id: number): boolean => live.actionable?.includes(id) === true;
+						const hand = zone(0, 'Hand').filter((c) => offered(c.id));
 						const board = zone(0, 'Battlefield');
 						const mountains = board.filter((c) => c.name === 'Mountain');
 						const islands = board.filter((c) => c.name === 'Island');

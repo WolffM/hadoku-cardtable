@@ -190,10 +190,9 @@ jobs:
   # reaches production's `/tmp/cardtable-play`. No env override is needed.
   #
   # The jar variables are scoped to the two e2e steps, not the job. Job-wide
-  # they would matter only if this job ran vitest — it does not, and the
-  # jar-gated vitest suites (`play/jvm.test.ts`, `http/gate.test.ts`,
-  # `play/browser/browser-jvm.test.ts`, `ui/…/prompts.jvm.test.ts`) remain
-  # CI-skipped in `check`. That is a separate decision nobody has made.
+  # they would matter only if this job ran vitest — it does not. The
+  # `*.jvm.test.ts` suites run in the separate `forge-jvm` job below, ordered
+  # strictly after this one on the same host rather than beside it.
   #
   # Runs in parallel with `check`; the workflow-level `concurrency` group
   # queues a newer push behind both rather than cancelling them.
@@ -252,27 +251,11 @@ jobs:
       # The draft harness still boots as Playwright's `webServer` — that is the
       # config's, not the spec filter's.
       #
-      # Wave 33 §E (D1): `w31.spec.ts`, `w32.spec.ts` and `w33.spec.ts` join
-      # this run. Each of w31 and w32 found real bugs that a later re-run
-      # showed were flaky or never actually exercised (the tracker's
-      # "failed once" turned out to be "fails 3 of 5"); w33 exists because
-      # two of w32's own e2e cases passed vacuously. None of the three is a
-      # gate on anything until it runs here on every push and PR.
-      #
-      # Wave 34 §E: `w34.spec.ts` joins — Full Control responding to an
-      # opponent's spell, Ponder's decisions reaching a click, Q8's ordering
-      # ask, the Choose X slider, and the player counters' column.
-      #
-      # Wave 35 §E: `w35.spec.ts` joins — Secluded Glen's reveal, the
-      # swallowed OK press, Thoughtseize's one choice, token art, a land
-      # tapped at priority (F's jar, installed 2026-10-02), End Turn's
-      # highlight, the turn counter's move into the logbook, and the
-      # result-screen/Rematch/Main-menu/leader-handoff flow.
-      #
-      # Wave 36 §E: `w36.spec.ts` joins — every yes/no as the decision-area
-      # pop-up (the mulligan, a shockland's pay-2-life), the waiting indicator,
-      # Cavern's chosen type, the arrangement surviving a reload, the one-line
-      # stack, and the hover zoom against its card.
+      # The list is derived in the step below, not hand-kept here: any spec
+      # that starts a real Forge stack (`forge.ok`, `startPlayStack` or
+      # `startScenarioMatch`) is included automatically, so a new Forge-gated
+      # spec file is covered the moment it is added instead of by a second
+      # edit to a list that is easy to forget.
       # The e2e ports are fixed (`e2e/identities.ts`, `e2e/play/harness.ts`:
       # 19008/19028/19108/19128) and this runner is the operator's own host, so
       # a wave session running the same specs holds the same ports — and the
@@ -306,7 +289,21 @@ jobs:
           # flaky red needs and the one thing the log never had.
           echo "host at start: $(uptime)"; free -m | sed -n 2p
           rm -f "$PLAYWRIGHT_JSON_OUTPUT_FILE"
-          pnpm --filter @hadoku/e2e test play.spec.ts table-fit.spec.ts w31.spec.ts w32.spec.ts w33.spec.ts w34.spec.ts w35.spec.ts w36.spec.ts
+          # Specs held OUT of the derived list, one per line as `<file>  # <why>`.
+          # Empty means every Forge-gated spec runs; an entry is a known red
+          # with its reason, never a quiet way to drop a spec.
+          excluded=$(cat <<'NONE'
+          NONE
+          )
+          specs=$(grep -lE 'forge\.ok|startPlayStack|startScenarioMatch' e2e/*.spec.ts | xargs -n1 basename | sort)
+          for x in $(printf '%s\n' "$excluded" | sed -E 's/#.*//'); do
+            echo "::warning::$x is excluded from forge-e2e: $(printf '%s\n' "$excluded" | grep -F "$x")"
+            specs=$(printf '%s\n' "$specs" | grep -vxF "$x" || true)
+          done
+          [ -n "$specs" ] || { echo "::error::no Forge-gated spec found — the grep matched nothing"; exit 1; }
+          echo "forge-gated specs (derived):"
+          echo "$specs"
+          pnpm --filter @hadoku/e2e test $specs
           jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null || { echo "::error::e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1) — a skipped test is not a pass"; exit 1; }
 
       # The evidence a red needs, kept past the job. Playwright's per-test
@@ -335,3 +332,132 @@ jobs:
             e2e/.run/play-work/*/*/jvm.json
             e2e/.run/play-work/*/*/config.json
             ${{ runner.temp }}/forge-e2e-report.json
+
+  # ── The jar-gated suites: a real child Forge JVM per test, run serially ──
+  #
+  # `*.jvm.test.ts` builds a real Forge match the same way `forge-e2e` does,
+  # and self-skips without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` (the
+  # same `jvmHostConfig` check `forge-e2e` guards above). `check` runs on the
+  # fleet's claws, which have no jar, so these suites always self-skipped
+  # there — and a skip reads as a pass, so none of them has ever gated
+  # anything before this job.
+  #
+  # `needs: forge-e2e` plus `if: always()` orders this job strictly AFTER
+  # forge-e2e on the one host both can run on, rather than beside it: two
+  # JVM-heavy suites sharing one host's CPU produce timeouts that read as
+  # product bugs and are really resource contention. `if: always()` means a
+  # red forge-e2e still lets this job run — one red must not hide a second —
+  # not that a red here is ignored.
+  #
+  # `--fileParallelism=false` for the same reason inside the job: each file
+  # spawns its own JVM, and vitest forking several at once would recreate the
+  # exact contention the ordering above exists to avoid.
+  #
+  # The JSON report goes to a file and is judged by its own step, so a run
+  # that dies before writing it is a red, not a silent pass.
+  forge-jvm:
+    name: forge-jvm
+    needs: forge-e2e
+    if: always()
+    runs-on: [self-hosted, pm2-host]
+    # The 32 suites took 1140 s (19 min) serially on this host, alone under a
+    # lock (2026-10-04). ×1.5 is 28.5 min, plus checkout and install.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      # Same as `check` and `forge-e2e` — see the comments on `check`.
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        with:
+          node-version: '24'
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+
+      - name: Forge is present, or every suite would SKIP
+        env:
+          CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
+          CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
+        run: |
+          test -f "$CARDTABLE_FORGE_JAR" || { echo "::error::CARDTABLE_FORGE_JAR missing: $CARDTABLE_FORGE_JAR — every jvm suite would SKIP"; exit 1; }
+          test -d "$CARDTABLE_FORGE_RES/cardsfolder" || { echo "::error::CARDTABLE_FORGE_RES has no cardsfolder: $CARDTABLE_FORGE_RES — every jvm suite would SKIP"; exit 1; }
+
+      # Not production's run directory: `runner.temp` is wiped per-job by the
+      # runner itself, so no boot sweep logic is needed to keep this off
+      # `/tmp/cardtable-play`.
+      - name: Run every *.jvm.test.ts, serially
+        env:
+          CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
+          CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
+          CARDTABLE_PLAY_WORK_DIR: ${{ runner.temp }}/cardtable-jvm-play
+        run: |
+          mkdir -p "$CARDTABLE_PLAY_WORK_DIR"
+          report="${{ runner.temp }}/forge-jvm-report.json"
+          rm -f "$report"
+          files=$(git ls-files '*.jvm.test.ts')
+          [ -n "$files" ] || { echo "::error::no *.jvm.test.ts tracked — nothing to run"; exit 1; }
+          echo "jvm suites ($(printf '%s\n' "$files" | wc -l)):"
+          echo "$files"
+          # vitest's own exit code would red the job on a pinned failure; the
+          # next step judges the report by name instead, and reds a missing one.
+          pnpm exec vitest run --fileParallelism=false --reporter=default --reporter=json --outputFile="$report" $files \
+            || echo "::notice::vitest exited $? — the report is judged in the next step"
+
+      # The report is judged by name, not by count, against two pinned lists,
+      # and either list going stale in EITHER direction is a red:
+      #  - a skip (or todo) that is not on `expected_skips`, or one on it that
+      #    no longer skips. With the jar present no `describe.skipIf` fires,
+      #    so that list is empty.
+      #  - a failure that is not on `known_failing`, or a pinned test that no
+      #    longer fails (it passed, or is gone). So the list can only shrink:
+      #    fixing a pinned test reds the job until its line is deleted.
+      #  - `known_flaky` is for a measured race that passes some runs: it may
+      #    pass or fail, but it must still exist. Each entry names its rate.
+      # Each entry is a test's full name (`describe > it`), with a comment
+      # above it giving the one-line reason and the evidence file.
+      # A report that was never written is a red too, not a silent pass.
+      - name: Every jvm suite ran, and nothing failed or skipped off the pinned lists
+        if: always()
+        run: |
+          report="${{ runner.temp }}/forge-jvm-report.json"
+          test -s "$report" || { echo "::error::$report is empty or missing — the jvm run did not finish writing its report"; exit 1; }
+          # One full test name per line; `#` lines are the reasons, not entries.
+          # `grep` exits 1 on an empty list, which the runner's pipefail would turn into a red.
+          pinned() { { grep -vE '^[[:space:]]*(#|$)' || true; } | jq -R . | jq -sc 'sort'; }
+          expected_skips=$(pinned <<'LIST'
+          LIST
+          )
+          known_failing=$(pinned <<'LIST'
+          # Red on main without the UI's pop-up change too: the driver never answers the coin toss. docs/planning/wave38-evidence/U-board-play-jvm-red.md
+          playing by clicking the board, against a real Forge match a player plays a land and casts spells — one targeted — by clicking their own board
+          # Stalls after seat 1 answers its first confirm, every run, on main too. docs/planning/wave38-evidence/U-prompts-jvm-red.md
+          the fifteen prompts against a real Forge match choices: confirm, order, tempShowZones, getChoices, showInputDialog, chooseSingleEntityForEffect
+          # Asserts Forge re-asks one ability twice; the server now answers the re-ask itself (c75060d), so it never repeats. docs/planning/wave38-evidence/U-flow-jvm-red.md
+          wave 20 lane B: turns that flow, against a real Forge match Forge offers the same one ability twice for one click, and the player sees neither
+          LIST
+          )
+          known_flaky=$(pinned <<'LIST'
+          # Seat 1's card lookup races the reveal's decode: 'card #47' instead of 'Forest (47)', red and green on main. docs/planning/wave38-evidence/U-prompts-jvm-red.md
+          the fifteen prompts against a real Forge match a reveal: the label carries Forge's "(id)", and the card's own facts are in the browser anyway
+          # The block input opens and closes with nobody pressing, 3 of 4 runs. docs/planning/wave38-evidence/J-blockers.md
+          Declare Blockers, set up by a scenario, against real Forge Q12: a defender with one creature is NOT auto-passed through Declare Blockers, and can assign the block
+          LIST
+          )
+          jq -e --argjson skips "$expected_skips" --argjson failing "$known_failing" --argjson flaky "$known_flaky" '
+            [.testResults[].assertionResults[]] as $all
+            | ([$all[] | select(.status == "failed") | .fullName] | sort - $flaky) as $failed
+            | ([$all[] | select(.status != "passed" and .status != "failed") | .fullName] | sort) as $skipped
+            | {
+                "failed, not pinned": ($failed - $failing),
+                "pinned as failing, did not fail": ($failing - $failed),
+                "skipped, not pinned": ($skipped - $skips),
+                "pinned as skipped, did not skip": ($skips - $skipped),
+                "no tests at all": (if ($all | length) == 0 then ["the report holds no test"] else [] end)
+              }
+            | . + {"pinned as flaky, not in the report": ($flaky - [$all[].fullName])}
+            | with_entries(select(.value | length > 0))
+            | if length == 0 then true else (., false) end
+          ' "$report" || { echo "::error::the jvm report does not match the pinned lists (see the object above)"; exit 1; }

@@ -72,6 +72,30 @@ async function passDeclareAttackers(s: Scenario, attacker: number): Promise<void
 	);
 }
 
+/**
+ * Every prompt, button and offer either seat was sent, one line each (the game
+ * state deltas left out), plus the server's own decisions — what a timed-out
+ * wait needs to say which input opened, which closed, and who pressed what.
+ */
+function frameTrail(s: Scenario): string {
+	const frames = s.sent
+		.filter(({ envelope }) => !['applyDelta', 'setGameView', 'openView'].includes(envelope.frame.method))
+		.map(({ seat, envelope }) => {
+			const f = envelope.frame as { kind: string; method: string; message?: string; enable1?: boolean; label1?: string; cards?: { id: number }[] };
+			const detail =
+				f.method === 'showPromptMessage'
+					? JSON.stringify(f.message)
+					: f.method === 'updateButtons'
+						? `${f.label1} enable1=${f.enable1}`
+						: f.cards !== undefined
+							? JSON.stringify(f.cards.map((c) => c.id))
+							: '';
+			return `s${seat} ${f.kind}:${f.method} ${detail}`;
+		});
+	const decisions = s.logs.filter((l) => typeof l.evt === 'string' && /^(auto-|ask-)/.test(l.evt)).map((l) => JSON.stringify(l));
+	return ['frames (whole match):', ...frames, 'server decisions (whole match):', ...decisions].join('\n');
+}
+
 describe.skipIf(!available.ok)(title, () => {
 	it(
 		'Q10: a defender with no creature is passed through Declare Blockers, with nothing to assign',
@@ -139,7 +163,9 @@ describe.skipIf(!available.ok)(title, () => {
 					},
 					'the block-assignment input to open for the defender',
 					30_000,
-				);
+				).catch((e: unknown) => {
+					throw new Error(`${String(e)}\n${frameTrail(s)}`);
+				});
 				expect(s.buttons(1)?.enable1).toBe(true);
 				expect(s.logs.some((l) => l.evt === 'auto-passed' && l.seat === 1 && l.phase === 'Declare Blockers Step')).toBe(false);
 
