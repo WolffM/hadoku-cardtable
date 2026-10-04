@@ -1,83 +1,92 @@
 /**
- * The targeter arrow, measured in a browser that has boxes (§C.2).
+ * The targeter arrow, measured in a browser that has boxes.
  *
- * Wave 19 built the arrow and Wave 20 kept it, and in all that time no human and
- * no browser had seen its geometry. `apps/ui/src/play/live/LiveBoard.test.ts`
- * says so in as many words: jsdom has no layout, every
- * `getBoundingClientRect()` is zeroes, so the arrow's coordinates are all 0
- * there and nothing asserts one — what it checks is which element the arrow
- * SNAPPED to, read off the DOM. That is the right check to make under jsdom and
- * it is not the check that matters here, because **a wrong arrow still looks
- * like an arrow**: pointing at the pointer instead of the card, at the card's
- * corner instead of its centre, at the page's origin instead of the overlay's,
- * or backwards, all draw a perfectly plausible line. This is the one w20
- * leftover the operator cannot check for us by playing.
+ * jsdom has no layout: every `getBoundingClientRect()` there is zeroes, so
+ * `apps/ui/src/play/live/LiveBoard.test.ts` can only check which element the
+ * arrow SNAPPED to, read off the DOM. That is the right check under jsdom and
+ * not the one that matters here, because **a wrong arrow still looks like an
+ * arrow**: pointing at the pointer instead of the card, at the card's centre
+ * instead of its edge, at the page's origin instead of the overlay's, or
+ * backwards, all draw a perfectly plausible line.
  *
  * So: a real Chromium over the real built app, a real Forge match in a child
- * JVM, a real pointer drag between two cards Forge itself offered, and the
- * rendered arrow's endpoints read out of the DOM and compared with the two
- * cards' own boxes.
+ * JVM, a real pointer gesture, and the rendered arrow's endpoints read out of
+ * the DOM and compared with the boxes on the page.
+ *
+ * ## The gesture is Arena casting
+ *
+ * A card in the viewer's own hand is not dragged straight to a target. The
+ * press LIFTS it and the card itself follows the pointer, with no arrow at all,
+ * until the pointer crosses into the viewer's own battlefield. That crossing
+ * is the SETTLE: the cast is sent to Forge right there, the arrow's tail is
+ * pinned at the settle point (where the card was put down), and from then on
+ * only the arrow follows the pointer (`apps/ui/src/play/live/gestures/cast.ts`
+ * quotes the operator's words for this, and `install.ts` implements them).
+ * Against a real Forge the card's own element leaves the hand as soon as the
+ * cast is sent, so the tail is measured against the settle point itself, not
+ * against a card box.
+ *
+ * The match is the `auto-target` scenario: Doom Blade ("destroy target
+ * nonblack creature") and two Swamps for alice, one Memnite for bob. The
+ * settle casts Doom Blade, and Forge answers with its own targeting ask,
+ * which offers bob's Memnite — so the settled arrow has a real CARD to snap
+ * to, Forge's own choice, while the same press is still held.
  *
  * ## What makes it a proof rather than a picture
  *
- * The arrow lives in lane A's overlay root and is drawn in the OVERLAY's
- * coordinates (`Targeter` subtracts the overlay's box), so a correct reading has
- * to add that box back. Four independent ways of being wrong are excluded by
- * construction:
+ * The arrow is drawn in the OVERLAY's coordinates (`gestures/arrow.ts`
+ * subtracts the overlay's box), so a correct reading has to add that box back.
+ * Four independent ways of being wrong are excluded by construction:
  *
- *  - **the pointer is deliberately far from the snap point** — a few pixels inside
- *    the target's far corner. Since wave 32 (Q11) a snapped arrow ends on the
- *    nearest of EIGHT points on the card's edge (four corners, four midpoints) to
- *    its origin, never the centre, so an arrow that merely followed the pointer,
- *    or that still aimed at the centre, misses by tens of pixels;
+ *  - **the pointer is deliberately far from the snap point** — a few pixels
+ *    inside the target's corner furthest from it. A snapped arrow ends on the
+ *    nearest of EIGHT points on the card's edge (four corners, four midpoints)
+ *    to its tail, never the centre, so an arrow that merely followed the
+ *    pointer, or that aimed at the centre, misses by tens of pixels;
  *  - **the overlay is not at the viewport's origin** (asserted), so an arrow
  *    drawn in page coordinates rather than the overlay's misses by that offset;
- *  - **the two cards are far apart** (asserted), so the tail and the tip cannot
- *    be confused for one another;
+ *  - **the tail and the target are far apart** (asserted), so the two ends
+ *    cannot be confused for one another;
  *  - **the head is checked for direction**, not only for existence: its barbs
- *    must sit behind the tip, along the shaft, at the length `Targeter` uses. An
+ *    must sit behind the tip, along the shaft, at the length `arrow.ts` uses. An
  *    arrow drawn tip-first from the wrong end passes every endpoint check and
  *    fails this one.
  *
- * The tolerance is one CSS pixel. Every number compared is a float from the same
- * layout pass — `getBoundingClientRect()` on one side, the SVG attribute
- * `Targeter` computed from `getBoundingClientRect()` on the other — so the only
- * honest error is the decimal formatting of the attribute, far below a pixel. A
- * pixel cannot admit any of the four failures above: the smallest of them (the
- * off-centre pointer) is an order of magnitude larger.
+ * The tolerance is one CSS pixel. Every number compared is a float from the
+ * same layout, so the only honest error is the decimal formatting of the SVG
+ * attributes, far below a pixel; the smallest of the failures above is an
+ * order of magnitude larger.
  *
- * ## It never changes the game
+ * ## What the cancel does to the game
  *
- * Every drag is abandoned with `pointercancel` rather than released, so
- * `commitDrag` never runs and nothing reaches the wire. The spec asserts that
- * too: after the cancel the source card is still one of Forge's offered cards,
- * which a `selectCard` would have spent.
+ * Before the settle nothing has been sent, and the spec shows that by
+ * checking there is no arrow and nothing on the stack yet. After
+ * the settle the cast is Forge's, so cancelling the gesture
+ * (`pointercancel`) is Forge's own Cancel on the targeting ask it opened (Doom
+ * Blade's target is not mandatory, so Forge enables that Cancel). The spec
+ * asserts what Forge does with it: Doom Blade back in hand and offered again,
+ * nothing on the stack, no Swamp tapped, bob's Memnite still there.
  *
- * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`), like
- * `play.spec.ts` and `table-fit.spec.ts`; without them it SKIPS and its title
- * says why. It also needs the app BUILT — `e2e/harness.ts` and
- * `play/harness.ts` serve `apps/ui/dist`, never the source.
+ * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without
+ * them it SKIPS and its title says why. It also needs the app BUILT —
+ * `play/harness.ts` serves `apps/ui/dist`, never the source.
  */
 
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { openFriend, type Friend } from './play/browser.ts';
-import { answerConfirm, confirmYes } from './play/confirm.ts';
+import { makeTitled, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-
-const PREFIX = '/cardtable';
+import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
 /** One CSS pixel. See the header for why that cannot pass a wrong arrow. */
 const TOL = 1;
 
-/** `Targeter`'s own head geometry. A change there must change these. */
+/** `gestures/arrow.ts`'s own head geometry. A change there must change these. */
 const HEAD_PX = 13;
 const HEAD_SPREAD_RAD = 0.42;
 
 const forge = forgeAvailability();
-const TITLE = forge.ok
-  ? "the targeter arrow's endpoints, measured in a real browser against the two cards' boxes: the tip snaps to the nearest of eight edge points"
-  : `the targeter arrow's endpoints, measured in a real browser — SKIPPED: ${forge.reason}`;
+const titled = makeTitled(forge);
 
 interface Box {
   left: number;
@@ -105,8 +114,20 @@ interface Shot {
   arrow: Arrow | null;
 }
 
-const centre = (b: Box): { x: number; y: number } => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 });
-const away = (a: { x: number; y: number }, b: { x: number; y: number }): number => Math.hypot(a.x - b.x, a.y - b.y);
+interface Point {
+  x: number;
+  y: number;
+}
+
+const centre = (b: Box): Point => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 });
+const away = (a: Point, b: Point): number => Math.hypot(a.x - b.x, a.y - b.y);
+
+/** The four corners and the four edge midpoints of a box: where a snapped tip may land. */
+const eight = (b: Box): Point[] => {
+  const xs = [b.left, b.left + b.width / 2, b.left + b.width];
+  const ys = [b.top, b.top + b.height / 2, b.top + b.height];
+  return ys.flatMap((y, r) => xs.map((x, c) => ({ x, y, centre: r === 1 && c === 1 }))).filter((p) => !p.centre).map(({ x, y }) => ({ x, y }));
+};
 
 /**
  * Read the overlay, the named cards and the arrow, in ONE layout pass.
@@ -153,278 +174,152 @@ function shoot(ids: number[]): Shot {
   };
 }
 
-/** Cancel whatever gesture is in flight. `LiveBoard` listens on `window`. Runs in the page. */
+/** Cancel whatever gesture is in flight. The gesture layer listens on `window`. Runs in the page. */
 function cancelDrag(): void {
   window.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true }));
 }
 
-/** A format and two library decks legal in it — the same pick `table-fit.spec.ts` makes. */
-async function twoLegalDecks(api: APIRequestContext, origin: string): Promise<{ format: string; decks: [string, string] }> {
-  const base = `${origin}${PREFIX}/api/tables`;
-  const formats = ((await (await api.get(`${base}/formats`)).json()) as { formats: { id: string }[] }).formats;
-  const decks = ((await (await api.get(`${base}/decks`)).json()) as { decks: { id: string; name: string }[] }).decks;
-  for (const f of formats) {
-    const legal: string[] = [];
-    for (const d of decks) {
-      const res = await api.post(`${base}/check`, { data: { deck: { library: d.id }, rules: { kind: 'standard', format: f.id } } });
-      if (res.status() === 200 && ((await res.json()) as { legal: boolean }).legal) legal.push(d.id);
-      if (legal.length === 2) return { format: f.id, decks: [legal[0]!, legal[1]!] };
-    }
-  }
-  throw new Error(`no format has two legal library decks (${formats.length} formats, ${decks.length} decks)`);
+/** The ids of the viewer's own cards in `zone` whose name is `name`, in DOM order. */
+async function ownCardIds(page: Page, zone: 'hand' | 'battlefield', name: string): Promise<number[]> {
+  return page
+    .locator(`[data-zone="${zone}"][data-owner="you"] [data-board-card]`)
+    .evaluateAll(
+      (els, want) => els.filter((e) => e.querySelector('.card__name')?.textContent?.trim() === want).map((e) => Number(e.getAttribute('data-board-card'))),
+      name,
+    );
 }
 
-/**
- * Into a match, through the product: alice creates a room, bob opens it, each
- * loads their own deck and readies, and the server starts the match. The same
- * path `table-fit.spec.ts` takes; it is a script, not a spec, so it is written
- * out here rather than imported from one.
- */
-async function enterMatch(alice: Friend, bob: Friend, origin: string): Promise<string> {
-  const choice = await twoLegalDecks(alice.context.request, origin);
-  await alice.page.goto(`${origin}${PREFIX}/`);
-  await alice.page.getByTestId('room-create-name').fill(`e2e arrow ${Date.now()}`);
-  await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-  await alice.page.getByTestId('room-create-submit').click();
-  await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
-  await bob.page.goto(alice.page.url());
-  /*
-   * The pool is the TABLE's and the leader is the one who moves it (wave 25 §B).
-   * Alice made the room, so it is hers; bob has no `format` control at all, and
-   * driving one on his page is a twenty-second wait for an element that is not
-   * coming. The wait is on the select reading its value back, which means the
-   * room record is on it — the control is bound to the room, so a refused write
-   * snaps it back.
-   */
-  await expect(alice.page.getByTestId('constructed')).toBeVisible();
-  await alice.page.getByTestId('format').selectOption(choice.format);
-  await expect(alice.page.getByTestId('format'), 'the room is on the pool alice chose').toHaveValue(choice.format);
-  await expect(bob.page.getByTestId('format-fixed'), "bob's screen follows it").toHaveAttribute(
-    'data-format',
-    choice.format,
-  );
-  for (const [f, deck] of [
-    [alice, choice.decks[0]],
-    [bob, choice.decks[1]],
-  ] as const) {
-    await expect(f.page.getByTestId('constructed')).toBeVisible();
-    // Choosing the deck IS loading it: there is no Load button any more (wave
-    // 22 §B). The picker is dead until the pool's own legality sweep answers,
-    // and it then offers only the decks that pool holds — so wait for it to
-    // come alive rather than selecting into the last pool's list.
-    await expect(f.page.getByTestId('deck-mine')).toBeEnabled();
-    // Wave 28 §C replaced the `<select>` with a `role="radiogroup"` of `role="radio"`
-    // buttons (*"we cannot use a standard dropdown for this"*), so `selectOption`
-    // throws `Element is not a <select> element`. `deck-mine` is still the root and
-    // every row still carries its library id, so picking a deck is still one line:
-    // `docs/planning/wave28-evidence/C-deck-chooser-e2e-recipe.md` is where that
-    // shape was promised, and this is it taken up. Neither spec is any lane's, so
-    // the manager took them once §C had landed.
-    await f.page.getByTestId('deck-mine').locator(`[data-deck-id="${deck}"]`).click();
-    await expect(f.page.getByTestId('verdict-mine'), `${f.name}: their own deck is legal`).toContainText('Legal in');
-  }
-  await alice.page.getByTestId('ready-toggle').click();
-  await expect(alice.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
-  await bob.page.getByTestId('ready-toggle').click();
-  const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
-  await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
-  await bob.page.waitForURL(matchUrl, { timeout: 120_000 });
-  const matchId = matchUrl.exec(alice.page.url())?.[1];
-  if (matchId === undefined) throw new Error(`no match id in ${alice.page.url()}`);
-  /*
-   * Live, and the signal is THE TWO ENDS AN ARROW IS DRAWN BETWEEN (wave 26 §B.5:
-   * `Seat N, live.` is deleted, and each spec picks its own signal).
-   *
-   * Everything below this line aims at something: a card, or a face. So what is
-   * waited on is both faces being on this page's own table, with one of them this
-   * page's own seat — `data-player-face` is what the gesture layer anchors an arrow
-   * on, and `data-viewer` is on the seat only when the snapshot named THIS
-   * client's own player. A page that loaded, or connected without being seated,
-   * satisfies neither; it would instead spend this spec's five-minute forwarding
-   * budget and fail with "Forge never offered alice two cards at once", which says
-   * nothing about the real fault.
-   *
-   * It is deliberately not a wait for CARDS: hands are not dealt until the coin
-   * toss is answered, and answering it is the loop's job below, not this
-   * function's.
-   */
-  for (const f of [alice, bob]) {
-    await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible();
-    await expect(f.page.locator('[data-player-face]'), `${f.name}: both faces are on their table`).toHaveCount(2, {
-      timeout: 30_000,
-    });
-    await expect(
-      f.page.locator('.seat[data-viewer] [data-player-face]'),
-      `${f.name}: one of the faces is their own seat's`,
-    ).toHaveCount(1, { timeout: 30_000 });
-  }
-  return matchId;
-}
+const card = (page: Page, id: number): Locator => page.locator(`[data-board-card="${id}"]`);
 
-/** The cards Forge is offering this page right now — `Board.tsx`'s own `data-selectable`. */
-async function offered(f: Friend): Promise<number[]> {
-  return f.page
-    .locator('[data-board-card][data-selectable]')
-    .evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
-}
-
-/** The method of the prompt showing, if any. */
-async function promptMethod(f: Friend): Promise<string | null> {
-  const showing = await f.page
-    .getByTestId('live-prompt')
-    .evaluateAll((els) => els.map((e) => e.getAttribute('data-method') ?? ''));
-  return showing[0] ?? null;
-}
-
-test(TITLE, async ({ browser }) => {
+test(titled("the cast arrow, measured in a real browser: no arrow while the card is lifted, then a tail pinned where it settled and a tip on the nearest of the target card's eight edge points"), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  test.setTimeout(10 * 60_000);
+  test.setTimeout(3 * 60_000);
 
   const stack = await startPlayStack(forge);
-  const alice = await openFriend(browser, 'alice');
-  const bob = await openFriend(browser, 'bob');
+  let seated: ScenarioMatch | null = null;
   const log: string[] = [];
 
   try {
-    await enterMatch(alice, bob, stack.origin);
+    seated = await startScenarioMatch(browser, stack, 'auto-target');
+    const page = seated.alice.page;
 
-    /*
-     * Forward to a moment where Forge offers this seat two cards at once, with
-     * no prompt open — its `setWeaklySelectable` at priority, which is the one
-     * state the drag gesture can start in (`boardInteraction`).
-     *
-     * Driven entirely from the two BOARDS: a prompt is answered by clicking the
-     * default on the prompt itself, and priority is passed with the board's own
-     * OK. Nothing here clicks a CARD, so nothing here can be what put a card in
-     * the offered set — Forge did.
-     */
-    const deadline = Date.now() + 5 * 60_000;
-    let ids: number[] = [];
-    for (;;) {
-      if (Date.now() > deadline) {
-        throw new Error(`Forge never offered alice two cards at once with no prompt open\n${log.slice(-40).join('\n')}`);
-      }
-      for (const f of [alice, bob]) {
-        const method = await promptMethod(f);
-        if (method !== null) {
-          // The plainest answer there is: whatever the prompt made its default.
-          const sheet = f.page.getByTestId('live-prompt').first();
-          const preferred = sheet.locator('[data-default]').first();
-          const target = (await preferred.count()) > 0 ? preferred : sheet.getByTestId('prompt-submit');
-          if ((await target.count()) > 0 && (await target.isEnabled())) {
-            await target.click();
-            log.push(`${f.name} answered ${method}`);
-          }
-          continue;
-        }
-        if (f === alice) {
-          ids = await offered(alice);
-          if (ids.length >= 2) break;
-        }
-        // Wave 35 R2 moved the coin toss off `live-button-ok` into its own
-        // decision area (`live-play-or-draw-play`) — `live-button-ok` is
-        // disabled the whole time that question is open, so it had to be
-        // checked first or this loop never got past turn 0.
-        const playOrDraw = f.page.getByTestId('live-play-or-draw-play');
-        if ((await playOrDraw.count()) > 0) {
-          await playOrDraw.click();
-          log.push(`${f.name} pressed Play`);
-          continue;
-        }
-        // Wave 36 T4: the opening mulligan's Keep/Mulligan (and any other
-        // yes/no) moved the same way, into its own `ConfirmPrompt` pop-up —
-        // default to Keep, the same answer the bare OK click below used to
-        // give it when it still rode `live-button-ok`.
-        if (await confirmYes(f.page).count()) {
-          await answerConfirm(f.page, 'yes');
-          log.push(`${f.name} answered a confirm: yes`);
-          continue;
-        }
-        const ok = f.page.getByTestId('live-button-ok');
-        if (await ok.isEnabled()) {
-          await ok.click();
-          log.push(`${f.name} pressed OK`);
-        }
-      }
-      if (ids.length >= 2 && (await promptMethod(alice)) === null) break;
-      await alice.page.waitForTimeout(150);
-    }
+    const [blade] = await ownCardIds(page, 'hand', 'Doom Blade');
+    expect(blade, "Doom Blade is in alice's hand, as the scenario scripts").toBeDefined();
+    await expect(card(page, blade!), 'Forge offers alice her Doom Blade to cast').toHaveAttribute('data-selectable', /.*/, { timeout: 45_000 });
+    const theirs = page.locator('[data-zone="battlefield"][data-owner="them"] [data-board-card]');
+    await expect(theirs, "bob's one creature is on his battlefield").toHaveCount(1);
+    const dst = Number(await theirs.getAttribute('data-board-card'));
 
-    /*
-     * The two cards furthest apart of the ones offered: the arrow's two ends
-     * must not be confusable, and adjacent cards in one hand can be a few pixels
-     * apart.
-     */
-    const first = await alice.page.evaluate(shoot, ids);
-    const boxes = ids.map((id) => ({ id, box: first.cards[String(id)] })).filter((c) => c.box !== undefined && c.box.width > 0);
-    expect(boxes.length, `alice's offered cards are drawn with real boxes (${JSON.stringify(ids)})`).toBeGreaterThanOrEqual(2);
-    boxes.sort((a, b) => a.box!.left - b.box!.left || a.box!.top - b.box!.top);
-    const src = boxes[0]!;
-    const dst = boxes[boxes.length - 1]!;
-    const srcC = centre(src.box!);
-    const dstC = centre(dst.box!);
-    const gap = away(srcC, dstC);
-    log.push(`source ${src.id} ${JSON.stringify(src.box)} → target ${dst.id} ${JSON.stringify(dst.box)}, ${gap.toFixed(1)}px apart`);
-    expect(gap, 'the two cards are far enough apart that the ends cannot be confused').toBeGreaterThan(20);
-    expect(first.overlay, 'lane A renders the overlay root the arrow is drawn into').not.toBeNull();
+    const first = await page.evaluate(shoot, [blade!, dst]);
+    expect(first.overlay, 'the board renders the overlay root the arrow is drawn into').not.toBeNull();
     // The overlay is NOT at the viewport's origin, so drawing in page
     // coordinates instead of the overlay's is a detectable error.
     expect(first.overlay!.top, "the overlay's own offset is what the reading has to add back").toBeGreaterThan(TOL);
     expect(first.overlay!.width).toBeGreaterThan(0);
+    const handBox = first.cards[String(blade)];
+    expect(handBox, "Doom Blade is drawn in alice's hand with a real box").toBeDefined();
+    const bladeC = centre(handBox!);
+    expect(first.cards[String(dst)], "bob's creature is drawn with a real box").toBeDefined();
 
     /*
-     * Wave 32 Q11: the tip is the nearest of EIGHT points on the target's edge (the
-     * four corners and the four edge midpoints) to the arrow's origin, never the
-     * centre. The source is the left-most offered card, so the nearest point is on
-     * the target's LEFT side; the pointer ends a few px inside the target's far
-     * (bottom-right) corner, so a tip that followed the pointer, or sat at the
-     * centre, is far from where it must be.
+     * The settle point: of a grid of spots over alice's own battlefield, the
+     * one furthest from bob's creature that the BROWSER agrees is her
+     * battlefield and no card (hit-tested, because other parts of the table
+     * can overlap the zone's box), so the arrow drawn from it is long and its
+     * two ends cannot be confused.
      */
-    const eight = (b: Box): { x: number; y: number }[] => {
-      const xs = [b.left, b.left + b.width / 2, b.left + b.width];
-      const ys = [b.top, b.top + b.height / 2, b.top + b.height];
-      return ys.flatMap((y, r) => xs.map((x, c) => ({ x, y, centre: r === 1 && c === 1 }))).filter((p) => !p.centre).map(({ x, y }) => ({ x, y }));
-    };
-    const nearestEdge = eight(dst.box!).reduce((best, p) => (away(p, srcC) < away(best, srcC) ? p : best));
-    /* ── the drag: press on the source's centre, end a few px inside the target's far corner ── */
-    const pointer = { x: dst.box!.left + dst.box!.width - 4, y: dst.box!.top + dst.box!.height - 4 };
-    expect(away(pointer, nearestEdge), 'the pointer is far from the point the tip must take, so a tip that followed it is visible').toBeGreaterThan(
-      10 * TOL,
-    );
-    expect(away(nearestEdge, dstC), 'the snap point is on the edge, not the centre').toBeGreaterThan(10 * TOL);
-    await alice.page.mouse.move(srcC.x, srcC.y);
-    await alice.page.mouse.down();
-    // Past DRAG_SLOP_PX, then onto the target. Two moves: one to become a drag,
-    // one to land where the measurement happens.
-    await alice.page.mouse.move(srcC.x + 20, srcC.y + 20);
-    await alice.page.mouse.move(pointer.x, pointer.y);
-    await expect(alice.page.getByTestId('targeter')).toHaveCount(1);
+    const dstC0 = centre(first.cards[String(dst)]!);
+    const settleSpot = await page.evaluate((far) => {
+      const zone = document.querySelector('[data-zone="battlefield"][data-owner="you"]');
+      if (zone === null) return null;
+      const r = zone.getBoundingClientRect();
+      let best: { x: number; y: number; d: number } | null = null;
+      for (let i = 1; i < 10; i++) {
+        for (let j = 1; j < 6; j++) {
+          const x = r.left + (r.width * i) / 10;
+          const y = r.top + (r.height * j) / 6;
+          const el = document.elementFromPoint(x, y);
+          if (el?.closest('[data-zone="battlefield"][data-owner="you"]') !== zone || el.closest('[data-board-card]') !== null) continue;
+          const d = Math.hypot(x - far.x, y - far.y);
+          if (best === null || d > best.d) best = { x, y, d };
+        }
+      }
+      return best === null ? null : { x: best.x, y: best.y };
+    }, dstC0);
+    expect(settleSpot, "some spot of alice's own battlefield is bare, to settle on").not.toBeNull();
+    const settleAt = settleSpot!;
+    log.push(`doom blade ${blade} at ${JSON.stringify(bladeC)}, target ${dst} at ${JSON.stringify(dstC0)}, settle at ${JSON.stringify(settleAt)}`);
 
-    const m = await alice.page.evaluate(shoot, [src.id, dst.id]);
+    /* ── lifted: the card follows the pointer, and there is no arrow ── */
+    await page.mouse.move(bladeC.x, bladeC.y);
+    await page.mouse.down();
+    // Past the drag slop, sideways along the hand, never into the battlefield.
+    const liftedAt = { x: bladeC.x + 20, y: bladeC.y };
+    await page.mouse.move(liftedAt.x, liftedAt.y);
+    await expect(card(page, blade!), 'the press lifted Doom Blade').toHaveAttribute('data-cast-lift', 'lifted');
+    await expect(page.getByTestId('targeter'), 'no arrow while the card is lifted: nothing is aimed at anything yet').toHaveCount(0);
+    const lifted = (await page.evaluate(shoot, [blade!])).cards[String(blade)];
+    expect(away(centre(lifted!), liftedAt), "the lifted card's centre is the pointer").toBeLessThanOrEqual(TOL);
+    expect(await stackCount(page), 'nothing has been cast yet').toBe(0);
+
+    /* ── the settle: one jump into the battlefield, so the settle point is exactly that spot ── */
+    await page.mouse.move(settleAt.x, settleAt.y);
+    await expect(page.getByTestId('targeter'), 'the settle draws the arrow').toHaveCount(1);
+    await expect(page.getByTestId('live-says'), 'the cast reached Forge: it opened its own targeting ask for Doom Blade').toHaveText(/Doom Blade.*target/is, {
+      timeout: 10_000,
+    });
+    await expect(card(page, dst), "Forge's ask offers bob's creature").toHaveAttribute('data-selectable', /.*/, { timeout: 10_000 });
+    await expect(page.getByTestId('targeter'), 'the arrow is still out').toHaveCount(1);
+
+    /*
+     * The pointer ends a few px inside the corner of bob's creature furthest
+     * from the point the tip must take, so a tip that followed the pointer, or
+     * sat at the centre, is far from where it must be.
+     */
+    const before = await page.evaluate(shoot, [dst]);
+    const dstBox = before.cards[String(dst)]!;
+    const nearestBefore = eight(dstBox).reduce((best, p) => (away(p, settleAt) < away(best, settleAt) ? p : best));
+    const corners: Point[] = [
+      { x: dstBox.left + 4, y: dstBox.top + 4 },
+      { x: dstBox.left + dstBox.width - 4, y: dstBox.top + 4 },
+      { x: dstBox.left + 4, y: dstBox.top + dstBox.height - 4 },
+      { x: dstBox.left + dstBox.width - 4, y: dstBox.top + dstBox.height - 4 },
+    ];
+    const pointer = corners.reduce((best, p) => (away(p, nearestBefore) > away(best, nearestBefore) ? p : best));
+    await page.mouse.move(pointer.x, pointer.y);
+    await expect(page.getByTestId('targeter'), "the arrow snaps to bob's creature under the pointer").toHaveAttribute('data-target', `card:${dst}`);
+    const m = await page.evaluate(shoot, [blade!, dst]);
     const a = m.arrow;
     expect(a, 'the arrow is drawn, with a shaft and a head').not.toBeNull();
     log.push(`arrow ${JSON.stringify(a)}`);
     log.push(`overlay ${JSON.stringify(m.overlay)}`);
+    log.push(`doom blade's own element after the settle: ${JSON.stringify(m.cards[String(blade)] ?? null)}`);
 
     // Forge's own two cards, and the snap: read off the DOM, as jsdom can.
-    expect(a!.source).toBe(String(src.id));
-    expect(a!.target).toBe(`card:${dst.id}`);
+    expect(a!.source).toBe(String(blade));
+    expect(a!.target).toBe(`card:${dst}`);
     expect(a!.snapped).toBe(true);
 
     /* ── the endpoints, in the viewport's own coordinates ── */
+    const box = m.cards[String(dst)]!;
     const tail = { x: a!.x1 + m.overlay!.left, y: a!.y1 + m.overlay!.top };
     const tip = { x: a!.x2 + m.overlay!.left, y: a!.y2 + m.overlay!.top };
-    log.push(`tail ${JSON.stringify(tail)} vs source centre ${JSON.stringify(srcC)}`);
-    log.push(`tip  ${JSON.stringify(tip)} vs target centre ${JSON.stringify(dstC)} (pointer ${JSON.stringify(pointer)})`);
-    expect(away(tail, srcC), `the tail is the source card's centre (${JSON.stringify(tail)} vs ${JSON.stringify(srcC)})`).toBeLessThanOrEqual(TOL);
+    const nearestEdge = eight(box).reduce((best, p) => (away(p, settleAt) < away(best, settleAt) ? p : best));
+    log.push(`tail ${JSON.stringify(tail)} vs settle point ${JSON.stringify(settleAt)} (Doom Blade was picked up at ${JSON.stringify(bladeC)})`);
+    log.push(`tip  ${JSON.stringify(tip)} vs nearest edge point ${JSON.stringify(nearestEdge)} (pointer ${JSON.stringify(pointer)})`);
+    expect(away(tail, settleAt), `the tail is pinned where the card settled (${JSON.stringify(tail)} vs ${JSON.stringify(settleAt)})`).toBeLessThanOrEqual(TOL);
+    expect(away(tail, bladeC), 'and not where the card was picked up from').toBeGreaterThan(10 * TOL);
+    expect(away(tail, centre(box)), 'the tail and the target are far enough apart that the ends cannot be confused').toBeGreaterThan(20);
+    expect(away(pointer, nearestEdge), 'the pointer is far from the point the tip must take, so a tip that followed it is visible').toBeGreaterThan(10 * TOL);
+    expect(away(nearestEdge, centre(box)), 'the snap point is on the edge, not the centre').toBeGreaterThan(10 * TOL);
     expect(
       away(tip, nearestEdge),
-      `the tip is the nearest of the target's eight edge points to the origin (${JSON.stringify(tip)} vs ${JSON.stringify(nearestEdge)})`,
+      `the tip is the nearest of the target's eight edge points to the tail (${JSON.stringify(tip)} vs ${JSON.stringify(nearestEdge)})`,
     ).toBeLessThanOrEqual(TOL);
-    expect(away(tip, dstC), 'and it is not the target card’s centre').toBeGreaterThan(10 * TOL);
+    expect(away(tip, centre(box)), 'and it is not the target card’s centre').toBeGreaterThan(10 * TOL);
     expect(
-      eight(dst.box!).filter((p) => away(tip, p) <= TOL),
+      eight(box).filter((p) => away(tip, p) <= TOL),
       'the tip sits on exactly one of the eight points',
     ).toHaveLength(1);
     // …and NOT the pointer, which is where an unsnapped arrow would end.
@@ -445,12 +340,9 @@ test(TITLE, async ({ browser }) => {
     const unit = { x: (a!.x2 - a!.x1) / shaftLen, y: (a!.y2 - a!.y1) / shaftLen };
     const barbMid = { x: (barb1[0] + barb2[0]) / 2, y: (barb1[1] + barb2[1]) / 2 };
     const back = { x: a!.x2 - barbMid.x, y: a!.y2 - barbMid.y };
-    expect(Math.hypot(back.x, back.y), 'the barbs are set back by head·cos(spread)').toBeCloseTo(
-      HEAD_PX * Math.cos(HEAD_SPREAD_RAD),
-      3,
-    );
-    // Antiparallel to nothing: the set-back vector points the same way as the
-    // shaft, i.e. the head opens away from the target and closes on it.
+    expect(Math.hypot(back.x, back.y), 'the barbs are set back by head·cos(spread)').toBeCloseTo(HEAD_PX * Math.cos(HEAD_SPREAD_RAD), 3);
+    // The set-back vector points the same way as the shaft, i.e. the head
+    // opens away from the target and closes on it.
     expect((back.x * unit.x + back.y * unit.y) / Math.hypot(back.x, back.y), 'the head points at the target').toBeCloseTo(1, 6);
 
     /* ── the arrow is inside the overlay, so it is actually on screen ── */
@@ -467,35 +359,40 @@ test(TITLE, async ({ browser }) => {
     expect(a!.box.height).toBeGreaterThan(0);
 
     /* ── the OTHER branch: nothing snapped, so the tip is the pointer itself ── */
-    const empty = await alice.page.locator('[data-zone="stack"]').first().evaluate((el) => {
+    const empty = await page.locator('[data-zone="stack"]').first().evaluate((el) => {
       const r = el.getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     });
-    await alice.page.mouse.move(empty.x, empty.y);
-    const loose = (await alice.page.evaluate(shoot, [src.id, dst.id])).arrow;
+    await page.mouse.move(empty.x, empty.y);
+    await expect(page.getByTestId('targeter'), 'nothing Forge offered is under the pointer').not.toHaveAttribute('data-snapped', /.*/);
+    const loose = (await page.evaluate(shoot, [blade!, dst])).arrow;
     expect(loose, 'the arrow is still drawn when there is nothing to snap to').not.toBeNull();
     log.push(`loose ${JSON.stringify(loose)}`);
-    expect(loose!.snapped, 'nothing Forge offered is under the pointer').toBe(false);
     expect(loose!.target).toBeNull();
     const looseTip = { x: loose!.x2 + m.overlay!.left, y: loose!.y2 + m.overlay!.top };
     const looseTail = { x: loose!.x1 + m.overlay!.left, y: loose!.y1 + m.overlay!.top };
     expect(away(looseTip, empty), 'an unsnapped tip is exactly where the pointer is').toBeLessThanOrEqual(TOL);
-    expect(away(looseTail, srcC), 'and the tail has not moved off the card it was picked up from').toBeLessThanOrEqual(TOL);
+    expect(away(looseTail, settleAt), 'and the tail has not moved off the settle point').toBeLessThanOrEqual(TOL);
 
-    /* ── and none of this touched the game ── */
-    await alice.page.evaluate(cancelDrag);
-    await expect(alice.page.getByTestId('targeter')).toHaveCount(0);
-    // A `selectCard` would have SPENT the source card, so Forge's offer would no
-    // longer include it. It does: nothing left this page.
-    expect(await offered(alice)).toContain(src.id);
-    // Nothing is asserted about `alice.blocked`: card art resolves to
-    // `cards.scryfall.io` (D18), `openFriend` aborts every off-loopback request,
-    // and a card's box comes from `card.css` rather than from a loaded image —
-    // so a blocked art request is expected here and changes no number above.
+    /* ── the cancel: the cast was Forge's from the settle, so this is Forge's own Cancel ── */
+    await page.evaluate(cancelDrag);
+    await expect(page.getByTestId('targeter')).toHaveCount(0);
+    await page.mouse.up();
+    await expect
+      .poll(async () => (await ownCardIds(page, 'hand', 'Doom Blade')).includes(blade!), {
+        timeout: 10_000,
+        message: "Forge's Cancel put Doom Blade back in alice's hand",
+      })
+      .toBe(true);
+    await expect(card(page, blade!), 'and Forge offers it to cast again').toHaveAttribute('data-selectable', /.*/, { timeout: 10_000 });
+    expect(await stackCount(page), 'nothing is on the stack').toBe(0);
+    expect(await says(page), 'the targeting ask is gone').not.toMatch(/target/i);
+    await expect(page.locator('[data-zone="battlefield"][data-owner="you"] [data-board-card][data-tapped]'), 'no Swamp was tapped').toHaveCount(0);
+    await expect(theirs, "bob's creature is still on his battlefield").toHaveCount(1);
   } finally {
     console.log(`[arrow] ${log.join('\n[arrow] ')}`);
-    await alice.context.close();
-    await bob.context.close();
+    await seated?.alice.context.close();
+    await seated?.bob.context.close();
     await stack.stop();
   }
 });
