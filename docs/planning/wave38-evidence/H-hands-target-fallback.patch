@@ -1,0 +1,58 @@
+diff --git a/e2e/play/hands.ts b/e2e/play/hands.ts
+index 713384d..bd60167 100644
+--- a/e2e/play/hands.ts
++++ b/e2e/play/hands.ts
+@@ -231,8 +231,21 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
+       return;
+     }
+     if (/target/i.test(msg)) {
+-      if (s.opponentSelectable && !tried.has(`${turn}:target:${msg}`)) {
+-        tried.add(`${turn}:target:${msg}`);
++      const targetKey = (which: string) => `${turn}:target:${msg}:${which}`;
++      /*
++       * Forge's own refusal wording ("Cannot target this player…") replaces
++       * the ask's text but does NOT clear the face's `data-selectable` —
++       * it is still offered, still true, even though it is the thing that
++       * was just refused. Keying "already tried the face" by the message
++       * text alone (which changes between the ask and its own refusal) is
++       * not enough: the refusal is itself a new message, so without this
++       * check the face gets clicked a SECOND time, against the message that
++       * is already telling us it cannot be targeted, before anything ever
++       * tries a card.
++       */
++      const faceRefused = /cannot target/i.test(msg);
++      if (!faceRefused && s.opponentSelectable && !tried.has(targetKey('face'))) {
++        tried.add(targetKey('face'));
+         if (
+           await act('target the opponent', s, () =>
+             f.page.locator('[data-testid="player"]:not([data-viewer])[data-selectable] .seat__select').first().click({ timeout: 2_000 }),
+@@ -240,6 +253,29 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
+         )
+           return;
+       }
++      /*
++       * The face was never offered, Forge refused it, or `faceRefused` just
++       * skipped straight past it (most target asks are a CARD, not a player
++       * — "Destroy target nonblack creature" never offers one). Forge
++       * disables BOTH buttons for a mandatory target with legal candidates
++       * still on the board (`InputSelectTargets`), so once the face is
++       * refused, falling straight through to them below does nothing,
++       * forever, instead of trying an actual card. Their own battlefield
++       * first (the common case, an opponent's creature), then anywhere Look
++       * already found selectable — each exactly once per distinct message,
++       * so a refusal is never retried against the same candidate.
++       */
++      if (!tried.has(targetKey('theirs'))) {
++        tried.add(targetKey('theirs'));
++        const theirs = f.page.locator('.seat:not([data-viewer]) [data-board-card][data-selectable] button').first();
++        if ((await theirs.count()) > 0 && (await act('target their card', s, () => theirs.click({ timeout: 2_000 })))) return;
++      }
++      if (!tried.has(targetKey('any')) && s.anywhere.length > 0) {
++        tried.add(targetKey('any'));
++        const cardId = s.anywhere[0]!.id;
++        if (await act(`target card ${cardId}`, s, () => f.page.locator(`[data-board-card="${cardId}"] button`).first().click({ timeout: 2_000 })))
++          return;
++      }
+       if (s.ok) await act('targets done', s, press('ok'));
+       else if (s.cancel) await act('no target: cancel', s, press('cancel'));
+       return;
