@@ -215,7 +215,10 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
           tried.add(`${turn}:land`);
           if (await act(`play land ${land.name}`, s, clickCard(land.id, 'back'))) return;
         }
-        const spell = s.hand.find((c) => !/\bland\b/i.test(c.type) && !tried.has(`${turn}:${c.id}`));
+        // Not a Pact: it is free now and loses the game at the next upkeep
+        // unless its cost is paid then, which this bot cannot plan for
+        // (Slaughter Pact ended table-fit's match on CI 37171407975 and 37182810018).
+        const spell = s.hand.find((c) => !/\bland\b/i.test(c.type) && !/\bPact\b/.test(c.name) && !tried.has(`${turn}:${c.id}`));
         if (spell !== undefined) {
           tried.add(`${turn}:${spell.id}`);
           hands.cast.push(spell.name);
