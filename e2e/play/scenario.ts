@@ -160,6 +160,25 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
   // question, which then never got clicked at all.
   let aClear = false;
   let bClear = false;
+  // Sticky, once true: has EITHER side's own line ever started "Priority:" —
+  // the one unambiguous sign the coin-toss/keep handoff is behind both of
+  // them, independent of what either happens to be showing on THIS tick.
+  // Shared, not per-seat: a scenario can give one seat (an empty hand, say)
+  // nothing to ever decide, so ITS OWN line may read "Waiting for ___..."
+  // for the rest of the match and never once read "Priority:" — but once the
+  // OTHER seat has shown real priority at least once, that is still
+  // unambiguously past the handoff, because the active seat always reaches
+  // its own first priority before the other ever needs to wait on it.
+  // A transient "Waiting for Bob..." (the coin-toss handoff sends it too,
+  // and so does every ordinary priority pass for the rest of an ordinary
+  // game) matches neither `openQuestion` nor a real keep prompt, so treating
+  // ANY non-match as "past the mulligan" — this function's own earlier
+  // shape — can return before the real keep prompt has even been SENT,
+  // leaving it unanswered forever once this function has already given up
+  // watching for it. A structurally identical bug, independently diagnosed
+  // server-side against `showPromptMessage` frames, is in
+  // `docs/planning/wave40-evidence/B-thoughtseize.md`.
+  let anyPriorityReached = false;
   // The exact text each side was last clicked for. The button can stay
   // visibly enabled for a while after the click — the server's own reply
   // round-trip, worse under load — and a loop that re-clicks on every tick
@@ -176,6 +195,7 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
     ] as const) {
       const text = await says(f.page);
       if (text === '') continue; // not loaded yet: neither clear nor an open question to answer
+      if (/^Priority:/i.test(text)) anyPriorityReached = true;
       // The mulligan is over the instant a real ASK opens (`live-prompt`,
       // e.g. a replacement effect's own choice — Cavern of Souls' "choose a
       // creature type" on ETB, once a scenario applies itself after the
@@ -191,7 +211,12 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
         continue;
       }
       if (!openQuestion.test(text)) {
-        mark(true);
+        // Only genuinely clear if real priority has landed SOMEWHERE at
+        // least once — never just because THIS tick's text happens not to
+        // look mulligan-ish (see this function's own header for why that
+        // was wrong: "Waiting for ___..." passes that test too, long before
+        // the real keep prompt is even sent).
+        mark(anyPriorityReached);
         continue;
       }
       mark(false);

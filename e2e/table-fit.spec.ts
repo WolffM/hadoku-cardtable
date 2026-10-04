@@ -687,23 +687,28 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string, summary: R
     }
   }
   /*
-   * Open the log on both pages (wave 25 §C.3).
-   *
-   * Forge's own message used to be a permanent row in the control cluster and
-   * this spec drove the whole game off it. The operator's complaint was exactly
-   * that it was always on screen, so it is collapsed now and the cluster's own
-   * `Log` toggle is how it comes back — a real press on a real control. Opening
-   * it here keeps the signal this spec polls (`live-says`, in its new home) and
-   * puts the panel on screen for every frame the sampler measures, which is what
-   * proves the new overlay fits too.
+   * Open the log on both pages, then close it again. Opening it briefly puts
+   * the panel on screen for at least one sampled frame, proving the overlay
+   * fits. It is closed again before this returns: the logbook is a wide,
+   * opaque overlay that covers almost the whole board while open, so a card
+   * underneath is neither visible nor clickable then — leaving it open
+   * stalls every hand-card click for the rest of the match, bots included
+   * (`toggleLog` reopens it again later, once the board has something on
+   * it; see the mid-game sample below).
    */
-  for (const f of friends) {
-    const toggle = f.page.getByTestId('live-log-toggle');
-    await expect(toggle, `${f.name}: the log is collapsed by default`).toHaveAttribute('aria-expanded', 'false');
-    await toggle.click();
-    await expect(f.page.getByTestId('live-logbook'), `${f.name}: the log opened`).toBeVisible();
-  }
+  for (const f of friends) await toggleLog(f, true);
+  for (const f of friends) await toggleLog(f, false);
   return matchId;
+}
+
+/** Open or close the logbook through its own toggle control, and wait for the panel to agree. */
+async function toggleLog(f: Friend, open: boolean): Promise<void> {
+  const toggle = f.page.getByTestId('live-log-toggle');
+  const logbook = f.page.getByTestId('live-logbook');
+  if ((await toggle.getAttribute('aria-expanded')) === String(open)) return;
+  await toggle.click();
+  if (open) await expect(logbook, `${f.name}: the log opened`).toBeVisible();
+  else await expect(logbook, `${f.name}: the log closed`).toBeHidden();
 }
 
 /* ── the test ────────────────────────────────────────────────────────── */
@@ -885,6 +890,14 @@ test(TITLE, async ({ browser }) => {
     await new Promise((r) => setTimeout(r, 2_000));
     for (const g of friends) moments.push(await fitsNow(g, 'mid-game'));
 
+    // The logbook open again, now the board has something on it — a more
+    // demanding fit proof than the empty board at `enterMatch`. Hands stay
+    // paused: the panel covers the board while open, so nothing needs to
+    // click through it.
+    for (const f of friends) await toggleLog(f, true);
+    for (const g of friends) moments.push(await fitsNow(g, 'mid-game, log open'));
+    for (const f of friends) await toggleLog(f, false);
+
     // Wave 32 Q13: power/toughness is in the bottom-right corner of the card. Only a
     // game that has put an untapped creature on the table can show it, so a game
     // that has not is reported, not failed.
@@ -906,21 +919,10 @@ test(TITLE, async ({ browser }) => {
      * an empty one included — here a card is dragged into the OTHER tier with a real
      * pointer and must land there, at its end.
      *
-     * **A known, occasional flake, not a mystery if this reds**: wave 35 R9's
-     * settle/release race (`e2e/w35.spec.ts`'s own "R9b" finding —
-     * `notePlayedTo`/`Board.tsx`'s `useLayoutEffect` can consume a cast's
-     * pending placement from the SETTLE point, before a later, correct
-     * placement call ever lands, when Forge's delta comes back fast enough)
-     * is not scoped to a deliberate drag into a specific slot — it can
-     * misfile an ordinary bot-driven cast into the wrong default row too.
-     * `play/hands.ts`'s `clickCard` now aims its own settle-move at the
-     * TYPE-correct row (a land at 'back', anything else at 'front') instead
-     * of the whole battlefield's centre, which measurably cut how often this
-     * fires (two misplaced permanents in a real run before that fix, one
-     * after, same fixed seed) — it does not and cannot eliminate the
-     * underlying race from an e2e-only change. A rare, singular id showing up
-     * on the wrong side of this check is this same already-reported bug, not
-     * a new regression to chase from scratch.
+     * A cast now makes exactly ONE placement call, from the release point
+     * alone. `play/hands.ts`'s `clickCard` aims that release at the
+     * TYPE-correct row (a land at 'back', anything else at 'front'), so a
+     * card's own default placement matches where it was released.
      */
     const placements: Record<string, unknown>[] = [];
     for (const f of friends) {

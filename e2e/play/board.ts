@@ -101,51 +101,136 @@ export async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'
   return true;
 }
 
-/* ── casting ──────────────────────────────────────────────────────────── */
+/* ── casting: the ONE gesture every spec's cast step goes through ───────
+ *
+ * Nothing reaches Forge until the gesture is RELEASED — crossing into the
+ * viewer's own battlefield while still held does nothing on its own. On
+ * release: a no-target card (by type line, anything but an Instant, Sorcery
+ * or Aura) is played if the release point is over the viewer's own
+ * battlefield, else it floats back with nothing sent; a targeted card is
+ * cast at release if the point is anywhere outside the viewer's own hand
+ * (the battlefield included — it is "outside the hand" too), parks there,
+ * and a SEPARATE click on the legal target answers it; over the hand, any
+ * card returns and nothing is sent. A click lifts the card (first press);
+ * the second press, at its own point, is the release — so every
+ * click-based caller below is really two presses, never one click followed
+ * by a bare pointer move.
+ *
+ * `dragHandCard` is the other half: a single held gesture (down, through
+ * zero or more waypoints, up) for a spec that drives the drag itself
+ * (`e2e/drag.spec.ts`, `arrow.spec.ts`) rather than just wanting the card
+ * played.
+ */
+
+/** The viewer's own battlefield, or one row of it (`[data-arrange-slot]`), as a box. */
+async function ownBattlefieldBox(page: Page, row?: 'back' | 'front'): Promise<{ x: number; y: number; width: number; height: number } | null> {
+  return row === undefined
+    ? page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox()
+    : page.locator(`.seat[data-viewer] [data-zone="battlefield"] [data-arrange-slot="${row}"]`).boundingBox();
+}
+
+/** The centre point of a box, or `null` through. */
+function centreOfBox(box: { x: number; y: number; width: number; height: number } | null): { x: number; y: number } | null {
+  return box === null ? null : { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
 
 /**
- * Click a hand card and settle the Arena-cast gesture that a plain click
- * only ARMS for any card in the viewer's own hand: the lift needs a pointer
- * move into the viewer's own battlefield before anything is sent to Forge
- * at all. Harmless for a card that was never armed (a battlefield target,
- * not a hand card): no gesture started, so the follow-up move is a no-op.
- *
- * One jump, not an animated move — an animated move's intermediate points
- * can themselves cross into the battlefield and get recorded as the settle
- * position before the move finishes, landing the card in the wrong row
- * (measured directly: two non-land permanents settled into the BACK row,
- * the lands-only row, 2 of 2 tries, same ids both times, because an
- * animated move's early steps already sat inside that row's box).
- *
- * `row`, when the caller knows which one a placement belongs in, aims the
- * settle at that row's own box (`[data-arrange-slot]`) instead of the whole
- * battlefield's centre, so the settle point lands exactly where a card's
- * own default placement (a land to the back row, anything else to the
- * front) would put it anyway. Omitted, it falls back to the
- * battlefield-centre point, still correct for anything that is not itself a
- * placement choice. `timeout` reaches the underlying `.click()` call, for a
- * caller (a long-running bot, not a single assertion) that needs a shorter
- * one than Playwright's default action timeout.
+ * Press a hand card's own button — the Arena gesture's first press (the
+ * lift) — and report whether it actually armed (`data-cast-lift ===
+ * 'lifted'`). `false` for a card the gesture does not apply to (a
+ * battlefield target, not one in the viewer's own hand): no gesture starts,
+ * so there is nothing for a caller to release.
  */
-export async function clickHandCard(
-  page: Page,
-  cardId: number,
-  opts: { row?: 'back' | 'front'; timeout?: number } = {},
-): Promise<void> {
+async function liftHandCard(page: Page, cardId: number, timeout?: number): Promise<boolean> {
   await page
     .locator(`[data-board-card="${cardId}"] button`)
     .first()
-    .click(opts.timeout === undefined ? undefined : { timeout: opts.timeout });
+    .click(timeout === undefined ? undefined : { timeout });
   const lifted = await page
     .locator(`[data-board-card="${cardId}"]`)
     .getAttribute('data-cast-lift')
     .catch(() => null);
-  if (lifted !== 'lifted') return;
-  const box =
-    opts.row === undefined
-      ? await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox()
-      : await page.locator(`.seat[data-viewer] [data-zone="battlefield"] [data-arrange-slot="${opts.row}"]`).boundingBox();
-  if (box !== null) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  return lifted === 'lifted';
+}
+
+/**
+ * The ONE cast helper's click-based form: a press lifts `cardId` out of the
+ * viewer's hand, then a SECOND press at `to` (or, by default, the viewer's
+ * own battlefield — a point valid for both no-target and targeted cards at
+ * once: a no-target card plays there, a targeted one casts there too, since
+ * the battlefield is "outside the hand") is the release. A card the gesture
+ * never armed (not in the viewer's own hand) is a no-op past the first
+ * click, same as a plain click on a battlefield target always was.
+ *
+ * `row`, when the caller knows which one a placement belongs in, releases
+ * over that row's own slot (`[data-arrange-slot]`) instead of the whole
+ * battlefield's centre. `timeout` reaches the first press (a locator
+ * action), for a caller (a long-running bot, not a single assertion) that
+ * needs a shorter one than Playwright's default action timeout; the second
+ * press is a bare `page.mouse.click`, which takes no timeout of its own.
+ */
+export async function clickHandCard(
+  page: Page,
+  cardId: number,
+  opts: { row?: 'back' | 'front'; to?: { x: number; y: number }; timeout?: number } = {},
+): Promise<void> {
+  if (!(await liftHandCard(page, cardId, opts.timeout))) return;
+  const point = opts.to ?? centreOfBox(await ownBattlefieldBox(page, opts.row));
+  if (point !== null) await page.mouse.click(point.x, point.y);
+}
+
+/**
+ * The ONE cast helper's drag-based form: a single held pointer gesture —
+ * down on `cardId` in the hand, through `via` (zero or more waypoints, each
+ * reached with real intermediate steps so an observer can see the card
+ * mid-flight), then up at `to`, which is the release. Nothing reaches Forge
+ * before the release regardless of what `via` crosses — proving that is
+ * exactly what `e2e/drag.spec.ts`'s "dragged past the hand and back" case
+ * is for.
+ *
+ * Returns `false` without moving the pointer if the press never armed the
+ * gesture (not a hand card); the caller is then holding a button down on
+ * nothing, so it also releases immediately.
+ */
+export async function dragHandCard(page: Page, cardId: number, to: { x: number; y: number }, via: { x: number; y: number }[] = []): Promise<boolean> {
+  const box = await page.locator(`[data-board-card="${cardId}"]`).boundingBox();
+  if (box === null) throw new Error(`no box for hand card ${cardId}`);
+  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  const armed = await page
+    .locator(`[data-board-card="${cardId}"]`)
+    .getAttribute('data-cast-lift')
+    .catch(() => null);
+  if (armed !== 'lifted') {
+    await page.mouse.up();
+    return false;
+  }
+  for (const p of [...via, to]) await page.mouse.move(p.x, p.y, { steps: 8 });
+  await page.mouse.up();
+  return true;
+}
+
+/**
+ * Cancel a cast Forge is still asking about (a target selection or a mana
+ * payment open) — right-click (Forge's own context menu is suppressed only
+ * while a gesture or a cast is live) or Escape. Either sends Forge's own
+ * Cancel and floats the card back to hand; with no question open,
+ * `install.ts` refuses to send anything, so calling this once nothing is
+ * asking is harmless.
+ */
+export async function cancelCast(page: Page, how: 'escape' | 'right-click' = 'escape'): Promise<void> {
+  if (how === 'escape') {
+    await page.keyboard.press('Escape');
+    return;
+  }
+  const at = await page.evaluate(() => {
+    const el = document.querySelector('[data-cast-lift]');
+    const r = el?.getBoundingClientRect();
+    return r === undefined ? null : { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  if (at !== null) await page.mouse.click(at.x, at.y, { button: 'right' });
+  else await page.keyboard.press('Escape');
 }
 
 /**

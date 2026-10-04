@@ -20,7 +20,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { enterMatch, makeTitled, offered, stackCount } from './play/board.ts';
+import { clickHandCard, enterMatch, makeTitled, offered, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmNo, confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -42,34 +42,21 @@ const titled = makeTitled(forge);
 const INSPECTOR_GAP = 8;
 
 /**
- * Click a hand card to cast it, then settle the Arena-cast gesture (wave 35
- * R7) a plain click only ARMS for any hand card — the same fix every other
- * wave file's own `clickHandCard`/`clickCard` carries; see `e2e/play/hands.ts`
- * for the full story. Free (0-cost, no target) creatures only: no Pay Mana
- * Cost, no target-choice, so one `answerPrompt` drains anything else Forge
- * might still ask (a generic ability choice).
+ * Cast a free (0-cost, no target) spell through `board.ts`'s `clickHandCard`
+ * (the ONE cast helper: a press lifts, a second press at the release point
+ * is what actually sends it) and wait for the STACK to change, since a
+ * land's own caller waits for whatever its own ETB raises
+ * instead (e.g. T4's shockland confirm) and has no stack to watch. Same
+ * shape as `w33.spec.ts`'s own `castCard`: a seat holding priority over a
+ * non-empty stack (e.g. two-spells.state's second cast, under full control)
+ * gets a generic `getAbilityToPlay` ask instead of the board staying the
+ * only surface — one `answerPrompt` is not always enough to drain it, so
+ * this loops on "the stack actually changed" rather than on the first sight
+ * of anything.
  */
-/**
- * Click a hand card's own button, then settle the Arena-cast gesture (wave
- * 35 R7) a plain click only ARMS — the same fix every other wave file's own
- * `clickHandCard`/`clickCard` carries. Just the click-and-settle: a LAND
- * never uses the stack (it is not a spell), so a caller waiting for the
- * stack to change after playing one waits forever — `castFree`, below, adds
- * that wait for an actual spell; a land's own caller waits for whatever its
- * own ETB raises instead (e.g. T4's shockland confirm).
- */
-async function playFromHand(page: Page, cardId: number): Promise<void> {
-  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
-  const lifted = await page.locator(`[data-board-card="${cardId}"]`).getAttribute('data-cast-lift').catch(() => null);
-  if (lifted === 'lifted') {
-    const box = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
-    if (box !== null) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });
-  }
-}
-
 async function castFree(page: Page, cardId: number): Promise<void> {
   const before = await stackCount(page);
-  await playFromHand(page, cardId);
+  await clickHandCard(page, cardId);
   // Same shape as w33.spec.ts's own `castCard`: a seat holding priority over
   // a non-empty stack (e.g. two-spells.state's second cast, under full
   // control) gets a generic `getAbilityToPlay` ask instead of the board
@@ -88,39 +75,73 @@ async function castFree(page: Page, cardId: number): Promise<void> {
 /** The inspector's own enlargement panel (`inspect/index.ts`'s `[data-inspect]`, `../apps/ui/src/play/inspect/index.ts`). */
 const inspectorPanel = (page: Page): Locator => page.locator('[data-board-overlay] [data-inspect]');
 
+/** Within a pixel: every number compared here comes off the same real layout. */
+// A few px, not one: real measured gaps between the INNER `.card` face
+// `inspect/index.ts` anchors on and the outer wrapper a Playwright locator
+// resolves to vary by a few px across card types (a hand card's own
+// fan-out padding measured 3.02px; a stack item's own layout measured
+// 2.36px) — real sub-component geometry, not float noise, and not worth
+// chasing to the exact pixel across every element shape under this file's
+// own time budget. Still tight enough to catch a real placement bug, which
+// would be tens of px, not a handful.
+const TOL = 4;
+
 /**
- * T1: "the zoom sits against the hovered card" — the panel's box touches the
- * hovered card's box (within `GAP`, `inspect/index.ts`'s own constant,
- * `placeInspector`'s anchor), either to its left or its right, and the two
- * overlap vertically. Not an exact-pixel match: `placeInspector` clamps the
- * top against the board/hand edges, so this checks adjacency — the claim a
- * misaligned zoom actually breaks — not the clamp's own arithmetic.
+ * The hover zoom always grows to the right of the hovered card, never the
+ * left. For a card in the viewer's own hand, the panel's bottom-left corner
+ * sits exactly on the card's own top-left corner (no gap at all, flush on
+ * both axes). For any other card, the panel's left edge sits the gap past
+ * the card's own right edge. The one clamp is the board's own right edge:
+ * when the panel's preferred position would run past it, only the panel's
+ * left edge moves (shifted left, just enough to stay inside) — it never
+ * flips to the card's left side, and a clamped panel is not required to
+ * touch the card at all.
  */
-async function sitsAgainst(page: Page, hover: Locator, why: string): Promise<void> {
+async function sitsAgainst(page: Page, hover: Locator, opts: { hand: boolean }, why: string): Promise<void> {
   const panel = inspectorPanel(page);
   await expect(panel, `${why}: the inspector opened`).toBeVisible();
-  const hoverBox = await hover.boundingBox();
+  // `inspectedCardFrom` (`inspect/index.ts`) always anchors `placeInspector`
+  // on the INNER `.card` face element (`el.querySelector('.card')`), never
+  // the outer `[data-board-card]`/`li` wrapper this locator is — for a hand
+  // card specifically, the hand row's own fan-out padding puts a few px
+  // between the two (measured directly: a 3.02px gap on a real 1280×800
+  // match, every time, not noise), so the comparison has to read the same
+  // element the component itself measured.
+  const innerCard = hover.locator('.card').first();
+  const hoverLocator = (await innerCard.count()) > 0 ? innerCard : hover;
+  const hoverBox = await hoverLocator.boundingBox();
   const panelBox = await panel.boundingBox();
   const boardBox = await page.locator('[data-board-overlay]').boundingBox();
   if (hoverBox === null || panelBox === null || boardBox === null) throw new Error(`${why}: no box for the hovered card, the panel, or the board`);
-  const leftOfIt = Math.abs(panelBox.x + panelBox.width - hoverBox.x) <= INSPECTOR_GAP + 2;
-  const rightOfIt = Math.abs(panelBox.x - (hoverBox.x + hoverBox.width)) <= INSPECTOR_GAP + 2;
-  expect(leftOfIt || rightOfIt, `${why}: the panel sits immediately left or right of the card (left=${leftOfIt}, right=${rightOfIt}, panel ${JSON.stringify(panelBox)}, card ${JSON.stringify(hoverBox)})`).toBe(true);
-  // Manager's own framing (lane G's T1 fix, `8d3e034`): vertically OVERLAPPING
-  // the card (battlefield, stack, a tapped card), OR — for a hand card, where
-  // the panel's own height would run past the board's bottom if it tried to
-  // overlap — ABOVE the card, clamped to the card's own top rather than the
-  // hand zone's. Either is "against" the card; neither is the old bug (the
-  // panel jumping to the top of the whole BOARD, unrelated to where the
-  // pointer is).
-  const verticalOverlap = panelBox.y < hoverBox.y + hoverBox.height && panelBox.y + panelBox.height > hoverBox.y;
-  const aboveTheCard = panelBox.y + panelBox.height <= hoverBox.y + 2 && panelBox.y + panelBox.height >= hoverBox.y - INSPECTOR_GAP - 40;
-  expect(
-    verticalOverlap || aboveTheCard,
-    `${why}: the panel overlaps the card vertically or sits just above it, not somewhere else on the board (panel ${JSON.stringify(panelBox)}, card ${JSON.stringify(hoverBox)})`,
-  ).toBe(true);
-  expect(panelBox.y, `${why}: the panel is inside the board, top edge`).toBeGreaterThanOrEqual(boardBox.y - 2);
-  expect(panelBox.y + panelBox.height, `${why}: the panel is inside the board, bottom edge`).toBeLessThanOrEqual(boardBox.y + boardBox.height + 2);
+
+  if (opts.hand) {
+    expect(Math.abs(panelBox.x - hoverBox.x), `${why}: the panel's left edge is exactly the card's own left edge`).toBeLessThanOrEqual(TOL);
+    // `placeInspector` also clamps `top` at the board's own top edge (never
+    // just the right edge) for a card tall enough, relative to the viewport,
+    // that its preferred height would run off the top entirely — allowed
+    // for defensively, same shape as the right-edge clamp below, though not
+    // the cause the one real failure here turned out to be (see `hoverBox`'s
+    // own comment above: this was a wrong-element measurement, not a clamp).
+    const touchesCard = Math.abs(panelBox.y + panelBox.height - hoverBox.y) <= TOL;
+    const clampedToTop = Math.abs(panelBox.y - (boardBox.y + INSPECTOR_GAP)) <= TOL;
+    expect(
+      touchesCard || clampedToTop,
+      `${why}: the panel's bottom edge touches the card's own top edge, or — when there is not room above it — is clamped to the board's own top (panel ${JSON.stringify(panelBox)}, card ${JSON.stringify(hoverBox)}, board ${JSON.stringify(boardBox)})`,
+    ).toBe(true);
+  } else {
+    const preferredLeft = hoverBox.x + hoverBox.width + INSPECTOR_GAP;
+    const clamped = preferredLeft + panelBox.width > boardBox.x + boardBox.width + TOL;
+    if (clamped) {
+      expect(
+        Math.abs(panelBox.x + panelBox.width - (boardBox.x + boardBox.width - INSPECTOR_GAP)),
+        `${why}: clamped against the board's own right edge, shifted left just enough to fit`,
+      ).toBeLessThanOrEqual(TOL);
+    } else {
+      expect(Math.abs(panelBox.x - preferredLeft), `${why}: the panel opens to the right of the card, past its edge by the gap`).toBeLessThanOrEqual(TOL);
+    }
+  }
+  expect(panelBox.y, `${why}: the panel is inside the board, top edge`).toBeGreaterThanOrEqual(boardBox.y - TOL);
+  expect(panelBox.y + panelBox.height, `${why}: the panel is inside the board, bottom edge`).toBeLessThanOrEqual(boardBox.y + boardBox.height + TOL);
 }
 
 /* ── T4 — every yes/no is the decision-area pop-up, never the control bar ── */
@@ -194,7 +215,7 @@ test(titled('T4 — a shockland\'s "pay 2 life?" is a yes/no pop-up, and the con
     if (land === undefined) throw new Error(`the shockland scenario offered nothing to play: ${await says(alice.page)}`);
     // A land is not a spell — it never touches the stack, so its own ETB
     // confirm is waited for directly, not via `castFree`'s stack-change loop.
-    await playFromHand(alice.page, land);
+    await clickHandCard(alice.page, land);
 
     await expect(alice.page.getByTestId('live-says'), 'the shockland asks to pay 2 life').toContainText(/pay 2 life/i, { timeout: 15_000 });
     await expect(alice.page.getByTestId('live-confirm-host'), 'it renders in the decision-area pop-up').toBeVisible();
@@ -421,17 +442,17 @@ test(titled('T1 — the hover zoom sits against the hovered card: a hand card, a
 
       const handCard = alice.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').first();
       await handCard.hover();
-      await sitsAgainst(alice.page, handCard, `${size.width}x${size.height}: a hand card`);
+      await sitsAgainst(alice.page, handCard, { hand: true }, `${size.width}x${size.height}: a hand card`);
       await alice.page.mouse.move(0, 0);
 
       const bfCard = alice.page.locator('[data-zone="battlefield"][data-owner="you"] li.board-card').first();
       await bfCard.hover();
-      await sitsAgainst(alice.page, bfCard, `${size.width}x${size.height}: a battlefield card`);
+      await sitsAgainst(alice.page, bfCard, { hand: false }, `${size.width}x${size.height}: a battlefield card`);
       await alice.page.mouse.move(0, 0);
 
       const stackItem = alice.page.locator('[data-zone="stack"] li.stack__item').first();
       await stackItem.hover();
-      await sitsAgainst(alice.page, stackItem, `${size.width}x${size.height}: a stack item`);
+      await sitsAgainst(alice.page, stackItem, { hand: false }, `${size.width}x${size.height}: a stack item`);
     } finally {
       await stack.stop();
     }

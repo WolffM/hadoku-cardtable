@@ -14,10 +14,11 @@
  *     for how many times this spec itself was re-run to earn confidence).
  *  3. **R4 — Thoughtseize is one choice**, the opponent's whole hand shown
  *     with the unchoosable cards greyed, nobody asked to confirm afterwards.
- *  4. **R7 — casting is the Arena model**: press or click lifts a castable
- *     card, it settles on the caster's own battlefield, then only the
- *     targeting arrow follows the pointer; a drag to a player's own seat
- *     casts a spell that targets them.
+ *  4. **R7 — casting is the Arena model**: a press or click lifts a castable
+ *     card, and nothing reaches Forge until release — the release IS the
+ *     cast, not a crossing into the battlefield while still held — which
+ *     parks it on the caster's own battlefield; a click on a player's own
+ *     seat then casts a spell that targets them.
  *  5. **R9 — a card dropped mid-row stays there**, not the next free slot.
  *  6. **R14 — a token has real art**: an `<img>`, not the card-back fallback.
  *  7. **R15 — a land tapped at priority adds mana to the pool.** F's jar
@@ -48,7 +49,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { enterMatch, livePrompt, makeTitled, offered, stackCount } from './play/board.ts';
+import { clickHandCard, enterMatch, livePrompt, makeTitled, offered, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { playMessagesOf } from './play/frames.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -95,40 +96,6 @@ const promptMethodOf = async (page: Page): Promise<string | null> => {
  */
 function need(ok: boolean, what: string): void {
   if (!ok) throw new Error(`not landed yet: ${what}`);
-}
-
-/**
- * Click a hand card to cast/play/select it, THEN settle the Arena gesture
- * the click only ARMS.
- *
- * **Confirmed by a real-browser debug trace, not assumed**: G's corrected R7
- * design (`gestures/install.ts`'s `onPointerUp`) makes a plain click on any
- * card in the viewer's own hand — `isHandCard` makes no exception for "this
- * press is answering a selection, not casting a spell" — set `held: false`
- * and return WITHOUT sending anything; the actual `selectCard` only fires
- * from `onPointerMove` once the (still-unheld) pointer crosses into the
- * viewer's own battlefield, or from a second press anywhere. A bare
- * `.click()`, used throughout this file (and, confirmed by grep, throughout
- * this whole e2e suite's existing specs and `play/hands.ts`'s bot) to mean
- * "play this card", now silently arms the gesture and waits forever if
- * nothing ever moves the pointer again. Traced directly on Secluded Glen:
- * `data-cast-lift` went to `'lifted'` on click and sat there — `offered()`
- * never changed — until a bare `mouse.move` onto the battlefield (no button
- * held) made it `'settled'` and the real ask opened in the same tick.
- *
- * This is flagged prominently in this lane's report as a wave-wide finding,
- * not papered over quietly here: every other e2e spec in this repo that
- * clicks a hand card to play it is now equally exposed, and `play/hands.ts`'s
- * `clickCard` (the bot `connectHands` uses, which drives nearly every
- * pre-existing play/table-fit/w31-w34 spec's actual game-play) is one of
- * them — fixed separately, in that file.
- */
-async function castByClick(page: Page, cardId: number): Promise<void> {
-  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
-  const battlefield = page.locator('.seat[data-viewer] [data-zone="battlefield"]');
-  const box = await battlefield.boundingBox();
-  if (box === null) return;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });
 }
 
 /* ── 1. R13 — Secluded Glen's reveal reaches the seat as a real ask ─────── */
@@ -180,7 +147,7 @@ test(titled('R13 — Secluded Glen\'s "you may reveal a Faerie" reaches the seat
     const handBefore = await alice.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
     const faerieSeer = handBefore.find((id) => id !== glen);
     expect(faerieSeer, 'the Faerie Seer is the hand\'s only other card — the precondition this spec needs').not.toBeUndefined();
-    await castByClick(alice.page, glen);
+    await clickHandCard(alice.page, glen);
 
     // The reveal choice reaches the browser: the Faerie Seer becomes
     // selectable, and the free-text prompt names the reveal — this is the
@@ -191,19 +158,19 @@ test(titled('R13 — Secluded Glen\'s "you may reveal a Faerie" reaches the seat
     // Choosing to reveal: the land enters UNTAPPED (S's own measured
     // outcome), and the Faerie Seer stays in hand (revealed, not spent).
     //
-    // A PLAIN click, not `castByClick`: G's R13 fix (`install.ts`'s
-    // `castFromHand` — `dd0547e`) makes a press on a hand card named by an
-    // OPEN SELECTION (`match.selectables !== null`, exactly this case) fall
+    // A PLAIN click, not `clickHandCard`: G's R13 fix (`install.ts`'s
+    // `castFromHand`) makes a press on a hand card named by an OPEN
+    // SELECTION (`match.selectables !== null`, exactly this case) fall
     // through to the pre-wave click path instead of lifting — the native
     // click answers it at once, unsuppressed (`g.done`'s own first test case:
-    // "a plain click sends `selectCard` at once"). `castByClick`'s own extra
-    // settle-move is for a card Forge is offering to CAST (no open
+    // "a plain click sends `selectCard` at once"). `clickHandCard`'s own
+    // second press is for a card Forge is offering to CAST (no open
     // selection); using it HERE, on a card a SELECTION already names, is
     // what produced this spec's own earlier, now-superseded finding (driving
-    // it through `castByClick` resolved the selection to the WRONG answer —
-    // the land entered tapped, Cancel's own signature — logged in this
-    // file's history for anyone who finds the same mismatch again before
-    // reading this comment).
+    // it through the two-press gesture resolved the selection to the WRONG
+    // answer — the land entered tapped, Cancel's own signature — logged in
+    // this file's history for anyone who finds the same mismatch again
+    // before reading this comment).
     await alice.page.locator(`[data-board-card="${faerieSeer}"] button`).first().click();
     // 30s, not 15: the same occasional host-load margin as this file's other
     // "a match/scenario sets up" waits, above — measured once at 1 timeout in
@@ -244,7 +211,7 @@ test(titled('the swallowed press — casting Ponder under Full Control, one OK c
     // id is not reliably Ponder's (see `offeredNamed`'s own note).
     await expect.poll(() => offeredNamed(alice.page, 'Ponder'), { timeout: 45_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toBeUndefined();
     const card = (await offeredNamed(alice.page, 'Ponder'))!;
-    await castByClick(alice.page, card);
+    await clickHandCard(alice.page, card);
 
     // Pay for it (one Island tap) and stop the INSTANT the seat's own
     // priority stop over "Stack: 1 to Resolve" shows with OK live — never
@@ -383,7 +350,7 @@ test(titled('R4 — Thoughtseize is one choice: the opponent\'s whole hand shown
     expect(bobHandBefore, 'bob has a hand to take from — the precondition this spec needs').toBeGreaterThan(0);
 
     const card = (await offeredNamed(alice.page, 'Thoughtseize'))!;
-    await castByClick(alice.page, card);
+    await clickHandCard(alice.page, card);
     const sheet = livePrompt(alice.page).first();
     const choosable = sheet.locator('[data-testid="prompt-choice"]');
     const greyed = sheet.locator('[data-testid="prompt-unoffered"]');
@@ -391,8 +358,9 @@ test(titled('R4 — Thoughtseize is one choice: the opponent\'s whole hand shown
     // real-jar-plus-socket harness confirmed the caster DOES get exactly one
     // `chooseSingleEntityForEffect` (4/4): the `notify:setSelectables` this
     // spec first found was the TARGETING step, not a missing ask.
-    // `castByClick` releases the gesture on the viewer's OWN battlefield
-    // (R9's settle), not by holding and dragging the arrow onto the opponent
+    // `clickHandCard` releases over the viewer's OWN battlefield — a
+    // targeted card may park anywhere outside the hand, the battlefield
+    // included — not by holding and dragging the arrow onto the opponent
     // (R7's other path, `arrow.spec.ts`'s own tests) — so the target ask
     // surfaces as a plain board selection on the opponent's avatar, the same
     // shape a non-arrow target always takes, and needs its own click, same
@@ -493,7 +461,7 @@ test(titled('R14 — a token Forge creates is drawn with a real <img class="card
     // offered (F's land-tapping fix) — see `offeredNamed`'s own note.
     await expect.poll(() => offeredNamed(alice.page, 'Raise the Alarm'), { timeout: 45_000, message: 'alice is offered Raise the Alarm — the precondition "raise-the-alarm" sets up' }).not.toBeUndefined();
     const card = (await offeredNamed(alice.page, 'Raise the Alarm'))!;
-    await castByClick(alice.page, card);
+    await clickHandCard(alice.page, card);
     for (let i = 0; i < 100; i++) {
       await alice.page.waitForTimeout(50);
       await answerPrompt(alice.page);
@@ -524,9 +492,9 @@ test(titled('R14 — a token Forge creates is drawn with a real <img class="card
   }
 });
 
-/* ── 4. R7 — Arena casting: a drag to a player casts a spell at them ────── */
+/* ── 4. R7 — Arena casting: release parks it, a click on a player casts at them ── */
 
-test(titled('R7 — pressing a castable card lifts it, it settles on your own battlefield, and dragging the arrow to a player casts the spell at them'), async ({ browser }) => {
+test(titled('R7 — pressing a castable card lifts it; nothing reaches Forge until release, which parks it on your own battlefield; a click on a player casts the spell at them'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(2 * 60_000);
@@ -565,10 +533,8 @@ test(titled('R7 — pressing a castable card lifts it, it settles on your own ba
 
     // Press (not a native HTML5 drag — the same pointer mechanics
     // arrow.spec.ts already uses), then a first move that stays OUTSIDE the
-    // viewer's own battlefield (still over the hand, past the drag slop) —
-    // a first draft moved straight to the battlefield's centre in one step,
-    // so by the time `data-cast-lift` was ever read the gesture had already
-    // settled; this one leaves a real window to observe "lifted" first.
+    // viewer's own battlefield (still over the hand, past the drag slop), so
+    // "lifted" is observed before anything crosses in.
     const cardCX = cardBox.x + cardBox.width / 2;
     const cardCY = cardBox.y + cardBox.height / 2;
     await alice.page.mouse.move(cardCX, cardCY);
@@ -581,42 +547,25 @@ test(titled('R7 — pressing a castable card lifts it, it settles on your own ba
     const stagingY = battlefieldBox.y + battlefieldBox.height / 2;
     await alice.page.mouse.move(stagingX, stagingY, { steps: 8 });
 
-    // Cross onto the viewer's own battlefield: the settle. Per G's corrected
-    // design (g.md/g-r7.md) `selectCard` is sent AT THIS MOMENT, not at
-    // release.
-    //
-    // **Found against a real Forge jar, not assumed:** G's own evidence
-    // (`g-r7.md`) captured this against a SCRATCH REPLAY SERVER that never
-    // updates the view — there, the card stays pinned at `data-cast-lift=
-    // "settled"` for the rest of the gesture. Against a REAL match, the
-    // instant the cast is sent, Forge's own view update removes the card
-    // from the hand (confirmed: a debug dump at exactly this point showed
-    // `handHTML` as an empty `<ul>`, `data-board-card`/`data-card-id`/
-    // `data-source-card="102"` matching NOTHING anywhere on the page, no
-    // element anywhere carrying `data-cast-lift`, the stack still at
-    // `data-count="0"`, and `live-says` already reading "Lightning Bolt
-    // (102) ... Select any target") — the card is in neither the hand nor
-    // the stack while its target is being chosen, so `drawCastLift`'s own
-    // `cardBox` lookup (by id) has nothing to pin the attribute to. This is
-    // worth the manager/G's attention as a possible visual gap (the floating
-    // card disappearing mid-gesture, rather than staying visible through
-    // targeting as the evidence doc describes) — flagged in this lane's
-    // report rather than guessed at further here. What this spec can still
-    // prove, and does: the cast reached Forge for real (the target ask's own
-    // text), and the REST of the gesture (the arrow, the snap, answering
-    // that ask on release) still functions correctly underneath.
-    await alice.page.mouse.move(stagingX + 1, stagingY + 1);
-    await expect(alice.page.getByTestId('live-says'), 'the cast reached Forge: it opened a real targeting ask for this exact card').toHaveText(/Lightning Bolt.*target/is, { timeout: 10_000 });
+    // Crossing into the viewer's own battlefield while STILL HELD is not the
+    // trigger — nothing is sent until the RELEASE.
+    await expect(alice.page.getByTestId('live-says'), 'held over the battlefield, before release: nothing reached Forge yet').not.toHaveText(/Lightning Bolt.*target/is);
 
-    // Now drag the arrow onto the opponent's own face — the arrow's start
-    // point is a frozen pixel (`drag.stagedAt`), not a live lookup of the
-    // card element, so it draws correctly regardless of the card's own
-    // vanished DOM node.
+    // The release: a targeted card parks anywhere outside the hand, the
+    // battlefield included, and the cast is sent right there.
+    await alice.page.mouse.up();
+    await expect(alice.page.getByTestId('live-says'), 'the release sent the cast: it opened a real targeting ask for this exact card').toHaveText(/Lightning Bolt.*target/is, { timeout: 10_000 });
+
+    // Move toward the opponent's own face — the arrow follows from the
+    // parked card to the pointer.
     await alice.page.mouse.move(bobFaceBox.x + bobFaceBox.width / 2, bobFaceBox.y + bobFaceBox.height / 2, { steps: 8 });
-    await expect(alice.page.getByTestId('targeter'), 'the targeting arrow is drawn once settled').toHaveCount(1);
+    await expect(alice.page.getByTestId('targeter'), 'the targeting arrow is drawn once parked').toHaveCount(1);
     await expect(alice.page.getByTestId('targeter'), 'the arrow is aimed at the opponent').toHaveAttribute('data-target', `player:${await bobFace.getAttribute('data-player-id')}`);
 
-    await alice.page.mouse.up();
+    // A SEPARATE click resolves it — the release already finished the drag,
+    // and aiming now runs independent of any button being held (the same
+    // click-answers-it rule a click-armed cast always used).
+    await bobFace.click();
 
     // The cast actually landed: bob's life drops once the spell resolves —
     // nobody is left to respond, so this reads the outcome, same as w34's
@@ -629,7 +578,7 @@ test(titled('R7 — pressing a castable card lifts it, it settles on your own ba
       await alice.page.waitForTimeout(40);
     }
     await expect
-      .poll(async () => Number((await bobLife.textContent()) ?? 'NaN'), { timeout: 15_000, message: 'the bolt, cast by dragging it onto bob, reached the stack and resolved against him' })
+      .poll(async () => Number((await bobLife.textContent()) ?? 'NaN'), { timeout: 15_000, message: 'the bolt, released on the battlefield and clicked onto bob, reached the stack and resolved against him' })
       .toBeLessThan(lifeBefore);
   } finally {
     await stack.stop();
@@ -699,15 +648,24 @@ test(titled('R9b (the real root cause) — a land dragged from hand and released
     // scenarios/land-into-middle.state (lane S, written for this spec, now
     // on disk): the manager's own follow-up (after lane B's re-investigation
     // found no bug in the REARRANGEMENT mechanic itself, R9a above) traced
-    // R9's real cause to the CASTING path: playing a card from hand (the
-    // Arena gesture, R7) always appended the new permanent to the end of its
-    // row regardless of where it was released — fixed as a seam between B
-    // (`notePlayedTo`/`previewPlayedTo`, `Board.tsx`) and G (the gesture-side
-    // call, `install.ts`). Forest and Mountain already in play (different
-    // names on purpose, so the resulting order is readable from the names
-    // alone, not just a count — this spec reads ids instead, which proves
-    // the same thing more precisely) and an Island in hand to drop between
-    // them.
+    // R9's real cause to the CASTING path: playing a card from hand always
+    // appended the new permanent to the end of its row regardless of where
+    // it was released. Forest and Mountain already in play (different names
+    // on purpose, so the resulting order is readable from the names alone,
+    // not just a count — this spec reads ids instead, which proves the same
+    // thing more precisely) and an Island in hand to drop between them.
+    //
+    // **The original race is structurally removed**: the fix this test
+    // originally proved (`notePlayedTo` safe to call twice, "the later call
+    // wins") existed because a cast used to place the new permanent TWICE —
+    // once early, at the settle, and again at release — and a fast round
+    // trip could render the early one before the correct, later call ever
+    // landed. The settle itself is gone (nothing is sent before release), so
+    // there is now exactly ONE placement call, made from the release point
+    // alone — the two-call race this test was written to catch cannot
+    // recur, by construction, not by timing. What is still worth proving:
+    // that single call still lands the card at the INDEX under the pointer,
+    // not appended to the end.
     const { alice, bob } = await startScenarioMatch(browser, stack, 'land-into-middle');
     void bob;
 
@@ -734,60 +692,19 @@ test(titled('R9b (the real root cause) — a land dragged from hand and released
     // gap, and `snapTo`'s own maths on this exact point picks Mountain at
     // distance 0 (Forest at distance 6) and returns `{kind:'before',
     // id: Mountain}` — the geometrically correct answer.
-    //
-    // **Root cause, confirmed empirically, not guessed**: this spec's own
-    // coordinate math was never the problem, and neither was `snapTo`. A
-    // throwaway probe instrumenting the moment BEFORE `mouse.up()` (reading
-    // `landCards.count()` right after the move to this exact midpoint, before
-    // releasing) showed the Island ALREADY on the battlefield — at
-    // `[Island, Forest, Mountain]` — while the mouse button was still held.
-    // `install.ts`'s settle (`onPointerMove`, "the settle, and THE cast":
-    // `selectCard` + the FIRST `notePlayedTo`) fires the instant the pointer
-    // first crosses into the viewer's own battlefield, which on the path from
-    // the hand is near the row's LEFT edge — i.e. near Forest, not yet at
-    // Mountain. Forge's delta for the new permanent came back and got
-    // rendered (`Board.tsx`'s `useLayoutEffect`, which CONSUMES and DELETES
-    // the pending placement the instant the card first appears in
-    // `viewer.battlefield`) before the drag ever reached the midpoint — so by
-    // the time `noteReleasePlacement`'s own, correct, second `notePlayedTo`
-    // call fires at release, the card is already laid out and nothing
-    // re-reads a placement written after its one consuming render. The
-    // module's own comment on `noteReleasePlacement` — "the later call wins,
-    // that's where the player let go" — assumed the consuming render always
-    // happens after both calls; a same-host round trip (this harness, and
-    // plausibly production on a fast link) was quick enough to land between
-    // them. This WAS a genuine, reproducible defect (confirmed ~75% fail
-    // rate across 17 direct runs before the fix), not a test artefact.
-    //
-    // **Fixed** (B, commit `2181aed`): `notePlayedTo` is now safe to call
-    // more than once for the same card — a `useSyncExternalStore`-backed
-    // version wakes every mounted `Board` on every call, so the SECOND,
-    // correct placement (the release) re-triggers the existing
-    // `useLayoutEffect` even when the first, early one already consumed and
-    // rendered the card. Confirmed 10/10 after the fix landed.
     const box2 = (await landCards.nth(1).boundingBox())!;
     const midpoint = { x: box2.x + 2, y: box2.y + box2.height / 2 };
 
     // Press, lift (the Arena gesture applies to EVERY hand card Forge
     // offers, lands included — `cast.ts`'s `isHandCard` makes no exception
-    // for a land), and release squarely between Forest and Mountain.
-    // A land has no target, so it is cast by the release itself (R7's own
-    // rule: "a card without targets is cast by releasing it over the
-    // battlefield") — there is no settle-then-arrow phase to drive through
-    // first.
+    // for a land), and release squarely between Forest and Mountain. A land
+    // has no target, so the release alone plays it, at the point it was let
+    // go — the one placement call this now makes.
     await alice.page.mouse.move(newLandBox.x + newLandBox.width / 2, newLandBox.y + newLandBox.height / 2);
     await alice.page.mouse.down();
     await alice.page.mouse.move(newLandBox.x + newLandBox.width / 2 + 8, newLandBox.y + newLandBox.height / 2 - 8, { steps: 3 });
-    need((await newLandEl.getAttribute('data-cast-lift')) === 'lifted', 'G\'s `data-cast-lift` (gestures/cast.ts) on a land dragged from hand — confirmed `lifted` (not already `settled`) at this point, so the mid-row drop below is a real test of the settle position, not an artefact of settling too early');
+    need((await newLandEl.getAttribute('data-cast-lift')) === 'lifted', 'G\'s `data-cast-lift` (gestures/cast.ts) on a land dragged from hand — the Arena-lift signal');
     await alice.page.mouse.move(midpoint.x, midpoint.y, { steps: 8 });
-    // The SAME synchronisation R9a uses before its own release — without it,
-    // a first draft's `mouse.up()` fired before the app had processed the
-    // move to the midpoint at all (measured: the land landed BEFORE Forest,
-    // not between Forest and Mountain — `notePlayedTo`'s own preview,
-    // `previewPlayedTo`, reuses the arrange-drag's `[data-arrange-indicator]`
-    // precisely so this same wait works for a cast the same way it does for
-    // a reorder).
-    need((await alice.page.locator('[data-arrange-indicator]').count()) > 0, 'B\'s own drop preview (R9, `previewPlayedTo`) showing a slot mid-row for a card being CAST, not just an existing one being reordered');
     await alice.page.mouse.up();
 
     await expect.poll(() => landCards.count(), { timeout: 15_000, message: 'the land entered play — the precondition the final assertion needs' }).toBe(3);

@@ -13,24 +13,28 @@
  * JVM, a real pointer gesture, and the rendered arrow's endpoints read out of
  * the DOM and compared with the boxes on the page.
  *
- * ## The gesture is Arena casting
+ * ## The gesture is Arena casting, and nothing reaches Forge before release
  *
  * A card in the viewer's own hand is not dragged straight to a target. The
- * press LIFTS it and the card itself follows the pointer, with no arrow at all,
- * until the pointer crosses into the viewer's own battlefield. That crossing
- * is the SETTLE: the cast is sent to Forge right there, the arrow's tail is
- * pinned at the settle point (where the card was put down), and from then on
- * only the arrow follows the pointer (`apps/ui/src/play/live/gestures/cast.ts`
- * quotes the operator's words for this, and `install.ts` implements them).
- * Against a real Forge the card's own element leaves the hand as soon as the
- * cast is sent, so the tail is measured against the settle point itself, not
- * against a card box.
+ * press LIFTS it and the card itself follows the pointer, with no arrow at
+ * all, however far the pointer travels — crossing into the viewer's own
+ * battlefield while still held does nothing (the old SETTLE, which sent the
+ * cast the instant a held pointer first crossed in, is deleted). The cast
+ * is sent at RELEASE: Doom Blade is a targeted card (an Instant, by
+ * type line), so releasing it anywhere outside the viewer's own hand — the
+ * battlefield included — casts it and PARKS it right there. The arrow's tail
+ * is pinned at that park point, and from then on, independent of whether a
+ * button is held, the arrow follows the pointer and a click answers it
+ * (`apps/ui/src/play/live/gestures/cast.ts` quotes the operator's words for
+ * the model, and `install.ts` implements the release). Against a real Forge
+ * the card's own element leaves the hand as soon as the cast is sent, so the
+ * tail is measured against the park point itself, not against a card box.
  *
  * The match is the `auto-target` scenario: Doom Blade ("destroy target
  * nonblack creature") and two Swamps for alice, one Memnite for bob. The
- * settle casts Doom Blade, and Forge answers with its own targeting ask,
- * which offers bob's Memnite — so the settled arrow has a real CARD to snap
- * to, Forge's own choice, while the same press is still held.
+ * release casts Doom Blade, and Forge answers with its own targeting ask,
+ * which offers bob's Memnite — so the parked arrow has a real CARD to snap
+ * to, Forge's own choice.
  *
  * ## What makes it a proof rather than a picture
  *
@@ -59,13 +63,16 @@
  *
  * ## What the cancel does to the game
  *
- * Before the settle nothing has been sent, and the spec shows that by
- * checking there is no arrow and nothing on the stack yet. After
- * the settle the cast is Forge's, so cancelling the gesture
- * (`pointercancel`) is Forge's own Cancel on the targeting ask it opened (Doom
- * Blade's target is not mandatory, so Forge enables that Cancel). The spec
- * asserts what Forge does with it: Doom Blade back in hand and offered again,
- * nothing on the stack, no Swamp tapped, bob's Memnite still there.
+ * Before release nothing has been sent, and the spec shows that two ways:
+ * no arrow while lifted, and — new under the Settled rules — still no arrow
+ * and nothing on the stack even once the held pointer has crossed into the
+ * viewer's own battlefield, since that crossing is no longer the trigger.
+ * Once released (parked, the cast sent), Forge is parked on the targeting ask
+ * it opened (Doom Blade's target is not mandatory, so Forge enables Cancel),
+ * so cancelling the gesture (`pointercancel`) from there is Forge's own
+ * Cancel. The spec asserts what Forge does with it: Doom Blade back in hand
+ * and offered again, nothing on the stack, no Swamp tapped, bob's Memnite
+ * still there.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without
  * them it SKIPS and its title says why. It also needs the app BUILT —
@@ -191,7 +198,7 @@ async function ownCardIds(page: Page, zone: 'hand' | 'battlefield', name: string
 
 const card = (page: Page, id: number): Locator => page.locator(`[data-board-card="${id}"]`);
 
-test(titled("the cast arrow, measured in a real browser: no arrow while the card is lifted, then a tail pinned where it settled and a tip on the nearest of the target card's eight edge points"), async ({ browser }) => {
+test(titled("the cast arrow, measured in a real browser: no arrow while lifted or held over the battlefield, then — at release — a tail pinned where the card parked and a tip on the nearest of the target card's eight edge points"), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -223,14 +230,14 @@ test(titled("the cast arrow, measured in a real browser: no arrow while the card
     expect(first.cards[String(dst)], "bob's creature is drawn with a real box").toBeDefined();
 
     /*
-     * The settle point: of a grid of spots over alice's own battlefield, the
+     * The park point: of a grid of spots over alice's own battlefield, the
      * one furthest from bob's creature that the BROWSER agrees is her
      * battlefield and no card (hit-tested, because other parts of the table
      * can overlap the zone's box), so the arrow drawn from it is long and its
      * two ends cannot be confused.
      */
     const dstC0 = centre(first.cards[String(dst)]!);
-    const settleSpot = await page.evaluate((far) => {
+    const parkSpot = await page.evaluate((far) => {
       const zone = document.querySelector('[data-zone="battlefield"][data-owner="you"]');
       if (zone === null) return null;
       const r = zone.getBoundingClientRect();
@@ -247,9 +254,9 @@ test(titled("the cast arrow, measured in a real browser: no arrow while the card
       }
       return best === null ? null : { x: best.x, y: best.y };
     }, dstC0);
-    expect(settleSpot, "some spot of alice's own battlefield is bare, to settle on").not.toBeNull();
-    const settleAt = settleSpot!;
-    log.push(`doom blade ${blade} at ${JSON.stringify(bladeC)}, target ${dst} at ${JSON.stringify(dstC0)}, settle at ${JSON.stringify(settleAt)}`);
+    expect(parkSpot, "some spot of alice's own battlefield is bare, to release on").not.toBeNull();
+    const parkAt = parkSpot!;
+    log.push(`doom blade ${blade} at ${JSON.stringify(bladeC)}, target ${dst} at ${JSON.stringify(dstC0)}, park at ${JSON.stringify(parkAt)}`);
 
     /* ── lifted: the card follows the pointer, and there is no arrow ── */
     await page.mouse.move(bladeC.x, bladeC.y);
@@ -263,9 +270,21 @@ test(titled("the cast arrow, measured in a real browser: no arrow while the card
     expect(away(centre(lifted!), liftedAt), "the lifted card's centre is the pointer").toBeLessThanOrEqual(TOL);
     expect(await stackCount(page), 'nothing has been cast yet').toBe(0);
 
-    /* ── the settle: one jump into the battlefield, so the settle point is exactly that spot ── */
-    await page.mouse.move(settleAt.x, settleAt.y);
-    await expect(page.getByTestId('targeter'), 'the settle draws the arrow').toHaveCount(1);
+    /*
+     * Crossing into the viewer's own battlefield while STILL HELD does
+     * nothing now — the settle this test used to assert here is deleted.
+     * Proven directly: hold the position a moment and check nothing reached
+     * Forge, before ever releasing.
+     */
+    await page.mouse.move(parkAt.x, parkAt.y);
+    await page.waitForTimeout(200);
+    await expect(page.getByTestId('targeter'), 'still no arrow: holding over the battlefield is not a release').toHaveCount(0);
+    expect(await stackCount(page), 'still nothing cast: holding over the battlefield is not a release').toBe(0);
+    await expect(card(page, blade!), 'Doom Blade is still lifted, not parked').toHaveAttribute('data-cast-lift', 'lifted');
+
+    /* ── the release: letting go over the battlefield casts it and parks it there ── */
+    await page.mouse.up();
+    await expect(page.getByTestId('targeter'), 'the release draws the arrow').toHaveCount(1);
     await expect(page.getByTestId('live-says'), 'the cast reached Forge: it opened its own targeting ask for Doom Blade').toHaveText(/Doom Blade.*target/is, {
       timeout: 10_000,
     });
@@ -279,7 +298,7 @@ test(titled("the cast arrow, measured in a real browser: no arrow while the card
      */
     const before = await page.evaluate(shoot, [dst]);
     const dstBox = before.cards[String(dst)]!;
-    const nearestBefore = eight(dstBox).reduce((best, p) => (away(p, settleAt) < away(best, settleAt) ? p : best));
+    const nearestBefore = eight(dstBox).reduce((best, p) => (away(p, parkAt) < away(best, parkAt) ? p : best));
     const corners: Point[] = [
       { x: dstBox.left + 4, y: dstBox.top + 4 },
       { x: dstBox.left + dstBox.width - 4, y: dstBox.top + 4 },
@@ -294,7 +313,7 @@ test(titled("the cast arrow, measured in a real browser: no arrow while the card
     expect(a, 'the arrow is drawn, with a shaft and a head').not.toBeNull();
     log.push(`arrow ${JSON.stringify(a)}`);
     log.push(`overlay ${JSON.stringify(m.overlay)}`);
-    log.push(`doom blade's own element after the settle: ${JSON.stringify(m.cards[String(blade)] ?? null)}`);
+    log.push(`doom blade's own element after the release: ${JSON.stringify(m.cards[String(blade)] ?? null)}`);
 
     // Forge's own two cards, and the snap: read off the DOM, as jsdom can.
     expect(a!.source).toBe(String(blade));
@@ -305,10 +324,10 @@ test(titled("the cast arrow, measured in a real browser: no arrow while the card
     const box = m.cards[String(dst)]!;
     const tail = { x: a!.x1 + m.overlay!.left, y: a!.y1 + m.overlay!.top };
     const tip = { x: a!.x2 + m.overlay!.left, y: a!.y2 + m.overlay!.top };
-    const nearestEdge = eight(box).reduce((best, p) => (away(p, settleAt) < away(best, settleAt) ? p : best));
-    log.push(`tail ${JSON.stringify(tail)} vs settle point ${JSON.stringify(settleAt)} (Doom Blade was picked up at ${JSON.stringify(bladeC)})`);
+    const nearestEdge = eight(box).reduce((best, p) => (away(p, parkAt) < away(best, parkAt) ? p : best));
+    log.push(`tail ${JSON.stringify(tail)} vs park point ${JSON.stringify(parkAt)} (Doom Blade was picked up at ${JSON.stringify(bladeC)})`);
     log.push(`tip  ${JSON.stringify(tip)} vs nearest edge point ${JSON.stringify(nearestEdge)} (pointer ${JSON.stringify(pointer)})`);
-    expect(away(tail, settleAt), `the tail is pinned where the card settled (${JSON.stringify(tail)} vs ${JSON.stringify(settleAt)})`).toBeLessThanOrEqual(TOL);
+    expect(away(tail, parkAt), `the tail is pinned where the card parked (${JSON.stringify(tail)} vs ${JSON.stringify(parkAt)})`).toBeLessThanOrEqual(TOL);
     expect(away(tail, bladeC), 'and not where the card was picked up from').toBeGreaterThan(10 * TOL);
     expect(away(tail, centre(box)), 'the tail and the target are far enough apart that the ends cannot be confused').toBeGreaterThan(20);
     expect(away(pointer, nearestEdge), 'the pointer is far from the point the tip must take, so a tip that followed it is visible').toBeGreaterThan(10 * TOL);
@@ -372,12 +391,17 @@ test(titled("the cast arrow, measured in a real browser: no arrow while the card
     const looseTip = { x: loose!.x2 + m.overlay!.left, y: loose!.y2 + m.overlay!.top };
     const looseTail = { x: loose!.x1 + m.overlay!.left, y: loose!.y1 + m.overlay!.top };
     expect(away(looseTip, empty), 'an unsnapped tip is exactly where the pointer is').toBeLessThanOrEqual(TOL);
-    expect(away(looseTail, settleAt), 'and the tail has not moved off the settle point').toBeLessThanOrEqual(TOL);
+    expect(away(looseTail, parkAt), 'and the tail has not moved off the park point').toBeLessThanOrEqual(TOL);
 
-    /* ── the cancel: the cast was Forge's from the settle, so this is Forge's own Cancel ── */
+    /*
+     * ── the cancel: the cast was Forge's from the release, so this is
+     * Forge's own Cancel. The button is already up (released above, when the
+     * cast was sent) — the aiming that follows is independent of it, same as
+     * a click-armed gesture always was, so `pointercancel` alone is the whole
+     * cancel; there is no second `mouse.up()` to send.
+     */
     await page.evaluate(cancelDrag);
     await expect(page.getByTestId('targeter')).toHaveCount(0);
-    await page.mouse.up();
     await expect
       .poll(async () => (await ownCardIds(page, 'hand', 'Doom Blade')).includes(blade!), {
         timeout: 10_000,

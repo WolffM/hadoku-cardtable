@@ -166,13 +166,15 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
     f.page.locator(`[data-testid="live-button-${which}"]:enabled`).click({ timeout: 2_000 });
   const pressPlayOrDraw = () => f.page.getByTestId('live-play-or-draw-play').click({ timeout: 2_000 });
   /**
-   * Click a card to play/cast/choose it, then settle the Arena gesture (R7)
-   * the click only ARMS for any card in the viewer's own hand — delegates to
-   * `board.ts`'s `clickHandCard` (the "why" for the settle, the `row`
-   * placement fix, and the one-jump-not-animated fix all live there now).
-   * This bot plays lands and casts spells by clicking hand cards as its two
-   * most basic acts (`decide()`, below), so without the settle, every
-   * pre-existing spec that drives a real game via `connectHands` (most of
+   * Click a card to play/cast/choose it: a press lifts it (the Arena
+   * gesture, for any card in the viewer's own hand), and a second press at
+   * the release point is what actually sends it — nothing reaches Forge
+   * before that release — delegates to `board.ts`'s `clickHandCard`
+   * (the "why" for the two-press release, the `row` placement, and the
+   * one-jump-not-animated fix all live there now). This bot plays lands and
+   * casts spells by clicking hand cards as its two most basic acts
+   * (`decide()`, below), so without that second press, every pre-existing
+   * spec that drives a real game via `connectHands` (most of
    * `table-fit.spec.ts`, `play.spec.ts`, and the w31-w36 files that call it)
    * would stall the instant it tried to play a land or cast anything, having
    * done nothing Forge or the server would ever see.

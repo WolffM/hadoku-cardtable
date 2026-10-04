@@ -423,15 +423,20 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
 
     try {
       // P12: a log line names a card the board has drawn; hovering the NAME enlarges
-      // that tile through the document inspector. Open the log and wait for a name.
+      // that tile through the document inspector. Wait for a name, THEN open the log.
       //
-      // NOT paused yet here: `hands` (the bots) are what actually plays the
-      // cards this log needs something to name in the first place — pausing
-      // before this wait starves the log of content and times out at 90s
-      // (measured directly: the very first attempt at this fix paused too
-      // early and hit exactly that, "a log line names a card…" timing out
-      // with `element(s) not found`, not the hover race this fix targets).
-      await alice.page.getByTestId('live-log-toggle').click();
+      // The log stays CLOSED for this wait: `hands` (the bots) are what
+      // actually plays the cards this log needs something to name, and the
+      // logbook is now a wide overlay that covers the board while open —
+      // leaving it open blocks every hand-card click the bots make
+      // (silently; they catch and retry forever), starving the log of card
+      // content. Its own content is in the DOM regardless of whether the
+      // panel is open — `[hidden]` only changes layout/paint — so the wait
+      // below finds a name just as well closed as open; opening is deferred
+      // until right before the hover, which does need the panel visible.
+      //
+      // NOT paused yet either: pausing before this wait also starves the
+      // log of content and times out at 90s.
       // `inspectedCardFrom` (`inspect/index.ts`) only shows a log name whose
       // id STILL has a board tile — "a card with no tile drawn... enlarges
       // nothing". A spell that already resolved and left play (an instant,
@@ -485,6 +490,11 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
       // `resume()` is this file's own documented tool for exactly this ("hold
       // it still while a spec measures the board" — `play/hands.ts`'s header).
       for (const h of hands) await h.pause();
+      // Open the log now: both bots are paused (no more card clicks for the
+      // wide overlay to block), and the hover below needs the panel actually
+      // visible, not just present in the DOM.
+      await alice.page.getByTestId('live-log-toggle').click();
+      await expect(alice.page.getByTestId('live-logbook'), 'the log opened').toBeVisible();
       // Re-resolved ONE more time, now that both bots are paused — the poll
       // above can leave `logNameHandle` pointing at a span from a moment ago,
       // and even with a tile-backed name (a land) the earlier text-vs-element
