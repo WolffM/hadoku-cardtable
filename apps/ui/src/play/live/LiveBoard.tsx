@@ -66,9 +66,11 @@
  * full-control toggle and some of the user control like the buttons you had
  * before. but i hate the log, the log must go somewhere else."* So the cluster
  * keeps every CONTROL and has no text row at all: Forge's prompt line and the
- * server's says both moved into `live-logbook`, an overlay on the left edge
- * that the phase rail vacated, **collapsed by default** behind the cluster's
- * own `Log` toggle.
+ * server's says both moved into `live-logbook`, a wide overlay starting at the
+ * left edge the phase rail vacated and reaching across the main view,
+ * **collapsed by default** behind the cluster's own `Log` toggle — see that
+ * element's own comment for the geometry and why "on the left edge" is now
+ * where it STARTS, not the whole of its box.
  *
  * The prompt line kept its test id (`live-says`). It is the only place Forge's
  * own message text is readable, and `e2e/play.spec.ts` — another lane's file —
@@ -253,9 +255,9 @@ import { roomsClient } from '../../rooms/api.ts';
 import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
-import { lookupFromState, plainRulesText, withAbilityLabels } from '../prompts/lookup.ts';
+import { lookupFromState, plainRulesText, withAbilityLabels, type PromptLookup } from '../prompts/lookup.ts';
 import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, isConfirmPrompt, isPlayOrDrawPrompt } from '../prompts/ConfirmPrompt.tsx';
-import { autoAnswer } from '../prompts/rules.ts';
+import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';
 import { isPromptMethod, PromptFor, type AskOf, type PromptMethod } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
 import {
@@ -535,12 +537,43 @@ function abilityLabelsOf(ask: LiveAsk): Record<number, string> {
 }
 
 /**
+ * How long `AutoAnswer.why` may be before the logged line keeps it beside the
+ * card's name rather than in place of it.
+ *
+ * `why` is Forge's own `SpellAbilityView.toString()` (`tier-b.ts`'s
+ * `OfferedAbilitySchema` note: "cost then description"). For an ordinary mana
+ * ability that is a few words ("Tap: Add R."); for a MODAL spell it is the
+ * whole mode menu ("Choose two — • Prevent all damage… • …"). The cutoff is
+ * chosen so the first survives beside the name and the second does not.
+ */
+const AUTO_ABILITY_LOG_MAX = 40;
+
+/**
+ * What `noteAutoAnswered` logs for an auto-answered ask — the host card's
+ * NAME, from the prompt lookup, with the ability's own label beside it only
+ * when that label is short enough to read as a caption rather than take over
+ * the line. Never the ability text alone: a modal spell's `why` is its whole
+ * mode text and the card's name is what belongs in a one-line log.
+ *
+ * `getChoices` (the lone-stack-target auto-answer, `onlyStackTarget` in
+ * `rules.ts`) is untouched: its `why` is already a stack item's own label — a
+ * spell's name — so there is no ability text to crowd it out.
+ */
+function autoAnsweredLine(ask: LiveAsk, auto: AutoAnswer, lookup: PromptLookup): string {
+  if (ask.method !== 'getAbilityToPlay' || auto.method !== 'getAbilityToPlay') return auto.why;
+  const name = lookup.card(ask.hostCard.id)?.name;
+  if (name === null || name === undefined || name === '') return auto.why;
+  return auto.why.length <= AUTO_ABILITY_LOG_MAX ? `${name} — ${auto.why}` : name;
+}
+
+/**
  * How many of the held says the logbook draws: all of them.
  *
  * It was 2 while the log lived in the control cluster, because the cluster's box
  * is fixed and its slot was two lines tall. The logbook has the height, so the
- * cap is the server's own `SAYS_KEPT` and nothing is dropped between what the
- * match holds and what the panel shows.
+ * cap is `match.ts`'s own `SAYS_KEPT` — a generously bounded whole game, not a
+ * two-line window — and nothing is dropped between what the match holds and
+ * what the panel shows.
  */
 export const SAYS_SHOWN = SAYS_KEPT;
 
@@ -1338,11 +1371,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const auto = pending === null || match.fullControl || spectator ? null : autoAnswer(pending);
   const autoCallId = auto === null || pending === null ? null : pending.callId;
   useEffect(() => {
-    if (autoCallId === null || auto === null) return;
+    if (autoCallId === null || auto === null || pending === null) return;
     // `answerAsk` refuses a callId that is no longer open, so a re-render
     // between the reply and the frame that closes it cannot answer twice.
-    if (answerAsk(match, autoCallId, auto.method, auto.reply)) noteAutoAnswered(match, auto.why);
-  }, [match, autoCallId, auto]);
+    if (answerAsk(match, autoCallId, auto.method, auto.reply)) {
+      noteAutoAnswered(match, autoAnsweredLine(pending, auto, lookupFromState(match.state)));
+    }
+  }, [match, autoCallId, auto, pending]);
   /* Nothing renders for an ask that answers itself — not even for a frame. */
   const ask = auto === null && !spectator ? pending : null;
   const bar = match.buttons;
@@ -1475,6 +1510,20 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    */
   const [logOpen, setLogOpen] = useState(false);
   const logbookId = useId();
+  /*
+   * The logbook is scrollable and keeps the newest line in view. `.live__log`
+   * (`live.css`) is the scroll owner — a bounded flex child with
+   * `overflow-y: auto`, since its content can outgrow the box — and this is
+   * what puts the bottom of it in view whenever the panel opens or a new line
+   * lands while it is already open. A closed panel is `hidden` and not
+   * rendered, so there is nothing to scroll for it.
+   */
+  const logListRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    if (!logOpen) return;
+    const el = logListRef.current;
+    if (el !== null) el.scrollTop = el.scrollHeight;
+  }, [logOpen, match.says.length]);
 
   /*
    * Board layout (item 11): a PROP of `Board`, `single` by default, read from
@@ -1697,18 +1746,22 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {/* Out of flow, over the board's right edge: it moves no canvas box. */}
       {match.view !== null && <PhaseRail view={match.view} />}
       {/*
-       * The logbook (§C.3): Forge's current message and the server's says, over
-       * the board's LEFT edge — the side the phase rail vacated — and hidden
-       * until the cluster's `Log` toggle opens it.
+       * The logbook (§C.3): Forge's current message and the server's says, a
+       * wide overlay over the main view starting at the board's LEFT edge
+       * (the side the phase rail vacated) and reaching across to short of the
+       * rail-and-controls gutter, hidden until the cluster's `Log` toggle
+       * opens it.
        *
        * It is always in the DOM and only `hidden`, which is what makes it a
        * disclosure rather than a thing that comes and goes: the toggle's
        * `aria-controls` points at a node that exists, and a spec reading Forge's
        * message off `live-says` finds it whether the panel is open or not.
        *
-       * `pointer-events: none` in `live.css`, for the same reason the phase rail
-       * has it: an overlay over the canvas must never be the thing under the
-       * cursor, or it would shadow the drag gesture on whatever it covers.
+       * `pointer-events` is `none` while collapsed and `auto` while open
+       * (`live.css`): collapsed, it must not shadow the drag gesture on
+       * whatever board it covers, the same reason the phase rail is
+       * pointer-transparent; open, it is a scrollable panel the player asked
+       * for, and a pointer-transparent box cannot be scrolled by hand.
        */}
       <div className="live__logbook" data-testid="live-logbook" id={logbookId} hidden={!logOpen}>
         {/*
@@ -1740,9 +1793,14 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         </p>
         {/*
          * The says, newest at the bottom, all of the ones the match holds. Brace
-         * notation is said in words, as every other rules text is.
+         * notation is said in words, as every other rules text is. This list is
+         * the scroll owner (`overflow-y: auto` in `live.css`); `logListRef`'s
+         * effect keeps the newest line in view rather than relying on a flex
+         * `justify-content: flex-end` trick, which only works while the whole
+         * history fits in the box — not a safe assumption against a history
+         * this long.
          */}
-        <ul className="live__log" data-testid="live-log" aria-label="Said">
+        <ul className="live__log" data-testid="live-log" aria-label="Said" ref={logListRef}>
           {match.says.slice(-SAYS_SHOWN).map((line, i) => (
             <LogLine key={i} line={line} cards={logCards} ids={logIds} theirName={theirName} />
           ))}

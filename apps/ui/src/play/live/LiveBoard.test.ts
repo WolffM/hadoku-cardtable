@@ -687,6 +687,7 @@ describe('the says, the toggle, and the ability label', () => {
   it('an offer with ONE ability is answered without drawing anything', async () => {
     const { s, m, queryByTestId } = await liveBoard();
     const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const hostName = m.view!.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === mine[0])!.card.name;
     s.send(
       parseServerFrame({
         kind: 'ask',
@@ -705,10 +706,38 @@ describe('the says, the toggle, and the ability label', () => {
     // Nothing was ever drawn for it, and nothing is left open.
     expect(queryByTestId('live-prompt')).toBeNull();
     expect(m.asks).toEqual([]);
-    // And it said what it played, in Forge's own words: a shortcut nobody can
-    // see is a swallowed click. The braces are said in words at the draw
+    // The card's name leads, with its short ability label beside it — not the
+    // ability text alone. The braces are said in words at the draw
     // (`plainRulesText`), as every other says line is.
-    expect(m.says).toContain('played {T}: Add {R}.');
+    expect(m.says).toContain(`played ${hostName} — {T}: Add {R}.`);
+  });
+
+  /*
+   * A modal spell's offered ability carries its whole mode menu as the label
+   * (Forge's own "cost then description"), which is too long to read as a
+   * caption next to the card's name — so the log keeps the name and drops the
+   * mode text rather than letting it crowd the name out.
+   */
+  it('a modal spell’s auto-answer logs the card’s name, never its whole mode text', async () => {
+    const { s, m, queryByTestId } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const hostName = m.view!.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === mine[0])!.card.name;
+    const modeText =
+      'Choose two — • Prevent all damage that would be dealt to you this turn. • Target player discards a card.';
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 'fx-modal',
+        method: 'getAbilityToPlay',
+        hostCard: { kind: 'card', id: mine[0]! },
+        abilities: [{ kind: 'spellAbility', id: 9003, label: modeText }],
+        triggerEvent: null,
+      }),
+    );
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(queryByTestId('live-prompt')).toBeNull();
+    expect(m.says).toContain(`played ${hostName}`);
+    expect(m.says.some((line) => line.includes(modeText))).toBe(false);
   });
 
   it('full control makes that same one-ability offer a question again', async () => {
@@ -1268,14 +1297,23 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     expect(declarations(liveCss(), '.live__logbook[hidden]')).toContain('display: none');
   });
 
-  it('the logbook is out of flow over the board and takes no pointer events, so it moves and blocks nothing', async () => {
+  /*
+   * The logbook is a wide overlay over the main view, not a narrow strip
+   * pinned to one edge, and it is out of flow so it moves and blocks nothing
+   * underneath it either way.
+   */
+  it('the logbook is a wide overlay over the main view, starting at the left edge', async () => {
     const { container, getByTestId } = await liveBoard();
     expect(container.querySelector('.board')!.contains(getByTestId('live-logbook'))).toBe(false);
     const decls = declarations(liveCss(), '.live__logbook');
     expect(decls).toContain('position: absolute');
-    expect(decls).toContain('pointer-events: none');
-    // On the LEFT, which is the edge the phase rail vacated (§C.4).
+    // On the LEFT, which is the edge the phase rail vacated (§C.4) — still
+    // where it STARTS, just no longer the whole of its box.
     expect(decls).toContain('left: 6px');
+    // No fixed `width` any more: `right` reaches across instead, which is what
+    // makes this an overlay over the main view rather than a side-bar.
+    expect(decls, 'no left-side-bar width').not.toContain('width:');
+    expect(decls).toContain('right: calc(var(--live-rail-w) + var(--live-gutter) + 6px)');
     /*
      * §B.4 — it opens to the FULL HEIGHT of the match (the operator's own). Both
      * insets, so the height is definite and an overfull panel clips inside itself
@@ -1288,6 +1326,55 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     expect(decls).toContain('overflow: hidden');
     // Under lane A's overlay root at z 2, like the rail.
     expect(decls).toContain('z-index: 1');
+  });
+
+  /*
+   * Pointer events: collapsed, it must not steal the drag gesture from
+   * whatever board it covers — the same reason the phase rail is
+   * pointer-transparent. Open, it is a scrollable panel the player asked to
+   * see, and a pointer-transparent box cannot be scrolled by hand.
+   */
+  it('the logbook takes no pointer events while closed, and is interactive while open', async () => {
+    const { getByTestId } = await liveBoard();
+    const toggle = getByTestId('live-log-toggle') as HTMLButtonElement;
+    const logbook = getByTestId('live-logbook');
+    expect(logbook.hasAttribute('hidden')).toBe(true);
+    expect(declarations(liveCss(), '.live__logbook')).toContain('pointer-events: none');
+    expect(declarations(liveCss(), '.live__logbook:not([hidden])')).toContain('pointer-events: auto');
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(logbook.hasAttribute('hidden')).toBe(false));
+    // A closed panel is `display: none` (asserted above) and so is never a
+    // pointer target regardless of this rule; `:not([hidden])` is the one
+    // state in which `auto` ever applies, and it is the open one.
+  });
+
+  /*
+   * Scrollable, and the newest line stays in view. jsdom lays nothing out, so
+   * the scroll POSITION cannot be asserted end to end — only that the effect
+   * runs without throwing against a real ref, and that the stylesheet gives
+   * `.live__log` the bounded, scrolling box the effect depends on.
+   */
+  it('the log list is the scroll owner, and opening it scrolls to the newest line', async () => {
+    const { s, getByTestId } = await liveBoard();
+    for (let i = 1; i <= 5; i += 1) {
+      s.send(parseServerFrame({ kind: 'notify', method: 'message', message: `line ${i}`, title: '' }));
+    }
+    const list = getByTestId('live-log') as HTMLUListElement;
+    await waitFor(() => expect(list.querySelectorAll('li')).toHaveLength(5));
+    // jsdom never gives an element real scroll dimensions (both read 0), so
+    // this cannot observe the scroll POSITION end to end — only that nothing
+    // throws when the effect runs against a real ref, both on open and on a
+    // line arriving while already open.
+    const toggle = getByTestId('live-log-toggle');
+    fireEvent.click(toggle);
+    await waitFor(() => expect(getByTestId('live-logbook').hasAttribute('hidden')).toBe(false));
+    s.send(parseServerFrame({ kind: 'notify', method: 'message', message: 'line 6', title: '' }));
+    await waitFor(() => expect(list.querySelectorAll('li')).toHaveLength(6));
+
+    const decls = declarations(liveCss(), '.live__log');
+    expect(decls).toContain('overflow-y: auto');
+    expect(decls, 'scrolling needs a bounded box, not a content-sized one').toContain('flex: 1 1 0');
   });
 
   it('is out of the flow in the right-hand gutter under the rail, so the table has the height back', () => {
@@ -1353,9 +1440,10 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // And no row for the log either — its button is its own overlay now (§B.4).
     expect(cluster, 'no log row in the cluster').not.toContain('log');
     // The text is capped in the logbook instead, where the height is not the
-    // cluster's to lose.
+    // cluster's to lose. The log ITSELF scrolls (`overflow-y: auto`) rather
+    // than clipping, since its content can outgrow the box.
     expect(declarations(css, '.live__says')).toContain('overflow: auto');
-    expect(declarations(css, '.live__log')).toContain('overflow: hidden');
+    expect(declarations(css, '.live__log')).toContain('overflow-y: auto');
     // The sizes resolve on `.live` itself, so the dev harness — which mounts it
     // with no shell — gets a fixed box too. A `var()` with no value is an
     // invalid declaration and the cluster would fall back to content size.

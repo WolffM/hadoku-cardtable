@@ -1266,10 +1266,39 @@ describe('the says, and full control', () => {
   const says = (text: string) =>
     parseServerFrame({ kind: 'notify', method: 'message', message: text, title: '' });
 
-  it('holds the last things said, newest last, capped at eight', async () => {
+  /*
+   * `SAYS_KEPT` used to be 8, mirroring the server's own per-seat cap, and the
+   * panel showed nothing further back than that. This proves the client's own
+   * cap is now generous enough that a full game's worth of lines (well past
+   * the old eight) all survive, newest last.
+   */
+  it('holds a generous history, not the server’s old eight', async () => {
     const { s, m } = await fullGame();
-    for (let i = 1; i <= SAYS_KEPT + 1; i += 1) await sendAndApply(s, m, [says(`line ${i}`)]);
-    expect(m.says).toEqual(['line 2', 'line 3', 'line 4', 'line 5', 'line 6', 'line 7', 'line 8', 'line 9']);
+    const n = 40;
+    await sendAndApply(
+      s,
+      m,
+      Array.from({ length: n }, (_, i) => says(`line ${i + 1}`)),
+    );
+    expect(m.says).toHaveLength(n);
+    expect(m.says[0]).toBe('line 1');
+    expect(m.says.at(-1)).toBe(`line ${n}`);
+  });
+
+  it('is still bounded, so a very long game cannot grow the log forever', async () => {
+    const { s, m } = await fullGame();
+    // Fill to exactly the cap in ONE round trip (`sendAndApply` sends the
+    // whole batch, then waits once), rather than one await per line — the cap
+    // is 2000, and a per-line await would make this test absurdly slow.
+    const filler = Array.from({ length: SAYS_KEPT - 1 }, (_, i) => says(`filler ${i}`));
+    await sendAndApply(s, m, [says('before the cap'), ...filler]);
+    expect(m.says).toHaveLength(SAYS_KEPT);
+    expect(m.says[0]).toBe('before the cap');
+    // One more line past the cap: the oldest line is the one that goes.
+    await sendAndApply(s, m, [says('one too many')]);
+    expect(m.says).toHaveLength(SAYS_KEPT);
+    expect(m.says).not.toContain('before the cap');
+    expect(m.says.at(-1)).toBe('one too many');
   });
 
   it('a say with no text is not a line', async () => {

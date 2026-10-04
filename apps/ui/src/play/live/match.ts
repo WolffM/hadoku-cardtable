@@ -178,7 +178,7 @@
  * passed for the player ("auto-passed Upkeep step") and every payment
  * ("paid U — Volcanic Island") arrives as one, because an auto-pass nobody
  * can see is indistinguishable from a board that froze. The client holds the
- * last few (`SAYS_KEPT`, the server's own number) and `LiveBoard` draws them.
+ * whole game, generously bounded (`SAYS_KEPT`), and `LiveBoard` draws them.
  *
  * The rule that keeps this honest: **a `message` frame changes nothing but the
  * log.** It is not an input frame — it does not set `inputLive`, does not
@@ -321,11 +321,21 @@ export const DEFAULT_ACK_TIMEOUT_MS = 10_000;
 export const DISCONNECT_GRACE_MS = 100;
 
 /**
- * How many `message` lines this client holds — the same number the server
- * keeps per seat (`apps/server/src/play/match.ts`'s `SAYS_KEPT`), so a
- * snapshot's clear-and-re-send reproduces the log it cleared.
+ * How many `message` lines this client holds — a log of the whole game,
+ * bounded only so the CLIENT's own memory stays finite over a long one.
+ *
+ * This used to equal the server's own per-seat cap (`apps/server/src/play/match.ts`'s
+ * `SAYS_KEPT`) on purpose, so a snapshot's clear-and-re-send reproduced the log
+ * it cleared exactly. That coupling is gone: the two numbers answer different
+ * questions now (how much the server re-sends on a resync vs. how much the
+ * client keeps once it has it), so this is free to be generous.
+ *
+ * The server's own cap still governs what a RECONNECT refills with — this
+ * constant only bounds what already arrived, never the catch-up a resync
+ * sends. A seat that reconnects after a long game sees its history drop to
+ * whatever the server resends, which is unrelated to the number here.
  */
-export const SAYS_KEPT = 8;
+export const SAYS_KEPT = 2000;
 
 export function socketIoMatchTransport(options: SocketIoMatchOptions = {}): MatchTransport {
   const path = options.path ?? defaultSocketPath();

@@ -789,28 +789,39 @@
 }
 
 /*
- * The logbook (wave 25 §C.3): Forge's current message and the last things the
- * server said to this seat, over the board's LEFT edge — the side the phase rail
- * vacated when it moved right.
+ * The logbook: Forge's current message and the last things the server said to
+ * this seat, as a wide overlay over the main view rather than a narrow strip
+ * pinned to one edge. It starts at the board's LEFT edge — the side the phase
+ * rail vacated when it moved right — and `right` reaches across to just short
+ * of the rail-and-controls gutter instead of stopping at a fixed `width`,
+ * which is what makes it an overlay over the table rather than a column.
+ * Because that gutter is exactly where `.live__buttons` lives too, the same
+ * measurement is what keeps the open panel off the control bar, without a
+ * second number to keep in sync with it.
  *
- * The operator kept the log and evicted it from the corner: *"i hate the log,
- * the log must go somewhere else."* It is what carries `paid U — Volcanic
- * Island`, and a cast that shows no payment looks free, so it is moved and not
- * deleted.
+ * It carries `paid U — Volcanic Island`, and a cast that shows no payment
+ * looks free, so it stays visible rather than being deleted outright.
  *
- * Out of flow and `pointer-events: none`, for exactly the reason the phase rail
- * is: the canvas is static, an overlay cannot move a grid track, and an overlay
- * over the table must never become the element under the cursor or it would
- * shadow the drag gesture on whatever it covers. `z-index: 1` puts it over the
- * table's own cards and under lane A's overlay root at z 2.
+ * Out of flow for the reason the phase rail is: the canvas is static, and an
+ * overlay cannot move a grid track. `z-index: 1` puts it over the table's own
+ * cards and under lane A's overlay root at z 2.
  *
- * **It opens to the full height of the match** (wave 26 §B.4, the operator's
- * own): `top` and `bottom` are both set, so the panel is the height of `.live`
- * less its margins. That is a definite height and not a content one, so an
- * overfull panel clips inside itself rather than growing `.live`'s scroll box —
- * which `e2e/table-fit.spec.ts` would see as the match breaching its own box.
- * The six pixels top and bottom are what keeps it inside the window, which the
- * same spec measures on every frame.
+ * **Pointer events are OFF while collapsed and ON while open.** Collapsed, it
+ * must not shadow the drag gesture on whatever board it covers — the same
+ * reason the phase rail is pointer-transparent. Open, it is a panel the
+ * player asked to see, and it is meant to be scrollable, so it has to accept
+ * the pointer to be dragged or wheeled. `:not([hidden])` is the one legal
+ * moment for `auto` — a closed panel is `display: none` regardless (below)
+ * and takes no events either way, so this never reaches the board under a
+ * collapsed log.
+ *
+ * **It opens to the full height of the match.** `top` and `bottom` are both
+ * set, so the panel is the height of `.live` less its margins. That is a
+ * definite height and not a content one, so an overfull panel clips inside
+ * itself rather than growing `.live`'s scroll box — which `e2e/table-fit.spec.ts`
+ * would see as the match breaching its own box. The six pixels top and bottom
+ * are what keeps it inside the window, which the same spec measures on every
+ * frame.
  */
 .live__logbook {
   position: absolute;
@@ -818,7 +829,7 @@
   left: 6px;
   top: 6px;
   bottom: 6px;
-  width: 15rem;
+  right: calc(var(--live-rail-w) + var(--live-gutter) + 6px);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -829,6 +840,10 @@
   color: var(--ink);
   overflow: hidden;
   pointer-events: none;
+}
+
+.live__logbook:not([hidden]) {
+  pointer-events: auto;
 }
 
 /*
@@ -842,19 +857,24 @@
 }
 
 /*
- * The says. Lines are pinned to the BOTTOM so the newest is always the bottom
- * line, and the panel keeps all of the ones the match holds (`SAYS_KEPT`) rather
- * than the two the cluster's fixed row had space for.
+ * The says, newest at the bottom. The list is SCROLLABLE (`overflow-y: auto`)
+ * rather than clipping, because its content can outgrow the box and `hidden`
+ * would otherwise just cut the oldest lines off with no way to read them. The
+ * flex column plus `LiveBoard.tsx`'s own scroll-to-bottom effect is what keeps
+ * the newest line in view on open and on every new line, without fighting the
+ * scrollbar the player is free to drag back up.
  */
 .live__log {
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
-  justify-content: flex-end;
   min-width: 0;
   min-height: 0;
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
   list-style: none;
   font-size: 12px;
   line-height: 1.3;
