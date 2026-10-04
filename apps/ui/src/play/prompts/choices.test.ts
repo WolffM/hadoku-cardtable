@@ -21,6 +21,7 @@ import { cleanup, fireEvent } from '@testing-library/react';
 
 import { askFor, asksFor } from './fixtures.ts';
 import { EMPTY_LOOKUP, type PromptLookup } from './lookup.ts';
+import { nameFromForgeLabel } from './PromptShell.tsx';
 import { expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
@@ -535,15 +536,36 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     expect(names).toEqual(POOL.map((_, i) => labelFor(i)));
   });
 
-  it('a card the lookup knows nothing about still shows its label, and draws no art', () => {
+  // The operator's report, 2026-10-03: Forge AI revealed a card from its own
+  // library, the lookup held nothing for it, and the tile drew no art.
+  it('a card the lookup knows nothing about shows its label and draws the art of the name inside it', () => {
     const ask = {
       ...revealAsk(),
-      choices: [{ key: 'c0', label: 'Mox Opal (130)', ref: { kind: 'card' as const, id: 4242 } }],
+      choices: [{ key: 'c0', label: 'Island (129)', ref: { kind: 'card' as const, id: 129 } }],
     };
     const { getByTestId } = mountPrompt('getChoices', ask, EMPTY_LOOKUP);
     const grid = getByTestId('prompt-cards');
-    expect(grid.querySelector('.card__name')!.textContent).toBe('Mox Opal (130)');
-    expect(grid.querySelector('img.card__art')).toBeNull();
+    expect(grid.querySelector('.card__name')!.textContent).toBe('Island (129)');
+    const island = KNOWN_ART_IDS.get('Island');
+    expect(island, 'the table has a bare-name Island row').toBeDefined();
+    expect(grid.querySelector('img.card__art')!.getAttribute('src')).toBe(cardImageUrl(island!));
+  });
+
+  it('nameFromForgeLabel reads the name out of every shape CardView.toString() renders', () => {
+    expect(nameFromForgeLabel('Island (129)', 129)).toBe('Island');
+    expect(nameFromForgeLabel('[Main game: Library] Island (129)', 129)).toBe('Island');
+    expect(nameFromForgeLabel('Fire // Ice (77)', 77)).toBe('Fire // Ice');
+    expect(nameFromForgeLabel('Island (130)', 129)).toBe('Island (130)');
+    expect(nameFromForgeLabel('Island', 129)).toBe('Island');
+  });
+
+  it('a label whose parenthesis is not this card\'s id is not guessed at: no art', () => {
+    const ask = {
+      ...revealAsk(),
+      choices: [{ key: 'c0', label: 'Island (130)', ref: { kind: 'card' as const, id: 4242 } }],
+    };
+    const { getByTestId } = mountPrompt('getChoices', ask, EMPTY_LOOKUP);
+    expect(getByTestId('prompt-cards').querySelector('img.card__art')).toBeNull();
   });
 });
 

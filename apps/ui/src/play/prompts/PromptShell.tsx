@@ -247,12 +247,27 @@ export function promptCardTile(forgeId: number, name: string, setCode = '', labe
  * `../live/prompts.jvm.test.ts` (§F.2), which prints what the lookup held for
  * every id a reveal labelled.
  *
- * When the lookup knows nothing the label is the only name there is, so it is
- * used for both jobs: a shortcut may remove a question, never information, and
- * a card with no facts still says what it was called.
+ * When the lookup knows nothing, the label is the only name there is. The tile
+ * still says it verbatim, but the identity is the label with Forge's decoration
+ * removed (`nameFromForgeLabel`), so the art resolves on the bare name instead of
+ * on `Island (129)`.
  */
 export function promptTileFor(lookup: PromptLookup, forgeId: number, label?: string): DraftCard {
   const facts = lookup.card(forgeId);
-  const identity = facts?.name ?? label ?? `card #${forgeId}`;
+  const identity = facts?.name ?? (label === undefined ? `card #${forgeId}` : nameFromForgeLabel(label, forgeId));
   return promptCardTile(forgeId, identity, facts?.setCode ?? '', label);
+}
+
+/**
+ * The card name inside a `CardView.toString()` label: Forge renders
+ * `(zoneText + ' ' + name + " (" + id + ")").trim()` (`CardView.java:1215-1233`),
+ * where `zoneText` is a bracketed `[Main game: Library]` only for a card in a
+ * subgame's sideboard (`CardView.java:1189-1211`). The suffix is stripped only
+ * when its id is this card's own, so a label that merely ends in a parenthesis is
+ * left alone.
+ */
+export function nameFromForgeLabel(label: string, forgeId: number): string {
+  const suffix = ` (${forgeId})`;
+  if (!label.endsWith(suffix)) return label;
+  return label.slice(0, -suffix.length).replace(/^\[[^\]]*\] /, '');
 }
