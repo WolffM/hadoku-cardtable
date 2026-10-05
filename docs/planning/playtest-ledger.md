@@ -219,6 +219,31 @@ demo, https://claude.ai/artifact/3Y1E4pvAnWj1NgKbE5Hrx7, not yet a wave). V4 and
 | V9 | the log is shown over the main screen, not confined to the left side bar | 1 (with V7) | shipped w39 | today `live__logbook` is an overlay on the left edge (`LiveBoard.tsx` ≈:1713) | open the log during a game |  |
 | V10 | the active player's ring is slightly off-centre on the avatar; make it a bit bigger and move the life total down a few pixels to make room | 2 (with Q1, the ring) | shipped w39 | `29d7235` made it a circle, measured only in an isolated page with the real CSS; the off-centre needs measuring on the real seat bar | your turn: look at your avatar |  |
 
+## Playtest 7 — 2026-10-04 (evening), on UI 0.32.12 (`a567082`, w39 + w40), match `m-09487f336215`
+
+The first game on the w39 drag. It ended in a soft-lock (W18). W3, W4 and W8 shipped the same evening.
+
+| ID | item | asked | status | evidence | check it by | your check |
+| --- | --- | --- | --- | --- | --- | --- |
+| W1 | the coin toss is shown to BOTH players at once; the loser sees a waiting prompt; the same while the opponent decides a mulligan | 1 (with R2) | planned | the other seat sees nothing while one seat decides play/draw or a mulligan | second browser, watch the first decide |  |
+| W2 | choosing cards for a mulligan: you cannot tell what is selected, everything is green | 1 | planned | selected and selectable share the accent | London mulligan bottom-pick |  |
+| W3 | no text above a lifted card ("let go: play it") | 1 | **shipped `51fc65a`** (UI 0.32.13) | the verdict label is deleted; its tests now assert no label (the label came from the tracker's demo, not from an ask) | drag any card |  |
+| W4 | right-click never opens the browser menu on the board | 1 (with V2) | **shipped `51fc65a`** | the board suppresses it always | right-click anywhere on the board |  |
+| W5 | a card brought back over the hand and then left-clicked goes back into the hand | 1 | planned | (to read: the click-armed path after a float-back) | drag out, back over the hand, click |  |
+| W6 | stacking cards makes a scroll bar on the board and reshapes the page — never a scroll bar on the board | 1 (the T11 / table-fit family) | planned |  | stack 3+ cards in one slot |  |
+| W7 | dropping a card ON another to stack is too sensitive to left/right; on-top should be easier | 2 (with R9) | planned | the drop zones are thirds of the card (Board.tsx) | drag a land onto a land |  |
+| W8 | the hover zoom always shows above everything; the control bar drew over it | 2 (with T1, Q16) | **shipped `51fc65a`** | new top layer `--z-zoom: 60`, tested above every other layer | hover a card near the control bar |  |
+| W9 | the arrow for Grasp of Darkness snapped to a player avatar; only Forge's legal targets may take the arrow | 1 (with L6) | planned — **soft-lock cause** | the arrow snaps to any player face; in m-09487f336215 that sent a refused selectPlayer twice | cast a creature-only removal |  |
+| W10 | in Main 2 with nothing castable, a land tapped once could not be untapped by a click; after Undo it could not be tapped again | 1 (with R15, V6) | planned (engine) | (to read: whether Forge stops offering the land once nothing is castable) | tap a land in Main 2 with nothing to cast |  |
+| W11 | a revealed Forest drew a different (old) art than the other Forest | 1 (with V-reveal, 9eab80d) | planned | a revealed card whose face reached the seat late resolves art by name only, which picks the table's generic printing; the decode race (w40 B, unmeasured) is the root | reveal two basics from the library |  |
+| W12 | four lands stacked in one slot: one of them is drawn smaller | 1 | planned |  | stack four lands |  |
+| W13 | smooth animations everywhere, like the float-back: tapping lands, and the rest | 2 (with R12, deferred to v2 by you on 2026-10-02) | planned | R12 is back in scope by this ask | tap a land |  |
+| W14 | attacking by arrow is awkward: the player is not shown as a valid target, and after attackers tap a persistent arrow should show what each attacks | 1 | planned |  | attack a planeswalker and a player |  |
+| W15 | planeswalker loyalty shows as a changing value, like power/toughness | 1 | planned |  | activate a loyalty ability |  |
+| W16 | Worldbreaker on the stack: the choice it needs was never explained — such decisions get the decision pop-up | 1 | planned |  | cast Worldbreaker |  |
+| W17 | after a Worldbreaker choice the arrow came from the top-right of the screen, not from the card on the stack | 1 | planned | the arrow's origin falls back to (0,0)-ish when its source has no element | cast Worldbreaker, pick its target |  |
+| W18 | Sanctum of Ugin's "you may sacrifice" showed an arrow instead of a yes/no; then the game soft-locked | 1 | planned — **soft-lock** | the lock itself (log, m-09487f336215): Relentless Dead's death trigger asked for a ZOMBIE CARD IN THE GRAVEYARD; the arrow offered players (W9), the browser sent selectPlayer twice, refused; no board element can pick a graveyard card or decline | the same board: Kozilek's Return killing Relentless Dead |  |
+
 ## Asks outside a play-test — 2026-10-02
 
 | ID | item | asked | status | evidence | check it by | your check |
