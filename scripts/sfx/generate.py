@@ -1,5 +1,8 @@
 """Generate candidate sound effects with Stable Audio Open on the local GPU.
 
+Every colour identity has three sounds (operator, 2026-10-05): a spell (instant or sorcery) cast,
+a creature arriving, and a land played. Game moments have one each.
+
 Takes for every sound in prompts.json (the 26 colour identities, colourless,
 and the game moments), written OUTSIDE the repo: audio bytes never enter git,
 and the picked files go to the CDN like card art. Each take gets a sidecar
@@ -31,14 +34,58 @@ MODEL = 'stabilityai/stable-audio-open-1.0'
 NEGATIVE = 'music, melody, song, speech, voice, vocals, singing, low quality, muffled, clipping, distortion, hum, silence'
 
 
+# What each colour sounds like as a creature arriving and as a land being played. Combinations join their
+# colours' cues; three or more colours lean on the identity's own vibe, so the prompt does not turn to mush.
+CREATURE = {
+    'W': 'a knight or angel arriving, armour settling and a soft holy swell',
+    'U': 'a sea or sky creature, a rush of water or wind',
+    'B': 'an undead thing rising, a low growl and rattling bones',
+    'R': 'a goblin or dragon bursting in, a snarl and a lick of flame',
+    'G': 'a big beast landing, heavy footsteps and a deep growl',
+    'C': 'a construct powering up, metal joints and a mechanical whirr',
+}
+TERRAIN = {
+    'W': 'open plains, warm wind over grass',
+    'U': 'an island shore, a single lapping wave',
+    'B': 'a dark swamp, a slow bubbling bog',
+    'R': 'a mountain, rumbling rock and gravel',
+    'G': 'a deep forest, rustling leaves and creaking wood',
+    'C': 'an ancient stone monument, a resonant hum',
+}
+ROLES = ('spell', 'creature', 'land')
+
+
+def colours_of(sid):
+    return ['C'] if sid == 'C' else list(sid)
+
+
 def prompt_for(s):
     if s['kind'] == 'moment':
         return f"{s['vibe']} Short game sound effect for a card game: {s['name'].lower()}. Clean, dry, close, one shot."
-    return f"{s['vibe']} Fantasy card game spell cast sound effect, one shot, crisp attack, short clean tail, high quality."
+    role, cols = s['role'], colours_of(s['base'])
+    if role == 'spell':
+        return f"{s['vibe']} Fantasy card game spell cast sound effect, one shot, crisp attack, short clean tail, high quality."
+    if role == 'creature':
+        cue = ' and '.join(CREATURE[c] for c in cols) if len(cols) <= 2 else s['vibe'].rstrip('.')
+        return f"A creature enters the battlefield: {cue}. {s['name']} flavour. Fantasy card game sound effect, one shot, weighty arrival, short clean tail, high quality."
+    terrain = ' and '.join(TERRAIN[c] for c in cols) if len(cols) <= 2 else ', '.join(TERRAIN[c].split(',')[0] for c in cols)
+    return f"A land card is played: {terrain}. A short grounded thump with a brief ambience of the place. Fantasy card game sound effect, one shot, calm, high quality."
 
 
 def seconds_for(s):
-    return 1.0 if s['kind'] == 'moment' else 2.0
+    return 1.0 if s['kind'] == 'moment' else (1.5 if s.get('role') == 'land' else 2.0)
+
+
+def expand(sounds):
+    """A colour identity becomes three sounds, <id>.spell / .creature / .land; a game moment stays one."""
+    out = []
+    for s in sounds:
+        if s['kind'] == 'moment':
+            out.append(s)
+            continue
+        for role in ROLES:
+            out.append({**s, 'id': f"{s['id']}.{role}", 'base': s['id'], 'role': role})
+    return out
 
 
 def render(pipe, prompt, seed, s, args, negative):
@@ -80,10 +127,12 @@ def main():
         for s in sounds:
             if overrides.get(s['id'], '').strip():
                 s['vibe'] = overrides[s['id']].strip()
+    sounds = expand(sounds)
     if args.only:
+        # `UB` means all three of Dimir's sounds; `UB.creature` means one
         want = set(args.only.split(','))
-        sounds = [s for s in sounds if s['id'] in want]
-        missing = want - {s['id'] for s in sounds}
+        sounds = [s for s in sounds if s['id'] in want or s.get('base') in want]
+        missing = {w for w in want if not any(x['id'] == w or x.get('base') == w for x in sounds)}
         if missing:
             sys.exit(f'unknown ids: {sorted(missing)}')
 
@@ -109,7 +158,7 @@ def main():
             audio = render(pipe, prompt, seed, s, args, negative)
             sf.write(base + '.wav', audio.T.float().cpu().numpy(), rate)
             json.dump({
-                'id': s['id'], 'name': s['name'], 'prompt': prompt, 'negative': negative, 'seed': seed,
+                'id': s['id'], 'name': s['name'], 'role': s.get('role'), 'prompt': prompt, 'negative': negative, 'seed': seed,
                 'steps': args.steps, 'cfg': args.cfg, 'seconds': seconds_for(s), 'model': MODEL,
                 'licence': 'Stability AI Community License (stable-audio-open-1.0 LICENSE.md)',
             }, open(base + '.json', 'w'), indent=1)
