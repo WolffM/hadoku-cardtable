@@ -205,3 +205,20 @@ until a TSX lane wires it up.
 
 Exit 0. **101 files, 3371 passed, 73 skipped** (run both before and after the e2e work, identical
 numbers both times — `/tmp/claude-1000/w44-A/check.log`, `check-final.log`).
+
+## Reverted on main (manager, 2026-10-05)
+
+CI run 37256264858 on `1b032aa` failed forge-e2e in exactly one spec, `table-fit.spec.ts:716`:
+`alice: every frame fits (first breaches: "battlefield of 1 cards scrolls inside itself", 1280x800,
+turn 1)` — five consecutive frames 8–30 ms apart, i.e. an animation in flight. Neither the lane nor
+the manager had run `table-fit` before landing; the "table-fit is unaffected" claim above was
+reasoned, not run.
+
+Mechanism: the turned state switches `.card` to `position: absolute; top: 50%; left: 50%` in one
+frame while `transform` animates from `none` to `translate(-50%, -50%) rotate(90deg)`, so for the
+first frames the card's corner sits at the box centre and the card hangs out of the battlefield.
+Even a rotation-only animation overflows: a portrait card is taller than the landscape box it
+turns into, and at 45° its bounding box is ~1.2× the box width each way. A tap animation in this
+layout needs the zone to tolerate (or clip) transient overflow — a `board.css` / layout question
+outside this CSS-only lane. `card.css` and `e2e/motion.spec.ts` were reverted to `e5d6dfd`; this
+evidence stays for the next wave.
