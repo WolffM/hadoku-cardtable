@@ -54,7 +54,7 @@ policy. It may be correct Magic (instants before blocks); if so, say so to the o
 
 ## X3 — stack as a carousel plus a big top-item view
 
-The demo is published: https://claude.ai/artifact/BuHpMHijb3rTncHnqnCzZa. It shows
+The demo is published: https://claude.ai/artifact/7gHwzveqpi4EiZKdVTJ6EX. It shows
 thumbnails with the top first, numbered, with an owner strip in blue (mine) or amber
 (theirs). Below them is a large view of the top item (art, name, text, controller,
 → target). Clicking a thumbnail inspects that item. **Waiting for the operator to
