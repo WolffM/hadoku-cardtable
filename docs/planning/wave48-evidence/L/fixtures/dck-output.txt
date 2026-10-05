@@ -1,0 +1,23 @@
+=== Mishra's Workshop fixture (TS pipeline, real corpus) — Legacy 2010-07-16, expect REFUSED ===
+mode: every deck against the pool for 2010-07-16 (issues are the point)
+mode: --dir=../../../../../../../tmp/claude-1000/w48/L/fixtures/dck-workshop, not yet in catalog.ts — family=legacy
+  ../../../../../../../tmp/claude-1000/w48/L/fixtures/dck-workshop/fixture.dck: 1 issue(s) in Legacy (M11)
+      [banned] plays 2x Mishra's Workshop, which Legacy (M11) bans
+
+decks 1, clean 0, issues 1
+
+=== Survival of the Fittest fixture (TS pipeline, real corpus) — Legacy 2010-07-16 (before the ban), expect LEGAL ===
+mode: every deck against the pool for 2010-07-16 (issues are the point)
+mode: --dir=../../../../../../../tmp/claude-1000/w48/L/fixtures/dck-survival, not yet in catalog.ts — family=legacy
+  ../../../../../../../tmp/claude-1000/w48/L/fixtures/dck-survival/fixture.dck: OK — ANT (Frizork) legal in Legacy (M11)
+      cited: https://www.mtgtop8.com/event?e=510&d=206723&f=LE
+
+decks 1, clean 1, issues 0
+
+=== Survival of the Fittest fixture (TS pipeline, real corpus) — Legacy 2011-01-01 (after the ban), expect REFUSED ===
+mode: every deck against the pool for 2011-01-01 (issues are the point)
+mode: --dir=../../../../../../../tmp/claude-1000/w48/L/fixtures/dck-survival, not yet in catalog.ts — family=legacy
+  ../../../../../../../tmp/claude-1000/w48/L/fixtures/dck-survival/fixture.dck: 1 issue(s) in Legacy (2011-01-01)
+      [banned] plays 2x Survival of the Fittest, which Legacy (2011-01-01) bans
+
+decks 1, clean 0, issues 1

@@ -1,0 +1,366 @@
+{
+ "era": {
+  "year": 2005,
+  "season_start": "2004-10-20",
+  "start": "2005-08-20",
+  "end": "2005-10-20",
+  "snapshot_file": "2005-08-20",
+  "format": "Legacy (9ED)",
+  "sets": "LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, WTH, TMP, STH, EXO, USG, ATH, ULG, 6ED, UDS, MMQ, BRB, NMS, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED",
+  "banned": [
+   "Amulet of Quoz",
+   "Ancestral Recall",
+   "Balance",
+   "Bazaar of Baghdad",
+   "Black Lotus",
+   "Black Vise",
+   "Bronze Tablet",
+   "Channel",
+   "Chaos Orb",
+   "Contract from Below",
+   "Darkpact",
+   "Demonic Attorney",
+   "Demonic Consultation",
+   "Demonic Tutor",
+   "Dream Halls",
+   "Earthcraft",
+   "Entomb",
+   "Falling Star",
+   "Fastbond",
+   "Frantic Search",
+   "Goblin Recruiter",
+   "Grim Monolith",
+   "Gush",
+   "Hermit Druid",
+   "Illusionary Mask",
+   "Jeweled Bird",
+   "Land Tax",
+   "Library of Alexandria",
+   "Mana Crypt",
+   "Mana Drain",
+   "Mana Vault",
+   "Memory Jar",
+   "Metalworker",
+   "Mind Over Matter",
+   "Mind Twist",
+   "Mind's Desire",
+   "Mishra's Workshop",
+   "Mox Emerald",
+   "Mox Jet",
+   "Mox Pearl",
+   "Mox Ruby",
+   "Mox Sapphire",
+   "Necropotence",
+   "Oath of Druids",
+   "Rebirth",
+   "Replenish",
+   "Skullclamp",
+   "Sol Ring",
+   "Strip Mine",
+   "Tempest Efreet",
+   "Time Spiral",
+   "Time Walk",
+   "Timetwister",
+   "Timmerian Fiends",
+   "Tinker",
+   "Tolarian Academy",
+   "Vampiric Tutor",
+   "Wheel of Fortune",
+   "Windfall",
+   "Worldgorger Dragon",
+   "Yawgmoth's Bargain",
+   "Yawgmoth's Will"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 206751,
+   "event": 190,
+   "archetype": "R Vial Goblins",
+   "player": "Michael Riley",
+   "event_name": "GenCon 2005 Legacy Championship",
+   "stars": 2,
+   "rank": "1",
+   "date": "2005-08-29",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 29,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 2.21,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 41.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Gempalm Incinerator": 2,
+     "Goblin Lackey": 4,
+     "Goblin Matron": 4,
+     "Goblin Piledriver": 4,
+     "Goblin Ringleader": 4,
+     "Goblin Sharpshooter": 1,
+     "Goblin Warchief": 4,
+     "Kiki-Jiki, Mirror Breaker": 1,
+     "Mogg Fanatic": 4,
+     "Siege-Gang Commander": 1,
+     "Skirk Prospector": 1,
+     "Lightning Bolt": 4,
+     "Aether Vial": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 206752,
+   "event": 190,
+   "archetype": "R Tiger Sligh",
+   "player": "Peter Franke",
+   "event_name": "GenCon 2005 Legacy Championship",
+   "stars": 2,
+   "rank": "2",
+   "date": "2005-08-29",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 19,
+    "avg_cmc": 1.98,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 56.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Ball Lightning": 4,
+     "Goblin Sledder": 4,
+     "Mogg Fanatic": 4,
+     "Slith Firewalker": 4,
+     "Cursed Scroll": 3,
+     "Fireblast": 4,
+     "Goblin Vandal": 2,
+     "Incinerate": 4,
+     "Jackal Pup": 4,
+     "Lightning Bolt": 4,
+     "Magma Jet": 4,
+     "Mogg Flunkies": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 206753,
+   "event": 190,
+   "archetype": "UW Landstill",
+   "player": "Zvi Mowshowitz",
+   "event_name": "GenCon 2005 Legacy Championship",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2005-08-29",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 2,
+    "counters": 8,
+    "sweepers": 8,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 3.19,
+    "pips": {
+     "W": 26.0,
+     "U": 24.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Eternal Dragon": 2,
+     "Brainstorm": 3,
+     "Counterspell": 4,
+     "Disenchant": 2,
+     "Fact or Fiction": 1,
+     "Force of Will": 4,
+     "Swords to Plowshares": 4,
+     "Akroma's Vengeance": 2,
+     "Decree of Justice": 2,
+     "Wrath of God": 4,
+     "Standstill": 4,
+     "Crucible of Worlds": 2,
+     "Nevinyrral's Disk": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 207202,
+   "event": 595,
+   "archetype": "Burn",
+   "player": "Xenoq",
+   "event_name": "Big Arse II - New York (USA)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2005-07-17",
+   "summer": false,
+   "s": 0.5333333333333333,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 19,
+    "avg_cmc": 1.59,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 38.0,
+     "G": 4.0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Fireblast": 3,
+     "Lava Dart": 4,
+     "Lightning Bolt": 4,
+     "Chain Lightning": 4,
+     "Magma Jet": 4,
+     "Quirion Dryad": 4,
+     "Grim Lavamancer": 4,
+     "Jackal Pup": 4,
+     "Mogg Fanatic": 4,
+     "Kird Ape": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "alternates": [],
+ "pool_size": 4,
+ "rejected_illegal": [
+  {
+   "archetype": "Not Quite Gro",
+   "deck": 207201,
+   "player": "Cavern Ninja",
+   "why": [
+    "Accumulated Knowledge (not in legal sets)",
+    "Daze (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UR Landstill",
+   "deck": 206755,
+   "player": "Raymond Robilland",
+   "why": [
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "WRG Zoo",
+   "deck": 206757,
+   "player": "Matt Holmen",
+   "why": [
+    "Blastoderm (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Landstill (UWr)",
+   "deck": 207203,
+   "player": "RayD3",
+   "why": [
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "RGSA",
+   "deck": 207205,
+   "player": "Jeff",
+   "why": [
+    "Reverent Silence (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Crappy Survival Junk",
+   "deck": 207206,
+   "player": "Watcher487",
+   "why": [
+    "Stampede Driver (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Angel Stompy Variant",
+   "deck": 207208,
+   "player": "Philip Stolze",
+   "why": [
+    "Seal of Cleansing (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "RW Vial Goblins",
+   "player": "Noah Swartz",
+   "kept": "R Vial Goblins",
+   "kept_player": "Michael Riley"
+  },
+  {
+   "dropped": "Vial Goblins",
+   "player": "Matt Carl",
+   "kept": "R Vial Goblins",
+   "kept_player": "Michael Riley"
+  },
+  {
+   "dropped": "Landstill",
+   "player": "BoTs",
+   "kept": "UW Landstill",
+   "kept_player": "Zvi Mowshowitz"
+  }
+ ],
+ "objective": -6.9921141086977405,
+ "pool_colors": {
+  "R": 3,
+  "W": 1,
+  "U": 1
+ },
+ "pool_styles": {
+  "aggro": 3,
+  "control": 1
+ }
+}

@@ -1,0 +1,638 @@
+{
+ "era": {
+  "year": 2006,
+  "season_start": "2005-10-20",
+  "start": "2006-08-20",
+  "end": "2006-10-20",
+  "snapshot_file": "2006-08-20",
+  "format": "Legacy (CSP)",
+  "sets": "LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP",
+  "banned": [
+   "Amulet of Quoz",
+   "Ancestral Recall",
+   "Balance",
+   "Bazaar of Baghdad",
+   "Black Lotus",
+   "Black Vise",
+   "Bronze Tablet",
+   "Channel",
+   "Chaos Orb",
+   "Contract from Below",
+   "Darkpact",
+   "Demonic Attorney",
+   "Demonic Consultation",
+   "Demonic Tutor",
+   "Dream Halls",
+   "Earthcraft",
+   "Entomb",
+   "Falling Star",
+   "Fastbond",
+   "Frantic Search",
+   "Goblin Recruiter",
+   "Grim Monolith",
+   "Gush",
+   "Hermit Druid",
+   "Illusionary Mask",
+   "Imperial Seal",
+   "Jeweled Bird",
+   "Land Tax",
+   "Library of Alexandria",
+   "Mana Crypt",
+   "Mana Drain",
+   "Mana Vault",
+   "Memory Jar",
+   "Metalworker",
+   "Mind Over Matter",
+   "Mind Twist",
+   "Mind's Desire",
+   "Mishra's Workshop",
+   "Mox Emerald",
+   "Mox Jet",
+   "Mox Pearl",
+   "Mox Ruby",
+   "Mox Sapphire",
+   "Necropotence",
+   "Oath of Druids",
+   "Rebirth",
+   "Replenish",
+   "Skullclamp",
+   "Sol Ring",
+   "Strip Mine",
+   "Tempest Efreet",
+   "Time Spiral",
+   "Time Walk",
+   "Timetwister",
+   "Timmerian Fiends",
+   "Tinker",
+   "Tolarian Academy",
+   "Vampiric Tutor",
+   "Wheel of Fortune",
+   "Windfall",
+   "Worldgorger Dragon",
+   "Yawgmoth's Bargain",
+   "Yawgmoth's Will"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 206961,
+   "event": 537,
+   "archetype": "Solidarity",
+   "player": "Mike \"Herbig\" Herbig",
+   "event_name": "Kadilak's Dual Land Draft II - Syracuse (New York, USA)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2006-08-05",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 0,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 2.31,
+    "pips": {
+     "W": 0,
+     "U": 53.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Reset": 4,
+     "High Tide": 4,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Impulse": 4,
+     "Remand": 4,
+     "Turnabout": 3,
+     "Cunning Wish": 3,
+     "Flash of Insight": 2,
+     "Brain Freeze": 2,
+     "Meditate": 4,
+     "Opt": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 265148,
+   "event": 11468,
+   "archetype": "Goblins",
+   "player": "Tom Smart",
+   "event_name": "Grand Prix Philadelphia 2005 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2005-11-12",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 39,
+    "lands": 22,
+    "creatures": 32,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.33,
+    "pips": {
+     "W": 3.0,
+     "U": 0,
+     "B": 0,
+     "R": 40.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Gempalm Incinerator": 4,
+     "Goblin King": 1,
+     "Goblin Lackey": 4,
+     "Goblin Matron": 4,
+     "Goblin Piledriver": 4,
+     "Goblin Ringleader": 4,
+     "Goblin Sharpshooter": 1,
+     "Goblin Warchief": 4,
+     "Kiki-Jiki, Mirror Breaker": 1,
+     "Mogg Fanatic": 4,
+     "Siege-Gang Commander": 1,
+     "Aether Vial": 4,
+     "Swords to Plowshares": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 265149,
+   "event": 11468,
+   "archetype": "GAT",
+   "player": "James Tang",
+   "event_name": "Grand Prix Philadelphia 2005 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2005-11-12",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 8,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 16,
+    "burn": 0,
+    "avg_cmc": 2.1,
+    "pips": {
+     "W": 0,
+     "U": 38.0,
+     "B": 8.0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Psychatog": 4,
+     "Quirion Dryad": 4,
+     "Berserk": 3,
+     "Brainstorm": 4,
+     "Counterspell": 4,
+     "Fact or Fiction": 3,
+     "Force of Will": 4,
+     "Night's Whisper": 4,
+     "Opt": 4,
+     "Serum Visions": 4,
+     "Sleight of Hand": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 207213,
+   "event": 596,
+   "archetype": "Rogue Deadguy Ale: A Homebrew",
+   "player": "Chris Pikula",
+   "event_name": "Grand Prix Philadelphia 2005",
+   "stars": 1,
+   "rank": "2",
+   "date": "2005-11-13",
+   "summer": false,
+   "s": 0.4615384615384615,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 6.0,
+     "U": 0,
+     "B": 50.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Dark Confidant": 4,
+     "Hypnotic Specter": 4,
+     "Nantuko Shade": 3,
+     "Cursed Scroll": 2,
+     "Dark Ritual": 4,
+     "Duress": 4,
+     "Engineered Plague": 2,
+     "Gerrard's Verdict": 2,
+     "Hymn to Tourach": 4,
+     "Sinkhole": 4,
+     "Vindicate": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 206738,
+   "event": 108,
+   "archetype": "RecSur",
+   "player": "Luca Verdiani",
+   "event_name": "Grand Prix Lille 2005",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "2005-12-18",
+   "summer": false,
+   "s": 0.38622869397848747,
+   "f": {
+    "spells": 40,
+    "lands": 21,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 1,
+    "burn": 1,
+    "avg_cmc": 2.25,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 11.0,
+     "R": 1.0,
+     "G": 25.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Sword of Fire and Ice": 1,
+     "Recurring Nightmare": 1,
+     "Duress": 3,
+     "Cabal Therapy": 4,
+     "Swords to Plowshares": 4,
+     "Survival of the Fittest": 4,
+     "Llanowar Elves": 2,
+     "Yavimaya Elder": 1,
+     "Withered Wretch": 1,
+     "Viridian Shaman": 1,
+     "Triskelion": 1,
+     "Akroma, Angel of Wrath": 1,
+     "Bone Shredder": 1,
+     "Squee, Goblin Nabob": 1,
+     "Solemn Simulacrum": 1,
+     "Ravenous Baloth": 1,
+     "Genesis": 1,
+     "Loxodon Hierarch": 1,
+     "Eternal Witness": 2,
+     "Birds of Paradise": 4,
+     "Wall of Roots": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 207212,
+   "event": 596,
+   "archetype": "Red-White Rift",
+   "player": "Pasquale Ruggiero",
+   "event_name": "Grand Prix Philadelphia 2005",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "2005-11-13",
+   "summer": false,
+   "s": 0.38622869397848747,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 4,
+    "counters": 0,
+    "sweepers": 10,
+    "draw": 16,
+    "burn": 3,
+    "avg_cmc": 3.5,
+    "pips": {
+     "W": 38.0,
+     "U": 0,
+     "B": 0,
+     "R": 11.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Eternal Dragon": 4,
+     "Abeyance": 3,
+     "Akroma's Vengeance": 2,
+     "Decree of Justice": 3,
+     "Disenchant": 2,
+     "Humility": 3,
+     "Lightning Rift": 3,
+     "Pyroclasm": 2,
+     "Renewed Faith": 3,
+     "Rune of Protection: Red": 2,
+     "Slice and Dice": 3,
+     "Swords to Plowshares": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 206741,
+   "event": 108,
+   "archetype": "Salvager",
+   "player": "Maximilian Bracht",
+   "event_name": "Grand Prix Lille 2005",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2005-12-18",
+   "summer": false,
+   "s": 0.32036983360582044,
+   "f": {
+    "spells": 43,
+    "lands": 19,
+    "creatures": 6,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 1,
+    "avg_cmc": 1.44,
+    "pips": {
+     "W": 3.0,
+     "U": 0,
+     "B": 22.0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Tainted Pact": 4,
+     "Pyrite Spellbomb": 1,
+     "Night's Whisper": 2,
+     "Living Wish": 4,
+     "Lion's Eye Diamond": 4,
+     "Innocent Blood": 4,
+     "Duress": 4,
+     "Dark Ritual": 4,
+     "Chrome Mox": 2,
+     "Chromatic Sphere": 4,
+     "Cabal Therapy": 4,
+     "Savannah Lions": 1,
+     "Gamekeeper": 3,
+     "Auriok Salvagers": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 265151,
+   "event": 11468,
+   "archetype": "Landstill",
+   "player": "Noah Long",
+   "event_name": "Grand Prix Philadelphia 2005 - Trial Winners",
+   "stars": 2,
+   "rank": "1",
+   "date": "2005-11-12",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 39,
+    "lands": 23,
+    "creatures": 0,
+    "counters": 11,
+    "sweepers": 3,
+    "draw": 10,
+    "burn": 3,
+    "avg_cmc": 2.46,
+    "pips": {
+     "W": 6.0,
+     "U": 34.0,
+     "B": 0,
+     "R": 3.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Brainstorm": 8,
+     "Counterspell": 4,
+     "Crucible of Worlds": 3,
+     "Decree of Justice": 2,
+     "Fact or Fiction": 3,
+     "Force of Will": 4,
+     "Lightning Bolt": 3,
+     "Mana Leak": 3,
+     "Nevinyrral's Disk": 3,
+     "Standstill": 4,
+     "Swords to Plowshares": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1,
+   "swapped_out_reason": "mtgtop8 export for deck 265151 (Landstill, Noah Long) is not a legal 60-card list as recorded: it plays \"8 [IA] Brainstorm\" (Legacy limits any non-basic-land card to 4 copies), pushing the maindeck to 62 cards. This is a defect in mtgtop8's own stored decklist, not a Forge transcription failure or a legality question answerable by fixing the card name/set. No alternate exists for 2006 (pool_size == len(chosen) == 8, zero candidates left over), so the deck is dropped rather than replaced \u2014 2006 is now a 7-deck era (Settled: thin seasons are reported, not padded)."
+  }
+ ],
+ "pool_size": 8,
+ "rejected_illegal": [
+  {
+   "archetype": "Blue Skies",
+   "deck": 206960,
+   "player": "Doug \"DampingEngine\" McKay",
+   "why": [
+    "Sea Drake (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Flame Vault",
+   "deck": 265150,
+   "player": "Paul Mastriano",
+   "why": [
+    "Accumulated Knowledge (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "UGW Threshold",
+   "deck": 206735,
+   "player": "Helmut Summersberger",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "UGW Threshold",
+   "deck": 206740,
+   "player": "Daniel Krutil",
+   "why": [
+    "Daze (not in legal sets)",
+    "Seal of Cleansing (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "5/3",
+   "deck": 206962,
+   "player": "Rick \"Jander78\" Argiro",
+   "why": [
+    "Tangle Wire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UGw Gro",
+   "deck": 206963,
+   "player": "Jon \"unregged\" Dufore",
+   "why": [
+    "Daze (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UGw Gro",
+   "deck": 206966,
+   "player": "Jesse \"MadZur\" Hatfield",
+   "why": [
+    "Daze (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "RG Survival",
+   "deck": 206967,
+   "player": "John \"Mulletus\" LaCasse",
+   "why": [
+    "Reverent Silence (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gro-Rouge",
+   "deck": 206742,
+   "player": "Nicolas Labarre",
+   "why": [
+    "Daze (not in legal sets)",
+    "Submerge (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Threshold",
+   "deck": 207209,
+   "player": "Pat McGregor",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Threshold",
+   "deck": 207210,
+   "player": "Lam Pham",
+   "why": [
+    "Accumulated Knowledge (not in legal sets)",
+    "Daze (not in legal sets)",
+    "Seal of Cleansing (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UW Control",
+   "deck": 206736,
+   "player": "Nicolas Fran\u00e7ois",
+   "why": [
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "ThreshGro",
+   "deck": 207214,
+   "player": "Ben Goodman",
+   "why": [
+    "Daze (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Grishn\u00e2k go!",
+   "player": "Lo\u00efc Le Briand",
+   "kept": "Goblins",
+   "kept_player": "Tom Smart"
+  },
+  {
+   "dropped": "RW Slide",
+   "player": "Martin Johannes Brenner",
+   "kept": "Red-White Rift",
+   "kept_player": "Pasquale Ruggiero"
+  },
+  {
+   "dropped": "Salvage Game",
+   "player": "Paul Serignese",
+   "kept": "Salvager",
+   "kept_player": "Maximilian Bracht"
+  }
+ ],
+ "objective": 3.264365683101257,
+ "pool_colors": {
+  "U": 3,
+  "R": 2,
+  "B": 4,
+  "G": 3,
+  "W": 4
+ },
+ "pool_styles": {
+  "control": 4,
+  "aggro": 2,
+  "midrange": 2
+ }
+}

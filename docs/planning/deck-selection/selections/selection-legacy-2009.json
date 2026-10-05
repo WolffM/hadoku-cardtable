@@ -1,0 +1,1054 @@
+{
+ "era": {
+  "year": 2009,
+  "season_start": "2008-10-03",
+  "start": "2009-07-17",
+  "end": "2009-10-02",
+  "snapshot_file": "2009-07-17",
+  "format": "Legacy (M10)",
+  "sets": "LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10",
+  "banned": [
+   "Amulet of Quoz",
+   "Ancestral Recall",
+   "Balance",
+   "Bazaar of Baghdad",
+   "Black Lotus",
+   "Black Vise",
+   "Bronze Tablet",
+   "Channel",
+   "Chaos Orb",
+   "Contract from Below",
+   "Darkpact",
+   "Demonic Attorney",
+   "Demonic Consultation",
+   "Demonic Tutor",
+   "Dream Halls",
+   "Earthcraft",
+   "Entomb",
+   "Falling Star",
+   "Fastbond",
+   "Flash",
+   "Frantic Search",
+   "Goblin Recruiter",
+   "Grim Monolith",
+   "Gush",
+   "Hermit Druid",
+   "Illusionary Mask",
+   "Imperial Seal",
+   "Jeweled Bird",
+   "Land Tax",
+   "Library of Alexandria",
+   "Mana Crypt",
+   "Mana Drain",
+   "Mana Vault",
+   "Memory Jar",
+   "Metalworker",
+   "Mind Twist",
+   "Mind's Desire",
+   "Mishra's Workshop",
+   "Mox Emerald",
+   "Mox Jet",
+   "Mox Pearl",
+   "Mox Ruby",
+   "Mox Sapphire",
+   "Necropotence",
+   "Oath of Druids",
+   "Rebirth",
+   "Shahrazad",
+   "Skullclamp",
+   "Sol Ring",
+   "Strip Mine",
+   "Tempest Efreet",
+   "Time Spiral",
+   "Time Vault",
+   "Time Walk",
+   "Timetwister",
+   "Timmerian Fiends",
+   "Tinker",
+   "Tolarian Academy",
+   "Vampiric Tutor",
+   "Wheel of Fortune",
+   "Windfall",
+   "Worldgorger Dragon",
+   "Yawgmoth's Bargain",
+   "Yawgmoth's Will"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 129254,
+   "event": 388,
+   "archetype": "Goyfslight",
+   "player": "Fr\u00e9d\u00e9ric \"Joe_la_loose\" P\u00e9rez",
+   "event_name": "Side Event Grand Prix Paris 2008",
+   "stars": 2,
+   "rank": "1",
+   "date": "2008-10-19",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 21,
+    "avg_cmc": 1.95,
+    "pips": {
+     "W": 1.5,
+     "U": 0,
+     "B": 0,
+     "R": 38.5,
+     "G": 4.0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Keldon Marauders": 2,
+     "Incinerate": 2,
+     "Grim Lavamancer": 3,
+     "Fireblast": 3,
+     "Figure of Destiny": 3,
+     "Rift Bolt": 4,
+     "Tarmogoyf": 4,
+     "Price of Progress": 4,
+     "Mogg Fanatic": 4,
+     "Magma Jet": 4,
+     "Lightning Bolt": 4,
+     "Chain Lightning": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 134822,
+   "event": 398,
+   "archetype": "Uw Stax",
+   "player": "Quentin Gou\u00e9dard",
+   "event_name": "Bourgoin-Jallieu III (France)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2009-01-11",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 2,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.46,
+    "pips": {
+     "W": 2.0,
+     "U": 12.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Chalice of the Void": 4,
+     "Crucible of Worlds": 4,
+     "Smokestack": 4,
+     "Mox Diamond": 4,
+     "Propaganda": 4,
+     "Thirst for Knowledge": 4,
+     "Trinisphere": 4,
+     "Powder Keg": 3,
+     "Armageddon": 2,
+     "Sower of Temptation": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 144571,
+   "event": 424,
+   "archetype": "Dragon Stompy",
+   "player": "Francesco Dalla Via",
+   "event_name": "BoM3 Legacy",
+   "stars": 1,
+   "rank": "1",
+   "date": "2009-05-02",
+   "summer": false,
+   "s": 0.6923076923076924,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.64,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 36.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Chalice of the Void": 4,
+     "Seething Song": 4,
+     "Rakdos Pit Dragon": 4,
+     "Simian Spirit Guide": 4,
+     "Blood Moon": 4,
+     "Magus of the Moon": 4,
+     "Taurean Mauler": 4,
+     "Chrome Mox": 4,
+     "Gathan Raiders": 4,
+     "Umezawa's Jitte": 3,
+     "Trinisphere": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 139111,
+   "event": 418,
+   "archetype": "Next Level Blue",
+   "player": "Gabriel Nassif",
+   "event_name": "Grand Prix Chicago 2009",
+   "stars": 1,
+   "rank": "1",
+   "date": "2009-03-08",
+   "summer": false,
+   "s": 0.6923076923076924,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 12,
+    "counters": 7,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.17,
+    "pips": {
+     "W": 4.0,
+     "U": 31.0,
+     "B": 4.0,
+     "R": 0,
+     "G": 7.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Counterbalance": 4,
+     "Force of Will": 4,
+     "Dark Confidant": 4,
+     "Brainstorm": 4,
+     "Swords to Plowshares": 4,
+     "Tarmogoyf": 4,
+     "Sensei's Divining Top": 4,
+     "Daze": 3,
+     "Trygon Predator": 2,
+     "Ponder": 2,
+     "Vedalken Shackles": 2,
+     "Sower of Temptation": 2,
+     "Krosan Grip": 1
+    }
+   },
+   "style": "control",
+   "style_why": "override",
+   "label_count": 2
+  },
+  {
+   "deck": 129256,
+   "event": 388,
+   "archetype": "Eternal Life",
+   "player": "Jean-Mary \"LeJay\" Accart",
+   "event_name": "Side Event Grand Prix Paris 2008",
+   "stars": 2,
+   "rank": "2",
+   "date": "2008-10-19",
+   "summer": false,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.82,
+    "pips": {
+     "W": 24.0,
+     "U": 3.0,
+     "B": 1.0,
+     "R": 0,
+     "G": 10.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Harmonic Sliver": 1,
+     "Mother of Runes": 1,
+     "Doran, the Siege Tower": 1,
+     "Mox Diamond": 2,
+     "Daru Spiritualist": 3,
+     "Nomads en-Kor": 3,
+     "Meddling Mage": 3,
+     "Living Wish": 4,
+     "Shaman en-Kor": 4,
+     "Aether Vial": 4,
+     "Task Force": 4,
+     "Eladamri's Call": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 206915,
+   "event": 388,
+   "archetype": "TES",
+   "player": "Manuel Wolf",
+   "event_name": "Side Event Grand Prix Paris 2008",
+   "stars": 2,
+   "rank": "3",
+   "date": "2008-10-19",
+   "summer": false,
+   "s": 0.5578858913022599,
+   "f": {
+    "spells": 50,
+    "lands": 10,
+    "creatures": 4,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 1.44,
+    "pips": {
+     "W": 4.0,
+     "U": 10.0,
+     "B": 17.0,
+     "R": 13.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Simian Spirit Guide": 4,
+     "Chrome Mox": 4,
+     "Lion's Eye Diamond": 4,
+     "Lotus Petal": 4,
+     "Ad Nauseam": 1,
+     "Brainstorm": 4,
+     "Dark Ritual": 4,
+     "Orim's Chant": 4,
+     "Diminishing Returns": 1,
+     "Empty the Warrens": 1,
+     "Ill-Gotten Gains": 1,
+     "Infernal Contract": 1,
+     "Tendrils of Agony": 1,
+     "Burning Wish": 4,
+     "Infernal Tutor": 4,
+     "Ponder": 4,
+     "Rite of Flame": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 1
+  },
+  {
+   "deck": 134829,
+   "event": 398,
+   "archetype": "ANT",
+   "player": "Maxime Jourdan",
+   "event_name": "Bourgoin-Jallieu III (France)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2009-01-11",
+   "summer": false,
+   "s": 0.4627564263195184,
+   "f": {
+    "spells": 46,
+    "lands": 14,
+    "creatures": 0,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 1.15,
+    "pips": {
+     "W": 0,
+     "U": 11.0,
+     "B": 23.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Pact of Negation": 1,
+     "Tendrils of Agony": 2,
+     "Sensei's Divining Top": 2,
+     "Mox Diamond": 2,
+     "Ad Nauseam": 2,
+     "Infernal Tutor": 3,
+     "Chrome Mox": 3,
+     "Ponder": 3,
+     "Brainstorm": 4,
+     "Lotus Petal": 4,
+     "Mystical Tutor": 4,
+     "Dark Ritual": 4,
+     "Cabal Ritual": 4,
+     "Lion's Eye Diamond": 4,
+     "Duress": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 1
+  },
+  {
+   "deck": 134830,
+   "event": 398,
+   "archetype": "BGw Rock",
+   "player": "Jean-Luc Rivoire",
+   "event_name": "Bourgoin-Jallieu III (France)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2009-01-11",
+   "summer": false,
+   "s": 0.4627564263195184,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.08,
+    "pips": {
+     "W": 10.0,
+     "U": 0,
+     "B": 11.0,
+     "R": 0,
+     "G": 26.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Sakura-Tribe Elder": 4,
+     "Swords to Plowshares": 4,
+     "Thoughtseize": 4,
+     "Tarmogoyf": 4,
+     "Kitchen Finks": 3,
+     "Pernicious Deed": 3,
+     "Troll Ascetic": 3,
+     "Vindicate": 3,
+     "Sensei's Divining Top": 3,
+     "Eternal Witness": 3,
+     "Umezawa's Jitte": 2,
+     "Extirpate": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 139102,
+   "event": 418,
+   "archetype": "Tarmo Sligh",
+   "player": "Brian Six",
+   "event_name": "Grand Prix Chicago 2009",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2009-03-08",
+   "summer": false,
+   "s": 0.32036983360582044,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 19,
+    "avg_cmc": 1.89,
+    "pips": {
+     "W": 1.0,
+     "U": 0,
+     "B": 0,
+     "R": 33.0,
+     "G": 8.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Chain Lightning": 4,
+     "Lightning Bolt": 4,
+     "Kird Ape": 4,
+     "Magma Jet": 4,
+     "Wild Nacatl": 4,
+     "Price of Progress": 4,
+     "Tarmogoyf": 4,
+     "Fireblast": 3,
+     "Grim Lavamancer": 3,
+     "Rift Bolt": 3,
+     "Lightning Helix": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 139108,
+   "event": 418,
+   "archetype": "Tarmo Pikula",
+   "player": "Brian Kowal",
+   "event_name": "Grand Prix Chicago 2009",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2009-03-08",
+   "summer": false,
+   "s": 0.32036983360582044,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.18,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 34.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Mesmeric Fiend": 4,
+     "Hymn to Tourach": 4,
+     "Vindicate": 4,
+     "Dark Ritual": 4,
+     "Dark Confidant": 4,
+     "Swords to Plowshares": 4,
+     "Thoughtseize": 4,
+     "Tarmogoyf": 4,
+     "Tombstalker": 3,
+     "Sensei's Divining Top": 3
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 144576,
+   "event": 424,
+   "archetype": "Imperial Painter",
+   "player": "Filiberto Piernoli",
+   "event_name": "BoM3 Legacy",
+   "stars": 1,
+   "rank": "6",
+   "date": "2009-05-02",
+   "summer": false,
+   "s": 0.3019905581338129,
+   "f": {
+    "spells": 41,
+    "lands": 20,
+    "creatures": 18,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.07,
+    "pips": {
+     "W": 0,
+     "U": 19.0,
+     "B": 0,
+     "R": 11.0,
+     "G": 5.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Force of Will": 4,
+     "Trinket Mage": 4,
+     "Brainstorm": 4,
+     "Painter's Servant": 4,
+     "Tarmogoyf": 4,
+     "Imperial Recruiter": 3,
+     "Chrome Mox": 3,
+     "Pyroblast": 3,
+     "Red Elemental Blast": 3,
+     "Thirst for Knowledge": 2,
+     "Magus of the Moon": 1,
+     "Pithing Needle": 1,
+     "Engineered Explosives": 1,
+     "Llawan, Cephalid Empress": 1,
+     "Grindstone": 1,
+     "Vexing Shusher": 1,
+     "Sensei's Divining Top": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 1
+  },
+  {
+   "deck": 144583,
+   "event": 424,
+   "archetype": "UWb Landstill",
+   "player": "Micha\u00ebl Danis",
+   "event_name": "BoM3 Legacy",
+   "stars": 1,
+   "rank": "13",
+   "date": "2009-05-02",
+   "summer": false,
+   "s": 0.24289624188270625,
+   "f": {
+    "spells": 38,
+    "lands": 23,
+    "creatures": 1,
+    "counters": 10,
+    "sweepers": 4,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.53,
+    "pips": {
+     "W": 24.0,
+     "U": 24.0,
+     "B": 2.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Crucible of Worlds": 1,
+     "Fact or Fiction": 1,
+     "Wrath of God": 2,
+     "Decree of Justice": 2,
+     "Elspeth, Knight-Errant": 2,
+     "Humility": 2,
+     "Vindicate": 2,
+     "Sensei's Divining Top": 2,
+     "Spell Snare": 3,
+     "Counterspell": 3,
+     "Engineered Explosives": 3,
+     "Standstill": 3,
+     "Brainstorm": 3,
+     "Swords to Plowshares": 4,
+     "Force of Will": 4,
+     "Eternal Dragon": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 134826,
+   "event": 398,
+   "archetype": "4c Fish",
+   "player": "Thomas Monnier",
+   "event_name": "Bourgoin-Jallieu III (France)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2009-01-11",
+   "summer": false,
+   "s": 0.4627564263195184,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 12,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 1.81,
+    "pips": {
+     "W": 7.0,
+     "U": 32.0,
+     "B": 7.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Sensei's Divining Top": 3,
+     "Daze": 3,
+     "Thoughtseize": 3,
+     "Swords to Plowshares": 3,
+     "Counterbalance": 3,
+     "Stifle": 3,
+     "Tarmogoyf": 4,
+     "Brainstorm": 4,
+     "Dark Confidant": 4,
+     "Meddling Mage": 4,
+     "Force of Will": 4,
+     "Ponder": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 129262,
+   "event": 388,
+   "archetype": "Solidarity aka Reset high tide",
+   "player": "Simon Ritzka",
+   "event_name": "Side Event Grand Prix Paris 2008",
+   "stars": 2,
+   "rank": "8",
+   "date": "2008-10-19",
+   "summer": false,
+   "s": 0.4,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 0,
+    "counters": 9,
+    "sweepers": 2,
+    "draw": 13,
+    "burn": 0,
+    "avg_cmc": 2.38,
+    "pips": {
+     "W": 0,
+     "U": 57.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Force of Will": 4,
+     "High Tide": 4,
+     "Impulse": 4,
+     "Brainstorm": 4,
+     "Reset": 4,
+     "Meditate": 3,
+     "Turnabout": 3,
+     "Remand": 3,
+     "Opt": 3,
+     "Cunning Wish": 3,
+     "Brain Freeze": 2,
+     "Cryptic Command": 2,
+     "Flash of Insight": 2,
+     "Peek": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 139107,
+   "event": 418,
+   "archetype": "Eva Green",
+   "player": "Paul Rietzl",
+   "event_name": "Grand Prix Chicago 2009",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "2009-03-08",
+   "summer": false,
+   "s": 0.38622869397848747,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.26,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 51.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Umezawa's Jitte": 1,
+     "Diabolic Edict": 1,
+     "Tombstalker": 2,
+     "Dark Confidant": 2,
+     "Snuff Out": 2,
+     "Duress": 2,
+     "Tarmogoyf": 4,
+     "Hypnotic Specter": 4,
+     "Sinkhole": 4,
+     "Thoughtseize": 4,
+     "Nantuko Shade": 4,
+     "Dark Ritual": 4,
+     "Hymn to Tourach": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 144582,
+   "event": 424,
+   "archetype": "Dredge",
+   "player": "Antonio Pint",
+   "event_name": "BoM3 Legacy",
+   "stars": 1,
+   "rank": "12",
+   "date": "2009-05-02",
+   "summer": false,
+   "s": 0.24791847473221112,
+   "f": {
+    "spells": 49,
+    "lands": 11,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.53,
+    "pips": {
+     "W": 4.0,
+     "U": 16.0,
+     "B": 34.0,
+     "R": 2.0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Stinkweed Imp": 4,
+     "Putrid Imp": 4,
+     "Lion's Eye Diamond": 4,
+     "Breakthrough": 4,
+     "Narcomoeba": 4,
+     "Bridge from Below": 4,
+     "Golgari Grave-Troll": 4,
+     "Careful Study": 4,
+     "Deep Analysis": 3,
+     "Ichorid": 3,
+     "Dread Return": 3,
+     "Cabal Therapy": 3,
+     "Golgari Thug": 2,
+     "Blazing Archon": 1,
+     "Cephalid Sage": 1,
+     "Flame-Kin Zealot": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 2
+  }
+ ],
+ "pool_size": 16,
+ "rejected_illegal": [
+  {
+   "archetype": "Togless",
+   "deck": 134823,
+   "player": "Maxime Gilles",
+   "why": [
+    "Accumulated Knowledge (not in legal sets)",
+    "unknown card: Research / Development"
+   ]
+  },
+  {
+   "archetype": "Togless",
+   "deck": 129260,
+   "player": "Cyril \"vannetais\" Mahe",
+   "why": [
+    "Accumulated Knowledge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dreadstill",
+   "deck": 134824,
+   "player": "Damien Colomb",
+   "why": [
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Faerie Stompy",
+   "deck": 134825,
+   "player": "Thibauld Kandri",
+   "why": [
+    "Sea Drake (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Seuil UGR old school",
+   "deck": 129259,
+   "player": "Raphael \"Raphy\" Puleo",
+   "why": [
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Landstill UW",
+   "deck": 129261,
+   "player": "Cyril \"Sea R Hill\" Terroy",
+   "why": [
+    "Seal of Cleansing (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UGR Thresh",
+   "deck": 144573,
+   "player": "David Minarro",
+   "why": [
+    "Submerge (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "UGW thresh",
+   "deck": 144574,
+   "player": "Stefan Czolk",
+   "why": [
+    "Path to Exile (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UGr thresh",
+   "deck": 144575,
+   "player": "Marco Cammilluzzi",
+   "why": [
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "UGR Tempo Thresh",
+   "deck": 139106,
+   "player": "David Caplan",
+   "why": [
+    "Submerge (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "URg fish",
+   "deck": 144577,
+   "player": "Angelo Cadei",
+   "why": [
+    "unknown card: Fire / Ice",
+    "unknown card: Rough / Tumble"
+   ]
+  },
+  {
+   "archetype": "Elfball",
+   "deck": 144579,
+   "player": "Cyril Pitallot",
+   "why": [
+    "Reverent Silence (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Progenitus Survival",
+   "deck": 144580,
+   "player": "Frederico Testa",
+   "why": [
+    "Progenitus (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Burn",
+   "deck": 144581,
+   "player": "Guillaume de Sauza",
+   "why": [
+    "Hellspark Elemental (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "W Stax",
+   "deck": 144584,
+   "player": "Mathieu Wehrbach",
+   "why": [
+    "Kor Haven (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Dread Fish",
+   "player": "Guillaume Laurent",
+   "kept": "4c Fish",
+   "kept_player": "Thomas Monnier"
+  },
+  {
+   "dropped": "Ad Nauseam",
+   "player": "Benito Hernandez Alcazar",
+   "kept": "ANT",
+   "kept_player": "Maxime Jourdan"
+  }
+ ],
+ "objective": 6.2896822624515085,
+ "pool_colors": {
+  "R": 5,
+  "U": 9,
+  "G": 5,
+  "W": 5,
+  "B": 7
+ },
+ "pool_styles": {
+  "aggro": 5,
+  "control": 4,
+  "combo": 4,
+  "midrange": 3
+ }
+}

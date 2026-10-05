@@ -1,0 +1,1365 @@
+{
+ "era": {
+  "year": 2007,
+  "season_start": "2006-10-20",
+  "start": "2007-07-20",
+  "end": "2007-10-20",
+  "snapshot_file": "2007-07-20",
+  "format": "Legacy (10E)",
+  "sets": "LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E",
+  "banned": [
+   "Amulet of Quoz",
+   "Ancestral Recall",
+   "Balance",
+   "Bazaar of Baghdad",
+   "Black Lotus",
+   "Black Vise",
+   "Bronze Tablet",
+   "Channel",
+   "Chaos Orb",
+   "Contract from Below",
+   "Darkpact",
+   "Demonic Attorney",
+   "Demonic Consultation",
+   "Demonic Tutor",
+   "Dream Halls",
+   "Earthcraft",
+   "Entomb",
+   "Falling Star",
+   "Fastbond",
+   "Flash",
+   "Frantic Search",
+   "Goblin Recruiter",
+   "Grim Monolith",
+   "Gush",
+   "Hermit Druid",
+   "Illusionary Mask",
+   "Imperial Seal",
+   "Jeweled Bird",
+   "Land Tax",
+   "Library of Alexandria",
+   "Mana Crypt",
+   "Mana Drain",
+   "Mana Vault",
+   "Memory Jar",
+   "Metalworker",
+   "Mind Twist",
+   "Mind's Desire",
+   "Mishra's Workshop",
+   "Mox Emerald",
+   "Mox Jet",
+   "Mox Pearl",
+   "Mox Ruby",
+   "Mox Sapphire",
+   "Necropotence",
+   "Oath of Druids",
+   "Rebirth",
+   "Skullclamp",
+   "Sol Ring",
+   "Strip Mine",
+   "Tempest Efreet",
+   "Time Spiral",
+   "Time Walk",
+   "Timetwister",
+   "Timmerian Fiends",
+   "Tinker",
+   "Tolarian Academy",
+   "Vampiric Tutor",
+   "Wheel of Fortune",
+   "Windfall",
+   "Worldgorger Dragon",
+   "Yawgmoth's Bargain",
+   "Yawgmoth's Will"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 107025,
+   "event": 82,
+   "archetype": "Goblins",
+   "player": "Andrea Maccagnani",
+   "event_name": "@ San Giorgio",
+   "stars": 2,
+   "rank": "1",
+   "date": "2007-10-07",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 31,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.76,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 44.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Goblin Warchief": 4,
+     "Aether Vial": 4,
+     "Gempalm Incinerator": 4,
+     "Goblin Lackey": 4,
+     "Goblin Matron": 4,
+     "Goblin Ringleader": 4,
+     "Mogg Fanatic": 4,
+     "Goblin Piledriver": 4,
+     "Pyrokinesis": 3,
+     "Siege-Gang Commander": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 107032,
+   "event": 83,
+   "archetype": "Cephalid Breakfast",
+   "player": "Alessandro Teneggi",
+   "event_name": "# Finale Emilia I",
+   "stars": 2,
+   "rank": "1",
+   "date": "2007-09-02",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 43,
+    "lands": 18,
+    "creatures": 17,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 1.93,
+    "pips": {
+     "W": 7.0,
+     "U": 23.0,
+     "B": 7.0,
+     "R": 1.0,
+     "G": 10.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Aether Vial": 4,
+     "Force of Will": 4,
+     "Cephalid Illusionist": 4,
+     "Nomads en-Kor": 4,
+     "Worldly Tutor": 4,
+     "Portent": 4,
+     "Brainstorm": 4,
+     "Tarmogoyf": 4,
+     "Narcomoeba": 3,
+     "Eladamri's Call": 2,
+     "Cabal Therapy": 2,
+     "Sutured Ghoul": 1,
+     "Dread Return": 1,
+     "Shaman en-Kor": 1,
+     "Dragon Breath": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 3
+  },
+  {
+   "deck": 102930,
+   "event": 49,
+   "archetype": "Survival",
+   "player": "Christian H\u00f6ttgen",
+   "event_name": "# German Legacy Open 2007",
+   "stars": 2,
+   "rank": "1",
+   "date": "2007-09-02",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.52,
+    "pips": {
+     "W": 10.0,
+     "U": 0,
+     "B": 18.0,
+     "R": 1.0,
+     "G": 23.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Pernicious Deed": 3,
+     "Cabal Therapy": 4,
+     "Survival of the Fittest": 4,
+     "Academy Rector": 4,
+     "Wall of Roots": 4,
+     "Duress": 4,
+     "Sakura-Tribe Elder": 4,
+     "Eternal Witness": 3,
+     "Loxodon Hierarch": 1,
+     "Carrion Feeder": 1,
+     "Bone Shredder": 1,
+     "Recurring Nightmare": 1,
+     "Kokusho, the Evening Star": 1,
+     "Withered Wretch": 1,
+     "Moat": 1,
+     "Squee, Goblin Nabob": 1,
+     "Harmonic Sliver": 1,
+     "Yosei, the Morning Star": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 102088,
+   "event": 36,
+   "archetype": "Aggro Loam",
+   "player": "Anton Karlinski",
+   "event_name": "# Bazaar Liga Juli 2007 - Igensdorf-Pettensiedel (Germany)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2007-07-01",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 7,
+    "avg_cmc": 1.68,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 17.0,
+     "G": 22.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Lightning Bolt": 4,
+     "Kird Ape": 4,
+     "Nimble Mongoose": 4,
+     "Mox Diamond": 4,
+     "Tarmogoyf": 4,
+     "Life from the Loam": 4,
+     "Seismic Assault": 3,
+     "Wild Mongrel": 3,
+     "Terravore": 3,
+     "Genesis": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 102078,
+   "event": 35,
+   "archetype": "3c Sligh",
+   "player": "Osada, Masahiro",
+   "event_name": "# Ancient Memory Convention #25 (Japan)",
+   "stars": 2,
+   "rank": "1",
+   "date": "2007-06-24",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 18,
+    "avg_cmc": 1.76,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 4.0,
+     "R": 34.0,
+     "G": 4.0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Lightning Bolt": 4,
+     "Mogg Fanatic": 4,
+     "Dark Confidant": 4,
+     "Tarmogoyf": 4,
+     "Pyrite Spellbomb": 3,
+     "Chain Lightning": 3,
+     "Blood Knight": 3,
+     "Keldon Marauders": 3,
+     "Reckless Abandon": 3,
+     "Fireblast": 3,
+     "Grim Lavamancer": 3,
+     "Goblin Tinkerer": 2,
+     "Cursed Scroll": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 102931,
+   "event": 49,
+   "archetype": "Landstill",
+   "player": "Matthias Dr\u00fcppel",
+   "event_name": "# German Legacy Open 2007",
+   "stars": 2,
+   "rank": "2",
+   "date": "2007-09-02",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 24,
+    "creatures": 0,
+    "counters": 10,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.35,
+    "pips": {
+     "W": 11.0,
+     "U": 29.0,
+     "B": 3.0,
+     "R": 0,
+     "G": 3.0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Counterspell": 4,
+     "Force of Will": 4,
+     "Standstill": 4,
+     "Brainstorm": 4,
+     "Swords to Plowshares": 4,
+     "Pernicious Deed": 3,
+     "Fact or Fiction": 3,
+     "Enlightened Tutor": 3,
+     "Stifle": 2,
+     "Crucible of Worlds": 2,
+     "Humility": 2,
+     "Engineered Explosives": 1,
+     "Vedalken Shackles": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 5
+  },
+  {
+   "deck": 107059,
+   "event": 85,
+   "archetype": "Aluren",
+   "player": "Koizumi Yohei",
+   "event_name": "# Ancient Memory Convention #28 (Japan)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2007-09-23",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 13,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.24,
+    "pips": {
+     "W": 2.0,
+     "U": 8.0,
+     "B": 10.0,
+     "R": 3.0,
+     "G": 20.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Maggot Carrier": 1,
+     "Cavern Harpy": 1,
+     "Auriok Champion": 1,
+     "Man-o'-War": 3,
+     "Imperial Recruiter": 3,
+     "Cabal Therapy": 4,
+     "Living Wish": 4,
+     "Wall of Roots": 4,
+     "Wall of Blossoms": 4,
+     "Intuition": 4,
+     "Aluren": 4,
+     "Duress": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 1
+  },
+  {
+   "deck": 101628,
+   "event": 13,
+   "archetype": "Lands",
+   "player": "Ryan Trepanier",
+   "event_name": "# GenCon 2007 - Indianapolis (USA)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2007-08-18",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 18,
+    "lands": 42,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.39,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 3.0,
+     "G": 15.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Mulch": 3,
+     "Gamble": 3,
+     "Manabond": 4,
+     "Life from the Loam": 4,
+     "Exploration": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 107063,
+   "event": 85,
+   "archetype": "Belcher",
+   "player": "Tsuda Yuugo",
+   "event_name": "# Ancient Memory Convention #28 (Japan)",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2007-09-23",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 58,
+    "lands": 2,
+    "creatures": 12,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.78,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 30.0,
+     "G": 12.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Seething Song": 4,
+     "Lion's Eye Diamond": 4,
+     "Land Grant": 4,
+     "Elvish Spirit Guide": 4,
+     "Simian Spirit Guide": 4,
+     "Chrome Mox": 4,
+     "Tinder Wall": 4,
+     "Lotus Petal": 4,
+     "Rite of Flame": 4,
+     "Desperate Ritual": 4,
+     "Goblin Charbelcher": 4,
+     "Goblin Welder": 4,
+     "Burning Wish": 4,
+     "Empty the Warrens": 3,
+     "Pyroblast": 3
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 3
+  },
+  {
+   "deck": 107027,
+   "event": 82,
+   "archetype": "UW Control",
+   "player": "Stefano Maccagnani",
+   "event_name": "@ San Giorgio",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2007-10-07",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 0,
+    "counters": 11,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 2.22,
+    "pips": {
+     "W": 14.0,
+     "U": 31.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Wrath of God": 4,
+     "Counterbalance": 4,
+     "Counterspell": 4,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Swords to Plowshares": 4,
+     "Sensei's Divining Top": 4,
+     "Stifle": 3,
+     "Crucible of Worlds": 3,
+     "Disenchant": 2
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 107064,
+   "event": 85,
+   "archetype": "MUC",
+   "player": "Takamizu Tomohiro",
+   "event_name": "# Ancient Memory Convention #28 (Japan)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-09-23",
+   "summer": true,
+   "s": 0.46275642631951835,
+   "f": {
+    "spells": 38,
+    "lands": 23,
+    "creatures": 3,
+    "counters": 14,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.74,
+    "pips": {
+     "W": 0,
+     "U": 48.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Spell Snare": 4,
+     "Counterspell": 4,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Fact or Fiction": 3,
+     "Engineered Explosives": 3,
+     "Back to Basics": 3,
+     "Cunning Wish": 3,
+     "Misdirection": 2,
+     "Forbid": 2,
+     "Vedalken Shackles": 2,
+     "Flash of Insight": 1,
+     "Morphling": 1,
+     "Teferi, Mage of Zhalfir": 1,
+     "Rainbow Efreet": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 102082,
+   "event": 35,
+   "archetype": "Pikula",
+   "player": "Ogasawara, Sho",
+   "event_name": "# Ancient Memory Convention #25 (Japan)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-06-24",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 46.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Duress": 4,
+     "Hymn to Tourach": 4,
+     "Vindicate": 4,
+     "Dark Ritual": 4,
+     "Dark Confidant": 4,
+     "Swords to Plowshares": 4,
+     "Sinkhole": 4,
+     "Hypnotic Specter": 4,
+     "Nantuko Shade": 2,
+     "Cursed Scroll": 2,
+     "Tombstalker": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 102079,
+   "event": 35,
+   "archetype": "Taiga",
+   "player": "Tsuda, Yuugo",
+   "event_name": "# Ancient Memory Convention #25 (Japan)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2007-06-24",
+   "summer": false,
+   "s": 0.5333333333333333,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 19,
+    "avg_cmc": 1.68,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 37.0,
+     "G": 8.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Chain Lightning": 4,
+     "Quirion Dryad": 4,
+     "Lightning Bolt": 4,
+     "Kird Ape": 4,
+     "Mogg Fanatic": 4,
+     "Fireblast": 4,
+     "Seal of Fire": 4,
+     "Tarmogoyf": 4,
+     "Reckless Charge": 3,
+     "Lava Dart": 3,
+     "Grim Lavamancer": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 107030,
+   "event": 82,
+   "archetype": "TES",
+   "player": "Simone Giovanetti",
+   "event_name": "@ San Giorgio",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-10-07",
+   "summer": true,
+   "s": 0.46275642631951835,
+   "f": {
+    "spells": 49,
+    "lands": 11,
+    "creatures": 3,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.39,
+    "pips": {
+     "W": 4.0,
+     "U": 6.0,
+     "B": 20.0,
+     "R": 9.0,
+     "G": 3.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Orim's Chant": 4,
+     "Lion's Eye Diamond": 4,
+     "Dark Ritual": 4,
+     "Chrome Mox": 4,
+     "Plunge into Darkness": 4,
+     "Infernal Tutor": 4,
+     "Lotus Petal": 4,
+     "Brainstorm": 4,
+     "Rite of Flame": 4,
+     "Xantid Swarm": 3,
+     "Burning Wish": 3,
+     "Tendrils of Agony": 2,
+     "Empty the Warrens": 2,
+     "Ill-Gotten Gains": 1,
+     "Grim Tutor": 1,
+     "Diminishing Returns": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 1
+  },
+  {
+   "deck": 101773,
+   "event": 25,
+   "archetype": "Keiner mag Eugen.dec",
+   "player": "Philipp Volk",
+   "event_name": "# Iserlohn Legacy (Germany)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-08-12",
+   "summer": true,
+   "s": 0.46275642631951835,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 0,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 2.31,
+    "pips": {
+     "W": 0,
+     "U": 53.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Remand": 4,
+     "Force of Will": 4,
+     "High Tide": 4,
+     "Impulse": 4,
+     "Meditate": 4,
+     "Brainstorm": 4,
+     "Reset": 4,
+     "Turnabout": 3,
+     "Cunning Wish": 3,
+     "Brain Freeze": 2,
+     "Flash of Insight": 2,
+     "Opt": 2,
+     "Peek": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 102094,
+   "event": 36,
+   "archetype": "Life from the Loam contr\u00f4le",
+   "player": "Simon Hohentanner",
+   "event_name": "# Bazaar Liga Juli 2007 - Igensdorf-Pettensiedel (Germany)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-07-01",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 34,
+    "lands": 27,
+    "creatures": 1,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 5,
+    "burn": 3,
+    "avg_cmc": 1.44,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 5.0,
+     "R": 24.0,
+     "G": 8.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Duress": 4,
+     "Mox Diamond": 4,
+     "Gamble": 4,
+     "Burning Wish": 4,
+     "Devastating Dreams": 3,
+     "Life from the Loam": 3,
+     "Seismic Assault": 3,
+     "Exploration": 3,
+     "Engineered Explosives": 2,
+     "Sensei's Divining Top": 2,
+     "Recoup": 1,
+     "Grave-Shell Scarab": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 102095,
+   "event": 36,
+   "archetype": "Elves !",
+   "player": "Oliver Voll",
+   "event_name": "# Bazaar Liga Juli 2007 - Igensdorf-Pettensiedel (Germany)",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2007-07-01",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 43,
+    "lands": 18,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 7,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.12,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 42.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Multani's Acolyte": 4,
+     "Staff of Domination": 4,
+     "Taunting Elf": 4,
+     "Llanowar Elves": 4,
+     "Elvish Lyrist": 4,
+     "Sylvan Messenger": 4,
+     "Priest of Titania": 4,
+     "Quirion Ranger": 4,
+     "Coat of Arms": 3,
+     "Fyndhorn Elves": 3,
+     "Llanowar Sentinel": 3,
+     "Rofellos, Llanowar Emissary": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 206743,
+   "event": 387,
+   "archetype": "Suicide Black",
+   "player": "Bill Stark",
+   "event_name": "Grand Prix Columbus 2007",
+   "stars": 1,
+   "rank": "3-4",
+   "date": "2007-05-20",
+   "summer": false,
+   "s": 0.30898295518279,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 1.8,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 52.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Dark Ritual": 4,
+     "Duress": 4,
+     "Hymn to Tourach": 4,
+     "Sarcomancy": 4,
+     "Umezawa's Jitte": 4,
+     "Unmask": 4,
+     "Carnophage": 4,
+     "Nantuko Shade": 4,
+     "Order of the Ebon Hand": 4,
+     "Stromgald Crusader": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 206747,
+   "event": 387,
+   "archetype": "Black Aggro",
+   "player": "Michael Belfatto",
+   "event_name": "Grand Prix Columbus 2007",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2007-05-20",
+   "summer": false,
+   "s": 0.2562958668846564,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.24,
+    "pips": {
+     "W": 4.0,
+     "U": 0,
+     "B": 52.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Umezawa's Jitte": 2,
+     "Contagion": 3,
+     "Duress": 4,
+     "Hymn to Tourach": 4,
+     "Swords to Plowshares": 4,
+     "Stromgald Crusader": 2,
+     "Crypt Creeper": 2,
+     "Hypnotic Specter": 2,
+     "Plague Sliver": 3,
+     "Order of the Ebon Hand": 3,
+     "Dark Confidant": 4,
+     "Hand of Cruelty": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "pool_size": 19,
+ "rejected_illegal": [
+  {
+   "archetype": "Thresh",
+   "deck": 107058,
+   "player": "Makuta Eiji",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Thresh",
+   "deck": 107033,
+   "player": "Massimo Scalchi",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Thresh",
+   "deck": 107062,
+   "player": "Date Tsutomu",
+   "why": [
+    "Daze (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Thresh",
+   "deck": 107034,
+   "player": "Pietro Froio",
+   "why": [
+    "Daze (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UG Thresh",
+   "deck": 101627,
+   "player": "Peter Olszewski",
+   "why": [
+    "Daze (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Kampelmann's t\u00e4schchen ist sergej",
+   "deck": 101767,
+   "player": "Markus Seine",
+   "why": [
+    "Accumulated Knowledge (not in legal sets)",
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Meat free Deck",
+   "deck": 101769,
+   "player": "Dennis Kampelmann",
+   "why": [
+    "Daze (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UGR Thresh",
+   "deck": 101629,
+   "player": "David Caplan",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "UGR Thresh",
+   "deck": 101631,
+   "player": "James King",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "UGR Thresh",
+   "deck": 101635,
+   "player": "Steve Conway",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "UGR Thresh",
+   "deck": 102091,
+   "player": "Thomas Huber",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Fish",
+   "deck": 102933,
+   "player": "Manuel Warcholik",
+   "why": [
+    "Daze (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Fish",
+   "deck": 107066,
+   "player": "Shiina Jun-ichiro",
+   "why": [
+    "Daze (not in legal sets)",
+    "Massacre (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Fish",
+   "deck": 206748,
+   "player": "Max Tietze",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: J\ufffdtun Grunt"
+   ]
+  },
+  {
+   "archetype": "Volkersbrunner GroooUuuw",
+   "deck": 101771,
+   "player": "Christof Bachmann",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "NQG",
+   "deck": 101772,
+   "player": "Nils H\u00fcndgen",
+   "why": [
+    "Accumulated Knowledge (not in legal sets)",
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Hulk Flash",
+   "deck": 206744,
+   "player": "Steven Sadin",
+   "why": [
+    "Daze (not in legal sets)",
+    "Flash (banned)",
+    "Massacre (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Hulk Flash",
+   "deck": 206745,
+   "player": "Gadiel Szleifer",
+   "why": [
+    "Daze (not in legal sets)",
+    "Flash (banned)",
+    "Massacre (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Hulk Flash",
+   "deck": 206750,
+   "player": "Ryan Trepanier",
+   "why": [
+    "Daze (not in legal sets)",
+    "Flash (banned)",
+    "Massacre (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Faerie Stompy",
+   "deck": 107041,
+   "player": "Enrico Basso",
+   "why": [
+    "Sea Drake (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Faerie Stompy",
+   "deck": 102086,
+   "player": "Tsuyuki, Kouichi",
+   "why": [
+    "Sea Drake (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "URG Thresh",
+   "deck": 102935,
+   "player": "Bernd Hartmann",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "URG Thresh",
+   "deck": 102934,
+   "player": "Frederic Timmer",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Pikula",
+   "deck": 102937,
+   "player": "Thomas Scheel",
+   "why": [
+    "unknown card: J\ufffdtun Grunt"
+   ]
+  },
+  {
+   "archetype": "Angel Stompy",
+   "deck": 107031,
+   "player": "Matteo Luppi",
+   "why": [
+    "unknown card: J\ufffdtun Grunt"
+   ]
+  },
+  {
+   "archetype": "Friggorid",
+   "deck": 101632,
+   "player": "Ernest Turck",
+   "why": [
+    "Reverent Silence (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "die PCA hat das Szepter in der Hand!",
+   "deck": 101777,
+   "player": "Denny Kupferschmied",
+   "why": [
+    "Accumulated Knowledge (not in legal sets)",
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "UW B\u00e4renmarke",
+   "deck": 101781,
+   "player": "Michael Steinecke",
+   "why": [
+    "unknown card: J\ufffdtun Grunt"
+   ]
+  },
+  {
+   "archetype": "4c Fish",
+   "deck": 102090,
+   "player": "Florian Hering",
+   "why": [
+    "Daze (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4c Thresh",
+   "deck": 102093,
+   "player": "Markus M\u00fchlhofer",
+   "why": [
+    "Accumulated Knowledge (not in legal sets)",
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Rb Sligh",
+   "deck": 102084,
+   "player": "Tachiki, Yasuo",
+   "why": [
+    "Massacre (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Tog",
+   "deck": 102085,
+   "player": "Kubotera, Yuuki",
+   "why": [
+    "Daze (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UGr Threshold",
+   "deck": 206749,
+   "player": "Paul Nicolo",
+   "why": [
+    "Daze (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Lands!",
+   "player": "Narita Chisato",
+   "kept": "Lands",
+   "kept_player": "Ryan Trepanier"
+  },
+  {
+   "dropped": "Hampelmann.dec",
+   "player": "Patrick Watermann",
+   "kept": "Belcher",
+   "kept_player": "Tsuda Yuugo"
+  },
+  {
+   "dropped": "Goblins IIII",
+   "player": "Natsume, Takuya",
+   "kept": "Goblins",
+   "kept_player": "Andrea Maccagnani"
+  },
+  {
+   "dropped": "Gr Goblins",
+   "player": "Owen Turtenwald",
+   "kept": "Goblins",
+   "kept_player": "Andrea Maccagnani"
+  }
+ ],
+ "objective": 8.352223654688792,
+ "pool_colors": {
+  "R": 7,
+  "W": 5,
+  "U": 7,
+  "B": 8,
+  "G": 9
+ },
+ "pool_styles": {
+  "aggro": 8,
+  "combo": 4,
+  "control": 4,
+  "midrange": 3
+ }
+}
