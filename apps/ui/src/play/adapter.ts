@@ -435,9 +435,28 @@ export interface BoardView {
   players: BoardPlayer[];
   /** Top of the stack first. */
   stack: StackEntry[];
+  /**
+   * Forge's `CombatView`, one entry per attacking band, and empty outside
+   * combat. OPTIONAL like `BoardCard`'s late fields: `toBoardView` always sets
+   * it, and a view typed out by hand in another suite need not.
+   */
+  combat?: CombatBand[];
   gameOver: boolean;
   /** Ids a zone named whose object never arrived. A non-empty list is a bug upstream. */
   missingCardIds: number[];
+}
+
+/** Who a band attacks: a player, or a planeswalker or battle (a card). */
+export interface CombatDefender {
+  kind: 'card' | 'player';
+  id: number;
+}
+
+/** One attacking band, read off `DeltaPacket.CombatData` (`forge-wire/src/tier-c.ts`). */
+export interface CombatBand {
+  attackers: number[];
+  defender: CombatDefender;
+  blockers: number[];
 }
 
 export interface AdaptOptions {
@@ -579,6 +598,17 @@ function readInt(obj: WireObject | undefined, name: string, fallback = 0): numbe
   return v !== undefined && (v.t === 'int' || v.t === 'long' || v.t === 'byte') && typeof v.v === 'number'
     ? v.v
     : fallback;
+}
+
+/** `CombatView`: four parallel lists, `def` as `[marker, id]` with 0 = card, 1 = player. */
+function readCombat(game: WireObject | undefined): CombatBand[] {
+  const raw = prop(game, 'CombatView');
+  if (raw === undefined || raw.t !== 'combat') return [];
+  const v = raw as Extract<Tagged, { t: 'combat' }>;
+  return v.atk.map((attackers, i) => {
+    const [marker, id] = v.def[i]!;
+    return { attackers, defender: { kind: marker === 0 ? 'card' : 'player', id }, blockers: v.blk[i] ?? [] };
+  });
 }
 
 function readBool(obj: WireObject | undefined, name: string): boolean {
@@ -960,6 +990,7 @@ export function toBoardView(
 
   const phase = readEnum(game, 'Phase');
   return {
+    combat: readCombat(game),
     seq,
     title: readStr(game, 'Title') ?? '',
     turn: readInt(game, 'Turn'),

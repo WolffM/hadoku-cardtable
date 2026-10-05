@@ -6,7 +6,7 @@
  * gestures. `../match.ts` re-checks Forge's CURRENT offer inside both senders,
  * so no decision taken here can put an id on the wire that Forge did not name.
  */
-import { boardInteraction, isBlockAssignment, selectCard, selectPlayer, type LiveMatch } from '../match.ts';
+import { attackAssignment, boardInteraction, isBlockAssignment, selectCard, selectPlayer, type LiveMatch } from '../match.ts';
 import { cardElements, targetUnder } from './targets.ts';
 import type { DragState, DropTarget } from './types.ts';
 
@@ -56,6 +56,22 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
     if (!already && !selectCard(match, target.id)) return;
     selectCard(match, source);
     return;
+  }
+  /*
+   * Attacking by drag, and the other reversed order: `InputAttack` declares an
+   * attacker against whichever defender is CURRENT, and a click on a defender
+   * is what makes it current. So the defender goes first, the attacker second.
+   * The defender's frame goes out even when it is probably current already —
+   * nothing here knows which player Forge picked, and re-picking is a no-op.
+   */
+  if (source !== null && target.kind !== 'stack') {
+    const assignment = attackAssignment(match, source, target);
+    if (assignment === 'already') return;
+    if (assignment === 'assign') {
+      const picked = target.kind === 'card' ? selectCard(match, target.id) : selectPlayer(match, target.id);
+      if (picked) selectCard(match, source);
+      return;
+    }
   }
   // Forge's own `max`: one thing wanted, so the drop is the thing meant.
   const single = match.selectables !== null && match.selectables.max <= 1;

@@ -1024,6 +1024,7 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
           mulliganHand(match.state, view),
           blockTargets(match, view),
           declaredAttackers(match, view),
+          attackDefenders(match, view),
         )
       : selection.cards;
   if (named === null) return nothingClickable(match);
@@ -1037,6 +1038,9 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
       if (selection.players !== null && !selection.players.has(p.id)) continue;
       players.add(p.id);
     }
+  } else if (declaringAttackers(match)) {
+    // `InputAttack.onPlayerSelected` makes an opponent the current defender.
+    for (const p of view.players) if (!p.isViewer && !p.hasLost && !match.spent.players.has(p.id)) players.add(p.id);
   }
   return { selectable: offered, selectablePlayers: players, selectionOpen: selection !== null };
 }
@@ -1460,6 +1464,60 @@ function declaredAttackers(match: LiveMatch, view: BoardView): ReadonlySet<numbe
 }
 
 /**
+ * The planeswalkers and battles this seat could attack, offered while
+ * `InputAttack` is running — or null when it is not.
+ *
+ * Forge publishes no actionable set for them, yet a click on one is how its own
+ * UI picks what the next attacker attacks: `InputAttack.onCardSelected` makes a
+ * card in `combat.getDefenders()` the current defender (`InputAttack.java:230-235`)
+ * and highlights it. Without the offer, a drag onto a planeswalker found no
+ * target and fell back to attacking the player (playtest 7 W14, playtest 8 X1).
+ * Opponents' planeswalkers and every battle: a battle sits on its CASTER's
+ * battlefield and is attacked by them, and Forge refuses a click on one this
+ * seat protects (`:237-258` returns false), so the over-offer costs nothing.
+ */
+function attackDefenders(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
+  if (!declaringAttackers(match)) return null;
+  const out = new Set<number>();
+  for (const p of view.players) {
+    for (const c of p.battlefield) {
+      const type = c.card.typeLine;
+      if (type.includes('Battle') || (!p.isViewer && type.includes('Planeswalker'))) out.add(c.id);
+    }
+  }
+  return out;
+}
+
+/** What a drop of `attacker` on `target` sends while attacks are declared. */
+export type AttackAssignment = 'assign' | 'already' | null;
+
+/**
+ * Whether dropping `attacker` on `target` assigns it to that defender — and so
+ * whether the frames go out DEFENDER FIRST.
+ *
+ * `InputAttack` has no "attack that" click: a click on a defender sets
+ * `currentDefender`, and the next click on a creature declares it against
+ * whichever defender is current (`InputAttack.java:237-252`). `already` is the
+ * drop that would TOGGLE: re-clicking an attacker already attacking the current
+ * defender undeclares it (`:192-224`), so a drop on the defender it is already
+ * attacking sends nothing. Read off Forge's own `CombatView`.
+ */
+export function attackAssignment(match: LiveMatch, attacker: number, target: { kind: 'card' | 'player'; id: number }): AttackAssignment {
+  const view = match.view;
+  if (view === null || !declaringAttackers(match)) return null;
+  const me = view.players.find((p) => p.isViewer);
+  if (me === undefined || !me.battlefield.some((c) => c.id === attacker)) return null;
+  const isDefender =
+    target.kind === 'player'
+      ? view.players.some((p) => p.id === target.id && !p.isViewer)
+      : (attackDefenders(match, view)?.has(target.id) ?? false);
+  if (!isDefender) return null;
+  const band = (view.combat ?? []).find((b) => b.attackers.includes(attacker));
+  if (band !== undefined && band.defender.kind === target.kind && band.defender.id === target.id) return 'already';
+  return 'assign';
+}
+
+/**
  * Whether dragging `blocker` onto `attacker` is a block assignment — and so
  * whether the two `selectCard`s go out ATTACKER FIRST (§B.3).
  *
@@ -1488,6 +1546,8 @@ export type AttackIntent = 'sent' | 'declared' | 'refused';
  */
 function noteAttackIntent(match: LiveMatch, cardId: number): void {
   if (!declaringAttackers(match)) return;
+  // A click on a defender picks what to attack; only the seat's own cards attack.
+  if (!match.view!.players.some((p) => p.isViewer && p.battlefield.some((c) => c.id === cardId))) return;
   const turn = match.view!.turn;
   if (match.attackIntent === null || match.attackIntent.turn !== turn) match.attackIntent = { turn, ids: new Set() };
   match.attackIntent.ids.add(cardId);
