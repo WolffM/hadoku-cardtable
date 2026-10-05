@@ -1,0 +1,40 @@
+[metadata]
+Name=Reanimator (Rodrigo Gonzalez)
+Deck Type=Constructed
+Format=Legacy (EVE)
+Effective=2008-07-25
+Source URL=https://www.mtgtop8.com/event?e=115&d=108221&f=LE
+Comment=# Game Empire Winterfest: Rodrigo Gonzalez, 1st, Reanimator. Transcribed from mtgtop8 deck 108221.
+[Main]
+6 Swamp|A
+4 Animate Dead|A
+4 Exhume|US
+4 Underground Sea|A
+4 Reanimate|TE
+4 Careful Study|OD
+3 Repeal|GP
+3 Putrid Imp|TO
+3 Bogardan Hellkite|TSP
+3 Polluted Delta|ON
+3 Bloodstained Mire|ON
+3 Intuition|TE
+3 Brainstorm|IA
+2 Oona's Prowler|LRW
+2 Cabal Therapy|JU
+2 Watery Grave|RAV
+1 Akroma, Angel of Wrath|LE
+1 Simic Sky Swallower|DIS
+1 Tidespout Tyrant|DIS
+1 Garza Zol, Plague Queen|CSP
+1 Symbiotic Wurm|ON
+1 Phantom Nishoba|JU
+1 Sundering Titan|DS
+1 Island|A
+[Sideboard]
+1 Repeal|GP
+3 Stifle|SC
+3 Defense Grid|UL
+3 Propaganda|TE
+2 Wipe Away|TSP
+2 Hydroblast|IA
+1 Blue Elemental Blast|A

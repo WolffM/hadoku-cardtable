@@ -1,0 +1,5 @@
+[Mishra's Workshop fixture, era 2010] illegal=["Mishra's Workshop (banned)"] unknown=[]
+[Mishra's Workshop fixture, era 2011] illegal=["Mishra's Workshop (banned)"] unknown=[]
+[Survival fixture, era 2010 (2010-07-16)] illegal=[] unknown=[]
+[Survival fixture, era 2011 (2011-07-15)] illegal=['Survival of the Fittest (banned)'] unknown=[]
+ALL FIXTURE ASSERTIONS PASSED

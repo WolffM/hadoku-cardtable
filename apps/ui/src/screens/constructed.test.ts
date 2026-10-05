@@ -51,8 +51,10 @@ import {
   DRAFTED_BASICS,
   DRAFTED_DECK,
   draftedDeckOf,
+  erasOf,
   groupSetsByBlock,
   manaValueOf,
+  poolIsOnTab,
 } from './ConstructedScreen.tsx';
 import { deckColorsByName } from '../components/DeckView.tsx';
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
@@ -73,6 +75,7 @@ import {
   type RoomPlayer,
   type SeatChoice,
   type TableDeck,
+  type TableFormat,
   type Verdict,
 } from './tables.ts';
 
@@ -105,7 +108,7 @@ const SCREENS_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/scr
 // mock is reused by that section purely for its block-grouping shape, which
 // is unaffected by trimming a mock field nothing here reads for legality.
 const FORMATS = [
-  { id: '2010-07-16', name: 'Standard (M11)', effective: '2010-07-16', sets: ['ZEN', 'WWK', 'ROE', 'M11', 'SOM', 'MBS'], banned: [], cardCount: 1477, source: 'x' },
+  { id: '2010-07-16', name: 'Standard (M11)', effective: '2010-07-16', sets: ['ZEN', 'WWK', 'ROE', 'M11', 'SOM', 'MBS'], banned: [], cardCount: 1477, source: 'x', family: 'standard' as const },
   {
     id: '2011-07-15',
     name: 'Standard (M12)',
@@ -114,6 +117,7 @@ const FORMATS = [
     banned: ['Jace, the Mind Sculptor', 'Stoneforge Mystic'],
     cardCount: 1511,
     source: 'x',
+    family: 'standard' as const,
   },
 ];
 
@@ -356,6 +360,8 @@ function stubServer(table: Table) {
         banned: [],
         cardCount: pod.cards,
         source: 'draft',
+        // Unused: the picker's "Drafted pool" tab is `source === 'draft'`.
+        family: 'standard' as const,
       }));
       return json(200, { formats: [...pods, ...FORMATS] });
     }
@@ -1124,6 +1130,26 @@ describe('the table’s pool', () => {
     await waitFor(() => expect(offered()).toEqual([SECOND_DECK]));
   });
 
+  /*
+   * Wave 48 §U, item 1: *"i'll need a tab selector at the top for picking the
+   * format as well obviously"*. Replaces the single "Matched Standard"
+   * optgroup this suite used to pin (`constructed.test.ts:1760` before this
+   * wave).
+   */
+  it('shows a tab selector above the era list, opening on the table’s own family', async () => {
+    await mountRoom({ players: [opponent()], matchId: null });
+    const tabs = screen.getByTestId('format-tabs');
+    expect([...tabs.querySelectorAll('[role="tab"]')].map((b) => b.textContent)).toEqual(['Standard', 'Modern', 'Legacy']);
+    // Every era here is Standard, and the room is on one, so that tab opens active.
+    expect(screen.getByTestId('format-tab-standard').getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByTestId('format-tab-modern').getAttribute('aria-selected')).toBe('false');
+    // No "Drafted pool" tab at all when the room has no pod — never a disabled one.
+    expect(screen.queryByTestId('format-tab-draft')).toBeNull();
+    // No prose anywhere on the card explaining what a tab is or does.
+    const card = screen.getByTestId('deck-mine').closest('section') as HTMLElement;
+    expect(card.textContent).not.toMatch(/tab|pick the format|switch/i);
+  });
+
   it('gives a NON-leader no pool control at all, only the value the room is on', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null, leader: false });
 
@@ -1675,6 +1701,87 @@ describe('the era’s set symbols', () => {
   });
 });
 
+/* ── the format tab selector (wave 48 §U) ─────────────────────────────── */
+
+describe('erasOf: a tab shows only its own family\'s eras, newest year first', () => {
+  const era = (id: string, family: TableFormat['family']): TableFormat => ({
+    id,
+    name: id,
+    effective: id,
+    sets: [],
+    banned: [],
+    cardCount: 0,
+    source: 'x',
+    family,
+  });
+
+  const mixed: TableFormat[] = [
+    era('2012-07-13', 'standard'),
+    era('2014-07-18', 'standard'),
+    era('modern-2012-07-13', 'modern'),
+    era('modern-2014-07-18', 'modern'),
+    era('legacy-2016-07-22', 'legacy'),
+    { ...era('draft:cube-1', 'standard'), source: 'draft' },
+  ];
+
+  it('narrows to the chosen family, drops drafted pools, newest year first', () => {
+    expect(erasOf(mixed, 'standard').map((f) => f.id)).toEqual(['2014-07-18', '2012-07-13']);
+    expect(erasOf(mixed, 'modern').map((f) => f.id)).toEqual(['modern-2014-07-18', 'modern-2012-07-13']);
+    expect(erasOf(mixed, 'legacy').map((f) => f.id)).toEqual(['legacy-2016-07-22']);
+  });
+
+  it('a family with no eras in this room answers an empty list, not a crash', () => {
+    expect(erasOf(mixed, 'legacy').length).toBeGreaterThan(0);
+    expect(erasOf([era('2012-07-13', 'standard')], 'legacy')).toEqual([]);
+  });
+});
+
+/*
+ * Found live (w48 §U, after T.landed): a leader browsing Legacy while the
+ * room sits on a Standard era saw Legacy's NEWEST era drawn as already
+ * selected by the browser's own `<select>` fallback (value matches no
+ * option), and clicking that exact era sent nothing — the browser already
+ * considered it chosen, so no `change` fired. `poolIsOnTab` is what the
+ * `<select>` asks before deciding whether to show `poolId` or nothing.
+ */
+describe('poolIsOnTab: the select never lets the DOM invent a selection', () => {
+  const era = (id: string, family: TableFormat['family']): TableFormat => ({
+    id,
+    name: id,
+    effective: id,
+    sets: [],
+    banned: [],
+    cardCount: 0,
+    source: 'x',
+    family,
+  });
+  const mixed: TableFormat[] = [
+    era('2014-07-18', 'standard'),
+    era('modern-2014-07-18', 'modern'),
+    era('legacy-2016-07-22', 'legacy'),
+    era('legacy-2012-07-13', 'legacy'),
+  ];
+
+  it('is true when the room’s own era is one of the tab’s options', () => {
+    expect(poolIsOnTab(mixed, 'standard', '2014-07-18', null)).toBe(true);
+    expect(poolIsOnTab(mixed, 'legacy', 'legacy-2016-07-22', null)).toBe(true);
+  });
+
+  it('is false while browsing a DIFFERENT family — even the tab’s own first (newest) era', () => {
+    // The room is on the Standard era; browsing Legacy must not claim its
+    // newest entry (the one a naive `<select>` would default-highlight).
+    expect(poolIsOnTab(mixed, 'legacy', '2014-07-18', null)).toBe(false);
+    expect(poolIsOnTab(mixed, 'modern', '2014-07-18', null)).toBe(false);
+  });
+
+  it('the draft tab is true only for the caller’s OWN pod, by id', () => {
+    const withPod: TableFormat[] = [...mixed, { ...era('draft:cube-1', 'standard'), source: 'draft' }];
+    expect(poolIsOnTab(withPod, 'draft', 'draft:cube-1', 'cube-1')).toBe(true);
+    // Browsing "Drafted pool" while the room is on a frozen era: false.
+    expect(poolIsOnTab(withPod, 'draft', '2014-07-18', null)).toBe(false);
+  });
+});
+
 /**
  * A drafted deck against a friend, from the room screen.
  *
@@ -1750,21 +1857,29 @@ describe('a room on a drafted pool', () => {
     return { server, socket };
   }
 
-  it('offers the pods the caller drafted in, beside the eras, without making one the default', async () => {
+  it('offers the pods the caller drafted in, on their own tab, without making one the default era', async () => {
     await mountPod();
-    const select = (await screen.findByTestId('format')) as HTMLSelectElement;
-    // Two groups, one control. The pods come first, which is what keeps
-    // `newestFormat` — `formats.at(-1)` on both sides — a frozen era.
-    expect([...select.querySelectorAll('optgroup')].map((g) => g.getAttribute('label'))).toEqual([
-      'Drafted pools',
-      'Matched Standard',
-    ]);
-    expect([...select.options].map((o) => o.value)).toEqual([`draft:${POD}`, ...FORMATS.map((f) => f.id)]);
+    const tabs = await screen.findByTestId('format-tabs');
+    // The table is ON the pod, so the tab bar opens there — the same property
+    // the old "pods come first" ordering protected, restated for tabs: a pod
+    // must never become the pool a room opens on by accident.
+    expect(within(tabs).getByTestId('format-tab-draft').getAttribute('aria-selected')).toBe('true');
+    const select = screen.getByTestId('format') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual([`draft:${POD}`]);
     expect(select.value).toBe(`draft:${POD}`);
     // The field says what kind of pool this is, rather than calling a cube Standard.
     expect(screen.getByLabelText('Drafted pool')).toBe(select);
     // A cube is not an era, so it draws no set symbols.
     expect(screen.queryByTestId('pool-sets')).toBeNull();
+
+    // Switching tabs browses the eras without moving the room off its pod —
+    // newest year first, so the reverse of FORMATS' own (oldest-first) order.
+    // The room's actual pool (the pod) is not one of THIS tab's options, so a
+    // hidden empty placeholder leads the list and the select reads as nothing
+    // chosen — never the first real era shown as selected by DOM fallback.
+    fireEvent.click(within(tabs).getByTestId('format-tab-standard'));
+    expect([...select.options].map((o) => o.value)).toEqual(['', ...[...FORMATS].reverse().map((f) => f.id)]);
+    expect(select.value).toBe('');
   });
 
   it('offers YOUR drafted cards as the deck, and sends the .dck of your own pool', async () => {

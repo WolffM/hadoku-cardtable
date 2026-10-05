@@ -41,6 +41,14 @@
 
 export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
+/**
+ * Which ruleset family an era belongs to (wave 48). Mirrors the server's own
+ * `FormatFamily` (`apps/server/src/http/library.ts`) over the wire; a drafted
+ * pool's `source` is `'draft'` and its `family` is meaningless — the picker
+ * groups a pod by `source`, never by `family`.
+ */
+export type FormatFamily = 'standard' | 'modern' | 'legacy';
+
 export interface TableFormat {
   id: string;
   name: string;
@@ -49,6 +57,8 @@ export interface TableFormat {
   banned: string[];
   cardCount: number;
   source: string;
+  /** Which tab this era belongs to. The server sends it; this is never parsed from `name`. */
+  family: FormatFamily;
 }
 
 export interface DeckLine {
@@ -297,19 +307,23 @@ export function pickRandom<T>(items: readonly T[], rand: () => number = secureRa
 }
 
 /**
- * The newest frozen pool — the last element, not the first.
+ * The newest STANDARD era — never just "the last element".
  *
- * `GET /api/tables/formats` sends them "in date order, oldest first"
- * (`apps/server/src/http/library.ts`), so `formats[0]` is the OLDEST
- * power-summer era (`2008-07-25`) and every room used to open on it. The
- * room's own default is the NEWEST pool
- * (operator, 2026-09-27), and this is the same arithmetic on the client side —
- * used only as the fallback for a room whose record has not been read yet, or a
- * server too old to send one. Never as a second opinion about a room that
- * answered.
+ * Wave 48 put Modern and Legacy eras in the same `formats` list
+ * (`TableFormat.family`), so `formats.at(-1)` is no longer necessarily a
+ * Standard era: the room's own default is the newest Standard pool
+ * (operator, 2026-09-27), and a catalog ordered with Modern or Legacy last
+ * would silently hand that default to the wrong family. This is the same
+ * arithmetic as the server's `room/lobby.ts`'s `newestFormat` — used only as
+ * the fallback for a room whose record has not been read yet, or a server too
+ * old to send one. Never as a second opinion about a room that answered.
  */
 export function newestFormat(formats: readonly TableFormat[]): string {
-  return formats.at(-1)?.id ?? '';
+  let newest: TableFormat | null = null;
+  for (const f of formats) {
+    if (f.family === 'standard' && (newest === null || f.id > newest.id)) newest = f;
+  }
+  return newest?.id ?? '';
 }
 
 /** Which decks a pool offers, and whether the server answered for all of them. */

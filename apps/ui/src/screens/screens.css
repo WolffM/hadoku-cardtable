@@ -184,6 +184,43 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * The format tab selector (wave 48 §U). A plain button row — no caption above
+ * it and nothing under an inactive tab explaining what it is, the same "no
+ * prose" rule every other control on this card follows. The active tab is the
+ * app's own primary colour, which is the only signal this screen uses for "the
+ * thing you are currently looking at" (the ready pill's border-style is the
+ * other state-without-colour signal, for a different question).
+ */
+.lobby__format-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.lobby__format-tabs button {
+  padding: 0.35rem 0.75rem;
+  background: var(--color-bg-alt);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lobby__format-tabs button[aria-selected='true'] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+}
+
+.lobby__format-tabs button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .lobby__form {
   display: flex;
   flex-wrap: wrap;

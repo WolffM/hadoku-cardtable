@@ -1,0 +1,41 @@
+[metadata]
+Name=UW Control (Avignon)
+Deck Type=Constructed
+Format=Modern (EMN)
+Effective=2016-07-22
+Source URL=https://www.mtgtop8.com/event?e=11980&d=268659&f=MO
+Comment=MTGO Modern PTQ: Avignon, 1st, UW Control. Transcribed from mtgtop8 deck 268659.
+[Main]
+2 Elspeth, Sun's Champion|THS
+1 Gideon Jura|M12
+3 Jace, Vryn's Prodigy|ORI
+3 Snapcaster Mage|ISD
+3 Wall of Omens|ROE
+4 Supreme Verdict|RTR
+2 Condemn|M11
+3 Cryptic Command|LRW
+4 Mana Leak|M12
+2 Ojutai's Command|DTK
+4 Path to Exile|CFX
+1 Sphinx's Revelation|RTR
+1 Crucible of Worlds|10E
+1 Detention Sphere|RTR
+4 Celestial Colonnade|WWK
+4 Flooded Strand|KTK
+4 Ghost Quarter|ISD
+2 Glacial Fortress|M13
+2 Hallowed Fountain|RTR
+4 Island|BFZ
+1 Mystic Gate|SHM
+2 Plains|BFZ
+2 Polluted Delta|KTK
+1 Tectonic Edge|WWK
+[Sideboard]
+1 Crucible of Worlds|10E
+2 Disenchant|TSB
+3 Dispel|BFZ
+1 Glen Elendra Archmage|EVE
+3 Negate|OGW
+1 Rule of Law|10E
+2 Stony Silence|ISD
+2 Vendilion Clique|MOR

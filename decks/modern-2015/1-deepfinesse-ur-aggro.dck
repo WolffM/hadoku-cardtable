@@ -1,0 +1,45 @@
+[metadata]
+Name=UR Aggro (DeepFinesse)
+Deck Type=Constructed
+Format=Modern (ORI)
+Effective=2015-07-17
+Source URL=https://www.mtgtop8.com/event?e=10024&d=257845&f=MO
+Comment=MTGO Modern MOCS (#8439629): DeepFinesse, 1st, UR Aggro. Transcribed from mtgtop8 deck 257845.
+[Main]
+1 Bloodstained Mire|KTK
+1 Blood Crypt|RTR
+4 Thought Scour|DKA
+1 Terminate|ARB
+2 Spell Snare|DIS
+2 Remand|RAV
+1 Murderous Cut|KTK
+2 Mana Leak|M12
+4 Lightning Bolt|M11
+2 Kolaghan's Command|DTK
+1 Electrolyze|GP
+1 Deprive|ROE
+4 Serum Visions|FD
+4 Gitaxian Probe|NPH
+1 Young Pyromancer|M14
+2 Tasigur, the Golden Fang|FRF
+3 Snapcaster Mage|ISD
+3 Gurmag Angler|FRF
+4 Delver of Secrets|ISD
+1 Darkslick Shores|SOM
+3 Island|DTK
+1 Mountain|DTK
+4 Polluted Delta|KTK
+4 Scalding Tarn|ZEN
+2 Steam Vents|RTR
+1 Swamp|DTK
+1 Watery Grave|GTC
+[Sideboard]
+2 Blood Moon|9E
+3 Death's Shadow|WWK
+2 Dispel|RTR
+1 Engineered Explosives|FD
+1 Grim Lavamancer|M12
+1 Izzet Staticaster|RTR
+1 Monastery Siege|FRF
+2 Rending Volley|DTK
+2 Spellskite|NPH

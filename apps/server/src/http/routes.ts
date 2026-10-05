@@ -8,7 +8,7 @@
  * one of them is behind the same friend-tier floor as everything else. There is
  * no public tier here and nothing to configure one.
  *
- *   GET  /api/tables/formats               the frozen Standard pools, oldest first
+ *   GET  /api/tables/formats               the frozen pools (Standard, Modern, Legacy), each carrying its `family`
  *   GET  /api/tables/decks                 the deck library, with each list
  *   POST /api/tables/check                 `{ deck, rules }` → the verdict, without starting anything
  *   GET  /api/tables/rooms/:roomId         both players' state at a room's table
@@ -423,12 +423,14 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * drafted; `cardCount` is the size of the caller's OWN pool, which is their
 	 * own hidden information, and no card name is in it.
 	 *
-	 * **They go FIRST, not last.** `newestFormat` — on both sides — is
-	 * `formats.at(-1)`, the newest frozen era, and that is the default a new room
-	 * opens on and the fallback a browser uses before the room has answered. A
-	 * pod appended to the end would silently become "the newest pool" for every
-	 * room in the lobby. `effective` is empty for a pod, so first is also where
-	 * the documented "oldest first" ordering puts something with no date.
+	 * **They go FIRST, not last.** `newestFormat` — on both sides — picks the
+	 * newest era whose `family` is `'standard'` (wave 48; `family` is sent as
+	 * `'standard'` on a pod's own row too, unread, since a pod is told apart by
+	 * `source`), and that is the default a new room opens on and the fallback a
+	 * browser uses before the room has answered. A pod appended to the end would
+	 * silently become eligible for that pick if it were not excluded by
+	 * `source` first. `effective` is empty for a pod, so first is also where the
+	 * documented "oldest first" ordering puts something with no date.
 	 */
 	function draftedPoolsFor(req: Request): Record<string, unknown>[] {
 		const draftRooms = deps.draftRooms;
@@ -446,6 +448,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				banned: [],
 				cardCount: view.viewer.pool.length,
 				source: 'draft',
+				// Unused: the picker's "Drafted pool" tab is `source === 'draft'`,
+				// never a family. The field is still sent, never optional, so every
+				// row on the wire has the same shape.
+				family: 'standard',
 			});
 		}
 		return offered;
@@ -463,6 +469,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					banned: f.fixture.banned,
 					cardCount: f.fixture.cards.length,
 					source: f.fixture.source,
+					// The era's ruleset family (w48 §U) — the UI groups its tabs on
+					// THIS, never on a parsed name.
+					family: f.family,
 				})),
 			],
 		});

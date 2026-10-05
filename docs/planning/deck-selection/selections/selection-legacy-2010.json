@@ -1,0 +1,1537 @@
+{
+ "era": {
+  "year": 2010,
+  "season_start": "2009-10-02",
+  "start": "2010-07-16",
+  "end": "2010-10-01",
+  "snapshot_file": "2010-07-16",
+  "format": "Legacy (M11)",
+  "sets": "LEA, LEB, 2ED, ARN, ATQ, 3ED, LEG, DRC94, DRK, PHPR, FEM, 4ED, ICE, CHR, HML, ALL, MIR, VIS, 5ED, POR, WTH, TMP, STH, EXO, PO2, USG, ATH, ULG, 6ED, UDS, S99, PTK, MMQ, BRB, NMS, S00, PCY, BTD, INV, PLS, 7ED, APC, ODY, DKM, TOR, JUD, ONS, LGN, SCG, 8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, MED, LRW, DD1, MOR, SHM, EVE, DRB, ME2, ALA, DD2, CFX, DDC, ARB, M10, TD0, FVE, HOP, ME3, ZEN, DDD, PDS, WWK, DDE, ROE, DPA, ARC, M11",
+  "banned": [
+   "Amulet of Quoz",
+   "Ancestral Recall",
+   "Balance",
+   "Bazaar of Baghdad",
+   "Black Lotus",
+   "Black Vise",
+   "Bronze Tablet",
+   "Channel",
+   "Chaos Orb",
+   "Contract from Below",
+   "Darkpact",
+   "Demonic Attorney",
+   "Demonic Consultation",
+   "Demonic Tutor",
+   "Earthcraft",
+   "Falling Star",
+   "Fastbond",
+   "Flash",
+   "Frantic Search",
+   "Goblin Recruiter",
+   "Gush",
+   "Hermit Druid",
+   "Imperial Seal",
+   "Jeweled Bird",
+   "Land Tax",
+   "Library of Alexandria",
+   "Mana Crypt",
+   "Mana Drain",
+   "Mana Vault",
+   "Memory Jar",
+   "Mind Twist",
+   "Mind's Desire",
+   "Mishra's Workshop",
+   "Mox Emerald",
+   "Mox Jet",
+   "Mox Pearl",
+   "Mox Ruby",
+   "Mox Sapphire",
+   "Mystical Tutor",
+   "Necropotence",
+   "Oath of Druids",
+   "Rebirth",
+   "Shahrazad",
+   "Skullclamp",
+   "Sol Ring",
+   "Strip Mine",
+   "Tempest Efreet",
+   "Time Spiral",
+   "Time Vault",
+   "Time Walk",
+   "Timetwister",
+   "Timmerian Fiends",
+   "Tinker",
+   "Tolarian Academy",
+   "Vampiric Tutor",
+   "Wheel of Fortune",
+   "Windfall",
+   "Worldgorger Dragon",
+   "Yawgmoth's Bargain",
+   "Yawgmoth's Will"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 261641,
+   "event": 10775,
+   "archetype": "Burning Animals",
+   "player": "Eddy Pereira",
+   "event_name": "Molsheim XVII Legacy",
+   "stars": 2,
+   "rank": "1",
+   "date": "2010-06-27",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 12,
+    "avg_cmc": 1.62,
+    "pips": {
+     "W": 8.0,
+     "U": 0,
+     "B": 0,
+     "R": 24.0,
+     "G": 14.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Sylvan Library": 2,
+     "Path to Exile": 3,
+     "Price of Progress": 3,
+     "Magma Jet": 2,
+     "Lightning Bolt": 4,
+     "Fireblast": 2,
+     "Chain Lightning": 4,
+     "Wild Nacatl": 4,
+     "Tarmogoyf": 4,
+     "Qasali Pridemage": 4,
+     "Steppe Lynx": 1,
+     "Grim Lavamancer": 3,
+     "Goblin Guide": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 206873,
+   "event": 530,
+   "archetype": "Rw Burn",
+   "player": "Reto Sormani",
+   "event_name": "Ovino V - Milan (Italy)",
+   "stars": 1,
+   "rank": "1",
+   "date": "2010-09-11",
+   "summer": true,
+   "s": 0.8653846153846154,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 16,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 20,
+    "avg_cmc": 1.9,
+    "pips": {
+     "W": 4.0,
+     "U": 0,
+     "B": 0,
+     "R": 40.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Chain Lightning": 4,
+     "Rift Bolt": 4,
+     "Fireblast": 4,
+     "Lava Spike": 4,
+     "Price of Progress": 4,
+     "Lightning Bolt": 4,
+     "Goblin Guide": 4,
+     "Grim Lavamancer": 4,
+     "Keldon Marauders": 4,
+     "Steppe Lynx": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 206928,
+   "event": 533,
+   "archetype": "Axe Gang Fae",
+   "player": "Dan Monzon",
+   "event_name": "Philippine Open",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2010-08-28",
+   "summer": true,
+   "s": 0.6973573641278247,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 13,
+    "counters": 15,
+    "sweepers": 0,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 2.03,
+    "pips": {
+     "W": 0,
+     "U": 38.0,
+     "B": 0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Jace, the Mind Sculptor": 1,
+     "Vedalken Shackles": 2,
+     "Counterspell": 3,
+     "Engineered Explosives": 3,
+     "Ancestral Vision": 4,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Spell Snare": 4,
+     "Sower of Temptation": 2,
+     "Vendilion Clique": 3,
+     "Spellstutter Sprite": 4,
+     "Tarmogoyf": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 160654,
+   "event": 442,
+   "archetype": "Goblins",
+   "player": "Camille \"Assassin\" Pouliquen",
+   "event_name": "Legacy France Cup Final 2009",
+   "stars": 2,
+   "rank": "2",
+   "date": "2009-10-18",
+   "summer": false,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.34,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 5.0,
+     "R": 37.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Goblin Warchief": 4,
+     "Warren Weirding": 4,
+     "Aether Vial": 4,
+     "Goblin Lackey": 4,
+     "Goblin Matron": 4,
+     "Goblin Ringleader": 4,
+     "Goblin Chieftain": 3,
+     "Mogg Fanatic": 3,
+     "Goblin Piledriver": 3,
+     "Gempalm Incinerator": 2,
+     "Goblin Ruinblaster": 1,
+     "Stingscourger": 1,
+     "Wort, Boggart Auntie": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 206723,
+   "event": 510,
+   "archetype": "ANT",
+   "player": "Frizork",
+   "event_name": "Magic-League Legacy Trial",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2010-09-08",
+   "summer": true,
+   "s": 0.5784455328993979,
+   "f": {
+    "spells": 47,
+    "lands": 13,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 1.13,
+    "pips": {
+     "W": 4.0,
+     "U": 8.0,
+     "B": 16.0,
+     "R": 9.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Ponder": 4,
+     "Infernal Tutor": 4,
+     "Tendrils of Agony": 1,
+     "Duress": 4,
+     "Orim's Chant": 4,
+     "Rite of Flame": 4,
+     "Ad Nauseam": 1,
+     "Lotus Petal": 4,
+     "Lion's Eye Diamond": 4,
+     "Dark Ritual": 4,
+     "Chrome Mox": 4,
+     "Burning Wish": 4,
+     "Brainstorm": 4,
+     "Empty the Warrens": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 2
+  },
+  {
+   "deck": 206874,
+   "event": 530,
+   "archetype": "UW Landstill",
+   "player": "Marc Tobiasch",
+   "event_name": "Ovino V - Milan (Italy)",
+   "stars": 1,
+   "rank": "2",
+   "date": "2010-09-11",
+   "summer": true,
+   "s": 0.5769230769230769,
+   "f": {
+    "spells": 39,
+    "lands": 22,
+    "creatures": 0,
+    "counters": 9,
+    "sweepers": 1,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.0,
+    "pips": {
+     "W": 11.0,
+     "U": 34.0,
+     "B": 1.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Jace, the Mind Sculptor": 2,
+     "Crucible of Worlds": 1,
+     "Engineered Explosives": 1,
+     "Relic of Progenitus": 1,
+     "Sword of the Meek": 1,
+     "Thopter Foundry": 2,
+     "Sensei's Divining Top": 3,
+     "Humility": 1,
+     "Oblivion Ring": 1,
+     "Counterbalance": 3,
+     "Standstill": 3,
+     "Counterspell": 2,
+     "Enlightened Tutor": 3,
+     "Spell Snare": 3,
+     "Brainstorm": 4,
+     "Force of Will": 4,
+     "Swords to Plowshares": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 195741,
+   "event": 460,
+   "archetype": "Four-color Counterbalance",
+   "player": "Tom Martell",
+   "event_name": "Grand Prix Columbus 2010",
+   "stars": 1,
+   "rank": "2",
+   "date": "2010-08-01",
+   "summer": true,
+   "s": 0.5769230769230769,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 6,
+    "counters": 9,
+    "sweepers": 3,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 2.26,
+    "pips": {
+     "W": 5.0,
+     "U": 38.0,
+     "B": 0,
+     "R": 1.5,
+     "G": 5.5
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Force of Will": 4,
+     "Counterbalance": 4,
+     "Oblivion Ring": 1,
+     "Spell Snare": 2,
+     "Vendilion Clique": 2,
+     "Jace, the Mind Sculptor": 3,
+     "Counterspell": 3,
+     "Firespout": 3,
+     "Sensei's Divining Top": 4,
+     "Tarmogoyf": 4,
+     "Swords to Plowshares": 4,
+     "Brainstorm": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 207001,
+   "event": 540,
+   "archetype": "Ichorid",
+   "player": "Nicola Cantarutti",
+   "event_name": "Legacy Academy Trieste (Italy)",
+   "stars": 2,
+   "rank": "3",
+   "date": "2009-11-29",
+   "summer": false,
+   "s": 0.5578858913022599,
+   "f": {
+    "spells": 49,
+    "lands": 11,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.45,
+    "pips": {
+     "W": 1.0,
+     "U": 15.0,
+     "B": 35.0,
+     "R": 2.0,
+     "G": 7.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Breakthrough": 4,
+     "Bridge from Below": 4,
+     "Cabal Therapy": 4,
+     "Careful Study": 4,
+     "Cephalid Sage": 1,
+     "Deep Analysis": 2,
+     "Dread Return": 3,
+     "Flame-Kin Zealot": 1,
+     "Golgari Grave-Troll": 4,
+     "Golgari Thug": 2,
+     "Ichorid": 3,
+     "Lion's Eye Diamond": 4,
+     "Narcomoeba": 4,
+     "Putrid Imp": 4,
+     "Stinkweed Imp": 4,
+     "Woodfall Primus": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 207008,
+   "event": 541,
+   "archetype": "Belcher",
+   "player": "Cedric Phillips",
+   "event_name": "SCG $5,000 Legacy Open - Philadelphia (USA)",
+   "stars": 2,
+   "rank": "6",
+   "date": "2009-10-11",
+   "summer": false,
+   "s": 0.4362085839710631,
+   "f": {
+    "spells": 58,
+    "lands": 2,
+    "creatures": 8,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 1.83,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 4.0,
+     "R": 24.5,
+     "G": 13.5
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Chrome Mox": 4,
+     "Goblin Charbelcher": 4,
+     "Lion's Eye Diamond": 4,
+     "Lotus Petal": 4,
+     "Elvish Spirit Guide": 4,
+     "Simian Spirit Guide": 4,
+     "Tinder Wall": 4,
+     "Dark Ritual": 4,
+     "Desperate Ritual": 4,
+     "Manamorphose": 3,
+     "Seething Song": 4,
+     "Burning Wish": 4,
+     "Empty the Warrens": 3,
+     "Land Grant": 4,
+     "Rite of Flame": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 1
+  },
+  {
+   "deck": 207015,
+   "event": 541,
+   "archetype": "42 lands",
+   "player": "Chris Woltereck",
+   "event_name": "SCG $5,000 Legacy Open - Philadelphia (USA)",
+   "stars": 2,
+   "rank": "7",
+   "date": "2009-10-11",
+   "summer": false,
+   "s": 0.41602919535301897,
+   "f": {
+    "spells": 22,
+    "lands": 38,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.27,
+    "pips": {
+     "W": 0,
+     "U": 3.0,
+     "B": 0,
+     "R": 3.0,
+     "G": 12.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Mox Diamond": 4,
+     "Exploration": 4,
+     "Manabond": 4,
+     "Intuition": 3,
+     "Gamble": 3,
+     "Life from the Loam": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 206908,
+   "event": 191,
+   "archetype": "Ad Nauseam Tendrils",
+   "player": "Yuu Saitou",
+   "event_name": "Tokyo's Eternal Festival (Japan)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2010-09-20",
+   "summer": true,
+   "s": 0.40046229200727557,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 1.28,
+    "pips": {
+     "W": 3.0,
+     "U": 9.0,
+     "B": 23.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Ill-Gotten Gains": 1,
+     "Tendrils of Agony": 1,
+     "Chain of Vapor": 1,
+     "Mox Diamond": 2,
+     "Ad Nauseam": 2,
+     "Duress": 3,
+     "Silence": 3,
+     "Lotus Petal": 4,
+     "Dark Ritual": 4,
+     "Cabal Ritual": 4,
+     "Lion's Eye Diamond": 4,
+     "Brainstorm": 4,
+     "Infernal Tutor": 4,
+     "Sensei's Divining Top": 2,
+     "Ponder": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 4
+  },
+  {
+   "deck": 206906,
+   "event": 191,
+   "archetype": "Elf Combo",
+   "player": "Yuuya Hosokawa",
+   "event_name": "Tokyo's Eternal Festival (Japan)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2010-09-20",
+   "summer": true,
+   "s": 0.40046229200727557,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.58,
+    "pips": {
+     "W": 2.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 48.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Summoner's Pact": 3,
+     "Glimpse of Nature": 4,
+     "Chord of Calling": 4,
+     "Regal Force": 1,
+     "Viridian Shaman": 1,
+     "Mirror Entity": 2,
+     "Heritage Druid": 4,
+     "Llanowar Elves": 4,
+     "Birchlore Rangers": 4,
+     "Wirewood Symbiote": 4,
+     "Elvish Visionary": 4,
+     "Wirewood Hivemaster": 4,
+     "Nettle Sentinel": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 185609,
+   "event": 451,
+   "archetype": "Merfolk",
+   "player": "Omar Rohner",
+   "event_name": "BoM4 Legacy",
+   "stars": 1,
+   "rank": "1",
+   "date": "2010-05-15",
+   "summer": false,
+   "s": 0.6923076923076924,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 26,
+    "counters": 12,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.37,
+    "pips": {
+     "W": 0,
+     "U": 52.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Cursecatcher": 4,
+     "Coralhelm Commander": 4,
+     "Silvergill Adept": 4,
+     "Aether Vial": 4,
+     "Force of Will": 4,
+     "Daze": 4,
+     "Merrow Reejerey": 4,
+     "Lord of Atlantis": 4,
+     "Merfolk Sovereign": 4,
+     "Kira, Great Glass-Spinner": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 4
+  },
+  {
+   "deck": 206998,
+   "event": 540,
+   "archetype": "Faeries",
+   "player": "Nejc Fin\u009egar",
+   "event_name": "Legacy Academy Trieste (Italy)",
+   "stars": 2,
+   "rank": "2",
+   "date": "2009-11-29",
+   "summer": false,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 16,
+    "counters": 14,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.15,
+    "pips": {
+     "W": 3.0,
+     "U": 34.0,
+     "B": 0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Aether Vial": 4,
+     "Brainstorm": 4,
+     "Cloud of Faeries": 4,
+     "Daze": 3,
+     "Force of Will": 4,
+     "Ninja of the Deep Hours": 4,
+     "Spell Snare": 3,
+     "Spellstutter Sprite": 4,
+     "Standstill": 4,
+     "Swords to Plowshares": 3,
+     "Tarmogoyf": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 206931,
+   "event": 533,
+   "archetype": "Dredge",
+   "player": "Mark Guevarra",
+   "event_name": "Philippine Open",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2010-08-28",
+   "summer": true,
+   "s": 0.5784455328993979,
+   "f": {
+    "spells": 46,
+    "lands": 15,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.61,
+    "pips": {
+     "W": 5.0,
+     "U": 11.0,
+     "B": 46.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Darkblast": 1,
+     "Dread Return": 3,
+     "Careful Study": 3,
+     "Breakthrough": 4,
+     "Cabal Therapy": 4,
+     "Bridge from Below": 4,
+     "Iona, Shield of Emeria": 1,
+     "Angel of Despair": 1,
+     "Golgari Thug": 2,
+     "Ichorid": 3,
+     "Narcomoeba": 4,
+     "Bloodghast": 4,
+     "Golgari Grave-Troll": 4,
+     "Putrid Imp": 4,
+     "Stinkweed Imp": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 206932,
+   "event": 533,
+   "archetype": "Anchinity",
+   "player": "Anchit Bayfan",
+   "event_name": "Philippine Open",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2010-08-28",
+   "summer": true,
+   "s": 0.5784455328993979,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 3,
+    "avg_cmc": 2.55,
+    "pips": {
+     "W": 0,
+     "U": 7.0,
+     "B": 3.0,
+     "R": 3.0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Arcbound Ravager": 4,
+     "Arcbound Worker": 4,
+     "Ornithopter": 4,
+     "Myr Enforcer": 4,
+     "Disciple of the Vault": 3,
+     "Frogmite": 4,
+     "Master of Etherium": 3,
+     "Springleaf Drum": 4,
+     "Cranial Plating": 4,
+     "Thoughtcast": 4,
+     "Shrapnel Blast": 3,
+     "Pithing Needle": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 206912,
+   "event": 191,
+   "archetype": "Team America",
+   "player": "Shinya Satou",
+   "event_name": "Tokyo's Eternal Festival (Japan)",
+   "stars": 1,
+   "rank": "2",
+   "date": "2010-09-20",
+   "summer": true,
+   "s": 0.5769230769230769,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 9,
+    "counters": 8,
+    "sweepers": 0,
+    "draw": 10,
+    "burn": 0,
+    "avg_cmc": 2.83,
+    "pips": {
+     "W": 0,
+     "U": 28.0,
+     "B": 24.0,
+     "R": 0,
+     "G": 6.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Tarmogoyf": 4,
+     "Vendilion Clique": 2,
+     "Tombstalker": 3,
+     "Jace, the Mind Sculptor": 2,
+     "Thoughtseize": 4,
+     "Hymn to Tourach": 4,
+     "Ponder": 4,
+     "Brainstorm": 4,
+     "Daze": 4,
+     "Force of Will": 4,
+     "Snuff Out": 4,
+     "Pernicious Deed": 2
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 160655,
+   "event": 442,
+   "archetype": "Ubg Fish",
+   "player": "Quentin Gouedard",
+   "event_name": "Legacy France Cup Final 2009",
+   "stars": 2,
+   "rank": "3-4",
+   "date": "2009-10-18",
+   "summer": false,
+   "s": 0.5578858913022599,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 16,
+    "counters": 12,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.1,
+    "pips": {
+     "W": 0,
+     "U": 28.0,
+     "B": 4.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Spellstutter Sprite": 4,
+     "Aether Vial": 4,
+     "Force of Will": 4,
+     "Daze": 4,
+     "Standstill": 4,
+     "Dark Confidant": 4,
+     "Brainstorm": 4,
+     "Tarmogoyf": 4,
+     "Waterfront Bouncer": 4,
+     "Umezawa's Jitte": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 160658,
+   "event": 442,
+   "archetype": "Eternal Garden",
+   "player": "Patrick \"patoch\" Bouvier",
+   "event_name": "Legacy France Cup Final 2009",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2009-10-18",
+   "summer": false,
+   "s": 0.4627564263195184,
+   "f": {
+    "spells": 25,
+    "lands": 35,
+    "creatures": 0,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 1.44,
+    "pips": {
+     "W": 0,
+     "U": 4.0,
+     "B": 0,
+     "R": 0,
+     "G": 9.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Crop Rotation": 4,
+     "Crucible of Worlds": 4,
+     "Exploration": 4,
+     "Intuition": 4,
+     "Mox Diamond": 4,
+     "Sensei's Divining Top": 2,
+     "Engineered Explosives": 1,
+     "Zuran Orb": 1,
+     "Life from the Loam": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 160657,
+   "event": 442,
+   "archetype": "Survival",
+   "player": "Alexandre Blanchard",
+   "event_name": "Legacy France Cup Final 2009",
+   "stars": 2,
+   "rank": "5-8",
+   "date": "2009-10-18",
+   "summer": false,
+   "s": 0.4627564263195184,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 20,
+    "counters": 8,
+    "sweepers": 1,
+    "draw": 5,
+    "burn": 0,
+    "avg_cmc": 2.5,
+    "pips": {
+     "W": 3.0,
+     "U": 25.0,
+     "B": 5.0,
+     "R": 2.0,
+     "G": 12.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Stifle": 4,
+     "Phyrexian Dreadnought": 4,
+     "Force of Will": 4,
+     "Brainstorm": 4,
+     "Survival of the Fittest": 4,
+     "Tarmogoyf": 4,
+     "Volrath's Shapeshifter": 3,
+     "Aether Vial": 3,
+     "Cephalid Inkshrouder": 1,
+     "Trygon Predator": 1,
+     "Anger": 1,
+     "Genesis": 1,
+     "Myojin of Cleansing Fire": 1,
+     "Phage the Untouchable": 1,
+     "Psychatog": 1,
+     "Squee, Goblin Nabob": 1,
+     "Sensei's Divining Top": 1,
+     "Eternal Witness": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 207011,
+   "event": 541,
+   "archetype": "CounterTop Goyf",
+   "player": "Timothy Hunt",
+   "event_name": "SCG $5,000 Legacy Open - Philadelphia (USA)",
+   "stars": 2,
+   "rank": "5",
+   "date": "2009-10-11",
+   "summer": false,
+   "s": 0.4627564263195184,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 10,
+    "counters": 11,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 2.1,
+    "pips": {
+     "W": 0,
+     "U": 31.0,
+     "B": 12.0,
+     "R": 0,
+     "G": 6.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Sensei's Divining Top": 3,
+     "Dark Confidant": 4,
+     "Sower of Temptation": 2,
+     "Tarmogoyf": 4,
+     "Counterbalance": 4,
+     "Brainstorm": 4,
+     "Daze": 3,
+     "Force of Will": 4,
+     "Putrefy": 2,
+     "Smother": 3,
+     "Stifle": 4,
+     "Thoughtseize": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 185610,
+   "event": 451,
+   "archetype": "Dreadstill",
+   "player": "Simon Ritzka",
+   "event_name": "BoM4 Legacy",
+   "stars": 1,
+   "rank": "2",
+   "date": "2010-05-15",
+   "summer": false,
+   "s": 0.4615384615384615,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 7,
+    "counters": 17,
+    "sweepers": 0,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 1.85,
+    "pips": {
+     "W": 0,
+     "U": 38.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Stifle": 4,
+     "Spell Snare": 4,
+     "Phyrexian Dreadnought": 4,
+     "Force of Will": 4,
+     "Standstill": 4,
+     "Brainstorm": 4,
+     "Counterbalance": 3,
+     "Daze": 3,
+     "Trinket Mage": 3,
+     "Sensei's Divining Top": 3,
+     "Trickbind": 2,
+     "Engineered Explosives": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  }
+ ],
+ "pool_size": 22,
+ "rejected_illegal": [
+  {
+   "archetype": "GW Survival",
+   "deck": 206713,
+   "player": "Stork",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "4-Color Supreme Blue",
+   "deck": 206927,
+   "player": "JC Asehan",
+   "why": [
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "ANT",
+   "deck": 160653,
+   "player": "Thibault \"Rompeprop\" Kandri",
+   "why": [
+    "Mystical Tutor (banned)"
+   ]
+  },
+  {
+   "archetype": "Stacker (Mono Brown)",
+   "deck": 206994,
+   "player": "Venturini Stefano",
+   "why": [
+    "Tangle Wire (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Trinistax (Mono White)",
+   "deck": 207017,
+   "player": "Brian Peters",
+   "why": [
+    "Kor Haven (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Zoo",
+   "deck": 206913,
+   "player": "Kouta Hattori",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Merfolk with black",
+   "deck": 195740,
+   "player": "Tomoharu Saito",
+   "why": [
+    "Submerge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Merfolk",
+   "deck": 206714,
+   "player": "Nickname7",
+   "why": [
+    "Submerge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Merfolk",
+   "deck": 206715,
+   "player": "bosty",
+   "why": [
+    "Submerge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Maverick",
+   "deck": 206929,
+   "player": "Eifferson Deboria",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "unknown card: J\ufffdtun Grunt"
+   ]
+  },
+  {
+   "archetype": "Countertop Bant",
+   "deck": 206716,
+   "player": "Emmanuel87",
+   "why": [
+    "Noble Hierarch (not in legal sets)",
+    "Progenitus (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "TKG-RDW",
+   "deck": 206930,
+   "player": "Neil Buelo",
+   "why": [
+    "Hellspark Elemental (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Reanimator",
+   "deck": 195790,
+   "player": "Andreas Muller",
+   "why": [
+    "Inkwell Leviathan (not in legal sets)",
+    "Mystical Tutor (banned)"
+   ]
+  },
+  {
+   "archetype": "Reanimator",
+   "deck": 206996,
+   "player": "Carlo Feragotto",
+   "why": [
+    "Inkwell Leviathan (not in legal sets)",
+    "Mystical Tutor (banned)"
+   ]
+  },
+  {
+   "archetype": "Threshold",
+   "deck": 207016,
+   "player": "James Bishop",
+   "why": [
+    "Submerge (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Aluren",
+   "deck": 206718,
+   "player": "Tidus-",
+   "why": [
+    "Parasitic Strix (not in legal sets)",
+    "Progenitus (not in legal sets)",
+    "unknown card: Lim-D\ufffdl's Vault"
+   ]
+  },
+  {
+   "archetype": "UG Madness",
+   "deck": 206722,
+   "player": "Verystrait42",
+   "why": [
+    "Noble Hierarch (not in legal sets)",
+    "Submerge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bant",
+   "deck": 261643,
+   "player": "Antoine Bresse",
+   "why": [
+    "Noble Hierarch (not in legal sets)",
+    "Progenitus (not in legal sets)",
+    "unknown card: J\ufffdtun Grunt"
+   ]
+  },
+  {
+   "archetype": "Prog\u00e9kiki",
+   "deck": 261644,
+   "player": "Guillaume Meyer",
+   "why": [
+    "Noble Hierarch (not in legal sets)",
+    "Progenitus (not in legal sets)",
+    "unknown card: J\ufffdtun Grunt"
+   ]
+  },
+  {
+   "archetype": "URG Thresh",
+   "deck": 160656,
+   "player": "Pierre Sommen",
+   "why": [
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "CounterTop Progenitus",
+   "deck": 207009,
+   "player": "Johnathan Mosier",
+   "why": [
+    "Noble Hierarch (not in legal sets)",
+    "Progenitus (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "CounterTop Progenitus",
+   "deck": 207010,
+   "player": "Vincent Pau",
+   "why": [
+    "Noble Hierarch (not in legal sets)",
+    "Progenitus (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ub Merfolks",
+   "deck": 206910,
+   "player": "Shingou Kurihara",
+   "why": [
+    "Submerge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Show and Tell/Sneak Attack",
+   "deck": 206911,
+   "player": "Yuuki Ookubo",
+   "why": [
+    "Progenitus (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Survival of the Moby Team",
+   "deck": 206876,
+   "player": "Stefano Riccio",
+   "why": [
+    "Noble Hierarch (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "U/G Madness",
+   "deck": 195739,
+   "player": "Caleb Durward",
+   "why": [
+    "Noble Hierarch (not in legal sets)",
+    "Submerge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Standstill from the loam",
+   "deck": 195742,
+   "player": "Jason Ford",
+   "why": [
+    "Submerge (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Ad Nauseam Tendrils",
+   "deck": 195795,
+   "player": "David Do Anh",
+   "why": [
+    "Mystical Tutor (banned)",
+    "Reverent Silence (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Canadian Threshold",
+   "deck": 206995,
+   "player": "Alessandro Scalia",
+   "why": [
+    "Submerge (not in legal sets)",
+    "unknown card: Fire / Ice"
+   ]
+  },
+  {
+   "archetype": "Bant Aggro",
+   "deck": 206909,
+   "player": "Hisashi Udagawa",
+   "why": [
+    "Knight of the Reliquary (not in legal sets)",
+    "Noble Hierarch (not in legal sets)",
+    "Submerge (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Omar's deck",
+   "player": "Julien Kauffenstein",
+   "kept": "Merfolk",
+   "kept_player": "Omar Rohner"
+  },
+  {
+   "dropped": "Zoo",
+   "player": "JC Espiritu",
+   "kept": "Burning Animals",
+   "kept_player": "Eddy Pereira"
+  },
+  {
+   "dropped": "Burn!",
+   "player": "ykpon",
+   "kept": "Rw Burn",
+   "kept_player": "Reto Sormani"
+  },
+  {
+   "dropped": "Burning ANT",
+   "player": "Federico Bonad\u00e8",
+   "kept": "ANT",
+   "kept_player": "Frizork"
+  },
+  {
+   "dropped": "Goblin bling",
+   "player": "Gregory Buchholtz",
+   "kept": "Goblins",
+   "kept_player": "Camille \"Assassin\" Pouliquen"
+  },
+  {
+   "dropped": "Goblin",
+   "player": "Raphael Antoine",
+   "kept": "Goblins",
+   "kept_player": "Camille \"Assassin\" Pouliquen"
+  },
+  {
+   "dropped": "Landstill",
+   "player": "Jean Vincent",
+   "kept": "UW Landstill",
+   "kept_player": "Marc Tobiasch"
+  },
+  {
+   "dropped": "Supreme Blue",
+   "player": "Saverio Storaci",
+   "kept": "Four-color Counterbalance",
+   "kept_player": "Tom Martell"
+  },
+  {
+   "dropped": "Merfolks",
+   "player": "Olivier Gasperment",
+   "kept": "Merfolk",
+   "kept_player": "Omar Rohner"
+  },
+  {
+   "dropped": "Ub Merfolks",
+   "player": "Ondrej Strasky",
+   "kept": "Merfolk",
+   "kept_player": "Omar Rohner"
+  },
+  {
+   "dropped": "MonoU Merfolks",
+   "player": "Takayuki Yano",
+   "kept": "Merfolk",
+   "kept_player": "Omar Rohner"
+  }
+ ],
+ "objective": 6.904153546243237,
+ "pool_colors": {
+  "W": 4,
+  "R": 5,
+  "G": 11,
+  "U": 16,
+  "B": 9
+ },
+ "pool_styles": {
+  "aggro": 8,
+  "midrange": 3,
+  "control": 7,
+  "combo": 4
+ }
+}

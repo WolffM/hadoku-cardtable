@@ -12,6 +12,7 @@ import json, math, os, random, sys
 from collections import Counter, defaultdict
 sys.path.insert(0, os.path.dirname(__file__))
 import analyze, lists
+from eras import eras as eras_for, cache_path, selection_path, style_overrides_path
 
 N_DECKS = 12
 LABELS_CONSIDERED = 55          # archetypes (best deck each) examined per era
@@ -72,9 +73,9 @@ def search(items, style_target, n, restarts=120, seed=7):
         if v > bestv: best, bestv = set(sel), v
     return sorted(best, key=lambda i: -items[i]['s']), bestv
 
-def run(era, overrides):
+def run(era, overrides, fmt='ST'):
     import html
-    d = json.load(open(f'cache/candidates-{era["year"]}.json'))['decks']
+    d = json.load(open(cache_path(fmt, era['year'])))['decks']
     for r in d:
         for k in ('archetype', 'player', 'event_name'): r[k] = html.unescape(r[k]).replace('\xa0', ' ').strip()
     by = defaultdict(list)
@@ -86,7 +87,7 @@ def run(era, overrides):
         tries = 0
         for r in sorted(by[L], key=lambda x: -x['s'])[:TRIES_PER_LABEL]:
             tries += 1
-            main, side = lists.get(r['deck'])
+            main, side = lists.get(r['deck'], fmt)
             ill, unk = analyze.legality(main, side, era, set(era['banned']))
             if ill or unk:
                 rejected.append({'archetype': L, 'deck': r['deck'], 'player': r['player'], 'why': (ill + [f'unknown card: {u}' for u in unk])[:3]})
@@ -112,20 +113,34 @@ def run(era, overrides):
     style_target = {'has': {s: pool[s] >= STYLE_FLOOR for s in STYLES},
                     't': {s: N_DECKS * (0.5 * 0.25 + 0.5 * pool[s] / tot) for s in STYLES}}
     sel, val = search(items, style_target, min(N_DECKS, len(items)))
-    return era, items, sel, val, rejected, dups
+    # The full legal, de-duplicated pool's own colour/style shares — kept
+    # alongside the selection (not recomputed by report.py) so "balance, but
+    # true to the season" (wave48 Settled) can be checked against the real
+    # meta: a colour/style that DOMINATED the candidate pool is the evidence
+    # for giving it an extra slot, and the review doc shows both side by side.
+    pool_colors = dict(Counter(c for i in items for c in i['f']['colors']))
+    pool_styles = dict(pool)
+    return era, items, sel, val, rejected, dups, pool_colors, pool_styles
 
 if __name__ == '__main__':
-    ov = json.load(open('style-overrides.json')) if os.path.exists('style-overrides.json') else {}
-    eras = json.load(open('eras.json'))
-    years = [int(a) for a in sys.argv[1:]] or [e['year'] for e in eras]
-    for era in eras:
+    argv = sys.argv[1:]
+    fmt = 'ST'
+    if '--format' in argv:
+        i = argv.index('--format'); fmt = argv[i + 1]; argv = argv[:i] + argv[i + 2:]
+    ov_path = style_overrides_path(fmt)
+    ov = json.load(open(ov_path)) if os.path.exists(ov_path) else {}
+    eras_list = eras_for(fmt)
+    years = [int(a) for a in argv] or [e['year'] for e in eras_list]
+    os.makedirs('selections', exist_ok=True)
+    for era in eras_list:
         if era['year'] not in years: continue
-        era, items, sel, val, rejected, dups = run(era, ov)
+        era, items, sel, val, rejected, dups, pool_colors, pool_styles = run(era, ov, fmt)
         def slim(i): return {k: v for k, v in i.items() if k not in ('main', 'side')}
         json.dump({'era': era, 'chosen': [slim(items[i]) for i in sel],
                    'alternates': [slim(i) for j, i in enumerate(items) if j not in sel][:12],
-                   'pool_size': len(items), 'rejected_illegal': rejected, 'duplicates_dropped': dups, 'objective': val},
-                  open(f'selections/selection-{era["year"]}.json', 'w'), indent=1)
+                   'pool_size': len(items), 'rejected_illegal': rejected, 'duplicates_dropped': dups, 'objective': val,
+                   'pool_colors': pool_colors, 'pool_styles': pool_styles},
+                  open(selection_path(fmt, era['year']), 'w'), indent=1)
         cols = Counter(c for i in sel for c in items[i]['f']['colors']); st = Counter(items[i]['style'] for i in sel)
         print(era['year'], era['format'], 'pool', len(items), 'illegal', len(rejected), 'dups', len(dups),
               '| colours', dict(sorted(cols.items())), '| styles', dict(st), flush=True)

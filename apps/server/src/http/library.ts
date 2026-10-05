@@ -43,6 +43,17 @@
  * broken deck file is an artifact to fix, and a process that will not boot over
  * one is a worse failure than a picker missing one entry — as long as the
  * missing entry is SAID somewhere, which is what `faults` and the boot log are.
+ *
+ * ## Wave 48 §U: a format's `id` is no longer always its date
+ *
+ * Standard, Modern and Legacy eras can snapshot the SAME date (§T lines the
+ * three formats up year by year), so the id has to carry the family for
+ * anything that is not Standard: `@hadoku/deck/library`'s `formatIdOf`
+ * answers the bare date for `'standard'` and `<family>-<date>` otherwise, and
+ * its two-arg `poolFixturePath(date, family)` reads
+ * `decks/pools/<family>-<date>.generated.json` to match. Standard's own ids
+ * are unchanged — every stored room and every e2e pinning a bare date (e.g.
+ * `2016-07-22`) keeps working.
  */
 
 import { readFileSync } from 'node:fs';
@@ -52,18 +63,24 @@ import type { FormatPool } from '@hadoku/deck';
 import {
 	LIBRARY,
 	deckPath,
+	formatIdOf,
 	loadLibraryDeck,
 	parsePoolFixture,
 	poolFixturePath,
 	poolFromFixture,
+	type FormatFamily,
 	type LibraryCollection,
 	type LibraryDeck,
 	type PoolFixture,
 } from '@hadoku/deck/library';
 
-/** One format a match can be played in. `id` is the pool's date. */
+export type { FormatFamily };
+
+/** One format a match can be played in. `id` is `formatIdOf` of its collection. */
 export interface TableFormat {
 	readonly id: string;
+	/** Which ruleset family this era belongs to — groups the picker's tabs. */
+	readonly family: FormatFamily;
 	readonly fixture: PoolFixture;
 	readonly pool: FormatPool;
 }
@@ -102,17 +119,23 @@ export function loadTablesLibrary(
 ): TablesLibrary {
 	const faults: string[] = [];
 
-	// Exactly the catalogued eras' own dates — never a directory scan. See the
-	// module doc for why: `decks/pools/` can hold a date no collection claims
-	// (a test fixture, an in-progress era) and that date must stay invisible to
-	// the picker no matter what file name it has.
-	const dates = [...new Set(library.map((c) => c.date))];
+	// Exactly the catalogued eras' own (family, date) pairs — never a directory
+	// scan. See the module doc for why: `decks/pools/` can hold a date no
+	// collection claims (a test fixture, an in-progress era) and that date must
+	// stay invisible to the picker no matter what file name it has. Keyed by
+	// `formatIdOf`, not the bare date: Standard, Modern and Legacy can share a
+	// date (§T lines them up year by year), and each still needs its own pool.
+	const keys = new Map<string, { family: FormatFamily; date: string }>();
+	for (const collection of library) {
+		const id = formatIdOf(collection);
+		if (!keys.has(id)) keys.set(id, { family: collection.family, date: collection.date });
+	}
 	const formats: TableFormat[] = [];
-	for (const date of dates) {
-		const path = join(repoRoot, poolFixturePath(date));
+	for (const [id, { family, date }] of keys) {
+		const path = join(repoRoot, poolFixturePath(date, family));
 		try {
 			const fixture = parsePoolFixture(JSON.parse(readFileSync(path, 'utf8')) as unknown);
-			formats.push({ id: fixture.date, fixture, pool: poolFromFixture(fixture) });
+			formats.push({ id, family, fixture, pool: poolFromFixture(fixture) });
 		} catch (err) {
 			faults.push(`${path}: ${(err as Error).message}`);
 		}

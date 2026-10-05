@@ -45,7 +45,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { poolNameKeys } from '../format.ts';
-import { LIBRARY, POOL_FIXTURE_DATES, deckPath, poolFixturePath } from './catalog.ts';
+import { LIBRARY, POOL_FIXTURE_KEYS, deckPath, poolFixturePath } from './catalog.ts';
 import { loadLibraryDeck } from './library.ts';
 import { parsePoolFixture } from './pool-fixture.ts';
 
@@ -86,13 +86,13 @@ export function libraryCardNames(): Set<string> {
 export function libraryCardCosts(): Record<string, string> {
   const wanted = libraryCardNames();
   const costs: Record<string, string> = {};
-  for (const date of POOL_FIXTURE_DATES) {
-    const fixture = parsePoolFixture(JSON.parse(read(poolFixturePath(date))) as unknown);
+  for (const { family, date } of POOL_FIXTURE_KEYS) {
+    const fixture = parsePoolFixture(JSON.parse(read(poolFixturePath(date, family))) as unknown);
     for (const [name, cost] of Object.entries(fixture.manaCost)) {
       if (!wanted.has(name)) continue;
       const held = costs[name];
       if (held !== undefined && held !== cost) {
-        throw new Error(`${name}: ${date} says ${cost}, an earlier pool says ${held}`);
+        throw new Error(`${name}: ${family} ${date} says ${cost}, an earlier pool says ${held}`);
       }
       costs[name] = cost;
     }

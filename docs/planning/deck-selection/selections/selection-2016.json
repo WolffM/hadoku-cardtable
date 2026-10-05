@@ -2149,5 +2149,17 @@
    "kept_player": "Finespoo"
   }
  ],
- "objective": 7.700603318250377
+ "objective": 7.700603318250377,
+ "pool_colors": {
+  "W": 12,
+  "U": 12,
+  "G": 13,
+  "B": 11,
+  "R": 9
+ },
+ "pool_styles": {
+  "midrange": 8,
+  "aggro": 11,
+  "control": 7
+ }
 }

@@ -55,11 +55,11 @@ import { fileURLToPath } from 'node:url';
 
 import {
   buildPrintingIndex,
-  standardPoolAt,
+  formatPoolAt,
   type PrintingIndex,
 } from '@hadoku/carddata/formats';
 
-import { POOL_FIXTURE_DATES, poolFixturePath } from './catalog.ts';
+import { POOL_FIXTURE_KEYS, poolFixturePath, type PoolFixtureKey } from './catalog.ts';
 import { fixtureFromStandardPool } from './pool-fixture.ts';
 
 /** `packages/deck/src/library` → the repo root. */
@@ -80,15 +80,6 @@ const DEFAULT_CARDS = join(REPO_ROOT, 'packages', 'carddata', 'data', 'cards.jso
 type IndexedCard =
   Parameters<typeof buildPrintingIndex>[0] extends Iterable<infer T> ? T : never;
 
-/**
- * The dates frozen. See the header for why each one is here.
- *
- * The list itself moved to `catalog.ts` when `build-deck-costs.ts` and
- * `library.test.ts` started needing it: this module loads the 183 MB corpus at
- * import time, so nothing can import a constant from it.
- */
-export const FIXTURE_DATES = POOL_FIXTURE_DATES;
-
 function arg(name: string): string | null {
   const prefix = `--${name}=`;
   for (const a of process.argv.slice(2)) if (a.startsWith(prefix)) return a.slice(prefix.length);
@@ -105,26 +96,88 @@ async function loadIndex(cardsPath: string): Promise<PrintingIndex> {
   return buildPrintingIndex(cards);
 }
 
+/**
+ * Scryfall set codes that are 100% `digital: true` in the corpus — MTGO-only
+ * compilation/reprint products with no new cards at all, so excluding them
+ * from the printing index (which `buildPrintingIndex` does on purpose,
+ * `standard.ts`'s own header has the argument) costs nothing: every card they
+ * contain already has an earlier, non-digital printing in an earlier legal
+ * set. Legacy's set list is "every paper set ever", which inevitably reaches
+ * one of these; Standard and Modern's set lists never have, so this allowlist
+ * only ever fires for Legacy, in practice.
+ *
+ * Each one verified directly against the corpus (every printing under the
+ * code has `"digital":true`, zero exceptions) before being added here — found
+ * building Legacy's fixtures, which reach every one of these by 2016 (Legacy
+ * 2008 already needs `ME1`, Forge calls it `MED`, and refused with "corpus
+ * has no printings for ME1" until this existed). Computed by running
+ * `formatPoolAt('legacy', date, index)` for every Legacy 2005-2016 era and
+ * collecting every `missingSets` entry across all twelve, not guessed one
+ * error at a time:
+ *
+ *   ME1 "Masters Edition", ME2 "Masters Edition II", ME3 "Masters Edition
+ *   III", ME4 "Masters Edition IV" — the four Masters Editions.
+ *   VMA "Vintage Masters", TPR "Tempest Remastered" — later MTGO-only
+ *   "Masters"-style reprint sets.
+ *   TD0 "Magic Online Theme Decks", TD2 "Duel Decks: Mirrodin Pure vs. New
+ *   Phyrexia" (an MTGO-only duel-deck release despite the paper-sounding
+ *   name — checked against the corpus like everything else here, not
+ *   assumed from the name), PZ1 "Legendary Cube Prize Pack" — MTGO prize/
+ *   theme products, same shape.
+ *
+ * All nine: zero paper printings, every card in them a reprint already legal
+ * via an earlier paper set. A set NOT on this list that the corpus is
+ * missing is still refused: this is a narrow, verified exception, not a
+ * general "ignore missing sets" escape hatch.
+ */
+const ALL_DIGITAL_SETS = new Set(['ME1', 'ME2', 'ME3', 'ME4', 'VMA', 'TPR', 'TD0', 'TD2', 'PZ1']);
+
+/**
+ * `--family=modern` (or `legacy`) freezes only that family's keys, and
+ * `--only=2012,2013` narrows further to those years — handy for a lane
+ * re-freezing its own fixtures without recomputing all 31. No flags freezes
+ * every catalogued (family, date) pair, which is what CI's committed fixtures
+ * must stay in sync with.
+ */
+function keysToFreeze(): readonly PoolFixtureKey[] {
+  const family = arg('family');
+  const only = arg('only');
+  const years = only === null ? null : only.split(',');
+  return POOL_FIXTURE_KEYS.filter(
+    (k) => (family === null || k.family === family) && (years === null || years.includes(k.date.slice(0, 4))),
+  );
+}
+
 async function main(): Promise<void> {
   const cardsPath = arg('cards') ?? DEFAULT_CARDS;
   const index = await loadIndex(cardsPath);
   console.log(`indexed ${String(index.printings)} printings from ${cardsPath}`);
 
-  for (const date of FIXTURE_DATES) {
-    const pool = standardPoolAt(date, index);
-    if (!pool.ok) throw new Error(`${date}: standardPoolAt refused — ${pool.reason}`);
-    if (pool.missingSets.length > 0) {
+  const keys = keysToFreeze();
+  if (keys.length === 0) throw new Error('no (family, date) pairs matched --family/--only');
+
+  for (const { family, date } of keys) {
+    const pool = formatPoolAt(family, date, index);
+    if (!pool.ok) throw new Error(`${family} ${date}: formatPoolAt refused — ${pool.reason}`);
+    const unexpectedMissing = pool.missingSets.filter((s) => !ALL_DIGITAL_SETS.has(s));
+    if (unexpectedMissing.length > 0) {
       // A set the format names with no printing in the corpus means a pool that
       // is quietly short, which is the exact failure `standard.ts` was written
-      // against. Refuse rather than freeze it.
-      throw new Error(`${date}: corpus has no printings for ${pool.missingSets.join(', ')}`);
+      // against. Refuse rather than freeze it — unless the set is a KNOWN,
+      // verified all-digital one (see `ALL_DIGITAL_SETS`), in which case it is
+      // expected and reported instead.
+      throw new Error(`${family} ${date}: corpus has no printings for ${unexpectedMissing.join(', ')}`);
+    }
+    const expectedMissing = pool.missingSets.filter((s) => ALL_DIGITAL_SETS.has(s));
+    if (expectedMissing.length > 0) {
+      console.log(`  ${family} ${date}: no printings for ${expectedMissing.join(', ')} (all-digital, expected — see ALL_DIGITAL_SETS)`);
     }
     if (pool.unmatchedBans.length > 0) {
-      throw new Error(`${date}: ban list names cards the corpus has not got: ${pool.unmatchedBans.join(', ')}`);
+      throw new Error(`${family} ${date}: ban list names cards the corpus has not got: ${pool.unmatchedBans.join(', ')}`);
     }
 
     const fixture = fixtureFromStandardPool(date, pool);
-    const target = join(REPO_ROOT, poolFixturePath(date));
+    const target = join(REPO_ROOT, poolFixturePath(date, family));
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(
       target,
@@ -134,10 +187,11 @@ async function main(): Promise<void> {
             'GENERATED by packages/deck/src/library/build-pool-fixture.ts from the real Scryfall corpus ' +
             '(packages/carddata/data/cards.jsonl, gitignored and absent in CI). Committed on purpose: ' +
             'library.test.ts validates real decklists against a real pool without the 183 MB, and a diff ' +
-            'here is a regression in standardPoolAt or a corpus re-sync. Do not hand-edit — regenerate.',
+            'here is a regression in formatPoolAt or a corpus re-sync. Do not hand-edit — regenerate.',
           generatedAt: new Date().toISOString(),
           command:
             'node --max-old-space-size=6144 packages/deck/src/library/build-pool-fixture.ts --cards=<path to cards.jsonl>',
+          family,
           counts: pool.counts,
           ...fixture,
         },
@@ -147,7 +201,7 @@ async function main(): Promise<void> {
       'utf8',
     );
     console.log(
-      `${poolFixturePath(date)}: ${pool.format.name} (${pool.format.effective}), ` +
+      `${poolFixturePath(date, family)}: ${pool.format.name} (${pool.format.effective}), ` +
         `${String(fixture.cards.length)} cards, ${String(fixture.banned.length)} banned`,
     );
   }

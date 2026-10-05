@@ -1,0 +1,41 @@
+[metadata]
+Name=Eldrazi Aggro (BSWeitz)
+Deck Type=Constructed
+Format=Modern (EMN)
+Effective=2016-07-22
+Source URL=https://www.mtgtop8.com/event?e=13131&d=276856&f=MO
+Comment=MTGO Modern MOCS: BSWeitz, 1st, Eldrazi Aggro. Transcribed from mtgtop8 deck 276856.
+[Main]
+1 Hallowed Fountain|RTR
+1 Plains|SOI
+1 Temple Garden|RTR
+4 Windswept Heath|KTK
+2 Yavimaya Coast|ORI
+4 Eldrazi Displacer|OGW
+4 Drowner of Hope|BFZ
+1 Birds of Paradise|M12
+1 Ghost Quarter|ISD
+2 Forest|SOI
+4 Eldrazi Temple|ROE
+4 Cavern of Souls|AVR
+3 Brushland|10E
+1 Breeding Pool|GTC
+4 Path to Exile|CFX
+4 Ancient Stirrings|ROE
+4 Thought-Knot Seer|OGW
+2 Spellskite|NPH
+4 Reality Smasher|OGW
+4 Noble Hierarch|CFX
+3 Matter Reshaper|OGW
+2 Eldrazi Skyspawner|BFZ
+[Sideboard]
+1 Dismember|NPH
+2 Engineered Explosives|FD
+1 Fracturing Gust|SHM
+2 Grafdigger's Cage|DKA
+2 Gut Shot|NPH
+2 Kitchen Finks|SHM
+1 Negate|OGW
+2 Stony Silence|ISD
+1 Stubborn Denial|KTK
+1 World Breaker|OGW

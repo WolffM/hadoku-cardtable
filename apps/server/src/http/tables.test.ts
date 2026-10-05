@@ -36,7 +36,7 @@ import { loadPool } from '../room/pool.js';
 import type { DraftCard } from '@hadoku/shared';
 import { checkSeat, type SeatVerdict } from './gate.js';
 import type { TablesRooms } from './routes.js';
-import { LIBRARY, type LibraryCollection } from '@hadoku/deck/library';
+import { LIBRARY, formatIdOf, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from './library.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
@@ -129,6 +129,7 @@ describe('the library', () => {
 		const broken = loadTablesLibrary(REPO_ROOT, [
 			{
 				id: 'broken',
+				family: 'standard',
 				directory: 'decks/no-such-collection',
 				event: 'nothing',
 				format: 'Standard (M11)',
@@ -160,11 +161,13 @@ describe('checkSeat', () => {
 	// library-wide total. A DKA deck is legal in DKA and is not legal in a 2011
 	// pool, and both of those are the right answer.
 	it('passes every deck in the format it was actually played in', () => {
-		// Each deck against ITS OWN collection's date, looked up rather than
+		// Each deck against ITS OWN collection's id, looked up rather than
 		// guessed from the id — the prefix test that preceded this was a third
-		// hardcoding of the same fact.
+		// hardcoding of the same fact. `formatIdOf`, not the bare `c.date` (w48
+		// §U): a Modern or Legacy deck's own era shares its date with Standard's
+		// same-year era, and the bare date names the WRONG (Standard) pool.
 		const formatOf = new Map<string, string>(
-			LIBRARY.flatMap((c: LibraryCollection) => c.decks.map((d) => [d.id, c.date] as [string, string])),
+			LIBRARY.flatMap((c: LibraryCollection) => c.decks.map((d) => [d.id, formatIdOf(c)] as [string, string])),
 		);
 		for (const d of library.decks) {
 			const format = formatOf.get(d.id) ?? POWER_2010;
@@ -545,11 +548,20 @@ describe('the catalog routes', () => {
 		expect(rows).toContainEqual([POWER_2010, []]);
 		expect(rows).toContainEqual([POWER_2011, ['Jace, the Mind Sculptor', 'Stoneforge Mystic']]);
 		expect(rows).toContainEqual([POWER_2012, []]);
+		// The era's ruleset family (w48 §U) — every era on main today is Standard,
+		// and the UI groups its tabs on this, never on a parsed `name`.
+		const families = (formats.body.formats as { family: string }[]).map((f) => f.family);
+		expect(families.length).toBeGreaterThan(0);
+		expect(families.every((f) => f === 'standard' || f === 'modern' || f === 'legacy')).toBe(true);
 		const decks = await call(h, 'GET', '/api/tables/decks');
 		const list = decks.body.decks as { id: string; name: string; main: { count: number }[] }[];
 		expect(list).toHaveLength(LIBRARY.flatMap((c: LibraryCollection) => c.decks).length);
 		// The very first deck in catalog order: the oldest era, first deck chosen.
-		expect(list[0]).toMatchObject({ id: 'power-2008-1-michael-jacob-red-deck-wins', name: 'Red Deck Wins (Michael Jacob)' });
+		// Derived from the loaded library itself, never a hardcoded id/name — w48
+		// moved this exact pin once already (2008 → 2003, Standard backfilled five
+		// more years), and a count fact restated here is a second copy free to go
+		// stale the next time an era is added at the front.
+		expect(list[0]).toMatchObject({ id: library.decks[0]!.id, name: library.decks[0]!.deck.name });
 		expect(list[0]?.main.reduce((n, e) => n + e.count, 0)).toBe(60);
 	});
 

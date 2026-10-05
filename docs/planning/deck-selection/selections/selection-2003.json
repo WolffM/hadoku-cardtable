@@ -1,0 +1,845 @@
+{
+ "era": {
+  "year": 2003,
+  "season_start": "2002-11-01",
+  "start": "2003-09-01",
+  "end": "2003-10-20",
+  "format": "Standard (8ED)",
+  "sets": "ODY, TOR, JUD, ONS, LGN, SCG, 8ED",
+  "banned": []
+ },
+ "chosen": [
+  {
+   "deck": 489121,
+   "event": 38736,
+   "archetype": "Wake",
+   "player": "Marco Blume",
+   "event_name": "Grand Prix Atlanta 2003",
+   "stars": 3,
+   "rank": "1",
+   "date": "2003-08-31",
+   "summer": false,
+   "s": 1.0,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 0,
+    "counters": 6,
+    "sweepers": 4,
+    "draw": 9,
+    "burn": 0,
+    "avg_cmc": 3.27,
+    "pips": {
+     "W": 20.0,
+     "U": 16.0,
+     "B": 0,
+     "R": 0,
+     "G": 6.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Mirari": 1,
+     "Circular Logic": 2,
+     "Cunning Wish": 3,
+     "Renewed Faith": 3,
+     "Moment's Peace": 3,
+     "Compulsion": 3,
+     "Mirari's Wake": 3,
+     "Decree of Justice": 3,
+     "Mana Leak": 4,
+     "Wrath of God": 4,
+     "Deep Analysis": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 16
+  },
+  {
+   "deck": 601724,
+   "event": 54103,
+   "archetype": "UG Madness",
+   "player": "Michael Groves",
+   "event_name": "Nationals - England 2003",
+   "stars": 3,
+   "rank": "2",
+   "date": "2003-04-19",
+   "summer": false,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 20,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.03,
+    "pips": {
+     "W": 1.0,
+     "U": 20.0,
+     "B": 0,
+     "R": 0,
+     "G": 21.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Ray of Revelation": 1,
+     "Quiet Speculation": 2,
+     "Deep Analysis": 3,
+     "Roar of the Wurm": 3,
+     "Circular Logic": 4,
+     "Careful Study": 4,
+     "Gigapede": 1,
+     "Wonder": 3,
+     "Basking Rootwalla": 4,
+     "Arrogant Wurm": 4,
+     "Wild Mongrel": 4,
+     "Aquamoeba": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 10
+  },
+  {
+   "deck": 489122,
+   "event": 38736,
+   "archetype": "Black-white Control",
+   "player": "Matt Linde",
+   "event_name": "Grand Prix Atlanta 2003",
+   "stars": 3,
+   "rank": "2",
+   "date": "2003-08-31",
+   "summer": false,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 9,
+    "counters": 0,
+    "sweepers": 7,
+    "draw": 12,
+    "burn": 0,
+    "avg_cmc": 3.74,
+    "pips": {
+     "W": 37.0,
+     "U": 0,
+     "B": 19.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Haunting Echoes": 2,
+     "Skeletal Scrying": 3,
+     "Renewed Faith": 3,
+     "Decree of Justice": 3,
+     "Akroma's Vengeance": 3,
+     "Smother": 4,
+     "Cabal Therapy": 4,
+     "Wrath of God": 4,
+     "Undead Gladiator": 2,
+     "Eternal Dragon": 3,
+     "Exalted Angel": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 489123,
+   "event": 38736,
+   "archetype": "Red-green Beats",
+   "player": "Joshua Wagener",
+   "event_name": "Grand Prix Atlanta 2003",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2003-08-31",
+   "summer": false,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 7,
+    "avg_cmc": 2.24,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 22.0,
+     "G": 27.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Elephant Guide": 3,
+     "Firebolt": 3,
+     "Violent Eruption": 4,
+     "Call of the Herd": 4,
+     "Volcanic Hammer": 4,
+     "Grim Lavamancer": 3,
+     "Basking Rootwalla": 4,
+     "Birds of Paradise": 4,
+     "Phantom Centaur": 4,
+     "Wild Mongrel": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 2
+  },
+  {
+   "deck": 489124,
+   "event": 38736,
+   "archetype": "Goblins",
+   "player": "Keith Mclaughlin",
+   "event_name": "Grand Prix Atlanta 2003",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2003-08-31",
+   "summer": false,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 2.43,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 61.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Raging Goblin": 4,
+     "Skirk Prospector": 2,
+     "Goblin Sledder": 4,
+     "Goblin Piledriver": 4,
+     "Sparksmith": 4,
+     "Goblin Warchief": 4,
+     "Blistering Firecat": 2,
+     "Siege-Gang Commander": 1,
+     "Clickslither": 2,
+     "Volcanic Hammer": 3,
+     "Violent Eruption": 4,
+     "Sulfuric Vortex": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 489125,
+   "event": 38736,
+   "archetype": "Goblin Bidding",
+   "player": "Zvi Mowshowitz",
+   "event_name": "Grand Prix Atlanta 2003",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2003-08-31",
+   "summer": false,
+   "s": 0.4627564263195184,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.35,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 2.0,
+     "R": 43.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Cabal Therapy": 2,
+     "Burning Wish": 4,
+     "Goblin Grappler": 1,
+     "Sparksmith": 2,
+     "Gempalm Incinerator": 4,
+     "Siege-Gang Commander": 4,
+     "Goblin Sharpshooter": 4,
+     "Goblin Warchief": 4,
+     "Goblin Piledriver": 4,
+     "Skirk Prospector": 4,
+     "Goblin Sledder": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 4
+  },
+  {
+   "deck": 252491,
+   "event": 9174,
+   "archetype": "Astral Slide",
+   "player": "Gabe Walls",
+   "event_name": "Worlds 2003 (Berlin)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2003-08-10",
+   "summer": false,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 6,
+    "counters": 0,
+    "sweepers": 5,
+    "draw": 13,
+    "burn": 8,
+    "avg_cmc": 3.52,
+    "pips": {
+     "W": 31.0,
+     "U": 0,
+     "B": 0,
+     "R": 16.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "R"
+    ],
+    "names": {
+     "Wrath of God": 3,
+     "Spark Spray": 4,
+     "Slice and Dice": 2,
+     "Renewed Faith": 4,
+     "Lightning Rift": 4,
+     "Decree of Justice": 3,
+     "Burning Wish": 4,
+     "Astral Slide": 3,
+     "Exalted Angel": 3,
+     "Eternal Dragon": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 3
+  },
+  {
+   "deck": 252488,
+   "event": 9174,
+   "archetype": "Reanimator",
+   "player": "Peer Kroger",
+   "event_name": "Worlds 2003 (Berlin)",
+   "stars": 1,
+   "rank": "5-8",
+   "date": "2003-08-10",
+   "summer": false,
+   "s": 0.24498869628680386,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 10,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.86,
+    "pips": {
+     "W": 1.0,
+     "U": 3.0,
+     "B": 32.0,
+     "R": 6.0,
+     "G": 4.0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Zombify": 4,
+     "Stitch Together": 3,
+     "Smother": 2,
+     "Recoup": 1,
+     "Innocent Blood": 3,
+     "Entomb": 3,
+     "Chainer's Edict": 1,
+     "Cabal Therapy": 1,
+     "Burning Wish": 4,
+     "Buried Alive": 3,
+     "Visara the Dreadful": 1,
+     "Undead Gladiator": 1,
+     "Symbiotic Wurm": 1,
+     "Phantom Nishoba": 1,
+     "Doomed Necromancer": 4,
+     "Arcanis the Omnipotent": 1,
+     "Anger": 1
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 3
+  }
+ ],
+ "alternates": [],
+ "pool_size": 8,
+ "rejected_illegal": [
+  {
+   "archetype": "R/g Beats",
+   "deck": 599809,
+   "player": "Joshua Wagener",
+   "why": [
+    "Compost (not in legal sets)",
+    "Karplusan Forest (not in legal sets)",
+    "Llanowar Elves (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "R/g Beats",
+   "deck": 600064,
+   "player": "Chris Allen",
+   "why": [
+    "Compost (not in legal sets)",
+    "Karplusan Forest (not in legal sets)",
+    "Llanowar Elves (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "R/g Beats",
+   "deck": 599810,
+   "player": "Jordan Berkowitz",
+   "why": [
+    "Compost (not in legal sets)",
+    "Karplusan Forest (not in legal sets)",
+    "Llanowar Elves (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "R/g Beats",
+   "deck": 599806,
+   "player": "Mike Turian",
+   "why": [
+    "Compost (not in legal sets)",
+    "Karplusan Forest (not in legal sets)",
+    "Llanowar Elves (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Goblin Bidding",
+   "deck": 603367,
+   "player": "Tsuyoshi Fujita",
+   "why": [
+    "Goblin Matron (not in legal sets)",
+    "Sulfurous Springs (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Goblin Bidding",
+   "deck": 603370,
+   "player": "Osamu Fujita",
+   "why": [
+    "Goblin Matron (not in legal sets)",
+    "Sulfurous Springs (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-black Zombies",
+   "deck": 600604,
+   "player": "Stephane Damizet",
+   "why": [
+    "Corrupt (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Stronghold Assassin (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-black Zombies",
+   "deck": 599804,
+   "player": "Brian Kibler",
+   "why": [
+    "Corrupt (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Stronghold Assassin (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-black Zombies",
+   "deck": 599805,
+   "player": "Jon Finkel",
+   "why": [
+    "Corrupt (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Stronghold Assassin (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-black Zombies",
+   "deck": 600607,
+   "player": "Alexandre Peset",
+   "why": [
+    "Corrupt (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bug Madness",
+   "deck": 600059,
+   "player": "Koutarou Ootsuka",
+   "why": [
+    "Compost (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bug Madness",
+   "deck": 600608,
+   "player": "Farid Meraghni",
+   "why": [
+    "Duress (not in legal sets)",
+    "Llanowar Elves (not in legal sets)",
+    "Opposition (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Oversold Cemetery",
+   "deck": 601639,
+   "player": "Josh Rider",
+   "why": [
+    "Engineered Plague (not in legal sets)",
+    "Llanowar Elves (not in legal sets)",
+    "Stronghold Assassin (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "G/w Glory",
+   "deck": 600063,
+   "player": "Andrew Varga",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Hurricane (not in legal sets)",
+    "Llanowar Elves (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-black Control",
+   "deck": 601640,
+   "player": "Nathon Braymore",
+   "why": [
+    "Corrupt (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-black Control",
+   "deck": 600057,
+   "player": "Osamu Fujita",
+   "why": [
+    "Corrupt (not in legal sets)",
+    "Duress (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-black Control",
+   "deck": 599808,
+   "player": "Justin Gary",
+   "why": [
+    "Corrupt (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-black Control",
+   "deck": 601642,
+   "player": "Guillaume Daoust",
+   "why": [
+    "Corrupt (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Astral Slide",
+   "deck": 599807,
+   "player": "Gabe Walls",
+   "why": [
+    "Disenchant (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "RG Madness",
+   "deck": 603368,
+   "player": "Itaru Ishida",
+   "why": [
+    "Compost (not in legal sets)",
+    "Karplusan Forest (not in legal sets)",
+    "Llanowar Elves (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "RG Madness",
+   "deck": 601660,
+   "player": "Stuart Wright",
+   "why": [
+    "Compost (not in legal sets)",
+    "Karplusan Forest (not in legal sets)",
+    "Llanowar Elves (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Psychatog",
+   "deck": 603369,
+   "player": "Vincent Gan",
+   "why": [
+    "Counterspell (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Psychatog",
+   "deck": 601641,
+   "player": "Richard Hoaen",
+   "why": [
+    "Counterspell (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Psychatog",
+   "deck": 600055,
+   "player": "Youhei Yamamoto",
+   "why": [
+    "Counterspell (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Psychatog",
+   "deck": 600060,
+   "player": "Makihito Mihara",
+   "why": [
+    "Counterspell (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Beasts",
+   "deck": 600061,
+   "player": "Tooru Maegawa",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Cloudchaser Eagle (not in legal sets)",
+    "Karplusan Forest (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Beasts",
+   "deck": 605026,
+   "player": "Gary Wise",
+   "why": [
+    "Brushland (not in legal sets)",
+    "Compost (not in legal sets)",
+    "Llanowar Elves (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Goblin Ponza",
+   "deck": 600062,
+   "player": "Hisaya Tanaka",
+   "why": [
+    "Pillage (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Bug Squirrel Opposition",
+   "deck": 600065,
+   "player": "Bryce Trevilyan",
+   "why": [
+    "Llanowar Elves (not in legal sets)",
+    "Opposition (not in legal sets)",
+    "Underground River (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "B/r Magnivore",
+   "deck": 600066,
+   "player": "Justin West",
+   "why": [
+    "Befoul (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Pillage (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UBgw Monastery Control",
+   "deck": 601725,
+   "player": "Chris Clapton",
+   "why": [
+    "Counterspell (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BUG Squirrel Opposition",
+   "deck": 605021,
+   "player": "Franck Canu",
+   "why": [
+    "Duress (not in legal sets)",
+    "Llanowar Elves (not in legal sets)",
+    "Opposition (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Reanimator",
+   "deck": 601730,
+   "player": "Simon Marshall-unitt",
+   "why": [
+    "Duress (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Reanimator",
+   "deck": 601656,
+   "player": "Pierre Malherbaud",
+   "why": [
+    "Duress (not in legal sets)",
+    "Sulfurous Springs (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Zombie Infestation",
+   "deck": 599803,
+   "player": "Neil Reeves",
+   "why": [
+    "Counterspell (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Mana Short (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "B/w Clerics",
+   "deck": 600068,
+   "player": "Anatoli Lightfoot",
+   "why": [
+    "Duress (not in legal sets)",
+    "Reprisal (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Squirrel Orbosition UGb",
+   "deck": 601728,
+   "player": "Mike Major",
+   "why": [
+    "Llanowar Elves (not in legal sets)",
+    "Opposition (not in legal sets)",
+    "Static Orb (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "BW Astral Slide",
+   "deck": 601729,
+   "player": "Tom Harle",
+   "why": [
+    "Duress (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UG Standstill Madness",
+   "deck": 605022,
+   "player": "Ken Ho",
+   "why": [
+    "Compost (not in legal sets)",
+    "Equilibrium (not in legal sets)",
+    "Merfolk Looter (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Zombie Clerics",
+   "deck": 601657,
+   "player": "Jussi Salovaara",
+   "why": [
+    "Corrupt (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "WB Decree Control",
+   "deck": 601659,
+   "player": "Gabriel Nassif",
+   "why": [
+    "Disenchant (not in legal sets)",
+    "Duress (not in legal sets)",
+    "Engineered Plague (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "U/g Madness",
+   "player": "Dominic Musolino",
+   "kept": "UG Madness",
+   "kept_player": "Michael Groves"
+  },
+  {
+   "dropped": "Goblin-Bidding",
+   "player": "Wolfgang Eder",
+   "kept": "Goblin Bidding",
+   "kept_player": "Zvi Mowshowitz"
+  },
+  {
+   "dropped": "Read the Gob Bidding",
+   "player": "Sylvain Lauriol, 6-0",
+   "kept": "Goblin Bidding",
+   "kept_player": "Zvi Mowshowitz"
+  }
+ ],
+ "objective": 1.2768389348309785,
+ "pool_colors": {
+  "W": 3,
+  "U": 2,
+  "G": 3,
+  "B": 2,
+  "R": 5
+ },
+ "pool_styles": {
+  "control": 3,
+  "midrange": 1,
+  "aggro": 3,
+  "combo": 1
+ }
+}

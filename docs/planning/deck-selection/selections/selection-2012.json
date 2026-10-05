@@ -1339,5 +1339,18 @@
    "kept_player": "Caleb Durward"
   }
  ],
- "objective": 9.644773175542406
+ "objective": 9.644773175542406,
+ "pool_colors": {
+  "W": 22,
+  "U": 17,
+  "R": 11,
+  "G": 16,
+  "B": 11
+ },
+ "pool_styles": {
+  "aggro": 16,
+  "combo": 4,
+  "midrange": 13,
+  "control": 6
+ }
 }

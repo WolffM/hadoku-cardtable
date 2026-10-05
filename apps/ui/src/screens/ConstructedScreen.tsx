@@ -181,6 +181,7 @@ import {
   secureRandom,
   tablesClient,
   type DeckRef,
+  type FormatFamily,
   type LegalSweep,
   type RoomPlayer,
   type RoomTable,
@@ -321,6 +322,61 @@ function poolLabel(formats: readonly TableFormat[], id: string): string {
   return found === undefined ? id : `${found.id} — ${found.name}`;
 }
 
+/* ── the format tab selector (wave 48 §U) ─────────────────────────────── */
+
+/**
+ * The three ruleset tabs, operator order (2026-10-05): *"i'll need a tab
+ * selector at the top for picking the format as well obviously"*. "Drafted
+ * pool" is a fourth tab, appended only when the room has one — it is not a
+ * `FormatFamily` and is never grouped into one of these three.
+ */
+const FORMAT_TABS: ReadonlyArray<{ id: FormatFamily; label: string }> = [
+  { id: 'standard', label: 'Standard' },
+  { id: 'modern', label: 'Modern' },
+  { id: 'legacy', label: 'Legacy' },
+];
+
+/**
+ * `formats`, narrowed to one tab's own eras, newest year first.
+ *
+ * Grouped on `family` — data the server sends — never on a parsed name
+ * (brief item 2): a `Standard (ORI)` string tells a person which card frame
+ * it was, not which of three tabs it belongs on.
+ *
+ * Sorted by `id` descending rather than by a parsed date: a Standard id IS its
+ * bare `YYYY-MM-DD` date, and a Modern/Legacy id is `<family>-<date>` with the
+ * SAME family prefix for every era in one tab's own list, so lexicographic
+ * order on `id` is chronological order within the tab either way.
+ */
+export function erasOf(formats: readonly TableFormat[], tab: FormatFamily): TableFormat[] {
+  return formats
+    .filter((f) => f.source !== 'draft' && f.family === tab)
+    .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+}
+
+/**
+ * Whether `poolId` — the room's ACTUAL pool — is one of the options `tab`
+ * itself offers.
+ *
+ * Found live (w48 §U): a native `<select>` whose `value` matches none of its
+ * `<option>`s falls back to showing the FIRST option as already selected, so
+ * a leader browsing a tab the room is not on would see an era highlighted
+ * that was never chosen — and clicking that exact one fires no `change`
+ * event (the browser already considered it selected), so the room could
+ * never be moved to it. The caller uses this to render no selection at all
+ * on a tab the room's own era is not part of, rather than let the DOM invent
+ * one.
+ */
+export function poolIsOnTab(
+  formats: readonly TableFormat[],
+  tab: FormatFamily | 'draft',
+  poolId: string,
+  pod: string | null,
+): boolean {
+  if (tab === 'draft') return pod !== null && formats.some((f) => f.source === 'draft' && f.id === poolId);
+  return erasOf(formats, tab).some((f) => f.id === poolId);
+}
+
 /* ── a room on a DRAFTED pool (wave 26 §F) ────────────────────────────── */
 
 /** What makes a room's pool a pod rather than a frozen era. The server's own spelling. */
@@ -414,12 +470,15 @@ export function draftedDeckOf(draftId: string, pool: readonly DraftCard[]): Deck
 /**
  * The label on the pool control. Two kinds of pool, two nouns.
  *
- * "Matched Standard" is the operator's own words for the frozen eras and it stays
- * exactly what it was; a room on a pod is not playing Standard and saying so
- * would be wrong on the screen that sets it.
+ * Was "Matched Standard" (the operator's own words) for every frozen era; wave
+ * 48 §U replaced the single "Matched Standard" optgroup with the format tab
+ * selector, and the label above it has to stay true for a Modern or Legacy
+ * pick too — "Format" is neutral across all three and names what the tabs
+ * are tabs OF. A room on a pod is still not playing any of the three, so that
+ * half is unchanged.
  */
 function poolFieldLabel(pod: string | null): string {
-  return pod === null ? 'Matched Standard' : 'Drafted pool';
+  return pod === null ? 'Format' : 'Drafted pool';
 }
 
 /* ── the era's sets, grouped by block (wave 28 §C, item 1) ─────────────── */
@@ -535,11 +594,28 @@ export function groupSetsByBlock(sets: readonly string[]): SetBlockGroup[] {
  * A drafted pool has no set list and draws nothing, which is the truth about it:
  * a cube is not an era.
  */
+/**
+ * The most set symbols this row draws, however long a format's legal list is.
+ *
+ * Legacy never rotates, so its legal-set list is Forge's whole `Sets:` line up
+ * to the era's date — 150+ codes by the eras this wave adds, against a dozen
+ * for Standard. `groupSetsByBlock` renders fine at that size (small glyphs,
+ * one block per cluster), but a row that long stops being "the era's set
+ * symbols" and starts being Magic's entire set history, which answers a
+ * different question than the one this row exists for. Chosen: the newest
+ * {@link MAX_POOL_SETS}, which is what a player actually associates the era
+ * with — Forge's `Sets:` line is oldest-first (verified against
+ * `forge/forge-gui/res/formats/Archived/Legacy/*.txt`), so the newest sets are
+ * the LAST entries, never a random sample.
+ */
+const MAX_POOL_SETS = 40;
+
 function PoolSets({ format }: { format: TableFormat | null }) {
   if (format === null || format.sets.length === 0) return null;
+  const sets = format.sets.length > MAX_POOL_SETS ? format.sets.slice(-MAX_POOL_SETS) : format.sets;
   return (
-    <p className="lobby__sets" data-testid="pool-sets" data-sets={format.sets.join(' ')}>
-      {groupSetsByBlock(format.sets).map((group) => (
+    <p className="lobby__sets" data-testid="pool-sets" data-sets={sets.join(' ')}>
+      {groupSetsByBlock(sets).map((group) => (
         <span
           key={group.blockCode}
           className="lobby__block"
@@ -899,6 +975,38 @@ function RoomTableScreen({
   const pod = draftPoolPod(poolId);
   /** The pool's own catalogue row: its name, and for an era its set list. */
   const poolFormat = loaded?.formats.find((f) => f.id === poolId) ?? null;
+  /** Which tab the table is actually on — a pod's own tab, or its era's family. */
+  const tabOfPool = pod !== null ? 'draft' : poolFormat?.family ?? 'standard';
+  /**
+   * The LEADER's format tab (operator, 2026-10-05: *"i'll need a tab selector
+   * at the top for picking the format as well obviously"*).
+   *
+   * Opens on the table's own era's family and FOLLOWS it there — the effect
+   * below re-syncs whenever `poolId` actually changes, which is every write
+   * that moved the room's pool, mine or another browser's. Switching tabs by
+   * hand only BROWSES which eras the `<select>` below offers; nothing is sent
+   * until an option in it is chosen, same as the control always worked.
+   */
+  const [formatTab, setFormatTab] = useState<FormatFamily | 'draft'>(tabOfPool);
+  const syncedPoolId = useRef(poolId);
+  useEffect(() => {
+    if (syncedPoolId.current === poolId) return;
+    syncedPoolId.current = poolId;
+    setFormatTab(tabOfPool);
+    // Deliberately keyed on `poolId` alone: `tabOfPool` is read fresh each run
+    // (it is a plain `const` derived every render, not a ref), and re-running
+    // this effect on every render it changed WITHOUT `poolId` moving would
+    // fight a hand click on a tab button before any era is chosen.
+  }, [poolId]);
+  /**
+   * Whether the room's actual pool is one of THIS tab's own options.
+   *
+   * False while browsing a tab the room is not on (its own era is a different
+   * family). The `<select>` below reads this to decide whether to show
+   * `poolId` as chosen or nothing at all — see the comment on the select
+   * itself for why "nothing at all" is the one safe answer.
+   */
+  const poolOnTab = poolIsOnTab(loaded?.formats ?? [], formatTab, poolId, pod);
 
   // The formats and the decks — for a constructed table only. A draft room has
   // no deck to hold, and `routes.ts` refuses every table write it could make.
@@ -1627,9 +1735,9 @@ function RoomTableScreen({
               loaded !== null && (
                 <section className="lobby__card">
                   <h2>Your deck</h2>
-                  {/* The table's pool: "Matched Standard", the operator's own
-                      words for it — one pool, both seats, checked against the
-                      same list. The LEADER gets a control; everybody else reads
+                  {/* The table's pool: "Format" — one pool, both seats, checked
+                      against the same list, across Standard, Modern and Legacy
+                      alike (wave 48 §U). The LEADER gets a control; everybody else reads
                       the same text and cannot move it, which is the whole of
                       *"people who join can only select from the deck
                       dropdown"*. The leader is named beside it rather than
@@ -1639,40 +1747,74 @@ function RoomTableScreen({
                       <label className="lobby__field" htmlFor="format">
                         {poolFieldLabel(pod)}
                       </label>
-                      {/* Two groups, because a room's pool is a frozen era OR a pod
-                          the people in it drafted (wave 26 §F) and the picker is the
-                          one control for both. The pods are the CALLER's own seats —
-                          the server scopes that list, so a leader is never offered a
-                          pod they did not draft in. Drafted pools come first for the
-                          same reason the server sends them first: `newestFormat` is
-                          the last frozen era. */}
+                      {/* The format tab selector (wave 48 §U), replacing the single
+                          "Matched Standard" optgroup: Standard, Modern, Legacy, plus
+                          a "Drafted pool" tab when the room has one (the CALLER's own
+                          seats — the server scopes that list, so a leader is never
+                          offered a pod they did not draft in). The active tab opens
+                          on the table's own era and only browses which eras the
+                          select below offers; nothing moves the room until an option
+                          in it is chosen. No prose: the tabs are the explanation. */}
+                      <div className="lobby__format-tabs" role="tablist" data-testid="format-tabs">
+                        {FORMAT_TABS.map((tab) => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={formatTab === tab.id}
+                            data-testid={`format-tab-${tab.id}`}
+                            disabled={busy || matchId !== null}
+                            onClick={() => setFormatTab(tab.id)}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                        {loaded.formats.some((f) => f.source === 'draft') && (
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={formatTab === 'draft'}
+                            data-testid="format-tab-draft"
+                            disabled={busy || matchId !== null}
+                            onClick={() => setFormatTab('draft')}
+                          >
+                            Drafted pool
+                          </button>
+                        )}
+                      </div>
+                      {/* The era the room is ACTUALLY on is not always one this
+                          tab offers (you are browsing Modern while the room
+                          sits on a Standard era), and a native `<select>`
+                          whose `value` matches none of its `<option>`s falls
+                          back to showing the FIRST one as already selected —
+                          which then fires no `change` event if that is the
+                          very one you click, so the room could never be moved
+                          to it (found live, w48 §U: `selectOption` on that
+                          first option sent no PATCH). A disabled, hidden,
+                          EMPTY placeholder option — never any text — keeps
+                          the select correctly showing nothing chosen on this
+                          tab, so every real era here is a genuine change. */}
                       <select
                         id="format"
                         data-testid="format"
-                        value={poolId}
+                        value={poolOnTab ? poolId : ''}
                         disabled={busy || matchId !== null}
                         onChange={(e) => choosePool(e.target.value)}
                       >
-                        {loaded.formats.some((f) => f.source === 'draft') && (
-                          <optgroup label="Drafted pools">
-                            {loaded.formats
+                        {!poolOnTab && <option value="" disabled hidden />}
+                        {formatTab === 'draft'
+                          ? loaded.formats
                               .filter((f) => f.source === 'draft')
                               .map((f) => (
                                 <option key={f.id} value={f.id}>
                                   {f.name} — {f.cardCount} cards
                                 </option>
-                              ))}
-                          </optgroup>
-                        )}
-                        <optgroup label="Matched Standard">
-                          {loaded.formats
-                            .filter((f) => f.source !== 'draft')
-                            .map((f) => (
+                              ))
+                          : erasOf(loaded.formats, formatTab).map((f) => (
                               <option key={f.id} value={f.id}>
                                 {f.id} — {f.name}
                               </option>
                             ))}
-                        </optgroup>
                       </select>
                     </>
                   ) : (

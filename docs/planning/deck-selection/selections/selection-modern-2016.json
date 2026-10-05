@@ -1,0 +1,1645 @@
+{
+ "era": {
+  "year": 2016,
+  "season_start": "2015-10-02",
+  "start": "2016-07-22",
+  "end": "2016-09-30",
+  "snapshot_file": "2016-07-22",
+  "format": "Modern (EMN)",
+  "sets": "8ED, MRD, DST, 5DN, CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E, LRW, MOR, SHM, EVE, ALA, CFX, ARB, M10, ZEN, WWK, ROE, DPA, M11, SOM, MBS, NPH, M12, ISD, DKA, AVR, M13, RTR, GTC, DGM, MMA, M14, THS, BNG, JOU, MD1, M15, KTK, FRF, DTK, MM2, ORI, BFZ, OGW, SOI, W16, EMN",
+  "banned": [
+   "Ancient Den",
+   "Birthing Pod",
+   "Blazing Shoal",
+   "Bloodbraid Elf",
+   "Chrome Mox",
+   "Cloudpost",
+   "Dark Depths",
+   "Deathrite Shaman",
+   "Dig Through Time",
+   "Dread Return",
+   "Eye of Ugin",
+   "Glimpse of Nature",
+   "Great Furnace",
+   "Green Sun's Zenith",
+   "Hypergenesis",
+   "Jace, the Mind Sculptor",
+   "Mental Misstep",
+   "Ponder",
+   "Preordain",
+   "Punishing Fire",
+   "Rite of Flame",
+   "Seat of the Synod",
+   "Second Sunrise",
+   "Seething Song",
+   "Sensei's Divining Top",
+   "Skullclamp",
+   "Splinter Twin",
+   "Stoneforge Mystic",
+   "Summer Bloom",
+   "Treasure Cruise",
+   "Tree of Tales",
+   "Umezawa's Jitte",
+   "Vault of Whispers"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 276763,
+   "event": 13119,
+   "archetype": "Affinity",
+   "player": "Steven Martin",
+   "event_name": "SCG Classic - Columbus",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-07-24",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 1.35,
+    "pips": {
+     "W": 0,
+     "U": 2.0,
+     "B": 0,
+     "R": 3.0,
+     "G": 0
+    },
+    "colors": [],
+    "names": {
+     "Mox Opal": 4,
+     "Galvanic Blast": 3,
+     "Springleaf Drum": 4,
+     "Cranial Plating": 4,
+     "Vault Skirge": 4,
+     "Steel Overseer": 4,
+     "Signal Pest": 4,
+     "Ornithopter": 4,
+     "Arcbound Ravager": 4,
+     "Etched Champion": 3,
+     "Master of Etherium": 2,
+     "Memnite": 3
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 124
+  },
+  {
+   "deck": 276856,
+   "event": 13131,
+   "archetype": "Eldrazi Aggro",
+   "player": "BSWeitz",
+   "event_name": "MTGO Modern MOCS",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-07-24",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.89,
+    "pips": {
+     "W": 8.0,
+     "U": 6.0,
+     "B": 0,
+     "R": 0,
+     "G": 9.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Eldrazi Displacer": 4,
+     "Drowner of Hope": 4,
+     "Birds of Paradise": 1,
+     "Path to Exile": 4,
+     "Ancient Stirrings": 4,
+     "Thought-Knot Seer": 4,
+     "Spellskite": 2,
+     "Reality Smasher": 4,
+     "Noble Hierarch": 4,
+     "Matter Reshaper": 3,
+     "Eldrazi Skyspawner": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 115
+  },
+  {
+   "deck": 279841,
+   "event": 13567,
+   "archetype": "Infect",
+   "player": "Jan Ang",
+   "event_name": "WMCQ Philippines",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-09-18",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 8,
+    "counters": 1,
+    "sweepers": 0,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 1.7,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 0,
+     "R": 0,
+     "G": 21.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Blighted Agent": 4,
+     "Noble Hierarch": 4,
+     "Glistener Elf": 4,
+     "Distortion Strike": 1,
+     "Groundswell": 1,
+     "Dismember": 1,
+     "Vines of Vastwood": 4,
+     "Become Immense": 4,
+     "Gitaxian Probe": 4,
+     "Mutagenic Growth": 4,
+     "Apostle's Blessing": 2,
+     "Might of Old Krosa": 4,
+     "Twisted Image": 2,
+     "Spell Pierce": 1
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 69
+  },
+  {
+   "deck": 279705,
+   "event": 13546,
+   "archetype": "Scapeshift",
+   "player": "Bernardo Santos",
+   "event_name": "WMCQ Portugal (Lisboa) - Versus Gamecenter",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-09-17",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 8,
+    "counters": 9,
+    "sweepers": 4,
+    "draw": 9,
+    "burn": 5,
+    "avg_cmc": 2.88,
+    "pips": {
+     "W": 1.0,
+     "U": 21.0,
+     "B": 0,
+     "R": 7.0,
+     "G": 23.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Kodama's Reach": 1,
+     "Bring to Light": 4,
+     "Anger of the Gods": 1,
+     "Scapeshift": 3,
+     "Search for Tomorrow": 4,
+     "Cryptic Command": 3,
+     "Izzet Charm": 2,
+     "Lightning Bolt": 3,
+     "Remand": 4,
+     "Timely Reinforcements": 1,
+     "Courser of Kruphix": 2,
+     "Sakura-Tribe Elder": 4,
+     "Snapcaster Mage": 2
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 32
+  },
+  {
+   "deck": 279735,
+   "event": 13549,
+   "archetype": "Dredge",
+   "player": "Miguel \u00c1ngel N\u00fa??ez",
+   "event_name": "WMCQ Spain (Sevilla) - Full Magic Weekend",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-09-17",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 7,
+    "burn": 0,
+    "avg_cmc": 3.08,
+    "pips": {
+     "W": 0,
+     "U": 8.0,
+     "B": 22.0,
+     "R": 15.0,
+     "G": 7.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Bloodghast": 4,
+     "Bridge from Below": 2,
+     "Conflagrate": 3,
+     "Faithless Looting": 4,
+     "Golgari Grave-Troll": 4,
+     "Greater Gargadon": 4,
+     "Insolent Neonate": 4,
+     "Life from the Loam": 3,
+     "Narcomoeba": 4,
+     "Prized Amalgam": 4,
+     "Stinkweed Imp": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 17
+  },
+  {
+   "deck": 279864,
+   "event": 13569,
+   "archetype": "Abzan",
+   "player": "Thiago Saporito",
+   "event_name": "WMCQ Brazil (Bras\u00edlia) - Inside Games",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-09-18",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 11,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 1.87,
+    "pips": {
+     "W": 9.0,
+     "U": 0,
+     "B": 22.0,
+     "R": 0,
+     "G": 16.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Noble Hierarch": 3,
+     "Lingering Souls": 4,
+     "Collective Brutality": 1,
+     "Mishra's Bauble": 2,
+     "Thoughtseize": 3,
+     "Grim Flayer": 3,
+     "Anafenza, the Foremost": 1,
+     "Tarmogoyf": 4,
+     "Scavenging Ooze": 3,
+     "Liliana of the Veil": 4,
+     "Inquisition of Kozilek": 3,
+     "Murderous Cut": 1,
+     "Abrupt Decay": 2,
+     "Path to Exile": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 10
+  },
+  {
+   "deck": 279986,
+   "event": 13590,
+   "archetype": "W/B Hatebear",
+   "player": "Tang, Kobe",
+   "event_name": "WMCQ Hong Kong",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-09-19",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 30,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.43,
+    "pips": {
+     "W": 29.0,
+     "U": 0,
+     "B": 8.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "B"
+    ],
+    "names": {
+     "Brain Maggot": 1,
+     "Wasteland Strangler": 3,
+     "Tidehollow Sculler": 4,
+     "Thought-Knot Seer": 4,
+     "Leonin Arbiter": 3,
+     "Thalia, Guardian of Thraben": 1,
+     "Selfless Spirit": 2,
+     "Aether Vial": 4,
+     "Wall of Omens": 2,
+     "Path to Exile": 3,
+     "Flickerwisp": 4,
+     "Restoration Angel": 2,
+     "Eldrazi Displacer": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 276373,
+   "event": 13075,
+   "archetype": "Jund",
+   "player": "Lukas Mittendorfer",
+   "event_name": "WMCQ Austria (Wien)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-07-10",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 14,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 6,
+    "avg_cmc": 1.97,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 29.0,
+     "R": 9.0,
+     "G": 10.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Liliana of the Veil": 4,
+     "Tarmogoyf": 4,
+     "Dark Confidant": 4,
+     "Kalitas, Traitor of Ghet": 2,
+     "Grim Lavamancer": 1,
+     "Scavenging Ooze": 3,
+     "Maelstrom Pulse": 2,
+     "Thoughtseize": 2,
+     "Inquisition of Kozilek": 4,
+     "Lightning Bolt": 4,
+     "Slaughter Pact": 1,
+     "Kolaghan's Command": 2,
+     "Abrupt Decay": 1,
+     "Terminate": 2
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 130
+  },
+  {
+   "deck": 276334,
+   "event": 13071,
+   "archetype": "Ad Nauseam",
+   "player": "Alessandro Casamenti",
+   "event_name": "WMCQ Italy (Roma)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-07-10",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 5,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 1,
+    "avg_cmc": 1.82,
+    "pips": {
+     "W": 8.0,
+     "U": 9.0,
+     "B": 11.0,
+     "R": 6.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Simian Spirit Guide": 4,
+     "Laboratory Maniac": 1,
+     "Sleight of Hand": 4,
+     "Serum Visions": 4,
+     "Ad Nauseam": 4,
+     "Angel's Grace": 4,
+     "Pact of Negation": 3,
+     "Spoils of the Vault": 3,
+     "Lightning Storm": 1,
+     "Pentad Prism": 4,
+     "Lotus Bloom": 4,
+     "Phyrexian Unlife": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 33
+  },
+  {
+   "deck": 270948,
+   "event": 12305,
+   "archetype": "RG Breach",
+   "player": "Damien CHABRIER",
+   "event_name": "BoM Annecy Main Event",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-05-08",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 3,
+    "avg_cmc": 4.57,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 13.0,
+     "G": 34.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Farseek": 2,
+     "Search for Tomorrow": 4,
+     "Lightning Bolt": 3,
+     "Obstinate Baloth": 1,
+     "Scapeshift": 1,
+     "Anger of the Gods": 3,
+     "Summoning Trap": 3,
+     "Through the Breach": 4,
+     "Emrakul, the Aeons Torn": 3,
+     "Courser of Kruphix": 3,
+     "Primeval Titan": 4,
+     "Sakura-Tribe Elder": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 277115,
+   "event": 13167,
+   "archetype": "Esper Midrange",
+   "player": "Saito Takaya",
+   "event_name": "BIG MAGIC OPEN Vol.7 - Sunday Modern",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-07-31",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 13,
+    "counters": 2,
+    "sweepers": 3,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.63,
+    "pips": {
+     "W": 33.0,
+     "U": 15.0,
+     "B": 2.0,
+     "R": 0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Gideon Jura": 1,
+     "Engineered Explosives": 1,
+     "Lingering Souls": 2,
+     "Jace, Architect of Thought": 2,
+     "Spell Snare": 2,
+     "Condemn": 2,
+     "Esper Charm": 2,
+     "Detention Sphere": 3,
+     "Supreme Verdict": 3,
+     "Path to Exile": 4,
+     "Snapcaster Mage": 1,
+     "Restoration Angel": 4,
+     "Kitchen Finks": 4,
+     "Wall of Omens": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 268659,
+   "event": 11980,
+   "archetype": "UW Control",
+   "player": "Avignon",
+   "event_name": "MTGO Modern PTQ",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-03-27",
+   "summer": false,
+   "s": 0.611764705882353,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 9,
+    "counters": 9,
+    "sweepers": 9,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 2.76,
+    "pips": {
+     "W": 27.0,
+     "U": 28.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Elspeth, Sun's Champion": 2,
+     "Gideon Jura": 1,
+     "Jace, Vryn's Prodigy // Jace, Telepath Unbound": 3,
+     "Snapcaster Mage": 3,
+     "Wall of Omens": 3,
+     "Supreme Verdict": 4,
+     "Condemn": 2,
+     "Cryptic Command": 3,
+     "Mana Leak": 4,
+     "Ojutai's Command": 2,
+     "Path to Exile": 4,
+     "Sphinx's Revelation": 1,
+     "Crucible of Worlds": 1,
+     "Detention Sphere": 1
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 24
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 275443,
+   "event": 12948,
+   "archetype": "Merfolk",
+   "player": "Fabio Giaccio",
+   "event_name": "Mega DZ Series Milan",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-07-03",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 28,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.17,
+    "pips": {
+     "W": 0,
+     "U": 45.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Vapor Snag": 1,
+     "Dismember": 3,
+     "Spreading Seas": 4,
+     "Aether Vial": 4,
+     "Kira, Great Glass-Spinner": 2,
+     "Phantasmal Image": 1,
+     "Merrow Reejerey": 3,
+     "Harbinger of the Tides": 2,
+     "Master of Waves": 4,
+     "Cursecatcher": 4,
+     "Silvergill Adept": 4,
+     "Master of the Pearl Trident": 4,
+     "Lord of Atlantis": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 62
+  },
+  {
+   "deck": 260741,
+   "event": 10617,
+   "archetype": "Living End",
+   "player": "Michael Rossi",
+   "event_name": "Ovino X - Modern Large Side Event",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-10-04",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.74,
+    "pips": {
+     "W": 1.0,
+     "U": 0,
+     "B": 26.0,
+     "R": 25.0,
+     "G": 13.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Beast Within": 4,
+     "Faerie Macabre": 1,
+     "Monstrous Carabid": 4,
+     "Deadshot Minotaur": 4,
+     "Fulminator Mage": 4,
+     "Street Wraith": 4,
+     "Demonic Dread": 4,
+     "Violent Outburst": 4,
+     "Living End": 3,
+     "Twisted Abomination": 3,
+     "Simian Spirit Guide": 3,
+     "Shriekmaw": 1,
+     "Pale Recluse": 1,
+     "Avalanche Riders": 2
+    }
+   },
+   "style": "combo",
+   "style_why": "override",
+   "label_count": 27
+  },
+  {
+   "deck": 276045,
+   "event": 13028,
+   "archetype": "Creatures Toolbox",
+   "player": "Javier Faustino",
+   "event_name": "MKM Series Madrid - Modern Main",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-07-09",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.35,
+    "pips": {
+     "W": 11.0,
+     "U": 0,
+     "B": 4.0,
+     "R": 1.0,
+     "G": 41.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Anafenza, Kin-Tree Spirit": 2,
+     "Spellskite": 1,
+     "Scavenging Ooze": 1,
+     "Qasali Pridemage": 1,
+     "Murderous Redcap": 1,
+     "Fiend Hunter": 1,
+     "Melira, Sylvok Outcast": 2,
+     "Wall of Roots": 2,
+     "Eternal Witness": 4,
+     "Noble Hierarch": 3,
+     "Viscera Seer": 3,
+     "Birds of Paradise": 4,
+     "Kitchen Finks": 4,
+     "Chord of Calling": 4,
+     "Collected Company": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 27
+  },
+  {
+   "deck": 275780,
+   "event": 12992,
+   "archetype": "Death's Shadow Zoo",
+   "player": "Simon Nielsen",
+   "event_name": "WMCQ Denmark (\u00c5rhus)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-07-10",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 43,
+    "lands": 17,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 2,
+    "avg_cmc": 1.74,
+    "pips": {
+     "W": 2.0,
+     "U": 0,
+     "B": 15.0,
+     "R": 10.0,
+     "G": 8.0
+    },
+    "colors": [
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Lightning Bolt": 2,
+     "Thoughtseize": 3,
+     "Become Immense": 3,
+     "Temur Battle Rage": 4,
+     "Mishra's Bauble": 4,
+     "Gitaxian Probe": 4,
+     "Mutagenic Growth": 4,
+     "Tarmogoyf": 1,
+     "Steppe Lynx": 2,
+     "Monastery Swiftspear": 4,
+     "Wild Nacatl": 4,
+     "Street Wraith": 4,
+     "Death's Shadow": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 25
+  },
+  {
+   "deck": 261922,
+   "event": 10820,
+   "archetype": "Zoo",
+   "player": "Wesley Blanchard",
+   "event_name": "StarCityGames.com Modern - Dallas",
+   "stars": 3,
+   "rank": "1",
+   "date": "2015-11-01",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 4,
+    "avg_cmc": 1.45,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 20.0,
+     "G": 25.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Wild Nacatl": 4,
+     "Vexing Devil": 4,
+     "Tarmogoyf": 4,
+     "Kird Ape": 4,
+     "Flinthoof Boar": 4,
+     "Experiment One": 4,
+     "Burning-Tree Emissary": 4,
+     "Vines of Vastwood": 1,
+     "Mutagenic Growth": 2,
+     "Lightning Bolt": 4,
+     "Dismember": 1,
+     "Atarka's Command": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 22
+  },
+  {
+   "deck": 275944,
+   "event": 13015,
+   "archetype": "Restore Balance",
+   "player": "Ryan Cubit",
+   "event_name": "WMCQ Australia (Melbourne)",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-07-10",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 17,
+    "counters": 0,
+    "sweepers": 1,
+    "draw": 4,
+    "burn": 1,
+    "avg_cmc": 4.47,
+    "pips": {
+     "W": 9.0,
+     "U": 12.0,
+     "B": 0,
+     "R": 17.0,
+     "G": 12.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Ajani Vengeant": 1,
+     "Dismember": 2,
+     "Restore Balance": 4,
+     "Violent Outburst": 4,
+     "Ardent Plea": 4,
+     "Nahiri, the Harbinger": 4,
+     "Emrakul, the Aeons Torn": 1,
+     "Simian Spirit Guide": 4,
+     "Riftwing Cloudskate": 4,
+     "Durkwood Baloth": 4,
+     "Greater Gargadon": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 275628,
+   "event": 12971,
+   "archetype": "4c Nahiri Coralhelm",
+   "player": "Eli Kassis",
+   "event_name": "SCG Classic - Worcester",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-07-10",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 17,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 8,
+    "burn": 3,
+    "avg_cmc": 2.42,
+    "pips": {
+     "W": 10.0,
+     "U": 9.0,
+     "B": 0,
+     "R": 8.0,
+     "G": 21.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Retreat to Coralhelm": 2,
+     "Oath of Nissa": 2,
+     "Stubborn Denial": 2,
+     "Path to Exile": 2,
+     "Lightning Bolt": 3,
+     "Serum Visions": 4,
+     "Nahiri, the Harbinger": 4,
+     "Eternal Witness": 1,
+     "Scavenging Ooze": 1,
+     "Snapcaster Mage": 1,
+     "Zealous Conscripts": 1,
+     "Emrakul, the Aeons Torn": 1,
+     "Birds of Paradise": 2,
+     "Noble Hierarch": 2,
+     "Courser of Kruphix": 2,
+     "Knight of the Reliquary": 4,
+     "Tarmogoyf": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 272545,
+   "event": 12564,
+   "archetype": "Eternal Command",
+   "player": "Keyan Jafari",
+   "event_name": "Sign in blood 5k",
+   "stars": 3,
+   "rank": "1",
+   "date": "2016-05-07",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 15,
+    "counters": 11,
+    "sweepers": 4,
+    "draw": 11,
+    "burn": 4,
+    "avg_cmc": 2.23,
+    "pips": {
+     "W": 0,
+     "U": 31.0,
+     "B": 0,
+     "R": 7.0,
+     "G": 13.0
+    },
+    "colors": [
+     "U",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Electrolyze": 1,
+     "Dismember": 1,
+     "Serum Visions": 2,
+     "Remand": 2,
+     "Spell Snare": 2,
+     "Thirst for Knowledge": 2,
+     "Mana Leak": 3,
+     "Cryptic Command": 4,
+     "Aether Vial": 4,
+     "Lightning Bolt": 4,
+     "Scavenging Ooze": 1,
+     "Vendilion Clique": 2,
+     "Huntmaster of the Fells // Ravager of the Fells": 2,
+     "Eternal Witness": 3,
+     "Snapcaster Mage": 3,
+     "Tarmogoyf": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 280251,
+   "event": 13636,
+   "archetype": "Bloomless Titan",
+   "player": "Nicol\u00f2 Tassotti",
+   "event_name": "Ovinogeddon Sunday Modern",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-09-25",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 33,
+    "lands": 27,
+    "creatures": 12,
+    "counters": 2,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 1.73,
+    "pips": {
+     "W": 0,
+     "U": 6.0,
+     "B": 0,
+     "R": 0,
+     "G": 20.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Spell Pierce": 1,
+     "Pact of Negation": 1,
+     "Hive Mind": 1,
+     "Slaughter Pact": 1,
+     "Engineered Explosives": 1,
+     "Serum Visions": 4,
+     "Ancient Stirrings": 4,
+     "Summoner's Pact": 4,
+     "Amulet of Vigor": 4,
+     "Skyshroud Ranger": 1,
+     "Azusa, Lost but Seeking": 3,
+     "Sakura-Tribe Scout": 4,
+     "Primeval Titan": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 280129,
+   "event": 13612,
+   "archetype": "Soul Sisters",
+   "player": "Dan Tzirkel",
+   "event_name": "WMCQ Israel",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-09-17",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.15,
+    "pips": {
+     "W": 51.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Path to Exile": 4,
+     "Soul Warden": 4,
+     "Spectral Procession": 4,
+     "Honor of the Pure": 4,
+     "Serra Ascendant": 4,
+     "Squadron Hawk": 4,
+     "Soul's Attendant": 2,
+     "Ranger of Eos": 3,
+     "Ajani's Pridemate": 4,
+     "Secure the Wastes": 1,
+     "Martyr of Sands": 1,
+     "Auriok Champion": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 279208,
+   "event": 13473,
+   "archetype": "Kiki-Evolution",
+   "player": "Matthew Davidson",
+   "event_name": "PPTQ \u0096 Dublin @ Turn Zero Games",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-09-10",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 26,
+    "counters": 0,
+    "sweepers": 3,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.62,
+    "pips": {
+     "W": 15.0,
+     "U": 0,
+     "B": 1.0,
+     "R": 8.0,
+     "G": 37.0
+    },
+    "colors": [
+     "W",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Birds of Paradise": 4,
+     "Noble Hierarch": 1,
+     "Voice of Resurgence": 4,
+     "Wall of Omens": 3,
+     "Qasali Pridemage": 1,
+     "Spellskite": 1,
+     "Scavenging Ooze": 1,
+     "Courser of Kruphix": 1,
+     "Orzhov Pontiff": 1,
+     "Eternal Witness": 2,
+     "Restoration Angel": 2,
+     "Pia and Kiran Nalaar": 2,
+     "Obstinate Baloth": 1,
+     "Kiki-Jiki, Mirror Breaker": 1,
+     "Reveillark": 1,
+     "Ruric Thar, the Unbowed": 1,
+     "Path to Exile": 3,
+     "Eldritch Evolution": 4,
+     "Chord of Calling": 3
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 277213,
+   "event": 13183,
+   "archetype": "B/G Elves",
+   "player": "Taylor Grant",
+   "event_name": "Epic Loot Autism Benefit - Modern",
+   "stars": 2,
+   "rank": "1",
+   "date": "2016-07-30",
+   "summer": true,
+   "s": 0.7647058823529412,
+   "f": {
+    "spells": 42,
+    "lands": 18,
+    "creatures": 22,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.14,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 4.0,
+     "R": 0,
+     "G": 56.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Ezuri, Renegade Leader": 2,
+     "Chord of Calling": 4,
+     "Collected Company": 4,
+     "Shaman of the Pack": 4,
+     "Elvish Archdruid": 4,
+     "Elvish Visionary": 4,
+     "Dwynen's Elite": 4,
+     "Nettle Sentinel": 4,
+     "Heritage Druid": 4,
+     "Llanowar Elves": 4,
+     "Elvish Mystic": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "pool_size": 30,
+ "rejected_illegal": [
+  {
+   "archetype": "Bloom Titan",
+   "deck": 263817,
+   "player": "Bobby Fortanely",
+   "why": [
+    "Summer Bloom (banned)"
+   ]
+  },
+  {
+   "archetype": "Bloom Titan",
+   "deck": 263433,
+   "player": "TombSimon",
+   "why": [
+    "Summer Bloom (banned)"
+   ]
+  },
+  {
+   "archetype": "Bloom Titan",
+   "deck": 263725,
+   "player": "Dennis Rosinski",
+   "why": [
+    "Summer Bloom (banned)"
+   ]
+  },
+  {
+   "archetype": "Bloom Titan",
+   "deck": 263514,
+   "player": "saru",
+   "why": [
+    "Summer Bloom (banned)"
+   ]
+  },
+  {
+   "archetype": "Grixis Delver",
+   "deck": 274765,
+   "player": "Kevin Jones",
+   "why": [
+    "Countersquall (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Grixis Delver",
+   "deck": 272006,
+   "player": "Jeremy Russel",
+   "why": [
+    "Countersquall (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Nahiri Control",
+   "deck": 276365,
+   "player": "Jose Luis Echeverria",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Nahiri Control",
+   "deck": 276376,
+   "player": "Graeme Mcintyre",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Nahiri Control",
+   "deck": 272000,
+   "player": "Daniel Velazquez",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Nahiri Control",
+   "deck": 276379,
+   "player": "James Allingham",
+   "why": [
+    "unknown card: Boom / Bust",
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Jeskai Nahiri",
+   "deck": 271445,
+   "player": "Peter Ingram",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Jeskai Nahiri",
+   "deck": 275948,
+   "player": "Rudy Widjaja",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Jeskai Nahiri",
+   "deck": 275947,
+   "player": "Reza Erlangga",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Jeskai Nahiri",
+   "deck": 277852,
+   "player": "Max Schlaak",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Mardu Nahiri",
+   "deck": 276397,
+   "player": "Yu Yin",
+   "why": [
+    "unknown card: Hide / Seek"
+   ]
+  },
+  {
+   "archetype": "Mardu Nahiri",
+   "deck": 276398,
+   "player": "Yan Tianji",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Mardu Nahiri",
+   "deck": 279713,
+   "player": "Wayne Dillon",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Jeskai Control",
+   "deck": 346664,
+   "player": "Satou Keisuke",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Jeskai Control",
+   "deck": 270487,
+   "player": "Nick Hansen",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "UWR Thopter Sword",
+   "deck": 276003,
+   "player": "Lu\u00eds Gobern",
+   "why": [
+    "unknown card: Wear / Tear"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 276781,
+   "player": "Miguel Angel Ferrero",
+   "why": [
+    "unknown card: Far / Away"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 274983,
+   "player": "Miguel \u00c1ngel Ferrero",
+   "why": [
+    "unknown card: Far / Away"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 273068,
+   "player": "Seckinger Pascal",
+   "why": [
+    "unknown card: Boom / Bust"
+   ]
+  },
+  {
+   "archetype": "Grixis Control",
+   "deck": 272441,
+   "player": "Cody Lingelbach",
+   "why": [
+    "Countersquall (not in legal sets)",
+    "unknown card: Rise / Fall"
+   ]
+  },
+  {
+   "archetype": "Twin Exarch",
+   "deck": 263317,
+   "player": "Andrew Tenjum",
+   "why": [
+    "Splinter Twin (banned)"
+   ]
+  },
+  {
+   "archetype": "Twin Exarch",
+   "deck": 261740,
+   "player": "Andrew Brown",
+   "why": [
+    "Splinter Twin (banned)"
+   ]
+  },
+  {
+   "archetype": "Twin Exarch",
+   "deck": 261813,
+   "player": "Carlos De Souza Costa",
+   "why": [
+    "Splinter Twin (banned)"
+   ]
+  },
+  {
+   "archetype": "Twin Exarch",
+   "deck": 261815,
+   "player": "Matheus Akio Yanagiura",
+   "why": [
+    "Splinter Twin (banned)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Grim Abzan",
+   "player": "Brandon Balfour",
+   "kept": "Abzan",
+   "kept_player": "Thiago Saporito"
+  },
+  {
+   "dropped": "Hatebear",
+   "player": "Ricardo Diaz",
+   "kept": "W/B Hatebear",
+   "kept_player": "Tang, Kobe"
+  },
+  {
+   "dropped": "Bushwhacker Zoo",
+   "player": "Charles Porges",
+   "kept": "Zoo",
+   "kept_player": "Wesley Blanchard"
+  },
+  {
+   "dropped": "Abzan Company",
+   "player": "Joseph Presnell",
+   "kept": "Creatures Toolbox",
+   "kept_player": "Javier Faustino"
+  },
+  {
+   "dropped": "Merfolks",
+   "player": "Dario Casati",
+   "kept": "Merfolk",
+   "kept_player": "Fabio Giaccio"
+  },
+  {
+   "dropped": "Abzan Midrange",
+   "player": "Zax Ozaki",
+   "kept": "Abzan",
+   "kept_player": "Thiago Saporito"
+  },
+  {
+   "dropped": "Suicide Zoo",
+   "player": "Taufik Ramadhan Indrakesuma",
+   "kept": "Death's Shadow Zoo",
+   "kept_player": "Simon Nielsen"
+  },
+  {
+   "dropped": "U/G Infect",
+   "player": "Dan Jessup",
+   "kept": "Infect",
+   "kept_player": "Jan Ang"
+  },
+  {
+   "dropped": "Junk",
+   "player": "Aurelio Mema",
+   "kept": "Abzan",
+   "kept_player": "Thiago Saporito"
+  },
+  {
+   "dropped": "Bant Eldrazi",
+   "player": "Iacopo Scaringella",
+   "kept": "Eldrazi Aggro",
+   "kept_player": "BSWeitz"
+  },
+  {
+   "dropped": "Titan Scout",
+   "player": "Sean Sehr",
+   "kept": "Bloomless Titan",
+   "kept_player": "Nicol\u00f2 Tassotti"
+  },
+  {
+   "dropped": "Robots",
+   "player": "Fernando Gueler Berdasco",
+   "kept": "Affinity",
+   "kept_player": "Steven Martin"
+  },
+  {
+   "dropped": "Martyr Life",
+   "player": "shadow_PT",
+   "kept": "Soul Sisters",
+   "kept_player": "Dan Tzirkel"
+  },
+  {
+   "dropped": "RG Scapeshift",
+   "player": "Marcos Paulo Freitas",
+   "kept": "Scapeshift",
+   "kept_player": "Bernardo Santos"
+  },
+  {
+   "dropped": "Valakut",
+   "player": "mmmbop",
+   "kept": "RG Breach",
+   "kept_player": "Damien CHABRIER"
+  },
+  {
+   "dropped": "Red Deck Wins",
+   "player": "Kevin Egan",
+   "kept": "Naya Burn",
+   "kept_player": "Fabio Portes"
+  },
+  {
+   "dropped": "Elves",
+   "player": "David Atkinson",
+   "kept": "B/G Elves",
+   "kept_player": "Taylor Grant"
+  },
+  {
+   "dropped": "UrzaTron",
+   "player": "Zach Lincoln",
+   "kept": "Gr Tron",
+   "kept_player": "Kevin Serapiglia"
+  }
+ ],
+ "objective": 10.356470588235295,
+ "pool_colors": {
+  "W": 12,
+  "U": 14,
+  "G": 20,
+  "R": 17,
+  "B": 10
+ },
+ "pool_styles": {
+  "aggro": 13,
+  "combo": 6,
+  "midrange": 10,
+  "control": 1
+ }
+}

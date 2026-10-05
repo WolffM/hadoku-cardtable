@@ -508,6 +508,30 @@ function forgeAliases(): ReadonlyMap<string, string[]> {
   return byScryfall;
 }
 
+/**
+ * Every row already committed at `outFile`, or an empty map if there is none
+ * yet (first run) or it does not parse.
+ *
+ * Read BEFORE anything else runs, so {@link run} can seed `ids` with it:
+ * `put()`'s "first write wins" then means an existing row is never
+ * recomputed, only ever matched or left alone. See `run()`'s own comment for
+ * why that matters.
+ */
+function existingRows(outFile: string): ReadonlyMap<string, string> {
+  try {
+    const parsed = JSON.parse(readFileSync(outFile, 'utf8')) as { ids?: unknown };
+    const ids = parsed.ids;
+    if (typeof ids !== 'object' || ids === null) return new Map();
+    const rows = new Map<string, string>();
+    for (const [key, value] of Object.entries(ids as Record<string, unknown>)) {
+      if (typeof value === 'string') rows.set(key, value);
+    }
+    return rows;
+  } catch {
+    return new Map();
+  }
+}
+
 async function run(cacheDir: string, outFile: string, forgeResDir: string | null = null): Promise<number> {
   const started = Date.now();
   const manifestPath = join(cacheDir, 'manifest.json');
@@ -527,7 +551,16 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
     const index: CardIndex = buildCardIndex(cards);
     console.log(`Indexed ${index.printings} printings across ${index.knownSets.size} Scryfall sets`);
 
-    const ids = new Map<string, string>();
+    // ADDITIVE REGENERATION RULE: an existing row's printing never changes
+    // just because the library grew. Seeded here, before anything else runs,
+    // so `put()`'s "first write wins" protects every row already committed —
+    // a bare-name fallback (the one vote-weighted bucket) would otherwise
+    // shift whenever a new deck's votes change which printing wins, and a
+    // shifted Forest or Island is a different image every player already
+    // sees, silently, for no reason the player caused. New cards (a name
+    // this file has never carried a row for) still get one, normally.
+    const seeded = existingRows(outFile);
+    const ids = new Map<string, string>(seeded);
     const counts: Counts = { basics: 0, decks: 0, cubeAliases: 0, bareNames: 0, tokens: 0, unresolved: [] };
 
     /**
@@ -745,9 +778,11 @@ ${rows.join(',\n')}
     writeFileSync(outFile, body, 'utf8');
 
     const bytes = Buffer.byteLength(body, 'utf8');
+    const newRows = keys.length - seeded.size;
     console.log(
       `Wrote ${keys.length} rows (${bytes} bytes) to ${outFile}\n` +
-        `  basics ${counts.basics}, decks ${counts.decks}, cube aliases ${counts.cubeAliases}, bare names ${counts.bareNames}, token rows ${counts.tokens}`,
+        `  kept ${seeded.size} already-committed row(s) unchanged, added ${newRows} new\n` +
+        `  (of the new rows: basics ${counts.basics}, decks ${counts.decks}, cube aliases ${counts.cubeAliases}, bare names ${counts.bareNames}, token rows ${counts.tokens})`,
     );
     if (counts.unresolved.length > 0) {
       console.log(`  ${counts.unresolved.length} deck reference(s) did not resolve:`);

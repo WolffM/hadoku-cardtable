@@ -31,6 +31,7 @@ import {
 	draftIdOfPool,
 	draftPoolId,
 	newestFormat,
+	NO_FORMAT,
 	openLobby,
 	ROOM_IDLE_MS,
 	ROOM_STALE_MS,
@@ -40,8 +41,13 @@ import {
 } from './lobby.ts';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
-/** The real frozen pools, oldest first (`http/library.ts`). Derived, never restated. */
-const POOLS = loadTablesLibrary(REPO_ROOT).formats.map((f) => f.id);
+/**
+ * The real frozen STANDARD pools, oldest first (`http/library.ts`). Derived,
+ * never restated. Filtered by `family`, not just "every format": wave 48 put
+ * Modern and Legacy eras in the same catalog, and `newestFormat()`'s own
+ * contract is the newest STANDARD era, never just the catalog's last entry.
+ */
+const POOLS = loadTablesLibrary(REPO_ROOT).formats.filter((f) => f.family === 'standard').map((f) => f.id);
 
 const CAROL = { id: 'fk:3333333333333333', name: 'user-carol' };
 
@@ -259,6 +265,34 @@ describe('a room’s format', () => {
 		// Every body that carries a room carries it, list as well as get.
 		expect(lobby.list().map((r) => r.format)).toEqual([POOLS[POOLS.length - 1]]);
 		expect(lobby.get(made.room.id)?.format).toBe(POOLS[POOLS.length - 1]);
+	});
+
+	/*
+	 * Wave 48 §U: *"can we go backwards another 5yrs for standard decks? and
+	 * then also backfill modern & legacy as well?"* Modern and Legacy eras now
+	 * sit in the same catalog as Standard's, so a new room's default must stay
+	 * pinned to the newest STANDARD era even when the catalog's last entry, by
+	 * insertion order, is a Legacy or Modern one. Built against a FIXTURE
+	 * `formats` list, never the real catalog, so this is true regardless of
+	 * what order T's `LIBRARY` ends up declaring eras in.
+	 */
+	it('picks the newest STANDARD era even when a Legacy era sorts after it (w48 §U)', () => {
+		const mixed = [
+			{ id: '2012-07-13', family: 'standard' as const },
+			{ id: '2014-07-18', family: 'standard' as const }, // the newest Standard era here
+			{ id: 'modern-2012-07-13', family: 'modern' as const },
+			{ id: 'legacy-2016-07-22', family: 'legacy' as const }, // the catalog's LAST entry
+		];
+		expect(newestFormat(mixed)).toBe('2014-07-18');
+		// Pinned directly against "last element": the fixture's last entry is a
+		// Legacy era, so a reverted implementation (`formats.at(-1)?.id`) would
+		// answer that instead of the newest Standard one.
+		expect(newestFormat(mixed)).not.toBe(mixed.at(-1)!.id);
+	});
+
+	it('answers NO_FORMAT for a catalog with no Standard era at all', () => {
+		expect(newestFormat([{ id: 'modern-2012-07-13', family: 'modern' as const }])).toBe(NO_FORMAT);
+		expect(newestFormat([])).toBe(NO_FORMAT);
 	});
 
 	it('survives a restart, because the decks it checked survive with it', async () => {

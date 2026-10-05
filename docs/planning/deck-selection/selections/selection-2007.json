@@ -1,0 +1,1427 @@
+{
+ "era": {
+  "year": 2007,
+  "season_start": "2006-10-20",
+  "start": "2007-07-20",
+  "end": "2007-10-20",
+  "format": "Standard (10E)",
+  "sets": "RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E",
+  "banned": []
+ },
+ "chosen": [
+  {
+   "deck": 599607,
+   "event": 53757,
+   "archetype": "Goyf Rack",
+   "player": "Masaya Kitayama",
+   "event_name": "Nationals - Japan 2007",
+   "stars": 3,
+   "rank": "1",
+   "date": "2007-08-31",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 12,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.11,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 32.0,
+     "R": 0,
+     "G": 8.0
+    },
+    "colors": [
+     "B",
+     "G"
+    ],
+    "names": {
+     "Damnation": 2,
+     "The Rack": 4,
+     "Terror": 4,
+     "Call of the Herd": 4,
+     "Stupor": 4,
+     "Smallpox": 4,
+     "Cry of Contrition": 4,
+     "Augur of Skulls": 4,
+     "Tarmogoyf": 4,
+     "Dark Confidant": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 601715,
+   "event": 54102,
+   "archetype": "Wur Blink",
+   "player": "Andrew Ting-a-kee",
+   "event_name": "Nationals - Canada 2007",
+   "stars": 3,
+   "rank": "1",
+   "date": "2007-09-07",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 19,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 7,
+    "avg_cmc": 3.0,
+    "pips": {
+     "W": 15.0,
+     "U": 30.0,
+     "B": 0,
+     "R": 12.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Demonfire": 3,
+     "Momentary Blink": 3,
+     "Lightning Helix": 4,
+     "Remand": 4,
+     "Azorius Signet": 4,
+     "Numot, the Devastator": 1,
+     "Grand Arbiter Augustin IV": 3,
+     "Venser, Shaper Savant": 3,
+     "Riftwing Cloudskate": 4,
+     "Lightning Angel": 4,
+     "Court Hussar": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 101516,
+   "event": 7,
+   "archetype": "RDW 2k7",
+   "player": "Craig \"The Prof\" Jones",
+   "event_name": "Nationals - Great Britain 2007",
+   "stars": 3,
+   "rank": "1",
+   "date": "2007-07-29",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 20,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 16,
+    "avg_cmc": 2.56,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 28.0,
+     "G": 12.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Char": 4,
+     "Incinerate": 4,
+     "Seal of Fire": 4,
+     "Rift Bolt": 4,
+     "Keldon Marauders": 2,
+     "Greater Gargadon": 2,
+     "Mogg War Marshal": 4,
+     "Mogg Fanatic": 4,
+     "Tarmogoyf": 4,
+     "Troll Ascetic": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 101507,
+   "event": 6,
+   "archetype": "OmniChord",
+   "player": "Luis Scott-Vargas",
+   "event_name": "Nationals - US 2007",
+   "stars": 3,
+   "rank": "1",
+   "date": "2007-07-29",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 15,
+    "counters": 10,
+    "sweepers": 6,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.16,
+    "pips": {
+     "W": 5.0,
+     "U": 34.0,
+     "B": 0,
+     "R": 0,
+     "G": 21.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Chord of Calling": 3,
+     "Farseek": 3,
+     "Rune Snag": 4,
+     "Compulsive Research": 4,
+     "Remand": 4,
+     "Venser, Shaper Savant": 1,
+     "Teferi, Mage of Zhalfir": 1,
+     "Crovax, Ascendant Hero": 1,
+     "Arcanis the Omnipotent": 1,
+     "Brine Elemental": 1,
+     "Willbender": 2,
+     "Mystic Snake": 2,
+     "Vesuvan Shapeshifter": 3,
+     "Loxodon Hierarch": 3,
+     "Wall of Roots": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 601716,
+   "event": 54102,
+   "archetype": "Angelfire",
+   "player": "Shaun Mclaren",
+   "event_name": "Nationals - Canada 2007",
+   "stars": 3,
+   "rank": "2",
+   "date": "2007-09-07",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 24,
+    "creatures": 12,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 6,
+    "avg_cmc": 3.11,
+    "pips": {
+     "W": 25.0,
+     "U": 18.0,
+     "B": 0,
+     "R": 13.0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "R"
+    ],
+    "names": {
+     "Faith's Fetters": 1,
+     "Demonfire": 2,
+     "Sacred Mesa": 2,
+     "Azorius Signet": 4,
+     "Lightning Helix": 4,
+     "Remand": 4,
+     "Wrath of God": 4,
+     "Compulsive Research": 4,
+     "Aeon Chronicler": 1,
+     "Firemane Angel": 3,
+     "Lightning Angel": 4,
+     "Court Hussar": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 3
+  },
+  {
+   "deck": 599604,
+   "event": 53757,
+   "archetype": "Swath Storm",
+   "player": "Ren Ishikawa",
+   "event_name": "Nationals - Japan 2007",
+   "stars": 3,
+   "rank": "2",
+   "date": "2007-08-31",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 0,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 15,
+    "burn": 4,
+    "avg_cmc": 1.66,
+    "pips": {
+     "W": 0,
+     "U": 15.0,
+     "B": 0,
+     "R": 15.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "R"
+    ],
+    "names": {
+     "Empty the Warrens": 3,
+     "Repeal": 3,
+     "Pyromancer's Swath": 4,
+     "Hatching Plans": 4,
+     "Lotus Bloom": 4,
+     "Claws of Gix": 4,
+     "Remand": 4,
+     "Perilous Research": 4,
+     "Rite of Flame": 4,
+     "Grapeshot": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 101517,
+   "event": 7,
+   "archetype": "Dredge-Bridge II",
+   "player": "Stuart Wright",
+   "event_name": "Nationals - Great Britain 2007",
+   "stars": 3,
+   "rank": "2",
+   "date": "2007-07-29",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 28,
+    "counters": 0,
+    "sweepers": 4,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.62,
+    "pips": {
+     "W": 2.0,
+     "U": 18.0,
+     "B": 22.0,
+     "R": 4.0,
+     "G": 9.0
+    },
+    "colors": [
+     "U",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Life from the Loam": 2,
+     "Dread Return": 3,
+     "Bridge from Below": 4,
+     "Flame-Kin Zealot": 2,
+     "Bonded Fetch": 2,
+     "Llanowar Mentor": 3,
+     "Golgari Grave-Troll": 4,
+     "Drowned Rusalka": 4,
+     "Narcomoeba": 4,
+     "Magus of the Bazaar": 4,
+     "Merfolk Looter": 4,
+     "Stinkweed Imp": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 599610,
+   "event": 53757,
+   "archetype": "Project X",
+   "player": "Makoto Nagashima",
+   "event_name": "Nationals - Japan 2007",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2007-08-31",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 27,
+    "counters": 0,
+    "sweepers": 9,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.37,
+    "pips": {
+     "W": 15.0,
+     "U": 0,
+     "B": 14.0,
+     "R": 0,
+     "G": 32.0
+    },
+    "colors": [
+     "W",
+     "B",
+     "G"
+    ],
+    "names": {
+     "Extirpate": 1,
+     "Grim Harvest": 1,
+     "Chord of Calling": 4,
+     "Magus of the Disk": 1,
+     "Elves of Deep Shadow": 1,
+     "Ghost Council of Orzhova": 1,
+     "Orzhov Pontiff": 1,
+     "Augur of Skulls": 1,
+     "Crypt Champion": 2,
+     "Teysa, Orzhov Scion": 2,
+     "Essence Warden": 3,
+     "Loxodon Hierarch": 4,
+     "Wall of Roots": 4,
+     "Saffi Eriksdotter": 4,
+     "Birds of Paradise": 4,
+     "Dark Confidant": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 4
+  },
+  {
+   "deck": 101534,
+   "event": 3,
+   "archetype": "UBr Teachings",
+   "player": "Craig Chapman",
+   "event_name": "Nationals - Australia 2007",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2007-07-22",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 9,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 4,
+    "burn": 5,
+    "avg_cmc": 3.5,
+    "pips": {
+     "W": 0,
+     "U": 25.0,
+     "B": 18.0,
+     "R": 9.0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B",
+     "R"
+    ],
+    "names": {
+     "Aeon Chronicler": 4,
+     "Damnation": 4,
+     "Remand": 4,
+     "Clutch of the Undercity": 4,
+     "Tendrils of Corruption": 4,
+     "Dimir Signet": 3,
+     "Extirpate": 2,
+     "Detritivore": 2,
+     "Izzet Signet": 2,
+     "Mystical Teachings": 2,
+     "Bogardan Hellkite": 2,
+     "Slaughter Pact": 1,
+     "Demonfire": 1,
+     "Teferi, Mage of Zhalfir": 1
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 101484,
+   "event": 4,
+   "archetype": "UW Control",
+   "player": "The Nameless One",
+   "event_name": "Nationals - New Zeland 2007",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2007-08-12",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 10,
+    "counters": 10,
+    "sweepers": 4,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 3.4,
+    "pips": {
+     "W": 17.0,
+     "U": 40.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U"
+    ],
+    "names": {
+     "Sacred Mesa": 2,
+     "Faith's Fetters": 3,
+     "Cancel": 4,
+     "Condemn": 4,
+     "Wrath of God": 4,
+     "Careful Consideration": 4,
+     "Rune Snag": 4,
+     "Arcanis the Omnipotent": 1,
+     "Draining Whelk": 2,
+     "Teferi, Mage of Zhalfir": 3,
+     "Court Hussar": 4
+    }
+   },
+   "style": "control",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 101515,
+   "event": 6,
+   "archetype": "Rakdos 10 (Gargadon on Bob)",
+   "player": "Antonino De Rosa",
+   "event_name": "Nationals - US 2007",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2007-07-29",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 29,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 2,
+    "avg_cmc": 2.89,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 5.0,
+     "R": 28.0,
+     "G": 0
+    },
+    "colors": [
+     "B",
+     "R"
+    ],
+    "names": {
+     "Fatal Frenzy": 2,
+     "Char": 2,
+     "Threaten": 4,
+     "Nantuko Husk": 1,
+     "Epochrasite": 4,
+     "Scorched Rusalka": 4,
+     "Dark Confidant": 4,
+     "Mogg Fanatic": 4,
+     "Mogg War Marshal": 4,
+     "Keldon Marauders": 4,
+     "Greater Gargadon": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 101538,
+   "event": 3,
+   "archetype": "Glare",
+   "player": "Anatoli Lightfoot",
+   "event_name": "Nationals - Australia 2007",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2007-07-22",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 6,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.44,
+    "pips": {
+     "W": 28.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 32.0
+    },
+    "colors": [
+     "W",
+     "G"
+    ],
+    "names": {
+     "Selesnya Guildmage": 4,
+     "Watchwolf": 4,
+     "Saffi Eriksdotter": 4,
+     "Serra Avenger": 4,
+     "Gather Courage": 3,
+     "Call of the Herd": 3,
+     "Troll Ascetic": 3,
+     "Griffin Guide": 3,
+     "Loxodon Hierarch": 3,
+     "Tarmogoyf": 3,
+     "Glare of Subdual": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  }
+ ],
+ "alternates": [
+  {
+   "deck": 101533,
+   "event": 3,
+   "archetype": "Solar Flare IIII",
+   "player": "Tim He",
+   "event_name": "Nationals - Australia 2007",
+   "stars": 3,
+   "rank": "2",
+   "date": "2007-07-22",
+   "summer": true,
+   "s": 0.6666666666666666,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 12,
+    "counters": 4,
+    "sweepers": 4,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 3.86,
+    "pips": {
+     "W": 20.0,
+     "U": 24.0,
+     "B": 11.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B"
+    ],
+    "names": {
+     "Azorius Signet": 4,
+     "Wrath of God": 4,
+     "Remand": 4,
+     "Court Hussar": 4,
+     "Aeon Chronicler": 3,
+     "Castigate": 3,
+     "Angel of Despair": 2,
+     "Dimir Signet": 2,
+     "Faith's Fetters": 2,
+     "Tidings": 2,
+     "Take Possession": 2,
+     "Foresee": 2,
+     "Skeletal Vampire": 2,
+     "Akroma, Angel of Wrath": 1
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 601717,
+   "event": 54102,
+   "archetype": "UBw Pickles",
+   "player": "Daniel Kramer",
+   "event_name": "Nationals - Canada 2007",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2007-09-07",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 12,
+    "counters": 14,
+    "sweepers": 0,
+    "draw": 6,
+    "burn": 0,
+    "avg_cmc": 3.09,
+    "pips": {
+     "W": 0,
+     "U": 49.0,
+     "B": 4.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Slaughter Pact": 1,
+     "Terror": 1,
+     "Extirpate": 1,
+     "Remove Soul": 2,
+     "Mystical Teachings": 2,
+     "Repeal": 2,
+     "Last Gasp": 2,
+     "Cancel": 4,
+     "Spell Snare": 4,
+     "Remand": 4,
+     "Aeon Chronicler": 2,
+     "Teferi, Mage of Zhalfir": 3,
+     "Brine Elemental": 3,
+     "Vesuvan Shapeshifter": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 101510,
+   "event": 6,
+   "archetype": "MGA",
+   "player": "Michael Jacob",
+   "event_name": "Nationals - US 2007",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2007-07-29",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 19,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 2.37,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 4.0,
+     "G": 40.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Stonewood Invocation": 1,
+     "Loxodon Warhammer": 2,
+     "Moldervine Cloak": 4,
+     "Might of Old Krosa": 4,
+     "Timbermare": 3,
+     "Boreal Druid": 4,
+     "Llanowar Elves": 4,
+     "Silhana Ledgewalker": 4,
+     "Scryb Ranger": 4,
+     "Giant Solifuge": 4,
+     "Troll Ascetic": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 601719,
+   "event": 54102,
+   "archetype": "Korlash Black",
+   "player": "Matthew Vienneau",
+   "event_name": "Nationals - Canada 2007",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2007-09-07",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 15,
+    "counters": 0,
+    "sweepers": 2,
+    "draw": 4,
+    "burn": 6,
+    "avg_cmc": 2.92,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 45.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Consume Spirit": 2,
+     "Damnation": 2,
+     "Loxodon Warhammer": 2,
+     "Slaughter Pact": 2,
+     "Sudden Death": 3,
+     "Stupor": 3,
+     "Mind Stone": 4,
+     "Tendrils of Corruption": 4,
+     "Graveborn Muse": 3,
+     "Hypnotic Specter": 4,
+     "Korlash, Heir to Blackblade": 4,
+     "Dark Confidant": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 599603,
+   "event": 53757,
+   "archetype": "Blink",
+   "player": "Shuu Komuro",
+   "event_name": "Nationals - Japan 2007",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2007-08-31",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 36,
+    "lands": 24,
+    "creatures": 20,
+    "counters": 6,
+    "sweepers": 4,
+    "draw": 8,
+    "burn": 0,
+    "avg_cmc": 3.08,
+    "pips": {
+     "W": 8.0,
+     "U": 28.0,
+     "B": 0,
+     "R": 0,
+     "G": 18.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "G"
+    ],
+    "names": {
+     "Remand": 4,
+     "Momentary Blink": 4,
+     "Edge of Autumn": 4,
+     "Mystic Snake": 2,
+     "Aeon Chronicler": 3,
+     "Venser, Shaper Savant": 3,
+     "Loxodon Hierarch": 4,
+     "Wall of Roots": 4,
+     "Tarmogoyf": 4,
+     "Riftwing Cloudskate": 4
+    }
+   },
+   "style": "combo",
+   "style_why": "label",
+   "label_count": 1
+  },
+  {
+   "deck": 101478,
+   "event": 4,
+   "archetype": "Greater Goyf",
+   "player": "The Nameless One",
+   "event_name": "Nationals - New Zeland 2007",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2007-08-12",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 12,
+    "counters": 4,
+    "sweepers": 0,
+    "draw": 15,
+    "burn": 8,
+    "avg_cmc": 2.54,
+    "pips": {
+     "W": 8.0,
+     "U": 8.0,
+     "B": 4.0,
+     "R": 16.0,
+     "G": 4.0
+    },
+    "colors": [
+     "W",
+     "U",
+     "B",
+     "R",
+     "G"
+    ],
+    "names": {
+     "Terrarion": 3,
+     "Castigate": 4,
+     "Remand": 4,
+     "Chromatic Star": 4,
+     "Seal of Fire": 4,
+     "Perilous Research": 4,
+     "Lightning Helix": 4,
+     "Mogg War Marshal": 4,
+     "Greater Gargadon": 4,
+     "Tarmogoyf": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 101482,
+   "event": 4,
+   "archetype": "Graft UG",
+   "player": "The Nameless One",
+   "event_name": "Nationals - New Zeland 2007",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2007-08-12",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 40,
+    "lands": 21,
+    "creatures": 20,
+    "counters": 11,
+    "sweepers": 3,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.88,
+    "pips": {
+     "W": 0,
+     "U": 31.0,
+     "B": 0,
+     "R": 0,
+     "G": 48.0
+    },
+    "colors": [
+     "U",
+     "G"
+    ],
+    "names": {
+     "Gaea's Blessing": 2,
+     "Chord of Calling": 3,
+     "Piracy Charm": 3,
+     "Search for Tomorrow": 4,
+     "Voidslime": 4,
+     "Spell Snare": 4,
+     "Teferi, Mage of Zhalfir": 2,
+     "Spike Feeder": 3,
+     "Mystic Snake": 3,
+     "Ohran Viper": 4,
+     "Plaxcaster Frogling": 4,
+     "Cytoplast Root-Kin": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 1
+  },
+  {
+   "deck": 101514,
+   "event": 6,
+   "archetype": "UB Teachings - Dralnu Style",
+   "player": "John Kolos",
+   "event_name": "Nationals - US 2007",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2007-07-29",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 34,
+    "lands": 26,
+    "creatures": 8,
+    "counters": 16,
+    "sweepers": 1,
+    "draw": 5,
+    "burn": 1,
+    "avg_cmc": 3.15,
+    "pips": {
+     "W": 0,
+     "U": 36.0,
+     "B": 10.0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U",
+     "B"
+    ],
+    "names": {
+     "Damnation": 1,
+     "Haunting Hymn": 1,
+     "Repeal": 1,
+     "Careful Consideration": 1,
+     "Dimir Signet": 1,
+     "Last Gasp": 1,
+     "Slaughter Pact": 1,
+     "Tendrils of Corruption": 1,
+     "Remove Soul": 3,
+     "Mystical Teachings": 3,
+     "Rune Snag": 4,
+     "Remand": 4,
+     "Spell Snare": 4,
+     "Vesuvan Shapeshifter": 1,
+     "Draining Whelk": 1,
+     "Tombstalker": 1,
+     "Skeletal Vampire": 1,
+     "Brine Elemental": 1,
+     "Teferi, Mage of Zhalfir": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 1
+  },
+  {
+   "deck": 101537,
+   "event": 3,
+   "archetype": "Rg Aggro VII",
+   "player": "Andrew Eckerman",
+   "event_name": "Nationals - Australia 2007",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2007-07-22",
+   "summer": true,
+   "s": 0.46275642631951847,
+   "f": {
+    "spells": 38,
+    "lands": 22,
+    "creatures": 25,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 10,
+    "avg_cmc": 1.79,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 29.0,
+     "G": 13.0
+    },
+    "colors": [
+     "R",
+     "G"
+    ],
+    "names": {
+     "Incinerate": 4,
+     "Keldon Marauders": 4,
+     "Scab-Clan Mauler": 4,
+     "Mogg Fanatic": 4,
+     "Scorched Rusalka": 4,
+     "Seal of Fire": 3,
+     "Moldervine Cloak": 3,
+     "Frenzied Goblin": 3,
+     "Rift Bolt": 3,
+     "Mire Boa": 2,
+     "Tarmogoyf": 2,
+     "Quirion Dryad": 2
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 1
+  }
+ ],
+ "pool_size": 21,
+ "rejected_illegal": [
+  {
+   "archetype": "Rakdos VI",
+   "deck": 101532,
+   "player": "Steven Aplin",
+   "why": [
+    "unknown card: Hit / Run"
+   ]
+  },
+  {
+   "archetype": "WUR Blink LL",
+   "deck": 601680,
+   "player": "Guillaume Matignon",
+   "why": [
+    "Stone Rain (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "WUR Blink LL",
+   "deck": 601682,
+   "player": "Jerome Renevier",
+   "why": [
+    "Stone Rain (not in legal sets)",
+    "Volcanic Hammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UR Tron",
+   "deck": 603795,
+   "player": "Yuuya Watanabe",
+   "why": [
+    "Annex (not in legal sets)",
+    "Mana Leak (not in legal sets)",
+    "Urza's Mine (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Rakdos II",
+   "deck": 101518,
+   "player": "Nick Lovett",
+   "why": [
+    "unknown card: Hit / Run"
+   ]
+  },
+  {
+   "archetype": "Rakdos III",
+   "deck": 101519,
+   "player": "Simon O'Keeffe",
+   "why": [
+    "unknown card: Hit / Run"
+   ]
+  },
+  {
+   "archetype": "Blink-Touch",
+   "deck": 101480,
+   "player": "The Nameless One",
+   "why": [
+    "unknown card: Rough / Tumble"
+   ]
+  },
+  {
+   "archetype": "Rakdos IIII",
+   "deck": 101520,
+   "player": "Dave Grant",
+   "why": [
+    "unknown card: Hit / Run"
+   ]
+  },
+  {
+   "archetype": "E7 Snow Korlash",
+   "deck": 601683,
+   "player": "Wilfried Ranque",
+   "why": [
+    "Jester's Cap (not in legal sets)",
+    "Persecute (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-blue Pickles",
+   "deck": 603797,
+   "player": "Motokiyo Azuma",
+   "why": [
+    "Mana Leak (not in legal sets)",
+    "Rewind (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dragonstorm",
+   "deck": 253163,
+   "player": "Makihito Mihara",
+   "why": [
+    "Seething Song (not in legal sets)",
+    "Sleight of Hand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Dragonstorm",
+   "deck": 601687,
+   "player": "Mathieu Le Montagner",
+   "why": [
+    "Seething Song (not in legal sets)",
+    "Sleight of Hand (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Beats",
+   "deck": 601686,
+   "player": "Maxime Hermes",
+   "why": [
+    "Blood Moon (not in legal sets)",
+    "Kird Ape (not in legal sets)",
+    "Volcanic Hammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Gruul Beats",
+   "deck": 603802,
+   "player": "Katsuhiro Ide",
+   "why": [
+    "Blood Moon (not in legal sets)",
+    "Kird Ape (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UB Dralnu",
+   "deck": 601684,
+   "player": "Erwan Maisonneuve",
+   "why": [
+    "Mana Leak (not in legal sets)",
+    "Persecute (not in legal sets)",
+    "Rewind (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UG Tron",
+   "deck": 603799,
+   "player": "Naoki Shimizu",
+   "why": [
+    "Annex (not in legal sets)",
+    "Mana Leak (not in legal sets)",
+    "Rewind (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Uwr Control",
+   "deck": 603801,
+   "player": "Atsushi Wada",
+   "why": [
+    "unknown card: Boom / Bust"
+   ]
+  },
+  {
+   "archetype": "UWTron",
+   "deck": 253164,
+   "player": "Ryou Ogura",
+   "why": [
+    "Annex (not in legal sets)",
+    "Circle of Protection: Red (not in legal sets)",
+    "Mana Leak (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UWTron",
+   "deck": 253170,
+   "player": "Katsuhiro Mori",
+   "why": [
+    "Annex (not in legal sets)",
+    "Circle of Protection: Red (not in legal sets)",
+    "Mana Leak (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "UWTron",
+   "deck": 253173,
+   "player": "Itaru Ishida",
+   "why": [
+    "Annex (not in legal sets)",
+    "Circle of Protection: Red (not in legal sets)",
+    "Mana Leak (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros",
+   "deck": 253165,
+   "player": "Nicholas Lovett",
+   "why": [
+    "Savannah Lions (not in legal sets)",
+    "Stone Rain (not in legal sets)",
+    "Volcanic Hammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros",
+   "deck": 253168,
+   "player": "Paulo Vitor Damo da Rosa",
+   "why": [
+    "Savannah Lions (not in legal sets)",
+    "Volcanic Hammer (not in legal sets)",
+    "Worship (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros",
+   "deck": 253171,
+   "player": "Willy Edel",
+   "why": [
+    "Savannah Lions (not in legal sets)",
+    "Volcanic Hammer (not in legal sets)",
+    "Worship (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Boros",
+   "deck": 253172,
+   "player": "Tsuyoshi Fujita",
+   "why": [
+    "Savannah Lions (not in legal sets)",
+    "Volcanic Hammer (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Tron Martyr Life",
+   "deck": 253166,
+   "player": "Gabriel Nassif",
+   "why": [
+    "Circle of Protection: Red (not in legal sets)",
+    "Urza's Mine (not in legal sets)",
+    "Urza's Power Plant (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Blink-Touch III",
+   "player": "Thomas Drake",
+   "kept": "Wur Blink",
+   "kept_player": "Andrew Ting-a-kee"
+  },
+  {
+   "dropped": "Solar Flare",
+   "player": "Takashi Akiyama",
+   "kept": "Solar Flare IIII",
+   "kept_player": "Tim He"
+  },
+  {
+   "dropped": "Blink-Touch UWB II",
+   "player": "James Zhang",
+   "kept": "Wur Blink",
+   "kept_player": "Andrew Ting-a-kee"
+  },
+  {
+   "dropped": "Gruul Gargadon",
+   "player": "Filip Hajduk",
+   "kept": "RDW 2k7",
+   "kept_player": "Craig \"The Prof\" Jones"
+  },
+  {
+   "dropped": "UWR Blink",
+   "player": "Miles Smith",
+   "kept": "Wur Blink",
+   "kept_player": "Andrew Ting-a-kee"
+  },
+  {
+   "dropped": "UB Pickles",
+   "player": "Yuuta Takahashi",
+   "kept": "UBw Pickles",
+   "kept_player": "Daniel Kramer"
+  },
+  {
+   "dropped": "Dredge-Bridge",
+   "player": "The Nameless One",
+   "kept": "Dredge-Bridge II",
+   "kept_player": "Stuart Wright"
+  },
+  {
+   "dropped": "Blink-Touch II",
+   "player": "The Nameless One",
+   "kept": "Wur Blink",
+   "kept_player": "Andrew Ting-a-kee"
+  },
+  {
+   "dropped": "Rg Aggro II",
+   "player": "The Nameless One",
+   "kept": "RDW 2k7",
+   "kept_player": "Craig \"The Prof\" Jones"
+  },
+  {
+   "dropped": "Rg Aggro",
+   "player": "The Nameless One",
+   "kept": "RDW 2k7",
+   "kept_player": "Craig \"The Prof\" Jones"
+  },
+  {
+   "dropped": "Blink-Touch UWB",
+   "player": "Eduardo Sajgalik",
+   "kept": "Wur Blink",
+   "kept_player": "Andrew Ting-a-kee"
+  },
+  {
+   "dropped": "Aussie Storm",
+   "player": "Daniel Godfrey",
+   "kept": "Swath Storm",
+   "kept_player": "Ren Ishikawa"
+  },
+  {
+   "dropped": "TarmoRack",
+   "player": "Marco Orsini-Jones",
+   "kept": "Goyf Rack",
+   "kept_player": "Masaya Kitayama"
+  },
+  {
+   "dropped": "Solar Flare III",
+   "player": "Craig Krempels",
+   "kept": "Solar Flare IIII",
+   "kept_player": "Tim He"
+  },
+  {
+   "dropped": "Rg Aggro IIII",
+   "player": "Thomas Huteson",
+   "kept": "RDW 2k7",
+   "kept_player": "Craig \"The Prof\" Jones"
+  },
+  {
+   "dropped": "AngelFire V",
+   "player": "Simon Uppill",
+   "kept": "Angelfire",
+   "kept_player": "Shaun Mclaren"
+  },
+  {
+   "dropped": "Blink Patriot IIII",
+   "player": "Scott Gray",
+   "kept": "Wur Blink",
+   "kept_player": "Andrew Ting-a-kee"
+  }
+ ],
+ "objective": 8.331388000338585,
+ "pool_colors": {
+  "B": 9,
+  "G": 11,
+  "W": 8,
+  "U": 13,
+  "R": 8
+ },
+ "pool_styles": {
+  "midrange": 9,
+  "combo": 4,
+  "aggro": 5,
+  "control": 3
+ }
+}

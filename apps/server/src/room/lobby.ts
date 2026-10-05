@@ -77,7 +77,7 @@ import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol'
 // than restating the pool-file convention keeps one reader for that fact; it
 // pulls in no HTTP and closes no cycle (`library.ts` imports only `node:fs`,
 // `node:path` and `@hadoku/deck`).
-import { loadTablesLibrary } from '../http/library.js';
+import { loadTablesLibrary, type TableFormat } from '../http/library.js';
 
 export type GameType = 'constructed-1v1' | 'draft';
 /**
@@ -213,19 +213,44 @@ function repoRootWithPools(from: string): string | null {
 let newestFrozen: FormatId | null = null;
 
 /**
+ * The newest era whose `family` is `'standard'`, by comparing `id` as a
+ * string — which is a safe stand-in for the date: a Standard era's `id` IS its
+ * bare `YYYY-MM-DD` date (`http/library.ts`'s `formatIdOf`), so lexicographic
+ * order on `id` is chronological order.
+ *
+ * `NO_FORMAT` when `formats` has no Standard era at all (an empty library, or
+ * a catalog that is Modern/Legacy only).
+ */
+function newestStandardOf(formats: readonly Pick<TableFormat, 'id' | 'family'>[]): FormatId {
+	let newest: string | null = null;
+	for (const f of formats) {
+		if (f.family === 'standard' && (newest === null || f.id > newest)) newest = f.id;
+	}
+	return newest ?? NO_FORMAT;
+}
+
+/**
  * The NEWEST frozen pool, which is what a new room starts on.
  *
- * `library.formats` is "in date order, oldest first" (`http/library.ts`), so the
- * newest is the LAST element — `formats[0]` is the oldest power-summer era
- * (`2008-07-25`) and every room used to start there. Lazy and memoised, because
- * a lobby that never mints a room and restores no pre-format record should not
- * read `decks/pools` at all.
+ * **The newest STANDARD era — never just "last".** Wave 48 added Modern and
+ * Legacy eras to the same catalog (`http/library.ts`'s `TableFormat.family`),
+ * so `library.formats.at(-1)` is no longer necessarily a Standard era, and a
+ * new room must never silently open on, say, Legacy 2016 because that
+ * happened to be the catalog's last entry. `newestStandardOf` filters on
+ * `family` before picking a newest.
+ *
+ * `formats` is injectable so a test can pin this against a fixture catalog
+ * (Legacy and Modern present, in any order) without reading `decks/pools` off
+ * disk at all; production calls it with no argument, which is lazy and
+ * memoised — a lobby that never mints a room and restores no pre-format
+ * record should not read `decks/pools` at all.
  */
-export function newestFormat(): FormatId {
+export function newestFormat(formats?: readonly Pick<TableFormat, 'id' | 'family'>[]): FormatId {
+	if (formats !== undefined) return newestStandardOf(formats);
 	if (newestFrozen !== null) return newestFrozen;
 	const root = repoRootWithPools(import.meta.url);
-	const formats = root === null ? [] : loadTablesLibrary(root).formats;
-	newestFrozen = formats.at(-1)?.id ?? NO_FORMAT;
+	const loaded = root === null ? [] : loadTablesLibrary(root).formats;
+	newestFrozen = newestStandardOf(loaded);
 	return newestFrozen;
 }
 
@@ -561,9 +586,11 @@ export interface OpenLobbyOptions {
 	now?: () => number;
 	/**
 	 * The pool a room starts on, and what a record written before the field reads
-	 * back as. Defaults to `newestFormat()` — the newest frozen pool, read off
+	 * back as. Defaults to `newestFormat()` — the newest STANDARD era, read off
 	 * disk. A caller that already holds a `TablesLibrary` may pass
-	 * `library.formats.at(-1)?.id` instead and save the second read.
+	 * `newestFormat(library.formats)` instead and save the second read — never
+	 * `library.formats.at(-1)?.id`, which is no longer necessarily Standard once
+	 * Modern or Legacy eras are in the catalog (wave 48).
 	 */
 	defaultFormat?: FormatId;
 }
