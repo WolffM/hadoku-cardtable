@@ -41,13 +41,13 @@ def seconds_for(s):
     return 1.0 if s['kind'] == 'moment' else 2.0
 
 
-def render(pipe, prompt, seed, s, args):
+def render(pipe, prompt, seed, s, args, negative):
     """One take. Out of memory means a neighbour on the shared GPU is busy: wait and try again."""
     for attempt in range(40):
         try:
             return pipe(
                 prompt,
-                negative_prompt=NEGATIVE,
+                negative_prompt=negative,
                 num_inference_steps=args.steps,
                 guidance_scale=args.cfg,
                 audio_end_in_s=seconds_for(s),
@@ -69,6 +69,7 @@ def main():
     ap.add_argument('--cfg', type=float, default=7.0)
     ap.add_argument('--vibes', default='', help='JSON {id: vibe} that overrides prompts.json')
     ap.add_argument('--seed', type=int, default=1000, help='first seed; take k uses seed + k')
+    ap.add_argument('--avoid', default='', help='extra negative prompt for this run, e.g. "bells, chimes, harsh, metallic"')
     ap.add_argument('--offload', choices=['none', 'model', 'sequential'], default='none',
                     help='the GPU is shared (InvokeAI, other projects): model ~4 GB of VRAM, sequential ~1 GB and slowest')
     args = ap.parse_args()
@@ -94,6 +95,7 @@ def main():
     else:
         pipe.to('cuda')
     rate = pipe.vae.sampling_rate
+    negative = NEGATIVE + (', ' + args.avoid if args.avoid else '')
     started = time.time()
     for s in sounds:
         folder = os.path.join(OUT, s['id'])
@@ -104,10 +106,10 @@ def main():
             base = os.path.join(folder, f'take-{seed}')
             if os.path.exists(base + '.wav'):
                 continue  # resume: a take is a pure function of (prompt, seed, steps, cfg)
-            audio = render(pipe, prompt, seed, s, args)
+            audio = render(pipe, prompt, seed, s, args, negative)
             sf.write(base + '.wav', audio.T.float().cpu().numpy(), rate)
             json.dump({
-                'id': s['id'], 'name': s['name'], 'prompt': prompt, 'negative': NEGATIVE, 'seed': seed,
+                'id': s['id'], 'name': s['name'], 'prompt': prompt, 'negative': negative, 'seed': seed,
                 'steps': args.steps, 'cfg': args.cfg, 'seconds': seconds_for(s), 'model': MODEL,
                 'licence': 'Stability AI Community License (stable-audio-open-1.0 LICENSE.md)',
             }, open(base + '.json', 'w'), indent=1)
