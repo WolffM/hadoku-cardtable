@@ -789,10 +789,15 @@ describe('Q12: the block input is never passed on the prompt of the window befor
  * Wave 32, Q10 — *"no creatures, no block."*
  */
 describe('Q10: the Declare Blockers stop is skipped when the seat controls no creature', () => {
-	it('decideStop: zero creatures skips it, one keeps it, unknown keeps it — a summoning-sick creature counts', () => {
+	it('decideStop: zero creatures skips it; one PASSES when nothing is left to do (wave 46 §C) and stops when something is castable; unknown keeps it — a summoning-sick creature counts', () => {
 		const at = (creatures: number | null) => facts({ creatures });
 		expect(decideStop(at(0), DEFAULT_STOP_POLICY)).toBe('Declare Blockers Step');
-		expect(decideStop(at(1), DEFAULT_STOP_POLICY)).toBeNull();
+		// wave 46 §C: this window is the ordinary priority round AFTER the block is
+		// declared (the declaration itself is never a `priority` window at all —
+		// see {@link blockStopIsDone}), so with nothing left to do it now passes,
+		// same as every other `passWhenNothingToDo` window.
+		expect(decideStop(at(1), DEFAULT_STOP_POLICY)).toBe('Declare Blockers Step');
+		expect(decideStop({ ...at(1), sources: [61, 62], nonLandSources: [61] }, DEFAULT_STOP_POLICY)).toBeNull();
 		expect(decideStop(at(null), DEFAULT_STOP_POLICY)).toBeNull();
 		// Only THIS stop: a main phase is not a block stop and is held whatever the count.
 		expect(decideStop(facts({ phase: 'MAIN1', phaseLabel: 'Main phase, precombat', myTurn: true, creatures: 0 }), DEFAULT_STOP_POLICY)).toBeNull();
@@ -1665,6 +1670,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			passOwnSpell: true,
 			orderSimultaneous: 'forge',
 			attackStopIsTheDeclaration: true,
+			blockStopIsTheDeclaration: true,
 		});
 		// It was adopted WHOLESALE, not just its `skipNonStopPhases` — the stop sets
 		// are the half that keeps a held instant castable at all.
@@ -1732,6 +1738,70 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		const myAttack = { phase: 'COMBAT_DECLARE_ATTACKERS' as const, phaseLabel: 'Declare Attackers Step', myTurn: true };
 		expect(decideStop(facts({ ...myAttack, sources: [61], nonLandSources: [61] }), DEFAULT_STOP_POLICY)).toBeNull();
 		expect(decideStop(facts({ ...myAttack, sources: [] }), DEFAULT_STOP_POLICY)).toBe('Declare Attackers Step');
+	});
+
+	/*
+	 * Wave 46 §C — playtest 8, the operator: *"had to click twice for declaring
+	 * blockers? probably not a bug but just make sure."* It WAS a bug: Forge's
+	 * ordinary priority window right after a block is assigned
+	 * (`COMBAT_DECLARE_BLOCKERS`, the non-active seat) was a hard stop whatever
+	 * the seat could do there — `isStopPhase` names the phase, and nothing but
+	 * {@link blockStopIsEmpty}'s DIFFERENT shape (no creature at all) ever let
+	 * it go. Confirmed against a real Forge match holding nothing castable
+	 * (`w46-block-stop.jvm.test.ts`'s idle variant — one click to declare the
+	 * block, a second for no reason).
+	 *
+	 * `blockStopIsTheDeclaration` is the non-active seat's mirror of
+	 * `attackStopIsTheDeclaration` (T3, above): the DECLARATION itself (a
+	 * `getChoices`-shaped `other` window, never a `Priority:` one) is untouched
+	 * by this field and was never passed — only the priority window that
+	 * follows now falls through to {@link passWhenNothingToDo}, same as the
+	 * active player's own post-declaration window.
+	 *
+	 * The DEFENDER's Declare Attackers Step priority (the window BEFORE blocks
+	 * are even assigned) is a separate finding from the same investigation and
+	 * is untouched by this field: it is simply outside `stopOnTheirTurn`, so
+	 * `skipsThisTurn` skips it whatever the seat could do there — confirmed in
+	 * both variants of the same real-Forge suite.
+	 */
+	it('wave 46 §C — the Declare Blockers priority AFTER a block passes when nothing is left to do; Declare Attackers Step stays always-skipped', () => {
+		const theirAttackStep = { phase: 'COMBAT_DECLARE_ATTACKERS' as const, phaseLabel: 'Declare Attackers Step', myTurn: false };
+		// Untouched by this field: always skipped, castable instant or not.
+		expect(decideStop(facts({ ...theirAttackStep, sources: [] }), DEFAULT_STOP_POLICY)).toBe('Declare Attackers Step');
+		expect(decideStop(facts({ ...theirAttackStep, sources: [61, 62], nonLandSources: [61] }), DEFAULT_STOP_POLICY)).toBe(
+			'Declare Attackers Step',
+		);
+
+		// The fix: the ordinary priority window right AFTER a block is assigned
+		// (a known, non-zero creature count — the declaration already happened).
+		const afterBlock = (over: Partial<ReturnType<typeof readPromptFacts>> = {}) =>
+			facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', myTurn: false, creatures: 1, ...over });
+		// Nothing castable: PASSED. This was the bug.
+		expect(decideStop(afterBlock({ sources: [] }), DEFAULT_STOP_POLICY)).toBe('Declare Blockers Step');
+		// A real instant AND its mana offered: still a stop — correct Magic, the
+		// response window right after blocks are locked in.
+		expect(decideStop(afterBlock({ sources: [61, 62], nonLandSources: [61] }), DEFAULT_STOP_POLICY)).toBeNull();
+		// Forge has not said what this seat can do: never pass on silence.
+		expect(decideStop(afterBlock({ sources: null, nonLandSources: null }), DEFAULT_STOP_POLICY)).toBeNull();
+		// Full control keeps the stop, as it keeps every stop.
+		expect(decideStop(afterBlock({ sources: [] }), FULL_CONTROL_POLICY)).toBeNull();
+
+		// Q10's own invariant is untouched: no creature at all is a DIFFERENT
+		// shape (no declaration ever happened) and stays unconditional, whatever
+		// `blockStopIsTheDeclaration` says.
+		expect(
+			decideStop(
+				facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', myTurn: false, creatures: 0, sources: [61, 62] }),
+				DEFAULT_STOP_POLICY,
+			),
+		).toBe('Declare Blockers Step');
+		// An unknown creature count keeps the stop — every doubt is a stop.
+		expect(
+			decideStop(
+				facts({ phase: 'COMBAT_DECLARE_BLOCKERS', phaseLabel: 'Declare Blockers Step', myTurn: false, creatures: null, sources: [] }),
+				DEFAULT_STOP_POLICY,
+			),
+		).toBeNull();
 	});
 
 	/*

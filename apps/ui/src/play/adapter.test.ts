@@ -658,3 +658,61 @@ describe('item 4 — the avatar reaches the seat, wave 29 §A.6-8', () => {
     for (const p of view.players) expect(p).not.toHaveProperty('avatarId');
   });
 });
+
+/*
+ * X1/W14 — `view.combat`, Forge's own `CombatView` read off the single `Game`
+ * object (`adapter.ts`'s `readCombat`, `abf705c`'s WIP). `atk`/`def`/`blk` are
+ * three parallel lists; `def[i]` is `[marker, id]` with 0 = card (a
+ * planeswalker or a battle) and 1 = player. There is no committed fixture with
+ * a live CombatView (the capture this fixture comes from was taken outside
+ * combat), so the Game object's `CombatView` property is set by hand, the same
+ * lever `renameCard` uses for a card's face.
+ */
+describe('view.combat — Forge’s CombatView, read off the state channel (X1)', () => {
+  function gameKey(state: WireState): string {
+    for (const [key, obj] of state) if (obj._type === WireType.Game) return key;
+    throw new Error('no Game object in the fixture state');
+  }
+
+  function withCombat(v: { t: 'combat'; atk: number[][]; def: number[][]; blk: number[][]; pblk: number[][] }): WireState {
+    const state = baseState();
+    const key = gameKey(state);
+    state.set(key, { ...state.get(key)!, CombatView: v });
+    return state;
+  }
+
+  it('is empty outside combat — the committed capture carries no CombatView at all', () => {
+    expect(adapt(baseState()).combat).toEqual([]);
+  });
+
+  it('reads one band per attacking group: attackers, the defender (0=card, 1=player), and its blockers', () => {
+    const view = adapt(
+      withCombat({
+        t: 'combat',
+        atk: [[10], [20, 21]],
+        def: [
+          [1, 99], // a player
+          [0, 55], // a card: a planeswalker or a battle
+        ],
+        blk: [[], [30]],
+        pblk: [[], []],
+      }),
+    );
+    expect(view.combat).toEqual([
+      { attackers: [10], defender: { kind: 'player', id: 99 }, blockers: [] },
+      { attackers: [20, 21], defender: { kind: 'card', id: 55 }, blockers: [30] },
+    ]);
+  });
+
+  it('a band with no entry in `blk` reads as blocked by nobody, not a crash', () => {
+    const view = adapt(withCombat({ t: 'combat', atk: [[10]], def: [[1, 99]], blk: [], pblk: [] }));
+    expect(view.combat).toEqual([{ attackers: [10], defender: { kind: 'player', id: 99 }, blockers: [] }]);
+  });
+
+  it('is absent-safe: a `CombatView` whose tag is not `combat` reads as no combat', () => {
+    const state = baseState();
+    const key = gameKey(state);
+    state.set(key, { ...state.get(key)!, CombatView: { t: 'bool', v: true } } as WireObject);
+    expect(adapt(state).combat).toEqual([]);
+  });
+});

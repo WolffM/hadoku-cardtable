@@ -295,7 +295,11 @@
  *     the same value — other suites query it). A stack item does NOT carry
  *     `data-card-id`: the card an ability came from is still on its
  *     battlefield, so the id would be there twice and uniqueness is the
- *     property the arrow needs. The item names its card in `data-source-card`.
+ *     property the arrow needs. `data-stack-id` is the item's own id
+ *     (`gestures/stack.ts`'s `stackItemBox`, lane B's arrows); wave 46 X3
+ *     deleted `data-source-card` — the stack opted out of the generic
+ *     inspector (`inspect/index.ts`'s own header explains why) rather than
+ *     keeping an attribute nothing reads any more.
  *
  *     **`CardTile` draws its own `data-card-id` too, and it is a different
  *     namespace**: the draft's card id, `w<forge id>` (`adapter.ts:317`). So
@@ -383,7 +387,7 @@
  * width at which a card's NAME stops being readable, and no further (§A.1).
  */
 
-import { useEffect, useLayoutEffect, useReducer, useRef, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
 import { avatarSquareUrl } from '../room/avatar.ts';
@@ -2495,61 +2499,82 @@ function PlayerArea({
 }
 
 /**
- * One item on the stack: its source card, drawn, beside what it is doing.
- * `sourceCard` is the adapter's own resolved face, so the art here goes
- * through the same resolver as every other card — nothing builds a URL.
- *
- * ## Q18 — an ability entry is not clickable, and that is the fix (wave 33 §B.1)
- *
- * `item.sourceCardId` names the CARD a stack item came from, and for an
- * ABILITY that card is the permanent on the battlefield — the same id Forge's
- * `setSelectables` offers for that permanent's own (re-)activation. Before this
- * fix, any ability whose source happened to be currently selectable drew as a
- * button here too, and clicking it called `onSelectCard(sourceId)` — the exact
- * same action as clicking the permanent itself, which is not an action on the
- * STACK ITEM at all. Only a SPELL entry's card is never simultaneously "on the
- * battlefield, offered for activation", so only a spell entry may be
- * selectable by its card id; an ability entry (`item.isAbility`) never is.
- *
- * **This is not how a Stifle-like ability is targeted, and nothing here needs
- * to be.** Verified against Forge's own source
- * (`forge-gui/.../player/TargetSelection.java:299-342`,
- * `chooseCardFromStack`): "counter target activated or triggered ability"
- * does not go through `setSelectables` / `interaction.selectable` at all. It
- * builds a list of the stack's own `StackItemView`s and asks a GENERIC
- * list-choice (`getGui().one` / `oneOrNone`) — one of Forge's own prompts
- * (G's lane, `prompts/**`), not a card offer. So a stack entry is never made
- * clickable FOR that purpose, with this fix or without it.
- *
- * ## T8 (wave 36), third ask: ONE line, not the full text
- *
- * The operator: *"the stack shows what is happening, not all the text"* — one
- * line reading who, what, and at what (their own example: *"Alice · Lightning
- * Bolt → Bob"*), the full rules text only in the inspector on hover, through
- * the SAME mechanism every other card on this board already opens one with:
- * `data-source-card` on this `<li>` is what `inspect/index.ts` reads (its own
- * `inspectedCardFrom`), and that is unchanged by this fix — the inspector
- * clones `.stack__art`'s own `CardTile`, oracle text included, so nothing here
- * has to draw a second copy of it to satisfy "the full text on hover".
- *
- * Before this wave `item.description` — Forge's own resolved prose, e.g.
- * *"Direct Current (1) deals 2 damage to Goblin Replica (67)"* — was rendered
- * in full beside the art, wrapped onto as many lines as it needed and
- * scrolling inside `.stack__what` when it ran long (`board.css`'s own history
- * on `.stack__what`). That is exactly the "all the text" the operator is
- * naming: a sentence of Forge's own prose is not a status line, and it is not
- * bounded to one. So `item.description` is no longer drawn here at all — the
- * one line is built from the same structured facts a hover already shows via
- * the card it names: who (`controllerName`), what (`sourceName`, "ability"
- * marked beside it), and at what (`targetLabel`, wave 33's `targetCardIds` /
- * `targetPlayerIds` resolved to names by `adapter.ts`, shape 2 extended for
- * this wave).
+ * One stack item's accessible name: who · what[ · ability][ → target]. Built
+ * once, from the same structured facts the OLD one-line row used to draw as
+ * text (wave 36 T8) — wave 46 X3 deletes that visible line outright (the
+ * operator, re the carousel: "the stack shows what is happening" is now the
+ * THUMBNAIL ROW's position and art, not a sentence), so this string survives
+ * only as the thumbnail's `aria-label`: a keyboard or screen-reader player
+ * still gets who/what/target, a sighted one reads it off the row and the big
+ * view below it.
  */
-function StackItem({ item, interaction }: { item: StackEntry; interaction: BoardInteraction | undefined }) {
+function stackItemLabel(item: StackEntry): string {
+  const source = item.sourceName ?? 'unknown source';
+  const what = item.isAbility ? `${source} · ability` : source;
+  const who = item.controllerName !== null ? `${item.controllerName} · ${what}` : what;
+  const targetLabel = item.targetLabel ?? null;
+  return targetLabel === null ? who : `${who} → ${targetLabel}`;
+}
+
+/**
+ * One thumbnail: wave 46 X3's carousel (the operator, asked four times:
+ * *"show a sort of gallery/carousel small view … whatever is the top card
+ * should show in the expanded big view below it"* — demo v5, approved,
+ * https://claude.ai/artifact/7gHwzveqpi4EiZKdVTJ6EX). Art only: `CardTile`'s
+ * own text tile is still rendered (one resolver, `Board.tsx`'s "Cards are
+ * `CardTile`" rule at the top of this file) and `board.css` hides everything
+ * but `.card__art` under `.stack__item` — no second art-only renderer, no
+ * hardcoded host.
+ *
+ * `data-stack-id` is the ONE element per item every other reader keys off —
+ * `gestures/stack.ts`'s `stackItemBox`, lane B's arrows, the stack-choice ask
+ * — kept exactly where it always was, on this `<li>`. `data-source-card` is
+ * GONE: the generic document-level inspector (`inspect/index.ts`) always
+ * anchors to the hovered card's right, and the settled shape for this wave
+ * anchors the stack's own peek BELOW the thumbnail instead (`StackView`'s own
+ * peek, below) — the two cannot coexist on the same hover, so the stack opts
+ * out of the generic one.
+ *
+ * Q18 (wave 33 §B.1) still holds: an ABILITY entry's `sourceCardId` is the
+ * permanent on the battlefield, which Forge may offer for its own
+ * (re-)activation at the same moment — only a SPELL entry may ever be
+ * selectable by its card id.
+ *
+ * Clicking a thumbnail is two unrelated things depending on what Forge is
+ * asking: Forge's own stack-choice ask (`selectable`, `button.stack__select`,
+ * unchanged from before this wave) takes priority when it is open; otherwise,
+ * while the big view is PINNED, a click switches which item it shows
+ * (`onPick`) — a carousel gesture this wave adds, sending nothing to Forge.
+ * While the big view is hidden (not pinned), a thumbnail is not a button at
+ * all: hovering or focusing it is the only way to read it (the peek).
+ */
+function StackThumb({
+  item,
+  index,
+  top,
+  mine,
+  current,
+  pinned,
+  interaction,
+  onHover,
+  onLeave,
+  onPick,
+}: {
+  item: StackEntry;
+  index: number;
+  top: boolean;
+  mine: boolean;
+  current: boolean;
+  pinned: boolean;
+  interaction: BoardInteraction | undefined;
+  onHover: () => void;
+  onLeave: () => void;
+  onPick: () => void;
+}) {
   const sourceId = item.sourceCardId;
   const selectable =
     interaction !== undefined && sourceId !== null && !item.isAbility && interaction.selectable.has(sourceId);
-  const targetLabel = item.targetLabel ?? null;
+  const label = stackItemLabel(item);
   const body = (
     <>
       {item.sourceCard !== null && (
@@ -2557,33 +2582,24 @@ function StackItem({ item, interaction }: { item: StackEntry; interaction: Board
           <CardTile card={item.sourceCard} />
         </span>
       )}
-      {/*
-       * ONE line: who · what → target. A plain `<span>`, not a flex row, so
-       * `text-overflow: ellipsis` (`board.css`) clips the whole sentence as a
-       * unit rather than each piece scrolling or wrapping on its own — "no
-       * scrolling text" is the point, not merely "no scrollbar".
-       */}
-      <span className="stack__what">
-        {item.controllerName !== null && (
-          <>
-            <span className="stack__controller">{item.controllerName}</span>
-            <span className="stack__sep"> · </span>
-          </>
-        )}
-        <span className="stack__source">
-          {item.sourceName ?? 'unknown source'}
-          {item.isAbility && <span className="stack__kind"> · ability</span>}
-        </span>
-        {targetLabel !== null && <span className="stack__target"> → {targetLabel}</span>}
+      {/* The ordinal badge: 1 is the top of the stack, numbered left to right. Decorative — the position is already in the DOM order. */}
+      <span className="stack__n" aria-hidden="true">
+        {index + 1}
       </span>
     </>
   );
   return (
     <li
-      className="stack__item"
+      className={`stack__item${top ? ' stack__item--top' : ''} ${mine ? 'stack__item--mine' : 'stack__item--theirs'}`}
       data-stack-id={item.id}
-      data-source-card={sourceId ?? undefined}
+      data-is-ability={item.isAbility || undefined}
       data-selectable={selectable || undefined}
+      aria-current={current || undefined}
+      aria-label={label}
+      onPointerEnter={onHover}
+      onFocus={onHover}
+      onPointerLeave={onLeave}
+      onBlur={onLeave}
     >
       {selectable ? (
         <button
@@ -2594,19 +2610,62 @@ function StackItem({ item, interaction }: { item: StackEntry; interaction: Board
         >
           {body}
         </button>
+      ) : pinned ? (
+        // A carousel gesture, not a Forge offer: `forgeButtons` (`Board.test.ts`)
+        // keys off `.stack__select` for that reason, not merely `<button>`.
+        <button type="button" className="stack__body" aria-label={label} onClick={onPick}>
+          {body}
+        </button>
       ) : (
-        <span className="stack__body">{body}</span>
+        <span className="stack__body" aria-label={label}>
+          {body}
+        </span>
       )}
     </li>
   );
 }
 
+/** A box in client coordinates — the vocabulary `stackBigFits` speaks, same shape `inspect/index.ts`'s own `Rect` is. */
+export interface StackRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** AABB overlap; touching edges do not count (matches the approved demo's own `hit()`). */
+function stackRectsOverlap(a: StackRect, b: StackRect): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
 /**
- * The stack's band. Fixed height, always: the list is in the markup at zero
- * items, and items past the band's width scroll inside it. Nothing about this
- * zone's box depends on what is on the stack — that is item #2 of the
- * operator's list and it is the whole point of this component's shape.
+ * Whether the big view's candidate box may be PINNED there: the settled rule
+ * (operator, demo v5 approved) — it covers no permanent and no open question
+ * panel. Pure (`inspect/place.test.ts`'s own pattern: real numbers in,
+ * jsdom's zero rects never enter it) — `Board.test.ts` exercises this
+ * directly; `stackBigFitsLive`, below, is the only caller that reads the
+ * actual page.
  */
+export function stackBigFits(box: StackRect, permanents: readonly StackRect[], question: StackRect | null): boolean {
+  if (question !== null && stackRectsOverlap(box, question)) return false;
+  for (const p of permanents) if (stackRectsOverlap(box, p)) return false;
+  return true;
+}
+
+/**
+ * The live-DOM glue for `stackBigFits`: a permanent is `[data-board-card]`
+ * inside `.zone--battlefield` (both seats), the question panel is
+ * `.live__prompt` (lane B's `LiveBoard.tsx`) — both siblings outside this
+ * component's own subtree, present only while they are actually on the page.
+ */
+function stackBigFitsLive(box: StackRect): boolean {
+  const question = document.querySelector('.live__prompt');
+  const permanents = Array.from(document.querySelectorAll('.zone--battlefield [data-board-card]'), (el) =>
+    el.getBoundingClientRect(),
+  );
+  return stackBigFits(box, permanents, question === null ? null : question.getBoundingClientRect());
+}
+
 /**
  * The drag that is ours (wave 32 Q4b). The operator: *"it still has the basic
  * 'html picture drag' ghost. we should have our own proper ghost and target
@@ -2900,23 +2959,174 @@ function StagingArea({ card, interaction }: { card: BoardCard; interaction: Boar
   );
 }
 
+/**
+ * The stack, wave 46 X3's shape: a row of thumbnails (top leftmost, numbered
+ * 1..n), and whatever is shown — the top by default, or the one last clicked
+ * — in a big view one gap below the row. No zone label: the operator's own
+ * "no explanatory text" rule and the approved demo both drop it; `aria-label`
+ * carries the accessible name the old `<h3>` used to.
+ *
+ * ## Pinned, or a hover/focus peek — never both
+ *
+ * The big view is PINNED (always visible, at a fixed spot below the row)
+ * only while its box covers no permanent and no open question panel
+ * (`stackBigFits`). The instant it would, it is hidden instead, and reading a
+ * card again means hovering or focusing its OWN thumbnail — the peek then
+ * opens below THAT thumbnail, not below the row, because the row's own
+ * centre may itself be covered. Clicking a thumbnail only does anything while
+ * pinned (switches which item the big view shows); while not pinned a
+ * thumbnail (short of Forge's own stack-choice ask) is inert except to hover.
+ *
+ * Re-measured after every render (no dependency array on the layout effect:
+ * a permanent entering a battlefield moves nothing ABOUT the stack, but it
+ * can still cover where the big view sits) and on `resize` — "never cover
+ * what matters" is re-checked on every board change, not just a stack change.
+ *
+ * The candidate box is measured off the FILLED row, never an empty one (the
+ * demo's own mistake, called out in the settled layout): `recompute` returns
+ * before measuring anything if the row currently holds nothing.
+ */
 function StackView({
   stack,
   interaction,
+  viewerName,
 }: {
   stack: readonly StackEntry[];
   interaction: BoardInteraction | undefined;
+  viewerName: string | null;
 }) {
+  const topId = stack[0]?.id ?? null;
+
+  // The big view's own selection while PINNED: the top by default, or
+  // whichever thumbnail was last clicked. Reset to "the top" the instant the
+  // top itself changes (a new spell joins it, or the top resolves) — compared
+  // during render, not an effect, so the reset lands in the SAME frame as the
+  // new stack (React's own "adjust state while rendering" pattern, not a
+  // second render later).
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [lastTopId, setLastTopId] = useState<number | null>(topId);
+  if (topId !== lastTopId) {
+    setLastTopId(topId);
+    setSelectedId(null);
+  }
+  const shownId = selectedId ?? topId;
+
+  // The hover/focus peek, independent of the above: whichever thumbnail the
+  // pointer or focus is actually on, because the settled shape anchors the
+  // peek under THAT thumbnail, never under the row's own centre.
+  const [hoverId, setHoverId] = useState<number | null>(null);
+
+  const [pinned, setPinned] = useState(true);
+  const sectionRef = useRef<HTMLElement>(null);
+  const rowRef = useRef<HTMLOListElement>(null);
+  const bigRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const container = sectionRef.current;
+    const row = rowRef.current;
+    const big = bigRef.current;
+    if (container === null || row === null || big === null) return undefined;
+    const recompute = (): void => {
+      if (row.children.length === 0) {
+        setPinned(false);
+        return;
+      }
+      // One spacing value (settled layout): the SAME gap sits between
+      // thumbnails (`.stack__items`'s own `gap`, `board.css`) and from the
+      // row down to the card — read off that one CSS token rather than a
+      // second number kept in sync by hand.
+      const gap = Number.parseFloat(getComputedStyle(container).getPropertyValue('--stack-gap')) || 8;
+      const containerBox = container.getBoundingClientRect();
+      const rowBox = row.getBoundingClientRect();
+      big.style.transform = 'translateX(-50%)';
+      big.style.left = `${rowBox.left - containerBox.left + rowBox.width / 2}px`;
+      big.style.top = `${rowBox.bottom - containerBox.top + gap}px`;
+      const box = big.getBoundingClientRect();
+      // A degenerate reading (zero-size: the image hasn't resolved a layout
+      // yet, a reflow mid-paint, …) is never trusted as "fits" — a 0×0 box
+      // can never overlap a permanent, so treating it as a real measurement
+      // flips `pinned` on, which then measures the REAL box next frame,
+      // flips it off, forever (a real infinite layout-effect loop against a
+      // live page, React's own error #185 — jsdom's zero rects never
+      // produce the alternation, so `Board.test.ts` cannot catch this one).
+      // Retry next frame instead of acting on it.
+      if (box.width === 0 || box.height === 0) {
+        requestAnimationFrame(recompute);
+        return;
+      }
+      const fits = stackBigFitsLive(box);
+      setPinned(fits);
+      if (!fits && hoverId !== null) {
+        const hovered = row.querySelector<HTMLElement>(`[data-stack-id="${hoverId}"]`);
+        if (hovered !== null) {
+          const hoveredBox = hovered.getBoundingClientRect();
+          big.style.left = `${hoveredBox.left - containerBox.left + hoveredBox.width / 2}px`;
+          big.style.top = `${hoveredBox.bottom - containerBox.top + gap}px`;
+        }
+      }
+    };
+    recompute();
+    window.addEventListener('resize', recompute);
+    return () => window.removeEventListener('resize', recompute);
+  });
+
+  const shown = stack.find((i) => i.id === shownId) ?? null;
+  const peeked = hoverId === null ? null : (stack.find((i) => i.id === hoverId) ?? null);
+  const displayed = pinned ? shown : peeked;
+
   return (
-    <section className="stack" aria-label="Stack" data-zone="stack" data-owner="table" data-count={stack.length}>
-      <h3 className="zone__head">
-        Stack <span className="zone__count">{stack.length}</span>
-      </h3>
-      <ol className="stack__items">
-        {stack.map((item) => (
-          <StackItem key={item.id} item={item} interaction={interaction} />
+    <section
+      className="stack"
+      aria-label="Stack"
+      data-zone="stack"
+      data-owner="table"
+      data-count={stack.length}
+      ref={sectionRef}
+    >
+      <ol className="stack__items" ref={rowRef}>
+        {stack.map((item, index) => (
+          <StackThumb
+            key={item.id}
+            item={item}
+            index={index}
+            top={index === 0}
+            mine={viewerName !== null && item.controllerName === viewerName}
+            current={pinned && item.id === shownId}
+            pinned={pinned}
+            interaction={interaction}
+            onHover={() => setHoverId(item.id)}
+            onLeave={() => setHoverId((id) => (id === item.id ? null : id))}
+            onPick={() => setSelectedId(item.id)}
+          />
         ))}
       </ol>
+      {/*
+       * The big view: one fixed slot regardless of state (never nothing), so
+       * a stack's own box is the same element whether it holds 0, 1 or 12
+       * items — `data-shown` is what varies, not the slot. `visibility:
+       * hidden` (`board.css`), never `display: none` / the `hidden`
+       * attribute: a `display: none` element measures a ZERO rect, which can
+       * never overlap a permanent, so `stackBigFitsLive` would read "fits"
+       * the instant this hides — flipping it straight back to shown, which
+       * measures a real overlap, which hides it again, forever (a REAL
+       * infinite layout-effect loop, caught as React error #185 against a
+       * live page — jsdom's own always-zero rects never a overlap at all, so
+       * `Board.test.ts` could not catch this one; `e2e/w46-stack.spec.ts`
+       * does). `visibility: hidden` keeps the box laid out and measurable
+       * while invisible, which breaks the loop. `aria-hidden`: the content is
+       * already in the thumbnail's own `aria-label`, and this is a visual
+       * enlargement of it, the same call the inspector makes for its own
+       * panel.
+       */}
+      <div
+        className="stack__big"
+        ref={bigRef}
+        data-shown={displayed?.sourceCard != null || undefined}
+        data-pinned={pinned || undefined}
+        aria-hidden="true"
+      >
+        {displayed?.sourceCard != null && <CardTile card={displayed.sourceCard} />}
+      </div>
     </section>
   );
 }
@@ -3084,7 +3294,7 @@ export function Board({
         data-testid="board-mid"
         data-question={interaction?.questionOpen === true || undefined}
       >
-        <StackView stack={view.stack} interaction={interaction} />
+        <StackView stack={view.stack} interaction={interaction} viewerName={viewer?.name ?? null} />
       </div>
 
       {staged !== undefined && <StagingArea card={staged} interaction={interaction} />}

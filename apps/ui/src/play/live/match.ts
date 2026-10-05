@@ -241,6 +241,7 @@ import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
 import { toBoardView, type BoardView } from '../adapter.ts';
 import { foldPackets, type WireState } from '../fold.ts';
+import { stackItemChoices } from '../prompts/rules.ts';
 import { expectWirePackets, WireType, type WirePacket } from '../wire.ts';
 import {
   abortFrame,
@@ -549,6 +550,55 @@ export interface LiveMatch {
    */
   lastSelectedCard: number | null;
   /**
+   * This seat's own "I just answered a stack-item target ask with THIS stack
+   * item" intent — wave 46 §B's counterspell arc, X3.
+   *
+   * There is no wire fact for this at all, proven against the real jar
+   * (`apps/server/src/play/scenario-w46-b-counterspell.jvm.test.ts`,
+   * `docs/planning/wave46-evidence/B/README.md`): a target that is ANOTHER
+   * spell on the stack is added to Forge's `TargetChoices` as a bare
+   * `SpellAbility` (`TargetChoices.java:45-97`), which fails BOTH
+   * `getTargetCards()`'s and `getTargetPlayers()`'s runtime-type filter — so
+   * the countering stack item's own `TargetCards`/`TargetPlayers` read EMPTY
+   * once it is on the stack, even though the ability plainly targeted
+   * something. `answerAsk` is the one place the chosen id still exists — it
+   * reads every `getChoices` reply as it leaves, whether the player clicked
+   * the stack item (`gestures/stack.ts`'s `commitStackTarget`) or Forge's own
+   * single-legal-choice case auto-answered it without a click at all
+   * (`LiveBoard.tsx`'s `autoAnswer` → `rules.ts`'s `onlyStackTarget`, which
+   * calls `answerAsk` directly) — so it is held here exactly like
+   * `attackIntent`/`lastSelectedCard` above, until `redraw` sees the
+   * countering item itself appear and claims it into
+   * {@link LiveMatch.stackTargetArcs}.
+   *
+   * Set by `noteStackTargetIntent`, from inside `answerAsk`. Cleared once
+   * claimed, and by every snapshot (an intent from a match that no longer
+   * exists claims nothing).
+   */
+  stackTargetIntent: number | null;
+  /**
+   * Claimed counterspell arcs: a stack item id → the stack item IT targets,
+   * once the item that was {@link LiveMatch.stackTargetIntent} has itself
+   * appeared on the stack (`redraw`). `gestures/auto-targets.ts`'s
+   * `stackTargetArrows` reads this the same way it reads `view.combat` for the
+   * attack arrows — an already-decided fact, never a gesture — and
+   * `drawAutoTargetArrows` draws it through the one passive-arrow reconciler
+   * every other already-decided arrow uses.
+   *
+   * Pruned in `redraw` as soon as either side leaves the stack (resolved,
+   * countered itself, or fizzled), so a stale arc never survives longer than
+   * the two items it joins.
+   *
+   * **Known limit, recorded rather than hidden:** the claim rule is "the new
+   * top of the stack, once it is not the id I targeted" — it has no wire fact
+   * to gate on the CONTROLLER beyond `StackEntry.controllerName`, so a trigger
+   * from the SAME controller that lands on top between the ask and this
+   * seat's own spell landing would be mis-paired. Harmless in the common case
+   * this proves (a counterspell answered while nothing else is being cast),
+   * and `redraw`'s own controller check narrows it further.
+   */
+  stackTargetArcs: Map<number, number>;
+  /**
    * This seat's full-control toggle. The server's word after every snapshot,
    * this client's own last word in between. Off by default — and off is also
    * what a page that has not yet been answered a snapshot must draw, because
@@ -695,6 +745,8 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     spent: { cards: new Set(), players: new Set() },
     attackIntent: null,
     lastSelectedCard: null,
+    stackTargetIntent: null,
+    stackTargetArcs: new Map(),
     avatarByPlayerId: null,
     nameByPlayerId: null,
     spectator: false,
@@ -771,6 +823,17 @@ function closeAsk(match: LiveMatch, callId: string): boolean {
  * answer through that schema (`../prompts/types.ts` `checkedReply`); checking
  * again here keeps the seam honest for any caller that is not a component.
  * One ask gets one answer.
+ *
+ * Wave 46 §B's counterspell arc, ALSO: this is the one choke point every
+ * answer to a getChoices-over-stack-items ask passes through, whether a
+ * player clicked the stack item (`gestures/stack.ts`'s `commitStackTarget`)
+ * or Forge's own single-legal-choice case auto-answered it without ever
+ * drawing a prompt (`LiveBoard.tsx`'s `autoAnswer` → `rules.ts`'s
+ * `onlyStackTarget`, which calls this function directly and never reaches the
+ * gesture layer at all — the COMMON case for a counterspell with exactly one
+ * legal target). Recording `stackTargetIntent` HERE, not only from the
+ * gesture, is what makes the arc draw in that common case too; see
+ * `LiveMatch.stackTargetIntent`'s own note.
  */
 export function answerAsk(match: LiveMatch, callId: string, method: BlockingMethod, result: unknown): boolean {
   const ask = match.asks.find((a) => a.callId === callId);
@@ -782,6 +845,12 @@ export function answerAsk(match: LiveMatch, callId: string, method: BlockingMeth
     return false;
   }
   closeAsk(match, callId);
+  const reply: unknown = parsed.data;
+  if (ask.method === 'getChoices' && Array.isArray(reply) && reply.length === 1) {
+    const key = reply[0] as string;
+    const chosen = stackItemChoices(ask)?.find((item) => item.key === key);
+    if (chosen !== undefined) noteStackTargetIntent(match, chosen.stackItemId);
+  }
   send(match, replyFrame(callId, method, parsed.data));
   match.stats.replies += 1;
   notify(match);
@@ -1821,6 +1890,49 @@ function redraw(match: LiveMatch): void {
           nameByPlayerId: match.nameByPlayerId ?? undefined,
         });
   if (match.view?.gameOver === true) match.over = true;
+  reconcileStackTargetArcs(match);
+}
+
+/**
+ * Claim and prune {@link LiveMatch.stackTargetArcs} — see
+ * {@link LiveMatch.stackTargetIntent}'s own note for why this exists at all.
+ *
+ * Claim: a held intent is paired with the stack's own new TOP item, once one
+ * appears that is not the targeted id itself and is controlled by THIS seat
+ * (`StackEntry.controllerName` against the viewer's own name — the nearest
+ * thing to a controller check the wire gives a `StackEntry`, and narrower than
+ * "any new top item" alone).
+ *
+ * Prune: an arc whose source or target id has left the stack (resolved,
+ * countered itself, fizzled) is dropped — a stale pairing never survives
+ * longer than the two items it joins.
+ */
+function reconcileStackTargetArcs(match: LiveMatch): void {
+  const view = match.view;
+  if (view === null) return;
+  const ids = new Set(view.stack.map((item) => item.id));
+  for (const from of [...match.stackTargetArcs.keys()]) {
+    const to = match.stackTargetArcs.get(from)!;
+    if (!ids.has(from) || !ids.has(to)) match.stackTargetArcs.delete(from);
+  }
+  if (match.stackTargetIntent === null) return;
+  const top = view.stack[0];
+  if (top === undefined || top.id === match.stackTargetIntent || match.stackTargetArcs.has(top.id)) return;
+  const me = view.players.find((p) => p.isViewer);
+  if (me === undefined || top.controllerName !== me.name) return;
+  match.stackTargetArcs.set(top.id, match.stackTargetIntent);
+  match.stackTargetIntent = null;
+}
+
+/**
+ * Record that this seat just answered a stack-item target ask with
+ * `targetedStackItemId` — the one setter for {@link LiveMatch.stackTargetIntent}.
+ * `answerAsk` is the one caller, for every `getChoices` reply that named
+ * exactly one stack item, because Forge's own wire does not carry the id back
+ * out once the countering item is on the stack (see the field's note).
+ */
+export function noteStackTargetIntent(match: LiveMatch, targetedStackItemId: number): void {
+  match.stackTargetIntent = targetedStackItemId;
 }
 
 /* ── Inbound ─────────────────────────────────────────────────────────── */
@@ -2017,6 +2129,8 @@ function discardLocal(match: LiveMatch): void {
   match.inputLive = false;
   match.attackIntent = null;
   match.lastSelectedCard = null;
+  match.stackTargetIntent = null;
+  match.stackTargetArcs = new Map();
   match.avatarByPlayerId = null;
   match.nameByPlayerId = null;
   match.over = false;

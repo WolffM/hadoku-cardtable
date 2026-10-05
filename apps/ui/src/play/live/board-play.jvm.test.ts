@@ -428,6 +428,33 @@ describe.skipIf(!available.ok)(title, () => {
           log.push(`seat ${s.seat} answers ${answerOpenPrompt(root) ?? 'nothing'}`);
           return;
         }
+        /*
+         * Two decisions that are Forge's own button bar (`match.buttons`)
+         * under the hood, same as every other press here, but which wave 38
+         * (T4, R2) moved OFF the generic `live-button-ok`/`live-button-cancel`
+         * bar and into their own `ConfirmPrompt` branches with their own
+         * testids — the coin toss (`live-play-or-draw-play`/`-draw`,
+         * `isPlayOrDrawPrompt`) and every other yes/no (`prompt-confirm-yes`/
+         * `-no`, T4's own shape, e.g. "keep your hand?"). Pre-existing, found
+         * while running this suite for wave 46 §B (confirmed against a clean
+         * baseline with none of this wave's changes: the hang reproduces
+         * identically) — this driver predates both moves and never learned
+         * either testid. Always the FIRST button ("Play", "Keep", "Yes",
+         * whichever bar it is): which seat goes first and keeping the dealt
+         * hand are not this suite's claim.
+         */
+        const playOrDraw = root.querySelector<HTMLButtonElement>('[data-testid="live-play-or-draw-play"]');
+        if (playOrDraw !== null && !playOrDraw.disabled) {
+          log.push(`seat ${s.seat} presses Play (coin toss)`);
+          fireEvent.click(playOrDraw);
+          return;
+        }
+        const confirmYes = root.querySelector<HTMLButtonElement>('[data-testid="prompt-confirm-yes"]');
+        if (confirmYes !== null && !confirmYes.disabled) {
+          log.push(`seat ${s.seat} presses ${confirmYes.textContent ?? ''} (confirm)`);
+          fireEvent.click(confirmYes);
+          return;
+        }
         const v = s.live.view;
         if (v === null || !s.live.inputLive) return;
         const p = me(s);

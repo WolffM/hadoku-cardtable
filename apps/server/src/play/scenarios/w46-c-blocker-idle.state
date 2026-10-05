@@ -1,0 +1,25 @@
+# w46 §C (X2) — seat 0 (human, the ATTACKER)'s own uncontested Main Phase 1,
+# one untapped, non-sick creature on the battlefield and NOTHING pre-declared
+# — same shape as `attackers-declared.state`, so Forge's own LIVE `InputAttack`
+# opens for real (`scenarios/README.md`: landing straight on
+# `COMBAT_DECLARE_ATTACKERS` skips that window entirely, and this suite needs
+# the real, human-paced sequence of inputs it drives — a pre-declared attack
+# resolves in under 20ms of real JVM-IPC time, too fast for any poll-based
+# harness to reliably observe every window, this repo's shared scenario
+# harness included; see `w46-block-stop.jvm.test.ts`'s own header). Seat 1
+# (ai, the DEFENDER) holds ONE untapped, non-sick creature able to block and
+# NOTHING ELSE — no hand, no untapped non-land permanent, nothing a payment
+# window could offer.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Memnite
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

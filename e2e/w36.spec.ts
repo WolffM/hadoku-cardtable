@@ -313,7 +313,7 @@ test(titled('T10 — a card moved to a different row is still there, in the same
   }
 });
 
-/* ── T8 — the stack: art + one line, full text on hover, no scrolling text ── */
+/* ── T8 — the stack: art, no visible text; who/what/target lives in aria-label ── */
 
 /**
  * One real stack item (`lone-spell.state`: bob casts his free Memnite,
@@ -328,8 +328,15 @@ test(titled('T10 — a card moved to a different row is still there, in the same
  * further here — this file's own job is the rendering contract, not fixing
  * (or re-deriving) a scenario fixture, and `table-fit.spec.ts`'s `fillStack`
  * DOM probe already exercises many items at once without fighting that rule.
+ *
+ * Re-aimed for wave 46 X3: T8's own claim ("the stack shows what is
+ * happening, not all the text") went further still — a thumbnail draws no
+ * text at all, not even the one line T8 shipped. Who/what/target is the
+ * thumbnail's `aria-label`; the full card is the carousel's OWN big view,
+ * never the generic document-level inspector (`e2e/w46-stack.spec.ts` proves
+ * the carousel's shape; this test only re-confirms the inspector opted out).
  */
-test(titled('T8 — a stack item shows its art and one line; the full text is the inspector\'s, on hover, not the band\'s'), async ({ browser }) => {
+test(titled('T8 — a stack item shows its art and no visible text; who/what lives in aria-label, and hovering it does not open the generic inspector'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -346,20 +353,20 @@ test(titled('T8 — a stack item shows its art and one line; the full text is th
     // harness blocks every off-loopback request (`play/browser.ts`), so the
     // art request itself fails here by construction — that is a harness
     // fact, not this claim's. The element existing is what "shows its art"
-    // means at this layer; lane B's own evidence has the screenshots with
+    // means at this layer; lane A's own evidence has the screenshots with
     // real art loading.
     await expect(item.locator('.stack__art img'), 'CardTile draws the art element').toHaveCount(1);
-    const line = item.locator('.stack__what');
-    await expect(line, 'one line of text').toBeVisible();
-    await expect(line, 'who · what, Memnite named').toContainText(/memnite/i);
-    const scrolls = await line.evaluate((el) => el.scrollHeight > el.clientHeight + 1);
-    expect(scrolls, 'no scrolling text inside the line (T8)').toBe(false);
+    // No visible text anywhere on the thumbnail (wave 46 X3): the old
+    // `.stack__what` summary line is gone outright, and who/what is the
+    // thumbnail's own accessible name instead.
+    await expect(item.locator('.stack__what, .stack__source, .stack__controller, .stack__target')).toHaveCount(0);
+    await expect(item, 'who · what, Memnite named, in the accessible name').toHaveAttribute('aria-label', /memnite/i);
 
-    // Hover the item: the full text is the inspector's, through the same
-    // mechanism every other card on the board already opens one with
-    // (`data-source-card` on the `<li>`, `inspect/index.ts`'s own trigger).
+    // Hovering it does NOT open the generic document-level inspector: wave 46
+    // X3 anchors the carousel's own peek below the thumbnail instead, a mode
+    // `inspect/index.ts` has none of, so the stack opted out of it entirely.
     await item.hover();
-    await expect(inspectorPanel(alice.page), 'hovering the stack item opens the inspector (full text on hover)').toBeVisible();
+    await expect(inspectorPanel(alice.page), 'the generic inspector never opens for a stack thumbnail any more').toHaveCount(0);
   } finally {
     await stack.stop();
   }
@@ -367,21 +374,23 @@ test(titled('T8 — a stack item shows its art and one line; the full text is th
 
 /* ── T1 — the hover zoom sits against the hovered card ───────────────────── */
 
-test(titled('T1 — the hover zoom sits against the hovered card: a hand card, a battlefield card, and a stack item'), async ({ browser }) => {
+/*
+ * Wave 46 X3 dropped the stack-item case this test used to carry: the
+ * generic inspector no longer opens for a stack thumbnail at all (T8, above)
+ * — its own hover zoom is the carousel's `.stack__big`, anchored BELOW the
+ * thumbnail, a geometry `sitsAgainst` below does not express (it only knows
+ * "flush on the hand card's corner" or "to the right of anything else").
+ * `e2e/w46-stack.spec.ts` proves the carousel's own peek placement instead.
+ */
+test(titled('T1 — the hover zoom sits against the hovered card: a hand card and a battlefield card'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(7 * 60_000);
   for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }] as const) {
     const stack = await startPlayStack(forge);
     try {
-      const { alice, bob } = await startScenarioMatch(browser, stack, 'lone-spell');
+      const { alice } = await startScenarioMatch(browser, stack, 'lone-spell');
       await alice.page.setViewportSize(size);
-      await bob.page.setViewportSize(size);
-
-      // A stack item to hover too: bob casts his free creature.
-      await expect.poll(() => offered(bob.page), { timeout: 150_000, message: 'bob is offered his free creature' }).not.toEqual([]);
-      await castFree(bob.page, (await offered(bob.page))[0]!);
-      await expect.poll(() => stackCount(alice.page), { timeout: 30_000, message: 'the stack item is up for both to see' }).toBe(1);
 
       const handCard = alice.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').first();
       await handCard.hover();
@@ -391,11 +400,6 @@ test(titled('T1 — the hover zoom sits against the hovered card: a hand card, a
       const bfCard = alice.page.locator('[data-zone="battlefield"][data-owner="you"] li.board-card').first();
       await bfCard.hover();
       await sitsAgainst(alice.page, bfCard, { hand: false }, `${size.width}x${size.height}: a battlefield card`);
-      await alice.page.mouse.move(0, 0);
-
-      const stackItem = alice.page.locator('[data-zone="stack"] li.stack__item').first();
-      await stackItem.hover();
-      await sitsAgainst(alice.page, stackItem, { hand: false }, `${size.width}x${size.height}: a stack item`);
     } finally {
       await stack.stop();
     }

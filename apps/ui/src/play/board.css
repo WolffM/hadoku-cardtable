@@ -1429,34 +1429,51 @@
 /* ── the stack ────────────────────────────────────────────────────── */
 
 /*
- * Its label at the left, then the items side by side, top of the stack first.
- * The band is one size, always: an item scrolls into view rather than growing
- * the box, and an empty stack is the same box holding an empty list.
+ * Wave 46 X3, built from demo v5 (approved):
+ * https://claude.ai/artifact/7gHwzveqpi4EiZKdVTJ6EX. The operator called the
+ * old wide one-item-at-a-time row ugly four times; this replaces it outright,
+ * no parallel path — a row of thumbnails, top of the stack leftmost, and
+ * whatever is shown (the top, or the one last clicked) drawn big, one gap
+ * below the row (`Board.tsx`'s own `StackView`/`StackThumb`).
+ *
+ * `--stack-gap` is the ONE spacing value the settled layout asks for: the
+ * SAME gap sits between thumbnails (`.stack__items`'s own `gap`, below) and
+ * from the row down to the big view — `Board.tsx`'s layout effect reads this
+ * exact token off this element rather than a second number kept in sync by
+ * hand.
  */
 .stack {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  position: relative;
+  --stack-gap: 8px;
   /*
-   * ONE bounded row (wave 32, the real-Forge e2e's clip): with an `auto` row the
-   * list's `height: 100%` had nothing definite to resolve against, so a long
-   * effect grew the item past the band and `.stack__item`'s `overflow: hidden`
-   * cut both ends. The row is the band's height, so the item is — and since
-   * wave 36 (T8) the item's own text is one clipped line rather than a second
-   * scroll, so this bound is what keeps the ART a fixed height too.
+   * A thumbnail's width, derived from the band's own height exactly the way
+   * the old art icon was (wave 31 §A.4): never past 3.5rem, and the band,
+   * less its padding, divided by the card's own proportion otherwise — so a
+   * roomy band (no question open) draws a bigger thumbnail than a compact
+   * one. Declared HERE, not on `.stack__items`: `.stack__big` is that list's
+   * SIBLING, not its descendant, and a custom property only cascades to
+   * descendants — defining it only on the list left `.stack__big` reading an
+   * unset variable, so its own `width: calc(var(--stack-card-w) * 3)` was
+   * INVALID CSS and fell back to `auto`, shrink-to-fit on whatever the
+   * `<img>` happened to report that frame — sometimes a real size,
+   * sometimes a 0×0 box the instant the image hadn't resolved one yet. A
+   * 0×0 box can never overlap a permanent, so `stackBigFitsLive` read
+   * "fits" on THAT frame regardless of the real page, flipping `pinned`
+   * back on, which then measured the REAL (non-zero) box next frame, found
+   * the permanent it actually covers, flipped `pinned` off again — forever.
+   * A real infinite layout-effect loop against a live page (React's own
+   * error #185), invisible in `Board.test.ts` because jsdom never gives any
+   * element a non-zero rect at all, zero or otherwise.
    */
-  grid-template-rows: minmax(0, 1fr);
+  --stack-card-w: min(3.5rem, calc((var(--mid-h) - 18px) / var(--card-tall)));
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 3px 8px;
-  background: var(--bg-raised);
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
 }
 
 /*
- * Item 13: *"the stack doesn't need to show if its empty."* An empty stack is a
- * dashed box and the word STACK and a zero, over the opponent's battlefield, all
- * game long — and it is exactly as informative as nothing.
+ * Item 13: *"the stack doesn't need to show if its empty."* An empty stack
+ * shows nothing at all, over the opponent's battlefield, the whole game.
  *
  * `visibility: hidden` rather than `display: none`, and that choice is
  * load-bearing twice. The BOX stays the box, so the canvas is as static as it
@@ -1471,26 +1488,35 @@
   visibility: hidden;
 }
 
-.stack > .zone__head {
-  align-self: center;
-  line-height: 1.5;
+/*
+ * An empty stack's `.stack__big` is never positioned (`Board.tsx`'s own
+ * layout effect returns before touching it when the list has nothing in
+ * it), so it sits at ITS static position — right after the row, in the
+ * `.stack` column's own flex flow — and `visibility: hidden` alone (the
+ * element's own default, above) still lets it CONTRIBUTE its own
+ * `aspect-ratio`-derived height to `.stack`'s scrollable content, which
+ * `e2e/table-fit.spec.ts`'s crowd case catches as the stack "overflowing"
+ * with zero items on it. `display: none`, scoped to exactly the empty case
+ * (never the pinned/hidden toggle a FILLED stack does, which is what the
+ * zero-rect comment above `.stack__big` itself warns against): nothing
+ * measures this element's geometry while the list is empty, so there is no
+ * fit check here to feed a bad reading into.
+ */
+.stack:has(> .stack__items:empty) .stack__big {
+  display: none;
 }
 
 .stack__items {
-  /* The art is as tall as the band lets it be: the band, less its border and
-     padding, less the item's own border and padding — but never wider than 3.5rem
-     (wave 31 §A.4): the art is a recognition aid and the TEXT is what is read,
-     and a 113px-wide card left the effect 150px of line. */
-  --stack-card-w: min(3.5rem, calc((var(--mid-h) - 18px) / var(--card-tall)));
-
+  /* `--stack-card-w` is declared on `.stack` (the common ancestor this list
+     shares with `.stack__big`) — see that rule's own comment for why. */
   display: flex;
   flex-direction: row;
-  align-items: stretch;
-  gap: 6px;
+  align-items: flex-end;
+  gap: var(--stack-gap);
   min-width: 0;
-  height: 100%;
+  max-width: 100%;
   margin: 0;
-  padding: 0;
+  padding: 4px 2px 2px;
   list-style: none;
   overflow-x: auto;
   overflow-y: hidden;
@@ -1498,81 +1524,146 @@
 }
 
 /*
- * Wave 31 §A.4, the operator's P9: *"stack height is poorly configured, the
- * textbox for ponder is not readable."* The item is the band's whole width (one
- * item at a time, the rest a sideways scroll away) rather than a fixed 16rem,
- * sized ONCE (`--mid-h`, and `--mid-h-asked` while a question stands in front of
- * it), never by how many items there are, so the canvas stays as static as it
- * was.
- *
- * T8 (wave 36), third ask — the operator: *"the stack shows what is happening,
- * not all the text."* Before this wave the item ALSO carried Forge's full
- * resolved description below the name, wrapping and, past Ponder's length,
- * scrolling inside `.stack__what`. That is gone outright: one line (below),
- * and the full rules text is the inspector's, on hover, not this box's — so
- * there is nothing left here for a question's compact band to make room FOR,
- * and the whole "while a question is open, drop the art and the caption and
- * let the text wrap" treatment this rule used to carry (wave 32's real-Forge
- * e2e) went with it. One line fits the compact band exactly as it fits the
- * roomy one.
+ * One thumbnail: the card's art, upright, at `--stack-card-w` — never wider,
+ * so twelve items overflow the row SIDEWAYS, inside it, rather than growing
+ * the band (`e2e/table-fit.spec.ts`'s own crowd case, unchanged by this
+ * wave). `aspect-ratio` is set here too, not only on the `CardTile` inside:
+ * an item that names no card (`item.sourceCard === null`) draws no art at
+ * all, and still draws a card-shaped slot rather than collapsing to the
+ * numeral badge's own height.
  */
 .stack__item {
-  flex: 0 0 100%;
-  min-width: 0;
-  padding: 2px 6px 2px 2px;
-  background: var(--bg-card);
-  border: 1px solid var(--line);
+  position: relative;
+  flex: none;
+  width: var(--stack-card-w);
+  aspect-ratio: calc(1 / var(--card-tall));
   border-radius: var(--radius);
   overflow: hidden;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.5);
+  transition: transform 0.15s;
 }
 
-/* The item's body — a `<span>`, or a `<button>` when Forge offers the item. */
-.stack__body {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
+.stack__item:has(button:hover),
+.stack__item:has(button:focus-visible) {
+  transform: translateY(-4px);
 }
 
-.stack__art {
-  flex: none;
-  display: block;
-  width: var(--stack-card-w);
+@media (prefers-reduced-motion: reduce) {
+  .stack__item {
+    transition: none;
+  }
+}
+
+/* The top of the stack draws a touch larger — the one visual cue for "top" beyond its leftmost position. */
+.stack__item--top {
+  width: calc(var(--stack-card-w) * 1.12);
+}
+
+/* The only blue ring on the row: the thumbnail the big view is showing, while pinned (§settled). */
+.stack__item[aria-current='true'] {
+  box-shadow: 0 0 0 2px var(--c-blue), 0 2px 6px rgb(0 0 0 / 0.5);
 }
 
 /*
- * ONE line — who, what, at what — and `text-overflow: ellipsis` is what "no
- * scrolling text" (T8) means in CSS: a sentence long enough to miss still
- * clips as a unit rather than wrapping, scrolling, or growing the item.
- * `display: block` rather than `flex`: ellipsis only measures an element's
- * own inline content, and this box's children (`.stack__controller`,
- * `.stack__source`, `.stack__target`) are plain inline `<span>`s for exactly
- * that reason — a flex row would let each clip on its own instead of the
- * sentence clipping as a whole.
+ * The owner strip: blue mine, amber theirs (settled layout) — this is the one
+ * place on the board colour alone marks something, because the demo it
+ * implements draws it that way and the thumbnail's position (numbered from
+ * the stack's own top) already carries the rest of the information.
  */
-.stack__what {
+.stack__item--mine::after,
+.stack__item--theirs::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 0 0;
+  height: 3px;
+}
+.stack__item--mine::after {
+  background: var(--c-blue);
+}
+.stack__item--theirs::after {
+  background: var(--warn);
+}
+
+/* The item's body — a `<span>` (peek-only, inert) or a `<button>` (pinned, or Forge's own stack-choice ask). */
+.stack__body {
   display: block;
-  flex: 1 1 auto;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
 }
 
-.stack__source {
+.stack__item button.stack__body {
+  cursor: pointer;
+}
+
+.stack__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The ordinal badge: 1 is the top, numbered left to right. Decorative (`aria-hidden`) — the position is already in the DOM order. */
+.stack__n {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  z-index: 2;
+  font-size: 10px;
   font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+  background: rgb(0 0 0 / 0.7);
+  border-radius: 3px;
+  padding: 0 3px;
 }
 
-.stack__kind,
-.stack__controller,
-.stack__sep,
-.stack__target {
-  color: var(--ink-dim);
-  font-weight: 400;
-  font-size: 12px;
+/*
+ * The big view: whatever is shown, enlarged, one `--stack-gap` below the row
+ * — `Board.tsx`'s own layout effect writes `top`/`left`/`transform` directly
+ * (it measures the FILLED row; see `StackView`'s own header for why), this
+ * file only sizes it. Out of flow, so it never grows `.board__mid`'s own box
+ * — the canvas stays static whether the stack holds 0, 1, 5 or 12 items
+ * (`Board.test.ts`'s "the canvas is static" suite, `e2e/table-fit.spec.ts`'s
+ * crowd case). The card alone, upright: no side panel, no coloured outline —
+ * the only ring on this wave's stack is the thumbnail's, above.
+ */
+.stack__big {
+  position: absolute;
+  width: calc(var(--stack-card-w) * 3);
+  max-width: 100%;
+  /*
+   * A definite height, the same way `.stack__item` gets one: never left to
+   * the `CardTile` inside to supply it. `.card:has(.card__art) {
+   * aspect-ratio: 488/680; height: auto }` should, in principle, do the same
+   * job — but measured directly it did not: the box's OWN height read 0 even
+   * once its width was a real, non-zero number, which is exactly the
+   * degenerate reading the layout effect's own guard exists for (`Board.tsx`).
+   * Declaring the ratio HERE too removes the dependency on the child's own
+   * resolution entirely.
+   */
+  aspect-ratio: calc(1 / var(--card-tall));
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/*
+ * Shown only while `data-shown` is set — `visibility`, not `display: none`
+ * (`Board.tsx`'s own comment on this element has the full reason): a
+ * `display: none` box measures a zero rect, which can never overlap a
+ * permanent, which flips the component's own fit check back to "pinned" the
+ * instant it hides — a real infinite loop against a live page. `visibility`
+ * keeps the box laid out and measurable while invisible, so the candidate
+ * position `stackBigFitsLive` reads is the one that would actually be
+ * painted, hidden or not.
+ */
+.stack__big[data-shown] {
+  visibility: visible;
 }
 
 /* ── the staging area: a card being played (item 17.2) ─────────────── */

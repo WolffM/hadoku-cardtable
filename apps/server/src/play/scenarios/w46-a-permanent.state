@@ -1,0 +1,25 @@
+# Wave 46 §A, X3 — "never cover what matters": seat 1 (ai) already controls
+# fourteen Memnites (an ordinary 0-cost 1/1 artifact creature), already on the
+# battlefield when the match starts, and nothing else of theirs. Measured
+# directly (`docs/planning/wave46-evidence/A/README.md`): four Memnites left
+# the creature lane entirely clear of the stack's own column (x588-756 of a
+# 1280-wide canvas) — Forge packs a lane from its own left edge rather than
+# stretching it, so the lane has to be WIDE, not just non-empty, to reach
+# that column. Fourteen (roughly x131 to x1000+ at this card width) does.
+# Seat 0 (human) holds Lightning Bolt ({R}, "deals 3 damage to any target")
+# and an untapped Mountain, an uncontested turn-1 Main Phase 1 —
+# e2e/w46-stack.spec.ts's precondition for "hidden, with the hover peek
+# shown, once a permanent sits under the card's box".
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt
+humanbattlefield=Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Memnite;Memnite;Memnite;Memnite;Memnite;Memnite;Memnite;Memnite;Memnite;Memnite;Memnite;Memnite;Memnite;Memnite
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

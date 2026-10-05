@@ -35,8 +35,10 @@ import {
   notePlayedTo,
   previewPlayedTo,
   snapTo,
+  stackBigFits,
   type BoardInteraction,
   type BoardLayout,
+  type StackRect,
 } from './Board.tsx';
 import { boardFromFixture, loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
@@ -127,7 +129,13 @@ function renderBoard(
  * time). So "is a button" no longer distinguishes offered from not; "is a
  * button still in the tab order" does, and is what every test below now reads.
  */
-const forgeButtons = (container: HTMLElement) => container.querySelectorAll('button:not([tabindex="-1"])');
+// Wave 46 X3: a stack thumbnail may be a `<button>` purely as a carousel
+// gesture (switch which item the big view shows) with no Forge offer behind
+// it at all — `.stack__body:not(.stack__select)` is that button, and it is
+// excluded here on purpose; `.stack__select` (Forge's own stack-choice ask)
+// still counts.
+const forgeButtons = (container: HTMLElement) =>
+  container.querySelectorAll('button:not([tabindex="-1"]):not(.stack__body:not(.stack__select))');
 
 /* ── the pointer drag, driven in jsdom (wave 32 Q4b) ──────────────────── */
 
@@ -359,25 +367,60 @@ describe('zones', () => {
 });
 
 describe('the stack', () => {
-  it('lists both items, top first', () => {
+  it('lists both items, top first, as thumbnails whose who/what/target lives in aria-label, not a drawn line', () => {
     const { container } = renderBoard();
     const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
     expect(stack.dataset.count).toBe('2');
-    const items = [...stack.querySelectorAll('.stack__source')].map((n) => n.textContent);
-    expect(items).toEqual(['Fire Urchin · ability', 'Direct Current']);
-    // T8 (wave 36): Forge's own resolved prose is no longer drawn on the board
-    // at all — the one line is built from structured facts, not this sentence.
-    expect(stack.textContent, 'the full sentence is the inspector’s, not the band’s').not.toContain(
-      'deals 2 damage to Goblin Replica (67)',
-    );
-    // Both items share one controller (both the viewer's own, this fixture’s
-    // one player to cast or trigger anything at this point in the capture).
-    expect([...stack.querySelectorAll('.stack__controller')].map((n) => n.textContent)).toEqual([
-      'Bob (Capturing)',
-      'Bob (Capturing)',
-    ]);
-    // Only the spell (Direct Current) names a target; the trigger does not.
-    expect([...stack.querySelectorAll('.stack__target')].map((n) => n.textContent)).toEqual([' → Goblin Replica']);
+    // Wave 46 X3: the carousel draws no summary LINE at all — who/what/target
+    // moved to each thumbnail's own `aria-label`, in DOM order (top leftmost).
+    const items = [...stack.querySelectorAll<HTMLElement>('.stack__item')].map((n) => n.getAttribute('aria-label'));
+    expect(items).toEqual(['Bob (Capturing) · Fire Urchin · ability', 'Bob (Capturing) · Direct Current → Goblin Replica']);
+    // The old summary-line classes are gone outright — no parallel path.
+    expect(stack.querySelectorAll('.stack__what, .stack__source, .stack__controller, .stack__sep, .stack__target, .stack__kind')).toHaveLength(0);
+    // T8 (wave 36)'s claim still holds: Forge's own resolved prose is nowhere
+    // on the board, visible or in an accessible name — this fixture's `item.description`
+    // for Direct Current is that exact sentence, and it is drawn nowhere.
+    expect(items.join(' '), 'not Forge’s own resolved sentence').not.toContain('deals 2 damage to Goblin Replica (67)');
+  });
+});
+
+/**
+ * `stackBigFits`, on real numbers — no DOM, no jsdom rect zeroing (the same
+ * pattern `inspect/place.test.ts` uses for `placeInspector`, and for the same
+ * reason: jsdom gives every element a zero rect, so this pure half is where
+ * the overlap MATH is proven; `e2e/w46-stack.spec.ts` proves the component
+ * wires it to the real page correctly).
+ */
+describe('stackBigFits (wave 46 X3 — never cover what matters)', () => {
+  const BIG: StackRect = { left: 100, top: 100, right: 268, bottom: 334 };
+
+  it('fits when nothing is in its way', () => {
+    expect(stackBigFits(BIG, [], null)).toBe(true);
+  });
+
+  it('does not fit over a permanent it would overlap', () => {
+    const permanent: StackRect = { left: 150, top: 150, right: 200, bottom: 200 };
+    expect(stackBigFits(BIG, [permanent], null)).toBe(false);
+  });
+
+  it('fits beside a permanent it does not actually touch', () => {
+    const permanent: StackRect = { left: 300, top: 300, right: 350, bottom: 350 };
+    expect(stackBigFits(BIG, [permanent], null)).toBe(true);
+  });
+
+  it('merely touching edges does not count as covering it', () => {
+    // Shares the big box's own right edge exactly — adjacent, not overlapping.
+    const permanent: StackRect = { left: 268, top: 100, right: 320, bottom: 334 };
+    expect(stackBigFits(BIG, [permanent], null)).toBe(true);
+  });
+
+  it('does not fit over an open question panel', () => {
+    const question: StackRect = { left: 120, top: 120, right: 200, bottom: 200 };
+    expect(stackBigFits(BIG, [], question)).toBe(false);
+  });
+
+  it('a null question panel (none open) never excludes anything', () => {
+    expect(stackBigFits(BIG, [], null)).toBe(true);
   });
 });
 
@@ -701,8 +744,13 @@ describe('BoardInteraction', () => {
 
     const item = container.querySelector<HTMLElement>(`[data-stack-id="${abilityEntry.id}"]`)!;
     expect(item.dataset.selectable, 'inert, unlike a spell entry above').toBeUndefined();
-    expect(item.querySelector('button'), 'no button inside the stack entry').toBeNull();
+    // Wave 46 X3: the carousel's OWN click (pin a different item for the big
+    // view) may still render a button here — that is unrelated to Forge's
+    // offer. The Q18 regression is specifically that clicking never answers
+    // Forge with the permanent's id, whether or not a carousel button exists.
+    expect(item.querySelector('button.stack__select'), 'never Forge’s own select button').toBeNull();
     fireEvent.click(item);
+    item.querySelector('button')?.click();
     expect(onSelectCard).not.toHaveBeenCalled();
 
     // The permanent itself is still exactly as clickable as Forge said.
@@ -824,8 +872,10 @@ describe('marks', () => {
    * (D20). **Superseded by T8 (wave 36), third ask**: the operator said the
    * stack shows what is happening, not all the text, so `item.description` —
    * Forge's own prose, `{T}` and all — is no longer drawn on the board at
-   * all; `StackItem`'s one line is built from structured facts (who, what, at
-   * what), never from the description string. `ManaPip`/`RulesText` in this
+   * all; wave 46 X3 went further and deleted the drawn line itself, moving
+   * the same structured facts (who, what, at what) into `stackItemLabel`'s
+   * `aria-label`, never drawn from the description string either way.
+   * `ManaPip`/`RulesText` in this
    * file went with it (`Board.tsx` no longer imports either). The tap symbol
    * still ships from the Mana pack and `CardTile` still draws it in a card's
    * own printed rules text — unchanged, and proven by the inspector's own
@@ -942,7 +992,13 @@ describe('the canvas is static', () => {
       expect(shots[i]!.battlefield, `the battlefield, with ${counts[i]} items`).toBe(shots[0]!.battlefield);
       expect(shots[i]!.slot, `the stack's own slot, with ${counts[i]} items`).toEqual(shots[0]!.slot);
     }
-    expect(shots[0]!.slot).toEqual(['H3.zone__head', 'OL.stack__items']);
+    // Wave 46 X3: the visible `<h3>` label is gone (the demo and the "no
+    // explanatory text" rule both drop it; the accessible name is
+    // `aria-label="Stack"` on the section itself, unchanged). The big view
+    // (`.stack__big`) is now the fixed second slot, always rendered — `hidden`
+    // varies, not its presence, which is what keeps this list identical at
+    // every count.
+    expect(shots[0]!.slot).toEqual(['OL.stack__items', 'DIV.stack__big']);
   });
 
   it('gives every zone its slot whether or not anything is in it', () => {
@@ -1161,12 +1217,14 @@ describe('the table as the operator blocked it (§A)', () => {
       expect(z.dataset.owner, `${z.dataset.zone} says whose it is`).toMatch(/^(you|them)$/);
       expect(z.dataset.count, `${z.dataset.zone} says how many`).toMatch(/^\d+$/);
     }
-    // Nowhere in a seat, not one: `.zone__head` survives on the STACK alone, which
-    // is a floating panel rather than a region of the table (`board.css`).
+    // Nowhere in a seat, not one — and wave 46 X3 dropped the stack's own
+    // `.zone__head` too (the approved demo and the "no explanatory text"
+    // rule both go without it; `aria-label="Stack"` on the section carries
+    // the accessible name that used to be the `<h3>`'s text).
     expect(seat(0).querySelectorAll('.zone__head')).toHaveLength(0);
     expect(seat(1).querySelectorAll('.zone__head')).toHaveLength(0);
-    expect(board.querySelectorAll('.zone__head')).toHaveLength(1);
-    expect(board.querySelector('.zone__head')!.closest('[data-zone]')!.getAttribute('data-zone')).toBe('stack');
+    expect(board.querySelectorAll('.zone__head')).toHaveLength(0);
+    expect(board.querySelector('[data-zone="stack"]')!.getAttribute('aria-label')).toBe('Stack');
     // And the four zone names are gone from the page's words entirely.
     for (const word of ['Battlefield', 'Graveyard', 'Exile']) {
       expect(board.textContent, `${word} is not written on the table`).not.toContain(word);
@@ -2966,7 +3024,9 @@ describe('the stack’s art (#10)', () => {
     const { container } = renderBoard(bare);
     const item = container.querySelector<HTMLElement>('.stack__item')!;
     expect(item.querySelector('.stack__art')).toBeNull();
-    expect(item.querySelector('.stack__source')!.textContent).toBe('unknown source · ability');
+    // Wave 46 X3: the fallback sentence lives in the thumbnail's own aria-label now, not a drawn `.stack__source`
+    // — this fixture's item keeps its controller, so the label is who · what, same join as every other item.
+    expect(item.getAttribute('aria-label')).toBe(`${view.stack[0]!.controllerName} · unknown source · ability`);
   });
 });
 
@@ -3498,7 +3558,7 @@ describe('§A.7 / §A.13 — the stack is hidden at zero and roomy unless a ques
     expect(Number.parseFloat(roomy), 'the roomy band is the bigger one').toBeGreaterThan(Number.parseFloat(asked));
     expect(declarationIn('.board__mid[data-question]', '--mid-h')).toBe('var(--mid-h-asked)');
     // And the card on the stack follows the band, so a roomy band draws a bigger one.
-    expect(declarationIn('.stack__items', '--stack-card-w')).toContain('var(--mid-h)');
+    expect(declarationIn('.stack', '--stack-card-w')).toContain('var(--mid-h)');
 
     const quiet = renderBoard(base, noInteraction());
     expect(quiet.container.querySelector<HTMLElement>('.board__mid')!.hasAttribute('data-question')).toBe(false);
@@ -3746,14 +3806,17 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
     expect(code).not.toMatch(/regroup\s*\(|withoutSeat|ARRANGE_SLOTS|data-arrange-reset/);
   });
 
-  it('P9: a stack item is as wide as the band, and the band is one size per state, not per item', () => {
-    expect(declarationIn('.stack__item', 'flex')).toBe('0 0 100%');
+  it('P9 (wave 46 X3): a thumbnail is a fixed width, never past 3.5rem, and the band is one size per state, not per item', () => {
+    // Wave 46 X3 replaced "one item at a time, the band's own full width" with
+    // a row of thumbnails — `.stack__item` is now a fixed small width, never
+    // `flex: 0 0 100%`, and twelve of them overflow the row sideways instead.
+    expect(declarationIn('.stack__item', 'flex')).toBe('none');
     // The band is sized by state (`--mid-h`, `--mid-h-asked`) and nothing else:
     // no rule of the stack sizes itself by what it holds.
     expect(Number.parseFloat(declarationIn('.board', '--mid-h')!)).toBeGreaterThanOrEqual(12);
     expect(declarationIn('.board__mid', 'height')).toBe('var(--mid-h)');
-    // The card cannot crowd the text out: its width is capped.
-    expect(declarationIn('.stack__items', '--stack-card-w')).toContain('min(3.5rem');
+    // A thumbnail's width is capped the same way the old art icon's was.
+    expect(declarationIn('.stack', '--stack-card-w')).toContain('min(3.5rem');
   });
 
   it('P6: the canvas has no outer border or inset shadow, and board.css has no hex literal', () => {
@@ -3794,29 +3857,25 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
   });
 
   /*
-   * T8 (wave 36) rewrote this: the item's own text is now ONE clipped line,
-   * never a second scroll — "a long effect scrolls INSIDE the item" was
-   * exactly the behaviour the operator's third ask removed. The band's row
-   * is still bounded (so the ART stays a fixed height), but there is no
-   * `.stack__what` scrollbar left to pin.
+   * Wave 46 X3 deleted `.stack__what` outright (T8's one-line text moved to
+   * `aria-label`, above) — the item is now a fixed-size thumbnail, clipped by
+   * `overflow: hidden` the same way the old row was, so a card-shaped slot
+   * never grows past `--stack-card-w` x its own aspect ratio.
    */
-  it('stack: the item’s text is one clipped line, not a second scroll — the band’s row is still bounded', () => {
-    expect(declarationIn('.stack', 'grid-template-rows'), 'one row, the band’s own height').toBe('minmax(0, 1fr)');
-    expect(declarationIn('.stack__what', 'white-space'), 'no scrolling text (T8): it clips as one line').toBe(
-      'nowrap',
-    );
-    expect(declarationIn('.stack__what', 'text-overflow')).toBe('ellipsis');
-    expect(declarationIn('.stack__what', 'overflow-y'), 'the scroll T8 removed is gone, not hidden').toBeUndefined();
+  it('stack (wave 46 X3): a thumbnail clips at its own size — `.stack__what` is gone, not re-shaped', () => {
+    expect(declarationIn('.stack__what', 'white-space'), 'the old summary-line rule is gone').toBeUndefined();
     expect(declarationIn('.stack__item', 'overflow')).toBe('hidden');
+    expect(declarationIn('.stack__item', 'aspect-ratio')).toBe('calc(1 / var(--card-tall))');
   });
 
   /*
    * T8 removed the whole "while a question is open, give the text the band's
-   * width" treatment along with the text it was making room for — one line
-   * fits the compact band exactly as it fits the roomy one, so there is
-   * nothing left keyed on `[data-question]` for the stack to do differently.
+   * width" treatment, and wave 46 X3 removed the text it was making room for
+   * too — a thumbnail is the same size in the compact band as the roomy one
+   * (only `--stack-card-w` itself reads `--mid-h`), so there is nothing left
+   * keyed on `[data-question]` for the stack to do differently.
    */
-  it('stack: T8 left no question-specific stack rule behind', () => {
+  it('stack: no question-specific stack rule exists', () => {
     expect(BOARD_RULES).not.toContain('.board__mid[data-question] .stack');
     // Chosen by question state alone, never by what the stack holds — the
     // part of the old rule's OWN claim that still has to hold with it gone.
@@ -4599,19 +4658,16 @@ describe('wave 36 §B — T7: a card with ChosenType wears a small label', () =>
   });
 });
 
-describe('wave 36 §B — T8: the stack shows one line, art plus who/what/target, never the full sentence', () => {
-  it('no item draws a second, scrolling copy of its text — `.stack__text` is gone from the markup entirely', () => {
+describe('wave 36 §B / wave 46 X3 — the stack names who/what/target in aria-label, never a drawn sentence', () => {
+  it('no item draws Forge’s own resolved prose, or the old one-line summary markup — both are gone entirely', () => {
     const { container } = renderBoard();
-    // "the stack" describe block above already pins the exact one-line
+    // "the stack" describe block above already pins the exact aria-label
     // content for this fixture's two real items; this is the structural
-    // claim T8 makes beyond that: nothing on the board carries the class
-    // that used to hold the full sentence.
-    expect(container.querySelectorAll('.stack__text')).toHaveLength(0);
-    for (const what of container.querySelectorAll<HTMLElement>('.stack__what')) {
-      // One line: no element inside it may itself wrap onto a second —
-      // `white-space: nowrap` (pinned in board.css) is what the stylesheet
-      // enforces; this is the DOM half, that nothing BUT inline spans sit in it.
-      expect([...what.children].every((c) => c.tagName === 'SPAN')).toBe(true);
+    // claim beyond that: nothing on the board carries the classes that used
+    // to hold the one-line summary or the full sentence before it.
+    expect(container.querySelectorAll('.stack__text, .stack__what, .stack__source, .stack__controller, .stack__target')).toHaveLength(0);
+    for (const item of container.querySelectorAll<HTMLElement>('.stack__item')) {
+      expect(item.hasAttribute('aria-label'), 'every thumbnail still carries its own accessible name').toBe(true);
     }
   });
 

@@ -32,27 +32,28 @@
  *     MY creatures that could block a live attacker, and again nothing of the
  *     attacker's.
  *
- * So neither the defending player nor the attacking creature is ever an offered
- * drop TARGET in combat, and `commitDrag`'s snap branch is not the one that
- * fires. The branch that does is the zone drop: a card Forge offers, released
- * anywhere inside a zone, is the card being used — one `selectCard`, the same
- * frame its own face would send. That makes the gesture
+ * So neither the attacking creature nor (until wave 46 §B's X1 fix, below) the
+ * defending player was ever an offered drop TARGET in combat for the BLOCK
+ * gesture, which still goes through the zone drop: a card Forge offers,
+ * released anywhere inside a zone, is the card being used — one `selectCard`,
+ * the same frame its own face would send. That makes
  *
- *   - **attack**: drag the creature forward, onto the defender's battlefield;
- *   - **block**: drag the blocker onto the attacker it means to stop.
+ *   - **block**: drag the blocker onto the attacker it means to stop (the
+ *     zone drop; `InputBlock` has already auto-selected the attacker being
+ *     blocked, which is why this reads as "onto that attacker" and lands
+ *     correctly with one frame).
  *
- * Both release inside a `[data-zone]`, and both therefore send exactly one
- * `selectCard` of the card that was picked up. `InputBlock` has already
- * auto-selected the attacker being blocked (`InputBlock`'s constructor), which
- * is why the second gesture reads as "onto that attacker" and lands correctly
- * with one frame.
- *
- * **What this run also establishes, by not managing to do it:** dragging an
- * attacker onto the defending PLAYER's face sends nothing, because a face is
- * only a drop target while `setSelectables` is open and combat never opens one.
- * That is a product gap in the affordance, recorded rather than worked around —
- * see the case at the end, which asserts the silence rather than pretending it
- * is a feature.
+ * **Attack is different, since wave 46 §B's X1 fix.** `match.ts`'s
+ * `attackDefenders` now offers the opponent's planeswalkers/battles as card
+ * targets AND `boardInteraction` offers every opponent PLAYER while attackers
+ * are being declared, so a face IS now a legal drop target in combat —
+ * `commitDrag`'s `attackAssignment` branch fires, defender first: dragging
+ * the attacker straight onto the defending player's face sends `selectPlayer`
+ * then `selectCard`, TWO frames for the one gesture, and the attack is fully
+ * declared right there. This is the fix for the product gap this file used to
+ * record as unworked-around (*"dragging an attacker onto the defending
+ * PLAYER's face sends nothing"*) — see the case at the end, which now asserts
+ * the two frames instead of the old silence.
  *
  * ## Setup is not the subject
  *
@@ -142,6 +143,13 @@ const cardAct = (id: number): Act => ({
   triggerEvent: null,
 });
 
+const playerAct = (id: number): Act => ({
+  kind: 'act',
+  method: 'selectPlayer',
+  player: { kind: 'player', id },
+  triggerEvent: null,
+});
+
 /** What one seat's BOARD put on `forge:c2s`, in order. */
 interface Wire {
   frames: ClientFrame[];
@@ -215,7 +223,7 @@ interface Driven {
   /** `[seat, blockerId, attackerId]` for every block declared by a drag. */
   blocks: [number, number, number][];
   /** A drag of an attacker onto the defending player's FACE, and what it sent. */
-  faceDrags: { seat: number; attacker: number; sentBefore: number; sentAfter: number }[];
+  faceDrags: { seat: number; attacker: number; defender: number; sentBefore: number; sentAfter: number }[];
   log: string[];
 }
 
@@ -341,34 +349,42 @@ describe.skipIf(!available.ok)(title, () => {
           // test — no need to work out whose turn it is.
           if (/to attack/.test(msg)) {
             const attacker = offeredOnMyBattlefield(s, me, (c) => c.summoningSick || c.tapped || c.attacking);
+            const face = root.querySelector<HTMLElement>(`[data-player-face][data-player-id="${opp.id}"]`);
             const theirField = zoneEl(root, false, 'battlefield');
             const el = attacker === null ? null : cardEl(root, attacker.id);
-            if (attacker !== null && el !== null && theirField !== null && first(`attack-t${v.turn}`)) {
-              /*
-               * First the gesture a person reaches for — the creature onto the
-               * player it is attacking — and it is MEASURED, not assumed: a
-               * face is a drop target only while a selection is open, and
-               * combat never opens one, so this sends nothing. It is done
-               * before the one that works, on a candidate Forge still offers,
-               * so nothing is spent and the declaration below is unaffected.
-               */
-              const face = root.querySelector<HTMLElement>(`[data-player-face][data-player-id="${opp.id}"]`);
+            if (attacker !== null && el !== null && (face !== null || theirField !== null) && first(`attack-t${v.turn}`)) {
               if (face !== null) {
+                /*
+                 * X1/W14 (wave 46 §B): the gesture a person reaches for first —
+                 * the creature straight onto the player it is attacking — now
+                 * DECLARES the attack by itself. `match.ts`'s `attackDefenders`
+                 * offers the opponent's own planeswalkers/battles and
+                 * `boardInteraction` offers every opponent player while
+                 * attackers are being declared, so `commitDrag`'s
+                 * `attackAssignment` branch fires: defender first
+                 * (`selectPlayer`), then the attacker (`selectCard`) — TWO
+                 * frames for the one gesture. This is the fix for the product
+                 * gap this file used to record as unworked-around.
+                 */
                 const sentBefore = wires[s.seat]!.frames.length;
                 drag(el, face);
                 driven.faceDrags.push({
                   seat: s.seat,
                   attacker: attacker.id,
+                  defender: opp.id,
                   sentBefore,
                   sentAfter: wires[s.seat]!.frames.length,
                 });
-                driven.log.push(`seat ${s.seat} drags ${attacker.id} onto the defender's face`);
+                driven.attacks.push([s.seat, attacker.id]);
+                driven.log.push(`seat ${s.seat} t${v.turn} DRAGS ${attacker.card.name} ${attacker.id} onto the defender's face to attack`);
+                continue;
               }
-              // Then the one that does declare it: forward, into the zone the
-              // defender's creatures stand in.
-              drag(el, theirField);
+              // No face element on screen (should not happen): the zone drop
+              // still works, the same "a card Forge offers, released anywhere
+              // inside a zone, is the card being used" rule blocking uses.
+              drag(el, theirField!);
               driven.attacks.push([s.seat, attacker.id]);
-              driven.log.push(`seat ${s.seat} t${v.turn} DRAGS ${attacker.card.name} ${attacker.id} to attack`);
+              driven.log.push(`seat ${s.seat} t${v.turn} DRAGS ${attacker.card.name} ${attacker.id} to attack (zone drop)`);
               continue;
             }
             if (!pressOk(root)) s.act({ kind: 'act', method: 'selectButtonOk' });
@@ -469,20 +485,27 @@ describe.skipIf(!available.ok)(title, () => {
 
       /* ── 1. what went on the wire ── */
       /*
-       * Everything in `wires` came from the BOARD (see the header). Three things
-       * can put something there, and the drag is one of them:
+       * Everything in `wires` came from the BOARD (see the header). Four things
+       * can put something there, and the drag is two of them:
        *
        *   - a prompt component's answer — kind `reply` (or `abort`);
        *   - the board's own OK button — `selectButtonOk`;
-       *   - a drag — `selectCard`.
+       *   - a drag — `selectCard`, always, one per committed drag;
+       *   - a drag onto the defending player's FACE (X1/W14) ALSO —
+       *     `selectPlayer`, defender first, one per face-drag.
        *
        * So no frame is of any other shape, every `selectCard` names a card that
-       * was DRAGGED, and — the tight one — the number of `selectCard`s a seat
-       * sent equals the number of drags it committed. A gesture that sent the
-       * source AND the drop, one that sent a card nobody picked up, or a stray
-       * click that reached `selectCard` by another route all break that count.
+       * was DRAGGED, every `selectPlayer` names a defender some face-drag
+       * actually used, and — the tight one — the number of `selectCard`s a seat
+       * sent equals the number of drags it committed (a face-drag is still
+       * exactly one `selectCard`, for the attacker; the `selectPlayer` is the
+       * EXTRA frame that gesture sends, not a substitute). A gesture that sent
+       * the source AND the drop, one that sent a card nobody picked up, or a
+       * stray click that reached `selectCard` by another route all break that
+       * count.
        */
       const dragged = new Set([...driven.attacks.map(([, id]) => id), ...driven.blocks.map(([, id]) => id)]);
+      const defended = new Set(driven.faceDrags.map((t) => t.defender));
       expect(dragged.size).toBeGreaterThanOrEqual(2);
       for (const [seat, wire] of wires.entries()) {
         expect(wire.frames.length, `seat ${seat} sent something from the board`).toBeGreaterThan(0);
@@ -492,7 +515,12 @@ describe.skipIf(!available.ok)(title, () => {
             expect(['reply', 'abort'], where).toContain(frame.kind);
             continue;
           }
-          expect(['selectCard', 'selectButtonOk'], where).toContain(frame.method);
+          expect(['selectCard', 'selectPlayer', 'selectButtonOk'], where).toContain(frame.method);
+          if (frame.method === 'selectPlayer') {
+            expect(frame, where).toEqual(playerAct(frame.player.id));
+            expect(defended, `${where} — no face-drag targeted that player`).toContain(frame.player.id);
+            continue;
+          }
           if (frame.method !== 'selectCard') continue;
           // The whole frame, field for field: `otherCardViewsToSelect` empty and
           // `triggerEvent` null are what make a multi-ability card come back as
@@ -501,10 +529,13 @@ describe.skipIf(!available.ok)(title, () => {
           expect(dragged, `${where} — nothing dragged that card`).toContain(frame.card.id);
         }
         const picks = wire.frames.filter((f) => f.kind === 'act' && f.method === 'selectCard');
+        const playerPicks = wire.frames.filter((f) => f.kind === 'act' && f.method === 'selectPlayer');
         const gestures =
           driven.attacks.filter(([s]) => s === seat).length + driven.blocks.filter(([s]) => s === seat).length;
+        const faceDragsForSeat = driven.faceDrags.filter((t) => t.seat === seat).length;
         expect(gestures, `seat ${seat} dragged something`).toBeGreaterThan(0);
         expect(picks.length, `seat ${seat}: exactly one selectCard per committed drag`).toBe(gestures);
+        expect(playerPicks.length, `seat ${seat}: exactly one selectPlayer per face-drag, and only from a face-drag`).toBe(faceDragsForSeat);
       }
       // And the attack and the block are in it, byte for byte.
       const [attackSeat, attackerId] = driven.attacks[0]!;
@@ -526,17 +557,18 @@ describe.skipIf(!available.ok)(title, () => {
       expect(h.refused).toEqual([]);
       expect(h.match.invalidFrames).toBe(0);
 
-      /* ── 4. the gap, recorded rather than worked around ── */
-      // An attacker dragged onto the defending player's FACE sends nothing —
-      // a measured consequence of Forge's own offer, not a wish. A face is a
-      // drop target only while `setSelectables` is open (`boardInteraction`
-      // adds players for a selection and for nothing else) and combat never
-      // opens one. So the most natural combat gesture of all is inert today,
-      // and this says so; the day it starts working, this case is what reports
-      // it instead of quietly passing.
+      /* ── 4. X1/W14: the gap is fixed, and this is the proof ── */
+      // An attacker dragged onto the defending player's FACE now declares the
+      // attack by itself — the natural combat gesture this file used to
+      // record as inert. `attackAssignment`'s defender-first send means TWO
+      // frames for the one gesture, in order: `selectPlayer` (the defender),
+      // then `selectCard` (the attacker) — byte for byte, not merely "some
+      // frames arrived".
       expect(driven.faceDrags.length, 'the face drag was tried at all').toBeGreaterThan(0);
       for (const t of driven.faceDrags) {
-        expect(t.sentAfter, `seat ${t.seat} dragging attacker ${t.attacker} onto the defender's face`).toBe(t.sentBefore);
+        expect(t.sentAfter - t.sentBefore, `seat ${t.seat} dragging attacker ${t.attacker} onto the defender's face sent two frames`).toBe(2);
+        const sent = wires[t.seat]!.frames.slice(t.sentBefore, t.sentAfter);
+        expect(sent, `seat ${t.seat}'s face-drag, defender first`).toEqual([playerAct(t.defender), cardAct(t.attacker)]);
       }
     },
     300_000,

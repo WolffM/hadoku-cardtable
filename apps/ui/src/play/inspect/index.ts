@@ -29,10 +29,14 @@
  *     the draft's namespace. Matching is on the value: digits mean "a board
  *     card, the tile is inside"; `w<digits>` means "this IS a tile". A bare
  *     `[data-card-id]` selector would confuse the two; nothing here uses one.
- *   - a stack item carries `data-source-card="<forge id>"`, NOT
- *     `data-card-id` — its card is usually still on a battlefield and the id
- *     must stay unique (`Board.tsx`). The tile to enlarge is the `.card`
- *     inside it.
+ *   - the STACK is not this module's any more (wave 46 X3): a thumbnail used
+ *     to carry `data-source-card` so hovering it opened this same panel,
+ *     anchored to its right — the settled shape for the carousel anchors its
+ *     own peek BELOW the thumbnail instead, which this module has no anchor
+ *     mode for, so the stack opted out rather than gaining a second one here
+ *     (`Board.tsx`'s own `StackView` draws that peek directly, off the
+ *     `StackEntry`s it already holds — no DOM clone, no `MutationObserver`).
+ *     `data-source-card` is no longer produced anywhere, by anything.
  *   - prompt-grid tiles (lane C) carry `data-card-id` on the same terms,
  *     outside the board root entirely — which is why the listeners sit on the
  *     DOCUMENT, not on the board root `mountInspector` was handed.
@@ -101,7 +105,7 @@ export const LONG_PRESS_MS = 450;
  */
 export const LONG_PRESS_SLOP_PX = 8;
 
-/** A board id: digits only (`data-card-id`, `data-source-card`). */
+/** A board id: digits only (`data-card-id`). */
 const BOARD_ID = /^\d+$/;
 /** A `CardTile`'s own id: `w` then digits — the draft's namespace. */
 const TILE_ID = /^w\d+$/;
@@ -156,17 +160,25 @@ function ownerBoardCard(tile: Element): Element | null {
 
 /**
  * The card a pointer event is on, or null. Walks up from the event's target
- * reading each element's `data-source-card` / `data-card-id` and testing the
- * VALUE — never a bare attribute match, which would confuse a `CardTile`'s
- * own `w<id>` with the board card around it.
+ * reading each element's `data-card-id` and testing the VALUE — never a bare
+ * attribute match, which would confuse a `CardTile`'s own `w<id>` with the
+ * board card around it. The stack is no longer a source here at all (wave 46
+ * X3: `Board.tsx`'s own `StackView` draws its peek directly, never through
+ * this module) — `data-source-card` is gone, and nothing replaces it.
  *
  * Null for anything that is not a card with a face to enlarge: an opponent's
- * card backs, a player's face, a stack item whose ability names no card. That
- * null is the hidden-information control: there is nothing to show because
- * the seat was sent nothing to show.
+ * card backs, a player's face. That null is the hidden-information control:
+ * there is nothing to show because the seat was sent nothing to show.
  */
 function inspectedCardFrom(node: EventTarget | null, root: ParentNode): InspectTarget | null {
   let el = node instanceof Element ? node : null;
+  // The stack opted out of this module entirely (wave 46 X3): a thumbnail's
+  // own `CardTile` still carries `data-card-id="w<id>"` like every other
+  // tile on the board, which `TILE_ID` below would otherwise match and open
+  // this panel anyway — measured directly, against real Forge
+  // (`e2e/w36.spec.ts` T8). The carousel's own peek is what reads a stack
+  // thumbnail's hover now; this module must never also answer it.
+  if (el !== null && el.closest('.stack__item') !== null) return null;
   while (el !== null) {
     // A name, before a card: the first of its ids with a tile on the page. A
     // card with no tile drawn (it is in a zone the board shows as a count, or
@@ -180,12 +192,6 @@ function inspectedCardFrom(node: EventTarget | null, root: ParentNode): InspectT
         if (owner !== null && tile !== null) return { card: owner, tile, trigger: el };
       }
       return null;
-    }
-    // A stack item, first: its card is named by `data-source-card`.
-    const source = el.getAttribute('data-source-card');
-    if (source !== null && BOARD_ID.test(source)) {
-      const tile = el.querySelector('.card');
-      return tile === null ? null : { card: el, tile };
     }
     const id = el.getAttribute('data-card-id');
     if (id !== null && TILE_ID.test(id)) {

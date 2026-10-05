@@ -1651,10 +1651,11 @@ function measureColumns(): { you: SeatColumn; them: SeatColumn } {
  * Put `n` items on the stack, DOM only, and measure every slot on the board.
  * Runs in the page.
  *
- * The items are built from the same classes `Board.tsx` renders, with a real
- * `CardTile` cloned out of the viewer's dealt hand for the art, so what is
- * measured is the stylesheet doing its job rather than a stand-in. Nothing is
- * sent to Forge and nothing enters React's state; the match is parked on a
+ * The items are built from the same classes `Board.tsx` renders (wave 46 X3:
+ * a thumbnail `<li>` wrapping a real `CardTile` clone), with a real `CardTile`
+ * cloned out of the viewer's dealt hand for the art, so what is measured is
+ * the stylesheet doing its job rather than a stand-in. Nothing is sent to
+ * Forge and nothing enters React's state; the match is parked on a
  * keep-or-mulligan question, so no frame redraws the list under the copies.
  */
 function fillStack(n: number): Promise<StaticShot> {
@@ -1666,29 +1667,28 @@ function fillStack(n: number): Promise<StaticShot> {
   if (art === null) throw new Error('no dealt hand to copy a card from');
 
   for (const el of Array.from(list.querySelectorAll('[data-probe]'))) el.remove();
+  let i = 0;
   while (list.querySelectorAll('[data-probe]').length < n) {
     const li = document.createElement('li');
-    li.className = 'stack__item';
+    li.className = `stack__item${i === 0 ? ' stack__item--top' : ''} ${i % 2 === 0 ? 'stack__item--mine' : 'stack__item--theirs'}`;
     li.setAttribute('data-probe', '');
+    li.setAttribute('aria-label', `probe · item ${i + 1}`);
     const body = document.createElement('span');
     body.className = 'stack__body';
     const wrap = document.createElement('span');
     wrap.className = 'stack__art';
     wrap.appendChild(art.cloneNode(true));
-    // Wave 36 T8: `Board.tsx`'s own `StackItem` — one line, built the same
-    // order it renders (`controller` · `source[ · ability]`[ → `target`]),
-    // no separate long-text child any more (`.stack__text` is gone: the full
-    // text moved to the inspector, on hover, never the band).
-    const what = document.createElement('span');
-    what.className = 'stack__what';
-    what.innerHTML =
-      '<span class="stack__controller">someone</span>' +
-      '<span class="stack__sep"> · </span>' +
-      '<span class="stack__source">Probe<span class="stack__kind"> · ability</span></span>' +
-      '<span class="stack__target"> → Bob</span>';
-    body.append(wrap, what);
+    // Wave 46 X3: no visible text on a thumbnail at all — just the art and
+    // the decorative ordinal badge (`.stack__n`), the same markup
+    // `Board.tsx`'s own `StackThumb` draws.
+    const num = document.createElement('span');
+    num.className = 'stack__n';
+    num.setAttribute('aria-hidden', 'true');
+    num.textContent = String(i + 1);
+    body.append(wrap, num);
     li.appendChild(body);
     list.appendChild(li);
+    i++;
   }
 
   return new Promise((done) =>
@@ -1752,39 +1752,31 @@ function fillStack(n: number): Promise<StaticShot> {
 }
 
 /**
- * Wave 32 (w31's open stack item), re-aimed for wave 36 T8: the claim used to
- * be "a long effect's text is readable, not clipped, in the band" (Ponder's
- * own example) — T8 settled that differently: each item is one line
- * (`.stack__what`, ellipsis-clipped as a unit) and the FULL text moved to the
- * inspector, on hover, never the band (`Board.tsx`'s own `StackItem` header).
- * So "readable with a question up" now means the one line still renders,
- * still clips as a unit (no vertical scroll inside it — T8's own "no
- * scrolling text"), rather than "the long text is not cut off" (there is no
- * long text left to cut off). The caller has a REAL question open (the probe
- * route): React owns `data-question` and strips a hand-set one at the next
- * frame. Runs in the page; the caller clears the probes.
+ * Wave 32 (w31's open stack item), re-aimed for wave 36 T8, re-aimed again
+ * for wave 46 X3: the claim used to be "a long effect's text is readable,
+ * not clipped, in the band" (Ponder's own example), then T8's "one line,
+ * ellipsis-clipped, full text on hover" — X3 deleted the drawn line
+ * outright (`Board.tsx`'s own `StackThumb`: a thumbnail draws no text at
+ * all, who/what/target lives in `aria-label` only), so there is nothing
+ * left here to clip. What a "readable with a question up" claim can still
+ * mean: the compact band (`--mid-h-asked`) still draws every thumbnail it
+ * holds, at its own (smaller) `--stack-card-w`, rather than cutting any of
+ * them. The caller has a REAL question open (the probe route): React owns
+ * `data-question` and strips a hand-set one at the next frame. Runs in the
+ * page; the caller clears the probes.
  */
-function stackTextClipped(): Promise<{ texts: number; clipped: string[]; asked: string }> {
+function stackAskedBand(n: number): Promise<{ items: number; asked: boolean; band: string }> {
   const mid = document.querySelector<HTMLElement>('.board__mid');
   if (mid === null) throw new Error('no stack band');
   const list = mid.querySelector<HTMLElement>('[data-zone="stack"] > ol.stack__items');
   if (list === null) throw new Error('no stack list');
-  const sample = list.querySelector<HTMLElement>('.stack__item[data-probe]');
-  if (sample === null) throw new Error('fillStack has not put a probe on the stack');
+  if (list.querySelectorAll('[data-probe]').length !== n) throw new Error('fillStack has not put every probe on the stack');
   return new Promise((done) =>
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
-        const clipped: string[] = [];
-        const texts = Array.from(mid.querySelectorAll<HTMLElement>('.stack__what'));
-        for (const t of texts) {
-          // T8's own claim, in CSS: `white-space: nowrap; overflow: hidden;
-          // text-overflow: ellipsis` — a line that is too long clips AS A
-          // UNIT (fine, by design) but must never grow a vertical scrollbar
-          // inside its own box (not fine: that is the "all the text,
-          // scrolling" shape the operator asked to remove).
-          if (t.scrollHeight > t.clientHeight + 1) clipped.push(`${t.textContent?.slice(0, 40)}: scrolls vertically inside its own line (${t.scrollHeight}>${t.clientHeight})`);
-        }
-        done({ texts: texts.length, clipped, asked: `${getComputedStyle(mid).getPropertyValue('--mid-h')} asked=${mid.hasAttribute('data-question')} band=${Math.round(mid.getBoundingClientRect().height)}px what=${texts.map((i) => i.clientHeight + '/' + i.scrollHeight).join(',')}` });
+        const items = mid.querySelectorAll('.stack__item').length;
+        const band = `${getComputedStyle(mid).getPropertyValue('--mid-h')} h=${Math.round(mid.getBoundingClientRect().height)}px`;
+        done({ items, asked: mid.hasAttribute('data-question'), band });
       }),
     ),
   );
@@ -1993,11 +1985,10 @@ test(CROWD_TITLE, async ({ browser }) => {
         /* ── the canvas is static: fill the stack, and nothing else may move ── */
         const shots: StaticShot[] = [];
         for (const n of STACK_STEPS) shots.push(await f.page.evaluate(fillStack, n));
-        // The asked band: each item's one line is still readable, and never
-        // scrolls vertically, with a REAL question up (w31 left this open;
-        // wave 36 T8 replaced "a long effect's full text is readable in the
-        // band" with "one line, full text on hover, never a scroll" — see
-        // `stackTextClipped`'s own header).
+        // The asked band: wave 46 X3's carousel still draws every thumbnail
+        // it holds at the COMPACT size (`--mid-h-asked`'s own `--stack-card-w`,
+        // `stackAskedBand`'s own header) with a REAL question up — nothing is
+        // cut, because there is no long text left to cut (T8/X3).
         // The question is Forge's own, through the probe route, so `data-question` is React's.
         {
           const pending = alice.context.request.post(`${stack.origin}${PREFIX}/api/play/matches/${summary.matchId}/probe`, {
@@ -2007,12 +1998,11 @@ test(CROWD_TITLE, async ({ browser }) => {
           pending.catch(() => undefined); // an assertion below must not be masked by the disposed context
           await expect(f.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 60_000 });
           await f.page.evaluate(fillStack, 2);
-          const asked = await f.page.evaluate(stackTextClipped);
+          const asked = await f.page.evaluate(stackAskedBand, 2);
           if (SHOTS !== '') await f.page.screenshot({ path: resolve(SHOTS, `stack-asked-${f.name}-${f.page.viewportSize()!.width}.png`) });
           await f.page.evaluate(clearStack);
-          expect(asked.asked, `${f.name}: the board is in its asked state (${asked.asked})`).toContain('asked=true');
-          expect(asked.texts, `${f.name}: the asked stack band measured each item's one-line text`).toBeGreaterThan(0);
-          expect.soft(asked.clipped, `${f.name}: with a question up, no item's one line grows a vertical scroll (${asked.asked})`).toEqual([]);
+          expect(asked.asked, `${f.name}: the board is in its asked state (${asked.band})`).toBe(true);
+          expect(asked.items, `${f.name}: the asked band still draws every thumbnail it holds`).toBe(2);
           await f.page.getByTestId('confirm-dialog').locator('[data-answer="yes"]').click();
           expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);
         }
