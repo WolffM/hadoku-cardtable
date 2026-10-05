@@ -116,12 +116,15 @@ def main():
     ap.add_argument('--cfg', type=float, default=7.0)
     ap.add_argument('--vibes', default='', help='JSON {id: vibe} that overrides prompts.json')
     ap.add_argument('--seed', type=int, default=1000, help='first seed; take k uses seed + k')
+    ap.add_argument('--spec', default='', help='round3.json: named sounds, literal prompts, its own suffix, negative and length')
     ap.add_argument('--variants', default='', help='variants.json: several distinct prompts per sound; folder <id>.r2, files take-v<k>-<seed>')
     ap.add_argument('--avoid', default='', help='extra negative prompt for this run, e.g. "bells, chimes, harsh, metallic"')
     ap.add_argument('--offload', choices=['none', 'model', 'sequential'], default='none',
                     help='the GPU is shared (InvokeAI, other projects): model ~4 GB of VRAM, sequential ~1 GB and slowest')
     args = ap.parse_args()
 
+    if args.spec:
+        return run_spec(args)
     if args.variants:
         return run_variants(args)
     sounds = json.load(open(os.path.join(HERE, 'prompts.json')))['sounds']
@@ -209,6 +212,40 @@ def run_variants(args):
                            'licence': 'Stability AI Community License (stable-audio-open-1.0 LICENSE.md)'},
                           open(base + '.json', 'w'), indent=1)
         print(f'{folder:>14}  {len(prompts)} prompts x {args.takes}  {time.time() - started:6.1f}s', flush=True)
+
+
+def run_spec(args):
+    """Round 3: one folder per named sound, prompts written as literal source + action + recording
+    descriptors, generated long (spec `seconds`) and trimmed by finish.py."""
+    spec = json.load(open(args.spec))
+    jobs = list(spec['sounds'].items())
+    if args.only:
+        want = set(args.only.split(','))
+        jobs = [j for j in jobs if j[0] in want]
+    pipe = load_pipe(args)
+    rate = pipe.vae.sampling_rate
+    started = time.time()
+    for folder, sound in jobs:
+        os.makedirs(os.path.join(OUT, folder), exist_ok=True)
+        negative = spec['negative']
+        if sound.get('music'):
+            negative = negative.replace('music, melody, ', '')
+        seconds = sound.get('seconds', spec['seconds'])
+        for k, text in enumerate(sound['prompts']):
+            prompt = f"{text}. {spec['suffix']}"
+            for j in range(args.takes):
+                seed = args.seed + j
+                base = os.path.join(OUT, folder, f'take-v{k + 1}-{seed}')
+                if os.path.exists(base + '.wav'):
+                    continue
+                audio = render(pipe, prompt, seed, {'id': folder}, args, negative, seconds)
+                sf.write(base + '.wav', audio.T.float().cpu().numpy(), rate)
+                json.dump({'id': folder, 'name': sound['name'], 'group': sound['group'], 'variant': k + 1,
+                           'prompt': prompt, 'negative': negative, 'seed': seed, 'steps': args.steps, 'cfg': args.cfg,
+                           'seconds': seconds, 'model': MODEL,
+                           'licence': 'Stability AI Community License (stable-audio-open-1.0 LICENSE.md)'},
+                          open(base + '.json', 'w'), indent=1)
+        print(f'{folder:>18}  {len(sound["prompts"])} prompts x {args.takes}  {time.time() - started:6.1f}s', flush=True)
 
 
 if __name__ == '__main__':
