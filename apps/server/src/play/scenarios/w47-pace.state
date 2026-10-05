@@ -1,0 +1,28 @@
+# Wave 47 — pacing proof. Seat 1 (ai) has an uncontested Main Phase 1 and two
+# free (0-cost) creatures; seat 0 (human) holds nothing castable and nothing
+# to respond with. Once seat 1 casts, seat 0 has no legal action at all, so
+# the server auto-passes seat 0's priority (`passStackWindows`, `auto.ts`)
+# and each spell resolves unattended — the exact shape `e2e/w47-pace.spec.ts`
+# needs to watch, with nobody's own click in the way of the clock.
+#
+# Deliberately NO lands on either battlefield: nothing here costs mana, and
+# `e2e/w47-pace.spec.ts` picks "the one thing offered" by card id — a land
+# would also be offered (R15: untapped lands are always weakly selectable)
+# and would make that pick ambiguous. `land-only-pass.state`'s own comment
+# documents the scenario harness's actionable-cache race as worse with an
+# empty battlefield than a full one; `w47-pace.spec.ts`'s own cast step
+# retries once for exactly that reason, rather than padding this scenario
+# with lands that would need filtering back out again.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Memnite;Ornithopter
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

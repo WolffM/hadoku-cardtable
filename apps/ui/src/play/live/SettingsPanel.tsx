@@ -1,5 +1,5 @@
 /*
- * The match's two settings, drawn inside the HEADER's gear popout (wave 32 Q15).
+ * The match's settings, drawn inside the HEADER's gear popout (wave 32 Q15).
  * Operator: *"the settings live in the top settings menu, and the extra button
  * goes."* Wave 30 had put them behind a `Settings` button in the control cluster
  * and a centred dialog; both are gone. `LiveBoard` renders this inside
@@ -12,6 +12,12 @@
  *   - **Always stop at end step** — default off. This ONE control sends a
  *     message: `sendStopPreference` (`./match.ts`), on the shape
  *     `docs/planning/wave30-evidence/A-stop-pref-message.md` records.
+ *   - **Fast Mode** (wave 47) — default off (paced). Client-only, like board
+ *     layout: nothing about pacing crosses to the server (`./pace.ts` wraps
+ *     the TRANSPORT, not the game), so this flips `LiveBoard`'s own paced
+ *     transport through `isPacedTransport(match.transport).setFast` and
+ *     nothing else. No explanatory text (operator, twice) — one plain toggle,
+ *     same as the other two.
  *
  * **Fully controlled — no `usePrefs` call of its own.** The popout is closed
  * most of the time and this component is not mounted then, but a preference set
@@ -35,6 +41,10 @@ export interface SettingsPanelProps {
   boardLayout: BoardLayout;
   /** The whole seam back to `LiveBoard`: a choice here becomes `<Board boardLayout>`. */
   onBoardLayoutChange: (layout: BoardLayout) => void;
+  /** Whether the viewer's own transport is paced — `LiveBoard`'s own state (wave 47). */
+  fastMode: boolean;
+  /** The whole seam back to `LiveBoard`: a toggle here flips the paced transport, if there is one. */
+  onFastModeChange: (fast: boolean) => void;
   /** Persists a patch through `LiveBoard`'s own `usePrefs` client. */
   onSave: (patch: Partial<PlayPrefs>) => void;
 }
@@ -44,7 +54,15 @@ const BOARD_LAYOUT_OPTIONS: readonly { value: BoardLayout; label: string }[] = [
   { value: 'type-separated', label: 'Type-separated (lands, artifacts, creatures, other)' },
 ];
 
-export function SettingsPanel({ match, inert = false, boardLayout, onBoardLayoutChange, onSave }: SettingsPanelProps) {
+export function SettingsPanel({
+  match,
+  inert = false,
+  boardLayout,
+  onBoardLayoutChange,
+  fastMode,
+  onFastModeChange,
+  onSave,
+}: SettingsPanelProps) {
   const layoutLegendId = useId();
 
   return (
@@ -80,6 +98,19 @@ export function SettingsPanel({ match, inert = false, boardLayout, onBoardLayout
           }}
         />
         Always stop at end step
+      </label>
+      <label className="live__settings-option">
+        <input
+          type="checkbox"
+          data-testid="live-settings-fast-mode"
+          checked={fastMode}
+          onChange={(event) => {
+            const next = event.currentTarget.checked;
+            onFastModeChange(next);
+            onSave({ fastMode: next });
+          }}
+        />
+        Fast Mode
       </label>
     </div>
   );

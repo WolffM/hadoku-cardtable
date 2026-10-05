@@ -24,17 +24,37 @@
  * and socket are module singletons. This screen owns the match handle's
  * lifetime and nothing else: it opens the connection on mount and closes it
  * on unmount, so leaving the route does not leave a socket behind.
+ *
+ * ## Fast Mode's transport (wave 47)
+ *
+ * Production gets a REAL transport wrapped in `./pace.ts`'s pacer, built
+ * around `socketIoMatchTransport()` — never `makeTransport?.()`'s own
+ * result, which a test passes already built, exactly the shape it wants, and
+ * which `./match.ts`'s jar-gated suites build for themselves (unpaced,
+ * per the wave file's blast-radius table — this screen never runs there).
+ * `initialFast` reads `PLAY_PREFS_DEFAULTS.fastMode` so the FIRST frame is
+ * never paced in a mode nobody asked for (the e2e harness's own override,
+ * or a returning viewer's persisted choice once `LiveBoard`'s settings
+ * wiring re-applies it after this join resolves — see that file's own note).
  */
 
 import { useEffect, useState } from 'react';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
+import { pacedMatchTransport } from '../play/live/pace.ts';
+import { PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { roomsClient } from '../rooms/api.ts';
-import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from '../play/live/match.ts';
+import {
+  closeMatch,
+  socketIoMatchTransport,
+  startMatch,
+  type LiveMatch,
+  type MatchTransport,
+} from '../play/live/match.ts';
 
 export interface MatchScreenProps {
   matchId: string;
-  /** Tests pass a stub transport. Production leaves it undefined and gets socket.io. */
+  /** Tests pass a stub transport. Production leaves it undefined and gets a paced socket.io transport. */
   makeTransport?: () => MatchTransport;
 }
 
@@ -42,7 +62,9 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
   const [match, setMatch] = useState<LiveMatch | null>(null);
 
   useEffect(() => {
-    const handle = startMatch({ matchId, transport: makeTransport?.() });
+    const transport =
+      makeTransport?.() ?? pacedMatchTransport(socketIoMatchTransport(), { initialFast: PLAY_PREFS_DEFAULTS.fastMode });
+    const handle = startMatch({ matchId, transport });
     setMatch(handle);
     return () => closeMatch(handle);
   }, [matchId, makeTransport]);
