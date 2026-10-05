@@ -243,6 +243,7 @@ The first game on the w39 drag. It ended in a soft-lock (W18). W3, W4 and W8 shi
 | W16 | Worldbreaker on the stack: the choice it needs was never explained — such decisions get the decision pop-up | 1 | planned |  | cast Worldbreaker |  |
 | W17 | after a Worldbreaker choice the arrow came from the top-right of the screen, not from the card on the stack | 1 | planned | the arrow's origin falls back to (0,0)-ish when its source has no element | cast Worldbreaker, pick its target |  |
 | W18 | Sanctum of Ugin's "you may sacrifice" showed an arrow instead of a yes/no; then the game soft-locked | 1 | planned — **soft-lock** | the lock itself (log, m-09487f336215): Relentless Dead's death trigger asked for a ZOMBIE CARD IN THE GRAVEYARD; the arrow offered players (W9), the browser sent selectPlayer twice, refused; no board element can pick a graveyard card or decline | the same board: Kozilek's Return killing Relentless Dead |  |
+| W19 | a very slight clipping of the ring around the avatar | 3 (with Q1, V10) | planned w43 | w39 grew the ring to 6 px past the mark; `.seat__ident` keeps 4 px of room inside the bar's `overflow: hidden` | your turn: look at your avatar's ring |  |
 
 ## Asks outside a play-test — 2026-10-02
 
