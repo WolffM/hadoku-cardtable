@@ -1,0 +1,251 @@
+{
+  "defender": 1,
+  "clicks": [
+    {
+      "kind": "block declare",
+      "phase": null,
+      "message": "Select creatures to block Memnite (85) or select another attacker to declare blockers for."
+    },
+    {
+      "kind": "post-block priority",
+      "phase": "Declare Blockers Step",
+      "message": "Priority: B\nTurn: 1 (A)\nPhase: Declare Blockers Step\nStack: Empty"
+    }
+  ],
+  "decisions": [
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "kept",
+      "window": "other",
+      "phase": null,
+      "myTurn": false,
+      "stackEmpty": false,
+      "mine": false,
+      "sources": null,
+      "nonLandSources": null,
+      "openAsks": 0,
+      "buttons": [
+        true,
+        true
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "kept",
+      "window": "other",
+      "phase": null,
+      "myTurn": false,
+      "stackEmpty": false,
+      "mine": true,
+      "sources": null,
+      "nonLandSources": null,
+      "openAsks": 0,
+      "buttons": [
+        true,
+        true
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "kept",
+      "window": "other",
+      "phase": null,
+      "myTurn": false,
+      "stackEmpty": false,
+      "mine": true,
+      "sources": 2,
+      "nonLandSources": 1,
+      "openAsks": 0,
+      "buttons": [
+        false,
+        false
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "kept",
+      "window": "other",
+      "phase": null,
+      "myTurn": false,
+      "stackEmpty": false,
+      "mine": true,
+      "sources": 2,
+      "nonLandSources": 1,
+      "openAsks": 0,
+      "buttons": [
+        false,
+        false
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "kept",
+      "window": "priority",
+      "phase": "MAIN1",
+      "myTurn": false,
+      "stackEmpty": true,
+      "mine": true,
+      "sources": 2,
+      "nonLandSources": 1,
+      "openAsks": 0,
+      "buttons": [
+        false,
+        false
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "Main phase, precombat",
+      "window": "priority",
+      "phase": "MAIN1",
+      "myTurn": false,
+      "stackEmpty": true,
+      "mine": true,
+      "sources": 2,
+      "nonLandSources": 1,
+      "openAsks": 0,
+      "buttons": [
+        true,
+        true
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "Beginning of Combat Step",
+      "window": "priority",
+      "phase": "COMBAT_BEGIN",
+      "myTurn": false,
+      "stackEmpty": true,
+      "mine": true,
+      "sources": 2,
+      "nonLandSources": 1,
+      "openAsks": 0,
+      "buttons": [
+        true,
+        true
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "Declare Attackers Step",
+      "window": "priority",
+      "phase": "COMBAT_DECLARE_ATTACKERS",
+      "myTurn": false,
+      "stackEmpty": true,
+      "mine": true,
+      "sources": 2,
+      "nonLandSources": 1,
+      "openAsks": 0,
+      "buttons": [
+        true,
+        true
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "kept",
+      "window": "other",
+      "phase": null,
+      "myTurn": false,
+      "stackEmpty": false,
+      "mine": true,
+      "sources": 1,
+      "nonLandSources": 1,
+      "openAsks": 0,
+      "buttons": [
+        true,
+        false
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "kept",
+      "window": "other",
+      "phase": null,
+      "myTurn": false,
+      "stackEmpty": false,
+      "mine": true,
+      "sources": 0,
+      "nonLandSources": 0,
+      "openAsks": 0,
+      "buttons": [
+        true,
+        false
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "kept",
+      "window": "other",
+      "phase": null,
+      "myTurn": false,
+      "stackEmpty": false,
+      "mine": true,
+      "sources": 0,
+      "nonLandSources": 0,
+      "openAsks": 0,
+      "buttons": [
+        false,
+        false
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "kept",
+      "window": "priority",
+      "phase": "COMBAT_DECLARE_BLOCKERS",
+      "myTurn": false,
+      "stackEmpty": true,
+      "mine": true,
+      "sources": 2,
+      "nonLandSources": 1,
+      "openAsks": 0,
+      "buttons": [
+        false,
+        false
+      ]
+    },
+    {
+      "evt": "stop-decided",
+      "matchId": "m-a24f2a8970cf",
+      "seat": 1,
+      "decision": "kept",
+      "window": "priority",
+      "phase": "COMBAT_DECLARE_BLOCKERS",
+      "myTurn": false,
+      "stackEmpty": true,
+      "mine": true,
+      "sources": 2,
+      "nonLandSources": 1,
+      "openAsks": 0,
+      "buttons": [
+        true,
+        true
+      ]
+    }
+  ]
+}

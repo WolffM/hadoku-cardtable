@@ -1,0 +1,22 @@
+# w46 §C (X2), variant two. Same shape as `w46-c-blocker-idle.state` — seat 0
+# (human, the ATTACKER)'s own uncontested Main Phase 1, one untapped, non-sick
+# creature and nothing pre-declared, so Forge's own LIVE `InputAttack` opens
+# for real — but seat 1 (ai, the DEFENDER) ALSO holds Lightning Bolt ({R},
+# "deals 3 damage to any target") and one untapped Mountain, on top of its
+# untapped, non-sick blocker. So the defender's actionable set during the
+# post-declaration priority round of Declare Attackers Step is NOT empty:
+# there is a real instant they could cast before blocks are even assigned
+# (the paper-Magic response window to an attack declaration).
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Lightning Bolt
+aibattlefield=Memnite;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

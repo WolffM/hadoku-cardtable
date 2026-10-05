@@ -135,7 +135,21 @@ describe.skipIf(!available.ok)(title, () => {
 					return (view?.Blocking as { v?: boolean } | undefined)?.v === true;
 				}, 'the creature to be declared blocking', 10_000);
 				s.ok(defender);
-				await waitUntil(() => /Declare Blockers Step/.test(s.prompt(defender)), 'the Declare Blockers priority window after the block', 10_000);
+				// Wave 46 §C: with nothing else castable here, the ordinary priority
+				// window that follows a declared block now auto-passes on its own
+				// (`StopPolicy.blockStopIsTheDeclaration`) — and can do it fast enough
+				// that a 25ms poll checking the CURRENT prompt text can race straight
+				// past "Declare Blockers Step" to whatever phase comes after. The
+				// `auto-passed` log is the durable, non-racy record that the window
+				// was reached and answered either way, so this accepts it as equally
+				// proof the window happened.
+				await waitUntil(
+					() =>
+						/Declare Blockers Step/.test(s.prompt(defender)) ||
+						s.logs.some((l) => l.evt === 'auto-passed' && l.seat === defender && l.phase === 'Declare Blockers Step'),
+					'the Declare Blockers priority window after the block',
+					10_000,
+				);
 			} finally {
 				await s.stop();
 			}

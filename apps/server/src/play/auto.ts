@@ -308,6 +308,34 @@ export interface StopPolicy {
 	 */
 	readonly attackStopIsTheDeclaration: boolean;
 	/**
+	 * The Declare Blockers stop IS the declaration — the non-active seat's own
+	 * mirror of {@link attackStopIsTheDeclaration}.
+	 *
+	 * Playtest 8, the operator, 2026-10-05: *"had to click twice for declaring
+	 * blockers? probably not a bug but just make sure."* It was a bug: Forge
+	 * gives the defender ordinary priority in the SAME `COMBAT_DECLARE_BLOCKERS`
+	 * step right after the block is assigned, and that window was held open
+	 * unconditionally — `isStopPhase` names the phase, so nothing but
+	 * {@link skipEmptyBlockStop} (a DIFFERENT seat shape: no creature at all) ever
+	 * let it go, regardless of what the seat could do there. A defender with
+	 * nothing castable still had to press OK a second time for no reason —
+	 * confirmed against a real Forge match holding nothing (`w46-block-stop.
+	 * jvm.test.ts`'s idle variant).
+	 *
+	 * With this on, the DECLARATION ITSELF is untouched and is never passed —
+	 * it is a `getChoices`-style `other` window, not a `Priority:` one, so
+	 * `decideStop`'s own `window !== 'priority'` guard already refuses it before
+	 * this field is ever read. Only the ordinary priority window that follows is
+	 * judged by {@link passWhenNothingToDo} like any other window, same as the
+	 * attack step: it passes when nothing but lands is actionable, and still
+	 * stops when a spell could be cast — a held instant is cast exactly where it
+	 * always was, the moment after blocks are locked in (confirmed: the reactive
+	 * variant, holding Lightning Bolt and a Mountain, still stops).
+	 *
+	 * Full control keeps the stop, as it keeps every stop.
+	 */
+	readonly blockStopIsTheDeclaration: boolean;
+	/**
 	 * Pass priority after casting: a window whose top-of-stack item the seat itself
 	 * activated is passed whatever the seat could do (Q17).
 	 *
@@ -372,8 +400,13 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	// behavior."* The trade wave 28 made — a stop here is the window for a held
 	// instant — is real and is NOT reversed; it is handed to the player instead
 	// of assumed. `COMBAT_DECLARE_BLOCKERS` stays: the operator objected to the
-	// END-STEP wait specifically, and blocking is not a wait, it is a decision a
-	// seat must make regardless of what it holds. The escape the operator named
+	// END-STEP wait specifically, and blocking IS a decision a seat must make —
+	// the DECLARATION is never passed, whatever it holds (it is not even a
+	// `Priority:` window). The ordinary priority window Forge opens right after
+	// the block is a DIFFERENT thing, and wave 46 §C found it was stopping
+	// unconditionally too, with nothing to do there — see
+	// `blockStopIsTheDeclaration`, the non-active seat's mirror of
+	// `attackStopIsTheDeclaration` just below. The escape the operator named
 	// is `FULL_CONTROL_POLICY`, which still keeps every stop; the dial is the
 	// per-seat `StopPolicy` a settings toggle now moves (`socket.ts`'s
 	// `forge:stop-preference`) — a held instant on the opponent's turn is castable
@@ -401,6 +434,8 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	// Q10, wave 32. *"no creatures, no block."*
 	skipEmptyBlockStop: true,
 	attackStopIsTheDeclaration: true,
+	// Wave 46 §C. *"had to click twice for declaring blockers?"*
+	blockStopIsTheDeclaration: true,
 	// Q17, wave 32. *"holding priority on my own spells is weird."*
 	passOwnSpell: true,
 	// Q8, wave 32. Ordering is a full-control thing: Forge's own order unless asked.
@@ -485,6 +520,7 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	answerOneAnswerAsks: false,
 	skipEmptyBlockStop: false,
 	attackStopIsTheDeclaration: false,
+	blockStopIsTheDeclaration: false,
 	passOwnSpell: false,
 	orderSimultaneous: 'ask',
 };
@@ -1023,6 +1059,23 @@ function attackStopIsDone(policy: StopPolicy, facts: PromptFacts): boolean {
 }
 
 /**
+ * The non-active seat's own Declare Blockers step after the block input: the
+ * stop was the declaration ({@link StopPolicy.blockStopIsTheDeclaration}) —
+ * the mirror of {@link attackStopIsDone}.
+ *
+ * Requires a KNOWN, non-zero creature count: a seat with no creature never saw
+ * a block-select input at all (there was nothing to declare), and that shape
+ * is {@link blockStopIsEmpty}'s alone to answer — unconditionally, never a
+ * function of what else the seat holds (Q10's own invariant). Unknown (null)
+ * is left to the ordinary stop-phase check below, same as every other doubt.
+ */
+function blockStopIsDone(policy: StopPolicy, facts: PromptFacts): boolean {
+	return (
+		policy.blockStopIsTheDeclaration && !facts.myTurn && facts.phase === 'COMBAT_DECLARE_BLOCKERS' && (facts.creatures ?? 0) > 0
+	);
+}
+
+/**
  * The phase label to pass, or null when the player must be asked.
  *
  * Pure. There is no pattern in here and no phase spelling: every branch reads a
@@ -1040,10 +1093,12 @@ export function decideStop(facts: PromptFacts, policy: StopPolicy): string | nul
 	if (facts.window !== 'priority') return null;
 
 	if (facts.stackEmpty) {
-		// The post-declaration priority window of the seat's own attack step is not
-		// a "think" stop like Main 1 (T3): it falls through to the nothing-to-do
-		// rule below, so it passes only when nothing but lands is actionable.
-		if (!attackStopIsDone(policy, facts)) {
+		// The post-declaration priority window of the seat's own attack step, and
+		// the non-active seat's own priority window right after a block is
+		// assigned, are not "think" stops like Main 1 (T3): both fall through to
+		// the nothing-to-do rule below, so each passes only when nothing but
+		// lands is actionable.
+		if (!attackStopIsDone(policy, facts) && !blockStopIsDone(policy, facts)) {
 			// The phase the player asked to hold priority in. Nothing below overrides it —
 			// except the one stop that exists only so a creature can block (Q10).
 			if (isStopPhase(policy, facts) && !blockStopIsEmpty(policy, facts)) return null;
