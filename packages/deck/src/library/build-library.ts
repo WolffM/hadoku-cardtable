@@ -126,6 +126,26 @@ const CARD_SET_FIXUPS: ReadonlyMap<string, string> = new Map([
   ['Pendelhaven|TSP', 'TSB'],
   ['Shadow Guildmage|TSP', 'TSB'],
   ['Wall of Roots|TSP', 'TSB'],
+  // Wave 48 §T: found by the manager running library-resolve.jvm.test.ts
+  // against the real jar on Standard 2007 and Modern 2012-2016 — the same
+  // Time Spiral "timeshifted" case as the six above, confirmed the same way:
+  // each of these 14 is in `Time Spiral Timeshifted.txt`
+  // ($CARDTABLE_FORGE_RES/editions/), not `Time Spiral.txt`, so `TSP` is not
+  // a printing Forge's CardDb has for any of them.
+  ['Call of the Herd|TSP', 'TSB'],
+  ['Claws of Gix|TSP', 'TSB'],
+  ['Disenchant|TSP', 'TSB'],
+  ['Dodecapod|TSP', 'TSB'],
+  ['Gemstone Mine|TSP', 'TSB'],
+  ['Lightning Angel|TSP', 'TSB'],
+  ['Mystic Snake|TSP', 'TSB'],
+  ['Sacred Mesa|TSP', 'TSB'],
+  ['Serrated Arrows|TSP', 'TSB'],
+  ['Stupor|TSP', 'TSB'],
+  ['The Rack|TSP', 'TSB'],
+  ["Tormod's Crypt|TSP", 'TSB'],
+  ['Willbender|TSP', 'TSB'],
+  ['Withered Wretch|TSP', 'TSB'],
 ]);
 
 /** One deck the selection chose, as `selection-<year>.json` records it. */

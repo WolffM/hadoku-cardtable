@@ -85,7 +85,11 @@ function parseResolveOutput(stdout: string): ResolveResult[] {
 }
 
 describe.skipIf(!available.ok)(title, () => {
-	it('every (name, set) pair the library plays is a printing Forge itself knows', () => {
+	// The spawnSync below already allows the java process 180_000ms; vitest's
+	// own default 5000ms test timeout was killing this before that ever
+	// mattered, even at wave 34's 96-deck size — wave 48 §T's 338 decks (the
+	// library growing 2003-2016 + Modern + Legacy) only made it concrete.
+	it('every (name, set) pair the library plays is a printing Forge itself knows', { timeout: 190_000 }, () => {
 		if (!available.ok) return;
 		const pairs = [...libraryCardSetPairs()].sort();
 		expect(pairs.length).toBeGreaterThan(1000); // 1151 at the time this was written — a sanity floor, not a pin.
