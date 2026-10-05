@@ -11,7 +11,7 @@ and the picked files go to `cdn.hadoku.me` with a row in `apps/ui/src/sound/cue-
 D=~/.local/opt/stable-audio
 uv venv --python 3.12 $D/.venv
 uv pip install --python $D/.venv/bin/python --index-url https://download.pytorch.org/whl/cu128 torch torchaudio
-uv pip install --python $D/.venv/bin/python diffusers transformers accelerate sentencepiece soundfile huggingface_hub protobuf
+uv pip install --python $D/.venv/bin/python diffusers transformers accelerate sentencepiece soundfile huggingface_hub protobuf torchsde
 ```
 
 The model is gated on Hugging Face (accept the terms once, logged in), so downloads need a read token:

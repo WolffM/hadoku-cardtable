@@ -41,6 +41,26 @@ def seconds_for(s):
     return 1.0 if s['kind'] == 'moment' else 2.0
 
 
+def render(pipe, prompt, seed, s, args):
+    """One take. Out of memory means a neighbour on the shared GPU is busy: wait and try again."""
+    for attempt in range(40):
+        try:
+            return pipe(
+                prompt,
+                negative_prompt=NEGATIVE,
+                num_inference_steps=args.steps,
+                guidance_scale=args.cfg,
+                audio_end_in_s=seconds_for(s),
+                num_waveforms_per_prompt=1,
+                generator=torch.Generator('cpu').manual_seed(seed),
+            ).audios[0]
+        except torch.OutOfMemoryError:
+            torch.cuda.empty_cache()
+            print(f"  {s['id']} seed {seed}: GPU busy, waiting ({attempt + 1}/40)", flush=True)
+            time.sleep(30)
+    raise SystemExit(f"{s['id']} seed {seed}: the GPU stayed full for 20 minutes")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--takes', type=int, default=4)
@@ -49,6 +69,8 @@ def main():
     ap.add_argument('--cfg', type=float, default=7.0)
     ap.add_argument('--vibes', default='', help='JSON {id: vibe} that overrides prompts.json')
     ap.add_argument('--seed', type=int, default=1000, help='first seed; take k uses seed + k')
+    ap.add_argument('--offload', choices=['none', 'model', 'sequential'], default='none',
+                    help='the GPU is shared (InvokeAI, other projects): model ~4 GB of VRAM, sequential ~1 GB and slowest')
     args = ap.parse_args()
 
     sounds = json.load(open(os.path.join(HERE, 'prompts.json')))['sounds']
@@ -64,7 +86,13 @@ def main():
         if missing:
             sys.exit(f'unknown ids: {sorted(missing)}')
 
-    pipe = StableAudioPipeline.from_pretrained(MODEL, torch_dtype=torch.float16).to('cuda')
+    pipe = StableAudioPipeline.from_pretrained(MODEL, torch_dtype=torch.float16)
+    if args.offload == 'model':
+        pipe.enable_model_cpu_offload()
+    elif args.offload == 'sequential':
+        pipe.enable_sequential_cpu_offload()
+    else:
+        pipe.to('cuda')
     rate = pipe.vae.sampling_rate
     started = time.time()
     for s in sounds:
@@ -73,17 +101,10 @@ def main():
         prompt = prompt_for(s)
         for k in range(args.takes):
             seed = args.seed + k
-            gen = torch.Generator('cuda').manual_seed(seed)
-            audio = pipe(
-                prompt,
-                negative_prompt=NEGATIVE,
-                num_inference_steps=args.steps,
-                guidance_scale=args.cfg,
-                audio_end_in_s=seconds_for(s),
-                num_waveforms_per_prompt=1,
-                generator=gen,
-            ).audios[0]
             base = os.path.join(folder, f'take-{seed}')
+            if os.path.exists(base + '.wav'):
+                continue  # resume: a take is a pure function of (prompt, seed, steps, cfg)
+            audio = render(pipe, prompt, seed, s, args)
             sf.write(base + '.wav', audio.T.float().cpu().numpy(), rate)
             json.dump({
                 'id': s['id'], 'name': s['name'], 'prompt': prompt, 'negative': NEGATIVE, 'seed': seed,
