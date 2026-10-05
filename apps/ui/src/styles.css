@@ -77,7 +77,8 @@
   --z-board: 0;
   --z-card-badge: 1;
   --z-overlay: 20; /* rail, controls, the stack */
-  --z-popover: 40; /* prompts, dialogs, the inspector, menus */
+  --z-popover: 40; /* prompts, dialogs, menus */
+  --z-zoom: 60; /* the hover zoom: above everything, the control bar and prompts included */
 
   /* Our colour-pie hues. Deliberately not the printed ones. */
   --c-white: #d8cfae;

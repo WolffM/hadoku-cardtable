@@ -50,10 +50,9 @@
  * ability is a battlefield card, and this is false for it) is that the drag
  * is tagged `lifted: true` from the press itself, before the slop, so a PLAIN
  * CLICK lifts it exactly as a drag does. `onPointerMove` draws the lifted
- * card following the pointer (`drawCastLift`) and three cues: the viewer's
- * own battlefield lights up for a card that needs no target, the hand shows a
- * cancel cue under the pointer, and the card itself carries a short verdict
- * label describing what letting go right now would do. No arrow yet: nothing
+ * card following the pointer (`drawCastLift`) and two cues: the viewer's own
+ * battlefield lights up for a card that needs no target, and the hand shows a
+ * cancel cue under the pointer. No text is drawn. No arrow yet: nothing
  * has been aimed at anything, because nothing has been sent.
  *
  * ### Everything a lift decides happens at the release
@@ -165,7 +164,6 @@ import {
   overOwnHand,
   parkedGhost,
   updateDropCues,
-  verdictFor,
 } from './cast.ts';
 import { commitDrag, commitMarquee, rectOf, type Rect } from './commit.ts';
 import { applyIntents, clearIntents } from './intent.ts';
@@ -444,7 +442,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     previewPlayedTo(null);
     const ghost = parkedGhost(canvas, source);
     selectCard(match, source);
-    drawCastLift(canvas, source, point, 'parked', null);
+    drawCastLift(canvas, source, point, 'parked');
     parked = { source, at: point, home: state.from, ghost, leftHand: false };
     // The pointer is at the park point now; the arrow follows it from there
     // the moment Forge asks for the target, before the pointer next moves.
@@ -666,7 +664,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const spell = needsTarget(handCardTypeLine(match, under.id));
         const overHand = overOwnHand(event.target);
         const overBf = overOwnBattlefield(event.target);
-        drawCastLift(canvas, under.id, at, 'lifted', verdictFor(spell, overHand, overBf));
+        drawCastLift(canvas, under.id, at, 'lifted');
         updateDropCues(canvas, spell, overHand, overBf);
       }
       paint();
@@ -700,7 +698,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const spell = needsTarget(handCardTypeLine(match, next.source));
         const overHand = overOwnHand(event.target);
         const overBf = overOwnBattlefield(event.target);
-        drawCastLift(canvas, next.source, at, 'lifted', verdictFor(spell, overHand, overBf));
+        drawCastLift(canvas, next.source, at, 'lifted');
         updateDropCues(canvas, spell, overHand, overBf);
         // Only a no-target card ever lands in a row.
         previewPlayedTo(!spell && overBf ? at : null);
@@ -777,8 +775,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   /** The browser's own context menu is suppressed only while a gesture or cast is live — never otherwise. */
+  /** The board is a game surface: a right-click there never opens the browser's menu. */
   function onContextMenu(event: Event): void {
-    if (parked !== null || (drag !== null && drag.lifted)) event.preventDefault();
+    event.preventDefault();
   }
 
   /**

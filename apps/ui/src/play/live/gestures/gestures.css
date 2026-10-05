@@ -160,29 +160,6 @@
 }
 
 /*
- * The verdict label above a lifted card — "let go: play it", "let go: back
- * to hand", "let go: choose a target" — read straight off the attribute
- * `./cast.ts`'s `verdictFor` writes. No label once a cast has parked
- * (`drawCastLift` clears it there) — the targeter arrow is the guidance from
- * then on, same as any other cast.
- */
-[data-cast-lift][data-cast-verdict]::after {
-  content: attr(data-cast-verdict);
-  position: absolute;
-  left: 50%;
-  bottom: 100%;
-  transform: translateX(-50%);
-  margin-bottom: 4px;
-  white-space: nowrap;
-  font: 500 11px var(--font-ui, inherit);
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  color: var(--ink-dim);
-}
-
-/*
  * The other two cues, both on LANE A's own zone markup — the same technique
  * `[data-cast-lift]` already uses on a card's `<li>`. Scoped to
  * `[data-owner="you"]`: an opponent's zones never light up for the viewer's

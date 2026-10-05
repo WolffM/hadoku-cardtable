@@ -56,7 +56,7 @@ import {
   type LiveMatch,
 } from '../match.ts';
 import { fixtureFrames, startReplayServer, type ReplayServer } from '../replay-server.ts';
-import { needsTarget, verdictFor } from './cast.ts';
+import { needsTarget } from './cast.ts';
 import { installGestures } from './index.ts';
 import type { GestureHandle } from './types.ts';
 
@@ -255,20 +255,6 @@ describe('needsTarget — which cards need a target', () => {
     expect(needsTarget('Enchantment')).toBe(false);
     expect(needsTarget('Planeswalker — Jace')).toBe(false);
     expect(needsTarget(null)).toBe(false);
-  });
-});
-
-describe('verdictFor — the text shown on a lifted card', () => {
-  it('a card needing no target', () => {
-    expect(verdictFor(false, false, true)).toBe('let go: play it');
-    expect(verdictFor(false, false, false)).toBe('let go: back to hand');
-    expect(verdictFor(false, true, false)).toBe('let go: back to hand');
-    expect(verdictFor(false, true, true)).toBe('let go: back to hand');
-  });
-  it('a card needing a target: anywhere outside the hand reads the same, whatever is under the pointer', () => {
-    expect(verdictFor(true, false, false)).toBe('let go: choose a target');
-    expect(verdictFor(true, false, true)).toBe('let go: choose a target');
-    expect(verdictFor(true, true, false)).toBe('let go: back to hand');
   });
 });
 
@@ -550,6 +536,15 @@ describe('dragging a card, and the targeter arrow', () => {
     fireEvent.pointerUp(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectPlayer', 1]]);
+  });
+
+  // The operator, 2026-10-04: "right-click shouldn't bring up the chrome context menu on the board."
+  it('a right-click on the board never opens the browser menu, with or without a gesture', async () => {
+    const { s, canvas } = await gestureBoard();
+    const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    canvas.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+    expect(s.clientFrames()).toHaveLength(0);
   });
 
   it('a pointercancel drops the gesture: the arrow goes and nothing is sent', async () => {
@@ -1528,7 +1523,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     expect(myBattlefield.getAttribute('data-drop'), 'the battlefield lights up, solid, over it').toBe('ok');
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-verdict')).toBe('let go: play it');
+    expect(cardEl(canvas, hand[0]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
 
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
@@ -1549,7 +1544,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(document.body, { clientX: 900, clientY: 900 });
     expect(myBattlefield.getAttribute('data-drop'), 'a dim hint, not the solid cue').toBe('hint');
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-verdict')).toBe('let go: back to hand');
+    expect(cardEl(canvas, hand[0]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
 
     fireEvent.pointerUp(document.body, { clientX: 900, clientY: 900 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'floating back').toBe('returning');
@@ -1569,7 +1564,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
       fireEvent.pointerDown(cardEl(canvas, id), { button: 0, clientX: 10, clientY: 10 });
       fireEvent.pointerMove(myHand, { clientX: 30, clientY: 20 });
       expect(myHand.hasAttribute('data-cancel-hint'), `card ${id} over its own hand`).toBe(true);
-      expect(cardEl(canvas, id).getAttribute('data-cast-verdict')).toBe('let go: back to hand');
+      expect(cardEl(canvas, id).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
       fireEvent.pointerUp(myHand, { clientX: 30, clientY: 20 });
       expect(myHand.hasAttribute('data-cancel-hint'), 'cleared with the release').toBe(false);
     }
@@ -1588,7 +1583,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     expect(myBattlefield.hasAttribute('data-drop'), 'a targeted card never lands in a row — no battlefield cue').toBe(false);
-    expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-verdict')).toBe('let go: choose a target');
+    expect(cardEl(canvas, hand[2]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
     expect(s.clientFrames()).toHaveLength(0);
 
     fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
@@ -1652,7 +1647,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(fireEvent.click(face), 'the native click is swallowed, not answered').toBe(false);
 
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // no button held: still tracked
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-verdict')).toBe('let go: play it');
+    expect(cardEl(canvas, hand[0]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
     expect(s.clientFrames()).toHaveLength(0);
 
     // The NEXT press is the release — plays here, not wherever the click let go.
@@ -1863,17 +1858,6 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     s.send(prompt('Priority'));
     await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull());
     expect(canvas.querySelector('[data-cast-ghost]')).toBeNull();
-  });
-
-  it('the browser context menu is suppressed only while a gesture or cast is live', async () => {
-    const { s, m, canvas } = await gestureBoard();
-    const hand = mineOf(m).hand!.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
-
-    expect(fireEvent.contextMenu(canvas), 'no gesture live: the menu is allowed').toBe(true);
-    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
-    expect(fireEvent.contextMenu(canvas), 'a lift is live: the menu is suppressed').toBe(false);
   });
 
   it('an offered BATTLEFIELD card is never lifted — only a hand card is, lands tappable for mana included', async () => {

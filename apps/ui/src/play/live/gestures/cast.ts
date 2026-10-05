@@ -96,23 +96,8 @@ export function clearDropCues(canvas: ParentNode): void {
   ownHandZone(canvas)?.removeAttribute('data-cancel-hint');
 }
 
-/**
- * The verdict text shown on a lifted card, describing what letting go right
- * now would do: a card that needs a target reads "choose a target" anywhere
- * outside the hand, since a targeted cast is sent wherever it is released; a
- * card that needs no target reads "play it" only over the viewer's own
- * battlefield, and "back to hand" everywhere else, the hand itself included.
- */
-export function verdictFor(spell: boolean, overHand: boolean, overBattlefield: boolean): string {
-  if (overHand) return 'let go: back to hand';
-  if (spell) return 'let go: choose a target';
-  return overBattlefield ? 'let go: play it' : 'let go: back to hand';
-}
-
 /** The one attribute this module writes for the lift itself. Nothing else in this repo writes it. */
 export const CAST_LIFT_ATTR = 'data-cast-lift';
-/** The verdict label, read by `./gestures.css`'s `::after` off its own text. */
-export const CAST_VERDICT_ATTR = 'data-cast-verdict';
 
 /** How long the float-back CSS transition runs — named here for the JS side that schedules the clean-up after it. */
 export const FLOAT_BACK_MS = 300;
@@ -129,20 +114,15 @@ function cancelReturnTimer(id: number): void {
 }
 
 /**
- * Draw the card at `at`. `'lifted'`: still following the pointer, pre-release
- * — `verdict` is one of the three strings `./gestures.css` renders, or null
- * while the card has not moved from the hand yet. `'parked'`: a targeted
- * cast already sent, pinned at its release point for the rest of the aim —
- * no verdict label once it has parked, since the targeting arrow is the
- * guidance from then on.
+ * Draw the card at `at`. `'lifted'`: still following the pointer, pre-release.
+ * `'parked'`: a targeted cast already sent, pinned at its release point for the
+ * rest of the aim. No text is drawn on the card in either state.
  */
-export function drawCastLift(root: ParentNode, id: number, at: Point, mode: 'lifted' | 'parked', verdict: string | null): void {
+export function drawCastLift(root: ParentNode, id: number, at: Point, mode: 'lifted' | 'parked'): void {
   const el = cardBox(root, id);
   if (!(el instanceof HTMLElement)) return;
   cancelReturnTimer(id);
   el.setAttribute(CAST_LIFT_ATTR, mode);
-  if (verdict === null) el.removeAttribute(CAST_VERDICT_ATTR);
-  else el.setAttribute(CAST_VERDICT_ATTR, verdict);
   el.style.left = `${at.x}px`;
   el.style.top = `${at.y}px`;
 }
@@ -153,7 +133,6 @@ export function clearCastLift(root: ParentNode, id: number): void {
   const el = cardBox(root, id);
   if (!(el instanceof HTMLElement)) return;
   el.removeAttribute(CAST_LIFT_ATTR);
-  el.removeAttribute(CAST_VERDICT_ATTR);
   el.style.removeProperty('left');
   el.style.removeProperty('top');
 }
@@ -183,7 +162,6 @@ export function floatCastLiftHome(
   }
   cancelReturnTimer(id);
   el.setAttribute(CAST_LIFT_ATTR, 'returning');
-  el.removeAttribute(CAST_VERDICT_ATTR);
   el.style.left = `${home.x}px`;
   el.style.top = `${home.y}px`;
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -228,7 +206,6 @@ export function parkedGhost(root: ParentNode, id: number): HTMLElement | null {
   ghost.setAttribute(CAST_GHOST_ATTR, String(id));
   ghost.setAttribute('aria-hidden', 'true');
   ghost.inert = true;
-  ghost.removeAttribute(CAST_VERDICT_ATTR);
   return ghost;
 }
 
@@ -238,7 +215,6 @@ export function clearAllCastLifts(root: ParentNode): void {
   returnTimers.clear();
   for (const el of root.querySelectorAll<HTMLElement>(`[${CAST_LIFT_ATTR}]`)) {
     el.removeAttribute(CAST_LIFT_ATTR);
-    el.removeAttribute(CAST_VERDICT_ATTR);
     el.style.removeProperty('left');
     el.style.removeProperty('top');
   }
