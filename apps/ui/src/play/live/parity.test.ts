@@ -480,8 +480,11 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = 'c668dd6ffccc477d18e08753dbc8802f7921ec9966790b0cdd46819151098af2';
-const BASELINE_LENGTH = 43780;
+// Re-recorded at the w46+w47+w48 integration (2026-10-05): +570 characters, all of it art. w48's library
+// regeneration gave three fixture cards (Electrostatic Bolt, Great Furnace, Pyrite Spellbomb) their first
+// `art-ids.json` rows; with w46's art-ids.json put back this test passes at the old pin (43780, c668dd6f…).
+const BASELINE_SHA256 = 'c74fb469c45d997294d953275ec0d973bf8a7ded8f8b491df37994c5a2ca8f0d';
+const BASELINE_LENGTH = 44350;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

@@ -204,7 +204,9 @@ describe('the board follows the stream', () => {
     s.send(frames[0]!);
     await waitFor(() => expect(getByTestId('live-turn-n')).toBeTruthy());
     for (const f of frames.slice(1)) s.send(f);
-    await waitFor(() => expect(getByTestId('live-turn-n').textContent).toBe('14'));
+    // 27 frames over a real socket, each re-rendering the whole board: 0.5-0.8 s alone, past waitFor's
+    // 1 s default under a full-suite load (it failed there at turn 11 after w46-w48 were integrated).
+    await waitFor(() => expect(getByTestId('live-turn-n').textContent).toBe('14'), { timeout: 5000 });
     // And the phase, from the rail's own current step — the bar that used to say
     // it is gone (§A).
     expect(currentStep(container)?.textContent).toBe('Main 1');
