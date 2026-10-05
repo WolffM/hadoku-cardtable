@@ -1878,11 +1878,13 @@ describe('drag to arrange (#10)', () => {
  */
 describe('drag to stack (#1, #19)', () => {
   /**
-   * Drop `cardId` on `ontoId`, in the named third of its box (`middle` is the
-   * reorder: the left half of the middle band is "in front of it").
+   * Drop `cardId` on `ontoId`: `top`/`bottom` land in the big stacking region
+   * (upper/lower half, away from either edge); `edge` lands in the thin
+   * reorder strip at the card's left edge — most of the card stacks, not
+   * just its top and bottom thirds.
    */
-  function dragOnto(container: HTMLElement, cardId: number, ontoId: number, where: 'top' | 'middle' | 'bottom') {
-    dragCard(container, cardId, { card: ontoId, at: where === 'middle' ? 'before' : where });
+  function dragOnto(container: HTMLElement, cardId: number, ontoId: number, where: 'top' | 'edge' | 'bottom') {
+    dragCard(container, cardId, { card: ontoId, at: where === 'edge' ? 'before' : where });
   }
 
   /** The viewer's lands lane, as columns of piles: each column bottom card first. */
@@ -1894,7 +1896,7 @@ describe('drag to stack (#1, #19)', () => {
     ]);
   }
 
-  it('stacks ON TOP when the drop lands in the upper third', () => {
+  it('stacks ON TOP when the drop lands in the upper half, away from the edges', () => {
     const { container, rowIds } = renderBoard();
     dragOnto(container, 25, 8, 'top');
     expect(columns(container), '25 is on 8, and the lane is one column shorter').toEqual([[8, 25], [24], [6]]);
@@ -1902,16 +1904,26 @@ describe('drag to stack (#1, #19)', () => {
     expect(rowIds(0, 'lands')).toEqual([8, 25, 24, 6]);
   });
 
-  it('stacks UNDERNEATH when the drop lands in the lower third', () => {
+  it('stacks UNDERNEATH when the drop lands in the lower half, away from the edges', () => {
     const { container } = renderBoard();
     dragOnto(container, 25, 8, 'bottom');
     expect(columns(container), '25 is under 8').toEqual([[25, 8], [24], [6]]);
   });
 
-  it('still reorders when the drop lands in the middle third', () => {
+  it('still reorders when the drop lands in the thin edge strip (W7)', () => {
     const { container } = renderBoard();
-    dragOnto(container, 25, 24, 'middle');
+    dragOnto(container, 25, 24, 'edge');
     expect(columns(container), 'four columns, nothing stacked').toEqual([[8], [25], [24], [6]]);
+  });
+
+  it('W7: stacks even dead centre, at the card’s vertical middle — the old middle-third reorder band is gone', () => {
+    const { container } = renderBoard();
+    layOut(container);
+    const box = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"]')!.getBoundingClientRect();
+    // Dead centre horizontally, and at the card's own vertical middle — under
+    // the old thirds rule this fell in the reorder band and did not stack at all.
+    dragCard(container, 25, { point: { x: (box.left + box.right) / 2, y: box.top + box.height * 0.4 } });
+    expect(columns(container), '25 stacks on 8 from a drop at its dead centre').toEqual([[8, 25], [24], [6]]);
   });
 
   it('builds a pile of three and lets the player choose the order inside it', () => {
@@ -1937,6 +1949,62 @@ describe('drag to stack (#1, #19)', () => {
     // The lane's own label still counts CARDS, which is what is on the board.
     expect(lane.querySelector('.zone__row-head')!.textContent).toBe('Lands 4');
     expect(container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="battlefield"]')!.dataset.count).toBe('5');
+  });
+
+  /**
+   * `card.css`'s own `--pile-fan` cascade only ever reached the BASE card —
+   * the default rule `.board-card { --pile-fan: 0px }` matches every nested
+   * pile member too and wins there, so a fanned member drew at its full,
+   * un-narrowed width while the base (the one actually visible) drew
+   * narrowed by the whole fan: one card in the pile really was smaller than
+   * the rest. Fixed by setting `--pile-fan` inline, from the pile's own
+   * size, on every card of it — this is the proof, at the DOM level: base
+   * and every member carry the identical value, growing with depth and
+   * capping at Forge's own `UI_MAX_STACK_DEPTH` (a pile of 8 fans no further
+   * than a pile of 4) — `stacking.spec.ts` proves the on-screen pixels
+   * agree, in a real browser.
+   */
+  it('every card in a pile shares the same --pile-fan, from 2 cards to 8, base and members alike (W12)', () => {
+    const base = boardFromFixture(fixture);
+    const me = base.players.find((p) => p.isViewer)!;
+    const seed = me.battlefield.find((c) => c.id === 8)!;
+    // Four more lands beyond the fixture's own 25/24/6, so the pile can reach 8.
+    const extra = [701, 702, 703, 704].map((id) => ({ ...seed, id, card: { ...seed.card, cardId: `w${id}` } }));
+    const view: BoardView = {
+      ...base,
+      players: base.players.map((p) => (p.isViewer ? { ...p, battlefield: [...p.battlefield, ...extra] } : p)),
+    };
+    const { container } = renderBoard(view);
+    const fanOf = (id: number) => container.querySelector<HTMLElement>(`[data-card-id="${id}"]`)!.style.getPropertyValue('--pile-fan');
+    // A lone card sets no inline fan at all — the lone-card markup is unchanged.
+    expect(fanOf(8)).toBe('');
+    // Pile sizes 2, 3, 4: the fan grows by one `--stack-step` (8px) each time.
+    const growth = [
+      [25, '8px'],
+      [24, '16px'],
+      [6, '24px'],
+    ] as const;
+    for (const [id, expected] of growth) {
+      dragOnto(container, id, 8, 'top');
+      expect(fanOf(8), `pile of this size`).toBe(expected);
+    }
+    // Pile sizes 5 through 8: capped at 24px — Forge's own `UI_MAX_STACK_DEPTH`
+    // (4 cards: the base plus 3 fanned), so a pile of nine fans no further
+    // than a pile of four and stays legible.
+    for (const id of [701, 702, 703, 704]) {
+      dragOnto(container, id, 8, 'top');
+      expect(fanOf(8), 'capped past Forge’s own stack-depth limit').toBe('24px');
+    }
+    const base8 = container.querySelector<HTMLElement>('[data-card-id="8"]')!;
+    expect(base8.dataset.pileSize).toBe('8');
+    const fan = fanOf(8);
+    const members = [...base8.querySelectorAll<HTMLElement>(':scope > ul.board-card__pile > li.board-card')];
+    expect(members, 'seven cards fanned on the base, eight total').toHaveLength(7);
+    for (const m of members) {
+      expect(fanOf(Number(m.dataset.cardId)), `member ${m.dataset.cardId} gets the pile’s own fan, not card.css’s un-narrowed default`).toBe(
+        fan,
+      );
+    }
   });
 
   it('keeps every card’s own data-card-id, unique across the board, at every depth', () => {
@@ -2013,7 +2081,7 @@ describe('drag to stack (#1, #19)', () => {
     ).toHaveLength(5);
     dragOnto(container, 24, 8, 'top');
     dragOnto(container, 6, 8, 'bottom');
-    dragOnto(container, 25, 24, 'middle');
+    dragOnto(container, 25, 24, 'edge');
     dragCard(container, 24, { slot: 'other' });
 
     // The board really did move — so the zero below is not "nothing happened".
@@ -2703,6 +2771,70 @@ describe('power and toughness on the board (#12, #18)', () => {
   it('is out of flow and takes no click: it may not move a card or eat a selection', () => {
     expect(declarationInCss(CARD_CSS, '.board-card__pt', 'position')).toBe('absolute');
     expect(declarationInCss(CARD_CSS, '.board-card__pt', 'pointer-events')).toBe('none');
+  });
+});
+
+/*
+ * A planeswalker's loyalty reuses `PowerToughness`'s own badge wholesale
+ * (`.board-card__pt`/`.board-card__pt-n`, no new class). `adapter.ts` already
+ * keeps `card.loyalty` CURRENT (a loyalty counter once the battlefield has
+ * one); this is the draw, not the computation.
+ */
+describe('a planeswalker’s loyalty on the board (W15)', () => {
+  /** The fixture's Fire Urchin (21), reshaped into a planeswalker at the given loyalty. */
+  function planeswalker(loyalty: number): BoardView {
+    const base = boardFromFixture(fixture);
+    return {
+      ...base,
+      players: base.players.map((p) =>
+        !p.isViewer
+          ? p
+          : {
+              ...p,
+              battlefield: p.battlefield.map((c) =>
+                c.id !== 21
+                  ? c
+                  : {
+                      ...c,
+                      card: {
+                        ...c.card,
+                        power: undefined,
+                        toughness: undefined,
+                        loyalty: String(loyalty),
+                        typeLine: 'Legendary Planeswalker — Gideon',
+                      },
+                    },
+              ),
+            },
+      ),
+    } as BoardView;
+  }
+
+  it('shows the current loyalty in the SAME badge a creature’s P/T draws in', () => {
+    const { container } = renderBoard(planeswalker(5));
+    const badges = container.querySelectorAll('[data-card-id="21"] > .board-card__pt');
+    expect(badges, 'one badge, not a P/T badge AND a loyalty one').toHaveLength(1);
+    const el = badges[0]!;
+    expect(el.textContent).toBe('5');
+    expect(el.getAttribute('aria-label')).toBe('loyalty 5');
+    expect(el.querySelector<HTMLElement>('.board-card__pt-n')!.dataset.ptOf).toBe('loyalty');
+  });
+
+  it('updates on the board when the loyalty does — activating an ability, in the fixture’s own scenario proof, moves this number', () => {
+    const five = renderBoard(planeswalker(5));
+    expect(five.container.querySelector('[data-card-id="21"] > .board-card__pt')!.textContent).toBe('5');
+    cleanup();
+    const seven = renderBoard(planeswalker(7));
+    expect(seven.container.querySelector('[data-card-id="21"] > .board-card__pt')!.textContent, 'the number on the board changed with it').toBe('7');
+  });
+
+  it('draws an ordinary P/T badge, not a loyalty one, for a creature whose card carries no loyalty at all', () => {
+    // The fixture's other creatures are untouched: card 99's own badge is still power/toughness.
+    const { container } = renderBoard(planeswalker(5));
+    const of = [...container.querySelectorAll<HTMLElement>('[data-card-id="99"] > .board-card__pt .board-card__pt-n')].map(
+      (n) => n.dataset.ptOf,
+    );
+    expect(of).toEqual(['power', 'toughness']);
   });
 });
 
@@ -3835,13 +3967,45 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     { slot: 'back' as const, box: box(0, 200, 400, 100), piles: [] },
   ];
 
-  it('snapTo: the nearest place in a row — before, after, the end, and the thirds of a card', () => {
-    expect(snapTo(slots, 15, 50)?.target, 'left half of a card: before it').toEqual({ kind: 'before', id: 1 });
-    expect(snapTo(slots, 65, 50)?.target, 'right half of the first: in front of the second').toEqual({ kind: 'before', id: 2 });
-    expect(snapTo(slots, 135, 50)?.target, 'right half of the last: the end').toEqual({ kind: 'end' });
+  it('snapTo: the nearest place in a row — a thin edge strip reorders, the rest stacks (W7)', () => {
+    // Pile 1's box is (10, 8)-(70, 92): 60 wide, 84 tall.
+    expect(snapTo(slots, 15, 50)?.target, 'the left edge strip: before it').toEqual({ kind: 'before', id: 1 });
+    expect(snapTo(slots, 65, 50)?.target, 'the right edge strip of the first: in front of the second').toEqual({
+      kind: 'before',
+      id: 2,
+    });
+    expect(snapTo(slots, 135, 50)?.target, 'the right edge strip of the last: the end').toEqual({ kind: 'end' });
     expect(snapTo(slots, 300, 50)?.target, 'past the last card: the end').toEqual({ kind: 'end' });
-    expect(snapTo(slots, 40, 14)?.target, 'top third: on top of it').toEqual({ kind: 'stack', id: 1, onTop: true });
-    expect(snapTo(slots, 40, 86)?.target, 'bottom third: under it').toEqual({ kind: 'stack', id: 1, onTop: false });
+    expect(snapTo(slots, 40, 14)?.target, 'dead centre, near the top: on top of it').toEqual({
+      kind: 'stack',
+      id: 1,
+      onTop: true,
+    });
+    expect(snapTo(slots, 40, 86)?.target, 'dead centre, near the bottom: under it').toEqual({
+      kind: 'stack',
+      id: 1,
+      onTop: false,
+    });
+    /*
+     * The OLD rule read height thirds, so a drop at (40, 45) — dead centre
+     * horizontally, and in the card's vertical MIDDLE third — fell through to
+     * the reorder rule and read as "after" (x not < the midpoint). That
+     * middle band, reachable from anywhere across the card's width, is what
+     * made a drop near a card's vertical centre miss the stack. Now width
+     * decides first: dead centre is nowhere near either edge strip, so it
+     * stacks regardless of how close to the vertical middle the drop is.
+     */
+    expect(snapTo(slots, 40, 45)?.target, "W7: dead centre at the card's vertical middle still stacks, not reorders").toEqual({
+      kind: 'stack',
+      id: 1,
+      onTop: true,
+    });
+    // And the strip really is thin: just inside it (not within it) still stacks.
+    expect(snapTo(slots, 18, 50)?.target, 'just inside the left edge strip: stacks, not before').toEqual({
+      kind: 'stack',
+      id: 1,
+      onTop: false,
+    });
   });
 
   it('snapTo: an EMPTY slot snaps, the nearest slot wins, and far from every slot is nowhere', () => {

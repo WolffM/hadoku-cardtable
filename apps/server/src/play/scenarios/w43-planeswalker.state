@@ -1,0 +1,24 @@
+# Wave 43 §A — W15: a planeswalker's loyalty should show the way a creature's
+# P/T does, and update when it changes. Seat 0 (human) controls Elspeth, Sun's
+# Champion at loyalty 2 (`|Counters:LOYALTY=2` — explicit, not left to
+# whatever ETB setup the engine does on its own; `GameState.
+# applyCountersToGameEntity` sets this exactly, which is the deterministic
+# number the spec asserts against), an uncontested turn-1 Main Phase 1. At
+# loyalty 2 her OTHER two abilities (-3, -7 — `elspeth_suns_champion.txt`)
+# cost more than she has, so +1 ("Create three 1/1 white Soldier creature
+# tokens", no target) is the only one Forge offers: one click, no ability
+# picker to navigate, and loyalty rises from 2 to 3 — the smallest real
+# activation that proves the number on the board changes with it.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Elspeth, Sun's Champion|Counters:LOYALTY=2
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

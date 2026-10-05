@@ -60,6 +60,19 @@ export async function boxOf(l: Locator): Promise<Box> {
 export const centre = (b: Box): { x: number; y: number } => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
 
 /**
+ * A point inside `b`'s big "stack ON TOP" zone: dead centre horizontally —
+ * comfortably inside `Board.tsx`'s thin edge-reorder strip's margin either
+ * way the box turns out to be sized — and in the upper part of the box
+ * vertically. Deliberately NOT {@link centre}: `Board.tsx`'s own
+ * `onTop = y - top < height / 2` ties exactly AT the geometric centre
+ * (floating-point equal, not less-than), which resolves to "stack
+ * UNDERNEATH" — the dragged card becomes the new base and the card dropped
+ * onto becomes the fanned member, the opposite of what a caller aiming at
+ * one specific base usually wants. 35% down is unambiguously the upper half.
+ */
+export const onTopPoint = (b: Box): { x: number; y: number } => ({ x: b.x + b.width / 2, y: b.y + b.height * 0.35 });
+
+/**
  * The board's observable drag surface (`docs/planning/wave32-evidence/q4-drag-interaction.md`).
  * `data-arrange-slot` is on every slot box permanently; the rest exist only mid-drag.
  *

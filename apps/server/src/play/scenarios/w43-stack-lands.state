@@ -1,0 +1,19 @@
+# Wave 43 §A — W6/W7/W12: stacking cards into one pile must never scroll the
+# board (W6), dropping onto a card must be the easy case (W7), and every card
+# in a pile must stay the same size, 2 to 8 cards (W12). Seat 0 (human) has
+# EIGHT separate Plains on the battlefield, nothing in hand — nothing to cast,
+# an uncontested turn-1 Main Phase 1 whose only job is to sit still while
+# `stacking.spec.ts` drags real pointers to pile them up.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

@@ -126,14 +126,15 @@ import { resolve } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { twoLegalDecks } from './play/board.ts';
+import { offered, twoLegalDecks } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { confirmYes } from './play/confirm.ts';
 import { connectHands, type Hands } from './play/hands.ts';
 import { forgeAvailability, RUN_DIR, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
+import { startScenarioMatch } from './play/scenario.ts';
 import { turnNumber } from './play/turn.ts';
-import { chooseLanes, DRAG_HOOKS, endOfSlot, pointerDrag, touchDrag, viewerSlot } from './play/w32.ts';
+import { boxOf, chooseLanes, DRAG_HOOKS, endOfSlot, onTopPoint, pointerDrag, touchDrag, viewerSlot } from './play/w32.ts';
 
 const PREFIX = '/cardtable';
 /** Play at least this far, so the check has seen many turn transitions. */
@@ -2346,5 +2347,203 @@ test(CROWD_TITLE, async ({ browser }) => {
       resolve(RUN_DIR, 'table-fit-crowd-summary.json'),
       JSON.stringify({ ...summary, crowd: steps, staticCanvas: staticShots, questions }, null, 2),
     );
+  }
+});
+
+/*
+ * ── Three more live-board fit claims ─────────────────────────────────────
+ *
+ * Each its own small scenario match rather than folded into the crowd test
+ * above: none of the three needs real play (turns, a crowd, a question), so
+ * none should pay that test's ~6-minute budget. `w43-stack-lands`/
+ * `w43-planeswalker` are lane A's own scenarios
+ * (`apps/server/src/play/scenarios/`).
+ */
+
+const W6_TITLE = forge.ok
+  ? 'W6 — stacking a pile to 2, 3, 4 and 8 cards never puts a scroll bar on the board'
+  : `W6 — stacking never scrolls the board — SKIPPED: ${forge.reason}`;
+const W15_TITLE = forge.ok
+  ? 'W15 — a planeswalker’s loyalty updates on the board, the way a creature’s P/T does'
+  : `W15 — a planeswalker’s loyalty updates on the board — SKIPPED: ${forge.reason}`;
+const W19_TITLE = forge.ok
+  ? 'W19 — the active ring has its full 6px of room inside the seat bar’s clip, both seats, 1280×800'
+  : `W19 — the active ring has its full room inside the clip — SKIPPED: ${forge.reason}`;
+
+/**
+ * Every element under `.board` that actually SHOWS a scroll bar — content
+ * overflowing its own box AND its computed `overflow-x`/`overflow-y` set to
+ * `auto`/`scroll` on that axis. `overflow: hidden` (a card tile's own rules
+ * text, say — `card.css`'s text fallback is routinely taller than the tiny
+ * board tile it is drawn in) clips the same way and shows no scroll bar at
+ * all; counting it as a breach is exactly the false positive the file's own
+ * `clipped()` walk (above) exists to rule out for the crowd test's — simpler
+ * here because this only asks "does anything scroll", not "what grew whom".
+ *
+ * And a box has to have a nonzero size on that axis to show a scroll bar at
+ * all: `.card__rules` (`styles.css`) is a deliberate, pre-existing scroller
+ * ("long planeswalkers scroll rather than push the stat line off the
+ * panel") that a tiny board tile's `flex: 1 1 auto` routinely squeezes to
+ * 0px tall — `overflow-y: auto` and real overflow both, by design, on a box
+ * nobody can ever see a scroll bar on because there is no box.
+ */
+async function scrollingElements(page: import('@playwright/test').Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const board = document.querySelector('.board');
+    if (board === null) return ['no .board element'];
+    const SCROLLS = new Set(['auto', 'scroll']);
+    const out: string[] = [];
+    for (const el of [board, ...Array.from(board.querySelectorAll('*'))]) {
+      const e = el as HTMLElement;
+      const cs = getComputedStyle(e);
+      const wide = e.clientWidth > 0 && e.scrollWidth > e.clientWidth + 1 && SCROLLS.has(cs.overflowX);
+      const tall = e.clientHeight > 0 && e.scrollHeight > e.clientHeight + 1 && SCROLLS.has(cs.overflowY);
+      if (wide || tall) {
+        out.push(`${e.tagName.toLowerCase()}.${e.className}: ${e.scrollWidth}x${e.scrollHeight} > ${e.clientWidth}x${e.clientHeight}`);
+      }
+    }
+    return out;
+  });
+}
+
+test(W6_TITLE, async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
+    const page = alice.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    const piles = page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-tier="back"] > li.board-card');
+    await expect(piles, 'the scenario’s eight Plains, each its own pile').toHaveCount(8);
+    const ids = (await piles.evaluateAll((els) => els.map((e) => e.getAttribute('data-card-id')))).filter(
+      (id): id is string => id !== null,
+    );
+    const base = ids[0]!;
+    const baseEl = () => page.locator(`[data-card-id="${base}"]`);
+
+    expect(await scrollingElements(page), 'baseline, before any stacking').toEqual([]);
+    for (let n = 2; n <= 8; n++) {
+      const box = await boxOf(baseEl());
+      await pointerDrag(page, page.locator(`[data-card-id="${ids[n - 1]}"]`), onTopPoint(box));
+      await expect(baseEl(), `pile of ${n}`).toHaveAttribute('data-pile-size', String(n));
+      if (n === 2 || n === 3 || n === 4 || n === 8) {
+        expect(await scrollingElements(page), `a pile of ${n}: no element under .board scrolls`).toEqual([]);
+      }
+    }
+    // The page itself, too — the operator's original claim.
+    const pageScroll = await page.evaluate(() => ({
+      w: document.scrollingElement!.scrollWidth,
+      h: document.scrollingElement!.scrollHeight,
+      iw: window.innerWidth,
+      ih: window.innerHeight,
+    }));
+    expect(pageScroll.w, 'the page itself does not scroll sideways').toBeLessThanOrEqual(pageScroll.iw + 1);
+    expect(pageScroll.h, 'the page itself does not scroll vertically').toBeLessThanOrEqual(pageScroll.ih + 1);
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(W15_TITLE, async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioMatch(browser, stack, 'w43-planeswalker');
+    const page = alice.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    // The scenario's own precondition: Elspeth is on the board at loyalty 2,
+    // read off the SAME badge a creature's P/T draws in — there is no
+    // separate "loyalty" markup to check instead. Scoped to HER
+    // card specifically, by id — not just ".board-card__pt" on the
+    // battlefield: her +1 creates three 1/1 Soldier tokens, each with its own
+    // P/T badge, so an unscoped locator is a strict-mode violation (several
+    // elements) the moment her ability resolves.
+    const elspeth = await page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-card-id]').first().getAttribute('data-card-id');
+    const badge = page.locator(`[data-card-id="${elspeth}"] > .board-card__pt`);
+    await expect(badge, 'Elspeth’s loyalty badge is on the board before anything is activated').toHaveText('2');
+
+    // At loyalty 2 her other two abilities (costing 3 and 7) are unaffordable,
+    // so Forge offers exactly one: +1 ("Create three 1/1 white Soldier
+    // creature tokens") — one legal choice, which the server's own
+    // "getAbilityToPlay" single-option shortcut answers itself the instant
+    // the card is clicked (confirmed from the server log: `ask-answered
+    // getAbilityToPlay` then `auto-passed` then back to `stackEmpty` inside
+    // one tick) — no picker ever reaches the browser, and the activate,
+    // resolve and auto-pass are too fast for a `stackCount` poll to ever
+    // reliably catch the stack non-empty (the same transient-stack race
+    // `wave33-evidence`'s Full Control note describes for Mana Leak). The
+    // one thing that is NOT transient is the number this item is actually
+    // about, so that is what is polled.
+    await expect.poll(() => offered(page), { timeout: 15_000, message: 'Elspeth is offered — the only legal ability' }).not.toEqual([]);
+    await page.locator(`[data-board-card="${elspeth}"] button`).first().click();
+
+    // The cost of a loyalty ability is paid on activation, not on resolution
+    // (`AddCounter<1/LOYALTY>` is Elspeth's own `Cost$`), so the number on the
+    // board moves whether or not her token-creating EFFECT has resolved yet —
+    // the SAME badge a creature's P/T uses, a changed number.
+    await expect(badge, 'W15: the loyalty on the board moved from 2 to 3 when the ability activated').toHaveText('3', {
+      timeout: 10_000,
+    });
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(W19_TITLE, async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
+    const page = alice.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    // The active seat's ring is in the markup for both seats at all times
+    // (`.seat[data-active] .seat__ring` is what `card.css` lights); whichever
+    // one is active this scenario (seat 0, per `activeplayer=human`), both
+    // rings exist in the DOM and both are measured — a clip is a property of
+    // the MARKUP and the bar's clip box, not of which one happens to glow.
+    const measurements = await page.evaluate(() => {
+      const out: { viewer: string | null; clippedTop: number; clippedBottom: number; clippedLeft: number; clippedRight: number }[] = [];
+      for (const ring of Array.from(document.querySelectorAll<HTMLElement>('.seat__ring'))) {
+        const seat = ring.closest('[data-testid="player"]');
+        const markBox = ring.getBoundingClientRect();
+        // The painted extent: the mark's own box, plus the ring's 6px (`card.css`: a 2px gap plus a 4px accent, both outset).
+        const painted = { left: markBox.left - 6, top: markBox.top - 6, right: markBox.right + 6, bottom: markBox.bottom + 6 };
+        // The nearest ancestor that actually clips (`overflow` not `visible` on either axis) — `.seat__who`, today.
+        let clipEl: Element | null = ring.parentElement;
+        while (clipEl !== null) {
+          const cs = getComputedStyle(clipEl);
+          if (cs.overflow !== 'visible' || cs.overflowX !== 'visible' || cs.overflowY !== 'visible') break;
+          clipEl = clipEl.parentElement;
+        }
+        const clipBox = clipEl === null ? null : clipEl.getBoundingClientRect();
+        out.push({
+          viewer: seat === null ? null : seat.getAttribute('data-viewer'),
+          clippedTop: clipBox === null ? 0 : Math.max(0, clipBox.top - painted.top),
+          clippedBottom: clipBox === null ? 0 : Math.max(0, painted.bottom - clipBox.bottom),
+          clippedLeft: clipBox === null ? 0 : Math.max(0, clipBox.left - painted.left),
+          clippedRight: clipBox === null ? 0 : Math.max(0, painted.right - clipBox.right),
+        });
+      }
+      return out;
+    });
+    expect(measurements, 'both seats have a ring in the markup').toHaveLength(2);
+    for (const m of measurements) {
+      const who = m.viewer === 'true' ? 'the viewer’s own (bottom) bar' : 'the opponent’s (top) bar';
+      expect(m.clippedTop, `${who}: the ring’s top is not clipped`).toBe(0);
+      expect(m.clippedBottom, `${who}: the ring’s bottom is not clipped`).toBe(0);
+      expect(m.clippedLeft, `${who}: the ring’s left side is not clipped`).toBe(0);
+      expect(m.clippedRight, `${who}: the ring’s right side is not clipped`).toBe(0);
+    }
+  } finally {
+    await stack.stop();
   }
 });

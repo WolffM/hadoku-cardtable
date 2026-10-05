@@ -535,8 +535,20 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Room for the turn ring (`card.css`, `.face[data-active]`) inside the bar's clip. */
-  padding-block: 4px;
+  /*
+   * Room for the turn ring (`card.css`'s `.seat[data-active] .seat__ring`,
+   * a box-shadow extending 6px past the mark) inside the bar's clip
+   * (`.seat__who`, `overflow: hidden`): 6px matches the ring's own extent
+   * exactly. Only the VIEWER's own ring actually needs it — their
+   * `.seat__ident` is `.seat__who`'s FIRST row (`grid-row: 1`), flush
+   * against the clip box's own top edge, so this padding is the only room
+   * between the ring's painted edge and the clip. The opponent's `.seat__ident`
+   * is the LAST row, with the counts and mana tracks already ahead of it, so
+   * their ring sits nowhere near `.seat__who`'s edge regardless of this
+   * value — but the same padding is harmless there too, so one value serves
+   * both.
+   */
+  padding-block: 6px;
   /* The life total is in the face's own flow now, under the mark (wave 31 §A.1). */
   gap: 2px;
   min-width: 0;
@@ -1013,6 +1025,32 @@
   align-content: start;
   justify-content: start;
   padding: var(--card-pad);
+}
+
+/*
+ * A pile's own `<li>` must claim the FULL height a fanned pile paints, not
+ * just its (narrowed) face's — `card.css`'s own comment on
+ * `.board-card[data-pile-size]` says "the pile's height is `fan + (w − fan) ·
+ * 1.3934`, SHORTER than one card's `w · 1.3934` for any fan", but that is a
+ * claim about the PAINTED box, and nothing makes the GRID believe it:
+ * `.board-card__pile` is `position: absolute` (card.css), so the fanned
+ * members contribute NOTHING to the `<li>`'s own intrinsic size, which is
+ * then just its face's — height alone. A grid row sized to that (and, on the
+ * single layout's own tier, `align-content: center`ing the shorter row)
+ * leaves less room below the row's top than the fan needs to extend into, so
+ * the deepest member's painted bottom can run past the tier — onto the
+ * battlefield's own `overflow: auto` (the "last resort", above).
+ *
+ * This is the zone's SIZING, this file's job even where the box belongs to
+ * one card (`card.css`'s own header: "how ONE card looks... is `card.css`;
+ * this file decides where zones go and how big a card is in each"), so the
+ * reservation lives here: the SAME formula, read off `--pile-fan` (set inline
+ * per card by `Board.tsx`, so it is correct on the member cards too — see its
+ * own comment), as a floor under the pile's `<li>` so the grid row — and the
+ * centred tier around it — gives the fan the room it is owed.
+ */
+.board-card[data-pile-size] {
+  min-height: calc(var(--pile-fan) + (var(--card-w) - var(--pile-fan)) * var(--card-tall));
 }
 
 /*

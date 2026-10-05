@@ -134,19 +134,26 @@
  *
  * The operator, 2026-09-27: *"i dont want these snapping zones… put cards
  * wherever they want… snap above/below each other in any order"*. So a row is a
- * list of PILES rather than a list of cards, and which third of a card's box a
- * drop lands in says which of three things the player meant — stack on top of
- * it, stack under it, or reorder in front of it (`dropOnCard`). A drop on the
- * row's own box is still "at the end of this row, on its own", which is the
- * gesture `e2e/table-fit.spec.ts` drives.
+ * list of PILES rather than a list of cards, and where in a card's box a drop
+ * lands says which of three things the player meant — stack on top of it,
+ * stack under it, or reorder in front of it (`snapTo`): stacking is the easy
+ * case, most of the card's box by WIDTH; reordering is a thin strip at each
+ * edge. A drop on the row's own box is still "at the end of this row, on its
+ * own", which is the gesture `e2e/table-fit.spec.ts` drives.
  *
  * Forge's own client has this as two preferences — `UI_STACK_CREATURES` and
  * `UI_MAX_STACK_DEPTH` (default `4`, `ForgePreferences.java:93,96`, consumed by
  * `VField.java:33` and `VCardDisplayArea.java:380`). We took the idea and not
  * the implementation: stacking here is per pile rather than per player, it is
  * never automatic, and the depth is not refused — a pile of nine is drawn, with
- * the FAN capped at Forge's four so the offsets stay legible (`card.css`).
- * Refusing a drop the player made is worse than a tight fan.
+ * the FAN capped at Forge's four so the offsets stay legible (`card.css`), and
+ * EVERY card in the pile — base and fanned alike — is narrowed by that same
+ * capped fan: an inline `--pile-fan` set by `CardOnBoard`, not left to
+ * `card.css`'s own `:has()` cascade, which only ever reaches the base card —
+ * a fanned member left to that cascade draws un-narrowed, its right edge
+ * running past the pile's own box and into whatever ancestor's `overflow:
+ * auto` (the last resort, `board.css`) is there to catch it. Refusing a drop
+ * the player made is worse than a tight fan.
  *
  * ## Forge's attachments are not the player's arrangement (#11)
  *
@@ -873,12 +880,14 @@ function withAttachments(
  * because the operator asked for two different things at once — *"put cards
  * wherever they want"* and *"snap above/below each other in any order"*:
  *
- *   - its top third: stack ON TOP of that card;
- *   - its bottom third: stack UNDERNEATH it;
- *   - its middle: the old behaviour, in front of that card's pile.
+ *   - most of its box (everything but a thin strip at each edge): stack
+ *     ON TOP of that card if the drop is in the upper half, UNDERNEATH it if
+ *     in the lower half;
+ *   - a thin strip at its left or right edge: the old behaviour, in front of
+ *     that card's pile.
  *
  * In a HAND a card is one target, `before` — nothing stacks in a hand, so the
- * thirds are not read there at all.
+ * edge strips are not read there at all.
  */
 type DropTarget = { kind: 'end' } | { kind: 'before'; id: number } | { kind: 'stack'; id: number; onTop: boolean };
 
@@ -943,9 +952,9 @@ const SNAP_RADIUS = 80;
  * an empty row.
  *
  * Within the slot it is the nearest pile. Over a pile's own box a battlefield card
- * reads the thirds it always did — the top third stacks on it, the bottom third
- * stacks under it — and the middle band splits at the centre into "in front of
- * this pile" and "after it". A hand does not stack (its slot is `hand`): it is only
+ * reads WIDTH first: a thin strip at the left or right edge is "in front of
+ * this pile" / "after it"; the rest — most of the card — stacks on it (upper half)
+ * or under it (lower half). A hand does not stack (its slot is `hand`): it is only
  * ever before or after. "After" the last pile is the slot's `end`; after any other
  * it is in front of the next one.
  *
@@ -992,31 +1001,37 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
   const pile = piles[at]!;
   const { left, top, right, bottom } = pile.box;
   const height = bottom - top;
+  const width = right - left;
   const inside = nearest === 0;
-  if (stacking && inside && height > 0) {
-    const third = (y - top) / height;
-    if (third < 1 / 3) {
-      return {
-        slot,
-        target: { kind: 'stack', id: pile.id, onTop: true },
-        kind: 'stack-top',
-        card: pile.id,
-        bar: { left, top: top - BAR / 2, width: right - left, height: BAR + 1 },
-      };
-    }
-    if (third > 2 / 3) {
-      return {
-        slot,
-        target: { kind: 'stack', id: pile.id, onTop: false },
-        kind: 'stack-bottom',
-        card: pile.id,
-        bar: {
-          left,
-          top: bottom - BAR / 2 - 1,
-          width: right - left,
-          height: BAR + 1,
-        },
-      };
+  /*
+   * Width is read first, not height: a thin strip at each edge (`EDGE`, a
+   * fraction of the card's width) is before/after, and the whole rest of the
+   * card — most of it — stacks, on top or underneath by which half of the
+   * height the pointer is in. The previous rule read HEIGHT thirds instead —
+   * top stacks on, bottom stacks under, and the whole MIDDLE third (any x)
+   * reordered — so a drop anywhere near a card's vertical centre missed the
+   * stack and reordered instead, which is most drops aimed at a card.
+   */
+  const EDGE = 0.12;
+  if (stacking && inside && height > 0 && width > 0) {
+    const fx = (x - left) / width;
+    if (fx > EDGE && fx < 1 - EDGE) {
+      const onTop = y - top < height / 2;
+      return onTop
+        ? {
+            slot,
+            target: { kind: 'stack', id: pile.id, onTop: true },
+            kind: 'stack-top',
+            card: pile.id,
+            bar: { left, top: top - BAR / 2, width, height: BAR + 1 },
+          }
+        : {
+            slot,
+            target: { kind: 'stack', id: pile.id, onTop: false },
+            kind: 'stack-bottom',
+            card: pile.id,
+            bar: { left, top: bottom - BAR / 2 - 1, width, height: BAR + 1 },
+          };
     }
   }
   if (x < (left + right) / 2) {
@@ -1305,6 +1320,33 @@ const PT_MARK: Readonly<Record<'buffed' | 'hurt', string>> = {
 };
 
 /**
+ * A planeswalker's loyalty, drawn the way a creature's power and toughness
+ * are: the same badge `PowerToughness` draws below, reusing its classes
+ * wholesale (`.board-card__pt`, `.board-card__pt-n`) rather than a new one.
+ *
+ * `adapter.ts`'s `toBoardCard` already keeps `card.loyalty` CURRENT — a
+ * loyalty counter when the battlefield has one, the printed value before it
+ * ever does — so there is nothing to compute here. One number, not two, and
+ * no `data-pt-state` (plain): our own data never carries a planeswalker's
+ * PRINTED loyalty through to here (only `card.power`/`toughness` get a
+ * `printed` baseline, `adapter.ts`'s `POOL_PRINTED_PT`), so there is nothing
+ * to compare the current number against — unlike a creature's buffed/hurt
+ * ink, "changing" here means only that the number on the board updates when
+ * Forge's own counter does, not that it is coloured by how.
+ */
+function Loyalty({ entry }: { entry: BoardCard }) {
+  const loyalty = Number(entry.card.loyalty);
+  if (!Number.isFinite(loyalty)) return null;
+  return (
+    <span className="board-card__pt" data-pt="" aria-label={`loyalty ${loyalty}`}>
+      <span className="board-card__pt-n" data-pt-of="loyalty">
+        {loyalty}
+      </span>
+    </span>
+  );
+}
+
+/**
  * A creature's power and toughness, as the operator asked for them (#12, #18):
  * *"3 (blue) / 1 (red)"* — the current power, and what is LEFT of the toughness.
  *
@@ -1315,8 +1357,13 @@ const PT_MARK: Readonly<Record<'buffed' | 'hurt', string>> = {
  *
  * A card whose printed base our data does not know draws PLAIN — no ink, no
  * marker — and never claims a buff it cannot know about.
+ *
+ * A planeswalker has no power/toughness at all (`adapter.ts` only ever sets
+ * `card.loyalty`, never `card.power`, for one) — see {@link Loyalty} instead,
+ * dispatched to first.
  */
 function PowerToughness({ entry }: { entry: BoardCard }) {
+  if (entry.card.loyalty !== undefined) return <Loyalty entry={entry} />;
   const pt = boardPT(entry);
   /*
    * No P/T and damage marked anyway — a planeswalker, a damaged non-creature,
@@ -1564,15 +1611,35 @@ function ChosenTypeLabel({ entry }: { entry: BoardCard }) {
  *
  * A lone card renders exactly the markup it rendered before piles existed: no
  * wrapper, no nested list, no extra attribute. Only a pile of two or more is
- * different, and only inside its own box (`card.css` fans it within one card's
- * width — nothing about a pile changes the slot it is in).
+ * different, and only inside its own box (`card.css` fans and offsets within
+ * one card's width — nothing about a pile changes the slot it is in).
+ *
+ * **Every card in the pile gets the SAME `--pile-fan`, set inline, from the
+ * pile's own size.** `card.css`'s own comment next to
+ * `.board-card[data-pile-size]` says every card in a pile is narrowed by the
+ * whole fan, but its `:has()` selectors only ever reach the BASE card: the
+ * default rule `.board-card { --pile-fan: 0px }` matches every nested pile
+ * member too and wins there — custom properties are per-element, and a
+ * selector matching the element itself always beats an ancestor's inherited
+ * value. Left to that cascade, a fanned member draws at its full,
+ * un-narrowed width and runs past the pile's own box. Computing the fan once
+ * here and setting it as an inline style on every `<li>` of the pile sidesteps
+ * the cascade entirely — inline always wins over a class rule for the same
+ * element — so `card.css` needs no change for this.
  */
+/** `card.css`'s `--stack-step` on `.board-card[data-pile-size]`. Keep the two in sync. */
+const STACK_STEP = 8;
+/** Forge's `UI_MAX_STACK_DEPTH` (4 cards total), less the base card itself. */
+const MAX_FAN_DEPTH = 3;
+
 function CardOnBoard({
   entry,
   interaction,
   arranging,
   slot,
   pile,
+  /** How many cards the WHOLE pile holds, base included. Absent for a lone card. */
+  pileSize,
   depth = 0,
 }: {
   entry: BoardCard;
@@ -1586,6 +1653,8 @@ function CardOnBoard({
   slot?: ArrangeSlot;
   /** The whole pile, on its bottom card. Absent for a lone card and for members. */
   pile?: Pile;
+  /** How many cards the whole pile holds, base included. Absent for a lone card. */
+  pileSize?: number;
   /** 0 for the bottom of a pile, 1 for the card on it, and so on. */
   depth?: number;
 }) {
@@ -1654,10 +1723,21 @@ function CardOnBoard({
   const draggable =
     arranging !== undefined && slot !== undefined && !inOpenSelection && !itsAttackToDeclare && !handStandsDown;
   const above = pile === undefined ? [] : pile.slice(1);
+  /*
+   * The fan every card in the pile is narrowed by, computed ONCE from the
+   * pile's own size and set inline on every card of it — base and fanned
+   * alike — so `card.css`'s `--pile-fan` cascade (which only ever reached the
+   * base card; see this function's own header) cannot leave a member at its
+   * full, un-narrowed width. `STACK_STEP`/`MAX_FAN_DEPTH` mirror `card.css`'s
+   * `--stack-step: 8px` and Forge's `UI_MAX_STACK_DEPTH` (4 cards: the base
+   * plus 3 fanned) exactly — if either changes there, it must change here too.
+   */
+  const pileFan = pileSize === undefined || pileSize <= 1 ? 0 : Math.min(pileSize - 1, MAX_FAN_DEPTH) * STACK_STEP;
 
   return (
     <li
       className="board-card"
+      style={pileFan > 0 ? ({ '--pile-fan': `${pileFan}px` } as CSSProperties) : undefined}
       /*
        * Forge's own `Tapped`, unchanged and still its alone. `data-attacking` is
        * beside it rather than folded into it (item 6: *"creatures should tap when
@@ -1745,6 +1825,7 @@ function CardOnBoard({
               interaction={interaction}
               arranging={arranging}
               slot={slot}
+              pileSize={pileSize}
               depth={i + 1}
             />
           ))}
@@ -1927,6 +2008,7 @@ function Battlefield({
                   arranging={arranging}
                   slot={tier}
                   pile={pile}
+                  pileSize={pile.length}
                 />
               ))}
             </ul>
@@ -1982,6 +2064,7 @@ function Battlefield({
                   arranging={arranging}
                   slot={row}
                   pile={pile}
+                  pileSize={pile.length}
                 />
               ))}
             </ul>
