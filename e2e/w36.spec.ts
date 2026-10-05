@@ -233,63 +233,6 @@ test(titled('T4 — a shockland\'s "pay 2 life?" is a yes/no pop-up, and the con
   }
 });
 
-/* ── T2 — a calm "Waiting for ___" exactly while the other seat decides ─── */
-
-test(titled('T2 — a calm "Waiting for ___" shows while the other seat decides, and is gone the instant it is your move'), async ({ browser }) => {
-  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
-  if (!forge.ok) return;
-  test.setTimeout(2 * 60_000);
-  const stack = await startPlayStack(forge);
-  try {
-    const alice = await openFriend(browser, 'alice');
-    const bob = await openFriend(browser, 'bob');
-    await enterMatch(alice, bob, stack.origin);
-
-    const playOrDraw = (f: Friend) => f.page.getByTestId('live-play-or-draw-play');
-    const waiting = (f: Friend) => f.page.getByTestId('live-waiting');
-
-    // Forge asks the coin toss to exactly one seat (its own flip, not this
-    // spec's choice) — the OTHER one has nothing to do yet, and sees so.
-    await expect
-      .poll(async () => (await playOrDraw(alice).count()) + (await playOrDraw(bob).count()), { timeout: 30_000, message: 'exactly one seat is asked the coin toss' })
-      .toBe(1);
-    const winner = (await playOrDraw(alice).count()) > 0 ? alice : bob;
-    const loser = winner === alice ? bob : alice;
-    await expect(waiting(loser), `${loser.name}: waiting for the coin-toss winner`).toBeVisible();
-    await expect(waiting(loser)).toContainText(/waiting for/i);
-    await expect(waiting(winner), `${winner.name}: it is their own move — no waiting indicator`).toHaveCount(0);
-
-    await playOrDraw(winner).click();
-
-    // Forge asks the two mulligans SEQUENTIALLY, not in parallel (measured:
-    // the loser's own `live-says` still read "Waiting for <winner>…" the
-    // instant the winner's own keep/mulligan question opened — an earlier
-    // draft of this test assumed both were asked at once and read that as a
-    // T2 failure; it was this test's own wrong assumption, not the product).
-    // The winner decides first, while the loser still waits ON THEM.
-    await expect(winner.page.getByTestId('live-says'), `${winner.name}: their own keep/mulligan question`).toContainText(/keep your hand/i, { timeout: 30_000 });
-    await expect(waiting(winner), `${winner.name}: deciding your own hand is not "waiting"`).toHaveCount(0);
-    await expect(waiting(loser), `${loser.name}: still waiting — now for the winner's mulligan decision`).toBeVisible();
-    await answerConfirm(winner.page, 'yes');
-
-    // Then the roles flip: the loser gets their OWN keep/mulligan, and now
-    // the winner (done with theirs, nothing left to do yet) waits on them.
-    await expect(loser.page.getByTestId('live-says'), `${loser.name}: their own keep/mulligan question`).toContainText(/keep your hand/i, { timeout: 30_000 });
-    await expect(waiting(loser), `${loser.name}: deciding your own hand is not "waiting"`).toHaveCount(0);
-    await expect(waiting(winner), `${winner.name}: now waiting on the other seat's own mulligan`).toBeVisible();
-    await answerConfirm(loser.page, 'yes');
-
-    // Both have kept. The winner chose Play, so they go first and hold
-    // priority at turn 1 — the loser's thread is parked elsewhere, which is
-    // exactly the negative-space signal `isWaitingForOpponent` reads.
-    await expect(winner.page.getByTestId('live-says'), `${winner.name}: holds priority at their own turn 1`).toContainText(/Priority:/, { timeout: 30_000 });
-    await expect(waiting(winner), `${winner.name}: holding priority is not "waiting"`).toHaveCount(0);
-    await expect(waiting(loser), `${loser.name}: waiting for the seat that holds priority`).toBeVisible();
-  } finally {
-    await stack.stop();
-  }
-});
-
 /* ── T7 — Cavern of Souls (and any ChosenType card) shows its chosen type ── */
 
 /**

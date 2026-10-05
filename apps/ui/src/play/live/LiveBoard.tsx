@@ -258,7 +258,7 @@ import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
 import { lookupFromState, plainRulesText, withAbilityLabels, type PromptLookup } from '../prompts/lookup.ts';
 import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, isConfirmPrompt, isPlayOrDrawPrompt } from '../prompts/ConfirmPrompt.tsx';
 import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';
-import { isPromptMethod, PromptFor, type AskOf, type PromptMethod } from '../prompts/index.ts';
+import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
 import {
   abortAsk,
@@ -389,6 +389,44 @@ export function isWaitingForOpponent(match: LiveMatch): boolean {
   const view = match.view;
   if (view === null || view.gameOver) return false;
   return !myMoveNow(match);
+}
+
+/*
+ * Wave 42 §L. Playtest 7, the operator: *"if opponent is choosing to
+ * play/draw something needs to be showing on the other persons screen as
+ * well. i think the coinflip prompt should be shown to both players at
+ * once. and for the one who lost they get the waiting prompt. same for
+ * mulligan, if opponent is chosing to mulligan we need some waiting
+ * prompt."* `isWaitingForOpponent`'s small line already fires for this —
+ * but it fires identically for EVERY "not my move" moment, mid-game
+ * priority included, and the operator is asking for the PREGAME half of
+ * that — the coin toss and the opening mulligan — to show in the decision
+ * area the way the winner's own Play/Draw and Keep/Mulligan pop-ups do, not
+ * as the small corner line.
+ *
+ * `view.turn` is Forge's own counter, and it is read here rather than any
+ * prompt text because Forge sends the LOSING seat no wire signal at all for
+ * this moment to read instead: `GameAction.determineFirstTurnPlayer`'s own
+ * comment — *"show 'Waiting for opponent...' while first player chooses
+ * whether to go first or keep their hand"* — calls `awaitNextInput()` on
+ * every OTHER seat's controller, but `AbstractGuiGame.awaitNextInput()` is
+ * `final` and purely a LOCAL desktop-client timer (it delays a PROMPT LABEL
+ * repaint so Swing buttons don't flicker); there is no `ProtocolMethod` for
+ * it, `RemoteClientGuiGame` cannot override a `final` method, and it never
+ * reaches our bridge's socket at all. So there is no "the opponent is
+ * choosing their opening hand" flag to read off the wire — `turn` is the
+ * only structural fact that is true for exactly this window: `PhaseHandler`
+ * only increments it inside `advanceToNextPhase`'s `turnEnded` branch, which
+ * cannot run until `PhaseHandler.startFirstTurn` — called ONLY after both
+ * seats' mulligans resolve (`GameAction.startGame`'s own ordering: the coin
+ * toss (`determineFirstTurnPlayer`), then `new MulliganService(first).perform()`,
+ * THEN `game.setAge(GameStage.Play)` and `startFirstTurn`). Turn is still its
+ * initial `0` throughout the coin toss and both mulligans — already the
+ * rail's own convention for "pregame" (`whoseTurnNow`'s `match.view.turn > 0
+ * ? … : 'Start'`), not a new one invented here.
+ */
+export function isWaitingForPregameDecision(match: LiveMatch): boolean {
+  return isWaitingForOpponent(match) && (match.view?.turn ?? 1) <= 0;
 }
 
 /** `forge:join was refused: unknown-match` → `unknown-match`. */
@@ -692,6 +730,21 @@ export function logKind(line: string): LogKind {
  */
 /** Reused so `interaction.actionable` allocates nothing when there is no glow to draw. */
 const EMPTY_CARD_IDS: ReadonlySet<number> = new Set();
+
+/**
+ * Every id on a battlefield, either seat. This is `classifySelection`'s
+ * (`../prompts/index.ts`, lane P's) own `boardCardIds` — "every id the board
+ * can draw a clickable tile for" — and battlefield is the whole of that set
+ * today: a hand or a graveyard pile draws as a pile, not a per-card
+ * clickable tile, which is exactly why `setSelectables` naming a graveyard or
+ * exile card (W18, Relentless Dead) had no board element to answer it with.
+ */
+function battlefieldCardIds(view: BoardView | null): ReadonlySet<number> {
+  if (view === null) return EMPTY_CARD_IDS;
+  const ids = new Set<number>();
+  for (const p of view.players) for (const c of p.battlefield) ids.add(c.id);
+  return ids;
+}
 
 /**
  * Item 17.2's staged id, or `undefined` when nothing is staged — see
@@ -1424,8 +1477,30 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * true for the same bar.
    */
   const confirmPrompt = !spectator && !askOpen && !playOrDraw && isConfirmPrompt(bar);
+  /*
+   * W18/W16: a Forge SELECTION (`setSelectables`) that needs more than the
+   * board's own highlighted ring — the soft-lock (an off-board target, no
+   * board element to click) and Worldbreaker's own on-board choice
+   * (previously silent: no titled prompt text anywhere). `classifySelection`
+   * (`../prompts/index.ts`, lane P's) is the whole classifier; see
+   * `docs/planning/wave42-evidence/P-contract.md`. Sanctum of Ugin's own
+   * "may sacrifice yourself" is NOT this: measured (lane P) to be an
+   * ordinary bar confirm, already handled by `confirmPrompt` above — there
+   * is no `'confirm'` selection shape to mount here.
+   */
+  const selectionKind: SelectionKind = !spectator && !askOpen ? classifySelection(match.selectables, battlefieldCardIds(match.view)) : 'none';
+  const selectionPopup = selectionKind === 'off-board' || selectionKind === 'on-board';
   /** T2: gone the instant it is the viewer's move — see `isWaitingForOpponent`'s own note. */
   const waitingForOpponent = isWaitingForOpponent(match);
+  /*
+   * W1: the PREGAME half of "waiting for opponent" — the coin toss and
+   * either seat's opening mulligan — gets the decision-area pop-up below
+   * instead of the small corner line; see `isWaitingForPregameDecision`'s
+   * own note for why `view.turn` is the signal. The small line (below) is
+   * for the ordinary mid-game case only, so the two are drawn as an
+   * if/else of each other, never both at once.
+   */
+  const pregameWait = isWaitingForPregameDecision(match);
   /*
    * What the log can put a face to, and whose lines are whose. Both come off the
    * board view the viewer is already looking at — see `cardsNamedInView` for why
@@ -1463,12 +1538,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     declaringAttackers: declaringAttackers(match),
     /*
      * A question is in front of the board, so the stack stands aside (items 7 and
-     * 13). Four things draw in that column: the fifteen prompts, the payment
-     * window, the coin toss and the yes/no pop-up — decided a few lines above
-     * as `ask`/`paying`/`playOrDraw`/`confirmPrompt`. This is the same four,
-     * named once, so the stack cannot disagree with what is actually on screen.
+     * 13). The fifteen prompts, the payment window, the coin toss, the yes/no
+     * pop-up, a selection's own decision-area treatment (W18/W16,
+     * `selectionPopup`), and the pregame waiting pop-up (W1, `pregameWait`)
+     * all draw in the same column. This is the same set, named once, so the
+     * stack cannot disagree with what is actually on screen.
      */
-    questionOpen: askOpen || paying || playOrDraw || confirmPrompt,
+    questionOpen: askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || pregameWait,
     /*
      * Item 16's glow: Forge's actionable set, and ONLY while nothing is
      * asking. `offered.selectable` IS that set already, whenever
@@ -1486,7 +1562,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      * same footprint). `boardCardById` is the one lookup, exported below for
      * its own test.
      */
-    stagedCardId: stagedHandCardId(match, offered, askOpen || paying || playOrDraw || confirmPrompt),
+    stagedCardId: stagedHandCardId(match, offered, askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || pregameWait),
     onSelectCard: (cardId) => {
       if (!spectator) selectCard(match, cardId);
     },
@@ -1727,16 +1803,22 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         </p>
       )}
       {/*
-       * T2: a calm "waiting for the other player". Out of flow and
-       * pointer-transparent, same perch and treatment as the spectator
-       * banner above — the two never show together (`isWaitingForOpponent`
-       * is false for a spectator), so sharing the slot costs nothing. Not a
-       * `data-live-line`: that marker is for the five-state status line and
-       * the in-match error, and this is neither — it is gone the instant it
-       * is the viewer's own move, which a live match's one-line rule (§B.5)
-       * was never about.
+       * T2: a calm "waiting for the other player" — the ORDINARY mid-game
+       * case only (holding priority, mid their own ask or payment). Out of
+       * flow and pointer-transparent, same perch and treatment as the
+       * spectator banner above — the two never show together
+       * (`isWaitingForOpponent` is false for a spectator), so sharing the
+       * slot costs nothing. Not a `data-live-line`: that marker is for the
+       * five-state status line and the in-match error, and this is
+       * neither — it is gone the instant it is the viewer's own move, which
+       * a live match's one-line rule (§B.5) was never about.
+       *
+       * W1: the PREGAME case (the coin toss, either seat's opening
+       * mulligan) does NOT use this small line — `pregameWait` below draws
+       * the decision-area pop-up instead, so the two are an if/else and
+       * never both show.
        */}
-      {waitingForOpponent && (
+      {waitingForOpponent && !pregameWait && (
         <p className="live__waiting" role="status" data-testid="live-waiting">
           <span className="live__waiting-dot" aria-hidden="true" />
           Waiting for {theirName ?? 'the other player'}…
@@ -1979,6 +2061,54 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => pressButton(match, 'ok') }}
             button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => pressButton(match, 'cancel') }}
           />
+        </div>
+      )}
+      {/*
+       * W18 (off-board: Relentless Dead's graveyard target, no board element
+       * to click) and W16 (on-board: Worldbreaker's own choice had a legal
+       * board target but no prompt text ever explained it). One picker for
+       * both — `classifySelection` already told them apart; `SelectionPrompt`
+       * draws the same grid either way, with Forge's own prompt line as its
+       * title. `done`/`cancel` are Forge's own two bar buttons, omitted
+       * (drawing neither) exactly where Forge has not enabled them.
+       */}
+      {selectionPopup && match.selectables !== null && (
+        <div className="live__prompt" data-testid="live-selection-host">
+          <SelectionPrompt
+            message={plainRulesText(match.prompt ?? '')}
+            cards={[...match.selectables.cards]}
+            lookup={lookupFromState(match.state)}
+            picked={match.highlighted ?? EMPTY_CARD_IDS}
+            onPick={(id) => selectCard(match, id)}
+            done={
+              match.selectables.min === 0 && bar?.enable1 === true
+                ? { label: bar.label1, enabled: true, onClick: () => pressButton(match, 'ok') }
+                : undefined
+            }
+            cancel={bar?.enable2 === true ? { label: bar.label2, enabled: true, onClick: () => pressButton(match, 'cancel') } : undefined}
+          />
+        </div>
+      )}
+      {/*
+       * W1. Operator: *"i think the coinflip prompt should be shown to both
+       * players at once. and for the one who lost they get the waiting
+       * prompt. same for mulligan…"* While the OTHER seat is mid the coin
+       * toss's own Play/Draw or either seat's opening Keep/Mulligan
+       * (`isWaitingForPregameDecision`), this seat gets a pop-up in the SAME
+       * decision-area slot and the SAME `.confirm` card chrome the winner's
+       * own `ConfirmPrompt`-based pop-ups use — never the small corner
+       * line, which is for the ordinary mid-game wait only (above). No
+       * buttons: there is nothing on this seat's wire to answer with, and
+       * Forge sends it no text for this moment either (see
+       * `isWaitingForPregameDecision`'s own note), so the message stays the
+       * minimum the operator asked for — who is deciding — the exact same
+       * words the small line already used, just in the bigger card.
+       */}
+      {pregameWait && (
+        <div className="live__prompt" data-testid="live-pregame-wait-host">
+          <section className="confirm" data-testid="live-pregame-wait" role="status" aria-live="polite">
+            <p className="confirm__message">Waiting for {theirName ?? 'the other player'}…</p>
+          </section>
         </div>
       )}
       {conceding && !spectator && !over && (

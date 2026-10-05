@@ -27,6 +27,7 @@ import {
   gameOutcome,
   isMatchGone,
   isWaitingForOpponent,
+  isWaitingForPregameDecision,
   LiveBoard,
   liveStatus,
   MATCH_GONE_SENTENCE,
@@ -3226,6 +3227,95 @@ describe('T2 — a calm "waiting for the other player"', () => {
 });
 
 /*
+ * Wave 42 §L, W1. Operator: *"if opponent is choosing to play/draw something
+ * needs to be showing on the other persons screen as well. i think the
+ * coinflip prompt should be shown to both players at once. and for the one
+ * who lost they get the waiting prompt. same for mulligan, if opponent is
+ * chosing to mulligan we need some waiting prompt."* `isWaitingForOpponent`'s
+ * small line (above) fires identically for the ordinary mid-game wait AND
+ * the pregame one; this is the pregame-only pop-up the operator asked for,
+ * in the decision area, the same `.confirm` card chrome the winner's own
+ * Play/Draw and Keep/Mulligan pop-ups use. See
+ * `isWaitingForPregameDecision`'s own note on why `view.turn` is the signal
+ * — Forge sends the losing/non-deciding seat no wire text for this moment at
+ * all.
+ */
+describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’s opening mulligan)', () => {
+  const GAME_KEY = String(deltaKey(WireType.Game, 1));
+  const setTurn = (m: LiveMatch, turn: number) =>
+    parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: {
+          seq: m.view!.seq + 1,
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: {},
+          objectDeltas: { [GAME_KEY]: { _type: WireType.Game, _id: 1, Turn: { t: 'int', v: turn } } },
+          events: [],
+        },
+      },
+    });
+
+  it(
+    'shows the decision-area pop-up, named, while turn is still 0 and it is not the viewer’s move — the same ' +
+      'signal covers the coin toss and either seat’s opening mulligan, since Forge tells this client nothing else',
+    async () => {
+      const { s, m, getByTestId, queryByTestId } = await liveBoard();
+      const theirName = m.view!.players.find((p) => !p.isViewer)!.name;
+      // The default fixture already reads "not my move" (T2's own first case
+      // above); turn 0 is the only extra fact pregame carries.
+      expect(isWaitingForOpponent(m)).toBe(true);
+      s.send(setTurn(m, 0));
+      await waitFor(() => expect(m.view!.turn).toBe(0));
+
+      await waitFor(() => getByTestId('live-pregame-wait-host'));
+      expect(getByTestId('live-pregame-wait').textContent).toBe(`Waiting for ${theirName}…`);
+      // The two never show together — the ordinary small line is gone.
+      expect(queryByTestId('live-waiting')).toBeNull();
+      expect(isWaitingForPregameDecision(m)).toBe(true);
+    },
+  );
+
+  it('is the ordinary small line, not the pop-up, once turn is 1 or more — mid-game priority keeps its own shape', async () => {
+    const { m, getByTestId, queryByTestId } = await liveBoard();
+    // The default fixture is already turn 14 — mid-game.
+    expect(m.view!.turn).toBeGreaterThan(0);
+    await waitFor(() => getByTestId('live-waiting'));
+    expect(queryByTestId('live-pregame-wait-host')).toBeNull();
+    expect(isWaitingForPregameDecision(m)).toBe(false);
+  });
+
+  it('is gone once it is the viewer’s own move, even at turn 0 — it is "my move", not pregame waiting', async () => {
+    const { s, m, queryByTestId } = await liveBoard();
+    s.send(setTurn(m, 0));
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'updateButtons',
+        owner: { kind: 'player', id: 0 },
+        label1: 'Play',
+        label2: 'Draw',
+        enable1: true,
+        enable2: true,
+        focus1: true,
+      }),
+    );
+    await waitFor(() => expect(m.buttons?.enable1).toBe(true));
+    expect(isWaitingForPregameDecision(m)).toBe(false);
+    expect(queryByTestId('live-pregame-wait-host')).toBeNull();
+  });
+
+  it('the stack band stands aside for the pregame pop-up too, the same as any other question', async () => {
+    const { s, m, getByTestId, container } = await liveBoard();
+    s.send(setTurn(m, 0));
+    await waitFor(() => getByTestId('live-pregame-wait-host'));
+    expect(container.querySelector('[data-testid="board-mid"]')?.hasAttribute('data-question')).toBe(true);
+  });
+});
+
+/*
  * ── T4 (shape 1, lane G’s `ConfirmPrompt`) — every yes/no that is an ANSWER
  * moves to the decision area; a priority pass and a mana payment stay on the
  * control bar. See `docs/planning/wave36-evidence/g-shape1.md`.
@@ -3359,5 +3449,77 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
 
     await waitFor(() => getByTestId('live-play-or-draw-host'));
     expect(container.querySelector('[data-testid="board-mid"]')?.hasAttribute('data-question')).toBe(true);
+  });
+});
+
+/*
+ * Wave 42 §L. A Forge SELECTION (`setSelectables`) that needs more than the
+ * board's own highlighted ring — `classifySelection` (`../prompts/index.ts`,
+ * lane P's) is the classifier; these cases are about the HANDOVER into it and
+ * what `LiveBoard.tsx` mounts off each of its non-`'none'` answers, the same
+ * shape the "what the board is told about Forge's input" cases above take
+ * for `selectionOpen`/`declaringAttackers`. No `'confirm'` kind: lane P
+ * measured Sanctum of Ugin to be an ordinary bar confirm (already handled by
+ * the existing `confirmPrompt`, wave 36's T4), never a selection, and
+ * removed the speculative kind — see `SelectionPrompt.tsx`'s own header.
+ */
+describe('W18/W16 — a selection that is an off-board target or a silent on-board choice', () => {
+  const notify = (raw: unknown) => parseServerFrame(raw);
+  const selectables = (ids: number[], min: number, max: number) =>
+    notify({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max });
+  const promptNaming = (message: string, cardId: number | null) =>
+    notify({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: cardId === null ? null : { kind: 'card', id: cardId } });
+
+  /*
+   * W18, the soft-lock: Relentless Dead's own dies trigger names a card in
+   * the graveyard. No board element draws a graveyard card, so
+   * `classifySelection` reads `'off-board'` and the picker carries the whole
+   * offer — this is the one case `fixtureFrames()`'s own board has no
+   * clickable tile for at all.
+   */
+  it('a selection naming a card off any battlefield is the picker, not a silent lock', async () => {
+    const { s, getByTestId, queryByTestId, container } = await liveBoard();
+    const GRAVEYARD_CARD = 555001;
+    for (const f of [promptNaming('Return a Zombie from your graveyard?', null), selectables([GRAVEYARD_CARD], 1, 1)]) s.send(f);
+
+    await waitFor(() => getByTestId('live-selection-host'));
+    expect(getByTestId('live-selection-host').textContent).toContain('Return a Zombie from your graveyard?');
+    expect(container.querySelector(`[data-testid="prompt-choice"][data-card-id="${GRAVEYARD_CARD}"]`)).not.toBeNull();
+    // A hard (min 1) target offers no "Done" — Forge has not enabled skipping it.
+    expect(queryByTestId('selection-done')).toBeNull();
+    // The stack stands aside for this pop-up too, the same as any other question.
+    expect(container.querySelector('[data-testid="board-mid"]')?.hasAttribute('data-question')).toBe(true);
+  });
+
+  /*
+   * W16, Worldbreaker: the choice already had a legal board target; what was
+   * silent was Forge's own prompt text. `'on-board'` mounts the SAME picker
+   * beside the board's own highlight, never in place of it.
+   */
+  it('a selection naming only on-board cards still gets the titled picker, beside the board\'s own highlight', async () => {
+    const { s, m, getByTestId, container } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    expect(mine.length).toBeGreaterThan(0);
+    for (const f of [promptNaming('Choose a mode', null), selectables([mine[0]!], 1, 1)]) s.send(f);
+
+    await waitFor(() => getByTestId('live-selection-host'));
+    expect(getByTestId('live-selection-host').textContent).toContain('Choose a mode');
+    // The board's own highlighted ring is untouched — still a real board click target.
+    expect(container.querySelector(`[data-board-card="${mine[0]}"][data-selectable]`)).not.toBeNull();
+  });
+
+  it('clicking a tile in the picker sends the same act a board click would, for an off-board card the board never drew', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    // A real card this client already knows (its own hand) but that the board
+    // draws as a pile, never a per-card clickable tile — the same "off-board"
+    // shape as a graveyard target, and one `selectCard` will actually accept.
+    const HAND_CARD = m.view!.players.find((p) => p.isViewer)!.hand![0]!.id;
+    for (const f of [promptNaming('Discard a card?', null), selectables([HAND_CARD], 1, 1)]) s.send(f);
+    await waitFor(() => getByTestId(`live-selection-host`));
+
+    fireEvent.click(getByTestId('prompt-choice'));
+    await waitFor(() => expect(m.stats.replies).toBe(1));
+    const sent = s.clientFrames().find((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectCard');
+    expect(sent?.ok && sent.value.kind === 'act' && sent.value.method === 'selectCard' ? sent.value.card.id : null).toBe(HAND_CARD);
   });
 });
