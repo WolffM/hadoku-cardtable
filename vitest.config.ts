@@ -14,7 +14,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts'],
+    include: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'scripts/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', 'forge/**', '.claude/**'],
     passWithNoTests: true,
   },

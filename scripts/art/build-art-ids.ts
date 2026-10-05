@@ -151,6 +151,47 @@ interface Counts {
   unresolved: string[];
 }
 
+/** One committed `Name|SET` reference (a deck line or a cube pool card) naming a printing by id. */
+export interface PrintingVote {
+  readonly name: string;
+  readonly id: string;
+  /** ISO release date of that printing, or `null` when Scryfall has none. */
+  readonly releasedAt: string | null;
+}
+
+/**
+ * The bare-name fallback's printing, per name: the id with the most votes,
+ * ties broken by the newest `releasedAt`, a remaining tie broken by id so the
+ * result is total and reproducible. A name with no votes is absent from the
+ * result — the caller falls back to the old tier-3 "earliest" pick, which is
+ * still correct when nothing committed ever pinned a set for that name.
+ */
+export function mostUsedPrinting(votes: readonly PrintingVote[]): ReadonlyMap<string, string> {
+  const byName = new Map<string, Map<string, { count: number; releasedAt: string }>>();
+  for (const vote of votes) {
+    let byId = byName.get(vote.name);
+    if (byId === undefined) {
+      byId = new Map();
+      byName.set(vote.name, byId);
+    }
+    const releasedAt = vote.releasedAt ?? '0000-01-01';
+    const existing = byId.get(vote.id);
+    if (existing === undefined) byId.set(vote.id, { count: 1, releasedAt });
+    else existing.count += 1;
+  }
+
+  const winners = new Map<string, string>();
+  for (const [name, byId] of byName) {
+    const ranked = [...byId.entries()].sort(([idA, a], [idB, b]) => {
+      if (a.count !== b.count) return b.count - a.count;
+      if (a.releasedAt !== b.releasedAt) return a.releasedAt < b.releasedAt ? 1 : -1;
+      return idA < idB ? -1 : 1;
+    });
+    winners.set(name, ranked[0]![0]);
+  }
+  return winners;
+}
+
 /*
  * ── token art (R14, wave 35) ────────────────────────────────────────────────
  *
@@ -489,6 +530,28 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
     const ids = new Map<string, string>();
     const counts: Counts = { basics: 0, decks: 0, cubeAliases: 0, bareNames: 0, tokens: 0, unresolved: [] };
 
+    /**
+     * Release date by id, built once off the already-loaded cache, so a vote
+     * cast from `pool.json` (which carries no date of its own) can still break
+     * a tie the same way a deck-cast vote does.
+     */
+    const releasedAtById = new Map<string, string | null>();
+    for (const card of cards) {
+      const id = str(card, 'id');
+      if (id !== null && !releasedAtById.has(id)) releasedAtById.set(id, str(card, 'released_at'));
+    }
+
+    /*
+     * One vote per committed REFERENCE, not per physical copy: a deck's own
+     * `12 Forest|M12` line casts one vote for M12, the same as a sideboard's
+     * single `1 Forest|ZEN`. Weighting by the deck's own `count` would let one
+     * ramp deck's land count outvote eleven other decks' unanimous choice of a
+     * different printing, which is the opposite of "the printing the decks and
+     * pools use most" — that phrase is about how many committed lists made the
+     * same editorial choice, not how many cards one of them happens to run.
+     */
+    const votes: PrintingVote[] = [];
+
     /** First write wins, exactly as the browser-side index resolves. */
     const put = (key: string, id: string, bucket: keyof Counts): void => {
       if (ids.has(key)) return;
@@ -523,6 +586,10 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
     };
     for (const card of pool.cards) {
       if (card.scryfallId === undefined || card.scryfallId === '') continue;
+      // The pool pinned this printing for this card — one vote towards it
+      // being that name's deliberate bare-name printing, same as a deck's own
+      // `Name|SET` line below.
+      votes.push({ name: card.name, id: card.scryfallId, releasedAt: releasedAtById.get(card.scryfallId) ?? null });
       const setCode = card.setCode.toUpperCase();
       for (const forgeCode of aliases.get(setCode) ?? []) {
         if (forgeCode.toUpperCase() === setCode) continue; // pool.json covers it
@@ -545,6 +612,11 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
           if (id === null) continue;
           if (entry.card.set !== null) {
             put(`${entry.card.name}|${entry.card.set.toUpperCase()}`, id, 'decks');
+            // The deck PINNED a set, so this is a real editorial choice of
+            // printing — a vote. A bare deck reference (no set) casts none:
+            // it defers to the bare-name fallback itself and would be a
+            // circular signal.
+            votes.push({ name: entry.card.name, id, releasedAt: str(hit.card, 'released_at') });
           }
         }
       }
@@ -554,8 +626,15 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
     // ── bare-name fallbacks ──────────────────────────────────────────────────
     //
     // `scryfallIdFor` falls back from `Name|SET` to `Name`, so one row per name
-    // is what guarantees a card is never blank. The printing is the earliest
-    // non-digital one (`resolveCard` tier 3), which is deterministic.
+    // is what guarantees a card is never blank. The printing named is the one
+    // the committed decks and pools pinned most often for that name (ties ->
+    // newest release) — a revealed card whose face resolves by name alone
+    // should still look like the printing this library actually plays, not
+    // whichever printing happened to be written first into the Scryfall
+    // cache. A name nothing ever pinned a set for (no votes) falls back to the
+    // old rule: the earliest non-digital printing (`resolveCard` tier 3),
+    // which is still the only deterministic answer with nothing to prefer among.
+    const winners = mostUsedPrinting(votes);
     const bareNames = new Set<string>(basics);
     for (const file of decks) {
       for (const entries of parseDck(readFileSync(file, 'utf8')).sections.values()) {
@@ -564,6 +643,11 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
     }
     for (const name of [...bareNames].sort()) {
       if (ids.has(name)) continue;
+      const voted = winners.get(name);
+      if (voted !== undefined) {
+        put(name, voted, 'bareNames');
+        continue;
+      }
       const hit = resolveCard(request(name, null), index);
       if (!hit.ok) continue;
       const id = str(hit.card, 'id');
@@ -674,4 +758,9 @@ ${rows.join(',\n')}
   }
 }
 
-process.exitCode = await main(process.argv.slice(2));
+// Guarded so the generator's own test file can import `mostUsedPrinting`
+// without this CLI's file I/O and network-cache reads running on import —
+// `main()` only runs when this file is the one Node was asked to execute.
+if (import.meta.main) {
+  process.exitCode = await main(process.argv.slice(2));
+}
