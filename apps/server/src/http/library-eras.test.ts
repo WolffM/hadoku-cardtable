@@ -18,25 +18,31 @@
  * touching the real repo's files.
  */
 
-import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { LIBRARY, poolFixturePath } from '@hadoku/deck/library';
+import { LIBRARY, formatIdOf, poolFixturePath, type FormatFamily, type LibraryCollection } from '@hadoku/deck/library';
 
 import { loadTablesLibrary } from './library.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '../../../..');
 
-describe('the picker offers exactly the nine catalogued eras', () => {
-	it('loadTablesLibrary(repoRoot) answers nine formats, one per era, no more', () => {
+describe('the picker offers exactly the catalogued eras', () => {
+	it('loadTablesLibrary(repoRoot) answers one format per catalogued era id, no more', () => {
 		const library = loadTablesLibrary(REPO_ROOT);
 		expect(library.faults).toEqual([]);
-		expect(library.formats).toHaveLength(9);
-		expect(library.formats.map((f) => f.id)).toEqual(LIBRARY.map((c) => c.date));
+		// Derived from LIBRARY's own ids, never a hardcoded count: wave 34 pinned
+		// "nine" here, and wave 48 (Modern, Legacy, 2003-2007) would have moved that
+		// number for no reason connected to this test's actual claim, which is "one
+		// format per id, no more, no directory scan". `formatIdOf` is `c.date` for
+		// Standard and `<family>-<date>` otherwise (library.ts's doc), so this holds
+		// across every family T adds.
+		const expectedIds = [...new Set(LIBRARY.map((c) => formatIdOf(c)))];
+		expect(library.formats.map((f) => f.id)).toEqual(expectedIds);
 	});
 
 	let tempDir: string | null = null;
@@ -60,10 +66,11 @@ describe('the picker offers exactly the nine catalogued eras', () => {
 		const stray = { ...real, date: strayDate };
 		writeFileSync(join(tempDir, poolFixturePath(strayDate)), JSON.stringify(stray), 'utf8');
 
+		const before = loadTablesLibrary(REPO_ROOT).formats.length;
 		const library = loadTablesLibrary(tempDir);
 		expect(library.faults).toEqual([]);
-		// Still exactly nine — the stray file changed nothing.
-		expect(library.formats).toHaveLength(9);
+		// Same count as the real catalog — the stray file changed nothing.
+		expect(library.formats).toHaveLength(before);
 		expect(library.formats.map((f) => f.id)).not.toContain(strayDate);
 	});
 
@@ -85,5 +92,58 @@ describe('the picker offers exactly the nine catalogued eras', () => {
 		const files = readdirSync(join(tempDir, 'decks', 'pools')).filter((f) => POOL_FILE.test(f));
 		const datesADirectoryScanWouldOffer = files.map((f) => POOL_FILE.exec(f)![1]);
 		expect(datesADirectoryScanWouldOffer).toContain(strayDate);
+	});
+});
+
+/*
+ * Wave 48 §U: Standard, Modern and Legacy can snapshot the SAME date (§T lines
+ * a year's three formats up together), so the format id can no longer be the
+ * bare date for anything but Standard, and a pool fixture has to be looked up
+ * by (family, date), not date alone. Built against FIXTURE collections, never
+ * the real `LIBRARY`, so this exercises the general (family, date) arithmetic
+ * rather than whichever eras T has landed so far.
+ */
+describe('a format id carries its family once Standard, Modern and Legacy share a date (w48 §U)', () => {
+	function collection(id: string, family: FormatFamily, date: string): LibraryCollection {
+		return { id, directory: `decks/${id}`, event: id, format: id, date, source: 'test', decks: [], family };
+	}
+
+	function minimalFixtureJson(date: string): Record<string, unknown> {
+		return { date, name: `Test (${date})`, effective: date, source: 'test', sets: ['AAA'], banned: [], cards: ['Test Card'], manaCost: {}, colors: {} };
+	}
+
+	let tempDir: string | null = null;
+	afterEach(() => {
+		if (tempDir !== null) rmSync(tempDir, { recursive: true, force: true });
+		tempDir = null;
+	});
+
+	it('three families sharing one date resolve to three distinct ids and three distinct pools', () => {
+		tempDir = mkdtempSync(join(tmpdir(), 'cardtable-w48-families-'));
+		mkdirSync(join(tempDir, 'decks', 'pools'), { recursive: true });
+		const SHARED_DATE = '2012-07-13';
+		const families: FormatFamily[] = ['standard', 'modern', 'legacy'];
+		for (const family of families) {
+			writeFileSync(join(tempDir, poolFixturePath(SHARED_DATE, family)), JSON.stringify(minimalFixtureJson(SHARED_DATE)), { flag: 'wx' });
+		}
+		const library = families.map((family) => collection(`fx-${family}`, family, SHARED_DATE));
+		const loaded = loadTablesLibrary(tempDir, library);
+		expect(loaded.faults).toEqual([]);
+		expect(loaded.formats.map((f) => f.id).sort()).toEqual(['2012-07-13', 'legacy-2012-07-13', 'modern-2012-07-13']);
+		expect(loaded.formats.map((f) => f.family).sort()).toEqual(['legacy', 'modern', 'standard']);
+		// Each era loaded ITS OWN pool, not a shared one — the three fixture files
+		// above are byte-distinct only in which path wrote them, so this proves the
+		// path resolution rather than the content.
+		for (const f of loaded.formats) expect(f.pool).not.toBeNull();
+	});
+
+	it('two collections of the same family and date collapse to one format, like Standard always did', () => {
+		tempDir = mkdtempSync(join(tmpdir(), 'cardtable-w48-collapse-'));
+		mkdirSync(join(tempDir, 'decks', 'pools'), { recursive: true });
+		writeFileSync(join(tempDir, poolFixturePath('2012-07-13', 'modern')), JSON.stringify(minimalFixtureJson('2012-07-13')), { flag: 'wx' });
+		const library = [collection('fx-a', 'modern', '2012-07-13'), collection('fx-b', 'modern', '2012-07-13')];
+		const loaded = loadTablesLibrary(tempDir, library);
+		expect(loaded.faults).toEqual([]);
+		expect(loaded.formats.map((f) => f.id)).toEqual(['modern-2012-07-13']);
 	});
 });

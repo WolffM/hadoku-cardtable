@@ -86,7 +86,7 @@ function makeSocket() {
 /* ── the stub API ────────────────────────────────────────────────────── */
 
 const FORMATS = [
-  { id: '2016-07-22', name: 'Standard (EMN)', effective: '2016-07-22', sets: ['DTK', 'EMN'], banned: [], cardCount: 1441, source: 'x' },
+  { id: '2016-07-22', name: 'Standard (EMN)', effective: '2016-07-22', sets: ['DTK', 'EMN'], banned: [], cardCount: 1441, source: 'x', family: 'standard' as const },
 ];
 const DECKS = [
   {

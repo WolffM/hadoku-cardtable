@@ -33,10 +33,15 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..'
 /**
  * The frozen pools, read the way production reads them, so what a room's default
  * format is asserted AGAINST is the real list rather than a date copied here.
- * `formats` is oldest first (`library.ts`), so the newest is the last.
  */
-const POOLS = loadTablesLibrary(REPO_ROOT).formats.map((f) => f.id);
-const NEWEST_POOL = POOLS[POOLS.length - 1];
+const LIBRARY_FORMATS = loadTablesLibrary(REPO_ROOT).formats;
+const POOLS = LIBRARY_FORMATS.map((f) => f.id);
+/**
+ * The newest STANDARD era, never just "the last element" — wave 48 put
+ * Modern and Legacy eras in the same catalog, so `POOLS[POOLS.length - 1]`
+ * is no longer necessarily Standard (`room/lobby.ts`'s `newestFormat`).
+ */
+const NEWEST_POOL = LIBRARY_FORMATS.filter((f) => f.family === 'standard').map((f) => f.id).at(-1);
 const OLDEST_POOL = POOLS[0];
 
 const EDGE_SECRET = 'test-edge-auth-secret';
