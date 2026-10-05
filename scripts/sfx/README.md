@@ -20,9 +20,14 @@ The model is gated on Hugging Face (accept the terms once, logged in), so downlo
 ## Run
 
 ```sh
-~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --takes 4 [--only W,UR,m-draw] [--vibes saved.json]
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --takes 4 [--only W,UR,m-draw] [--vibes saved.json] [--offload model]
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py   # trim, fade, level-match, encode Opus
 ```
 
 `prompts.json` holds the vibes inferred on the Sound Palette page
 (https://claude.ai/artifact/T7VSxtbdugjktF5V1CFG5N); `--vibes` takes the operator's saved edits, which win.
 Every take has a `.json` sidecar (prompt, seed, steps, cfg, model, licence), so it can be regenerated exactly.
+
+The GPU is shared (InvokeAI and other projects' jobs hold most of it at times): `--offload model` needs about
+4 GB, and an out-of-memory take waits 30 s and retries rather than failing. A rerun resumes: existing takes
+are skipped.
