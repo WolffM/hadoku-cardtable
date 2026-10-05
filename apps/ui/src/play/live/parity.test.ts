@@ -4,6 +4,80 @@
  *
  * ## The baseline
  *
+ * Re-recorded in Wave 46 §A for X3, the stack carousel (operator, asked four
+ * times: *"show a sort of gallery/carousel small view … whatever is the top
+ * card should show in the expanded big view below it"*, demo v5 approved).
+ * 42550 -> 43762, +1212, and every one of the characters is accounted for —
+ * measured the strong way, rendering the fixture with and without this
+ * wave's `Board.tsx` and diffing the two `<section class="stack">`s directly
+ * (`REST_EQUAL` true: nothing OUTSIDE the stack's own section moved by a
+ * single byte):
+ *
+ *   -68  `<h3 class="zone__head">Stack <span class="zone__count">2</span></h3>`,
+ *        gone outright — the demo and the "no explanatory text" rule both
+ *        drop the stack's visible label; `aria-label="Stack"` (unchanged,
+ *        already on the section) carries the accessible name it used to.
+ *  +109  item 49's (Fire Urchin's trigger) `<li>`: `class="stack__item"` grows
+ *        ` stack__item--top stack__item--mine` (it is the top, and the
+ *        viewer's own), gains `data-is-ability="true"` and
+ *        `aria-current="true"` (it is what the big view shows by default)
+ *        and `aria-label="Bob (Capturing) · Fire Urchin · ability"`; loses
+ *        `data-source-card="21"` (the stack opted out of the generic
+ *        inspector this wave — `inspect/index.ts`'s own header says why).
+ *   +60  item 48's (Direct Current) `<li>`: the same shape, one class, no
+ *        `data-is-ability` (it is a spell), no `aria-current` (not shown),
+ *        `aria-label="Bob (Capturing) · Direct Current → Goblin Replica"`,
+ *        `data-source-card="1"` gone the same way.
+ *   +69  item 49's body: `<span class="stack__body">` becomes
+ *        `<button type="button" class="stack__body" aria-label="…">` — a
+ *        real button now (the carousel's own click-to-pin gesture, unrelated
+ *        to Forge's `button.stack__select`, which this item still has none
+ *        of either way).
+ *   +79  item 48's body, the same shape with its own (longer) `aria-label`.
+ *    +4  both items' body CLOSE tag, `</span>` (7) -> `</button>` (9), twice.
+ *  -211  item 49's `<span class="stack__what">…</span>` — the whole T8
+ *        one-line summary (`.stack__controller`, `.stack__sep`,
+ *        `.stack__source`, `.stack__kind`) — gone; the same facts are now
+ *        the `<li>`'s own `aria-label`, above.
+ *  -223  item 48's `.stack__what`, the same way (plus `.stack__target`).
+ *  +100  two `<span class="stack__n" aria-hidden="true">`, 50 characters
+ *        each: the ordinal badge (1, 2) every thumbnail draws now.
+ *   +68  `<div class="stack__big" data-pinned="true" aria-hidden="true">…</div>`'s
+ *        own open and close tags — the new big view, a fixed slot after
+ *        `</ol>` regardless of state (`Board.test.ts`'s "the canvas is
+ *        static" suite pins this).
+ * +1225  the big view's OWN content: a second, whole `CardTile` clone of
+ *        item 49 (Fire Urchin, the top of the stack — the big view is
+ *        PINNED and shows it by default, nothing else on this fixture's
+ *        board covers it). Identical markup to the thumbnail's own CardTile,
+ *        duplicated rather than cloned at runtime, because this is a
+ *        server-rendered string, not a live DOM the component could reuse a
+ *        node from.
+ *  ─────
+ * +1212  42550 -> 43762, and -68+109+60+69+79+4-211-223+100+68+1225 = 1212
+ *        exactly.
+ *
+ * Checked the strong way, as the paragraph below demands: a scratch render of
+ * `../fixtures.ts`'s own view through BOTH the previous `Board.tsx` (`git show
+ * HEAD:` before this wave) and this wave's, diffed with `renderToStaticMarkup`
+ * — the `<section class="stack">` substring is the only place either string
+ * differs; `../adapter.ts` and `../fixtures.ts` did not move.
+ *
+ * Re-recorded again, immediately after, for X3's own follow-up fix (the real
+ * infinite-layout-effect bug `.stack__big`'s own comment in `Board.tsx`
+ * describes — a `display: none` box measures zero, which can never overlap a
+ * permanent, which flips the pin check back on, forever, against a live
+ * page): `hidden={…}` (a boolean HTML attribute, omitted entirely when
+ * false) became `data-shown={… || undefined}` (`board.css` reads it for
+ * `visibility`, not `display`, instead). 43762 -> 43780, +18, exactly
+ * `' data-shown="true"'` (18 characters) appearing on `.stack__big` where
+ * `hidden` used to contribute nothing — confirmed directly: the fixture's
+ * own stack is non-empty and `StackView`'s `pinned` state defaults to
+ * `true` (`useState(true)`, and `renderToStaticMarkup` never runs the
+ * layout effect that could change it), so `displayed` is non-null and this
+ * attribute is always present in this render. Nothing else moved; `grep`
+ * for `data-shown` in the rendered string finds exactly one match.
+ *
  * Re-recorded in Wave 36 §B for T8 (third ask): *"the stack shows what is
  * happening, not all the text."* `StackItem` no longer draws
  * `item.description` at all — Forge's own resolved prose, which used to sit
@@ -406,8 +480,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const BASELINE_SHA256 = '310ce7e6fc1306c4622e72845a0ba98e0506044a2283db739862b6c66a9c6a55';
-const BASELINE_LENGTH = 42550;
+const BASELINE_SHA256 = 'c668dd6ffccc477d18e08753dbc8802f7921ec9966790b0cdd46819151098af2';
+const BASELINE_LENGTH = 43780;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

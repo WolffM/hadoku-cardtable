@@ -165,12 +165,15 @@ describe('opening', () => {
     expect(shown!.querySelector('.card__name')!.textContent).toBe('Their Card');
   });
 
-  it('opens for a stack item, found by data-source-card', () => {
+  it('wave 46 X3: does NOT open for a stack thumbnail — the carousel draws its own peek, never through this module', () => {
     const { panel, stackItem } = mountBoard();
-    // The item's text carries no card id of its own — only the `<li>`'s
-    // `data-source-card` names the card to enlarge.
-    hover(stackItem().querySelector('.stack__what')!);
-    expect(panel()!.querySelector('.card__name')!.textContent).toBe('Their Card');
+    // Before this wave the `<li>`'s own `data-source-card` opened this same
+    // panel, anchored to the card's right. The settled carousel anchors its
+    // peek BELOW the thumbnail instead — a mode this module has none of — so
+    // the stack opted out rather than this module gaining a second anchor.
+    hover(stackItem());
+    expect(stackItem().hasAttribute('data-source-card'), 'the attribute that used to trigger this is gone').toBe(false);
+    expect(panel()).toBeNull();
   });
 
   it('opens for a prompt-grid tile outside the board root', () => {

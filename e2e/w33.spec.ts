@@ -419,7 +419,10 @@ test(titled('Q18 — a stack ability is never selectable merely because its sour
 
     // Precondition 1: an ABILITY entry (not a spell) is on the stack.
     await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'the activated ability reached the stack — the precondition "glint-hawk" sets up' }).toBeGreaterThan(0);
-    const item = alice.page.locator('.stack__item', { hasText: /ability/i }).first();
+    // Wave 46 X3 drew no visible "ability" text to match any more (the stack's
+    // own carousel is art-only); `data-is-ability` (`Board.tsx`'s `StackThumb`)
+    // names the same fact without needing one.
+    const item = alice.page.locator('.stack__item[data-is-ability]').first();
     await expect(item, 'an ABILITY entry (not a spell) is on the stack').toHaveCount(1);
 
     // Precondition 2 — the one the old Prodigal-Sorcerer version of this spec
@@ -433,9 +436,12 @@ test(titled('Q18 — a stack ability is never selectable merely because its sour
       'the source permanent is offered again while its own ability sits on the stack — the precondition this spec needs',
     ).toHaveAttribute('data-selectable', 'true');
 
-    // The behaviour: the stack's ability entry is neither selectable nor a button.
+    // The behaviour: the stack's ability entry is not selectable by Forge's
+    // own stack-choice button — it may still be a plain carousel button
+    // (wave 46 X3: pick which item the big view shows), which is unrelated to
+    // Forge's offer and not the Q18 regression this spec guards.
     await expect(item, 'the ability entry is not selectable by its source permanent\'s card id').not.toHaveAttribute('data-selectable');
-    expect(await item.locator('button.stack__select').count(), 'the ability entry renders no select button, selectable or not').toBe(0);
+    expect(await item.locator('button.stack__select').count(), 'never Forge’s own select button').toBe(0);
   } finally {
     await stack.stop();
   }
@@ -473,9 +479,9 @@ test(titled('Q1b — the active-player ring is on the active seat\'s section, an
   }
 });
 
-/* ── 9. Ponder's full text is readable, in the inspector, on hover ──────── */
+/* ── 9. Ponder's full text is readable, in the carousel's own big view ──── */
 
-test(titled('Ponder\'s full oracle text is readable via the inspector, on hover, while it sits on the stack'), async ({ browser }) => {
+test(titled('Ponder\'s full oracle text is readable via the carousel\'s own big view, while it sits on the stack'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -496,13 +502,13 @@ test(titled('Ponder\'s full oracle text is readable via the inspector, on hover,
     // case Q18/Doom Blade already use safely) and read its text straight off
     // the stack item, before any of that sequence ever starts.
     //
-    // **Re-aimed for wave 36 T8**: the band itself no longer carries the full
-    // text at all (`.stack__text` is gone — `Board.tsx`'s own `StackItem`
-    // header: "the operator… not a sentence… that is exactly the 'all the
-    // text' the operator is naming"). The claim this test pins is now where
-    // T8 settled it: the full text is the INSPECTOR's, on hover, through the
-    // same `data-source-card` mechanism every other card on the board opens
-    // one with.
+    // **Re-aimed for wave 36 T8, then again for wave 46 X3**: the band itself
+    // carries no text at all any more (`.stack__text` and T8's own
+    // `.stack__what` are both gone — `Board.tsx`'s own `StackThumb` draws a
+    // thumbnail, art only). The claim this test pins moved with it: the full
+    // text is the carousel's OWN big view (`.stack__big`, pinned by default
+    // or shown on a hover/focus peek), never the generic document-level
+    // inspector — the stack opted out of that mechanism entirely this wave.
     const { alice, bob } = await startScenarioMatch(browser, stack, 'ponder');
     void bob;
 
@@ -512,25 +518,24 @@ test(titled('Ponder\'s full oracle text is readable via the inspector, on hover,
     const card = (await offered(alice.page))[0]!;
     await castCard(alice.page, card);
 
-    // The precondition: Ponder is on the stack, its own stack entry drawn.
+    // The precondition: Ponder is on the stack, its own thumbnail drawn — no
+    // visible text to match any more, so its own accessible name is the
+    // locator (`Board.tsx`'s `stackItemLabel`).
     await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Ponder joined the stack — the precondition this spec needs' }).toBeGreaterThan(0);
-    const item = alice.page.locator('.stack__item', { hasText: /ponder/i });
+    const item = alice.page.locator('.stack__item[aria-label*="Ponder" i]');
     await expect(item, 'Ponder\'s own stack entry is drawn').toHaveCount(1);
 
-    // The band's own line clips as a unit (T8) — no vertical scroll inside it.
-    const line = item.locator('.stack__what');
-    const lineClip = await line.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
-    expect(lineClip.scrollHeight, 'the one line never grows a vertical scroll inside itself').toBeLessThanOrEqual(lineClip.clientHeight + 1);
-
-    // The full oracle text is the inspector's, on hover.
+    // The full oracle text is the carousel's own big view's — hovering the
+    // thumbnail is always safe (it is a no-op while already pinned, and opens
+    // the peek while it is not).
     await item.hover();
-    const panel = alice.page.locator('[data-board-overlay] [data-inspect]');
-    await expect(panel, 'hovering the stack item opens the inspector').toBeVisible();
+    const big = alice.page.locator('[data-zone="stack"] .stack__big');
+    await expect(big, 'the carousel\'s own big view shows the full card').toBeVisible();
     // Forge's own oracle text spells it out ("top three", not "top 3" — the
     // pre-existing regex here was never actually exercised against the real
-    // card text until this test read it from the inspector instead of a
+    // card text until this test read it from the big view instead of a
     // stand-in; confirmed verbatim: "Look at the top three cards of your library…").
-    await expect(panel, 'the inspector carries Ponder\'s full oracle text, not truncated').toContainText(/look at the top three cards/i);
+    await expect(big, 'the big view carries Ponder\'s full oracle text, not truncated').toContainText(/look at the top three cards/i);
   } finally {
     await stack.stop();
   }
