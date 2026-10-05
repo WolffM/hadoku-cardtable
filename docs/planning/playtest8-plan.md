@@ -54,7 +54,7 @@ policy. It may be correct Magic (instants before blocks); if so, say so to the o
 
 ## X3 — the stack as a carousel, with the card itself below it
 
-Demo (approved 2026-10-05, v2): https://claude.ai/artifact/7gHwzveqpi4EiZKdVTJ6EX. Operator's rules:
+Demo (v1 approved with changes on 2026-10-05; v2 has them and awaits a look): https://claude.ai/artifact/7gHwzveqpi4EiZKdVTJ6EX. Operator's rules:
 - **Order:** the leftmost thumbnail is the top of the stack and resolves first; resolution reads left to right. Thumbnails are numbered 1..n from the left, with an owner strip (blue = mine, amber = theirs).
 - **Large view = the card image alone,** upright, with no side panel reading out the text: the card already carries its text. Not horizontal.
 - **Never cover the board.** The card is pinned under the carousel only while it fits in clear space, meaning its bottom is above the viewer's battlefield. Otherwise it is hidden, and hovering or focusing a thumbnail shows it as a peek next to the thumbnail. This matters because a stack card is often what you are targeting with.
