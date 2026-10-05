@@ -88,7 +88,7 @@ def expand(sounds):
     return out
 
 
-def render(pipe, prompt, seed, s, args, negative):
+def render(pipe, prompt, seed, s, args, negative, seconds=None):
     """One take. Out of memory means a neighbour on the shared GPU is busy: wait and try again."""
     for attempt in range(40):
         try:
@@ -97,7 +97,7 @@ def render(pipe, prompt, seed, s, args, negative):
                 negative_prompt=negative,
                 num_inference_steps=args.steps,
                 guidance_scale=args.cfg,
-                audio_end_in_s=seconds_for(s),
+                audio_end_in_s=seconds if seconds is not None else seconds_for(s),
                 num_waveforms_per_prompt=1,
                 generator=torch.Generator('cpu').manual_seed(seed),
             ).audios[0]
@@ -116,11 +116,14 @@ def main():
     ap.add_argument('--cfg', type=float, default=7.0)
     ap.add_argument('--vibes', default='', help='JSON {id: vibe} that overrides prompts.json')
     ap.add_argument('--seed', type=int, default=1000, help='first seed; take k uses seed + k')
+    ap.add_argument('--variants', default='', help='variants.json: several distinct prompts per sound; folder <id>.r2, files take-v<k>-<seed>')
     ap.add_argument('--avoid', default='', help='extra negative prompt for this run, e.g. "bells, chimes, harsh, metallic"')
     ap.add_argument('--offload', choices=['none', 'model', 'sequential'], default='none',
                     help='the GPU is shared (InvokeAI, other projects): model ~4 GB of VRAM, sequential ~1 GB and slowest')
     args = ap.parse_args()
 
+    if args.variants:
+        return run_variants(args)
     sounds = json.load(open(os.path.join(HERE, 'prompts.json')))['sounds']
     if args.vibes:
         overrides = json.load(open(args.vibes))
@@ -136,13 +139,7 @@ def main():
         if missing:
             sys.exit(f'unknown ids: {sorted(missing)}')
 
-    pipe = StableAudioPipeline.from_pretrained(MODEL, torch_dtype=torch.float16)
-    if args.offload == 'model':
-        pipe.enable_model_cpu_offload()
-    elif args.offload == 'sequential':
-        pipe.enable_sequential_cpu_offload()
-    else:
-        pipe.to('cuda')
+    pipe = load_pipe(args)
     rate = pipe.vae.sampling_rate
     negative = NEGATIVE + (', ' + args.avoid if args.avoid else '')
     started = time.time()
@@ -163,6 +160,55 @@ def main():
                 'licence': 'Stability AI Community License (stable-audio-open-1.0 LICENSE.md)',
             }, open(base + '.json', 'w'), indent=1)
         print(f"{s['id']:>8}  {args.takes} takes  {time.time() - started:6.1f}s", flush=True)
+
+
+def load_pipe(args):
+    pipe = StableAudioPipeline.from_pretrained(MODEL, torch_dtype=torch.float16)
+    if args.offload == 'model':
+        pipe.enable_model_cpu_offload()
+    elif args.offload == 'sequential':
+        pipe.enable_sequential_cpu_offload()
+    else:
+        pipe.to('cuda')
+    return pipe
+
+
+def run_variants(args):
+    """Round 2: each sound gets several different prompts, `--takes` seeds each."""
+    spec = json.load(open(args.variants))
+    suffix = spec['suffix']
+    jobs = []  # (folder, sound id, prompts, seconds, music allowed)
+    for sid, prompts in spec['sounds'].items():
+        jobs.append((f'{sid}.r2', sid, prompts, 2.0, False))
+    for sid, prompts in spec['moments'].items():
+        jobs.append((f'{sid}.r2', sid, prompts, 1.0, sid in spec.get('music_ok', [])))
+    for sid, prompts in spec['lands'].items():
+        jobs.append((sid, sid, prompts, 1.5, False))
+    if args.only:
+        want = set(args.only.split(','))
+        jobs = [j for j in jobs if j[1] in want]
+    pipe = load_pipe(args)
+    rate = pipe.vae.sampling_rate
+    started = time.time()
+    for folder, sid, prompts, seconds, music_ok in jobs:
+        os.makedirs(os.path.join(OUT, folder), exist_ok=True)
+        negative = NEGATIVE.replace('music, melody, song, ', '') if music_ok else NEGATIVE
+        if args.avoid:
+            negative += ', ' + args.avoid
+        for k, text in enumerate(prompts):
+            prompt = f'{text} {suffix}'
+            for j in range(args.takes):
+                seed = args.seed + j
+                base = os.path.join(OUT, folder, f'take-v{k + 1}-{seed}')
+                if os.path.exists(base + '.wav'):
+                    continue
+                audio = render(pipe, prompt, seed, {'id': sid}, args, negative, seconds)
+                sf.write(base + '.wav', audio.T.float().cpu().numpy(), rate)
+                json.dump({'id': sid, 'variant': k + 1, 'prompt': prompt, 'negative': negative, 'seed': seed,
+                           'steps': args.steps, 'cfg': args.cfg, 'seconds': seconds, 'model': MODEL,
+                           'licence': 'Stability AI Community License (stable-audio-open-1.0 LICENSE.md)'},
+                          open(base + '.json', 'w'), indent=1)
+        print(f'{folder:>14}  {len(prompts)} prompts x {args.takes}  {time.time() - started:6.1f}s', flush=True)
 
 
 if __name__ == '__main__':
