@@ -32,6 +32,22 @@ const titled = makeTitled(forge);
 const selectionTiles = (page: Page) => page.getByTestId('prompt-cards').getByTestId('prompt-choice');
 
 /**
+ * Press OK while Forge waits on a mana payment. Checking OK and clicking it are two steps, and an auto-paid
+ * cost disables OK between them: in CI run 37384138984 the click then waited its full 20 s on a dead button
+ * and starved the surrounding poll, though the game had already reached the next prompt. A short click
+ * budget hands control back to the poll; only that timeout is tolerated, any other error still fails.
+ */
+async function pressOkIfEnabled(page: Page): Promise<void> {
+  const ok = page.getByTestId('live-button-ok');
+  if (!(await ok.isEnabled())) return;
+  try {
+    await ok.click({ timeout: 1_500 });
+  } catch (e) {
+    if (!(e instanceof Error && e.name === 'TimeoutError')) throw e;
+  }
+}
+
+/**
  * Click a hand card to cast it, then drain everything between the click and
  * the selection this spec cares about: `getAbilityToPlay`'s "play this
  * trigger?" (via `answerPrompt`), as many as Forge sends (Relentless Dead's
@@ -47,13 +63,14 @@ async function castAndReachTheSelection(page: Page, cardId: number, atLeast: num
   await expect
     .poll(
       async () => {
+        // Look before acting: once the target picker is up, stop. The says line can still read "Pay Mana
+        // Cost" for a frame after payment, and pressing OK then confirms the open target prompt, so the
+        // picker vanishes before the caller can read it (seen locally, 1 run in 3, after the click fix).
+        const tiles = await selectionTiles(page).count();
+        if (tiles >= atLeast) return tiles;
         await answerPrompt(page);
-        const text = await says(page);
-        if (/Pay Mana Cost/i.test(text)) {
-          const auto = page.getByTestId('live-button-ok');
-          if (await auto.isEnabled()) await auto.click();
-        }
-        return selectionTiles(page).count();
+        if (/Pay Mana Cost/i.test(await says(page))) await pressOkIfEnabled(page);
+        return tiles;
       },
       { timeout: 30_000, intervals: [100] },
     )
@@ -90,8 +107,7 @@ async function castAndDeclineTrigger(page: Page, cardId: number, declineTextMatc
         }
         const text = await says(page);
         if (/Pay Mana Cost/i.test(text)) {
-          const auto = page.getByTestId('live-button-ok');
-          if (await auto.isEnabled()) await auto.click();
+          await pressOkIfEnabled(page);
         }
         return text;
       },
