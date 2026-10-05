@@ -2,12 +2,32 @@
  * Item 6 (wave 30): *"@wolffm/prefs-client is already an apps/ui dependency
  * and is the fleet's preference service — prefer it over localStorage, which
  * does not follow a player to another browser."* This is the one client for
- * both of the settings panel's preferences — board layout (item 11) and
- * always-stop-at-end-step (item 2/6) — persisted per VIEWER (the API's
- * `user` scope, `createPrefsClient`'s default `save` scope), so a preference
- * set on one browser is there the next time the same player signs in on
- * another. `@wolffm/prefs-client` DOES hold an app-scoped preference — this is
- * not a fallback file; it is the real integration.
+ * the settings panel's preferences — board layout (item 11),
+ * always-stop-at-end-step (item 2/6), and Fast Mode (wave 47) — persisted per
+ * VIEWER (the API's `user` scope, `createPrefsClient`'s default `save`
+ * scope), so a preference set on one browser is there the next time the same
+ * player signs in on another. `@wolffm/prefs-client` DOES hold an app-scoped
+ * preference — this is not a fallback file; it is the real integration.
+ *
+ * ## Fast Mode's default, and the one e2e seam (wave 47)
+ *
+ * Fast Mode is OFF by default everywhere — paced — EXCEPT inside the e2e
+ * harness, where every spec but the one that tests pacing itself needs
+ * frames to land the instant they arrive (the wave file's own rule: "e2e
+ * runs in Fast Mode"). `e2e/play/browser.ts`'s `openFriend` sets
+ * `globalThis[FAST_MODE_DEFAULT_GLOBAL] = true` via a Playwright
+ * `addInitScript`, the same seam `e2e/prefsLocal.ts` already uses for
+ * `__HADOKU_PREFS_API_BASE__` — a global read ONLY as the default, read here
+ * once, at module scope, which is late enough: an init script runs before
+ * any page script, and this module is not evaluated until the bundle's own
+ * JS does (`LiveBoard`'s eager import graph), well after. Production code
+ * never sets this global, so `fastModeDefaultOverride()` reads `false`
+ * everywhere that matters. `pace.test.ts`'s own suite and this file's unit
+ * tests both run under vitest/node, where the global is never set either.
+ *
+ * The one spec that tests pacing (`e2e/w47-pace.spec.ts`) turns Fast Mode
+ * back OFF for the seat it is measuring, through the real settings UI — see
+ * that file for why clicking the real control is the stronger proof.
  *
  * ## No direct `zod` import
  *
@@ -43,11 +63,13 @@ const BoardLayoutPrefSchema = borrowed.nonEmptyString.refine(
   { message: "must be 'single' or 'type-separated'" },
 );
 
-/** The settings panel's whole persisted shape. Both fields optional: a fresh viewer has neither yet, and `defaults` below fills the gap. `.strict()`, like every other schema in this lane — a misspelled or retired field is an error, not silently dropped. */
+/** The settings panel's whole persisted shape. Every field optional: a fresh viewer has none yet, and `defaults` below fills the gap. `.strict()`, like every other schema in this lane — a misspelled or retired field is an error, not silently dropped. */
 export const PlayPrefsSchema = borrowed.emptyObject
   .extend({
     boardLayout: BoardLayoutPrefSchema.optional(),
     stopAtEndStep: borrowed.boolean.optional(),
+    /** Wave 47: "Fast Mode" in the settings panel. Off (paced) by default. */
+    fastMode: borrowed.boolean.optional(),
   })
   .strict();
 
@@ -56,12 +78,31 @@ export interface PlayPrefs {
   [key: string]: unknown;
   boardLayout?: BoardLayout;
   stopAtEndStep?: boolean;
+  fastMode?: boolean;
 }
 
-/** What the panel draws before the first read resolves, and what a field defaults to once it has. Mirrors `Board`'s own `boardLayout` default (item 11: single, undivided). */
-export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; stopAtEndStep: boolean } = {
+/**
+ * e2e's own seam for Fast Mode's default — see this module's header. The key
+ * is exported so `e2e/play/browser.ts` sets the exact string this file reads,
+ * never a hand-typed copy of it.
+ */
+export const FAST_MODE_DEFAULT_GLOBAL = '__CARDTABLE_FAST_MODE_DEFAULT__';
+
+function fastModeDefaultOverride(): boolean {
+  return (globalThis as Record<string, unknown>)[FAST_MODE_DEFAULT_GLOBAL] === true;
+}
+
+/**
+ * What the panel draws before the first read resolves, and what a field
+ * defaults to once it has. `boardLayout` mirrors `Board`'s own default (item
+ * 11: single, undivided). `fastMode` mirrors `pace.ts`'s own wrapper default
+ * (paced) everywhere except inside the e2e harness — see this module's
+ * header.
+ */
+export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; stopAtEndStep: boolean; fastMode: boolean } = {
   boardLayout: 'single',
   stopAtEndStep: false,
+  fastMode: fastModeDefaultOverride(),
 };
 
 /**

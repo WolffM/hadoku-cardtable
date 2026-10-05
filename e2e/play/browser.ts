@@ -12,7 +12,7 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 
 import type { RawCapture } from '../frames.ts';
 import { SESSION_COOKIE } from '../identities.ts';
-import { keepPrefsLocal } from '../prefsLocal.ts';
+import { keepPrefsLocal, setPlayFastModeDefault } from '../prefsLocal.ts';
 import { PLAY_EDGE_ORIGIN } from './harness.ts';
 import { registerFriendContext } from './open-friends.ts';
 import { playMessagesOf, type PlayMessage } from './frames.ts';
@@ -39,6 +39,11 @@ export async function openFriend(browser: Browser, name: string): Promise<Friend
     { name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' },
   ]);
   await keepPrefsLocal(context, PLAY_EDGE_ORIGIN);
+  // Wave 47, "e2e runs in Fast Mode" — every play spec but the one that
+  // tests pacing (`e2e/w47-pace.spec.ts`) needs frames to land without the
+  // artificial delay `pace.ts` would otherwise add; that one spec turns it
+  // back off for the seat it measures, through the real settings checkbox.
+  await setPlayFastModeDefault(context, true);
   const page = await context.newPage();
   const friend: Friend = { name, context, page, captures: [], pending: [], captureErrors: [], blocked: [] };
 

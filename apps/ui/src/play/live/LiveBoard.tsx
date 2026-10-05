@@ -260,6 +260,7 @@ import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, isConfirmPrompt, isPlayOrDrawPro
 import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
+import { isPacedTransport } from './pace.ts';
 import {
   abortAsk,
   answerAsk,
@@ -1651,6 +1652,29 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     appliedBoardLayout.current = true;
     if (prefs.boardLayout === 'type-separated') setBoardLayout('type-separated');
   }, [prefs]);
+  /*
+   * Fast Mode (wave 47), the same shape as board layout above: client-only,
+   * so there is no server echo to adopt the way `stopAtEndStep` has one —
+   * this is this client's own last word, held here because `<SettingsPanel>`
+   * only exists while the popout is open and a toggle set last match still
+   * has to reach `./pace.ts`'s wrapper whether or not this seat ever opens
+   * it. `match.transport` is `./match.ts`'s own field (unowned, read not
+   * written) — `isPacedTransport` narrows it without needing `match.ts` to
+   * know pacing exists at all.
+   */
+  const [fastMode, setFastModeState] = useState<boolean>(PLAY_PREFS_DEFAULTS.fastMode);
+  const appliedFastMode = useRef(false);
+  useEffect(() => {
+    if (appliedFastMode.current || prefs === null) return;
+    appliedFastMode.current = true;
+    const persisted = prefs.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode;
+    setFastModeState(persisted);
+    if (isPacedTransport(match.transport)) match.transport.setFast(persisted);
+  }, [prefs, match]);
+  function handleFastModeChange(next: boolean): void {
+    setFastModeState(next);
+    if (isPacedTransport(match.transport)) match.transport.setFast(next);
+  }
   useEffect(() => {
     // `snapshots === 0` is "no join has completed yet" — sending before that
     // would fire on mount, before the socket has so much as connected, and
@@ -2133,6 +2157,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           inert={spectator}
           boardLayout={boardLayout}
           onBoardLayoutChange={setBoardLayout}
+          fastMode={fastMode}
+          onFastModeChange={handleFastModeChange}
           onSave={(patch: Partial<PlayPrefs>) => void savePrefs(patch)}
         />
       </HeaderSettingsPortal>
