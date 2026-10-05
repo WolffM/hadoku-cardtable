@@ -47,7 +47,16 @@ export function stackItemUnder(node: EventTarget | null, offered: StackAsk): num
   return offered.keys.has(id) ? id : null;
 }
 
-/** Answer the ask with the stack item `id`. False, and nothing sent, when that is not a legal reply now. */
+/**
+ * Answer the ask with the stack item `id`. False, and nothing sent, when that
+ * is not a legal reply now.
+ *
+ * Wave 46 §B's counterspell arc reads off this reply too, but not from here:
+ * `match.ts`'s `answerAsk` is the one choke point every `getChoices` reply
+ * passes through (this gesture's, and Forge's own single-legal-choice
+ * auto-answer alike), so that is where the targeted stack item's id is
+ * recorded — see its own note.
+ */
 export function commitStackTarget(match: LiveMatch, id: number): boolean {
   const offered = stackAsk(match);
   const key = offered?.keys.get(id);

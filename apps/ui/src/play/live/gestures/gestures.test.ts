@@ -46,6 +46,7 @@ import { Board } from '../../Board.tsx';
 // the seam right", never "did B's geometry answer right".
 import * as BoardModule from '../../Board.tsx';
 import {
+  attackAssignment,
   boardInteraction,
   closeMatch,
   selectCard,
@@ -1263,6 +1264,80 @@ describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () =
     drag(cardEl(canvas, blocker), cardEl(canvas, theirs[0]!));
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectCard', blocker]]);
+  });
+});
+
+/* ── X1/W14 — attacking a planeswalker or a face by drag ─────────────── */
+
+/**
+ * `Type` crosses as a `cardtype` tag (`wire.ts`): sup/core/sub joined by
+ * `adapter.ts`'s `typeLineOf`. Retyping one of the opponent's existing
+ * battlefield cards is how this file gives itself a planeswalker to attack —
+ * the fixture's real capture has none, and `attackDefenders` (`match.ts`) goes
+ * off the CURRENT type line, exactly as a Magus-of-the-Moon-style effect
+ * would. `cardStateKeyOf` is the CardState delta key (`cardId*16 + 0`, the
+ * same ordinal-0 assumption `adapter.test.ts`'s `renameCard` makes for this
+ * fixture).
+ */
+const cardStateKeyOf = (id: number) => String((4 << 28) | (id * 16));
+const retypeDelta = (id: number, core: string[], sub: string[] = []): ServerFrame =>
+  stateDelta({
+    [cardStateKeyOf(id)]: { _type: 4, _id: id * 16, Type: { t: 'cardtype', sup: [], core, sub, all: false, exc: [] } },
+  });
+
+describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender’s frame goes first', () => {
+  /** Declaring attackers, with the opponent's first battlefield card retyped a planeswalker. */
+  async function attackingBoard() {
+    const ctx = await declaringAttackersBoard();
+    const { s, m } = ctx;
+    const attacker = mineOf(m).battlefield.find((c) => !c.tapped)!.id;
+    const pw = theirsOf(m).battlefield[0]!.id;
+    s.send(retypeDelta(pw, ['Planeswalker'], ['Jace']));
+    await waitFor(() => expect(theirsOf(m).battlefield.find((c) => c.id === pw)!.card.typeLine).toContain('Planeswalker'));
+    for (const f of notify([prompt('Declare attackers'), actionable([attacker])])) s.send(f);
+    await waitFor(() => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
+    return { ...ctx, attacker, pw };
+  }
+
+  it('a drop on the opponent’s planeswalker sends selectCard(pw), then selectCard(attacker)', async () => {
+    const { s, m, canvas, attacker, pw } = await attackingBoard();
+    await waitFor(() => expect(boardInteraction(m).selectable.has(pw)).toBe(true));
+    drag(cardEl(canvas, attacker), cardEl(canvas, pw));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s)).toEqual([
+      ['selectCard', pw],
+      ['selectCard', attacker],
+    ]);
+  });
+
+  it('a drop on the opponent’s face sends selectPlayer, then selectCard', async () => {
+    const { s, m, canvas, attacker } = await attackingBoard();
+    const opponent = theirsOf(m).id;
+    drag(cardEl(canvas, attacker), faceEl(canvas, opponent));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s)).toEqual([
+      ['selectPlayer', opponent],
+      ['selectCard', attacker],
+    ]);
+  });
+
+  it('a drop on the defender it already attacks sends nothing — Forge would toggle it off', async () => {
+    const { s, m, canvas, attacker } = await attackingBoard();
+    const opponent = theirsOf(m).id;
+    // Already declared: Forge's own CombatView says this band's defender is the opponent.
+    s.send(
+      stateDelta({
+        [GAME_KEY]: {
+          _type: 3,
+          _id: 1,
+          CombatView: { t: 'combat', atk: [[attacker]], def: [[1, opponent]], blk: [[]], pblk: [[]] },
+        },
+      }),
+    );
+    await waitFor(() => expect(attackAssignment(m, attacker, { kind: 'player', id: opponent })).toBe('already'));
+    drag(cardEl(canvas, attacker), faceEl(canvas, opponent));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames()).toHaveLength(0);
   });
 });
 

@@ -1,0 +1,19 @@
+# wave 46 §B — X3's counterspell arc. Seat 1 (ai) has an uncontested Main
+# Phase 1 and a free creature to cast; seat 0 (human) holds Counterspell and
+# enough untapped mana to pay it (UU, no other clause), so that once seat 1
+# casts its spell seat 0 is given priority with exactly one spell on the
+# stack and can counter it with no "unless you pay" confirm in the way.
+# Modelled on `lone-spell.state` (Q7), Counterspell in place of Mana Leak.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Counterspell
+humanbattlefield=Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Memnite
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

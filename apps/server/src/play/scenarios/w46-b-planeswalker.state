@@ -1,0 +1,27 @@
+# Wave 46 §B — a corrected copy of `w41-planeswalker.state` (never edited: the
+# brief says reuse it read-only, and it is reused elsewhere). That file's
+# `aibattlefield=Jace Beleren` carries no `|Counters:LOYALTY=N`, and
+# `GameState.applyToGame`'s own puzzle-file placement
+# (`GameState.java`'s `processCardsForZone`) does not special-case a
+# planeswalker's starting loyalty — it ONLY sets counters from an explicit
+# `|Counters:...` suffix (`applyCountersToGameEntity`). Left at the default
+# (zero), Forge's own state-based action (`GameAction.java`, "a planeswalker
+# with loyalty 0 or less goes to its owner's graveyard") removes Jace almost
+# immediately, before this e2e spec ever gets a chance to drag an attacker
+# onto it — confirmed empirically (this fixture's Jace never appears on bob's
+# battlefield at all; `w43-planeswalker.state` already carries the same
+# `|Counters:LOYALTY=N` fix for the identical reason, and says so in its own
+# header). `e2e/w46-attack.spec.ts` uses this file, not `w41-planeswalker.state`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Jace Beleren|Counters:LOYALTY=3
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

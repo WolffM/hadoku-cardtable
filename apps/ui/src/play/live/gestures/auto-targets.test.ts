@@ -21,10 +21,10 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { autoTargetArrows } from './auto-targets.ts';
+import { autoTargetArrows, combatArrows, stackTargetArrows } from './auto-targets.ts';
 import { clearAutoTargetArrows, drawAutoTargetArrows } from './arrow.ts';
 import type { LiveMatch } from '../match.ts';
-import type { BoardView, StackEntry } from '../../adapter.ts';
+import type { BoardView, CombatBand, StackEntry } from '../../adapter.ts';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -53,6 +53,17 @@ function stackEntry(
 function matchWithStack(stack: StackEntry[]): LiveMatch {
   const view = { stack } as unknown as BoardView;
   return { view } as unknown as LiveMatch;
+}
+
+/** A `LiveMatch` stub carrying only what `combatArrows` reads. */
+function matchWithCombat(combat: CombatBand[]): LiveMatch {
+  const view = { combat } as unknown as BoardView;
+  return { view } as unknown as LiveMatch;
+}
+
+/** A `LiveMatch` stub carrying only what `stackTargetArrows` reads. */
+function matchWithStackArcs(arcs: ReadonlyMap<number, number>): LiveMatch {
+  return { stackTargetArcs: new Map(arcs) } as unknown as LiveMatch;
 }
 
 function el(attrs: Record<string, string>): HTMLElement {
@@ -183,5 +194,78 @@ describe('drawAutoTargetArrows', () => {
     clearAutoTargetArrows(box);
     expect(box.querySelectorAll('[data-testid="stack-target-arrow"]')).toHaveLength(0);
     expect(() => clearAutoTargetArrows(null)).not.toThrow();
+  });
+});
+
+/*
+ * X1 — the lasting attack arrow, drawn from `view.combat` rather than a
+ * stack item's own target. Same "build a stub by hand" style as the block
+ * above: `combatArrows` reads nothing but `match.view.combat` and the DOM.
+ */
+describe('combatArrows', () => {
+  it('draws attacker → defender for a card defender (a planeswalker or a battle)', () => {
+    el({ 'data-board-card': '10' });
+    const pw = el({ 'data-board-card': '55' });
+    const match = matchWithCombat([{ attackers: [10], defender: { kind: 'card', id: 55 }, blockers: [] }]);
+    const arrows = combatArrows(document.body, match);
+    expect(arrows).toEqual([{ key: 'combat:10', from: expect.anything(), to: pw, kind: 'card' }]);
+    expect(arrows[0]!.to).toBe(pw);
+  });
+
+  it('draws attacker → defender for a player defender, off the face box', () => {
+    el({ 'data-board-card': '10' });
+    const face = el({ 'data-player-face': '', 'data-player-id': '1' });
+    const match = matchWithCombat([{ attackers: [10], defender: { kind: 'player', id: 1 }, blockers: [] }]);
+    const arrows = combatArrows(document.body, match);
+    expect(arrows).toEqual([{ key: 'combat:10', from: expect.anything(), to: face, kind: 'player' }]);
+  });
+
+  it('draws one arrow per attacker in a multi-attacker band, all to the same defender', () => {
+    el({ 'data-board-card': '10' });
+    el({ 'data-board-card': '11' });
+    const face = el({ 'data-player-face': '', 'data-player-id': '1' });
+    const match = matchWithCombat([{ attackers: [10, 11], defender: { kind: 'player', id: 1 }, blockers: [] }]);
+    const arrows = combatArrows(document.body, match);
+    expect(arrows.map((a) => a.key).sort()).toEqual(['combat:10', 'combat:11']);
+    for (const a of arrows) expect(a.to).toBe(face);
+  });
+
+  it('skips a band whose attacker or defender is not on screen', () => {
+    // Neither card 10 nor player 1 is mounted.
+    const match = matchWithCombat([{ attackers: [10], defender: { kind: 'player', id: 1 }, blockers: [] }]);
+    expect(combatArrows(document.body, match)).toEqual([]);
+  });
+
+  it('draws nothing outside combat — an absent or empty `view.combat`', () => {
+    expect(combatArrows(document.body, matchWithCombat([]))).toEqual([]);
+    expect(combatArrows(document.body, { view: {} } as unknown as LiveMatch)).toEqual([]);
+  });
+});
+
+/*
+ * X3 — the counterspell arc. `stackTargetArrows` reads `match.stackTargetArcs`
+ * — the client-side pairing `match.ts`'s `redraw` claims once a countering
+ * stack item appears — never `StackEntry.targetCardIds`/`targetPlayerIds`
+ * (both read empty for this case; see `match.ts`'s own note and
+ * `docs/planning/wave46-evidence/B/README.md`).
+ */
+describe('stackTargetArrows', () => {
+  it('draws one arrow per arc, thumbnail to thumbnail', () => {
+    el({ 'data-stack-id': '60' });
+    const to = el({ 'data-stack-id': '50' });
+    const match = matchWithStackArcs(new Map([[60, 50]]));
+    const arrows = stackTargetArrows(document.body, match);
+    expect(arrows).toEqual([{ key: 'stack-target:60:50', from: expect.anything(), to, kind: 'card' }]);
+  });
+
+  it('skips an arc whose source or target thumbnail is not on screen', () => {
+    el({ 'data-stack-id': '60' });
+    // No [data-stack-id="50"] mounted.
+    const match = matchWithStackArcs(new Map([[60, 50]]));
+    expect(stackTargetArrows(document.body, match)).toEqual([]);
+  });
+
+  it('draws nothing when there are no arcs', () => {
+    expect(stackTargetArrows(document.body, matchWithStackArcs(new Map()))).toEqual([]);
   });
 });

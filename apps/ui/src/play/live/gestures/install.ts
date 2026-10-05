@@ -148,7 +148,7 @@ import {
 // Where a cast lands on the battlefield — a plain function, not a component,
 // read across the lane boundary.
 import { notePlayedTo, previewPlayedTo } from '../../Board.tsx';
-import { autoTargetArrows } from './auto-targets.ts';
+import { autoTargetArrows, combatArrows, stackTargetArrows } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
 import {
   CAST_LIFT_ATTR,
@@ -382,8 +382,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
     }
     // Forge's own already-decided targets. Independent of whichever gesture
     // (if any) is in progress above, so it is reconciled every paint
-    // regardless of branch — a drag or a box-draw does not hide it.
-    if (overlay !== null) drawAutoTargetArrows(overlay, autoTargetArrows(canvas, match));
+    // regardless of branch — a drag or a box-draw does not hide it. Three
+    // producers (a stack item's own target, X1's lasting attack arrow, X3's
+    // counterspell arc), ONE reconciler — see `auto-targets.ts`'s header.
+    if (overlay !== null) {
+      drawAutoTargetArrows(overlay, [
+        ...autoTargetArrows(canvas, match),
+        ...combatArrows(canvas, match),
+        ...stackTargetArrows(canvas, match),
+      ]);
+    }
     if (next === shape) return;
     shape = next;
     options.onChange?.();

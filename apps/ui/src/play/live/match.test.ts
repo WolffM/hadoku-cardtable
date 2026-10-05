@@ -20,6 +20,7 @@ import {
   abortAsk,
   answerAsk,
   answerConfirm,
+  attackAssignment,
   attackIntents,
   boardInteraction,
   closeMatch,
@@ -34,6 +35,7 @@ import {
   MAX_RESYNCS_WITHOUT_PROGRESS,
   nothingToDecide,
   attackersLeft,
+  noteStackTargetIntent,
   pressButton,
   selectCard,
   selectPlayer,
@@ -1810,6 +1812,259 @@ describe('combat, off the state channel: the intent mark and the block target', 
     expect(isBlockAssignment(m, mine[0]!, 999)).toBe(false);
     expect(selectCard(m, 999)).toBe(false);
     await barrier(s, m, mine[0]!);
+  });
+});
+
+/*
+ * X1/W14 — attacking a planeswalker or a player. `attackDefenders` (not
+ * exported; read here through `boardInteraction`'s offer and through
+ * `attackAssignment`'s own verdict) offers opponents' planeswalkers and
+ * battles, and `boardInteraction`'s own player branch offers every opponent
+ * while attackers are being declared. `attackAssignment` is what `commit.ts`
+ * reads to decide the DEFENDER-FIRST order — `gestures/gestures.test.ts`'s
+ * "X1/W14" block proves the two-frame drag end to end; this proves the
+ * decision it is built on.
+ */
+describe('X1/W14 — attackDefenders and attackAssignment, off the state channel', () => {
+  const me = (m: LiveMatch) => m.view!.players.find((p) => p.isViewer)!;
+  const them = (m: LiveMatch) => m.view!.players.find((p) => !p.isViewer)!;
+
+  /** Retype one of the opponent's existing battlefield cards a planeswalker — the fixture's capture has none. */
+  function retypePlaneswalker(id: number): ServerFrame {
+    return stateDelta({
+      [deltaKey(WireType.CardState, id * 16)]: {
+        _type: WireType.CardState,
+        _id: id * 16,
+        Type: { t: 'cardtype', sup: [], core: ['Planeswalker'], sub: ['Jace'], all: false, exc: [] },
+      },
+    });
+  }
+
+  it('a planeswalker is offered as a card target while declaring attackers, and attackAssignment says ASSIGN', async () => {
+    const { s, m } = await fullGame();
+    const attacker = me(m).battlefield.find((c) => !c.tapped)!.id;
+    const pw = them(m).battlefield[0]!.id;
+    await sendAndApply(s, m, [retypePlaneswalker(pw)]);
+    expect(them(m).battlefield.find((c) => c.id === pw)!.card.typeLine).toContain('Planeswalker');
+
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), actionable([attacker])]);
+    expect(declaringAttackers(m)).toBe(true);
+    expect(boardInteraction(m).selectable.has(pw)).toBe(true);
+    expect(attackAssignment(m, attacker, { kind: 'card', id: pw })).toBe('assign');
+  });
+
+  it('the opponent is offered as a player target while declaring attackers, and attackAssignment says ASSIGN', async () => {
+    const { s, m } = await fullGame();
+    const attacker = me(m).battlefield.find((c) => !c.tapped)!.id;
+    const opponent = them(m).id;
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), actionable([attacker])]);
+    expect(boardInteraction(m).selectablePlayers.has(opponent)).toBe(true);
+    expect(attackAssignment(m, attacker, { kind: 'player', id: opponent })).toBe('assign');
+  });
+
+  it('a defender this attacker already attacks (Forge’s own CombatView) reads ALREADY, not assign', async () => {
+    const { s, m } = await fullGame();
+    const attacker = me(m).battlefield.find((c) => !c.tapped)!.id;
+    const opponent = them(m).id;
+    await sendAndApply(s, m, [
+      phase('COMBAT_DECLARE_ATTACKERS', me(m).id),
+      prompt('Declare attackers'),
+      actionable([attacker]),
+      stateDelta({
+        [GAME_KEY]: {
+          _type: WireType.Game,
+          _id: 1,
+          CombatView: { t: 'combat', atk: [[attacker]], def: [[1, opponent]], blk: [[]], pblk: [[]] },
+        },
+      }),
+    ]);
+    expect(attackAssignment(m, attacker, { kind: 'player', id: opponent })).toBe('already');
+    // A DIFFERENT defender is still a fresh assignment.
+    const pw = them(m).battlefield[0]!.id;
+    await sendAndApply(s, m, [retypePlaneswalker(pw)]);
+    expect(attackAssignment(m, attacker, { kind: 'card', id: pw })).toBe('assign');
+  });
+
+  it('is null outside declare-attackers, and null for a card that is not this seat’s own battlefield', async () => {
+    const { s, m } = await fullGame();
+    const attacker = me(m).battlefield[0]!.id;
+    const opponent = them(m).id;
+    const theirCard = them(m).battlefield[0]!.id;
+
+    // Outside the phase at all.
+    await sendAndApply(s, m, [phase('MAIN1', me(m).id)]);
+    expect(attackAssignment(m, attacker, { kind: 'player', id: opponent })).toBeNull();
+
+    // Inside the phase, but the "attacker" is the OPPONENT's own card.
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id)]);
+    expect(attackAssignment(m, theirCard, { kind: 'player', id: opponent })).toBeNull();
+
+    // And a target that is neither a legal player nor an offered planeswalker/battle.
+    expect(attackAssignment(m, attacker, { kind: 'card', id: theirCard })).toBeNull();
+  });
+});
+
+/*
+ * X3 — the counterspell arc's client-side pairing. There is no wire fact for
+ * "this stack item targets that one" when the target is itself a spell on the
+ * stack (`gestures/stack.ts`'s `commitStackTarget` note; proven against the
+ * real jar in `apps/server/src/play/scenario-w46-b-counterspell.jvm.test.ts`),
+ * so `redraw` claims the pairing itself the moment the countering item
+ * appears. These drive that claim/prune logic directly off synthetic stack
+ * frames — `gestures/auto-targets.test.ts`'s `stackTargetArrows` block proves
+ * what gets DRAWN from `stackTargetArcs` once it holds one.
+ */
+describe('X3 — stackTargetIntent/stackTargetArcs, the counterspell arc’s claim and prune', () => {
+  const me = (m: LiveMatch) => m.view!.players.find((p) => p.isViewer)!;
+  const them = (m: LiveMatch) => m.view!.players.find((p) => !p.isViewer)!;
+
+  /** A brand new `StackItem` object (never a delta — it does not exist yet). */
+  function newStackItem(id: number, activatingPlayer: number, description: string): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: {
+          seq,
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: {
+            [deltaKey(WireType.StackItem, id)]: {
+              _type: WireType.StackItem,
+              _id: id,
+              ActivatingPlayer: { t: 'int', v: activatingPlayer },
+              Description: { t: 'str', v: description },
+            },
+          },
+          objectDeltas: {},
+          events: [],
+        },
+      },
+    });
+  }
+
+  /** `Game.Stack`, top-first — `adapter.ts`'s own documented order. */
+  const stackOf = (ids: number[]): ServerFrame =>
+    stateDelta({
+      [GAME_KEY]: { _type: WireType.Game, _id: 1, Stack: { t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) } },
+    });
+
+  it('claims the intent once a NEW top item appears, controlled by this seat', async () => {
+    const { s, m } = await fullGame();
+    const target = 9001; // the opponent's spell, already on the stack
+    await sendAndApply(s, m, [newStackItem(target, them(m).id, 'Memnite'), stackOf([target])]);
+    expect(m.view!.stack.map((i) => i.id)).toEqual([target]);
+
+    noteStackTargetIntent(m, target);
+    expect(m.stackTargetIntent).toBe(target);
+    expect(m.stackTargetArcs.size).toBe(0);
+
+    // The countering spell lands: a NEW top item, controlled by THIS seat.
+    const counter = 9002;
+    await sendAndApply(s, m, [newStackItem(counter, me(m).id, 'Counterspell'), stackOf([counter, target])]);
+    expect(m.stackTargetArcs.get(counter)).toBe(target);
+    expect(m.stackTargetIntent).toBeNull();
+  });
+
+  it('does not claim a new top item controlled by someone ELSE — only this seat’s own cast claims it', async () => {
+    const { s, m } = await fullGame();
+    const target = 9011;
+    await sendAndApply(s, m, [newStackItem(target, me(m).id, 'Shock'), stackOf([target])]);
+    noteStackTargetIntent(m, target);
+
+    // A trigger from the OPPONENT lands on top before this seat's own spell does.
+    const theirTrigger = 9012;
+    await sendAndApply(s, m, [newStackItem(theirTrigger, them(m).id, 'Some trigger'), stackOf([theirTrigger, target])]);
+    expect(m.stackTargetArcs.has(theirTrigger)).toBe(false);
+    // Still held, waiting for THIS seat's own item.
+    expect(m.stackTargetIntent).toBe(target);
+  });
+
+  it('prunes an arc once either side leaves the stack — the target resolves', async () => {
+    const { s, m } = await fullGame();
+    const target = 9021;
+    const counter = 9022;
+    await sendAndApply(s, m, [newStackItem(target, them(m).id, 'Memnite'), stackOf([target])]);
+    noteStackTargetIntent(m, target);
+    await sendAndApply(s, m, [newStackItem(counter, me(m).id, 'Counterspell'), stackOf([counter, target])]);
+    expect(m.stackTargetArcs.get(counter)).toBe(target);
+
+    // The counterspell resolves, taking the targeted spell off the stack too.
+    await sendAndApply(s, m, [stackOf([])]);
+    expect(m.stackTargetArcs.size).toBe(0);
+  });
+
+  it('prunes an arc once the SOURCE leaves the stack (resolved before the target did)', async () => {
+    const { s, m } = await fullGame();
+    const target = 9031;
+    const counter = 9032;
+    await sendAndApply(s, m, [newStackItem(target, them(m).id, 'Memnite'), stackOf([target])]);
+    noteStackTargetIntent(m, target);
+    await sendAndApply(s, m, [newStackItem(counter, me(m).id, 'Counterspell'), stackOf([counter, target])]);
+    expect(m.stackTargetArcs.get(counter)).toBe(target);
+
+    // The counterspell itself resolves and leaves the stack; the arc goes with it.
+    await sendAndApply(s, m, [stackOf([target])]);
+    expect(m.stackTargetArcs.has(counter)).toBe(false);
+  });
+
+  /** A `getChoices` ask whose choices carry stack-item refs — `PlayBridge.java:288`'s own shape. */
+  const getChoicesAsk = (callId: string, choices: { key: string; label: string; stackItemId: number }[]): ServerFrame =>
+    parseServerFrame({
+      kind: 'ask',
+      callId,
+      method: 'getChoices',
+      message: 'Select target card',
+      min: 1,
+      max: 1,
+      choices: choices.map((c) => ({ key: c.key, label: c.label, ref: { kind: 'stackItem', id: c.stackItemId } })),
+      selected: [],
+    });
+
+  /*
+   * The real bug this centralisation fixes: with exactly ONE legal stack
+   * target, Forge's own ask is auto-answered by `LiveBoard.tsx`'s
+   * `autoAnswer` → `rules.ts`'s `onlyStackTarget` — which calls `answerAsk`
+   * DIRECTLY, never `gestures/stack.ts`'s `commitStackTarget`. Recording the
+   * intent only in the gesture would miss the single-legal-target case
+   * entirely, which is the COMMON one for a counterspell. This proves
+   * `answerAsk` itself is the one place that has to record it.
+   */
+  it('answerAsk itself records the intent, so Forge’s own single-choice auto-answer (no click, no gesture) draws the arc too', async () => {
+    const { s, m } = await fullGame();
+    const target = 9041;
+    await sendAndApply(s, m, [newStackItem(target, them(m).id, 'Memnite'), stackOf([target])]);
+
+    s.send(getChoicesAsk('c-stack-1', [{ key: 'c0', label: 'Memnite', stackItemId: target }]));
+    await until('the stack-target ask', () => currentAsk(m) !== null);
+
+    // Answered directly — the shape `onlyStackTarget`'s own auto-answer uses,
+    // never through the gesture layer.
+    expect(answerAsk(m, 'c-stack-1', 'getChoices', ['c0'])).toBe(true);
+    expect(m.stackTargetIntent).toBe(target);
+
+    const counter = 9042;
+    await sendAndApply(s, m, [newStackItem(counter, me(m).id, 'Counterspell'), stackOf([counter, target])]);
+    expect(m.stackTargetArcs.get(counter)).toBe(target);
+  });
+
+  it('a getChoices answer naming something OTHER than a stack item records no intent', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [
+      parseServerFrame({
+        kind: 'ask',
+        callId: 'c-ordinary',
+        method: 'getChoices',
+        message: 'Choose a mode',
+        min: 1,
+        max: 1,
+        choices: [{ key: 'c0', label: 'Mode one', ref: null }],
+        selected: [],
+      }),
+    ]);
+    expect(answerAsk(m, 'c-ordinary', 'getChoices', ['c0'])).toBe(true);
+    expect(m.stackTargetIntent).toBeNull();
   });
 });
 
