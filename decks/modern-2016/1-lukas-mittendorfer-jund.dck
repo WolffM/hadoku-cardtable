@@ -1,0 +1,41 @@
+[metadata]
+Name=Jund (Lukas Mittendorfer)
+Deck Type=Constructed
+Format=Modern (EMN)
+Effective=2016-07-22
+Source URL=https://www.mtgtop8.com/event?e=13075&d=276373&f=MO
+Comment=WMCQ Austria (Wien): Lukas Mittendorfer, 1st, Jund. Transcribed from mtgtop8 deck 276373.
+[Main]
+4 Liliana of the Veil|ISD
+4 Tarmogoyf|FUT
+4 Dark Confidant|RAV
+2 Kalitas, Traitor of Ghet|OGW
+1 Grim Lavamancer|M12
+3 Scavenging Ooze|M14
+2 Maelstrom Pulse|ARB
+2 Thoughtseize|THS
+4 Inquisition of Kozilek|ROE
+4 Lightning Bolt|M11
+1 Slaughter Pact|FUT
+2 Kolaghan's Command|DTK
+1 Abrupt Decay|RTR
+2 Terminate|ARB
+2 Forest|SOI
+2 Swamp|SOI
+4 Blackcleave Cliffs|SOM
+4 Verdant Catacombs|ZEN
+4 Bloodstained Mire|KTK
+4 Raging Ravine|WWK
+2 Overgrown Tomb|RTR
+1 Blood Crypt|RTR
+1 Stomping Ground|GTC
+[Sideboard]
+2 Ancient Grudge|ISD
+1 Duress|DTK
+1 Engineered Explosives|FD
+1 Grafdigger's Cage|DKA
+2 Damnation|PLC
+3 Kitchen Finks|SHM
+3 Fulminator Mage|SHM
+1 Thrun, the Last Troll|MBS
+1 Obstinate Baloth|M11
