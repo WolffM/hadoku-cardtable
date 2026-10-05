@@ -1,0 +1,326 @@
+{
+ "note": "The inferred vibes from the Sound Palette page (https://claude.ai/artifact/T7VSxtbdugjktF5V1CFG5N). The operator edits vibes on that page; generate.py --vibes <file> takes an export of its saved edits, which win over these.",
+ "sounds": [
+  {
+   "kind": "identity",
+   "family": "mono",
+   "id": "W",
+   "name": "White",
+   "sub": "Mono white",
+   "vibe": "Radiant, orderly, holy. Bright bells over a clean major chord, a faint breath of choir, crisp and uplifting."
+  },
+  {
+   "kind": "identity",
+   "family": "mono",
+   "id": "U",
+   "name": "Blue",
+   "sub": "Mono blue",
+   "vibe": "Arcane, fluid, cerebral. A glassy rising arpeggio with water droplets and a shimmering echo."
+  },
+  {
+   "kind": "identity",
+   "family": "mono",
+   "id": "B",
+   "name": "Black",
+   "sub": "Mono black",
+   "vibe": "Shadowy, hungry, sinister. A low beating drone, a slipping minor second and a breath that closes in."
+  },
+  {
+   "kind": "identity",
+   "family": "mono",
+   "id": "R",
+   "name": "Red",
+   "sub": "Mono red",
+   "vibe": "Explosive, impulsive. A fast fiery whoosh into crackling sparks with a hot distorted stab."
+  },
+  {
+   "kind": "identity",
+   "family": "mono",
+   "id": "G",
+   "name": "Green",
+   "sub": "Mono green",
+   "vibe": "Primal, growing. Deep wooden drum hits, rustling leaves and a low swelling horn."
+  },
+  {
+   "kind": "identity",
+   "family": "guild",
+   "id": "WU",
+   "name": "Azorius",
+   "sub": "White · Blue",
+   "vibe": "Law and order. A gavel knock and a precise crystal chime, measured and cold."
+  },
+  {
+   "kind": "identity",
+   "family": "guild",
+   "id": "UB",
+   "name": "Dimir",
+   "sub": "Blue · Black",
+   "vibe": "Secrets and espionage. A muted pluck, a whisper that echoes and vanishes."
+  },
+  {
+   "kind": "identity",
+   "family": "guild",
+   "id": "BR",
+   "name": "Rakdos",
+   "sub": "Black · Red",
+   "vibe": "Demonic carnival. A detuned calliope wobble, a cackle-like flutter and a burst of fire."
+  },
+  {
+   "kind": "identity",
+   "family": "guild",
+   "id": "RG",
+   "name": "Gruul",
+   "sub": "Red · Green",
+   "vibe": "Savage. Stomping war drums and a guttural roar."
+  },
+  {
+   "kind": "identity",
+   "family": "guild",
+   "id": "GW",
+   "name": "Selesnya",
+   "sub": "Green · White",
+   "vibe": "Harmony and community. A warm choir chord, rustling leaves and soft chimes."
+  },
+  {
+   "kind": "identity",
+   "family": "guild",
+   "id": "WB",
+   "name": "Orzhov",
+   "sub": "White · Black",
+   "vibe": "Church and debt. A solemn pipe-organ minor chord with coins clinking."
+  },
+  {
+   "kind": "identity",
+   "family": "guild",
+   "id": "UR",
+   "name": "Izzet",
+   "sub": "Blue · Red",
+   "vibe": "Mad science. Electric arcs, sparks and a rising synth zap."
+  },
+  {
+   "kind": "identity",
+   "family": "guild",
+   "id": "BG",
+   "name": "Golgari",
+   "sub": "Black · Green",
+   "vibe": "Rot and undergrowth. A damp squelch, insect clicks and a low earthy drone."
+  },
+  {
+   "kind": "identity",
+   "family": "guild",
+   "id": "RW",
+   "name": "Boros",
+   "sub": "Red · White",
+   "vibe": "A legion at war. A brass fanfare and a metallic shield clang."
+  },
+  {
+   "kind": "identity",
+   "family": "guild",
+   "id": "GU",
+   "name": "Simic",
+   "sub": "Green · Blue",
+   "vibe": "Mutation and biology. Bubbling, morphing pitch, liquid and alive."
+  },
+  {
+   "kind": "identity",
+   "family": "shard",
+   "id": "GWU",
+   "name": "Bant",
+   "sub": "Green · White · Blue",
+   "vibe": "Noble knights. A heraldic horn call over serene bells."
+  },
+  {
+   "kind": "identity",
+   "family": "shard",
+   "id": "WUB",
+   "name": "Esper",
+   "sub": "White · Blue · Black",
+   "vibe": "Etherium artifice. Glassy metallic chimes ticking like precise clockwork."
+  },
+  {
+   "kind": "identity",
+   "family": "shard",
+   "id": "UBR",
+   "name": "Grixis",
+   "sub": "Blue · Black · Red",
+   "vibe": "Undead wasteland. An eerie low drone, a ghostly glide and embers crackling."
+  },
+  {
+   "kind": "identity",
+   "family": "shard",
+   "id": "BRG",
+   "name": "Jund",
+   "sub": "Black · Red · Green",
+   "vibe": "Dragons and predators. A deep roar, a burst of fire and heavy drums."
+  },
+  {
+   "kind": "identity",
+   "family": "shard",
+   "id": "RGW",
+   "name": "Naya",
+   "sub": "Red · Green · White",
+   "vibe": "Giants in the jungle. Huge bright drums and a bold, sunny call."
+  },
+  {
+   "kind": "identity",
+   "family": "wedge",
+   "id": "WBG",
+   "name": "Abzan",
+   "sub": "White · Black · Green",
+   "vibe": "Endurance. A solid stone drum and a low, steady choir."
+  },
+  {
+   "kind": "identity",
+   "family": "wedge",
+   "id": "URW",
+   "name": "Jeskai",
+   "sub": "Blue · Red · White",
+   "vibe": "Monks and wind. A quick whoosh, wind chimes and a gong."
+  },
+  {
+   "kind": "identity",
+   "family": "wedge",
+   "id": "BGU",
+   "name": "Sultai",
+   "sub": "Black · Green · Blue",
+   "vibe": "Decadent necromancy. Dark water, a snake hiss and an ornate shimmer."
+  },
+  {
+   "kind": "identity",
+   "family": "wedge",
+   "id": "RWB",
+   "name": "Mardu",
+   "sub": "Red · White · Black",
+   "vibe": "A war horde at speed. A war horn over galloping drums."
+  },
+  {
+   "kind": "identity",
+   "family": "wedge",
+   "id": "GUR",
+   "name": "Temur",
+   "sub": "Green · Blue · Red",
+   "vibe": "Savagery and ice. An icy shimmer, a roar and crackling frost."
+  },
+  {
+   "kind": "identity",
+   "family": "four",
+   "id": "WUBRG",
+   "name": "Four colours or more",
+   "sub": "Any four, or all five",
+   "vibe": "Convergence. All five voices in a fast rising sweep that resolves into one bright chord."
+  },
+  {
+   "kind": "identity",
+   "family": "extra",
+   "id": "C",
+   "name": "Colourless",
+   "sub": "Artifacts and Eldrazi (suggested 27th)",
+   "vibe": "Metal and void. A mechanical clank over a deep alien hum."
+  },
+  {
+   "kind": "moment",
+   "id": "m-draw",
+   "name": "Draw a card",
+   "when": "A card moves from library to hand.",
+   "vibe": "A quick paper slide, light and dry."
+  },
+  {
+   "kind": "moment",
+   "id": "m-shuffle",
+   "name": "Shuffle",
+   "when": "A library is shuffled.",
+   "vibe": "A short riffle of card edges."
+  },
+  {
+   "kind": "moment",
+   "id": "m-land",
+   "name": "Play a land",
+   "when": "A land enters the battlefield.",
+   "vibe": "A soft, grounded thud."
+  },
+  {
+   "kind": "moment",
+   "id": "m-tap",
+   "name": "Tap for mana",
+   "when": "A permanent taps.",
+   "vibe": "A small click with a tiny sparkle."
+  },
+  {
+   "kind": "moment",
+   "id": "m-resolve",
+   "name": "Spell resolves",
+   "when": "The top of the stack resolves.",
+   "vibe": "A short settling chime, falling to rest."
+  },
+  {
+   "kind": "moment",
+   "id": "m-counter",
+   "name": "Spell countered",
+   "when": "A spell leaves the stack without resolving.",
+   "vibe": "A reversed, swallowed zap."
+  },
+  {
+   "kind": "moment",
+   "id": "m-attack",
+   "name": "Declare attack",
+   "when": "Attackers are declared.",
+   "vibe": "A blade swish and a low drum."
+  },
+  {
+   "kind": "moment",
+   "id": "m-block",
+   "name": "Block",
+   "when": "A blocker is assigned.",
+   "vibe": "A shield thunk."
+  },
+  {
+   "kind": "moment",
+   "id": "m-damage",
+   "name": "Damage",
+   "when": "Damage is dealt to a creature or player.",
+   "vibe": "A dull impact with a crunch."
+  },
+  {
+   "kind": "moment",
+   "id": "m-lifegain",
+   "name": "Gain life",
+   "when": "A life total goes up.",
+   "vibe": "A soft rising sparkle."
+  },
+  {
+   "kind": "moment",
+   "id": "m-dies",
+   "name": "Creature dies",
+   "when": "A creature goes to the graveyard.",
+   "vibe": "A falling breath into a low thud."
+  },
+  {
+   "kind": "moment",
+   "id": "m-phase",
+   "name": "Phase change",
+   "when": "The game moves to the next step.",
+   "vibe": "A barely-there tick."
+  },
+  {
+   "kind": "moment",
+   "id": "m-turn",
+   "name": "Your turn",
+   "when": "Your turn begins.",
+   "vibe": "A two-note chime that says \"you\"."
+  },
+  {
+   "kind": "moment",
+   "id": "m-win",
+   "name": "Victory",
+   "when": "You win the game.",
+   "vibe": "A short bright fanfare."
+  },
+  {
+   "kind": "moment",
+   "id": "m-lose",
+   "name": "Defeat",
+   "when": "You lose the game.",
+   "vibe": "A descending minor fall."
+  }
+ ]
+}
