@@ -1,0 +1,507 @@
+{
+ "era": {
+  "year": 2005,
+  "season_start": "2004-10-20",
+  "start": "2005-08-20",
+  "end": "2005-10-20",
+  "format": "Standard (9ED)",
+  "sets": "MRD, DST, 5DN, CHK, BOK, SOK, 9ED",
+  "banned": [
+   "Ancient Den",
+   "Arcbound Ravager",
+   "Darksteel Citadel",
+   "Disciple of the Vault",
+   "Great Furnace",
+   "Seat of the Synod",
+   "Skullclamp",
+   "Tree of Tales",
+   "Vault of Whispers"
+  ]
+ },
+ "chosen": [
+  {
+   "deck": 603843,
+   "event": 54379,
+   "archetype": "Viridian Rats",
+   "player": "Jason Olynyk",
+   "event_name": "Nationals - Canada 2005",
+   "stars": 3,
+   "rank": "1",
+   "date": "2005-08-27",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 3,
+    "burn": 0,
+    "avg_cmc": 2.49,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 34.0,
+     "R": 0,
+     "G": 3.0
+    },
+    "colors": [
+     "B"
+    ],
+    "names": {
+     "Pithing Needle": 2,
+     "Rend Flesh": 3,
+     "Night's Whisper": 3,
+     "Aether Vial": 4,
+     "Umezawa's Jitte": 4,
+     "Nekrataal": 2,
+     "Ink-Eyes, Servant of Oni": 2,
+     "Hypnotic Specter": 3,
+     "Chittering Rats": 3,
+     "Viridian Shaman": 3,
+     "Nezumi Shortfang // Stabwhisker the Odious": 4,
+     "Ravenous Rats": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "cards",
+   "label_count": 5
+  },
+  {
+   "deck": 603819,
+   "event": 54376,
+   "archetype": "Tooth and Nail",
+   "player": "Takuma Morofuji",
+   "event_name": "Nationals - Japan 2005",
+   "stars": 3,
+   "rank": "1",
+   "date": "2005-09-19",
+   "summer": true,
+   "s": 1.0,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 11,
+    "counters": 3,
+    "sweepers": 0,
+    "draw": 4,
+    "burn": 0,
+    "avg_cmc": 3.51,
+    "pips": {
+     "W": 0,
+     "U": 3.0,
+     "B": 0,
+     "R": 3.0,
+     "G": 25.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Oblivion Stone": 2,
+     "Mindslaver": 2,
+     "Condescend": 3,
+     "Talisman of Unity": 3,
+     "Sensei's Divining Top": 4,
+     "Sylvan Scrying": 4,
+     "Tooth and Nail": 4,
+     "Reap and Sow": 4,
+     "Sundering Titan": 1,
+     "Darksteel Colossus": 1,
+     "Kiki-Jiki, Mirror Breaker": 1,
+     "Triskelion": 1,
+     "Viridian Shaman": 1,
+     "Eternal Witness": 2,
+     "Sakura-Tribe Elder": 4
+    }
+   },
+   "style": "midrange",
+   "style_why": "default",
+   "label_count": 2
+  },
+  {
+   "deck": 603811,
+   "event": 54375,
+   "archetype": "Red Aggro",
+   "player": "Douwe Van Noordenburg",
+   "event_name": "Nationals - Netherlands 2005",
+   "stars": 3,
+   "rank": "1",
+   "date": "2005-08-15",
+   "summer": false,
+   "s": 0.8,
+   "f": {
+    "spells": 41,
+    "lands": 19,
+    "creatures": 21,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 8,
+    "avg_cmc": 2.32,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 55.0,
+     "G": 0
+    },
+    "colors": [
+     "R"
+    ],
+    "names": {
+     "Slith Firewalker": 4,
+     "Vulshok Sorcerer": 2,
+     "Arc-Slogger": 4,
+     "Genju of the Spires": 2,
+     "Seething Song": 3,
+     "Zo-Zu the Punisher": 3,
+     "Chrome Mox": 3,
+     "Frostling": 3,
+     "Hearth Kami": 3,
+     "Shock": 4,
+     "Yuki-Onna": 2,
+     "Molten Rain": 4,
+     "Magma Jet": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 3
+  },
+  {
+   "deck": 603821,
+   "event": 54376,
+   "archetype": "Mono Blue Tron",
+   "player": "Masashi Oiso",
+   "event_name": "Nationals - Japan 2005",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2005-09-19",
+   "summer": true,
+   "s": 0.5578858913022597,
+   "f": {
+    "spells": 37,
+    "lands": 23,
+    "creatures": 8,
+    "counters": 10,
+    "sweepers": 0,
+    "draw": 11,
+    "burn": 0,
+    "avg_cmc": 2.97,
+    "pips": {
+     "W": 0,
+     "U": 24.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Vedalken Shackles": 1,
+     "Acquire": 1,
+     "Rewind": 1,
+     "Oblivion Stone": 2,
+     "Mindslaver": 2,
+     "Annul": 2,
+     "Echoing Truth": 2,
+     "Sensei's Divining Top": 3,
+     "Mana Leak": 3,
+     "Serum Visions": 4,
+     "Condescend": 4,
+     "Thirst for Knowledge": 4,
+     "Meloku the Clouded Mirror": 1,
+     "Solemn Simulacrum": 2,
+     "Memnarch": 2,
+     "Triskelion": 3
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 4
+  },
+  {
+   "deck": 600488,
+   "event": 53906,
+   "archetype": "Jushi Blue",
+   "player": "Neil Reeves",
+   "event_name": "Nationals - US 2005",
+   "stars": 3,
+   "rank": "2",
+   "date": "2005-08-12",
+   "summer": false,
+   "s": 0.5333333333333334,
+   "f": {
+    "spells": 35,
+    "lands": 25,
+    "creatures": 8,
+    "counters": 16,
+    "sweepers": 0,
+    "draw": 2,
+    "burn": 0,
+    "avg_cmc": 2.83,
+    "pips": {
+     "W": 0,
+     "U": 35.0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "U"
+    ],
+    "names": {
+     "Condescend": 2,
+     "Thirst for Knowledge": 2,
+     "Oblivion Stone": 2,
+     "Rewind": 3,
+     "Boomerang": 3,
+     "Annul": 3,
+     "Vedalken Shackles": 4,
+     "Hinder": 4,
+     "Mana Leak": 4,
+     "Jushi Apprentice // Tomoya the Revealer": 4,
+     "Spire Golem": 4
+    }
+   },
+   "style": "control",
+   "style_why": "cards",
+   "label_count": 4
+  },
+  {
+   "deck": 600489,
+   "event": 53906,
+   "archetype": "White Weenie",
+   "player": "Michael Patnik",
+   "event_name": "Nationals - US 2005",
+   "stars": 3,
+   "rank": "3-4",
+   "date": "2005-08-12",
+   "summer": false,
+   "s": 0.4463087130418078,
+   "f": {
+    "spells": 39,
+    "lands": 21,
+    "creatures": 23,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.13,
+    "pips": {
+     "W": 49.0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 0
+    },
+    "colors": [
+     "W"
+    ],
+    "names": {
+     "Chrome Mox": 2,
+     "Worship": 2,
+     "Glorious Anthem": 4,
+     "Damping Matrix": 4,
+     "Raise the Alarm": 4,
+     "Isamaru, Hound of Konda": 3,
+     "Hokori, Dust Drinker": 4,
+     "Leonin Skyhunter": 4,
+     "Suntail Hawk": 4,
+     "Lantern Kami": 4,
+     "Auriok Champion": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  },
+  {
+   "deck": 603815,
+   "event": 54375,
+   "archetype": "Mono Green Aggro",
+   "player": "Rudy Meyer",
+   "event_name": "Nationals - Netherlands 2005",
+   "stars": 3,
+   "rank": "5-8",
+   "date": "2005-08-15",
+   "summer": false,
+   "s": 0.37020514105561475,
+   "f": {
+    "spells": 40,
+    "lands": 20,
+    "creatures": 24,
+    "counters": 0,
+    "sweepers": 0,
+    "draw": 0,
+    "burn": 0,
+    "avg_cmc": 2.75,
+    "pips": {
+     "W": 0,
+     "U": 0,
+     "B": 0,
+     "R": 0,
+     "G": 57.0
+    },
+    "colors": [
+     "G"
+    ],
+    "names": {
+     "Predator's Strike": 2,
+     "Beacon of Creation": 3,
+     "Might of Oaks": 3,
+     "Blanchwood Armor": 4,
+     "Viridian Zealot": 2,
+     "Sakura-Tribe Elder": 3,
+     "Stampeding Serow": 3,
+     "Elvish Warrior": 4,
+     "Llanowar Elves": 4,
+     "Viridian Shaman": 4,
+     "Eternal Witness": 4,
+     "Troll Ascetic": 4
+    }
+   },
+   "style": "aggro",
+   "style_why": "label",
+   "label_count": 2
+  }
+ ],
+ "alternates": [],
+ "pool_size": 7,
+ "rejected_illegal": [
+  {
+   "archetype": "Tooth And Nail",
+   "deck": 600594,
+   "player": "Julien Goron",
+   "why": [
+    "Plow Under (not in legal sets)",
+    "Vine Trellis (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Tooth And Nail",
+   "deck": 603803,
+   "player": "Manuel Alvisi",
+   "why": [
+    "Plow Under (not in legal sets)",
+    "Vine Trellis (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-blue Tron",
+   "deck": 600490,
+   "player": "Antonino De Rosa",
+   "why": [
+    "Concentrate (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-blue Tron",
+   "deck": 600491,
+   "player": "Jonathan Sonne",
+   "why": [
+    "Concentrate (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-blue Tron",
+   "deck": 600493,
+   "player": "Alex Lieberman",
+   "why": [
+    "Concentrate (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Mono-red Aggro",
+   "deck": 600587,
+   "player": "Olivier Monbailly",
+   "why": [
+    "Boil (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Sea Stompy",
+   "deck": 600590,
+   "player": "Yannick Lacroix",
+   "why": [
+    "Hibernation (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "B/g Death Cloud",
+   "deck": 600494,
+   "player": "Chris Manning",
+   "why": [
+    "Plow Under (not in legal sets)"
+   ]
+  },
+  {
+   "archetype": "Death Cloud",
+   "deck": 603808,
+   "player": "Gennaro Mango",
+   "why": [
+    "Plow Under (not in legal sets)"
+   ]
+  }
+ ],
+ "duplicates_dropped": [
+  {
+   "dropped": "Big Red",
+   "player": "Jun'ya Iyanaga",
+   "kept": "Red Aggro",
+   "kept_player": "Douwe Van Noordenburg"
+  },
+  {
+   "dropped": "Mono-black Rats",
+   "player": "Bruno Panara",
+   "kept": "Viridian Rats",
+   "kept_player": "Jason Olynyk"
+  },
+  {
+   "dropped": "Tooth And Nail",
+   "player": "Kazuhiko Mitsuya",
+   "kept": "Tooth and Nail",
+   "kept_player": "Takuma Morofuji"
+  },
+  {
+   "dropped": "Nobu Tron",
+   "player": "Jun Nobushita",
+   "kept": "Mono Blue Tron",
+   "kept_player": "Masashi Oiso"
+  },
+  {
+   "dropped": "Mono Black Aggro",
+   "player": "Kyle Smith",
+   "kept": "Viridian Rats",
+   "kept_player": "Jason Olynyk"
+  },
+  {
+   "dropped": "Mono-blue Tron",
+   "player": "Raphael Levy",
+   "kept": "Mono Blue Tron",
+   "kept_player": "Masashi Oiso"
+  },
+  {
+   "dropped": "Mono-red Aggro",
+   "player": "Florent Lefranc",
+   "kept": "Red Aggro",
+   "kept_player": "Douwe Van Noordenburg"
+  }
+ ],
+ "objective": 1.493447364447301,
+ "pool_colors": {
+  "B": 1,
+  "G": 2,
+  "R": 1,
+  "U": 2,
+  "W": 1
+ },
+ "pool_styles": {
+  "aggro": 4,
+  "midrange": 1,
+  "control": 2
+ }
+}

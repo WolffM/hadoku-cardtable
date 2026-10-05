@@ -29,16 +29,17 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { standardFormatAt } from '@hadoku/carddata/formats';
+import { formatAtFamily } from '@hadoku/carddata/formats';
 
 import { poolNameKeys } from '../format.ts';
 import { writePrebuiltDeck } from '../prebuilt.ts';
 import {
   LIBRARY,
-  POOL_FIXTURE_DATES,
+  POOL_FIXTURE_KEYS,
   deckPath,
   libraryDeckPaths,
   poolFixturePath,
+  type FormatFamily,
   type LibraryCollection,
   type LibraryEntry,
 } from './catalog.ts';
@@ -65,8 +66,8 @@ function read(repoRelative: string): string {
   return readFileSync(join(REPO_ROOT, repoRelative), 'utf8');
 }
 
-function fixture(date: string): PoolFixture {
-  return parsePoolFixture(JSON.parse(read(poolFixturePath(date))));
+function fixture(date: string, family: FormatFamily = 'standard'): PoolFixture {
+  return parsePoolFixture(JSON.parse(read(poolFixturePath(date, family))));
 }
 
 /** Every deck in the library, with the collection it is filed under. */
@@ -87,13 +88,17 @@ function archetypeOf(deck: LibraryDeck): string {
   return matched[1] as string;
 }
 
-const CITATION = /^https:\/\/www\.mtgtop8\.com\/event\?e=\d+&d=\d+&f=ST$/;
+const CITATION = /^https:\/\/www\.mtgtop8\.com\/event\?e=\d+&d=\d+&f=(ST|MO|LE)$/;
 
 /* ── a deck to tamper with, picked once and reused by name ──────────────── */
 
-const RED_DECK_WINS = LIBRARY[0]!.decks.find((d) => d.id === 'power-2008-1-michael-jacob-red-deck-wins')!;
+// Looked up by id rather than `LIBRARY[0]` — wave 48 §T put 2003-2007 ahead of
+// 2008 in catalog order (oldest first), so the index that used to BE 2008 no
+// longer is.
+const POWER_SUMMER_2008 = LIBRARY.find((c) => c.id === 'power-summer-2008') as LibraryCollection;
+const RED_DECK_WINS = POWER_SUMMER_2008.decks.find((d) => d.id === 'power-2008-1-michael-jacob-red-deck-wins')!;
 function redDeckWinsText(): string {
-  return read(deckPath(LIBRARY[0]!, RED_DECK_WINS));
+  return read(deckPath(POWER_SUMMER_2008, RED_DECK_WINS));
 }
 
 describe('every collection: catalog, files and citations agree', () => {
@@ -141,27 +146,30 @@ describe('every deck loads, with a citation', () => {
 });
 
 describe('the committed pool fixtures', () => {
-  it('agree with the rotation table about which snapshot was in force', () => {
+  it('agree with the rotation table about which snapshot was in force, for every family', () => {
     // The fixture's card list needs the corpus; its FORMAT block does not —
-    // `standardFormatAt` answers from the committed rotation table alone. So
+    // `formatAtFamily` answers from the committed rotation table alone. So
     // this is the one join that can be checked in CI, and it is the join that
-    // would break if a fixture were regenerated for the wrong date.
-    for (const date of POOL_FIXTURE_DATES) {
-      const frozen = fixture(date);
-      const live = standardFormatAt(date);
-      expect(live.ok, date).toBe(true);
+    // would break if a fixture were regenerated for the wrong date or family.
+    for (const { family, date } of POOL_FIXTURE_KEYS) {
+      const frozen = fixture(date, family);
+      const live = formatAtFamily(family, date);
+      const label = `${family} ${date}`;
+      expect(live.ok, label).toBe(true);
       if (!live.ok) continue;
-      expect(frozen.name, date).toBe(live.name);
-      expect(frozen.effective, date).toBe(live.effective);
-      expect(frozen.source, date).toBe(live.source);
-      expect(frozen.sets, date).toEqual([...live.setList]);
-      expect(frozen.banned, date).toEqual([...live.banned]);
+      expect(frozen.name, label).toBe(live.name);
+      expect(frozen.effective, label).toBe(live.effective);
+      expect(frozen.source, label).toBe(live.source);
+      expect(frozen.sets, label).toEqual([...live.setList]);
+      expect(frozen.banned, label).toEqual([...live.banned]);
     }
   });
 
-  it('is exactly the nine eras’ own dates, one fixture each', () => {
-    expect(POOL_FIXTURE_DATES).toEqual(LIBRARY.map((c) => c.date));
-    expect(new Set(POOL_FIXTURE_DATES).size).toBe(9);
+  it('is exactly one fixture per catalogued collection, even where two families share a date', () => {
+    // Modern/Legacy eras are pinned to Standard's own dates (Settled), so the
+    // DATE alone is not unique across the library — (family, date) is.
+    expect(POOL_FIXTURE_KEYS).toEqual(LIBRARY.map((c) => ({ family: c.family, date: c.date })));
+    expect(new Set(POOL_FIXTURE_KEYS.map((k) => `${k.family}:${k.date}`)).size).toBe(LIBRARY.length);
   });
 
   it('the 2011 pool carries the Jace/Stoneforge ban this era’s window crosses', () => {
@@ -197,7 +205,7 @@ describe('validating the library against its own pool', () => {
     (collectionId, entryId) => {
       const c = LIBRARY.find((x) => x.id === collectionId) as LibraryCollection;
       const entry = c.decks.find((d) => d.id === entryId) as LibraryEntry;
-      const pool = poolFromFixture(fixture(c.date));
+      const pool = poolFromFixture(fixture(c.date, c.family));
       expect(pool.name).toBe(c.format);
       const deck = libraryDeckOf(c, entry);
       expect(libraryPoolMismatch(deck, pool)).toBeNull();
@@ -206,7 +214,7 @@ describe('validating the library against its own pool', () => {
   );
 
   it('says so when the pool is for a different format', () => {
-    const deck = libraryDeckOf(LIBRARY[0]!, RED_DECK_WINS);
+    const deck = libraryDeckOf(POWER_SUMMER_2008, RED_DECK_WINS);
     const laterPool = poolFromFixture(fixture('2011-07-15'));
     expect(libraryPoolMismatch(deck, laterPool)).toBe(
       'deck "Red Deck Wins (Michael Jacob)" is built for "Standard (EVE)" as of 2008-07-25, but the pool supplied is "Standard (M12)"',
@@ -280,7 +288,7 @@ describe('the failure path, named card by card', () => {
    * test (see the lane report).
    */
   it('does not flag a snow-covered basic over 4 copies as over the limit', () => {
-    const deck = libraryDeckOf(LIBRARY[0]!, RED_DECK_WINS);
+    const deck = libraryDeckOf(POWER_SUMMER_2008, RED_DECK_WINS);
     expect(deck.file.sections.get('main')?.some((e) => e.card.name === 'Snow-Covered Mountain' && e.count === 22)).toBe(true);
     const issues = libraryIssues(deck, poolFromFixture(fixture('2008-07-25')));
     expect(issues).toEqual([]);
@@ -333,21 +341,63 @@ describe('the library as a whole', () => {
   // Pins the library's exact shape on purpose, so adding or changing an era is
   // a deliberate act with a visible diff rather than something that drifts in.
   // Wave 34 replaced the previous pin (eight collections, 49 decks) wholesale:
-  // nine power-summer eras, 2008-2016, 96 decks.
-  it('is nine eras and ninety-six decks, oldest first', () => {
-    expect(LIBRARY.map((c) => [c.id, c.format, c.date, c.decks.length])).toEqual([
-      ['power-summer-2008', 'Standard (EVE)', '2008-07-25', 12],
-      ['power-summer-2009', 'Standard (M10)', '2009-07-17', 4],
-      ['power-summer-2010', 'Standard (M11)', '2010-07-16', 8],
-      ['power-summer-2011', 'Standard (M12)', '2011-07-15', 12],
-      ['power-summer-2012', 'Standard (M13)', '2012-07-13', 12],
-      ['power-summer-2013', 'Standard (M14)', '2013-07-19', 12],
-      ['power-summer-2014', 'Standard (M15)', '2014-07-18', 12],
-      ['power-summer-2015', 'Standard (ORI)', '2015-07-17', 12],
-      ['power-summer-2016', 'Standard (EMN)', '2016-07-22', 12],
+  // nine power-summer eras, 2008-2016, 96 decks. Wave 48 §T extended Standard
+  // back to 2003 and added Modern (2012-2016, §M) and Legacy (2005-2016, §L):
+  // 31 eras across three families, 338 decks. Thin seasons (fewer than 12
+  // legal candidates, not padded to fit — the brief's own rule): Standard 2003
+  // (8) and 2005 (7); Legacy 2005 (4) and 2006 (7). Every other era is 12.
+  it('is thirty-one eras across three families and three hundred thirty-eight decks, oldest first within each family', () => {
+    expect(LIBRARY.map((c) => [c.id, c.family, c.format, c.date, c.decks.length])).toEqual([
+      ['power-summer-2003', 'standard', 'Standard (8ED)', '2003-09-01', 8],
+      ['power-summer-2004', 'standard', 'Standard (5DN)', '2004-06-20', 12],
+      ['power-summer-2005', 'standard', 'Standard (9ED)', '2005-08-20', 7],
+      ['power-summer-2006', 'standard', 'Standard (CSP)', '2006-08-20', 12],
+      ['power-summer-2007', 'standard', 'Standard (10E)', '2007-07-20', 12],
+      ['power-summer-2008', 'standard', 'Standard (EVE)', '2008-07-25', 12],
+      ['power-summer-2009', 'standard', 'Standard (M10)', '2009-07-17', 4],
+      ['power-summer-2010', 'standard', 'Standard (M11)', '2010-07-16', 8],
+      ['power-summer-2011', 'standard', 'Standard (M12)', '2011-07-15', 12],
+      ['power-summer-2012', 'standard', 'Standard (M13)', '2012-07-13', 12],
+      ['power-summer-2013', 'standard', 'Standard (M14)', '2013-07-19', 12],
+      ['power-summer-2014', 'standard', 'Standard (M15)', '2014-07-18', 12],
+      ['power-summer-2015', 'standard', 'Standard (ORI)', '2015-07-17', 12],
+      ['power-summer-2016', 'standard', 'Standard (EMN)', '2016-07-22', 12],
+      ['power-summer-modern-2012', 'modern', 'Modern (M13)', '2012-07-13', 12],
+      ['power-summer-modern-2013', 'modern', 'Modern (M14)', '2013-07-19', 12],
+      ['power-summer-modern-2014', 'modern', 'Modern (M15)', '2014-07-18', 12],
+      ['power-summer-modern-2015', 'modern', 'Modern (ORI)', '2015-07-17', 12],
+      ['power-summer-modern-2016', 'modern', 'Modern (EMN)', '2016-07-22', 12],
+      ['power-summer-legacy-2005', 'legacy', 'Legacy (9ED)', '2005-08-20', 4],
+      ['power-summer-legacy-2006', 'legacy', 'Legacy (CSP)', '2006-08-20', 7],
+      ['power-summer-legacy-2007', 'legacy', 'Legacy (10E)', '2007-07-20', 12],
+      ['power-summer-legacy-2008', 'legacy', 'Legacy (EVE)', '2008-07-25', 12],
+      ['power-summer-legacy-2009', 'legacy', 'Legacy (M10)', '2009-07-17', 12],
+      ['power-summer-legacy-2010', 'legacy', 'Legacy (M11)', '2010-07-16', 12],
+      ['power-summer-legacy-2011', 'legacy', 'Legacy (M12)', '2011-07-15', 12],
+      ['power-summer-legacy-2012', 'legacy', 'Legacy (M13)', '2012-07-13', 12],
+      ['power-summer-legacy-2013', 'legacy', 'Legacy (M14)', '2013-07-19', 12],
+      ['power-summer-legacy-2014', 'legacy', 'Legacy (M15)', '2014-07-18', 12],
+      ['power-summer-legacy-2015', 'legacy', 'Legacy (ORI)', '2015-07-17', 12],
+      ['power-summer-legacy-2016', 'legacy', 'Legacy (EMN)', '2016-07-22', 12],
     ]);
-    expect(ALL_DECKS).toHaveLength(96);
-    expect(libraryDeckPaths()).toHaveLength(96);
+    expect(ALL_DECKS).toHaveLength(338);
+    expect(libraryDeckPaths()).toHaveLength(338);
+  });
+
+  it('is oldest-first WITHIN each family, in Standard/Modern/Legacy order', () => {
+    // Settled (wave 48 plan): catalog order is oldest-first within a family.
+    // Across families, T chose Standard, then Modern, then Legacy — the order
+    // Standard already had, with the two new families appended after it.
+    const families = LIBRARY.map((c) => c.family);
+    const firstModern = families.indexOf('modern');
+    const firstLegacy = families.indexOf('legacy');
+    expect(families.slice(0, firstModern).every((f) => f === 'standard')).toBe(true);
+    expect(families.slice(firstModern, firstLegacy).every((f) => f === 'modern')).toBe(true);
+    expect(families.slice(firstLegacy).every((f) => f === 'legacy')).toBe(true);
+    for (const family of ['standard', 'modern', 'legacy'] as const) {
+      const dates = LIBRARY.filter((c) => c.family === family).map((c) => c.date);
+      expect(dates, family).toEqual([...dates].sort());
+    }
   });
 
   it('every archetype appears once within its own era', () => {
@@ -363,7 +413,22 @@ describe('the library as a whole', () => {
   // can hit all five with 4-12 decks (2009's four decks field only four
   // colours — `review/2009.md` records it), so this reports rather than
   // requires five, except where the review table says an era has all five.
-  const FIVE_COLOUR_ERAS = new Set(['power-summer-2008', 'power-summer-2011', 'power-summer-2012', 'power-summer-2013', 'power-summer-2014', 'power-summer-2015', 'power-summer-2016']);
+  // Every era EXCEPT the four thinnest ones (fewer than 8 chosen decks):
+  // Standard 2009 (4) and 2010 (8, misses one colour anyway) and Legacy 2005
+  // (4, no black deck at all) do not field all five — checked directly off
+  // the basics each era's decks actually play, not assumed from deck count.
+  // Modern has no thin era (every one of its five is 12 decks, all five
+  // colours) — wave 48 §M found no season that thin.
+  const FIVE_COLOUR_ERAS = new Set([
+    'power-summer-2003', 'power-summer-2004', 'power-summer-2005', 'power-summer-2006', 'power-summer-2007',
+    'power-summer-2008', 'power-summer-2011', 'power-summer-2012', 'power-summer-2013', 'power-summer-2014',
+    'power-summer-2015', 'power-summer-2016',
+    'power-summer-modern-2012', 'power-summer-modern-2013', 'power-summer-modern-2014',
+    'power-summer-modern-2015', 'power-summer-modern-2016',
+    'power-summer-legacy-2006', 'power-summer-legacy-2007', 'power-summer-legacy-2008', 'power-summer-legacy-2009',
+    'power-summer-legacy-2010', 'power-summer-legacy-2011', 'power-summer-legacy-2012', 'power-summer-legacy-2013',
+    'power-summer-legacy-2014', 'power-summer-legacy-2015', 'power-summer-legacy-2016',
+  ]);
 
   /** `Snow-Covered Plains` counts as white the same as `Plains` does — 2008 is the only
    * Coldsnap-legal era, and every white-playing deck in it chose the snow basic. */
@@ -462,7 +527,10 @@ describe('the library cost map a browser is handed', () => {
   it('is the fixtures unchanged, not a re-computation of them', () => {
     // Every entry must be byte-identical to the frozen pool's own string, in at
     // least one pool. A cost invented here would fold to the wrong colours.
-    const fixtures = POOL_FIXTURE_DATES.map((d) => fixture(d));
+    // POOL_FIXTURE_KEYS, not POOL_FIXTURE_DATES: Modern/Legacy eras share a
+    // DATE with Standard's own era (Settled), so the date alone would read
+    // the wrong family's fixture (default 'standard') for those keys.
+    const fixtures = POOL_FIXTURE_KEYS.map(({ family, date }) => fixture(date, family));
     for (const [name, cost] of Object.entries(LIBRARY_CARD_COSTS)) {
       const seen = fixtures.map((f) => f.manaCost[name]).filter((c) => c !== undefined);
       expect(seen.length, `${name} is in no frozen pool`).toBeGreaterThan(0);
@@ -475,7 +543,7 @@ describe('the library cost map a browser is handed', () => {
     // Absence means "no coloured pip", so a name absent from the map must be
     // absent from every pool's cost map too — otherwise the dropdown silently
     // drops a colour the deck is playing.
-    const fixtures = POOL_FIXTURE_DATES.map((d) => fixture(d));
+    const fixtures = POOL_FIXTURE_KEYS.map(({ family, date }) => fixture(date, family));
     const missing = [...played].filter(
       (n) => LIBRARY_CARD_COSTS[n] === undefined && fixtures.some((f) => f.manaCost[n] !== undefined),
     );
@@ -486,9 +554,15 @@ describe('the library cost map a browser is handed', () => {
   });
 
   it('is small enough to ship, which is why it is a slice and not the pools', () => {
+    // Thresholds raised for wave 48 §T: 9 Standard fixtures / a ~27KB map
+    // became 31 fixtures across three families / a ~52KB map once Modern and
+    // Legacy's much wider card pools (every paper set ever, for Legacy) were
+    // added. The MAP stays small because it is a slice of the library's own
+    // played cards, not the pools themselves — the ratio check is the one
+    // that actually matters here.
     const map = read('packages/deck/src/library/deck-costs.generated.ts').length;
-    const pools = POOL_FIXTURE_DATES.reduce((n, d) => n + read(poolFixturePath(d)).length, 0);
-    expect(map).toBeLessThan(40_000);
+    const pools = POOL_FIXTURE_KEYS.reduce((n, { family, date }) => n + read(poolFixturePath(date, family)).length, 0);
+    expect(map).toBeLessThan(80_000);
     expect(pools).toBeGreaterThan(20 * map);
   });
 });

@@ -53,7 +53,14 @@ import type { DeckEntry, DeckFile } from '@hadoku/carddata/dck';
 
 import { writeDck, type DckSpelling } from '../dck-write.ts';
 import { PREBUILT_DATE_KEY, PREBUILT_FORMAT_KEY } from '../prebuilt.ts';
-import { LIBRARY, slugifyForLibrary, type FormatFamily, type LibraryCollection } from './catalog.ts';
+import { DECKS_ROOT, LIBRARY, slugifyForLibrary, type FormatFamily, type LibraryCollection } from './catalog.ts';
+
+/** mtgtop8's own format codes, verified directly against the site (wave 48 §T handshake). */
+const MTGTOP8_FORMAT_CODE: Readonly<Record<FormatFamily, string>> = {
+  standard: 'ST',
+  modern: 'MO',
+  legacy: 'LE',
+};
 import { LIBRARY_PROVENANCE_KEY, LIBRARY_SOURCE_KEY } from './library.ts';
 
 /** `packages/deck/src/library` → the repo root. */
@@ -156,14 +163,14 @@ function rankNumber(rank: string): number {
   return Number(rank.split('-')[0]);
 }
 
-/** mtgtop8's plain-text export for one deck. `f=` is only a filename hint. */
-function exportUrl(deckId: number): string {
-  return `https://www.mtgtop8.com/dec?d=${String(deckId)}&f=ST`;
+/** mtgtop8's plain-text export for one deck. `f=` is only a filename hint, but it must still name the real format — a Modern/Legacy deck fetched under `f=ST` still returns the right cards, but writes a wrong Source URL into the `.dck`. */
+function exportUrl(deckId: number, fmtCode: string): string {
+  return `https://www.mtgtop8.com/dec?d=${String(deckId)}&f=${fmtCode}`;
 }
 
 /** The page a human should open to check the list. */
-function deckPageUrl(eventId: number, deckId: number): string {
-  return `https://www.mtgtop8.com/event?e=${String(eventId)}&d=${String(deckId)}&f=ST`;
+function deckPageUrl(eventId: number, deckId: number, fmtCode: string): string {
+  return `https://www.mtgtop8.com/event?e=${String(eventId)}&d=${String(deckId)}&f=${fmtCode}`;
 }
 
 /**
@@ -231,6 +238,7 @@ function buildDeckFile(
   collection: FormatAndDate,
   source: ChosenDeck,
   list: DecList,
+  fmtCode: string,
 ): DeckFile {
   const name = `${source.archetype} (${source.player})`;
   const placing = placingOf(source.rank);
@@ -241,7 +249,7 @@ function buildDeckFile(
     ['deck type', 'Constructed'],
     [PREBUILT_FORMAT_KEY.toLowerCase(), collection.format],
     [PREBUILT_DATE_KEY.toLowerCase(), collection.date],
-    [LIBRARY_SOURCE_KEY.toLowerCase(), deckPageUrl(source.event, source.deck)],
+    [LIBRARY_SOURCE_KEY.toLowerCase(), deckPageUrl(source.event, source.deck, fmtCode)],
     [
       LIBRARY_PROVENANCE_KEY.toLowerCase(),
       `${source.event_name}: ${source.player}, ${placing}, ${source.archetype}. Transcribed from mtgtop8 deck ${String(source.deck)}.`,
@@ -270,11 +278,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function cachedExport(deckId: number, cacheDir: string): Promise<string> {
+async function cachedExport(deckId: number, cacheDir: string, fmtCode: string): Promise<string> {
   const cachePath = join(cacheDir, `${String(deckId)}.dec`);
   if (existsSync(cachePath)) return readFileSync(cachePath, 'utf8');
 
-  const text = await fetchText(exportUrl(deckId));
+  const text = await fetchText(exportUrl(deckId, fmtCode));
   mkdirSync(cacheDir, { recursive: true });
   writeFileSync(cachePath, text, 'utf8');
   await sleep(500);
@@ -352,7 +360,7 @@ function buildJobs(family: FormatFamily, only: string | null): Job[] {
     const selection = JSON.parse(readFileSync(selectionPath, 'utf8')) as SelectionFile;
     return {
       label: catalogued?.id ?? `${family}-${year}`,
-      directory: catalogued?.directory ?? `${family}-${year}`,
+      directory: catalogued?.directory ?? `${DECKS_ROOT}/${family}-${year}`,
       format: catalogued?.format ?? selection.era.format,
       date: catalogued?.date ?? selection.era.start,
       chosen: selection.chosen,
@@ -366,6 +374,7 @@ async function main(): Promise<void> {
   const only = arg('only');
   const cacheDir = arg('cache') ?? DEFAULT_CACHE;
   const jobs = buildJobs(family, only);
+  const fmtCode = MTGTOP8_FORMAT_CODE[family];
 
   for (const job of jobs) {
     const outDir = join(REPO_ROOT, job.directory);
@@ -376,9 +385,9 @@ async function main(): Promise<void> {
 
     for (const source of job.chosen) {
       const what = `${source.player} (mtgtop8 ${String(source.deck)})`;
-      const text = await cachedExport(source.deck, cacheDir);
+      const text = await cachedExport(source.deck, cacheDir, fmtCode);
       const list = parseDecExport(text, what);
-      const file = buildDeckFile({ format: job.format, date: job.date }, source, list);
+      const file = buildDeckFile({ format: job.format, date: job.date }, source, list, fmtCode);
       const fileName = fileNameFor(source);
       if (job.catalogued !== null) {
         const entry = job.catalogued.decks.find((d) => d.file === fileName);

@@ -141,7 +141,8 @@ def readme(by_fmt):
     """`by_fmt`: {'ST': [selection, ...], 'MO': [...], 'LE': [...]}, oldest
     year first within each. Covers all three formats — the single-format
     version wave 34 wrote is gone; `family_table` is its generalisation."""
-    total = sum(len(v) for v in by_fmt.values())
+    total_decks = sum(len(s['chosen']) for v in by_fmt.values() for s in v)
+    total_eras = sum(len(v) for v in by_fmt.values())
     years_st = [s['era']['year'] for s in by_fmt.get('ST', [])]
     span = f'{min(years_st)}–{max(years_st)}' if years_st else '2003–2016'
     o = [f'# Deck selection review — "power summers", Standard {span}, Modern and Legacy\n',
@@ -158,7 +159,7 @@ def readme(by_fmt):
          f'6. **Strength still counts:** within those limits the search maximises how well the decks actually placed. {S.N_DECKS} decks per era where the season has them — **thin seasons are reported, not padded** (fewer than 12 legal candidates means a smaller era).',
          '7. **Balance, but true to the season:** a colour or style that dominated an era’s candidate pool may take an extra slot or two — flagged per era below with its pool share as evidence, never invented to fill a colour/style the season barely played.\n',
          'Tunable in `tools/select_decks.py`; re-run and the review regenerates. **Style is a heuristic** (creature count, average cost, counterspells and sweepers, plus archetype names); each format section’s table shows how every deck was judged. Wrong ones can be fixed in `style-overrides.json` (Standard), `style-overrides-modern.json`, `style-overrides-legacy.json`.\n',
-         f'**{total} decks across {sum(1 for v in by_fmt.values() for _ in v)} eras.**\n']
+         f'**{total_decks} decks across {total_eras} eras.**\n']
     for fmt in ('ST', 'MO', 'LE'):
         o.append(family_table(fmt, by_fmt.get(fmt, [])))
     return '\n'.join(o)

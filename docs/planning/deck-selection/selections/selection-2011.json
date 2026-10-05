@@ -1906,5 +1906,18 @@
    "kept_player": "Joel Calafell"
   }
  ],
- "objective": 10.176216316394232
+ "objective": 10.176216316394232,
+ "pool_colors": {
+  "W": 6,
+  "U": 10,
+  "B": 5,
+  "G": 6,
+  "R": 10
+ },
+ "pool_styles": {
+  "control": 7,
+  "midrange": 3,
+  "aggro": 10,
+  "combo": 3
+ }
 }

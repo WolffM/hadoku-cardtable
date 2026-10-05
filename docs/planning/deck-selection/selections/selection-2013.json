@@ -1369,5 +1369,18 @@
    "kept_player": "Elie Pichon"
   }
  ],
- "objective": 9.776304383249144
+ "objective": 9.776304383249144,
+ "pool_colors": {
+  "B": 15,
+  "R": 19,
+  "G": 24,
+  "W": 29,
+  "U": 12
+ },
+ "pool_styles": {
+  "midrange": 10,
+  "aggro": 17,
+  "combo": 2,
+  "control": 9
+ }
 }

@@ -44,7 +44,7 @@ import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import { parseDck, type DeckFile } from '@hadoku/carddata/dck';
-import { LIBRARY, deckPath, poolFixturePath, type LibraryCollection } from '@hadoku/deck/library';
+import { LIBRARY, deckPath, poolFixturePath, type FormatFamily, type LibraryCollection } from '@hadoku/deck/library';
 
 import type { DraftCard } from '../draft/types.ts';
 import { DeckBuilder } from '../deck/DeckBuilder.tsx';
@@ -82,8 +82,8 @@ interface FrozenPool {
   readonly colors: Readonly<Record<string, string>>;
 }
 
-function fixtureFor(date: string): FrozenPool {
-  const raw = JSON.parse(read(poolFixturePath(date))) as Partial<FrozenPool>;
+function fixtureFor(date: string, family: FormatFamily = 'standard'): FrozenPool {
+  const raw = JSON.parse(read(poolFixturePath(date, family))) as Partial<FrozenPool>;
   const { cards, manaCost, colors } = raw;
   if (!Array.isArray(cards) || typeof manaCost !== 'object' || manaCost === null) {
     throw new Error(`${date}: the frozen pool carries no cost map`);
@@ -106,8 +106,14 @@ function nameKeys(name: string): string[] {
   return cut === -1 ? [name] : [name, name.slice(0, cut)];
 }
 
-/** Every date a fixture is frozen for: the library's own nine eras. */
-const FIXTURE_DATES = [...new Set(LIBRARY.map((c) => c.date))];
+/**
+ * Every (family, date) a fixture is frozen for — the library's own eras, one
+ * per collection. Keyed by (family, date) rather than date alone: wave 48 §T
+ * pins Modern/Legacy eras to Standard's own dates (Settled), so two
+ * collections can share a date, and deduplicating on the date alone would
+ * silently skip checking one of them.
+ */
+const FIXTURE_KEYS = [...new Map(LIBRARY.map((c) => [`${c.family}:${c.date}`, { family: c.family, date: c.date }])).values()];
 
 const collectionOf = (id: string): LibraryCollection => {
   const found = LIBRARY.find((c) => c.id === id);
@@ -120,7 +126,7 @@ function libraryDeck(collectionId: string, file: string): { deck: DeckFile; fixt
   const collection = collectionOf(collectionId);
   const entry = collection.decks.find((d) => d.file === file);
   if (entry === undefined) throw new Error(`no deck ${file} in ${collectionId}`);
-  return { deck: parseDck(read(deckPath(collection, entry))), fixture: fixtureFor(collection.date) };
+  return { deck: parseDck(read(deckPath(collection, entry))), fixture: fixtureFor(collection.date, collection.family) };
 }
 
 const mainNames = (deck: DeckFile): string[] =>
@@ -178,19 +184,24 @@ function playCard(name: string, press: (row: HTMLElement) => void): void {
 /* ── the data half ───────────────────────────────────────────────────── */
 
 describe('the frozen Standard pools carry what a colour fold needs', () => {
-  it('maps a cost and a colour for its own cards, under the names a decklist uses', () => {
-    for (const date of FIXTURE_DATES) {
-      const fixture = fixtureFor(date);
+  // Default 5000ms timeout: wave 48 §T grew FIXTURE_KEYS from 9 fixtures
+  // (1.2 MB) to 31 (16 MB) across three families — reading and parsing all of
+  // them in one test runs past the default under load (contention from the
+  // rest of a full `pnpm run check`, not this test's own logic).
+  it('maps a cost and a colour for its own cards, under the names a decklist uses', { timeout: 20_000 }, () => {
+    for (const { family, date } of FIXTURE_KEYS) {
+      const fixture = fixtureFor(date, family);
+      const label = `${family} ${date}`;
       // Non-empty: the maps are parsed tolerantly (`pool-fixture.ts` says why),
       // so a generator that stopped emitting them would otherwise be silent.
-      expect(Object.keys(fixture.manaCost).length, date).toBeGreaterThan(900);
-      expect(Object.keys(fixture.colors).length, date).toBeGreaterThan(700);
+      expect(Object.keys(fixture.manaCost).length, label).toBeGreaterThan(900);
+      expect(Object.keys(fixture.colors).length, label).toBeGreaterThan(700);
       // Keyed exactly as `poolFromFixture` keys `legal`, which is what lets a
       // `.dck` line naming `Delver of Secrets` find
       // `Delver of Secrets // Insectile Aberration`.
       const known = new Set(fixture.cards.flatMap(nameKeys));
-      for (const name of Object.keys(fixture.manaCost)) expect(known.has(name), `${date}: ${name}`).toBe(true);
-      for (const name of Object.keys(fixture.colors)) expect(known.has(name), `${date}: ${name}`).toBe(true);
+      for (const name of Object.keys(fixture.manaCost)) expect(known.has(name), `${label}: ${name}`).toBe(true);
+      for (const name of Object.keys(fixture.colors)) expect(known.has(name), `${label}: ${name}`).toBe(true);
       // A land has no cost and no colour, so it is absent rather than empty —
       // which is what keeps the two maps to the size of the spells.
       expect(Object.keys(fixture.manaCost).length).toBeLessThan(fixture.cards.length + 40);
@@ -207,10 +218,11 @@ describe('the frozen Standard pools carry what a colour fold needs', () => {
   it('carries no image field and no image URL — the names that look like one are names', () => {
     const IMAGE_FIELD = /image|img|artcrop|thumbnail|picture/i;
     const IMAGE_URL = /https?:\/\/[^"]*(\.(jpe?g|png|webp|gif)|scryfall\.io)/i;
-    for (const date of FIXTURE_DATES) {
-      const raw = JSON.parse(read(poolFixturePath(date))) as Record<string, unknown>;
-      for (const key of Object.keys(raw)) expect(IMAGE_FIELD.test(key), `${date}: ${key}`).toBe(false);
-      expect(IMAGE_URL.test(read(poolFixturePath(date))), date).toBe(false);
+    for (const { family, date } of FIXTURE_KEYS) {
+      const label = `${family} ${date}`;
+      const raw = JSON.parse(read(poolFixturePath(date, family))) as Record<string, unknown>;
+      for (const key of Object.keys(raw)) expect(IMAGE_FIELD.test(key), `${label}: ${key}`).toBe(false);
+      expect(IMAGE_URL.test(read(poolFixturePath(date, family))), label).toBe(false);
     }
     // Why the field check is on the TOP-LEVEL keys only: the two maps are keyed
     // by card name, and three real cards are named `Phantasmal Image`, `Twisted
@@ -247,19 +259,34 @@ describe("a deck's colours are a fold over its own card list", () => {
     expect(deckColorsByName(names, fixture.manaCost)).toEqual(['W', 'U']);
   });
 
-  it('gives every deck in the library at least one colour', () => {
-    // Not every deck across 96 is two colours: 2008's "4c Reveillark Control"
-    // (Shouhei Yamamoto) is a real four-colour deck, named for exactly that, and
-    // 2013's "Human Reanimator" (Joe Lossett) genuinely folds to all five — a
-    // reanimator shell splashes whatever its targets cost. So the only thing
-    // every deck in the library is guaranteed to have is AT LEAST one colour;
-    // the fold's ceiling is real Magic's ceiling, which is five.
+  // Wave 48 §T: "MUD" (colourless artifact aggro — Lodestone Golem,
+  // Metalworker, Wurmcoil Engine, Chalice of the Void, … over Ancient Tomb,
+  // City of Traitors, Wasteland, Darksteel Citadel) is a recurring Legacy
+  // archetype, and both times the selection chose one, EVERY spell's own
+  // cost in that era's frozen pool is purely generic — checked by folding
+  // every chosen deck in the library against its own fixture and listing
+  // which ones read zero colours, not assumed from the archetype name; these
+  // two were the only two. Genuinely colourless decks are real, competitive
+  // Legacy archetypes, so this is a named exception, not a loosened floor —
+  // a fold that broke (like the Modern GR Tron bug this same wave found,
+  // which this test caught) still reads 0 for every OTHER deck and fails
+  // here.
+  const COLOURLESS_DECKS = new Set(['power-legacy-2012-2-eric-fry-mud', 'power-legacy-2016-1-demetrio-morselli-mud']);
+
+  it('gives every deck in the library at least one colour, except the one real colourless deck', () => {
+    // Not every deck across the library is two colours: 2008's "4c Reveillark
+    // Control" (Shouhei Yamamoto) is a real four-colour deck, named for
+    // exactly that, and 2013's "Human Reanimator" (Joe Lossett) genuinely
+    // folds to all five — a reanimator shell splashes whatever its targets
+    // cost. So the fold's ceiling is real Magic's ceiling, five; the floor is
+    // one colour, except `COLOURLESS_DECKS`.
     for (const collection of LIBRARY) {
-      const fixture = fixtureFor(collection.date);
+      const fixture = fixtureFor(collection.date, collection.family);
       for (const entry of collection.decks) {
         const deck = parseDck(read(deckPath(collection, entry)));
         const colors = deckColorsByName(mainNames(deck), fixture.manaCost);
-        expect(colors.length, entry.id).toBeGreaterThan(0);
+        const floor = COLOURLESS_DECKS.has(entry.id) ? 0 : 1;
+        expect(colors.length, entry.id).toBeGreaterThanOrEqual(floor);
         expect(colors.length, entry.id).toBeLessThanOrEqual(5);
       }
     }
@@ -353,6 +380,7 @@ describe('DeckBuilder shows the same colours over the same model', () => {
       banned: [],
       cardCount: 1592,
       source: 'Archived/Standard/2012-07-13.txt',
+      family: 'standard',
     },
   ];
 

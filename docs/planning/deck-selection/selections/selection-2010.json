@@ -771,5 +771,18 @@
    "kept_player": "Emanuele Giusti"
   }
  ],
- "objective": 1.274291930695727
+ "objective": 1.274291930695727,
+ "pool_colors": {
+  "U": 6,
+  "R": 4,
+  "B": 3,
+  "G": 3,
+  "W": 2
+ },
+ "pool_styles": {
+  "control": 3,
+  "combo": 2,
+  "midrange": 2,
+  "aggro": 1
+ }
 }

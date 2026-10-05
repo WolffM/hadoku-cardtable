@@ -1345,5 +1345,18 @@
    "kept_player": "Alex Bastecki"
   }
  ],
- "objective": 10.724782457361643
+ "objective": 10.724782457361643,
+ "pool_colors": {
+  "W": 19,
+  "B": 16,
+  "G": 21,
+  "R": 18,
+  "U": 15
+ },
+ "pool_styles": {
+  "aggro": 15,
+  "midrange": 14,
+  "control": 8,
+  "combo": 2
+ }
 }

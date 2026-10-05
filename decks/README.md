@@ -1,4 +1,4 @@
-# `decks/` — real decks from past Standard formats
+# `decks/` — real decks from past Standard, Modern and Legacy formats
 
 Decklists as they were actually played, in Forge `.dck` form, each carrying the
 format it is legal in, the date that format was current, and **the URL the list
@@ -9,51 +9,89 @@ The code that reads these lives in `packages/deck/src/library/`.
 
 ## What is here
 
-Nine power-summer eras — one per year, 2008-2016, each the Standard in force
-just **before that year's fall rotation** (old block and new block legal
-together), 96 decks total:
+Thirty-one power-summer eras across three formats, 338 decks total. Standard:
+2003-2016, each the Standard in force just **before that year's fall
+rotation** (old block and new block legal together). Modern (2012-2016) and
+Legacy (2005-2016) do not rotate, so each year's era is pinned to the SAME
+dates that year's Standard era uses (wave 48, Settled) — the snapshot is the
+latest Archived/Modern or Archived/Legacy file on or before that date, and
+Modern/Legacy and Standard eras of the same year sit side by side:
 
 ```
+standard-2003/   Standard (8ED), 2003-09-01   (8 decks — thin season)
+standard-2004/   Standard (5DN), 2004-06-20   (12 decks)
+standard-2005/   Standard (9ED), 2005-08-20   (7 decks — thin season)
+standard-2006/   Standard (CSP), 2006-08-20   (12 decks)
+standard-2007/   Standard (10E), 2007-07-20   (12 decks)
 standard-2008/   Standard (EVE), 2008-07-25   (12 decks)
-standard-2009/   Standard (M10), 2009-07-17   (4 decks)
-standard-2010/   Standard (M11), 2010-07-16   (8 decks)
+standard-2009/   Standard (M10), 2009-07-17   (4 decks — thin season)
+standard-2010/   Standard (M11), 2010-07-16   (8 decks — thin season)
 standard-2011/   Standard (M12), 2011-07-15   (12 decks)
 standard-2012/   Standard (M13), 2012-07-13   (12 decks)
 standard-2013/   Standard (M14), 2013-07-19   (12 decks)
 standard-2014/   Standard (M15), 2014-07-18   (12 decks)
 standard-2015/   Standard (ORI), 2015-07-17   (12 decks)
 standard-2016/   Standard (EMN), 2016-07-22   (12 decks)
+modern-2012/     Modern (M13), 2012-07-13     (12 decks)
+modern-2013/     Modern (M14), 2013-07-19     (12 decks)
+modern-2014/     Modern (M15), 2014-07-18     (12 decks)
+modern-2015/     Modern (ORI), 2015-07-17     (12 decks)
+modern-2016/     Modern (EMN), 2016-07-22     (12 decks)
+legacy-2005/     Legacy (9ED), 2005-08-20     (4 decks — thin season)
+legacy-2006/     Legacy (CSP), 2006-08-20     (7 decks — thin season)
+legacy-2007/     Legacy (10E), 2007-07-20     (12 decks)
+legacy-2008/     Legacy (EVE), 2008-07-25     (12 decks)
+legacy-2009/     Legacy (M10), 2009-07-17     (12 decks)
+legacy-2010/     Legacy (M11), 2010-07-16     (12 decks)
+legacy-2011/     Legacy (M12), 2011-07-15     (12 decks)
+legacy-2012/     Legacy (M13), 2012-07-13     (12 decks)
+legacy-2013/     Legacy (M14), 2013-07-19     (12 decks)
+legacy-2014/     Legacy (M15), 2014-07-18     (12 decks)
+legacy-2015/     Legacy (ORI), 2015-07-17     (12 decks)
+legacy-2016/     Legacy (EMN), 2016-07-22     (12 decks)
 pools/           GENERATED card pools, so the tests need no corpus
 ```
 
 The catalog (`packages/deck/src/library/catalog.ts`) carries each era's
 rationale; this file carries the tables. The *selection* — which decks these
 are and why — lives one level up, in `docs/planning/deck-selection/`:
-`eras.json` names the nine snapshots, `selections/selection-<year>.json` has
-the chosen decks and the ones it rejected (illegal, or a near-duplicate),
-`review/<year>.md` is the human-readable report per era, and `review/README.md`
-has the rules the whole selection ran on. **Re-selecting is a data edit there
-and a re-run of `select_decks.py`, not a hand edit here.**
+`eras.json`/`eras-modern.json`/`eras-legacy.json` name the snapshots,
+`selections/selection[-<family>]-<year>.json` has the chosen decks and the
+ones rejected (illegal, or a near-duplicate), `review/<year>.md` (and
+`review/modern-<year>.md`, `review/legacy-<year>.md`) is the human-readable
+report per era, and `review/README.md` has the rules the whole selection ran
+on, across all three formats. **Re-selecting is a data edit there and a
+re-run of `select_decks.py`, not a hand edit here.**
 
-### Wave 34: replaced the old library wholesale
+### Wave 34: replaced the old library wholesale; wave 48: three formats
 
-Before this wave the picker's "eras" were eight mid-season tournament
+Before wave 34 the picker's "eras" were eight mid-season tournament
 collections, 49 decks, mostly crammed into one 18-month window
 (2011-02 to 2012-08) with several of them the same archetype four times over —
 and the date `2011-07-01`, a TEST fixture for the ban path, leaked into the
 picker as a ninth "era" alongside them. The operator asked for the opposite
-shape: one era per year across the full 2008-2016 window, twelve decks each
-(where the season has them), searched for colour and style spread rather than
-copied wholesale from one event's Top 8. `docs/planning/deck-selection/
-review/README.md` has the selection's own rules.
+shape: one era per year, twelve decks each (where the season has them),
+searched for colour and style spread rather than copied wholesale from one
+event's Top 8. Wave 48 (operator: *"can we go backwards another 5yrs for
+standard decks? and then also backfill modern & legacy as well?"*) extended
+Standard back to 2003 and added Modern and Legacy on the same selection
+strategy. `docs/planning/deck-selection/review/README.md` has the selection's
+own rules, for all three formats.
 
 ### Colour and style, per era
 
-`review/README.md`'s own table, reproduced here because it is the fact this
-library's five-colour test (`library.test.ts`) checks:
+`review/README.md`'s own tables, reproduced here because they are the facts
+this library's five-colour test (`library.test.ts`) checks.
+
+**Standard** (2003-2016, 147 decks):
 
 | Era | Format | Window | Candidates | Chosen | W | U | B | R | G | aggro | midrange | control | combo |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [2003](../docs/planning/deck-selection/review/2003.md) | Standard (8ED) | 2003-09-01 → 2003-10-20 | 8 | 8 | 3 | 2 | 2 | 5 | 3 | 3 | 1 | 3 | 1 |
+| [2004](../docs/planning/deck-selection/review/2004.md) | Standard (5DN) | 2004-06-20 → 2004-10-20 | 25 | 12 | 4 | 4 | 4 | 5 | 4 | 3 | 5 | 4 | 0 |
+| [2005](../docs/planning/deck-selection/review/2005.md) | Standard (9ED) | 2005-08-20 → 2005-10-20 | 7 | 7 | 1 | 2 | 1 | 1 | 2 | 4 | 1 | 2 | 0 |
+| [2006](../docs/planning/deck-selection/review/2006.md) | Standard (CSP) | 2006-08-20 → 2006-10-20 | 27 | 12 | 6 | 6 | 5 | 5 | 4 | 5 | 3 | 4 | 0 |
+| [2007](../docs/planning/deck-selection/review/2007.md) | Standard (10E) | 2007-07-20 → 2007-10-20 | 21 | 12 | 5 | 7 | 5 | 6 | 6 | 3 | 4 | 2 | 3 |
 | [2008](../docs/planning/deck-selection/review/2008.md) | Standard (EVE) | 2008-07-25 → 2008-10-03 | 21 | 12 | 3 | 6 | 5 | 5 | 4 | 4 | 4 | 3 | 1 |
 | [2009](../docs/planning/deck-selection/review/2009.md) | Standard (M10) | 2009-07-17 → 2009-10-02 | 4 | 4 | 2 | 1 | 3 | 1 | 2 | 3 | 0 | 1 | 0 |
 | [2010](../docs/planning/deck-selection/review/2010.md) | Standard (M11) | 2010-07-16 → 2010-10-01 | 8 | 8 | 2 | 6 | 3 | 4 | 3 | 1 | 2 | 3 | 2 |
@@ -63,10 +101,46 @@ library's five-colour test (`library.test.ts`) checks:
 | [2014](../docs/planning/deck-selection/review/2014.md) | Standard (M15) | 2014-07-18 → 2014-09-26 | 35 | 12 | 5 | 3 | 6 | 5 | 5 | 5 | 3 | 4 | 0 |
 | [2015](../docs/planning/deck-selection/review/2015.md) | Standard (ORI) | 2015-07-17 → 2015-10-02 | 39 | 12 | 6 | 5 | 6 | 6 | 5 | 4 | 3 | 3 | 2 |
 | [2016](../docs/planning/deck-selection/review/2016.md) | Standard (EMN) | 2016-07-22 → 2016-09-30 | 26 | 12 | 5 | 5 | 5 | 5 | 6 | 4 | 4 | 4 | 0 |
-| **all** | | | | **96** | 39 | 40 | 41 | 41 | 42 | 34 | 25 | 25 | 12 |
+| **all** | | | | **147** | 58 | 61 | 58 | 63 | 61 | 52 | 39 | 40 | 16 |
 
-2011 and 2014's columns are updated from the review doc's own numbers (below)
-for the two decks this wave swapped out during transcription — the review was
+**Modern** (2012-2016, 60 decks — §M found no thin season):
+
+| Era | Format | Window | Candidates | Chosen | W | U | B | R | G | aggro | midrange | control | combo |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [2012](../docs/planning/deck-selection/review/modern-2012.md) | Modern (M13) | 2012-07-13 → 2012-10-05 | 14 | 12 | 2 | 7 | 5 | 7 | 6 | 4 | 2 | 3 | 3 |
+| [2013](../docs/planning/deck-selection/review/modern-2013.md) | Modern (M14) | 2013-07-19 → 2013-09-27 | 36 | 12 | 6 | 5 | 4 | 6 | 6 | 5 | 1 | 3 | 3 |
+| [2014](../docs/planning/deck-selection/review/modern-2014.md) | Modern (M15) | 2014-07-18 → 2014-09-26 | 27 | 12 | 4 | 5 | 4 | 6 | 6 | 4 | 2 | 3 | 3 |
+| [2015](../docs/planning/deck-selection/review/modern-2015.md) | Modern (ORI) | 2015-07-17 → 2015-10-02 | 35 | 12 | 4 | 6 | 4 | 5 | 6 | 4 | 2 | 3 | 3 |
+| [2016](../docs/planning/deck-selection/review/modern-2016.md) | Modern (EMN) | 2016-07-22 → 2016-09-30 | 30 | 12 | 6 | 7 | 5 | 5 | 7 | 4 | 4 | 1 | 3 |
+| **all** | | | | **60** | 22 | 30 | 22 | 29 | 31 | 21 | 11 | 13 | 15 |
+
+**Legacy** (2005-2016, 131 decks):
+
+| Era | Format | Window | Candidates | Chosen | W | U | B | R | G | aggro | midrange | control | combo |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [2005](../docs/planning/deck-selection/review/legacy-2005.md) | Legacy (9ED) | 2005-08-20 → 2005-10-20 | 4 | 4 | 1 | 1 | 0 | 3 | 0 | 3 | 0 | 1 | 0 |
+| [2006](../docs/planning/deck-selection/review/legacy-2006.md) | Legacy (CSP) | 2006-08-20 → 2006-10-20 | 8 | 7 | 3 | 2 | 4 | 2 | 3 | 2 | 2 | 3 | 0 |
+| [2007](../docs/planning/deck-selection/review/legacy-2007.md) | Legacy (10E) | 2007-07-20 → 2007-10-20 | 19 | 12 | 5 | 5 | 4 | 4 | 6 | 4 | 2 | 3 | 3 |
+| [2008](../docs/planning/deck-selection/review/legacy-2008.md) | Legacy (EVE) | 2008-07-25 → 2008-10-03 | 26 | 12 | 5 | 7 | 7 | 6 | 5 | 5 | 3 | 2 | 2 |
+| [2009](../docs/planning/deck-selection/review/legacy-2009.md) | Legacy (M10) | 2009-07-17 → 2009-10-02 | 16 | 12 | 4 | 6 | 4 | 5 | 5 | 4 | 2 | 3 | 3 |
+| [2010](../docs/planning/deck-selection/review/legacy-2010.md) | Legacy (M11) | 2010-07-16 → 2010-10-01 | 22 | 12 | 4 | 6 | 4 | 5 | 6 | 4 | 2 | 3 | 3 |
+| [2011](../docs/planning/deck-selection/review/legacy-2011.md) | Legacy (M12) | 2011-07-15 → 2011-09-30 | 27 | 12 | 5 | 6 | 4 | 4 | 6 | 4 | 3 | 3 | 2 |
+| [2012](../docs/planning/deck-selection/review/legacy-2012.md) | Legacy (M13) | 2012-07-13 → 2012-10-05 | 22 | 12 | 3 | 5 | 5 | 4 | 4 | 4 | 3 | 3 | 2 |
+| [2013](../docs/planning/deck-selection/review/legacy-2013.md) | Legacy (M14) | 2013-07-19 → 2013-09-27 | 28 | 12 | 5 | 6 | 6 | 5 | 4 | 3 | 4 | 2 | 3 |
+| [2014](../docs/planning/deck-selection/review/legacy-2014.md) | Legacy (M15) | 2014-07-18 → 2014-09-26 | 29 | 12 | 4 | 5 | 6 | 5 | 5 | 4 | 4 | 1 | 3 |
+| [2015](../docs/planning/deck-selection/review/legacy-2015.md) | Legacy (ORI) | 2015-07-17 → 2015-10-02 | 19 | 12 | 4 | 5 | 6 | 4 | 6 | 4 | 4 | 0 | 4 |
+| [2016](../docs/planning/deck-selection/review/legacy-2016.md) | Legacy (EMN) | 2016-07-22 → 2016-09-30 | 25 | 12 | 5 | 4 | 6 | 4 | 5 | 4 | 5 | 1 | 2 |
+| **all** | | | | **131** | 48 | 58 | 56 | 51 | 55 | 45 | 34 | 29 | 25 |
+
+Legacy has exactly two genuinely colourless decks — "MUD" (2012, 2016), a real
+competitive colourless-artifact archetype with no coloured mana symbol
+anywhere in either list — which is why Legacy's five colour-counts above
+don't sum to the chosen total times one: a MUD deck contributes to none of
+W/U/B/R/G. `apps/ui/src/components/DeckView.test.ts` names both decks and
+checked this directly against the frozen pool, not assumed.
+
+2011 and 2014 Standard's columns are updated from the review doc's own numbers
+for the two decks wave 34 swapped out during transcription — the review was
 written before those swaps and is not re-run here; re-running
 `select_decks.py` would need to be told about the two failures first.
 
@@ -263,20 +337,39 @@ changes which cards are LEGAL — only which printing Forge resolves them to.
 
 ## `pools/`
 
-**GENERATED — do not hand-edit.** Each file is a `standardPoolAt` result
-computed against the real Scryfall corpus and frozen, so
-`packages/deck/src/library/library.test.ts` can validate real decklists against
-a real pool in CI, where `packages/carddata/data/cards.jsonl` (183 MB,
-gitignored) does not exist. The same posture, and the same reason, as
+**GENERATED — do not hand-edit.** Each file is a `formatPoolAt` result
+(`standardPoolAt`/`modernPoolAt`/`legacyPoolAt` under the one dispatcher,
+`@hadoku/carddata/formats`) computed against the real Scryfall corpus and
+frozen, so `packages/deck/src/library/library.test.ts` can validate real
+decklists against a real pool in CI, where `packages/carddata/data/cards.jsonl`
+(183 MB, gitignored) does not exist. The same posture, and the same reason, as
 `packages/carddata/src/formats/standard-pool.json`. Regenerate with:
 
 ```sh
 node --max-old-space-size=6144 packages/deck/src/library/build-pool-fixture.ts \
-  --cards=<path to cards.jsonl>
+  --cards=<path to cards.jsonl>                      # every fixture, all three families
+node --max-old-space-size=6144 packages/deck/src/library/build-pool-fixture.ts \
+  --cards=<path to cards.jsonl> --family=modern       # one family
+node --max-old-space-size=6144 packages/deck/src/library/build-pool-fixture.ts \
+  --cards=<path to cards.jsonl> --family=legacy --only=2012,2013
 ```
+
+31 files, named `<family>-<date>.generated.json`; Modern and Legacy's pools
+are much wider than Standard's (Modern: "every set since 8th Edition"; Legacy:
+"every paper set ever") so their fixtures run 500KB-1.6MB each where
+Standard's run 500KB-900KB. Total **1.2 MB before this wave (9 Standard
+fixtures) → 16.0 MB after (31 fixtures, three families)** — wave 48's own
+manager flagged a ~20 MB estimate going in, and the real total landed under
+it; no single fixture exceeds 1.6 MB, well inside the 3 MB the wave watched
+for.
 
 | File | Format | Cards | Banned |
 | ---- | ------ | ----- | ------ |
+| `standard-2003-09-01.generated.json` | Standard (8ED), effective 2003-09-01 | 1547 | — |
+| `standard-2004-06-20.generated.json` | Standard (5DN), effective 2004-06-20 | 1559 | 1 |
+| `standard-2005-08-20.generated.json` | Standard (9ED), effective 2005-08-20 | 1538 | 9 |
+| `standard-2006-08-20.generated.json` | Standard (CSP), effective 2006-08-20 | 1741 | — |
+| `standard-2007-07-20.generated.json` | Standard (10E), effective 2007-07-20 | 1879 | — |
 | `standard-2008-07-25.generated.json` | Standard (EVE), effective 2008-07-25 | 2146 | — |
 | `standard-2009-07-17.generated.json` | Standard (M10), effective 2009-07-17 | 1624 | — |
 | `standard-2010-07-16.generated.json` | Standard (M11), effective 2010-07-16 | 1477 | — |
@@ -286,35 +379,72 @@ node --max-old-space-size=6144 packages/deck/src/library/build-pool-fixture.ts \
 | `standard-2014-07-18.generated.json` | Standard (M15), effective 2014-07-18 | 1653 | — |
 | `standard-2015-07-17.generated.json` | Standard (ORI), effective 2015-07-17 | 1702 | — |
 | `standard-2016-07-22.generated.json` | Standard (EMN), effective 2016-07-22 | 1441 | — |
+| `modern-2012-07-13.generated.json` | Modern (M13), effective 2012-07-13 | 6951 | 29 |
+| `modern-2013-07-19.generated.json` | Modern (M14), effective 2013-07-19 | 7681 | 31 |
+| `modern-2014-07-18.generated.json` | Modern (M15), effective 2014-07-18 | 8371 | 30 |
+| `modern-2015-07-17.generated.json` | Modern (ORI), effective 2015-07-17 | 9186 | 32 |
+| `modern-2016-07-22.generated.json` | Modern (EMN), effective 2016-07-22 | 10062 | 33 |
+| `legacy-2005-08-20.generated.json` | Legacy (9ED), effective 2005-08-20 | 7033 | 62 |
+| `legacy-2006-08-20.generated.json` | Legacy (CSP), effective 2006-08-20 | 8156 | 63 |
+| `legacy-2007-07-20.generated.json` | Legacy (10E), effective 2007-07-20 | 8783 | 62 |
+| `legacy-2008-07-25.generated.json` | Legacy (EVE), effective 2008-07-25 | 9663 | 63 |
+| `legacy-2009-07-17.generated.json` | Legacy (M10), effective 2009-07-17 | 10281 | 64 |
+| `legacy-2010-07-16.generated.json` | Legacy (M11), effective 2010-07-16 | 10980 | 60 |
+| `legacy-2011-07-15.generated.json` | Legacy (M12), effective 2011-07-15 | 11651 | 60 |
+| `legacy-2012-07-13.generated.json` | Legacy (M13), effective 2012-07-13 | 12390 | 60 |
+| `legacy-2013-07-19.generated.json` | Legacy (M14), effective 2013-07-19 | 13107 | 60 |
+| `legacy-2014-07-18.generated.json` | Legacy (M15), effective 2014-07-18 | 13890 | 73 |
+| `legacy-2015-07-17.generated.json` | Legacy (ORI), effective 2015-07-17 | 14757 | 73 |
+| `legacy-2016-07-22.generated.json` | Legacy (EMN), effective 2016-07-22 | 15687 | 73 |
 
-The 2011 pool is not decoration: 2010's UG Polymorph (Antoine Ruel) plays four
-Jace, the Mind Sculptor, legal when it was played and banned the moment this
-pool's Standard takes effect a year later — `library.test.ts`'s "the failure
-path" checks that real cross-era history reports the right card, with no
-tampering.
+The 2011 Standard pool is not decoration: 2010's UG Polymorph (Antoine Ruel)
+plays four Jace, the Mind Sculptor, legal when it was played and banned the
+moment this pool's Standard takes effect a year later — `library.test.ts`'s
+"the failure path" checks that real cross-era history reports the right card,
+with no tampering.
+
+Legacy's bans grow to include nine Magic Online-exclusive compilation sets
+(`ME1`-`ME4` "Masters Edition" I-IV, `VMA` "Vintage Masters", `TPR` "Tempest
+Remastered", `TD0`/`TD2` MTGO theme/duel decks, `PZ1` a cube prize pack) that
+Legacy's own set list names but the real corpus carries zero non-digital
+printings of — found building these fixtures, every one verified 100%
+`digital: true` before being allowed to skip rather than fail the build
+(`build-pool-fixture.ts`'s `ALL_DIGITAL_SETS`). None of them ever hold a card
+that isn't ALSO legal via an earlier paper printing, so excluding them changes
+no card's legality.
 
 ## Re-deriving the decks
 
 ```sh
-node packages/deck/src/library/build-library.ts                  # every era, needs the network
-node packages/deck/src/library/build-library.ts --only=2011       # one era, by year
-node packages/deck/src/library/build-library.ts --cache=<dir>     # a local .dec export cache, checked first
+node packages/deck/src/library/build-library.ts                        # every catalogued Standard era, needs the network
+node packages/deck/src/library/build-library.ts --only=2011            # one Standard era, by year
+node packages/deck/src/library/build-library.ts --cache=<dir>          # a local .dec export cache, checked first
+node packages/deck/src/library/build-library.ts --family=modern --only=2012       # an era NOT YET catalogued
+node packages/deck/src/library/build-library.ts --family=legacy --only=2005,2006  # several, comma-separated
 ```
 
-It reads `docs/planning/deck-selection/eras.json` and that era's
-`selections/selection-<year>.json`, fetches mtgtop8's own plain-text export for
-each `chosen` deck id (or reads it from the cache), and writes the `.dck`
-through `writeDck`, so the committed files are by construction in the form the
-loader puts back out — `library.test.ts` asserts that round trip byte-for-byte.
-It throws rather than guess at a line it cannot parse (which is how the three
+For a catalogued era it reads `docs/planning/deck-selection/eras[-<family>].json`
+and that era's `selections/selection[-<family>]-<year>.json`; for a
+`--family`'d era not yet in `catalog.ts`'s `LIBRARY` (how lanes M and L
+transcribed Modern and Legacy ahead of this wave's integration step), the
+directory and format/date come from the selection file's own `era` block
+instead. Either way it fetches mtgtop8's own plain-text export for each
+`chosen` deck id (or reads it from the cache), and writes the `.dck` through
+`writeDck`, so the committed files are by construction in the form the loader
+puts back out — `library.test.ts` asserts that round trip byte-for-byte. It
+throws rather than guess at a line it cannot parse (which is how the three
 swaps above were found) and applies the two fixups above during the parse,
-never by editing a Forge file.
+never by editing a Forge file. `mtgtop8`'s own format codes (`f=` in every
+Source URL) are `ST`/`MO`/`LE` for Standard/Modern/Legacy, driven by
+`--family`.
 
 ## Checking them against the real corpus
 
 ```sh
 node --max-old-space-size=6144 packages/deck/src/library/validate-library.ts \
-  --cards=<path to cards.jsonl>              # exit 0: every deck legal on its own date (96 decks, 0 issues)
+  --cards=<path to cards.jsonl>              # exit 0: every deck legal on its own date (338 decks, 0 issues)
+node --max-old-space-size=6144 packages/deck/src/library/validate-library.ts \
+  --cards=<path to cards.jsonl> --family=modern --date=2012-07-13 --dir=decks/modern-2012   # one directory, pre-catalog
 ```
 
 ## Checking them against Forge itself

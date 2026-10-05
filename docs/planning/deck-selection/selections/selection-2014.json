@@ -1490,5 +1490,18 @@
    "kept_player": "James Gates"
   }
  ],
- "objective": 9.757687074829931
+ "objective": 9.757687074829931,
+ "pool_colors": {
+  "U": 6,
+  "B": 18,
+  "W": 20,
+  "G": 19,
+  "R": 17
+ },
+ "pool_styles": {
+  "aggro": 15,
+  "midrange": 10,
+  "control": 9,
+  "combo": 1
+ }
 }

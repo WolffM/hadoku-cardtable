@@ -747,5 +747,16 @@
    "kept_player": "Guillaume Matignon"
   }
  ],
- "objective": -6.329166358655999
+ "objective": -6.329166358655999,
+ "pool_colors": {
+  "W": 2,
+  "B": 3,
+  "G": 2,
+  "R": 1,
+  "U": 1
+ },
+ "pool_styles": {
+  "aggro": 3,
+  "control": 1
+ }
 }
