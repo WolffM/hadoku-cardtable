@@ -1,0 +1,24 @@
+# W17 — "after selecting something with world breaker the arrow seems to be
+# originating from the very top right of the screen ... i would expect it to
+# show from the played card on the stack." Seat 0 (human) holds World Breaker
+# ("When you cast this spell, exile target artifact, enchantment, or land")
+# and enough mana (6 generic + 1 green = 7) to cast it. EIGHT legal targets
+# exist (seat 0's own seven lands plus seat 1's one Island) so Forge opens a
+# real InputSelectTargets ask rather than auto-targeting the only choice —
+# the same auto-target shortcut `auto-target.state`'s own header explains.
+# World Breaker itself is still on the stack (not yet on any battlefield) the
+# moment that ask opens, which is exactly the case `cardBox` cannot find a
+# board element for.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=World Breaker
+humanbattlefield=Forest;Forest;Forest;Forest;Forest;Forest;Forest
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

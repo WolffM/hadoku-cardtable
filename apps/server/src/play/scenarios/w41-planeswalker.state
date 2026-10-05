@@ -1,0 +1,22 @@
+# W14 — "drawing arrows to assign attackers to planeswalker or player is
+# pretty awkward. player doesn't show as a valid a target, and after
+# attackers tap a persistent arrow should be showing as to what they are
+# attacking." Seat 0 (human) has an uncontested Main Phase 1 with one
+# untapped, non-sick creature (Memnite's default — `GameState.java:1286`) and
+# NOTHING pre-declared — same shape as `attackers-declared.state`, so the
+# test presses priority forward and Forge's own live InputAttack opens for
+# real. Seat 1 controls an opposing planeswalker (Jace Beleren) as the second
+# possible defender beside seat 1 themself.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Jace Beleren
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

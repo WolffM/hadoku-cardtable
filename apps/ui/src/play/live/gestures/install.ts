@@ -168,7 +168,7 @@ import {
 import { commitDrag, commitMarquee, rectOf, type Rect } from './commit.ts';
 import { applyIntents, clearIntents } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
-import { commitStackTarget, stackAsk, stackItemUnder } from './stack.ts';
+import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
 import { boxOf, cardBox, centreOf, targetUnder } from './targets.ts';
 import {
   DRAG_SLOP_PX,
@@ -288,6 +288,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * from a DOM lookup alone: while Forge asks for its target the card is in
    * no zone the board draws, so its element is usually gone and only the
    * release point says where the arrow leaves from.
+   *
+   * **The stack item's OWN element, when the source card has none of its
+   * own.** World Breaker's cast trigger ("when you cast this spell") needs
+   * its target while World Breaker itself is still ON THE STACK — not yet on
+   * any battlefield, not in any hand — so `cardBox` finds nothing for it
+   * (`StackItem` in `../../Board.tsx` carries `data-stack-id`, never
+   * `data-card-id`/`data-board-card`; its `CardTile` carries a DRAFT-namespaced
+   * id `targets.ts`'s `boardId` already refuses). `stackItemBox` is the one
+   * element that is always there for a stack-resident source, so it is the
+   * fallback — never a fallback POINT.
    */
   function clickOrigin(): { at: Point; source: number | null } | null {
     // A parked card is where the player let go of it, whether or not the
@@ -305,6 +315,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
       if (item.sourceCardId === null) continue;
       const box = cardBox(canvas, item.sourceCardId);
       if (box !== null) return { at: centreOf(box), source: originId(box) };
+      const stackBox = stackItemBox(canvas, item.id);
+      if (stackBox !== null) return { at: centreOf(stackBox), source: item.sourceCardId };
     }
     return null;
   }
@@ -680,10 +692,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
     }
     // Inside a selection the gesture may start anywhere on the table: the
     // spell doing the targeting is not itself one of Forge's choices, so
-    // there is often no offered card to drag FROM.
+    // there is often no offered card to drag FROM. The tail is still the
+    // SOURCE's own element (`clickOrigin`, same as the click-targeting
+    // arrow) — never the press point, which is wherever on the table this
+    // drag happened to start and not where the spell doing the targeting is.
     if (match.selectables === null) return;
+    const origin = clickOrigin();
     claim(event);
-    drag = { source: null, press: at, from: at, at, target: under, moved: false, lifted: false, held: true };
+    drag = { source: null, press: at, from: origin === null ? at : origin.at, at, target: under, moved: false, lifted: false, held: true };
     hover = null;
     paint();
   }

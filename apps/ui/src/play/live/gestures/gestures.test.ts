@@ -1351,16 +1351,79 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     expect(sent(s)).toEqual([]);
   });
 
+  /**
+   * W17 — the ledger's own diagnosis (`playtest-ledger.md`): "the arrow's
+   * origin falls back to (0,0)-ish when its source has no element." World
+   * Breaker's own "when you cast this spell" trigger needs its target while
+   * World Breaker is still ON THE STACK — no battlefield element, no hand
+   * element, nothing `cardBox` can find (`StackItem` in `../../Board.tsx`
+   * carries `data-stack-id`, never `data-card-id`/`data-board-card`). The
+   * tail must fall back to the STACK ITEM's own element, never a point.
+   */
+  it('W17 — the source card has no board element yet (still on the stack): the tail is the stack item, never a fallback point', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    const SOURCE_ID = 9001;
+    const STACK_ID = 9101;
+    // A stack-resident source with no board element of its own — the card is
+    // mid-cast, in no zone the board draws. A brand-new StackItem object
+    // goes through `newObjects`, never `objectDeltas`: the client has not
+    // seen this id before, and a delta to an unknown object is skipped
+    // outright (`fold.ts` rule 4).
+    seq += 1;
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'applyDelta',
+        payload: {
+          packet: {
+            seq,
+            checksum: 0,
+            checksumProperties: [],
+            newObjects: {
+              [String((2 << 28) | STACK_ID)]: { _type: 2, _id: STACK_ID, SourceCard: { t: 'int', v: SOURCE_ID } },
+            },
+            objectDeltas: {},
+            events: [],
+          },
+        },
+      }),
+    );
+    s.send(stateDelta({ [GAME_KEY]: { _type: 3, _id: 1, Stack: { t: 'list', v: [{ t: 'int', v: STACK_ID }] } } }));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    expect(m.view!.stack[0]!.sourceCardId, 'the synthetic stack item carries its source id').toBe(SOURCE_ID);
+    expect(canvas.querySelector(`[data-board-card="${SOURCE_ID}"]`), 'the source has no board element').toBeNull();
+    const stackEl = await waitFor(() => canvas.querySelector<HTMLElement>(`[data-stack-id="${STACK_ID}"]`)!);
+    boxAt(stackEl, 500, 10, 120, 40); // centre (560, 30) — jsdom has no layout otherwise.
+
+    for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    expect(m.lastSelectedCard).toBeNull();
+
+    fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 220, clientY: 180 });
+    const arrow = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(arrow.dataset.mode).toBe('click');
+    expect(arrow.dataset.source).toBe(String(SOURCE_ID));
+    // The tail sits at the stack item's own box centre — never (0,0), never
+    // the overlay's own corner.
+    expect(arrow.querySelector('line')!.getAttribute('x1')).toBe('560');
+    expect(arrow.querySelector('line')!.getAttribute('y1')).toBe('30');
+    expect(sent(s)).toEqual([]);
+  });
+
   it('with nothing to draw from, the pointer draws no arrow', async () => {
     const { s, m, canvas } = await gestureBoard();
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
     await waitFor(() => expect(m.selectables).not.toBeNull());
     expect(m.lastSelectedCard).toBeNull();
-    // Every stack source's own card taken out of the DOM: the tail has nowhere
-    // to start, and a tail from nowhere is not guidance.
+    // Every stack source's own card AND its stack item taken out of the DOM
+    // (W17's fallback reaches the stack item itself, so both have to be gone
+    // for there to be truly nothing to draw from): the tail has nowhere to
+    // start, and a tail from nowhere is not guidance.
     for (const item of m.view!.stack) {
       if (item.sourceCardId !== null) canvas.querySelector(`[data-board-card="${item.sourceCardId}"]`)?.remove();
+      canvas.querySelector(`[data-stack-id="${item.id}"]`)?.remove();
     }
     expect(stackOrigin(m, canvas)).toBeNull();
 
@@ -1656,6 +1719,45 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
     expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 600, y: 480 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+  });
+
+  /**
+   * W5 — the operator: *"if i bring something back to my hand and left click
+   * it, that should also put it back in the hand."* The ledger's own note
+   * flagged exactly this path to read: a click-armed card (no button held)
+   * brought back over the viewer's own hand, then the NEXT press — the "left
+   * click" that resolves the gesture — lands there too. `resolveLift`'s
+   * `overOwnHand` check is the same one the HELD-drag case already uses
+   * (`'any card released over the hand floats back'`, above); this pins the
+   * CLICK-ARMED path, which had no test of its own.
+   */
+  it('W5 — a click-armed card brought back over the hand and left-clicked there floats back, nothing sent', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
+
+    // Lift with a click — arms, does not resolve — then carry it OUT (as the
+    // operator's own words have it, "bring something back") before bringing
+    // it back over the viewer's own hand, with no button held throughout.
+    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(face, { clientX: 10, clientY: 10 });
+    expect(s.clientFrames()).toHaveLength(0);
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    fireEvent.pointerMove(myHand, { clientX: 20, clientY: 20 });
+    expect(myHand.hasAttribute('data-cancel-hint'), 'the cancel cue shows over the hand').toBe(true);
+    expect(s.clientFrames()).toHaveLength(0);
+
+    // The next press is the "left click" that ends the gesture, over the hand.
+    fireEvent.pointerDown(myHand, { button: 0, clientX: 20, clientY: 20 });
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'floating back, not played').toBe('returning');
+    await new Promise((r) => setTimeout(r, 350));
+    expect(s.clientFrames(), 'nothing reached Forge').toHaveLength(0);
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+    expect(myHand.hasAttribute('data-cancel-hint'), 'the cue clears with the release').toBe(false);
   });
 
   it('Escape before any cast cancels silently — nothing was ever sent', async () => {

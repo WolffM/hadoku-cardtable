@@ -1,0 +1,21 @@
+# W9 — "the arrow for 'grasp of darkness' should not snap to player avatars.
+# player is not a valid target for that spell so the arrow should not snap."
+# Seat 0 (human) holds Doom Blade ("Destroy target nonblack creature",
+# mandatory) and enough mana. TWO legal creature targets exist — seat 0's own
+# Memnite and seat 1's Memnite — so Forge opens a real InputSelectTargets ask
+# (`auto-target.state`'s single-Memnite scenario auto-targets instead and
+# never asks at all). Doom Blade's target restriction is creatures only: no
+# player is ever a legal target for it, on either side.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Doom Blade
+humanbattlefield=Swamp;Swamp;Memnite
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Memnite
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
