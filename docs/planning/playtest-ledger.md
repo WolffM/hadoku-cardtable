@@ -245,6 +245,14 @@ The first game on the w39 drag. It ended in a soft-lock (W18). W3, W4 and W8 shi
 | W18 | Sanctum of Ugin's "you may sacrifice" showed an arrow instead of a yes/no; then the game soft-locked | 1 | shipped (deployed f27d1cc, 06:00 UTC 2026-10-05) — w42 (`5447042`: the off-board picker with decline, and "you may sacrifice" as yes/no; the in-browser Sanctum/Worldbreaker e2e flaked and carries over) | the lock itself (log, m-09487f336215): Relentless Dead's death trigger asked for a ZOMBIE CARD IN THE GRAVEYARD; the arrow offered players (W9), the browser sent selectPlayer twice, refused; no board element can pick a graveyard card or decline | the same board: Kozilek's Return killing Relentless Dead |  |
 | W19 | a very slight clipping of the ring around the avatar | 3 (with Q1, V10) | shipped (deployed f27d1cc, 06:00 UTC 2026-10-05) — w43 (`8058baa`) | w39 grew the ring to 6 px past the mark; `.seat__ident` keeps 4 px of room inside the bar's `overflow: hidden` | your turn: look at your avatar's ring |  |
 
+## Playtest 8 — 2026-10-05, on UI 0.32.21 (`6744c3c`), match `m-234c5f46dd94` vs Forge AI
+
+| ID | item | asked | status | evidence | check it by | your check |
+| --- | --- | --- | --- | --- | --- | --- |
+| X1 | attacking a planeswalker: the arrow draws while dragging from the attacker, but the planeswalker is not selectable as the target | 2 (with W14) | planned | the defender's legality is not on the wire (w41 note); W9's bridge fix covered target selections, not attack declarations | attack a planeswalker by arrow |  |
+| X2 | declaring blockers took two clicks | 1 | to verify | match m-234c5f46dd94 bridge log 10:37:02-03 (local): an OK in the declare-attackers step (the defender's priority after attacks), then the OK that declared blocks; auto-pass skips the attacker's empty window (T3) but not the defender's — to confirm with a scenario | block with one creature |  |
+| X3 | the stack's look: a small gallery/carousel where it is now, and the top item shown in an expanded big view below it | 4 (with P9, R-stack, T8) | planned — demo first |  | cast two spells in response |  |
+
 ## Asks outside a play-test — 2026-10-02
 
 | ID | item | asked | status | evidence | check it by | your check |
