@@ -528,6 +528,72 @@
   transform: translate(-50%, -50%) rotate(90deg);
 }
 
+/*
+ * W13 (wave 44): *"i really like the smooth animation of cards coming back
+ * to the hand on failure. can we smoothen that out for all the other things
+ * in the game like tapping lands?"* Same feel as the cast-lift float-back
+ * (`live/gestures/gestures.css`'s `[data-cast-lift='returning']`): 300ms,
+ * the same cubic-bezier.
+ *
+ * Only `transform` is in this list — never `aspect-ratio` on
+ * `.board-card__face` above, and never the `position`/`top`/`left`/`width`
+ * switch on `.card` itself. Those are layout properties (`table-fit` sizes a
+ * row off the box they produce) and still SNAP the instant the attribute
+ * flips, exactly as before this wave. Only the rotation sweeps, so the box a
+ * tapped card turns inside of is already its final size when the turn
+ * starts: the card settles into place as it spins rather than growing or
+ * shrinking mid-turn. Not a single continuous morph from one box to the
+ * other, but still transform-only, and still the smooth turn the ask was
+ * for — tapping, untapping, and (via the `:is()` above) an attacker turning
+ * all animate through this one rule.
+ */
+.board-card .card {
+  transition: transform 300ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-card .card {
+    transition: none;
+  }
+}
+
+/*
+ * The other half of W13: a card ARRIVING on a battlefield. Scoped to
+ * `[data-zone='battlefield']` (the attribute `Board.tsx`'s `ZoneShell`
+ * already writes) so a hand — dealt, drawn, returned — never plays this;
+ * only a permanent new to the board does.
+ *
+ * It fires once, on the `<li>`'s first paint, because that is the only
+ * moment a CSS animation can run without help: React keeps the same DOM
+ * node for every later update to a card already on the board (tapping,
+ * damage, a counter arriving), so the animation cannot replay on those, and
+ * a browser refresh mid-game mounts the whole board fresh and plays it for
+ * everything already in play — a known, harmless side effect of there being
+ * no other signal in the DOM for "this one just mounted".
+ *
+ * LEAVING the battlefield has no CSS equivalent: `Board.tsx` removes the
+ * `<li>` the instant a card leaves, with no interval in which a leaving
+ * card and a frame to animate it both exist. That half of W13 needs a
+ * kept-for-a-beat placeholder in `Board.tsx` — a `.tsx` change, and outside
+ * this lane's row.
+ */
+@keyframes board-card-arrive {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+[data-zone='battlefield'] .board-card__face {
+  animation: board-card-arrive 300ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-zone='battlefield'] .board-card__face {
+    animation: none;
+  }
+}
+
 /* ── a player's face ─────────────────────────────────────────────────── */
 
 /*
