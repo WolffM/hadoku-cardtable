@@ -35,6 +35,25 @@
  * override the format mismatch is expected and reported as a note rather than
  * a fault, and a non-zero exit is the POINT rather than a failure — the header
  * of each run says which mode it is in.
+ *
+ * ## `--family` and `--dir` — validating an era `catalog.ts` does not know yet
+ *
+ * Wave 48 §T: lanes M (Modern) and L (Legacy) transcribe their eras into
+ * `decks/modern-<year>/` and `decks/legacy-<year>/` BEFORE T's integration
+ * step adds them to `catalog.ts`'s `LIBRARY`. Without a catalog entry there is
+ * no `format`/`date` to read a collection's own fields off, so `--dir` names
+ * the directory directly and `--family` + `--date` supply what the catalog
+ * would otherwise carry:
+ *
+ *   node --max-old-space-size=6144 packages/deck/src/library/validate-library.ts \
+ *     --cards=<path> --family=modern --date=2012-07-13 --dir=decks/modern-2012
+ *
+ * Every `.dck` in `--dir` is loaded and checked against `formatPoolAt('modern',
+ * '2012-07-13', index)`. The format-mismatch check (`libraryPoolMismatch`) is
+ * skipped in this mode — there is no catalog row to compare a deck's own
+ * `Format`/`Effective` metadata against — so a drift there would show up only
+ * once T's integration step wires the directory into `LIBRARY` and this script
+ * is re-run in its ordinary, catalog-driven mode.
  */
 
 import { createReadStream, readFileSync } from 'node:fs';
@@ -42,13 +61,15 @@ import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
+import { readdirSync } from 'node:fs';
+
 import {
   buildPrintingIndex,
-  standardPoolAt,
+  formatPoolAt,
   type PrintingIndex,
 } from '@hadoku/carddata/formats';
 
-import { LIBRARY, deckPath } from './catalog.ts';
+import { LIBRARY, deckPath, type FormatFamily, type LibraryCollection } from './catalog.ts';
 import { libraryIssues, libraryPoolMismatch, loadLibraryDeck } from './library.ts';
 import { fixtureFromStandardPool, poolFromFixture } from './pool-fixture.ts';
 
@@ -76,9 +97,40 @@ async function loadIndex(cardsPath: string): Promise<PrintingIndex> {
   return buildPrintingIndex(cards);
 }
 
+/** One deck to check: a path, and a way to say which deck it was in the log. */
+interface DeckToCheck {
+  readonly label: string;
+  readonly path: string;
+  /** `null` in `--dir` mode: there is no catalog row to check a format/date mismatch against. */
+  readonly collection: LibraryCollection | null;
+}
+
+function decksToCheck(dirOverride: string | null): DeckToCheck[] {
+  if (dirOverride === null) {
+    return LIBRARY.flatMap((collection) =>
+      collection.decks.map((entry) => ({
+        label: `${collection.event} / ${entry.id}`,
+        path: deckPath(collection, entry),
+        collection,
+      })),
+    );
+  }
+  const abs = join(REPO_ROOT, dirOverride);
+  const files = readdirSync(abs)
+    .filter((f) => f.endsWith('.dck'))
+    .sort();
+  if (files.length === 0) throw new Error(`${dirOverride}: no .dck files found`);
+  return files.map((file) => ({ label: `${dirOverride}/${file}`, path: `${dirOverride}/${file}`, collection: null }));
+}
+
 async function main(): Promise<number> {
   const cardsPath = arg('cards') ?? DEFAULT_CARDS;
   const dateOverride = arg('date');
+  const dirOverride = arg('dir');
+  const familyOverride = (arg('family') ?? 'standard') as FormatFamily;
+  if (dirOverride !== null && arg('family') === null) {
+    throw new Error('--dir needs --family (there is no catalog row to read it off)');
+  }
   const index = await loadIndex(cardsPath);
   console.log(`corpus: ${cardsPath}`);
   console.log(`indexed ${String(index.printings)} printings across ${String(index.bySet.size)} sets`);
@@ -87,45 +139,45 @@ async function main(): Promise<number> {
       ? 'mode: each deck against the pool for its own date (expect 0 issues)'
       : `mode: every deck against the pool for ${dateOverride} (issues are the point)`,
   );
+  if (dirOverride !== null) console.log(`mode: --dir=${dirOverride}, not yet in catalog.ts — family=${familyOverride}`);
 
   let decks = 0;
   let clean = 0;
   let issues = 0;
 
-  for (const collection of LIBRARY) {
-    console.log(`\n== ${collection.event}  [${collection.format} @ ${collection.date}]`);
-    for (const entry of collection.decks) {
-      decks++;
-      const path = deckPath(collection, entry);
-      const deck = loadLibraryDeck(readFileSync(join(REPO_ROOT, path), 'utf8'));
-      const date = dateOverride ?? deck.date;
+  for (const { label, path, collection } of decksToCheck(dirOverride)) {
+    decks++;
+    const deck = loadLibraryDeck(readFileSync(join(REPO_ROOT, path), 'utf8'));
+    const date = dateOverride ?? deck.date;
+    const family = collection?.family ?? familyOverride;
 
-      const pool = standardPoolAt(date, index);
-      if (!pool.ok) {
-        console.log(`  ${entry.id}: POOL REFUSED for ${date} — ${pool.reason}`);
-        issues++;
-        continue;
-      }
-      const formatPool = poolFromFixture(fixtureFromStandardPool(date, pool));
+    const pool = formatPoolAt(family, date, index);
+    if (!pool.ok) {
+      console.log(`  ${label}: POOL REFUSED for ${date} — ${pool.reason}`);
+      issues++;
+      continue;
+    }
+    const formatPool = poolFromFixture(fixtureFromStandardPool(date, pool));
 
+    if (collection !== null) {
       const mismatch = libraryPoolMismatch(deck, formatPool);
       if (mismatch !== null && dateOverride === null) {
-        console.log(`  ${entry.id}: FORMAT MISMATCH — ${mismatch}`);
+        console.log(`  ${label}: FORMAT MISMATCH — ${mismatch}`);
         issues++;
         continue;
       }
-
-      const found = libraryIssues(deck, formatPool);
-      if (found.length === 0) {
-        clean++;
-        console.log(`  ${entry.id}: OK — ${deck.name} legal in ${formatPool.name}`);
-        console.log(`      cited: ${deck.citation}`);
-        continue;
-      }
-      issues += found.length;
-      console.log(`  ${entry.id}: ${String(found.length)} issue(s) in ${formatPool.name}`);
-      for (const issue of found) console.log(`      [${issue.kind}] ${issue.message}`);
     }
+
+    const found = libraryIssues(deck, formatPool);
+    if (found.length === 0) {
+      clean++;
+      console.log(`  ${label}: OK — ${deck.name} legal in ${formatPool.name}`);
+      console.log(`      cited: ${deck.citation}`);
+      continue;
+    }
+    issues += found.length;
+    console.log(`  ${label}: ${String(found.length)} issue(s) in ${formatPool.name}`);
+    for (const issue of found) console.log(`      [${issue.kind}] ${issue.message}`);
   }
 
   console.log(`\ndecks ${String(decks)}, clean ${String(clean)}, issues ${String(issues)}`);

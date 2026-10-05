@@ -1,5 +1,62 @@
 [
  {
+  "year": 2003,
+  "season_start": "2002-11-01",
+  "start": "2003-09-01",
+  "end": "2003-10-20",
+  "format": "Standard (8ED)",
+  "sets": "ODY, TOR, JUD, ONS, LGN, SCG, 8ED",
+  "banned": []
+ },
+ {
+  "year": 2004,
+  "season_start": "2003-10-20",
+  "start": "2004-06-20",
+  "end": "2004-10-20",
+  "format": "Standard (5DN)",
+  "sets": "ONS, LGN, SCG, 8ED, MRD, DST, 5DN",
+  "banned": [
+   "Skullclamp"
+  ]
+ },
+ {
+  "year": 2005,
+  "season_start": "2004-10-20",
+  "start": "2005-08-20",
+  "end": "2005-10-20",
+  "format": "Standard (9ED)",
+  "sets": "MRD, DST, 5DN, CHK, BOK, SOK, 9ED",
+  "banned": [
+   "Ancient Den",
+   "Arcbound Ravager",
+   "Darksteel Citadel",
+   "Disciple of the Vault",
+   "Great Furnace",
+   "Seat of the Synod",
+   "Skullclamp",
+   "Tree of Tales",
+   "Vault of Whispers"
+  ]
+ },
+ {
+  "year": 2006,
+  "season_start": "2005-10-20",
+  "start": "2006-08-20",
+  "end": "2006-10-20",
+  "format": "Standard (CSP)",
+  "sets": "CHK, BOK, SOK, 9ED, RAV, GPT, DIS, CSP",
+  "banned": []
+ },
+ {
+  "year": 2007,
+  "season_start": "2006-10-20",
+  "start": "2007-07-20",
+  "end": "2007-10-20",
+  "format": "Standard (10E)",
+  "sets": "RAV, GPT, DIS, CSP, TSP, TSB, PLC, FUT, 10E",
+  "banned": []
+ },
+ {
   "year": 2008,
   "season_start": "2007-10-20",
   "start": "2008-07-25",

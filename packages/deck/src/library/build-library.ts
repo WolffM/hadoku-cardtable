@@ -53,7 +53,7 @@ import type { DeckEntry, DeckFile } from '@hadoku/carddata/dck';
 
 import { writeDck, type DckSpelling } from '../dck-write.ts';
 import { PREBUILT_DATE_KEY, PREBUILT_FORMAT_KEY } from '../prebuilt.ts';
-import { LIBRARY, deckPath, slugifyForLibrary, type LibraryCollection } from './catalog.ts';
+import { LIBRARY, slugifyForLibrary, type FormatFamily, type LibraryCollection } from './catalog.ts';
 import { LIBRARY_PROVENANCE_KEY, LIBRARY_SOURCE_KEY } from './library.ts';
 
 /** `packages/deck/src/library` → the repo root. */
@@ -219,8 +219,16 @@ function totalCount(entries: readonly DeckEntry[]): number {
   return entries.reduce((sum, e) => sum + e.count, 0);
 }
 
+/** What `buildDeckFile` needs off a collection — satisfied by a catalogued
+ * `LibraryCollection` or by a bare `{format, date}` for an era not yet
+ * catalogued (`--family` + `--only` on a format `T` has not integrated yet). */
+interface FormatAndDate {
+  readonly format: string;
+  readonly date: string;
+}
+
 function buildDeckFile(
-  collection: LibraryCollection,
+  collection: FormatAndDate,
   source: ChosenDeck,
   list: DecList,
 ): DeckFile {
@@ -284,35 +292,105 @@ function yearOf(collection: LibraryCollection): string {
   return collection.date.slice(0, 4);
 }
 
+/** The selection file `select_decks.py`/`report.py` write for a family and year — `tools/eras.py`'s naming helpers, mirrored. */
+function selectionFileName(family: FormatFamily, year: string): string {
+  return family === 'standard' ? `selection-${year}.json` : `selection-${family}-${year}.json`;
+}
+
+/** One (family, year) era to transcribe, whether or not it is in `catalog.ts` yet. */
+interface Job {
+  readonly label: string;
+  readonly directory: string;
+  readonly format: string;
+  readonly date: string;
+  readonly chosen: readonly ChosenDeck[];
+  /** The catalogued collection, so file names can be checked for drift — `null` for an era `--family` is transcribing ahead of T's integration step (wave 48 §T step 4). */
+  readonly catalogued: LibraryCollection | null;
+}
+
+/**
+ * `--family=standard` (the default) loops every catalogued Standard era,
+ * exactly as this script always has — `--only` is unchanged, byte for byte
+ * the same selection and output paths as before `--family` existed.
+ *
+ * `--family=modern` or `--family=legacy` transcribes era(s) NOT YET in
+ * `catalog.ts` — lanes M and L run this, against their own
+ * `selections/selection-<family>-<year>.json` and `decks/<family>-<year>/`,
+ * before T's integration step adds them to `LIBRARY`. `--only` is then
+ * required (there is no `LIBRARY` entry to discover years from) and may be a
+ * comma list: `--family=modern --only=2012,2013`.
+ */
+function buildJobs(family: FormatFamily, only: string | null): Job[] {
+  if (family === 'standard') {
+    const wanted = only === null ? null : only.split(',');
+    const collections = LIBRARY.filter(
+      (c) => c.family === 'standard' && (wanted === null || wanted.includes(yearOf(c))),
+    );
+    if (collections.length === 0) {
+      throw new Error(`--only=${String(only)} names no Standard era this script transcribes`);
+    }
+    return collections.map((c) => {
+      const selectionPath = join(SELECTIONS_DIR, selectionFileName('standard', yearOf(c)));
+      const selection = JSON.parse(readFileSync(selectionPath, 'utf8')) as SelectionFile;
+      return {
+        label: c.id,
+        directory: c.directory,
+        format: c.format,
+        date: c.date,
+        chosen: selection.chosen,
+        catalogued: c,
+      };
+    });
+  }
+
+  if (only === null) {
+    throw new Error(`--family=${family} needs --only=<year[,year...]> — it is not catalogued yet, so there is no LIBRARY to discover years from`);
+  }
+  return only.split(',').map((year) => {
+    const catalogued = LIBRARY.find((c) => c.family === family && yearOf(c) === year) ?? null;
+    const selectionPath = join(SELECTIONS_DIR, selectionFileName(family, year));
+    const selection = JSON.parse(readFileSync(selectionPath, 'utf8')) as SelectionFile;
+    return {
+      label: catalogued?.id ?? `${family}-${year}`,
+      directory: catalogued?.directory ?? `${family}-${year}`,
+      format: catalogued?.format ?? selection.era.format,
+      date: catalogued?.date ?? selection.era.start,
+      chosen: selection.chosen,
+      catalogued,
+    };
+  });
+}
+
 async function main(): Promise<void> {
+  const family = (arg('family') ?? 'standard') as FormatFamily;
   const only = arg('only');
   const cacheDir = arg('cache') ?? DEFAULT_CACHE;
-  const years = LIBRARY.map(yearOf).filter((y) => only === null || y === only);
-  if (years.length === 0) throw new Error(`--only=${String(only)} names no era this script transcribes`);
+  const jobs = buildJobs(family, only);
 
-  for (const collection of LIBRARY) {
-    if (!years.includes(yearOf(collection))) continue;
-    const selectionPath = join(SELECTIONS_DIR, `selection-${yearOf(collection)}.json`);
-    const selection = JSON.parse(readFileSync(selectionPath, 'utf8')) as SelectionFile;
-
-    const outDir = join(REPO_ROOT, collection.directory);
+  for (const job of jobs) {
+    const outDir = join(REPO_ROOT, job.directory);
     mkdirSync(outDir, { recursive: true });
-    console.log(`== ${collection.id} (${String(selection.chosen.length)} decks)`);
+    console.log(
+      `== ${job.label} (${String(job.chosen.length)} decks)${job.catalogued === null ? ' [not in catalog.ts yet]' : ''}`,
+    );
 
-    for (const source of selection.chosen) {
+    for (const source of job.chosen) {
       const what = `${source.player} (mtgtop8 ${String(source.deck)})`;
       const text = await cachedExport(source.deck, cacheDir);
       const list = parseDecExport(text, what);
-      const file = buildDeckFile(collection, source, list);
-      const entry = collection.decks.find((d) => d.file === fileNameFor(source));
-      if (entry === undefined) {
-        throw new Error(`${what}: ${fileNameFor(source)} is not in catalog.ts's ${collection.id} — catalog.ts and the selection have drifted`);
+      const file = buildDeckFile({ format: job.format, date: job.date }, source, list);
+      const fileName = fileNameFor(source);
+      if (job.catalogued !== null) {
+        const entry = job.catalogued.decks.find((d) => d.file === fileName);
+        if (entry === undefined) {
+          throw new Error(`${what}: ${fileName} is not in catalog.ts's ${job.catalogued.id} — catalog.ts and the selection have drifted`);
+        }
       }
 
-      const target = join(REPO_ROOT, deckPath(collection, entry));
+      const target = join(REPO_ROOT, job.directory, fileName);
       writeFileSync(target, writeDck(file, { spelling: LIBRARY_SPELLING }), 'utf8');
       console.log(
-        `  ${fileNameFor(source)}: main ${String(totalCount(list.main))}, sideboard ${String(totalCount(list.sideboard))}`,
+        `  ${fileName}: main ${String(totalCount(list.main))}, sideboard ${String(totalCount(list.sideboard))}`,
       );
     }
   }

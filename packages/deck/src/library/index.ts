@@ -36,12 +36,16 @@ export {
   DECKS_ROOT,
   LIBRARY,
   POOL_FIXTURE_DATES,
+  POOL_FIXTURE_KEYS,
   deckPath,
+  formatIdOf,
   libraryDeckPaths,
   poolFixturePath,
   slugifyForLibrary,
+  type FormatFamily,
   type LibraryCollection,
   type LibraryEntry,
+  type PoolFixtureKey,
 } from './catalog.ts';
 
 /**

@@ -49,9 +49,19 @@ export interface LibraryEntry {
   readonly file: string;
 }
 
+/**
+ * The three format families the deck library draws eras from (wave 48).
+ * Standard rotates its own sets; Modern and Legacy do not, and their eras are
+ * pinned to the same year's Standard era's dates (Settled, wave48 plan) —
+ * `@hadoku/carddata/formats`' `formatPoolAt` dispatches on this same union.
+ */
+export type FormatFamily = 'standard' | 'modern' | 'legacy';
+
 /** A set of decks that share a format, a date and an event. */
 export interface LibraryCollection {
   readonly id: string;
+  /** Which format family this era's pool and legality come from. */
+  readonly family: FormatFamily;
   /** Directory under {@link DECKS_ROOT}, relative to the repo root. */
   readonly directory: string;
   /** Human name of the event or source the decks came from. */
@@ -63,6 +73,18 @@ export interface LibraryCollection {
   /** Where the collection as a whole came from — the selection's own review doc. */
   readonly source: string;
   readonly decks: readonly LibraryEntry[];
+}
+
+/**
+ * The id a collection's era answers to over the wire — `apps/server/src/http/
+ * library.ts` keys a format by this today for Standard (the bare date, so a
+ * stored room or an e2e spec that pins `2016-07-22` keeps working unchanged),
+ * and now needs one for Modern and Legacy too, which cannot be the bare date
+ * alone: Modern 2012 and Legacy 2012 share Standard 2012's date (Settled) and
+ * would collide. Non-standard families are prefixed; Standard is not.
+ */
+export function formatIdOf(c: { readonly family: FormatFamily; readonly date: string }): string {
+  return c.family === 'standard' ? c.date : `${c.family}-${c.date}`;
 }
 
 /** The repo-root-relative directory the library lives in. */
@@ -93,6 +115,7 @@ export function slugifyForLibrary(s: string): string {
  * aggro 4, midrange 4, control 3, combo 1.
  */
 export const POWER_SUMMER_2008_STANDARD: LibraryCollection = {
+  family: 'standard',
   id: 'power-summer-2008',
   directory: `${DECKS_ROOT}/standard-2008`,
   event: "2008 power summer \u2014 Standard (EVE), 2008-07-25 \u2192 2008-10-03",
@@ -125,6 +148,7 @@ export const POWER_SUMMER_2008_STANDARD: LibraryCollection = {
  * aggro 3, midrange 0, control 1, combo 0.
  */
 export const POWER_SUMMER_2009_STANDARD: LibraryCollection = {
+  family: 'standard',
   id: 'power-summer-2009',
   directory: `${DECKS_ROOT}/standard-2009`,
   event: "2009 power summer \u2014 Standard (M10), 2009-07-17 \u2192 2009-10-02",
@@ -149,6 +173,7 @@ export const POWER_SUMMER_2009_STANDARD: LibraryCollection = {
  * aggro 1, midrange 2, control 3, combo 2.
  */
 export const POWER_SUMMER_2010_STANDARD: LibraryCollection = {
+  family: 'standard',
   id: 'power-summer-2010',
   directory: `${DECKS_ROOT}/standard-2010`,
   event: "2010 power summer \u2014 Standard (M11), 2010-07-16 \u2192 2010-10-01",
@@ -186,6 +211,7 @@ export const POWER_SUMMER_2010_STANDARD: LibraryCollection = {
  * (`selections/selection-2011.json` records the swap).
  */
 export const POWER_SUMMER_2011_STANDARD: LibraryCollection = {
+  family: 'standard',
   id: 'power-summer-2011',
   directory: `${DECKS_ROOT}/standard-2011`,
   event: "2011 power summer \u2014 Standard (M12), 2011-07-15 \u2192 2011-09-30",
@@ -218,6 +244,7 @@ export const POWER_SUMMER_2011_STANDARD: LibraryCollection = {
  * aggro 4, midrange 4, control 2, combo 2.
  */
 export const POWER_SUMMER_2012_STANDARD: LibraryCollection = {
+  family: 'standard',
   id: 'power-summer-2012',
   directory: `${DECKS_ROOT}/standard-2012`,
   event: "2012 power summer \u2014 Standard (M13), 2012-07-13 \u2192 2012-10-05",
@@ -250,6 +277,7 @@ export const POWER_SUMMER_2012_STANDARD: LibraryCollection = {
  * aggro 4, midrange 3, control 3, combo 2.
  */
 export const POWER_SUMMER_2013_STANDARD: LibraryCollection = {
+  family: 'standard',
   id: 'power-summer-2013',
   directory: `${DECKS_ROOT}/standard-2013`,
   event: "2013 power summer \u2014 Standard (M14), 2013-07-19 \u2192 2013-09-27",
@@ -294,6 +322,7 @@ export const POWER_SUMMER_2013_STANDARD: LibraryCollection = {
  * `selections/selection-2014.json` records both swaps.
  */
 export const POWER_SUMMER_2014_STANDARD: LibraryCollection = {
+  family: 'standard',
   id: 'power-summer-2014',
   directory: `${DECKS_ROOT}/standard-2014`,
   event: "2014 power summer \u2014 Standard (M15), 2014-07-18 \u2192 2014-09-26",
@@ -326,6 +355,7 @@ export const POWER_SUMMER_2014_STANDARD: LibraryCollection = {
  * aggro 4, midrange 3, control 3, combo 2.
  */
 export const POWER_SUMMER_2015_STANDARD: LibraryCollection = {
+  family: 'standard',
   id: 'power-summer-2015',
   directory: `${DECKS_ROOT}/standard-2015`,
   event: "2015 power summer \u2014 Standard (ORI), 2015-07-17 \u2192 2015-10-02",
@@ -358,6 +388,7 @@ export const POWER_SUMMER_2015_STANDARD: LibraryCollection = {
  * aggro 4, midrange 4, control 4, combo 0.
  */
 export const POWER_SUMMER_2016_STANDARD: LibraryCollection = {
+  family: 'standard',
   id: 'power-summer-2016',
   directory: `${DECKS_ROOT}/standard-2016`,
   event: "2016 power summer \u2014 Standard (EMN), 2016-07-22 \u2192 2016-09-30",
@@ -412,23 +443,57 @@ export function libraryDeckPaths(library: readonly LibraryCollection[] = LIBRARY
 /**
  * The pool fixture for a collection, relative to the repo root.
  *
- * One fixture per collection date, named after the date rather than the
- * collection, because two collections from the same Standard share a pool and
- * regenerating it twice would be two chances to disagree. In this library every
- * era has its own unique date, so there is one fixture per era.
+ * One fixture per (family, date) pair, named after both rather than the date
+ * alone, because wave 48 pins Modern and Legacy eras to the SAME dates
+ * Standard's own eras use (Settled) — Modern 2012 and Standard 2012 share
+ * `2012-07-13` but need two different pools, Modern's wider by far. Named
+ * after the collection date rather than the collection id, same as before,
+ * because two collections in one family from the same date would share a
+ * pool and regenerating it twice would be two chances to disagree — not
+ * reached in this library, where every (family, date) pair is unique.
+ *
+ * `family` defaults to `'standard'`, so every existing call site —
+ * `poolFixturePath(date)`, Standard's own usage throughout this package —
+ * is unchanged: `decks/pools/standard-<date>.generated.json`, exactly the
+ * path it wrote before `family` existed.
  */
-export function poolFixturePath(date: string): string {
-  return `${DECKS_ROOT}/pools/standard-${date}.generated.json`;
+export function poolFixturePath(date: string, family: FormatFamily = 'standard'): string {
+  return `${DECKS_ROOT}/pools/${family}-${date}.generated.json`;
 }
 
 /**
- * Every date a pool is frozen for, which is every date a fixture file exists
- * for. `build-pool-fixture.ts`'s header says why each one is here — one per
- * era, its `Effective` date.
+ * Every date a pool is frozen for, which is every date a Standard fixture
+ * file exists for. `build-pool-fixture.ts`'s header says why each one is
+ * here — one per era, its `Effective` date.
  *
  * Here rather than in that script because two OTHER things now read the list —
  * `build-deck-costs.ts` and the drift guard in `library.test.ts` — and that
  * script cannot be imported for it: it loads the 183 MB corpus at module scope.
  * A list of committed files belongs beside the function that names them anyway.
+ *
+ * Kept for backward compatibility (every existing reader of this export still
+ * gets exactly what it got before Modern and Legacy existed). It is dates
+ * ACROSS EVERY FAMILY, so once the catalog grows past Standard a caller that
+ * needs "all Standard dates" filters `LIBRARY` by `family === 'standard'`
+ * itself, and a caller that needs "every (family, date) a fixture exists for"
+ * uses {@link POOL_FIXTURE_KEYS} instead, which does not collapse two
+ * families that share a date into one entry.
  */
 export const POOL_FIXTURE_DATES: readonly string[] = LIBRARY.map((c) => c.date);
+
+/**
+ * Every (family, date) pair a pool is frozen for — one per collection,
+ * unlike {@link POOL_FIXTURE_DATES}, which collapses two collections that
+ * happen to share a date (Modern 2012 and Standard 2012, by design) into one
+ * entry. `build-pool-fixture.ts`, `build-deck-costs.ts` and `library.test.ts`
+ * use this one once the catalog holds more than Standard.
+ */
+export interface PoolFixtureKey {
+  readonly family: FormatFamily;
+  readonly date: string;
+}
+
+export const POOL_FIXTURE_KEYS: readonly PoolFixtureKey[] = LIBRARY.map((c) => ({
+  family: c.family,
+  date: c.date,
+}));

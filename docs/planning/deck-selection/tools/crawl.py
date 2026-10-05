@@ -1,9 +1,15 @@
-"""Candidate decks per era from mtgtop8's search: every Standard deck from a
+"""Candidate decks per era from mtgtop8's search: every deck from a
 competitive-level event (Pro, Major, Competitive; not the online dailies) inside the
-era's window. Writes cache/candidates-<year>.json (gitignored; re-crawl to regenerate). Polite: one request every 0.5 s."""
+era's window, for any of the three formats (`--format ST|MO|LE` — mtgtop8's own codes,
+verified directly against the site: f=ST is "Standard events", f=MO "Modern events",
+f=LE "Legacy events"). Writes cache/candidates-<year>.json for ST (wave 34's name,
+kept), cache/candidates-modern-<year>.json / candidates-legacy-<year>.json for the
+other two (`eras.py`'s naming helpers). Shared cache across all three lanes/formats —
+never per-lane. Polite: one request every 0.5 s, never parallel; stop crawling at the
+first sign of throttling (HTTP 429/503, repeated timeouts) rather than retrying."""
 import html, json, os, re, sys, time, urllib.parse, urllib.request
 sys.path.insert(0, os.path.dirname(__file__))
-from eras import eras
+from eras import eras, cache_path
 
 UA = 'hadoku-cardtable/0.1 (deck library selection; contact: repo owner)'
 
@@ -19,10 +25,10 @@ def dmy(iso, minus_one=False):
     if minus_one: d -= datetime.timedelta(days=1)
     return d.strftime('%d/%m/%Y')
 
-def crawl(era, levels='PMC'):
+def crawl(era, fmt='ST', levels='PMC'):
     out, page, total = [], 1, None
     while True:
-        f = {'format': 'ST', 'date_start': dmy(era['season_start']), 'date_end': dmy(era['end'], True), 'MD_check': '1', 'current_page': str(page)}
+        f = {'format': fmt, 'date_start': dmy(era['season_start']), 'date_end': dmy(era['end'], True), 'MD_check': '1', 'current_page': str(page)}
         for L in levels: f[f'compet_check[{L}]'] = '1'
         h = post(f)
         if total is None:
@@ -31,7 +37,7 @@ def crawl(era, levels='PMC'):
         rows = re.findall(r'<tr[^>]*class=hover_tr[^>]*>(.*?)</tr>', h, re.S)
         got = 0
         for r in rows:
-            m = re.search(r'<a href=event\?e=(\d+)&d=(\d+)&f=ST>([^<]*)</a></td>\s*<td class=G12><a[^>]*>([^<]*)</a></td>\s*<td class=S12>[^<]*</td>\s*<td class=S11><a href=event\?e=\d+&f=ST>([^<]*)</a></td>\s*<td align=center>((?:<img[^>]*>)*)</td>\s*<td class=S12 align=center>([^<]*)</td>\s*<td class=S11>([^<]*)</td>', r)
+            m = re.search(rf'<a href=event\?e=(\d+)&d=(\d+)&f={fmt}>([^<]*)</a></td>\s*<td class=G12><a[^>]*>([^<]*)</a></td>\s*<td class=S12>[^<]*</td>\s*<td class=S11><a href=event\?e=\d+&f={fmt}>([^<]*)</a></td>\s*<td align=center>((?:<img[^>]*>)*)</td>\s*<td class=S12 align=center>([^<]*)</td>\s*<td class=S11>([^<]*)</td>', r)
             if not m: continue
             e, d, arch, player, event, stars, rank, date = m.groups()
             dd, mm, yy = date.split('/')
@@ -44,10 +50,15 @@ def crawl(era, levels='PMC'):
     return total, out
 
 if __name__ == '__main__':
+    argv = sys.argv[1:]
+    fmt = 'ST'
+    if '--format' in argv: fmt = argv[argv.index('--format') + 1]
+    years = [int(a) for a in argv if a.isdigit()]
     os.makedirs('cache', exist_ok=True)
-    for era in eras():
-        t, rows = crawl(era)
-        json.dump({'era': era, 'total': t, 'decks': rows}, open(f'cache/candidates-{era["year"]}.json', 'w'), indent=1)
+    for era in eras(fmt):
+        if years and era['year'] not in years: continue
+        t, rows = crawl(era, fmt)
+        json.dump({'era': era, 'total': t, 'decks': rows}, open(cache_path(fmt, era['year']), 'w'), indent=1)
         evs = {(r['event'], r['event_name'], r['stars']) for r in rows}
         print(era['year'], era['format'], 'reported', t, 'parsed', len(rows), 'events', len(evs), flush=True)
         time.sleep(0.5)

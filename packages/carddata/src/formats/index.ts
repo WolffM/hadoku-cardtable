@@ -42,3 +42,42 @@ export {
   type StandardPoolOptions,
   type LegalityAnswer,
 } from './standard.ts';
+
+export {
+  MODERN_HISTORY,
+  MODERN_SANCTIONED_MATCHES_NEWEST,
+  MODERN_FIRST_EFFECTIVE,
+  MODERN_LAST_EFFECTIVE,
+  modernFormatAt,
+  modernPoolAt,
+  type ModernSnapshot,
+} from './modern.ts';
+
+export {
+  LEGACY_HISTORY,
+  LEGACY_SANCTIONED_MATCHES_NEWEST,
+  LEGACY_FIRST_EFFECTIVE,
+  LEGACY_LAST_EFFECTIVE,
+  legacyFormatAt,
+  legacyPoolAt,
+  type LegacySnapshot,
+} from './legacy.ts';
+
+export {
+  formatAtFamily,
+  formatPoolAt,
+  type FormatFamily,
+} from './format-family.ts';
+
+export {
+  formatAt,
+  poolAt,
+  type FormatSnapshot,
+  type FormatAnswer,
+  type FormatUnsupported,
+  type FormatUnsupportedReason,
+  type FormatAtOptions,
+  type GenericFormatPool,
+  type GenericPoolCard,
+  type GenericPoolAtOptions,
+} from './generic-format.ts';
