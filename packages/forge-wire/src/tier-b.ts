@@ -264,13 +264,22 @@ export const HideZonesSchema = z.strictObject({
   zonesToUpdate: PlayerZoneUpdatesSchema,
 });
 
-/** `void setSelectables(Iterable<CardView> cards, int min, int max)` — IGuiGame.java:272. */
+/**
+ * `void setSelectables(Iterable<CardView> cards, int min, int max)` — IGuiGame.java:272.
+ *
+ * `players` is the bridge's addition, not Forge's: Forge publishes cards only and
+ * checks a player only once it is clicked (`InputSelectTargets.onPlayerSelected`).
+ * The bridge runs those same checks for every player when the selection opens and
+ * sends the ones that pass. Absent when the bridge could not tell (an input it does
+ * not read): then every player stays offered, as before.
+ */
 export const SetSelectablesSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('setSelectables'),
   cards: z.array(CardRefSchema),
   min: z.number().int().nonnegative(),
   max: z.number().int().nonnegative(),
+  players: z.array(PlayerRefSchema).optional(),
 });
 
 /**

@@ -538,6 +538,45 @@ describe('dragging a card, and the targeter arrow', () => {
     expect(sent(s)).toEqual([['selectPlayer', 1]]);
   });
 
+  // The operator, 2026-10-04: "the arrow for 'graps of darkness' should not snap to player
+  // avatars. player is not a valid target for that spell." The bridge now names the players a
+  // selection accepts; a face it did not name takes no arrow and no release.
+  describe('a selection that names its players', () => {
+    const withPlayers = (cards: number[], players: number[]) =>
+      parseServerFrame({
+        kind: 'notify',
+        method: 'setSelectables',
+        cards: cards.map((id) => ({ kind: 'card', id })),
+        min: 1,
+        max: 1,
+        players: players.map((id) => ({ kind: 'player', id })),
+      });
+
+    async function pointAtFace(players: number[]) {
+      const { s, m, canvas } = await gestureBoard();
+      const theirs = theirsOf(m).battlefield.map((c) => c.id);
+      for (const f of notify([prompt('Choose a target')])) s.send(f);
+      s.send(withPlayers([theirs[0]!], players));
+      await waitFor(() => expect(m.selectables).not.toBeNull());
+      const stack = canvas.querySelector<HTMLElement>('[data-zone="stack"]') ?? canvas.querySelector<HTMLElement>('.board')!;
+      fireEvent.pointerDown(stack, { button: 0, clientX: 10, clientY: 10 });
+      fireEvent.pointerMove(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
+      fireEvent.pointerUp(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
+      await new Promise((r) => setTimeout(r, 50));
+      return s;
+    }
+
+    it('no player named (Doom Blade, Grasp of Darkness): a release on a face sends nothing', async () => {
+      const s = await pointAtFace([]);
+      expect(sent(s)).toEqual([]);
+    });
+
+    it('the player named: a release on that face answers it', async () => {
+      const s = await pointAtFace([1]);
+      expect(sent(s)).toEqual([['selectPlayer', 1]]);
+    });
+  });
+
   // The operator, 2026-10-04: "right-click shouldn't bring up the chrome context menu on the board."
   it('a right-click on the board never opens the browser menu, with or without a gesture', async () => {
     const { s, canvas } = await gestureBoard();

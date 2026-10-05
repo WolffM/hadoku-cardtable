@@ -410,6 +410,8 @@ export interface LiveSelectables {
   cards: ReadonlySet<number>;
   min: number;
   max: number;
+  /** The players this selection accepts, from the bridge; null when it could not tell (then every player is offered). */
+  players: ReadonlySet<number> | null;
 }
 
 /** What the board may click right now — `Board`'s `BoardInteraction`, without the callbacks. */
@@ -1029,7 +1031,13 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
   const offered = new Set<number>();
   for (const id of named) if (drawn.has(id) && !match.spent.cards.has(id)) offered.add(id);
   const players = new Set<number>();
-  if (selection !== null) for (const p of view.players) if (!match.spent.players.has(p.id)) players.add(p.id);
+  if (selection !== null) {
+    for (const p of view.players) {
+      if (match.spent.players.has(p.id)) continue;
+      if (selection.players !== null && !selection.players.has(p.id)) continue;
+      players.add(p.id);
+    }
+  }
   return { selectable: offered, selectablePlayers: players, selectionOpen: selection !== null };
 }
 
@@ -1863,7 +1871,12 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     };
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'setSelectables') {
-    match.selectables = { cards: new Set(frame.cards.map((c) => c.id)), min: frame.min, max: frame.max };
+    match.selectables = {
+      cards: new Set(frame.cards.map((c) => c.id)),
+      min: frame.min,
+      max: frame.max,
+      players: frame.players === undefined ? null : new Set(frame.players.map((p) => p.id)),
+    };
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'clearSelectables') {
     match.selectables = null;

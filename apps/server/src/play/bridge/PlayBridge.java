@@ -1031,7 +1031,69 @@ public final class PlayBridge {
             f.add("cards", refs(cards));
             f.addProperty("min", Math.max(0, min));
             f.addProperty("max", Math.max(0, max));
+            final JsonArray players = legalPlayers();
+            if (players != null) { f.add("players", players); }
             frame(f);
+        }
+
+        /**
+         * The players this seat's open selection would accept, or null when that cannot be read.
+         *
+         * Forge publishes cards only ({@code IGuiGame.setSelectables}) and checks a player only
+         * once it is clicked. For a target selection this runs the same checks as
+         * {@code InputSelectTargets.onPlayerSelected} ({@code :334-362}) for every player, against
+         * the input that is live right now: the game thread is parked on it, so its spell and
+         * filter are stable for the read. A choose-from-list selection offers the players in its
+         * {@code validChoices}. Any other input, or any reflection failure, is null, and the
+         * browser then keeps offering every player.
+         */
+        private JsonArray legalPlayers() {
+            final ServerGameLobby lobby = LOBBY;
+            if (lobby == null) { return null; }
+            final HostedMatch hosted = lobby.getHostedMatch();
+            if (hosted == null || hosted.getGame() == null) { return null; }
+            final Game game = hosted.getGame();
+            final PlayerView me = getCurrentPlayer();
+            if (me == null) { return null; }
+            forge.game.player.Player mine = null;
+            for (final forge.game.player.Player p : game.getPlayers()) {
+                if (p.getId() == me.getId()) { mine = p; }
+            }
+            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
+            final Object input = human.getInputQueue().getInput();
+            try {
+                final JsonArray out = new JsonArray();
+                if (input instanceof forge.gamemodes.match.input.InputSelectTargets) {
+                    final var sa = (forge.game.spellability.SpellAbility) field(input, forge.gamemodes.match.input.InputSelectTargets.class, "sa");
+                    final boolean mustTargetFiltered = (Boolean) field(input, forge.gamemodes.match.input.InputSelectTargets.class, "mustTargetFiltered");
+                    @SuppressWarnings("unchecked")
+                    final var filter = (java.util.function.Predicate<forge.game.GameObject>) field(input, forge.gamemodes.match.input.InputSelectTargets.class, "filter");
+                    for (final forge.game.player.Player p : game.getPlayers()) {
+                        if (p.hasLost() || mustTargetFiltered) { continue; }
+                        if (sa.isSpell() && sa.getHostCard().isAura() && !p.canBeAttached(sa.getHostCard(), sa)) { continue; }
+                        if (!sa.canTarget(p)) { continue; }
+                        if (filter != null && !filter.test(p)) { continue; }
+                        out.add(ref("player", p.getId()));
+                    }
+                    return out;
+                }
+                if (input instanceof forge.gamemodes.match.input.InputSelectEntitiesFromList) {
+                    final var valid = (Iterable<?>) field(input, forge.gamemodes.match.input.InputSelectEntitiesFromList.class, "validChoices");
+                    for (final Object choice : valid) {
+                        if (choice instanceof forge.game.player.Player p) { out.add(ref("player", p.getId())); }
+                    }
+                    return out;
+                }
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] legalPlayers: could not read the open input (" + e + "); every player stays offered");
+            }
+            return null;
+        }
+
+        private static Object field(final Object owner, final Class<?> declaring, final String name) throws ReflectiveOperationException {
+            final java.lang.reflect.Field f = declaring.getDeclaredField(name);
+            f.setAccessible(true);
+            return f.get(owner);
         }
 
         /**

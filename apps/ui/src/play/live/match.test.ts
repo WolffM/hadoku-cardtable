@@ -659,11 +659,11 @@ describe('clicking the board: only what Forge offered', () => {
     const { s, m } = await fullGame();
     const { mine, theirs } = ids(m);
     await sendAndApply(s, m, [selectables([mine[0]!, theirs[0]!], 1, 2)]);
-    expect(m.selectables).toEqual({ cards: new Set([mine[0], theirs[0]]), min: 1, max: 2 });
+    expect(m.selectables).toEqual({ cards: new Set([mine[0], theirs[0]]), min: 1, max: 2, players: null });
     expect(boardInteraction(m).selectable).toEqual(new Set([mine[0], theirs[0]]));
 
     await sendAndApply(s, m, [selectables([mine[1]!], 0, 1)]);
-    expect(m.selectables).toEqual({ cards: new Set([mine[1]]), min: 0, max: 1 });
+    expect(m.selectables).toEqual({ cards: new Set([mine[1]]), min: 0, max: 1, players: null });
     expect(boardInteraction(m).selectable).toEqual(new Set([mine[1]]));
 
     await sendAndApply(s, m, [clear()]);
@@ -983,7 +983,7 @@ describe('setHighlighted: Forge’s mark is offered, and never widens an offer',
     const { s, m } = await fullGame();
     const { mine, theirs } = ids(m);
     await sendAndApply(s, m, [prompt('Select targets'), selectables([theirs[0]!], 1, 1), mark([theirs[0]!])]);
-    expect(m.selectables).toEqual({ cards: new Set([theirs[0]]), min: 1, max: 1 });
+    expect(m.selectables).toEqual({ cards: new Set([theirs[0]]), min: 1, max: 1, players: null });
     expect(m.highlighted).toEqual(new Set([theirs[0]]));
 
     await sendAndApply(s, m, [clear()]);
