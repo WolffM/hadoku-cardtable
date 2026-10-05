@@ -80,3 +80,11 @@ export { PROMPT_METHODS, DIRECT_CONFIRM_METHOD, checkedReply, PromptAnswerError 
 export type { AskOf, PromptMethod, PromptProps, ReplyOf } from './types.ts';
 export { EMPTY_LOOKUP, lookupFromState, withAbilityLabels, type PromptLookup } from './lookup.ts';
 export { DEFENDER_SENTINEL } from './rules.ts';
+export {
+  classifySelection,
+  SelectionPrompt,
+  type SelectionButton,
+  type SelectionKind,
+  type SelectionLike,
+  type SelectionPromptProps,
+} from './SelectionPrompt.tsx';

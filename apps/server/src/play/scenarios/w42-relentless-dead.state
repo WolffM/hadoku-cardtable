@@ -1,0 +1,47 @@
+# Wave 42 §P item 1 — the W18 soft-lock. Match `m-09487f336215`: Relentless
+# Dead's second dies trigger ("you may pay {X}. If you do, return another
+# target Zombie creature card … from your graveyard to the battlefield",
+# `forge-gui/res/cardsfolder/r/relentless_dead.txt`) targets a card in the
+# GRAVEYARD — `InputSelectTargets` (a selection, not an `ask`) names an id
+# that is on no battlefield, and nothing in the browser could click it.
+#
+# Seat 0 (human) controls Relentless Dead, four untapped Mountains and one
+# untapped Swamp, holds Kozilek's Return (`{2}{R}`, "deals 2 damage to each
+# creature" — `k/kozileks_return.txt`), and already has TWO mana-value-1
+# Zombie creature cards, Diregraf Ghoul and Dread Wanderer (both `{B}`), in
+# its graveyard — a REAL choice between two legal targets, not a lone one.
+# Measured against the real jar: with only one Zombie in the graveyard,
+# Forge's own trigger-targeting (`TargetSelection`, reached while the
+# triggered ability is put on the stack, before it is even offered as a
+# `getAbilityToPlay` "play this trigger?" choice) picks the sole legal
+# target with NO wire frame at all — no `ask`, no `setSelectables` — so a
+# one-target graveyard never exercises the targeting UI and proves nothing
+# about it. Two targets forces Forge to actually ask.
+#
+# Casting Kozilek's Return deals 2 to each creature, which is lethal to
+# Relentless Dead's own 2/2 — BOTH its dies triggers go on the stack
+# (confirmed against the real jar: each reaches the wire as its own
+# `getAbilityToPlay` ask, "which ability to play", one option each). The
+# first one to resolve, `TrigReturn` (pay `{B}`, return Relentless Dead to
+# hand), needs the Swamp to be payable at all — without it `Auto` never
+# enables and the whole stack sits forever, which is a scenario-setup bug,
+# not Forge's; this item is not about that trigger. The second, `TrigChange`
+# (the one this item is about), has `SVar:X:Targeted$CardManaCost`, so X is
+# computed FROM the chosen target — either one's mana value, 1 — meaning the
+# TARGET is picked before the cost is even known; one spare Mountain after
+# paying `{2}{R}` and `{B}` covers that X whichever target is chosen. Seat 1
+# has no creature, so Kozilek's Return's damage never costs it anything
+# relevant to this scenario.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Kozilek's Return
+humanbattlefield=Relentless Dead;Mountain;Mountain;Mountain;Mountain;Swamp
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=Diregraf Ghoul;Dread Wanderer
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

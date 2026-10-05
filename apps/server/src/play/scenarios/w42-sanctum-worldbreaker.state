@@ -1,0 +1,31 @@
+# Wave 42 §P, manager send-back — W18 (Sanctum of Ugin) and W16 (World
+# Breaker) are ONE event, not two. The manager's read of the production log
+# for `m-09487f336215` (~/.pm2/logs/cardtable-out.log): at 01:00:10.781 seat
+# 0 auto-paid `{6}{G}` for World Breaker, and at 01:00:10.795 Forge asked
+# `order` (auto-answered) — two SIMULTANEOUS triggers. World Breaker
+# (`forge-gui/res/cardsfolder/w/world_breaker.txt`) has `K:Devoid` (colorless
+# despite `{6}{G}`) and mana value 7, so casting it fires BOTH Sanctum of
+# Ugin's own "whenever you cast a colorless spell with mana value 7 or
+# greater, you may sacrifice CARDNAME" AND World Breaker's own "when you
+# cast this spell, exile target artifact, enchantment, or land".
+#
+# Seat 0 (human) controls Sanctum of Ugin, a Forest and five Mountains
+# (seven mana sources: the Forest for `{G}`, the rest for `{6}`), holds
+# World Breaker, and has Bane of Bala Ged (a colorless creature card) in its
+# library so Sanctum's search — if the player says yes — finds something.
+# Seven lands on seat 0's own battlefield are all legal targets for World
+# Breaker's own trigger (`ValidTgts$ Artifact,Enchantment,Land`, no
+# `+Other`), so Forge must actually ask rather than auto-pick a lone one.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=World Breaker
+humanbattlefield=Sanctum of Ugin;Forest;Mountain;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Bane of Bala Ged;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

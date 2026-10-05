@@ -180,3 +180,18 @@ Tests  9 failed | 94 passed (103)   [rules.test.ts + choices.test.ts + choose-x.
   (3 more: fixture/structural assertions depending on the same shape)
 × the Choose X slider, against a real Forge match > renders the real ask as a slider … [TIMES OUT — the numeric ask is never recognised at all, so the test's own `reply` hook never fires and the real match hangs waiting for an answer it never gets]
 restored: rules.test.ts 69 passed, choices.test.ts 33 passed, choose-x.jvm.test.ts 1 passed (jar run), exit 0 each
+
+## wave 42 §P item 1 — classifySelection's off-board detection (SelectionPrompt.tsx)
+# classifySelection: `return ids.some((id) => !boardCardIds.has(id)) ? 'off-board' : 'on-board';`
+# -> `return 'on-board';` (the off-board branch deleted — every selection reads as on-board,
+# which is exactly the soft-lock: an off-board target (Relentless Dead's graveyard pick) would
+# then draw no popup at all, same as before this item).
+#
+# Re-run after the manager's send-back removed the speculative 'confirm' SelectionKind (no real
+# card was ever measured to send that shape) and its three unit tests — count dropped from 14 to
+# 12 total; the mutation itself and the two tests it kills are unchanged.
+exit 1
+Tests  2 failed | 10 passed (12)
+× classifySelection > is off-board when any named card is not on the board — W18's soft-lock shape
+× classifySelection > is off-board even when the selection mixes an on-board card with an off-board one
+restored: Tests 12 passed (12), exit 0

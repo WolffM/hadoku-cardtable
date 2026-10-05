@@ -1,0 +1,28 @@
+# Wave 42 §P item 3 — W16: "i played worldbreaker and it went on the stack.
+# but the effect that i'm choosing was never explained to me. the decision
+# box should pop up for things like this." The real card is World Breaker
+# (`forge-gui/res/cardsfolder/w/world_breaker.txt`): "When you cast this
+# spell, exile target artifact, enchantment, or land" — a SpellCast trigger,
+# fired the instant the spell is cast (before it even resolves), targeting
+# any artifact/enchantment/LAND on either battlefield — `ValidTgts$
+# Artifact,Enchantment,Land` has no `+Other`/opponent restriction, so every
+# land on the table, seat 0's own included, is a legal target.
+#
+# Seat 0 (human) holds World Breaker (`{6}{G}`) and seven untapped lands —
+# one Forest for the pip, six Mountains for the generic — so casting it
+# leaves none spare for anything else. Seat 1 has one Mountain of its own,
+# so there are EIGHT total legal targets (every land on the table): enough
+# that Forge cannot auto-pick a lone one, and must actually ask.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=World Breaker
+humanbattlefield=Forest;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
