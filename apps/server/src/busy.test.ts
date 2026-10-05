@@ -12,6 +12,12 @@ describe('busyReport: destroyable work only', () => {
 	it('starting and running matches are busy', () => {
 		for (const s of ['starting', 'running']) expect(busyReport(src({ matches: () => [match(s)] })).busy).toBe(true);
 	});
+	it('a running match nobody is at (every seat gone past the grace) is not busy; starting still is', () => {
+		const at = (status: string, here: boolean) => ({ ...match(status), anyoneHere: () => here });
+		expect(busyReport(src({ matches: () => [at('running', false)] })).busy).toBe(false);
+		expect(busyReport(src({ matches: () => [at('running', true)] })).busy).toBe(true);
+		expect(busyReport(src({ matches: () => [at('starting', false)] })).busy).toBe(true);
+	});
 	it('finished matches are not', () => {
 		for (const s of ['over', 'failed', 'stopped']) expect(busyReport(src({ matches: () => [match(s)] })).busy).toBe(false);
 	});

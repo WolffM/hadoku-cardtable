@@ -683,6 +683,22 @@ describe('reconnect: a refresh closes the old socket before the new page joins',
 		return { ...h, callId: (PROBE_ASK.frame as { callId: string }).callId };
 	}
 
+	// /health/busy counts a running match only while somebody is at it: the zombie of
+	// m-09487f336215 (both seats gone at 01:15/01:19 UTC) held every deploy for hours.
+	it('anyoneHere follows the seats: here on connect, still here inside the grace, gone after it', () => {
+		const h = refreshing();
+		expect(h.match.anyoneHere(), 'nobody has connected yet').toBe(false);
+		h.match.seatConnected(0);
+		expect(h.match.anyoneHere()).toBe(true);
+		h.match.seatDisconnected(0);
+		vi.advanceTimersByTime(GRACE - 1);
+		expect(h.match.anyoneHere(), 'inside the grace a reload is still somebody').toBe(true);
+		vi.advanceTimersByTime(2);
+		expect(h.match.anyoneHere(), 'past the grace nobody is here').toBe(false);
+		h.match.seatConnected(0);
+		expect(h.match.anyoneHere(), 'and back').toBe(true);
+	});
+
 	it('does not abort the open ask while the seat is gone for less than the grace', () => {
 		const h = refreshing();
 		h.match.seatDisconnected(0);

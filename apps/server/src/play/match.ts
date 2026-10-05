@@ -241,6 +241,8 @@ export interface SeatState {
 	ended: ServerFrame | null;
 	/** Armed when the seat's last connection went; aborts its asks when it fires. */
 	departure: NodeJS.Timeout | null;
+	/** A person is on this seat: connected, or gone for less than the grace. Never true for an AI seat. */
+	here: boolean;
 
 	/* ── Wave 19 lane C: questions with one answer, stops with nothing to do ── */
 
@@ -612,6 +614,7 @@ export class Match {
 			deck: null,
 			ended: null,
 			departure: null,
+			here: false,
 			fullControl: false,
 			// The starting value only — `setStopPolicy` still moves one seat at a
 			// time. Absent is production (`MatchDeps.stopPolicy`).
@@ -989,21 +992,33 @@ export class Match {
 		if (s === undefined || s.departure !== null) return;
 		const grace = this.deps.disconnectGraceMs ?? 0;
 		if (grace <= 0) {
+			s.here = false;
 			this.abortAllAsks(s);
 			return;
 		}
 		this.deps.log({ evt: 'seat-departing', matchId: this.id, seat, graceMs: grace, openAsks: s.asks.size });
 		s.departure = setTimeout(() => {
 			s.departure = null;
+			s.here = false;
 			this.abortAllAsks(s);
 		}, grace);
 		s.departure.unref();
+	}
+
+	/**
+	 * Somebody is at the table: a seat connected now, or gone for less than the grace.
+	 * A running match nobody is at is not worth holding a deploy for — the deploy hands
+	 * it over, and nobody's game is interrupted (`busy.ts`).
+	 */
+	anyoneHere(): boolean {
+		return this.seats.some((s) => s.here);
 	}
 
 	/** A connection for this seat is back: whatever `seatDisconnected` armed is off. */
 	seatConnected(seat: number): void {
 		const s = this.seats[seat];
 		if (s === undefined) return;
+		s.here = true;
 		// Before the departure check, and not inside it: this is also how a resumed
 		// match learns that somebody came back at all (see `resume`).
 		this.rejoined = true;

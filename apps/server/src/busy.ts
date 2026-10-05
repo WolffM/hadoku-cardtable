@@ -66,7 +66,7 @@ export interface BusyReport {
 }
 
 export interface BusySources {
-	matches(): ReadonlyArray<{ id: string; status: string; seats: ReadonlyArray<unknown> }>;
+	matches(): ReadonlyArray<{ id: string; status: string; seats: ReadonlyArray<unknown>; anyoneHere?: () => boolean }>;
 	drafts(): ReadonlyArray<{
 		id: string;
 		status: string | undefined;
@@ -81,6 +81,9 @@ export function busyReport(src: BusySources): BusyReport {
 	const runs: BusyRun[] = [];
 	for (const m of src.matches()) {
 		if (!BUSY_MATCH.has(m.status)) continue;
+		// A running match whose seats have all gone (past the grace) holds nobody's game:
+		// the zombie of m-09487f336215 held every deploy for hours on 2026-10-04.
+		if (m.status === 'running' && m.anyoneHere !== undefined && !m.anyoneHere()) continue;
 		runs.push({ id: m.id, kind: 'match', label: `${m.seats.length} seats, ${m.status}` });
 	}
 	for (const d of src.drafts()) {
