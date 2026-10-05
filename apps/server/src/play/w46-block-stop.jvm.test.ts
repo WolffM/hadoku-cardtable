@@ -42,19 +42,32 @@
  * where `sources: 2, nonLandSources: 1` prove Lightning Bolt and its Mountain
  * really were offered there too.
  *
- * Run with `CARDTABLE_PLAY_PROBE=1` so `match.ts`'s `TRACE_STOPS` emits a
+ * Probe mode (`CARDTABLE_PLAY_PROBE=1`, set by the suite) makes `match.ts`'s `TRACE_STOPS` emit a
  * `stop-decided` log line for every window the server evaluates (kept or
  * passed) — the evidence this suite's diagnosis rests on.
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=… \
- *   CARDTABLE_PLAY_PROBE=1 \
  *   pnpm exec vitest run apps/server/src/play/w46-block-stop.jvm.test.ts \
  *     --pool=forks --poolOptions.forks.singleFork=true
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+
+// This suite's evidence is the server's `stop-decided` trace, which `match.ts` writes only in probe mode and
+// decides once, when it is first imported. CI does not set CARDTABLE_PLAY_PROBE, so every decision list came
+// back empty there (CI run 37384138984); the suite turns the trace on itself, before any import, and puts the
+// variable back after. Outside the trace the flag changes nothing on this in-process path.
+const probeBefore = vi.hoisted(() => {
+	const was = process.env.CARDTABLE_PLAY_PROBE;
+	process.env.CARDTABLE_PLAY_PROBE = '1';
+	return was;
+});
+afterAll(() => {
+	if (probeBefore === undefined) delete process.env.CARDTABLE_PLAY_PROBE;
+	else process.env.CARDTABLE_PLAY_PROBE = probeBefore;
+});
 
 import { available, deck, finishMulligan, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
