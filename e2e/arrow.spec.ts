@@ -105,6 +105,9 @@ interface Box {
 interface Arrow {
   x1: number;
   y1: number;
+  /** The curve's control point. */
+  cx: number;
+  cy: number;
   x2: number;
   y2: number;
   /** The head's three points, as authored: tip first, then the two barbs. */
@@ -155,20 +158,23 @@ function shoot(ids: number[]): Shot {
     const el = document.querySelector(`[data-board-card="${id}"]`);
     if (el !== null) cards[String(id)] = box(el);
   }
-  const line = svg === null ? null : svg.querySelector('line');
+  const shaft = svg === null ? null : svg.querySelector('path');
+  // `M x1 y1 Q cx cy x2 y2` — one quadratic curve (`arrowShape`).
+  const curve = (shaft?.getAttribute('d') ?? '').replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
   const poly = svg === null ? null : svg.querySelector('polygon');
-  const num = (el: Element, name: string): number => Number(el.getAttribute(name));
   return {
     overlay: overlayEl === null ? null : box(overlayEl),
     cards,
     arrow:
-      svg === null || line === null || poly === null
+      svg === null || shaft === null || poly === null
         ? null
         : {
-            x1: num(line, 'x1'),
-            y1: num(line, 'y1'),
-            x2: num(line, 'x2'),
-            y2: num(line, 'y2'),
+            x1: curve[0]!,
+            y1: curve[1]!,
+            cx: curve[2]!,
+            cy: curve[3]!,
+            x2: curve[4]!,
+            y2: curve[5]!,
             points: (poly.getAttribute('points') ?? '')
               .trim()
               .split(/\s+/)
@@ -351,12 +357,12 @@ test(titled("the cast arrow, measured in a real browser: no arrow while lifted o
     for (const barb of [barb1, barb2]) {
       expect(Math.hypot(barb[0] - a!.x2, barb[1] - a!.y2), 'each barb is one head-length from the tip').toBeCloseTo(HEAD_PX, 3);
     }
-    // The barbs sit BEHIND the tip, along the shaft: their midpoint is
-    // head·cos(spread) back down the line from the tip towards the tail. An
-    // arrow drawn from the wrong end puts them in front.
-    const shaftLen = Math.hypot(a!.x2 - a!.x1, a!.y2 - a!.y1);
-    expect(shaftLen).toBeGreaterThan(20);
-    const unit = { x: (a!.x2 - a!.x1) / shaftLen, y: (a!.y2 - a!.y1) / shaftLen };
+    // The barbs sit BEHIND the tip, along the curve where it arrives: their
+    // midpoint is head·cos(spread) back from the tip along the tangent there
+    // (control point → tip). An arrow drawn from the wrong end puts them in front.
+    expect(Math.hypot(a!.x2 - a!.x1, a!.y2 - a!.y1)).toBeGreaterThan(20);
+    const tangentLen = Math.hypot(a!.x2 - a!.cx, a!.y2 - a!.cy);
+    const unit = { x: (a!.x2 - a!.cx) / tangentLen, y: (a!.y2 - a!.cy) / tangentLen };
     const barbMid = { x: (barb1[0] + barb2[0]) / 2, y: (barb1[1] + barb2[1]) / 2 };
     const back = { x: a!.x2 - barbMid.x, y: a!.y2 - barbMid.y };
     expect(Math.hypot(back.x, back.y), 'the barbs are set back by head·cos(spread)').toBeCloseTo(HEAD_PX * Math.cos(HEAD_SPREAD_RAD), 3);

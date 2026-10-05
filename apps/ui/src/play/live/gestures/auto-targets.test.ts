@@ -144,7 +144,7 @@ describe('drawAutoTargetArrows', () => {
     expect(arrows.map((a) => a.getAttribute('data-key')).sort()).toEqual(['a', 'b']);
     for (const a of arrows) {
       expect(a.classList.contains('targeter--auto')).toBe(true);
-      expect(a.querySelector('line')).not.toBeNull();
+      expect(a.querySelector('path')).not.toBeNull();
       expect(a.querySelector('polygon')).not.toBeNull();
     }
     // The one interactive arrow's own testid is never touched by this function.

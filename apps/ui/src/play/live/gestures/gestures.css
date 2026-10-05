@@ -12,7 +12,7 @@
  */
 
 /*
- * The targeter arrow. Ours, drawn: a tapered shaft and a plain triangular head.
+ * The targeter arrow. Ours, drawn: a curved shaft and a plain triangular head.
  * No card frame, no mana symbol, no tap symbol — nothing of WotC's, here or
  * anywhere (`CLAUDE.md`). The palette is `styles.css`'s accent, so the arrow
  * reads as the same affordance a selectable card's outline does.
@@ -37,6 +37,7 @@
 }
 
 .targeter__shaft {
+  fill: none;
   stroke: var(--accent);
   stroke-width: 3;
   stroke-linecap: round;

@@ -449,7 +449,7 @@ describe('dragging a card, and the targeter arrow', () => {
     expect(arrow.dataset.mode).toBe('drag');
     expect(arrow.dataset.target).toBeUndefined();
     expect(arrow.dataset.snapped).toBeUndefined();
-    expect(arrow.querySelector('line')).not.toBeNull();
+    expect(arrow.querySelector('path')).not.toBeNull();
     expect(arrow.querySelector('polygon')).not.toBeNull();
 
     // Over a card Forge DID offer: it snaps.
@@ -482,12 +482,14 @@ describe('dragging a card, and the targeter arrow', () => {
       boxAt(cardEl(canvas, mine[1]!), left, top);
       fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
       fireEvent.pointerMove(cardEl(canvas, mine[1]!), { clientX: left + 20, clientY: top + 28 });
-      const line = await waitFor(() => {
-        const found = overlay.querySelector('[data-testid="targeter"] line');
-        expect(found?.getAttribute('x2')).not.toBeNull();
+      const shaft = await waitFor(() => {
+        const found = overlay.querySelector('[data-testid="targeter"] path');
+        expect(found?.getAttribute('d')).not.toBeNull();
         return found!;
       });
-      const tip = { x: Number(line.getAttribute('x2')), y: Number(line.getAttribute('y2')) };
+      // `M x1 y1 Q cx cy x2 y2`: the tip is the last pair.
+      const [x2, y2] = shaft.getAttribute('d')!.trim().split(/\s+/).slice(-2).map(Number) as [number, number];
+      const tip = { x: x2, y: y2 };
       fireEvent.pointerCancel(window);
       return tip;
     };
@@ -1445,8 +1447,7 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     expect(arrow.dataset.source).toBe(String(SOURCE_ID));
     // The tail sits at the stack item's own box centre — never (0,0), never
     // the overlay's own corner.
-    expect(arrow.querySelector('line')!.getAttribute('x1')).toBe('560');
-    expect(arrow.querySelector('line')!.getAttribute('y1')).toBe('30');
+    expect(arrow.querySelector('path')!.getAttribute('d')).toMatch(/^M 560 30 Q /);
     expect(sent(s)).toEqual([]);
   });
 

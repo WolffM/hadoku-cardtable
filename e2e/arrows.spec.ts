@@ -67,8 +67,8 @@ async function arrowTail(page: Page): Promise<{ x: number; y: number } | null> {
   if (overlay === null) return null;
   const svg = page.getByTestId('targeter');
   if ((await svg.count()) === 0) return null;
-  const x1 = Number(await svg.locator('line').getAttribute('x1'));
-  const y1 = Number(await svg.locator('line').getAttribute('y1'));
+  // `M x1 y1 Q cx cy x2 y2`: the tail is the first pair.
+  const [x1, y1] = ((await svg.locator('path').getAttribute('d')) ?? '').replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number) as [number, number];
   return { x: x1 + overlay.left, y: y1 + overlay.top };
 }
 

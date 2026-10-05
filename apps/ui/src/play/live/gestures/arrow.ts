@@ -1,12 +1,12 @@
 /*
- * The targeter arrow. Ours: a tapered shaft and a plain head, no card frame, no
+ * The targeter arrow. Ours: a curved shaft and a plain head, no card frame, no
  * mana symbol, no tap symbol — nothing of WotC's (`CLAUDE.md`).
  *
  * Re-homed from `../LiveBoard.tsx`'s `Targeter` (wave 20), which drew it with
  * `createPortal`. This draws the same SVG with the same classes, the same
- * `data-*` and the same geometry, as plain DOM: `e2e/arrow.spec.ts` measures
- * `[data-testid="targeter"]`'s `line` and `polygon` in the overlay's own
- * coordinates and must keep reading exactly what it read before.
+ * `data-*`, as plain DOM. The shaft is a `path` (one quadratic curve, see
+ * `arrowShape`) since 2026-10-05; `e2e/arrow.spec.ts` reads its `d` and the
+ * head `polygon` in the overlay's own coordinates.
  *
  * Wave 24 §B.4 adds the second caller: the arrow now draws for CLICK targeting
  * too, from the same function, into the same overlay. `data-mode` says which
@@ -35,6 +35,73 @@ const HEAD = 13;
 const SPREAD = 0.42;
 
 /**
+ * How far the shaft bows off its chord: a share of the chord's length, never
+ * flatter than `BOW_MIN` (two neighbouring stack items still read as an arc
+ * over the carousel — a counterspell aimed at the spell beside it) and never
+ * deeper than `BOW_MAX` (a hand-to-far-corner drag stays a gentle sweep).
+ */
+const BOW = 0.22;
+const BOW_MIN = 24;
+const BOW_MAX = 110;
+
+/** An arrow's shape: the shaft's path and the head's three points, in overlay units. */
+export interface ArrowShape {
+  /** `M x1 y1 Q cx cy x2 y2` — one quadratic curve. */
+  d: string;
+  /** Tip first, then the two barbs. */
+  points: string;
+}
+
+/**
+ * The curved arrow from (x1, y1) to (x2, y2) — the operator, 2026-10-05: *"the
+ * straight arrow looks ugly … show a curved arrow in pretty much all cases"*.
+ *
+ * The control point sits off the chord's midpoint along the normal that is
+ * ALWAYS on the same rotational side of the travel direction, so the bow turns
+ * smoothly as a drag sweeps around its tail and never flips sides: a rightward
+ * arrow arcs up, an upward one arcs left. The head lies along the curve's own
+ * tangent at the tip (control point → tip), so it points the way the shaft
+ * arrives, not along the chord.
+ */
+export function arrowShape(x1: number, y1: number, x2: number, y2: number): ArrowShape {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  const bow = len === 0 ? 0 : Math.min(BOW_MAX, Math.max(BOW_MIN, len * BOW)) / len;
+  const cx = (x1 + x2) / 2 + dy * bow;
+  const cy = (y1 + y2) / 2 - dx * bow;
+  const angle = len === 0 ? 0 : Math.atan2(y2 - cy, x2 - cx);
+  return {
+    d: `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`,
+    points: [
+      `${x2},${y2}`,
+      `${x2 - HEAD * Math.cos(angle - SPREAD)},${y2 - HEAD * Math.sin(angle - SPREAD)}`,
+      `${x2 - HEAD * Math.cos(angle + SPREAD)},${y2 - HEAD * Math.sin(angle + SPREAD)}`,
+    ].join(' '),
+  };
+}
+
+/** An empty arrow: a shaft path and a head polygon, both shaped by `shape`. */
+function newArrow(className: string, testid: string): SVGSVGElement {
+  const svg = document.createElementNS(SVG, 'svg');
+  svg.setAttribute('class', className);
+  svg.setAttribute('data-testid', testid);
+  svg.setAttribute('aria-hidden', 'true');
+  const shaft = document.createElementNS(SVG, 'path');
+  shaft.setAttribute('class', 'targeter__shaft');
+  const head = document.createElementNS(SVG, 'polygon');
+  head.setAttribute('class', 'targeter__head');
+  svg.append(shaft, head);
+  return svg;
+}
+
+function shape(svg: SVGSVGElement, from: Point, tip: Point, box: DOMRect): void {
+  const { d, points } = arrowShape(from.x - box.left, from.y - box.top, tip.x - box.left, tip.y - box.top);
+  svg.querySelector('path')!.setAttribute('d', d);
+  svg.querySelector('polygon')!.setAttribute('points', points);
+}
+
+/**
  * Draw (or move) the one arrow inside `overlay`.
  *
  * Idempotent: the SVG is created on the first call and updated in place after
@@ -42,42 +109,17 @@ const SPREAD = 0.42;
  * own coordinates, so it is correct wherever lane A puts the overlay.
  */
 export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
-  const box = overlay.getBoundingClientRect();
   const tip = spec.snap === null ? spec.to : tipOn(spec.snap, spec);
-  const x1 = spec.from.x - box.left;
-  const y1 = spec.from.y - box.top;
-  const x2 = tip.x - box.left;
-  const y2 = tip.y - box.top;
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  const points = [
-    `${x2},${y2}`,
-    `${x2 - HEAD * Math.cos(angle - SPREAD)},${y2 - HEAD * Math.sin(angle - SPREAD)}`,
-    `${x2 - HEAD * Math.cos(angle + SPREAD)},${y2 - HEAD * Math.sin(angle + SPREAD)}`,
-  ].join(' ');
-
   let svg = overlay.querySelector<SVGSVGElement>('[data-testid="targeter"]');
   if (svg === null) {
-    svg = document.createElementNS(SVG, 'svg');
-    svg.setAttribute('class', 'targeter');
-    svg.setAttribute('data-testid', 'targeter');
-    svg.setAttribute('aria-hidden', 'true');
-    const shaft = document.createElementNS(SVG, 'line');
-    shaft.setAttribute('class', 'targeter__shaft');
-    const head = document.createElementNS(SVG, 'polygon');
-    head.setAttribute('class', 'targeter__head');
-    svg.append(shaft, head);
+    svg = newArrow('targeter', 'targeter');
     overlay.append(svg);
   }
   flag(svg, 'data-source', spec.source === null ? null : String(spec.source));
   flag(svg, 'data-target', spec.target === null ? null : `${spec.target.kind}:${spec.target.id}`);
   flag(svg, 'data-snapped', spec.snap === null ? null : 'true');
   flag(svg, 'data-mode', spec.mode);
-  const shaft = svg.querySelector('line')!;
-  shaft.setAttribute('x1', String(x1));
-  shaft.setAttribute('y1', String(y1));
-  shaft.setAttribute('x2', String(x2));
-  shaft.setAttribute('y2', String(y2));
-  svg.querySelector('polygon')!.setAttribute('points', points);
+  shape(svg, spec.from, tip, overlay.getBoundingClientRect());
 }
 
 /**
@@ -100,7 +142,7 @@ const AUTO_TESTID = 'stack-target-arrow';
  * Reconcile the overlay's passive arrows against `specs` (item 8): one SVG per
  * spec, keyed by `data-key` so an unchanged pair is left alone across paints,
  * and every key not in `specs` any more is removed — the stack item resolved,
- * or its target left the board. Same shaft-and-head geometry as `drawArrow`,
+ * or its target left the board. Same curve and head as `drawArrow`,
  * drawn a touch lighter (`./gestures.css`) so it reads as "already decided"
  * rather than "decide this".
  */
@@ -110,36 +152,13 @@ export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoT
   for (const spec of specs) {
     seen.add(spec.key);
     const tip = spec.kind === 'player' ? centreOf(spec.to) : edgePointNearest(spec.to, spec.from);
-    const x1 = spec.from.x - box.left;
-    const y1 = spec.from.y - box.top;
-    const x2 = tip.x - box.left;
-    const y2 = tip.y - box.top;
-    const angle = Math.atan2(y2 - y1, x2 - x1);
-    const points = [
-      `${x2},${y2}`,
-      `${x2 - HEAD * Math.cos(angle - SPREAD)},${y2 - HEAD * Math.sin(angle - SPREAD)}`,
-      `${x2 - HEAD * Math.cos(angle + SPREAD)},${y2 - HEAD * Math.sin(angle + SPREAD)}`,
-    ].join(' ');
-
     let svg = overlay.querySelector<SVGSVGElement>(`[data-testid="${AUTO_TESTID}"][data-key="${spec.key}"]`);
     if (svg === null) {
-      svg = document.createElementNS(SVG, 'svg');
-      svg.setAttribute('class', 'targeter targeter--auto');
-      svg.setAttribute('data-testid', AUTO_TESTID);
+      svg = newArrow('targeter targeter--auto', AUTO_TESTID);
       svg.setAttribute('data-key', spec.key);
-      svg.setAttribute('aria-hidden', 'true');
-      const shaft = document.createElementNS(SVG, 'line');
-      shaft.setAttribute('class', 'targeter__shaft');
-      const head = document.createElementNS(SVG, 'polygon');
-      head.setAttribute('class', 'targeter__head');
-      svg.append(shaft, head);
       overlay.append(svg);
     }
-    svg.querySelector('line')!.setAttribute('x1', String(x1));
-    svg.querySelector('line')!.setAttribute('y1', String(y1));
-    svg.querySelector('line')!.setAttribute('x2', String(x2));
-    svg.querySelector('line')!.setAttribute('y2', String(y2));
-    svg.querySelector('polygon')!.setAttribute('points', points);
+    shape(svg, spec.from, tip, box);
   }
   for (const el of [...overlay.querySelectorAll(`[data-testid="${AUTO_TESTID}"]`)]) {
     if (!seen.has(el.getAttribute('data-key') ?? '')) el.remove();
