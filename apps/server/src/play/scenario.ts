@@ -424,10 +424,11 @@ export async function finishMulligan(s: Scenario): Promise<void> {
 		() => {
 			s.keepHands();
 			s.answerAsks();
-			return [0, 1].every((seat) => {
-				const msg = s.prompt(seat);
-				return msg !== '' && !isMulliganish(msg);
-			});
+			// Both seats can read "Waiting for …" at once while the real keep question is still
+			// on its way (wave40-evidence/B-thoughtseize.md), which passed the old test. So also
+			// require one seat to be asked something real: some seat always holds the input.
+			const msgs = [0, 1].map((seat) => s.prompt(seat));
+			return msgs.every((msg) => msg !== '' && !isMulliganish(msg)) && msgs.some((msg) => !/^Waiting for /.test(msg));
 		},
 		'both seats to finish the coin toss and the keep-or-mulligan question',
 		90_000,

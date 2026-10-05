@@ -55,9 +55,19 @@ describe.skipIf(!available.ok)(title, () => {
 
 				// Click it: a basic land's mana ability has no choice to make, so no ask and no stack item.
 				s.select(x, land.id);
+				// The tapped flag and the returned priority arrive in separate frames; waiting on
+				// the flag alone and then asserting priority read the gap between them (CI
+				// 37231620033, 37262596895). Wait for the whole state the assertions below check.
 				await waitUntil(
-					() => { s.answerAsks(); return s.zone(x, 'Battlefield').find((c) => c.id === land.id)?.tapped === true; },
-					'the land to tap for mana',
+					() => {
+						s.answerAsks();
+						return (
+							s.zone(x, 'Battlefield').find((c) => c.id === land.id)?.tapped === true &&
+							/^Stack: Empty$/m.test(s.prompt(x)) &&
+							inOwnMain(s, x, 1)
+						);
+					},
+					'the land to tap for mana and priority to come back in its own main',
 					20_000,
 				);
 

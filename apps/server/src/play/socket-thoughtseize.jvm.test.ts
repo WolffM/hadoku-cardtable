@@ -242,7 +242,8 @@ describe.skipIf(!available.ok)(title, () => {
 				headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
 				body: JSON.stringify({ opponent: 'human', scenario: scenarioText('thoughtseize') }),
 			});
-			expect(res.status).toBe(201);
+			// The server's own words when it refuses (a 503 names its reason: draining, no Forge, or the cap).
+			expect(res.status, res.status === 201 ? '' : await res.clone().text()).toBe(201);
 			const { matchId } = (await res.json()) as { matchId: string };
 
 			const aJoin = (await alice.request('forge:join', { matchId })) as { seat: number };

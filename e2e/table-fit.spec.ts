@@ -992,9 +992,11 @@ test(TITLE, async ({ browser }) => {
       const declareDeadline = Date.now() + 30_000;
       while (notDeclaring.test((await f.page.getByTestId('live-phases').getAttribute('data-phase')) ?? '')) {
         if (Date.now() > declareDeadline) {
-          throw new Error(`${f.name}: still sitting in a combat-declare window after 30s of pressing OK — install.ts claims a press on the viewer's own battlefield there, so this drag is not testing the arrange gesture at all`);
+          throw new Error(`${f.name}: still sitting in a combat-declare window after 30s of pressing OK on both pages — install.ts claims a press on the viewer's own battlefield there, so this drag is not testing the arrange gesture at all`);
         }
-        if ((await enabledOk(f).count()) > 0) await enabledOk(f).click({ timeout: 2_000 }).catch(() => {});
+        // The window may be the OTHER seat's (blockers, while this one attacked), and the
+        // bots are paused: answer it on whichever page has the OK.
+        for (const g of friends) if ((await enabledOk(g).count()) > 0) await enabledOk(g).click({ timeout: 2_000 }).catch(() => {});
         await f.page.waitForTimeout(250);
       }
       const phaseNow = await f.page.getByTestId('live-phases').getAttribute('data-phase');
