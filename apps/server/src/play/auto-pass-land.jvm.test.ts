@@ -8,20 +8,20 @@
  * offer every UNTAPPED LAND with a mana ability through that same set at
  * ordinary priority, so a seat holding even one untapped land is never
  * "empty" by the old measure — the "nothing to do, pass" shortcut almost
- * never fires on an ordinary turn. The fix reads `facts.nonLandSources`
+ * never fires on an ordinary turn. The fix reads `facts.nonManaSources`
  * (the actionable set minus the seat's own battlefield lands) at that one
  * branch instead of raw `facts.sources`.
  *
  * `auto.jvm.test.ts`'s existing suite DOES fail when this fix is reverted,
  * but for a mix of reasons — a combat-phase `skipsThisTurn` quirk unrelated
  * to this branch (`isStopPhase`/`skipsThisTurn` run and return BEFORE the
- * `nonLandSources` check and don't read it at all) is bundled in with real
+ * `nonManaSources` check and don't read it at all) is bundled in with real
  * signal there, because that suite was never built to isolate this one
  * branch. This file isolates exactly the branch lane E's finding named: a
  * priority window where the stack is NON-EMPTY (someone else's spell
  * resolving), the seat holds no cards and no abilities, and the only thing
  * Forge calls "actionable" is the seat's own untapped lands. `decideStop`'s
- * stack-non-empty path falls through to the same `nonLandSources` check once
+ * stack-non-empty path falls through to the same `nonManaSources` check once
  * `policy.passOwnSpell && stackTopMine` does not apply (`auto.ts:1025-1031`)
  * — i.e. for the NON-casting seat watching the other seat's spell resolve,
  * which is exactly "a spell resolves unattended".

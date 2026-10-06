@@ -1256,7 +1256,7 @@ test(LIVE_TITLE, async ({ browser }) => {
      * **Narrowed since wave 35 R15** (`s7-play-spec-still-failing.md`): the
      * claim was never "nobody ever has anything to do" — bob's own deck can
      * hold a genuine instant-speed response, and the server correctly stops
-     * HIS window for it (`facts.nonLandSources`). What item 5 actually
+     * HIS window for it (`facts.nonManaSources`). What item 5 actually
      * promises is that the CASTER, once her own lands are excluded from the
      * actionable set, is never bothered for a cast with nothing left for her
      * to do — `declineBobsRealOffer`, below, presses bob's OK deliberately
@@ -1304,7 +1304,7 @@ test(LIVE_TITLE, async ({ browser }) => {
      * two-coloured interactive deck (bob's "UB Faeries": Spellstutter
      * Sprite, Slaughter Pact) genuinely DOES have something real to decide
      * at nearly every priority window once alice's spell is on the stack —
-     * `facts.nonLandSources` is non-empty, so the server correctly refuses
+     * `facts.nonManaSources` is non-empty, so the server correctly refuses
      * to auto-pass bob's window. That is the product working as specified,
      * not a bug: a real flash option is SUPPOSED to hold the window open.
      * What this test's own driver lacked was a way to decline an option
@@ -1511,7 +1511,7 @@ test(LIVE_TITLE, async ({ browser }) => {
       // excluded from `facts.sources` — but bob's deck ("UB Faeries") holds
       // genuine instant-speed responses (Spellstutter Sprite, Slaughter
       // Pact), so his own window correctly does NOT auto-pass while one is
-      // live; `facts.nonLandSources` is real and non-empty, and refusing to
+      // live; `facts.nonManaSources` is real and non-empty, and refusing to
       // pass there is the product working AS SPECIFIED, not a bug. A spell
       // resolving because "nobody pressed anything, including the one real
       // option on the table" was never the product's promise — a real

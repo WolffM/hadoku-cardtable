@@ -1074,7 +1074,53 @@ public final class PlayBridge {
             f.add("player", ref("player", playerView.getId()));
             f.addProperty("message", str(message));
             f.add("card", refOrNull(card));
+            final JsonObject confirm = confirmAbility();
+            if (confirm != null) { f.add("confirmAbility", confirm); }
             frame(f);
+        }
+
+        /**
+         * Wave 52 §S (B) — the ability a Yes/No confirm belongs to, or null.
+         *
+         * Forge asks a cost confirm ("sacrifice Augur of Skulls?") through
+         * {@code HumanCostDecision} → {@code PlayerControllerHuman.confirmPayment} →
+         * {@code InputConfirm.confirm(controller, sa, question)}, and an optional
+         * trigger through {@code confirmTrigger} → the same {@code InputConfirm} with the
+         * trigger's wrapper. Both reach this method with {@code card == null}, so the
+         * prose is all the wire carried and the two could not be told apart. The input
+         * itself still holds the {@code SpellAbility} ({@code InputConfirm.sa}), and the
+         * game thread is parked on it while its prompt is shown, so it is read here the
+         * way {@link #legalPlayers} reads its input. The server answers Yes only when
+         * the seat chose this same ability from {@code getAbilityToPlay} just before
+         * ({@code auto.ts}'s {@code chosenCostConfirm}); every other confirm still asks.
+         */
+        private JsonObject confirmAbility() {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
+            final Object input = human.getInputQueue().getInput();
+            if (!(input instanceof forge.gamemodes.match.input.InputConfirm)) { return null; }
+            try {
+                final var sa = (SpellAbility) field(input, forge.gamemodes.match.input.InputConfirm.class, "sa");
+                if (sa == null || sa.getHostCard() == null) { return null; }
+                final JsonObject o = new JsonObject();
+                o.add("hostCard", ref("card", sa.getHostCard().getId()));
+                o.addProperty("abilityId", sa.getId());
+                return o;
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] confirmAbility: could not read the open confirm (" + e + "); it stays a question");
+                return null;
+            }
+        }
+
+        /** This seat's own live {@code Player}, or null when the game or the seat is not readable. */
+        private forge.game.player.Player liveSelf(final Game game) {
+            if (game == null) { return null; }
+            final PlayerView me = getCurrentPlayer();
+            if (me == null) { return null; }
+            for (final forge.game.player.Player p : game.getPlayers()) {
+                if (p.getId() == me.getId()) { return p; }
+            }
+            return null;
         }
 
         @Override public void updateButtons(final PlayerView owner, final String label1, final String label2,
@@ -1116,17 +1162,8 @@ public final class PlayBridge {
          * browser then keeps offering every player.
          */
         private JsonArray legalPlayers() {
-            final ServerGameLobby lobby = LOBBY;
-            if (lobby == null) { return null; }
-            final HostedMatch hosted = lobby.getHostedMatch();
-            if (hosted == null || hosted.getGame() == null) { return null; }
-            final Game game = hosted.getGame();
-            final PlayerView me = getCurrentPlayer();
-            if (me == null) { return null; }
-            forge.game.player.Player mine = null;
-            for (final forge.game.player.Player p : game.getPlayers()) {
-                if (p.getId() == me.getId()) { mine = p; }
-            }
+            final Game game = liveGame();
+            final forge.game.player.Player mine = liveSelf(game);
             if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
             final Object input = human.getInputQueue().getInput();
             try {
@@ -1222,7 +1259,64 @@ public final class PlayBridge {
             super.setWeaklySelectable(cards == null ? List.of() : cards);
             final JsonObject f = notify("setWeaklySelectable");
             f.add("cards", refs(cards));
+            offerFacts(f, cards);
             frame(f);
+        }
+
+        /**
+         * Wave 52 §S — two facts about the offered cards, read off Forge's own
+         * abilities rather than card text, added to the frame as strict optional fields.
+         *
+         * <ul>
+         * <li>{@code manaOnly}: the offered cards whose every playable ability is a mana
+         * ability. Since w52's fork commit Forge offers a Signet ({@code {1},{T}}) at
+         * priority, and a Signet is not a land, so the server's "nothing but lands is
+         * actionable" pass would have become a stop for every seat holding one. Tapping
+         * for mana is never by itself a reason to hold priority, land or not.</li>
+         * <li>{@code phaseRestricted}: the offered permanents this seat controls with a
+         * playable non-mana ability whose {@code ActivationPhases} restriction
+         * ({@code SpellAbilityRestriction}, {@code SpellAbilityVariables.getPhases}) is
+         * met now — Augur of Skulls in its controller's upkeep. Playable means
+         * {@code getAllPossibleAbilities(player, true)} kept it, which runs the
+         * restriction check. Battlefield only, never the hand: the card and its text are
+         * on the table for everyone.</li>
+         * </ul>
+         *
+         * Read on this seat's channel thread while the game thread is parked on the input
+         * that pushed the set, as {@link #legalPlayers} does. A failure omits both fields,
+         * which the server reads as "no such card" — the stop it always made.
+         */
+        private void offerFacts(final JsonObject f, final Iterable<CardView> cards) {
+            final Game game = liveGame();
+            final forge.game.player.Player mine = liveSelf(game);
+            if (mine == null || cards == null) { return; }
+            try {
+                final JsonArray manaOnly = new JsonArray();
+                final JsonArray phaseRestricted = new JsonArray();
+                final java.util.Set<Integer> seen = new java.util.HashSet<>();
+                for (final CardView cv : cards) {
+                    if (cv == null || !seen.add(cv.getId())) { continue; }
+                    final forge.game.card.Card c = game.findById(cv.getId());
+                    if (c == null) { continue; }
+                    boolean mana = false;
+                    boolean other = false;
+                    boolean restricted = false;
+                    for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
+                        if (sa.isManaAbility()) { mana = true; continue; }
+                        other = true;
+                        if (c.isInPlay() && c.getController() == mine && sa.getRestrictions() != null
+                                && !sa.getRestrictions().getPhases().isEmpty()) {
+                            restricted = true;
+                        }
+                    }
+                    if (mana && !other) { manaOnly.add(ref("card", cv.getId())); }
+                    if (restricted) { phaseRestricted.add(ref("card", cv.getId())); }
+                }
+                f.add("manaOnly", manaOnly);
+                f.add("phaseRestricted", phaseRestricted);
+            } catch (final RuntimeException e) {
+                System.err.println("[bridge] offerFacts: could not read the offered abilities (" + e + "); the window keeps its stop");
+            }
         }
 
         @Override public void clearWeaklySelectable() {

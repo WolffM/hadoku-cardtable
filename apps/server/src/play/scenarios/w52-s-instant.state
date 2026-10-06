@@ -1,0 +1,16 @@
+# Wave 52 §S (A), the control: a castable instant in hand and no Augur. Wave 28's
+# rule holds — a stop conditioned on what the seat HOLDS reveals its hand — so
+# this upkeep is passed exactly as it always was.
+turn=1
+activeplayer=human
+activephase=UNTAP
+humanlife=20
+ailife=20
+humanhand=Dark Ritual
+humanbattlefield=Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=
+aibattlefield=Swamp
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aigraveyard=

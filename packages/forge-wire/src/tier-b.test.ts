@@ -29,6 +29,8 @@ import {
   SendYieldUpdateSchema,
   SetHighlightedSchema,
   SetSelectablesSchema,
+  SetWeaklySelectableSchema,
+  ShowPromptMessageSchema,
   SideboardSchema,
   TIER_B_CLIENT_FRAMES,
   TIER_B_METHODS,
@@ -377,5 +379,28 @@ describe('getAbilityToPlay — the label travels with the offer', () => {
 
   it('rejects an ability object with a field nobody agreed to', () => {
     expect(safeParseServerFrame({ ...offer, abilities: [{ ...labelled, power: '3' }] }).ok).toBe(false);
+  });
+});
+
+describe('wave 52 §S — the offer facts and the confirm ability are strict and additive', () => {
+  const card = (id: number) => ({ kind: 'card' as const, id });
+
+  it('a setWeaklySelectable without the new fields still parses — older bridges stay valid', () => {
+    expect(SetWeaklySelectableSchema.safeParse({ kind: 'notify', method: 'setWeaklySelectable', cards: [card(1)] }).success).toBe(true);
+  });
+
+  it('manaOnly and phaseRestricted are card refs, nothing else', () => {
+    const frame = { kind: 'notify', method: 'setWeaklySelectable', cards: [card(1), card(2)], manaOnly: [card(1)], phaseRestricted: [card(2)] };
+    expect(SetWeaklySelectableSchema.safeParse(frame).success).toBe(true);
+    expect(SetWeaklySelectableSchema.safeParse({ ...frame, manaOnly: [{ kind: 'player', id: 1 }] }).success).toBe(false);
+    expect(SetWeaklySelectableSchema.safeParse({ ...frame, landsOnly: [card(1)] }).success).toBe(false);
+  });
+
+  it('confirmAbility names a host card and an ability id, strictly', () => {
+    const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: 'Sacrifice?', card: null };
+    expect(ShowPromptMessageSchema.safeParse(base).success).toBe(true);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12 } }).success).toBe(true);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, cost: true } }).success).toBe(false);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7) } }).success).toBe(false);
   });
 });

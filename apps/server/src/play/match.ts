@@ -109,6 +109,7 @@ import {
 	autoCancelReason,
 	autoPassReason,
 	autoPayReason,
+	chosenCostConfirm,
 	DEFAULT_STOP_POLICY,
 	onlyAnswer,
 	paymentCost,
@@ -349,6 +350,13 @@ export interface SeatState {
 	 * act in between, offers no different an answer than the one already given.
 	 */
 	lastAbilityToPlay: { hostCard: number; abilityId: number } | null;
+	/**
+	 * Wave 52 §S B — the ability this seat chose from `getAbilityToPlay` since its
+	 * last `Priority:` prompt, or null. A cost confirm for exactly this ability is
+	 * answered Yes (`auto.ts`'s `chosenCostConfirm`), once; a priority prompt
+	 * means the activation is over, so it is cleared there.
+	 */
+	chosenAbility: { hostCard: number; abilityId: number } | null;
 	/**
 	 * Wave 35 §S, R4 — a `getChoices` REVEAL (`min === max === -1`) held back to
 	 * see whether the very next ask to this seat is the real discard choice it
@@ -635,6 +643,7 @@ export class Match {
 			autoPassed: 0,
 			says: [],
 			lastAbilityToPlay: null,
+			chosenAbility: null,
 			pendingReveal: null,
 			mergedChoice: new Map(),
 			displayOnlyAsks: new Set(),
@@ -962,6 +971,7 @@ export class Match {
 					const hostCard = (ask.frame as unknown as { hostCard: { id: number } }).hostCard.id;
 					const abilityId = (frame.result as { id: number }).id;
 					s.lastAbilityToPlay = { hostCard, abilityId };
+					s.chosenAbility = s.lastAbilityToPlay;
 				}
 				// Wave 35 §S, R4 — a real (unmerged) discard choice answered plainly:
 				// its own later echo to the discarder still needs no confirmation.
@@ -1267,6 +1277,7 @@ export class Match {
 			return;
 		} else if (frame.method === 'showPromptMessage') {
 			s.prompt = frame;
+			if (frame.message.startsWith('Priority:')) s.chosenAbility = null;
 		} else if (frame.method === 'updateButtons') {
 			s.buttons = frame;
 		} else if (frame.method === 'setWeaklySelectable') {
@@ -1324,9 +1335,21 @@ export class Match {
 		let outgoing = frame;
 		if (frame.method === 'updateButtons') {
 			this.maybeDeclineYieldSuggestion(s);
-			if (this.maybeAutoPass(s)) outgoing = { ...frame, enable1: false, enable2: false, focus1: false };
+			// Wave 52 §S B: the confirm's buttons can also arrive after its prompt.
+			if (this.maybeAutoPass(s) || this.maybeConfirmChosenCost(s)) outgoing = { ...frame, enable1: false, enable2: false, focus1: false };
 		}
-		this.send(s, outgoing);
+		// Wave 52 §S B: a cost confirm answered for the seat is never shown to it.
+		// `InputConfirm` sends its Yes/No buttons BEFORE the prompt that carries
+		// `confirmAbility`, so those already went out live; they go again disabled,
+		// and the question itself is withheld — a flashed "Sacrifice Augur of
+		// Skulls?" with a live Yes is the redundant ask the operator reported.
+		if (frame.method === 'showPromptMessage' && this.maybeConfirmChosenCost(s)) {
+			if (s.buttons !== null && s.buttons.method === 'updateButtons') {
+				this.send(s, { ...s.buttons, enable1: false, enable2: false, focus1: false });
+			}
+		} else {
+			this.send(s, outgoing);
+		}
 		/*
 		 * Wave 35 §S follow-up, item 3, continued — the race above still missed
 		 * once in 10 real-jar e2e runs after the fix directly above landed.
@@ -1487,6 +1510,13 @@ export class Match {
 			creatures: s.projector.creatureCount(),
 			stackTopActivator: s.projector.stackTopActivator(),
 			ownBattlefieldLandIds: s.projector.ownBattlefieldLandIds(),
+			// The bridge's facts about the set `actionable` holds (wave 52 §S).
+			...(s.actionable !== null && s.weakly?.method === 'setWeaklySelectable'
+				? {
+						manaOnlyIds: s.weakly.manaOnly === undefined ? undefined : new Set(s.weakly.manaOnly.map((c) => c.id)),
+						phaseRestrictedIds: s.weakly.phaseRestricted?.map((c) => c.id),
+					}
+				: {}),
 		};
 	}
 
@@ -1613,7 +1643,8 @@ export class Match {
 				stackEmpty: f.stackEmpty,
 				mine: f.mine,
 				sources: f.sources?.length ?? null,
-				nonLandSources: f.nonLandSources?.length ?? null,
+				nonManaSources: f.nonManaSources?.length ?? null,
+				phaseRestricted: f.phaseRestricted.length,
 				openAsks: f.openAsks,
 				buttons: s.buttons !== null && s.buttons.method === 'updateButtons' ? [s.buttons.enable1, s.buttons.enable2] : null,
 			});
@@ -1651,6 +1682,22 @@ export class Match {
 		s.autoPaid = cost;
 		this.deps.log({ evt: 'auto-paid', matchId: this.id, seat: s.seat, cost });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
+	}
+
+	/**
+	 * Wave 52 §S B — answer Yes to a cost confirm for the ability this seat just
+	 * chose (*"it AGAIN asks me if i want to sacrifice the augur of skulls. thats a
+	 * redundant ask."*). Once per choice: the choice is spent by the answer.
+	 * Returns whether it answered, so the caller withholds the prompt.
+	 */
+	private maybeConfirmChosenCost(s: SeatState): boolean {
+		if (s.fullControl || s.ai || this.status !== 'running') return false;
+		const why = chosenCostConfirm(this.notesOf(s), s.chosenAbility, s.policy);
+		if (why === null) return false;
+		s.chosenAbility = null;
+		this.deps.log({ evt: 'auto-confirmed', matchId: this.id, seat: s.seat, why });
+		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
+		return true;
 	}
 
 	/**
@@ -1874,6 +1921,7 @@ export class Match {
 		const repeat = frame.method === 'getAbilityToPlay' ? repeatedAbilityToPlay(frame, s.lastAbilityToPlay) : null;
 		if (repeat !== null && frame.method === 'getAbilityToPlay') {
 			s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (repeat.result as { id: number }).id };
+			s.chosenAbility = s.lastAbilityToPlay;
 			s.autoAnswered += 1;
 			this.deps.log({
 				evt: 'ask-auto-answered',

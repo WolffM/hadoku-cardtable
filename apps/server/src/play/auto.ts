@@ -262,16 +262,19 @@ export interface StopPolicy {
 	readonly unpayableCost: 'ask' | 'cancel';
 	/**
 	 * Whether a cost confirm on an activation the player themselves chose is put
-	 * to them (#16).
+	 * to them (#16, and wave 52 §S B).
 	 *
-	 * `'ask'` is the only value this file can act on today, and that is a finding
-	 * rather than a preference: Forge asks through `InputConfirm`
-	 * (`HumanCostDecision.java:1295-1301` → `PlayerControllerHuman.confirmPayment`
-	 * `:2061-2080` → `InputConfirm.confirm`), which reaches us as a
-	 * `showPromptMessage` with `card: null` plus a Yes/No `updateButtons` — the
-	 * `CostPart` and the `SpellAbility` are both dropped at that seam. Nothing on
-	 * our wire tells a cost confirm apart from an OPTIONAL-TRIGGER confirm, which
-	 * is a real game choice, so the window stays a stop. See the evidence doc.
+	 * The operator, 2026-10-06: *"after selecting the creature, and then selecting
+	 * the sacrifice ability it AGAIN asks me if i want to sacrifice the augur of
+	 * skulls. thats a redundant ask."* Forge asks through `InputConfirm`
+	 * (`HumanCostDecision.java:1295-1310` → `PlayerControllerHuman.confirmPayment`
+	 * → `InputConfirm.confirm`), which reaches us as a `showPromptMessage` with
+	 * `card: null` plus a Yes/No `updateButtons`. An optional trigger's "may" is
+	 * the same shape and is a real game choice, so the bridge names the ability
+	 * the confirm belongs to (`confirmAbility`, `PlayBridge.java`'s
+	 * `confirmAbility`). `'accept'` answers Yes exactly when that is the ability
+	 * the seat just chose from `getAbilityToPlay` ({@link chosenCostConfirm});
+	 * every other confirm still asks. `'ask'` puts every one to the player.
 	 */
 	readonly costConfirm: 'ask' | 'accept';
 	/** Whether an ask Forge left exactly one legal reply to is answered (w19). */
@@ -291,6 +294,24 @@ export interface StopPolicy {
 	 */
 	readonly skipEmptyBlockStop: boolean;
 	/**
+	 * A phase outside the stop sets is NOT skipped when a permanent the seat
+	 * controls has an ability activatable now that is restricted to this phase
+	 * (wave 52 §S A).
+	 *
+	 * The operator, 2026-10-06: *"i have a creature (Augur of Skulls) that has
+	 * 'Sacrifice .... Play this ability only during your upkeep' i would expect
+	 * the shortcutter not to skip past my upkeep."* `skipNonStopPhases: 'always'`
+	 * passed that upkeep every turn, and the ability can be used nowhere else.
+	 * This does not reopen wave 28's rule: the fact
+	 * ({@link PromptFacts.phaseRestricted}) names battlefield permanents only, so
+	 * the stop tells the table nothing it cannot read off the board. A held
+	 * instant still never stops a phase, and neither does an ability that works in
+	 * every phase (Augur's own regenerate), or every phase would stop again.
+	 *
+	 * Full control keeps every stop anyway.
+	 */
+	readonly stopForPhaseAbility: boolean;
+	/**
 	 * The Declare Attackers stop IS the declaration (T3).
 	 *
 	 * The operator, 2026-10-03: *"theres an extra ok after declare attackers which
@@ -300,7 +321,7 @@ export interface StopPolicy {
 	 * phase" with nothing offered — a second OK with nothing in it
 	 * (`wave36-evidence/e3-extra-ok.md`). With this on, the post-declaration
 	 * priority window is judged by {@link passWhenNothingToDo} like any other
-	 * window: it passes when nothing but lands is actionable, and still stops when
+	 * window: it passes when nothing but mana sources is actionable, and still stops when
 	 * a spell could be cast — a pump after attackers are declared is real play.
 	 * The attack input itself is not a priority window, so it is never pressed for.
 	 *
@@ -327,7 +348,7 @@ export interface StopPolicy {
 	 * `decideStop`'s own `window !== 'priority'` guard already refuses it before
 	 * this field is ever read. Only the ordinary priority window that follows is
 	 * judged by {@link passWhenNothingToDo} like any other window, same as the
-	 * attack step: it passes when nothing but lands is actionable, and still
+	 * attack step: it passes when nothing but mana sources is actionable, and still
 	 * stops when a spell could be cast — a held instant is cast exactly where it
 	 * always was, the moment after blocks are locked in (confirmed: the reactive
 	 * variant, holding Lightning Bolt and a Mountain, still stops).
@@ -429,10 +450,13 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	// Item 7, wave 25: *"it's confusing i have to click 'cancel' to not pay
 	// manaleak when i dont even have enough mana"*.
 	unpayableCost: 'cancel',
-	costConfirm: 'ask',
+	// Wave 52 §S B. *"thats a redundant ask."*
+	costConfirm: 'accept',
 	answerOneAnswerAsks: true,
 	// Q10, wave 32. *"no creatures, no block."*
 	skipEmptyBlockStop: true,
+	// Wave 52 §S A. *"i would expect the shortcutter not to skip past my upkeep."*
+	stopForPhaseAbility: true,
 	attackStopIsTheDeclaration: true,
 	// Wave 46 §C. *"had to click twice for declaring blockers?"*
 	blockStopIsTheDeclaration: true,
@@ -519,6 +543,7 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	costConfirm: 'ask',
 	answerOneAnswerAsks: false,
 	skipEmptyBlockStop: false,
+	stopForPhaseAbility: true,
 	attackStopIsTheDeclaration: false,
 	blockStopIsTheDeclaration: false,
 	passOwnSpell: false,
@@ -737,16 +762,30 @@ export interface SeatNotes {
 	 * land-tapping fix (R15): every untapped land with a mana ability is now in
 	 * `actionable` at ordinary priority, so "the actionable set is empty" almost
 	 * never holds any more on a normal turn. Used ONLY to compute
-	 * {@link PromptFacts.nonLandSources}, which only `decideStop`'s "nothing to
+	 * {@link PromptFacts.nonManaSources}, which only `decideStop`'s "nothing to
 	 * do" check reads — {@link PromptFacts.sources}, `noWayToPay` and
 	 * `plannedSources` all stay based on the RAW actionable set, because a land
 	 * IS a legitimate payment source and payment decisions must still see it.
 	 * Optional, same reason `creatures`/`stackTopActivator` are: a caller with no
 	 * board (the unit suites) says nothing, which costs nothing — an undefined
-	 * set is treated as empty, so `nonLandSources` falls back to the unfiltered
+	 * set is treated as empty, so `nonManaSources` falls back to the unfiltered
 	 * `sources` and behaves exactly as before this field existed.
 	 */
 	ownBattlefieldLandIds?: ReadonlySet<number>;
+	/**
+	 * The ids among `actionable` that Forge offers ONLY for a mana ability — the
+	 * bridge's `setWeaklySelectable.manaOnly`, read off Forge's abilities (wave 52
+	 * §S). Since w52's fork commit a Signet (`{1},{T}`) is offered at priority, and
+	 * a Signet is not a land, so the lands alone no longer covered "tapping for mana
+	 * is not a reason to hold priority". Undefined (an older frame, or the bridge
+	 * could not read it) filters nothing more, which keeps the stop.
+	 */
+	manaOnlyIds?: ReadonlySet<number>;
+	/**
+	 * The bridge's `setWeaklySelectable.phaseRestricted` (wave 52 §S A): this
+	 * seat's offered permanents with an ability restricted to the current phase.
+	 */
+	phaseRestrictedIds?: readonly number[];
 }
 
 /* ── The structured facts the decisions are made on ──────────────────── */
@@ -814,9 +853,11 @@ export interface PromptFacts {
 	 */
 	readonly sources: readonly number[] | null;
 	/**
-	 * {@link sources}, minus any id that is a LAND on this seat's own
-	 * battlefield (`SeatNotes.ownBattlefieldLandIds`) — wave 35's follow-up to
-	 * lane F's land-tapping fix (R15). `decideStop`'s "nothing left to do, pass"
+	 * {@link sources}, minus every MANA SOURCE: an id that is a land on this seat's
+	 * own battlefield (`SeatNotes.ownBattlefieldLandIds`), or one Forge offers only
+	 * for a mana ability (`SeatNotes.manaOnlyIds`, wave 52 §S — a Signet). Wave
+	 * 35's follow-up to lane F's land-tapping fix (R15) began it with lands; w52's
+	 * fork commit offers a Signet at priority too. `decideStop`'s "nothing left to do, pass"
 	 * check reads THIS, never `sources`: F's fix makes Forge offer every
 	 * untapped land with a mana ability through the SAME actionable set at
 	 * ordinary priority, so "the set is non-empty" stopped meaning "there is a
@@ -824,14 +865,20 @@ export interface PromptFacts {
 	 * left untapped, `sources` is now almost never empty, and the "pass when
 	 * nothing to do" shortcut this field exists to protect could no longer ever
 	 * fire (measured: `play.spec.ts`'s "a spell resolves unattended" failed 5 of
-	 * 5 real-Forge runs). Tapping a land for mana is never, by itself, a reason
+	 * 5 real-Forge runs). Tapping a land or a mana rock is never, by itself, a reason
 	 * to hold priority — the same judgment the UI's own `nothingToDecide`
 	 * (`apps/ui/src/play/live/match.ts`) already makes, and this is its
 	 * server-side twin. `sources` itself, `noWayToPay` and `plannedSources` are
 	 * all left on the RAW set: a land IS a legitimate payment source, and a
 	 * payment decision must still see it.
 	 */
-	readonly nonLandSources: readonly number[] | null;
+	readonly nonManaSources: readonly number[] | null;
+	/**
+	 * This seat's permanents with an ability activatable now that is restricted
+	 * to this phase (`SeatNotes.phaseRestrictedIds`); empty when none or unknown.
+	 * Read only by {@link StopPolicy.stopForPhaseAbility}.
+	 */
+	readonly phaseRestricted: readonly number[];
 	/**
 	 * The subset Forge's OWN auto-tap plan names.
 	 *
@@ -949,7 +996,8 @@ const UNKNOWN_WINDOW: PromptFacts = {
 	alternativePayment: false,
 	noWayToPay: false,
 	sources: null,
-	nonLandSources: null,
+	nonManaSources: null,
+	phaseRestricted: [],
 	plannedSources: [],
 	openAsks: 0,
 	creatures: null,
@@ -995,6 +1043,7 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 
 	const all = notes.actionable;
 	const ownLands = notes.ownBattlefieldLandIds;
+	const manaOnly = notes.manaOnlyIds;
 	return {
 		window,
 		phase: phaseLabel === null ? null : (PHASE_BY_UI_NAME[phaseLabel] ?? null),
@@ -1007,7 +1056,9 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		alternativePayment: LIFE_INSTEAD.test(message),
 		noWayToPay: window === 'payment' && buttons.enable1 !== true && all !== null && all.length === 0,
 		sources: all === null ? null : [...new Set(all)],
-		nonLandSources: all === null ? null : [...new Set(all)].filter((id) => !(ownLands?.has(id) ?? false)),
+		nonManaSources:
+			all === null ? null : [...new Set(all)].filter((id) => !(ownLands?.has(id) ?? false) && !(manaOnly?.has(id) ?? false)),
+		phaseRestricted: notes.phaseRestrictedIds ?? [],
 		plannedSources: all === null ? [] : repeated(all),
 		openAsks: notes.openAsks,
 		creatures: notes.creatures ?? null,
@@ -1075,6 +1126,11 @@ function blockStopIsDone(policy: StopPolicy, facts: PromptFacts): boolean {
 	);
 }
 
+/** A permanent the seat controls can be used now and only in this phase ({@link StopPolicy.stopForPhaseAbility}). */
+function phaseAbilityNow(policy: StopPolicy, facts: PromptFacts): boolean {
+	return policy.stopForPhaseAbility && facts.phaseRestricted.length > 0;
+}
+
 /**
  * The phase label to pass, or null when the player must be asked.
  *
@@ -1097,14 +1153,16 @@ export function decideStop(facts: PromptFacts, policy: StopPolicy): string | nul
 		// the non-active seat's own priority window right after a block is
 		// assigned, are not "think" stops like Main 1 (T3): both fall through to
 		// the nothing-to-do rule below, so each passes only when nothing but
-		// lands is actionable.
+		// mana sources is actionable.
 		if (!attackStopIsDone(policy, facts) && !blockStopIsDone(policy, facts)) {
 			// The phase the player asked to hold priority in. Nothing below overrides it —
 			// except the one stop that exists only so a creature can block (Q10).
 			if (isStopPhase(policy, facts) && !blockStopIsEmpty(policy, facts)) return null;
 			// Forge's `skipPhases`: a phase outside the stop set goes past whatever the
-			// seat could have done there (#20).
-			if (skipsThisTurn(policy, facts)) return facts.phaseLabel ?? 'priority';
+			// seat could have done there (#20) — unless a permanent on the table can be
+			// used in this phase and no other (w52 §S A), which falls through to the
+			// nothing-to-do rule and stops on that permanent.
+			if (skipsThisTurn(policy, facts) && !phaseAbilityNow(policy, facts)) return facts.phaseLabel ?? 'priority';
 		}
 	} else if (!policy.passStackWindows) {
 		return null;
@@ -1117,11 +1175,10 @@ export function decideStop(facts: PromptFacts, policy: StopPolicy): string | nul
 	if (!policy.passWhenNothingToDo) return null;
 	// Forge has not answered "what can this seat do" — never pass on silence. An
 	// EMPTY set is Forge saying "nothing"; `clearWeaklySelectable` is "no answer".
-	// `nonLandSources`, not `sources`: F's land-tapping fix (R15) puts every
-	// untapped land with a mana ability in the SAME actionable set at ordinary
-	// priority, and tapping one for mana is never, by itself, a reason to hold
-	// priority — see the field's own note.
-	if (facts.nonLandSources === null || facts.nonLandSources.length > 0) return null;
+	// `nonManaSources`, not `sources`: Forge offers every untapped land (R15) and
+	// mana rock (w52) in the SAME actionable set at ordinary priority, and tapping
+	// one for mana is never, by itself, a reason to hold priority — see the field.
+	if (facts.nonManaSources === null || facts.nonManaSources.length > 0) return null;
 	return facts.phaseLabel ?? 'priority';
 }
 
@@ -1214,6 +1271,34 @@ export function autoPayReason(notes: SeatNotes, policy: StopPolicy = DEFAULT_STO
  */
 export function autoCancelReason(notes: SeatNotes, policy: StopPolicy = DEFAULT_STOP_POLICY): string | null {
 	return decideCancel(readPromptFacts(notes), policy);
+}
+
+/**
+ * Wave 52 §S B — Yes to a cost confirm for the ability the seat just chose, or
+ * null when the confirm is the player's ({@link StopPolicy.costConfirm}).
+ *
+ * `chosen` is the ability this seat picked from `getAbilityToPlay` since its
+ * last priority window (`match.ts`'s `SeatState.chosenAbility`, cleared at every
+ * `Priority:` prompt). The confirm's own ability is the bridge's
+ * `confirmAbility`. They must be the same host card and the same ability: the
+ * player already said "this one" and Forge is asking again whether to pay for
+ * it. An optional trigger's "may" names its trigger, never the chosen
+ * activation, so it is still asked; so is a confirm with no ability on it.
+ */
+export function chosenCostConfirm(
+	notes: SeatNotes,
+	chosen: { hostCard: number; abilityId: number } | null,
+	policy: StopPolicy = DEFAULT_STOP_POLICY,
+): string | null {
+	if (policy.costConfirm !== 'accept' || chosen === null || notes.openAsks > 0) return null;
+	const prompt = notes.prompt;
+	const buttons = notes.buttons;
+	if (prompt === null || prompt.method !== 'showPromptMessage' || prompt.confirmAbility === undefined) return null;
+	if (buttons === null || buttons.method !== 'updateButtons' || buttons.enable1 !== true) return null;
+	if (notes.playerId === null || prompt.player.id !== notes.playerId || buttons.owner.id !== notes.playerId) return null;
+	const { hostCard, abilityId } = prompt.confirmAbility;
+	if (hostCard.id !== chosen.hostCard || abilityId !== chosen.abilityId) return null;
+	return 'the seat chose this ability just before';
 }
 
 /**

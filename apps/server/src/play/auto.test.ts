@@ -29,6 +29,7 @@ import {
 	autoCancelReason,
 	autoPassReason,
 	autoPayReason,
+	chosenCostConfirm,
 	decideCancel,
 	decidePay,
 	decideStop,
@@ -811,7 +812,7 @@ describe('Q10: the Declare Blockers stop is skipped when the seat controls no cr
 		// see {@link blockStopIsDone}), so with nothing left to do it now passes,
 		// same as every other `passWhenNothingToDo` window.
 		expect(decideStop(at(1), DEFAULT_STOP_POLICY)).toBe('Declare Blockers Step');
-		expect(decideStop({ ...at(1), sources: [61, 62], nonLandSources: [61] }, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop({ ...at(1), sources: [61, 62], nonManaSources: [61] }, DEFAULT_STOP_POLICY)).toBeNull();
 		expect(decideStop(at(null), DEFAULT_STOP_POLICY)).toBeNull();
 		// Only THIS stop: a main phase is not a block stop and is held whatever the count.
 		expect(decideStop(facts({ phase: 'MAIN1', phaseLabel: 'Main phase, precombat', myTurn: true, creatures: 0 }), DEFAULT_STOP_POLICY)).toBeNull();
@@ -869,7 +870,7 @@ describe('T3: the Declare Attackers stop is the declaration — the priority win
 	it('decideStop: nothing actionable passes; a castable spell stops; an unknown set stops; full control stops; Main 1 is untouched', () => {
 		expect(decideStop(after(), DEFAULT_STOP_POLICY)).toBe('Declare Attackers Step');
 		expect(decideStop(after({ sources: [67] }), DEFAULT_STOP_POLICY)).toBeNull();
-		expect(decideStop(after({ sources: null, nonLandSources: null }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(after({ sources: null, nonManaSources: null }), DEFAULT_STOP_POLICY)).toBeNull();
 		expect(decideStop(after(), FULL_CONTROL_POLICY)).toBeNull();
 		expect(decideStop(after(), { ...DEFAULT_STOP_POLICY, attackStopIsTheDeclaration: false })).toBeNull();
 		// The OPPONENT's attack step is not a stop of ours at all and stays as it was.
@@ -1521,10 +1522,10 @@ function firstOwnCard(h: Harness, seat: number): { id: number; key: number; name
  * own facts explicitly.
  */
 function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnType<typeof readPromptFacts> {
-	// `nonLandSources` defaults to whatever `sources` ends up being: none of
+	// `nonManaSources` defaults to whatever `sources` ends up being: none of
 	// these fixtures' ids are meant to represent a land (wave 35's land
 	// exclusion is tested on its own, below), so the two fields agree unless a
-	// case overrides `nonLandSources` itself.
+	// case overrides `nonManaSources` itself.
 	const sources = over.sources ?? [];
 	return {
 		window: 'priority',
@@ -1538,7 +1539,8 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 		alternativePayment: false,
 		noWayToPay: false,
 		sources,
-		nonLandSources: sources,
+		nonManaSources: sources,
+		phaseRestricted: [],
 		plannedSources: [],
 		openAsks: 0,
 		creatures: null,
@@ -1665,7 +1667,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			expect(decideStop(unknown, policy)).toBeNull();
 		}
 		// Forge's own "nothing here" still passes it, label and all.
-		expect(decideStop({ ...unknown, sources: [], nonLandSources: [] }, DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
+		expect(decideStop({ ...unknown, sources: [], nonManaSources: [] }, DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
 	});
 
 	it('the default policy is Arena’s stop set, field by field — wave 28, item 5, minus the end step wave 30 removed', () => {
@@ -1678,9 +1680,10 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			passStackWindows: true,
 			unambiguousPayment: 'forgeAuto',
 			unpayableCost: 'cancel',
-			costConfirm: 'ask',
+			costConfirm: 'accept',
 			answerOneAnswerAsks: true,
 			skipEmptyBlockStop: true,
+			stopForPhaseAbility: true,
 			passOwnSpell: true,
 			orderSimultaneous: 'forge',
 			attackStopIsTheDeclaration: true,
@@ -1719,8 +1722,8 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		// And the leak argument, as an assertion: the decision does not depend on
 		// what the seat holds. An empty hand reaches the same answer, so the pass
 		// says nothing about the hand.
-		expect(decideStop({ ...upkeepHoldingSlip, sources: [], nonLandSources: [] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
-		expect(decideStop({ ...upkeepHoldingSlip, sources: [61, 62, 63], nonLandSources: [61, 62, 63] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
+		expect(decideStop({ ...upkeepHoldingSlip, sources: [], nonManaSources: [] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
+		expect(decideStop({ ...upkeepHoldingSlip, sources: [61, 62, 63], nonManaSources: [61, 62, 63] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
 		// The same window under the superseded default is the bug, in one line.
 		expect(decideStop(upkeepHoldingSlip, EVERY_PRIORITY_POLICY)).toBeNull();
 		// The opponent's upkeep too — *"it's stopping everywhere"*.
@@ -1750,7 +1753,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		// priority window in its own right: the attack input was the stop (T3,
 		// below). It stays a window only while there is something to cast in it.
 		const myAttack = { phase: 'COMBAT_DECLARE_ATTACKERS' as const, phaseLabel: 'Declare Attackers Step', myTurn: true };
-		expect(decideStop(facts({ ...myAttack, sources: [61], nonLandSources: [61] }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(facts({ ...myAttack, sources: [61], nonManaSources: [61] }), DEFAULT_STOP_POLICY)).toBeNull();
 		expect(decideStop(facts({ ...myAttack, sources: [] }), DEFAULT_STOP_POLICY)).toBe('Declare Attackers Step');
 	});
 
@@ -1782,7 +1785,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		const theirAttackStep = { phase: 'COMBAT_DECLARE_ATTACKERS' as const, phaseLabel: 'Declare Attackers Step', myTurn: false };
 		// Untouched by this field: always skipped, castable instant or not.
 		expect(decideStop(facts({ ...theirAttackStep, sources: [] }), DEFAULT_STOP_POLICY)).toBe('Declare Attackers Step');
-		expect(decideStop(facts({ ...theirAttackStep, sources: [61, 62], nonLandSources: [61] }), DEFAULT_STOP_POLICY)).toBe(
+		expect(decideStop(facts({ ...theirAttackStep, sources: [61, 62], nonManaSources: [61] }), DEFAULT_STOP_POLICY)).toBe(
 			'Declare Attackers Step',
 		);
 
@@ -1794,9 +1797,9 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		expect(decideStop(afterBlock({ sources: [] }), DEFAULT_STOP_POLICY)).toBe('Declare Blockers Step');
 		// A real instant AND its mana offered: still a stop — correct Magic, the
 		// response window right after blocks are locked in.
-		expect(decideStop(afterBlock({ sources: [61, 62], nonLandSources: [61] }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(afterBlock({ sources: [61, 62], nonManaSources: [61] }), DEFAULT_STOP_POLICY)).toBeNull();
 		// Forge has not said what this seat can do: never pass on silence.
-		expect(decideStop(afterBlock({ sources: null, nonLandSources: null }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(afterBlock({ sources: null, nonManaSources: null }), DEFAULT_STOP_POLICY)).toBeNull();
 		// Full control keeps the stop, as it keeps every stop.
 		expect(decideStop(afterBlock({ sources: [] }), FULL_CONTROL_POLICY)).toBeNull();
 
@@ -1838,7 +1841,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		expect(decideStop(theirBlockers, DEFAULT_STOP_POLICY)).toBeNull();
 		// A held instant still has a window on the opponent's turn — item 5's own
 		// trade, unreversed: it moved from "always open" to "declare-blockers only".
-		expect(decideStop({ ...theirBlockers, sources: [], nonLandSources: [] }, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop({ ...theirBlockers, sources: [], nonManaSources: [] }, DEFAULT_STOP_POLICY)).toBeNull();
 		// The setting §A's panel writes through `Match.setStopPolicy` turns the end
 		// step back into a stop, same mechanism as every other preference here —
 		// not a second code path, a wider `stopOnTheirTurn`.
@@ -1898,7 +1901,7 @@ describe('NEVER shortcut (1): a stop with a legal action and something at stake'
  * the SAME actionable set `sources` reads, so "the set is non-empty" stopped
  * meaning "there is a real decision" — on an ordinary turn with any land
  * left untapped, the "pass when nothing to do" shortcut above could no
- * longer ever fire. `decideStop` now reads `nonLandSources` for this one
+ * longer ever fire. `decideStop` now reads `nonManaSources` for this one
  * check (every other read above, and all of `decidePay`'s, are untouched and
  * still use the raw `sources` — a land IS a legitimate payment source).
  */
@@ -1908,38 +1911,38 @@ describe('wave 35 §S follow-up — the viewer’s own battlefield lands do not 
 	// existing convention (see `unknown`, above): the default `facts()` phase,
 	// `COMBAT_DECLARE_BLOCKERS` on the opponent's turn, is itself a mandatory
 	// stop under `DEFAULT_STOP_POLICY.stopOnTheirTurn` and returns null before
-	// `sources`/`nonLandSources` are ever read — the land exclusion needs a
+	// `sources`/`nonManaSources` are ever read — the land exclusion needs a
 	// phase that is NOT already decided by an earlier branch.
 	const unclassified = (over: Partial<ReturnType<typeof readPromptFacts>> = {}) =>
 		facts({ phase: null, phaseLabel: 'Fourth main phase', myTurn: true, ...over });
 
 	it('passes when the actionable set names ONLY the seat’s own battlefield land(s)', () => {
-		expect(decideStop(unclassified({ sources: [67], nonLandSources: [] }), DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
-		expect(decideStop(unclassified({ sources: [67, 68], nonLandSources: [] }), DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
+		expect(decideStop(unclassified({ sources: [67], nonManaSources: [] }), DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
+		expect(decideStop(unclassified({ sources: [67, 68], nonManaSources: [] }), DEFAULT_STOP_POLICY)).toBe('Fourth main phase');
 	});
 
 	it('is still NOT passed when anything else is also actionable — a land does not hide a real decision', () => {
-		expect(decideStop(unclassified({ sources: [67, 90], nonLandSources: [90] }), DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop(unclassified({ sources: [67, 90], nonManaSources: [90] }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
-	it('is still NOT passed on silence: `nonLandSources: null` is "Forge has not said", same as `sources: null`', () => {
-		expect(decideStop(unclassified({ sources: null, nonLandSources: null }), DEFAULT_STOP_POLICY)).toBeNull();
+	it('is still NOT passed on silence: `nonManaSources: null` is "Forge has not said", same as `sources: null`', () => {
+		expect(decideStop(unclassified({ sources: null, nonManaSources: null }), DEFAULT_STOP_POLICY)).toBeNull();
 	});
 
 	it('payment decisions are UNCHANGED: a land is still a real, visible payment source', () => {
-		const payment = facts({ window: 'payment', cost: '{R}', sources: [67], nonLandSources: [], plannedSources: [] });
+		const payment = facts({ window: 'payment', cost: '{R}', sources: [67], nonManaSources: [], plannedSources: [] });
 		expect(decidePay(payment, DEFAULT_STOP_POLICY)).toBe('{R}');
 	});
 
-	it('readPromptFacts itself: nonLandSources is sources minus SeatNotes.ownBattlefieldLandIds, sources untouched', () => {
+	it('readPromptFacts itself: nonManaSources is sources minus SeatNotes.ownBattlefieldLandIds, sources untouched', () => {
 		const read = readPromptFacts(notesFor(PRIORITY_MESSAGE, buttons(true), [67, 90], new Set([67])));
 		expect(read.sources).toEqual([67, 90]);
-		expect(read.nonLandSources).toEqual([90]);
+		expect(read.nonManaSources).toEqual([90]);
 	});
 
-	it('readPromptFacts: no `ownBattlefieldLandIds` at all (the unit suites’ own callers) leaves nonLandSources equal to sources', () => {
+	it('readPromptFacts: no `ownBattlefieldLandIds` at all (the unit suites’ own callers) leaves nonManaSources equal to sources', () => {
 		const read = readPromptFacts(notesFor(PRIORITY_MESSAGE, buttons(true), [67, 90]));
-		expect(read.nonLandSources).toEqual(read.sources);
+		expect(read.nonManaSources).toEqual(read.sources);
 	});
 });
 
@@ -2438,5 +2441,218 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		push(h, 0, prompt('Preordain.\n\nPay Mana Cost: {U}', me));
 		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
 		expect(says(h, 0)).toEqual(['paid U']);
+	});
+});
+
+/*
+ * Wave 52 §S. Three operator asks from match m-6ce49e226aef, 2026-10-06, each
+ * through the whole `match.ts` fold the server runs live: a Signet is offered at
+ * priority now (w52's fork commit) and must not hold priority any more than a land
+ * does; an upkeep-only ability on the battlefield stops the upkeep; and the cost
+ * confirm for an ability the seat just chose answers itself.
+ */
+describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen cost', () => {
+	const card = (id: number) => ({ kind: 'card' as const, id });
+	/** Seat 0 watching seat 1's spell on the stack — a window only "nothing to do" can pass. */
+	function stackWindow(cards: number[], manaOnly?: number[]): Harness {
+		const h = harness();
+		const me = playerOf(h, 0);
+		putOnStack(h, 0, 5, playerOf(h, 1));
+		push(h, 0, {
+			kind: 'notify',
+			method: 'setWeaklySelectable',
+			cards: cards.map(card),
+			...(manaOnly === undefined ? {} : { manaOnly: manaOnly.map(card) }),
+		});
+		push(h, 0, prompt('Priority: A\nTurn: 4 (B)\nPhase: Main phase, precombat\nStack: 1 to Resolve', me));
+		push(h, 0, buttons(true, me));
+		return h;
+	}
+	const passed = (h: Harness) => h.host.commands.filter((c) => c.t === 'act').length;
+
+	it('a seat holding only lands is passed, as before', () => {
+		expect(passed(stackWindow([67, 68], [67, 68]))).toBe(1);
+	});
+
+	it('a seat holding lands and a Signet, nothing castable, is passed exactly where a land-only seat is', () => {
+		expect(passed(stackWindow([67, 94], [67, 94]))).toBe(1);
+	});
+
+	it('a seat holding lands and something castable still stops', () => {
+		expect(passed(stackWindow([67, 94, 90], [67, 94]))).toBe(0);
+	});
+
+	it('an offer the bridge did not describe (no manaOnly) keeps the stop: a doubt is never a pass', () => {
+		expect(passed(stackWindow([94]))).toBe(0);
+	});
+
+	it('readPromptFacts: nonManaSources drops own lands AND manaOnly ids, sources untouched', () => {
+		const read = readPromptFacts({ ...notesFor(PRIORITY_MESSAGE, buttons(true), [67, 94, 90], new Set([67])), manaOnlyIds: new Set([94]) });
+		expect(read.sources).toEqual([67, 94, 90]);
+		expect(read.nonManaSources).toEqual([90]);
+	});
+
+	const UPKEEP = 'Priority: A\nTurn: 4 (A)\nPhase: Upkeep step\nStack: Empty';
+	function upkeep(phaseRestricted: number[] | undefined, policy?: StopPolicy): Harness {
+		const h = harness(policy);
+		const me = playerOf(h, 0);
+		push(h, 0, {
+			kind: 'notify',
+			method: 'setWeaklySelectable',
+			cards: [card(70), card(71)],
+			manaOnly: [card(71)],
+			...(phaseRestricted === undefined ? {} : { phaseRestricted: phaseRestricted.map(card) }),
+		});
+		push(h, 0, prompt(UPKEEP, me));
+		push(h, 0, buttons(true, me));
+		return h;
+	}
+
+	it('(A) the upkeep STOPS when a permanent the seat controls has an ability restricted to it, usable now', () => {
+		const h = upkeep([70]);
+		expect(passed(h)).toBe(0);
+		expect(h.logs.filter((l) => l.evt === 'auto-passed')).toEqual([]);
+	});
+
+	it('(A) the upkeep is still passed with no such permanent — an instant in hand never stops a phase (wave 28)', () => {
+		expect(passed(upkeep([]))).toBe(1);
+		expect(passed(upkeep(undefined))).toBe(1);
+	});
+
+	it('(A) the stop is the policy’s: stopForPhaseAbility off passes the upkeep again', () => {
+		expect(passed(upkeep([70], { ...DEFAULT_STOP_POLICY, stopForPhaseAbility: false }))).toBe(1);
+	});
+
+	it('(A) decideStop over facts: phaseRestricted keeps a non-stop phase only while the rule is on', () => {
+		const f = facts({ phase: 'UPKEEP', phaseLabel: 'Upkeep step', myTurn: true, sources: [70], nonManaSources: [70], phaseRestricted: [70] });
+		expect(decideStop(f, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(decideStop({ ...f, phaseRestricted: [] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
+	});
+
+	/** The seat chooses ability `chosen` of card 70 from a two-ability offer, as a browser would. */
+	function choose(h: Harness, chosen: number): void {
+		push(h, 0, {
+			kind: 'ask',
+			callId: 'ab-1',
+			method: 'getAbilityToPlay',
+			hostCard: card(70),
+			abilities: [
+				{ kind: 'spellAbility', id: 9001 },
+				{ kind: 'spellAbility', id: 9002 },
+			],
+			triggerEvent: null,
+		});
+		const ask = frames(h, 0).find((f) => f.kind === 'ask' && f.method === 'getAbilityToPlay');
+		if (ask === undefined || ask.kind !== 'ask') throw new Error('the ability ask never reached the seat');
+		const reply = ClientFrameSchema.parse({ kind: 'reply', callId: ask.callId, method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: chosen } });
+		expect(h.match.fromClient(0, reply)).toEqual({ ok: true });
+	}
+	function confirm(h: Harness, hostCard: number, abilityId: number): void {
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true });
+		push(h, 0, {
+			kind: 'notify',
+			method: 'showPromptMessage',
+			player: { kind: 'player', id: me },
+			message: 'Do you want to sacrifice Augur of Skulls?',
+			card: null,
+			confirmAbility: { hostCard: card(hostCard), abilityId },
+		});
+	}
+	const confirmed = (h: Harness) => h.logs.filter((l) => l.evt === 'auto-confirmed').length;
+
+	it('(B) the cost confirm for the ability the seat just chose answers Yes, once', () => {
+		const h = harness();
+		choose(h, 9002);
+		confirm(h, 70, 9002);
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } }]);
+		expect(confirmed(h)).toBe(1);
+		// Never shown: the question is withheld and the Yes/No that preceded it goes
+		// out again disabled.
+		const shown = frames(h, 0);
+		expect(shown.filter((f) => f.method === 'showPromptMessage' && f.confirmAbility !== undefined)).toEqual([]);
+		expect(shown.at(-1)).toMatchObject({ method: 'updateButtons', enable1: false, enable2: false });
+		// The choice is spent: Forge asking the same confirm again is the player's.
+		confirm(h, 70, 9002);
+		expect(confirmed(h)).toBe(1);
+	});
+
+	it('(B) the buttons arriving AFTER the prompt still answer it, and go out disabled', () => {
+		const h = harness();
+		choose(h, 9002);
+		const me = playerOf(h, 0);
+		push(h, 0, {
+			kind: 'notify',
+			method: 'showPromptMessage',
+			player: { kind: 'player', id: me },
+			message: 'Do you want to sacrifice Augur of Skulls?',
+			card: null,
+			confirmAbility: { hostCard: card(70), abilityId: 9002 },
+		});
+		expect(confirmed(h)).toBe(0);
+		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true });
+		expect(confirmed(h)).toBe(1);
+		expect(frames(h, 0).at(-1)).toMatchObject({ method: 'updateButtons', enable1: false, enable2: false });
+	});
+
+	it('(B) an optional trigger’s confirm still asks — it names the trigger, not the chosen ability', () => {
+		const h = harness();
+		choose(h, 9002);
+		confirm(h, 71, 555);
+		expect(confirmed(h)).toBe(0);
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+		expect(frames(h, 0).filter((f) => f.method === 'showPromptMessage' && f.confirmAbility !== undefined)).toHaveLength(1);
+	});
+
+	it('(B) the other ability of the same card, or a confirm with no choice before it, still asks', () => {
+		const other = harness();
+		choose(other, 9001);
+		confirm(other, 70, 9002);
+		expect(confirmed(other)).toBe(0);
+		const none = harness();
+		confirm(none, 70, 9002);
+		expect(confirmed(none)).toBe(0);
+	});
+
+	it('(B) a priority prompt ends the activation: a later confirm for that ability is the player’s', () => {
+		const h = harness();
+		choose(h, 9002);
+		push(h, 0, prompt(MY_STOP_MESSAGE, playerOf(h, 0)));
+		confirm(h, 70, 9002);
+		expect(confirmed(h)).toBe(0);
+	});
+
+	it('(B) full control, and costConfirm ask, put every confirm to the player', () => {
+		const held = harness();
+		held.match.setFullControl(0, true);
+		choose(held, 9002);
+		confirm(held, 70, 9002);
+		expect(confirmed(held)).toBe(0);
+		const asked = harness({ ...DEFAULT_STOP_POLICY, costConfirm: 'ask' });
+		choose(asked, 9002);
+		confirm(asked, 70, 9002);
+		expect(confirmed(asked)).toBe(0);
+	});
+
+	it('(B) chosenCostConfirm is pure over the notes and the choice', () => {
+		const me = 1;
+		const notes: SeatNotes = {
+			playerId: me,
+			prompt: {
+				kind: 'notify',
+				method: 'showPromptMessage',
+				player: { kind: 'player', id: me },
+				message: 'Sacrifice?',
+				card: null,
+				confirmAbility: { hostCard: card(70), abilityId: 9002 },
+			},
+			buttons: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true },
+			actionable: null,
+			openAsks: 0,
+		};
+		expect(chosenCostConfirm(notes, { hostCard: 70, abilityId: 9002 })).not.toBeNull();
+		expect(chosenCostConfirm(notes, null)).toBeNull();
+		expect(chosenCostConfirm({ ...notes, openAsks: 1 }, { hostCard: 70, abilityId: 9002 })).toBeNull();
+		expect(chosenCostConfirm(notes, { hostCard: 70, abilityId: 9002 }, FULL_CONTROL_POLICY)).toBeNull();
 	});
 });

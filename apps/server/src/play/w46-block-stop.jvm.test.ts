@@ -11,7 +11,7 @@
  * was the real bug, one phase later than the tracker's own read: the ordinary
  * `COMBAT_DECLARE_BLOCKERS` priority window right AFTER the block is assigned
  * was a hard stop whatever the defender could do there — `idle-blocker.json`'s
- * original run showed it `kept` with `sources: 0, nonLandSources: 0` and
+ * original run showed it `kept` with `sources: 0, nonManaSources: 0` and
  * `buttons: [true, true]`, a second OK for a seat holding nothing. The window
  * the tracker actually named, `COMBAT_DECLARE_ATTACKERS`, was already correct:
  * it is outside `stopOnTheirTurn` and `skipsThisTurn` skips it whatever the
@@ -39,7 +39,7 @@
  * the block-select window opens — confirmed directly from the `stop-decided`
  * trace (`docs/planning/wave46-evidence/C/*.json`): that window is
  * `'auto-passed'` for the defender in both variants, even in the reactive one
- * where `sources: 2, nonLandSources: 1` prove Lightning Bolt and its Mountain
+ * where `sources: 2, nonManaSources: 1` prove Lightning Bolt and its Mountain
  * really were offered there too.
  *
  * Probe mode (`CARDTABLE_PLAY_PROBE=1`, set by the suite) makes `match.ts`'s `TRACE_STOPS` emit a
@@ -307,7 +307,7 @@ describe.skipIf(!available.ok)(title, () => {
 				// did offer nothing to this seat at the post-block priority window.
 				const postBlock = result.decisions.filter((d) => d.phase === 'COMBAT_DECLARE_BLOCKERS');
 				expect(postBlock.length, JSON.stringify(result.decisions)).toBeGreaterThan(0);
-				expect(postBlock.at(-1)?.nonLandSources).toBe(0);
+				expect(postBlock.at(-1)?.nonManaSources).toBe(0);
 			} finally {
 				await s.stop();
 			}
@@ -359,7 +359,7 @@ describe.skipIf(!available.ok)(title, () => {
 				// always the one the facts (and the eventual pass) were decided on.
 				const preBlockDecisions = result.decisions.filter((d) => d.phase === 'COMBAT_DECLARE_ATTACKERS');
 				expect(preBlockDecisions.length, JSON.stringify(result.decisions)).toBeGreaterThan(0);
-				expect(preBlockDecisions.at(-1)?.nonLandSources, `nonLandSources: ${JSON.stringify(result.decisions)}`).toBeGreaterThan(0);
+				expect(preBlockDecisions.at(-1)?.nonManaSources, `nonManaSources: ${JSON.stringify(result.decisions)}`).toBeGreaterThan(0);
 				expectTwoStops(result);
 			} finally {
 				await s.stop();

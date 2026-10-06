@@ -239,6 +239,15 @@ export const ShowPromptMessageSchema = z.strictObject({
   player: PlayerRefSchema,
   message: z.string(),
   card: CardRefSchema.nullable(),
+  /**
+   * Ours, wave 52 §S (B): the ability a Yes/No confirm belongs to — Forge's
+   * `InputConfirm.sa`, read by the bridge while the game thread is parked on it.
+   * A cost confirm (`HumanCostDecision` → `confirmPayment`) and an optional
+   * trigger's confirm (`confirmTrigger`) both arrive with `card: null`, so the
+   * message alone cannot tell them apart; the ability can. Absent on every other
+   * prompt.
+   */
+  confirmAbility: z.strictObject({ hostCard: CardRefSchema, abilityId: z.number().int() }).optional(),
 });
 
 /**
@@ -319,6 +328,18 @@ export const SetWeaklySelectableSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('setWeaklySelectable'),
   cards: z.array(CardRefSchema),
+  /**
+   * Ours, wave 52 §S: the offered cards whose every playable ability is a mana
+   * ability (a land, a Signet). Read by the bridge off Forge's abilities, never
+   * card text. Absent when the bridge could not read them.
+   */
+  manaOnly: z.array(CardRefSchema).optional(),
+  /**
+   * Ours, wave 52 §S (A): the offered permanents this seat controls with a
+   * playable ability whose `ActivationPhases` restriction is met right now —
+   * Augur of Skulls in its controller's upkeep. Battlefield only.
+   */
+  phaseRestricted: z.array(CardRefSchema).optional(),
 });
 
 /** `void restoreOldZones(PlayerView playerView, PlayerZoneUpdates playerZoneUpdates)` — IGuiGame.java:263. */

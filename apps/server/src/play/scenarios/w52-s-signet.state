@@ -1,0 +1,17 @@
+# Wave 52 §S — a seat holding a Signet and nothing castable is auto-passed exactly
+# where a land-only seat is (`land-only-pass.state`'s shape). Since w52's fork
+# commit Forge offers Azorius Signet ({1},{T}) at priority, so seat 1's actionable
+# set names it beside its Islands while seat 0's Raging Goblin is on the stack.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Raging Goblin
+humanbattlefield=Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Azorius Signet;Island;Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

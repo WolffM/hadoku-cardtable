@@ -1,0 +1,22 @@
+# Wave 52 §S (A, B) — Augur of Skulls' upkeep-only sacrifice. Its second ability
+# is `ActivationPhases$ Upkeep | PlayerTurn$ True` (`res/cardsfolder/a/
+# augur_of_skulls.txt`); with `skipNonStopPhases: 'always'` the upkeep was passed
+# every turn. The scenario starts in seat 0's untap step so the game WALKS into
+# upkeep: the restricted ability is activatable there, so the upkeep must stop.
+# Mirri's Guile's upkeep trigger is optional ("you may"), so the same upkeep also
+# carries a Yes/No confirm that is a real choice (B): it must still be asked,
+# while the sacrifice confirm after choosing Augur's ability answers itself.
+# Seat 1 holds nothing; its own library is all Swamps so its draw is harmless.
+turn=1
+activeplayer=human
+activephase=UNTAP
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Augur of Skulls;Mirri's Guile;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=Swamp;Swamp
+aihand=Swamp;Swamp;Swamp
+aibattlefield=Swamp
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aigraveyard=
