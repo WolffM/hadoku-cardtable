@@ -50,7 +50,7 @@ const titled = makeTitled(forge);
 
 /**
  * The coin toss / play-draw question's own control (R2, wave 35) — NOT
- * `enabledOk`: `live-button-ok` is disabled for the whole time this question
+ * `enabledOk`: Forge's button one is drawn nowhere else while this question
  * is open (`playFirst`'s own comment), so a check built on it can never see
  * count 1 here. `LiveBoard.tsx`'s `playOrDraw` gate is `!spectator &&
  * !askOpen && isPlayOrDrawPrompt(bar)` — a SPECTATOR never gets this
@@ -69,12 +69,10 @@ async function boardUp(page: Page): Promise<void> {
 /**
  * Alice wins the toss on this seed: press Play, and wait for her keep-or-mulligan.
  *
- * Wave 35 R2 moved this question off `live-button-ok` into its own decision
+ * Wave 35 R2 moved this question off the control bar into its own decision
  * area (`live-play-or-draw-host`, lane G's `PlayOrDrawPrompt`, wired by lane
- * L) — `live-button-ok` is disabled for the whole time this question is
- * open, so the old click below hung forever once that landed. Click the new
- * button instead; everything after the toss (the mulligan) is unaffected by
- * R2 and still answers through the control bar.
+ * L), so the old bar click hung forever once that landed. Click the new
+ * button instead.
  */
 async function playFirst(alice: Friend): Promise<void> {
   await expect(alice.page.getByTestId('live-says')).toContainText(/play or draw/i, { timeout: 30_000 });

@@ -37,8 +37,20 @@ export function makeTitled(forge: ForgeAvailability): (t: string) => string {
 /** The control bar's own line (`live-says`), or `''` if nothing is rendered yet. */
 export const says = async (page: Page): Promise<string> => (await page.getByTestId('live-says').textContent()) ?? '';
 
-/** The bar's OK, only while it is actually pressable. */
-export const enabledOk = (page: Page): Locator => page.locator('[data-testid="live-button-ok"]:enabled');
+/**
+ * Forge's button one wherever the page draws it, only while it is pressable
+ * (wave 51): the control box's `Next Phase` at the empty-stack priority pass,
+ * the payment window's or a selection pop-up's own, and the decision pop-up's
+ * OK for every other input. At most one of them at a time.
+ */
+export const BUTTON_ONE =
+  '[data-testid="live-button-next-phase"]:enabled, [data-testid="live-decision-ok"]:enabled, [data-testid="live-payment-ok"]:enabled, [data-testid="selection-done"]:enabled';
+/** Forge's button two, the same way: the box's `End Turn`, or the pop-up that owns the input. */
+export const BUTTON_TWO =
+  '[data-testid="live-button-end-turn"]:enabled, [data-testid="live-decision-cancel"]:enabled, [data-testid="live-payment-cancel"]:enabled, [data-testid="selection-cancel"]:enabled';
+
+export const enabledOk = (page: Page): Locator => page.locator(BUTTON_ONE);
+export const enabledCancel = (page: Page): Locator => page.locator(BUTTON_TWO);
 
 /** `[data-zone="stack"]`'s own `data-count` (`Board.tsx`) — never counted from children. */
 export const stackCount = (page: Page): Promise<number> =>
@@ -75,10 +87,10 @@ export function serverLog(stack: { serverLogFile: string }): Record<string, unkn
     .map((l) => JSON.parse(l) as Record<string, unknown>);
 }
 
-/* ── pressing the bar ────────────────────────────────────────────────── */
+/* ── pressing Forge's two buttons ────────────────────────────────────── */
 
 /**
- * Click the bar's OK or Cancel once for this exact board message, on this
+ * Click Forge's button one or two (`enabledOk`/`enabledCancel`) once for this exact board message, on this
  * page — never a second time for the same text. A bare `.click()` would
  * auto-wait out Playwright's full default action timeout on a lost race
  * (the button disabling again between the count check above and the click
@@ -89,7 +101,7 @@ const lastClicked = new WeakMap<Page, string>();
 export async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'): Promise<boolean> {
   const key = `${which}:${text}`;
   if (lastClicked.get(page) === key) return false;
-  const loc = which === 'ok' ? enabledOk(page) : page.locator('[data-testid="live-button-cancel"]:enabled');
+  const loc = (which === 'ok' ? enabledOk(page) : enabledCancel(page)).first();
   if ((await loc.count()) === 0) return false;
   lastClicked.set(page, key);
   try {

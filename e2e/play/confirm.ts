@@ -9,7 +9,7 @@
  * `prompt-confirm-no` is button 2 (Mulligan, No, Tails, Bottom, …).
  *
  * This is the ONE place every e2e caller that used to answer a yes/no
- * through `live-button-ok`/`live-button-cancel` now goes through — see each
+ * through the old control bar now goes through — see each
  * spec file's own history for which call sites moved and which (priority
  * passes, mana payment, targeting, selections) did not.
  */

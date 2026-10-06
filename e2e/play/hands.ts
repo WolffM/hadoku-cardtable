@@ -23,7 +23,7 @@
  * it, and `pause()`/`resume()` hold it still while a spec measures the board.
  */
 
-import { clickHandCard } from './board.ts';
+import { BUTTON_ONE, BUTTON_TWO, clickHandCard } from './board.ts';
 import type { Friend } from './browser.ts';
 
 export interface Hands {
@@ -62,18 +62,16 @@ interface Look {
   ask: boolean;
   /**
    * Wave 35 R2: the coin toss / play-draw question, in its own decision area
-   * (`live-play-or-draw-play`) rather than `live-button-ok` — which is
-   * DISABLED the whole time this is true, so `ok` alone can no longer stand
-   * in for "something pressable is showing".
+   * (`live-play-or-draw-play`) rather than Forge's button one anywhere else,
+   * so `ok` alone cannot stand in for "something pressable is showing".
    */
   playOrDraw: boolean;
   /**
    * Wave 36 T4: every OTHER Forge yes/no (the opening mulligan's
    * Keep/Mulligan, a shockland's pay-2-life, any other `InputConfirm`) is
-   * now ALSO off `live-button-ok`/`live-button-cancel`, in its own
-   * decision-area pop-up (`e2e/play/confirm.ts`). Before this, the mulligan
-   * was answered by this bot's own generic "press OK" fallback below
-   * (`live-button-ok`'s label was Forge's "Keep") — that fallback goes dark
+   * ALSO in its own decision-area pop-up (`e2e/play/confirm.ts`). Before
+   * this, the mulligan was answered by this bot's own generic "press OK"
+   * fallback below (the bar's OK read Forge's "Keep") — that fallback goes dark
    * the instant the question moves, so this needs its own flag the same way
    * `playOrDraw` already does.
    */
@@ -82,7 +80,7 @@ interface Look {
 
 async function look(f: Friend): Promise<Look | null> {
   try {
-    return await f.page.evaluate((): Look => {
+    return await f.page.evaluate(([one, two]): Look => {
       const text = (sel: string): string => document.querySelector(sel)?.textContent ?? '';
       const cardsIn = (root: ParentNode, sel: string) =>
         Array.from(root.querySelectorAll(sel)).map((el) => ({
@@ -92,8 +90,8 @@ async function look(f: Friend): Promise<Look | null> {
         }));
       return {
         says: text('[data-testid="live-says"]'),
-        ok: document.querySelector('[data-testid="live-button-ok"]:enabled') !== null,
-        cancel: document.querySelector('[data-testid="live-button-cancel"]:enabled') !== null,
+        ok: document.querySelector(one) !== null,
+        cancel: document.querySelector(two) !== null,
         me: text('[data-testid="player"][data-viewer] .seat__name').trim(),
         hand: cardsIn(document, '[data-zone="hand"][data-owner="you"] [data-board-card][data-selectable]'),
         anywhere: cardsIn(document, '[data-board-card][data-selectable]').map((c) => ({ id: c.id })),
@@ -102,7 +100,7 @@ async function look(f: Friend): Promise<Look | null> {
         playOrDraw: document.querySelector('[data-testid="live-play-or-draw-play"]') !== null,
         confirmYes: document.querySelector('[data-testid="prompt-confirm-yes"]') !== null,
       };
-    });
+    }, [BUTTON_ONE, BUTTON_TWO] as const);
   } catch {
     // The page is mid-navigation or closing; the next tick looks again.
     return null;
@@ -162,8 +160,9 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
     hands.acts += 1;
     return true;
   };
+  // Forge's button one or two wherever the page draws it (wave 51: `board.ts`'s `BUTTON_ONE`/`BUTTON_TWO`).
   const press = (which: 'ok' | 'cancel') => () =>
-    f.page.locator(`[data-testid="live-button-${which}"]:enabled`).click({ timeout: 2_000 });
+    f.page.locator(which === 'ok' ? BUTTON_ONE : BUTTON_TWO).first().click({ timeout: 2_000 });
   const pressPlayOrDraw = () => f.page.getByTestId('live-play-or-draw-play').click({ timeout: 2_000 });
   /**
    * Click a card to play/cast/choose it: a press lifts it (the Arena
@@ -192,8 +191,8 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
   async function decide(s: Look): Promise<void> {
     const msg = s.says;
     const turn = /Turn: (\d+)/.exec(msg)?.[1] ?? '?';
-    // Wave 35 R2: the coin toss is no longer answered through `live-button-ok`
-    // (`s.ok` is false the whole time this is showing), so it needs its own
+    // Wave 35 R2: the coin toss is answered through its own pop-up, never
+    // Forge's button one anywhere else (`s.ok` is false the whole time this is showing), so it needs its own
     // branch ahead of everything below — without it, this seat's `decide()`
     // fell through every later check, found nothing pressable, and did
     // nothing at all, forever.
@@ -203,7 +202,7 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
     }
     // Wave 36 T4: a yes/no confirm (the opening mulligan's Keep/Mulligan,
     // a shockland's pay-2-life, any other InputConfirm) is answered the way
-    // this bot always defaulted when it still rode `live-button-ok`: the
+    // this bot always defaulted when it still rode the bar's OK: the
     // first ("yes") button — never Mulligan, never No, on purpose (the file's
     // own header: this bot keeps whatever hand it is dealt).
     if (s.confirmYes) {

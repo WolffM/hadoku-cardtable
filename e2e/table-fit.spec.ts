@@ -28,8 +28,9 @@
  *     watchparty's room frame scrolls on its own and would otherwise hide a
  *     scrollbar from the page-level check;
  *   - once the board is drawn, `live-buttons` has a nonzero box that lies
- *     inside the viewport, with `live-button-ok` and `live-button-cancel` in it
- *     and NO text row (wave 25 §C took Forge's line and the log out of the
+ *     inside the viewport, with exactly its four buttons in it, in order and
+ *     in their own words (wave 51: Next Phase, End Turn, Full control,
+ *     Concede — never one of Forge's), and NO text row (wave 25 §C took Forge's line and the log out of the
  *     corner), and that box is at the SAME place and size in every frame at a
  *     given window size — a fixed home, not a bar on demand;
  *   - **no label in the chrome is CLIPPED** (wave 27 §B.3). This is the one
@@ -126,7 +127,7 @@ import { resolve } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { offered, twoLegalDecks } from './play/board.ts';
+import { enabledCancel, enabledOk as enabledButtonOne, offered, twoLegalDecks } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { confirmYes } from './play/confirm.ts';
 import { connectHands, type Hands } from './play/hands.ts';
@@ -338,9 +339,11 @@ function installSampler(): void {
         else {
           barBox = bar.getBoundingClientRect();
           if (!inside(barBox)) breach('button bar not wholly inside the window');
-          // Wave 32 Q15b: Cancel is drawn only while Forge enables it, so only OK is always home.
-          if (bar.querySelector('[data-testid="live-button-ok"]') === null) breach('button bar without live-button-ok');
-          if (document.querySelectorAll('[data-testid="live-button-cancel"]').length > 1) breach('more than one live-button-cancel');
+          // Wave 51: the same four buttons every frame, in their own words — *"keep the same 4 buttons in the control box at all times"*.
+          const four = Array.from(bar.querySelectorAll('button'), (b) => `${b.dataset.testid}=${b.textContent}`).join(' ');
+          if (four !== 'live-button-next-phase=Next Phase live-button-end-turn=End Turn live-full-control=Full control live-concede=Concede') {
+            breach(`the control box is not its four buttons: ${four}`);
+          }
           /*
            * Wave 25 §C: *"i mostly hate all the text in the bottom right it's
            * totally useless"*. Forge's line and the log are in `live-logbook`
@@ -584,8 +587,9 @@ async function stateOf(f: Friend): Promise<Record<string, unknown>> {
     phase: await f.page.getByTestId('live-phases').getAttribute('data-phase'),
     // Forge's own line, in the logbook now (wave 25 §C) — same id, new home.
     says: await f.page.getByTestId('live-says').textContent(),
-    ok: await f.page.getByTestId('live-button-ok').isEnabled(),
-    cancel: (await f.page.getByTestId('live-button-cancel').count()) > 0,
+    nextPhase: await f.page.getByTestId('live-button-next-phase').isEnabled(),
+    endTurn: await f.page.getByTestId('live-button-end-turn').isEnabled(),
+    decision: await f.page.getByTestId('live-decision').evaluateAll((els) => els.map((e) => e.textContent)),
     // Wave 36 T4: a yes/no confirm pop-up, separate from `prompt` (a
     // `live-prompt` ask) and from the control bar above.
     confirm: await confirmYes(f.page).count(),
@@ -759,12 +763,11 @@ test(TITLE, async ({ browser }) => {
 
     /* ── 1. the coin toss and the mulligans, on the board ──────────── */
 
-    const enabledOk = (f: Friend) => f.page.locator('[data-testid="live-button-ok"]:enabled');
-    // Wave 35 R2 moved the coin toss off `live-button-ok` into its own
-    // decision area (`live-play-or-draw-play`, lane G's `PlayOrDrawPrompt`) —
-    // `live-button-ok` is disabled the whole time that question is open, so
-    // the mulligan's own OK (unaffected by R2) is no longer the only button
-    // "the opening" can mean here.
+    const enabledOk = (f: Friend) => enabledButtonOne(f.page).first();
+    // Wave 35 R2 moved the coin toss off the control bar into its own
+    // decision area (`live-play-or-draw-play`, lane G's `PlayOrDrawPrompt`),
+    // so Forge's button one is no longer the only button "the opening" can
+    // mean here.
     const playOrDraw = (f: Friend) => f.page.getByTestId('live-play-or-draw-play');
     // Wave 36 T4: "keep your hand?" is a `ConfirmPrompt` pop-up now, not the
     // control bar — Keep is `prompt-confirm-yes` (button 1), the same
@@ -861,7 +864,7 @@ test(TITLE, async ({ browser }) => {
         const attempt = attempts.get(key) ?? 0;
         attempts.set(key, attempt + 1);
         const selectable = f.page.locator('[aria-label="Game board"] li[data-selectable] button');
-        const cancel = f.page.locator('[data-testid="live-button-cancel"]:enabled');
+        const cancel = enabledCancel(f.page).first();
         const options = [];
         if ((await enabledOk(f).count()) > 0) options.push(enabledOk(f));
         // Wave 36 T4: a stuck yes/no confirm (the same shape as the old
@@ -1126,7 +1129,7 @@ test(TITLE, async ({ browser }) => {
       const pending = probe(seat);
       const dialog = f.page.getByTestId('confirm-dialog');
       await expect(dialog).toBeVisible({ timeout: 60_000 });
-      await expect(f.page.getByTestId('live-button-ok'), `${f.name}: the bar stays, disabled, under an open question`).toBeDisabled();
+      await expect(f.page.getByTestId('live-button-next-phase'), `${f.name}: the box stays, Next Phase greyed, under an open question`).toBeDisabled();
       moments.push(await fitsNow(f, 'question open'));
       await dialog.locator('[data-answer="yes"]').click();
       expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);
@@ -1959,10 +1962,9 @@ test(CROWD_TITLE, async ({ browser }) => {
     // `fillStack` probe, not real gameplay), so there is no further OK to
     // click here.
     //
-    // Wave 35 R2 moved the coin toss off `live-button-ok` into its own
-    // decision area (`live-play-or-draw-play`) — `live-button-ok` is disabled
-    // the whole time this question is open, so the old poll below (built on
-    // it) never saw count 1 and hung until its own timeout.
+    // Wave 35 R2 moved the coin toss off the control bar into its own
+    // decision area (`live-play-or-draw-play`), so the old poll below (built
+    // on the bar's OK) never saw count 1 and hung until its own timeout.
     const playOrDraw = (f: Friend) => f.page.getByTestId('live-play-or-draw-play');
     await expect.poll(async () => (await playOrDraw(alice).count()) + (await playOrDraw(bob).count()), { timeout: 30_000 }).toBe(1);
     const decider = (await playOrDraw(alice).count()) > 0 ? alice : bob;

@@ -46,10 +46,8 @@ const FORGE_PACE_MS = 205;
 
 /* ── what a page shows ───────────────────────────────────────────────── */
 
-const secondButton = async (page: Page): Promise<string | null> => {
-  const b = page.getByTestId('live-button-cancel');
-  return (await b.count()) > 0 && (await b.isEnabled()) ? ((await b.textContent()) ?? '').trim() : null;
-};
+/** The control box's End Turn is pressable (wave 51: enabled only while Forge's second button is End Turn). */
+const endTurnOffered = (page: Page): Promise<boolean> => page.getByTestId('live-button-end-turn').isEnabled();
 
 interface PhaseEntry {
   t: number;
@@ -88,16 +86,15 @@ async function toFirstPriority(alice: Friend, bob: Friend): Promise<Friend> {
     for (const f of [alice, bob]) {
       await answerPrompt(f.page);
       const text = await says(f.page);
-      // Wave 35 R2 moved this question off `live-button-ok` into its own
-      // decision area; `live-button-ok` is disabled the whole time it is
-      // open, so the old click here hung forever once that landed.
+      // Wave 35 R2 moved this question off the control bar into its own
+      // decision area, so the old bar click here hung forever once that landed.
       //
       // Wave 36 T4: "keep your hand?" moved the same way, into its own
       // `ConfirmPrompt` pop-up — Keep is `prompt-confirm-yes`, the same
       // default this helper always took.
       if (/play or draw/i.test(text) && (await f.page.getByTestId('live-play-or-draw-play').count()) > 0) await f.page.getByTestId('live-play-or-draw-play').click();
       else if (/keep your hand/i.test(text) && (await confirmYes(f.page).count()) > 0) await answerConfirm(f.page, 'yes');
-      else if ((await secondButton(f.page)) === 'End Turn') return f;
+      else if (await endTurnOffered(f.page)) return f;
     }
     await alice.page.waitForTimeout(250);
   }
@@ -132,7 +129,7 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
 
     // ── End Turn: every phase the seat is not stopped at passes without Forge's pause.
     const clicked = await mark(first.page);
-    await first.page.getByTestId('live-button-cancel').click();
+    await first.page.getByTestId('live-button-end-turn').click();
     await expect
       .poll(async () => (await phasesOf(first.page)).filter((e) => e.t > clicked && e.whose === 'theirs').length, { timeout: 60_000, message: 'the End Turn ran the turn out' })
       .toBeGreaterThan(0);
@@ -146,15 +143,15 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
 
     // ── A pass that is NOT an End Turn: the other seat, on its own turn, presses OK at
     // its main phase; the phases it passes through keep Forge's pace.
-    for (let i = 0; i < 120 && (await secondButton(second.page)) !== 'End Turn'; i++) {
+    for (let i = 0; i < 120 && !(await endTurnOffered(second.page)); i++) {
       for (const f of [alice, bob]) await answerPrompt(f.page);
       // The first seat is not the one being measured: pass whatever stops it.
-      if ((await enabledOk(first.page).count()) > 0 && (await secondButton(first.page)) === null) await enabledOk(first.page).click();
+      if ((await enabledOk(first.page).count()) > 0 && !(await endTurnOffered(first.page))) await enabledOk(first.page).click();
       await first.page.waitForTimeout(150);
     }
-    expect(await secondButton(second.page), `${second.name} reached its own main phase`).toBe('End Turn');
+    expect(await endTurnOffered(second.page), `${second.name} reached its own main phase`).toBe(true);
     const passed = await mark(second.page);
-    await enabledOk(second.page).click();
+    await second.page.getByTestId('live-button-next-phase').click();
     await expect
       .poll(async () => {
         for (const f of [alice, bob]) await answerPrompt(f.page);

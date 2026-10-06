@@ -175,13 +175,13 @@ test(titled('T4 — the opening Keep/Mulligan is a yes/no pop-up, and the contro
     await expect(decider.page.getByTestId('live-confirm-host'), 'it renders in the decision-area pop-up (shape 1)').toBeVisible();
     await expect(confirmYes(decider.page), 'button 1 is Keep, Forge\'s own word').toHaveText('Keep');
     await expect(confirmNo(decider.page), 'button 2 is Mulligan').toHaveText('Mulligan');
-    // The bar itself: disabled, and reading OK rather than Forge's own label
-    // while the pop-up owns the question — the operator's own rule, "never
-    // put yes/no there, always the big pop-up" — and Cancel does not render
-    // at all, the same shape w35 already proved for the coin toss, generalised.
-    await expect(decider.page.getByTestId('live-button-ok'), 'the bar\'s own OK is disabled while the pop-up owns the question').toBeDisabled();
-    await expect(decider.page.getByTestId('live-button-ok'), 'and reads OK, never Forge\'s own label, while the pop-up owns the question').toHaveText('OK');
-    await expect(decider.page.getByTestId('live-button-cancel'), 'the bar draws no second button for it at all').toHaveCount(0);
+    // The control box itself: both game buttons greyed while the pop-up owns
+    // the question, in their own words — the operator's own rule, "never put
+    // yes/no there, always the big pop-up" — and no decision pop-up beside it.
+    await expect(decider.page.getByTestId('live-button-next-phase'), 'Next Phase is greyed while the pop-up owns the question').toBeDisabled();
+    await expect(decider.page.getByTestId('live-button-end-turn'), 'End Turn too').toBeDisabled();
+    await expect(decider.page.getByTestId('live-buttons'), 'the box never says Forge\'s word').not.toContainText(/Keep|Mulligan/);
+    await expect(decider.page.getByTestId('live-decision'), 'one pop-up at a time').toHaveCount(0);
 
     await answerConfirm(decider.page, 'yes');
     await expect(decider.page.getByTestId('live-confirm-host'), 'answering it through the pop-up closes it').toHaveCount(0);
@@ -204,7 +204,7 @@ test(titled('T4 — the opening Keep/Mulligan is a yes/no pop-up, and the contro
  * does, which is the correct "written but unrun" shape for a dependency
  * outside this lane (see the closing report for the exact file to add).
  */
-test(titled('T4 — a shockland\'s "pay 2 life?" is a yes/no pop-up, and the control bar draws no second button for it'), async ({ browser }) => {
+test(titled('T4 — a shockland\'s "pay 2 life?" is a yes/no pop-up, and the control box answers none of it'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(2 * 60_000);
@@ -221,7 +221,8 @@ test(titled('T4 — a shockland\'s "pay 2 life?" is a yes/no pop-up, and the con
     await expect(alice.page.getByTestId('live-confirm-host'), 'it renders in the decision-area pop-up').toBeVisible();
     await expect(confirmYes(alice.page), 'Yes is Forge\'s own word (InputConfirm\'s default pair)').toHaveText('Yes');
     await expect(confirmNo(alice.page), 'No beside it').toHaveText('No');
-    await expect(alice.page.getByTestId('live-button-cancel'), 'the bar draws no second button for it').toHaveCount(0);
+    await expect(alice.page.getByTestId('live-button-end-turn'), 'End Turn is greyed for it').toBeDisabled();
+    await expect(alice.page.getByTestId('live-decision'), 'and no second pop-up opens').toHaveCount(0);
 
     await answerConfirm(alice.page, 'yes');
     await expect(

@@ -124,7 +124,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 
 import { toBoardView } from '../apps/ui/src/play/adapter.ts';
 import type { WireObject } from '../apps/ui/src/play/wire.ts';
-import { createRoom, serverLog } from './play/board.ts';
+import { createRoom, enabledCancel, enabledOk, serverLog } from './play/board.ts';
 import { messages, openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { isSnapshot, type Frame, type PlayMessage, type ServerEnvelope } from './play/frames.ts';
@@ -377,7 +377,7 @@ const FORCED_DISCARD = /to discard to bring your hand down to the maximum/;
 async function clickForcedCard(f: Friend): Promise<{ id: number; name: string } | null> {
   const says = (await f.page.getByTestId('live-says').textContent()) ?? '';
   if (!FORCED_DISCARD.test(says)) return null;
-  const pressable = await f.page.locator('[data-testid="live-button-ok"]:enabled, [data-testid="live-button-cancel"]:enabled').count();
+  const pressable = (await enabledOk(f.page).count()) + (await enabledCancel(f.page).count());
   if (pressable > 0) return null;
   const offered = await offeredIn(f, 'hand');
   const pick = offered[0];
@@ -944,9 +944,9 @@ test(LIVE_TITLE, async ({ browser }) => {
     // operator was on 2026-09-19.
     //
     // Wave 35 R2 moved this specific question (the opening Play/Draw choice)
-    // off `live-button-ok` into its own decision area
+    // off the control bar into its own decision area
     // (`live-play-or-draw-play`, lane G's `PlayOrDrawPrompt`, wired by lane
-    // L) — `live-button-ok` is disabled for the whole time it is open. The
+    // L). The
     // claim this block makes is unchanged (exactly one seat's own board can
     // answer it); only which testid carries the button moved.
     const seats = [alice, bob];
@@ -1135,7 +1135,7 @@ test(LIVE_TITLE, async ({ browser }) => {
         await answerPrompt(f.page);
         // Wave 36 T4: the opening mulligan's Keep/Mulligan (the one yes/no
         // this phase of the game can show, on this fixed seed) moved off
-        // `live-button-ok` into its own `ConfirmPrompt` pop-up — answered
+        // the control bar into its own `ConfirmPrompt` pop-up — answered
         // immediately, the same default ("keep") this spec always reached
         // via the idle-OK fallback below before T4 moved it off the bar.
         if ((await confirmYes(f.page).count()) > 0) {
@@ -1219,8 +1219,8 @@ test(LIVE_TITLE, async ({ browser }) => {
         // disabled before the click lands. Best effort with a short leash:
         // a missed press costs one 250 ms pass, and the server presses the
         // stop for the seat anyway when it can.
-        const ok = f.page.locator('[data-testid="live-button-ok"]:enabled');
-        if ((await ok.count()) > 0) await ok.click({ timeout: 2_000 }).catch(() => {});
+        const ok = enabledOk(f.page);
+        if ((await ok.count()) > 0) await ok.first().click({ timeout: 2_000 }).catch(() => {});
       }
       await new Promise((r) => setTimeout(r, 250));
     }
@@ -1293,8 +1293,8 @@ test(LIVE_TITLE, async ({ browser }) => {
     const pressOk = async (): Promise<void> => {
       for (const f of [alice!, bob!]) {
         await answerPrompt(f.page);
-        const ok = f.page.locator('[data-testid="live-button-ok"]:enabled');
-        if ((await ok.count()) > 0) await ok.click({ timeout: 2_000 }).catch(() => {});
+        const ok = enabledOk(f.page);
+        if ((await ok.count()) > 0) await ok.first().click({ timeout: 2_000 }).catch(() => {});
       }
     };
     /**
@@ -1320,9 +1320,9 @@ test(LIVE_TITLE, async ({ browser }) => {
       const bobOffered = await offeredIn(bob!, 'hand');
       const nonLand = bobOffered.filter((c) => !/Land/.test(c.type));
       if (nonLand.length === 0) return false;
-      const ok = bob!.page.locator('[data-testid="live-button-ok"]:enabled');
+      const ok = enabledOk(bob!.page);
       if ((await ok.count()) === 0) return false;
-      await ok.click({ timeout: 2_000 }).catch(() => {});
+      await ok.first().click({ timeout: 2_000 }).catch(() => {});
       bobDeclines.push(...nonLand.map((c) => c.name));
       return true;
     };
@@ -1394,8 +1394,8 @@ test(LIVE_TITLE, async ({ browser }) => {
       if (await inHand(spell.id)) {
         // It wants something this phase cannot give it (a target to click).
         // Back out and try another card rather than jamming the game.
-        const cancel = alice.page.locator('[data-testid="live-button-cancel"]:enabled');
-        if ((await cancel.count()) > 0) await cancel.click({ timeout: 2_000 }).catch(() => {});
+        const cancel = enabledCancel(alice.page);
+        if ((await cancel.count()) > 0) await cancel.first().click({ timeout: 2_000 }).catch(() => {});
         wontAnnounce.add(spell.id);
         casts.push({ card: spell.name, left: false, arrived: false, pressed: [], aliceOwnPresses: [], bobDeclinedNonLand: [] });
         continue;

@@ -20,7 +20,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, makeTitled, says } from './play/board.ts';
+import { clickHandCard, enabledOk, makeTitled, says } from './play/board.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -38,8 +38,8 @@ const selectionTiles = (page: Page) => page.getByTestId('prompt-cards').getByTes
  * budget hands control back to the poll; only that timeout is tolerated, any other error still fails.
  */
 async function pressOkIfEnabled(page: Page): Promise<void> {
-  const ok = page.getByTestId('live-button-ok');
-  if (!(await ok.isEnabled())) return;
+  const ok = enabledOk(page).first();
+  if ((await ok.count()) === 0) return;
   try {
     await ok.click({ timeout: 1_500 });
   } catch (e) {
@@ -193,7 +193,7 @@ test(titled('W18 — the real "you may pay {X}" decision is answered by the abil
     await expect(graveyard.filter({ hasText: 'Diregraf Ghoul' })).toHaveCount(1);
     await expect(graveyard.filter({ hasText: 'Dread Wanderer' })).toHaveCount(1);
     // Priority genuinely returns — no lock.
-    await expect(alice.page.getByTestId('live-button-ok')).toBeEnabled();
+    await expect(enabledOk(alice.page)).toHaveCount(1);
   } finally {
     await stack.stop();
   }

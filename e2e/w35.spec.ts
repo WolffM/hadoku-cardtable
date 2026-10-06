@@ -769,14 +769,13 @@ test(titled('R2 — the coin toss and the play/draw question render in the same 
     await expect(playOrDrawHost(asker.page), 'the coin toss / play-draw ask renders in its own decision-area host').toBeVisible();
     await expect(playOrDrawHost(asker.page).getByTestId('live-play-or-draw-play'), 'the Play button is there, Forge\'s own label').toBeVisible();
     await expect(playOrDrawHost(asker.page).getByTestId('live-play-or-draw-draw'), 'and Draw beside it').toBeVisible();
-    // It is NOT an answerable surface in the control bar any more: OK keeps
-    // Forge's own "Play" as its label (disabled buttons still show their
-    // text — a first draft wrongly asserted the control bar has NO such text
-    // at all, which is not what L's fix claims), but it is disabled the whole
-    // time the decision area owns this question (L's own mutation-tested
-    // guard), and Cancel does not render for it at all.
-    await expect(asker.page.getByTestId('live-button-ok'), 'the control bar\'s own OK is disabled while the decision area owns this question').toBeDisabled();
-    await expect(asker.page.getByTestId('live-button-cancel'), 'and the control bar draws no second button for it at all').toHaveCount(0);
+    // It is NOT an answerable surface in the control box: both game buttons
+    // are greyed the whole time the decision area owns this question (wave 51:
+    // the box keeps its own words and its four buttons), and no second pop-up
+    // opens beside it.
+    await expect(asker.page.getByTestId('live-button-next-phase'), 'Next Phase is greyed while the decision area owns this question').toBeDisabled();
+    await expect(asker.page.getByTestId('live-button-end-turn'), 'and End Turn').toBeDisabled();
+    await expect(asker.page.getByTestId('live-decision'), 'one pop-up at a time').toHaveCount(0);
   } finally {
     await stack.stop();
   }
@@ -788,7 +787,7 @@ test(titled('R5 — the End Turn button is highlighted exactly when there is not
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(2 * 60_000);
-  const endTurn = (page: Page) => page.getByTestId('live-button-cancel');
+  const endTurn = (page: Page) => page.getByTestId('live-button-end-turn');
 
   // Part 1 — a creature that can still attack holds the turn. The operator,
   // 2026-10-03: "the 'End Turn' button shouldn't be showing flashing if i have
@@ -799,7 +798,7 @@ test(titled('R5 — the End Turn button is highlighted exactly when there is not
   try {
     const { alice, bob } = await startScenarioMatch(browser, stackA, 'attackers-declared');
     void bob;
-    await expect(endTurn(alice.page), 'Forge\'s second button is showing, labelled End Turn — the precondition this half needs').toHaveText('End Turn', { timeout: 15_000 });
+    await expect(endTurn(alice.page), 'Forge\'s second button is End Turn, so the box\'s End Turn is pressable — the precondition this half needs').toBeEnabled({ timeout: 15_000 });
     expect(await offered(alice.page), 'nothing is offered — only the attack is left').toEqual([]);
     await expect(endTurn(alice.page), 'End Turn is NOT highlighted while a creature can still attack').not.toHaveAttribute('data-highlight', '');
   } finally {
@@ -812,7 +811,7 @@ test(titled('R5 — the End Turn button is highlighted exactly when there is not
   try {
     const { alice, bob } = await startScenarioMatch(browser, stackC, 'nothing-left');
     void bob;
-    await expect(endTurn(alice.page), 'Forge\'s second button is showing, labelled End Turn — the precondition this half needs').toHaveText('End Turn', { timeout: 15_000 });
+    await expect(endTurn(alice.page), 'Forge\'s second button is End Turn, so the box\'s End Turn is pressable — the precondition this half needs').toBeEnabled({ timeout: 15_000 });
     expect(await offered(alice.page), 'nothing is offered — the precondition "nothing to decide" needs').toEqual([]);
     await expect(endTurn(alice.page), 'End Turn is highlighted when there is nothing else to do').toHaveAttribute('data-highlight', '');
   } finally {

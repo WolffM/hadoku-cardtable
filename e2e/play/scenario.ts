@@ -42,7 +42,7 @@ import { resolve } from 'node:path';
 
 import { expect, type Browser, type Page } from '@playwright/test';
 
-import { enabledOk, says } from './board.ts';
+import { enabledCancel, enabledOk, says } from './board.ts';
 import { openFriend, type Friend } from './browser.ts';
 import { confirmYes } from './confirm.ts';
 import type { PlayStack } from './harness.ts';
@@ -125,8 +125,7 @@ async function awaitScenarioHand(page: Page, scenarioName: string, seat: 'human'
 
 export const matchUrl = (origin: string, matchId: string): string => `${origin}${PREFIX}/#/match/${matchId}`;
 
-export { says, enabledOk };
-export const enabledCancel = (page: Page) => page.locator('[data-testid="live-button-cancel"]:enabled');
+export { says, enabledOk, enabledCancel };
 
 async function boardUp(page: Page): Promise<void> {
   await expect(page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
@@ -226,9 +225,9 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
       if (clickedFor.get(f) === text) continue; // already answered this exact question; wait for Forge's reply
       // Wave 35 R2: the coin toss / play-draw question moved into its own
       // decision-area host (`live-play-or-draw-host`, lane G's
-      // `PlayOrDrawPrompt`, wired by lane L) — `live-button-ok` is now
-      // DISABLED for the whole time this question is open (L's own mutation-
-      // tested guard), so the old `enabledOk` click below never fires for it
+      // `PlayOrDrawPrompt`, wired by lane L) — Forge's button one is not
+      // drawn anywhere else while this question is open (L's own mutation-
+      // tested guard), so the `enabledOk` click below never fires for it
       // and this loop hung forever on "Would you like to play or draw?"
       // until this branch was added.
       //
@@ -237,7 +236,7 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
       // `e2e/play/confirm.ts`) — Keep is button 1 (`prompt-confirm-yes`),
       // never Mulligan, same default this helper always took. Only "return N
       // card(s)" (the bottom-pick SELECTION, not a confirm) is unaffected and
-      // still answers through the control bar's OK.
+      // still answers through Forge's button one (`enabledOk`).
       const button = /play or draw/i.test(text)
         ? f.page.getByTestId('live-play-or-draw-play')
         : /keep your hand/i.test(text)
@@ -261,7 +260,7 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
   const dump = async (f: Friend) => ({
     says: await says(f.page),
     ok: await enabledOk(f.page).count(),
-    cancel: await f.page.getByTestId('live-button-cancel').count(),
+    cancel: await enabledCancel(f.page).count(),
     confirmYes: await confirmYes(f.page).count(),
     confirmHost: await f.page.getByTestId('live-confirm-host').count(),
   });

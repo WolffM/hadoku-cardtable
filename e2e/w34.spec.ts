@@ -84,8 +84,8 @@ const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
 /**
- * The coin toss / play-draw question's own control (wave 35 R2) —
- * `live-button-ok` is disabled the whole time it is open, so a loop built
+ * The coin toss / play-draw question's own control (wave 35 R2) — Forge's
+ * button one is drawn nowhere else while it is open, so a loop built
  * only on `enabledOk`/`clickOnce` can stall on it forever. Same fix as
  * `play/scenario.ts`'s own internal driving; needed a second time here
  * because `page_answerOnce` (below) keeps polling long AFTER
@@ -190,7 +190,7 @@ async function page_answerOnce(page: Page): Promise<void> {
   if ((await livePrompt(page).count()) > 0) return;
   if (await clickOncePlayOrDraw(page)) return;
   // Wave 36 T4: any OTHER Forge yes/no (Ponder's own "shuffle?"/reorder
-  // follow-up, the opening mulligan, …) moved off `live-button-ok` into its
+  // follow-up, the opening mulligan, …) moved off the control bar into its
   // own `ConfirmPrompt` pop-up — answered the same default this driver
   // always took when it still rode the bar: the first ("yes") button.
   if ((await confirmYes(page).count()) > 0) {
