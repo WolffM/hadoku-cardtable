@@ -22,7 +22,10 @@ function mount() {
   const source = () => utils.getByTestId('order-source');
   const dest = () => utils.getByTestId('order-dest');
   const place = (name: RegExp) => fireEvent.click(within(source()).getByRole('button', { name }));
-  return { ...utils, source, dest, place };
+  const placeAll = () => {
+    for (const li of [...source().querySelectorAll<HTMLElement>(':scope > li')]) fireEvent.click(li);
+  };
+  return { ...utils, source, dest, place, placeAll };
 }
 
 describe('order', () => {
@@ -48,9 +51,47 @@ describe('order', () => {
     expectWireReply('order', answers[0]);
   });
 
+  it('has no Place, Place all or Remove button — the items themselves are the controls', () => {
+    const { container } = mount();
+    const words = [...container.querySelectorAll('button')].map((b) => b.textContent?.trim());
+    expect(words).not.toContain('Place');
+    expect(words).not.toContain('Place all, in this order');
+    expect(words).not.toContain('Remove');
+  });
+
+  it('drags an unplaced item INTO the answer, landing before the item it is dropped on', () => {
+    const { source, dest, place } = mount();
+    place(/Fire Urchin/);
+    place(/Staticaster/);
+    expect(keysIn(dest())).toEqual(['sa-9101', 'sa-9102']);
+    const whelp = source().querySelector<HTMLElement>(':scope > li')!;
+    fireEvent.dragStart(whelp);
+    const first = dest().querySelector<HTMLElement>(':scope > li')!;
+    fireEvent.dragOver(first);
+    fireEvent.drop(first);
+    expect(keysIn(dest())).toEqual(['sa-9103', 'sa-9101', 'sa-9102']);
+    expect(keysIn(source())).toEqual([]);
+  });
+
+  it('drops on the answer’s empty space at the end, and drags a placed item back out', () => {
+    const { source, dest, place } = mount();
+    place(/Fire Urchin/);
+    const staticaster = [...source().querySelectorAll<HTMLElement>(':scope > li')].find((li) => li.dataset.key === 'sa-9102')!;
+    fireEvent.dragStart(staticaster);
+    fireEvent.dragOver(dest());
+    fireEvent.drop(dest());
+    expect(keysIn(dest())).toEqual(['sa-9101', 'sa-9102']);
+    const urchin = dest().querySelector<HTMLElement>(':scope > li')!;
+    fireEvent.dragStart(urchin);
+    fireEvent.dragOver(source());
+    fireEvent.drop(source());
+    expect(keysIn(dest())).toEqual(['sa-9102']);
+    expect(keysIn(source())).toContain('sa-9101');
+  });
+
   it('reorders by drag and drop', () => {
-    const { getByRole, dest, submit, answers } = mount();
-    fireEvent.click(getByRole('button', { name: 'Place all, in this order' }));
+    const { placeAll, dest, submit, answers } = mount();
+    placeAll();
     const items = () => [...dest().querySelectorAll<HTMLElement>(':scope > li')];
     fireEvent.dragStart(items()[2]!);
     fireEvent.dragOver(items()[0]!);
@@ -71,6 +112,7 @@ describe('order', () => {
     // Taking one back out is also a partial order.
     place(/Staticaster/);
     expect(submit().disabled).toBe(false);
+    // Clicking a placed item takes it back out.
     fireEvent.click(within(dest()).getByRole('button', { name: /unplace Fire Urchin/ }));
     expect(submit().disabled).toBe(true);
   });
@@ -88,9 +130,9 @@ describe('order', () => {
 
   it('never reports remember=true when the checkbox was not offered', () => {
     const ask = { ...askFor('order'), showRememberCheckbox: false };
-    const { getByRole, queryByTestId, submit, answers } = mountPrompt('order', ask);
+    const { getByTestId, queryByTestId, submit, answers } = mountPrompt('order', ask);
     expect(queryByTestId('order-remember')).toBeNull();
-    fireEvent.click(getByRole('button', { name: 'Place all, in this order' }));
+    for (const li of [...getByTestId('order-source').querySelectorAll<HTMLElement>(':scope > li')]) fireEvent.click(li);
     fireEvent.click(submit());
     expect(answers[0]!.rememberDecision).toBe(false);
   });
@@ -137,8 +179,8 @@ describe('order over cards Forge pre-rendered', () => {
   });
 
   it('places the cards and answers by key, each tile stamped with its forge id', () => {
-    const { getByTestId, getByRole, submit, answers } = mountPrompt('order', cardsAsk(), poolLookup);
-    fireEvent.click(getByRole('button', { name: 'Place all, in this order' }));
+    const { getByTestId, submit, answers } = mountPrompt('order', cardsAsk(), poolLookup);
+    for (const li of [...getByTestId('order-source').querySelectorAll<HTMLElement>(':scope > li')]) fireEvent.click(li);
     const placed = [...getByTestId('order-dest').querySelectorAll<HTMLElement>(':scope > li')];
     expect(placed.map((li) => li.dataset.cardId)).toEqual(POOL.map((_, i) => String(POOL_ID_BASE + i)));
     fireEvent.click(submit());

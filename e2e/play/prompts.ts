@@ -109,7 +109,7 @@ export async function answerPrompt(
       await submit.click();
       break;
     case 'order': {
-      const places = sheet.locator('[data-testid="order-source"] button');
+      const places = sheet.locator('[data-testid="order-source"] > li');
       for (let guard = 0; guard < 100 && !(await submittable()) && (await places.count()) > 0; guard++) {
         await places.first().click();
       }

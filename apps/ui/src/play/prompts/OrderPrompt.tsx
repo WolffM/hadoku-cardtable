@@ -3,10 +3,16 @@
  *
  * The left list is what is still unplaced (`sourceChoices`), the right one is
  * the answer being built (`destChoices` to start with), labelled with Forge's
- * own caption for it (`top`, e.g. "Resolve first", "Top of library"). Items
- * move across with a button and reorder on the right by drag or by the up/down
- * buttons — the buttons are the keyboard and small-screen path, the drag is
- * the quick one, and both change the same state.
+ * own caption for it (`top`, e.g. "Resolve first", "Top of library").
+ *
+ * **Drag is the gesture** (operator, 2026-10-06: *"can we make this drag
+ * instead of 'place' button? i hate place button"*). An unplaced item is
+ * dragged INTO the answer and lands where it is dropped — on an item, just
+ * before it; on the list's empty space, at the end. A placed item drags to a
+ * new spot, or back to the left to unplace it. A click is the short form:
+ * clicking an unplaced item appends it, clicking a placed one takes it back.
+ * The up/down arrows stay as the keyboard path. There is no Place, Place all
+ * or Remove button.
  *
  * An item that stands for a CARD is a tile, the board's card look with art ids
  * — an order over cards is still cards (wave 20: prompts are cards); anything
@@ -19,7 +25,7 @@
  * (`rules.ts` `orderProblems`).
  */
 
-import { useState, type DragEvent } from 'react';
+import { useState, type DragEvent, type KeyboardEvent } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
@@ -38,7 +44,8 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
   const anyCards = cardIdOf.size > 0;
   const [placed, setPlaced] = useState<string[]>(() => ask.destChoices.map((c) => c.key));
   const [remember, setRemember] = useState(false);
-  const [dragging, setDragging] = useState<number | null>(null);
+  /** What is being dragged: an unplaced item by key, or a placed one by index. */
+  const [dragging, setDragging] = useState<{ from: 'source'; key: string } | { from: 'dest'; index: number } | null>(null);
 
   const unplaced = all.map((c) => c.key).filter((k) => !placed.includes(k));
   const reply = { ordered: placed, rememberDecision: ask.showRememberCheckbox && remember };
@@ -49,10 +56,37 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
     onAnswer(checkedReply('order', reply));
   };
 
-  const onDrop = (to: number) => (e: DragEvent) => {
+  const place = (key: string) => setPlaced((p) => [...p, key]);
+  const unplace = (key: string) => setPlaced((p) => p.filter((k) => k !== key));
+
+  /** A drop on placed item `to` (or past the end, `to === placed.length`). */
+  const dropAt = (to: number) => (e: DragEvent) => {
     e.preventDefault();
-    if (dragging !== null) setPlaced((p) => moveItem(p, dragging, to));
+    e.stopPropagation();
+    if (dragging?.from === 'source') {
+      const key = dragging.key;
+      setPlaced((p) => [...p.slice(0, to), key, ...p.slice(to)]);
+    } else if (dragging?.from === 'dest') {
+      const from = dragging.index;
+      setPlaced((p) => moveItem(p, from, Math.min(to, p.length - 1)));
+    }
     setDragging(null);
+  };
+  /** A placed item dragged back to the left is unplaced. */
+  const dropOnSource = (e: DragEvent) => {
+    e.preventDefault();
+    if (dragging?.from === 'dest') {
+      const key = placed[dragging.index];
+      if (key !== undefined) unplace(key);
+    }
+    setDragging(null);
+  };
+  /** Enter or Space on a focused item does what a click does. */
+  const onKey = (act: () => void) => (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      act();
+    }
   };
 
   /** One item's face: the tile when the item is a card, the words otherwise. */
@@ -70,42 +104,62 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
           <h4 className="prompt__col-head">
             Unplaced <span className="zone__count">{unplaced.length}</span>
           </h4>
-          <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid="order-source">
+          <ul
+            className={anyCards ? 'prompt__cards' : 'prompt__list'}
+            data-testid="order-source"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={dropOnSource}
+          >
             {unplaced.map((key) => (
-              <li key={key} data-key={key} data-card-id={cardIdOf.get(key)}>
+              <li
+                key={key}
+                data-key={key}
+                data-card-id={cardIdOf.get(key)}
+                role="button"
+                tabIndex={0}
+                aria-label={`place ${labelOf.get(key)}`}
+                draggable
+                data-dragging={(dragging?.from === 'source' && dragging.key === key) || undefined}
+                onDragStart={() => setDragging({ from: 'source', key })}
+                onDragEnd={() => setDragging(null)}
+                onClick={() => place(key)}
+                onKeyDown={onKey(() => place(key))}
+              >
                 {face(key)}
-                <button type="button" aria-label={`place ${labelOf.get(key)}`} onClick={() => setPlaced((p) => [...p, key])}>
-                  Place
-                </button>
               </li>
             ))}
           </ul>
-          {unplaced.length > 1 && (
-            <button type="button" className="prompt__link" onClick={() => setPlaced((p) => [...p, ...unplaced])}>
-              Place all, in this order
-            </button>
-          )}
         </section>
 
         <section aria-label={ask.top}>
           <h4 className="prompt__col-head">
             {ask.top} <span className="zone__count">{placed.length}</span>
           </h4>
-          <ol className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid="order-dest">
+          <ol
+            className={anyCards ? 'prompt__cards' : 'prompt__list'}
+            data-testid="order-dest"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={dropAt(placed.length)}
+          >
             {placed.map((key, i) => (
               <li
                 key={key}
                 data-key={key}
                 data-card-id={cardIdOf.get(key)}
+                role="button"
+                tabIndex={0}
+                aria-label={`unplace ${labelOf.get(key)}`}
                 draggable
-                data-dragging={dragging === i || undefined}
-                onDragStart={() => setDragging(i)}
+                data-dragging={(dragging?.from === 'dest' && dragging.index === i) || undefined}
+                onDragStart={() => setDragging({ from: 'dest', index: i })}
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={onDrop(i)}
+                onDrop={dropAt(i)}
                 onDragEnd={() => setDragging(null)}
+                onClick={() => unplace(key)}
+                onKeyDown={onKey(() => unplace(key))}
               >
                 {face(key)}
-                <span className="prompt__row-actions">
+                <span className="prompt__row-actions" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                   <button type="button" aria-label={`move ${labelOf.get(key)} up`} disabled={i === 0} onClick={() => setPlaced((p) => moveItem(p, i, i - 1))}>
                     ↑
                   </button>
@@ -116,9 +170,6 @@ export function OrderPrompt({ ask, onAnswer, lookup }: PromptProps<'order'>) {
                     onClick={() => setPlaced((p) => moveItem(p, i, i + 1))}
                   >
                     ↓
-                  </button>
-                  <button type="button" aria-label={`unplace ${labelOf.get(key)}`} onClick={() => setPlaced((p) => p.filter((k) => k !== key))}>
-                    Remove
                   </button>
                 </span>
               </li>
