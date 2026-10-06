@@ -57,8 +57,9 @@ import {
   type LiveMatch,
 } from '../match.ts';
 import { fixtureFrames, startReplayServer, type ReplayServer } from '../replay-server.ts';
-import { needsTarget } from './cast.ts';
+import { FLOAT_BACK_MS, needsTarget } from './cast.ts';
 import { installGestures } from './index.ts';
+import { PARK_UNANSWERED_MS, STACK_STAND_IN_MS } from './install.ts';
 import type { GestureHandle } from './types.ts';
 
 let server: ReplayServer | null = null;
@@ -1569,6 +1570,53 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     expect(sent(s)).toEqual([]);
   });
 
+  it('an opponent’s spell asks this seat to choose: the tail is that spell’s stack item, not the card this seat clicked last', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const clicked = mineOf(m).hand![0]!.id;
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    // A click of this seat's own, turns ago: on record, and nothing to do with what comes next.
+    for (const f of notify([prompt('Priority'), actionable([clicked])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    selectCard(m, clicked);
+    expect(m.lastSelectedCard).toBe(clicked);
+    boxAt(cardEl(canvas, clicked), 100, 400);
+
+    const SPELL = 9001;
+    const STACK_ID = 9101;
+    seq += 1;
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'applyDelta',
+        payload: {
+          packet: {
+            seq,
+            checksum: 0,
+            checksumProperties: [],
+            newObjects: { [String((2 << 28) | STACK_ID)]: { _type: 2, _id: STACK_ID, SourceCard: { t: 'int', v: SPELL } } },
+            objectDeltas: {},
+            events: [],
+          },
+        },
+      }),
+    );
+    s.send(stateDelta({ [GAME_KEY]: { _type: 3, _id: 1, Stack: { t: 'list', v: [{ t: 'int', v: STACK_ID }] } } }));
+    const item = await waitFor(() => {
+      const el = canvas.querySelector<HTMLElement>(`[data-stack-id="${STACK_ID}"]`);
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    boxAt(item, 500, 10, 120, 40); // centre (560, 30)
+    // The spell's own question, as Forge announces it: the prompt names the spell.
+    for (const f of notify([promptFor('Sacrifice a land', SPELL), selectables([theirs[0]!], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+
+    fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 220, clientY: 180 });
+    const arrow = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(arrow.dataset.source).toBe(String(SPELL));
+    expect(arrow.querySelector('path')!.getAttribute('d'), 'from the spell on the stack, not from the card clicked turns ago').toMatch(/^M 560 30 Q /);
+  });
+
   it('with nothing to draw from, the pointer draws no arrow', async () => {
     const { s, m, canvas } = await gestureBoard();
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
@@ -1751,7 +1799,11 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
     expect(noteSpy).toHaveBeenCalledTimes(1);
     expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 400, y: 300 });
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'out of the hand’s row, and not drawn: its stand-in is').toBe('carried');
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${hand[0]}"]`)!;
+    expect(standIn.getAttribute('data-cast-lift'), 'it waits where it was let go, not back in the hand').toBe('parked');
+    expect(standIn.style.left).toBe('400px');
+    expect(standIn.style.top).toBe('300px');
     expect(myBattlefield.hasAttribute('data-drop'), 'the cue clears with the release').toBe(false);
   });
 
@@ -1876,7 +1928,8 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
     expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 600, y: 480 });
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('carried');
+    expect(canvas.querySelector<HTMLElement>(`[data-cast-ghost="${hand[0]}"]`)!.style.left).toBe('600px');
   });
 
   /**
@@ -2147,6 +2200,210 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
  * lift — the ordinary click/drag this layer already had before answers it
  * instead.
  */
+/**
+ * The operator, 2026-10-06, on a shockland and on Dark Confidant: the card
+ * snapped back to the hand at the release and stayed there until Forge moved
+ * it — through the "pay 2 life?" question, through the spell's time on the
+ * stack — and the stack flashed a creature nobody responded to.
+ */
+describe('a played card waits where it was let go until Forge has it on the battlefield', () => {
+  const PLAYER_KEY = String((1 << 28) | 0);
+  const ints = (ids: number[]) => ({ t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) });
+  /** The viewer's own zones as Forge now holds them. */
+  const zones = (lists: Record<string, number[]>): ServerFrame =>
+    stateDelta({ [PLAYER_KEY]: { _type: 1, _id: 0, ...Object.fromEntries(Object.entries(lists).map(([zone, ids]) => [zone, ints(ids)])) } });
+  /** A spell on the stack, as a brand-new StackItem naming its card. */
+  function stackItem(stackId: number, sourceCardId: number, ability = false): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: {
+          seq,
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: {
+            [String((2 << 28) | stackId)]: { _type: 2, _id: stackId, SourceCard: { t: 'int', v: sourceCardId }, Ability: { t: 'bool', v: ability } },
+          },
+          objectDeltas: {},
+          events: [],
+        },
+      },
+    });
+  }
+  const stackIs = (stackIds: number[]): ServerFrame => stateDelta({ [GAME_KEY]: { _type: 3, _id: 1, Stack: ints(stackIds) } });
+  const stackEl = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-zone="stack"]')!;
+
+  /** Lift the first hand card and let it go over the viewer's own battlefield, at (400, 300). */
+  async function play(motion?: () => boolean) {
+    const board = await gestureBoard();
+    const { s, m, canvas } = board;
+    if (motion !== undefined) {
+      gestures!.dispose();
+      gestures = installGestures({ canvas, match: m, motion });
+    }
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    const battlefield = mineOf(m).battlefield.map((c) => c.id);
+    const card = hand[0]!;
+    for (const f of notify([prompt('Priority'), actionable([card]), okBar()])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    const rest = hand.filter((id) => id !== card);
+    /** Forge moves it: out of the hand, onto the battlefield. */
+    const arrive = () => s.send(zones({ Hand: rest, Battlefield: [...battlefield, card] }));
+    return { ...board, card, rest, battlefield, myBattlefield, arrive };
+  }
+  const onMyBattlefield = (c: HTMLElement, id: number) =>
+    c.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="you"] [data-board-card="${id}"]`);
+
+  it('a land Forge asks a question about stays parked for the whole question, and lands when it is answered', async () => {
+    const { s, m, canvas, card, arrive } = await play();
+    // The shockland's "pay 2 life?": an ask, with the card still in the hand.
+    s.send(parseServerFrame({ kind: 'ask', callId: 's0-1', method: 'showConfirmDialog', message: 'Pay 2 life?', title: 'Steam Vents', yesButtonText: 'Yes', noButtonText: 'No', defaultYes: true }));
+    await waitFor(() => expect(m.asks).toHaveLength(1));
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    expect(standIn.getAttribute('data-cast-lift'), 'over the board, not back in the hand, while the question is up').toBe('parked');
+    expect(standIn.style.left).toBe('400px');
+    expect(cardEl(canvas, card).getAttribute('data-cast-lift'), 'the hand’s own element is out of its row and not drawn').toBe('carried');
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(standIn.isConnected, 'there is nothing to cancel: it stays').toBe(true);
+    expect(cardEl(canvas, card).getAttribute('data-cast-lift')).toBe('carried');
+    expect(sent(s), 'and nothing more went out').toEqual([['selectCard', card]]);
+
+    arrive();
+    await waitFor(() => expect(onMyBattlefield(canvas, card)).not.toBeNull());
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull());
+    expect(canvas.querySelector('[data-cast-ghost]')).toBeNull();
+    expect(onMyBattlefield(canvas, card)!.hasAttribute('data-cast-landing'), 'no motion asked for: it is simply there').toBe(false);
+  });
+
+  it('with motion on, its stand-in travels from the park point and the row’s own card shows when it gets there', async () => {
+    const { canvas, card, arrive } = await play(() => true);
+    arrive();
+    const arrived = await waitFor(() => {
+      const el = onMyBattlefield(canvas, card);
+      expect(el?.hasAttribute('data-cast-landing')).toBe(true);
+      return el!;
+    });
+    const ghost = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    expect(ghost, 'the stand-in is what moves').not.toBeNull();
+    expect(ghost.getAttribute('data-cast-lift')).toBe('returning');
+    expect(arrived.hasAttribute('data-cast-lift'), 'the card in the row is never lifted out of it').toBe(false);
+    await waitFor(() => expect(canvas.querySelector('[data-cast-ghost]')).toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+    expect(arrived.hasAttribute('data-cast-landing')).toBe(false);
+  });
+
+  it('a creature’s own spell is not drawn on the caster’s stack while it is the only thing there, and the card lands when it resolves', async () => {
+    const { s, m, canvas, card, rest, battlefield, arrive } = await play();
+    s.send(zones({ Hand: rest, Battlefield: battlefield }));
+    s.send(stackItem(9101, card));
+    s.send(stackIs([9101]));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    await waitFor(() => expect(canvas.querySelector(`[data-cast-ghost="${card}"]`)).not.toBeNull());
+    expect(stackEl(canvas).getAttribute('data-count'), 'the stack stays empty for the caster').toBe('0');
+    expect(canvas.querySelector('[data-stack-id="9101"]')).toBeNull();
+    expect(canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!.style.left, 'the card is still where it was let go').toBe('400px');
+
+    s.send(stackIs([]));
+    arrive();
+    await waitFor(() => expect(onMyBattlefield(canvas, card)).not.toBeNull());
+    await waitFor(() => expect(canvas.querySelector('[data-cast-ghost]')).toBeNull());
+    expect(stackEl(canvas).getAttribute('data-count')).toBe('0');
+  });
+
+  it('a spell still on the stack after its stand-in time is drawn there: the opponent is taking their time', async () => {
+    const { s, m, canvas, card, rest, battlefield } = await play();
+    s.send(zones({ Hand: rest, Battlefield: battlefield }));
+    s.send(stackItem(9101, card));
+    s.send(stackIs([9101]));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    expect(canvas.querySelector('[data-stack-id="9101"]')).toBeNull();
+    expect(stackEl(canvas).getAttribute('data-carried'), 'the stack says it is leaving one item to the card').toBe('1');
+    await waitFor(() => expect(canvas.querySelector('[data-stack-id="9101"]')).not.toBeNull(), { timeout: STACK_STAND_IN_MS.fast + 2000 });
+    expect(stackEl(canvas).hasAttribute('data-carried')).toBe(false);
+    expect(stackEl(canvas).getAttribute('data-count')).toBe('1');
+    expect(canvas.querySelector(`[data-cast-ghost="${card}"]`), 'and the card still waits over the board').not.toBeNull();
+  }, 15_000);
+
+  it('a second thing on the stack puts the spell back on it at once', async () => {
+    const { s, m, canvas, card, rest, battlefield } = await play();
+    s.send(zones({ Hand: rest, Battlefield: battlefield }));
+    s.send(stackItem(9101, card));
+    s.send(stackIs([9101]));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    expect(canvas.querySelector('[data-stack-id="9101"]')).toBeNull();
+    // Its own cast trigger, above it.
+    s.send(stackItem(9102, card, true));
+    s.send(stackIs([9102, 9101]));
+    await waitFor(() => expect(canvas.querySelectorAll('[data-stack-id]')).toHaveLength(2));
+  });
+
+  it('W17 — its cast trigger asks for a target: the stack draws the spell at once, and the arrow leaves from the stack item', async () => {
+    const { s, m, canvas, card, rest, battlefield } = await play();
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    s.send(zones({ Hand: rest, Battlefield: battlefield }));
+    s.send(stackItem(9101, card));
+    s.send(stackIs([9101]));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    expect(canvas.querySelector('[data-stack-id="9101"]')).toBeNull();
+    for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
+    const item = await waitFor(() => {
+      const el = canvas.querySelector<HTMLElement>('[data-stack-id="9101"]');
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    boxAt(item, 500, 10, 120, 40); // centre (560, 30)
+    fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 220, clientY: 180 });
+    const arrow = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(arrow.dataset.source).toBe(String(card));
+    expect(arrow.querySelector('path')!.getAttribute('d'), 'from the stack item, not from where the card was let go').toMatch(/^M 560 30 Q /);
+  });
+
+  it('a creature that is countered just lets go: no landing, nothing left over the board', async () => {
+    const { s, m, canvas, card, rest, battlefield } = await play(() => true);
+    s.send(zones({ Hand: rest, Battlefield: battlefield }));
+    s.send(stackItem(9101, card));
+    s.send(stackIs([9101]));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    s.send(stackIs([]));
+    s.send(zones({ Graveyard: [card] }));
+    await waitFor(() => expect(canvas.querySelector('[data-cast-ghost]')).toBeNull());
+    expect(canvas.querySelector('[data-cast-lift]')).toBeNull();
+    expect(canvas.querySelector('[data-cast-landing]')).toBeNull();
+  });
+
+  it('a play Forge never answers floats back to the hand after PARK_UNANSWERED_MS', async () => {
+    const { s, canvas, card } = await play();
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    expect(standIn.getAttribute('data-cast-lift')).toBe('parked');
+    await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+    expect(canvas.querySelector('[data-cast-ghost]'), 'and the stand-in goes with it').toBeNull();
+    expect(sent(s), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
+  }, 20_000);
+
+  it('a card Forge stopped offering between the lift and the release is not sent, and floats back', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    s.send(actionable([]));
+    await waitFor(() => expect(m.weaklySelectable?.size ?? 0).toBe(0));
+    fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('returning');
+    expect(s.clientFrames()).toHaveLength(0);
+  });
+});
+
 describe('a hand card named by an open selection or ask is an ordinary click, never lifted', () => {
   it('a selection naming a hand card: no lift, and a plain click sends selectCard at once', async () => {
     const { s, m, canvas } = await gestureBoard();

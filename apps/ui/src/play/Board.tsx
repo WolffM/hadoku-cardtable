@@ -387,7 +387,7 @@
  * width at which a card's NAME stops being readable, and no further (§A.1).
  */
 
-import { useEffect, useLayoutEffect, useReducer, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
@@ -1059,6 +1059,41 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
 }
 
 // ── R9: a cast's drop point, remembered until the permanent arrives ─────────
+// ── A cast the gestures lane is carrying: its spell stands off the stack ────
+
+/**
+ * The card whose own spell the stack does not draw for now, or null.
+ *
+ * The operator, on dragging a creature out of the hand: *"i dont think we need
+ * the stack to appear at all if the opponent doesn't take priority. we can skip
+ * the confidant being on the stack."* While the gestures lane holds a played
+ * permanent at its release point, that card IS the spell as far as the caster
+ * is concerned, and drawing it a second time as a stack thumbnail is the flash
+ * they were describing. The gestures lane decides when that stops being true
+ * (the opponent is taking their time, something else joined the stack, Forge
+ * asks a question) and calls this with null; `Board` only draws what it says.
+ *
+ * Module-level and written from outside React for the same reason
+ * `notePlayedTo` is, but unlike a pending placement this one has to WAKE a
+ * mounted `Board` — the stand-in ends on the gestures lane's own clock, with
+ * no Forge frame to ride — so it is a store `Board` subscribes to.
+ */
+let carriedCastId: number | null = null;
+const carriedCastListeners = new Set<() => void>();
+
+export function carryCastOffStack(cardId: number | null): void {
+  if (carriedCastId === cardId) return;
+  carriedCastId = cardId;
+  for (const listener of carriedCastListeners) listener();
+}
+
+const readCarriedCast = (): number | null => carriedCastId;
+
+function subscribeCarriedCast(listener: () => void): () => void {
+  carriedCastListeners.add(listener);
+  return () => carriedCastListeners.delete(listener);
+}
+
 
 /**
  * A cast's intended battlefield slot, remembered by the card's own (stable)
@@ -2995,10 +3030,13 @@ function StackView({
   interaction,
   viewerName,
 }: {
+  carried,
   stack: readonly StackEntry[];
   interaction: BoardInteraction | undefined;
   viewerName: string | null;
 }) {
+  /** How many of Forge's stack items are not in `stack` because a played card is standing in for them (`carryCastOffStack`). */
+  carried: number;
   const topId = stack[0]?.id ?? null;
 
   // The big view's own selection while PINNED: the top by default, or
@@ -3088,6 +3126,7 @@ function StackView({
       ref={sectionRef}
     >
       <ol className="stack__items" ref={rowRef}>
+      data-carried={carried > 0 ? carried : undefined}
         {stack.map((item, index) => (
           <StackThumb
             key={item.id}
@@ -3156,6 +3195,10 @@ export function Board({
   /*
    * Item 17.2's staged card, found once here rather than in `PlayerArea`: it
    * can only ever be the viewer's own (`BoardInteraction.stagedCardId`'s own
+  // The spell itself only: an ability from the same card (its cast trigger) is a second thing on the stack and is drawn.
+  // The third argument is the same reading: a statically rendered board (`live/parity.test.ts`) has no gesture layer, and so carries nothing.
+  const carriedCast = useSyncExternalStore(subscribeCarriedCast, readCarriedCast, readCarriedCast);
+  const stack = carriedCast === null ? view.stack : view.stack.filter((item) => item.isAbility || item.sourceCardId !== carriedCast);
    * note), and `PlayerArea` only needs to know WHICH id to leave out of the
    * hand it draws, not the card itself.
    */
@@ -3298,7 +3341,7 @@ export function Board({
         data-testid="board-mid"
         data-question={interaction?.questionOpen === true || undefined}
       >
-        <StackView stack={view.stack} interaction={interaction} viewerName={viewer?.name ?? null} />
+        <StackView stack={stack} carried={view.stack.length - stack.length} interaction={interaction} viewerName={viewer?.name ?? null} />
       </div>
 
       {staged !== undefined && <StagingArea card={staged} interaction={interaction} />}

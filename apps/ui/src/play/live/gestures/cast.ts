@@ -116,9 +116,14 @@ function cancelReturnTimer(id: number): void {
 /**
  * Draw the card at `at`. `'lifted'`: still following the pointer, pre-release.
  * `'parked'`: a targeted cast already sent, pinned at its release point for the
- * rest of the aim. No text is drawn on the card in either state.
+ * rest of the aim. `'carried'`: a played card on its way to the battlefield —
+ * out of the hand's row like the other two, but NOT drawn: its stand-in
+ * (`parkedGhost`, taken at the release) is what the player sees until it
+ * lands, so nothing Forge does to the card on the way shows through. A
+ * shockland that enters tapped is tapped a frame or two before it changes
+ * zone, and drew tapped in mid-air. No text is drawn on the card in any state.
  */
-export function drawCastLift(root: ParentNode, id: number, at: Point, mode: 'lifted' | 'parked'): void {
+export function drawCastLift(root: ParentNode, id: number, at: Point, mode: 'lifted' | 'parked' | 'carried'): void {
   const el = cardBox(root, id);
   if (!(el instanceof HTMLElement)) return;
   cancelReturnTimer(id);
@@ -209,6 +214,49 @@ export function parkedGhost(root: ParentNode, id: number): HTMLElement | null {
   return ghost;
 }
 
+/** On a card's own battlefield element while its stand-in is still travelling to it. `./gestures.css` hides it; the row keeps its place. */
+export const CAST_LANDING_ATTR = 'data-cast-landing';
+
+/**
+ * A played card arrives: its stand-in travels from where it was let go to the
+ * place `arrived` already holds in its row, and only then does the real card
+ * show. The row is laid out with the card in it from the first frame, so
+ * nothing around it moves twice.
+ *
+ * The stand-in is the travelling thing, never `arrived` itself: a transform on
+ * a card inside the battlefield counts toward that zone's scroll overflow, and
+ * a card lifted out of the row would close the gap it is flying to.
+ */
+export function landCastGhost(root: ParentNode, id: number, ghost: HTMLElement, from: Point, arrived: HTMLElement): void {
+  const box = arrived.getBoundingClientRect();
+  const to = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  ghost.setAttribute(CAST_LIFT_ATTR, 'parked');
+  ghost.style.left = `${from.x}px`;
+  ghost.style.top = `${from.y}px`;
+  if (!ghost.isConnected) (root.querySelector('.board') ?? (root as Element)).appendChild(ghost);
+  arrived.setAttribute(CAST_LANDING_ATTR, '');
+  // The start point has to be a painted style before the end point replaces it, or there is no transition to run.
+  void ghost.getBoundingClientRect();
+  floatCastLiftHome(
+    root,
+    id,
+    to,
+    () => {
+      ghost.remove();
+      arrived.removeAttribute(CAST_LANDING_ATTR);
+    },
+    ghost,
+  );
+  // It shrinks to the size it will have in the row on the way there. A tapped
+  // card's box is the card turned on its side, so its sides are swapped back:
+  // the stand-in stays upright for the whole trip.
+  if (box.width > 0 && box.height > 0) {
+    const turned = arrived.hasAttribute('data-tapped');
+    ghost.style.width = `${turned ? box.height : box.width}px`;
+    ghost.style.height = `${turned ? box.width : box.height}px`;
+  }
+}
+
 /** Every lift away, whoever it belonged to — on dispose, so a board left behind carries none, and every pending float-back timer with it. */
 export function clearAllCastLifts(root: ParentNode): void {
   for (const timer of returnTimers.values()) clearTimeout(timer);
@@ -219,4 +267,5 @@ export function clearAllCastLifts(root: ParentNode): void {
     el.style.removeProperty('top');
   }
   for (const ghost of root.querySelectorAll(`[${CAST_GHOST_ATTR}]`)) ghost.remove();
+  for (const el of root.querySelectorAll(`[${CAST_LANDING_ATTR}]`)) el.removeAttribute(CAST_LANDING_ATTR);
 }

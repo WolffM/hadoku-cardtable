@@ -11,6 +11,13 @@ export interface GestureOptions {
   match: LiveMatch;
   /** Called when the gesture layer's own visible state changed. Optional. */
   onChange?: () => void;
+  /**
+   * Whether an arrival is shown as motion: a played card travels from where it
+   * was let go to its place in the row. False (Fast Mode on) and it is simply
+   * there. Read at each arrival, so a mid-match toggle needs no reinstall.
+   * Absent: no motion.
+   */
+  motion?: () => boolean;
 }
 
 export interface GestureHandle {

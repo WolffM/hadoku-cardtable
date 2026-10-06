@@ -66,8 +66,9 @@
  *  - over the viewer's own hand → the card floats back; nothing is sent,
  *    whatever the card is (nothing was ever sent to undo);
  *  - no target needed, over the viewer's own battlefield → `selectCard`
- *    (the play) and one call telling `Board` where it landed, at the slot
- *    under the release point;
+ *    (the play), one call telling `Board` where it landed, at the slot under
+ *    the release point, and the card PARKS at that point exactly as a
+ *    targeted cast does — see "A played card waits where it was let go";
  *  - no target needed, anywhere else → the card floats back; nothing is
  *    sent;
  *  - a target is needed, anywhere outside the hand → `selectCard` (the cast)
@@ -79,6 +80,31 @@
  *    instead, and the click-targeting arrow (`paint()`'s fallback branch)
  *    leaves from `parked` itself rather than from a DOM lookup, so a target
  *    ask is answered like any other click-cast.
+ *
+ * ### A played card waits where it was let go
+ *
+ * The operator, on a shockland and on a creature: *"why isn't the land
+ * hovering over the board while the question is being asked, and then after
+ * the question is finished place the card on the board from the hover"*, and
+ * *"i dont like the snap back to the hand"*. Until Forge has the card on the
+ * battlefield it is still in the hand as far as the state goes — through a
+ * shockland's "pay 2 life?", through a payment — or in no zone at all while
+ * its spell is on the stack. Letting the lift go at the release therefore
+ * dropped it back into the hand for exactly that long. So a played card is
+ * `parked` too (`played: true`), and it ends one of three ways:
+ *
+ *  - Forge has it on a battlefield → it lands in its row: at once in Fast
+ *    Mode, travelling from the park point otherwise (`./cast.ts`'s
+ *    `landCastGhost`);
+ *  - it is back in the hand after having left it, or somewhere else the board
+ *    draws (a countered creature's graveyard) → the lift simply comes off;
+ *  - Forge never took the play (`PARK_UNANSWERED_MS` with the card still in
+ *    the hand and nothing open) → it floats back, the same as a cancel.
+ *
+ * While it waits, its own spell is not drawn on the caster's stack
+ * (`Board.tsx`'s `carryCastOffStack`): the parked card is that spell. The
+ * stack takes it back the moment that stops being the whole story — see
+ * `syncStackStandIn`.
  *
  * ### A click lifts; the next press is the release
  *
@@ -117,6 +143,11 @@
  * LIFTED, held or click-armed), a cancel is silent: nothing was ever sent, so
  * there is nothing to undo — the card simply floats back.
  *
+ * A PLAYED card (a permanent on its way to the battlefield) that Forge is not
+ * asking about cannot be cancelled at all: the play is done, and floating the
+ * card back to a hand it is about to leave would draw something untrue. Those
+ * inputs are ignored until it lands.
+ *
  * One more cancel beyond right-click and Escape: a left click that lands on
  * nothing Forge's open selection names, while a cast is parked, is the same
  * cancel rather than a resolving press — there is nothing left for it to
@@ -147,7 +178,7 @@ import {
 } from '../match.ts';
 // Where a cast lands on the battlefield — a plain function, not a component,
 // read across the lane boundary.
-import { notePlayedTo, previewPlayedTo } from '../../Board.tsx';
+import { carryCastOffStack, notePlayedTo, previewPlayedTo } from '../../Board.tsx';
 import { autoTargetArrows, combatArrows, stackTargetArrows } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
 import {
@@ -159,6 +190,7 @@ import {
   floatCastLiftHome,
   handCardTypeLine,
   isHandCard,
+  landCastGhost,
   needsTarget,
   overOwnBattlefield,
   overOwnHand,
@@ -185,7 +217,28 @@ import './gestures.css';
 const CANVAS_ATTR = 'data-gesture-canvas';
 
 /**
- * A targeted cast, sent at release and pinned at the point it was released.
+ * How long a played card's spell may sit alone on the stack before the stack
+ * draws it after all: longer than an uncontested spell takes to resolve, so
+ * one still there means the opponent is holding priority, and then the stack is
+ * where the caster needs to see it. Two values, because "uncontested" takes
+ * two very different times: with Fast Mode on it is a round trip to Forge
+ * (44 ms measured); with it off, `../pace.ts` holds the frame that takes the
+ * spell off the stack for `PACE_DELAYS_MS.resolve` on top of that
+ * (980 ms measured, and 150 ms more for every other frame queued between).
+ */
+export const STACK_STAND_IN_MS = { fast: 500, paced: 2000 } as const;
+
+/**
+ * How long a parked card may sit with Forge showing no sign of the play — the
+ * card still in the hand, no question, no payment — before it floats back. An
+ * act is dropped when Forge was not at the input the click was meant for, and
+ * a card pinned over the board for good is worse than one returned.
+ */
+export const PARK_UNANSWERED_MS = 4000;
+
+/**
+ * A card sent at release and pinned at the point it was released: a targeted
+ * cast being aimed, or (`played`) a permanent on its way to the battlefield.
  * `home` is where it floats back to on a cancel: the same point `drag.from`
  * held, the card's own centre at the moment it was first lifted.
  */
@@ -197,6 +250,10 @@ interface Parked {
   readonly ghost: HTMLElement | null;
   /** Forge's state has shown the card out of the hand since the cast went out. */
   leftHand: boolean;
+  /** A permanent played to the viewer's own battlefield rather than a cast being aimed. */
+  readonly played: boolean;
+  /** The stack has taken this card's spell back (`syncStackStandIn`). Never returns to false. */
+  onStack: boolean;
 }
 
 /** Where Forge's state holds the card now: the viewer's hand, another zone the board draws, or nowhere it draws (mid-cast). */
@@ -210,6 +267,11 @@ function whereIs(match: LiveMatch, id: number): 'hand' | 'drawn' | 'limbo' {
   return 'limbo';
 }
 
+/** Forge's state has the card on a battlefield — the one zone that draws an element per card for it to land on. */
+function onBattlefield(match: LiveMatch, id: number): boolean {
+  return (match.view?.players ?? []).some((p) => p.battlefield.some((c) => c.id === id));
+}
+
 export function installGestures(options: GestureOptions): GestureHandle {
   const { canvas, match } = options;
   let drag: DragState | null = null;
@@ -221,6 +283,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let live = true;
   /** A targeted cast already sent, pinned, waiting on Forge — see the module header. Null: no cast in flight. */
   let parked: Parked | null = null;
+  /** Running while a played card's spell sits alone on the stack — `syncStackStandIn`. */
+  let standInTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Running from a park until Forge shows any sign of it — `PARK_UNANSWERED_MS`. */
+  let unansweredTimer: ReturnType<typeof setTimeout> | null = null;
   /**
    * Set the moment a press is claimed as a hand-card cast — see the module
    * header's own section — and consumed by the capturing `click` listener
@@ -278,7 +344,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * draw from.
    *
    * A drag anchors its arrow to the card it was picked up from. A click has
-   * no such anchor, so the tail is the thing the player pointed at last
+   * no such anchor, so the tail is the card the question itself names
+   * (`match.promptCard`), then the thing the player pointed at last
    * (`match.lastSelectedCard` — the card they clicked to cast or activate)
    * and, failing that, the top of the stack: a triggered ability that wants a
    * target was never clicked at all, and its source is what the arrow should
@@ -301,10 +368,26 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   function clickOrigin(): { at: Point; source: number | null } | null {
     // A parked card is where the player let go of it, whether or not the
-    // board still renders its element.
-    if (parked !== null) {
+    // board still renders its element — until the stack has taken a played
+    // card's spell back: then the stack item is the thing that is asking, and
+    // the arrow leaves from it (W17, "from the played card on the stack").
+    if (parked !== null && !(parked.played && parked.onStack)) {
       const box = cardBox(canvas, parked.source);
       return { at: box === null ? parked.at : centreOf(box), source: parked.source };
+    }
+    // The card Forge says the question is ABOUT, when it names one, before the
+    // card this seat happened to click last: a selection an opponent's spell
+    // opens here (Smallpox's "discard a card") is not about anything this seat
+    // clicked, and the last click — a land played two turns ago — is still on
+    // record until a selection of this seat's own closes. Found in a live game:
+    // the arrow left from that land.
+    const asked = match.promptCard;
+    if (asked !== null) {
+      const box = cardBox(canvas, asked);
+      if (box !== null) return { at: centreOf(box), source: asked };
+      const item = (match.view?.stack ?? []).find((i) => i.sourceCardId === asked);
+      const stackBox = item === undefined ? null : stackItemBox(canvas, item.id);
+      if (stackBox !== null) return { at: centreOf(stackBox), source: asked };
     }
     const held = match.lastSelectedCard;
     if (held !== null) {
@@ -444,43 +527,109 @@ export function installGestures(options: GestureOptions): GestureHandle {
       floatCastLiftHome(canvas, source, state.from, () => {});
       return;
     }
-    if (!spell) {
-      previewPlayedTo(null);
-      if (overOwnBattlefield(node)) {
-        selectCard(match, source);
-        // The one placement call, at the release — the slot under the
-        // release point.
-        notePlayedTo(source, point);
-        clearCastLift(canvas, source);
-      } else {
-        floatCastLiftHome(canvas, source, state.from, () => {});
-      }
+    previewPlayedTo(null);
+    if (!spell && !overOwnBattlefield(node)) {
+      floatCastLiftHome(canvas, source, state.from, () => {});
       return;
     }
-    // A card that needs a target: the cast goes out now, wherever it was
-    // released outside the hand, and the card parks right there.
-    previewPlayedTo(null);
+    // An earlier card still on its way is on its own from here: one park at a time.
+    if (parked !== null) releaseParked(endPark()!, false);
+    // The play, or the cast: it goes out now, and the card parks where it was
+    // let go — a permanent over the viewer's own battlefield, a card that
+    // needs a target wherever it was released outside the hand.
     const ghost = parkedGhost(canvas, source);
-    selectCard(match, source);
-    drawCastLift(canvas, source, point, 'parked');
-    parked = { source, at: point, home: state.from, ghost, leftHand: false };
+    if (!selectCard(match, source)) {
+      // Forge's offer moved on between the lift and the release: nothing went out.
+      floatCastLiftHome(canvas, source, state.from, () => {});
+      return;
+    }
+    if (!spell) {
+      // The one placement call, at the release — the slot under the release point.
+      notePlayedTo(source, point);
+      carryCastOffStack(source);
+    }
+    // A played card is drawn by its stand-in from here on; a cast being aimed
+    // is drawn by its own element for as long as the board has one.
+    drawCastLift(canvas, source, point, !spell && ghost !== null ? 'carried' : 'parked');
+    parked = { source, at: point, home: state.from, ghost, leftHand: false, played: !spell, onStack: false };
+    syncParkedGhost();
+    unansweredTimer = setTimeout(onParkUnanswered, PARK_UNANSWERED_MS);
     // The pointer is at the park point now; the arrow follows it from there
     // the moment Forge asks for the target, before the pointer next moves.
     hover = { at: point, node };
     paint();
   }
 
+  /** `parked` is over, however it ended: its clocks stop and the stack draws everything again. */
+  function endPark(): Parked | null {
+    const p = parked;
+    parked = null;
+    if (standInTimer !== null) clearTimeout(standInTimer);
+    if (unansweredTimer !== null) clearTimeout(unansweredTimer);
+    standInTimer = null;
+    unansweredTimer = null;
+    carryCastOffStack(null);
+    return p;
+  }
+
+  /** `PARK_UNANSWERED_MS` after a park: if Forge has shown no sign of it, the card goes back. */
+  function onParkUnanswered(): void {
+    unansweredTimer = null;
+    if (!live || parked === null) return;
+    if (whereIs(match, parked.source) !== 'hand' || parked.leftHand) return;
+    if (match.selectables !== null || payingMana(match) || match.asks.length > 0 || stackAsk(match) !== null) return;
+    const p = endPark()!;
+    releaseParked(p, true);
+    paint();
+  }
+
   /**
-   * The parked card's stand-in is on the page exactly while the board has no
-   * element of its own for the card: Forge holds a card being cast in none of
-   * the zones the board draws until its targets are chosen, so React
+   * Whether the caster's stack still leaves a played card's own spell to the
+   * parked card. It does while that spell is the only thing on the stack and
+   * Forge is asking this seat nothing; it stops, for good, the moment a second
+   * item joins it (a cast trigger, a response), Forge opens a question, or
+   * its `STACK_STAND_IN_MS` passes with the spell still there — the opponent is
+   * holding priority, which this client can only know by the wait
+   * (`../LiveBoard.tsx`'s `myMoveNow` has the reason no frame says so).
+   *
+   * A payment is neither: the clock does not run while this seat is paying.
+   */
+  function syncStackStandIn(): void {
+    if (parked === null || !parked.played || parked.onStack) return;
+    const stack = match.view?.stack ?? [];
+    const source = parked.source;
+    if (!stack.some((item) => !item.isAbility && item.sourceCardId === source)) return;
+    if (stack.length > 1 || match.selectables !== null || match.asks.length > 0 || stackAsk(match) !== null) {
+      showOnStack();
+      return;
+    }
+    if (payingMana(match)) {
+      if (standInTimer !== null) clearTimeout(standInTimer);
+      standInTimer = null;
+      return;
+    }
+    standInTimer ??= setTimeout(showOnStack, options.motion?.() === true ? STACK_STAND_IN_MS.paced : STACK_STAND_IN_MS.fast);
+  }
+
+  function showOnStack(): void {
+    if (standInTimer !== null) clearTimeout(standInTimer);
+    standInTimer = null;
+    if (parked !== null) parked.onStack = true;
+    carryCastOffStack(null);
+  }
+
+  /**
+   * A cast being aimed has its stand-in on the page exactly while the board
+   * has no element of its own for the card: Forge holds a card being cast in
+   * none of the zones the board draws until its targets are chosen, so React
    * unmounts it, and without the stand-in the player would see the card
-   * vanish the moment they let go of it.
+   * vanish the moment they let go of it. A PLAYED card has it for the whole
+   * of the wait (`drawCastLift`'s `'carried'`).
    */
   function syncParkedGhost(): void {
     if (parked === null || parked.ghost === null) return;
     const { ghost } = parked;
-    if (cardBox(canvas, parked.source) !== null) {
+    if (!parked.played && cardBox(canvas, parked.source) !== null) {
       ghost.remove();
       return;
     }
@@ -511,13 +660,17 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   function cancelLive(): void {
     if (parked !== null) {
-      const p = parked;
-      parked = null;
       // Forge is asking about THIS cast only if a selection or a payment is
       // open now — a land, or a spell that needed neither, is already done,
       // and pressing Cancel regardless would reach whatever button 2 means
       // next.
-      if (match.selectables !== null || payingMana(match)) pressButton(match, 'cancel');
+      const asking = match.selectables !== null || payingMana(match);
+      // A played card Forge is not asking about is already on its way to the
+      // battlefield: there is nothing to cancel, and floating it back to a
+      // hand it is about to leave would show something that is not true.
+      if (parked.played && !asking) return;
+      const p = endPark()!;
+      if (asking) pressButton(match, 'cancel');
       releaseParked(p, true);
       paint();
       return;
@@ -550,11 +703,27 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (parked === null) return;
     const where = whereIs(match, parked.source);
     if (where !== 'hand') parked.leftHand = true;
+    if (parked.played && where === 'drawn') {
+      // It is a permanent now (or, countered, a card in a graveyard), and the
+      // play is over whatever Forge asks next — an enters trigger's target is
+      // a new question about a card already on the table.
+      if (!onBattlefield(match, parked.source)) {
+        releaseParked(endPark()!, false);
+        return;
+      }
+      // The row's own element is what it lands on, so this waits for React to
+      // have drawn it; the hand's element, still lifted, is not it.
+      const arrived = cardBox(canvas, parked.source);
+      if (!(arrived instanceof HTMLElement) || arrived.closest('[data-zone="battlefield"]') === null) return;
+      const p = endPark()!;
+      if (p.ghost !== null && options.motion?.() === true) landCastGhost(canvas, p.source, p.ghost, p.at, arrived);
+      else releaseParked(p, false);
+      return;
+    }
     if (match.selectables !== null || payingMana(match) || match.asks.length > 0 || stackAsk(match) !== null) return;
     if (match.view?.stack.some((item) => item.sourceCardId === parked!.source)) return;
     if (where === 'limbo' || (where === 'hand' && !parked.leftHand)) return;
-    const p = parked;
-    parked = null;
+    const p = endPark()!;
     releaseParked(p, false);
   }
 
@@ -863,6 +1032,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   const unsubscribe = subscribe(match, () => {
     if (!live) return;
     settleParkedIfResolved();
+    syncStackStandIn();
     syncParkedGhost();
     paint();
   });
@@ -873,6 +1043,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const overlay = overlayOf();
     if (records.every((r) => overlay !== null && r.target instanceof Node && overlay.contains(r.target))) return;
     applyIntents(canvas, match);
+    // A played card lands on its row's own element, which exists only now.
+    settleParkedIfResolved();
     syncParkedGhost();
   });
   observer.observe(canvas, { childList: true, subtree: true });
@@ -901,7 +1073,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // A gesture disposed mid-flight (a remount, a resync) leaves no
       // placement preview behind either.
       if ((drag !== null && drag.lifted) || parked !== null) previewPlayedTo(null);
-      parked = null;
+      endPark();
       canvas.removeAttribute(CANVAS_ATTR);
       canvas.removeAttribute('data-dragging');
       canvas.removeAttribute('data-marquee');

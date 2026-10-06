@@ -1946,7 +1946,7 @@ describe('Concede asks first', () => {
 describe('the frame installs the gesture layer and owns none of it', () => {
   it('one effect, and nothing about a drag in the component', () => {
     const src = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'LiveBoard.tsx'), 'utf8');
-    expect(src).toContain('installGestures({ canvas, match })');
+    expect(src).toContain('installGestures({ canvas, match, motion: () => !fastModeNow.current })');
     expect(src).toContain('handle.dispose()');
     for (const gone of ['commitDrag', 'DRAG_SLOP_PX', 'onPointerDown', 'pointermove', 'pointerup', 'createPortal']) {
       expect(src, `${gone} is ./gestures/'s now`).not.toContain(gone);

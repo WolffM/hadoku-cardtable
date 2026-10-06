@@ -1696,8 +1696,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   useEffect(() => {
     const canvas = rootRef.current;
     // A watcher's pointer belongs to nobody: no drag, no box, no arrow.
+  const fastModeNow = useRef(fastMode);
+  fastModeNow.current = fastMode;
     if (canvas === null || spectator) return undefined;
-    const handle = installGestures({ canvas, match });
+    // Read through a ref, so toggling Fast Mode mid-match does not tear the layer down mid-gesture.
+    const handle = installGestures({ canvas, match, motion: () => !fastModeNow.current });
     return () => handle.dispose();
   }, [match, spectator]);
 
