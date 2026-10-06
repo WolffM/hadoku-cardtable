@@ -60,6 +60,39 @@ Blast radius: Undo republishing a fresh set needs no UI change. The UI folds eve
 `setWeaklySelectable` branch of the fold), and spec cases 2 and 3 show the Island offered and
 clickable again after Undo with no UI change.
 
-GATE_RESULTS
+## Full gate, CI's env (w49's shape)
 
-INSTALL_RESULTS
+`~/.cache/w52-gate/gate.sh` copies ci.yml: the forge-gated spec list is derived with
+`grep -lE 'forge\.ok|startPlayStack|startScenarioMatch'`, then CI's own jq. Every tracked
+`*.jvm.test.ts` runs serially and is judged by ci.yml's judge step, extracted verbatim, FULL=true.
+Jar: the staged w52 build. HEAD `37bf3d0`, 2026-10-06 20:55–21:44Z.
+
+- **e2e**: 20 specs, `{"expected":79,"skipped":0,"unexpected":1}`. The one red was `w33.spec.ts`
+  "a stack item carries its target … (the Doom Blade case)". Its server log shows Doom Blade cast
+  under alice's full control, priority back to alice, and the spec's own loop pressing OK (its
+  `else` branch fires while its 40 ms `stackCount` poll has not yet seen the stack). Bob had
+  nothing (`sources: 0`) and was auto-passed, and the spell resolved before the precondition poll.
+  No w52 path ran: no `auto-confirmed`, no phase-restricted stop, no mana-only offer.
+  Re-run alone on the w52 jar: `--repeat-each=3`, **3 passed**.
+- **jvm**: 108 tests, 5 failed. Three are on ci.yml's pinned lists (Q12 blockers, two "fifteen
+  prompts"). Two were not, both in `auto.jvm.test.ts`:
+  - "records what #16 and #22 actually carry" — **caused by w52 (S)**. Evolving Wilds' sacrifice
+    confirm is now a chosen cost, answered and withheld, so the recorder never saw it. Fixed in
+    `cdf2b37`: the recorder runs `costConfirm: 'ask'` and now pins that the confirm names its
+    ability (`confirmAbility.hostCard` is a Wilds).
+  - "records the window item 6 is" — failed in teardown ("timed out waiting for the JVM to exit") at
+    load average ~30, with three gates on the host.
+  - Re-run of the file alone after the fix: **3 passed**.
+
+## Install (host mutation, done once)
+
+- `curl -s localhost:9008/health/busy` → `{"busy":false,"count":0,"runs":[]}`, read immediately before.
+- `install -m 0644 ~/.cache/w52-jar/forge.jar ~/.local/share/cardtable/forge.jar` at 2026-10-06T21:58:56Z:
+  - before `89e824c9ba5329b09dae20ab646c688361ff9a2614ce8910e95f2e3fe9f1f53c`
+  - after `984f247a0026a4db480050f0025112788fa24389bd709d60977fac51a8fad6a3`
+- `java -jar … server --help` prints the usage banner; restart through mgmt-api
+  (`POST :4000/api/cardtable/restart`) at 21:58:57Z.
+- `cardtable-out.log`: `jvm-spawned spare-c20855a642ff` then `spare-warm … bootMs 4641`, and no
+  "no Forge" line on stderr. `/health`: `{"status":"healthy","bundle":"ok"}`.
+- Landed with the consumers in one `land.sh` run right after, so the old server ran against the
+  new jar only for the minutes the land took.
