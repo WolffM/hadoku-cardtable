@@ -904,6 +904,11 @@
   color: var(--ink);
 }
 
+/* Something the game did on its own: full ink, like a payment — it happened, and nobody pressed anything for it. */
+.live__log li[data-log-kind='trigger'] {
+  color: var(--ink);
+}
+
 .live__log li[data-log-kind='damage'] {
   color: var(--c-red);
 }

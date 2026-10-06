@@ -113,6 +113,7 @@ import {
 	onlyAnswer,
 	paymentCost,
 	paymentLine,
+	triggerLine,
 	readPromptFacts,
 	repeatedAbilityToPlay,
 	type Payment,
@@ -318,6 +319,8 @@ export interface SeatState {
 	 * rather than Forge's.
 	 */
 	says: ServerFrame[];
+	/** Stack item ids this seat's stack has already shown, so each is looked at once ({@link Match.noteTriggers}). */
+	triggersSaid: Set<number>;
 	/**
 	 * Wave 34 §S4 — the host card + ability id of the last `getAbilityToPlay`
 	 * this seat was actually given an answer for, whether the browser answered
@@ -624,6 +627,7 @@ export class Match {
 			highlighted: new Map(),
 			weakly: null,
 			payment: null,
+			triggersSaid: new Set(),
 			autoPaid: null,
 			autoCancelled: null,
 			paymentCancelled: false,
@@ -1107,6 +1111,7 @@ export class Match {
 		s.history.push(projected);
 		this.notePaymentTaps(s, projected);
 		this.send(s, projected);
+		this.noteTriggers(s, projected);
 	}
 
 	private onLine(line: BridgeLine): void {
@@ -1718,6 +1723,71 @@ export class Match {
 			const tapped = payment.tapped.map((c) => ({ id: c.id, name: cardName(state, c.id) ?? c.name }));
 			return paymentLine({ cost: payment.cost, tapped }, recipient === s ? undefined : this.seatName(s.seat));
 		});
+	}
+
+	/**
+	 * A triggered ability went on the stack: say so, to the seat this delta went to.
+	 *
+	 * The operator, 2026-10-06, with Dark Confidant's upkeep trigger having just
+	 * cost a life and the log showing only lands and payments: *"the log doesn't
+	 * include triggers which is unfortunate. here i would want to see the dark
+	 * confidant triggered ability since it did happen."* Nobody presses anything
+	 * for a trigger, so none of the log's other writers ever sees one.
+	 *
+	 * Read off this seat's own projected state, which is why it needs no rule of
+	 * its own about who may know what: an id newly in `Game.Stack` whose
+	 * `StackItem` carries a real `SourceTrigger` (`StackItemView.isTrigger()` is
+	 * `> 0`; a spell or an activated ability carries -1). The line says the
+	 * item's own `Description` — the string the stack already draws for this
+	 * seat — and the card's name as this seat's folded state has it. Each seat
+	 * gets its line after the delta that put the item on its stack, so the log
+	 * never names a trigger the board has not been told about.
+	 *
+	 * `Game.Stack` and not "a new StackItem object": Forge builds stack item
+	 * views that never reach the stack (the first version of this read
+	 * `newObjects` and, against real Forge, said one Dark Confidant trigger
+	 * three times). Once per stack id per seat; ids are not reused in a game.
+	 */
+	private noteTriggers(s: SeatState, projected: ServerFrame): void {
+		if (s.ai || projected.method !== 'applyDelta') return;
+		const packet = (projected as unknown as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		// Only a delta that rewrites `Game.Stack` can have put anything on it.
+		let stack: number[] | null = null;
+		for (const table of [packet.newObjects, packet.objectDeltas]) {
+			for (const obj of Object.values(table)) {
+				if (obj._type !== TYPE.game) continue;
+				const list = obj.Stack as { t?: string; v?: unknown } | undefined;
+				if (list?.t !== 'list' || !Array.isArray(list.v)) continue;
+				stack = (list.v as { v?: unknown }[]).map((item) => item.v).filter((id): id is number => typeof id === 'number');
+			}
+		}
+		if (stack === null) return;
+		// Bottom of the stack first: the order they went on.
+		const arrived = stack.filter((id) => !s.triggersSaid.has(id)).reverse();
+		if (arrived.length === 0) return;
+		const state = foldFrames(s.history as unknown as StateFrame[]);
+		for (const id of arrived) {
+			// Looked at once, trigger or not.
+			s.triggersSaid.add(id);
+			const item = state.get(keyOf(TYPE.stackItem, id));
+			const read = (property: string): { t?: string; v?: unknown } | undefined => item?.[property] as { t?: string; v?: unknown } | undefined;
+			const trigger = read('SourceTrigger');
+			if (trigger?.t !== 'int' || typeof trigger.v !== 'number' || trigger.v <= 0) continue;
+			const source = read('SourceCard');
+			const description = read('Description');
+			const controller = read('ActivatingPlayer');
+			const theirs = this.seats.find((other) => other !== s && other.playerId !== null && other.playerId === controller?.v);
+			this.say(
+				s,
+				triggerLine(
+					{
+						source: source?.t === 'int' && typeof source.v === 'number' ? cardName(state, source.v) : null,
+						description: description?.t === 'str' && typeof description.v === 'string' ? description.v : '',
+					},
+					theirs === undefined ? undefined : this.seatName(theirs.seat),
+				),
+			);
+		}
 	}
 
 	/** Cards that tapped under an open payment prompt, from this seat's own projected delta. */

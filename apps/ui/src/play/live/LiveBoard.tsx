@@ -631,8 +631,9 @@ export const SAYS_SHOWN = SAYS_KEPT;
  *
  * **The vocabulary is small and it is ours, which is why classifying it by its
  * words is honest here and would not be in general.** Every line on this channel
- * is a `message` notify, and there are four writers of them in the whole repo:
- * `paid …` and `<seat> paid …` (`auto.ts`'s `paymentLine`), `full control
+ * is a `message` notify, and there are five writers of them in the whole repo:
+ * `paid …` and `<seat> paid …` (`auto.ts`'s `paymentLine`), `triggered …` and
+ * `<seat> triggered …` (`auto.ts`'s `triggerLine`), `full control
  * on`/`off` (`match.ts`'s own `say`), `played …` (this client's
  * `noteAutoAnswered`), and whatever Forge itself sends through `showMessage`.
  * Only the last is out of our hands, and it falls to `said`, which is the
@@ -646,7 +647,7 @@ export const SAYS_SHOWN = SAYS_KEPT;
  * card id, structured — and this function is the thing it replaces rather than
  * something it has to be bent into.
  */
-export type LogKind = 'payment' | 'damage' | 'life' | 'play' | 'control' | 'said';
+export type LogKind = 'payment' | 'trigger' | 'damage' | 'life' | 'play' | 'control' | 'said';
 
 /* ── Forge's second button, and the two labels we refuse (items 6, 16) ───── */
 
@@ -709,6 +710,8 @@ function secondLabel(match: LiveMatch): string {
 
 export function logKind(line: string): LogKind {
   if (/^full control (on|off)$/.test(line)) return 'control';
+  // Ahead of the rest: a trigger's own text may say "damage" or "life", and the line is still the trigger's.
+  if (/^(?:.+ )?triggered /.test(line)) return 'trigger';
   if (/\bpaid\b/.test(line)) return 'payment';
   if (/\bdamage\b|\bdeals?\b/i.test(line)) return 'damage';
   if (/\blife\b|\bgains?\b|\bloses\b/i.test(line)) return 'life';
@@ -1693,11 +1696,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * off `match.revision` above, and the arrow is drawn in the overlay by the
    * gesture layer itself, so there is nothing here for a callback to do.
    */
+  const fastModeNow = useRef(fastMode);
+  fastModeNow.current = fastMode;
   useEffect(() => {
     const canvas = rootRef.current;
     // A watcher's pointer belongs to nobody: no drag, no box, no arrow.
-  const fastModeNow = useRef(fastMode);
-  fastModeNow.current = fastMode;
     if (canvas === null || spectator) return undefined;
     // Read through a ref, so toggling Fast Mode mid-match does not tear the layer down mid-gesture.
     const handle = installGestures({ canvas, match, motion: () => !fastModeNow.current });

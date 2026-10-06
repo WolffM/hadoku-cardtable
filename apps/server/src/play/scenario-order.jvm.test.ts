@@ -109,6 +109,37 @@ describe.skipIf(!available.ok)(title, () => {
 	);
 
 	it(
+		'each upkeep trigger leaves a line in both seats’ logs: its controller’s plain, the opponent’s attributed',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 8, decks: DECKS, scenario: scenarioText('two-triggers') });
+			try {
+				await finishMulligan(s);
+				await driveToUpkeepWithBothTriggers(s);
+				const said = (seat: number): string[] =>
+					s.sent
+						.filter((x) => x.seat === seat && x.envelope.frame.method === 'message')
+						.map((x) => (x.envelope.frame as unknown as { message: string }).message)
+						.filter((m) => m.includes('triggered'));
+				// Its controller: unattributed, the card named, and Forge's own description after it.
+				const mine = said(0);
+				console.log(`[trigger-log] seat 0:\n  ${mine.join('\n  ')}\n[trigger-log] seat 1:\n  ${said(1).join('\n  ')}`);
+				expect(mine.filter((m) => m.startsWith('triggered Dark Confidant'))).toHaveLength(1);
+				expect(mine.filter((m) => m.startsWith('triggered Phyrexian Arena'))).toHaveLength(1);
+				expect(mine.find((m) => m.startsWith('triggered Dark Confidant'))).toMatch(/^triggered Dark Confidant — \S/);
+				expect(mine.join('\n'), 'the name is not said twice').not.toMatch(/Dark Confidant — Dark Confidant/);
+				// The other seat: the same two, under the controller's name.
+				const theirs = said(1);
+				expect(theirs.filter((m) => m.startsWith(`${s.names[0]} triggered Dark Confidant`))).toHaveLength(1);
+				expect(theirs.filter((m) => m.startsWith(`${s.names[0]} triggered Phyrexian Arena`))).toHaveLength(1);
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
 		'full control: a real order ask reaches the client, unanswered by the server',
 		async () => {
 			if (!available.ok) return;

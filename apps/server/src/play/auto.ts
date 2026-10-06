@@ -1378,3 +1378,26 @@ export function paymentLine(payment: Payment, actor?: string): string {
 	if (payment.tapped.length === 0) return `${who}paid ${cost}`;
 	return `${who}paid ${cost} — ${payment.tapped.map((c) => c.name).join(', ')}`;
 }
+
+/**
+ * The line a triggered ability leaves when it goes on the stack: *"triggered
+ * Dark Confidant — At the beginning of your upkeep, …"*, or *"Bella triggered
+ * Dark Confidant — …"* once somebody other than its controller is being told
+ * (the same attribution rule as {@link paymentLine}).
+ *
+ * `description` is Forge's own stack description for the item, the string the
+ * stack already draws. It usually opens with the card's name
+ * (`SpellAbility.getStackDescription`: `"<name> - <text>"`), which this line has
+ * just said, so that opening is dropped rather than said twice.
+ */
+export function triggerLine(trigger: { source: string | null; description: string }, actor?: string): string {
+	const who = actor === undefined || actor === '' ? '' : `${actor} `;
+	let text = plainCost(trigger.description).trim();
+	if (trigger.source !== null) {
+		for (const opening of [`${trigger.source} - `, `${trigger.source} — `]) {
+			if (text.startsWith(opening)) text = text.slice(opening.length).trim();
+		}
+	}
+	const what = trigger.source ?? 'an ability';
+	return text === '' ? `${who}triggered ${what}` : `${who}triggered ${what} — ${text}`;
+}

@@ -2211,17 +2211,19 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
       says('full control on'),
       says('played Island'),
       says('nothing in particular'),
+      says('triggered Dark Confidant — You lose life equal to its mana value.'),
+      says('Bob triggered Fire Urchin — deals 1 damage to you'),
     ]) {
       s.send(f);
     }
-    await waitFor(() => expect(lines(container)).toHaveLength(5));
-    expect(lines(container).map((li) => li.dataset.logKind)).toEqual(['payment', 'damage', 'control', 'play', 'said']);
+    await waitFor(() => expect(lines(container)).toHaveLength(7));
+    expect(lines(container).map((li) => li.dataset.logKind)).toEqual(['payment', 'damage', 'control', 'play', 'said', 'trigger', 'trigger']);
     /*
      * Colour is never the only signal — the words are, and always were. These are
      * tints on the text rather than badges, so a log read with no colour at all
      * still says everything it said before.
      */
-    for (const kind of ['payment', 'damage', 'life', 'play', 'control']) {
+    for (const kind of ['payment', 'trigger', 'damage', 'life', 'play', 'control']) {
       const rule = new RegExp(`\\.live__log li\\[data-log-kind='${kind}'\\] \\{([^}]*)\\}`).exec(liveCss());
       expect(rule, `${kind} has a rule`).not.toBeNull();
       expect(rule![1], `${kind} sets an ink`).toMatch(/color:/);

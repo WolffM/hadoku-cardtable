@@ -37,6 +37,7 @@ import {
 	onlyAnswer,
 	paymentCost,
 	paymentLine,
+	triggerLine,
 	plainCost,
 	readPromptFacts,
 	toYieldUpdates,
@@ -630,6 +631,19 @@ describe('the payment line', () => {
 			}),
 		).toBe('paid 1R — Mountain, Steam Vents');
 		expect(paymentLine({ cost: '{0}', tapped: [] })).toBe('paid 0');
+	});
+
+	it('says a trigger by its card and Forge’s own description, without the name twice', () => {
+		const text = 'At the beginning of your upkeep, reveal the top card of your library and put that card into your hand.';
+		expect(triggerLine({ source: 'Dark Confidant', description: `Dark Confidant - ${text}` })).toBe(`triggered Dark Confidant — ${text}`);
+		expect(triggerLine({ source: 'Dark Confidant', description: text }, 'Bella'), 'attributed for everyone but its controller').toBe(
+			`Bella triggered Dark Confidant — ${text}`,
+		);
+		expect(triggerLine({ source: 'Prodigal Pyromancer', description: 'Prodigal Pyromancer - {T}: deals 1 damage' }), 'letters, never symbols').toBe(
+			'triggered Prodigal Pyromancer — Tap: deals 1 damage',
+		);
+		expect(triggerLine({ source: 'Dark Confidant', description: '' })).toBe('triggered Dark Confidant');
+		expect(triggerLine({ source: null, description: 'Draw a card.' }), 'a card this seat cannot name').toBe('triggered an ability — Draw a card.');
 	});
 });
 
