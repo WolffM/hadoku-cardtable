@@ -60,6 +60,26 @@ export CARDTABLE_PLAY_WORK_DIR="/tmp/claude-1000/w<N>-<lane>/work"
 Run e2e from `e2e/` after `pnpm --filter @hadoku/ui --filter @hadoku/server build`.
 Grep the output for `— SKIPPED:` before believing a green.
 
+## Landing: the wave lands itself (2026-10-06)
+
+No tracker hop. As soon as the manager has verified a lane and committed it on the wave branch, it runs
+`scripts/land.sh` from the wave worktree. The script:
+1. takes `/tmp/claude-1000/land.lock`;
+2. cherry-picks every wave commit that main lacks onto a throwaway worktree at the latest `origin/main`;
+3. bumps the app versions those commits touched;
+4. runs `pnpm run check`;
+5. pushes `HEAD:main`.
+
+Lanes still working keep their uncommitted files, because the wave branch is never rebased. A later land skips
+what an earlier one pushed.
+
+**CI is the combined gate.** Each wave runs its own full gate once, before its last land; nobody re-runs it after
+a merge. A red CI run belongs to the wave that pushed it, and that wave fixes it and lands the fix. Waves never edit
+version fields by hand; the script does.
+
+Why: w49 and w50 were READY at 00:30 and 00:50 on 2026-10-06 and reached main at 08:20, because they waited on the
+tracker's merge plus a duplicate local gate.
+
 ## Scaffolding to build (not done yet)
 
 Ordered by how much each would have saved:
