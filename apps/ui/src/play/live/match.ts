@@ -738,6 +738,18 @@ function notify(match: LiveMatch): void {
   for (const listener of match.listeners) listener();
 }
 
+/**
+ * The table's layout moved with no frame from Forge (wave 51: the stack band
+ * hangs from the decision pop-up's measured top, `LiveBoard.tsx`'s
+ * `questionTopOf`). Wakes every subscriber WITHOUT a new revision: React's own
+ * snapshot is unchanged and redraws nothing, and the gesture layer repaints
+ * Forge's arcs against the boxes where they are now — it otherwise paints only
+ * on a frame, and an arc drawn before the band moved stayed where the band was.
+ */
+export function relayout(match: LiveMatch): void {
+  for (const listener of match.listeners) listener();
+}
+
 /** `useSyncExternalStore`'s subscribe. Returns the unsubscribe. */
 export function subscribe(match: LiveMatch, listener: () => void): () => void {
   match.listeners.add(listener);

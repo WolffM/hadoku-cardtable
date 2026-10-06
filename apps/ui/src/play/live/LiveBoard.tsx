@@ -274,6 +274,7 @@ import {
   noteAutoAnswered,
   payingMana,
   pressButton,
+  relayout,
   SAYS_KEPT,
   selectCard,
   selectPlayer,
@@ -1795,8 +1796,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     if (root === null) return undefined;
     const sync = (): void => {
       const top = questionTopOf(root);
+      const value = top === null ? '' : `${top}px`;
+      if (root.style.getPropertyValue('--question-top') === value) return;
       if (top === null) root.style.removeProperty('--question-top');
-      else root.style.setProperty('--question-top', `${top}px`);
+      else root.style.setProperty('--question-top', value);
+      // The band moved with no frame from Forge: arcs drawn from its thumbnails repaint (`relayout`).
+      relayout(match);
     };
     sync();
     if (typeof ResizeObserver === 'undefined') return undefined;

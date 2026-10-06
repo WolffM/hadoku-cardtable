@@ -48,6 +48,7 @@ import {
   selectCard,
   socketIoMatchTransport,
   startMatch,
+  subscribe,
   type LiveMatch,
   type MatchTransport,
 } from './match.ts';
@@ -3637,7 +3638,7 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
    * the root carries it only while something is in the column.
    */
   it('§A.6: --question-top is the topmost sheet’s top edge in the band’s frame, and only while a question is up', async () => {
-    const { s, m, getByTestId, container } = await liveBoard();
+    const { s, m, getByTestId, container, rerender } = await liveBoard();
     const rects = new Map<string, number>([
       ['board', 40],
       ['confirm', 340],
@@ -3654,6 +3655,21 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
       await waitFor(() => getByTestId('live-decision'));
       expect(questionTopOf(root)).toBe(300);
       await waitFor(() => expect(root.style.getPropertyValue('--question-top')).toBe('300px'));
+
+      // The band moving with no frame from Forge wakes the match's subscribers (the gesture layer's
+      // arcs repaint), without a new revision — and an unchanged edge wakes nobody.
+      const woken = vi.fn();
+      const unsubscribe = subscribe(m, woken);
+      const revision = m.revision;
+      rects.set('confirm', 360);
+      rerender(createElement(LiveBoard, { match: m }));
+      await waitFor(() => expect(root.style.getPropertyValue('--question-top')).toBe('320px'));
+      expect(woken, 'the band moved: subscribers repaint').toHaveBeenCalled();
+      expect(m.revision, 'and no new revision').toBe(revision);
+      woken.mockClear();
+      rerender(createElement(LiveBoard, { match: m }));
+      expect(woken, 'nothing moved: nobody woken').not.toHaveBeenCalled();
+      unsubscribe();
 
       pressButton(m, 'ok');
       act(() => {
