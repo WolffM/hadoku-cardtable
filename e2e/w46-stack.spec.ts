@@ -82,6 +82,21 @@ async function boltOpponent(page: Page): Promise<void> {
   expect(await stackCount(page), `boltOpponent never saw the stack grow from ${before}`).toBe(before + 1);
 }
 
+/**
+ * Wave 51: while the caster holds priority with spells on the stack, Forge's
+ * OK is a decision pop-up, and the big view never pins over a question. So
+ * the caster passes, and the OTHER seat (full control on, so the server does
+ * not pass for it) holds priority with the stack still up: the caster's page
+ * then has nothing asking, which is the state these checks are about.
+ */
+async function passToOpponent(page: Page, opponent: Page): Promise<void> {
+  await opponent.getByTestId('live-full-control').click();
+  await expect(opponent.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByTestId('live-decision-ok').click();
+  await expect(opponent.getByTestId('live-decision-ok'), 'the opponent holds priority over the stack').toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('live-decision'), 'the caster’s page has nothing asking').toHaveCount(0);
+}
+
 /** The thumbnail row's own children, left to right, in DOM order. */
 const thumbs = (page: Page): Locator => page.locator('[data-zone="stack"] > ol.stack__items > li.stack__item');
 
@@ -97,7 +112,6 @@ test(titled('top leftmost, numbered 1..n; the two equal gaps; pinned with nothin
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w46-a-two-bolts');
-    void bob;
 
     // Full control: alice holds priority across both casts (the same
     // technique `two-spells.state`'s own header documents), so the stack
@@ -109,6 +123,8 @@ test(titled('top leftmost, numbered 1..n; the two equal gaps; pinned with nothin
     await boltOpponent(alice.page);
     await boltOpponent(alice.page);
     expect(await stackCount(alice.page), 'both bolts are on the stack at once').toBe(2);
+    await passToOpponent(alice.page, bob.page);
+    expect(await stackCount(alice.page), 'both bolts are still on the stack').toBe(2);
 
     /* ── top leftmost, numbered 1..n ──────────────────────────────────── */
     const items = thumbs(alice.page);
@@ -173,7 +189,6 @@ test(titled('hidden, with the hover/focus peek shown below that thumbnail, once 
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w46-a-permanent');
-    void bob;
     // Precondition: the opponent really does control fourteen permanents
     // before anything is cast — the scenario's own setup, not this test's.
     await expect.poll(() => alice.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.board-card').count(), { timeout: 20_000, message: 'the opponent\'s fourteen Memnites are on the battlefield — the precondition "w46-a-permanent" sets up' }).toBe(14);
@@ -185,6 +200,7 @@ test(titled('hidden, with the hover/focus peek shown below that thumbnail, once 
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
 
     await boltOpponent(alice.page);
+    await passToOpponent(alice.page, bob.page);
 
     const bigEl = big(alice.page);
     await expect(bigEl, 'the stack really does hold the bolt').toHaveCount(1);
