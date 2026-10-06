@@ -556,6 +556,12 @@ export interface LiveMatch {
    */
   lastSelectedCard: number | null;
   /**
+   * This seat's own lands in the order the board showed them tap, oldest
+   * first, and only the ones still tapped — what `undoableTap` reads to say
+   * which land Forge's Undo would untap. Kept by `noteTaps` on every redraw.
+   */
+  tapOrder: number[];
+  /**
    * This seat's own "I just answered a stack-item target ask with THIS stack
    * item" intent — wave 46 §B's counterspell arc, X3.
    *
@@ -776,6 +782,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     spent: { cards: new Set(), players: new Set() },
     attackIntent: null,
     lastSelectedCard: null,
+    tapOrder: [],
     stackTargetIntent: null,
     stackTargetArcs: new Map(),
     stackTargetSpells: new Map(),
@@ -1124,6 +1131,7 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
           match.highlighted,
           mulliganHand(match.state, view),
           blockTargets(match, view),
+          undoableTap(match, view),
           declaredAttackers(match, view),
           attackDefenders(match, view),
         )
@@ -1241,6 +1249,10 @@ function cardIdsInView(view: BoardView): Set<number> {
  */
 export function selectCard(match: LiveMatch, cardId: number): boolean {
   if (!boardInteraction(match).selectable.has(cardId)) return false;
+  // The land just tapped, which Forge itself is not offering: the click is its Undo.
+  if (match.view !== null && match.weaklySelectable?.has(cardId) !== true && undoableTap(match, match.view)?.has(cardId) === true) {
+    return pressButton(match, 'cancel');
+  }
   match.spent.cards.add(cardId);
   match.lastSelectedCard = cardId;
   noteAttackIntent(match, cardId);
@@ -1387,6 +1399,25 @@ function isOwnBattlefieldLand(view: BoardView, id: number): boolean {
   const me = view.players.find((p) => p.isViewer);
   const card = me?.battlefield.find((c) => c.id === id);
   return card !== undefined && card.card.typeLine.includes('Land');
+}
+
+/**
+ * The viewer's own untapped lands that Forge will take a click on for their
+ * mana right now, in battlefield order: what a box drawn over the lands may
+ * tap. Empty whenever a click on a land would mean anything else — a selection
+ * or an ask is open (the land is then an answer to a question), or combat is
+ * being declared.
+ *
+ * Lands only, by the card's CURRENT type line, the same reading
+ * `isOwnBattlefieldLand` gives `nothingToDecide`: a creature Forge offers for
+ * an ability is a decision, and a sweep must not make it.
+ */
+export function landsToTap(match: LiveMatch): number[] {
+  const view = match.view;
+  if (view === null || match.selectables !== null || match.asks.length > 0 || declaringCombat(match)) return [];
+  const offered = boardInteraction(match).selectable;
+  const me = view.players.find((p) => p.isViewer);
+  return (me?.battlefield ?? []).filter((c) => !c.tapped && offered.has(c.id) && c.card.typeLine.includes('Land')).map((c) => c.id);
 }
 
 /** The steps of the viewer's own turn in which attackers are still to come. */
@@ -1556,6 +1587,63 @@ export const CALL_BACK_LABEL = 'Call Back';
  * Hidden information is untouched: the cards are on this seat's own battlefield,
  * and `boardInteraction` still intersects with `cardIdsInView`.
  */
+/**
+ * Forge's label on the second button at priority while its last action can be
+ * undone: `lblUndo` and the size of its undo stack, "Undo (2)"
+ * (`InputPassPriority.java:170-171`). At every other moment that button is End
+ * Turn, or another input's Cancel.
+ */
+export const UNDO_LABEL = /^Undo \(\d+\)$/;
+
+/**
+ * The land this seat tapped last, offered for a click while Forge offers Undo —
+ * or null when it does not.
+ *
+ * The operator, twice (2026-10-04 and 2026-10-06): clicking a land just tapped
+ * for mana should untap it, without reaching for the Undo button. Forge has no
+ * click for that: a tapped land is not in its actionable set, and its undo is
+ * last-in-first-out (`MagicStack.undo()`). So the ONE land a click may untap is
+ * the one its Undo would: the last to tap, by the board's own record
+ * (`LiveMatch.tapOrder`). `selectCard` sends that click as the Undo button.
+ * Untapping an earlier land out of order would need a change in the fork.
+ *
+ * `UNDO_LABEL` on an enabled button is what says the undo exists: Forge clears
+ * its undo stack at every phase change and when anything that cannot be undone
+ * goes on the stack, and the label goes with it.
+ *
+ * Not checked, because the wire does not say it: that the last undoable action
+ * WAS that tap. An undoable ability that taps nothing, played after the land,
+ * is what Undo would take back first.
+ */
+function undoableTap(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
+  const bar = match.buttons;
+  if (bar === null || !bar.enable2 || !UNDO_LABEL.test(bar.label2)) return null;
+  const last = match.tapOrder[match.tapOrder.length - 1];
+  if (last === undefined) return null;
+  const me = view.players.find((p) => p.isViewer);
+  return me?.battlefield.some((c) => c.id === last && c.tapped) === true ? new Set([last]) : null;
+}
+
+/**
+ * Keep {@link LiveMatch.tapOrder} against the view just drawn: a land that
+ * tapped since `before` goes on the end, and one no longer tapped (or no longer
+ * there) comes out. Two lands tapping in one update have no order the wire
+ * gives (a payment Forge made), so the record starts again from nothing.
+ */
+function noteTaps(match: LiveMatch, before: BoardView | null): void {
+  const lands = (view: BoardView | null): Map<number, boolean> =>
+    new Map((view?.players.find((p) => p.isViewer)?.battlefield ?? []).filter((c) => c.card.typeLine.includes('Land')).map((c) => [c.id, c.tapped]));
+  const now = lands(match.view);
+  if (before === null) {
+    match.tapOrder = [];
+    return;
+  }
+  const was = lands(before);
+  const tapped = [...now].filter(([id, isTapped]) => isTapped && was.get(id) === false).map(([id]) => id);
+  const kept = match.tapOrder.filter((id) => now.get(id) === true);
+  match.tapOrder = tapped.length > 1 ? [] : [...kept, ...tapped];
+}
+
 function declaredAttackers(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
   if (!declaringAttackers(match)) return null;
   if (match.buttons === null || match.buttons.label2 !== CALL_BACK_LABEL) return null;
@@ -1962,6 +2050,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
 }
 
 function redraw(match: LiveMatch): void {
+  const before = match.view;
   match.view =
     match.playerId === null || match.state.size === 0
       ? null
@@ -1975,6 +2064,7 @@ function redraw(match: LiveMatch): void {
           stackTargetSpells: match.stackTargetSpells,
         });
   if (match.view?.gameOver === true) match.over = true;
+  noteTaps(match, before);
   reconcileStackTargetArcs(match);
 }
 
@@ -2218,6 +2308,7 @@ function discardLocal(match: LiveMatch): void {
   match.inputLive = false;
   match.attackIntent = null;
   match.lastSelectedCard = null;
+  match.tapOrder = [];
   match.stackTargetIntent = null;
   match.stackTargetArcs = new Map();
   match.stackTargetSpells = new Map();

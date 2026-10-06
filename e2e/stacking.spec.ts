@@ -233,3 +233,63 @@ test(titled('a piled land taps where it shows, and lifting a card off a pile mov
     await stack.stop();
   }
 });
+
+/**
+ * The operator, 2026-10-06: *"can we make it so i can draw boxes to tap things? drawing boxes to
+ * attack seems to work, so why not lands?"* Eight Plains and nothing to cast: a box over four of
+ * them taps those four, one after another as Forge takes each, and leaves the other four alone.
+ * Then the same match proves the way back: a click on the land tapped last is Forge's Undo.
+ */
+test(titled('a box drawn over four lands taps those four and no others, and a click on the last one tapped untaps it'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
+    const page = alice.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const lands = await eightLoneLands(page);
+    const card = (id: string) => page.locator(`li.board-card[data-card-id="${id}"]`);
+    await expect(card(lands[0]!), 'Forge offers the lands for their mana').toHaveAttribute('data-selectable', /.*/, { timeout: 15_000 });
+
+    const first = await boxOf(card(lands[0]!));
+    const fourth = await boxOf(card(lands[3]!));
+    const fifth = await boxOf(card(lands[4]!));
+    // From empty table just above-left of the first land to just short of the fifth.
+    const from = { x: first.x - 6, y: first.y - 6 };
+    const to = { x: (fourth.x + fourth.width + fifth.x) / 2, y: fourth.y + fourth.height + 6 };
+    expect(
+      await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('li.board-card') === null, from),
+      'the box starts on empty table, not on a card',
+    ).toBe(true);
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 10 });
+    await expect(page.locator('[data-testid="marquee"]'), 'the box is drawn while it is held').toHaveCount(1);
+    await page.mouse.up();
+
+    for (const id of lands.slice(0, 4)) await expect(card(id), `land ${id} is tapped`).toHaveAttribute('data-tapped', 'true', { timeout: 20_000 });
+    // Long enough for a fifth tap to have landed if the sweep had run on.
+    await page.waitForTimeout(1500);
+    for (const id of lands.slice(4)) await expect(card(id), `land ${id} was outside the box`).not.toHaveAttribute('data-tapped');
+
+    /*
+     * And back again, by a click (the operator, 2026-10-04 and 2026-10-06: clicking a land just
+     * tapped should untap it, without the Undo button). Forge's undo is last-in-first-out, so the
+     * one tapped land a click is offered on is the last to tap; once it is untapped, the one
+     * before it.
+     */
+    for (const id of [lands[3]!, lands[2]!]) {
+      await expect(card(id), `land ${id} was the last to tap: it takes a click`).toHaveAttribute('data-selectable', /.*/, { timeout: 15_000 });
+      for (const earlier of lands.slice(0, lands.indexOf(id))) {
+        await expect(card(earlier), `land ${earlier} tapped before it: no click`).not.toHaveAttribute('data-selectable');
+      }
+      await card(id).locator(':scope > .board-card__face').click();
+      await expect(card(id), `the click untapped land ${id}`).not.toHaveAttribute('data-tapped', { timeout: 15_000 });
+    }
+    for (const id of lands.slice(0, 2)) await expect(card(id), `land ${id} is still tapped`).toHaveAttribute('data-tapped', 'true');
+  } finally {
+    await stack.stop();
+  }
+});

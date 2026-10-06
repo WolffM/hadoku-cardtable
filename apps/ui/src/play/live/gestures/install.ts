@@ -26,6 +26,9 @@
  *  2. **elsewhere on the table while this seat is declaring attackers** → a
  *     box-draw. Nothing else claims that press: a selection is not open
  *     during `InputAttack`, so the pointing gesture below cannot fire.
+ *     **Or while Forge will tap this seat's lands for mana** (`landsToTap`: at
+ *     priority or under a payment, no question open) → the same box, and the
+ *     lands it touches are tapped — see "A box taps lands".
  *  3. **elsewhere on the table while a selection is open** → the source-less
  *     pointing gesture: the spell doing the targeting is not itself one of
  *     Forge's choices, so there is often no offered card to drag FROM.
@@ -34,6 +37,20 @@
  * stays out of it — no click is suppressed. What a claimed press DOES refuse,
  * from the press itself, is the browser's default: a drag on the table may
  * not highlight the words it crosses (`claim`).
+ *
+ * ## A box taps lands
+ *
+ * The operator, 2026-10-06: *"can we make it so i can draw boxes to tap
+ * things? drawing boxes to attack seems to work, so why not lands?"* The box
+ * is the one attackers use. What differs is the send: `InputAttack` takes
+ * every attacker's click at once, but a land's tap is a whole action in
+ * Forge's priority loop (it re-offers the board after each one, and a click on
+ * a land before that offer is not a click on an offer — `selectCard` refuses
+ * it). So the lands a box touched are QUEUED and sent one at a time: the next
+ * goes out when the board shows the one before it tapped and Forge offers the
+ * next (`pumpTaps`, on every notify). The sweep ends early, with nothing more
+ * sent, if Forge opens a selection or asks anything that is not about the land
+ * in flight, and in any case after `TAP_SWEEP_MS` without progress.
  *
  * ## Nothing here decides legality
  *
@@ -170,6 +187,7 @@ import {
   boardInteraction,
   declaringAttackers,
   declaringCombat,
+  landsToTap,
   payingMana,
   pressButton,
   selectCard,
@@ -197,7 +215,7 @@ import {
   parkedGhost,
   updateDropCues,
 } from './cast.ts';
-import { commitDrag, commitMarquee, rectOf, type Rect } from './commit.ts';
+import { commitDrag, commitMarquee, landsInBox, rectOf, type Rect } from './commit.ts';
 import { applyIntents, clearIntents } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
@@ -235,6 +253,9 @@ export const STACK_STAND_IN_MS = { fast: 500, paced: 2000 } as const;
  * a card pinned over the board for good is worse than one returned.
  */
 export const PARK_UNANSWERED_MS = 4000;
+
+/** How long a box's tap sweep may sit with no land tapping before the rest of it is dropped. */
+export const TAP_SWEEP_MS = 5000;
 
 /**
  * A card sent at release and pinned at the point it was released: a targeted
@@ -287,6 +308,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let standInTimer: ReturnType<typeof setTimeout> | null = null;
   /** Running from a park until Forge shows any sign of it — `PARK_UNANSWERED_MS`. */
   let unansweredTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The lands a box touched that are still to be tapped, in order — see "A box taps lands". */
+  let tapQueue: number[] = [];
+  /** The land whose tap is out and not yet shown on the board. */
+  let tapSent: number | null = null;
+  let tapTimer: ReturnType<typeof setTimeout> | null = null;
   /**
    * Set the moment a press is claimed as a hand-card cast — see the module
    * header's own section — and consumed by the capturing `click` listener
@@ -727,6 +753,57 @@ export function installGestures(options: GestureOptions): GestureHandle {
     releaseParked(p, false);
   }
 
+  function endTapSweep(): void {
+    tapQueue = [];
+    tapSent = null;
+    if (tapTimer !== null) clearTimeout(tapTimer);
+    tapTimer = null;
+  }
+
+  /** Send the next queued land when Forge is ready for it. Called at the release and on every notify. */
+  function pumpTaps(): void {
+    if (tapSent === null && tapQueue.length === 0) return;
+    // Forge opened a selection or combat: the sweep is over, and nothing in it answers a question.
+    if (match.selectables !== null || declaringCombat(match)) {
+      endTapSweep();
+      return;
+    }
+    /*
+     * An ask while a tap is out is that tap's own: Forge asks which ability of
+     * the land to play (`getAbilityToPlay`) for EVERY land, and `../prompts/`
+     * answers a one-ability ask itself. A land with two is the player's to
+     * answer, and the sweep waits for it. An ask with no tap out is not ours.
+     */
+    if (match.asks.length > 0) {
+      if (tapSent === null) endTapSweep();
+      return;
+    }
+    const mine = match.view?.players.find((p) => p.isViewer)?.battlefield ?? [];
+    if (tapSent !== null) {
+      const sent = mine.find((c) => c.id === tapSent);
+      // Still untapped on the board: Forge has not answered that tap yet.
+      if (sent !== undefined && !sent.tapped) return;
+      tapSent = null;
+    }
+    while (tapQueue.length > 0) {
+      const next = tapQueue[0]!;
+      const land = mine.find((c) => c.id === next);
+      if (land === undefined || land.tapped) {
+        tapQueue.shift();
+        continue;
+      }
+      // Not offered yet (Forge re-offers the board after each tap): the next notify tries again.
+      if (!landsToTap(match).includes(next)) return;
+      tapQueue.shift();
+      tapSent = next;
+      if (tapTimer !== null) clearTimeout(tapTimer);
+      tapTimer = setTimeout(endTapSweep, TAP_SWEEP_MS);
+      if (!selectCard(match, next)) tapSent = null;
+      return;
+    }
+    endTapSweep();
+  }
+
   function onPointerDown(event: PointerEvent): void {
     /*
      * A right-click cancels a live gesture outright, before any button
@@ -860,7 +937,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     if (!inside(event.target)) return;
-    if (declaringAttackers(match)) {
+    if (declaringAttackers(match) || landsToTap(match).length > 0) {
       claim(event);
       marquee = { press: at, at, moved: false };
       hover = null;
@@ -938,7 +1015,15 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     if (heldMarquee !== null && heldMarquee.moved) {
-      commitMarquee(match, rectOf(heldMarquee.press, { x: event.clientX, y: event.clientY }), canvas);
+      const box = rectOf(heldMarquee.press, { x: event.clientX, y: event.clientY });
+      if (declaringAttackers(match)) {
+        commitMarquee(match, box, canvas);
+      } else {
+        endTapSweep();
+        tapQueue = landsInBox(match, box, canvas);
+        tapTimer = setTimeout(endTapSweep, TAP_SWEEP_MS);
+        pumpTaps();
+      }
     }
   }
 
@@ -1031,6 +1116,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   const unsubscribe = subscribe(match, () => {
     if (!live) return;
+    pumpTaps();
     settleParkedIfResolved();
     syncStackStandIn();
     syncParkedGhost();
@@ -1074,6 +1160,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // placement preview behind either.
       if ((drag !== null && drag.lifted) || parked !== null) previewPlayedTo(null);
       endPark();
+      endTapSweep();
       canvas.removeAttribute(CANVAS_ATTR);
       canvas.removeAttribute('data-dragging');
       canvas.removeAttribute('data-marquee');

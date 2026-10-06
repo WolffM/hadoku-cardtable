@@ -46,6 +46,7 @@ import { Board } from '../../Board.tsx';
 // the seam right", never "did B's geometry answer right".
 import * as BoardModule from '../../Board.tsx';
 import {
+  answerAsk,
   attackAssignment,
   boardInteraction,
   closeMatch,
@@ -1139,6 +1140,131 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).toBeNull();
     fireEvent.pointerUp(zone, { clientX: 300, clientY: 300 });
     await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames()).toHaveLength(0);
+  });
+});
+
+/*
+ * The operator, 2026-10-06: "can we make it so i can draw boxes to tap things?
+ * drawing boxes to attack seems to work, so why not lands?"
+ */
+describe('a box drawn over the viewer’s own lands taps them, one at a time', () => {
+  /** A card's `Tapped`, as Forge reports it. */
+  const tappedDelta = (id: number): ServerFrame => stateDelta({ [String(id)]: { _type: 0, _id: id, Tapped: { t: 'bool', v: true } } });
+  /** What Forge sends the moment it takes a click at priority, before any state: the offer is withdrawn. */
+  const offerWithdrawn = (): ServerFrame => parseServerFrame({ kind: 'notify', method: 'clearWeaklySelectable' });
+
+  async function landsOffered() {
+    const board = await gestureBoard();
+    const { s, m, canvas } = board;
+    // The recorded game left most of this seat's permanents tapped: untap them, as an untap step would.
+    const untap = mineOf(m).battlefield.filter((c) => c.tapped).map((c) => c.id);
+    if (untap.length > 0) {
+      s.send(stateDelta(Object.fromEntries(untap.map((id) => [String(id), { _type: 0, _id: id, Tapped: { t: 'bool', v: false } }]))));
+      await waitFor(() => expect(mineOf(m).battlefield.some((c) => c.tapped)).toBe(false));
+    }
+    const mine = mineOf(m).battlefield;
+    const lands = mine.filter((c) => c.card.typeLine.includes('Land')).map((c) => c.id);
+    const other = mine.find((c) => !c.card.typeLine.includes('Land'))?.id;
+    expect(lands.length, 'the fixture gives this seat two lands').toBeGreaterThanOrEqual(2);
+    const offered = other === undefined ? lands : [...lands, other];
+    for (const f of notify([prompt('Priority'), actionable(offered), okBar()])) s.send(f);
+    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(offered.length));
+    boxAt(overlayOf(canvas), 0, 0, 800, 600);
+    lands.forEach((id, i) => boxAt(cardEl(canvas, id), 120 + i * 60, 120));
+    if (other !== undefined) boxAt(cardEl(canvas, other), 150, 200);
+    const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    /** Draw a box from (100,100) to (x,y) on empty table. */
+    const sweep = (x: number, y: number): void => {
+      fireEvent.pointerDown(zone, { button: 0, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(zone, { clientX: x, clientY: y });
+      expect(overlayOf(canvas).querySelector('[data-testid="marquee"]'), 'the box is drawn').not.toBeNull();
+      fireEvent.pointerUp(zone, { clientX: x, clientY: y });
+    };
+    return { ...board, lands, other, offered, sweep };
+  }
+
+  it('the first land goes out at the release, and each next one only after the board shows the one before it tapped', async () => {
+    const { s, lands, offered, sweep } = await landsOffered();
+    sweep(700, 300);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', lands[0]]]);
+    await new Promise((r) => setTimeout(r, 80));
+    expect(s.clientFrames(), 'the second waits for Forge').toHaveLength(1);
+
+    // Forge takes the click, taps the land, and only then offers the board again.
+    s.send(offerWithdrawn());
+    s.send(tappedDelta(lands[0]!));
+    await new Promise((r) => setTimeout(r, 80));
+    expect(s.clientFrames(), 'tapped, but not offered again yet: still waiting').toHaveLength(1);
+    for (const f of notify([prompt('Priority'), actionable(offered.filter((id) => id !== lands[0])), okBar()])) s.send(f);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    expect(sent(s)[1]).toEqual(['selectCard', lands[1]]);
+  });
+
+  it('only lands: an offered creature inside the box is not activated, and a land outside it is not tapped', async () => {
+    const { s, lands, other, sweep } = await landsOffered();
+    // A box that covers the first land and the creature below it, and stops short of the second land.
+    sweep(170, 300);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', lands[0]]]);
+    expect(other, 'the fixture has an offered non-land in the box').toBeDefined();
+    await new Promise((r) => setTimeout(r, 80));
+    expect(s.clientFrames()).toHaveLength(1);
+  });
+
+  it('the ability question Forge asks about the land in flight does not end the sweep', async () => {
+    const { s, m, lands, offered, sweep } = await landsOffered();
+    sweep(700, 300);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    // What real Forge sends for every land click (wire recorded 2026-10-06): which ability? One is on offer.
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 's0-1',
+        method: 'getAbilityToPlay',
+        hostCard: { kind: 'card', id: lands[0] },
+        abilities: [{ kind: 'spellAbility', id: 249, label: '{T}: Add {W}.' }],
+        triggerEvent: null,
+      }),
+    );
+    await waitFor(() => expect(m.asks).toHaveLength(1));
+    // Answered (the prompt layer does it for a one-ability ask; here, by hand), then the tap lands and the board is offered again.
+    expect(answerAsk(m, 's0-1', 'getAbilityToPlay', { kind: 'spellAbility', id: 249, label: '{T}: Add {W}.' })).toBe(true);
+    s.send(offerWithdrawn());
+    s.send(tappedDelta(lands[0]!));
+    for (const f of notify([prompt('Priority'), actionable(offered.filter((id) => id !== lands[0])), okBar()])) s.send(f);
+    await waitFor(() =>
+      expect(sent(s).filter((f) => Array.isArray(f) && f[0] === 'selectCard')).toEqual([
+        ['selectCard', lands[0]],
+        ['selectCard', lands[1]],
+      ]),
+    );
+  });
+
+  it('a question from Forge ends the sweep: nothing more is sent', async () => {
+    const { s, m, lands, sweep } = await landsOffered();
+    sweep(700, 300);
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    s.send(offerWithdrawn());
+    s.send(tappedDelta(lands[0]!));
+    for (const f of notify([prompt('Choose a target'), selectables([lands[1]!], 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    for (const f of notify([prompt('Priority'), actionable([lands[1]!]), okBar()])) s.send(f);
+    await new Promise((r) => setTimeout(r, 120));
+    expect(sent(s), 'the land a selection named was not tapped by a sweep that had ended').toEqual([['selectCard', lands[0]]]);
+  });
+
+  it('with no land of this seat’s to tap, a press on the table starts no box', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const creature = mineOf(m).battlefield.find((c) => !c.card.typeLine.includes('Land'))!.id;
+    for (const f of notify([prompt('Priority'), actionable([creature]), okBar()])) s.send(f);
+    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
+    const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    fireEvent.pointerDown(zone, { button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(zone, { clientX: 300, clientY: 300 });
+    expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).toBeNull();
+    fireEvent.pointerUp(zone, { clientX: 300, clientY: 300 });
     expect(s.clientFrames()).toHaveLength(0);
   });
 });

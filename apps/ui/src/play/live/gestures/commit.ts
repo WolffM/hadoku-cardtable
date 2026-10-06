@@ -6,7 +6,7 @@
  * gestures. `../match.ts` re-checks Forge's CURRENT offer inside both senders,
  * so no decision taken here can put an id on the wire that Forge did not name.
  */
-import { afterMarked, attackAssignment, boardInteraction, isBlockAssignment, isMarked, selectCard, selectPlayer, type LiveMatch } from '../match.ts';
+import { afterMarked, attackAssignment, boardInteraction, isBlockAssignment, isMarked, landsToTap, selectCard, selectPlayer, type LiveMatch } from '../match.ts';
 import { cardElements, targetUnder } from './targets.ts';
 import type { DragState, DropTarget } from './types.ts';
 
@@ -141,6 +141,20 @@ export function commitMarquee(match: LiveMatch, rect: Rect, root: ParentNode): n
   const sent: number[] = [];
   for (const id of toSend) if (selectCard(match, id)) sent.push(id);
   return sent;
+}
+
+/**
+ * A box drawn over the viewer's own lands: the ones it touched that Forge will
+ * tap for mana now (`landsToTap`), in DOM order. Nothing is sent here — Forge
+ * takes one tap at a time, so `./install.ts` sends them one after another.
+ */
+export function landsInBox(match: LiveMatch, rect: Rect, root: ParentNode): number[] {
+  const tappable = new Set(landsToTap(match));
+  const hits: number[] = [];
+  for (const { id, el } of cardElements(root)) {
+    if (tappable.has(id) && overlaps(rect, el.getBoundingClientRect())) hits.push(id);
+  }
+  return hits;
 }
 
 /** This seat's own creatures Forge says are attacking — its `Attacking` property, off the view. */
