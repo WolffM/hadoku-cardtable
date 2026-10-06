@@ -29,6 +29,7 @@ import {
   STATE_PROPERTIES,
   STATE_PROPERTY_COUNT,
   SetGameViewSchema,
+  StackTargetSpellsSchema,
   TIER_C_METHODS,
   TIER_C_REPLIES,
   TIER_C_SPIKE,
@@ -459,5 +460,44 @@ describe('Tier C — CombatData', () => {
   it('fails a defender marker that is neither card nor player', () => {
     const issue = onlyIssue(DeltaPacketSchema, withCombat({ ...CAPTURED, def: [[2, 0], [1, 0]] }));
     expect(issue.path).toEqual(['objectDeltas', GAME, 'CombatView', 'def', 0, 0]);
+  });
+});
+
+describe('Tier C — stackTargetSpells (wave 49 §A)', () => {
+  it('accepts a list of [from, to] id pairs', () => {
+    expect(StackTargetSpellsSchema.safeParse([]).success).toBe(true);
+    expect(StackTargetSpellsSchema.safeParse([[50, 49]]).success).toBe(true);
+    expect(StackTargetSpellsSchema.safeParse([[50, 49], [12, 7]]).success).toBe(true);
+  });
+
+  it('rejects a pair that is not exactly two ints', () => {
+    expect(StackTargetSpellsSchema.safeParse([[50]]).success).toBe(false);
+    expect(StackTargetSpellsSchema.safeParse([[50, 49, 1]]).success).toBe(false);
+    expect(StackTargetSpellsSchema.safeParse([['50', 49]]).success).toBe(false);
+  });
+
+  it('is optional on setGameView and applyDelta, and additive when present', () => {
+    const withoutField = {
+      kind: 'notify',
+      method: 'setGameView',
+      payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq },
+    };
+    expect(SetGameViewSchema.safeParse(withoutField).success).toBe(true);
+
+    const withField = {
+      kind: 'notify',
+      method: 'setGameView',
+      payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, stackTargetSpells: [[50, 49]] },
+    };
+    const parsed = SetGameViewSchema.safeParse(withField);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.payload.stackTargetSpells).toEqual([[50, 49]]);
+
+    const deltaWithField = {
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: { packet: DELTA.packet, stackTargetSpells: [[50, 49]] },
+    };
+    expect(ApplyDeltaSchema.safeParse(deltaWithField).success).toBe(true);
   });
 });

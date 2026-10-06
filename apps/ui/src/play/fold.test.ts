@@ -112,6 +112,35 @@ describe('the committed fixture', () => {
   });
 });
 
+describe('stackTargetSpells (wave 49 §A)', () => {
+  it('is empty before any packet carries it', () => {
+    const { stackTargetSpells } = foldPackets([opening!]);
+    expect(stackTargetSpells.size).toBe(0);
+  });
+
+  it('replaces the snapshot on each packet that carries it, never merges', () => {
+    const first = { ...opening!, stackTargetSpells: [[50, 49]] as const };
+    const second = { ...delta!, stackTargetSpells: [[12, 7]] as const };
+    const { stackTargetSpells } = foldPackets([first, second]);
+    expect([...stackTargetSpells]).toEqual([[12, 7]]);
+  });
+
+  it('a packet that does not carry the field leaves the last snapshot untouched', () => {
+    const first = { ...opening!, stackTargetSpells: [[50, 49]] as const };
+    // `delta` itself carries no `stackTargetSpells` at all (every packet
+    // before wave 49, and the committed spike samples among them).
+    const { stackTargetSpells } = foldPackets([first, delta!]);
+    expect([...stackTargetSpells]).toEqual([[50, 49]]);
+  });
+
+  it('an explicit empty array clears it, same as `newObjects` replacing a bag', () => {
+    const first = { ...opening!, stackTargetSpells: [[50, 49]] as const };
+    const cleared = { ...delta!, stackTargetSpells: [] as const };
+    const { stackTargetSpells } = foldPackets([first, cleared]);
+    expect(stackTargetSpells.size).toBe(0);
+  });
+});
+
 describe('mana costs', () => {
   it('reads ManaCost.serialize output into our pip tokens', () => {
     expect(manaCostTokens('3\u0006BLUE\u0006BLUE\u0006BLACK\u0006BLACK')).toEqual({

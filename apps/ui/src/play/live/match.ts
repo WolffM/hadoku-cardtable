@@ -559,7 +559,8 @@ export interface LiveMatch {
    * This seat's own "I just answered a stack-item target ask with THIS stack
    * item" intent — wave 46 §B's counterspell arc, X3.
    *
-   * There is no wire fact for this at all, proven against the real jar
+   * There is no wire fact for this on the STACK ITEM's own property bag,
+   * proven against the real jar
    * (`apps/server/src/play/scenario-w46-b-counterspell.jvm.test.ts`,
    * `docs/planning/wave46-evidence/B/README.md`): a target that is ANOTHER
    * spell on the stack is added to Forge's `TargetChoices` as a bare
@@ -567,7 +568,17 @@ export interface LiveMatch {
    * `getTargetCards()`'s and `getTargetPlayers()`'s runtime-type filter — so
    * the countering stack item's own `TargetCards`/`TargetPlayers` read EMPTY
    * once it is on the stack, even though the ability plainly targeted
-   * something. `answerAsk` is the one place the chosen id still exists — it
+   * something.
+   *
+   * Wave 49 §A added a SEPARATE wire fact for this — `PlayBridge.java`'s own
+   * `stackTargetSpells`, computed off the live stack rather than off
+   * `StackItemView`'s property bag, surfaced on `StackEntry.targetStackItemId`
+   * — which IS true for every seat, including one that answered no ask. This
+   * field stays: it is still the only mechanism for the CASTER's own seat
+   * before that wire fact's next frame lands, and `gestures/auto-targets.ts`'s
+   * `stackTargetArrows` draws the union of both rather than replacing one
+   * with the other. `answerAsk` is the one place the chosen id exists
+   * client-side at all — it
    * reads every `getChoices` reply as it leaves, whether the player clicked
    * the stack item (`gestures/stack.ts`'s `commitStackTarget`) or Forge's own
    * single-legal-choice case auto-answered it without a click at all
@@ -604,6 +615,19 @@ export interface LiveMatch {
    * and `redraw`'s own controller check narrows it further.
    */
   stackTargetArcs: Map<number, number>;
+  /**
+   * Wave 49 §A — the bridge's OWN wire fact for the same pairing
+   * {@link LiveMatch.stackTargetArcs} claims client-side: `fromId → toId`,
+   * straight off `PlayBridge.java`'s `stackTargetSpells`
+   * (`../fold.ts`'s `FoldResult.stackTargetSpells`, folded here in
+   * {@link foldFrames}). Unlike `stackTargetArcs`, this needs no ask this
+   * seat answered and no claim-and-prune — it is true for EVERY seat,
+   * including one that never saw a `getChoices` ask at all (the opponent of
+   * the caster). `../adapter.ts`'s `toBoardView` reads it onto each
+   * `StackEntry.targetStackItemId`, and `gestures/auto-targets.ts`'s
+   * `stackTargetArrows` draws the union of both sources.
+   */
+  stackTargetSpells: ReadonlyMap<number, number>;
   /**
    * This seat's full-control toggle. The server's word after every snapshot,
    * this client's own last word in between. Off by default — and off is also
@@ -754,6 +778,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     lastSelectedCard: null,
     stackTargetIntent: null,
     stackTargetArcs: new Map(),
+    stackTargetSpells: new Map(),
     avatarByPlayerId: null,
     nameByPlayerId: null,
     spectator: false,
@@ -1869,7 +1894,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
  * Rule 1 ("newObjects replace") makes that exact: every object is re-created
  * as it stands, in the order it stands.
  */
-function statePacket(match: LiveMatch): WirePacket {
+function statePacket(match: LiveMatch): WirePacket & { stackTargetSpells: readonly (readonly [number, number])[] } {
   return {
     seq: match.forgeSeq,
     checksum: 0,
@@ -1877,6 +1902,12 @@ function statePacket(match: LiveMatch): WirePacket {
     newObjects: Object.fromEntries(match.state),
     objectDeltas: {},
     events: [],
+    // Carried forward exactly like the rest of this re-seed packet (wave 49
+    // §A): `foldPackets` only REPLACES `stackTargetSpells` when a later
+    // packet names it, so without this a batch whose frames happen not to
+    // (there are none today — every live `applyDelta`/`setGameView` carries
+    // it — but a historical replay might) would wipe what was already known.
+    stackTargetSpells: [...match.stackTargetSpells],
   };
 }
 
@@ -1893,13 +1924,21 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   let changed = false;
   for (const frame of frames) {
     if (frame.method === 'setGameView') {
-      const { gameView, sequenceNumber } = frame.payload;
+      const { gameView, sequenceNumber, stackTargetSpells } = frame.payload;
       packets = [
-        { seq: sequenceNumber, checksum: 0, checksumProperties: [], newObjects: gameView, objectDeltas: {}, events: [] },
+        {
+          seq: sequenceNumber,
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: gameView,
+          objectDeltas: {},
+          events: [],
+          stackTargetSpells,
+        },
       ];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      packets.push(frame.payload.packet);
+      packets.push({ ...frame.payload.packet, stackTargetSpells: frame.payload.stackTargetSpells });
       changed = true;
     } else if (frame.method === 'openView') {
       const mine = frame.payload.myPlayers;
@@ -1918,6 +1957,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   match.state = folded.state;
   match.forgeSeq = folded.seq;
   match.skippedDeltas += folded.skippedDeltas;
+  match.stackTargetSpells = folded.stackTargetSpells;
   redraw(match);
 }
 
@@ -1932,6 +1972,7 @@ function redraw(match: LiveMatch): void {
           // field's own note on why the two are still kept apart in STATE.
           avatarByPlayerId: match.avatarByPlayerId ?? undefined,
           nameByPlayerId: match.nameByPlayerId ?? undefined,
+          stackTargetSpells: match.stackTargetSpells,
         });
   if (match.view?.gameOver === true) match.over = true;
   reconcileStackTargetArcs(match);
@@ -2179,6 +2220,7 @@ function discardLocal(match: LiveMatch): void {
   match.lastSelectedCard = null;
   match.stackTargetIntent = null;
   match.stackTargetArcs = new Map();
+  match.stackTargetSpells = new Map();
   match.avatarByPlayerId = null;
   match.nameByPlayerId = null;
   match.over = false;

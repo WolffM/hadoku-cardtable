@@ -667,13 +667,45 @@ export const DeltaPacketSchema = z.strictObject({
 
 export type DeltaPacket = z.infer<typeof DeltaPacketSchema>;
 
+/**
+ * Wave 49 §A — what each stack item targets, when that target is itself
+ * ANOTHER item on the stack (a spell counter-targeting a spell, or an
+ * ability targeting an ability).
+ *
+ * Not a `TrackableProperty`: `STATE_PROPERTIES` above stays pinned at
+ * Forge's real 214 (`tier-c.test.ts` cross-checks it against
+ * `coverage.tsv`), and `forge/` is stock upstream, not ours to add a 215th
+ * constant to (`AGENTS.md`: "Don't modify `forge/` until the fork exists").
+ * `StackItemView.java`'s own `TargetCards`/`TargetPlayers` are typed
+ * `CardViewCollectionType`/`PlayerViewCollectionType` and Forge's
+ * `TargetChoices` can hold a bare `SpellAbility` for "counter target spell",
+ * which fails both of their runtime-type filters
+ * (`scenario-w46-b-counterspell.jvm.test.ts`, confirmed against the real
+ * jar) — so there is no wire fact for this at the per-object property-bag
+ * layer at all. `PlayBridge.java` computes it itself, straight off the live
+ * `MagicStack`, and sends it as a SIBLING of `gameView`/`packet` in the
+ * frame's own payload — additive to the envelope, not to `STATE_PROPERTIES`.
+ *
+ * `[fromStackItemId, toStackItemId]` pairs, one per stack item that targets
+ * exactly one other stack item (Forge's own stack-target ask offers one
+ * choice at a time, so a real game never has a second target to carry here).
+ * Optional on the payload: a historical capture or fixture predating this
+ * addition parses exactly as it did before — "additive and strict" (see
+ * `AGENTS.md`'s Settled note) does not mean every past frame grows the key,
+ * only that a frame carrying it must shape it exactly so.
+ */
+export const StackTargetSpellsSchema = z.array(z.tuple([JavaInt, JavaInt]));
+
+export type StackTargetSpells = z.infer<typeof StackTargetSpellsSchema>;
+
 /* ── The three frames ────────────────────────────────────────────────── */
 
 /**
  * `void setGameView(GameView gameView, long sequenceNumber)` —
  * ProtocolMethod.java:35, IGuiGame.java:57. The full-state baseline;
  * `sequenceNumber` is -1 on the batch-flush resend
- * (`RemoteClientGuiGame.java:214`).
+ * (`RemoteClientGuiGame.java:214`). `stackTargetSpells` is the bridge's own
+ * addition — see {@link StackTargetSpellsSchema}.
  */
 export const SetGameViewSchema = z.strictObject({
   kind: z.literal('notify'),
@@ -681,6 +713,7 @@ export const SetGameViewSchema = z.strictObject({
   payload: z.strictObject({
     gameView: GameStateSchema,
     sequenceNumber: SequenceNumber,
+    stackTargetSpells: StackTargetSpellsSchema.optional(),
   }),
 });
 
@@ -702,12 +735,14 @@ export const OpenViewSchema = z.strictObject({
 
 /**
  * `void applyDelta(DeltaPacket packet)` — ProtocolMethod.java:79,
- * IGuiGame.java:304. The incremental state channel.
+ * IGuiGame.java:304. The incremental state channel. `stackTargetSpells` is
+ * the bridge's own addition, a sibling of `packet` rather than a field
+ * inside it — see {@link StackTargetSpellsSchema}.
  */
 export const ApplyDeltaSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('applyDelta'),
-  payload: z.strictObject({ packet: DeltaPacketSchema }),
+  payload: z.strictObject({ packet: DeltaPacketSchema, stackTargetSpells: StackTargetSpellsSchema.optional() }),
 });
 
 /** The three Tier C frames, as the envelope's discriminated union consumes them. */

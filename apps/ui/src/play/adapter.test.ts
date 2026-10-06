@@ -215,6 +215,35 @@ describe('§D #10 — the stack carries its source card', () => {
   });
 });
 
+describe('targetStackItemId (wave 49 §A)', () => {
+  /*
+   * `StackEntry.targetStackItemId` is read off `AdaptOptions.stackTargetSpells`
+   * — PlayBridge.java's own `stackTargetSpells` wire fact, a `fromId → toId`
+   * map keyed by stack item id — NOT off `targetCardIds`/`targetPlayerIds`,
+   * which is what the counterspell case fails both of (see `auto-targets.ts`'s
+   * own header on why).
+   */
+  it('reads the paired item’s id onto the item that targets it, and leaves every other item null', () => {
+    const state = baseState();
+    const [first, second] = adapt(state).stack;
+    expect(first, 'the fixture has at least two stack items').toBeDefined();
+    expect(second).toBeDefined();
+
+    const view = toBoardView(state, 27, {
+      viewerPlayerId: fixture.viewerPlayerId,
+      stackTargetSpells: new Map([[first!.id, second!.id]]),
+    });
+    const got = new Map(view.stack.map((item) => [item.id, item.targetStackItemId]));
+    expect(got.get(first!.id)).toBe(second!.id);
+    expect(got.get(second!.id) ?? null).toBeNull();
+  });
+
+  it('is null for every item when no map is supplied at all', () => {
+    const view = adapt(baseState());
+    for (const item of view.stack) expect(item.targetStackItemId).toBeNull();
+  });
+});
+
 /* ── §A.2, §A.3, §A.4: what else the wire already carries ─────────────── */
 
 /** Set one property on a `CardView` in place. */

@@ -243,10 +243,16 @@ describe('combatArrows', () => {
 });
 
 /*
- * X3 — the counterspell arc. `stackTargetArrows` reads `match.stackTargetArcs`
- * — the client-side pairing `match.ts`'s `redraw` claims once a countering
- * stack item appears — never `StackEntry.targetCardIds`/`targetPlayerIds`
- * (both read empty for this case; see `match.ts`'s own note and
+ * X3 — the counterspell arc. `stackTargetArrows` reads TWO sources, unioned
+ * by the pairing's own key:
+ *
+ *   - `match.stackTargetArcs` — the CASTER's own client-side pairing,
+ *     `match.ts`'s `redraw` claims once a countering stack item appears.
+ *   - `StackEntry.targetStackItemId` — wave 49 §A: the bridge's own wire
+ *     fact, true for every seat including one that answered no ask at all.
+ *
+ * Never `StackEntry.targetCardIds`/`targetPlayerIds` (both read empty for
+ * this case; see `match.ts`'s own note and
  * `docs/planning/wave46-evidence/B/README.md`).
  */
 describe('stackTargetArrows', () => {
@@ -267,5 +273,32 @@ describe('stackTargetArrows', () => {
 
   it('draws nothing when there are no arcs', () => {
     expect(stackTargetArrows(document.body, matchWithStackArcs(new Map()))).toEqual([]);
+  });
+
+  it('draws from StackEntry.targetStackItemId too — the OPPONENT, who holds no client-side intent', () => {
+    el({ 'data-stack-id': '60' });
+    const to = el({ 'data-stack-id': '50' });
+    const view = { stack: [{ ...stackEntry(60), targetStackItemId: 50 }] } as unknown as BoardView;
+    const match = { view, stackTargetArcs: new Map() } as unknown as LiveMatch;
+    const arrows = stackTargetArrows(document.body, match);
+    expect(arrows).toEqual([{ key: 'stack-target:60:50', from: expect.anything(), to, kind: 'card' }]);
+  });
+
+  it('unions both sources without drawing the same pairing twice', () => {
+    el({ 'data-stack-id': '60' });
+    el({ 'data-stack-id': '50' });
+    const view = { stack: [{ ...stackEntry(60), targetStackItemId: 50 }] } as unknown as BoardView;
+    const match = { view, stackTargetArcs: new Map([[60, 50]]) } as unknown as LiveMatch;
+    const arrows = stackTargetArrows(document.body, match);
+    expect(arrows).toHaveLength(1);
+    expect(arrows[0]!.key).toBe('stack-target:60:50');
+  });
+
+  it('ignores a null or absent targetStackItemId', () => {
+    el({ 'data-stack-id': '60' });
+    el({ 'data-stack-id': '50' });
+    const view = { stack: [{ ...stackEntry(60), targetStackItemId: null }, stackEntry(50)] } as unknown as BoardView;
+    const match = { view, stackTargetArcs: new Map() } as unknown as LiveMatch;
+    expect(stackTargetArrows(document.body, match)).toEqual([]);
   });
 });

@@ -421,6 +421,29 @@ export interface StackEntry {
    * typed out by hand (Q18's test, this file) need not restate the wire.
    */
   targetLabel?: string | null;
+  /**
+   * Wave 49 §A — the OTHER stack item this item targets, when its target is
+   * itself a spell or ability on the stack (a counterspell, "counter target
+   * activated or triggered ability"). NOT read from `targetCardIds`/
+   * `targetPlayerIds` above: both read EMPTY for this exact case — Forge's
+   * `TargetChoices` can hold a bare `SpellAbility`, which fails both
+   * collections' runtime-type filter (confirmed against the real jar,
+   * `scenario-w46-b-counterspell.jvm.test.ts`). This is `AdaptOptions.
+   * stackTargetSpells`, keyed by this item's own id — the bridge's wire
+   * fact, true for every seat, not this seat's own client-side intent
+   * (`match.ts`'s `stackTargetArcs`, which `gestures/auto-targets.ts`'s
+   * `stackTargetArrows` still also reads, as a union: the caster may have
+   * one before the wire fact is itself re-derived, and the opponent — who
+   * answered no ask — has only this one).
+   *
+   * `null` when the item targets nothing on the stack, or when no
+   * `stackTargetSpells` map was supplied at all. OPTIONAL for the same
+   * reason `targetCardIds`/`targetPlayerIds` above are: `toBoardView` always
+   * sets it, and a `StackEntry` typed out by hand in a suite testing
+   * something else need not restate the wire. Absent and `null` both mean
+   * "nothing on the stack", which `stackTargetArrows` reads with `?? null`.
+   */
+  targetStackItemId?: number | null;
 }
 
 export interface BoardView {
@@ -484,6 +507,15 @@ export interface AdaptOptions {
    * what the board showed before the names went in.
    */
   nameByPlayerId?: ReadonlyMap<number, string>;
+  /**
+   * Wave 49 §A — `PlayBridge.java`'s own `stackTargetSpells` wire fact
+   * (`../fold.ts`'s `FoldResult.stackTargetSpells`), a `fromId → toId` map
+   * read onto each `StackEntry.targetStackItemId` below. A live match
+   * supplies it from `LiveMatch.stackTargetSpells`; absent (the fixture
+   * path's default) leaves every entry's `targetStackItemId` `null`, exactly
+   * as before this wave.
+   */
+  stackTargetSpells?: ReadonlyMap<number, number>;
 }
 
 // ── what a card's printed power and toughness are ───────────────────────────
@@ -901,6 +933,7 @@ export function toBoardView(
     printedType = POOL_PRINTED_TYPE_LINE,
     avatarByPlayerId,
     nameByPlayerId,
+    stackTargetSpells,
   }: AdaptOptions,
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === WireType.Game);
@@ -985,6 +1018,7 @@ export function toBoardView(
       targetCardIds,
       targetPlayerIds,
       targetLabel: targetNames.length > 0 ? targetNames.join(', ') : null,
+      targetStackItemId: stackTargetSpells?.get(sid) ?? null,
     };
   });
 
