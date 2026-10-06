@@ -249,9 +249,9 @@ The first game on the w39 drag. It ended in a soft-lock (W18). W3, W4 and W8 shi
 
 | ID | item | asked | status | evidence | check it by | your check |
 | --- | --- | --- | --- | --- | --- | --- |
-| X1 | attacking a planeswalker: the arrow draws while dragging from the attacker, but the planeswalker is not selectable as the target | 2 (with W14) | planned | the defender's legality is not on the wire (w41 note); W9's bridge fix covered target selections, not attack declarations | attack a planeswalker by arrow |  |
-| X2 | declaring blockers took two clicks | 1 | to verify | match m-234c5f46dd94 bridge log 10:37:02-03 (local): an OK in the declare-attackers step (the defender's priority after attacks), then the OK that declared blocks; auto-pass skips the attacker's empty window (T3) but not the defender's — to confirm with a scenario | block with one creature |  |
-| X3 | the stack's look: a small gallery/carousel where it is now, and the top item shown in an expanded big view below it | 4 (with P9, R-stack, T8) | planned — demo first |  | cast two spells in response |  |
+| X1 | attacking a planeswalker: the arrow draws while dragging from the attacker, but the planeswalker is not selectable as the target | 2 (with W14) | landed `d6512e2`, NOT deployed (ecosystem deploy freeze, 2026-10-05) | w46 B offers defenders and draws the lasting arrow (`02a512f`); the 1-in-5 "attack went to the player" was Forge running each client message on its own thread, fixed by sending the attacker only after Forge marks the defender (`979dc16`; real Forge 24/24, was 3 failed in 16). CI 37399576613 green | attack a planeswalker by arrow; the arrow stays on Jace through blocks |  |
+| X2 | declaring blockers took two clicks | 1 | landed `d6512e2`, NOT deployed (freeze) | w46 C (`9bba2cf`): a defender with nothing castable confirms the block once; holding an instant with mana up keeps the stop (correct Magic). Suite `w46-block-stop.jvm` proven both ways | block with one creature: one click |  |
+| X3 | the stack's look: a small gallery/carousel where it is now, and the top item shown in an expanded big view below it | 4 (with P9, R-stack, T8) | landed `d6512e2`, NOT deployed (freeze) | w46 A (`6d5503a`), the approved demo built in: top leftmost, numbered, card pinned only when it covers nothing, else a hover peek. Open: the counterspell arc's browser test moved to the next wave | cast two spells in response |  |
 
 ## Asks outside a play-test — 2026-10-02
 
