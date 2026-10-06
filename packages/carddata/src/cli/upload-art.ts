@@ -50,7 +50,7 @@ import { readFile, writeFile, rename, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createCdnClient, CdnError, MAX_UPLOAD_BYTES, ACCEPTED_TYPES } from '@wolffm/cdn-client';
+import { createCdnClient, CdnError, MAX_BYTES, ACCEPTED_IMAGE_TYPES } from '@wolffm/cdn-client';
 import type { UploadResult } from '@wolffm/cdn-client';
 import {
   CDN_BASE,
@@ -385,18 +385,18 @@ async function fetchArt(url: string, delayMs: number): Promise<Fetched> {
 /**
  * Client-side refusals, before any bytes are sent.
  *
- * `MAX_UPLOAD_BYTES` and `ACCEPTED_TYPES` are mirrored from the server for
+ * `MAX_BYTES.image` and `ACCEPTED_IMAGE_TYPES` are mirrored from the server for
  * exactly this. Scryfall's `normal` jpegs are ~100 KB so neither will bite
  * here, but a pre-check costs nothing and turns a future surprise (a 10 MB
  * `png` from some other source) into a named skip instead of a 413.
  */
 function refuseUpload(fetched: Fetched): string | null {
   if (fetched.bytes.byteLength === 0) return 'empty response body';
-  if (fetched.bytes.byteLength > MAX_UPLOAD_BYTES) {
-    return `${fetched.bytes.byteLength} bytes exceeds MAX_UPLOAD_BYTES (${MAX_UPLOAD_BYTES})`;
+  if (fetched.bytes.byteLength > MAX_BYTES.image) {
+    return `${fetched.bytes.byteLength} bytes exceeds MAX_BYTES.image (${MAX_BYTES.image})`;
   }
-  if (!(ACCEPTED_TYPES as readonly string[]).includes(fetched.contentType)) {
-    return `content-type ${fetched.contentType || '(none)'} is not one of ${ACCEPTED_TYPES.join(', ')}`;
+  if (!(ACCEPTED_IMAGE_TYPES as readonly string[]).includes(fetched.contentType)) {
+    return `content-type ${fetched.contentType || '(none)'} is not one of ${ACCEPTED_IMAGE_TYPES.join(', ')}`;
   }
   return null;
 }
