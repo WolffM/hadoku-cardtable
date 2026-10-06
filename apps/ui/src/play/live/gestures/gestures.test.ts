@@ -2514,6 +2514,45 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect(sent(s), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
   }, 20_000);
 
+  /*
+   * CI run 37539089085 (2026-10-06): a land Forge never played was still parked
+   * when the cleanup discard opened; the unanswered check saw "a selection is
+   * open" and gave up, so the land stayed hidden in the hand with the discard
+   * unable to click it.
+   */
+  it('a play Forge never answers floats back even when an unrelated question has opened on the hand', async () => {
+    const { s, m, canvas, card, rest } = await play();
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    expect(standIn.getAttribute('data-cast-lift')).toBe('parked');
+    expect(cardEl(canvas, card).getAttribute('data-cast-lift'), 'the hand element is carried (hidden) while it waits').toBe('carried');
+    // The cleanup discard: a selection over the whole hand, the parked card among it. Not about the play.
+    s.send(prompt('Cleanup Phase\nSelect 1 card(s) to discard to bring your hand down to the maximum of 7 cards.'));
+    s.send(selectables([card, ...rest], 1, 1));
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+    expect(sent(s), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
+  }, 20_000);
+
+  it('a play Forge IS asking about keeps waiting past PARK_UNANSWERED_MS', async () => {
+    const { s, m, canvas, card } = await play();
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    // Forge's question names the card: its own getAbilityToPlay, as every land click gets.
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 's0-9',
+        method: 'getAbilityToPlay',
+        hostCard: { kind: 'card', id: card },
+        abilities: [{ kind: 'spellAbility', id: 7, label: 'Play land' }],
+        triggerEvent: null,
+      }),
+    );
+    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS + 500));
+    expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
+  }, 20_000);
+
   it('a card Forge stopped offering between the lift and the release is not sent, and floats back', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);

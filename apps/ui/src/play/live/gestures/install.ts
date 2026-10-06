@@ -598,15 +598,37 @@ export function installGestures(options: GestureOptions): GestureHandle {
     return p;
   }
 
-  /** `PARK_UNANSWERED_MS` after a park: if Forge has shown no sign of it, the card goes back. */
+  /**
+   * `PARK_UNANSWERED_MS` after a park: if Forge has shown no sign of it, the
+   * card goes back.
+   *
+   * "A sign of it" is a question ABOUT THE CARD — Forge's prompt naming it, or
+   * an ask hosted by it — or a payment, which is its own cost. Any other open
+   * question is not one: CI run 37539089085 (2026-10-06) parked a land Forge
+   * never played, the cleanup discard opened before this ran, and the early
+   * return on "a selection is open" left the land hidden in the hand for the
+   * rest of the game, with the discard unable to click it. So an unrelated
+   * question releases the card the same as silence does.
+   */
   function onParkUnanswered(): void {
     unansweredTimer = null;
     if (!live || parked === null) return;
     if (whereIs(match, parked.source) !== 'hand' || parked.leftHand) return;
-    if (match.selectables !== null || payingMana(match) || match.asks.length > 0 || stackAsk(match) !== null) return;
+    if (askedAbout(parked.source)) {
+      // Forge is on it; look again once that question has had its time.
+      unansweredTimer = setTimeout(onParkUnanswered, PARK_UNANSWERED_MS);
+      return;
+    }
     const p = endPark()!;
     releaseParked(p, true);
     paint();
+  }
+
+  /** Forge is asking this seat something about `cardId`, or taking its payment. */
+  function askedAbout(cardId: number): boolean {
+    if (payingMana(match)) return true;
+    if (match.promptCard === cardId && (match.selectables !== null || match.asks.length > 0 || stackAsk(match) !== null)) return true;
+    return match.asks.some((ask) => 'hostCard' in ask && ask.hostCard.id === cardId);
   }
 
   /**
