@@ -96,11 +96,20 @@ export interface DeltaPacketJson {
 	events: unknown[];
 }
 
+/**
+ * `PlayBridge.java`'s `stackTargetSpells` — `[fromStackItemId,
+ * toStackItemId]` pairs, a SIBLING of `gameView`/`packet` in the frame's own
+ * payload, not a `TrackableProperty` (`packages/forge-wire/src/tier-c.ts`'s
+ * `StackTargetSpellsSchema`). Optional: a frame from before this addition, or
+ * one built by hand in a test, carries none.
+ */
+export type StackTargetSpells = readonly (readonly [number, number])[];
+
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
-	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number } }
+	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -520,6 +529,15 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 						payload: {
 							gameView: projectTable(frame.payload.gameView, vis),
 							sequenceNumber: frame.payload.sequenceNumber,
+							// Passed through UNREDACTED — see `StackTargetSpells`'s own note: both
+							// ids name stack items, and the Stack zone is in `PUBLIC_ZONES`, so a
+							// pairing of two ids already on the public stack hides nothing a card
+							// redaction elsewhere in this same frame has not already hidden (the
+							// SOURCE card of a face-down spell on the stack, say — this pairing
+							// never carries a name, only ids the client already has).
+							...(frame.payload.stackTargetSpells === undefined
+								? {}
+								: { stackTargetSpells: frame.payload.stackTargetSpells }),
 						},
 					};
 				}
@@ -527,7 +545,12 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 					return {
 						kind: 'notify',
 						method: 'applyDelta',
-						payload: { packet: projectPacket(frame.payload.packet) },
+						payload: {
+							packet: projectPacket(frame.payload.packet),
+							...(frame.payload.stackTargetSpells === undefined
+								? {}
+								: { stackTargetSpells: frame.payload.stackTargetSpells }),
+						},
 					};
 			}
 		},

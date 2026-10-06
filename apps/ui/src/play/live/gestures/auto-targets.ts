@@ -101,17 +101,30 @@ export function combatArrows(canvas: ParentNode, match: LiveMatch): AutoTargetAr
  * (`apps/server/src/play/scenario-w46-b-counterspell.jvm.test.ts`,
  * `docs/planning/wave46-evidence/B/README.md`): Forge's `TargetChoices` can
  * hold a bare `SpellAbility` for a target that is itself a spell on the
- * stack, which fails both collections' runtime-type filter. So this reads
- * `match.ts`'s `stackTargetArcs` instead — a client-side pairing `redraw`
- * claims the moment the countering item itself appears on the stack, from
- * the ask this seat answered (`match.ts`'s `answerAsk`/`noteStackTargetIntent`
- * — every `getChoices` reply this seat sent that named exactly one stack
- * item, whether by clicking it or by Forge's own single-legal-choice
- * auto-answer) — which is the only place the id still exists.
+ * stack, which fails both collections' runtime-type filter.
+ *
+ * Two sources, unioned by the pairing's own key (so the same arc from either
+ * source never draws twice):
+ *
+ *   - `match.ts`'s `stackTargetArcs` — the CASTER's own client-side pairing,
+ *     claimed the moment the countering item appears on the stack, from the
+ *     ask THIS seat answered (`match.ts`'s `answerAsk`/
+ *     `noteStackTargetIntent`). Wave 46 §B, unchanged.
+ *   - `StackEntry.targetStackItemId` — wave 49 §A's addition: the bridge's
+ *     own wire fact (`adapter.ts`, off `PlayBridge.java`'s
+ *     `stackTargetSpells`), true for EVERY seat, including one that answered
+ *     no ask at all and so has no entry in `stackTargetArcs` — the
+ *     OPPONENT of the caster, the one case the first source cannot cover.
  */
 export function stackTargetArrows(canvas: ParentNode, match: LiveMatch): AutoTargetArrow[] {
+  const pairs = new Map<string, [number, number]>();
+  for (const [fromId, toId] of match.stackTargetArcs) pairs.set(`${fromId}:${toId}`, [fromId, toId]);
+  for (const item of match.view?.stack ?? []) {
+    if (item.targetStackItemId === null || item.targetStackItemId === undefined) continue;
+    pairs.set(`${item.id}:${item.targetStackItemId}`, [item.id, item.targetStackItemId]);
+  }
   const out: AutoTargetArrow[] = [];
-  for (const [fromId, toId] of match.stackTargetArcs) {
+  for (const [fromId, toId] of pairs.values()) {
     const source = stackItemBox(canvas, fromId);
     const target = stackItemBox(canvas, toId);
     if (source === null || target === null) continue;

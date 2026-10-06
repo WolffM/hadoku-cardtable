@@ -18,13 +18,24 @@
  * This is the direct, real-Forge proof of that reading: Counterspell's own
  * resulting `StackItemView` carries `TargetCards: []` and `TargetPlayers: []`
  * once it is on the stack, even though the ability plainly does target
- * something. There is no third `Target*` collection on the wire — `TrackableProperty.java`
- * has exactly the two — so the targeted stack item's id is NOT recoverable
- * from the resolved `StackItemView` at all, by any field. See
- * `docs/planning/wave46-evidence/B/README.md` for what this means for the arc
- * and why the arrow has to be drawn from client-side intent instead (recorded
- * at the moment THIS seat answers the `getChoices` ask) rather than from a
- * wire fact that does not exist for this case.
+ * something. There is no third `Target*` collection on the wire at the
+ * STACK ITEM's own property-bag layer — `TrackableProperty.java` has exactly
+ * the two — so the targeted stack item's id is NOT recoverable from the
+ * resolved `StackItemView` at all, by any field on it. See
+ * `docs/planning/wave46-evidence/B/README.md` for what this meant for the
+ * arc at the time (wave 46: the arrow drawn from client-side intent,
+ * recorded at the moment THIS seat answers the `getChoices` ask).
+ *
+ * **Wave 49 §A** closed the gap this left for the OPPONENT (who answers no
+ * ask and holds no client-side intent): `PlayBridge.java` now computes the
+ * same pairing itself, off the live stack rather than off `StackItemView`'s
+ * property bag, and sends it as `stackTargetSpells` — a SIBLING of the frame's
+ * `packet`/`gameView`, not a `TrackableProperty` (`packages/forge-wire/src/
+ * tier-c.ts`'s `StackTargetSpellsSchema`). The final assertions below (after
+ * the `TargetCards`/`TargetPlayers` ones) are that proof, read off the actual
+ * frames this seat was sent, in the SAME exchange: the wire now DOES carry
+ * the pairing — just not on the stack item's own property bag, which stays
+ * empty exactly as the assertions above prove.
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=… \
  *   pnpm exec vitest run apps/server/src/play/scenario-w46-b-counterspell.jvm.test.ts \
@@ -139,6 +150,24 @@ describe.skipIf(!available.ok)(title, () => {
 				// this is reading the right two objects.
 				const memniteItem = items.find((o) => o !== counterItem);
 				expect(((memniteItem?.['Description'] as { v?: string } | undefined)?.v ?? '')).toMatch(/Memnite/);
+
+				// Wave 49 §A: `stackTargetSpells` is a SIBLING of the frame's own
+				// `packet`, not a property on the stack item's bag read above — so
+				// read it off the actual frames this seat was sent
+				// (`s.sent`, the server's REAL emit calls, projected through
+				// `visibility.ts` exactly as a browser would receive them), not off
+				// `s.state(0)`. The latest frame to carry the field wins, since it is
+				// a full snapshot every time, never a delta of pairs.
+				const framesWithPairs = s.sent
+					.filter((x) => x.seat === 0 && x.envelope.frame.kind === 'notify')
+					.map((x) => x.envelope.frame as unknown as { payload?: { stackTargetSpells?: unknown } })
+					.filter((f) => Array.isArray(f.payload?.stackTargetSpells));
+				expect(framesWithPairs.length, 'at least one frame carried stackTargetSpells').toBeGreaterThan(0);
+				const latestPairs = framesWithPairs[framesWithPairs.length - 1]!.payload!.stackTargetSpells as [number, number][];
+				expect(
+					latestPairs,
+					`stackTargetSpells names Counterspell (${counterItem!._id}) → Memnite (${memniteItem!._id})`,
+				).toContainEqual([counterItem!._id, memniteItem!._id]);
 			} finally {
 				await s.stop();
 			}

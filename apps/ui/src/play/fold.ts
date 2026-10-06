@@ -28,20 +28,49 @@ import { isAnnotationKey, type WireObject, type WirePacket } from './wire.ts';
 /** Every object the client knows about, by delta key. */
 export type WireState = ReadonlyMap<string, WireObject>;
 
+/**
+ * Wave 49 §A — `PlayBridge.java`'s `stackTargetSpells`, a SIBLING of the
+ * packet rather than a property inside it (`visibility.ts`'s own note on why:
+ * not a `TrackableProperty`, `forge/` being stock upstream). `[fromStackItemId,
+ * toStackItemId]` pairs. `./live/match.ts`'s `foldFrames` merges this field
+ * from each `ServerFrame.payload` into the packet it hands `foldPackets`,
+ * since this module only knows packets, never frames.
+ */
+export type StackTargetSpellPairs = readonly (readonly [number, number])[];
+
+/** A packet that MAY carry {@link StackTargetSpellPairs} as a sibling field. */
+export interface FoldablePacket extends WirePacket {
+  stackTargetSpells?: StackTargetSpellPairs;
+}
+
 export interface FoldResult {
   state: WireState;
   /** The last packet's `seq` — the cursor a live source resumes from. */
   seq: number;
   /** Deltas addressed to objects never created (rule 4). Counted, not hidden. */
   skippedDeltas: number;
+  /**
+   * The latest `stackTargetSpells` snapshot folded, as a `fromId → toId` map.
+   * It is a full snapshot every time it is sent (never a delta of pairs), so
+   * folding it is "replace, when present" — the same rule `newObjects` gets,
+   * not `objectDeltas`'s merge. A packet that does not carry the field at all
+   * (every packet before this wave, or one built by hand in a test) leaves
+   * whatever was already folded untouched; empty before any packet ever
+   * carries it.
+   */
+  stackTargetSpells: ReadonlyMap<number, number>;
 }
 
-export function foldPackets(packets: readonly WirePacket[]): FoldResult {
+export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
   const state = new Map<string, WireObject>();
   let seq = 0;
   let skippedDeltas = 0;
+  let stackTargetSpells = new Map<number, number>();
 
   for (const packet of packets) {
+    if (packet.stackTargetSpells !== undefined) {
+      stackTargetSpells = new Map(packet.stackTargetSpells);
+    }
     for (const [key, obj] of Object.entries(packet.newObjects)) {
       if (isAnnotationKey(key)) continue;
       state.set(key, withoutNulls(obj));
@@ -64,7 +93,7 @@ export function foldPackets(packets: readonly WirePacket[]): FoldResult {
     seq = packet.seq;
   }
 
-  return { state, seq, skippedDeltas };
+  return { state, seq, skippedDeltas, stackTargetSpells };
 }
 
 function withoutNulls(obj: WireObject): WireObject {

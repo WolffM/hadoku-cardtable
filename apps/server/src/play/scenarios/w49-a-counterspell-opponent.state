@@ -1,0 +1,19 @@
+# wave 49 §A — the opponent's counterspell arc, mirrored from
+# `w46-b-counterspell.state`: this time BOB (seat 1, "ai" keys) holds
+# Counterspell and the mana to pay it, and ALICE (seat 0, "human" keys) has
+# the free creature to cast — so alice casts Memnite, bob counters it, and
+# the proof is whether ALICE (who never answered the target ask) sees the
+# arc too, off the wire fact, not off her own answerAsk-recorded intent.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Memnite
+humanbattlefield=
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Counterspell
+aibattlefield=Island;Island
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

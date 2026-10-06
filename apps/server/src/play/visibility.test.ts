@@ -298,6 +298,44 @@ describe('setGameView', () => {
 	});
 });
 
+/**
+ * Wave 49 §A — `stackTargetSpells`, `PlayBridge.java`'s own addition. Passed
+ * through UNREDACTED (`visibility.ts`'s own note on `project`): both ids
+ * name stack items, and the Stack zone is in `PUBLIC_ZONES`, so there is
+ * nothing a card redaction elsewhere in the same frame has not already hid.
+ */
+describe('stackTargetSpells (wave 49 §A)', () => {
+	it('setGameView: passed through exactly, present or absent', () => {
+		const frames = fixtureFrames();
+		const raw = fold(frames);
+		const gameView = Object.fromEntries(raw);
+		const withPairs = createProjector(0).project({
+			kind: 'notify',
+			method: 'setGameView',
+			payload: { gameView, sequenceNumber: 27, stackTargetSpells: [[50, 49]] },
+		}) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(withPairs.payload.stackTargetSpells).toEqual([[50, 49]]);
+
+		const without = createProjector(0).project({
+			kind: 'notify',
+			method: 'setGameView',
+			payload: { gameView, sequenceNumber: 27 },
+		}) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(without.payload.stackTargetSpells).toBeUndefined();
+	});
+
+	it('applyDelta: passed through exactly, present or absent', () => {
+		const frames = fixtureFrames();
+		const first = frames[0] as Extract<StateFrame, { method: 'applyDelta' }>;
+		const withPairs: StateFrame = { ...first, payload: { ...first.payload, stackTargetSpells: [[50, 49]] } };
+		const out = createProjector(0).project(withPairs) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(out.payload.stackTargetSpells).toEqual([[50, 49]]);
+
+		const without = createProjector(0).project(first) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(without.payload.stackTargetSpells).toBeUndefined();
+	});
+});
+
 describe('a face-down permanent (real battlefield card, turned face down)', () => {
 	it('shows the table its face-down face and nothing of the card underneath; its controller sees it all', () => {
 		const frames = fixtureFrames();

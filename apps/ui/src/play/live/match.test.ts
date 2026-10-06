@@ -2068,6 +2068,103 @@ describe('X3 — stackTargetIntent/stackTargetArcs, the counterspell arc’s cla
   });
 });
 
+/*
+ * Wave 49 §A — `stackTargetSpells`, the bridge's OWN wire fact for the same
+ * pairing the X3 block above claims client-side. Unlike `stackTargetArcs`,
+ * this needs no ask THIS seat answered: it is a SIBLING of the frame's own
+ * `packet`, folded by `../fold.ts`'s `FoldResult.stackTargetSpells` and
+ * surfaced on every `StackEntry.targetStackItemId` — `gestures/
+ * auto-targets.test.ts`'s `stackTargetArrows` block proves what gets drawn
+ * from it once it holds one.
+ */
+describe('stackTargetSpells (wave 49 §A) — the bridge’s own wire fact', () => {
+  /** A brand new `StackItem` object, same shape the X3 block's own helper builds. */
+  function newStackItem(id: number, activatingPlayer: number, description: string): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: {
+          seq,
+          checksum: 0,
+          checksumProperties: [],
+          newObjects: {
+            [deltaKey(WireType.StackItem, id)]: {
+              _type: WireType.StackItem,
+              _id: id,
+              ActivatingPlayer: { t: 'int', v: activatingPlayer },
+              Description: { t: 'str', v: description },
+            },
+          },
+          objectDeltas: {},
+          events: [],
+        },
+      },
+    });
+  }
+
+  const stackOf = (ids: number[]): ServerFrame =>
+    stateDelta({
+      [GAME_KEY]: { _type: WireType.Game, _id: 1, Stack: { t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) } },
+    });
+
+  /** The same two-item stack `applyDelta` naming the pairing as a SIBLING of `packet`. */
+  function applyDeltaWithPairs(pairs: readonly (readonly [number, number])[]): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] },
+        stackTargetSpells: pairs,
+      },
+    });
+  }
+
+  it('folds onto LiveMatch.stackTargetSpells and onto the targeting item’s own StackEntry', async () => {
+    const { s, m } = await fullGame();
+    const target = 9101;
+    const counter = 9102;
+    await sendAndApply(s, m, [
+      newStackItem(target, m.view!.players.find((p) => !p.isViewer)!.id, 'Memnite'),
+      newStackItem(counter, m.view!.players.find((p) => p.isViewer)!.id, 'Counterspell'),
+      stackOf([counter, target]),
+      applyDeltaWithPairs([[counter, target]]),
+    ]);
+    expect(m.stackTargetSpells.get(counter)).toBe(target);
+    const item = m.view!.stack.find((i) => i.id === counter);
+    expect(item?.targetStackItemId).toBe(target);
+    // The targeted item itself names no target of its own.
+    const targetItem = m.view!.stack.find((i) => i.id === target);
+    expect(targetItem?.targetStackItemId ?? null).toBeNull();
+  });
+
+  it('is empty before any frame ever carries it', async () => {
+    const { m } = await fullGame();
+    expect(m.stackTargetSpells.size).toBe(0);
+  });
+
+  it('a later applyDelta that carries no stackTargetSpells at all leaves the snapshot as it was', async () => {
+    const { s, m } = await fullGame();
+    const target = 9103;
+    const counter = 9104;
+    await sendAndApply(s, m, [
+      newStackItem(target, m.view!.players.find((p) => !p.isViewer)!.id, 'Memnite'),
+      newStackItem(counter, m.view!.players.find((p) => p.isViewer)!.id, 'Counterspell'),
+      stackOf([counter, target]),
+      applyDeltaWithPairs([[counter, target]]),
+    ]);
+    expect(m.stackTargetSpells.get(counter)).toBe(target);
+    // An ordinary delta that touches something unrelated, and carries no
+    // `stackTargetSpells` field at all — never produced by a real bridge
+    // (every live frame carries it), but this proves the fold does not wipe
+    // what it already knew just because one packet did not restate it.
+    await sendAndApply(s, m, [phase('MAIN2', m.view!.players.find((p) => p.isViewer)!.id)]);
+    expect(m.stackTargetSpells.get(counter)).toBe(target);
+  });
+});
+
 describe('full control, restored after a refresh', () => {
   /*
    * `cursor` is seq 1 with no frames in it, which the contract allows and the

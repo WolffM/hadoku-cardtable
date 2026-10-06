@@ -44,8 +44,11 @@ import forge.game.phase.PhaseType;
 import forge.game.player.DelayedReveal;
 import forge.game.player.IHasIcon;
 import forge.game.player.PlayerView;
+import forge.game.spellability.SpellAbility;
+import forge.game.spellability.SpellAbilityStackInstance;
 import forge.game.spellability.SpellAbilityView;
 import forge.game.spellability.StackItemView;
+import forge.game.spellability.TargetChoices;
 import forge.game.zone.ZoneType;
 import forge.gamemodes.match.GameLobby.GameLobbyData;
 import forge.gamemodes.match.HostedMatch;
@@ -555,6 +558,68 @@ public final class PlayBridge {
         return out;
     }
 
+    /**
+     * Wave 49 §A — what each stack item targets, when that target is itself
+     * ANOTHER item on the stack (a spell counter-targeting a spell, or an
+     * ability targeting an ability).
+     *
+     * <p>Not a {@code TrackableProperty}: {@code forge/} is stock upstream
+     * (AGENTS.md — "Don't modify `forge/` until the fork exists"), so this
+     * bridge does not get to add a 215th constant to that enum, and
+     * {@code StackItemView}'s own {@code TargetCards}/{@code TargetPlayers}
+     * (the two collections it DOES publish) are typed
+     * {@code CardViewCollectionType}/{@code PlayerViewCollectionType} —
+     * {@code TargetChoices.getTargetSpells()} is a disjoint third arm neither
+     * one carries, confirmed against the real jar by
+     * {@code scenario-w46-b-counterspell.jvm.test.ts}. So this method reads
+     * the live {@code Game}'s own {@code MagicStack} directly and sends the
+     * pairing as a SIBLING
+     * of {@code packet}/{@code gameView} in the frame's own payload —
+     * additive to the envelope (`packages/forge-wire/src/tier-c.ts`'s
+     * {@code StackTargetSpellsSchema}), not to {@code STATE_PROPERTIES}.
+     *
+     * <p>One pair per stack item that targets exactly one OTHER stack item:
+     * Forge's own stack-target ask ({@code TargetSelection.chooseCardFromStack})
+     * offers one choice at a time, so a real game never has a second one to
+     * lose by keeping only the first match.
+     */
+    static JsonArray stackTargetSpellsJson(final Game game) {
+        final JsonArray out = new JsonArray();
+        if (game == null) { return out; }
+        final Map<SpellAbility, Integer> owner = new HashMap<>();
+        for (final SpellAbilityStackInstance si : game.getStack()) {
+            owner.put(si.getSpellAbility(), si.getId());
+        }
+        for (final SpellAbilityStackInstance si : game.getStack()) {
+            final TargetChoices tc = si.getTargetChoices();
+            if (tc == null) { continue; }
+            for (final SpellAbility targetSa : tc.getTargetSpells()) {
+                final Integer toId = owner.get(targetSa);
+                if (toId != null) {
+                    final JsonArray pair = new JsonArray();
+                    pair.add(si.getId());
+                    pair.add(toId);
+                    out.add(pair);
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The live {@code Game}, straight off {@link #LOBBY} — the same access
+     * {@link SeatGui#liveMulliganFlag()} uses, and for the same reason: this
+     * bridge's own synthetic/additive data has no other route to the engine's
+     * current truth.
+     */
+    static Game liveGame() {
+        final ServerGameLobby lobby = LOBBY;
+        if (lobby == null) { return null; }
+        final HostedMatch hosted = lobby.getHostedMatch();
+        return hosted == null ? null : hosted.getGame();
+    }
+
     static JsonObject packetJson(final DeltaPacket p) {
         final JsonObject o = new JsonObject();
         o.addProperty("seq", p.getSequenceNumber());
@@ -818,6 +883,7 @@ public final class PlayBridge {
             final JsonObject payload = new JsonObject();
             payload.add("gameView", objectTable(full.getNewObjects()));
             payload.addProperty("sequenceNumber", sequenceNumber);
+            payload.add("stackTargetSpells", stackTargetSpellsJson(liveGame()));
             f.add("payload", payload);
             frame(f);
         }
@@ -851,6 +917,7 @@ public final class PlayBridge {
                 final JsonObject f = notify("applyDelta");
                 final JsonObject payload = new JsonObject();
                 payload.add("packet", packetJson(packet));
+                payload.add("stackTargetSpells", stackTargetSpellsJson(liveGame()));
                 f.add("payload", payload);
                 frame(f);
             }
@@ -957,6 +1024,7 @@ public final class PlayBridge {
             final JsonObject f = notify("applyDelta");
             final JsonObject payload = new JsonObject();
             payload.add("packet", packetJson(synthetic));
+            payload.add("stackTargetSpells", stackTargetSpellsJson(liveGame()));
             f.add("payload", payload);
             frame(f);
             super.applyDelta(synthetic);
