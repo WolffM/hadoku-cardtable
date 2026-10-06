@@ -17,10 +17,12 @@ import {
 	CRASH_RECORD_FILES,
 	CRASH_RECORD_MAX_AGE_MS,
 	JVM_RECORD_FILE,
+	BRIDGE_CACHE_MAX_AGE_MS,
 	ORPHAN_CLAIM_MS,
 	ORPHAN_MAX_MS,
 	SPARE_MAX_FAILURES,
 	STREAM_FILE,
+	bridgeLaunch,
 	jvmHostFactory,
 	liveJvmCount,
 	readJvmRecord,
@@ -58,6 +60,7 @@ const config: JvmHostConfig = {
 	workDir: join(scratch, 'runs'),
 	jvmOpts: [],
 	bridgeSource: 'BRIDGE',
+	bridgeCache: join(scratch, 'bridge-cache'),
 	stopGraceMs: 1000,
 	warmSpare: true,
 };
@@ -187,6 +190,87 @@ describe('the ceiling', () => {
 	it('caps every JVM heap unless the operator names one', () => {
 		expect(withHeapCap(['-XX:+UseG1GC'])).toEqual(['-Xmx1g', '-XX:+UseG1GC']);
 		expect(withHeapCap(['-Xmx2g'])).toEqual(['-Xmx2g']);
+	});
+});
+
+describe('the bridge is compiled once per version, not in every JVM', () => {
+	// A JDK's bin/: a `java` nobody runs here, and a `javac` that does what the
+	// real one is asked to — write `<main>.class` into `-d` — and counts its runs.
+	function fixture(javac: 'works' | 'fails' | 'absent') {
+		const root = mkdtempSync(join(scratch, 'bridge-'));
+		const bin = join(root, 'bin');
+		mkdirSync(bin);
+		writeFileSync(join(bin, 'java'), '#!/bin/sh\n');
+		const runs = join(root, 'javac-runs');
+		if (javac !== 'absent') {
+			const body =
+				javac === 'works'
+					? `echo run >> "${runs}"\nwhile [ "$1" != "-d" ]; do shift; done\necho compiled > "$2/Bridge.class"\n`
+					: `echo run >> "${runs}"\necho "Bridge.java:1: error: not a statement" >&2\nexit 1\n`;
+			writeFileSync(join(bin, 'javac'), `#!/bin/sh\n${body}`);
+			chmodSync(join(bin, 'javac'), 0o755);
+		}
+		const bridgeSource = join(root, 'Bridge.java');
+		writeFileSync(bridgeSource, 'class Bridge {}');
+		const jar = join(root, 'forge.jar');
+		writeFileSync(jar, 'jar');
+		const logs: Record<string, unknown>[] = [];
+		const cfg: JvmHostConfig = { ...config, java: join(bin, 'java'), jar, bridgeSource, bridgeCache: join(root, 'cache') };
+		const javacRuns = (): number => (existsSync(runs) ? readFileSync(runs, 'utf8').trim().split('\n').length : 0);
+		return { cfg, logs, javacRuns, launch: () => bridgeLaunch(cfg, (e) => logs.push(e)) };
+	}
+
+	it('compiles on the first launch and launches the classes from then on', () => {
+		const f = fixture('works');
+		const first = f.launch();
+		expect(first.how).toBe('compiled');
+		const [dir] = readdirSync(f.cfg.bridgeCache);
+		expect(first.args).toEqual(['-cp', `${join(f.cfg.bridgeCache, dir as string)}:${f.cfg.jar}`, 'Bridge']);
+		expect(f.logs.map((l) => l.evt)).toEqual(['bridge-compiled']);
+		expect(f.launch()).toEqual(first);
+		expect(f.javacRuns()).toBe(1);
+		// Nothing half-made is left beside it.
+		expect(readdirSync(f.cfg.bridgeCache)).toEqual([dir]);
+	});
+
+	it('an edited bridge is a different version: compiled again, into its own directory', () => {
+		const f = fixture('works');
+		const before = f.launch();
+		writeFileSync(f.cfg.bridgeSource, 'class Bridge { int edited; }');
+		const after = f.launch();
+		expect(after.how).toBe('compiled');
+		expect(after.args[1]).not.toBe(before.args[1]);
+		expect(f.javacRuns()).toBe(2);
+	});
+
+	it('a compile that fails is logged with javac\'s own words, and the JVM gets the source launcher', () => {
+		const f = fixture('fails');
+		expect(f.launch()).toEqual({ args: ['-cp', f.cfg.jar, f.cfg.bridgeSource], how: 'source' });
+		expect(f.logs).toHaveLength(1);
+		expect(f.logs[0]).toMatchObject({ evt: 'bridge-compile-failed' });
+		expect(f.logs[0]?.error).toContain('not a statement');
+		expect(readdirSync(f.cfg.bridgeCache)).toEqual([]);
+	});
+
+	it('with no javac beside java it is the source launcher, and nothing is attempted', () => {
+		const f = fixture('absent');
+		expect(f.launch()).toEqual({ args: ['-cp', f.cfg.jar, f.cfg.bridgeSource], how: 'source' });
+		expect(f.logs).toEqual([]);
+		expect(existsSync(f.cfg.bridgeCache)).toBe(false);
+	});
+
+	it('a version nobody has launched for BRIDGE_CACHE_MAX_AGE_MS goes when the next one is compiled; a recent one stays', () => {
+		const f = fixture('works');
+		const old = f.launch().args[1]?.split(':')[0] as string;
+		writeFileSync(f.cfg.bridgeSource, 'class Bridge { int recent; }');
+		const recent = f.launch().args[1]?.split(':')[0] as string;
+		const stale = new Date(Date.now() - BRIDGE_CACHE_MAX_AGE_MS - 60_000);
+		utimesSync(old, stale, stale);
+		writeFileSync(f.cfg.bridgeSource, 'class Bridge { int newest; }');
+		const newest = f.launch().args[1]?.split(':')[0] as string;
+		expect(existsSync(old)).toBe(false);
+		expect(existsSync(recent)).toBe(true);
+		expect(existsSync(newest)).toBe(true);
 	});
 });
 

@@ -218,16 +218,18 @@
  *   CARDTABLE_PLAY_WORK_DIR    per-match run directories; default `<os tmpdir>/cardtable-play`
  *   CARDTABLE_PLAY_JVM_OPTS    extra JVM flags, space-separated; `-Xmx1g` is added unless one names `-Xmx`
  *   CARDTABLE_PLAY_WARM_SPARE  `0` to start every match cold; default on
+ *   CARDTABLE_PLAY_BRIDGE_CACHE  where the compiled bridge is kept; default `~/.cache/cardtable/bridge`
  *
- * The bridge is run as a single-file source program (`java … PlayBridge.java`,
- * JEP 330), so there is no build step and nothing compiled lands in the repo.
- * That needs a JDK (the source launcher is `jdk.compiler`), which is why the
- * default is the user-local Temurin rather than the JRE on `PATH` — the same
+ * The bridge is one source file with no build step, and nothing compiled lands
+ * in the repo: the pool compiles it itself, once per version, and launches the
+ * classes (`bridgeLaunch`). Either way it needs a JDK — `javac` to compile, or
+ * `jdk.compiler` for the source launcher it falls back to — which is why the
+ * default is the user-local Temurin rather than the JRE on `PATH`, the same
  * trap `CLAUDE.md` describes for `javac`.
  */
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
 	appendFileSync,
 	closeSync,
@@ -239,14 +241,17 @@ import {
 	readFileSync,
 	readlinkSync,
 	realpathSync,
+	renameSync,
 	rmSync,
+	statSync,
 	symlinkSync,
+	utimesSync,
 	writeFileSync,
 	writeSync,
 } from 'node:fs';
 import { Socket } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
-import { dirname, join, resolve, sep } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import type { AbortReasonSchema, ClientAction } from '@hadoku/forge-wire';
@@ -442,6 +447,8 @@ export interface JvmHostConfig {
 	workDir: string;
 	jvmOpts: string[];
 	bridgeSource: string;
+	/** Compiled bridges, one directory per version. See `bridgeLaunch`. */
+	bridgeCache: string;
 	/** `stop()` sends SIGTERM after this long without an exit, and SIGKILL after twice it. */
 	stopGraceMs: number;
 	/** Keep one booted JVM waiting for the next match. See "The warm spare". */
@@ -499,10 +506,104 @@ export function jvmHostConfig(env: NodeJS.ProcessEnv = process.env): JvmAvailabi
 			workDir: resolve(env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play')),
 			jvmOpts: withHeapCap((env.CARDTABLE_PLAY_JVM_OPTS ?? '').split(/\s+/).filter((s) => s !== '')),
 			bridgeSource,
+			bridgeCache: resolve(env.CARDTABLE_PLAY_BRIDGE_CACHE ?? join(env.XDG_CACHE_HOME ?? join(homedir(), '.cache'), 'cardtable', 'bridge')),
 			stopGraceMs: 5000,
 			warmSpare: env.CARDTABLE_PLAY_WARM_SPARE !== '0',
 		},
 	};
+}
+
+/* ── The bridge, compiled once ───────────────────────────────────────── */
+
+/**
+ * A compiled bridge nobody has launched for this long is removed when the next
+ * one is compiled. Far past `ORPHAN_MAX_MS`, so no JVM that could still load a
+ * class from it is alive.
+ */
+export const BRIDGE_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * What a bridge JVM is launched with after its flags: `-cp <classpath> <main>`.
+ *
+ * Launching the SOURCE (`java -cp <jar> PlayBridge.java`, JEP 330) compiles the
+ * whole file inside every JVM before `main` runs — about 0.6 s of a 5 s cold
+ * start (median 5.68 s against 5.03 s over sixteen alternating starts,
+ * 2026-10-06). So it is
+ * compiled once instead, by the `javac` beside `config.java`, into a directory
+ * named for a hash of everything that decides the result: the source's bytes,
+ * the jar it is compiled against, and the JDK. An edited bridge is therefore a
+ * different directory, never a stale one, and it still takes effect at the next
+ * JVM with no restart, as it did under the source launcher. `-proc:none` is what
+ * that launcher does too.
+ *
+ * Two processes may compile the same version at once (a deploy beside a CI job):
+ * each compiles into its own temporary directory and RENAMES it into place, so a
+ * JVM never sees half a directory, and the loser's copy is deleted.
+ *
+ * With no `javac` there (a `java` from `PATH`), or a compile that fails, this is
+ * the source launcher exactly as before, and a failed compile is logged. Each
+ * `jvm-spawned` line says which one that JVM got.
+ */
+export function bridgeLaunch(config: JvmHostConfig, log: (entry: Record<string, unknown>) => void): { args: string[]; how: 'compiled' | 'source' } {
+	const source = { args: ['-cp', config.jar, config.bridgeSource], how: 'source' as const };
+	const javac = join(dirname(config.java), 'javac');
+	if (!existsSync(javac)) return source;
+	const main = basename(config.bridgeSource, '.java');
+	let dir: string;
+	try {
+		const jar = statSync(config.jar);
+		const version = createHash('sha256')
+			.update(readFileSync(config.bridgeSource))
+			.update(JSON.stringify([config.jar, jar.size, jar.mtimeMs, realpathSync(config.java)]))
+			.digest('hex')
+			.slice(0, 24);
+		dir = join(config.bridgeCache, version);
+	} catch (err) {
+		log({ evt: 'bridge-compile-failed', error: (err as Error).message });
+		return source;
+	}
+	const compiled = { args: ['-cp', `${dir}:${config.jar}`, main], how: 'compiled' as const };
+	if (existsSync(join(dir, `${main}.class`))) {
+		try {
+			// Launched now, so not stale: the pruning below goes by this.
+			const now = new Date();
+			utimesSync(dir, now, now);
+			return compiled;
+		} catch {
+			// Pruned by another process between the check and here. Compile it again.
+		}
+	}
+	const staging = `${dir}.tmp-${process.pid}-${randomBytes(4).toString('hex')}`;
+	const started = Date.now();
+	try {
+		mkdirSync(staging, { recursive: true });
+		const javacRun = spawnSync(javac, ['-proc:none', '-nowarn', '-cp', config.jar, '-d', staging, config.bridgeSource], { encoding: 'utf8', timeout: 120_000 });
+		if (javacRun.status !== 0 || !existsSync(join(staging, `${main}.class`))) {
+			throw new Error(`javac exited ${javacRun.status ?? javacRun.signal ?? javacRun.error?.message}: ${(javacRun.stderr ?? '').slice(-2000)}`);
+		}
+		try {
+			renameSync(staging, dir);
+		} catch (err) {
+			// Another process put the same version there first. Theirs is as good as ours.
+			if (!existsSync(join(dir, `${main}.class`))) throw err;
+		}
+		log({ evt: 'bridge-compiled', dir, ms: Date.now() - started });
+	} catch (err) {
+		log({ evt: 'bridge-compile-failed', error: (err as Error).message });
+		return source;
+	} finally {
+		rmSync(staging, { recursive: true, force: true });
+	}
+	try {
+		for (const entry of readdirSync(config.bridgeCache)) {
+			const other = join(config.bridgeCache, entry);
+			if (other !== dir && Date.now() - statSync(other).mtimeMs > BRIDGE_CACHE_MAX_AGE_MS) rmSync(other, { recursive: true, force: true });
+		}
+	} catch (err) {
+		// Housekeeping only: the bridge this JVM needs is compiled and in place.
+		log({ evt: 'bridge-cache-prune-failed', dir: config.bridgeCache, error: (err as Error).message });
+	}
+	return compiled;
 }
 
 /* ── A JVM that outlives us: the fifos, the record, the stream ───────── */
@@ -1028,11 +1129,12 @@ class BridgeJvm {
 		// The child gets its OWN fds on the fifos, closed here once it holds them.
 		const childIn = openSync(join(run, IN_FIFO), 'r+');
 		const childOut = openSync(join(run, OUT_FIFO), 'r+');
+		const bridge = bridgeLaunch(config, log);
 		let child: ChildProcess;
 		try {
 			child = spawn(
 				config.java,
-				['-Djava.awt.headless=true', ...config.jvmOpts, '-cp', config.jar, config.bridgeSource, ...source.args],
+				['-Djava.awt.headless=true', ...config.jvmOpts, ...bridge.args, ...source.args],
 				// `detached` puts it in its own process group, so a signal aimed at
 				// ours never reaches it; `unref` keeps it off our event loop.
 				{ cwd: run, stdio: [childIn, childOut, stderrFd], detached: true },
@@ -1045,7 +1147,7 @@ class BridgeJvm {
 		this.pid = child.pid ?? -1;
 		live.add(this);
 		const spare = source.args[0] === '--spare';
-		log({ evt: 'jvm-spawned', id, pid: this.pid, run, spare });
+		log({ evt: 'jvm-spawned', id, pid: this.pid, run, spare, bridge: bridge.how });
 		if (spare) {
 			// A spare holds no game, so it is never re-attached — but it must still
 			// be killable from disk if this process dies before it is adopted.
