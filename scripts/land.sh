@@ -75,7 +75,10 @@ if cmp -s "$MAIN/pnpm-lock.yaml" pnpm-lock.yaml; then
 else
   echo "land: lockfile differs from the deploy tree's — pnpm install --frozen-lockfile"
   PATH="$NODE_BIN:$PATH" pnpm install --frozen-lockfile --prefer-offline > "$TMP.install.log" 2>&1 \
-    || { tail -20 "$TMP.install.log"; echo "land: install FAILED — nothing pushed" >&2; exit 5; }
+    || { tail -20 "$TMP.install.log"
+         grep -q 'ERR_PNPM_FETCH_401' "$TMP.install.log" \
+           && echo "land: GitHub Packages refused ~/.npmrc's token (401) — it needs the current HADOKU_NPM_READ_TOKEN" >&2
+         echo "land: install FAILED — nothing pushed" >&2; exit 5; }
 fi
 echo "land: pnpm run check $(date -u +%T)"
 # No jar env: with it, check runs every jvm suite (memory: check-with-jar-env-runs-all-jvm).
