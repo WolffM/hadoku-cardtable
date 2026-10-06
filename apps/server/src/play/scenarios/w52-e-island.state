@@ -1,0 +1,19 @@
+# Wave 52 §E — ledger W10, the operator's own shape: one Island, Main 2, nothing
+# castable. Tapping it for mana returns priority at once and the cached
+# actionable set is recomputed with the Island tapped; before w52 Undo untapped
+# it but re-published that stale set, so the Island could not be clicked again
+# until priority moved on (`PlayerControllerHuman.tryUndoLastAction`).
+# Seat 1 (ai — an ordinary human-controlled seat) holds nothing.
+turn=1
+activeplayer=human
+activephase=MAIN2
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
