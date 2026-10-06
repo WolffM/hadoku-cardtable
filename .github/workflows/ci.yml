@@ -247,12 +247,12 @@ jobs:
   # If hokon is offline this job queues rather than going green, which is the
   # correct failure. It is not the required check; `check` is.
   #
-  # LOAD AND PORTS. This runs on the production host, and it binds the e2e
-  # loopback ports — 19108/19008 (draft harness, `e2e/identities.ts`) and
-  # 19128/19028 (play harness, `e2e/play/harness.ts:66-67`). Any local
-  # `pnpm e2e` an agent runs on hokon uses the same four ports: do not start
-  # one while this job is in flight, and a red here while someone was running
-  # e2e locally is a collision before it is a bug.
+  # LOAD AND PORTS. This runs on the production host. It binds its OWN e2e
+  # loopback ports (29108/29008 draft harness, 29128/29028 play harness, set
+  # in the job's `env`), disjoint from the 19xxx defaults every local and wave
+  # `pnpm e2e` uses, so the two no longer block each other. They still share
+  # the host's CPU: a red under heavy local load is a race to diagnose, not a
+  # collision.
   #
   # Production's run directories are not touched: the harness pins the match's
   # work dir to `e2e/.run/play-work` (`PLAY_WORK_DIR`, `e2e/play/harness.ts:64`,
@@ -276,6 +276,17 @@ jobs:
     # install and build, plus up to 10 min of port wait. At 20 the job was
     # CANCELLED, and a cancelled job orphans its e2e servers on the fixed ports.
     timeout-minutes: 40
+    # CI's OWN port range, never the local default (19008/19028/19108/19128).
+    # A wave's full local e2e holds the default four for longer than the wait
+    # below (2026-10-06: w51's 20-spec run red-ed dbe879e's forge-e2e without a
+    # test run; 2026-10-05: efa5764 the same). With disjoint ranges neither can
+    # block the other; the harnesses read these (`e2e/identities.ts:46-47`,
+    # `e2e/play/harness.ts:138-139`).
+    env:
+      CARDTABLE_E2E_SERVER_PORT: '29008'
+      CARDTABLE_E2E_PLAY_SERVER_PORT: '29028'
+      CARDTABLE_E2E_EDGE_PORT: '29108'
+      CARDTABLE_E2E_PLAY_EDGE_PORT: '29128'
     steps:
       - uses: actions/checkout@v6
 
@@ -332,13 +343,12 @@ jobs:
       # `startScenarioMatch`) is included automatically, so a new Forge-gated
       # spec file is covered the moment it is added instead of by a second
       # edit to a list that is easy to forget.
-      # The e2e ports are fixed (`e2e/identities.ts`, `e2e/play/harness.ts`:
-      # 19008/19028/19108/19128) and this runner is the operator's own host, so
-      # a wave session running the same specs holds the same ports — and the
-      # two runs then fail EACH OTHER in ways that read like product bugs
-      # (2026-10-03: R13 red on CI, 10/10 green in the worktree). Wait for the
-      # ports, up to ten minutes, and name the holder if they stay held: a
-      # red that says "ports held by pid N" costs no diagnosis.
+      # This job's ports (29008/29028/29108/29128, the job `env` above) are its
+      # own: local and wave e2e runs use the default 19xxx range, so they no
+      # longer collide (2026-10-03: R13 red on CI, 10/10 green in the worktree,
+      # was two runs failing EACH OTHER). What can still hold these is an
+      # orphan of an earlier CI run, stopped below; anything else is waited
+      # for up to ten minutes and named if it stays.
       - name: E2E — the ports are free, or wait
         run: |
           # A holder whose cwd is THIS runner's own workspace is an orphan of an
@@ -346,20 +356,20 @@ jobs:
           # binds none of these ports): one held 19008 for 10 hours on
           # 2026-10-04 and failed every run behind it. Stop it. A holder from
           # anywhere else (a wave worktree's local e2e) is waited for, as before.
-          for pid in $(ss -ltnpH '( sport = :19008 or sport = :19028 or sport = :19108 or sport = :19128 )' 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
+          for pid in $(ss -ltnpH '( sport = :29008 or sport = :29028 or sport = :29108 or sport = :29128 )' 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
             case "$(readlink /proc/$pid/cwd 2>/dev/null)" in
               "$GITHUB_WORKSPACE"*) echo "::warning::stopping orphaned e2e server pid $pid from an earlier run"; kill -TERM "$pid" || true ;;
             esac
           done
           sleep 2
           for i in $(seq 1 60); do
-            held=$(ss -ltnH '( sport = :19008 or sport = :19028 or sport = :19108 or sport = :19128 )' 2>/dev/null)
+            held=$(ss -ltnH '( sport = :29008 or sport = :29028 or sport = :29108 or sport = :29128 )' 2>/dev/null)
             [ -z "$held" ] && { [ "$i" -gt 1 ] && echo "::notice::e2e ports came free after $((i*10)) s"; exit 0; }
             [ "$i" -eq 1 ] && echo "e2e ports held, waiting:" && echo "$held"
             sleep 10
           done
           echo "::error::e2e ports still held after 10 min — another e2e run (a wave worktree?) owns them:"
-          ss -ltnp '( sport = :19008 or sport = :19028 or sport = :19108 or sport = :19128 )' || true
+          ss -ltnp '( sport = :29008 or sport = :29028 or sport = :29108 or sport = :29128 )' || true
           exit 1
 
       - name: E2E — two friends play a real Forge match, and the table fits
@@ -429,7 +439,7 @@ jobs:
       - name: E2E — stop this run's servers and JVMs
         if: always()
         run: |
-          for pid in $(ss -ltnpH '( sport = :19008 or sport = :19028 or sport = :19108 or sport = :19128 )' 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
+          for pid in $(ss -ltnpH '( sport = :29008 or sport = :29028 or sport = :29108 or sport = :29128 )' 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
             case "$(readlink /proc/$pid/cwd 2>/dev/null)" in "$GITHUB_WORKSPACE"*) kill -TERM "$pid" || true ;; esac
           done
           for p in /proc/[0-9]*; do
