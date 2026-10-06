@@ -275,7 +275,8 @@ jobs:
     # with three reds burning their own budgets (play.spec alone 312 s), plus
     # install and build, plus up to 10 min of port wait. At 20 the job was
     # CANCELLED, and a cancelled job orphans its e2e servers on the fixed ports.
-    timeout-minutes: 40
+    # +30 for the heavy.lock wait (2026-10-06).
+    timeout-minutes: 70
     # CI's OWN port range, never the local default (19008/19028/19108/19128).
     # A wave's full local e2e holds the default four for longer than the wait
     # below (2026-10-06: w51's 20-spec run red-ed dbe879e's forge-e2e without a
@@ -382,6 +383,23 @@ jobs:
           # the evidence step below can send the failing one's stderr.
           CARDTABLE_E2E_WORK_DIRS_KEPT: '96'
         run: |
+          # One heavy run on this host at a time (2026-10-06, run 37530013218: with
+          # three sessions' gates beside it, JVM boots went from ~5 s to a 7.3 s
+          # median and 20 s max, and 4 of 6 reds were the harness's own 20 s
+          # `POST /api/play/matches` timing out). Wave gates take this same lock
+          # around their JVM/e2e phases (the waves protocol); this job runs as
+          # the same user. Bounded: a holder that keeps it 30 min is named, never
+          # waited out forever. Never `flock --` (exits 69 on this host); the
+          # fd form releases with this step's shell.
+          mkdir -p /tmp/claude-1000
+          exec 9>/tmp/claude-1000/heavy.lock
+          waited=$(date +%s)
+          if ! flock -w 1800 9; then
+            echo "::error::heavy.lock held for 30 min by: $(fuser /tmp/claude-1000/heavy.lock 2>&1 | tr -s ' ')"
+            ps -o pid=,etime=,args= -p "$(fuser /tmp/claude-1000/heavy.lock 2>/dev/null | tr -s ' ' ',' | sed 's/^,//')" 2>/dev/null | cut -c1-200 || true
+            exit 1
+          fi
+          echo "::notice::heavy.lock acquired after $(( $(date +%s) - waited )) s"
           # What the host looked like when the run started — the first thing a
           # flaky red needs and the one thing the log never had.
           echo "host at start: $(uptime)"; free -m | sed -n 2p
@@ -400,7 +418,9 @@ jobs:
           [ -n "$specs" ] || { echo "::error::no Forge-gated spec found — the grep matched nothing"; exit 1; }
           echo "forge-gated specs (derived):"
           echo "$specs"
-          pnpm --filter @hadoku/e2e test $specs
+          # `9>&-`: the lock stays with this shell; a child (an e2e server, a
+          # JVM) that outlived the step must not keep holding it.
+          pnpm --filter @hadoku/e2e test $specs 9>&-
           jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null || { echo "::error::e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1) — a skipped test is not a pass"; exit 1; }
 
       # The evidence a red needs, kept past the job. Playwright's per-test
@@ -493,8 +513,8 @@ jobs:
     # the nightly-only split, the harness killing its JVMs instead of waiting
     # 4.4 s for each to stop, and the bridge being compiled once. The nightly
     # run adds the `[nightly]` tests back, about 7 more minutes. ×1.5 of that
-    # is 22 min, plus checkout and install.
-    timeout-minutes: 30
+    # is 22 min, plus checkout and install. +30 for the heavy.lock wait (2026-10-06).
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
 
@@ -529,6 +549,24 @@ jobs:
           JVM_SERVER: ${{ needs.changes.outputs.jvm_server }}
           CARDTABLE_JVM_NIGHTLY: ${{ github.event_name != 'push' && '1' || '0' }}
         run: |
+          # One heavy run on this host at a time (2026-10-06, run 37530013218: with
+          # three sessions' gates beside it, JVM boots went from ~5 s to a 7.3 s
+          # median and 20 s max, and 4 of 6 reds were the harness's own 20 s
+          # `POST /api/play/matches` timing out). Wave gates take this same lock
+          # around their JVM/e2e phases (the waves protocol); this job runs as
+          # the same user. Bounded: a holder that keeps it 30 min is named, never
+          # waited out forever. Never `flock --` (exits 69 on this host); the
+          # fd form releases with this step's shell.
+          mkdir -p /tmp/claude-1000
+          exec 9>/tmp/claude-1000/heavy.lock
+          waited=$(date +%s)
+          if ! flock -w 1800 9; then
+            echo "::error::heavy.lock held for 30 min by: $(fuser /tmp/claude-1000/heavy.lock 2>&1 | tr -s ' ')"
+            ps -o pid=,etime=,args= -p "$(fuser /tmp/claude-1000/heavy.lock 2>/dev/null | tr -s ' ' ',' | sed 's/^,//')" 2>/dev/null | cut -c1-200 || true
+            exit 1
+          fi
+          echo "::notice::heavy.lock acquired after $(( $(date +%s) - waited )) s"
+          echo "host at start: $(uptime)"; free -m | sed -n 2p
           mkdir -p "$CARDTABLE_PLAY_WORK_DIR"
           report="${{ runner.temp }}/forge-jvm-report.json"
           rm -f "$report"
@@ -543,7 +581,7 @@ jobs:
           echo "$files"
           # vitest's own exit code would red the job on a pinned failure; the
           # next step judges the report by name instead, and reds a missing one.
-          pnpm exec vitest run --fileParallelism=false --reporter=default --reporter=json --outputFile="$report" $files \
+          pnpm exec vitest run --fileParallelism=false --reporter=default --reporter=json --outputFile="$report" $files 9>&- \
             || echo "::notice::vitest exited $? — the report is judged in the next step"
 
       # The report is judged by name, not by count, against two pinned lists,
