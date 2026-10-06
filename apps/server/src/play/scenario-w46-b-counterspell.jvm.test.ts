@@ -44,7 +44,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, idsOf, scenarioText, startScenario, waitUntil } from './scenario.js';
+import { available, deck, finishMulligan, idsOf, landPayer, scenarioText, startScenario, waitUntil } from './scenario.js';
 import { TYPE } from './visibility.js';
 
 const title = available.ok
@@ -98,26 +98,11 @@ describe.skipIf(!available.ok)(title, () => {
 				if (counterspell === undefined) throw new Error('no Counterspell in hand');
 				s.select(0, counterspell.id);
 
-				// One land per OBSERVED prompt change: clicking a second land before
-				// Forge's own prompt has reflected the first one's mana ability
-				// finishing races the engine ("Should wait till previous call to
-				// playAbility finishes" — `scenario-ability-repeat.jvm.test.ts`'s own
-				// header documents the same class of race). Gating on the prompt TEXT
-				// itself, not merely on a 25ms tick, waits for Forge's own word that
-				// the previous tap landed before sending the next one.
-				const tappedLands = new Set<number>();
-				let lastPayPrompt: string | null = null;
+				// One land per observed prompt change (`landPayer`).
+				const payLand = landPayer(s, 0);
 				await waitUntil(() => {
 					s.answerAsks();
-					const prompt = s.prompt(0);
-					if (/Pay Mana Cost/.test(prompt) && prompt !== lastPayPrompt) {
-						const untapped = s.zone(0, 'Battlefield').find((c) => c.land && !c.tapped && !tappedLands.has(c.id));
-						if (untapped !== undefined) {
-							tappedLands.add(untapped.id);
-							lastPayPrompt = prompt;
-							s.select(0, untapped.id);
-						}
-					}
+					payLand();
 					return /Stack: 2 to Resolve/.test(s.prompt(0));
 				}, 'Counterspell to reach the stack (Stack: 2 to Resolve)', 30_000, s);
 

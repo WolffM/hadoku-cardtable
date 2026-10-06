@@ -130,6 +130,38 @@ function dumpOnTimeout(s: Scenario, label: string): string {
 }
 
 /**
+ * Pay an open "Pay Mana Cost" with `seat`'s lands, ONE AT A TIME. Returns the
+ * step to call on every poll tick.
+ *
+ * Forge takes one mana ability at a time: `InputPayMana.activateManaAbility`
+ * returns false while the one before it is still being played ("Should wait
+ * till previous call to playAbility finishes", `InputPayMana.java:210-213`),
+ * and unlocks in `updateMessage`, which then shows the prompt with what is left
+ * to pay. So a click sent on the next 25 ms tick is DROPPED whenever Forge
+ * needed longer than that for the first — and a script that never clicks a land
+ * twice then has nothing left to click. CI run 37524669423 (2026-10-06, host
+ * load 19) lost two of three clicks that way and timed out a cast.
+ *
+ * The next land is therefore sent only once the payment prompt has CHANGED
+ * since the last click: Forge's own word that the tap before it was taken. And
+ * no land is ever clicked twice — a second click on one the local fold has not
+ * yet shown tapped would land on whatever window follows the payment.
+ */
+export function landPayer(s: Scenario, seat: number): () => void {
+	const clicked = new Set<number>();
+	let promptAtClick: string | null = null;
+	return () => {
+		const prompt = s.prompt(seat);
+		if (!/Pay Mana Cost/.test(prompt) || prompt === promptAtClick) return;
+		const land = s.zone(seat, 'Battlefield').find((c) => c.land && !c.tapped && !clicked.has(c.id));
+		if (land === undefined) return;
+		clicked.add(land.id);
+		promptAtClick = prompt;
+		s.select(seat, land.id);
+	};
+}
+
+/**
  * `dump`, when given, is the scenario to capture on a timeout — every direct
  * caller inside this file already has one in scope. Never changes whether or
  * how long this waits; it only enriches what the thrown error says.

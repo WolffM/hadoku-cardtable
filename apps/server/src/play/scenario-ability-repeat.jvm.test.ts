@@ -62,7 +62,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, scenarioText, startScenario, waitUntil } from './scenario.js';
+import { available, deck, finishMulligan, landPayer, scenarioText, startScenario, waitUntil } from './scenario.js';
 
 const title = available.ok
 	? 'the repeated getAbilityToPlay ask, under Full Control, against real Forge'
@@ -98,13 +98,13 @@ describe.skipIf(!available.ok)(title, () => {
 				const memnite = await waitUntil(() => {
 					s.answerAsks();
 					return s.zone(1, 'Hand').some((c) => c.name === 'Memnite');
-				}, "seat 1's hand to reflect Memnite", 20_000).then(() => s.zone(1, 'Hand').find((c) => c.name === 'Memnite'));
+				}, "seat 1's hand to reflect Memnite", 20_000, s).then(() => s.zone(1, 'Hand').find((c) => c.name === 'Memnite'));
 				if (memnite === undefined) throw new Error('no Memnite in hand');
 				s.select(1, memnite.id);
 				await waitUntil(() => {
 					s.answerAsks();
 					return /Stack: 1 to Resolve/.test(s.prompt(0)) && s.buttons(0)?.enable1 === true;
-				}, 'seat 0 to be given priority with the spell on the stack', 20_000);
+				}, 'seat 0 to be given priority with the spell on the stack', 20_000, s);
 
 				const outcome = s.match.setFullControl(0, true);
 				expect(outcome.ok).toBe(true);
@@ -117,28 +117,13 @@ describe.skipIf(!available.ok)(title, () => {
 				// Drive the cast through: answer the one getAbilityToPlay ask the
 				// client actually sees, the target question, and tap Islands for the
 				// Pay Mana Cost window — exactly what a Full Control player does.
-				// Mana Leak is {1}{U}: TWO lands, so `tappedLands` tracks every id
-				// already clicked rather than capping at one — but never re-clicks
-				// an id already IN that set, which is the actual bug this guards:
-				// re-evaluating `!tapped` on every ~25ms poll tick can select the
-				// SAME land a second time whenever this script's own local fold lags
-				// Forge's actual state by one tick, which wave 35 §S's own item 2
-				// evidence (`wave35-evidence/s2-swallowed-press.md`) traced to an
-				// extra, unwanted click landing the Ponder case below on a DIFFERENT
-				// priority window ("Undo (1)" instead of "End Turn") that a single,
-				// already-spent press was never aimed at.
-				const tappedLands = new Set<number>();
+				// Mana Leak is {1}{U}: two lands, one at a time (`landPayer`).
+				const payLand = landPayer(s, 0);
 				await waitUntil(() => {
 					s.answerAsks();
-					if (/Pay Mana Cost/.test(s.prompt(0))) {
-						const untapped = s.zone(0, 'Battlefield').find((c) => c.land && !c.tapped && !tappedLands.has(c.id));
-						if (untapped !== undefined) {
-							tappedLands.add(untapped.id);
-							s.select(0, untapped.id);
-						}
-					}
+					payLand();
 					return /Stack: 2 to Resolve/.test(s.prompt(0));
-				}, "Mana Leak to reach the stack (Stack: 2 to Resolve)", 30_000);
+				}, "Mana Leak to reach the stack (Stack: 2 to Resolve)", 30_000, s);
 
 				// The claim: the CLIENT only ever saw ONE getAbilityToPlay ask for
 				// Mana Leak's own host card, not two. Forge's own second round
@@ -163,7 +148,7 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(() => {
 					s.answerAsks();
 					return /Stack: Empty/m.test(s.prompt(0)) && s.buttons(0)?.enable1 === true;
-				}, "seat 0's own uncontested main phase", 20_000);
+				}, "seat 0's own uncontested main phase", 20_000, s);
 
 				const outcome = s.match.setFullControl(0, true);
 				expect(outcome.ok).toBe(true);
@@ -180,18 +165,12 @@ describe.skipIf(!available.ok)(title, () => {
 				// anything. Press it once, the first time the stack shows exactly
 				// Ponder waiting and the button is live.
 				let passedOwnPriority = false;
-				// `tappedLands`: see the Mana Leak case's own note above on why a
-				// land, once clicked, must never be clicked again on a later tick.
-				const tappedLands = new Set<number>();
+				const payLand = landPayer(s, 0);
 				await waitUntil(() => {
 					s.answerAsks();
-					if (/Pay Mana Cost/.test(s.prompt(0))) {
-						const untapped = s.zone(0, 'Battlefield').find((c) => c.land && !c.tapped && !tappedLands.has(c.id));
-						if (untapped !== undefined) {
-							tappedLands.add(untapped.id);
-							s.select(0, untapped.id);
-						}
-					} else if (
+					payLand();
+					if (
+						!/Pay Mana Cost/.test(s.prompt(0)) &&
 						!passedOwnPriority &&
 						/Stack: 1 to Resolve/.test(s.prompt(0)) &&
 						s.buttons(0)?.enable1 === true
@@ -200,7 +179,7 @@ describe.skipIf(!available.ok)(title, () => {
 						s.ok(0);
 					}
 					return s.asks.some((a) => a.method === 'order');
-				}, 'the order ask to reach the client', 30_000);
+				}, 'the order ask to reach the client', 30_000, s);
 
 				const asks = abilityAsksFor(s, 0, ponder.id);
 				expect(asks).toHaveLength(1);
@@ -208,7 +187,7 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(() => {
 					s.answerAsks();
 					return /shuffle/i.test(s.prompt(0));
-				}, 'the shuffle confirm to reach the client', 20_000);
+				}, 'the shuffle confirm to reach the client', 20_000, s);
 			} finally {
 				await s.stop();
 			}
