@@ -175,9 +175,19 @@ function deck(name: string): string {
 const named = (name: string) => (c: BoardCard) => c.card.name === name;
 const isMountain = named('Mountain');
 
-/** The clickable face of a card on this seat's board, or null when Board drew it inert. */
+/**
+ * The face of a card on this seat's board — a `<button>` whether or not Board
+ * offers it (R10, wave 35: the face is always a `<button>`, so a creature
+ * tapping to attack never unmounts the subtree). Null only when the card
+ * itself is not on the board at all.
+ */
 function cardButton(root: HTMLElement, id: number): HTMLButtonElement | null {
   return root.querySelector<HTMLButtonElement>(`[data-board-card="${id}"] button`);
+}
+
+/** Does Board draw this card as an offered affordance — the thing a click can actually do something with? */
+function isOffered(root: HTMLElement, id: number): boolean {
+  return root.querySelector<HTMLElement>(`[data-board-card="${id}"]`)?.hasAttribute('data-selectable') ?? false;
 }
 
 /** A seat's clickable name, or null when Board drew it inert. */
@@ -352,7 +362,7 @@ describe.skipIf(!available.ok)(title, () => {
         /** The widest set Forge named at any sampled moment. */
         widest: [] as number[],
         /** A sample where Forge named cards AND a land in the actor's hand was not among them. */
-        inertLand: null as { forgeNamed: number[]; landId: number; hadButton: boolean } | null,
+        inertLand: null as { forgeNamed: number[]; landId: number; offered: boolean } | null,
         /** Why a tick was not sampled — so "no samples" is diagnosable rather than a bare zero. */
         skipped: { noInput: 0, selecting: 0, cleared: 0, spent: 0, empty: 0 },
       };
@@ -390,10 +400,10 @@ describe.skipIf(!available.ok)(title, () => {
         if (visible.length > 0) parity.named += 1;
         if (visible.length > parity.widest.length) parity.widest = visible;
         for (const c of onBoard) {
-          const hasButton = cardButton(roots[s.seat]!, c.id) !== null;
-          if (hasButton !== forgeNamed.has(c.id)) {
+          const offered = isOffered(roots[s.seat]!, c.id);
+          if (offered !== forgeNamed.has(c.id)) {
             parity.mismatches.push(
-              `seat ${s.seat} t${v.turn} ${v.phase ?? '-'}: card ${c.id} (${c.card.name}) drawn ${hasButton ? 'clickable' : 'inert'} while Forge ` +
+              `seat ${s.seat} t${v.turn} ${v.phase ?? '-'}: card ${c.id} (${c.card.name}) drawn ${offered ? 'offered' : 'inert'} while Forge ` +
                 `${forgeNamed.has(c.id) ? 'named' : 'did not name'} it; Forge's set was ${JSON.stringify([...forgeNamed])}`,
             );
           }
@@ -403,7 +413,7 @@ describe.skipIf(!available.ok)(title, () => {
         if (parity.inertLand === null && visible.length > 0 && s === actor) {
           const land = (me(s).hand ?? []).find((c) => isMountain(c) && !forgeNamed.has(c.id));
           if (land !== undefined) {
-            parity.inertLand = { forgeNamed: [...forgeNamed], landId: land.id, hadButton: cardButton(roots[s.seat]!, land.id) !== null };
+            parity.inertLand = { forgeNamed: [...forgeNamed], landId: land.id, offered: isOffered(roots[s.seat]!, land.id) };
           }
         }
       }
@@ -657,13 +667,23 @@ describe.skipIf(!available.ok)(title, () => {
       const offeredNow = a.live.weaklySelectable!;
       const second = me(a).hand?.find(isMountain);
       expect(second, `the actor must still hold a second Mountain — hand ${JSON.stringify((me(a).hand ?? []).map((c) => c.card.name))}`).toBeDefined();
-      // A second land in one turn: Forge does not name it, so it is not drawn
-      // as a button — the click that used to go nowhere cannot be made.
+      // A second land in one turn: Forge does not name it, so clicking it
+      // cannot work. The face is NOT missing a button — R10 (wave 35) made
+      // `.board-card__face` always a `<button>` (so a creature tapping to
+      // attack never unmounts the subtree); what makes a non-offered card
+      // unclickable is that Board draws it with no offered affordance
+      // (no `data-selectable` on `[data-board-card]`) and no `onClick`
+      // (Board.tsx), so a click on its face sends nothing.
       expect([...offeredNow].includes(second!.id), `Forge's actionable set was ${JSON.stringify([...offeredNow])}`).toBe(false);
-      expect(cardButton(roots[a.seat]!, second!.id)).toBeNull();
+      expect(isOffered(roots[a.seat]!, second!.id), `card ${second!.id} must not be drawn as an offered affordance`).toBe(false);
+      const secondButton = cardButton(roots[a.seat]!, second!.id);
+      expect(secondButton, `card ${second!.id}'s face must still exist in the DOM (R10, wave 35 — the face is always a button)`).not.toBeNull();
+      const repliesBeforeInertClick = a.live.stats.replies;
+      fireEvent.click(secondButton!);
+      expect(a.live.stats.replies, 'clicking a card Forge does not offer must send nothing').toBe(repliesBeforeInertClick);
       console.log(
         `[board-play.jvm] at turn-${a.live.view!.turn} priority Forge named ${JSON.stringify([...offeredNow])}; the second Mountain ` +
-          `${second!.id} is not among them and has no button` +
+          `${second!.id} is not among them, is drawn with no offered affordance, and a click on its face sent nothing` +
           `${offeredNow.size === 0 ? ' — but Forge named NOTHING here, so this instant does not tell a land apart from anything else' : ''}`,
       );
       phase1Checked = true;
@@ -684,10 +704,12 @@ describe.skipIf(!available.ok)(title, () => {
 
       /*
        * The whole board agreed with Forge, card for card, at every quiet moment
-       * of the run: a clickable face existed exactly where Forge named the card
-       * and nowhere else. This is the "nothing glows that cannot be clicked"
-       * claim, and the `named` count is what stops it being two empty sets
-       * compared — the one-shot version of this check was exactly that.
+       * of the run: a card was drawn with an offered affordance (`data-selectable`)
+       * exactly where Forge named it and nowhere else. The face itself is always a
+       * `<button>` now (R10, wave 35), so `data-selectable` — not button presence —
+       * is the signal. This is the "nothing glows that cannot be clicked" claim,
+       * and the `named` count is what stops it being two empty sets compared —
+       * the one-shot version of this check was exactly that.
        */
       expect(parity.mismatches, parity.mismatches.slice(0, 4).join('\n')).toEqual([]);
       expect(parity.samples, `the board was never in a state that could be compared against Forge — ticks not sampled: ${JSON.stringify(parity.skipped)}`).toBeGreaterThan(0);
@@ -701,7 +723,7 @@ describe.skipIf(!available.ok)(title, () => {
       if (parity.inertLand !== null) {
         // The wave-20 claim where it is not vacuous: Forge named things, and a
         // land in hand was not one of them, and the board drew it inert.
-        expect(parity.inertLand.hadButton, JSON.stringify(parity.inertLand)).toBe(false);
+        expect(parity.inertLand.offered, JSON.stringify(parity.inertLand)).toBe(false);
         console.log(
           `[board-play.jvm] a land Forge left out of a NON-empty actionable set: Mountain ${parity.inertLand.landId} absent from ` +
             `${JSON.stringify(parity.inertLand.forgeNamed)}, drawn inert`,

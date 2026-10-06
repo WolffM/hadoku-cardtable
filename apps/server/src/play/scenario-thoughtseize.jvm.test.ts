@@ -41,7 +41,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ServerFrame } from '@hadoku/forge-wire';
 
-import { available, deck, finishMulligan, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'R4: casting Thoughtseize, against real Forge'
@@ -92,6 +92,17 @@ async function castThoughtseize(seed: number): Promise<{ s: Scenario; hand: Hand
 	if (guide === undefined) throw new Error("no Goblin Guide in seat 1's hand");
 	if (mtn === undefined) throw new Error("no Mountain in seat 1's hand");
 	const oppId = s.match.seats[1]?.playerId as number;
+	/*
+	 * `finishMulligan` returning is not the same fact as seat 0 actually
+	 * holding priority at its own turn-1 main phase (memory "jar casts wait
+	 * for priority": a select sent right after `finishMulligan` is dropped
+	 * under load — Forge needs a frame or two after the handoff before the
+	 * real cast window is current, and `select` sends a raw act with no
+	 * precondition of its own). Gate on `inOwnMain` first, the same signal
+	 * every other scenario file in this suite uses to find its own first
+	 * act.
+	 */
+	await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, "seat 0 to hold priority at its own turn-1 main phase", 20_000, s);
 	const mark = s.sent.length;
 	const t0 = performance.now();
 	s.select(0, seize.id);
