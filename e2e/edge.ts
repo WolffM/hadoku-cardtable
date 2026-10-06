@@ -51,7 +51,9 @@ export function edgeHeaders(
   const friend = FRIENDS[sessionOf(inbound) ?? ''];
   if (friend !== undefined) {
     out['x-edge-auth'] = secret;
-    out['x-hadoku-tier'] = 'friend';
+    // Every identity before wave 50 §U has no `tier`, so this is `'friend'`
+    // for all of them, unchanged. `admin` is the one entry that opts in.
+    out['x-hadoku-tier'] = friend.tier ?? 'friend';
     out['x-user-id'] = friend.userId;
     out['x-user-name'] = friend.name;
     out['x-user-key'] = friend.key;

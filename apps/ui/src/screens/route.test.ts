@@ -25,6 +25,7 @@ describe('parseRoute', () => {
   it('reads the routes', () => {
     expect(parseRoute('#/')).toEqual({ kind: 'lobby' });
     expect(parseRoute('#/debug')).toEqual({ kind: 'debug' });
+    expect(parseRoute('#/sounds')).toEqual({ kind: 'sounds' });
     expect(parseRoute('#/room/r-1a2b3c4d5e6f')).toEqual({ kind: 'room', roomId: 'r-1a2b3c4d5e6f' });
     expect(parseRoute('#/deck/friday-cube')).toEqual({ kind: 'deck', draftId: 'friday-cube' });
   });
@@ -58,6 +59,7 @@ describe('parseRoute', () => {
     const routes: Route[] = [
       { kind: 'lobby' },
       { kind: 'debug' },
+      { kind: 'sounds' },
       { kind: 'draft', draftId: 'amber-lantern-k7q4' },
       { kind: 'deck', draftId: 'amber-lantern-k7q4' },
       { kind: 'play' },

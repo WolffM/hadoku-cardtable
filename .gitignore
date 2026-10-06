@@ -43,5 +43,12 @@ card-images/
 # The ones already tracked stay; describe new evidence in words, or keep the
 # image outside git.
 
+# sound-builder audio — never committed, never bundled (docs/planning/wave50-2026-10-06.md).
+# Takes are server-hosted under CARDTABLE_SOUNDS_DIR, outside this tree entirely.
+*.ogg
+*.wav
+*.mp3
+*.flac
+
 # wave handoffs (per-wave, not tracked)
 docs/handoff/

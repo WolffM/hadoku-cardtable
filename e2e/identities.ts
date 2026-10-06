@@ -17,6 +17,14 @@ export interface Friend {
   userId: string;
   /** `X-User-Name` — the registry display name. Not equal to the id. */
   name: string;
+  /**
+   * `X-Hadoku-Tier`. Optional, and absent for every identity that predates
+   * this field — `edge.ts` stamps `identity.tier ?? 'friend'`, so leaving it
+   * off is exactly today's behaviour. Added for wave 50 §U (the sound
+   * builder's admin half): the real edge resolves a tier from the caller's
+   * account, and this is the test-only stand-in for that resolution.
+   */
+  tier?: string;
 }
 
 export const FRIENDS: Readonly<Record<string, Friend>> = {
@@ -25,6 +33,13 @@ export const FRIENDS: Readonly<Record<string, Friend>> = {
   // belong cannot pass by accident.
   alice: { key: 'e2e-friend-key-alice-7f3a', userId: 'e2e-alice-id', name: 'e2e-alice' },
   bob: { key: 'e2e-friend-key-bob-91c2', userId: 'e2e-bob-id', name: 'e2e-bob' },
+  // wave 50 §U only: the sound builder's write half needs an admin identity.
+  admin: {
+    key: 'e2e-friend-key-admin-a4d1',
+    userId: 'e2e-admin-id',
+    name: 'e2e-admin',
+    tier: 'admin',
+  },
 };
 
 /** Ports. Overridable so a runner with something on these can move them. */
