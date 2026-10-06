@@ -1425,11 +1425,22 @@
  * the panel below it has the rest of the column. `Board.tsx` writes the
  * attribute off `BoardInteraction.questionOpen`; absent means no question, which
  * is the roomy default and the state every fixture renders in.
+ *
+ * Wave 51 §A.6: the band hangs from the question's own top edge and its
+ * thumbnails sit at its bottom, one `--board-gap` above it — the operator, *"it
+ * should be right above the decision box"*. `--question-top` is that edge in
+ * this element's frame, measured by `LiveBoard.tsx` (`questionTopOf`), because
+ * a pop-up is centred in its column at its content's height. Never above the
+ * board's own top edge; unset (a bare `Board`), that is where the band goes.
  */
 .board__mid[data-question] {
   --mid-h: var(--mid-h-asked);
 
-  top: var(--board-gap);
+  top: max(var(--board-gap), calc(var(--question-top, 0px) - var(--mid-h) - var(--board-gap)));
+}
+
+.board__mid[data-question] > .stack {
+  justify-content: flex-end;
 }
 
 /* ── the stack ────────────────────────────────────────────────────── */

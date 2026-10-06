@@ -441,8 +441,7 @@ describe.skipIf(!available.ok)(title, () => {
         /*
          * Two decisions that are Forge's own button bar (`match.buttons`)
          * under the hood, same as every other press here, but which wave 38
-         * (T4, R2) moved OFF the generic `live-button-ok`/`live-button-cancel`
-         * bar and into their own `ConfirmPrompt` branches with their own
+         * (T4, R2) moved OFF the generic control bar and into their own `ConfirmPrompt` branches with their own
          * testids — the coin toss (`live-play-or-draw-play`/`-draw`,
          * `isPlayOrDrawPrompt`) and every other yes/no (`prompt-confirm-yes`/
          * `-no`, T4's own shape, e.g. "keep your hand?"). Pre-existing, found
@@ -532,8 +531,12 @@ describe.skipIf(!available.ok)(title, () => {
          * different card and a 2-of-2 selection completes.
          */
         const sel = s.live.selectables;
-        const ok = root.querySelector<HTMLButtonElement>('[data-testid="live-button-ok"]');
-        if (sel !== null && ok?.disabled === true) {
+        // Forge's button one as the page draws it (wave 51): the box's Next
+        // Phase at the empty-stack priority pass, the decision pop-up's own OK
+        // for every other input, and neither while Forge has not enabled it.
+        const nextPhase = root.querySelector<HTMLButtonElement>('[data-testid="live-button-next-phase"]');
+        const ok = nextPhase !== null && !nextPhase.disabled ? nextPhase : root.querySelector<HTMLButtonElement>('[data-testid="live-decision-ok"]');
+        if (sel !== null && (ok === null || ok.disabled)) {
           let picked = 0;
           for (const id of sel.cards) {
             if (picked >= Math.max(sel.min, 1)) break;

@@ -12,7 +12,7 @@ import { createElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 
-import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, isConfirmPrompt } from './ConfirmPrompt.tsx';
+import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, offersEndTurn } from './ConfirmPrompt.tsx';
 import type { LiveButtons } from '../live/match.ts';
 
 afterEach(cleanup);
@@ -71,6 +71,86 @@ describe('isConfirmPrompt', () => {
   it('is false while either button is disabled — Forge has not actually asked a question', () => {
     expect(isConfirmPrompt(buttons({ enable1: false }))).toBe(false);
     expect(isConfirmPrompt(buttons({ enable2: false }))).toBe(false);
+  });
+});
+
+/*
+ * Wave 51: where each of Forge's bar inputs goes — the control box's `Next
+ * Phase`, the decision pop-up, or nowhere new (a pop-up of its own owns it).
+ * One case per input shape the wave names, with the Forge input it comes from.
+ */
+describe('barRoute', () => {
+  const EMPTY = true;
+  const STACKED = false;
+
+  it('none without a bar', () => {
+    expect(barRoute(null, EMPTY)).toBe('none');
+  });
+
+  it('priority with an empty stack is Next Phase (InputPassPriority: OK + End Turn)', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'End Turn' }), EMPTY)).toBe('next-phase');
+  });
+
+  it('priority with spells on the stack is a decision — button one lets the top resolve', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'End Turn' }), STACKED)).toBe('decision');
+  });
+
+  it('priority after a mana tap (OK + Undo (N)) is a decision, stack or not', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'Undo (1)' }), EMPTY)).toBe('decision');
+  });
+
+  it('a pressed priority pass (both disabled until Forge’s next bar) is none', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'End Turn', enable1: false, enable2: false }), EMPTY)).toBe('none');
+  });
+
+  it('End Turn alone is the box’s, not a decision', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'End Turn', enable1: false }), STACKED)).toBe('none');
+  });
+
+  it('attackers done is a decision (InputAttack: OK + Alpha Strike / Call Back)', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'Alpha Strike' }), EMPTY)).toBe('decision');
+    expect(barRoute(buttons({ label1: 'OK', label2: 'Call Back' }), EMPTY)).toBe('decision');
+  });
+
+  it('blockers done is a decision (InputBlock: OK enabled, Cancel not)', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'Cancel', enable2: false }), EMPTY)).toBe('decision');
+  });
+
+  it('a target’s Cancel is a decision (InputSelectTargets: OK disabled until chosen, Cancel enabled)', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'Cancel', enable1: false }), STACKED)).toBe('decision');
+  });
+
+  it('the coin toss is its own pop-up’s', () => {
+    expect(barRoute(buttons({ label1: PLAY_LABEL, label2: DRAW_LABEL }), EMPTY)).toBe('none');
+  });
+
+  it('a T4 yes/no is its own pop-up’s', () => {
+    expect(barRoute(buttons({ label1: 'Yes', label2: 'No' }), EMPTY)).toBe('none');
+    expect(barRoute(buttons({ label1: 'Keep', label2: 'Mulligan' }), EMPTY)).toBe('none');
+  });
+
+  it('a selection or a payment the caller says is already up is theirs', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'Cancel' }), EMPTY, true)).toBe('none');
+    expect(barRoute(buttons({ label1: 'Auto', label2: 'Cancel' }), EMPTY, true)).toBe('none');
+  });
+
+  it('a payment with no payment window (Forge named no card) is still answerable, as a decision', () => {
+    expect(barRoute(buttons({ label1: 'Auto', label2: 'Cancel' }), EMPTY)).toBe('decision');
+    expect(barRoute(buttons({ label1: '', label2: 'Cancel', enable1: false }), EMPTY)).toBe('decision');
+  });
+
+  it('the London mulligan’s OK + Auto is a decision', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'Auto', enable1: false }), EMPTY)).toBe('decision');
+  });
+});
+
+describe('offersEndTurn', () => {
+  it('only while Forge’s second button is enabled AND is End Turn', () => {
+    expect(offersEndTurn(null)).toBe(false);
+    expect(offersEndTurn(buttons({ label1: 'OK', label2: 'End Turn' }))).toBe(true);
+    expect(offersEndTurn(buttons({ label1: 'OK', label2: 'End Turn', enable2: false }))).toBe(false);
+    expect(offersEndTurn(buttons({ label1: 'OK', label2: 'Cancel' }))).toBe(false);
+    expect(offersEndTurn(buttons({ label1: 'OK', label2: 'Undo (1)' }))).toBe(false);
   });
 });
 

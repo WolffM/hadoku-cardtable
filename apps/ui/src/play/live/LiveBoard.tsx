@@ -144,8 +144,8 @@
  * own two labels. No new words, and nothing in `../prompts/` — there is no ask
  * to have a prompt component for.
  *
- * The cluster's OK and Cancel stay live through a payment, because they are the
- * same two buttons: `pressButton` is the one sender either way.
+ * The control box's `Next Phase` and `End Turn` stay greyed through a payment:
+ * Forge's bar there is `Auto` + `Cancel`, which is neither of them.
  *
  * The toggle beside the buttons is §C.4's escape hatch: full control OFF is
  * the default (the shortcuts run), ON asks every question and stops at every
@@ -172,13 +172,14 @@
  * first place. Wave 25 took the two TEXT rows out of it, so the box is shorter
  * and holds nothing that can grow: every child is now a button.
  *
- * A button is disabled unless Forge enabled it AND no question is open;
- * `pressButton` refuses the same cases, so a disabled button that is somehow
- * pressed still sends nothing. With no bar from Forge yet, the buttons carry
- * neutral labels.
+ * Wave 51: the two game buttons are `Next Phase` and `End Turn`, our words,
+ * enabled only for the one input each presses (`barRoute`, `offersEndTurn`);
+ * every other answer to Forge's bar is the decision pop-up. `pressButton`
+ * refuses a disabled bar too, so a greyed button that is somehow pressed still
+ * sends nothing.
  *
- * **Concede and Settings are in it** (wave 24 §C.4, wave 30 item 7), BELOW OK
- * and Cancel with Full control between them. Neither is an answer to Forge,
+ * **Concede and Settings are in it** (wave 24 §C.4, wave 30 item 7), BELOW Next
+ * Phase and End Turn with Full control between them. Neither is an answer to Forge,
  * and keeping them out of reach of Forge's two is what stops a reach for one
  * being a misclick on theirs. Wave 27 §B.1 made the cluster a single column,
  * so "its own row" is now every button's. `Leave` sat where `Settings` is now,
@@ -256,7 +257,7 @@ import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
 import { lookupFromState, plainRulesText, withAbilityLabels, type PromptLookup } from '../prompts/lookup.ts';
-import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, isConfirmPrompt, isPlayOrDrawPrompt } from '../prompts/ConfirmPrompt.tsx';
+import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn } from '../prompts/ConfirmPrompt.tsx';
 import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
@@ -336,6 +337,27 @@ export function isSpectator(match: LiveMatch): boolean {
 /** The server's `ended` frame has arrived (`LiveMatch.over`, shape 4). */
 export function isOver(match: LiveMatch): boolean {
   return (match as { over?: boolean }).over === true;
+}
+
+/* ── wave 51 §A.6: the stack sits right above the decision area ───────── */
+
+/** What occupies the decision column: a pop-up's sheet, or a card staged for its target. */
+const QUESTION_SELECTOR = '.live__prompt > *, .staging__list';
+
+/**
+ * The top edge of whatever is in the decision column, in the stack band's own
+ * frame (`.board__mid`'s containing block, its `position: relative` parent
+ * `.board`), or `null` when nothing is there. The topmost one wins: a card
+ * staged for its target sits above its decision pop-up (`data-staged`), and
+ * the stack sits above the card.
+ */
+export function questionTopOf(root: HTMLElement): number | null {
+  const frame = root.querySelector('.board__mid')?.parentElement;
+  if (frame == null) return null;
+  const tops = Array.from(root.querySelectorAll(QUESTION_SELECTOR), (el) => el.getBoundingClientRect())
+    .filter((box) => box.height > 0)
+    .map((box) => box.top);
+  return tops.length === 0 ? null : Math.min(...tops) - frame.getBoundingClientRect().top;
 }
 
 /* ── T2: a calm "waiting for the other player" (wave 36 §L) ───────────── */
@@ -685,27 +707,15 @@ export type LogKind = 'payment' | 'trigger' | 'damage' | 'life' | 'play' | 'cont
  * reads Forge's prose to decide what a button means is a client that breaks in
  * French.
  *
- * The control cluster's OWN second button (`showsSecondButton`, below) is NOT
- * drawn at all while this is false — wave 32 Q15b, *"what is the point of the
- * cancel button?"*, deleted the old disabled-and-present button rather than
- * keep a permanent `Cancel` that did nothing. `e2e/table-fit.spec.ts` still
- * measures the CLUSTER'S box as fixed regardless (every other child of it is
- * a real button that never disappears), so the cluster does not resize when
- * this one slot comes and goes. The payment window's own cancel button
- * (`live-payment-cancel`) is a second, separate button that DOES stay in the
- * DOM disabled instead — it has its own fixed sheet, not the cluster's box,
- * so there is nothing there for a vanishing child to break.
+ * The decision pop-up (wave 51) does not draw Forge's second button at all
+ * while this is false. The payment window's own cancel button
+ * (`live-payment-cancel`) stays in the DOM disabled instead — it has its own
+ * fixed sheet, so there is nothing there for a vanishing child to break.
  */
 function offersSecondButton(match: LiveMatch): boolean {
   return !declaringAttackers(match);
 }
 
-/** What the second button says: Forge's word, or the neutral one when we refuse it. */
-function secondLabel(match: LiveMatch): string {
-  const bar = match.buttons;
-  if (!offersSecondButton(match)) return 'Cancel';
-  return bar === null || bar.label2 === '' ? 'Cancel' : bar.label2;
-}
 
 
 export function logKind(line: string): LogKind {
@@ -1170,9 +1180,8 @@ function ConcedeAsk({ onConcede, onCancel }: { onConcede: () => void; onCancel: 
  * being asked, leave it alone" — which is the opposite of what a payment needs.
  * `table-fit` measures this host under its own id instead.
  *
- * The buttons send through `pressButton`, the one sender — the same one the
- * cluster's OK and Cancel use, and it refuses a bar Forge has disabled whichever
- * button was pressed. Button one is the default only while Forge has ENABLED it:
+ * The buttons send through `pressButton`, the one sender for Forge's two
+ * buttons, and it refuses a bar Forge has disabled whichever button was pressed. Button one is the default only while Forge has ENABLED it:
  * `InputPayMana` enables its `Auto` when it has sources to pay with
  * (`InputPayMana.java:405`), and a cost that cannot be auto-paid has no default
  * answer at all — the player taps sources on the board instead.
@@ -1208,7 +1217,7 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
             disabled={bar === null || !bar.enable2 || !offersSecondButton(match)}
             onClick={() => pressButton(match, 'cancel')}
           >
-            {secondLabel(match)}
+            {bar === null || bar.label2 === '' ? 'Cancel' : bar.label2}
           </button>
         </div>
       </section>
@@ -1466,8 +1475,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * notify-only `prompt`/`buttons` channel every other yes/no in the control
    * bar already uses (`PlayerControllerHuman.chooseStartingPlayer`).
    * `isPlayOrDrawPrompt` (`../prompts/ConfirmPrompt.tsx`, presentational
-   * only) reads it off `bar` alone, the same field `showsSecondButton`
-   * already reads.
+   * only) reads it off `bar` alone, the same field `barRoute` reads.
    */
   const playOrDraw = !spectator && !askOpen && isPlayOrDrawPrompt(bar);
   /*
@@ -1505,6 +1513,18 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * if/else of each other, never both at once.
    */
   const pregameWait = isWaitingForPregameDecision(match);
+  /*
+   * Wave 51: what Forge's bar is, now that the control box only ever draws
+   * `Next Phase` and `End Turn` for it (`barRoute`'s own note). Every pop-up
+   * above keeps the input it already owned; whatever is left with an enabled
+   * button is the decision pop-up, in the same slot.
+   */
+  const route = spectator
+    ? 'none'
+    : barRoute(bar, (match.view?.stack.length ?? 0) === 0, askOpen || paying || selectionPopup || pregameWait);
+  const decisionOk = route === 'decision' && bar !== null && bar.enable1;
+  const decisionCancel = route === 'decision' && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match);
+  const decision = decisionOk || decisionCancel;
   /*
    * What the log can put a face to, and whose lines are whose. Both come off the
    * board view the viewer is already looking at — see `cardsNamedInView` for why
@@ -1544,11 +1564,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      * A question is in front of the board, so the stack stands aside (items 7 and
      * 13). The fifteen prompts, the payment window, the coin toss, the yes/no
      * pop-up, a selection's own decision-area treatment (W18/W16,
-     * `selectionPopup`), and the pregame waiting pop-up (W1, `pregameWait`)
-     * all draw in the same column. This is the same set, named once, so the
+     * `selectionPopup`), the pregame waiting pop-up (W1, `pregameWait`) and
+     * the bar's own decision (wave 51, `decision`) all draw in the same column. This is the same set, named once, so the
      * stack cannot disagree with what is actually on screen.
      */
-    questionOpen: askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || pregameWait,
+    questionOpen: askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || pregameWait || decision,
     /*
      * Item 16's glow: Forge's actionable set, and ONLY while nothing is
      * asking. `offered.selectable` IS that set already, whenever
@@ -1564,7 +1584,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      * while Forge is asking for its target and nothing else is on top of the
      * board (`stagedCardId`'s own note on why an ask or a payment wins the
      * same footprint). `boardCardById` is the one lookup, exported below for
-     * its own test.
+     * its own test. The bar's decision does not block it: while a target is
+     * being chosen that pop-up is Forge's `Cancel`, and it draws under the
+     * staged card (`data-staged` on its host).
      */
     stagedCardId: stagedHandCardId(match, offered, askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || pregameWait),
     onSelectCard: (cardId) => {
@@ -1611,21 +1633,23 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * `SettingsPanel`, because `<Board>` needs it whether or not Settings is
    * ever opened.
    */
-  const showsSecondButton =
-    !spectator && !askOpen && !playOrDraw && !confirmPrompt && bar !== null && bar.enable2 && offersSecondButton(match);
+  /*
+   * Wave 51: the control box's two game buttons are always drawn, and are
+   * enabled only for the one input each is for. `Next Phase` is Forge's button
+   * one at the empty-stack priority pass (`barRoute`); `End Turn` is Forge's
+   * button two while Forge names it `End Turn` (`InputPassPriority`'s cancel
+   * slot, `offersEndTurn`).
+   */
+  const nextPhaseEnabled = route === 'next-phase';
+  const endTurnEnabled = !spectator && !askOpen && offersEndTurn(bar);
   /*
    * R5: End Turn is highlighted when there is nothing left to decide.
-   *
-   * `End Turn` is Forge's SECOND button, not its first (`PlayBridge.java`'s own
-   * `END_TURN_LABEL`, `InputPassPriority`'s cancel slot — `secondLabel`/
-   * `showsSecondButton` above draw it; button one is `OK`, which passes the
-   * current step without skipping ahead). `nothingToDecide` (`./match.ts`,
-   * shape 3) is the one place "nothing left to decide" is answered — no open
-   * ask, no open selection, and Forge's own actionable set is the explicit
-   * empty one — so the highlight lands on the button that actually reads `End
-   * Turn`, gated on it being shown at all, never a new affordance of its own.
+   * `nothingToDecide` (`./match.ts`, shape 3) is the one place "nothing left to
+   * decide" is answered — no open ask, no open selection, and Forge's own
+   * actionable set is the explicit empty one — so the highlight lands on the
+   * button that reads `End Turn`, gated on it being pressable at all.
    */
-  const highlightEndTurn = showsSecondButton && nothingToDecide(match);
+  const highlightEndTurn = endTurnEnabled && nothingToDecide(match);
   const [boardLayout, setBoardLayout] = useState<BoardLayout>(PLAY_PREFS_DEFAULTS.boardLayout);
   /*
    * Item 6's persistence, and item 2/6's wire message.
@@ -1754,6 +1778,33 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  /*
+   * Wave 51 §A.6: `--question-top`, the decision area's top edge, so the stack
+   * sits right above whatever is asking. The operator, 2026-10-06: *"why is the
+   * stack carousel so much higher than the decision box? thats silly it should
+   * be right above the decision box."* A pop-up is centred in its column and
+   * its height is its content's, so CSS alone cannot know where its top is;
+   * this measures it (`questionTopOf`) and `board.css`'s
+   * `.board__mid[data-question]` hangs the band from it. Every render, and on
+   * any resize of the root or of what is in the column (a prompt that grows
+   * from its own state re-renders nothing here).
+   */
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (root === null) return undefined;
+    const sync = (): void => {
+      const top = questionTopOf(root);
+      if (top === null) root.style.removeProperty('--question-top');
+      else root.style.setProperty('--question-top', `${top}px`);
+    };
+    sync();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(sync);
+    observer.observe(root);
+    for (const el of root.querySelectorAll(QUESTION_SELECTOR)) observer.observe(el);
+    return () => observer.disconnect();
+  });
 
   if (status === 'match-gone') {
     /*
@@ -1972,46 +2023,33 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * columns they were not.
        */}
       <div className="live__buttons" data-testid="live-buttons">
+        {/*
+         * Wave 51: the same four buttons every frame, in this order — `Next
+         * Phase`, `End Turn`, `Full control`, `Concede`. The operator: *"keep the
+         * same 4 buttons in the control box at all times … just grey out the
+         * 'Next Phase' and 'End Turn' buttons when they are not relevant."* The
+         * labels are ours and never change; every other answer to Forge's bar is
+         * the decision pop-up below. `data-highlight` (R5) is End Turn's.
+         */}
         <button
           type="button"
-          className="live__ok"
-          data-testid="live-button-ok"
-          disabled={spectator || ask !== null || bar === null || !bar.enable1 || playOrDraw || confirmPrompt}
+          className="live__next-phase"
+          data-testid="live-button-next-phase"
+          disabled={!nextPhaseEnabled}
           onClick={() => pressButton(match, 'ok')}
         >
-          {/*
-           * T4: while the decision area's own pop-up owns this question
-           * (`playOrDraw`/`confirmPrompt`, both disable this button above
-           * too), the bar reads the neutral `OK` rather than Forge's own
-           * word — the pop-up already shows that word on its own button,
-           * and a disabled bar still saying "Keep" or "Yes" read as a
-           * second, unanswerable copy of the same question.
-           */}
-          {bar === null || bar.label1 === '' || playOrDraw || confirmPrompt ? 'OK' : bar.label1}
+          Next Phase
         </button>
-        {/*
-         * Forge's SECOND prompt button (wave 32 Q15b: *"what is the point of the
-         * cancel button?"*). It is not ours: it is `InputBase`'s cancel, and Forge
-         * names and enables it per question — `Draw` at the coin toss, `Auto` at a
-         * mulligan, `End Turn` at priority, `Cancel` for backing out of a payment
-         * or a target. So it is drawn ONLY while Forge has it enabled, in Forge's
-         * own word; a permanently present, mostly disabled `Cancel` told the
-         * player nothing and sat beside OK as a button that did nothing.
-         *
-         * `data-highlight` (R5) lands HERE, not on OK: `End Turn` is this
-         * button's label, never button one's (see `highlightEndTurn`'s own note).
-         */}
-        {showsSecondButton && (
-          <button
-            type="button"
-            className="live__cancel"
-            data-testid="live-button-cancel"
-            data-highlight={highlightEndTurn ? '' : undefined}
-            onClick={() => pressButton(match, 'cancel')}
-          >
-            {secondLabel(match)}
-          </button>
-        )}
+        <button
+          type="button"
+          className="live__end-turn"
+          data-testid="live-button-end-turn"
+          data-highlight={highlightEndTurn ? '' : undefined}
+          disabled={!endTurnEnabled}
+          onClick={() => pressButton(match, 'cancel')}
+        >
+          End Turn
+        </button>
         <button
           type="button"
           className="live__toggle"
@@ -2058,9 +2096,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {/*
        * R2: the coin toss / play-draw question, in the decision area (shape 2)
        * rather than the control bar — lane G's `g.md` has the full shape.
-       * `onPlay`/`onDraw` are `pressButton`, the same sender the control bar's
-       * own OK/Cancel use, so a press here is indistinguishable from one there
-       * as far as the wire is concerned.
+       * `onPlay`/`onDraw` are `pressButton`, the one sender for Forge's two
+       * buttons, so the wire cannot tell where a press came from.
        */}
       {playOrDraw && (
         <div className="live__prompt" data-testid="live-play-or-draw-host">
@@ -2076,12 +2113,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {/*
        * T4 (shape 1): every yes/no that is an ANSWER, in the decision area —
        * the operator's *"i hate yes/no on control bar. should always be the
-       * big pop up."* `onYes`/`onNo` are `pressButton`, the same sender the
-       * control bar's own OK/Cancel use (`ConfirmPrompt.tsx`'s own header has
-       * the precedent), so a press here is indistinguishable from one there
-       * as far as the wire is concerned. The bar itself draws neither button
-       * while this is up (`showsSecondButton`/the OK button's own `disabled`,
-       * both above).
+       * big pop up."* `onYes`/`onNo` are `pressButton`, the one sender for
+       * Forge's two buttons (`ConfirmPrompt.tsx`'s own header has the
+       * precedent). `barRoute` routes this bar nowhere else, so the control
+       * box's two game buttons stay greyed while it is up.
        */}
       {confirmPrompt && bar !== null && (
         <div className="live__prompt" data-testid="live-confirm-host">
@@ -2090,6 +2125,26 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             message={plainRulesText(match.prompt ?? '')}
             button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => pressButton(match, 'ok') }}
             button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => pressButton(match, 'cancel') }}
+          />
+        </div>
+      )}
+      {/*
+       * Wave 51: every other enabled bar button, in the decision area — priority
+       * with spells on the stack, attackers or blockers done, a target's
+       * `Cancel`, `OK` + `Undo (N)`, the London mulligan's `OK` + `Auto`. Forge's
+       * own words on Forge's own buttons, each drawn only where Forge enabled it;
+       * `End Turn` is the control box's and is never drawn here, and the attack
+       * step's second button is refused as it was on the bar
+       * (`offersSecondButton`). While a played card is staged for its target
+       * the pop-up draws under it (`data-staged`, `live.css`).
+       */}
+      {decision && bar !== null && (
+        <div className="live__prompt" data-testid="live-decision-host" data-staged={interaction.stagedCardId !== undefined || undefined}>
+          <ConfirmPrompt
+            testId="live-decision"
+            message={plainRulesText(match.prompt ?? '')}
+            button1={decisionOk ? { label: bar.label1, enabled: true, testId: 'live-decision-ok', onClick: () => pressButton(match, 'ok') } : undefined}
+            button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressButton(match, 'cancel') } : undefined}
           />
         </div>
       )}

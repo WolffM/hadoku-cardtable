@@ -206,10 +206,18 @@ function zoneEl(root: HTMLElement, mine: boolean, zone: string): HTMLElement | n
   return seat?.querySelector<HTMLElement>(`[data-zone="${zone}"]`) ?? null;
 }
 
-const okButton = (root: HTMLElement): HTMLButtonElement | null =>
-  root.querySelector<HTMLButtonElement>('[data-testid="live-button-ok"]');
+/**
+ * Forge's button one as the page draws it (wave 51): the control box's Next
+ * Phase at the empty-stack priority pass, the decision pop-up's own OK for
+ * every other input (declaring done, priority with spells on the stack).
+ */
+function okButton(root: HTMLElement): HTMLButtonElement | null {
+  const nextPhase = root.querySelector<HTMLButtonElement>('[data-testid="live-button-next-phase"]');
+  if (nextPhase !== null && !nextPhase.disabled) return nextPhase;
+  return root.querySelector<HTMLButtonElement>('[data-testid="live-decision-ok"]');
+}
 
-/** Press the board's own OK. Never the harness's act channel — the bar is the product. */
+/** Press the board's own OK. Never the harness's act channel — the page is the product. */
 function pressOk(root: HTMLElement): boolean {
   const ok = okButton(root);
   if (ok === null || ok.disabled) return false;

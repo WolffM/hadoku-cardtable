@@ -139,6 +139,49 @@ export function isConfirmPrompt(bar: LiveButtons | null): boolean {
   return bar.label1 !== BAR_OK_LABEL && bar.label1 !== AUTO_PAY_LABEL && bar.label1 !== '';
 }
 
+/**
+ * `InputPassPriority`'s second button at an ordinary priority window
+ * (`lblEndTurn`, `InputPassPriority.java:174`) — PlayBridge's own
+ * `END_TURN_LABEL`, which it reads for the same fact (`PlayBridge.java:767`).
+ * The one input that puts it there, so it identifies the priority pass.
+ */
+export const END_TURN_LABEL = 'End Turn';
+
+/**
+ * Where Forge's bar goes (wave 51). The operator, 2026-10-06: *"any game action
+ * that requires the players to do something should land in the decision box not
+ * in the control box … change the control box word to 'Next Phase' so that
+ * button is specifically only for that. and any 'Ok' situations are popups
+ * decisions instead"*.
+ *
+ *  - `next-phase`: the priority pass (`OK` + `End Turn`, button one enabled)
+ *    with nothing on the stack. Button one moves the game to the next step, and
+ *    the control box's fixed `Next Phase` button is the one that presses it.
+ *  - `decision`: any other bar with an enabled button that is not `End Turn`
+ *    (the control box's own second button). Priority with spells on the stack
+ *    (button one lets the top resolve), declare attackers or blockers done, a
+ *    target's `Cancel`, `OK` + `Undo (N)` (`InputPassPriority.java:171`, after a
+ *    manual mana tap), the London mulligan's `OK` + `Auto`, a payment Forge
+ *    drew no payment window for.
+ *  - `none`: no bar, nothing enabled beyond `End Turn`, or a pop-up of its own
+ *    already owns the input: the coin toss (`isPlayOrDrawPrompt`), a yes/no
+ *    (`isConfirmPrompt`), or whatever the caller says is open (`owned`: an ask,
+ *    the payment window, a selection pop-up, the pregame wait).
+ */
+export type BarRoute = 'next-phase' | 'decision' | 'none';
+
+export function barRoute(bar: LiveButtons | null, stackEmpty: boolean, owned = false): BarRoute {
+  if (bar === null || owned || isPlayOrDrawPrompt(bar) || isConfirmPrompt(bar)) return 'none';
+  const endTurn = bar.label2 === END_TURN_LABEL;
+  if (bar.enable1 && bar.label1 === BAR_OK_LABEL && endTurn && stackEmpty) return 'next-phase';
+  return bar.enable1 || (bar.enable2 && !endTurn) ? 'decision' : 'none';
+}
+
+/** Forge's second button is enabled and is `End Turn` — the control box's own `End Turn` button. */
+export function offersEndTurn(bar: LiveButtons | null): boolean {
+  return bar !== null && bar.enable2 && bar.label2 === END_TURN_LABEL;
+}
+
 /** One button: Forge's own label, whether it is pressable, and what pressing it sends. */
 export interface ConfirmPromptButton {
   label: string;
@@ -164,8 +207,9 @@ export interface ConfirmPromptProps {
   coin?: boolean;
   /** `showConfirmDialog`'s callId, so `data-call-id` still finds the open ask. */
   callId?: string;
-  button1: ConfirmPromptButton;
-  button2: ConfirmPromptButton;
+  /** Omitted where Forge has not offered the button at all (the bar decision draws only what Forge enabled). */
+  button1?: ConfirmPromptButton;
+  button2?: ConfirmPromptButton;
 }
 
 /**
@@ -198,7 +242,7 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, c
         {message}
       </p>
       <div className="confirm__actions">
-        {[button1, button2].map((b, i) => (
+        {[button1, button2].map((b, i) => b !== undefined && (
           <button
             key={i}
             type="button"

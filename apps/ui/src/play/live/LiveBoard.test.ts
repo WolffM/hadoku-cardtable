@@ -30,6 +30,7 @@ import {
   isWaitingForPregameDecision,
   LiveBoard,
   liveStatus,
+  questionTopOf,
   MATCH_GONE_SENTENCE,
   reasonLost,
   refusalOf,
@@ -425,9 +426,9 @@ describe('Forge asks with buttons, not only with asks', () => {
   /*
    * R2, wave 35: the coin toss / play-draw question moved OFF the control bar
    * and into the decision area (`PlayOrDrawPrompt`, lane G) — this used to
-   * assert `live-button-ok`/`live-button-cancel` drew `Play`/`Draw`; now the
-   * control bar's own OK is disabled and Cancel does not render at all while
-   * `PlayOrDrawPrompt` owns the question. See `g.md` for the full shape.
+   * assert the bar drew `Play`/`Draw`; now the control box's Next Phase and
+   * End Turn are both greyed while `PlayOrDrawPrompt` owns the question. See
+   * `g.md` for the full shape.
    */
   it('the coin toss / play-draw question renders in the decision area, not the control bar, and sends the click Forge is waiting for', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
@@ -440,9 +441,10 @@ describe('Forge asks with buttons, not only with asks', () => {
     expect(getByTestId('live-play-or-draw').textContent).toContain('coin toss');
     expect(getByTestId('live-play-or-draw-play').textContent).toBe('Play');
     expect(getByTestId('live-play-or-draw-draw').textContent).toBe('Draw');
-    // The control bar does not ALSO draw it: OK is disabled, Cancel is gone.
-    expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled, 'OK cannot double-fire the answer').toBe(true);
-    expect(queryByTestId('live-button-cancel'), 'the bar’s own second button does not also render').toBeNull();
+    // The control box does not ALSO answer it, and no second pop-up does either.
+    expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled, 'Next Phase cannot double-fire the answer').toBe(true);
+    expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(true);
+    expect(queryByTestId('live-decision')).toBeNull();
 
     const before = m.stats.replies;
     fireEvent.click(getByTestId('live-play-or-draw-play'));
@@ -460,49 +462,55 @@ describe('Forge asks with buttons, not only with asks', () => {
   it('a bar Forge has disabled is not pressable, so a stale click cannot answer the NEXT question', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
 
-    for (const f of buttonFrames('Choose', 'OK', 'Cancel')) s.send(f);
-    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
+    s.send(stackDelta(m));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(0));
+    for (const f of buttonFrames('Priority', 'OK', 'End Turn')) s.send(f);
+    await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
 
-    fireEvent.click(getByTestId('live-button-ok'));
-    // The bar stays where it is; its buttons go disabled until Forge sends a fresh one.
-    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(true));
+    fireEvent.click(getByTestId('live-button-next-phase'));
+    // The box stays where it is; its buttons go disabled until Forge sends a fresh bar.
+    await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(true));
     expect(getByTestId('live-buttons')).toBeTruthy();
-    // Forge disabled the second button too, so it is not drawn at all (Q15b).
-    expect(queryByTestId('live-button-cancel')).toBeNull();
+    // `pressButton` disabled both of Forge's buttons, so End Turn greys with it.
+    expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(true);
+    expect(queryByTestId('live-decision')).toBeNull();
 
-    fireEvent.click(getByTestId('live-button-ok'));
+    fireEvent.click(getByTestId('live-button-next-phase'));
     expect(pressButton(m, 'ok')).toBe(false);
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(m.stats.replies).toBe(1);
   });
 
-  it('the bar is there before Forge has sent one: neutral labels, both buttons disabled, nothing said', async () => {
+  it('the box is there before Forge has sent a bar: our two labels, both greyed, nothing said', async () => {
     const { getByTestId, queryByTestId } = await liveBoard();
     expect(getByTestId('live-says').textContent).toBe('');
-    const ok = getByTestId('live-button-ok') as HTMLButtonElement;
-    expect([ok.textContent, ok.disabled]).toEqual(['OK', true]);
-    // No bar, so Forge has enabled no second button, so none is drawn (Q15b).
-    expect(queryByTestId('live-button-cancel')).toBeNull();
+    const next = getByTestId('live-button-next-phase') as HTMLButtonElement;
+    const end = getByTestId('live-button-end-turn') as HTMLButtonElement;
+    expect([next.textContent, next.disabled, end.textContent, end.disabled]).toEqual(['Next Phase', true, 'End Turn', true]);
+    expect(queryByTestId('live-decision')).toBeNull();
   });
 
   it('the bar stays while a question is open, disabled, and a press sends nothing', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    s.send(stackDelta(m));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(0));
     for (const f of buttonFrames('Priority', 'OK', 'End Turn')) s.send(f);
-    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
-    expect(getByTestId('live-button-cancel').textContent, 'Forge’s own word, drawn while Forge enables it').toBe('End Turn');
+    await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
+    expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled, 'Forge’s End Turn, enabled').toBe(false);
 
     s.send(confirmAsk('c-open'));
     await waitFor(() => getByTestId('confirm-dialog'));
-    const ok = getByTestId('live-button-ok') as HTMLButtonElement;
-    expect(ok.disabled).toBe(true);
-    expect(queryByTestId('live-button-cancel'), 'a question is open: the second button is not drawn').toBeNull();
+    const next = getByTestId('live-button-next-phase') as HTMLButtonElement;
+    expect(next.disabled).toBe(true);
+    expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled, 'a question is open: End Turn greys').toBe(true);
+    expect(queryByTestId('live-decision'), 'the ask owns the column').toBeNull();
     expect(getByTestId('live-says').textContent).toBe('Priority');
-    fireEvent.click(ok);
+    fireEvent.click(next);
     expect(pressButton(m, 'ok')).toBe(false);
     expect(m.stats.replies).toBe(0);
 
     fireEvent.click(getByTestId('confirm-dialog').querySelector('[data-answer="yes"]')!);
-    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
     expect(s.clientFrames().map((f) => (f.ok ? f.value.kind : null))).toEqual(['reply']);
   });
 });
@@ -1104,8 +1112,8 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
     const bar = getByTestId('live-buttons');
     expect(concede.tagName).toBe('BUTTON');
     expect(bar.contains(concede)).toBe(true);
-    // Not adjacent to OK or Cancel: Full control stands between, so a reach
-    // for Concede is never a misclick on Forge's answer.
+    // Not adjacent to Next Phase or End Turn: Full control stands between, so
+    // a reach for Concede is never a misclick on one of Forge's buttons.
     const order = [...bar.children].map((el) => (el as HTMLElement).dataset.testid);
     expect(order.indexOf('live-full-control'), 'Full control stands between Forge’s answers and Concede').toBe(
       order.indexOf('live-concede') - 1,
@@ -1126,7 +1134,7 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
       'live__log-button',
       'live__buttons',
     ]);
-    expect(bar.querySelectorAll('button')).toHaveLength(3);
+    expect(bar.querySelectorAll('button')).toHaveLength(4);
   });
 
   /*
@@ -1203,7 +1211,7 @@ function declarations(css: string, selector: string): string {
  *
  * `e2e/table-fit.spec.ts` is the other half and it is strict: *"once the board
  * is drawn, `live-buttons` has a nonzero box that lies inside the viewport,
- * with `live-button-ok` and `live-button-cancel` in it, and that box is at the
+ * with its buttons in it, and that box is at the
  * SAME place and size in every frame at a given window size — a fixed home, not
  * a bar on demand."* Every fixed track below is that sentence.
  *
@@ -1216,7 +1224,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // The spec queries `live-buttons` and then looks INSIDE it, so a second
     // container, or one of these drawn as a sibling, is a red e2e.
     expect(container.querySelectorAll('[data-testid="live-buttons"]')).toHaveLength(1);
-    for (const id of ['live-button-ok', 'live-full-control', 'live-concede']) {
+    for (const id of ['live-button-next-phase', 'live-button-end-turn', 'live-full-control', 'live-concede']) {
       expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
     }
     // Wave 32 Q15 took Settings out: it is in the header's gear.
@@ -1229,7 +1237,8 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
      * `Settings` (item 7) is written in the slot `Leave` vacated.
      */
     expect([...cluster.querySelectorAll('button')].map((b) => b.dataset.testid)).toEqual([
-      'live-button-ok',
+      'live-button-next-phase',
+      'live-button-end-turn',
       'live-full-control',
       'live-concede',
     ]);
@@ -1263,7 +1272,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // Every child of the cluster is a button now: nothing in it can be text that
     // grows, which is the other half of "one box at one window size". Still
     // five: item 7 put `Settings` where item 5's deletion of `Leave` left a gap.
-    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON']);
+    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON', 'BUTTON']);
     // And both moved into the logbook, which is not inside the cluster.
     const logbook = getByTestId('live-logbook');
     expect(cluster.contains(logbook)).toBe(false);
@@ -2145,9 +2154,9 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
   it('paints Forge’s label2 while Forge enables it, and refuses it whether or not an attacker is declared', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     const me = m.view!.players.find((p) => p.isViewer)!;
-    const cancel = () => queryByTestId('live-button-cancel') as HTMLButtonElement | null;
+    const cancel = () => queryByTestId('live-decision-cancel') as HTMLButtonElement | null;
 
-    // 1. Outside combat, Forge's word is Forge's word. Nothing here filters it.
+    // 1. Outside combat, Forge's word is Forge's word, on the decision pop-up.
     s.send(bar('Cancel'));
     await waitFor(() => expect(cancel()).not.toBeNull());
     expect(cancel()!.textContent).toBe('Cancel');
@@ -2159,6 +2168,8 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
     await waitFor(() => expect(cancel()).toBeNull());
     expect(m.buttons!.label2, 'Forge still sent it — we simply do not offer it').toBe('Alpha Strike');
     expect(getByTestId('live-buttons').textContent).not.toContain('Alpha Strike');
+    expect(getByTestId('live-decision').textContent).not.toContain('Alpha Strike');
+    expect(getByTestId('live-decision-ok').textContent, 'done declaring is the pop-up’s OK').toBe('OK');
 
     // 3. One attacker declared. Forge's own `canCallBackAttackers()` is true now
     //    and it sends `Call Back` — item 16 refuses this one too, on the operator's
@@ -2168,26 +2179,32 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
     await waitFor(() => expect(m.buttons!.label2).toBe('Call Back'));
     expect(cancel(), 'Call Back is refused too (item 16)').toBeNull();
     expect(getByTestId('live-buttons').textContent).not.toContain('Call Back');
+    expect(getByTestId('live-decision').textContent).not.toContain('Call Back');
   });
 
   /*
    * Wave 32 Q15b — *"what is the point of the cancel button in the control
-   * pane?"* It is Forge's second prompt button, so it is drawn only while Forge
-   * enables it and in Forge's own word; the cluster's box is a fixed token, so
-   * it appearing moves nothing.
+   * pane?"* — and wave 51: Forge's second button is the decision pop-up's,
+   * drawn only while Forge enables it and in Forge's own word; the cluster
+   * keeps its four buttons whatever Forge sends.
    */
-  it('Q15b: the second button is drawn only while Forge enables it, in Forge’s word, and the cluster box does not move', async () => {
+  it('Q15b: the second button is drawn only while Forge enables it, in Forge’s word, and the cluster keeps its four buttons', async () => {
     const { s, getByTestId, queryByTestId } = await liveBoard();
-    expect(queryByTestId('live-button-cancel'), 'no bar yet').toBeNull();
+    expect(queryByTestId('live-decision-cancel'), 'no bar yet').toBeNull();
 
     s.send(bar('Auto'));
-    await waitFor(() => expect(queryByTestId('live-button-cancel')).not.toBeNull());
-    expect(getByTestId('live-button-cancel').textContent).toBe('Auto');
+    await waitFor(() => expect(queryByTestId('live-decision-cancel')).not.toBeNull());
+    expect(getByTestId('live-decision-cancel').textContent).toBe('Auto');
 
     s.send(bar('Auto', false));
-    await waitFor(() => expect(queryByTestId('live-button-cancel')).toBeNull());
-    // Both states share the one container and its fixed-track CSS.
-    expect(getByTestId('live-buttons').querySelectorAll('button').length).toBe(3);
+    await waitFor(() => expect(queryByTestId('live-decision-cancel')).toBeNull());
+    expect(getByTestId('live-decision-ok').textContent).toBe('OK');
+    expect([...getByTestId('live-buttons').querySelectorAll('button')].map((b) => b.textContent)).toEqual([
+      'Next Phase',
+      'End Turn',
+      'Full control',
+      'Concede',
+    ]);
   });
 });
 
@@ -2437,10 +2454,10 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(getByTestId('live-spectator').textContent).toBe('Watching: this seat is being played in another window');
     expect(queryByTestId('confirm-dialog'), 'a watcher is asked nothing').toBeNull();
     expect(queryByTestId('live-prompt')).toBeNull();
-    for (const id of ['live-button-ok', 'live-full-control', 'live-concede']) {
+    for (const id of ['live-button-next-phase', 'live-button-end-turn', 'live-full-control', 'live-concede']) {
       expect((getByTestId(id) as HTMLButtonElement).disabled, `${id} is inert`).toBe(true);
     }
-    expect(queryByTestId('live-button-cancel'), 'a watcher is offered no second button').toBeNull();
+    expect(queryByTestId('live-decision'), 'a watcher is offered no decision').toBeNull();
     fireEvent.click(getByTestId('live-full-control'));
     fireEvent.click(getByTestId('live-concede'));
     expect(queryByTestId('live-concede-ask')).toBeNull();
@@ -2767,6 +2784,31 @@ describe('R8 — the log button is an icon with an accessible name', () => {
 });
 
 /** A Game delta: the phase, and whose turn it is. Forge's own structured facts. */
+/**
+ * Forge's stack, set to exactly these stack items. The fixture's own board has
+ * two items on it (Direct Current and Fire Urchin's trigger), so a test about
+ * the EMPTY-stack priority pass empties it first (wave 51: that is the only
+ * input `Next Phase` presses).
+ */
+function stackDelta(m: LiveMatch, ids: number[] = []) {
+  return parseServerFrame({
+    kind: 'notify',
+    method: 'applyDelta',
+    payload: {
+      packet: {
+        seq: m.view!.seq + 1,
+        checksum: 0,
+        checksumProperties: [],
+        newObjects: {},
+        objectDeltas: {
+          [String(deltaKey(WireType.Game, 1))]: { _type: WireType.Game, _id: 1, Stack: { t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) } },
+        },
+        events: [],
+      },
+    },
+  });
+}
+
 function phaseDelta(m: LiveMatch, name: string, playerTurn: number) {
   return parseServerFrame({
     kind: 'notify',
@@ -2812,20 +2854,20 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
       focus1: true,
     });
 
-  it('highlights the SECOND button (End Turn is Forge’s label2, never label1) exactly when nothingToDecide is true', async () => {
+  it('highlights End Turn (Forge’s label2, never Next Phase) exactly when nothingToDecide is true', async () => {
     const { s, m, getByTestId } = await liveBoard();
     s.send(pastAttackers(m));
     await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
     s.send(clearSelectables());
     s.send(bar2('End Turn'));
-    await waitFor(() => expect(getByTestId('live-button-cancel').textContent).toBe('End Turn'));
-    expect(getByTestId('live-button-cancel').hasAttribute('data-highlight'), 'Forge has not said "nothing" yet').toBe(false);
-    expect(getByTestId('live-button-ok').hasAttribute('data-highlight'), 'the highlight is never on OK').toBe(false);
+    await waitFor(() => expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(false));
+    expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight'), 'Forge has not said "nothing" yet').toBe(false);
+    expect(getByTestId('live-button-next-phase').hasAttribute('data-highlight'), 'the highlight is never on Next Phase').toBe(false);
 
     s.send(weaklySelectable([]));
     await waitFor(() => expect(nothingToDecide(m)).toBe(true));
-    await waitFor(() => expect(getByTestId('live-button-cancel').hasAttribute('data-highlight')).toBe(true));
-    expect(getByTestId('live-button-ok').hasAttribute('data-highlight')).toBe(false);
+    await waitFor(() => expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight')).toBe(true));
+    expect(getByTestId('live-button-next-phase').hasAttribute('data-highlight')).toBe(false);
 
     // Forge names a real decision (a non-land permanent): the highlight comes off at once.
     // By type line, not a hard-coded id — lane F's land-tapping fix means an
@@ -2835,7 +2877,7 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     const nonLand = viewerBattlefield.find((c) => !c.card.typeLine.includes('Land'))!.id;
     s.send(weaklySelectable([nonLand]));
     await waitFor(() => expect(nothingToDecide(m)).toBe(false));
-    await waitFor(() => expect(getByTestId('live-button-cancel').hasAttribute('data-highlight')).toBe(false));
+    await waitFor(() => expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight')).toBe(false));
   });
 
   it('an actionable set naming only the viewer’s own battlefield LAND keeps End Turn highlighted (lane F’s land-tapping fix)', async () => {
@@ -2844,14 +2886,14 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
     s.send(clearSelectables());
     s.send(bar2('End Turn'));
-    await waitFor(() => expect(getByTestId('live-button-cancel').textContent).toBe('End Turn'));
+    await waitFor(() => expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(false));
 
     const viewerBattlefield = m.view!.players.find((p) => p.isViewer)!.battlefield;
     const land = viewerBattlefield.find((c) => c.card.typeLine.includes('Land'))!.id;
     s.send(weaklySelectable([land]));
     await waitFor(() => expect(nothingToDecide(m)).toBe(true));
-    await waitFor(() => expect(getByTestId('live-button-cancel').hasAttribute('data-highlight')).toBe(true));
-    expect(getByTestId('live-button-ok').hasAttribute('data-highlight')).toBe(false);
+    await waitFor(() => expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight')).toBe(true));
+    expect(getByTestId('live-button-next-phase').hasAttribute('data-highlight')).toBe(false);
   });
 });
 
@@ -3341,7 +3383,7 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     ];
   }
 
-  it('the shockland’s "pay 2 life?" (Yes/No) renders in the decision area, and the bar’s own OK/Cancel do not', async () => {
+  it('the shockland’s "pay 2 life?" (Yes/No) renders in the decision area, and the control box answers none of it', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     for (const f of buttonFrames('Watery Grave\n\nPay 2 life?', 'Yes', 'No')) s.send(f);
 
@@ -3349,8 +3391,9 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     expect(getByTestId('live-confirm').textContent).toContain('Pay 2 life?');
     expect(getByTestId('prompt-confirm-yes').textContent).toBe('Yes');
     expect(getByTestId('prompt-confirm-no').textContent).toBe('No');
-    expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled, 'OK cannot double-fire the answer').toBe(true);
-    expect(queryByTestId('live-button-cancel'), 'the bar’s own second button does not also render').toBeNull();
+    expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled, 'Next Phase cannot double-fire the answer').toBe(true);
+    expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(true);
+    expect(queryByTestId('live-decision'), 'one pop-up at a time').toBeNull();
 
     const before = m.stats.replies;
     fireEvent.click(getByTestId('prompt-confirm-yes'));
@@ -3381,20 +3424,24 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     expect(getByTestId('prompt-confirm-no').textContent).toBe('Mulligan');
   });
 
-  it('an ordinary priority pass (OK/End Turn) stays on the control bar — the pop-up never opens for it', async () => {
-    const { s, getByTestId, queryByTestId } = await liveBoard();
+  it('an ordinary priority pass (OK/End Turn) with nothing on the stack is the control box’s — no pop-up opens for it', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    s.send(stackDelta(m));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(0));
     for (const f of buttonFrames('Priority: you', 'OK', 'End Turn')) s.send(f);
 
-    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
-    expect(getByTestId('live-button-cancel').textContent).toBe('End Turn');
+    await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
+    expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(false);
     expect(queryByTestId('live-confirm-host')).toBeNull();
+    expect(queryByTestId('live-decision')).toBeNull();
   });
 
-  it('a mana payment (Auto/Cancel) stays off the pop-up too — AUTO_PAY_LABEL is one of the excluded mechanical words', async () => {
+  it('a mana payment’s Auto/Cancel is not the yes/no pop-up — AUTO_PAY_LABEL is one of the excluded mechanical words', async () => {
     const { s, getByTestId, queryByTestId } = await liveBoard();
     for (const f of buttonFrames('Pay Mana Cost: {1}', 'Auto', 'Cancel')) s.send(f);
 
-    await waitFor(() => expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(false));
+    // Forge named no card, so there is no payment window either: the bar is the decision pop-up's.
+    await waitFor(() => getByTestId('live-decision'));
     expect(queryByTestId('live-confirm-host')).toBeNull();
   });
 
@@ -3407,29 +3454,28 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
   });
 
   /*
-   * T4, finished: the bar's OK used to stay disabled but keep showing Forge's
-   * own word (`Keep`, `Yes`, `Play`, …) while the pop-up already shows that
-   * same word on its own button — a disabled bar repeating the unanswered
-   * question. The operator: *"never put yes/no there, always the big
-   * pop-up."* Pinned by `e2e/w36.spec.ts:171` on the real page; these two are
-   * the same guarantee at the unit level, for both pop-ups.
+   * T4, finished: the bar used to keep showing Forge's own word (`Keep`,
+   * `Yes`, `Play`, …) while the pop-up already showed it — a disabled bar
+   * repeating the unanswered question. The operator: *"never put yes/no there,
+   * always the big pop-up."* Wave 51 makes the box's words ours outright; these
+   * two pin that for both pop-ups.
    */
-  it('T4, finished: the bar’s OK reads the neutral "OK", not Forge’s word, while the yes/no pop-up is up', async () => {
+  it('T4, finished: the box reads only its own words while the yes/no pop-up is up', async () => {
     const { s, getByTestId } = await liveBoard();
     for (const f of buttonFrames('Keep this hand of seven?', 'Keep', 'Mulligan')) s.send(f);
 
     await waitFor(() => getByTestId('live-confirm-host'));
-    expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(true);
-    expect(getByTestId('live-button-ok').textContent).toBe('OK');
+    expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(true);
+    expect(getByTestId('live-buttons').textContent).toBe('Next PhaseEnd TurnFull controlConcede');
   });
 
-  it('T4, finished: the bar’s OK reads "OK", not "Play", while the coin-toss pop-up is up', async () => {
+  it('T4, finished: the box never says "Play" while the coin-toss pop-up is up', async () => {
     const { s, getByTestId } = await liveBoard();
     for (const f of buttonFrames('You have won the coin toss.\n\nPlay or draw?', 'Play', 'Draw')) s.send(f);
 
     await waitFor(() => getByTestId('live-play-or-draw-host'));
-    expect((getByTestId('live-button-ok') as HTMLButtonElement).disabled).toBe(true);
-    expect(getByTestId('live-button-ok').textContent).toBe('OK');
+    expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(true);
+    expect(getByTestId('live-buttons').textContent).toBe('Next PhaseEnd TurnFull controlConcede');
   });
 
   /*
@@ -3453,6 +3499,168 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
 
     await waitFor(() => getByTestId('live-play-or-draw-host'));
     expect(container.querySelector('[data-testid="board-mid"]')?.hasAttribute('data-question')).toBe(true);
+  });
+});
+
+/*
+ * Wave 51. The operator, 2026-10-06: *"can we change the control box word to
+ * 'Next Phase' so that button is specifically only for that. and any 'Ok'
+ * situations are popups decisions instead?"* and *"keep the same 4 buttons in
+ * the control box at all times? just grey out the 'Next Phase' and 'End Turn'
+ * buttons when they are not relevant."*
+ */
+describe('wave 51 — the control box is fixed furniture; every other answer is the decision pop-up', () => {
+  const notify = (raw: unknown) => parseServerFrame(raw);
+  const bar = (label1: string, label2: string, enable1 = true, enable2 = true) =>
+    notify({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1, label2, enable1, enable2, focus1: enable1 });
+  const prompt = (message: string, cardId: number | null = null) =>
+    notify({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: cardId === null ? null : { kind: 'card', id: cardId } });
+  const box = (getByTestId: (id: string) => HTMLElement) => {
+    const b = (id: string) => getByTestId(id) as HTMLButtonElement;
+    return {
+      labels: [...getByTestId('live-buttons').querySelectorAll('button')].map((el) => el.textContent),
+      nextPhase: !b('live-button-next-phase').disabled,
+      endTurn: !b('live-button-end-turn').disabled,
+    };
+  };
+  const FOUR = ['Next Phase', 'End Turn', 'Full control', 'Concede'];
+  const acts = (s: ReplayServer) =>
+    s.clientFrames().flatMap((f) => (f.ok && f.value.kind === 'act' ? [f.value.method] : []));
+
+  it('draws the same four buttons in every state, with Next Phase only at the empty-stack priority pass and End Turn only while Forge names it', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const states: [string, () => unknown[], { nextPhase: boolean; endTurn: boolean }][] = [
+      ['no bar yet', () => [], { nextPhase: false, endTurn: false }],
+      ['priority with spells on the stack', () => [prompt('Priority: you'), bar('OK', 'End Turn')], { nextPhase: false, endTurn: true }],
+      ['priority, stack empty', () => [stackDelta(m), prompt('Priority: you'), bar('OK', 'End Turn')], { nextPhase: true, endTurn: true }],
+      ['priority after a mana tap (OK + Undo)', () => [bar('OK', 'Undo (1)')], { nextPhase: false, endTurn: false }],
+      ['a yes/no', () => [prompt('Pay 2 life?'), bar('Yes', 'No')], { nextPhase: false, endTurn: false }],
+      ['the coin toss', () => [prompt('Play or draw?'), bar('Play', 'Draw')], { nextPhase: false, endTurn: false }],
+      ['a target being chosen', () => [prompt('Select targets for Lightning Bolt'), bar('OK', 'Cancel', false, true)], { nextPhase: false, endTurn: false }],
+      ['blockers done', () => [prompt('Declare blockers'), bar('OK', 'Cancel', true, false)], { nextPhase: false, endTurn: false }],
+      ['a payment', () => [bar('Auto', 'Cancel'), prompt('Pay Mana Cost: {1}', mine[0]!)], { nextPhase: false, endTurn: false }],
+    ];
+    for (const [what, frames, expected] of states) {
+      for (const f of frames()) s.send(f as never);
+      await waitFor(() => expect(box(getByTestId), what).toEqual({ labels: FOUR, ...expected }));
+      // One pop-up at a time, whichever it is.
+      const popups = ['live-decision', 'live-confirm', 'live-play-or-draw', 'live-payment'].filter((id) => queryByTestId(id) !== null);
+      expect(popups.length, `${what}: ${popups.join(', ')}`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('priority with spells on the stack is the pop-up: Forge’s line and Forge’s OK, which passes; End Turn stays in the box', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    expect(m.view!.stack.length, 'the fixture has spells on the stack').toBeGreaterThan(0);
+    for (const f of [prompt('Priority: you\nStack: Direct Current'), bar('OK', 'End Turn')]) s.send(f);
+
+    const popup = await waitFor(() => getByTestId('live-decision'));
+    expect(getByTestId('live-decision-host').className).toBe('live__prompt');
+    expect(popup.textContent).toContain('Stack: Direct Current');
+    expect(getByTestId('live-decision-ok').textContent).toBe('OK');
+    expect(queryByTestId('live-decision-cancel'), 'End Turn is the box’s, never drawn twice').toBeNull();
+    expect(box(getByTestId)).toEqual({ labels: FOUR, nextPhase: false, endTurn: true });
+    expect(getByTestId('live-buttons').textContent, 'the box never says OK').not.toContain('OK');
+    expect(getByTestId('board-mid').hasAttribute('data-question'), 'the stack knows a question is up').toBe(true);
+
+    fireEvent.click(getByTestId('live-decision-ok'));
+    await waitFor(() => expect(acts(s)).toEqual(['selectButtonOk']));
+    await waitFor(() => expect(queryByTestId('live-decision'), 'pressed: the pop-up goes with the bar').toBeNull());
+  });
+
+  it('Next Phase presses Forge’s button one at the empty-stack pass, and no pop-up opens', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    s.send(stackDelta(m));
+    await waitFor(() => expect(m.view!.stack).toHaveLength(0));
+    for (const f of [prompt('Priority: you'), bar('OK', 'End Turn')]) s.send(f);
+    await waitFor(() => expect(box(getByTestId).nextPhase).toBe(true));
+    expect(queryByTestId('live-decision')).toBeNull();
+    fireEvent.click(getByTestId('live-button-next-phase'));
+    await waitFor(() => expect(acts(s)).toEqual(['selectButtonOk']));
+  });
+
+  it('End Turn presses Forge’s button two', async () => {
+    const { s, getByTestId } = await liveBoard();
+    s.send(bar('OK', 'End Turn'));
+    await waitFor(() => expect(box(getByTestId).endTurn).toBe(true));
+    fireEvent.click(getByTestId('live-button-end-turn'));
+    await waitFor(() => expect(acts(s)).toEqual(['selectButtonCancel']));
+  });
+
+  it('a target’s Cancel is the pop-up’s, alone, in Forge’s word — and it backs out', async () => {
+    const { s, getByTestId, queryByTestId } = await liveBoard();
+    for (const f of [prompt('Select targets for Lightning Bolt'), bar('OK', 'Cancel', false, true)]) s.send(f);
+    await waitFor(() => getByTestId('live-decision'));
+    expect(queryByTestId('live-decision-ok'), 'Forge has not enabled OK: not drawn').toBeNull();
+    expect(getByTestId('live-decision-cancel').textContent).toBe('Cancel');
+    fireEvent.click(getByTestId('live-decision-cancel'));
+    await waitFor(() => expect(acts(s)).toEqual(['selectButtonCancel']));
+  });
+
+  it('OK + Undo (N) after a mana tap is the pop-up, with both of Forge’s words', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    s.send(stackDelta(m));
+    s.send(bar('OK', 'Undo (1)'));
+    await waitFor(() => getByTestId('live-decision'));
+    expect(getByTestId('live-decision-ok').textContent).toBe('OK');
+    expect(getByTestId('live-decision-cancel').textContent).toBe('Undo (1)');
+    expect(box(getByTestId)).toEqual({ labels: FOUR, nextPhase: false, endTurn: false });
+  });
+
+  it('the payment window and a selection pop-up keep their inputs: no decision pop-up beside them', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    for (const f of [bar('Auto', 'Cancel'), prompt('Pay Mana Cost: {1}', mine[0]!)]) s.send(f);
+    await waitFor(() => getByTestId('live-payment'));
+    expect(queryByTestId('live-decision')).toBeNull();
+
+    const GRAVEYARD_CARD = 555001;
+    s.send(notify({ kind: 'notify', method: 'setSelectables', cards: [{ kind: 'card', id: GRAVEYARD_CARD }], min: 1, max: 1 }));
+    for (const f of [prompt('Return a Zombie from your graveyard?'), bar('OK', 'Cancel', false, true)]) s.send(f);
+    await waitFor(() => getByTestId('live-selection-host'));
+    expect(queryByTestId('live-decision')).toBeNull();
+  });
+
+  /*
+   * §A.6 — *"why is the stack carousel so much higher than the decision box?
+   * thats silly it should be right above the decision box."* jsdom lays out
+   * nothing, so the boxes are given; what is pinned is the arithmetic and that
+   * the root carries it only while something is in the column.
+   */
+  it('§A.6: --question-top is the topmost sheet’s top edge in the band’s frame, and only while a question is up', async () => {
+    const { s, m, getByTestId, container } = await liveBoard();
+    const rects = new Map<string, number>([
+      ['board', 40],
+      ['confirm', 340],
+    ]);
+    const real = Element.prototype.getBoundingClientRect;
+    const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const top = [...rects].find(([cls]) => this.classList.contains(cls))?.[1];
+      return top === undefined ? real.call(this) : new DOMRect(0, top, 200, 120);
+    });
+    try {
+      const root = container.querySelector<HTMLElement>('.live')!;
+      expect(questionTopOf(root), 'nothing in the column').toBeNull();
+      for (const f of [prompt('Priority: you\nStack: Direct Current'), bar('OK', 'End Turn')]) s.send(f);
+      await waitFor(() => getByTestId('live-decision'));
+      expect(questionTopOf(root)).toBe(300);
+      await waitFor(() => expect(root.style.getPropertyValue('--question-top')).toBe('300px'));
+
+      pressButton(m, 'ok');
+      act(() => {
+        m.revision += 1;
+      });
+      await waitFor(() => expect(root.style.getPropertyValue('--question-top'), 'no pop-up: the column is as before').toBe(''));
+    } finally {
+      spy.mockRestore();
+    }
+    // And the band reads it: hung from that edge, a gap above it, thumbnails at its foot.
+    const boardCss = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', '../board.css'), 'utf8');
+    expect(declarations(boardCss, '.board__mid[data-question]')).toContain(
+      'top: max(var(--board-gap), calc(var(--question-top, 0px) - var(--mid-h) - var(--board-gap)));',
+    );
+    expect(declarations(boardCss, '.board__mid[data-question] > .stack')).toBe('justify-content: flex-end;');
   });
 });
 
