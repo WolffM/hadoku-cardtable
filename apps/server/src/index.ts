@@ -84,6 +84,7 @@ import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } 
 import { attachBrowserBridge } from './play/browser/index.js';
 import { attachTables } from './http/index.js';
 import { attachRooms } from './http/rooms.js';
+import { attachSounds } from './http/sounds.js';
 import { openLobby } from './room/lobby.js';
 
 mkdirSync(CONFIG.logDir, { recursive: true });
@@ -300,6 +301,15 @@ const lobby = await openLobby({
 	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
 });
 attachRooms(api, { lobby });
+
+// ── Sounds ───────────────────────────────────────────────────────────────────
+// The sound-builder's catalogue, take audio, and assignment matrix. Same
+// gitignored-`data/` reasoning as rooms above: a redeploy must not wipe an
+// admin's assignments. No in-memory open step — `attachSounds` reads and
+// writes the directory per request, same as `attachTables` reads `decks/`.
+attachSounds(api, {
+	dir: process.env.CARDTABLE_SOUNDS_DIR ?? resolve(CONFIG.logDir, '../data/sounds'),
+});
 
 // ── The draft room ───────────────────────────────────────────────────────────
 // The cube the pod is dealt from. Read once at boot, like the base-path check

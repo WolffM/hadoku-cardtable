@@ -96,6 +96,23 @@ All mana, tap and card type symbol images are copyright Wizards of the Coast.
 
 Neither font is renamed, per the SIL OFL reserved font name clause.
 
+## Sound effects
+
+Most sound-effect takes used by the sound builder (`#/sounds`, admin-gated) and, later, the game
+itself were generated locally with **Stable Audio Open**, run on the operator's own hardware with no
+third-party service involved.
+
+This Stability AI Model is licensed under the Stability AI Community License, Copyright © Stability
+AI Ltd. All Rights Reserved.
+
+Powered by Stability AI.
+
+The hand-rolled victory and defeat takes are this project's own.
+
+Audio bytes are never committed to this repository. They are served from the cardtable server's own
+data directory (`CARDTABLE_SOUNDS_DIR`) and never bundled into the UI — see
+`apps/server/src/http/sounds.ts` and `scripts/sfx/import.py`.
+
 ## hadoku-watchparty
 
 The room, chat and presence layer derives from `hadoku-watchparty` (MIT).

@@ -50,6 +50,36 @@ export {
 export { semanticIssues, formatPath } from './semantics.ts';
 
 export {
+  COLOUR_IDS,
+  EVENT_IDS,
+  PARADIGM_IDS,
+  SOUND_MATRIX,
+  SOUND_SECTIONS,
+  TAKE_FILE_RE,
+  MAX_TAKES_PER_CELL,
+  SoundTakeSchema,
+  CatalogueSchema,
+  AssignmentsSchema,
+  PutAssignmentBodySchema,
+  isCellId,
+  parseCellId,
+  type ColourId,
+  type EventId,
+  type ParadigmId,
+  type ColourFamily,
+  type ManaPip,
+  type ColourRow,
+  type EventRow,
+  type ParadigmCol,
+  type CellId,
+  type SoundSection,
+  type SoundTake,
+  type Catalogue,
+  type Assignments,
+  type PutAssignmentBody,
+} from './sounds.ts';
+
+export {
   SeqCursorSchema,
   DRAFT_CHANNEL,
   JoinDraftSchema,

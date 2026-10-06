@@ -31,3 +31,32 @@ Every take has a `.json` sidecar (prompt, seed, steps, cfg, model, licence), so 
 The GPU is shared (InvokeAI and other projects' jobs hold most of it at times): `--offload model` needs about
 4 GB, and an out-of-memory take waits 30 s and retries rather than failing. A rerun resumes: existing takes
 are skipped.
+
+## Import into the server (wave 50)
+
+The builder (`#/sounds` on the deployed app, admin-gated) reads its catalogue and takes from the
+server's own `CARDTABLE_SOUNDS_DIR`, never from this repo and never from the artifact. `import.py`
+turns a `finished/` snapshot — a per-folder `manifest.json`, the shape `finish.py` writes — into that
+directory's layout:
+
+```sh
+python3 scripts/sfx/import.py --from <finished dir> --seed <assignments.json> --to <sounds dir> [--force]
+```
+
+- `catalogue.json` is rebuilt from `--from` on every run — it describes what audio exists, not
+  anything an admin edited through the builder.
+- `assignments.json` is written from `--seed` only if it does not already exist; `--force`
+  overwrites it. An admin's own assignments, made through the builder, must never be clobbered by a
+  re-import.
+- The `.ogg` files are copied into `<to>/takes/<folder>/<file>`, with the folder segment lowercased
+  (`BG.land` → `bg.land`) — `apps/server/src/http/sounds.ts`'s take-serving route and
+  `@hadoku/shared`'s `TAKE_FILE_RE` are lowercase-only, but a source folder carries the colour code's
+  own case.
+- Colour-identity and event names/families match `packages/shared/src/sounds.ts`'s `SOUND_MATRIX`
+  (duplicated in the script, since this is a one-off Python tool with no TypeScript dependency), not
+  `prompts.json`'s older moment vocabulary (`m-land`, `m-tap`, `m-counter`, `m-lifegain`). Library
+  sound names and groups come from `round3.json`, read at import time.
+
+Audio bytes never enter this repo or the UI bundle at any point in this pipeline — `import.py` only
+ever reads from a local `finished/` directory and writes to the server's data directory, both outside
+git.
