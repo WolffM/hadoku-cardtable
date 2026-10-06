@@ -620,6 +620,8 @@ jobs:
           LIST
           )
           known_flaky=$(pinned <<'LIST'
+          # End Turn's skip-delay pref and its click are two Forge messages, each run on its own server thread (X1's finding), so under load the click can apply first and the first skipped phases still sleep. 2 of 4 CI runs on 2026-10-06 (red 37521595277, 37532893898; green 37524669423, 37530013218). Ledger Y26; owner: the next engine/bridge wave (PlayBridge.act's End Turn ordering).
+          End Turn passes phases without the pacing sleep, against real Forge an End Turn click passes its phases under 50 ms apart, and the pacing is back afterwards
           # :663 fixed in w49; the declined-click bound (2) is then exceeded 3 of ~11 runs under `taskset -c 0`, 0 of 10 unpinned. docs/planning/wave49-evidence/B/README.md §1
           playing by clicking the board, against a real Forge match a player plays a land and casts spells — one targeted — by clicking their own board
           # Seat 1's card lookup races the reveal's decode: 'card #47' instead of 'Forest (47)', red and green on main. docs/planning/wave38-evidence/U-prompts-jvm-red.md
