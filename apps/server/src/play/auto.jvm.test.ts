@@ -505,6 +505,7 @@ describe.skipIf(!available.ok)(title, () => {
 				enable1: boolean;
 				enable2: boolean;
 				actionable: number[] | null;
+				confirmAbility: unknown;
 			}
 			const rows: Row[] = [];
 			const live = { prompt: null as ServerFrame | null, buttons: null as ServerFrame | null, actionable: null as number[] | null };
@@ -522,6 +523,7 @@ describe.skipIf(!available.ok)(title, () => {
 					enable1: b.enable1,
 					enable2: b.enable2,
 					actionable: live.actionable === null ? null : [...live.actionable],
+					confirmAbility: p.confirmAbility ?? null,
 				};
 				const prev = rows[rows.length - 1];
 				if (prev !== undefined && JSON.stringify(prev) === JSON.stringify(row)) return;
@@ -533,6 +535,10 @@ describe.skipIf(!available.ok)(title, () => {
 				log: (e) => logs.push(e),
 				askTimeoutMs: 120_000,
 				overGraceMs: 60_000,
+				// The sacrifice confirm is recorded as the seat would be shown it. Under the
+				// default (`costConfirm: 'accept'`, w52) the server answers it and withholds it,
+				// because the seat chose Evolving Wilds' ability the click before.
+				stopPolicy: { ...DEFAULT_STOP_POLICY, costConfirm: 'ask' },
 				emit: (_m, seat, envelope) => {
 					sent.push({ seat, envelope });
 					const f = envelope.frame;
@@ -765,9 +771,17 @@ describe.skipIf(!available.ok)(title, () => {
 				// the activation (`HumanCostDecision.java:1295-1301` returns null).
 				expect(row.enable1).toBe(true);
 				expect(row.enable2).toBe(true);
-				// And the frame carries NOTHING that names what is being paid for:
-				// no card reference, no cost, not even an ask id.
+				// Forge's own frame names nothing it is paid for: no card reference, no
+				// cost. Since w52 the bridge adds the ability the confirm belongs to
+				// (`confirmAbility`, read off `InputConfirm.sa`): an Evolving Wilds of
+				// seat 0's. That is what lets `chosenCostConfirm` answer it.
 				expect(row.card).toBeNull();
+				const seat0 = stateOf(0).get(keyOf(TYPE.player, match.seats[0]!.playerId ?? -1));
+				const wilds = ['Battlefield', 'Graveyard', 'Hand'].flatMap((z) => ids(seat0, z)).filter((id) => {
+					const view = stateOf(0).get(keyOf(TYPE.card, id));
+					return str(view, 'Name') === 'Evolving Wilds' || str(stateOf(0).get(keyOf(TYPE.cardState, id * 16)), 'Name') === 'Evolving Wilds';
+				});
+				expect(wilds).toContain((row.confirmAbility as { hostCard?: { id: number } } | null)?.hostCard?.id);
 				const facts: PromptFacts = readPromptFacts(notesFrom(row));
 				expect(facts.window).toBe('other');
 				expect(facts.cost).toBeNull();
