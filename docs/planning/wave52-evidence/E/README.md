@@ -96,3 +96,8 @@ Jar: the staged w52 build. HEAD `37bf3d0`, 2026-10-06 20:55–21:44Z.
   "no Forge" line on stderr. `/health`: `{"status":"healthy","bundle":"ok"}`.
 - Landed with the consumers in one `land.sh` run right after, so the old server ran against the
   new jar only for the minutes the land took.
+
+## Against the installed jar
+
+After the install, and after rebasing onto main `54c0451`: `e2e/w52-mana.spec.ts` → **3 passed, 0
+skipped**, and `w52-s-augur` + `w52-s-signet` + `auto.jvm` → **6 passed**. Landed as `015c5c6`.
