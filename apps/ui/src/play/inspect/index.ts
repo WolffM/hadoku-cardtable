@@ -277,6 +277,46 @@ export function placeInspector(
 }
 
 /**
+ * Where the enlarged card goes when the hovered card is INSIDE a pop-up (a
+ * `.live__prompt`: a choice grid, a selection, a reveal). Client coordinates.
+ *
+ * The operator, 2026-10-06, on a three-card "put into hand" choice: the
+ * enlarged view drew under the pop-up, and *"in situations like these, the
+ * expanded card view needs to display to the left of the popout modal"*.
+ * `placeInspector`'s right-of-the-card anchor would put it over the pop-up's
+ * own grid, so here the pop-up is the thing it stands beside:
+ *
+ *   - to the pop-up's LEFT, a `GAP` clear of it, when it fits there;
+ *   - otherwise to its RIGHT, when it fits there;
+ *   - otherwise on whichever side has more room, shrunk to that room —
+ *     never over the pop-up;
+ *   - its top edge level with the hovered card's, clamped inside `area`.
+ */
+export function placeBesideModal(
+  hover: Rect,
+  modal: Rect,
+  area: Rect,
+): { left: number; top: number; width: number } {
+  const fullW = Math.max(0, Math.min(PREF_W, (area.bottom - area.top - 2 * GAP) / CARD_TALL));
+  const roomLeft = modal.left - GAP - (area.left + GAP);
+  const roomRight = area.right - GAP - (modal.right + GAP);
+  let left: number;
+  let width = fullW;
+  if (roomLeft >= fullW) left = modal.left - GAP - fullW;
+  else if (roomRight >= fullW) left = modal.right + GAP;
+  else if (roomLeft >= roomRight) {
+    width = Math.max(0, roomLeft);
+    left = modal.left - GAP - width;
+  } else {
+    width = Math.max(0, roomRight);
+    left = modal.right + GAP;
+  }
+  const height = width * CARD_TALL;
+  const top = Math.min(Math.max(hover.top, area.top + GAP), Math.max(area.top + GAP, area.bottom - GAP - height));
+  return { left, top, width };
+}
+
+/**
  * One live instance per root: mounting the same `root` again tears the prior
  * instance down FIRST (its listeners off, its panel gone) before the new one
  * attaches. Without this, two mounts on one root stack independent
@@ -341,8 +381,20 @@ export function mountInspector(root: ParentNode): () => void {
     const art = clone.querySelector('img');
     if (art !== null) art.setAttribute('loading', 'eager');
 
-    const boardR = rectOf(overlayEl.getBoundingClientRect());
-    const spot = placeInspector(rectOf((target.trigger ?? target.tile).getBoundingClientRect()), boardR, handRect());
+    const hoverR = rectOf((target.trigger ?? target.tile).getBoundingClientRect());
+    // A card inside a pop-up: the panel is a SIBLING of the pop-up, in the
+    // pop-up's own positioned container, because inside the board overlay
+    // (`--z-overlay`) its `--z-zoom` only ranks it within that layer and the
+    // pop-up (`--z-popover`) painted over it. Beside the pop-up, never on it.
+    // The pop-up's parent is `.live` (`position: relative`), its containing block.
+    const modal = target.tile.closest('.live__prompt');
+    const modalBox = modal?.parentElement ?? null;
+    const host: HTMLElement = modalBox instanceof HTMLElement ? modalBox : overlayEl;
+    const hostR = rectOf(host.getBoundingClientRect());
+    const spot =
+      modal !== null && host !== overlayEl
+        ? placeBesideModal(hoverR, rectOf(modal.getBoundingClientRect()), hostR)
+        : placeInspector(hoverR, hostR, handRect());
 
     const el = doc.createElement('div');
     el.className = 'inspect';
@@ -350,11 +402,11 @@ export function mountInspector(root: ParentNode): () => void {
     // A visual enlargement of content already in the accessibility tree; the
     // tile underneath stays the readable one. Not a dialog, not a status.
     el.setAttribute('aria-hidden', 'true');
-    el.style.left = `${spot.left - boardR.left}px`;
-    el.style.top = `${spot.top - boardR.top}px`;
+    el.style.left = `${spot.left - hostR.left}px`;
+    el.style.top = `${spot.top - hostR.top}px`;
     el.style.width = `${spot.width}px`;
     el.appendChild(clone);
-    overlayEl.appendChild(el);
+    host.appendChild(el);
     panel = el;
 
     // A card can leave the DOM under an open preview (it died, the zone

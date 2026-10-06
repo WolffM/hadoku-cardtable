@@ -20,7 +20,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { CARD_TALL, GAP, PREF_W, placeInspector, type Rect } from './index.ts';
+import { CARD_TALL, GAP, PREF_W, placeBesideModal, placeInspector, type Rect } from './index.ts';
 
 const BOARD: Rect = { left: 0, top: 0, right: 1200, bottom: 800 };
 
@@ -143,5 +143,49 @@ describe('placeInspector', () => {
       // The general (non-hand) anchor: right of the card, top-aligned.
       expect(spot).toEqual({ left: hover.right + GAP, top: hover.top, width: PREF_W });
     });
+  });
+});
+
+/*
+ * A card inside a pop-up (operator, 2026-10-06: a three-card "put into hand"
+ * choice drew its enlargement under the pop-up). The panel stands BESIDE the
+ * pop-up — left first — and never on it.
+ */
+describe('placeBesideModal', () => {
+  const AREA: Rect = { left: 0, top: 0, right: 1200, bottom: 800 };
+  const overlaps = (spot: { left: number; width: number }, modal: Rect) =>
+    spot.left < modal.right && spot.left + spot.width > modal.left;
+
+  it('opens to the LEFT of the pop-up, a GAP clear of it, level with the hovered card', () => {
+    const modal: Rect = { left: 500, top: 200, right: 900, bottom: 600 };
+    const hover: Rect = { left: 520, top: 260, right: 600, bottom: 370 };
+    const spot = placeBesideModal(hover, modal, AREA);
+    expect(spot).toEqual({ left: 500 - GAP - PREF_W, top: 260, width: PREF_W });
+    expect(overlaps(spot, modal)).toBe(false);
+  });
+
+  it('goes to the RIGHT only when the left has no room for it', () => {
+    const modal: Rect = { left: 100, top: 200, right: 500, bottom: 600 };
+    const hover: Rect = { left: 120, top: 260, right: 200, bottom: 370 };
+    const spot = placeBesideModal(hover, modal, AREA);
+    expect(spot).toEqual({ left: 500 + GAP, top: 260, width: PREF_W });
+    expect(overlaps(spot, modal)).toBe(false);
+  });
+
+  it('shrinks onto the roomier side rather than ever covering the pop-up', () => {
+    const modal: Rect = { left: 150, top: 200, right: 1000, bottom: 600 };
+    const hover: Rect = { left: 900, top: 260, right: 980, bottom: 370 };
+    const spot = placeBesideModal(hover, modal, AREA);
+    // Left room 150 - 8 - 8 = 134, right room 1200 - 8 - 1008 = 184: the right wins.
+    expect(spot.left).toBe(1000 + GAP);
+    expect(spot.width).toBe(184);
+    expect(overlaps(spot, modal)).toBe(false);
+  });
+
+  it('keeps the panel inside the area vertically', () => {
+    const modal: Rect = { left: 500, top: 400, right: 900, bottom: 790 };
+    const hover: Rect = { left: 520, top: 700, right: 600, bottom: 790 };
+    const spot = placeBesideModal(hover, modal, AREA);
+    expect(spot.top + spot.width * CARD_TALL).toBeLessThanOrEqual(AREA.bottom - GAP);
   });
 });

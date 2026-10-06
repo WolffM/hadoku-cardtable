@@ -195,6 +195,28 @@ describe('opening', () => {
     }
   });
 
+  it('a tile in a pop-up opens BESIDE the pop-up, in its container, not inside the board overlay', () => {
+    // Operator, 2026-10-06: a three-card "put into hand" choice drew the
+    // enlargement under the pop-up — the overlay's own layer ranks below it.
+    const { panel, board } = mountBoard();
+    const live = document.createElement('div');
+    live.className = 'live';
+    live.innerHTML =
+      '<div class="live__prompt"><ul><li data-card-id="78"><article class="card" data-card-id="w78"><span class="card__name">Popup Card</span></article></li></ul></div>';
+    document.body.appendChild(live);
+    try {
+      hover(live.querySelector('li')!);
+      const shown = document.querySelector<HTMLElement>('[data-inspect]');
+      expect(shown).not.toBeNull();
+      expect(shown!.parentElement, 'a sibling of the pop-up').toBe(live);
+      expect(panel(), 'not in the board overlay').toBeNull();
+      expect(board.contains(shown!)).toBe(false);
+      expect(shown!.querySelector('.card__name')!.textContent).toBe('Popup Card');
+    } finally {
+      live.remove();
+    }
+  });
+
   it('stays one panel while the pointer moves within the same card', () => {
     const { panel, theirCard } = mountBoard();
     const li = theirCard();
