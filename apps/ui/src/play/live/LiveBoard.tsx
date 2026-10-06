@@ -2155,7 +2155,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * both — `classifySelection` already told them apart; `SelectionPrompt`
        * draws the same grid either way, with Forge's own prompt line as its
        * title. `done`/`cancel` are Forge's own two bar buttons, omitted
-       * (drawing neither) exactly where Forge has not enabled them.
+       * (drawing neither) exactly where Forge has not enabled them. Wave 51:
+       * Forge enables its OK once enough is picked (or none is needed), and
+       * with the bar's OK gone this Done is the only place it can be pressed.
        */}
       {selectionPopup && match.selectables !== null && (
         <div className="live__prompt" data-testid="live-selection-host">
@@ -2165,11 +2167,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             lookup={lookupFromState(match.state)}
             picked={match.highlighted ?? EMPTY_CARD_IDS}
             onPick={(id) => selectCard(match, id)}
-            done={
-              match.selectables.min === 0 && bar?.enable1 === true
-                ? { label: bar.label1, enabled: true, onClick: () => pressButton(match, 'ok') }
-                : undefined
-            }
+            done={bar?.enable1 === true ? { label: bar.label1, enabled: true, onClick: () => pressButton(match, 'ok') } : undefined}
             cancel={bar?.enable2 === true ? { label: bar.label2, enabled: true, onClick: () => pressButton(match, 'cancel') } : undefined}
           />
         </div>

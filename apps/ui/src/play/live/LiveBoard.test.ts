@@ -3620,6 +3620,14 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
     for (const f of [prompt('Return a Zombie from your graveyard?'), bar('OK', 'Cancel', false, true)]) s.send(f);
     await waitFor(() => getByTestId('live-selection-host'));
     expect(queryByTestId('live-decision')).toBeNull();
+    expect(queryByTestId('selection-done'), 'Forge has not enabled OK: no Done').toBeNull();
+
+    // Enough picked (min 1 of up to 2): Forge enables OK, and the pop-up's Done is where it is pressed now.
+    s.send(bar('OK', 'Cancel', true, true));
+    await waitFor(() => expect(getByTestId('selection-done').textContent).toBe('OK'));
+    expect(queryByTestId('live-decision')).toBeNull();
+    fireEvent.click(getByTestId('selection-done'));
+    await waitFor(() => expect(acts(s)).toContain('selectButtonOk'));
   });
 
   /*
