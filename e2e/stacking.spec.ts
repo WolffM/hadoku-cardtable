@@ -24,7 +24,7 @@ import { expect, test } from '@playwright/test';
 import { makeTitled } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { boxOf, onTopPoint, pointerDrag, type Box } from './play/w32.ts';
+import { boxOf, centre as centreOf, onTopPoint, pointerDrag, type Box } from './play/w32.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -137,6 +137,98 @@ test(titled('W12 — every card in a pile is the same size, 2 cards to 8, base a
       await pointerDrag(page, page.locator(`[data-card-id="${target}"]`), onTopPoint(box));
     }
     await checkEqualSizes(8);
+  } finally {
+    await stack.stop();
+  }
+});
+
+/**
+ * The operator, 2026-10-06, in a live game: *"lands are not tappable if they are stacked on top of
+ * eachother"*, and *"when dragging a card OFF a stacked set of cards the viewport weirdly changes in
+ * size … the whole thing resizes and gives me extra space at the bottom"*.
+ *
+ * Both were the pile's own markup. Its list (`ul.board-card__pile`) is laid over the whole pile and
+ * took every press, so no click reached a card's button; and a card lifted out of a pile kept its
+ * `data-pile-size`, whose `position: relative` beat the drag ghost's `position: absolute`, so the
+ * ghost became one more row of the board, 600 px below the pointer, and squeezed the rows above it.
+ */
+test(titled('a piled land taps where it shows, and lifting a card off a pile moves nothing but the card'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
+    const page = alice.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const [a, b, c] = await eightLoneLands(page);
+    const card = (id: string) => page.locator(`li.board-card[data-card-id="${id}"]`);
+    await pointerDrag(page, card(b!), onTopPoint(await boxOf(card(a!))));
+    await pointerDrag(page, card(c!), onTopPoint(await boxOf(card(a!))));
+    await expect(card(a!), 'three Plains in one pile').toHaveAttribute('data-pile-size', '3');
+
+    /** A point where `id` is the card actually under the pointer, or null when none of it shows. */
+    const showsAt = (id: string) =>
+      page.evaluate((cid) => {
+        const r = document.querySelector(`li.board-card[data-card-id="${cid}"]`)!.getBoundingClientRect();
+        for (let y = r.top + 2; y < r.bottom; y += 3) {
+          for (let x = r.left + 2; x < r.right; x += 3) {
+            const li = document.elementFromPoint(x, y)?.closest('li.board-card');
+            if (li?.getAttribute('data-card-id') === cid) return { x, y };
+          }
+        }
+        return null;
+      }, id);
+
+    // Each of the three is under the pointer somewhere, and a click there taps THAT land.
+    for (const id of [a!, b!, c!]) {
+      // Forge offers the lands again once the tap before this one has landed; a click before that is not a click on an offer.
+      await expect(card(id), `Forge offers land ${id}`).toHaveAttribute('data-selectable', /.*/, { timeout: 10_000 });
+      const at = await showsAt(id);
+      expect(at, `some of land ${id} shows and takes the pointer`).not.toBeNull();
+      await page.mouse.click(at!.x, at!.y);
+      await expect(card(id), `the click tapped land ${id}`).toHaveAttribute('data-tapped', 'true', { timeout: 10_000 });
+    }
+
+    // Lift a card off the pile: every frame, the battlefield is where it was and the ghost is under the pointer.
+    const lone = (await basePileIds(page)).find((id) => id !== a)!;
+    await page.evaluate(() => {
+      const frames: { field: string; ghost: { x: number; y: number } | null }[] = [];
+      const state = { frames, run: true, pointer: { x: 0, y: 0 } };
+      (window as unknown as { __lift: typeof state }).__lift = state;
+      window.addEventListener('pointermove', (e) => (state.pointer = { x: e.clientX, y: e.clientY }));
+      const tick = (): void => {
+        if (!state.run) return;
+        const f = document.querySelector('.seat[data-viewer] [data-zone="battlefield"]')!.getBoundingClientRect();
+        const g = document.querySelector('[data-arrange-ghost]')?.getBoundingClientRect();
+        frames.push({
+          field: `${Math.round(f.left)},${Math.round(f.top)} ${Math.round(f.width)}x${Math.round(f.height)}`,
+          ghost: g === undefined ? null : { x: Math.round(g.left + g.width / 2 - state.pointer.x), y: Math.round(g.top + g.height / 2 - state.pointer.y) },
+        });
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    const from = (await showsAt(a!))!;
+    const to = centreOf(await boxOf(card(lone)));
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 16; i++) {
+      await page.mouse.move(from.x + ((to.x + 160 - from.x) * i) / 16, from.y + ((to.y - from.y) * i) / 16);
+      await page.waitForTimeout(25);
+    }
+    await page.mouse.up();
+    const frames = await page.evaluate(() => {
+      const state = (window as unknown as { __lift: { frames: { field: string; ghost: { x: number; y: number } | null }[]; run: boolean } }).__lift;
+      state.run = false;
+      return state.frames;
+    });
+    const held = frames.filter((f) => f.ghost !== null);
+    expect(held.length, 'the card was lifted for many frames').toBeGreaterThan(10);
+    expect([...new Set(frames.map((f) => f.field))], 'the battlefield never moved or resized').toHaveLength(1);
+    for (const f of held) {
+      expect(Math.abs(f.ghost!.x) < 80 && Math.abs(f.ghost!.y) < 80, `the lifted card is under the pointer, not ${f.ghost!.x},${f.ghost!.y} away`).toBe(true);
+    }
   } finally {
     await stack.stop();
   }

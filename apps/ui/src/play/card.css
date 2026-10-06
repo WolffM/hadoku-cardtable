@@ -112,13 +112,23 @@
   width: calc(100% - var(--pile-fan));
 }
 
-/* Out of flow and behind the card it is stacked on: the list adds no height. */
+/*
+ * Out of flow and behind the card it is stacked on: the list adds no height.
+ *
+ * And it takes no press. Its box is the whole pile's, laid over the base card's
+ * face, so while it could be hit EVERY click on a pile landed on this list and
+ * on no card's button: a piled land could not be tapped at all (the operator,
+ * 2026-10-06: "lands are not tappable if they are stacked on top of
+ * eachother"), and a drag from anywhere on a pile picked up its base. The
+ * cards in it take their own presses back, in the rule below.
+ */
 .board-card__pile {
   position: absolute;
   inset: 0;
   margin: 0;
   padding: 0;
   list-style: none;
+  pointer-events: none;
 }
 
 .board-card__pile > .board-card {
@@ -132,6 +142,7 @@
   z-index: calc(var(--at) * -1);
   width: calc(100% - var(--pile-fan));
   max-width: none;
+  pointer-events: auto;
 }
 
 .board-card__pile > .board-card[data-pile-depth='1'] {

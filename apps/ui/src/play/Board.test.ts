@@ -4109,6 +4109,32 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(snapTo(hand, 60, 86)?.target).toEqual({ kind: 'end' });
   });
 
+  it('a card lifted out of a pile is drawn as one card: its ghost carries nothing of the pile, and the ghost rule outranks the pile’s', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    dragCard(container, 24, { card: 8, at: 'top' });
+    const base = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"]')!;
+    expect(base.dataset.pileSize, '24 is stacked on 8').toBe('2');
+    for (const lifted of [8, 24]) {
+      const release = dragCard(container, lifted, { card: 8, at: 'before' }, true);
+      const ghost = boardOf(container).querySelector<HTMLElement>(':scope > [data-arrange-ghost]')!;
+      expect(ghost, `the ghost of ${lifted}`).not.toBeNull();
+      expect(ghost.hasAttribute('data-pile-size'), `${lifted}: no pile size on the copy`).toBe(false);
+      expect(ghost.hasAttribute('data-pile-depth'), `${lifted}: no pile depth on the copy`).toBe(false);
+      expect(ghost.querySelector('[data-pile-size], [data-pile-depth], .board-card__pile'), 'nor inside it').toBeNull();
+      release();
+    }
+    // The copy is positioned by a rule the pile's own `.board-card[data-pile-size]` cannot beat.
+    const rule = /\.board > \.board-card\[data-arrange-ghost\] \{([^}]*)\}/.exec(withoutComments(BOARD_CSS));
+    expect(rule, 'the ghost rule names .board-card').not.toBeNull();
+    expect(rule![1]).toMatch(/position: absolute;/);
+  });
+
+  it('a pile’s list takes no press, and every card in it takes its own', () => {
+    const css = withoutComments(CARD_CSS);
+    expect(/\.board-card__pile \{([^}]*)\}/.exec(css)?.[1]).toMatch(/pointer-events: none;/);
+    expect(/\.board-card__pile > \.board-card \{([^}]*)\}/.exec(css)?.[1]).toMatch(/pointer-events: auto;/);
+  });
+
   it('draws OUR ghost and indicator while a card is held, and removes every trace on release', () => {
     const { container } = renderBoard(view, undefined, 'single');
     const release = dragCard(container, 24, { card: 8, at: 'before' }, true);

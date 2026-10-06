@@ -1742,7 +1742,16 @@
   opacity: 0.35;
 }
 
-.board > [data-arrange-ghost] {
+/*
+ * `.board-card` in the selector on purpose: a card lifted out of a pile is still
+ * a `.board-card`, and the pile's own `.board-card[data-pile-size] { position:
+ * relative }` is exactly as specific as `.board > [data-arrange-ghost]` was. It
+ * won, so that ghost was laid out IN the board as one more row, far below the
+ * pointer, and squeezed every row above it (the operator, 2026-10-06: "when
+ * dragging a card OFF a stacked set of cards the viewport weirdly changes in
+ * size"). `Board.tsx` also strips the pile attributes from the copy.
+ */
+.board > .board-card[data-arrange-ghost] {
   position: absolute;
   top: 0;
   left: 0;
@@ -1786,7 +1795,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .board > [data-arrange-ghost] {
+  .board > .board-card[data-arrange-ghost] {
     transition: none;
   }
 }

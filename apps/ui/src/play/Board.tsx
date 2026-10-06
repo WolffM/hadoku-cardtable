@@ -2850,6 +2850,9 @@ function useArrangeDrag(
           'draggable',
           'data-selectable',
           'data-can-act',
+          // A card lifted out of a pile is one card: the pile's own layout rules must not reach its copy.
+          'data-pile-size',
+          'data-pile-depth',
         ]) {
           el.removeAttribute(attr);
         }
