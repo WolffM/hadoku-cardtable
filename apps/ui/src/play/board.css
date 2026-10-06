@@ -1430,11 +1430,14 @@
  * thumbnails sit at its bottom, one `--board-gap` above it — the operator, *"it
  * should be right above the decision box"*. `--question-top` is that edge in
  * this element's frame, measured by `LiveBoard.tsx` (`questionTopOf`), because
- * a pop-up is centred in its column at its content's height. Never above the
- * board's own top edge; unset (a bare `Board`), that is where the band goes.
+ * a pop-up is centred in its column at its content's height. Where there is
+ * less room than the compact band above the question (a tall sheet, a short
+ * window), the band shrinks to the room and its thumbnails with it, so the gap
+ * holds and nothing rises past the board's own top edge. Unset (a bare
+ * `Board`), the band sits at the board's top as before.
  */
 .board__mid[data-question] {
-  --mid-h: var(--mid-h-asked);
+  --mid-h: min(var(--mid-h-asked), calc(var(--question-top, 100rem) - 2 * var(--board-gap)));
 
   top: max(var(--board-gap), calc(var(--question-top, 0px) - var(--mid-h) - var(--board-gap)));
 }

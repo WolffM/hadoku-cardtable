@@ -3665,9 +3665,9 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
     }
     // And the band reads it: hung from that edge, a gap above it, thumbnails at its foot.
     const boardCss = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', '../board.css'), 'utf8');
-    expect(declarations(boardCss, '.board__mid[data-question]')).toContain(
-      'top: max(var(--board-gap), calc(var(--question-top, 0px) - var(--mid-h) - var(--board-gap)));',
-    );
+    const band = declarations(boardCss, '.board__mid[data-question]');
+    expect(band).toContain('--mid-h: min(var(--mid-h-asked), calc(var(--question-top, 100rem) - 2 * var(--board-gap)));');
+    expect(band).toContain('top: max(var(--board-gap), calc(var(--question-top, 0px) - var(--mid-h) - var(--board-gap)));');
     expect(declarations(boardCss, '.board__mid[data-question] > .stack')).toBe('justify-content: flex-end;');
   });
 });
