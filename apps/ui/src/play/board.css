@@ -678,8 +678,10 @@
   overflow: hidden;
 }
 
-.seat__mana-letter {
-  font-weight: 700;
+.seat__mana-symbol {
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.15em;
 }
 
 .seat__mana-n {

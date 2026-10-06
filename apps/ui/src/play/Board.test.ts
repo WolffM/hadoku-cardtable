@@ -1302,7 +1302,13 @@ describe('the table as the operator blocked it (§A)', () => {
       ['R', '2'],
       ['C', '1'],
     ]);
-    expect(pool.textContent, 'the counts are drawn, not only coloured').toBe('W1R2C1');
+    expect(pool.textContent, 'the counts are drawn, not only coloured').toBe('121');
+    // Each colour is the Mana font's own symbol, never its letter (operator, 2026-10-06).
+    expect([...pool.querySelectorAll<HTMLElement>('[data-mana] i.ms')].map((i) => i.className)).toEqual([
+      'ms ms-w ms-cost',
+      'ms ms-r ms-cost',
+      'ms ms-c ms-cost',
+    ]);
     // Colour is never the only signal: the whole pool is in words to a reader.
     const mine = view.players.find((p) => p.isViewer)!.name;
     expect(pool.getAttribute('aria-label')).toBe(`${mine} mana pool: 1 white, 2 red, 1 colourless`);

@@ -390,6 +390,7 @@
 import { useEffect, useLayoutEffect, useReducer, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
+import { ManaPip } from '../components/ManaPip.tsx';
 import { avatarSquareUrl } from '../room/avatar.ts';
 import {
   boardPT,
@@ -2261,8 +2262,11 @@ function ManaPool({ player }: { player: BoardPlayer }) {
     >
       {pool.map((m) => (
         <li key={m.color} className="seat__mana-pip" data-mana={m.color} data-mana-count={m.count}>
-          <span className="seat__mana-letter" aria-hidden="true">
-            {m.color}
+          {/* The Mana font's own symbol (D20), never the letter (operator,
+              2026-10-06: "instead of showing 'U1' can we show the actual mana
+              symbol"). The list's own label already says it in words. */}
+          <span className="seat__mana-symbol" aria-hidden="true">
+            <ManaPip token={m.color} />
           </span>
           <span className="seat__mana-n" aria-hidden="true">
             {m.count}
