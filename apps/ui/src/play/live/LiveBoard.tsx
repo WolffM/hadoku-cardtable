@@ -1791,6 +1791,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * any resize of the root or of what is in the column (a prompt that grows
    * from its own state re-renders nothing here).
    */
+  const relayoutFrame = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(relayoutFrame.current), []);
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (root === null) return undefined;
@@ -1800,15 +1802,21 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       if (root.style.getPropertyValue('--question-top') === value) return;
       if (top === null) root.style.removeProperty('--question-top');
       else root.style.setProperty('--question-top', value);
-      // The band moved with no frame from Forge: arcs drawn from its thumbnails repaint (`relayout`).
-      relayout(match);
+      /*
+       * The band moved with no frame from Forge: arcs drawn from its thumbnails
+       * repaint (`relayout`). On the next frame, never inside this commit: the
+       * same wake settles a played card's landing, which measures the card's
+       * slot, and `Board` moves a dropped card into its slot in a passive
+       * effect that has not run yet here (measured: the landing flew 190px wide).
+       */
+      cancelAnimationFrame(relayoutFrame.current);
+      relayoutFrame.current = requestAnimationFrame(() => relayout(match));
     };
     sync();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(sync);
-    observer.observe(root);
-    for (const el of root.querySelectorAll(QUESTION_SELECTOR)) observer.observe(el);
-    return () => observer.disconnect();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync);
+    observer?.observe(root);
+    for (const el of root.querySelectorAll(QUESTION_SELECTOR)) observer?.observe(el);
+    return () => observer?.disconnect();
   });
 
   if (status === 'match-gone') {

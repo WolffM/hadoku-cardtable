@@ -3663,11 +3663,13 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
       const revision = m.revision;
       rects.set('confirm', 360);
       rerender(createElement(LiveBoard, { match: m }));
-      await waitFor(() => expect(root.style.getPropertyValue('--question-top')).toBe('320px'));
-      expect(woken, 'the band moved: subscribers repaint').toHaveBeenCalled();
+      expect(root.style.getPropertyValue('--question-top'), 'measured in the commit').toBe('320px');
+      expect(woken, 'not inside the commit: a landing measured there flies to the wrong slot').not.toHaveBeenCalled();
+      await waitFor(() => expect(woken, 'the band moved: subscribers repaint on the next frame').toHaveBeenCalled());
       expect(m.revision, 'and no new revision').toBe(revision);
       woken.mockClear();
       rerender(createElement(LiveBoard, { match: m }));
+      await new Promise((r) => requestAnimationFrame(() => r(undefined)));
       expect(woken, 'nothing moved: nobody woken').not.toHaveBeenCalled();
       unsubscribe();
 
