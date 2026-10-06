@@ -223,7 +223,7 @@ interface Driven {
   /** `[seat, blockerId, attackerId]` for every block declared by a drag. */
   blocks: [number, number, number][];
   /** A drag of an attacker onto the defending player's FACE, and what it sent. */
-  faceDrags: { seat: number; attacker: number; defender: number; sentBefore: number; sentAfter: number }[];
+  faceDrags: { seat: number; attacker: number; defender: number; sentBefore: number; alreadyCurrent: boolean }[];
   log: string[];
 }
 
@@ -362,19 +362,16 @@ describe.skipIf(!available.ok)(title, () => {
                  * `boardInteraction` offers every opponent player while
                  * attackers are being declared, so `commitDrag`'s
                  * `attackAssignment` branch fires: defender first
-                 * (`selectPlayer`), then the attacker (`selectCard`) — TWO
-                 * frames for the one gesture. This is the fix for the product
-                 * gap this file used to record as unworked-around.
+                 * (`selectPlayer`), then the attacker (`selectCard`) once Forge
+                 * has marked that player its current defender (`afterMarked`:
+                 * Forge may apply two quick clicks in either order). When the
+                 * player is ALREADY the marked defender — `InputAttack` starts
+                 * on the first one — the attacker's click is the whole gesture.
                  */
                 const sentBefore = wires[s.seat]!.frames.length;
+                const alreadyCurrent = s.live.highlightedPlayers?.has(opp.id) === true;
                 drag(el, face);
-                driven.faceDrags.push({
-                  seat: s.seat,
-                  attacker: attacker.id,
-                  defender: opp.id,
-                  sentBefore,
-                  sentAfter: wires[s.seat]!.frames.length,
-                });
+                driven.faceDrags.push({ seat: s.seat, attacker: attacker.id, defender: opp.id, sentBefore, alreadyCurrent });
                 driven.attacks.push([s.seat, attacker.id]);
                 driven.log.push(`seat ${s.seat} t${v.turn} DRAGS ${attacker.card.name} ${attacker.id} onto the defender's face to attack`);
                 continue;
@@ -532,10 +529,10 @@ describe.skipIf(!available.ok)(title, () => {
         const playerPicks = wire.frames.filter((f) => f.kind === 'act' && f.method === 'selectPlayer');
         const gestures =
           driven.attacks.filter(([s]) => s === seat).length + driven.blocks.filter(([s]) => s === seat).length;
-        const faceDragsForSeat = driven.faceDrags.filter((t) => t.seat === seat).length;
+        const faceDragsForSeat = driven.faceDrags.filter((t) => t.seat === seat && !t.alreadyCurrent).length;
         expect(gestures, `seat ${seat} dragged something`).toBeGreaterThan(0);
         expect(picks.length, `seat ${seat}: exactly one selectCard per committed drag`).toBe(gestures);
-        expect(playerPicks.length, `seat ${seat}: exactly one selectPlayer per face-drag, and only from a face-drag`).toBe(faceDragsForSeat);
+        expect(playerPicks.length, `seat ${seat}: one selectPlayer per face-drag whose defender was not already current, and only from those`).toBe(faceDragsForSeat);
       }
       // And the attack and the block are in it, byte for byte.
       const [attackSeat, attackerId] = driven.attacks[0]!;
@@ -560,15 +557,19 @@ describe.skipIf(!available.ok)(title, () => {
       /* ── 4. X1/W14: the gap is fixed, and this is the proof ── */
       // An attacker dragged onto the defending player's FACE now declares the
       // attack by itself — the natural combat gesture this file used to
-      // record as inert. `attackAssignment`'s defender-first send means TWO
-      // frames for the one gesture, in order: `selectPlayer` (the defender),
-      // then `selectCard` (the attacker) — byte for byte, not merely "some
-      // frames arrived".
+      // record as inert. In order, byte for byte: `selectPlayer` (the defender)
+      // then `selectCard` (the attacker), or the attacker alone when that
+      // player was already Forge's marked defender. The attacker's frame can
+      // follow the drag by a moment (it waits for Forge's mark), so it is read
+      // from the whole wire, up to and including that attacker's frame.
       expect(driven.faceDrags.length, 'the face drag was tried at all').toBeGreaterThan(0);
       for (const t of driven.faceDrags) {
-        expect(t.sentAfter - t.sentBefore, `seat ${t.seat} dragging attacker ${t.attacker} onto the defender's face sent two frames`).toBe(2);
-        const sent = wires[t.seat]!.frames.slice(t.sentBefore, t.sentAfter);
-        expect(sent, `seat ${t.seat}'s face-drag, defender first`).toEqual([playerAct(t.defender), cardAct(t.attacker)]);
+        const after = wires[t.seat]!.frames.slice(t.sentBefore);
+        const upTo = after.findIndex((f) => f.kind === 'act' && f.method === 'selectCard' && f.card.id === t.attacker);
+        expect(upTo, `seat ${t.seat}'s face-drag sent the attacker ${t.attacker}`).toBeGreaterThanOrEqual(0);
+        const sent = after.slice(0, upTo + 1);
+        const expected = t.alreadyCurrent ? [cardAct(t.attacker)] : [playerAct(t.defender), cardAct(t.attacker)];
+        expect(sent, `seat ${t.seat}'s face-drag (defender already current: ${t.alreadyCurrent})`).toEqual(expected);
       }
     },
     300_000,

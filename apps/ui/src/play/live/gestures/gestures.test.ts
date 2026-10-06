@@ -175,6 +175,13 @@ const highlight = (ids: number[], on: boolean) =>
     entities: ids.map((id) => ({ kind: 'card', id })),
     on,
   });
+const highlightPlayers = (ids: number[], on: boolean) =>
+  parseServerFrame({
+    kind: 'notify',
+    method: 'setHighlighted',
+    entities: ids.map((id) => ({ kind: 'player', id })),
+    on,
+  });
 
 /** The Game object's wire key: `(_type << 28) | _id`, and `WireType.Game` is 3. */
 const GAME_KEY = String((3 << 28) | 1);
@@ -1221,6 +1228,14 @@ describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () =
     // The SECOND attacker: it is not the one Forge highlighted, so it reaches
     // the offered set only through `blockTargets`.
     drag(cardEl(canvas, blocker), cardEl(canvas, attackers[1]));
+    // The attacker's click goes out alone: the blocker's waits until Forge has made that attacker the
+    // current one, because Forge may apply two quick clicks in either order (`afterMarked`).
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent(s)).toEqual([['selectCard', attackers[1]]]);
+    // `InputBlock.setCurrentAttacker`: the old one unmarked, the new one marked.
+    s.send(highlight([attackers[0]!], false));
+    s.send(highlight([attackers[1]!], true));
     await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
     expect(sent(s)).toEqual([
       ['selectCard', attackers[1]],
@@ -1303,6 +1318,11 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
     const { s, m, canvas, attacker, pw } = await attackingBoard();
     await waitFor(() => expect(boardInteraction(m).selectable.has(pw)).toBe(true));
     drag(cardEl(canvas, attacker), cardEl(canvas, pw));
+    // Only the defender's click until Forge marks the planeswalker current (`InputAttack.setCurrentDefender`).
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent(s)).toEqual([['selectCard', pw]]);
+    s.send(highlight([pw], true));
     await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
     expect(sent(s)).toEqual([
       ['selectCard', pw],
@@ -1310,15 +1330,38 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
     ]);
   });
 
-  it('a drop on the opponent’s face sends selectPlayer, then selectCard', async () => {
+  it('if Forge never marks the planeswalker, the attacker’s click is never sent', async () => {
+    const { s, m, canvas, attacker, pw } = await attackingBoard();
+    await waitFor(() => expect(boardInteraction(m).selectable.has(pw)).toBe(true));
+    drag(cardEl(canvas, attacker), cardEl(canvas, pw));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    // Past the wait: sending the attacker now would declare it against whatever was current before.
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(sent(s)).toEqual([['selectCard', pw]]);
+  });
+
+  it('a drop on the opponent’s face sends selectPlayer, then selectCard once Forge marks them', async () => {
     const { s, m, canvas, attacker } = await attackingBoard();
     const opponent = theirsOf(m).id;
     drag(cardEl(canvas, attacker), faceEl(canvas, opponent));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    s.send(highlightPlayers([opponent], true));
     await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
     expect(sent(s)).toEqual([
       ['selectPlayer', opponent],
       ['selectCard', attacker],
     ]);
+  });
+
+  it('a drop on the face Forge already has as the defender sends only the attacker', async () => {
+    const { s, m, canvas, attacker } = await attackingBoard();
+    const opponent = theirsOf(m).id;
+    s.send(highlightPlayers([opponent], true));
+    await waitFor(() => expect(m.highlightedPlayers?.has(opponent)).toBe(true));
+    drag(cardEl(canvas, attacker), faceEl(canvas, opponent));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent(s)).toEqual([['selectCard', attacker]]);
   });
 
   it('a drop on the defender it already attacks sends nothing — Forge would toggle it off', async () => {

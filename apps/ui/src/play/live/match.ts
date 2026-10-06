@@ -522,6 +522,12 @@ export interface LiveMatch {
    */
   highlighted: ReadonlySet<number> | null;
   /**
+   * The PLAYERS Forge's current input has marked — the other half of the same
+   * `setHighlighted` fold. Never a clickability signal (see `highlighted`): it
+   * answers only "has Forge applied my click yet", which `afterMarked` needs.
+   */
+  highlightedPlayers: ReadonlySet<number> | null;
+  /**
    * Forge has shown an input since this client last acted. See the module
    * header: without it, no card or player click is sent.
    */
@@ -740,6 +746,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     selectables: null,
     weaklySelectable: null,
     highlighted: null,
+    highlightedPlayers: null,
     says: [],
     inputLive: false,
     spent: { cards: new Set(), players: new Set() },
@@ -1586,6 +1593,42 @@ export function attackAssignment(match: LiveMatch, attacker: number, target: { k
   return 'assign';
 }
 
+/** Forge has marked `target` (a card or a player) as its input's current one. */
+export function isMarked(match: LiveMatch, target: { kind: 'card' | 'player'; id: number }): boolean {
+  const set = target.kind === 'card' ? match.highlighted : match.highlightedPlayers;
+  return set?.has(target.id) === true;
+}
+
+/**
+ * Run `then` once Forge has marked `target` — the proof it APPLIED the click that
+ * made it current — and not before.
+ *
+ * Two clicks sent back to back can be applied in either order: Forge's server
+ * runs every incoming client message on a thread of its own
+ * (`GameProtocolHandler.channelRead` → `FThreads.invokeInBackgroundThread`, a
+ * `new Thread` per message). A planeswalker drag is defender-then-attacker and a
+ * block is attacker-then-blocker; when the second thread won, the attack went to
+ * the player or the block to the wrong attacker (playtest 8 X1, one drag in five
+ * against real Forge). Forge marks the new current defender or attacker
+ * (`InputAttack.setCurrentDefender`, `InputBlock.setCurrentAttacker`), so the
+ * second click waits for that mark. If the mark never comes, Forge refused the
+ * first click, and the second is not sent: sending it would act on whatever was
+ * current before.
+ */
+export function afterMarked(match: LiveMatch, target: { kind: 'card' | 'player'; id: number }, then: () => void, timeoutMs = 2000): void {
+  if (isMarked(match, target)) { then(); return; }
+  let done = false;
+  const finish = (go: boolean): void => {
+    if (done) return;
+    done = true;
+    unsubscribe();
+    clearTimeout(timer);
+    if (go) then();
+  };
+  const unsubscribe = subscribe(match, () => { if (isMarked(match, target)) finish(true); });
+  const timer = setTimeout(() => finish(false), timeoutMs);
+}
+
 /**
  * Whether dragging `blocker` onto `attacker` is a block assignment — and so
  * whether the two `selectCard`s go out ATTACKER FIRST (§B.3).
@@ -1797,6 +1840,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.selectables = null;
   match.weaklySelectable = null;
   match.highlighted = null;
+  match.highlightedPlayers = null;
   // The log, like the asks: the server re-sends its kept says after the
   // snapshot, so a line that survives from before is not trusted.
   match.says = [];
@@ -2057,6 +2101,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // but the order of the two frames is that input's business, not ours, and a
     // mark that outlived its input is an affordance nothing would take.
     match.highlighted = null;
+    match.highlightedPlayers = null;
     match.inputLive = false;
     match.lastSelectedCard = null;
   } else if (frame.kind === 'notify' && frame.method === 'setHighlighted') {
@@ -2064,12 +2109,14 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // replace. Cards only — see the field's note on why a marked player is not
     // a clickable one. An empty result stays a set: Forge has spoken.
     const next = new Set(match.highlighted ?? []);
+    const players = new Set(match.highlightedPlayers ?? []);
     for (const entity of frame.entities) {
-      if (entity.kind !== 'card') continue;
-      if (frame.on) next.add(entity.id);
-      else next.delete(entity.id);
+      const into = entity.kind === 'card' ? next : players;
+      if (frame.on) into.add(entity.id);
+      else into.delete(entity.id);
     }
     match.highlighted = next;
+    match.highlightedPlayers = players;
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'setWeaklySelectable') {
     // Forge's list is WEIGHTED (a card twice when the auto-tap preview names
@@ -2125,6 +2172,7 @@ function discardLocal(match: LiveMatch): void {
   match.selectables = null;
   match.weaklySelectable = null;
   match.highlighted = null;
+  match.highlightedPlayers = null;
   match.says = [];
   match.inputLive = false;
   match.attackIntent = null;
