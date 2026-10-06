@@ -174,7 +174,7 @@ describe.skipIf(!available.ok)(title, () => {
 			expect(handOf(0)).toHaveLength(hand.length);
 
 			match.stop();
-			jvm.close();
+			jvm.reapOnExit();
 			await waitUntil(() => liveJvmCount() === 0, "this match's JVM to exit", 15_000);
 		},
 		240_000,

@@ -15,15 +15,17 @@
  *   pnpm exec vitest run apps/server/src/play/scenario-start.jvm.test.ts \
  *     --pool=forks --poolOptions.forks.singleFork=true
  *
- * `CARDTABLE_SCENARIO_START_RUNS` (default 10) is the starts per scenario; the mutation
- * proof in A-repro.md ran 50 per scenario. Starts run one at a time: `Scenario.stop()`
+ * `CARDTABLE_SCENARIO_START_RUNS` is the starts per scenario: 3 by default, 10 on a
+ * nightly run. With the fix reverted a start lost a push 39 times in 40 (A-repro.md §5),
+ * so three starts miss a regression about once in eight thousand runs; the mutation
+ * proof itself ran 50 per scenario. Starts run one at a time: `Scenario.stop()`
  * waits for the PROCESS's live-JVM count to reach zero, so two matches in one process
  * would each wait on the other. Load comes from running several processes at once.
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, inOwnMain, nightly, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'a scenario start, against real Forge'
@@ -31,7 +33,7 @@ const title = available.ok
 
 const DECKS: [string, string] = [deck('Any A', ['40 Mountain']), deck('Any B', ['40 Mountain'])];
 
-const RUNS = Number(process.env.CARDTABLE_SCENARIO_START_RUNS ?? '10');
+const RUNS = Number(process.env.CARDTABLE_SCENARIO_START_RUNS ?? (nightly ? '10' : '3'));
 
 interface Case {
 	readonly scenario: string;

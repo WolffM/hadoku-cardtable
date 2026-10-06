@@ -6,7 +6,7 @@
  * database; this proves a step further, that the decks actually START A GAME
  * — the two decks are accepted, Forge deals, and the match reaches running.
  * Nine separate matches, one per era, run SERIALLY and each torn all the way
- * down (`match.stop()`, `jvm.close()`, waited out to `liveJvmCount() === 0`)
+ * down (`match.stop()`, `jvm.reapOnExit()`, waited out to `liveJvmCount() === 0`)
  * before the next starts, because nine live JVMs at once is exactly the kind
  * of host-memory problem this wave's protocol warns about.
  *
@@ -14,9 +14,12 @@
  * being a good matchup, chosen for being UNAMBIGUOUSLY the library's own, so a
  * failure here points straight at a specific `.dck` file.
  *
- * SKIPS without a Forge build, like every `*.jvm.test.ts`. To run it:
+ * NIGHTLY (`nightly` in `../play/scenario.ts`): 31 matches at ~10 s each is five
+ * minutes — a fifth of the whole jar-gated run, measured on CI run 37487474250 —
+ * and what it guards only changes when a `.dck` file or the library catalogue
+ * does. SKIPS without a Forge build, like every `*.jvm.test.ts`. To run it:
  *
- *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… \
+ *   CARDTABLE_JVM_NIGHTLY=1 CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… \
  *   pnpm exec vitest run apps/server/src/http/library-match.jvm.test.ts
  */
 
@@ -29,11 +32,12 @@ import { LIBRARY, deckPath } from '@hadoku/deck/library';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type MatchSpec } from '../play/host.js';
 import { createMatchRegistry, type Match } from '../play/match.js';
+import { nightly } from '../play/scenario.js';
 
 const available = jvmHostConfig();
 const title = available.ok
-	? 'a real match starts with one deck from each power-summer era'
-	: `a real match starts with one deck from each power-summer era — SKIPPED: ${available.reason}`;
+	? '[nightly] a real match starts with one deck from each power-summer era'
+	: `[nightly] a real match starts with one deck from each power-summer era — SKIPPED: ${available.reason}`;
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
@@ -74,12 +78,12 @@ async function startsAndRuns(seatA: { name: string; text: string }, seatB: { nam
 		if (!running.ok) throw new Error(`${seatA.name} vs ${seatB.name} did not start: ${running.error}`);
 		match.stop();
 	} finally {
-		jvm.close();
+		jvm.reapOnExit();
 		await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
 	}
 }
 
-describe.skipIf(!available.ok)(title, () => {
+describe.skipIf(!available.ok || !nightly)(title, () => {
 	it.each(LIBRARY.map((c, i) => [i, c.id] as const))('era %i (%s): its own first two decks start a real match', async (eraIndex) => {
 		const a = deckText(eraIndex, 0);
 		const b = deckText(eraIndex, Math.min(1, LIBRARY[eraIndex]!.decks.length - 1));

@@ -17,6 +17,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
+import { afterEach } from 'vitest';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type JvmHostConfig } from './host.js';
 import { createMatchRegistry, type Match } from './match.js';
@@ -25,6 +26,36 @@ import type { ServerEnvelope } from './transport.js';
 import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
 
 export const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
+
+/**
+ * A suite or case too slow to run on every push is gated on this and carries `[nightly]`
+ * in its title. CI's `forge-jvm` sets `CARDTABLE_JVM_NIGHTLY=1` on every run that is not
+ * a push (the nightly schedule, a manual run, a PR), and its judge accepts a `[nightly]`
+ * skip only on a push — so the marker and the gate go together, or the job reds.
+ */
+export const nightly = process.env.CARDTABLE_JVM_NIGHTLY === '1';
+
+/** Every scenario started and not yet stopped, by the function that ends it. */
+const running = new Set<() => void>();
+
+/**
+ * A scenario never outlives the test that started it.
+ *
+ * A test's own `finally { await s.stop() }` only covers what happens after it
+ * has the scenario in hand. A helper that starts one and then waits for
+ * something (`castThoughtseize`, and four more like it) throws before the
+ * caller's `try` begins, and its JVM was left running: a match JVM does not
+ * die with the process that started it, by design (`host.ts`). The next suites
+ * then found it at their own pool's boot sweep and counted it against the
+ * match cap, so one flaky cast turned `socket-two-mana-pass` red in 150 ms
+ * with "already running 2 matches" (measured 2026-10-06, two runs in two).
+ *
+ * Registered here, once, because this module is evaluated by every suite that
+ * can start a scenario, and a hook at a module's top level is that suite's own.
+ */
+afterEach(() => {
+	for (const end of [...running]) end();
+});
 
 export function deck(name: string, lines: readonly string[]): string {
 	return `[metadata]\nName=${name}\n[main]\n${lines.join('\n')}\n`;
@@ -224,8 +255,20 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 		],
 		...(options.scenario === undefined ? {} : { scenario: options.scenario }),
 	});
+	// Killed, not waited out: the bridge's own clean stop takes 4.4 s on a real
+	// match (measured 2026-10-06; `host.ts`, "Going down") and nothing a scenario
+	// asserts is about how its JVM ends. `jvm.test.ts` keeps the clean stop covered.
+	const end = (): void => {
+		if (!running.delete(end)) return;
+		match.stop();
+		jvm.reapOnExit();
+	};
+	running.add(end);
 	const started = await match.whenRunning(120_000);
-	if (!started.ok) throw new Error(`match did not start: ${started.error}`);
+	if (!started.ok) {
+		end();
+		throw new Error(`match did not start: ${started.error}`);
+	}
 
 	const answered = new Set<string>();
 	const handled = new Set<number>();
@@ -371,7 +414,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 			}
 		},
 		async stop() {
-			match.stop();
+			end();
 			await waitUntil(() => liveJvmCount() === 0, "this match's JVM to exit", 30_000);
 		},
 	};

@@ -39,7 +39,8 @@ jobs:
   # A push is compared with the last commit on main whose CI run fully
   # succeeded, not with its parent: a red or skipped run's changes stay in the
   # range until a green run covers them. Measured on run 37222364036:
-  # forge-e2e 8 min, forge-jvm 20 min (UI suites 7, server suites 12).
+  # forge-e2e 8 min, forge-jvm 20 min (UI suites 7, server suites 12). Since
+  # 2026-10-06 a push's forge-jvm is under 8 min in all (see that job).
   #   docs, *.md, .claude/**                 nothing slow
   #   unit tests only (*.test.ts, not e2e)    nothing slow; `check` runs them
   #   apps/ui/src/play/** (not css, not the hover zoom), a UI jvm suite
@@ -458,6 +459,18 @@ jobs:
   #
   # The JSON report goes to a file and is judged by its own step, so a run
   # that dies before writing it is a red, not a silent pass.
+  #
+  # NIGHTLY-ONLY TESTS. Three things were half of this job's 25 minutes
+  # (run 37487474250: 745 of 1483 s) and none of them earns a place on every
+  # push: `library-match` starts 31 matches to prove the deck library loads;
+  # `scenario-start` repeated each start ten times where three already catch
+  # the race 7999 times in 8000; and one `prompts.jvm` case pinned as
+  # `known_failing` burned its whole 180 s budget to fail the same way. So a
+  # test may gate itself on `nightly` (`apps/server/src/play/scenario.ts`),
+  # and must then carry `[nightly]` in its title. `CARDTABLE_JVM_NIGHTLY=1` is
+  # set on every run that is not a push, so the schedule, a manual run and a
+  # PR still run all of it. The judge below accepts a `[nightly]` skip on a
+  # push and nowhere else.
   forge-jvm:
     name: forge-jvm
     needs: [changes, forge-e2e]
@@ -465,8 +478,12 @@ jobs:
     # `changes`, never beside it on the shared host.
     if: always() && needs.changes.result == 'success' && (needs.changes.outputs.jvm_ui == 'true' || needs.changes.outputs.jvm_server == 'true')
     runs-on: [self-hosted, pm2-host]
-    # The 32 suites took 1140 s (19 min) serially on this host, alone under a
-    # lock (2026-10-04). ×1.5 is 28.5 min, plus checkout and install.
+    # Measured serially on this host under a lock, 2026-10-06: the 39 suites a
+    # push runs took 457 s (7.6 min). They were 1483 s on run 37487474250, before
+    # the nightly-only split, the harness killing its JVMs instead of waiting
+    # 4.4 s for each to stop, and the bridge being compiled once. The nightly
+    # run adds the `[nightly]` tests back, about 7 more minutes. ×1.5 of that
+    # is 22 min, plus checkout and install.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -500,6 +517,7 @@ jobs:
           CARDTABLE_PLAY_WORK_DIR: ${{ runner.temp }}/cardtable-jvm-play
           JVM_UI: ${{ needs.changes.outputs.jvm_ui }}
           JVM_SERVER: ${{ needs.changes.outputs.jvm_server }}
+          CARDTABLE_JVM_NIGHTLY: ${{ github.event_name != 'push' && '1' || '0' }}
         run: |
           mkdir -p "$CARDTABLE_PLAY_WORK_DIR"
           report="${{ runner.temp }}/forge-jvm-report.json"
@@ -537,6 +555,8 @@ jobs:
           # A partial run (one group) judges only the pinned tests it ran; the
           # full run (both groups, every night at least) judges all of them.
           FULL: ${{ needs.changes.outputs.jvm_ui == 'true' && needs.changes.outputs.jvm_server == 'true' }}
+          # Whether the `[nightly]` tests ran: the same test as CARDTABLE_JVM_NIGHTLY above.
+          NIGHTLY: ${{ github.event_name != 'push' }}
         run: |
           report="${{ runner.temp }}/forge-jvm-report.json"
           test -s "$report" || { echo "::error::$report is empty or missing — the jvm run did not finish writing its report"; exit 1; }
@@ -548,7 +568,7 @@ jobs:
           )
           known_failing=$(pinned <<'LIST'
           # Stalls after seat 1 answers its first confirm, every run, on main too. docs/planning/wave38-evidence/U-prompts-jvm-red.md
-          the fifteen prompts against a real Forge match choices: confirm, order, tempShowZones, getChoices, showInputDialog, chooseSingleEntityForEffect
+          the fifteen prompts against a real Forge match [nightly] choices: confirm, order, tempShowZones, getChoices, showInputDialog, chooseSingleEntityForEffect
           LIST
           )
           known_flaky=$(pinned <<'LIST'
@@ -562,14 +582,17 @@ jobs:
           wave 35 §S follow-up: a spell resolves unattended for the seat holding only lands, against real Forge seat 1 holds only untapped lands while seat 0's spell is on the stack, and is auto-passed without ever acting
           LIST
           )
-          jq -e --argjson full "$FULL" --argjson skips "$expected_skips" --argjson failing "$known_failing" --argjson flaky "$known_flaky" '
+          jq -e --argjson full "$FULL" --argjson nightly "$NIGHTLY" --argjson skips "$expected_skips" --argjson failing "$known_failing" --argjson flaky "$known_flaky" '
             [.testResults[].assertionResults[]] as $all
             | [$all[].fullName] as $ran
             | def inrun: if $full then . else map(select(. as $n | $ran | index($n) != null)) end;
-              ($failing | inrun) as $failing
+              # On a push the `[nightly]` tests gate themselves off: that skip is
+              # expected, and a pin on one of them has nothing to be judged against.
+              def onpush: if $nightly then . else map(select(contains("[nightly]") | not)) end;
+              ($failing | inrun | onpush) as $failing
             | ($skips | inrun) as $skips
             | ([$all[] | select(.status == "failed") | .fullName] | sort - $flaky) as $failed
-            | ([$all[] | select(.status != "passed" and .status != "failed") | .fullName] | sort) as $skipped
+            | ([$all[] | select(.status != "passed" and .status != "failed") | .fullName] | sort | onpush) as $skipped
             | {
                 "failed, not pinned": ($failed - $failing),
                 "pinned as failing, did not fail": ($failing - $failed),

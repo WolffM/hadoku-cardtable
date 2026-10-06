@@ -16,7 +16,7 @@ from outside git is absent unless the scaffold puts it there:
 | jar suites, e2e | `CARDTABLE_FORGE_JAR` | `~/.local/share/cardtable/forge.jar` (`docs/FORGE_JAR.md`) | unset, so every jar spec **SKIPS and exits 0** |
 | jar suites, e2e | `CARDTABLE_FORGE_RES` | **the main checkout's** `forge/forge-gui/res`, at the pin | unset; `forge/` is an uninitialised submodule here |
 | reading Forge source | `forge/` at the pin | the main checkout's `forge/` (read-only) | empty dir |
-| jar suites, e2e | `CARDTABLE_PLAY_WORK_DIR` | per lane, under `/tmp/claude-1000/` | defaults to **production's** `/tmp/cardtable-play`, which the pool boot-sweeps |
+| jar suites, e2e | `CARDTABLE_PLAY_WORK_DIR` | per lane, on disk under `~/.cache/cardtable-play-work/` | defaults to **production's** `/tmp/cardtable-play`, which the pool boot-sweeps |
 | everything | `node_modules` | main checkout's store | root symlink; per-package real dirs with `@hadoku/*` linked to the worktree |
 
 ## What bit in wave 33 (2026-10-01)
@@ -53,12 +53,28 @@ from outside git is absent unless the scaffold puts it there:
 export PATH="/home/hadoku/.local/share/fnm/node-versions/v24.18.0/installation/bin:$PATH"
 export CARDTABLE_FORGE_JAR="$HOME/.local/share/cardtable/forge.jar"
 export CARDTABLE_FORGE_RES="/home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res"   # read-only use of the deploy tree
-export CARDTABLE_PLAY_WORK_DIR="/tmp/claude-1000/w<N>-<lane>/work"
+export CARDTABLE_PLAY_WORK_DIR="$HOME/.cache/cardtable-play-work/w<N>-<lane>"   # on DISK, never under /tmp: see below
 # Forge SOURCE to read: /home/hadoku/repos/hadoku-cardtable/forge/ (same pin). Never build or write there.
 ```
 
 Run e2e from `e2e/` after `pnpm --filter @hadoku/ui --filter @hadoku/server build`.
 Grep the output for `— SKIPPED:` before believing a green.
+
+**The work dir goes on disk, not under `/tmp`.** `/tmp` is tmpfs on this host and CI's
+work dir (`runner.temp`) is on btrfs. Forge's per-match run directory lives there, and on
+tmpfs a match starts fast enough that the scenario-start race (the first cast after a
+scenario applies is dropped) fires most of the time. Measured 2026-10-06 on
+`scenario-thoughtseize.jvm.test.ts`, same code, same host: 5 of 6 runs red with the work
+dir under `/tmp/claude-1000`, 8 of 8 green under `~/.cache`. This block said
+`/tmp/claude-1000/w<N>-<lane>/work` until that day, so a lane's "flaky" jar red from before
+then may have been this. `rm -rf` the directory when the lane is done.
+
+**A `[nightly]` test skips with that block, on purpose.** A jar-gated test too slow for
+every push gates itself on `nightly` (`apps/server/src/play/scenario.ts`) and carries
+`[nightly]` in its title; `export CARDTABLE_JVM_NIGHTLY=1` runs it. CI sets that on
+every run that is not a push, and its judge accepts a `[nightly]` skip only on a push
+(`ci.yml`, `forge-jvm`). So the block above runs what a push to main runs, which is the
+set a landing has to keep green.
 
 ## Landing: the wave lands itself (2026-10-06)
 

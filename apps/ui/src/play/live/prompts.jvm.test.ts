@@ -94,6 +94,7 @@ import type { ChoiceOption } from '@hadoku/forge-wire';
 
 import { EVERY_PRIORITY_POLICY } from '../../../../server/src/play/auto.ts';
 import { leaked, rawStatesOf, secretsFor } from '../../../../server/src/play/fixtures/transcript.ts';
+import { nightly } from '../../../../server/src/play/scenario.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { lookupFromState, type PromptCardFacts } from '../prompts/lookup.ts';
 import { promptTileFor } from '../prompts/PromptShell.tsx';
@@ -437,8 +438,11 @@ describe.skipIf(!available.ok)(title, () => {
     240_000,
   );
 
-  it(
-    'choices: confirm, order, tempShowZones, getChoices, showInputDialog, chooseSingleEntityForEffect',
+  // Nightly only while it is pinned `known_failing` in ci.yml: the driver stalls after
+  // seat 1's first confirm and the case then burns its whole 180 s budget, every run
+  // (docs/planning/wave38-evidence/U-prompts-jvm-red.md). Drop the gate with the pin.
+  it.skipIf(!nightly)(
+    '[nightly] choices: confirm, order, tempShowZones, getChoices, showInputDialog, chooseSingleEntityForEffect',
     async () => {
       const h = await startLiveMatch({
         seed: 7,

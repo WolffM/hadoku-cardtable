@@ -461,7 +461,7 @@ describe.skipIf(!available.ok)(title, () => {
 
 			expect(match.invalidFrames).toBe(0);
 			match.stop();
-			jvm.close();
+			jvm.reapOnExit();
 			await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
 			expect(liveJvmCount()).toBe(0);
 		},
@@ -829,7 +829,7 @@ describe.skipIf(!available.ok)(title, () => {
 
 			expect(match.invalidFrames).toBe(0);
 			match.stop();
-			jvm.close();
+			jvm.reapOnExit();
 			await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
 			expect(liveJvmCount()).toBe(0);
 		},
@@ -1186,7 +1186,7 @@ describe.skipIf(!available.ok)(title, () => {
 
 			expect(match.invalidFrames).toBe(0);
 			match.stop();
-			jvm.close();
+			jvm.reapOnExit();
 			await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
 			expect(liveJvmCount()).toBe(0);
 		},

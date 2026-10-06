@@ -115,7 +115,7 @@ async function dealtOnce(): Promise<string> {
 		match.stop();
 		return dealt;
 	} finally {
-		jvm.close();
+		jvm.reapOnExit();
 		await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
 	}
 }

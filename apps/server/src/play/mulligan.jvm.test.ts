@@ -192,7 +192,7 @@ describe.skipIf(!available.ok)(title, () => {
 			expect(after === undefined || after.v !== true, `Mulligan still true after the London step: ${JSON.stringify(after)}`).toBe(true);
 
 			match.stop();
-			jvm.close();
+			jvm.reapOnExit();
 			await waitUntil(() => liveJvmCount() === 0, 'this match\'s JVM to exit', 15_000);
 		},
 		240_000,
@@ -293,7 +293,7 @@ describe.skipIf(!available.ok)(title, () => {
 				'seat0 after',
 			]);
 			match.stop();
-			jvm.close();
+			jvm.reapOnExit();
 			await waitUntil(() => liveJvmCount() === 0, "this match's JVM to exit", 15_000);
 		},
 		240_000,

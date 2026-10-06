@@ -277,7 +277,8 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
     stop: () => {
       for (const s of seats) if (s.live.connected) closeMatch(s.live);
       match.stop();
-      host.close();
+      // Killed, not waited out — see `scenario.ts`'s `stop()` for the measurement.
+      host.reapOnExit();
     },
   };
 }
