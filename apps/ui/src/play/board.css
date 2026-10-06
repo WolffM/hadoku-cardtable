@@ -1340,10 +1340,14 @@
   min-height: 0;
 }
 
-.board .seat .zone--graveyard .board-card:hover,
-.board .seat .zone--exile .board-card:hover {
-  z-index: 1;
-}
+/*
+ * A card in a pile is NOT raised under the pointer. It used to be (`z-index: 1`
+ * on hover), which covered the cards below it in the pile — the operator
+ * (2026-10-06): *"when hovering items in the graveyard, it pulls their visual
+ * forward … then its harder to see the items in the graveyard. just hovering
+ * graveyard items should show the expanded view."* The inspector's enlarged
+ * card is the whole of what a hover does here.
+ */
 
 /*
  * `start`, not stretched: a turned card's box is shorter than its row, and the
@@ -1542,18 +1546,18 @@
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.5);
-  transition: transform 0.15s;
 }
 
+/*
+ * Under the pointer or the keyboard: a thin outline and nothing else. It used
+ * to lift 4px, and the operator (2026-10-06): *"the carousel items shift
+ * upward when hovered. that looks ugly, just a small outline on hover would be
+ * fine."*
+ */
 .stack__item:has(button:hover),
 .stack__item:has(button:focus-visible) {
-  transform: translateY(-4px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stack__item {
-    transition: none;
-  }
+  outline: 1px solid var(--ink);
+  outline-offset: 1px;
 }
 
 /* The top of the stack draws a touch larger — the one visual cue for "top" beyond its leftmost position. */
@@ -1561,13 +1565,19 @@
   width: calc(var(--stack-card-w) * 1.12);
 }
 
-/* The only blue ring on the row: the thumbnail the big view is showing, while pinned (§settled). */
+/*
+ * The only ring on the row: the thumbnail the big view is showing, while pinned
+ * (§settled). In the theme's own accent, as is the owner strip below: both were
+ * `--c-blue`, a colour-pie hue that means "a blue card" everywhere else and
+ * never follows the theme — the operator (2026-10-06): *"i'm not a fan of the
+ * 'blue highlight' can we use a color from the color theme system instead?"*
+ */
 .stack__item[aria-current='true'] {
-  box-shadow: 0 0 0 2px var(--c-blue), 0 2px 6px rgb(0 0 0 / 0.5);
+  box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgb(0 0 0 / 0.5);
 }
 
 /*
- * The owner strip: blue mine, amber theirs (settled layout) — this is the one
+ * The owner strip: the accent mine, amber theirs (settled layout) — this is the one
  * place on the board colour alone marks something, because the demo it
  * implements draws it that way and the thumbnail's position (numbered from
  * the stack's own top) already carries the rest of the information.
@@ -1581,7 +1591,7 @@
   height: 3px;
 }
 .stack__item--mine::after {
-  background: var(--c-blue);
+  background: var(--accent);
 }
 .stack__item--theirs::after {
   background: var(--warn);

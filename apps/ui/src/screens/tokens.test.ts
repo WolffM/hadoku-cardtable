@@ -122,6 +122,52 @@ describe('the accent as text', () => {
   });
 });
 
+/*
+ * 2026-10-06: the board borrowed the colour-pie's red, green and blue for
+ * damage, a life gain and a buffed number. They are the theme's danger, success
+ * and primary now, and as TEXT each is a mix toward the ink, like the accent.
+ */
+describe('danger and success as text', () => {
+  const inks = [
+    { token: 'danger', theme: 'danger', fallback: '#d4715f' },
+    { token: 'success', theme: 'success', fallback: '#6da879' },
+  ];
+
+  for (const { token, theme, fallback } of inks) {
+    const mixOf = new RegExp(`--${token}-ink:\\s*color-mix\\(in srgb,\\s*var\\(--${token}\\)\\s*(\\d+)%,\\s*var\\(--ink\\)\\)`).exec(ownCss);
+    const share = mixOf === null ? 1 : Number(mixOf[1]) / 100;
+    const worstAt = (s: number): number => {
+      let worst = Infinity;
+      for (const t of themes) {
+        const fill = hex(t.vars[theme]);
+        const ink = hex(t.vars.text);
+        if (fill === null || ink === null) continue;
+        const mixed = fill.map((c, i) => Math.round(c * s + ink[i] * (1 - s))) as Rgb;
+        worst = Math.min(worst, contrast(mixed, t.bg), contrast(mixed, t.card));
+      }
+      return worst;
+    };
+
+    it(`--${token} is the theme's own, and --${token}-ink clears 4.5:1 on the page and on a card in every theme`, () => {
+      expect(ownCss).toContain(`--${token}: var(--color-${theme}, ${fallback});`);
+      expect(mixOf).not.toBeNull();
+      expect(worstAt(share)).toBeGreaterThanOrEqual(4.5);
+      // The reason the ink token exists: the raw fill does not.
+      expect(worstAt(1)).toBeLessThan(3);
+    });
+  }
+
+  it('nothing on the board says danger, success or emphasis in a colour-pie hue any more', () => {
+    const play = ['../play/card.css', '../play/live/live.css', '../play/live/gestures/gestures.css'].map((f) => readFileSync(new URL(f, import.meta.url), 'utf8'));
+    for (const css of play) expect(css).not.toMatch(/var\(--c-(red|green|blue|white|black)\)/);
+    // board.css keeps them for exactly one thing, the mana pool's pips, which ARE the colour pie.
+    const board = readFileSync(new URL('../play/board.css', import.meta.url), 'utf8');
+    for (const rule of board.matchAll(/([^{}]+)\{[^{}]*var\(--c-(?:red|green|blue|white|black)\)[^{}]*\}/g)) {
+      expect(rule[1], 'a colour-pie hue outside the mana pool').toMatch(/seat__mana-pip/);
+    }
+  });
+});
+
 describe('the stacking scale (wave 32 shape 2)', () => {
   it('declares the four layers on :root, in order', () => {
     const z = (n: string): number => Number(new RegExp(`--z-${n}:\\s*(\\d+);`).exec(ownCss)?.[1] ?? Number.NaN);

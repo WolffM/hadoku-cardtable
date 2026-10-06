@@ -206,13 +206,14 @@
   color: var(--ink);
 }
 
+/* The operator's "3 (blue) / 1 (red)", in the theme's own primary and danger: blue and red in the default theme, and whatever the theme says elsewhere. */
 .board-card__pt-n[data-pt-state='buffed'] {
-  color: var(--c-blue);
+  color: var(--accent-ink);
   font-weight: 700;
 }
 
 .board-card__pt-n[data-pt-state='hurt'] {
-  color: var(--c-red);
+  color: var(--danger-ink);
   font-weight: 700;
 }
 
@@ -232,8 +233,8 @@
  * damage and NO readable P/T draws instead (`PowerToughness`).
  */
 .board-card__pt[data-damage] {
-  border-color: color-mix(in srgb, var(--c-red) 65%, var(--line));
-  background: color-mix(in srgb, var(--c-red) 18%, var(--bg-raised));
+  border-color: color-mix(in srgb, var(--danger) 65%, var(--line));
+  background: color-mix(in srgb, var(--danger) 18%, var(--bg-raised));
 }
 
 /* ── the state layer: marks, counters, sickness, tokens ─────────── */
@@ -399,13 +400,13 @@
 }
 
 .board-card__counter[data-counter='plus'] {
-  border-color: color-mix(in srgb, var(--c-blue) 65%, var(--line));
-  color: var(--c-blue);
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
+  color: var(--accent-ink);
 }
 
 .board-card__counter[data-counter='minus'] {
-  border-color: color-mix(in srgb, var(--c-red) 65%, var(--line));
-  color: var(--c-red);
+  border-color: color-mix(in srgb, var(--danger) 65%, var(--line));
+  color: var(--danger-ink);
 }
 
 /*

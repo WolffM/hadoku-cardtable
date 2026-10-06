@@ -910,15 +910,15 @@
 }
 
 .live__log li[data-log-kind='damage'] {
-  color: var(--c-red);
+  color: var(--danger-ink);
 }
 
 .live__log li[data-log-kind='life'] {
-  color: var(--c-green);
+  color: var(--success-ink);
 }
 
 .live__log li[data-log-kind='play'] {
-  color: var(--c-blue);
+  color: var(--accent-ink);
 }
 
 .live__log li[data-log-kind='control'] {
@@ -1121,11 +1121,11 @@
   font-size: 12px;
 }
 
-/* Victory/Defeat read with the same hues the log already uses for a life gain
-   and for damage (`--c-green`, `--warn`) — no new colour, just the existing
-   tokens applied to a third place. A draw stays the title's own ink. */
+/* Victory reads in the ink the log uses for a life gain, Defeat in the theme's
+   warning — no new colour, just the existing tokens applied to a third place.
+   A draw stays the title's own ink. */
 .board__over[data-result='victory'] .confirm__title {
-  color: var(--c-green);
+  color: var(--success-ink);
 }
 
 .board__over[data-result='defeat'] .confirm__title {
