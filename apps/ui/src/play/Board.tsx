@@ -269,7 +269,8 @@
  * the word is gone — and an ATTACKING creature is drawn the same way, which is
  * item 6: *"creatures should tap when they are attacking"*. `data-tapped` and
  * `data-attacking` stay two attributes, because they are two facts; only the
- * drawing is shared.
+ * drawing is shared — and not for a creature with vigilance (`data-vigilant`),
+ * which attacks without tapping.
  *
  * ## What is clickable is Forge's answer, not ours
  *
@@ -1058,7 +1059,6 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
   };
 }
 
-// ── R9: a cast's drop point, remembered until the permanent arrives ─────────
 // ── A cast the gestures lane is carrying: its spell stands off the stack ────
 
 /**
@@ -1094,6 +1094,7 @@ function subscribeCarriedCast(listener: () => void): () => void {
   return () => carriedCastListeners.delete(listener);
 }
 
+// ── R9: a cast's drop point, remembered until the permanent arrives ─────────
 
 /**
  * A cast's intended battlefield slot, remembered by the card's own (stable)
@@ -1788,6 +1789,8 @@ function CardOnBoard({
        */
       data-tapped={entry.tapped || undefined}
       data-attacking={entry.attacking || undefined}
+      /* Attacking does not tap it, so `card.css` does not turn it for attacking. */
+      data-vigilant={(entry.keywords?.some((k) => /^vigilance\b/i.test(k)) ?? false) || undefined}
       data-sick={entry.summoningSick || undefined}
       data-blocking={entry.blocking || undefined}
       data-token={entry.token || undefined}
@@ -3027,16 +3030,16 @@ function StagingArea({ card, interaction }: { card: BoardCard; interaction: Boar
  */
 function StackView({
   stack,
+  carried,
   interaction,
   viewerName,
 }: {
-  carried,
   stack: readonly StackEntry[];
+  /** How many of Forge's stack items are not in `stack` because a played card is standing in for them (`carryCastOffStack`). */
+  carried: number;
   interaction: BoardInteraction | undefined;
   viewerName: string | null;
 }) {
-  /** How many of Forge's stack items are not in `stack` because a played card is standing in for them (`carryCastOffStack`). */
-  carried: number;
   const topId = stack[0]?.id ?? null;
 
   // The big view's own selection while PINNED: the top by default, or
@@ -3123,10 +3126,10 @@ function StackView({
       data-zone="stack"
       data-owner="table"
       data-count={stack.length}
+      data-carried={carried > 0 ? carried : undefined}
       ref={sectionRef}
     >
       <ol className="stack__items" ref={rowRef}>
-      data-carried={carried > 0 ? carried : undefined}
         {stack.map((item, index) => (
           <StackThumb
             key={item.id}
@@ -3192,13 +3195,13 @@ export function Board({
 }) {
   const viewer = view.players.find((p) => p.isViewer);
   const others = view.players.filter((p) => !p.isViewer);
-  /*
-   * Item 17.2's staged card, found once here rather than in `PlayerArea`: it
-   * can only ever be the viewer's own (`BoardInteraction.stagedCardId`'s own
   // The spell itself only: an ability from the same card (its cast trigger) is a second thing on the stack and is drawn.
   // The third argument is the same reading: a statically rendered board (`live/parity.test.ts`) has no gesture layer, and so carries nothing.
   const carriedCast = useSyncExternalStore(subscribeCarriedCast, readCarriedCast, readCarriedCast);
   const stack = carriedCast === null ? view.stack : view.stack.filter((item) => item.isAbility || item.sourceCardId !== carriedCast);
+  /*
+   * Item 17.2's staged card, found once here rather than in `PlayerArea`: it
+   * can only ever be the viewer's own (`BoardInteraction.stagedCardId`'s own
    * note), and `PlayerArea` only needs to know WHICH id to leave out of the
    * hand it draws, not the card itself.
    */

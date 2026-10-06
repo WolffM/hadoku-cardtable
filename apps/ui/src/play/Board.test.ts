@@ -316,7 +316,7 @@ describe('zones', () => {
     expect(field.textContent, 'no card on the board says "tapped"').not.toContain('tapped');
     // And the turn is real: the stylesheet turns anything tapped or attacking.
     expect(
-      /\.board-card:is\(\[data-tapped\], \[data-attacking\]\) \.board-card__face > \.card \{[^}]*rotate\(90deg\)/.test(
+      /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) \.board-card__face > \.card \{[^}]*rotate\(90deg\)/.test(
         withoutComments(CARD_CSS),
       ),
       'the turn is on the tapped/attacking rule',
@@ -1395,7 +1395,7 @@ describe('no rotated text (operator, 2026-09-26)', () => {
     expect(inCards).toEqual(['rotate(']);
     const rotates = /^\s*transform: translate\(-50%, -50%\) rotate\(90deg\);$/m;
     expect(rotates.test(CARD_CSS), 'the one rotation is the tapped card’s quarter turn').toBe(true);
-    const turned = /\.board-card:is\(\[data-tapped\], \[data-attacking\]\) \.board-card__face > \.card \{[^}]*rotate\(90deg\)/;
+    const turned = /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) \.board-card__face > \.card \{[^}]*rotate\(90deg\)/;
     expect(turned.test(withoutComments(CARD_CSS)), 'and it is on the turned card’s own rule').toBe(true);
   });
 
@@ -3371,11 +3371,28 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(card(container).getAttribute('data-attacking')).toBe('true');
     expect(card(container).hasAttribute('data-tapped'), 'and Forge’s own tapped is untouched').toBe(false);
     // One rule turns either, so a card that is both is turned once.
-    const rule = /\.board-card:is\(\[data-tapped\], \[data-attacking\]\) \.board-card__face > \.card \{([^}]*)\}/.exec(
+    const rule = /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) \.board-card__face > \.card \{([^}]*)\}/.exec(
       withoutComments(CARD_CSS),
     );
     expect(rule, 'the turn is one rule for both').not.toBeNull();
     expect(rule![1]).toMatch(/rotate\(90deg\)/);
+  });
+
+  it('a creature with vigilance attacks upright: it is attacking, and the rule that turns an attacker leaves it out', () => {
+    const { container } = renderBoard(withState({ attacking: true, tapped: false, keywords: ['Flying', 'Vigilance', 'Haste'] }));
+    expect(card(container).getAttribute('data-attacking'), 'still attacking, for everything that reads it').toBe('true');
+    expect(card(container).getAttribute('data-vigilant')).toBe('true');
+    expect(renderBoard(withState({ attacking: true, tapped: false, keywords: ['Flying'] })).container.querySelector('[data-vigilant]')).toBeNull();
+    // Every rule that turns a card excludes a vigilant attacker; a TAPPED one still turns, vigilance or not.
+    const turning = [...withoutComments(CARD_CSS).matchAll(/([^{}]*)\{[^{}]*(?:rotate\(90deg\)|aspect-ratio: 680 \/ 488)[^{}]*\}/g)].map((m) => m[1]!.trim());
+    expect(turning.length).toBeGreaterThan(0);
+    for (const selector of turning) expect(selector).toContain(':is([data-tapped], [data-attacking]:not([data-vigilant]))');
+  });
+
+  it('a card in a graveyard or exile pile is not raised under the pointer: the cards below it stay readable', () => {
+    for (const rule of withoutComments(BOARD_CSS).matchAll(/([^{}]*zone--(?:graveyard|exile)[^{}]*:hover[^{}]*)\{([^{}]*)\}/g)) {
+      expect(rule[2], `${rule[1]!.trim()} must not restack the pile`).not.toMatch(/z-index|translate|transform|scale/);
+    }
   });
 
   it('summoning sickness desaturates the card and carries a drawn mark, never an outline', () => {

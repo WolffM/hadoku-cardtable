@@ -508,11 +508,17 @@
  * attacking"*. Forge taps an attacker itself a moment later, so this is the
  * board agreeing with the engine early rather than inventing a state.
  *
+ * Except a creature with vigilance, which Forge never taps for attacking: it
+ * was drawn turned for the whole of combat and "untapped itself" afterwards
+ * (the operator, 2026-10-06, on Lightning Angel). `data-vigilant` is the
+ * card's own `Vigilance` keyword off the wire, so an attacker that will not
+ * tap is not drawn as if it had.
+ *
  * `:is()` so a card that is both is turned ONCE. The attack-INTENT mark
  * (`live/gestures/gestures.css`) is still a third thing and still never this:
  * "you pointed at this" is not "this is attacking".
  */
-.board-card:is([data-tapped], [data-attacking]) .board-card__face {
+.board-card:is([data-tapped], [data-attacking]:not([data-vigilant])) .board-card__face {
   aspect-ratio: 680 / 488;
 }
 
@@ -521,7 +527,7 @@
  * a quarter it is exactly the box: width w·488/680, height w, rotated → w wide
  * and w·488/680 tall.
  */
-.board-card:is([data-tapped], [data-attacking]) .board-card__face > .card {
+.board-card:is([data-tapped], [data-attacking]:not([data-vigilant])) .board-card__face > .card {
   position: absolute;
   top: 50%;
   left: 50%;
