@@ -1,0 +1,344 @@
+/*
+ * The sound builder (`#/sounds`). A top-level screen like the lobby or the
+ * deck builder, not table chrome, so it reads its colours from
+ * `@wolffm/themes` the way `screens.css` does — no hex literals, and no
+ * `var(--token, #fallback)` defaults (a fallback hides a broken token).
+ *
+ * Co-located and imported directly from `SoundBuilder.tsx`, not added to
+ * `screens.css`: that file is owned by nobody this wave (wave 50's "owned by
+ * nobody" list has no play-surface entry for it, but two lanes editing the
+ * same shared file is still how a wave gets a merge conflict neither lane
+ * asked for).
+ *
+ * Phone width: `.sound-builder__panes` drops to one column and the bin gets a
+ * height cap instead of sharing the viewport with the matrix; the matrix's
+ * own horizontal scroll stays INSIDE `.sound-builder__table-wrap`, so the page
+ * itself never scrolls sideways.
+ */
+
+.sound-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  height: 100%;
+  min-height: 0;
+}
+
+.sound-builder__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-bg-card);
+}
+
+.sound-builder__top h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.sound-builder__counts {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.sound-builder__counts b {
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.sound-builder__sample {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.sound-builder__sample label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.sound-builder__sample select {
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.sound-builder__btn {
+  font-size: 12.5px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.sound-builder__btn--primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+}
+
+.sound-builder__btn:hover,
+.sound-builder__btn:focus-visible {
+  filter: brightness(1.08);
+}
+
+.sound-builder__panes {
+  display: grid;
+  grid-template-columns: minmax(260px, 32%) minmax(0, 1fr);
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+@media (max-width: 820px) {
+  .sound-builder__panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sound-builder__bin {
+    max-height: 40vh;
+  }
+}
+
+.sound-builder__bin {
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border-light);
+  padding: 8px 12px 30px;
+  background: var(--color-bg-card);
+  min-height: 0;
+}
+
+@media (max-width: 820px) {
+  .sound-builder__bin {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border-light);
+  }
+}
+
+.sound-builder__main {
+  overflow: auto;
+  padding: 12px 16px 40px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sound-builder__section h2 {
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+
+.sound-builder__sec {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  padding: 10px 0 4px;
+  font-weight: 600;
+}
+
+.sound-builder__subsec {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  padding: 6px 0 2px;
+}
+
+.sound-builder__srow {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 6px;
+  align-items: baseline;
+  padding: 2px 0;
+}
+
+.sound-builder__srow-name {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sound-builder__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.sound-builder__pill {
+  font: 500 11.5px ui-monospace, SFMono-Regular, Menlo, monospace;
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  border-radius: var(--hdk-radius);
+  padding: 2px 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+
+.sound-builder__pill:hover,
+.sound-builder__pill:focus-visible {
+  border-color: var(--color-text-secondary);
+}
+
+.sound-builder__pill[data-placed] {
+  box-shadow: inset 0 0 0 1px var(--color-success);
+}
+
+.sound-builder__pill[aria-pressed='true'] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+}
+
+.sound-builder__pill--placed {
+  background: var(--color-bg-card);
+}
+
+.sound-builder__pill-remove {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0 0 0 2px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.sound-builder__pill-remove:hover {
+  color: var(--color-text);
+}
+
+.sound-builder__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-card);
+}
+
+.sound-builder__matrix {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 760px;
+}
+
+.sound-builder__matrix th,
+.sound-builder__matrix td {
+  border-bottom: 1px solid var(--color-border-light);
+  padding: 4px 6px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.sound-builder__matrix tr:last-child > * {
+  border-bottom: 0;
+}
+
+.sound-builder__matrix thead th {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-alt);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.sound-builder__matrix tbody th {
+  width: 128px;
+  font-weight: 600;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.sound-builder__fam > td {
+  background: var(--color-bg-alt);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  padding: 3px 6px;
+}
+
+.sound-builder__rowname {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.sound-builder__rowsub {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: normal;
+}
+
+.sound-builder__cell {
+  min-height: 28px;
+  border: 1px dashed var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  padding: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+  cursor: default;
+}
+
+.sound-builder__cell[data-unsaved] {
+  border-color: var(--color-warning);
+}
+
+.sound-builder__cell .sound-builder__hint {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  padding: 0 3px;
+}
+
+.sound-builder__rand {
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.sound-builder__log {
+  font: 11.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--color-text-secondary);
+  min-height: 1em;
+  white-space: pre-wrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sound-builder__cell {
+    transition: none;
+  }
+}
