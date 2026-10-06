@@ -654,3 +654,25 @@ jobs:
             | with_entries(select(.value | length > 0))
             | if length == 0 then true else (., false) end
           ' "$report" || { echo "::error::the jvm report does not match the pinned lists (see the object above)"; exit 1; }
+
+      # What a timed-out scenario leaves behind: `waitUntil`'s dump (the seat's
+      # last frames, the server's stop decisions, the bridge's stderr tail —
+      # `apps/server/src/play/scenario.ts`), written next to the JVMs' run
+      # directories. The runner wipes `runner.temp` with the next run, and the
+      # error line in the log carries only the last 20 frame methods: run
+      # 37532893898 (2026-10-06) lost the blockers Q12 dump that way, so its red
+      # could not be read. Kept on a red, like forge-e2e's evidence — and the
+      # job's LAST step, because vitest's own exit is swallowed above and the
+      # judge just before this is what makes the job red.
+      - name: Keep the jvm dumps and bridge logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v6
+        with:
+          name: forge-jvm-evidence-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/cardtable-jvm-play/*.dump.json
+            ${{ runner.temp }}/cardtable-jvm-play/*/bridge.stderr.txt
+            ${{ runner.temp }}/forge-jvm-report.json
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 14
