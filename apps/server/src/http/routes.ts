@@ -129,6 +129,7 @@ import { identityFromHeaders } from '../room/identity.js';
 import { draftIdOfPool, draftPoolId } from '../room/lobby.js';
 import {
 	checkSeat,
+	legalLibraryDecks,
 	parseDeckRef,
 	parseSeatRequest,
 	parseStartRequest,
@@ -493,6 +494,24 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				sideboard: list('sideboard', d.deck.file),
 			})),
 		});
+	});
+
+	// The library and the frozen pools are fixed for the life of the process,
+	// so an era's answer is computed once and served from here after that.
+	const legalByFormat = new Map<string, string[]>();
+	tables.get('/legal/:format', (req: Request, res: Response) => {
+		const format = String(req.params.format);
+		let ids = legalByFormat.get(format);
+		if (ids === undefined) {
+			const swept = legalLibraryDecks(format, context(req));
+			if ('error' in swept) {
+				res.status(400).json({ error: swept.error });
+				return;
+			}
+			ids = swept.ids;
+			legalByFormat.set(format, ids);
+		}
+		res.json({ format, legal: ids });
 	});
 
 	tables.post('/check', (req: Request, res: Response) => {

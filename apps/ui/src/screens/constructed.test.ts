@@ -211,7 +211,7 @@ interface Table {
   roomUnreadable?: boolean;
   /** 404 for both "no such room" and "you are not in it", as the server does. */
   missing?: boolean;
-  /** `POST /tables/check` refuses, so the era's legality sweep cannot answer. */
+  /** The gate refuses, so the era's legality sweep cannot answer. */
   checkFails?: boolean;
   /** `PUT …/deck` refuses, so a hold made under an earlier era is left standing. */
   deckFails?: boolean;
@@ -366,9 +366,20 @@ function stubServer(table: Table) {
       return json(200, { formats: [...pods, ...FORMATS] });
     }
     if (url.endsWith('/tables/decks')) return json(200, { decks: decks() });
-    // One per deck, each time the room's pool moves: how the picker learns
-    // which decks that pool offers. UNCHANGED by w25 — `POST /tables/check`
-    // still takes a whole seat choice, because it is asked about no room.
+    // One per era, each time the room's pool moves: how the picker learns
+    // which decks that pool offers. The answer is this stub's own per-deck
+    // verdict, so the fake cannot disagree with `/tables/check` below.
+    const legalFor = /\/tables\/legal\/([^/?]+)$/.exec(url);
+    if (legalFor !== null) {
+      if (table.checkFails === true) return json(503, { error: 'the gate is restarting' });
+      const format = decodeURIComponent(legalFor[1]!);
+      const legal = decks()
+        .filter((d) => verdictFor({ deck: { library: d.id }, rules: { kind: 'standard', format } }).legal)
+        .map((d) => d.id);
+      return json(200, { format, legal });
+    }
+    // UNCHANGED by w25 — `POST /tables/check` still takes a whole seat choice,
+    // because it is asked about no room.
     if (url.endsWith('/tables/check')) {
       if (table.checkFails === true) return json(503, { error: 'the gate is restarting' });
       return json(200, verdictFor(body as SeatChoice));
@@ -463,6 +474,12 @@ async function mountRoom(table: Table, rand?: () => number) {
 }
 
 const lastCall = (calls: Call[], path: string): Call | undefined => calls.filter((c) => c.url.endsWith(path)).at(-1);
+/** The eras the picker asked the gate about, in order: one `GET /tables/legal/:format` each. */
+const sweeps = (server: { calls: Call[] }): string[] =>
+  server.calls.flatMap((c) => {
+    const m = /\/tables\/legal\/([^/?]+)$/.exec(c.url);
+    return m === null ? [] : [decodeURIComponent(m[1]!)];
+  });
 
 /**
  * The deck chooser, once the era has answered which decks it offers.
@@ -932,7 +949,7 @@ describe('the deck picker', () => {
     await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
   });
 
-  it('narrows the deck list to the decks the ROOM’s pool says are legal, asking the gate for each', async () => {
+  it('narrows the deck list to the decks the ROOM’s pool says are legal, asking the gate once per pool', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
     // The pool the room opens on is legal for both, so both are on offer.
     await deckPicker();
@@ -942,21 +959,18 @@ describe('the deck picker', () => {
     // The pool that bans Jace and Stoneforge offers one of the two decks.
     await waitFor(() => expect(offered()).toEqual([SECOND_DECK]));
 
-    // It is the SERVER's answer, one request per deck per pool — not arithmetic
-    // done here over a set list the browser was never sent.
-    const checks = server.calls.filter((c) => c.url.endsWith('/tables/check'));
-    expect(checks.map((c) => c.body)).toEqual(
-      expect.arrayContaining([
-        { deck: { library: UG_POLYMORPH }, rules: { kind: 'standard', format: '2011-07-15' } },
-        { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2011-07-15' } },
-      ]),
-    );
+    // It is the SERVER's answer, ONE request per pool — not one per deck, and
+    // not arithmetic done here over a set list the browser was never sent.
+    expect(sweeps(server)).toContain('2011-07-15');
+    expect(sweeps(server).filter((f) => f === '2011-07-15')).toHaveLength(1);
+    expect(server.calls.filter((c) => c.url.endsWith('/tables/check'))).toHaveLength(0);
 
     // And a pool already answered for is not asked again.
-    const asked = checks.length;
     await pickPool('2010-07-16');
     await waitFor(() => expect(offered()).toContain(UG_POLYMORPH));
-    expect(server.calls.filter((c) => c.url.endsWith('/tables/check')).length).toBe(asked);
+    await pickPool('2011-07-15');
+    await waitFor(() => expect(offered()).toEqual([SECOND_DECK]));
+    expect(sweeps(server).filter((f) => f === '2011-07-15')).toHaveLength(1);
   });
 
   it('offers a deck it could not get an answer for rather than deleting it from the library', async () => {
@@ -1219,9 +1233,8 @@ describe('the table’s pool', () => {
     // applies at create (operator, 2026-09-27: newest).
     const server = await mountRoom({ players: [opponent()], matchId: null, format: '' });
     await waitFor(() => expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2011-07-15'));
-    const checks = server.calls.filter((c) => c.url.endsWith('/tables/check'));
-    expect(checks).not.toHaveLength(0);
-    expect(checks.every((c) => (c.body as SeatChoice).rules.kind === 'standard' && (c.body as { rules: { format: string } }).rules.format === '2011-07-15')).toBe(true);
+    await waitFor(() => expect(sweeps(server)).not.toHaveLength(0));
+    expect(sweeps(server).every((f) => f === '2011-07-15')).toBe(true);
   });
 
   it('hands back the server’s refusal and leaves the pool where the room has it', async () => {
@@ -1294,14 +1307,13 @@ describe('a draft room', () => {
     expect(screen.queryByTestId('format')).toBeNull();
     expect(screen.queryByTestId('room-players')).toBeNull();
 
-    // The per-deck legality sweep — one `POST /tables/check` per deck per era,
-    // the expensive half — never runs. (The two catalogue GETs start at mount,
+    // The legality sweep — one `GET /tables/legal/:format` per era — never runs. (The two catalogue GETs start at mount,
     // before the room's own type is known, and their answer is discarded rather
     // than delaying the picker for every constructed room; see the effect.)
     await act(async () => {
       await new Promise((r) => setTimeout(r, 60));
     });
-    expect(server.calls.filter((c) => c.url.endsWith('/tables/check'))).toHaveLength(0);
+    expect(sweeps(server)).toHaveLength(0);
     // Nor is a single table write made: `routes.ts` answers 409 to all of them.
     expect(server.calls.filter((c) => c.url.includes('/tables/rooms/') && c.method !== 'GET')).toHaveLength(0);
     expect(server.calls.filter((c) => c.url.endsWith('/play/matches'))).toHaveLength(0);
@@ -1906,7 +1918,7 @@ describe('a room on a drafted pool', () => {
     // table here: the most expensive card in the 45 is what the row draws.
     expect(drafted.querySelector('img')?.getAttribute('src')).toMatch(/^https:\/\//);
     // And the library sweep never ran: a drafted pool asks the gate nothing.
-    expect(server.calls.filter((c) => c.url.endsWith('/tables/check'))).toEqual([]);
+    expect(sweeps(server)).toEqual([]);
 
     await pick(DRAFTED_DECK);
 

@@ -395,6 +395,24 @@ export function refusalLine(seat: number, verdict: SeatVerdict): string {
 	return `Seat ${seat + 1}'s deck ${JSON.stringify(verdict.deckName)} is not legal in ${verdict.rulesName}: ${why}${more}`;
 }
 
+/**
+ * Which library decks are legal in a Standard-family era: `checkSeat` over the
+ * whole library, so the picker's filter is the gate's own answer.
+ *
+ * One call instead of one `POST /check` per deck: at 338 decks the browser was
+ * paying ~3.5 s of round trips per era for work that takes the gate well under
+ * a second. An unknown era resolves nothing, and says so once.
+ */
+export function legalLibraryDecks(format: string, ctx: GateContext): { ids: string[] } | SeatUnresolved {
+	const ids: string[] = [];
+	for (const d of ctx.library.decks) {
+		const v = checkSeat({ deck: { library: d.id }, rules: { kind: 'standard', format } }, ctx);
+		if ('error' in v) return v;
+		if (v.legal) ids.push(d.id);
+	}
+	return { ids };
+}
+
 /** A verdict without the `.dck` text: what goes back to the browser. */
 export function publicVerdict(verdict: SeatVerdict): Omit<SeatVerdict, 'text'> {
 	const { text: _text, ...rest } = verdict;

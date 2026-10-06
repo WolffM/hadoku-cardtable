@@ -28,8 +28,8 @@
  * field that could be sent and quietly ignored.
  *
  * `check` is unchanged and still takes a whole `SeatChoice`: it is the question
- * "would this deck be legal in that pool", asked of no room at all, and
- * `legalDecksIn` below is its only caller.
+ * "would this deck be legal in that pool", asked of no room at all, by the deck
+ * builder. `legal` asks the same of the whole library at once, for the picker.
  *
  * `fetch` is an argument so a test can answer without a server. Production
  * passes nothing and gets the global.
@@ -168,6 +168,8 @@ export interface TablesClient {
   formats(): Promise<TableFormat[]>;
   decks(): Promise<TableDeck[]>;
   check(seat: SeatChoice): Promise<Verdict>;
+  /** Which library decks are legal in a Standard-family era: the gate's answer, in one call. */
+  legal(formatId: string): Promise<string[]>;
   /** Against Forge's AI only. A match against a person starts from a room. */
   start(opponent: 'human' | 'ai', seats: [SeatChoice, SeatChoice]): Promise<StartOutcome>;
   /** Both players' state at a room's table. */
@@ -244,6 +246,14 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
       const { status, body } = await post('tables/check', seat);
       if (status !== 200) throw new Error(errorOf(body, status));
       return body as unknown as Verdict;
+    },
+    legal: async (formatId) => {
+      const res = await fetchImpl(`${base}tables/legal/${encodeURIComponent(formatId)}`, {
+        headers: { accept: 'application/json' },
+      });
+      const body = await readJson(res);
+      if (res.status !== 200) throw new Error(errorOf(body, res.status));
+      return Array.isArray(body.legal) ? body.legal.filter((id): id is string => typeof id === 'string') : [];
     },
     start: async (opponent, seats) => {
       const { status, body } = await post('play/matches', { opponent, seats });
@@ -330,56 +340,39 @@ export function newestFormat(formats: readonly TableFormat[]): string {
 export interface LegalSweep {
   /** The format this was asked about. */
   readonly formatId: string;
-  /** Legal in it — plus any deck the server could not be asked about. */
+  /** Legal in it — or every deck, when the era could not be asked about. */
   readonly ids: ReadonlySet<string>;
-  /** The first refusal, and how many there were. Null when every one answered. */
+  /** Why the era could not be asked. Null when it answered. */
   readonly error: string | null;
 }
 
 /**
  * Which of `decks` are legal in `formatId`, asked of the server.
  *
- * **One request per deck, and there is no cheaper way from a browser.** The
- * gate is the only thing that can answer "is this deck legal in this format" —
- * a client-side copy would be a second opinion free to disagree with the one
- * that counts — and its only HTTP surface is `POST /api/tables/check`, which
- * takes one seat. `GET /tables/formats` sends a pool's set list and its card
- * COUNT, not its cards, so the arithmetic cannot be done here either.
+ * **One request per era.** The gate is the only thing that can answer "is this
+ * deck legal in this format" — a client-side copy would be a second opinion
+ * free to disagree with the one that counts — so the server runs it over the
+ * whole library (`GET /api/tables/legal/:format`) and sends the legal ids.
+ * Until 2026-10-06 this was one `POST /api/tables/check` per deck: with w48's
+ * 338-deck library that was ~3.5 s of round trips per era for gate work that
+ * takes the server well under a second. The caller still asks once per era and
+ * remembers the answer.
  *
- * It is cheap where it runs and chatty where it is called: the whole library
- * against every frozen pool is 441 gate runs in 160 ms
- * (`apps/server/src/http/tables.test.ts`, "every era offers at least one deck"),
- * so what this costs is round trips, not work. The caller therefore asks **once
- * per era** and remembers the answer.
- *
- * A deck whose check could not be asked is **offered**, not hidden: the server
+ * If the era cannot be asked, every deck is **offered**, not hidden: the server
  * refuses an illegal deck when it is loaded and says which card, so failing
  * open costs a refusal the person can read, while failing closed would silently
- * delete a deck from the library over a dropped request. The failure is
- * returned rather than swallowed.
+ * empty the library over a dropped request. The failure is returned rather
+ * than swallowed.
  */
 export async function legalDecksIn(
-  client: Pick<TablesClient, 'check'>,
+  client: Pick<TablesClient, 'legal'>,
   formatId: string,
   decks: readonly TableDeck[],
 ): Promise<LegalSweep> {
-  const errors: string[] = [];
-  const answers = await Promise.all(
-    decks.map(async (d) => {
-      try {
-        const verdict = await client.check({ deck: { library: d.id }, rules: { kind: 'standard', format: formatId } });
-        return verdict.legal;
-      } catch (err: unknown) {
-        errors.push(err instanceof Error ? err.message : String(err));
-        return true;
-      }
-    }),
-  );
-  const ids = new Set(decks.filter((_, i) => answers[i]).map((d) => d.id));
-  const first = errors[0];
-  return {
-    formatId,
-    ids,
-    error: first === undefined ? null : errors.length === 1 ? first : `${first} (and ${errors.length - 1} more)`,
-  };
+  try {
+    const legal = new Set(await client.legal(formatId));
+    return { formatId, ids: new Set(decks.filter((d) => legal.has(d.id)).map((d) => d.id)), error: null };
+  } catch (err: unknown) {
+    return { formatId, ids: new Set(decks.map((d) => d.id)), error: err instanceof Error ? err.message : String(err) };
+  }
 }

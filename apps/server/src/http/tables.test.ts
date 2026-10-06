@@ -565,6 +565,30 @@ describe('the catalog routes', () => {
 		expect(list[0]?.main.reduce((n, e) => n + e.count, 0)).toBe(60);
 	});
 
+	it('answers an era’s legal decks in one call, the same answer as checking each deck', async () => {
+		const h = await boot();
+		const ctx = { library, draftPool: null };
+		for (const format of library.formats) {
+			const res = await call(h, 'GET', `/api/tables/legal/${encodeURIComponent(format.id)}`);
+			expect(res.status, format.id).toBe(200);
+			const oneByOne = library.decks
+				.filter((d) => {
+					const v = checkSeat({ deck: { library: d.id }, rules: { kind: 'standard', format: format.id } }, ctx);
+					return 'legal' in v && v.legal;
+				})
+				.map((d) => d.id);
+			expect(res.body, format.id).toEqual({ format: format.id, legal: oneByOne });
+		}
+		expect(h.specs).toEqual([]);
+	});
+
+	it('refuses an era it does not have', async () => {
+		const h = await boot();
+		const res = await call(h, 'GET', '/api/tables/legal/1999-01-01');
+		expect(res.status).toBe(400);
+		expect(res.body).toEqual({ error: 'no format "1999-01-01"' });
+	});
+
 	it('checks a deck without starting anything', async () => {
 		const h = await boot();
 		const res = await call(h, 'POST', '/api/tables/check', standard(UG_POLYMORPH, POWER_2011));

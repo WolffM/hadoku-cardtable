@@ -83,9 +83,9 @@
  * quietly disagree with the room about what was checked.
  *
  * The pool also NARROWS the deck list to the decks legal in it, which is one
- * `POST /api/tables/check` per deck — see `legalDecksIn` for why there is no
- * cheaper question to ask, and why a deck the server could not be asked about
- * is offered rather than hidden. The answer is remembered per pool, so moving
+ * `GET /api/tables/legal/:format` per era — see `legalDecksIn` for why the
+ * gate answers it, and why every deck is offered when the era could not be
+ * asked about. The answer is remembered per pool, so moving
  * back to one already asked about costs nothing.
  *
  * A room whose record has not been read yet, or a server that sends no
