@@ -61,6 +61,11 @@ jobs:
     # here. A runner that started before the rollout (e.g. an idle
     # `warm-claw-8` listener) still falls back to its own `/tmp`, which is
     # dot-free too, so this is safe either way.
+    #
+    # It was not: `warm-claw-8` ran `check` with a temp root under a `.cache`
+    # segment and the three suites refused it (runs 37582769530 and
+    # 37584876674, 2026-10-07 — main red, no deploy). So the Test step sets its
+    # own on-disk, dot-free TMPDIR, whatever the runner's environment says.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -109,6 +114,12 @@ jobs:
 
       - name: Lint
         run: pnpm run lint
+
+      - name: A dot-free, on-disk temp root for the suites that refuse a dot segment
+        run: |
+          mkdir -p "$HOME/runner-tmp"
+          echo "TMPDIR=$HOME/runner-tmp" >> "$GITHUB_ENV"
+          echo "TMPDIR=$HOME/runner-tmp (was ${TMPDIR:-unset})"
 
       - name: Test
         run: pnpm run test
