@@ -109,7 +109,8 @@ async function castAndDeclineTrigger(page: Page, cardId: number, declineTextMatc
             await sheet.getByTestId('prompt-cancel').click();
           }
         } else {
-          await answerPrompt(page);
+          // An ability choice that opens between the two reads is the branch above's, next tick.
+          await answerPrompt(page, { leave: ['getAbilityToPlay'] });
         }
         if (/Pay Mana Cost/i.test(await says(page))) await pressOkIfEnabled(page);
         return declined && (await stackCount(page)) === 0;
