@@ -413,3 +413,15 @@ sub-agents dispatched: the same lane-B Sonnet agent, continuing; B2 wall-clock 0
 - **cardtable#5:** closed with this file's run ids once the on-main run is in (see the B2 note's last line).
 - **Evidence:** `docs/planning/wave-forge-claws-evidence/` — text excerpts of every cited job log (runner names,
   HIT/BUILD lines, tallies, judge objects); no screenshots.
+
+### Follow-up: the first on-main Forge run under the new workflow (closes cardtable#5)
+
+Run 37582515279, push b79e398 (wave 54's landing: ui 0.32.40, server 0.32.16), 06:37Z → 06:57Z, push mode.
+forge-e2e on jit-claw-8 (HIT, ports 46353/33961/42531/39875, load 0.16):  1 failed; 90 passed (17.6m); failed: w46-attack.spec.ts:165:1 .
+forge-jvm on warm-claw-9 (HIT, load 1.09): 73 passed / 3 failed / 32 skipped ([nightly], expected on a push) in
+968 s; two failures pinned flaky (board-play, the reveal label), one unpinned: socket-two-mana-pass "Goblin Piker
+resolves over the real socket" — green on the claws in runs 37570892785 and 37574482895, so it is wave 54's
+landing to read (the CI-gate rule: a red Forge run is the lander's work item; messaged w54-manager-c3). Both jobs
+ran in parallel on two claws, 18 and 16 min, no lock wait, no OOM — against hokon's 28 + 18 min serial with 5–8
+min of lock waits the same evening. Nothing of forge-e2e/forge-jvm runs on hokon any more; `changes` stays on
+vars.CI_RUNNER. Evidence: wave-forge-claws-evidence/first-on-main-run.md. Noted 06:58Z; teardown follows.
