@@ -1,0 +1,15 @@
+# The opponent's hand needs to be big enough to wrap into two rows on a
+# narrow-enough screen; no other scenario's scripted hand is.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Memnite
+humanbattlefield=
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

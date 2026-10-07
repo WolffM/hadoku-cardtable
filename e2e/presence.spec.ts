@@ -77,3 +77,59 @@ test(titled('bob sees alice’s pointer, a card back while she holds a card, her
     await stack.stop();
   }
 });
+
+test(titled('letting go of a held card with no further pointer move takes the back down on the other screen at once'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
+    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Memnite' }).not.toEqual([]);
+    const memnite = (await offered(alice.page))[0]!;
+
+    const cardBox = (await alice.page.locator(`[data-board-card="${memnite}"]`).boundingBox())!;
+    const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
+    await alice.page.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + cardBox.height / 2);
+    await alice.page.mouse.down();
+    await alice.page.mouse.move(herField.x + herField.width * 0.5, herField.y + herField.height * 0.5, { steps: 10 });
+    await expect(back(bob.page), 'bob sees a card back while she holds it').toHaveCount(1, { timeout: 10_000 });
+
+    // Let go with NO further pointer move: the release message is the only thing that can take
+    // the back down now, since nothing will throttle a move in to do it instead.
+    await alice.page.mouse.up();
+    await expect(back(bob.page), 'the back is gone at once, not on the next move that never comes').toHaveCount(0, { timeout: 1_000 });
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('a hand that draws in two rows on one screen draws the same two rows as the OTHER seat’s hidden hand'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    // `ai-seven-card-hand`: bob (`ai…`) needs a hand big enough to wrap into two rows, which no
+    // other scenario's scripted hand is.
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'ai-seven-card-hand');
+    await alice.page.setViewportSize({ width: 1280, height: 800 });
+    // A very vertical window (the operator's own report): bob's own hand now draws two rows.
+    await bob.page.setViewportSize({ width: 420, height: 1400 });
+    const bobOwnRows = () =>
+      bob.page.locator('.seat[data-viewer] [data-zone="hand"] .zone__cards > li.board-card').evaluateAll((els) => new Set(els.map((el) => el.getBoundingClientRect().top)).size);
+    await expect.poll(bobOwnRows, { timeout: 10_000, message: 'bob’s own hand drew two rows on his narrow screen' }).toBe(2);
+
+    // Nothing is sent until bob's own pointer moves over his board at least once.
+    const bobField = (await bob.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
+    await bob.page.mouse.move(bobField.x + bobField.width * 0.4, bobField.y + bobField.height * 0.4, { steps: 4 });
+
+    // Alice's screen is ordinary width, and draws bob (not herself) as the hidden hand up top.
+    const aliceSeesBobRows = () =>
+      alice.page.locator('.seat:not([data-viewer]) [data-zone="hand"] .card-backs > li').evaluateAll((els) => new Set(els.map((el) => el.getBoundingClientRect().top)).size);
+    await expect.poll(aliceSeesBobRows, { timeout: 10_000, message: 'alice sees bob’s hidden hand in two rows too' }).toBe(2);
+  } finally {
+    await stack.stop();
+  }
+});

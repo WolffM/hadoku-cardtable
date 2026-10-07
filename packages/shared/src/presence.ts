@@ -19,19 +19,37 @@
  * shown to the opponent until it is actually on the stack") cannot be broken
  * by this channel, by construction: there is nothing in it to leak.
  *
- * ## Positions are zone-relative, because the two boards are mirrored
+ * ## Positions are BOARD-relative, with the zone as a hint only
  *
  * Each seat draws itself at the bottom and the other seat at the top, so a
- * screen position means different things on the two boards. A `Spot` is
- * therefore expressed inside a zone when the pointer is in one — `zone` and
- * `owner` as the SENDER's board names them (`you`/`them`), plus the fraction
- * across and down that zone — and the receiver swaps the owner and maps the
- * fraction into its own copy of that zone. Outside every zone (the stack's
- * column, the rail) it is a fraction of the whole board, unmirrored.
+ * screen position means different things on the two boards — but a `Spot`
+ * is a fraction of the WHOLE board, never of the zone under it: scaling by a
+ * zone's own box drifts at every board/board and board/hand seam the moment
+ * the two screens size that zone differently, because the scale factor jumps
+ * where one zone's box ends and the next (or the gap between them) begins.
+ * `zone` still rides along, naming whichever zone the point fell in (or
+ * `null`, between zones), for a receiver that wants to know without
+ * re-deriving it — nothing here uses it to place the point.
+ *
+ * The receiver mirrors the WHOLE board top-to-bottom (the sender's own side,
+ * at their board's bottom, is the receiver's opponent, drawn at the
+ * receiver's top) and leaves left-right alone, because the columns run the
+ * same way on both.
  *
  * `x`/`y` are fractions in [0, 1], not pixels: a pixel of one screen is
  * meaningless on another, and a bounded number is also what makes the schema
  * strict without caring about viewport sizes.
+ *
+ * ## A deploy is not a reload
+ *
+ * A match in progress spans a deploy: a tab still on the OLD bundle keeps
+ * sending the old shape (a spot carries `owner`; a message carries no
+ * `handRows`) until its own seat reloads it. That shape still parses: an
+ * `owner` key is accepted and dropped (never read, by any receiver, on
+ * either shape), and a missing `handRows` defaults to `1` — the one row
+ * every build before this one ever drew. Only a shape that is actually
+ * wrong (a bad fraction, an `handRows` that is neither `1` nor `2`, any
+ * other extra key) is malformed.
  */
 
 import { z } from 'zod';
@@ -40,22 +58,23 @@ import { z } from 'zod';
 export const PRESENCE_EVENT = 'forge:presence';
 
 export const PresenceZoneSchema = z.enum(['hand', 'battlefield', 'graveyard', 'exile', 'stack']);
-export const PresenceOwnerSchema = z.enum(['you', 'them', 'table']);
 
 const fraction = z.number().min(0).max(1);
 
 /** A point on a board, in a form the other board can place. */
 export const PresenceSpotSchema = z
   .object({
-    /** The zone the point is in, as the sender's board names it; null for a point outside every zone. */
+    /** The zone under the point, as a hint only; placing it never scales by a zone's box. */
     zone: PresenceZoneSchema.nullable(),
-    owner: PresenceOwnerSchema.nullable(),
-    /** Fraction across the zone (or the board), 0 at its left edge, 1 at its right. */
+    /** Fraction across the WHOLE board, 0 at its left edge, 1 at its right. */
     x: fraction,
-    /** Fraction down the zone (or the board), 0 at its top edge, 1 at its bottom. */
+    /** Fraction down the WHOLE board, 0 at its top edge, 1 at its bottom. */
     y: fraction,
+    /** A pre-deploy sender's own zone-relative frame. Accepted so an old tab still parses; never read. */
+    owner: z.unknown().optional(),
   })
-  .strict();
+  .strict()
+  .transform(({ owner: _owner, ...spot }) => spot);
 
 export type PresenceSpot = z.output<typeof PresenceSpotSchema>;
 
@@ -67,8 +86,19 @@ export const PresenceSchema = z
     pointer: PresenceSpotSchema.nullable(),
     /** A card is lifted, parked or carried — drawn for the other seat as a card BACK. Never which card. */
     held: z.boolean(),
-    /** Where an arrow being aimed starts (its tip is `pointer`); null when no arrow is up. */
+    /**
+     * Where an arrow being aimed starts (its tip is `pointer`) while `held`;
+     * the release spot, sent once the moment a held card is let go
+     * (`held: false` in the SAME message) — the hand-off flight's start.
+     * Null when neither applies.
+     */
     from: PresenceSpotSchema.nullable(),
+    /**
+     * The rows the sender's own hand drew — their hidden hand, on this wire,
+     * draws the same. Defaults to `1` so a pre-deploy sender's message (which
+     * never had this field) still parses.
+     */
+    handRows: z.union([z.literal(1), z.literal(2)]).default(1),
   })
   .strict();
 

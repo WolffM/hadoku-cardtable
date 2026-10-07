@@ -17,29 +17,39 @@
  * and that tail is `from`. The gesture layer is not told about this module
  * and need not be.
  *
+ * A card let go (`pointerup`/`pointercancel` while held) sends at once,
+ * outside the throttle: `held: false` and the release point itself as `from`
+ * — so a release with no further movement still reaches the other seat
+ * straight away, rather than waiting for a pointer move that may never come.
+ * `from` otherwise means the arrow's tail (sent only while `held`); the two
+ * never collide because there is no arrow once a card is let go.
+ *
  * ## Receiving
  *
  * A message from the other seat is drawn into lane A's overlay root
  * (`[data-board-overlay]`, `pointer-events: none`, so nothing here can ever be
  * the element under this seat's own pointer): a cursor with their name, a
- * card back beside it while `held`, and an arrow from `from` to the pointer.
- * The board card under the mapped pointer, if any, is marked
- * `data-presence-hint` — a hint that they are pointing at it, never a
- * selection. Positions are mapped zone to zone with the owner swapped (the
- * two boards are mirrored; the shared schema's header has the reason), and
- * smoothed by a short CSS transition. A seat heard nothing from for
- * `PRESENCE_STALE_MS` is drawn no more.
+ * card back beside it while `held`, and an arrow from `from` to the pointer
+ * while `held` (never once let go — see above). The board card under the
+ * mapped pointer, if any, is marked `data-presence-hint` — a hint that they
+ * are pointing at it, never a selection. A spot is placed by mirroring the
+ * WHOLE board top-to-bottom (the shared schema's header has the reason), not
+ * by scaling inside whichever zone it names, and smoothed by a short CSS
+ * transition. A seat heard nothing from for `PRESENCE_STALE_MS` is drawn no
+ * more. Their hidden hand draws in the row count their own message carries
+ * (`handRows`) via `[data-presence-rows]`, which `presence.css` reads.
  *
  * ## The handoff
  *
- * When their back goes and a card of theirs appears within `HANDOFF_MS` — on
- * their battlefield (a land, a permanent) or on the stack (a spell) — a copy
- * of that card travels from where the back last was to the card's own place,
- * the same trip this seat's own played card makes (`gestures/cast.ts`'s
- * `landCastGhost`), while the real one waits hidden in its slot. The operator,
- * 2026-10-07: *"when cards actually get placed on the board it's not really
- * coming from the card hovering by the cursor."* With motion off (Fast Mode)
- * it simply appears, like everything else.
+ * When their back goes — at the release message above, or (failing that)
+ * inferred from the last place it was drawn — and a card of theirs appears
+ * within `HANDOFF_MS` — on their battlefield (a land, a permanent) or on the
+ * stack (a spell) — a copy of that card travels from where the back last was
+ * to the card's own place, the same trip this seat's own played card makes
+ * (`gestures/cast.ts`'s `landCastGhost`), while the real one waits hidden in
+ * its slot. The operator, 2026-10-07: *"when cards actually get placed on the
+ * board it's not really coming from the card hovering by the cursor."* With
+ * motion off (Fast Mode) it simply appears, like everything else.
  *
  * Nothing drawn here is a card the DOM can address: the back carries no
  * `data-card-id`, the cursor no name but theirs, and the travelling copy is
@@ -89,7 +99,6 @@ type Point = { x: number; y: number };
 const ZONES = ['hand', 'battlefield', 'graveyard', 'exile', 'stack'] as const;
 type Zone = (typeof ZONES)[number];
 const isZone = (v: string | null): v is Zone => v !== null && (ZONES as readonly string[]).includes(v);
-const isOwner = (v: string | null): v is 'you' | 'them' | 'table' => v === 'you' || v === 'them' || v === 'table';
 
 /** The board's own box: the overlay covers the canvas exactly. */
 function boardBox(canvas: HTMLElement): DOMRect | null {
@@ -99,45 +108,58 @@ function boardBox(canvas: HTMLElement): DOMRect | null {
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 
 /**
- * A client point as the wire carries it: inside the innermost zone under it
- * when there is one, else inside the board. Exported for the tests, which
- * prove the mirror with real rectangles.
+ * A client point as the wire carries it: a fraction of the WHOLE board, plus
+ * whichever zone it falls in as a hint — never a fraction of that zone's own
+ * box, which is what used to drift at a seam once the two screens sized a
+ * zone differently. Exported for the tests, which prove the mirror with real
+ * rectangles.
  */
 export function spotOf(canvas: HTMLElement, point: Point): PresenceSpot | null {
   const board = boardBox(canvas);
   if (board === null || board.width === 0 || board.height === 0) return null;
-  for (const el of canvas.querySelectorAll<HTMLElement>('[data-zone][data-owner]')) {
-    const zone = el.getAttribute('data-zone');
-    const owner = el.getAttribute('data-owner');
-    if (!isZone(zone) || !isOwner(owner)) continue;
+  let zone: Zone | null = null;
+  for (const el of canvas.querySelectorAll<HTMLElement>('[data-zone]')) {
+    const z = el.getAttribute('data-zone');
+    if (!isZone(z)) continue;
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) continue;
     if (point.x < r.left || point.x > r.right || point.y < r.top || point.y > r.bottom) continue;
-    return { zone, owner, x: clamp01((point.x - r.left) / r.width), y: clamp01((point.y - r.top) / r.height) };
+    zone = z;
+    break;
   }
-  return { zone: null, owner: null, x: clamp01((point.x - board.left) / board.width), y: clamp01((point.y - board.top) / board.height) };
+  return { zone, x: clamp01((point.x - board.left) / board.width), y: clamp01((point.y - board.top) / board.height) };
 }
 
 /**
- * The other board's spot, placed on THIS board, in client coordinates. Their
- * `you` is this seat's `them` — and a battlefield is drawn upside down for its
- * other seat (the front row nearest the centre line, `Board.tsx`'s
- * `data-tiers="mirrored"`), so its fraction DOWN flips too; the columns run the
- * same way for both. The operator, 2026-10-07: *"i'm hovering the top left
- * card on my board, but looking at the other screen it seems to be hovering
- * the bottom left card."*
+ * The other board's spot, placed on THIS board, in client coordinates: the
+ * same fraction across (the columns run the same way on both boards), and the
+ * fraction down mirrored — the sender's own side, at the bottom of their
+ * board, is drawn at the TOP of this one (their opponent's place), and their
+ * opponent's side, at their top, is drawn at this board's bottom (this seat's
+ * own place). No zone's box scales it, on either side. The operator,
+ * 2026-10-07: *"i'm hovering the top left card on my board, but looking at
+ * the other screen it seems to be hovering the bottom left card."*
  */
 export function placeSpot(canvas: HTMLElement, spot: PresenceSpot): Point | null {
   const board = boardBox(canvas);
   if (board === null) return null;
-  if (spot.zone !== null && spot.owner !== null) {
-    const owner = spot.owner === 'you' ? 'them' : spot.owner === 'them' ? 'you' : 'table';
-    const el = canvas.querySelector<HTMLElement>(`[data-zone="${spot.zone}"][data-owner="${owner}"]`);
-    const r = el?.getBoundingClientRect();
-    const y = spot.zone === 'battlefield' && spot.owner !== 'table' ? 1 - spot.y : spot.y;
-    if (r !== undefined && r.width > 0 && r.height > 0) return { x: r.left + spot.x * r.width, y: r.top + y * r.height };
+  return { x: board.left + spot.x * board.width, y: board.top + (1 - spot.y) * board.height };
+}
+
+/**
+ * This seat's own hand's row count, read off its card list rather than
+ * carried as a second channel of state: more than one distinct row of tops
+ * among its cards is two rows, otherwise one. The wire only ever says 1 or 2
+ * (`PresenceSchema`), which is all `board.css` ever draws a hand in.
+ */
+function handRowsOf(canvas: HTMLElement): 1 | 2 {
+  const cards = canvas.querySelectorAll<HTMLElement>('[data-zone="hand"][data-owner="you"] li');
+  if (cards.length < 2) return 1;
+  const first = Math.round(cards[0]!.getBoundingClientRect().top);
+  for (const card of cards) {
+    if (Math.round(card.getBoundingClientRect().top) !== first) return 2;
   }
-  return { x: board.left + spot.x * board.width, y: board.top + spot.y * board.height };
+  return 1;
 }
 
 /** What this seat's hands are doing, off the gesture layer's own marks. */
@@ -169,7 +191,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const spot = pointer === null ? null : spotOf(canvas, pointer);
     const hands = handsOf(canvas);
     const from = hands.from === null ? null : spotOf(canvas, hands.from);
-    const message: PresenceMessage = { matchId: host.matchId, type: 'presence', pointer: spot, held: hands.held, from };
+    const message: PresenceMessage = { matchId: host.matchId, type: 'presence', pointer: spot, held: hands.held, from, handRows: handRowsOf(canvas) };
     const key = JSON.stringify(message);
     if (key === lastMessage) return;
     lastMessage = key;
@@ -188,11 +210,37 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     }, wait);
   }
 
+  /**
+   * A card let go: sent at once, outside the throttle — a release with no
+   * further movement used to wait on a move that might never come, so the
+   * back stayed attached after the card had already appeared on the board.
+   * `from` carries the release point itself, for the hand-off to start from
+   * without having to infer it from whatever was last drawn.
+   */
+  function sendRelease(point: Point): void {
+    if (!live || host.seat === null) return;
+    const spot = spotOf(canvas, point);
+    if (sendTimer !== null) {
+      clearTimeout(sendTimer);
+      sendTimer = null;
+    }
+    const message: PresenceMessage = { matchId: host.matchId, type: 'presence', pointer: spot, held: false, from: spot, handRows: handRowsOf(canvas) };
+    lastMessage = JSON.stringify(message);
+    lastPointer = { x: point.x, y: point.y };
+    lastSent = Date.now();
+    host.transport.emit(PRESENCE_EVENT, message);
+  }
+
   function onPointerMove(event: PointerEvent): void {
     sendSoon({ x: event.clientX, y: event.clientY });
   }
   function onPointerLeave(): void {
     sendSoon(null);
+  }
+  function onPointerRelease(event: PointerEvent): void {
+    // Read before the gesture layer's own `pointerup`/`pointercancel` handler runs: this
+    // listener is on `canvas`, which the event bubbles through before reaching `window`.
+    if (handsOf(canvas).held) sendRelease({ x: event.clientX, y: event.clientY });
   }
   function onVisibility(): void {
     if (document.visibilityState === 'hidden') sendSoon(null);
@@ -224,6 +272,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     arrow = null;
     hinted?.removeAttribute('data-presence-hint');
     hinted = null;
+    canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]')?.removeAttribute('data-presence-rows');
     if (staleTimer !== null) clearTimeout(staleTimer);
     staleTimer = null;
   }
@@ -276,12 +325,22 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       back.style.top = `${at.y - box.top}px`;
       backAt = at;
     } else {
-      if (back !== null && backAt !== null) backWas = { at: backAt, gone: Date.now() };
+      // The release message carries the exact release spot as `from`; failing that (no explicit
+      // release reached this seat), fall back to the last place the back was actually drawn.
+      const released = echo.from === null ? null : placeSpot(canvas, echo.from);
+      if (released !== null) backWas = { at: released, gone: Date.now() };
+      else if (back !== null && backAt !== null) backWas = { at: backAt, gone: Date.now() };
       back?.remove();
       back = null;
     }
 
-    const from = echo.from === null ? null : placeSpot(canvas, echo.from);
+    const theirHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]');
+    if (echo.handRows === 2) theirHand?.setAttribute('data-presence-rows', '2');
+    else theirHand?.removeAttribute('data-presence-rows');
+
+    // The arrow is the tail of an active aim, which only exists while a card is held; once let
+    // go, `from` is the release spot above, never an arrow to draw.
+    const from = echo.held && echo.from !== null ? placeSpot(canvas, echo.from) : null;
     if (from !== null) {
       if (arrow === null) {
         arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -343,6 +402,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerleave', onPointerLeave);
+  canvas.addEventListener('pointerup', onPointerRelease);
+  canvas.addEventListener('pointercancel', onPointerRelease);
   document.addEventListener('visibilitychange', onVisibility);
   host.transport.on(PRESENCE_EVENT, onEcho);
   const unwatch = host.watch?.(handoff) ?? null;
@@ -353,6 +414,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       unwatch?.();
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerleave', onPointerLeave);
+      canvas.removeEventListener('pointerup', onPointerRelease);
+      canvas.removeEventListener('pointercancel', onPointerRelease);
       document.removeEventListener('visibilitychange', onVisibility);
       if (sendTimer !== null) clearTimeout(sendTimer);
       sendTimer = null;

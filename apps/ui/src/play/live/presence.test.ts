@@ -8,6 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
 
+import * as castModule from './gestures/cast.ts';
 import { installPresence, placeSpot, PRESENCE_STALE_MS, spotOf, type PresenceHost } from './presence.ts';
 
 type Box = { left: number; top: number; width: number; height: number };
@@ -15,29 +16,43 @@ const rect = (b: Box): DOMRect =>
   ({ ...b, right: b.left + b.width, bottom: b.top + b.height, x: b.left, y: b.top, toJSON: () => b }) as DOMRect;
 
 /** A board: the overlay covering it, both seats' battlefields and hands, one card of theirs. */
-function board(): { canvas: HTMLElement; theirCard: HTMLElement } {
+function board(overrides: Partial<Record<string, Box>> = {}, overlay: Box = { left: 0, top: 0, width: 1000, height: 800 }): { canvas: HTMLElement; theirCard: HTMLElement } {
   const canvas = document.createElement('div');
   canvas.innerHTML = `
     <div class="board">
-      <div data-zone="hand" data-owner="them"></div>
+      <div class="zone zone--hand" data-zone="hand" data-owner="them"><ul class="card-backs"></ul></div>
       <div data-zone="battlefield" data-owner="them"><ul><li class="board-card" data-board-card="7" data-card-id="7"><button class="board-card__face"></button></li></ul></div>
       <div data-zone="battlefield" data-owner="you"></div>
       <div data-zone="hand" data-owner="you"></div>
-      <div class="board__overlay" data-board-overlay=""></div>
+      <div class="board__overlay" data-board-overlay="" />
     </div>`;
   document.body.append(canvas);
   const boxes: Record<string, Box> = {
-    '[data-board-overlay]': { left: 0, top: 0, width: 1000, height: 800 },
+    '[data-board-overlay]': overlay,
     '[data-zone="hand"][data-owner="them"]': { left: 100, top: 20, width: 800, height: 100 },
     '[data-zone="battlefield"][data-owner="them"]': { left: 100, top: 150, width: 800, height: 200 },
     '[data-zone="battlefield"][data-owner="you"]': { left: 100, top: 400, width: 800, height: 200 },
     '[data-zone="hand"][data-owner="you"]': { left: 100, top: 650, width: 800, height: 100 },
     '[data-board-card="7"]': { left: 120, top: 200, width: 60, height: 84 },
+    ...overrides,
   };
   for (const [selector, box] of Object.entries(boxes)) {
     canvas.querySelector<HTMLElement>(selector)!.getBoundingClientRect = () => rect(box);
   }
   return { canvas, theirCard: canvas.querySelector<HTMLElement>('[data-board-card="7"]')! };
+}
+
+/** `n` hand cards in the viewer's own hand, laid out in one row or two (stubbed tops). */
+function ownHand(canvas: HTMLElement, n: number, rows: 1 | 2): void {
+  const zone = canvas.querySelector('[data-zone="hand"][data-owner="you"]')!;
+  const list = document.createElement('ul');
+  for (let i = 0; i < n; i++) {
+    const li = document.createElement('li');
+    const top = rows === 2 && i >= Math.ceil(n / 2) ? 700 : 650;
+    li.getBoundingClientRect = () => rect({ left: 100 + i * 60, top, width: 56, height: 84 });
+    list.append(li);
+  }
+  zone.append(list);
 }
 
 function fakeTransport() {
@@ -66,26 +81,40 @@ afterEach(() => {
 });
 
 describe('the mirror', () => {
-  it('a point in a zone is sent as that zone and a fraction of it; the other board places it in the SAME zone of the OTHER owner', () => {
+  it('a point is sent as a fraction of the WHOLE board, with the zone under it along for the ride as a hint only', () => {
     const { canvas } = board();
-    // Over this seat's own battlefield, a quarter across and halfway down.
+    // Over this seat's own battlefield: a board fraction, not a fraction of that zone's own box.
     const spot = spotOf(canvas, { x: 300, y: 500 })!;
-    expect(spot).toEqual({ zone: 'battlefield', owner: 'you', x: 0.25, y: 0.5 });
-    // Received by the other board (the same layout here): their "you" is this board's "them".
-    const placed = placeSpot(canvas, spot)!;
-    expect(placed).toEqual({ x: 300, y: 250 });
-    // A battlefield is drawn upside down for its other seat: a quarter DOWN their own battlefield is
-    // three quarters down it as this board draws it (their front row is nearest the middle).
-    expect(placeSpot(canvas, { zone: 'battlefield', owner: 'you', x: 0.25, y: 0.25 })).toEqual({ x: 300, y: 150 + 150 });
-    // A hand is one row either way: no flip.
-    expect(placeSpot(canvas, { zone: 'hand', owner: 'you', x: 0.5, y: 0.25 })).toEqual({ x: 500, y: 20 + 25 });
+    expect(spot).toEqual({ zone: 'battlefield', x: 0.3, y: 0.625 });
+    // Outside every zone: still a board fraction, zone null.
+    expect(spotOf(canvas, { x: 950, y: 380 })).toEqual({ zone: null, x: 0.95, y: 0.475 });
   });
 
-  it('a point outside every zone is a fraction of the board, and lands at the same fraction', () => {
+  it('placeSpot mirrors the WHOLE board top-to-bottom and leaves left-right alone — no zone box scales it', () => {
     const { canvas } = board();
-    const spot = spotOf(canvas, { x: 950, y: 380 })!;
-    expect(spot).toEqual({ zone: null, owner: null, x: 0.95, y: 0.475 });
-    expect(placeSpot(canvas, spot)).toEqual({ x: 950, y: 380 });
+    // The sender's own bottom half (y=0.625, their battlefield) lands near the TOP of this board
+    // (this seat's "them" battlefield, 150–350): the physical seat it belongs to is drawn there.
+    expect(placeSpot(canvas, { zone: 'battlefield', x: 0.3, y: 0.625 })).toEqual({ x: 300, y: 300 });
+    // x is never mirrored.
+    expect(placeSpot(canvas, { zone: null, x: 0.1, y: 0.5 })).toEqual({ x: 100, y: 400 });
+  });
+
+  it('a pointer crossing the centre line and the hand edge places monotonically on a DIFFERENTLY-sized board: no per-zone scaling to drift at the seam', () => {
+    const { canvas: sender } = board();
+    // A board shaped like a very vertical window: a taller overlay, and a much bigger hand zone —
+    // the exact mismatch that made the old zone-relative math jump at a seam.
+    const { canvas: receiver } = board(
+      { '[data-zone="hand"][data-owner="them"]': { left: 40, top: 10, width: 360, height: 260 } },
+      { left: 0, top: 0, width: 400, height: 1400 },
+    );
+    // A straight line down the sender's board, crossing its centre line (y=400) and its own
+    // hand's top edge (y=650).
+    const ys = [100, 300, 390, 400, 410, 500, 640, 650, 660, 750];
+    const placedYs = ys.map((y) => placeSpot(receiver, spotOf(sender, { x: 500, y })!)!.y);
+    for (let i = 1; i < placedYs.length; i++) {
+      expect(placedYs[i], `placed y at sender-y=${ys[i]} is not past placed y at sender-y=${ys[i - 1]}`).toBeLessThanOrEqual(placedYs[i - 1]!);
+    }
+    expect(new Set(placedYs).size, 'strictly decreasing, not just non-increasing').toBe(placedYs.length);
   });
 });
 
@@ -101,7 +130,7 @@ describe('sending', () => {
     expect(t.sent, 'two moves inside one window: one message, the latest').toHaveLength(1);
     expect(t.sent[0]).toEqual({
       event: PRESENCE_EVENT,
-      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', owner: 'you', x: 0.275, y: 0.5 }, held: false, from: null },
+      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1 },
     });
 
     // The gesture layer lifts a card and aims an arrow from it: read off its own marks.
@@ -119,7 +148,7 @@ describe('sending', () => {
     vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
     const second = t.sent[1]!.payload as { held: boolean; from: unknown };
     expect(second.held).toBe(true);
-    expect(second.from, 'the arrow’s tail, in the hand it was lifted from').toEqual({ zone: 'hand', owner: 'you', x: 0.5, y: 0.5 });
+    expect(second.from, 'the arrow’s tail, as a board fraction').toEqual({ zone: 'hand', x: 0.5, y: 0.875 });
     expect(JSON.stringify(second), 'no card id anywhere in it').not.toContain('31');
 
     canvas.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false }));
@@ -128,14 +157,63 @@ describe('sending', () => {
     handle.dispose();
   });
 
-  it('a spectator sends nothing', () => {
+  it('letting go of a held card sends at once, outside the throttle: held false, the release spot as `from`, the back gone on the other screen', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+
+    const lifted = document.createElement('li');
+    lifted.setAttribute('data-cast-lift', 'parked');
+    canvas.querySelector('.board')!.append(lifted);
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, clientY: 500, bubbles: true }));
+    vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    expect(t.sent).toHaveLength(1);
+
+    // Let go without moving first: the release reaches the other seat with NO timer advance at all.
+    canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 300, clientY: 500, bubbles: true }));
+    expect(t.sent, 'one message, zero ms later').toHaveLength(2);
+    expect(t.sent[1]).toEqual({
+      event: PRESENCE_EVENT,
+      payload: {
+        matchId: 'm-1',
+        type: 'presence',
+        pointer: { zone: 'battlefield', x: 0.3, y: 0.625 },
+        held: false,
+        from: { zone: 'battlefield', x: 0.3, y: 0.625 },
+        handRows: 1,
+      },
+    });
+
+    // A card not held sends nothing special on pointerup — no spurious release message.
+    lifted.remove();
+    canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 310, clientY: 500, bubbles: true }));
+    expect(t.sent, 'nothing was held: no extra message').toHaveLength(2);
+
+    handle.dispose();
+  });
+
+  it('a spectator sends nothing, release included', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t, null) });
     canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, clientY: 500, bubbles: true }));
     vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 300, clientY: 500, bubbles: true }));
     expect(t.sent).toHaveLength(0);
+    handle.dispose();
+  });
+
+  it('reads its own hand’s row count off the DOM: two rows sent as 2, one row (or a lone card) as 1', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    ownHand(canvas, 6, 2);
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, clientY: 500, bubbles: true }));
+    vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    expect((t.sent[0]!.payload as { handRows: unknown }).handRows).toBe(2);
     handle.dispose();
   });
 });
@@ -149,7 +227,7 @@ describe('receiving', () => {
     const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
     // Their pointer over THEIR own battlefield's first card: lands on this board's "them" battlefield, over card 7.
     document.elementFromPoint = (x: number, y: number) => (x >= 120 && x <= 180 && y >= 200 && y <= 284 ? theirCard.firstElementChild : null);
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', owner: 'you', x: 0.0625, y: 0.5 }, held: true, from: { zone: 'hand', owner: 'you', x: 0.5, y: 0.5 } });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.15, y: 0.6875 }, held: true, from: { zone: 'hand', x: 0.5, y: 0.875 }, handRows: 1 });
     const cursor = overlay.querySelector<HTMLElement>('.presence')!;
     expect(cursor, 'the cursor').not.toBeNull();
     expect(cursor.style.left).toBe('150px');
@@ -157,11 +235,12 @@ describe('receiving', () => {
     expect(cursor.querySelector('.presence__name')!.textContent).toBe('Bella');
     expect(overlay.querySelector('.presence__back'), 'a card back').not.toBeNull();
     expect(overlay.querySelector('.presence__back')!.hasAttribute('data-card-id'), 'that is not a card the DOM can address').toBe(false);
-    expect(overlay.querySelector('.presence__arrow path')!.getAttribute('d'), 'the arrow from their hand (this board’s top row) to the pointer').toMatch(/^M 500 70 Q /);
+    expect(overlay.querySelector('.presence__arrow path')!.getAttribute('d'), 'the arrow from their hand to the pointer, while held').toMatch(/^M 500 100 Q /);
     expect(theirCard.hasAttribute('data-presence-hint'), 'the card under their pointer is hinted').toBe(true);
 
-    // They let go and move on: no back, no arrow, no hint.
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, owner: null, x: 0.9, y: 0.1 }, held: false, from: null });
+    // They let go and move on, with no explicit release reaching this seat first (the regular,
+    // throttled path): no back, no arrow — `from` is never drawn as an arrow once not held.
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.9, y: 0.1 }, held: false, from: null, handRows: 1 });
     expect(overlay.querySelector('.presence__back')).toBeNull();
     expect(overlay.querySelector('.presence__arrow')).toBeNull();
     expect(theirCard.hasAttribute('data-presence-hint')).toBe(false);
@@ -170,6 +249,30 @@ describe('receiving', () => {
     // Silence: taken down after PRESENCE_STALE_MS.
     vi.advanceTimersByTime(PRESENCE_STALE_MS + 1);
     expect(overlay.querySelector('.presence')).toBeNull();
+    handle.dispose();
+  });
+
+  it('a release message (held false, `from` the release spot) never draws an arrow, even though `from` is non-null', () => {
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.3, y: 0.5 }, held: true, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.3, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.3, y: 0.5 }, handRows: 1 });
+    expect(overlay.querySelector('.presence__back'), 'gone on the release message').toBeNull();
+    expect(overlay.querySelector('.presence__arrow'), 'no arrow drawn from a release spot').toBeNull();
+    handle.dispose();
+  });
+
+  it('their hand rows (handRows on the wire) set `data-presence-rows` on the hidden hand; 1 clears it', () => {
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const theirHand = canvas.querySelector('[data-zone="hand"][data-owner="them"]')!;
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 2 });
+    expect(theirHand.getAttribute('data-presence-rows'), 'their hand draws two rows').toBe('2');
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1 });
+    expect(theirHand.hasAttribute('data-presence-rows'), 'back to one row: no attribute').toBe(false);
     handle.dispose();
   });
 
@@ -183,9 +286,10 @@ describe('receiving', () => {
       canvas,
       host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, motion: () => true },
     });
-    // They hold a card over their battlefield, then let go.
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', owner: 'you', x: 0.5, y: 0.5 }, held: true, from: null });
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', owner: 'you', x: 0.5, y: 0.5 }, held: false, from: null });
+    // They hold a card over their battlefield, then let go with no explicit release reaching this
+    // seat (the fallback path: the last place the back was actually drawn).
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: true, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1 });
     expect(canvas.querySelector('.presence__back')).toBeNull();
     // Forge puts card 7 on their battlefield (the fixture's one card of theirs), and the match wakes its subscribers.
     theirs = [7];
@@ -209,17 +313,41 @@ describe('receiving', () => {
     handle.dispose();
   });
 
+  it('the hand-off flight starts from the RELEASE message’s own `from`, not from wherever the back was last drawn', () => {
+    const { canvas, theirCard } = board();
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, motion: () => true },
+    });
+    const spy = vi.spyOn(castModule, 'landCastGhost').mockImplementation(() => undefined);
+    // Held at one spot (x=0.1,y=0.1 → placed 100,720), then let go at a DIFFERENT, explicit spot
+    // (x=0.5,y=0.5 → placed 500,400) — the throttled stream could easily be stale by release time,
+    // so the flight must read the release message's own `from`, not the earlier held position.
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.1, y: 0.1 }, held: true, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: false, from: { zone: 'battlefield', x: 0.5, y: 0.5 }, handRows: 1 });
+    theirs = [7];
+    theirCard.innerHTML = '<button class="board-card__face"><article class="card" data-card-id="w7" data-testid="card"><span class="card__name">Their Card</span></article></button>';
+    wake!();
+    expect(spy, 'the flight was started').toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]![3], 'from the release spot (500,400), not the held spot (100,720)').toEqual({ x: 500, y: 400 });
+    spy.mockRestore();
+    handle.dispose();
+  });
+
   it('their pointer leaving their board takes the cursor down; this seat’s own echo and another match’s are ignored', () => {
     const { canvas } = board();
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, owner: null, x: 0.5, y: 0.5 }, held: false, from: null });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1 });
     expect(overlay.querySelector('.presence')).not.toBeNull();
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1 });
     expect(overlay.querySelector('.presence')).toBeNull();
-    t.receive({ matchId: 'm-1', type: 'presence', seat: 0, pointer: { zone: null, owner: null, x: 0.5, y: 0.5 }, held: false, from: null });
-    t.receive({ matchId: 'm-2', type: 'presence', seat: 1, pointer: { zone: null, owner: null, x: 0.5, y: 0.5 }, held: false, from: null });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 0, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1 });
+    t.receive({ matchId: 'm-2', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1 });
     expect(overlay.querySelector('.presence'), 'neither drawn').toBeNull();
     handle.dispose();
   });
