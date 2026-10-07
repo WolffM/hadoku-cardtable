@@ -597,9 +597,34 @@ export function forgeFrames(s: Scenario, seat: number, from = 0): ForgeFrame[] {
 	return out;
 }
 
-/** The last prompt Forge showed `seat`, whether or not the server forwarded it. */
-export function forgePrompt(s: Scenario, seat: number): string {
-	return forgeFrames(s, seat).findLast((f) => f.method === 'showPromptMessage')?.message ?? '';
+/**
+ * One seat's windows as text, for a failing scenario to print: what Forge
+ * sent (`forge`), what reached the seat (`wire`), in arrival order, from line
+ * `from` and send `sentFrom` on. Prompts, bars and asks only.
+ */
+export function timeline(s: Scenario, seat: number, from = 0, sentFrom = 0): string {
+	const describe = (f: { method?: unknown; message?: unknown; label1?: unknown; label2?: unknown; enable1?: unknown; enable2?: unknown; kind?: unknown }): string | null => {
+		if (f.method === 'showPromptMessage') return `PROMPT ${JSON.stringify(f.message)}`;
+		if (f.method === 'updateButtons') return `BAR [${String(f.label1)}${f.enable1 === true ? '' : '-'}] [${String(f.label2)}${f.enable2 === true ? '' : '-'}]`;
+		if (f.kind === 'ask') return `ASK ${String(f.method)}`;
+		return null;
+	};
+	const rows: { t: number; text: string }[] = [];
+	for (const l of s.lines.slice(from)) {
+		const line = l as { t: string; seat?: number; hostT: number; frame?: Record<string, unknown> };
+		if (line.t !== 'frame' || line.seat !== seat || line.frame === undefined) continue;
+		const text = describe(line.frame);
+		if (text !== null) rows.push({ t: line.hostT, text: `forge ${text}` });
+	}
+	for (const x of s.sent.slice(sentFrom)) {
+		if (x.seat !== seat) continue;
+		const text = describe(x.envelope.frame as unknown as Record<string, unknown>);
+		if (text !== null) rows.push({ t: x.t, text: `wire  ${text}` });
+	}
+	rows.sort((a, b) => a.t - b.t);
+	const t0 = rows[0]?.t ?? 0;
+	const decided = s.logs.filter((l) => l.seat === seat && /^(prompt-|auto-)/.test(String(l.evt))).map((l) => JSON.stringify(l));
+	return [...rows.map((r) => `+${Math.round(r.t - t0)}ms ${r.text}`), '--- decisions', ...decided].join('\n');
 }
 
 /** Click `name` in the seat's hand and wait until it is on the battlefield with the stack empty again. */

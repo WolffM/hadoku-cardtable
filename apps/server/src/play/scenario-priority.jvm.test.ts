@@ -91,7 +91,7 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(
 					() => {
 						s.answerAsks();
-						return /^Stack: Empty$/m.test(s.prompt(0));
+						return s.zone(0, 'Battlefield').some((c) => c.name === 'Memnite');
 					},
 					'the spell to resolve without a click',
 					20_000,

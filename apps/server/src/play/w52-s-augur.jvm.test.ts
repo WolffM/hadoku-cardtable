@@ -22,7 +22,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil } from './scenario.js';
+import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, timeline, waitUntil } from './scenario.js';
 
 const title = available.ok
 	? 'wave 52 §S: the upkeep-only ability stops the upkeep, and its chosen cost confirms itself, against real Forge'
@@ -135,6 +135,9 @@ describe.skipIf(!available.ok)(title, () => {
 					.flatMap((x) => ((x.envelope.frame as unknown as { phaseRestricted?: { id: number }[] }).phaseRestricted ?? []).map((c) => c.id));
 				expect(restricted.length).toBeGreaterThan(0);
 				expect(new Set(restricted)).toEqual(new Set([augurId]));
+			} catch (err) {
+				console.log(`[augur-timeline]\n${timeline(s, 0)}`);
+				throw err;
 			} finally {
 				await s.stop();
 			}

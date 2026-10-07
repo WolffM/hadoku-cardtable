@@ -1332,6 +1332,8 @@ describe.skipIf(!available.ok)(title, () => {
 				// priority window ever reaches the seat, which the normal game
 				// keeps sending as the seat's own genuine stops resume.
 				expect(sentSince.some((x) => /Pay Mana Cost/.test((x.envelope.frame as unknown as { message?: string }).message ?? ''))).toBe(false);
+				// Nor any part of the payment's bar: its disabled and enabled Auto never went out.
+				expect(sentSince.filter((x) => (x.envelope.frame as unknown as { label1?: string }).label1 === 'Auto')).toEqual([]);
 				expect(withheld.map((l) => l.kind)).toEqual(['payment', 'priority']);
 			} finally {
 				await s.stop();

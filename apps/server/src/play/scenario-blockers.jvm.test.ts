@@ -41,7 +41,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, scenarioText, startScenario, timeline, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'Declare Blockers, set up by a scenario, against real Forge'
@@ -167,6 +167,9 @@ describe.skipIf(!available.ok)(title, () => {
 				}, 'the creature to be declared blocking', 10_000, s);
 				s.ok(1);
 				await waitUntil(() => /Declare Blockers Step/.test(s.prompt(1)), 'the priority window after the block', 10_000, s);
+			} catch (err) {
+				console.log(`[q12-timeline]\n${timeline(s, 1)}`);
+				throw err;
 			} finally {
 				await s.stop();
 			}
