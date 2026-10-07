@@ -35,10 +35,17 @@
  *     --pool=forks --poolOptions.forks.singleFork=true
  */
 
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { available, deck, finishMulligan, idsOf, scenarioText, startScenario, waitUntil } from './scenario.js';
+
+/** Evidence files land under the harness's own run directory, never a literal `/tmp`. */
+function evidencePath(name: string): string {
+	return join(process.env.CARDTABLE_PLAY_WORK_DIR ?? tmpdir(), 'evidence', name);
+}
 
 const title = available.ok
 	? 'targets on the wire, set up by a scenario, against real Forge'
@@ -94,10 +101,9 @@ describe.skipIf(!available.ok)(title, () => {
 					// than a bare timeout.
 				});
 				const targetCards = idsOf(lastSeen as Parameters<typeof idsOf>[0], 'TargetCards');
-				writeFileSync(
-					'/tmp/claude-1000/w33-S/auto-target-stackitem.json',
-					JSON.stringify({ lastSeen, targetCards, asks: s.asks.map((a) => ({ method: a.method })) }, null, 2),
-				);
+				const evidence = evidencePath('auto-target-stackitem.json');
+				mkdirSync(dirname(evidence), { recursive: true });
+				writeFileSync(evidence, JSON.stringify({ lastSeen, targetCards, asks: s.asks.map((a) => ({ method: a.method })) }, null, 2));
 				expect(targetCards, `TargetCards did not reach the wire for Doom Blade's stack item: ${JSON.stringify(lastSeen)}`).toContain(memnite.id);
 			} finally {
 				await s.stop();
@@ -143,8 +149,10 @@ describe.skipIf(!available.ok)(title, () => {
 				// sets only) does not apply; read the tagged int directly.
 				const sourceCardRaw = stackItem?.SourceCard as { t?: string; v?: unknown } | undefined;
 				const sourceCardId = sourceCardRaw?.t === 'int' && typeof sourceCardRaw.v === 'number' ? sourceCardRaw.v : null;
+				const evidence = evidencePath('glint-hawk-stackitem.json');
+				mkdirSync(dirname(evidence), { recursive: true });
 				writeFileSync(
-					'/tmp/claude-1000/w33-Q18/glint-hawk-stackitem.json',
+					evidence,
 					JSON.stringify({ stackItem, sourceCardId, dragonId: dragon.id, dragonTapped: s.zone(0, 'Battlefield').find((c) => c.id === dragon.id)?.tapped }, null, 2),
 				);
 				// The claim: the stack item's source IS the permanent, and that

@@ -35,11 +35,18 @@
  *     --pool=forks --poolOptions.forks.singleFork=true
  */
 
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_STOP_POLICY } from './auto.js';
 import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+
+/** Evidence files land under the harness's own run directory, never a literal `/tmp`. */
+function evidencePath(name: string): string {
+	return join(process.env.CARDTABLE_PLAY_WORK_DIR ?? tmpdir(), 'evidence', name);
+}
 
 /**
  * The policy a seat runs under when it pays by clicking its own lands one at a
@@ -243,14 +250,15 @@ describe.skipIf(!available.ok)(title, () => {
 				);
 				const afterTap1 = s.sent.slice(markTap1);
 
-				writeFileSync(
-					'/tmp/claude-1000/w40-A/measure-manual-pay-tap1.json',
-					JSON.stringify(afterTap1.map((x) => ({ seat: x.seat, frame: x.envelope.frame })), null, 2),
-				);
+				const tap1Evidence = evidencePath('measure-manual-pay-tap1.json');
+				mkdirSync(dirname(tap1Evidence), { recursive: true });
+				writeFileSync(tap1Evidence, JSON.stringify(afterTap1.map((x) => ({ seat: x.seat, frame: x.envelope.frame })), null, 2));
 				const seat1AfterTap1 = afterTap1.filter((x) => x.seat === 1);
 				const leakAfterTap1 = seat1AfterTap1.filter((x) => JSON.stringify(x.envelope.frame).includes('Doom Blade'));
+				const summaryEvidence = evidencePath('measure-manual-pay-summary.txt');
+				mkdirSync(dirname(summaryEvidence), { recursive: true });
 				writeFileSync(
-					'/tmp/claude-1000/w40-A/measure-manual-pay-summary.txt',
+					summaryEvidence,
 					`swamps=${JSON.stringify(swamps)}\npromptAfterTap1=${JSON.stringify(s.prompt(0))}\nbuttonsAfterTap1=${JSON.stringify(s.buttons(0))}\nseat1 frames after tap 1: ${seat1AfterTap1.length}\nleaked "Doom Blade" after tap 1, before tap 2: ${leakAfterTap1.length}\n${JSON.stringify(leakAfterTap1.map((x) => x.envelope.frame))}`,
 				);
 
@@ -260,8 +268,10 @@ describe.skipIf(!available.ok)(title, () => {
 
 				const seat1Whole = s.sent.slice(markAll).filter((x) => x.seat === 1);
 				const firstNamedIdx = seat1Whole.findIndex((x) => JSON.stringify(x.envelope.frame).includes('Doom Blade'));
+				const firstNamedEvidence = evidencePath('measure-manual-pay-firstnamed.txt');
+				mkdirSync(dirname(firstNamedEvidence), { recursive: true });
 				writeFileSync(
-					'/tmp/claude-1000/w40-A/measure-manual-pay-firstnamed.txt',
+					firstNamedEvidence,
 					`firstNamedIdx=${firstNamedIdx}\n${firstNamedIdx >= 0 ? JSON.stringify(seat1Whole[firstNamedIdx]!.envelope.frame) : 'NEVER'}`,
 				);
 				expect(leakAfterTap1, 'the opponent was shown Doom Blade between the first and second tap').toEqual([]);
@@ -356,10 +366,6 @@ describe.skipIf(!available.ok)(title, () => {
 
 				const seat1Frames = framesOf(s, markAll, 1);
 				const leaked = seat1Frames.filter((f) => f.includes('Doom Blade'));
-				writeFileSync(
-					'/tmp/claude-1000/w40-A/measure-manual-pay-cancel.txt',
-					`leaked: ${leaked.length}\n${leaked.join('\n')}`,
-				);
 				expect(leaked, 'the opponent was shown the cancelled Doom Blade').toEqual([]);
 			} finally {
 				await s.stop();

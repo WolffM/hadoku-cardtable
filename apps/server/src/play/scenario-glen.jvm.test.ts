@@ -41,7 +41,6 @@
  *     --pool=forks --poolOptions.forks.singleFork=true
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { available, deck, finishMulligan, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
@@ -114,8 +113,6 @@ describe.skipIf(!available.ok)(title, () => {
 			const { s, mark, t0, faerieId } = await clickGlenAndWaitForReveal(1335);
 			try {
 				const lines = dump(s, mark, t0);
-				mkdirSync('/tmp/claude-1000/w35-s', { recursive: true });
-				writeFileSync('/tmp/claude-1000/w35-s/glen-selection.txt', lines.join('\n'));
 				console.log(`[w35-s1]\n${lines.join('\n')}`);
 
 				// The selection names the Faerie Seer, exactly min=max=1.

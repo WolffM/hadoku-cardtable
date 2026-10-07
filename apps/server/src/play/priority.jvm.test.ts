@@ -7,7 +7,6 @@
  *     --pool=forks --poolOptions.forks.singleFork=true
  */
 
-import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import type { ServerFrame } from '@hadoku/forge-wire';
@@ -84,7 +83,6 @@ describe.skipIf(!available.ok)(title, () => {
 				lines.push(`--- seat ${x}: ${lands} lands, ${spare} Lightning Bolts in hand when the first was cast; targeted=${targeted}`);
 				lines.push(`--- hand now: ${JSON.stringify(s.zone(x, 'Hand').map((c) => c.name))} battlefield: ${JSON.stringify(s.zone(x, 'Battlefield').map((c) => c.name + (c.tapped ? '(T)' : '')))}`);
 				console.log(`[q17]\n${lines.join('\n')}`);
-				writeFileSync('/tmp/claude-1000/S/q17-run.txt', lines.join('\n'));
 
 				// The precondition, so the claim below is not vacuous: the caster's window with
 				// its OWN spell on the stack found Forge naming something else castable.
@@ -170,7 +168,6 @@ describe.skipIf(!available.ok)(title, () => {
 				};
 				out.push(`the ask the seat was shown: ${JSON.stringify(question)}`);
 				console.log(`[q7]\n${out.join('\n')}`);
-				writeFileSync('/tmp/claude-1000/S/q7-run.txt', out.join('\n'));
 
 				expect(question.message).toBe('Select target spell');
 				expect(question.choices).toHaveLength(1);

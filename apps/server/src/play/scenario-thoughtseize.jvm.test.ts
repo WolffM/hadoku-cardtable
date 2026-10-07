@@ -37,7 +37,6 @@
  *     --pool=forks --poolOptions.forks.singleFork=true
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ServerFrame } from '@hadoku/forge-wire';
 
@@ -192,8 +191,6 @@ describe.skipIf(!available.ok)(title, () => {
 					'--- frames SEAT 1 (discarder) ---',
 					...lines1,
 				];
-				mkdirSync('/tmp/claude-1000/w35-s', { recursive: true });
-				writeFileSync('/tmp/claude-1000/w35-s/thoughtseize-folded-run.txt', summary.join('\n'));
 				console.log(`[w35-s3-fold]\n${summary.join('\n')}`);
 
 				expect(seat1Asks, `the discarder was sent an ask it should not have been:\n${summary.join('\n')}`).toEqual([]);

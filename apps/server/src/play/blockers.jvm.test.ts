@@ -15,7 +15,6 @@
  *     --pool=forks --poolOptions.forks.singleFork=true
  */
 
-import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { available, castNamed, deck, inOwnMain, isStop, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
@@ -117,7 +116,6 @@ describe.skipIf(!available.ok)(title, () => {
 					.filter((ids) => ids.length > 0)
 					.at(-1);
 				report.push(`offered as blockers: ${JSON.stringify(offered)}`);
-				writeFileSync('/tmp/claude-1000/S/q12-run.txt', report.join('\n'));
 				console.log(`[q12]\n${report.join('\n')}`);
 
 				// The block input is still OPEN — it was not ended by a pass nobody asked for …
