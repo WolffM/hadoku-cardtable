@@ -1,0 +1,20 @@
+# Wave 53 §P — Venser, Shaper Savant's own target ask with no TgtPrompt$
+# override (venser_shaper_savant.txt:7 — ValidTgts$ Permanent,Card.inZoneStack
+# is the one shape in the whole cardsfolder with no author override, so it is
+# the only card that reproduces Y18 against a real jar). Bob (ai) casts Opt
+# first; Alice (human) holds Venser and enough mana (2UU, Flash) to cast it
+# in response — both a battlefield permanent (an Island) and a spell on the
+# stack (Opt) are legal targets at once when Venser's own trigger asks.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Venser, Shaper Savant
+humanbattlefield=Island;Island;Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Opt
+aibattlefield=Island
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

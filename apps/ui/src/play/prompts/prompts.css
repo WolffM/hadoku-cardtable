@@ -297,6 +297,36 @@
   cursor: default;
 }
 
+/*
+ * Y18, second half: the zone-group marker `TargetSelection.chooseCardFromList`
+ * splices into a `getChoices` choice list (`"--CARDS ON BATTLEFIELD:--"`, …;
+ * `lookup.ts`'s own header has the full citation) is drawn as a rule between
+ * the real groups — never a caption (the wave's own "no text of ours" rule),
+ * never a tick. `ChoicePrompts.tsx` renders it as an EMPTY `<li
+ * role="separator">`, no border, no background, no padding of its own —
+ * just the line.
+ *
+ * `grid-column: 1 / -1` is what lets one `<li>` span every column of
+ * `.prompt__cards`'s own `grid-template-columns` (above) instead of sitting
+ * inside whichever column it would otherwise fall into.
+ */
+/*
+ * `.prompt__cards > li`/`.prompt__list > li` (above) already set a padded,
+ * bordered, backgrounded box for every row — a higher-specificity selector
+ * (class + element, matching `li.prompt__divider`'s own) is what it takes to
+ * clear all three back off the one row that is a line, not a box.
+ */
+.prompt__cards > li.prompt__divider,
+.prompt__list > li.prompt__divider {
+  grid-column: 1 / -1;
+  height: 0;
+  margin: 2px 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
 .prompt__cards > li[data-choosable='false'] {
   /* Already after the offered rows in the DOM; this keeps a dimmed tile from
      stretching taller than the ones beside it. */

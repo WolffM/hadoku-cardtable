@@ -20,7 +20,7 @@ import { useState } from 'react';
 import { CardTile } from '../../components/CardTile.tsx';
 
 import { PromptShell, promptTileFor } from './PromptShell.tsx';
-import { plainRulesText, refName, type PromptLookup } from './lookup.ts';
+import { isZoneDividerLabel, plainRulesText, refName, type PromptLookup } from './lookup.ts';
 import {
   abilityProblems,
   choiceBounds,
@@ -185,7 +185,7 @@ export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoi
     const index = key === null ? -1 : range.keys.indexOf(key);
     const value = index >= 0 ? range.min + index : null;
     return (
-      <PromptShell method="getChoices" title={ask.message} problems={problems} onSubmit={submit}>
+      <PromptShell method="getChoices" title={plainRulesText(ask.message)} problems={problems} onSubmit={submit}>
         <NumberChoiceSlider range={range} value={value} onChange={(k) => setChosen([k])} />
       </PromptShell>
     );
@@ -194,10 +194,18 @@ export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoi
   const anyCards = ask.choices.some((c) => cardOfOption(c.ref) !== null);
 
   return (
-    <PromptShell method="getChoices" title={ask.message} problems={problems} onSubmit={submit}>
+    <PromptShell method="getChoices" title={plainRulesText(ask.message)} problems={problems} onSubmit={submit}>
       <p className="prompt__hint">{boundsText(bounds.min, bounds.max)}</p>
       <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>
         {ask.choices.map((c) => {
+          // Y18, second half: `TargetSelection.chooseCardFromList` splices a
+          // zone-group marker ("--CARDS ON BATTLEFIELD:--", …) into Forge's
+          // own choice list (`lookup.ts`'s own header has the citation chain).
+          // Drawn as a rule line between the real groups — never a tick, never
+          // counted, never reachable by Tab (`lookup.ts`'s `isZoneDividerLabel`).
+          if (c.ref === null && isZoneDividerLabel(c.label)) {
+            return <li key={c.key} className="prompt__divider" role="separator" aria-hidden="true" />;
+          }
           const cardRef = cardOfOption(c.ref);
           const name = plainRulesText(c.label);
           return (
@@ -242,7 +250,7 @@ export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<
   return (
     <PromptShell
       method="chooseSingleEntityForEffect"
-      title={ask.title}
+      title={plainRulesText(ask.title)}
       problems={problems}
       onSubmit={submit}
       submitLabel={reply === null && ask.isOptional ? 'Choose none' : 'OK'}
@@ -297,7 +305,7 @@ export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'cho
   const anyCards = rows.some((r) => r.ref.kind === 'card');
 
   return (
-    <PromptShell method="chooseEntitiesForEffect" title={ask.title} problems={problems} onSubmit={submit}>
+    <PromptShell method="chooseEntitiesForEffect" title={plainRulesText(ask.title)} problems={problems} onSubmit={submit}>
       <DelayedRevealNote reveal={ask.delayedReveal} lookup={lookup} />
       <p className="prompt__hint">{boundsText(bounds.min, bounds.max)}</p>
       <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>

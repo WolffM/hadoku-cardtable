@@ -63,7 +63,7 @@
 import { CardTile } from '../../components/CardTile.tsx';
 
 import { promptTileFor, PromptTitle } from './PromptShell.tsx';
-import type { PromptLookup } from './lookup.ts';
+import { plainRulesText, type PromptLookup } from './lookup.ts';
 
 /** `LiveSelectables`'s shape, read structurally so this file does not import lane L's `../live/match.ts`. */
 export interface SelectionLike {
@@ -94,7 +94,15 @@ export interface SelectionButton {
 }
 
 export interface SelectionPromptProps {
-  /** Forge's own prompt line (`match.prompt`), verbatim — no invented title (W3: "i hate this stupid ai prose"). */
+  /**
+   * Forge's own prompt line (`match.prompt`) — no invented title (W3: "i hate
+   * this stupid ai prose"). This component runs it through `plainRulesText`
+   * itself (Y18 — a raw `ValidTgts$` expression, `InputSelectTargets.
+   * showMessage()`'s own `tgt.getVTSelection()`, can reach this same line),
+   * so a caller may pass the line verbatim or already-translated — both read
+   * the same, because a string with no raw token in it passes through
+   * `plainRulesText` unchanged.
+   */
   message: string;
   /** `selection.cards`, in Forge's own order. */
   cards: readonly number[];
@@ -125,7 +133,8 @@ export interface SelectionPromptProps {
  * area owns a question once one is open) — never drawn when Forge has not
  * enabled them.
  */
-export function SelectionPrompt({ message, cards, lookup, picked, onPick, done, cancel }: SelectionPromptProps) {
+export function SelectionPrompt({ message: rawMessage, cards, lookup, picked, onPick, done, cancel }: SelectionPromptProps) {
+  const message = plainRulesText(rawMessage);
   // Forge's own selection prompts (`showPromptMessage`) separate the
   // trigger/source line from the instruction with a blank line — the same
   // two-part shape every other prompt's own `title`/`message` fields
