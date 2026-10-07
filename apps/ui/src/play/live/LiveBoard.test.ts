@@ -3535,7 +3535,7 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
       ['no bar yet', () => [], { nextPhase: false, endTurn: false }],
       ['priority with spells on the stack', () => [prompt('Priority: you'), bar('OK', 'End Turn')], { nextPhase: false, endTurn: true }],
       ['priority, stack empty', () => [stackDelta(m), prompt('Priority: you'), bar('OK', 'End Turn')], { nextPhase: true, endTurn: true }],
-      ['priority after a mana tap (OK + Undo)', () => [bar('OK', 'Undo (1)')], { nextPhase: false, endTurn: false }],
+      ['priority after a mana tap (OK + Undo), stack empty', () => [bar('OK', 'Undo (1)')], { nextPhase: true, endTurn: false }],
       ['a yes/no', () => [prompt('Pay 2 life?'), bar('Yes', 'No')], { nextPhase: false, endTurn: false }],
       ['the coin toss', () => [prompt('Play or draw?'), bar('Play', 'Draw')], { nextPhase: false, endTurn: false }],
       ['a target being chosen', () => [prompt('Select targets for Lightning Bolt'), bar('OK', 'Cancel', false, true)], { nextPhase: false, endTurn: false }],
@@ -3599,14 +3599,12 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
     await waitFor(() => expect(acts(s)).toEqual(['selectButtonCancel']));
   });
 
-  it('OK + Undo (N) after a mana tap is the pop-up, with both of Forge’s words', async () => {
-    const { s, m, getByTestId } = await liveBoard();
+  it('OK + Undo (N) after a mana tap, stack empty: Next Phase stays live and no pop-up opens (operator, 2026-10-06)', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
     s.send(stackDelta(m));
     s.send(bar('OK', 'Undo (1)'));
-    await waitFor(() => getByTestId('live-decision'));
-    expect(getByTestId('live-decision-ok').textContent).toBe('OK');
-    expect(getByTestId('live-decision-cancel').textContent).toBe('Undo (1)');
-    expect(box(getByTestId)).toEqual({ labels: FOUR, nextPhase: false, endTurn: false });
+    await waitFor(() => expect(box(getByTestId)).toEqual({ labels: FOUR, nextPhase: true, endTurn: false }));
+    expect(queryByTestId('live-decision')).toBeNull();
   });
 
   it('the payment window and a selection pop-up keep their inputs: no decision pop-up beside them', async () => {

@@ -22,7 +22,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { livePrompt, makeTitled } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { enabledCancel, startScenarioMatch } from './play/scenario.ts';
+import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -71,10 +71,12 @@ async function tapUndoTap(page: Page): Promise<void> {
   await tapByClick(page, island, 'the Island');
   await expect.poll(async () => (await pool(page)).U, { timeout: 10_000, message: 'the Island added {U}' }).toBe(1);
 
-  const undo = enabledCancel(page);
-  await expect(undo, 'Forge offers Undo for the mana ability').toHaveText(/Undo/, { timeout: 10_000 });
-  await undo.click();
-  await expect.poll(() => isTapped(page, island), { timeout: 10_000, message: 'Undo untapped the Island' }).toBe(false);
+  // The way back is a click on the land tapped last (Forge's Undo underneath, ledger V6): after a mana tap
+  // the table draws no Undo button and Next Phase stays live (operator, 2026-10-06).
+  await expect(page.getByTestId('live-decision'), 'no pop-up after a mana tap').toHaveCount(0);
+  await expect(page.getByTestId('live-button-next-phase'), 'Next Phase stays live after a mana tap').toBeEnabled({ timeout: 10_000 });
+  await card(page, island).locator('button').first().click();
+  await expect.poll(() => isTapped(page, island), { timeout: 10_000, message: 'a click on the Island untapped it (Undo)' }).toBe(false);
   await expect.poll(async () => (await pool(page)).total, { timeout: 10_000, message: 'Undo emptied the pool' }).toBe(0);
   // The claim: the re-shown prompt offers the Island again, so a click taps it.
   await expect.poll(() => isOffered(page, island), { timeout: 10_000, message: 'the Island is offered again after Undo' }).toBe(true);

@@ -157,12 +157,15 @@ export const END_TURN_LABEL = 'End Turn';
  *  - `next-phase`: the priority pass (`OK` + `End Turn`, button one enabled)
  *    with nothing on the stack. Button one moves the game to the next step, and
  *    the control box's fixed `Next Phase` button is the one that presses it.
+ *    Also `OK` + `Undo (N)` with nothing on the stack (`InputPassPriority.java:171`,
+ *    after a manual mana tap): the operator, 2026-10-06, chose Next Phase over a
+ *    pop-up there, since a click on the land tapped last already untaps it, so
+ *    Forge's `Undo (N)` button is not drawn at all.
  *  - `decision`: any other bar with an enabled button that is not `End Turn`
  *    (the control box's own second button). Priority with spells on the stack
- *    (button one lets the top resolve), declare attackers or blockers done, a
- *    target's `Cancel`, `OK` + `Undo (N)` (`InputPassPriority.java:171`, after a
- *    manual mana tap), the London mulligan's `OK` + `Auto`, a payment Forge
- *    drew no payment window for.
+ *    (button one lets the top resolve; with an `Undo (N)` beside it too), declare
+ *    attackers or blockers done, a target's `Cancel`, the London mulligan's
+ *    `OK` + `Auto`, a payment Forge drew no payment window for.
  *  - `none`: no bar, nothing enabled beyond `End Turn`, or a pop-up of its own
  *    already owns the input: the coin toss (`isPlayOrDrawPrompt`), a yes/no
  *    (`isConfirmPrompt`), or whatever the caller says is open (`owned`: an ask,
@@ -170,10 +173,14 @@ export const END_TURN_LABEL = 'End Turn';
  */
 export type BarRoute = 'next-phase' | 'decision' | 'none';
 
+/** Forge's second button after a manual mana tap (`lblUndo` + ` (N)`, `InputPassPriority.java:171`). */
+const UNDO_LABEL = /^Undo \(\d+\)$/;
+
 export function barRoute(bar: LiveButtons | null, stackEmpty: boolean, owned = false): BarRoute {
   if (bar === null || owned || isPlayOrDrawPrompt(bar) || isConfirmPrompt(bar)) return 'none';
   const endTurn = bar.label2 === END_TURN_LABEL;
-  if (bar.enable1 && bar.label1 === BAR_OK_LABEL && endTurn && stackEmpty) return 'next-phase';
+  const undo = UNDO_LABEL.test(bar.label2);
+  if (bar.enable1 && bar.label1 === BAR_OK_LABEL && (endTurn || undo) && stackEmpty) return 'next-phase';
   return bar.enable1 || (bar.enable2 && !endTurn) ? 'decision' : 'none';
 }
 
