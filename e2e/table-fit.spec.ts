@@ -1077,7 +1077,21 @@ test(TITLE, async ({ browser }) => {
       const before = await rowsOf(f);
       const source = [...before].sort((a, b) => b.cards.length - a.cards.length)[0]!;
       const target = before.find((r) => r.row !== source.row)!;
-      const moved = source.cards[source.cards.length - 1]!;
+      // The rightmost card a pointer can actually reach: the decision column floats over the
+      // board's right side (wave 51: a mana tap's OK + Undo is a pop-up there), and a press
+      // on the pop-up is not a press on the card under it.
+      const reachable = await f.page.evaluate(
+        (ids) =>
+          ids.filter((id) => {
+            const el = document.querySelector(`.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id="${id}"]`);
+            if (el === null) return false;
+            const r = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return hit !== null && el.contains(hit);
+          }),
+        source.cards,
+      );
+      const moved = reachable[reachable.length - 1] ?? source.cards[source.cards.length - 1]!;
       // Wave 32 Q4: a POINTER drag of our own, not the browser's HTML5 drag. The card
       // is carried to the right of the target row's last card (the end slot) with a
       // real mouse; the ghost and the target indicator are on screen halfway.
@@ -1093,7 +1107,7 @@ test(TITLE, async ({ browser }) => {
       expect(await cardEl.evaluate((el) => el.hasAttribute('data-arrange-dragging')), `${f.name}: nothing is left picked up`).toBe(false);
       const after = await rowsOf(f);
       const want = {
-        [source.row]: source.cards.slice(0, -1),
+        [source.row]: source.cards.filter((id) => id !== moved),
         [target.row]: [...target.cards, moved],
       };
       arrangements.push({ who: f.name, moved, from: source.row, to: target.row, before, after });
