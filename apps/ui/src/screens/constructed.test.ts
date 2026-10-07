@@ -31,7 +31,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
@@ -2417,6 +2417,121 @@ describe('the deck chooser', () => {
     expect(short?.getAttribute('title')).toBe(UW_DELVER.name);
     expect(long?.getAttribute('title')).toBe(LONG_NAME_DECK.name);
     expect(long?.textContent).toBe(LONG_NAME_DECK.name);
+  });
+});
+
+/* ── deck art is warmed ahead of the picker ──────────────────────────── */
+
+/**
+ * The operator, of the deck chooser: *"some loaded quick, but others loaded
+ * extremely slowly. are these relying on external requests? this is a static
+ * list we should be able to cache these images."*
+ *
+ * Every option's art is a known URL the moment the era's decks answer —
+ * nothing about it depends on a hover or a scroll — so the screen asks the
+ * browser to warm all of them the moment the list is assembled, rather than
+ * leaving each `<img>` to fetch cold when it scrolls into view or paints.
+ *
+ * `prefetchCardImages` does this with `new Image()`, not a `<link
+ * rel="prefetch">` — a prefetch link lives in a separate cache partition and
+ * does not coalesce with the picker's own `<img>` for the same URL, so it
+ * measurably DOUBLED the art-host traffic rather than caching anything (see
+ * `art.md`'s "before" table). `new Image()` is an ordinary image load as far
+ * as the browser's cache is concerned, so this suite stands in for the real
+ * `Image` constructor with a plain counting fake — jsdom's own `Image` never
+ * fetches regardless of which constructor is used, so the fake changes
+ * nothing this environment could prove either way, and it lets the test
+ * assert the one thing that matters: exactly which URLs were asked to warm,
+ * and how many times. The real request count, against a built page in a
+ * real browser, is `art.md`'s job.
+ */
+describe('deck art is warmed ahead of the picker', () => {
+  /** Every `src` a warmed `Image()` was given, in construction order. */
+  let warmedSrcs: string[] = [];
+  /** How many `Image()` objects `prefetchCardImages` actually constructed. */
+  let constructedCount = 0;
+  const RealImage = globalThis.Image;
+
+  beforeEach(() => {
+    warmedSrcs = [];
+    constructedCount = 0;
+    class FakeImage {
+      private _src = '';
+      constructor() {
+        constructedCount += 1;
+      }
+      set decoding(_v: string) {
+        // Accepted and ignored — the real `Image` has the property too, and
+        // `prefetchCardImages` sets it unconditionally.
+      }
+      set src(v: string) {
+        this._src = v;
+        warmedSrcs.push(v);
+      }
+      get src(): string {
+        return this._src;
+      }
+    }
+    // A test-only stand-in for the global `Image` constructor — not the real
+    // `HTMLImageElement`, and not what `DeckArt`'s own `<img>` renders
+    // through (React creates those via `document.createElement`, a separate
+    // path this swap does not touch).
+    globalThis.Image = FakeImage as unknown as typeof Image;
+  });
+
+  afterEach(() => {
+    globalThis.Image = RealImage;
+  });
+
+  const GEIST = (ART_IDS as { ids: Record<string, string> }).ids['Geist of Saint Traft'];
+  const WILD_DEFIANCE = (ART_IDS as { ids: Record<string, string> }).ids['Wild Defiance'];
+
+  it('warms every option’s art at once, one `Image()` per distinct URL', async () => {
+    await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, MONO_GREEN] });
+    await deckPicker();
+
+    await waitFor(() => expect(warmedSrcs).toHaveLength(2));
+    expect(new Set(warmedSrcs)).toEqual(new Set([cardImageUrl(GEIST), cardImageUrl(WILD_DEFIANCE)]));
+    expect(constructedCount).toBe(2);
+
+    // The rows themselves still point at the very same URLs — warming them
+    // ahead of time changes nothing about what the `<img>` tags render.
+    expect(deckRow(UW_DELVER.id).querySelector('img')?.getAttribute('src')).toBe(cardImageUrl(GEIST));
+    expect(deckRow(MONO_GREEN.id).querySelector('img')?.getAttribute('src')).toBe(cardImageUrl(WILD_DEFIANCE));
+  });
+
+  it('never asks twice for a URL it already warmed, including across a pool change', async () => {
+    await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, MONO_GREEN] });
+    await deckPicker();
+    await waitFor(() => expect(warmedSrcs).toHaveLength(2));
+
+    // The leader moves the room's pool. The stub's decks are the same two, so
+    // the era "changes" (a new `GET /tables/legal/:format` sweep runs) while
+    // every art URL on offer is one this screen has already warmed.
+    await pickPool('2011-07-15');
+    await waitFor(() => expect(offered()).toEqual([UW_DELVER.id, MONO_GREEN.id]));
+    expect(warmedSrcs).toHaveLength(2);
+    expect(constructedCount).toBe(2);
+
+    // And moving back does not re-warm them either.
+    await pickPool('2010-07-16');
+    await waitFor(() => expect(offered()).toEqual([UW_DELVER.id, MONO_GREEN.id]));
+    expect(warmedSrcs).toHaveLength(2);
+    expect(constructedCount).toBe(2);
+  });
+
+  it('draws the placeholder for a failed art, same as before warming existed', async () => {
+    // `onError` — not this effect — is what a 404 at fetch time runs into;
+    // asking the browser to warm a URL ahead of time does not change what
+    // happens when that warm (or the `<img>`'s own fetch) comes back 404.
+    await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, MONO_GREEN] });
+    await deckPicker();
+    const img = deckRow(UW_DELVER.id).querySelector('img') as HTMLImageElement;
+    await act(async () => {
+      fireEvent.error(img);
+    });
+    expect(deckRow(UW_DELVER.id).querySelector('.deckpick__art--none')).not.toBeNull();
+    expect(deckRow(UW_DELVER.id).querySelector('img')).toBeNull();
   });
 });
 

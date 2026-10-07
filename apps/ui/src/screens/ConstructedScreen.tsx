@@ -158,7 +158,7 @@ import {
   type DeckColor,
 } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
-import { cardImageUrl } from '../draft/cardImage.ts';
+import { cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
 import { cardIndex, mainSummary } from '../deck/build.ts';
 import { deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
 import { closeDraft, startDraft, type DraftTransport, type SocketDraft } from '../draft/socket.ts';
@@ -1336,6 +1336,35 @@ function RoomTableScreen({
           ),
         }));
   }, [pod, podAnswered, draftedDeck, myPool, offered]);
+
+  /**
+   * Every art URL this room has already asked the browser to warm, and the
+   * `Image` object doing it — kept for as long as this screen stays mounted,
+   * so the warm cannot be garbage-collected mid-load. A ref rather than
+   * state: it drives no render, and a map the size of the library is not
+   * something to copy on every write the way `setState` would.
+   */
+  const prefetchedArt = useRef(new Map<string, HTMLImageElement>());
+
+  // The moment an era's (or a pod's) options are known, ask the browser to
+  // warm every one of their art URLs at once — the operator: *"some loaded
+  // quick, but others loaded extremely slowly… this is a static list we
+  // should be able to cache these images."* One request per DISTINCT URL,
+  // not per option (`deckOptions.map` can repeat an id — two decks named
+  // after the same card — and `prefetchedArt` also catches a URL this room
+  // already warmed under an earlier era), so the picker's own `<img>`s below
+  // coalesce onto the warm rather than firing a second fetch. A failed warm
+  // is silent and changes nothing: `DeckArt`'s `onError` still draws the
+  // placeholder band the same as a cold 404 would.
+  useEffect(() => {
+    if (deckOptions === null) return;
+    const urls = deckOptions.flatMap((o) => {
+      if (o.artId === undefined) return [];
+      const url = cardImageUrl(o.artId);
+      return url === null ? [] : [url];
+    });
+    prefetchCardImages(urls, prefetchedArt.current);
+  }, [deckOptions]);
 
   // A deck the new pool does not offer is no longer chosen. The `PUT` under the
   // new rules has already gone (the re-send below), so its verdict is on the

@@ -77,6 +77,61 @@ export function cardImageUrl(
 }
 
 /**
+ * Warm the browser's image cache for every one of these URLs, skipping any
+ * `held` already has an entry for and recording the ones it warms.
+ *
+ * `new Image()`, not `<link rel="prefetch">`. The first cut used a prefetch
+ * link — measured live, it made things WORSE: a prefetch request lives in a
+ * separate cache partition from an ordinary image load, so it does not
+ * coalesce with the picker's own `<img>` for the same URL. The two raced
+ * instead of one feeding the other — doubling the requests an era's options
+ * sent to the art host, with the `<img>` still a real (if fast) fetch rather
+ * than a cache hit. An `Image()` object is an ordinary image LOAD as far as
+ * the browser's resource cache is concerned, so a same-URL `<img>` that
+ * mounts afterward coalesces onto it — in flight, if it is still loading, or
+ * straight from cache, if it has already finished. One request per distinct
+ * URL, total, which is the operator's own complaint answered: *"some loaded
+ * quick, but others loaded extremely slowly… this is a static list we
+ * should be able to cache these images."*
+ *
+ * `held` keeps every `Image` this call creates alive for as long as the
+ * caller keeps the map around. An `Image` nothing references any more is
+ * eligible for garbage collection, and a browser is free to abort an
+ * in-flight fetch for an object nothing holds — so a bare `Set<string>` of
+ * URLs could tell a caller "already asked for", but could not stop that ask
+ * from being cancelled under it. One `Map<url, Image>` answers both: `has`
+ * is the de-dupe check, and the stored `Image` is the reason the load
+ * survives.
+ *
+ * `held` is the CALLER's map, not a module singleton, on purpose — a module
+ * singleton would dedupe against every other mount in the same tab (a second
+ * room, a test file's next `it`) as readily as it dedupes within one, and
+ * `cardImage.test.ts` would leak state between its own cases. The caller
+ * that wants "once per distinct URL for as long as this room is open" keeps
+ * one `Map` for the life of its own mount (`ConstructedScreen`, a `useRef`)
+ * and hands it in every time the list of options changes — which is what
+ * makes two eras that happen to share a card's art warm it only once.
+ *
+ * `decoding = 'async'` so a slow decode of an image nothing is displaying yet
+ * never competes with the main thread. Nothing here ever inserts these
+ * `Image` objects into the document — there is no `<img>` to paint and no
+ * layout to invalidate; they exist only to make the browser fetch and cache.
+ *
+ * A no-op without `Image` (SSR, a non-DOM test): nothing to warm, and nothing
+ * to throw over.
+ */
+export function prefetchCardImages(urls: readonly string[], held: Map<string, HTMLImageElement>): void {
+  if (typeof Image === 'undefined') return;
+  for (const url of urls) {
+    if (held.has(url)) continue;
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+    held.set(url, img);
+  }
+}
+
+/**
  * Deliberately no `srcset`.
  *
  * A card tile is `--card-w: 190px`. A `normal` image is 488px wide, which covers
