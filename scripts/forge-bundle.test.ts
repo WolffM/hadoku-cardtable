@@ -39,7 +39,11 @@ mkdirSync(LANE_SCRATCH, { recursive: true });
 // The claws (jdk21 label) carry Temurin 21 here; absent elsewhere. The
 // no-unzip/no-strings test below is skipped, not failed, when this host
 // doesn't have it — it proves the `jar` fallback, not this host's toolchain.
-const JDK_BIN_DIR = '/home/hadoku/.local/opt/jdk-21.0.12.1+1/bin';
+// FORGE_BUNDLE_TEST_JDK_BIN_DIR is test-only (never the script's own
+// interface): it lets a proof run point this at a path that does not exist,
+// to confirm the skip itself fires correctly, without needing a second host
+// that genuinely lacks the JDK.
+const JDK_BIN_DIR = process.env.FORGE_BUNDLE_TEST_JDK_BIN_DIR ?? '/home/hadoku/.local/opt/jdk-21.0.12.1+1/bin';
 const JDK_JAR = join(JDK_BIN_DIR, 'jar');
 const HAS_JDK_JAR = existsSync(JDK_JAR);
 
@@ -54,8 +58,55 @@ function writeExecutable(path: string, contents: string): void {
   chmodSync(path, 0o755);
 }
 
+// `command -v unzip` on the REAL (this-process) PATH, used only for a
+// sanity check that the fixture jar `make-jar.mjs` writes is actually a
+// valid zip — never for anything the script itself does. Absent on a claw,
+// so that one assertion is skipped there, not failed.
+const REAL_UNZIP = spawnSync('/usr/bin/bash', ['-c', 'command -v unzip || true'], { encoding: 'utf8' }).stdout.trim();
+
 beforeAll(() => {
   fakeBinDir = mkdtempSync(join(LANE_SCRATCH, 'fakebin-'));
+
+  // A minimal, pure-Node STORED-method zip writer: one entry,
+  // forge/view/Main.class, bytes "server\n". The claws have no `zip` CLI
+  // (and the fake `mvn` below used to shell out to one), so the fixture jar
+  // is built with nothing but Node's own `node:zlib` (crc32, Node >=22.2;
+  // we run 24) and `node:fs` — no external tool at all.
+  writeFileSync(
+    join(fakeBinDir, 'make-jar.mjs'),
+    `import { crc32 } from 'node:zlib';
+import { writeFileSync } from 'node:fs';
+
+const out = process.argv[2];
+const name = Buffer.from('forge/view/Main.class', 'ascii');
+const data = Buffer.from('server\\n', 'ascii');
+const crc = crc32(data);
+
+function u16(n) { const b = Buffer.alloc(2); b.writeUInt16LE(n, 0); return b; }
+function u32(n) { const b = Buffer.alloc(4); b.writeUInt32LE(n, 0); return b; }
+
+const localHeader = Buffer.concat([
+  u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+  u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), name,
+]);
+const localRecord = Buffer.concat([localHeader, data]);
+
+const centralHeader = Buffer.concat([
+  u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+  u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0),
+  u16(0), u16(0), u32(0), u32(0), name,
+]);
+
+const cdOffset = localRecord.length;
+const cdSize = centralHeader.length;
+const eocd = Buffer.concat([
+  u32(0x06054b50), u16(0), u16(0), u16(1), u16(1), u32(cdSize), u32(cdOffset), u16(0),
+]);
+
+writeFileSync(out, Buffer.concat([localRecord, centralHeader, eocd]));
+`,
+    'utf8',
+  );
 
   // Serves BOTH `git ls-tree HEAD forge` (this checkout's own pin) and the
   // scratch clone of the fork (init / remote add / fetch / checkout),
@@ -136,18 +187,16 @@ if [ "\${FAKE_MVN_FAIL:-}" = "1" ]; then
 fi
 
 mkdir -p forge-gui-desktop/target
-stage=$(mktemp -d)
-mkdir -p "$stage/forge/view"
-printf 'server\\n' > "$stage/forge/view/Main.class"
-( cd "$stage" && zip -q -r "$OLDPWD/forge-gui-desktop/target/forge-gui-desktop-9.9.9-jar-with-dependencies.jar" forge )
-rm -rf "$stage"
+node "${join(fakeBinDir, 'make-jar.mjs')}" forge-gui-desktop/target/forge-gui-desktop-9.9.9-jar-with-dependencies.jar
 exit 0
 `,
   );
 
   // A curated PATH entry carrying every coreutil the script (and the fakes
   // above) call, EXCEPT `unzip` and `strings` — symlinked in individually so
-  // nothing from the real /usr/bin leaks back in by accident.
+  // nothing from the real /usr/bin leaks back in by accident. No `zip`
+  // either: the fixture jar is built by `make-jar.mjs` in pure Node, not a
+  // `zip` CLI, matching the claws exactly (they have neither).
   noUnzipBinDir = mkdtempSync(join(LANE_SCRATCH, 'no-unzip-bin-'));
   const needed = [
     'awk',
@@ -164,7 +213,6 @@ exit 0
     'tr',
     'grep',
     'date',
-    'zip',
     'bash',
     'sh',
     'env',
@@ -179,6 +227,10 @@ exit 0
       symlinkSync(real, join(noUnzipBinDir, tool));
     }
   }
+  // The fake `mvn`'s `node "<make-jar.mjs>" ...` call resolves `node` via
+  // PATH, and this test's PATH has no inherited tail — symlink the actual
+  // running interpreter in so it is found.
+  symlinkSync(process.execPath, join(noUnzipBinDir, 'node'));
 });
 
 // Each test makes its own cache root under LANE_SCRATCH; fixtures are left on
@@ -273,6 +325,15 @@ describe('scripts/forge-bundle.sh', () => {
     expect(existsSync(join(cacheRoot, pin, 'forge.jar'))).toBe(true);
     expect(existsSync(join(cacheRoot, pin, 'res', 'cardsfolder'))).toBe(true);
     expect(existsSync(callLog)).toBe(true);
+
+    // Sanity check on the fixture itself, not the script: the real `unzip`
+    // (present on hokon, absent on a claw — hence the guard) confirms
+    // `make-jar.mjs` wrote a genuinely valid zip, not just bytes the
+    // script's own tr/grep-based check happens to accept.
+    if (REAL_UNZIP) {
+      const ztest = spawnSync(REAL_UNZIP, ['-t', join(cacheRoot, pin, 'forge.jar')], { encoding: 'utf8' });
+      expect(ztest.status, ztest.stdout + ztest.stderr).toBe(0);
+    }
 
     // Second call: same pin, same cache root, mvn now set to fail — a HIT
     // must not invoke it.
