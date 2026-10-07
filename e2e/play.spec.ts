@@ -1708,7 +1708,9 @@ test(LIVE_TITLE, async ({ browser }) => {
         if (board === null) throw new Error('no board on the page');
         // The other seat's presence (their pointer, with their name) is drawn inside the board but is THEIR pointer
         // state, not board state: a reloaded page has it only once they move again. Read the board without it.
-        const presence = Array.from(board.querySelectorAll<HTMLElement>('.presence'));
+        // The floating life/damage numbers (`live/numbers.ts`) are the same kind of thing: a transient reaction to
+        // a change, timed off real clock ms, never restored by a reload — hidden here the same way.
+        const presence = Array.from(board.querySelectorAll<HTMLElement>('.presence, .board-number, .board-number__life-old, .board-number__pill'));
         const shown = presence.map((el) => el.style.display);
         for (const el of presence) el.style.display = 'none';
         try {

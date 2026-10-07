@@ -403,6 +403,7 @@ import {
   type StackEntry,
 } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
+import { installNumbers } from './live/numbers.ts';
 import './board.css';
 import './card.css';
 
@@ -3274,6 +3275,27 @@ export function Board({
     if (el === null) return undefined;
     return mountInspector(el);
   }, []);
+
+  /*
+   * Floating life/damage numbers (`live/numbers.ts`), booted the same way:
+   * one mount, into the same root, disposed on unmount. What it draws comes
+   * from `notify`, called below on every `view` this component receives —
+   * the module diffs it against the one before and spawns whatever changed.
+   */
+  const numbers = useRef<ReturnType<typeof installNumbers> | null>(null);
+  useEffect(() => {
+    const el = root.current;
+    if (el === null) return undefined;
+    const handle = installNumbers(el);
+    numbers.current = handle;
+    return () => {
+      numbers.current = null;
+      handle.dispose();
+    };
+  }, []);
+  useEffect(() => {
+    numbers.current?.notify(view);
+  }, [view]);
 
   /*
    * The player's arrangement, out of the module store rather than React state

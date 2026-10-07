@@ -1,0 +1,157 @@
+/*
+ * Floating combat numbers (`numbers.ts`): rise and fade at a life change or
+ * a hit, in the overlay root (`[data-board-overlay]`, `pointer-events: none`
+ * — nothing here can ever be the element under a pointer). Theme tokens only:
+ * `--danger`/`--danger-ink` for a loss (life down, a hit — damage only ever
+ * draws a loss; a cleanup wipe is not drawn, see `.board-number__pill`
+ * below), `--success`/`--success-ink` for a life gain, `--ink-faint` for the
+ * struck-through old life value, `--bg` for every number's own outline.
+ *
+ * `numbers.ts` places each `.board-number` at its anchor's centre (`left`/
+ * `top`, in pixels, already offset for stacking) and leaves the rise, pop and
+ * fade to the animations below — it only ever sets `left`/`top` once, at
+ * spawn, and (for a dying creature) the `--number-dx`/`--number-dy` custom
+ * properties partway through.
+ */
+
+.board-number {
+  position: absolute;
+  z-index: 4;
+  transform: translate(-50%, -50%);
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  -webkit-text-stroke: 2px var(--bg);
+  text-shadow: 0 0 2px var(--bg);
+  paint-order: stroke fill;
+  animation: board-number-rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+
+.board-number[data-number-colour='danger'] {
+  color: var(--danger-ink);
+}
+
+.board-number[data-number-colour='success'] {
+  color: var(--success-ink);
+}
+
+/* A change of 5 or more pops before it rises — two animations, the pop finishing before the rise's own delay elapses. */
+.board-number[data-number-pop] {
+  animation:
+    board-number-pop 90ms ease-out,
+    board-number-rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 90ms forwards;
+}
+
+@keyframes board-number-pop {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Rises 28px over 700ms; opacity holds until the last 280ms, then fades to 0. */
+@keyframes board-number-rise {
+  0% {
+    transform: translate(-50%, -50%) translateY(0);
+    opacity: 1;
+  }
+  60% {
+    transform: translate(-50%, calc(-50% - 28px));
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, calc(-50% - 28px));
+    opacity: 0;
+  }
+}
+
+/* A creature that dies: at the number's own halfway point, `numbers.ts` sets `data-number-dying` and the drift-to-graveyard-and-fade below takes over for the rest of its one lifetime. */
+.board-number[data-number-dying] {
+  animation: board-number-dying 420ms ease-in forwards;
+}
+
+@keyframes board-number-dying {
+  0% {
+    transform: translate(-50%, calc(-50% - 28px));
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--number-dx, 0px)), calc(-50% - 28px + var(--number-dy, 0px)));
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: no rise, no pop, no drift — fade only. */
+@media (prefers-reduced-motion: reduce) {
+  .board-number,
+  .board-number[data-number-pop],
+  .board-number[data-number-dying] {
+    animation: board-number-fade 700ms linear forwards;
+  }
+}
+
+@keyframes board-number-fade {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/*
+ * The life counter's own 1.5s window (`numbers.ts`'s `animateLifeCounter`):
+ * the live `[data-testid="life"]` span takes the colour while it ticks, and
+ * the old value sits beside it, struck through, in the faint ink — never a
+ * colour of its own, the same rule a struck-through price or a superseded
+ * value anywhere else in the theme would follow.
+ */
+[data-testid='life'][data-number-life-colour='danger'] {
+  color: var(--danger-ink);
+}
+
+[data-testid='life'][data-number-life-colour='success'] {
+  color: var(--success-ink);
+}
+
+.board-number__life-old {
+  margin-right: 2px;
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The pill: damage that stays on a creature, beside its P/T corner, until
+ * cleanup (`numbers.ts`'s `syncPills`). A standing fact, not an event — no
+ * rise, no fade-in, no animation at all; it simply exists while `left`/`top`
+ * (set fresh every call) say it should, and is removed outright otherwise.
+ * `--danger`/`--danger-ink`/`--bg` only, the same three the rest of this
+ * file draws with. No text but the number.
+ */
+.board-number__pill {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  min-width: 10px;
+  padding: 1px 4px;
+  border: 1px solid var(--danger);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--danger-ink);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
