@@ -331,6 +331,31 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let parked: Parked | null = null;
   /** Running from a park until Forge shows any sign of it — `PARK_UNANSWERED_MS`. */
   let unansweredTimer: ReturnType<typeof setTimeout> | null = null;
+  /*
+   * The placement preview, once per frame. `previewPlayedTo` measures every
+   * slot and pile of the viewer's battlefield and then moves the indicator,
+   * so run on every pointermove it forces a layout per move and the lifted
+   * card stalls the moment it crosses onto the battlefield (the operator,
+   * 2026-10-07: "smoother from hand all the way to battlefield boundary, but
+   * once i cross over the boundary it seems to get stuck"). The latest point
+   * wins; a `null` (the lift ended) is applied at once and drops the frame.
+   */
+  let previewFrame = 0;
+  let previewPoint: Point | null = null;
+  function previewAt(point: Point | null): void {
+    previewPoint = point;
+    if (point === null) {
+      if (previewFrame !== 0) cancelAnimationFrame(previewFrame);
+      previewFrame = 0;
+      previewPlayedTo(null);
+      return;
+    }
+    if (previewFrame !== 0) return;
+    previewFrame = requestAnimationFrame(() => {
+      previewFrame = 0;
+      previewPlayedTo(previewPoint);
+    });
+  }
   /** The lands a box touched that are still to be tapped, in order — see "A box taps lands". */
   let tapQueue: number[] = [];
   /** The land whose tap is out and not yet shown on the board. */
@@ -574,11 +599,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const source = state.source;
     const spell = needsTarget(handCardTypeLine(match, source));
     if (overOwnHand(node)) {
-      previewPlayedTo(null);
+      previewAt(null);
       floatCastLiftHome(canvas, source, state.from, () => {});
       return;
     }
-    previewPlayedTo(null);
+    previewAt(null);
     if (!spell && !overOwnBattlefield(node)) {
       floatCastLiftHome(canvas, source, state.from, () => {});
       return;
@@ -741,7 +766,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const d = drag;
       drag = null;
       clearDropCues(canvas);
-      previewPlayedTo(null);
+      previewAt(null);
       if (d.source !== null) floatCastLiftHome(canvas, d.source, d.from, () => {});
       paint();
     }
@@ -1030,7 +1055,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         drawCastLift(canvas, next.source, at, 'lifted');
         updateDropCues(canvas, spell, overHand, overBf);
         // Only a no-target card ever lands in a row.
-        previewPlayedTo(!spell && overBf ? at : null);
+        previewAt(!spell && overBf ? at : null);
       }
     } else if (marquee !== null) {
       marquee = { press: marquee.press, at, moved: marquee.moved || past(marquee.press, at) };
@@ -1095,7 +1120,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     }
     if (drag !== null && drag.lifted) {
       clearDropCues(canvas);
-      previewPlayedTo(null);
+      previewAt(null);
       if (drag.source !== null) floatCastLiftHome(canvas, drag.source, drag.from, () => {});
     }
     drag = null;
@@ -1217,7 +1242,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clearDropCues(canvas);
       // A gesture disposed mid-flight (a remount, a resync) leaves no
       // placement preview behind either.
-      if ((drag !== null && drag.lifted) || parked !== null) previewPlayedTo(null);
+      if ((drag !== null && drag.lifted) || parked !== null) previewAt(null);
       endPark();
       endTapSweep();
       canvas.removeAttribute(CANVAS_ATTR);

@@ -265,6 +265,7 @@ function boxAt(el: Element, left: number, top: number, w = 40, h = 56): void {
     ({ left, top, right: left + w, bottom: top + h, width: w, height: h, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
 }
 
+const frame = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => r()));
 const mineOf = (m: LiveMatch) => m.view!.players.find((p) => p.isViewer)!;
 const theirsOf = (m: LiveMatch) => m.view!.players.find((p) => !p.isViewer)!;
 
@@ -2863,11 +2864,33 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
     fireEvent.pointerMove(myHand, { clientX: 60, clientY: 714 });
     expect(previewSpy).toHaveBeenLastCalledWith(null);
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    await frame();
     expect(previewSpy).toHaveBeenLastCalledWith({ x: 400, y: 300 });
     fireEvent.pointerMove(myBattlefield, { clientX: 450, clientY: 320 });
+    await frame();
     expect(previewSpy).toHaveBeenLastCalledWith({ x: 450, y: 320 });
     fireEvent.pointerUp(myBattlefield, { clientX: 450, clientY: 320 });
     expect(previewSpy).toHaveBeenLastCalledWith(null);
+  });
+
+  it('the preview runs once per frame, with the last point — not once per pointer move', async () => {
+    // The operator, 2026-10-07: the lifted card "gets stuck" the moment it crosses onto the battlefield.
+    // previewPlayedTo measures every slot and pile; per move it forced a layout per move.
+    const { s, m, canvas } = await gestureBoard();
+    const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    previewSpy.mockClear();
+    for (let i = 0; i < 20; i++) fireEvent.pointerMove(myBattlefield, { clientX: 300 + i * 5, clientY: 300 });
+    expect(previewSpy, 'nothing measured inside the moves themselves').not.toHaveBeenCalled();
+    await frame();
+    expect(previewSpy).toHaveBeenCalledTimes(1);
+    expect(previewSpy).toHaveBeenLastCalledWith({ x: 395, y: 300 });
+    fireEvent.pointerUp(myBattlefield, { clientX: 395, clientY: 300 });
+    expect(previewSpy, 'the lift ending clears it at once').toHaveBeenLastCalledWith(null);
   });
 
   it('previewPlayedTo is never called for a card that needs a target — it never lands in a row', async () => {
@@ -2880,6 +2903,7 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
 
     fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    await frame();
     expect(previewSpy).not.toHaveBeenCalledWith({ x: 400, y: 300 });
   });
 
@@ -2893,6 +2917,7 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    await frame();
     expect(previewSpy).toHaveBeenLastCalledWith({ x: 400, y: 300 });
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(previewSpy).toHaveBeenLastCalledWith(null);
