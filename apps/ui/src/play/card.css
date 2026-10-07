@@ -219,8 +219,13 @@
  */
 .board-card__pt {
   position: absolute;
-  /* Bottom-right, where a printed card has it (Q13, asked twice). */
-  bottom: 2px;
+  /*
+   * Bottom-right, where a printed card has it (Q13, asked twice). The pile's
+   * box is `--pile-fan` taller than its top card's face (the fan hangs below
+   * it), so the badge keeps to the FACE's bottom, not the box's — a piled
+   * creature's P/T drew exactly the fan below its card (table-fit, 2026-10-07).
+   */
+  bottom: calc(2px + var(--pile-fan));
   right: calc(2px + var(--pile-fan));
   z-index: var(--z-card-badge, 1);
   display: flex;
@@ -411,7 +416,8 @@
 .board-card__counters {
   position: absolute;
   z-index: var(--z-card-badge, 1);
-  bottom: 2px;
+  /* To the face's bottom, as `.board-card__pt` — the pile box hangs `--pile-fan` below it. */
+  bottom: calc(2px + var(--pile-fan));
   left: 2px;
   display: flex;
   flex-wrap: wrap;
