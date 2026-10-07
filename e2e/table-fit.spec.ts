@@ -932,6 +932,10 @@ test(TITLE, async ({ browser }) => {
     // that has not is reported, not failed.
     const ptChecked: Record<string, number> = {};
     for (const f of friends) {
+      // Off the board first: the drivers leave the pointer on their last drop, and a hovered
+      // offered card lifts its art 3 px (`card.css`), which put one P/T 6 px below its art's
+      // edge in run 37647961707. The corner claim is about the resting card.
+      await f.page.mouse.move(1, 1);
       const pt = await f.page.evaluate(ptCorners);
       ptChecked[f.name] = pt.checked;
       expect(pt.misplaced, `${f.name}: every untapped creature's P/T is in its card's bottom-right corner`).toEqual([]);
