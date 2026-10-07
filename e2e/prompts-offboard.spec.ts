@@ -88,7 +88,8 @@ async function castAndReachTheSelection(page: Page, cardId: number, atLeast: num
  * while the stack is busy: the caller turns Full control on, because a
  * one-ability offer is otherwise answered by the board itself (`rules.ts`
  * `autoAnswer`) and there would be nothing to decline. Returns once the
- * trigger was declined and the stack is empty again, read off the board.
+ * trigger was declined, the stack is empty and nothing is being asked, read
+ * off the board.
  */
 async function castAndDeclineTrigger(page: Page, cardId: number, declineTextMatch: RegExp): Promise<void> {
   await clickHandCard(page, cardId);
@@ -114,7 +115,8 @@ async function castAndDeclineTrigger(page: Page, cardId: number, declineTextMatc
         }
         const text = await says(page);
         if (/Pay Mana Cost/i.test(text) || (/^Priority:/.test(text) && !/Stack: Empty/.test(text))) await pressOkIfEnabled(page);
-        return declined && (await stackCount(page)) === 0;
+        // Between the two triggers the stack can read 0 while the next one's offer is still open.
+        return declined && (await stackCount(page)) === 0 && (await page.getByTestId('live-prompt').count()) === 0;
       },
       { timeout: 30_000, intervals: [150] },
     )
