@@ -3579,7 +3579,8 @@ describe('§A.7 / §A.13 — the stack is hidden at zero and roomy unless a ques
     const roomy = declarationIn('.board', '--mid-h')!;
     const asked = declarationIn('.board', '--mid-h-asked')!;
     expect(Number.parseFloat(roomy), 'the roomy band is the bigger one').toBeGreaterThan(Number.parseFloat(asked));
-    expect(declarationIn('.board__mid[data-question]', '--mid-h')).toBe('var(--mid-h-asked)');
+    // Wave 51 §A.6: never more than the compact size; less only when the room above the question is less.
+    expect(declarationIn('.board__mid[data-question]', '--mid-h')).toMatch(/^min\(var\(--mid-h-asked\), /);
     // And the card on the stack follows the band, so a roomy band draws a bigger one.
     expect(declarationIn('.stack', '--stack-card-w')).toContain('var(--mid-h)');
 
@@ -3981,8 +3982,11 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
 
   it('stack: a question moves the band’s top up and gives it room for a long effect; the band is sized by state alone', () => {
     expect(Number.parseFloat(declarationIn('.board', '--mid-h-asked')!), 'roomier than w31’s 5.75rem').toBeGreaterThanOrEqual(8.5);
-    expect(declarationIn('.board__mid[data-question]', '--mid-h')).toBe('var(--mid-h-asked)');
-    expect(declarationIn('.board__mid[data-question]', 'top'), 'out of flow, so moving it moves no track').toBe('var(--board-gap)');
+    expect(declarationIn('.board__mid[data-question]', '--mid-h')).toMatch(/^min\(var\(--mid-h-asked\), /);
+    // Wave 51 §A.6: hung from the question's measured top, and never above the board's own top edge.
+    expect(declarationIn('.board__mid[data-question]', 'top'), 'out of flow, so moving it moves no track').toBe(
+      'max(var(--board-gap), calc(var(--question-top, 0px) - var(--mid-h) - var(--board-gap)))',
+    );
     expect(declarationIn('.board__mid', 'position')).toBe('absolute');
     const { container } = renderBoard(withStack(view, 5), { ...spyInteraction([]).interaction, questionOpen: true });
     expect(container.querySelector('[data-testid="board-mid"]')!.hasAttribute('data-question')).toBe(true);
