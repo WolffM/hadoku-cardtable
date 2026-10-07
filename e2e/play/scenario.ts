@@ -213,6 +213,21 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
         continue;
       }
       if (!openQuestion.test(text)) {
+        // A real, answerable, non-mulligan question — a live OK or Cancel
+        // under text that is not "Waiting for ___..." — is as far past the
+        // handoff as a literal "Priority:" line, same reasoning as the
+        // `live-prompt` ask check above: Q12's own block window reads
+        // "Select creatures to block …", never "Priority:", and the server
+        // withholding the OTHER seat's own auto-passed priority (this wave)
+        // means "Priority:" may never once be forwarded to EITHER seat even
+        // though the game has plainly moved past the mulligan. Checked
+        // before the sticky flag, not instead of it: "Waiting for ___..."
+        // still has neither text to answer here.
+        if (!/^waiting for /i.test(text) && ((await enabledOk(f.page).count()) > 0 || (await enabledCancel(f.page).count()) > 0)) {
+          anyPriorityReached = true;
+          mark(true);
+          continue;
+        }
         // Only genuinely clear if real priority has landed SOMEWHERE at
         // least once — never just because THIS tick's text happens not to
         // look mulligan-ish (see this function's own header for why that

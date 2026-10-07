@@ -1,0 +1,54 @@
+{
+ "paid": [
+  {
+   "evt": "auto-paid",
+   "matchId": "m-c188a227546e",
+   "seat": 0,
+   "cost": "{1}{B}"
+  }
+ ],
+ "passed": [
+  {
+   "evt": "auto-passed",
+   "matchId": "m-c188a227546e",
+   "seat": 0,
+   "phase": "Main phase, precombat"
+  }
+ ],
+ "withheld": [
+  {
+   "evt": "prompt-withheld",
+   "matchId": "m-c188a227546e",
+   "seat": 0,
+   "kind": "payment",
+   "why": "auto-pay"
+  },
+  {
+   "evt": "prompt-withheld",
+   "matchId": "m-c188a227546e",
+   "seat": 0,
+   "kind": "priority",
+   "why": "auto-pass"
+  }
+ ],
+ "framesSinceCast": [
+  "updateButtons",
+  "getAbilityToPlay",
+  "clearWeaklySelectable",
+  "applyDelta",
+  "setWeaklySelectable",
+  "applyDelta",
+  "setWeaklySelectable",
+  "applyDelta",
+  "clearWeaklySelectable",
+  "applyDelta",
+  "setWeaklySelectable",
+  "message",
+  "clearWeaklySelectable",
+  "applyDelta",
+  "applyDelta",
+  "setWeaklySelectable",
+  "showPromptMessage",
+  "updateButtons"
+ ]
+}

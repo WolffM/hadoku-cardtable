@@ -161,14 +161,28 @@ describe.skipIf(!available.ok)(title, () => {
 				const ritual = s.zone(0, 'Hand').find((c) => c.name === 'Dark Ritual')?.id;
 				expect(ritual).toBeDefined();
 				// The upkeep's offer named Dark Ritual and no restricted permanent…
-				const upkeepPrompt = s.sent.findIndex(
-					(x) => x.seat === 0 && x.envelope.frame.method === 'showPromptMessage' && UPKEEP.test((x.envelope.frame as unknown as { message: string }).message),
+				//
+				// this window is the one the server auto-passes right
+				// below, so `match.ts` withholds its `showPromptMessage` whole rather
+				// than forwarding it — read `s.lines` (the raw bridge stream Forge
+				// itself sent), not `s.sent` (this seat's own wire), for exactly that
+				// reason; `setWeaklySelectable` is never withheld, so it is unmoved
+				// either way.
+				const upkeepPrompt = s.lines.findIndex(
+					(l) =>
+						l.t === 'frame' &&
+						l.seat === 0 &&
+						(l.frame as { method?: unknown } | null)?.method === 'showPromptMessage' &&
+						UPKEEP.test((l.frame as { message?: string }).message ?? ''),
 				);
 				expect(upkeepPrompt, 'seat 0 was shown an upkeep window').toBeGreaterThanOrEqual(0);
-				const offer = [...s.sent.slice(0, upkeepPrompt + 1)].reverse().find((x) => x.seat === 0 && x.envelope.frame.method === 'setWeaklySelectable')
-					?.envelope.frame as unknown as { cards: { id: number }[]; phaseRestricted?: { id: number }[] } | undefined;
-				expect(offer?.cards.map((c) => c.id)).toContain(ritual);
-				expect(offer?.phaseRestricted).toEqual([]);
+				const offer = [...s.lines.slice(0, upkeepPrompt + 1)]
+					.reverse()
+					.find((l) => l.t === 'frame' && l.seat === 0 && (l.frame as { method?: unknown } | null)?.method === 'setWeaklySelectable') as
+					| { frame: { cards: { id: number }[]; phaseRestricted?: { id: number }[] } }
+					| undefined;
+				expect(offer?.frame.cards.map((c) => c.id)).toContain(ritual);
+				expect(offer?.frame.phaseRestricted).toEqual([]);
 				// …and the server passed it.
 				expect(s.logs.filter((l) => l.evt === 'auto-passed' && l.seat === 0 && l.phase === 'Upkeep step')).toHaveLength(1);
 			} finally {

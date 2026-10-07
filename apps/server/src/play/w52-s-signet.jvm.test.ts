@@ -91,17 +91,30 @@ describe.skipIf(!available.ok)(title, () => {
 
 				const signet = s.zone(1, 'Battlefield').find((c) => c.name === 'Azorius Signet');
 				expect(signet, 'seat 1 controls the scripted Signet').toBeDefined();
-				const windowAt = s.sent.findIndex(
-					(x) => x.seat === 1 && x.envelope.frame.method === 'showPromptMessage' && /Stack: 1 to Resolve/.test((x.envelope.frame as unknown as { message: string }).message),
+				// this window is auto-passed (asserted below), so `match.ts`
+				// withholds its `showPromptMessage` whole — read `s.lines` (the raw
+				// bridge stream), not `s.sent` (this seat's own wire), for the same
+				// reason `auto-pass-land.jvm.test.ts` and `w52-s-augur.jvm.test.ts` do.
+				// `setWeaklySelectable` is never withheld, so it is unmoved either way.
+				const windowAt = s.lines.findIndex(
+					(l) =>
+						l.t === 'frame' &&
+						l.seat === 1 &&
+						(l.frame as { method?: unknown } | null)?.method === 'showPromptMessage' &&
+						/Stack: 1 to Resolve/.test((l.frame as { message?: string }).message ?? ''),
 				);
 				expect(windowAt, "seat 1 was shown a window with seat 0's spell on the stack").toBeGreaterThanOrEqual(0);
-				const nextAt = s.sent.findIndex((x, i) => i > windowAt && x.seat === 1 && x.envelope.frame.method === 'showPromptMessage');
-				const offer = [...s.sent.slice(0, nextAt === -1 ? s.sent.length : nextAt)]
+				const nextAt = s.lines.findIndex(
+					(l, i) => i > windowAt && l.t === 'frame' && l.seat === 1 && (l.frame as { method?: unknown } | null)?.method === 'showPromptMessage',
+				);
+				const offer = [...s.lines.slice(0, nextAt === -1 ? s.lines.length : nextAt)]
 					.reverse()
-					.find((x) => x.seat === 1 && x.envelope.frame.method === 'setWeaklySelectable')?.envelope.frame as unknown as Offer | undefined;
-				const offered = offer?.cards.map((c) => c.id) ?? [];
+					.find((l) => l.t === 'frame' && l.seat === 1 && (l.frame as { method?: unknown } | null)?.method === 'setWeaklySelectable') as
+					| { frame: Offer }
+					| undefined;
+				const offered = offer?.frame.cards.map((c) => c.id) ?? [];
 				expect(offered, 'the new jar offers the Signet at priority').toContain(signet?.id);
-				expect(new Set(offer?.manaOnly?.map((c) => c.id))).toEqual(new Set(offered));
+				expect(new Set(offer?.frame.manaOnly?.map((c) => c.id))).toEqual(new Set(offered));
 				expect(s.logs.slice(logsBefore).filter((l) => l.evt === 'auto-passed' && l.seat === 1).length).toBeGreaterThan(0);
 			} finally {
 				await s.stop();

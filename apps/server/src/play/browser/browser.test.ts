@@ -317,13 +317,24 @@ describe('a browser client through the bridge', () => {
 	});
 
 	it('receives live projected frames on its own contiguous cursor, and nothing for the other seat', async () => {
-		const { matchId, alice, bob, host } = await twoSeats();
+		const { h, matchId, alice, bob, host } = await twoSeats();
 		const a = (await alice.request('join', matchId)) as unknown as { cursor: { seq: number; epoch: string } };
 		await bob.request('join', matchId);
 		// The join re-sends the prompt and buttons of the moment after the snapshot.
 		await waitUntil(() => alice.frames().length >= 2 && bob.frames().length >= 2, 'the post-snapshot re-sends');
 		host.push(PROBE_ASK, ...AFTER_PROBE);
-		const expected = [0, 1].map((seat) => TRANSCRIPT.slice(PROBE_AT).filter((l) => l.t === 'frame' && l.seat === seat).length);
+		// the transcript's own closing window (seat 1's opening
+		// Upkeep priority) is auto-passed — Upkeep is not a stop phase — so
+		// `match.ts` withholds it whole: neither of its two bridge frames is
+		// emitted. Read off the log, never guessed — see `socket.test.ts`'s
+		// own identical fix for the full reasoning.
+		await waitUntil(() => h.logs.some((l) => l.evt === 'prompt-withheld'), 'the withheld window to be decided');
+		const withheld = h.logs.filter((l) => l.evt === 'prompt-withheld') as { seat: number }[];
+		const expected = [0, 1].map((seat) => {
+			const bridgeCount = TRANSCRIPT.slice(PROBE_AT).filter((l) => l.t === 'frame' && l.seat === seat).length;
+			const withheldForSeat = withheld.filter((w) => w.seat === seat).length * 2;
+			return bridgeCount - withheldForSeat;
+		});
 		await waitUntil(
 			() => alice.frames().length >= 2 + (expected[0] ?? 0) && bob.frames().length >= 2 + (expected[1] ?? 0),
 			'every live frame',
