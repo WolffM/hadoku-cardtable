@@ -95,9 +95,6 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { isDurableParticipantId, type ParticipantId } from '@wolffm/rooms-protocol';
 import {
 	isBlocking,
@@ -595,7 +592,7 @@ function buttonsCouldBeAnswered(frame: Extract<ServerFrame, { method: 'updateBut
 	return frame.label1 === 'Auto' || (frame.label1 === 'Yes' && frame.label2 === 'No');
 }
 
-/** One decided window, as {@link Match.recordWindow} keeps it — see `frames.jsonl`'s own note. */
+/** One decided window, as {@link Match.recordWindow} keeps it for the `match-frames` log event. */
 interface FrameLogEntry {
 	t: number;
 	seat: number;
@@ -606,10 +603,8 @@ interface FrameLogEntry {
 	buttons: { label1: string; enable1: boolean; label2: string; enable2: boolean } | null;
 }
 
-/** How many {@link FrameLogEntry} rows one match's `frames.jsonl` keeps — a ring, not a log that grows forever. */
+/** How many {@link FrameLogEntry} rows one match keeps — a ring, not a log that grows forever. */
 const FRAMES_RING_SIZE = 500;
-
-const FRAMES_LOG_FILE = 'frames.jsonl';
 
 /**
  * `InputPassPriority.showYieldSuggestionPrompt`'s own button labels
@@ -679,15 +674,14 @@ export class Match {
 	 */
 	private justDiscarded: { ids: ReadonlySet<number>; timer: NodeJS.Timeout } | null = null;
 	/**
-	 * the last {@link FRAMES_RING_SIZE} decided prompt
-	 * windows, each way (every seat, forwarded and withheld alike), flushed to
-	 * `frames.jsonl` once by {@link writeFramesLog} on match end. The server's
-	 * structured log (`prompt-forwarded`/`prompt-withheld`, below) already
-	 * carries this per decision; the file is the SAME record kept across the
-	 * match for a repro, not a second source of truth.
+	 * The last {@link FRAMES_RING_SIZE} decided prompt windows, every seat,
+	 * forwarded and withheld alike, logged once as `match-frames` by
+	 * {@link logFrames} when the match ends. It goes to the structured log
+	 * rather than a file in the run directory because `host.ts` removes that
+	 * directory whole on a clean end, and the log is what outlives a match.
 	 */
 	private readonly framesRing: FrameLogEntry[] = [];
-	private framesLogWritten = false;
+	private framesLogged = false;
 
 	constructor(
 		id: string,
@@ -1211,7 +1205,7 @@ export class Match {
 	stop(): void {
 		if (this.status !== 'starting' && this.status !== 'running' && this.status !== 'over') return;
 		this.status = 'stopped';
-		this.writeFramesLog();
+		this.logFrames();
 		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: 'stopped' });
 		this.closeAllAsks();
 		this.host?.stop();
@@ -1258,7 +1252,7 @@ export class Match {
 				this.status = 'over';
 				this.winner = line.winner;
 				this.deps.log({ evt: 'game-over', matchId: this.id, winner: line.winner });
-				this.writeFramesLog();
+				this.logFrames();
 				this.overTimer = setTimeout(() => this.host?.stop(), this.deps.overGraceMs);
 				this.overTimer.unref();
 				return;
@@ -1616,7 +1610,7 @@ export class Match {
 		this.recordWindow(s, 'forwarded', kind, 'unpaired', prompt, buttons);
 	}
 
-	/** One row of `frames.jsonl` — see {@link FrameLogEntry}'s own note. */
+	/** One row of the ring — see {@link FrameLogEntry}. */
 	private recordWindow(
 		s: SeatState,
 		decision: 'forwarded' | 'withheld',
@@ -1635,24 +1629,16 @@ export class Match {
 	}
 
 	/**
-	 * the telemetry ring, once, on match end. `deps.log` already
-	 * carries every decision as it happens (the operator's structured log);
-	 * this is the SAME record kept for the whole match (bounded by
-	 * {@link FRAMES_RING_SIZE}) so a repro does not depend on having been
-	 * watching the log at the right second.
+	 * The telemetry ring, once, on match end. `deps.log` already carries every
+	 * decision as it happens; this is the same record with the message and the
+	 * bar, kept for the whole match (bounded by {@link FRAMES_RING_SIZE}) so a
+	 * report can be replayed without having watched the log at the right second.
 	 */
-	private writeFramesLog(): void {
-		if (this.framesLogWritten) return;
-		this.framesLogWritten = true;
+	private logFrames(): void {
+		if (this.framesLogged) return;
+		this.framesLogged = true;
 		if (this.framesRing.length === 0) return;
-		const dir = process.env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play');
-		const matchDir = join(dir, this.id);
-		try {
-			mkdirSync(matchDir, { recursive: true });
-			writeFileSync(join(matchDir, FRAMES_LOG_FILE), `${this.framesRing.map((e) => JSON.stringify(e)).join('\n')}\n`);
-		} catch (err) {
-			this.deps.log({ evt: 'frames-log-write-failed', matchId: this.id, error: err instanceof Error ? err.message : String(err) });
-		}
+		this.deps.log({ evt: 'match-frames', matchId: this.id, frames: this.framesRing });
 	}
 
 	/* ── Wave 19 lane C ─────────────────────────────────────────────── */
@@ -2339,7 +2325,7 @@ export class Match {
 		this.status = 'failed';
 		this.failure = reason;
 		this.deps.log({ evt: 'match-failed', matchId: this.id, reason });
-		this.writeFramesLog();
+		this.logFrames();
 		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: reason });
 		this.closeAllAsks();
 		this.tellSeatsItEnded(reason);

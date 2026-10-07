@@ -13,9 +13,6 @@
  *      after a snapshot on the next cursor
  */
 
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientFrameSchema, safeParseServerFrame, type ClientFrame } from '@hadoku/forge-wire';
 
@@ -1622,90 +1619,50 @@ describe('hold-decide-forward', () => {
 });
 
 /**
- * `frames.jsonl`. `prompt-forwarded`/`prompt-withheld` ride
- * the ordinary structured log (`h.logs`, asserted throughout the describe
- * above); this is the SEPARATE per-match ring, written once to disk on match
- * end.
+ * The ring: `prompt-forwarded`/`prompt-withheld` are logged as each window is
+ * decided (asserted throughout the describe above); `match-frames` is the
+ * whole match's record, logged once when it ends.
  */
-describe('telemetry (frames.jsonl)', () => {
-	let workDir: string;
-	let prevEnv: string | undefined;
+describe('telemetry (match-frames)', () => {
+	const PRIORITY_MAIN = 'Priority: Seat 1\nTurn: 1 (Seat 1)\nPhase: Main phase, precombat\nStack: Empty';
+	const ringOf = (h: Harness) => h.logs.filter((l) => l.evt === 'match-frames') as { matchId: string; frames: Record<string, unknown>[] }[];
 
-	afterEach(() => {
-		if (workDir !== undefined) rmSync(workDir, { recursive: true, force: true });
-		if (prevEnv === undefined) delete process.env.CARDTABLE_PLAY_WORK_DIR;
-		else process.env.CARDTABLE_PLAY_WORK_DIR = prevEnv;
-	});
-
-	function withScratchWorkDir(): void {
-		prevEnv = process.env.CARDTABLE_PLAY_WORK_DIR;
-		workDir = mkdtempSync(join(tmpdir(), 'w55-s-frames-'));
-		process.env.CARDTABLE_PLAY_WORK_DIR = workDir;
-	}
-
-	it('writes the ring to <workDir>/<matchId>/frames.jsonl once, on match end — both decisions, each seat', () => {
-		withScratchWorkDir();
+	it('logs the ring once, on match end — both decisions, each seat', () => {
 		const h = harness();
 		h.host.push(...OPENING);
-		// One withheld pair (payment, auto-paid) and one forwarded pair (a stop),
-		// same frames the describe above already proves the send/withhold half of.
 		h.host.push(
 			{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: 'Pay Mana Cost: {U}', card: null } },
 			{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 1 }, label1: 'Auto', label2: 'Cancel', enable1: true, enable2: false, focus1: true } },
-			{
-				t: 'frame',
-				seat: 0,
-				frame: {
-					kind: 'notify',
-					method: 'showPromptMessage',
-					player: { kind: 'player', id: 0 },
-					message: 'Priority: Seat 1\nTurn: 1 (Seat 1)\nPhase: Main phase, precombat\nStack: Empty',
-					card: null,
-				},
-			},
+			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: PRIORITY_MAIN, card: null } },
 			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'Cancel', enable1: true, enable2: false, focus1: true } },
 		);
+		expect(ringOf(h)).toEqual([]);
 		h.match.stop();
-		const path = join(workDir, h.match.id, 'frames.jsonl');
-		const lines = readFileSync(path, 'utf8').trimEnd().split('\n');
-		const rows = lines.map((l) => JSON.parse(l) as Record<string, unknown>);
-		expect(rows.some((r) => r.decision === 'withheld' && r.seat === 1 && r.kind === 'payment' && r.why === 'auto-pay')).toBe(true);
-		expect(rows.some((r) => r.decision === 'forwarded' && r.seat === 0 && r.kind === 'priority' && r.why === 'kept')).toBe(true);
-		// Decided windows only: OPENING's own two "Waiting for…" pairs are
-		// forwarded too, but neither decider ever reads that shape (no
-		// `Priority: `/`Pay Mana Cost: ` text, no `confirmAbility`), so the
-		// narrowed hold sends them at once and the ring never sees them.
-		expect(rows.length).toBeGreaterThanOrEqual(2);
+		const [ring, ...rest] = ringOf(h);
+		expect(rest).toEqual([]);
+		expect(ring?.matchId).toBe(h.match.id);
+		expect(ring?.frames).toEqual([
+			expect.objectContaining({ seat: 1, kind: 'payment', decision: 'withheld', why: 'auto-pay', message: 'Pay Mana Cost: {U}' }),
+			expect.objectContaining({ seat: 0, kind: 'priority', decision: 'forwarded', why: 'kept', buttons: { label1: 'OK', enable1: true, label2: 'Cancel', enable2: false } }),
+		]);
 	});
 
-	it('writes nothing when the match never decided a window (no file, no crash)', () => {
-		withScratchWorkDir();
+	it('logs nothing when the match never decided a window', () => {
 		const h = harness();
 		h.match.stop();
-		const path = join(workDir, h.match.id, 'frames.jsonl');
-		expect(() => readFileSync(path, 'utf8')).toThrow();
+		expect(ringOf(h)).toEqual([]);
 	});
 
-	it('writes exactly once even when a natural game-over is followed by an explicit stop()', () => {
-		withScratchWorkDir();
+	it('logs exactly once when a natural game-over is followed by an explicit stop()', () => {
 		const h = harness();
 		h.host.push(...OPENING);
-		// OPENING's own trailing pairs are all unanswerable shapes (never
-		// decided, never recorded — see the ring test above); one decided
-		// window is pushed here so the ring actually has something to write.
 		h.host.push(
-			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Priority: Seat 1\nTurn: 1 (Seat 1)\nPhase: Main phase, precombat\nStack: Empty', card: null } },
+			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: PRIORITY_MAIN, card: null } },
 			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'Cancel', enable1: true, enable2: false, focus1: true } },
 		);
 		h.host.push({ t: 'gameover', winner: '0' });
-		const path = join(workDir, h.match.id, 'frames.jsonl');
-		const first = readFileSync(path, 'utf8');
-		rmSync(path);
-		// `stop()` still allows a match already `over` through — the SAME double-
-		// write path production can take (gameover's own grace timer eventually
-		// calls the host's stop, and anything else may call `Match.stop()` too).
+		expect(ringOf(h)).toHaveLength(1);
 		h.match.stop();
-		expect(() => readFileSync(path, 'utf8')).toThrow();
-		expect(first.length).toBeGreaterThan(0);
+		expect(ringOf(h)).toHaveLength(1);
 	});
 });

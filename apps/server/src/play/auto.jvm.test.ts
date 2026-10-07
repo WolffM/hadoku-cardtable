@@ -1333,10 +1333,6 @@ describe.skipIf(!available.ok)(title, () => {
 				// keeps sending as the seat's own genuine stops resume.
 				expect(sentSince.some((x) => /Pay Mana Cost/.test((x.envelope.frame as unknown as { message?: string }).message ?? ''))).toBe(false);
 				expect(withheld.map((l) => l.kind)).toEqual(['payment', 'priority']);
-				writeFileSync(
-					join('docs', 'planning', 'wave55-evidence', 'S', 'bitterblossom-run.json'),
-					JSON.stringify({ paid, passed, withheld, framesSinceCast: sentSince.map((x) => x.envelope.frame.method) }, null, 1),
-				);
 			} finally {
 				await s.stop();
 			}
