@@ -119,9 +119,11 @@
  *    the hand and nothing open) → it floats back, the same as a cancel.
  *
  * While it waits, its own spell is not drawn on the caster's stack
- * (`Board.tsx`'s `carryCastOffStack`): the parked card is that spell. The
- * stack takes it back the moment that stops being the whole story — see
- * `syncStackStandIn`.
+ * (`Board.tsx`'s `carryCastOffStack`): the parked card IS that spell, for as
+ * long as it is the only thing on the stack — the stack redesign (2026-10-06,
+ * approved: https://claude.ai/artifact/BUeXnHbHkeqtxFccyHQSfd) draws a lone
+ * spell as the card and the row only at two or more. The row takes it back
+ * the moment something joins it — see `syncStackStandIn`.
  *
  * ### A click lifts; the next press is the release
  *
@@ -235,18 +237,6 @@ import './gestures.css';
 const CANVAS_ATTR = 'data-gesture-canvas';
 
 /**
- * How long a played card's spell may sit alone on the stack before the stack
- * draws it after all: longer than an uncontested spell takes to resolve, so
- * one still there means the opponent is holding priority, and then the stack is
- * where the caster needs to see it. Two values, because "uncontested" takes
- * two very different times: with Fast Mode on it is a round trip to Forge
- * (44 ms measured); with it off, `../pace.ts` holds the frame that takes the
- * spell off the stack for `PACE_DELAYS_MS.resolve` on top of that
- * (980 ms measured, and 150 ms more for every other frame queued between).
- */
-export const STACK_STAND_IN_MS = { fast: 500, paced: 2000 } as const;
-
-/**
  * How long a parked card may sit with Forge showing no sign of the play — the
  * card still in the hand, no question, no payment — before it floats back. An
  * act is dropped when Forge was not at the input the click was meant for, and
@@ -304,8 +294,6 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let live = true;
   /** A targeted cast already sent, pinned, waiting on Forge — see the module header. Null: no cast in flight. */
   let parked: Parked | null = null;
-  /** Running while a played card's spell sits alone on the stack — `syncStackStandIn`. */
-  let standInTimer: ReturnType<typeof setTimeout> | null = null;
   /** Running from a park until Forge shows any sign of it — `PARK_UNANSWERED_MS`. */
   let unansweredTimer: ReturnType<typeof setTimeout> | null = null;
   /** The lands a box touched that are still to be tapped, in order — see "A box taps lands". */
@@ -586,13 +574,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
     paint();
   }
 
-  /** `parked` is over, however it ended: its clocks stop and the stack draws everything again. */
+  /** `parked` is over, however it ended: its clock stops and the stack draws everything again. */
   function endPark(): Parked | null {
     const p = parked;
     parked = null;
-    if (standInTimer !== null) clearTimeout(standInTimer);
     if (unansweredTimer !== null) clearTimeout(unansweredTimer);
-    standInTimer = null;
     unansweredTimer = null;
     carryCastOffStack(null);
     return p;
@@ -633,35 +619,21 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   /**
    * Whether the caster's stack still leaves a played card's own spell to the
-   * parked card. It does while that spell is the only thing on the stack and
-   * Forge is asking this seat nothing; it stops, for good, the moment a second
-   * item joins it (a cast trigger, a response), Forge opens a question, or
-   * its `STACK_STAND_IN_MS` passes with the spell still there — the opponent is
-   * holding priority, which this client can only know by the wait
-   * (`../LiveBoard.tsx`'s `myMoveNow` has the reason no frame says so).
-   *
-   * A payment is neither: the clock does not run while this seat is paying.
+   * parked card. It does while that spell is the only thing on the stack —
+   * however long the opponent takes, and whatever Forge asks meanwhile: a
+   * lone spell is drawn as the card, and this card is it. It stops, for good,
+   * the moment a second item joins it (a cast trigger, a response): now there
+   * is a stack to draw, and the spell belongs in its row.
    */
   function syncStackStandIn(): void {
     if (parked === null || !parked.played || parked.onStack) return;
     const stack = match.view?.stack ?? [];
     const source = parked.source;
     if (!stack.some((item) => !item.isAbility && item.sourceCardId === source)) return;
-    if (stack.length > 1 || match.selectables !== null || match.asks.length > 0 || stackAsk(match) !== null) {
-      showOnStack();
-      return;
-    }
-    if (payingMana(match)) {
-      if (standInTimer !== null) clearTimeout(standInTimer);
-      standInTimer = null;
-      return;
-    }
-    standInTimer ??= setTimeout(showOnStack, options.motion?.() === true ? STACK_STAND_IN_MS.paced : STACK_STAND_IN_MS.fast);
+    if (stack.length > 1) showOnStack();
   }
 
   function showOnStack(): void {
-    if (standInTimer !== null) clearTimeout(standInTimer);
-    standInTimer = null;
     if (parked !== null) parked.onStack = true;
     carryCastOffStack(null);
   }

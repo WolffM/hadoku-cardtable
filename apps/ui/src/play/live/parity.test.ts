@@ -4,7 +4,29 @@
  *
  * ## The baseline
  *
- * Re-recorded in Wave 46 §A for X3, the stack carousel (operator, asked four
+ * Re-recorded for the stack redesign (2026-10-06, approved by the operator:
+ * https://claude.ai/artifact/BUeXnHbHkeqtxFccyHQSfd — *"i honestly really
+ * just want one of these [expanded views]"*). 44350 -> 42983, -1367, measured
+ * the strong way: the fixture rendered with the previous `Board.tsx` and with
+ * this one, the two `<section class="stack">`s diffed directly, and the rest
+ * of the markup byte-identical. The fixture's stack holds two items, so the
+ * row still draws both; the whole of the change is the big view and the
+ * carousel's own click:
+ *
+ * -1311  `<div class="stack__big" data-shown="true" data-pinned="true"
+ *        aria-hidden="true">…</div>`, the row's own enlarged view with its
+ *        `CardTile` of Fire Urchin, gone: a thumbnail is read through the
+ *        inspector now, like every other tile.
+ *   -20  ` aria-current="true"` on the top item: nothing is "shown" any more.
+ *   -36  the two thumbnails' `<button type="button" class="stack__body">`
+ *        (the carousel's own pick-a-card click) are `<span class="stack__body">`:
+ *        with no big view there is nothing to pick for, and a thumbnail is a
+ *        button only while Forge's own stack-choice ask offers it
+ *        (`.stack__select`, unchanged).
+ *  ─────
+ * -1367  44350 -> 42983.
+ *
+ * Before that, re-recorded in Wave 46 §A for X3, the stack carousel (operator, asked four
  * times: *"show a sort of gallery/carousel small view … whatever is the top
  * card should show in the expanded big view below it"*, demo v5 approved).
  * 42550 -> 43762, +1212, and every one of the characters is accounted for —
@@ -483,8 +505,8 @@ import { fixtureFrames, startReplayServer, until, type ReplayServer } from './re
 // Re-recorded at the w46+w47+w48 integration (2026-10-05): +570 characters, all of it art. w48's library
 // regeneration gave three fixture cards (Electrostatic Bolt, Great Furnace, Pyrite Spellbomb) their first
 // `art-ids.json` rows; with w46's art-ids.json put back this test passes at the old pin (43780, c668dd6f…).
-const BASELINE_SHA256 = 'c74fb469c45d997294d953275ec0d973bf8a7ded8f8b491df37994c5a2ca8f0d';
-const BASELINE_LENGTH = 44350;
+const BASELINE_SHA256 = '0b71d9ffb090084dd52dfb34193b8b6ff2f136865acc55086a19b67faeff711d';
+const BASELINE_LENGTH = 42983;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

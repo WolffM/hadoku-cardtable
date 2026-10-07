@@ -35,10 +35,8 @@ import {
   notePlayedTo,
   previewPlayedTo,
   snapTo,
-  stackBigFits,
   type BoardInteraction,
   type BoardLayout,
-  type StackRect,
 } from './Board.tsx';
 import { boardFromFixture, loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
@@ -366,6 +364,58 @@ describe('zones', () => {
   });
 });
 
+/*
+ * The stack redesign (2026-10-06, approved): "the stack doesn't need to appear
+ * when theres only one thing pending to execute" — a lone spell is the card
+ * itself, a lone trigger is a pulse on its source, and the row exists at two
+ * or more.
+ */
+describe('the stack with one thing on it (the stack redesign)', () => {
+  const base = boardFromFixture(fixture);
+  const spell = base.stack.find((item) => !item.isAbility)!;
+  const ability = base.stack.find((item) => item.isAbility)!;
+
+  it('a lone spell is drawn as the card: in the row’s place, unnumbered, still the item every reader keys off', () => {
+    const { container } = renderBoard({ ...base, stack: [spell] });
+    const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
+    expect(stack.dataset.count).toBe('1');
+    expect(stack.dataset.lone).toBe('true');
+    const item = stack.querySelector<HTMLElement>(`.stack__item[data-stack-id="${spell.id}"]`)!;
+    expect(item, 'the item is still there for the arrows and a stack-choice ask').not.toBeNull();
+    expect(item.classList.contains('stack__item--lone')).toBe(true);
+    expect(item.querySelector('.stack__n'), 'no ordinal: there is no stack to count').toBeNull();
+    expect(item.querySelector('.stack__art .card'), 'the card itself').not.toBeNull();
+  });
+
+  it('a lone trigger draws no row: its source pulses on the battlefield and carries the item’s own stack id', () => {
+    const { container } = renderBoard({ ...base, stack: [ability] });
+    const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
+    expect(stack.dataset.count, 'Forge still has one item').toBe('1');
+    expect(stack.querySelectorAll('.stack__item'), 'and the row is empty').toHaveLength(0);
+    const source = container.querySelector<HTMLElement>(`li.board-card[data-card-id="${ability.sourceCardId}"]`)!;
+    expect(source, 'the trigger’s source is on a battlefield').not.toBeNull();
+    expect(source.dataset.stackSource).toBe('true');
+    expect(source.dataset.stackId, 'the arrows and a stack-choice ask find the item on its source').toBe(String(ability.id));
+    expect(container.querySelectorAll('[data-stack-source]'), 'and nothing else pulses').toHaveLength(1);
+  });
+
+  it('two items are a row again, numbered, and nothing pulses', () => {
+    const { container } = renderBoard({ ...base, stack: [ability, spell] });
+    const stack = container.querySelector<HTMLElement>('[data-zone="stack"]')!;
+    expect(stack.dataset.lone).toBeUndefined();
+    expect(stack.querySelectorAll('.stack__item')).toHaveLength(2);
+    expect([...stack.querySelectorAll('.stack__n')].map((n) => n.textContent)).toEqual(['1', '2']);
+    expect(container.querySelector('[data-stack-source]')).toBeNull();
+    expect(container.querySelector(`li.board-card[data-stack-id]`), 'no board card carries a stack id').toBeNull();
+  });
+
+  it('a lone trigger off a card the board does not draw keeps its thumbnail — there is nothing to pulse', () => {
+    const { container } = renderBoard({ ...base, stack: [{ ...ability, sourceCardId: 424242 }] });
+    expect(container.querySelectorAll('.stack__item')).toHaveLength(1);
+    expect(container.querySelector('[data-stack-source]')).toBeNull();
+  });
+});
+
 describe('the stack', () => {
   it('lists both items, top first, as thumbnails whose who/what/target lives in aria-label, not a drawn line', () => {
     const { container } = renderBoard();
@@ -381,46 +431,6 @@ describe('the stack', () => {
     // on the board, visible or in an accessible name — this fixture's `item.description`
     // for Direct Current is that exact sentence, and it is drawn nowhere.
     expect(items.join(' '), 'not Forge’s own resolved sentence').not.toContain('deals 2 damage to Goblin Replica (67)');
-  });
-});
-
-/**
- * `stackBigFits`, on real numbers — no DOM, no jsdom rect zeroing (the same
- * pattern `inspect/place.test.ts` uses for `placeInspector`, and for the same
- * reason: jsdom gives every element a zero rect, so this pure half is where
- * the overlap MATH is proven; `e2e/w46-stack.spec.ts` proves the component
- * wires it to the real page correctly).
- */
-describe('stackBigFits (wave 46 X3 — never cover what matters)', () => {
-  const BIG: StackRect = { left: 100, top: 100, right: 268, bottom: 334 };
-
-  it('fits when nothing is in its way', () => {
-    expect(stackBigFits(BIG, [], null)).toBe(true);
-  });
-
-  it('does not fit over a permanent it would overlap', () => {
-    const permanent: StackRect = { left: 150, top: 150, right: 200, bottom: 200 };
-    expect(stackBigFits(BIG, [permanent], null)).toBe(false);
-  });
-
-  it('fits beside a permanent it does not actually touch', () => {
-    const permanent: StackRect = { left: 300, top: 300, right: 350, bottom: 350 };
-    expect(stackBigFits(BIG, [permanent], null)).toBe(true);
-  });
-
-  it('merely touching edges does not count as covering it', () => {
-    // Shares the big box's own right edge exactly — adjacent, not overlapping.
-    const permanent: StackRect = { left: 268, top: 100, right: 320, bottom: 334 };
-    expect(stackBigFits(BIG, [permanent], null)).toBe(true);
-  });
-
-  it('does not fit over an open question panel', () => {
-    const question: StackRect = { left: 120, top: 120, right: 200, bottom: 200 };
-    expect(stackBigFits(BIG, [], question)).toBe(false);
-  });
-
-  it('a null question panel (none open) never excludes anything', () => {
-    expect(stackBigFits(BIG, [], null)).toBe(true);
   });
 });
 
@@ -737,12 +747,13 @@ describe('BoardInteraction', () => {
       controllerName: me.name,
       isAbility: true,
     };
-    const withAbilityOnStack: BoardView = { ...view, stack: [abilityEntry] };
+    // Beside a spell: alone, an ability is drawn on its source, not in the row (the stack redesign; its own test below).
+    const withAbilityOnStack: BoardView = { ...view, stack: [abilityEntry, view.stack[1]!] };
     // Forge really is offering this card id — for the permanent's own activation.
     const { interaction, onSelectCard } = spyInteraction([permanent.id]);
     const { container } = renderBoard(withAbilityOnStack, interaction);
 
-    const item = container.querySelector<HTMLElement>(`[data-stack-id="${abilityEntry.id}"]`)!;
+    const item = container.querySelector<HTMLElement>(`.stack__item[data-stack-id="${abilityEntry.id}"]`)!;
     expect(item.dataset.selectable, 'inert, unlike a spell entry above').toBeUndefined();
     // Wave 46 X3: the carousel's OWN click (pin a different item for the big
     // view) may still render a button here — that is unrelated to Forge's
@@ -956,9 +967,9 @@ function declarationInCss(css: string, selector: string, property: string): stri
 const declarationIn = (selector: string, property: string): string | undefined =>
   declarationInCss(BOARD_CSS, selector, property);
 
-/** The fixture's own stack item, repeated, so the only thing that varies is how many. */
+/** The fixture's own spell on the stack, repeated, so the only thing that varies is how many (a lone ABILITY draws on its source instead). */
 function withStack(base: BoardView, n: number): BoardView {
-  const seed = base.stack[0]!;
+  const seed = base.stack.find((item) => !item.isAbility) ?? base.stack[0]!;
   return { ...base, stack: Array.from({ length: n }, (_, i) => ({ ...seed, id: 9000 + i })) };
 }
 
@@ -994,11 +1005,10 @@ describe('the canvas is static', () => {
     }
     // Wave 46 X3: the visible `<h3>` label is gone (the demo and the "no
     // explanatory text" rule both drop it; the accessible name is
-    // `aria-label="Stack"` on the section itself, unchanged). The big view
-    // (`.stack__big`) is now the fixed second slot, always rendered — `hidden`
-    // varies, not its presence, which is what keeps this list identical at
-    // every count.
-    expect(shots[0]!.slot).toEqual(['OL.stack__items', 'DIV.stack__big']);
+    // `aria-label="Stack"` on the section itself, unchanged). The row is the
+    // stack's one slot: its big view went with the single expanded view
+    // (the inspector), so nothing but the list is ever rendered here.
+    expect(shots[0]!.slot).toEqual(['OL.stack__items']);
   });
 
   it('gives every zone its slot whether or not anything is in it', () => {
@@ -3028,7 +3038,9 @@ describe('the stack’s art (#10)', () => {
       stack: [{ ...view.stack[0]!, sourceCard: null, sourceCardId: null, sourceName: null }],
     };
     const { container } = renderBoard(bare);
+    // Alone and an ability, but with no source the board could pulse: it keeps its thumbnail.
     const item = container.querySelector<HTMLElement>('.stack__item')!;
+    expect(item, 'drawn in the row').not.toBeNull();
     expect(item.querySelector('.stack__art')).toBeNull();
     // Wave 46 X3: the fallback sentence lives in the thumbnail's own aria-label now, not a drawn `.stack__source`
     // — this fixture's item keeps its controller, so the label is who · what, same join as every other item.

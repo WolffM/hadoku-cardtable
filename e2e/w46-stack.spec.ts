@@ -8,12 +8,13 @@
  * (`apps/server/src/play/scenarios/w46-a-*.state`):
  *
  *   - top leftmost, numbered 1..n, in DOM order;
- *   - the two equal gaps (thumbnail-to-thumbnail, and row-to-big-view),
- *     within 1px — measured off the FILLED row, never an empty one;
- *   - pinned (always visible, at its default spot) while nothing of
- *     substance sits where it would go;
- *   - hidden instead, with a hover/focus peek anchored BELOW the specific
- *     thumbnail, once a permanent sits under the big view's own box.
+ *   - a thumbnail is read through the ONE expanded view the board has, the
+ *     inspector, beside the thumbnail — and, while a decision window is open,
+ *     beside that window instead, to its left. The stack redesign
+ *     (2026-10-06, https://claude.ai/artifact/BUeXnHbHkeqtxFccyHQSfd) removed
+ *     the row's own big view: the operator, *"i honestly really just want one
+ *     of these"*, and *"if theres a decision window up … the expanded view
+ *     needs to stack to the left of that decision window."*
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without
  * one each test SKIPS and its title says why. Serves the prebuilt
@@ -100,12 +101,12 @@ async function passToOpponent(page: Page, opponent: Page): Promise<void> {
 /** The thumbnail row's own children, left to right, in DOM order. */
 const thumbs = (page: Page): Locator => page.locator('[data-zone="stack"] > ol.stack__items > li.stack__item');
 
-/** `.stack__big`, the carousel's own enlarged view. */
-const big = (page: Page): Locator => page.locator('[data-zone="stack"] > .stack__big');
+/** The one expanded view: the inspector's panel, wherever it was drawn. */
+const inspector = (page: Page): Locator => page.locator('[data-inspect]');
 
 test.describe.configure({ mode: 'serial' });
 
-test(titled('top leftmost, numbered 1..n; the two equal gaps; pinned with nothing of substance in the way'), async ({ browser }) => {
+test(titled('top leftmost, numbered 1..n; hovering a thumbnail enlarges it in the one inspector, beside it'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(5 * 60_000);
@@ -135,113 +136,67 @@ test(titled('top leftmost, numbered 1..n; the two equal gaps; pinned with nothin
     await expect(items.nth(1), 'the second is not').not.toHaveClass(/stack__item--top/);
     const numbers = await items.locator('.stack__n').allTextContents();
     expect(numbers, 'numbered 1..n from the left').toEqual(['1', '2']);
+    await expect(alice.page.locator('[data-zone="stack"] .stack__big'), 'the row has no big view of its own any more').toHaveCount(0);
 
-    /* ── the two equal gaps, within 1px ───────────────────────────────── */
-    const geometry = await alice.page.evaluate(() => {
-      const section = document.querySelector('[data-zone="stack"]')!;
-      const row = section.querySelector('ol.stack__items')!;
-      const thumbEls = Array.from(row.querySelectorAll('li.stack__item')) as HTMLElement[];
-      const bigEl = section.querySelector('.stack__big') as HTMLElement;
-      const a = thumbEls[0]!.getBoundingClientRect();
-      const b = thumbEls[1]!.getBoundingClientRect();
-      const rowBox = row.getBoundingClientRect();
-      const bigBox = bigEl.getBoundingClientRect();
-      const permanents = Array.from(document.querySelectorAll('.zone--battlefield [data-board-card]')).map((el) => ({
-        id: el.getAttribute('data-board-card'),
-        box: el.getBoundingClientRect(),
-      }));
-      const prompt = document.querySelector('.live__prompt');
-      return {
-        thumbGap: b.left - a.right,
-        rowToBig: bigBox.top - rowBox.bottom,
-        pinned: bigEl.dataset.pinned === 'true',
-        bigHidden: getComputedStyle(bigEl).visibility === 'hidden',
-        bigBox,
-        permanents,
-        promptBox: prompt === null ? null : prompt.getBoundingClientRect(),
-      };
-    });
-    expect(Math.abs(geometry.thumbGap - geometry.rowToBig), `thumbnail gap ${geometry.thumbGap}px vs row-to-big gap ${geometry.rowToBig}px`).toBeLessThanOrEqual(1);
+    /* ── one expanded view, beside the hovered thumbnail ──────────────── */
+    await expect(inspector(alice.page), 'nothing is enlarged until something is hovered').toHaveCount(0);
+    const thumb = items.first();
+    const thumbBox = (await thumb.boundingBox())!;
+    await thumb.hover();
+    await expect(inspector(alice.page), 'hovering a thumbnail opens the inspector').toHaveCount(1);
+    await expect(inspector(alice.page).locator('.card__name'), 'showing that item’s own card').toHaveText('Lightning Bolt');
+    const panelBox = (await inspector(alice.page).boundingBox())!;
+    // The stack's column sits at 59-84% across: no room on the right, so the panel stands on the thumbnail's left.
+    const beside = panelBox.x + panelBox.width <= thumbBox.x + 1 || panelBox.x >= thumbBox.x + thumbBox.width - 1;
+    expect(beside, `beside the thumbnail, never over it (panel ${JSON.stringify(panelBox)}, thumbnail ${JSON.stringify(thumbBox)})`).toBe(true);
 
     mkdirSync(SHOTS, { recursive: true });
-    await alice.page.screenshot({ path: resolve(SHOTS, 'pinned.png') });
+    await alice.page.screenshot({ path: resolve(SHOTS, 'inspector-beside-thumbnail.png') });
 
-    /* ── pinned, with nothing of substance in the way ─────────────────── */
-    // This scenario's only permanents are the viewer's own two Mountains,
-    // on their own battlefield, far from the stack's own column — the
-    // precondition "an empty board" means for this check: nothing covers
-    // where the big view sits.
-    expect(
-      geometry.pinned,
-      `pinned by default — nothing covers the big view (big=${JSON.stringify(geometry.bigBox)}, permanents=${JSON.stringify(geometry.permanents)}, prompt=${JSON.stringify(geometry.promptBox)})`,
-    ).toBe(true);
-    expect(geometry.bigHidden, 'and visible, not hidden').toBe(false);
-    await expect(big(alice.page).locator('.card__name'), 'the big view shows the top of the stack by default').toHaveText('Lightning Bolt');
+    /* ── leaving the thumbnail closes it again ────────────────────────── */
+    await alice.page.mouse.move(10, 10);
+    await expect(inspector(alice.page), 'leaving the thumbnail closes it').toHaveCount(0);
   } finally {
     await stack.stop();
   }
 });
 
-test(titled('hidden, with the hover/focus peek shown below that thumbnail, once a permanent sits under the big view\'s own box'), async ({ browser }) => {
+test(titled('while a decision window is open, the expanded view stands to the window’s left, whatever is hovered'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w46-a-permanent');
-    // Precondition: the opponent really does control fourteen permanents
-    // before anything is cast — the scenario's own setup, not this test's.
-    await expect.poll(() => alice.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.board-card').count(), { timeout: 20_000, message: 'the opponent\'s fourteen Memnites are on the battlefield — the precondition "w46-a-permanent" sets up' }).toBe(14);
+    await expect.poll(() => alice.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.board-card').count(), { timeout: 20_000, message: 'the opponent’s fourteen Memnites are on the battlefield' }).toBe(14);
 
-    // Full control: without it nothing stops the bolt resolving (and leaving
-    // the stack) the instant both seats auto-pass (`boltOpponent`'s own
-    // header) — this test needs it sitting there to inspect.
     await alice.page.getByTestId('live-full-control').click();
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
-
     await boltOpponent(alice.page);
     await passToOpponent(alice.page, bob.page);
 
-    const bigEl = big(alice.page);
-    await expect(bigEl, 'the stack really does hold the bolt').toHaveCount(1);
-    const pinned = await bigEl.getAttribute('data-pinned');
-    if (pinned === 'true') {
-      const geometry = await alice.page.evaluate(() => ({
-        big: document.querySelector('.stack__big')!.getBoundingClientRect(),
-        permanents: Array.from(document.querySelectorAll('.zone--battlefield [data-board-card]')).map((el) => ({
-          id: el.getAttribute('data-board-card'),
-          owner: el.closest('.seat')?.getAttribute('data-viewer'),
-          box: el.getBoundingClientRect(),
-        })),
-      }));
-      expect(pinned, `hidden: a permanent covers where the big view would sit (big=${JSON.stringify(geometry.big)}, permanents=${JSON.stringify(geometry.permanents)})`).not.toBe('true');
+    // Bob holds priority over the bolt: his decision pop-up is up. Whatever he
+    // hovers — the bolt's thumbnail, one of his own permanents — enlarges to
+    // the window's left and never over it.
+    const window_ = bob.page.locator('.live__prompt').first();
+    await expect(window_, 'bob’s decision window is open').toBeVisible();
+    const windowBox = (await window_.boundingBox())!;
+    for (const [what, target] of [
+      ['the bolt’s thumbnail', thumbs(bob.page).first()],
+      ['one of his own permanents', bob.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').first()],
+    ] as const) {
+      await target.hover();
+      await expect(inspector(bob.page), `${what}: the inspector opens`).toHaveCount(1);
+      const panelBox = (await inspector(bob.page).boundingBox())!;
+      expect(panelBox.x + panelBox.width, `${what}: the enlarged card stands to the window’s left`).toBeLessThanOrEqual(windowBox.x);
+      expect(panelBox.width, `${what}: and is a real card, not shrunk to nothing`).toBeGreaterThan(100);
+      await bob.page.mouse.move(10, 10);
+      await expect(inspector(bob.page)).toHaveCount(0);
     }
-    await expect(bigEl, 'and not visible by default').toBeHidden();
 
     mkdirSync(SHOTS, { recursive: true });
-    await alice.page.screenshot({ path: resolve(SHOTS, 'hidden-no-peek.png') });
-
-    /* ── hovering the thumbnail opens the peek, below THAT thumbnail ──── */
-    const thumb = thumbs(alice.page).first();
-    const thumbBox = (await thumb.boundingBox())!;
-    await thumb.hover();
-    await expect(bigEl, 'hovering the thumbnail shows the peek').toBeVisible();
-    await expect(bigEl.locator('.card__name'), 'the peek shows the hovered item\'s own card').toHaveText('Lightning Bolt');
-    const peekBox = (await bigEl.boundingBox())!;
-    const gap = await alice.page.evaluate(() => Number.parseFloat(getComputedStyle(document.querySelector('[data-zone="stack"]')!).getPropertyValue('--stack-gap')) || 8);
-    expect(peekBox.y - (thumbBox.y + thumbBox.height), `the peek sits one gap (${gap}px) below the hovered thumbnail`).toBeGreaterThanOrEqual(gap - 2);
-    expect(peekBox.y - (thumbBox.y + thumbBox.height)).toBeLessThanOrEqual(gap + 6);
-    // Roughly centred under the thumbnail that triggered it, not the row.
-    const thumbCentre = thumbBox.x + thumbBox.width / 2;
-    const peekCentre = peekBox.x + peekBox.width / 2;
-    expect(Math.abs(peekCentre - thumbCentre), 'the peek is centred under the thumbnail that opened it').toBeLessThanOrEqual(2);
-
-    mkdirSync(SHOTS, { recursive: true });
-    await alice.page.screenshot({ path: resolve(SHOTS, 'peek.png') });
-
-    /* ── leaving the thumbnail closes the peek again ──────────────────── */
-    await alice.page.mouse.move(10, 10);
-    await expect(bigEl, 'leaving the thumbnail hides the peek again').toBeHidden();
+    await thumbs(bob.page).first().hover();
+    await bob.page.screenshot({ path: resolve(SHOTS, 'inspector-left-of-decision.png') });
   } finally {
     await stack.stop();
   }

@@ -337,7 +337,7 @@ test(titled('T10 — a card moved to a different row is still there, in the same
  * never the generic document-level inspector (`e2e/w46-stack.spec.ts` proves
  * the carousel's shape; this test only re-confirms the inspector opted out).
  */
-test(titled('T8 — a stack item shows its art and no visible text; who/what lives in aria-label, and hovering it does not open the generic inspector'), async ({ browser }) => {
+test(titled('T8 — a stack item shows its art and no visible text; who/what lives in aria-label, and hovering it opens the one inspector'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -363,11 +363,13 @@ test(titled('T8 — a stack item shows its art and no visible text; who/what liv
     await expect(item.locator('.stack__what, .stack__source, .stack__controller, .stack__target')).toHaveCount(0);
     await expect(item, 'who · what, Memnite named, in the accessible name').toHaveAttribute('aria-label', /memnite/i);
 
-    // Hovering it does NOT open the generic document-level inspector: wave 46
-    // X3 anchors the carousel's own peek below the thumbnail instead, a mode
-    // `inspect/index.ts` has none of, so the stack opted out of it entirely.
+    // Hovering it opens the one inspector the board has (the stack redesign,
+    // 2026-10-06, replaced wave 46 X3's own peek below the thumbnail with it).
+    // Alice holds priority over the spell, so her decision window is up and the
+    // panel stands beside it, outside the board overlay (`w46-stack.spec.ts`).
     await item.hover();
-    await expect(inspectorPanel(alice.page), 'the generic inspector never opens for a stack thumbnail any more').toHaveCount(0);
+    await expect(alice.page.locator('[data-inspect]'), 'the inspector opens for a stack thumbnail').toHaveCount(1);
+    await expect(alice.page.locator('[data-inspect] .card__name')).toHaveText(/memnite/i);
   } finally {
     await stack.stop();
   }
@@ -376,12 +378,8 @@ test(titled('T8 — a stack item shows its art and no visible text; who/what liv
 /* ── T1 — the hover zoom sits against the hovered card ───────────────────── */
 
 /*
- * Wave 46 X3 dropped the stack-item case this test used to carry: the
- * generic inspector no longer opens for a stack thumbnail at all (T8, above)
- * — its own hover zoom is the carousel's `.stack__big`, anchored BELOW the
- * thumbnail, a geometry `sitsAgainst` below does not express (it only knows
- * "flush on the hand card's corner" or "to the right of anything else").
- * `e2e/w46-stack.spec.ts` proves the carousel's own peek placement instead.
+ * The stack-item case lives in `e2e/w46-stack.spec.ts` (beside the thumbnail,
+ * and left of an open decision window).
  */
 test(titled('T1 — the hover zoom sits against the hovered card: a hand card and a battlefield card'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);

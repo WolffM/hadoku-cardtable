@@ -163,8 +163,8 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
       { width: 1366, height: 768 },
     ]) {
       await page.setViewportSize(size);
-      // The played card stands in for its own spell for a moment (`carryCastOffStack`); the thumbnail comes back on its own clock.
-      await expect(page.locator('[data-zone="stack"] li.stack__item'), 'the bolt’s thumbnail is drawn').toHaveCount(1, { timeout: 10_000 });
+      // A targeted cast is parked, not played, so the stack draws it: alone, as the card itself (the stack redesign).
+      await expect(page.locator('[data-zone="stack"] li.stack__item'), 'the bolt is drawn on the stack').toHaveCount(1, { timeout: 10_000 });
       await expect
         .poll(async () => (await stackOverDecision(page)).gap, { timeout: 5_000, message: `${size.width}x${size.height}: the thumbnails sit a gap above the pop-up` })
         .toBeGreaterThanOrEqual(3);

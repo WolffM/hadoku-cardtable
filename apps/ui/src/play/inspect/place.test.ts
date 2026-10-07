@@ -33,18 +33,17 @@ describe('placeInspector', () => {
     expect(spot.top, 'top edges line up').toBe(hover.top);
   });
 
-  it('never flips to the left — it shifts left only enough to stay inside the board', () => {
+  it('with no room on the right, it stands on the card’s LEFT — never over the card it enlarges', () => {
+    // The stack redesign (2026-10-06): a thumbnail in the stack's column, near
+    // the board's right edge, was covered by its own enlargement when the panel
+    // only shifted left as little as needed.
     const hover: Rect = { left: 1000, top: 100, right: 1050, bottom: 150 };
     const spot = placeInspector(hover, BOARD, null);
-    expect(spot).toEqual({ left: 928, top: 100, width: 264 });
-    // Not anchored to the card's left edge at all (that would be
-    // `hover.left - GAP - width` = 728): clamped against the board's right
-    // edge instead.
-    expect(spot.left).not.toBeCloseTo(hover.left - GAP - spot.width, 5);
-    expect(spot.left + spot.width).toBe(BOARD.right - GAP);
+    expect(spot).toEqual({ left: 728, top: 100, width: 264 });
+    expect(spot.left + spot.width, 'a GAP clear of the card').toBe(hover.left - GAP);
   });
 
-  it('clamps inside a narrow board the same way — shifted left, never flipped to the left side', () => {
+  it('clamps inside a board too narrow for either side — shifted left as little as needed, over the card', () => {
     const narrow: Rect = { left: 0, top: 0, right: 300, bottom: 800 };
     const hover: Rect = { left: 250, top: 100, right: 290, bottom: 150 };
     const spot = placeInspector(hover, narrow, null);

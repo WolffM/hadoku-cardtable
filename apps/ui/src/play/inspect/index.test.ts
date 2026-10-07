@@ -165,15 +165,36 @@ describe('opening', () => {
     expect(shown!.querySelector('.card__name')!.textContent).toBe('Their Card');
   });
 
-  it('wave 46 X3: does NOT open for a stack thumbnail — the carousel draws its own peek, never through this module', () => {
+  it('opens for a stack thumbnail — the one expanded view the board has (the stack redesign, 2026-10-06)', () => {
     const { panel, stackItem } = mountBoard();
-    // Before this wave the `<li>`'s own `data-source-card` opened this same
-    // panel, anchored to the card's right. The settled carousel anchors its
-    // peek BELOW the thumbnail instead — a mode this module has none of — so
-    // the stack opted out rather than this module gaining a second anchor.
-    hover(stackItem());
-    expect(stackItem().hasAttribute('data-source-card'), 'the attribute that used to trigger this is gone').toBe(false);
-    expect(panel()).toBeNull();
+    // Wave 46 X3 had the stack opt out of this module in favour of a big view
+    // of its own below the row. The operator wants exactly one expanded view,
+    // so that view is gone and a thumbnail's tile is read like every other.
+    hover(stackItem().querySelector('.card')!);
+    const shown = panel();
+    expect(shown).not.toBeNull();
+    expect(shown!.querySelector('.card__name')!.textContent).toBe('Their Card');
+  });
+
+  it('while a decision window is open, ANY hovered card enlarges beside the window, never over it', () => {
+    // The operator, 2026-10-06: "if theres a decision window up … then the
+    // expanded view needs to stack to the left of that decision window."
+    const { panel, board, theirCard } = mountBoard();
+    const live = document.createElement('div');
+    live.className = 'live';
+    live.innerHTML = '<div class="live__prompt" data-testid="live-decision-host"><p>Sacrifice a land</p></div>';
+    document.body.appendChild(live);
+    try {
+      hover(theirCard().querySelector('.card')!);
+      const shown = document.querySelector<HTMLElement>('[data-inspect]');
+      expect(shown, 'the board card still enlarges').not.toBeNull();
+      expect(shown!.parentElement, 'as a sibling of the window, in its container').toBe(live);
+      expect(panel(), 'not in the board overlay').toBeNull();
+      expect(board.contains(shown!)).toBe(false);
+      expect(shown!.querySelector('.card__name')!.textContent).toBe('Their Card');
+    } finally {
+      live.remove();
+    }
   });
 
   it('opens for a prompt-grid tile outside the board root', () => {

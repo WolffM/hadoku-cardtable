@@ -1452,15 +1452,14 @@
  * Wave 46 X3, built from demo v5 (approved):
  * https://claude.ai/artifact/7gHwzveqpi4EiZKdVTJ6EX. The operator called the
  * old wide one-item-at-a-time row ugly four times; this replaces it outright,
- * no parallel path — a row of thumbnails, top of the stack leftmost, and
- * whatever is shown (the top, or the one last clicked) drawn big, one gap
- * below the row (`Board.tsx`'s own `StackView`/`StackThumb`).
+ * no parallel path — a row of thumbnails, top of the stack leftmost
+ * (`Board.tsx`'s own `StackView`/`StackThumb`). The big view that wave drew
+ * one gap below the row is gone (the stack redesign, 2026-10-06,
+ * https://claude.ai/artifact/BUeXnHbHkeqtxFccyHQSfd): a thumbnail is read
+ * through the one expanded view the whole board has, the inspector.
  *
- * `--stack-gap` is the ONE spacing value the settled layout asks for: the
- * SAME gap sits between thumbnails (`.stack__items`'s own `gap`, below) and
- * from the row down to the big view — `Board.tsx`'s layout effect reads this
- * exact token off this element rather than a second number kept in sync by
- * hand.
+ * `--stack-gap` is the ONE spacing value: the gap between thumbnails
+ * (`.stack__items`'s own `gap`, below).
  */
 .stack {
   position: relative;
@@ -1470,20 +1469,7 @@
    * the old art icon was (wave 31 §A.4): never past 3.5rem, and the band,
    * less its padding, divided by the card's own proportion otherwise — so a
    * roomy band (no question open) draws a bigger thumbnail than a compact
-   * one. Declared HERE, not on `.stack__items`: `.stack__big` is that list's
-   * SIBLING, not its descendant, and a custom property only cascades to
-   * descendants — defining it only on the list left `.stack__big` reading an
-   * unset variable, so its own `width: calc(var(--stack-card-w) * 3)` was
-   * INVALID CSS and fell back to `auto`, shrink-to-fit on whatever the
-   * `<img>` happened to report that frame — sometimes a real size,
-   * sometimes a 0×0 box the instant the image hadn't resolved one yet. A
-   * 0×0 box can never overlap a permanent, so `stackBigFitsLive` read
-   * "fits" on THAT frame regardless of the real page, flipping `pinned`
-   * back on, which then measured the REAL (non-zero) box next frame, found
-   * the permanent it actually covers, flipped `pinned` off again — forever.
-   * A real infinite layout-effect loop against a live page (React's own
-   * error #185), invisible in `Board.test.ts` because jsdom never gives any
-   * element a non-zero rect at all, zero or otherwise.
+   * one.
    */
   --stack-card-w: min(3.5rem, calc((var(--mid-h) - 18px) / var(--card-tall)));
   display: flex;
@@ -1508,27 +1494,7 @@
   visibility: hidden;
 }
 
-/*
- * An empty stack's `.stack__big` is never positioned (`Board.tsx`'s own
- * layout effect returns before touching it when the list has nothing in
- * it), so it sits at ITS static position — right after the row, in the
- * `.stack` column's own flex flow — and `visibility: hidden` alone (the
- * element's own default, above) still lets it CONTRIBUTE its own
- * `aspect-ratio`-derived height to `.stack`'s scrollable content, which
- * `e2e/table-fit.spec.ts`'s crowd case catches as the stack "overflowing"
- * with zero items on it. `display: none`, scoped to exactly the empty case
- * (never the pinned/hidden toggle a FILLED stack does, which is what the
- * zero-rect comment above `.stack__big` itself warns against): nothing
- * measures this element's geometry while the list is empty, so there is no
- * fit check here to feed a bad reading into.
- */
-.stack:has(> .stack__items:empty) .stack__big {
-  display: none;
-}
-
 .stack__items {
-  /* `--stack-card-w` is declared on `.stack` (the common ancestor this list
-     shares with `.stack__big`) — see that rule's own comment for why. */
   display: flex;
   flex-direction: row;
   align-items: flex-end;
@@ -1580,21 +1546,26 @@
 }
 
 /*
- * The only ring on the row: the thumbnail the big view is showing, while pinned
- * (§settled). In the theme's own accent, as is the owner strip below: both were
- * `--c-blue`, a colour-pie hue that means "a blue card" everywhere else and
- * never follows the theme — the operator (2026-10-06): *"i'm not a fan of the
- * 'blue highlight' can we use a color from the color theme system instead?"*
+ * One spell alone on the stack is drawn as the card, not as a thumbnail of a
+ * stack there is no row for (the stack redesign, 2026-10-06). Half again a
+ * thumbnail's width, and never taller than the band it sits in: `--mid-h`
+ * shrinks to the room above a question (wave 51 §A.6), and a card that
+ * outgrew the band would cover the question below it.
  */
-.stack__item[aria-current='true'] {
-  box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgb(0 0 0 / 0.5);
+.stack__item--lone,
+.stack__item--lone.stack__item--top {
+  width: min(calc(var(--stack-card-w) * 1.5), calc((var(--mid-h) - 18px) / var(--card-tall)));
 }
 
 /*
  * The owner strip: the accent mine, amber theirs (settled layout) — this is the one
  * place on the board colour alone marks something, because the demo it
  * implements draws it that way and the thumbnail's position (numbered from
- * the stack's own top) already carries the rest of the information.
+ * the stack's own top) already carries the rest of the information. In the
+ * theme's own accent: it was `--c-blue`, a colour-pie hue that means "a blue
+ * card" everywhere else and never follows the theme — the operator
+ * (2026-10-06): *"i'm not a fan of the 'blue highlight' can we use a color
+ * from the color theme system instead?"*
  */
 .stack__item--mine::after,
 .stack__item--theirs::after {
@@ -1647,49 +1618,6 @@
   background: rgb(0 0 0 / 0.7);
   border-radius: 3px;
   padding: 0 3px;
-}
-
-/*
- * The big view: whatever is shown, enlarged, one `--stack-gap` below the row
- * — `Board.tsx`'s own layout effect writes `top`/`left`/`transform` directly
- * (it measures the FILLED row; see `StackView`'s own header for why), this
- * file only sizes it. Out of flow, so it never grows `.board__mid`'s own box
- * — the canvas stays static whether the stack holds 0, 1, 5 or 12 items
- * (`Board.test.ts`'s "the canvas is static" suite, `e2e/table-fit.spec.ts`'s
- * crowd case). The card alone, upright: no side panel, no coloured outline —
- * the only ring on this wave's stack is the thumbnail's, above.
- */
-.stack__big {
-  position: absolute;
-  width: calc(var(--stack-card-w) * 3);
-  max-width: 100%;
-  /*
-   * A definite height, the same way `.stack__item` gets one: never left to
-   * the `CardTile` inside to supply it. `.card:has(.card__art) {
-   * aspect-ratio: 488/680; height: auto }` should, in principle, do the same
-   * job — but measured directly it did not: the box's OWN height read 0 even
-   * once its width was a real, non-zero number, which is exactly the
-   * degenerate reading the layout effect's own guard exists for (`Board.tsx`).
-   * Declaring the ratio HERE too removes the dependency on the child's own
-   * resolution entirely.
-   */
-  aspect-ratio: calc(1 / var(--card-tall));
-  pointer-events: none;
-  visibility: hidden;
-}
-
-/*
- * Shown only while `data-shown` is set — `visibility`, not `display: none`
- * (`Board.tsx`'s own comment on this element has the full reason): a
- * `display: none` box measures a zero rect, which can never overlap a
- * permanent, which flips the component's own fit check back to "pinned" the
- * instant it hides — a real infinite loop against a live page. `visibility`
- * keeps the box laid out and measurable while invisible, so the candidate
- * position `stackBigFitsLive` reads is the one that would actually be
- * painted, hidden or not.
- */
-.stack__big[data-shown] {
-  visibility: visible;
 }
 
 /* ── the staging area: a card being played (item 17.2) ─────────────── */

@@ -35,6 +35,36 @@
   max-width: 100%;
 }
 
+/*
+ * The source of the one trigger or ability on the stack (`Board.tsx`'s
+ * `LoneAbilityContext`): nothing was played, so there is no card to draw and
+ * no row to put it in — the permanent itself says so, with a slow pulse of
+ * the theme's accent (the stack redesign, 2026-10-06: *"a lone trigger =
+ * pulse on its source"*). A shadow, never a transform: a transform would count
+ * toward the battlefield's scroll overflow mid-turn (`e2e/table-fit.spec.ts`).
+ */
+.board-card[data-stack-source] > .board-card__face {
+  animation: stack-source 1.4s ease-in-out infinite;
+}
+
+@keyframes stack-source {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-card[data-stack-source] > .board-card__face {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+}
+
 .board-card__face {
   position: relative;
   display: block;

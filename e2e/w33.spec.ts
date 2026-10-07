@@ -417,13 +417,14 @@ test(titled('Q18 — a stack ability is never selectable merely because its sour
     // `getAbilityToPlay` choice generically).
     await castCard(alice.page, dragon);
 
-    // Precondition 1: an ABILITY entry (not a spell) is on the stack.
+    // Precondition 1: an ABILITY entry (not a spell) is on the stack. Alone,
+    // it is drawn on its source (the stack redesign, 2026-10-06: a lone
+    // trigger or ability pulses its permanent; no row is drawn for one item),
+    // so the source carries the item's own `data-stack-id`.
     await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'the activated ability reached the stack — the precondition "glint-hawk" sets up' }).toBeGreaterThan(0);
-    // Wave 46 X3 drew no visible "ability" text to match any more (the stack's
-    // own carousel is art-only); `data-is-ability` (`Board.tsx`'s `StackThumb`)
-    // names the same fact without needing one.
-    const item = alice.page.locator('.stack__item[data-is-ability]').first();
-    await expect(item, 'an ABILITY entry (not a spell) is on the stack').toHaveCount(1);
+    const source = alice.page.locator(`[data-board-card="${dragon}"]`);
+    await expect(source, 'the ability is drawn on its source').toHaveAttribute('data-stack-source', 'true', { timeout: 5_000 });
+    await expect(alice.page.locator('.stack__item'), 'and not in the row').toHaveCount(0);
 
     // Precondition 2 — the one the old Prodigal-Sorcerer version of this spec
     // could never produce: AT THIS SAME MOMENT, Forge offers the source
@@ -436,12 +437,12 @@ test(titled('Q18 — a stack ability is never selectable merely because its sour
       'the source permanent is offered again while its own ability sits on the stack — the precondition this spec needs',
     ).toHaveAttribute('data-selectable', 'true');
 
-    // The behaviour: the stack's ability entry is not selectable by Forge's
-    // own stack-choice button — it may still be a plain carousel button
-    // (wave 46 X3: pick which item the big view shows), which is unrelated to
-    // Forge's offer and not the Q18 regression this spec guards.
-    await expect(item, 'the ability entry is not selectable by its source permanent\'s card id').not.toHaveAttribute('data-selectable');
-    expect(await item.locator('button.stack__select').count(), 'never Forge’s own select button').toBe(0);
+    // The behaviour: the ability has no button of its own anywhere — the
+    // permanent's own click (Forge's offer, above) is the only one, so the
+    // Q18 regression (a SECOND button for the same activation, drawn as the
+    // stack entry) cannot exist. With a spell beside it the row draws, and
+    // `Board.test.ts` pins that the ability's thumbnail is never selectable.
+    expect(await alice.page.locator('button.stack__select').count(), 'never Forge’s own select button for the ability').toBe(0);
   } finally {
     await stack.stop();
   }
@@ -510,7 +511,6 @@ test(titled('Ponder\'s full oracle text is readable via the carousel\'s own big 
     // or shown on a hover/focus peek), never the generic document-level
     // inspector — the stack opted out of that mechanism entirely this wave.
     const { alice, bob } = await startScenarioMatch(browser, stack, 'ponder');
-    void bob;
 
     await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
     await alice.page.getByTestId('live-full-control').click();
@@ -518,24 +518,24 @@ test(titled('Ponder\'s full oracle text is readable via the carousel\'s own big 
     const card = (await offered(alice.page))[0]!;
     await castCard(alice.page, card);
 
-    // The precondition: Ponder is on the stack, its own thumbnail drawn — no
-    // visible text to match any more, so its own accessible name is the
-    // locator (`Board.tsx`'s `stackItemLabel`).
+    // The precondition: Ponder is on the stack. On the caster's own page the
+    // played card stands in for it (`carryCastOffStack`); on the OPPONENT's
+    // page a lone spell is drawn as the card itself, unnumbered, in the band
+    // (the stack redesign, 2026-10-06) — its accessible name is the locator
+    // (`Board.tsx`'s `stackItemLabel`).
     await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Ponder joined the stack — the precondition this spec needs' }).toBeGreaterThan(0);
-    const item = alice.page.locator('.stack__item[aria-label*="Ponder" i]');
-    await expect(item, 'Ponder\'s own stack entry is drawn').toHaveCount(1);
+    const item = bob.page.locator('.stack__item[aria-label*="Ponder" i]');
+    await expect(item, 'Ponder\'s own stack entry is drawn for the opponent, as the card').toHaveCount(1, { timeout: 10_000 });
+    await expect(item).toHaveClass(/stack__item--lone/);
+    await expect(item.locator('.stack__n'), 'unnumbered: there is no stack to count').toHaveCount(0);
 
-    // The full oracle text is the carousel's own big view's — hovering the
-    // thumbnail is always safe (it is a no-op while already pinned, and opens
-    // the peek while it is not).
+    // The full oracle text is the one inspector's: hovering the card opens it.
     await item.hover();
-    const big = alice.page.locator('[data-zone="stack"] .stack__big');
-    await expect(big, 'the carousel\'s own big view shows the full card').toBeVisible();
-    // Forge's own oracle text spells it out ("top three", not "top 3" — the
-    // pre-existing regex here was never actually exercised against the real
-    // card text until this test read it from the big view instead of a
-    // stand-in; confirmed verbatim: "Look at the top three cards of your library…").
-    await expect(big, 'the big view carries Ponder\'s full oracle text, not truncated').toContainText(/look at the top three cards/i);
+    const big = bob.page.locator('[data-inspect]');
+    await expect(big, 'the inspector shows the full card').toHaveCount(1);
+    // Forge's own oracle text spells it out ("top three", not "top 3" —
+    // confirmed verbatim: "Look at the top three cards of your library…").
+    await expect(big, 'the inspector carries Ponder\'s full oracle text, not truncated').toContainText(/look at the top three cards/i);
   } finally {
     await stack.stop();
   }

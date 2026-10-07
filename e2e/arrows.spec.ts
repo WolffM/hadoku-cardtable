@@ -7,10 +7,12 @@
  * lane's own files:
  *
  *  - **W17** — the arrow's tail must sit at its SOURCE's own element; when
- *    the source is a stack item with no board element of its own (a card
- *    still being cast — World Breaker's "when you cast this spell" trigger
- *    fires while World Breaker itself is still on the stack), the stack
- *    item IS that element. `gestures/install.ts`'s `clickOrigin` is the fix.
+ *    the source is a card still being cast with no board element of its own
+ *    (World Breaker's "when you cast this spell" trigger fires while World
+ *    Breaker itself is still on the stack), the PLAYED CARD, waiting where
+ *    it was let go, is that element — the stack redesign (2026-10-06) draws
+ *    a lone spell as the card and no row. `gestures/install.ts`'s
+ *    `clickOrigin` is the fix.
  *  - **W5** — a card lifted and brought back over the viewer's own hand,
  *    then left-clicked there, returns to the hand and nothing is sent.
  *
@@ -79,7 +81,7 @@ test.describe.configure({ mode: 'serial' });
 
 test(
   titled(
-    'W17 — "i would expect it to show from the played card on the stack": casting World Breaker, the arrow leaves from its stack item, never a fallback point',
+    'W17 — "i would expect it to show from the played card on the stack": casting World Breaker, the arrow leaves from the played card itself, never a fallback point',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -117,15 +119,16 @@ test(
       });
       log.push(`says: ${await says(page)}`);
 
-      // World Breaker itself is on the stack, not the battlefield: one stack
-      // item at least, and no board element for its own id.
-      const stackItems = page.locator('[data-stack-id]');
-      await expect(stackItems.first(), 'World Breaker (its spell, or its trigger) is on the stack').toHaveCount(1, { timeout: 5_000 });
+      // World Breaker itself is on the stack, not the battlefield, and alone
+      // there: no row is drawn for one spell. The played card, waiting where it
+      // was let go (`data-cast-ghost`), is its element.
+      await expect(page.locator('[data-zone="stack"]'), 'World Breaker is on the stack').toHaveAttribute('data-count', '1', { timeout: 5_000 });
+      await expect(page.locator('[data-zone="stack"] .stack__item'), 'and no row is drawn for one spell').toHaveCount(0);
       expect(await page.locator(`[data-board-card="${wb}"]`).count(), 'World Breaker has no board element while its trigger asks for a target').toBe(0);
-      const stackBox = await boxOf(page, '[data-stack-id]');
-      expect(stackBox, "the stack item's own element has a real box").not.toBeNull();
+      const stackBox = await boxOf(page, `[data-cast-ghost="${wb}"]`);
+      expect(stackBox, 'the played card, standing in for its spell, has a real box').not.toBeNull();
       const stackC = centre(stackBox!);
-      log.push(`stack item centre ${JSON.stringify(stackC)}`);
+      log.push(`played card centre ${JSON.stringify(stackC)}`);
 
       // Move the pointer somewhere neutral — not over any legal target — so
       // the click-targeting arrow draws from whatever it considers the
@@ -139,10 +142,10 @@ test(
       expect(tail, 'the arrow has a tail').not.toBeNull();
       log.push(`tail ${JSON.stringify(tail)}`);
 
-      // The tail is the stack item's own box — never the overlay's own
+      // The tail is the played card's own box — never the overlay's own
       // corner (the ledger's "(0,0)-ish" description of the old bug) and
       // never the viewport's origin.
-      expect(away(tail!, stackC), `the tail sits at the stack item's own box (${JSON.stringify(tail)} vs ${JSON.stringify(stackC)})`).toBeLessThanOrEqual(30);
+      expect(away(tail!, stackC), `the tail sits at the played card's own box (${JSON.stringify(tail)} vs ${JSON.stringify(stackC)})`).toBeLessThanOrEqual(30);
       expect(away(tail!, { x: 0, y: 0 }), 'the tail is nowhere near the viewport’s origin').toBeGreaterThan(50);
       const overlayBox = await boxOf(page, '[data-board-overlay]');
       expect(away(tail!, { x: overlayBox!.left, y: overlayBox!.top }), 'and nowhere near the overlay’s own top-left corner').toBeGreaterThan(50);

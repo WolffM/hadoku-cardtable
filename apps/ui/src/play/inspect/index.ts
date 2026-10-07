@@ -29,14 +29,13 @@
  *     the draft's namespace. Matching is on the value: digits mean "a board
  *     card, the tile is inside"; `w<digits>` means "this IS a tile". A bare
  *     `[data-card-id]` selector would confuse the two; nothing here uses one.
- *   - the STACK is not this module's any more (wave 46 X3): a thumbnail used
- *     to carry `data-source-card` so hovering it opened this same panel,
- *     anchored to its right — the settled shape for the carousel anchors its
- *     own peek BELOW the thumbnail instead, which this module has no anchor
- *     mode for, so the stack opted out rather than gaining a second one here
- *     (`Board.tsx`'s own `StackView` draws that peek directly, off the
- *     `StackEntry`s it already holds — no DOM clone, no `MutationObserver`).
- *     `data-source-card` is no longer produced anywhere, by anything.
+ *   - a STACK thumbnail is a tile like any other (`Board.tsx`'s `StackThumb`
+ *     renders the item's `CardTile`, `w<id>`), so hovering it opens this same
+ *     panel, anchored to its right. Wave 46 had the stack opt out in favour
+ *     of a big view of its own below the row; the stack redesign (2026-10-06)
+ *     removed that view, because the operator wants ONE expanded view:
+ *     *"you can't ever be hovering over more than one thing so just having a
+ *     single distinct 'expanded view' i think would be the cleanest."*
  *   - prompt-grid tiles (lane C) carry `data-card-id` on the same terms,
  *     outside the board root entirely — which is why the listeners sit on the
  *     DOCUMENT, not on the board root `mountInspector` was handed.
@@ -74,6 +73,15 @@
  * anchors to the hovered card's RIGHT, always: covering the battlefield is
  * the price of reading a card; covering the hand never is. A hand card is
  * the one exception, on both axes (below).
+ *
+ * While a decision window is open (any `.live__prompt`: a choice, a
+ * selection, a payment, a confirm), the panel stands beside THAT instead,
+ * to its left first (`placeBesideModal`), whatever card is hovered — the
+ * operator, 2026-10-06: *"if theres a decision window up like selecting a
+ * card from a spell from deck or something else, then the expanded view
+ * needs to stack to the left of that decision window."* The window is the
+ * thing being answered; nothing may cover it, and the one enlarged view has
+ * one place to be while it is up.
  *
  * ## Staleness, on purpose
  *
@@ -172,13 +180,6 @@ function ownerBoardCard(tile: Element): Element | null {
  */
 function inspectedCardFrom(node: EventTarget | null, root: ParentNode): InspectTarget | null {
   let el = node instanceof Element ? node : null;
-  // The stack opted out of this module entirely (wave 46 X3): a thumbnail's
-  // own `CardTile` still carries `data-card-id="w<id>"` like every other
-  // tile on the board, which `TILE_ID` below would otherwise match and open
-  // this panel anyway — measured directly, against real Forge
-  // (`e2e/w36.spec.ts` T8). The carousel's own peek is what reads a stack
-  // thumbnail's hover now; this module must never also answer it.
-  if (el !== null && el.closest('.stack__item') !== null) return null;
   while (el !== null) {
     // A name, before a card: the first of its ids with a tile on the page. A
     // card with no tile drawn (it is in a zone the board shows as a count, or
@@ -217,17 +218,20 @@ function inspectedCardFrom(node: EventTarget | null, root: ParentNode): InspectT
  *     above the hand zone's top, or the board's bottom when there is no hand
  *     zone to read — except a HAND card itself, which anchors to its own top
  *     instead (below), and so never needs this clamp;
- *   - never outside the board: it clamps at the board's right edge and at
- *     its top, shifting as little as needed to stay inside — never by
- *     flipping sides;
+ *   - never outside the board: past the board's right edge it stands on the
+ *     card's LEFT when there is room there (the stack redesign, 2026-10-06:
+ *     a thumbnail in the stack's column, at 59-84% across, was being covered
+ *     by its own enlargement), and otherwise clamps at that edge, shifting
+ *     as little as needed; it clamps at the board's top;
  *   - never bigger than the room above the hand: it shrinks first.
  *
  * ## Horizontal and vertical anchor
  *
- * The panel opens on the hovered card's RIGHT, always — `left = hover.right +
- * GAP`, never computed against the left edge. The only clamp for this case is
- * the board's own right edge, and it shifts the panel left exactly as far as
- * it must to stay inside — it never jumps to the other side of the card.
+ * The panel opens on the hovered card's RIGHT — `left = hover.right + GAP`.
+ * Only when that runs past the board's right edge does it go to the card's
+ * left (`hover.left - GAP - width`), and only when it fits there; a board too
+ * narrow for either side shifts it left exactly as far as it must to stay
+ * inside, over the card.
  *
  * A HAND card is the one exception, on BOTH axes. Its panel's bottom-LEFT
  * corner sits exactly on the card's own top-left corner — `left = hover.left`,
@@ -268,9 +272,17 @@ export function placeInspector(
     ? hover.top - height
     : Math.min(Math.max(hover.top, ceilingTop + GAP), Math.max(ceilingTop + GAP, floorTop - GAP - height));
 
-  // Clamp only at the board's right edge (shift left as little as needed)
-  // and the board's top — the only two edges either anchor above can cross.
-  if (left + width > board.right - GAP) left = board.right - GAP - width;
+  // Past the board's right edge: to the card's LEFT when it fits there (a
+  // stack thumbnail sits in a column at 59-84% of the board, and shifting the
+  // panel left as little as needed laid it over the thumbnail), else shifted
+  // left as little as needed. The board's top is the other edge an anchor
+  // above can cross.
+  if (!isHandCard && left + width > board.right - GAP) {
+    const leftOfCard = hover.left - GAP - width;
+    left = leftOfCard >= board.left + GAP ? leftOfCard : board.right - GAP - width;
+  } else if (left + width > board.right - GAP) {
+    left = board.right - GAP - width;
+  }
   if (top < ceilingTop + GAP) top = ceilingTop + GAP;
 
   return { left, top, width };
@@ -382,12 +394,14 @@ export function mountInspector(root: ParentNode): () => void {
     if (art !== null) art.setAttribute('loading', 'eager');
 
     const hoverR = rectOf((target.trigger ?? target.tile).getBoundingClientRect());
-    // A card inside a pop-up: the panel is a SIBLING of the pop-up, in the
+    // A decision window is open: the panel is a SIBLING of the pop-up, in the
     // pop-up's own positioned container, because inside the board overlay
     // (`--z-overlay`) its `--z-zoom` only ranks it within that layer and the
     // pop-up (`--z-popover`) painted over it. Beside the pop-up, never on it.
-    // The pop-up's parent is `.live` (`position: relative`), its containing block.
-    const modal = target.tile.closest('.live__prompt');
+    // The pop-up's parent is `.live` (`position: relative`), its containing
+    // block. The hovered card's own pop-up when it is in one; otherwise the
+    // one that is open.
+    const modal = target.tile.closest('.live__prompt') ?? doc.querySelector('.live__prompt');
     const modalBox = modal?.parentElement ?? null;
     const host: HTMLElement = modalBox instanceof HTMLElement ? modalBox : overlayEl;
     const hostR = rectOf(host.getBoundingClientRect());

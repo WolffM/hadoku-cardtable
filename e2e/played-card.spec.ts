@@ -101,7 +101,8 @@ async function record(page: Page, cardId: number): Promise<void> {
         at: box(el),
         ghost: box(ghost),
         ghostLift: ghost?.getAttribute('data-cast-lift') ?? null,
-        stack: Number(document.querySelector('[data-zone="stack"]')?.getAttribute('data-count') ?? '0'),
+        // What the stack DRAWS: `data-count` is everything Forge has, `data-carried` the items a played card stands in for.
+        stack: document.querySelectorAll('[data-zone="stack"] .stack__item').length,
         carried: Number(document.querySelector('[data-zone="stack"]')?.getAttribute('data-carried') ?? '0'),
         confirm: document.querySelector('[data-testid="prompt-confirm-yes"]') !== null,
         scrolls:
@@ -239,7 +240,7 @@ for (const fast of [true, false]) {
     const asked = flight.filter((f) => f.confirm);
     expect(asked.length, 'the question was up for many frames').toBeGreaterThan(10);
     for (const f of asked) expect(near(seenAt(f)!, to), `while the question is up the land is over the board (t=${f.t})`).toBe(true);
-    expect(flight.some((f) => f.stack > 0), 'a land never shows on the stack').toBe(false);
+    expect(flight.some((f) => f.stack > 0 || f.carried > 0), 'a land never shows on the stack, nor is ever on Forge’s').toBe(false);
     expect(flight.some((f) => f.ghostLift === 'returning'), fast ? 'Fast Mode: it is simply there, no travel' : 'Fast Mode off: it travels from the hover to its place').toBe(!fast);
   } finally {
     await stack.stop();
@@ -293,7 +294,7 @@ for (const fast of [true, false]) {
   });
 }
 
-test(titled('a creature the opponent can answer goes onto its caster\'s stack once they take their time, and still waits over the board'), async ({ browser }, testInfo) => {
+test(titled('a creature the opponent can answer stays the card where it was let go, however long they take: no row for one spell'), async ({ browser }, testInfo) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(2 * 60_000);
@@ -306,18 +307,23 @@ test(titled('a creature the opponent can answer goes onto its caster\'s stack on
     await record(alice.page, memnite);
     expect(await dragHandCard(alice.page, memnite, to), 'the press lifted Memnite').toBe(true);
 
-    // Bob holds Counterspell with two Islands up and is never auto-passed.
+    // Bob holds Counterspell with two Islands up and is never auto-passed: the
+    // spell sits on the stack, alone, for as long as he likes. The stack
+    // redesign (2026-10-06): one item is drawn as the card, never as a row, so
+    // the caster's stack keeps standing aside and Memnite keeps waiting.
     await expect
-      .poll(() => alice.page.locator('[data-zone="stack"]').getAttribute('data-count'), { timeout: 15_000, message: 'the spell is drawn on the stack once the opponent has held priority a while' })
+      .poll(() => alice.page.locator('[data-zone="stack"]').getAttribute('data-carried'), { timeout: 15_000, message: 'the stack is leaving the spell to the card' })
       .toBe('1');
+    await alice.page.waitForTimeout(4000);
     const frames = await recording(alice.page);
     await attach(testInfo, 'contested', frames);
     const flight = afterRelease(frames);
     const story = timeline(flight);
-    const shown = flight.findIndex((f) => f.stack > 0);
-    const hidden = flight.slice(0, shown).filter((f) => f.carried === 1);
-    expect(hidden.length, `the stack stood aside first\n${story}`).toBeGreaterThan(10);
-    expect(flight.slice(shown).some((f) => f.carried > 0), `and once it draws the spell it keeps drawing it\n${story}`).toBe(false);
+    expect(flight.length, 'recorded well past any old stand-in time').toBeGreaterThan(60);
+    const first = flight.findIndex((f) => f.carried === 1);
+    expect(first, `the stack stood aside once Forge had the spell\n${story}`).toBeGreaterThanOrEqual(0);
+    expect(flight.slice(first).every((f) => f.carried === 1), `and kept standing aside the whole time\n${story}`).toBe(true);
+    expect(Math.max(...flight.map((f) => f.stack)), `and drew no row\n${story}`).toBe(0);
     for (const f of flight) {
       const seen = seenAt(f);
       expect(seen !== null && near(seen, to), `Memnite waits over the board the whole time (t=${f.t})\n${story}`).toBe(true);
