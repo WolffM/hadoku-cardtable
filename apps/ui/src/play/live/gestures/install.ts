@@ -187,6 +187,7 @@
  */
 import {
   boardInteraction,
+  choosingMulligan,
   declaringAttackers,
   declaringCombat,
   landsToTap,
@@ -882,6 +883,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const offered = boardInteraction(match);
     const under = targetUnder(event.target, offered);
     if (under !== null && under.kind === 'card') {
+      /*
+       * The London mulligan's bottom pick: a hand card is offered to be SET
+       * ASIDE by a click, and that click is the whole gesture. Aiming an arrow
+       * from it (the pointing drag below) pointed at nothing Forge would take
+       * — the operator, 2026-10-06: "it's also strange that i can drag an
+       * arrow from them" (ledger Z3). Not claimed: the press stays a click.
+       */
+      if (choosingMulligan(match) && isHandCard(match, under.id)) return;
       const box = cardBox(canvas, under.id);
       claim(event);
       /*

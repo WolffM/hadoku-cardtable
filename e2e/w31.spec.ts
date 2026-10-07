@@ -126,6 +126,19 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
       .toEqual(before.ids);
     expect(await handCards(alice.page).count(), 'the hand is the same hand').toBe(before.hand);
 
+    // A drag from an offered hand card aims nothing (ledger Z3): no arrow, no
+    // lift, and the question is untouched by the release.
+    const pick = alice.page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${before.ids[0]}"]`);
+    const pickBox = (await pick.boundingBox())!;
+    await alice.page.mouse.move(pickBox.x + pickBox.width / 2, pickBox.y + pickBox.height / 2);
+    await alice.page.mouse.down();
+    await alice.page.mouse.move(pickBox.x + 200, pickBox.y - 200, { steps: 8 });
+    await expect(alice.page.getByTestId('targeter'), 'no arrow from a card being chosen').toHaveCount(0);
+    await expect(pick, 'and it is not lifted').not.toHaveAttribute('data-cast-lift');
+    await alice.page.mouse.up();
+    await expect(bottom, 'the question is still open').toContainText(/return \d+ card/i);
+    expect(await offered(alice.page), 'the same cards are still offered').toEqual(before.ids);
+
     // And it is answerable: pick a card, OK, and Forge moves on with one fewer in hand.
     await alice.page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${before.ids[0]}"] button`).click();
     await expect(enabledOk(alice.page)).toHaveCount(1, { timeout: 15_000 });

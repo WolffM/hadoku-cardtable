@@ -1432,6 +1432,18 @@ export function landsToTap(match: LiveMatch): number[] {
   return (me?.battlefield ?? []).filter((c) => !c.tapped && offered.has(c.id) && c.card.typeLine.includes('Land')).map((c) => c.id);
 }
 
+/**
+ * Forge is running the London mulligan's bottom pick for this seat
+ * (`GameView.Mulligan`, `InputLondonMulligan.java:60`, cleared at `:105`): a
+ * click on one of the seat's own hand cards sets it aside or takes it back.
+ * `mulliganHand` is what puts the hand in the offer; this is the same flag for
+ * a reader that needs the INPUT, not the cards — the gesture layer, which must
+ * not aim an arrow from a card the player is merely choosing (ledger Z3).
+ */
+export function choosingMulligan(match: LiveMatch): boolean {
+  return readGameBool(match.state, 'Mulligan');
+}
+
 /** The steps of the viewer's own turn in which attackers are still to come. */
 const BEFORE_ATTACKERS: ReadonlySet<string> = new Set(['UNTAP', 'UPKEEP', 'DRAW', 'MAIN1', 'COMBAT_BEGIN']);
 

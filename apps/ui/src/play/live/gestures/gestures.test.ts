@@ -1145,6 +1145,31 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
 });
 
 /*
+ * Ledger Z3 (the operator, 2026-10-06, choosing cards to put on the bottom):
+ * "it's also strange that i can drag an arrow from them."
+ */
+describe('the London mulligan’s bottom pick: a hand card is a click, never an arrow', () => {
+  it('a press on an offered hand card is not claimed, and moving the pointer draws nothing', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    // What Forge sends for the bottom pick: its prompt and bar (the input is live), and its own flag; no selection, no actionable set.
+    for (const f of notify([prompt('Return 1 card(s) to the bottom of your library'), okBar()])) s.send(f);
+    s.send(stateDelta({ [GAME_KEY]: { _type: 3, _id: 1, Mulligan: { t: 'bool', v: true } } }));
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    await waitFor(() => expect(boardInteraction(m).selectable.has(hand[0]!), 'Forge’s flag offers the hand').toBe(true));
+    const card = cardEl(canvas, hand[0]!);
+    const press = fireEvent.pointerDown(card, { button: 0, clientX: 10, clientY: 10 });
+    expect(press, 'the press is left to the click').toBe(true);
+    expect(card.hasAttribute('data-cast-lift'), 'nothing is lifted').toBe(false);
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(overlayOf(canvas).querySelector('[data-testid="targeter"]'), 'no arrow').toBeNull();
+    fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(s.clientFrames(), 'and the drag sent nothing').toHaveLength(0);
+  });
+});
+
+/*
  * The operator, 2026-10-06: "can we make it so i can draw boxes to tap things?
  * drawing boxes to attack seems to work, so why not lands?"
  */
