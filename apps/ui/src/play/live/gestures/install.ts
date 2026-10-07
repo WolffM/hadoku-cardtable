@@ -600,9 +600,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
   function onParkUnanswered(): void {
     unansweredTimer = null;
     if (!live || parked === null) return;
-    if (whereIs(match, parked.source) !== 'hand' || parked.leftHand) return;
-    if (askedAbout(parked.source)) {
-      // Forge is on it; look again once that question has had its time.
+    // Still a question about the card, or the card is not in the hand right
+    // now (in flight, or on the table with its element not yet drawn): look
+    // again once that has had its time. A card that left the hand and came
+    // BACK (Forge took the play and gave it up) is in the hand, and is let go
+    // like any other it never took — the clock keeps running until the park
+    // ends one way or another (table-fit 2026-10-07: such a land stayed
+    // hidden in the hand through the whole cleanup discard).
+    if (whereIs(match, parked.source) !== 'hand' || askedAbout(parked.source)) {
       unansweredTimer = setTimeout(onParkUnanswered, PARK_UNANSWERED_MS);
       return;
     }

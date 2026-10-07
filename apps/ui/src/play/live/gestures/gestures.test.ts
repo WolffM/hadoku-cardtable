@@ -2566,6 +2566,26 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect(sent(s), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
   }, 20_000);
 
+  it('a play Forge took and gave back — the card left the hand and returned — is let go on the clock, even under a selection', async () => {
+    // table-fit 2026-10-07: the hidden land sat in the hand through the cleanup discard; the 4-second
+    // give-up returned early on "it left the hand once" and never looked again.
+    const { s, m, canvas, card, rest, battlefield } = await play();
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    // Forge moves it out of the hand (not yet on the battlefield)…
+    s.send(zones({ Hand: rest, Battlefield: battlefield }));
+    await waitFor(() => expect(mineOf(m).hand!.some((c) => c.id === card)).toBe(false));
+    // …the cleanup discard opens…
+    s.send(prompt('Cleanup Phase\nSelect 1 card(s) to discard to bring your hand down to the maximum of 7 cards.'));
+    s.send(selectables([card, ...rest], 1, 1));
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    // …and the card is back in the hand, offered for the discard, with the selection still open.
+    s.send(zones({ Hand: [card, ...rest], Battlefield: battlefield }));
+    await waitFor(() => expect(mineOf(m).hand!.some((c) => c.id === card)).toBe(true));
+    expect(standIn.getAttribute('data-cast-lift'), 'still parked under the open selection').toBe('parked');
+    await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
+  }, 20_000);
+
   it('a play Forge IS asking about keeps waiting past PARK_UNANSWERED_MS', async () => {
     const { s, m, canvas, card } = await play();
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;

@@ -3740,7 +3740,10 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
       act(() => {
         m.revision += 1;
       });
-      await waitFor(() => expect(root.style.getPropertyValue('--question-top'), 'no pop-up: the column is as before').toBe(''));
+      // No pop-up: the last measured edge stands (2026-10-07), so the band neither jumps to the column's top
+      // when a pop-up closes nor flashes there for the frame before the next one opens.
+      await new Promise((r) => setTimeout(r, 30));
+      expect(root.style.getPropertyValue('--question-top'), 'no pop-up: the last edge stands').toBe('320px');
     } finally {
       spy.mockRestore();
     }
@@ -3748,7 +3751,7 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
     const boardCss = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', '../board.css'), 'utf8');
     const band = declarations(boardCss, '.board__mid[data-question]');
     expect(band).toContain('--mid-h: min(var(--mid-h-asked), calc(var(--question-top, 100rem) - 2 * var(--board-gap)));');
-    expect(band).toContain('top: max(var(--board-gap), calc(var(--question-top, 0px) - var(--mid-h) - var(--board-gap)));');
+    expect(band).toContain('top: max(var(--board-gap), calc(var(--question-top, 44%) - var(--mid-h) - var(--board-gap)));');
     expect(declarations(boardCss, '.board__mid[data-question] > .stack')).toBe('justify-content: flex-end;');
   });
 });

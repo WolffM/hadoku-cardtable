@@ -367,6 +367,20 @@ export function questionTopOf(root: HTMLElement): number | null {
 /** Forge's own yield window after End Turn (`lblYieldingUntilEndOfTurn`, `lblYieldingUntilPhaseFmt`, `lblYieldingUntilStackClears`). */
 const YIELDING = /^Yielding until /;
 
+/** Forge's priority status block with something on the stack: "Priority: … / Turn: … / Phase: … / Stack: N to Resolve." */
+const PRIORITY_OVER_STACK = /^Priority: [^\n]*\nTurn: [^\n]*\nPhase: [^\n]*\nStack: \d+ to Resolve\.?$/;
+
+/**
+ * What the decision pop-up says. Forge's priority status block is what the
+ * log's status line is for; in the pop-up, with its OK meaning "let the stack
+ * resolve", it is the one word the operator asked for (2026-10-07: *"why not
+ * just show 'Resolve?'"*). Every other prompt is Forge's own words, made
+ * readable.
+ */
+export function decisionMessage(prompt: string): string {
+  return PRIORITY_OVER_STACK.test(prompt) ? 'Resolve?' : promptText(prompt);
+}
+
 /* ── T2: a calm "waiting for the other player" (wave 36 §L) ───────────── */
 
 /**
@@ -1588,7 +1602,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      * the bar's own decision (wave 51, `decision`) all draw in the same column. This is the same set, named once, so the
      * stack cannot disagree with what is actually on screen.
      */
-    questionOpen: askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || pregameWait || decision,
+    // A spell on the stack hangs the band from the decision edge too, so it is already there when the pop-up opens.
+    questionOpen: askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || pregameWait || decision || (match.view?.stack.length ?? 0) > 0,
     /*
      * Item 16's glow: Forge's actionable set, and ONLY while nothing is
      * asking. `offered.selectable` IS that set already, whenever
@@ -1878,10 +1893,16 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     if (root === null) return undefined;
     const sync = (): void => {
       const top = questionTopOf(root);
-      const value = top === null ? '' : `${top}px`;
+      // No pop-up to measure: the last measured edge stands, so the band does
+      // not jump to the column's top for the frame between a spell reaching
+      // the stack and the pop-up that asks about it (the operator,
+      // 2026-10-07: the band "was only there briefly" at the top), and stays
+      // put when a pop-up closes. Before any pop-up has been measured,
+      // `board.css` falls back to where one sits.
+      if (top === null) return;
+      const value = `${top}px`;
       if (root.style.getPropertyValue('--question-top') === value) return;
-      if (top === null) root.style.removeProperty('--question-top');
-      else root.style.setProperty('--question-top', value);
+      root.style.setProperty('--question-top', value);
       /*
        * The band moved with no frame from Forge: arcs drawn from its thumbnails
        * repaint (`relayout`). On the next frame, never inside this commit: the
@@ -2235,7 +2256,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         <div className="live__prompt" data-testid="live-decision-host" data-staged={interaction.stagedCardId !== undefined || undefined}>
           <ConfirmPrompt
             testId="live-decision"
-            message={promptText(match.prompt ?? '')}
+            message={decisionMessage(match.prompt ?? '')}
             button1={decisionOk ? { label: bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressButton(match, 'ok') } : undefined}
             button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressButton(match, 'cancel') } : undefined}
           />

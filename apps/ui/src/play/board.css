@@ -1447,7 +1447,8 @@
 .board__mid[data-question] {
   --mid-h: min(var(--mid-h-asked), calc(var(--question-top, 100rem) - 2 * var(--board-gap)));
 
-  top: max(var(--board-gap), calc(var(--question-top, 0px) - var(--mid-h) - var(--board-gap)));
+  /* Before any pop-up has been measured: above where one sits, centred in its column (`live.css`, 24% + 48% / 2). */
+  top: max(var(--board-gap), calc(var(--question-top, 44%) - var(--mid-h) - var(--board-gap)));
 }
 
 .board__mid[data-question] > .stack {

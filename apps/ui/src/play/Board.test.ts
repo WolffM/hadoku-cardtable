@@ -4007,9 +4007,11 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
   it('stack: a question moves the band’s top up and gives it room for a long effect; the band is sized by state alone', () => {
     expect(Number.parseFloat(declarationIn('.board', '--mid-h-asked')!), 'roomier than w31’s 5.75rem').toBeGreaterThanOrEqual(8.5);
     expect(declarationIn('.board__mid[data-question]', '--mid-h')).toMatch(/^min\(var\(--mid-h-asked\), /);
-    // Wave 51 §A.6: hung from the question's measured top, and never above the board's own top edge.
+    // Wave 51 §A.6: hung from the question's measured top, and never above the board's own top edge. Before
+    // any pop-up has been measured, above where one sits (2026-10-07: the band flashed at the column's top for
+    // the frame between a spell reaching the stack and its pop-up).
     expect(declarationIn('.board__mid[data-question]', 'top'), 'out of flow, so moving it moves no track').toBe(
-      'max(var(--board-gap), calc(var(--question-top, 0px) - var(--mid-h) - var(--board-gap)))',
+      'max(var(--board-gap), calc(var(--question-top, 44%) - var(--mid-h) - var(--board-gap)))',
     );
     expect(declarationIn('.board__mid', 'position')).toBe('absolute');
     const { container } = renderBoard(withStack(view, 5), { ...spyInteraction([]).interaction, questionOpen: true });
