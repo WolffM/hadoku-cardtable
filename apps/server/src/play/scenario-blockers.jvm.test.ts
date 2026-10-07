@@ -41,7 +41,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, scenarioText, startScenario, timeline, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, forgeFrames, scenarioText, startScenario, timeline, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'Declare Blockers, set up by a scenario, against real Forge'
@@ -165,8 +165,16 @@ describe.skipIf(!available.ok)(title, () => {
 					const view = [...s.state(1).values()].find((o) => o._type === 0 && o._id === blocker.id);
 					return (view?.Blocking as { v?: boolean } | undefined)?.v === true;
 				}, 'the creature to be declared blocking', 10_000, s);
+				const linesBeforeOk = s.lines.length;
 				s.ok(1);
-				await waitUntil(() => /Declare Blockers Step/.test(s.prompt(1)), 'the priority window after the block', 10_000, s);
+				// Forge took the block and moved on to the step's priority, which the
+				// server passes for an idle defender before the seat sees it.
+				await waitUntil(
+					() => forgeFrames(s, 1, linesBeforeOk).some((f) => f.method === 'showPromptMessage' && /Declare Blockers Step/.test(f.message ?? '')),
+					'the priority window after the block',
+					10_000,
+					s,
+				);
 			} catch (err) {
 				console.log(`[q12-timeline]\n${timeline(s, 1)}`);
 				throw err;
