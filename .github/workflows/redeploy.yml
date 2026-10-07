@@ -34,10 +34,12 @@ name: Redeploy on hadoku_site
 # finishes on main, and dispatches only if that run succeeded. A red CI deploys
 # nothing; the next green run deploys everything that has accumulated.
 #
-# What gets deployed is main's head, not a chosen sha (mgmt-api pulls), so a
-# green run deploys only while it is still main's head, or while everything
-# after it on main is docs-only (the code pulled is then the code CI passed). A
-# push in the seconds between that check and mgmt-api's pull is the remaining gap.
+# What gets deployed is the green sha itself: hadoku_site's mgmt-api checks out the
+# commit the dispatch names (649df5f4, `target-sha.ts`) and skips one older than what
+# is deployed. Every green run dispatches its own commit, in order, whatever main's
+# head is by then. (Before 2026-10-07 mgmt-api deployed main's head, so a green run
+# could only deploy while it was still the head, and fast landings starved every
+# deploy.) Never send a sha-less dispatch: mgmt-api folds it in as a head deploy.
 #
 # `workflow_run` instead of a poll on push: a job waiting for CI would hold a
 # runner that CI's own jobs may be queued for.
@@ -102,24 +104,9 @@ jobs:
             { echo deploy=true; echo "sha=${GITHUB_SHA}"; } >> "$GITHUB_OUTPUT"; exit 0
           fi
           echo "sha=${GREEN_SHA}" >> "$GITHUB_OUTPUT"
-          # mgmt-api ignores the dispatched sha and deploys main's head (hadoku_site
-          # redeploy-service.yml only logs it). So a green run deploys only while its
-          # sha IS main's head; if main has moved on, that newer commit's own CI run
-          # decides. CI keeps the newest pending run per group, so the head always
-          # gets one.
-          head=$(api "commits/main" | jq -r '.sha')
-          if [ "${head}" != "${GREEN_SHA}" ]; then
-            # Main moved on. If everything after the green sha is docs-only, the code mgmt-api
-            # would pull IS the code CI just passed, so deploy now (2026-10-06: a stream of
-            # ledger and closing-note pushes starved every deploy for hours; each green run
-            # found main had moved on). Anything servable after it waits for its own run.
-            ahead=$(api "compare/${GREEN_SHA}...${head}")
-            after=$(jq -r '.files[].filename' <<<"${ahead}" | grep -vE '^(docs/|\.claude/)|\.md$' || true)
-            if [ "$(jq -r '.status' <<<"${ahead}")" != ahead ] || [ -n "${after}" ]; then
-              echo "main has moved on to ${head} with servable changes; its own CI run decides"; echo deploy=false >> "$GITHUB_OUTPUT"; exit 0
-            fi
-            echo "main has moved on to ${head}, docs only after the green ${GREEN_SHA}: deploying"
-          fi
+          # mgmt-api deploys exactly this sha (hadoku_site 649df5f4, target-sha.ts): it must be on
+          # origin/main, and one older than what is deployed is skipped, never rolled back. So every
+          # green run dispatches its own commit, and main having moved on no longer matters.
           # The last sha a "dispatch redeploy" job of this workflow succeeded for.
           # Runs from before this gate (push-triggered) count: same workflow, same job name.
           last=""

@@ -1,6 +1,6 @@
 # Request to hadoku_site: deploy the sha the dispatch names (and never wait for cardtable's matches)
 
-From: hadoku-cardtable (tracker session), 2026-10-07. Status: open.
+From: hadoku-cardtable (tracker session), 2026-10-07. Status: **DONE** — hadoku_site `649df5f4` (exact-sha deploys via `target-sha.ts`, never backwards; cardtable's `deferWhenBusy` and `busyUrl` removed). Cardtable dropped its head check in `redeploy.yml` the same day.
 
 ## What we ask
 
