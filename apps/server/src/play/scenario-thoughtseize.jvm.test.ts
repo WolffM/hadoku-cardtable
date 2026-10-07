@@ -118,6 +118,10 @@ async function castThoughtseize(seed: number): Promise<{ s: Scenario; hand: Hand
 				paid = true;
 				s.ok(0);
 			}
+			// Ledger Z4: a payment the server pays itself is withheld from the seat — its Auto goes out
+			// disabled and the "Pay Mana Cost" line never arrives — so "paid" is also the server's own
+			// `auto-paid` decision, or the spell already on the stack.
+			if (!paid && (s.logs.some((l) => l.evt === 'auto-paid' && l.seat === 0) || /Stack: 1 to Resolve/.test(s.prompt(0)))) paid = true;
 			return paid;
 		},
 		'Thoughtseize targeted and paid for',

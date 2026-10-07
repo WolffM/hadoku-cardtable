@@ -1332,6 +1332,9 @@ export class Match {
 		 * frame, kept for every other decision this file makes), so deciding
 		 * here instead of after costs it nothing.
 		 */
+		// The payment this prompt opens or closes is on record before anything below decides on it (Z4: the
+		// auto-pay now runs before the send, and `maybeCancelUnpayable` must see the payment it is cancelling).
+		if (frame.method === 'showPromptMessage') this.trackPayment(s, frame.message);
 		let outgoing = frame;
 		if (frame.method === 'updateButtons') {
 			this.maybeDeclineYieldSuggestion(s);
@@ -1343,7 +1346,15 @@ export class Match {
 		// `confirmAbility`, so those already went out live; they go again disabled,
 		// and the question itself is withheld — a flashed "Sacrifice Augur of
 		// Skulls?" with a live Yes is the redundant ask the operator reported.
-		if (frame.method === 'showPromptMessage' && this.maybeConfirmChosenCost(s)) {
+		//
+		// Ledger Z4, the same shape for a payment this server pays itself: the
+		// "Pay Mana Cost" line was forwarded and THEN auto-paid, so the payment
+		// pop-up flashed on the seat's screen for a cost it never had to touch
+		// (the operator, 2026-10-07: "we should not pop things like that on the
+		// screen if they are gonna get shortcutted"). The decision runs before
+		// the send: paid here, the prompt is withheld and the live Auto button
+		// goes out disabled; not paid, everything goes out as before.
+		if (frame.method === 'showPromptMessage' && (this.maybeConfirmChosenCost(s) || this.maybeAutoPay(s))) {
 			if (s.buttons !== null && s.buttons.method === 'updateButtons') {
 				this.send(s, { ...s.buttons, enable1: false, enable2: false, focus1: false });
 			}
@@ -1370,7 +1381,6 @@ export class Match {
 		 * so a disabled one goes out to correct it.
 		 */
 		if (frame.method === 'showPromptMessage') {
-			this.trackPayment(s, frame.message);
 			if (this.maybeAutoPass(s) && s.buttons !== null && s.buttons.method === 'updateButtons') {
 				this.send(s, { ...s.buttons, enable1: false, enable2: false, focus1: false });
 			}
@@ -1668,20 +1678,22 @@ export class Match {
 	 * The payment that CANNOT be made is the same shape and is answered here too,
 	 * with the other button (item 7).
 	 */
-	private maybeAutoPay(s: SeatState): void {
-		if (s.fullControl || s.ai || this.status !== 'running') return;
+	/** Returns whether it pressed Auto for this cost just now, so the caller can withhold the prompt (Z4). */
+	private maybeAutoPay(s: SeatState): boolean {
+		if (s.fullControl || s.ai || this.status !== 'running') return false;
 		const notes = this.notesOf(s);
 		const cost = autoPayReason(notes, s.policy);
 		if (cost === null) {
 			this.maybeCancelUnpayable(s, notes);
 			// The payment ended (or never started); the next one earns its press.
 			if (s.payment === null) s.autoPaid = null;
-			return;
+			return false;
 		}
-		if (s.autoPaid === cost) return;
+		if (s.autoPaid === cost) return false;
 		s.autoPaid = cost;
 		this.deps.log({ evt: 'auto-paid', matchId: this.id, seat: s.seat, cost });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
+		return true;
 	}
 
 	/**

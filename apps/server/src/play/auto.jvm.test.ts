@@ -538,7 +538,8 @@ describe.skipIf(!available.ok)(title, () => {
 				// The sacrifice confirm is recorded as the seat would be shown it. Under the
 				// default (`costConfirm: 'accept'`, w52) the server answers it and withholds it,
 				// because the seat chose Evolving Wilds' ability the click before.
-				stopPolicy: { ...DEFAULT_STOP_POLICY, costConfirm: 'ask' },
+				// This test RECORDS the payment windows the wire carries. Since Z4 a payment the server pays itself is withheld from the seat, so every payment is left to the seat here, and recorded.
+				stopPolicy: { ...DEFAULT_STOP_POLICY, costConfirm: 'ask', unambiguousPayment: 'ask' },
 				emit: (_m, seat, envelope) => {
 					sent.push({ seat, envelope });
 					const f = envelope.frame;
@@ -918,6 +919,8 @@ describe.skipIf(!available.ok)(title, () => {
 				log: (e) => logs.push(e),
 				askTimeoutMs: 120_000,
 				overGraceMs: 60_000,
+				// Records the payment window too: left to the seat (Z4 withholds a payment the server pays itself).
+				stopPolicy: { ...DEFAULT_STOP_POLICY, unambiguousPayment: 'ask' },
 				emit: (_m, seat, envelope) => {
 					sent.push({ seat, envelope });
 					const f = envelope.frame;
