@@ -930,7 +930,7 @@ export interface PromptFacts {
  * field of {@link StopPolicy}.
  */
 
-/** Exported for `match.ts`'s own `promptCouldBeAnswered` — the SAME two patterns, never a second copy. */
+/** Exported for `match.ts`'s `promptShape`: the same patterns, never a second copy. */
 export const PRIORITY = /^Priority: ([^\n]*)/;
 const TURN_OWNER = /^Turn: \d+ \(([^)]*)\)/m;
 const STACK_EMPTY = /^Stack: Empty$/m;

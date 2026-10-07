@@ -385,20 +385,19 @@ export interface SeatState {
 	 */
 	displayOnlyAsks: Set<string>;
 	/**
-	 * hold-decide-forward. A `showPromptMessage`/`updateButtons`
-	 * half, parked here until its partner arrives (or any other frame, or
-	 * {@link PROMPT_HOLD_FLUSH_MS}) so the pair is decided ONCE, before either
-	 * half reaches the wire. See {@link Match.holdPromptWindow}.
+	 * Half of a window a decider can answer, held until the other half
+	 * arrives so the window is decided before either reaches the wire. A
+	 * `Priority:` prompt waits here for the bar after it; a payment's `Auto`
+	 * bar or a confirm's Yes/No bar waits for the prompt after it. See
+	 * {@link Match.holdPromptWindow}.
 	 */
-	pendingPrompt: ServerFrame | null;
-	pendingButtons: ServerFrame | null;
-	/** Which of the two parked FIRST — so a forwarded pair goes out in the order Forge actually sent it. */
-	pendingFirst: 'prompt' | 'buttons' | null;
+	pendingPrompt: PromptFrame | null;
+	pendingButtons: ButtonsFrame | null;
 	pendingTimer: NodeJS.Timeout | null;
 	/**
 	 * Whether the LAST `updateButtons` actually sent to this seat's wire left
 	 * either button enabled — see {@link Match.send}. Read by
-	 * {@link Match.decidePendingWindow}: a withheld window whose predecessor
+	 * {@link Match.decideWindow}: a withheld window whose predecessor
 	 * left a live button on the seat's screen gets a disabled correction (the
 	 * design the Settled text asked for); one that didn't gets nothing, which
 	 * is what the declare-attackers fix needs (a disabled `updateButtons`
@@ -543,53 +542,41 @@ export function newMatchId(): string {
  */
 const PENDING_REVEAL_FOLD_MS = 250;
 
+type PromptFrame = Extract<ServerFrame, { method: 'showPromptMessage' }>;
+type ButtonsFrame = Extract<ServerFrame, { method: 'updateButtons' }>;
+
 /**
- * how long a parked `showPromptMessage`/`updateButtons` half
- * waits for its partner before it is forwarded undecided (the safety flush).
- * Forge sends the two back-to-back in the ordinary case (measured: `auto-paid`
- * to `auto-passed` 16ms apart on the production Bitterblossom cast this wave
- * fixes) — but `InputPayMana`'s own buttons-before-message ordering measured
- * as much as 251ms apart against a real jar under load
- * (`bitterblossom.jvm.test.ts` / `auto.jvm.test.ts`'s own Bitterblossom case),
- * which a 250ms window missed outright: the buttons half flushed live,
- * UNANSWERED, and the prompt that arrived 1ms later could never re-pair with
- * it (its partner was already gone) — the one shape worse than this wave's
- * own bug, a live payment bar nobody, human or server, ever presses. This is
- * deliberately generous relative to the measured ordinary case, not a target
- * to hit.
+ * How long a held half waits for the other before it is forwarded undecided.
+ * Forge sends the two within a few milliseconds; a payment's bar and its
+ * prompt were measured up to 251 ms apart on a loaded jar, so this is
+ * headroom, not a target.
  */
 const PROMPT_HOLD_FLUSH_MS = 2000;
 
 /**
- * Wave 55 §S — does this `showPromptMessage` have a SHAPE any of the three
- * deciders could ever act on? Narrows holding to exactly the windows that
- * might be withheld: `maybeAutoPass` reads a `Priority: ` message,
- * `maybeAutoPay` a `Pay Mana Cost: ` one, `maybeConfirmChosenCost` one
- * carrying `confirmAbility`. Everything else — `InputAttack`'s own repeated
- * "Select creatures to attack" refresh chief among them — is NEVER a shape
- * any decider reads, so parking it serves nothing and only adds latency: a
- * real jar measured a 2s stall on exactly this (a declared-attacker's own
- * `updateButtons` refresh, held for the full safety window with no prompt
- * ever coming to pair it, while the seat's own click landed on a stale
- * card). Reuses `auto.ts`'s own `PRIORITY`/`PAY_MANA` patterns — never a
- * second copy of either.
+ * Which decider-readable window a frame belongs to, and so which way it pairs.
+ * Forge's inputs send the two halves in a fixed order per input:
+ * `InputPassPriority.showNormalPrompt` the prompt and then its OK bar;
+ * `InputPayMana.updateMessage` the `Auto` bar and then the prompt (after
+ * `showMessage` has already sent a disabled `Auto` bar);
+ * `InputConfirm.showMessage` the Yes/No bar and then the prompt. A prompt with
+ * no shape here (an attack, a block, a target) is no decider's to answer and
+ * is never held, and neither is a bar with none (InputAttack's per-click
+ * refresh above all).
  */
-function promptCouldBeAnswered(frame: Extract<ServerFrame, { method: 'showPromptMessage' }>): boolean {
-	if (frame.confirmAbility != null) return true;
-	return PRIORITY.test(frame.message) || PAY_MANA.test(frame.message);
+type WindowShape = 'priority' | 'payment' | 'confirm';
+
+function promptShape(frame: PromptFrame): WindowShape | null {
+	if (frame.confirmAbility != null) return 'confirm';
+	if (PAY_MANA.test(frame.message)) return 'payment';
+	if (PRIORITY.test(frame.message)) return 'priority';
+	return null;
 }
 
-/**
- * The buttons-first twin, for the two shapes Forge is documented to send
- * buttons ahead of their own message: `InputPayMana` (`label1: 'Auto'`) and
- * `InputConfirm`'s own Yes/No cost confirm (wave 52 §S B's own header) — the
- * only two a decider could ever answer without having seen the prompt yet.
- * An ordinary priority bar's button one is always `'OK'`, never either of
- * these, so it is never held waiting for a prompt that already came and
- * went.
- */
-function buttonsCouldBeAnswered(frame: Extract<ServerFrame, { method: 'updateButtons' }>): boolean {
-	return frame.label1 === 'Auto' || (frame.label1 === 'Yes' && frame.label2 === 'No');
+function buttonsShape(frame: ButtonsFrame): WindowShape | null {
+	if (frame.label1 === 'Auto') return 'payment';
+	if (frame.label1 === 'Yes' && frame.label2 === 'No') return 'confirm';
+	return null;
 }
 
 /** One decided window, as {@link Match.recordWindow} keeps it for the `match-frames` log event. */
@@ -746,7 +733,6 @@ export class Match {
 			displayOnlyAsks: new Set(),
 			pendingPrompt: null,
 			pendingButtons: null,
-			pendingFirst: null,
 			pendingTimer: null,
 			wireButtonsLive: false,
 		}));
@@ -1290,22 +1276,9 @@ export class Match {
 		}
 		const frame = parsed.value;
 
-		// "or any later frame": an ASK is a genuinely different
-		// kind of window (`getChoices`, `getAbilityToPlay`, …), never paired
-		// with a prompt/buttons half, so one arriving means whatever is parked
-		// was never going to find its partner — flushed now rather than held
-		// out the full {@link PROMPT_HOLD_FLUSH_MS}.
-		//
-		// State frames and `setWeaklySelectable`/`setSelectables` (and their
-		// clears) do NOT flush here, on purpose, however many of them arrive
-		// in between: `InputPayMana.updateMessage`'s own order is buttons,
-		// THEN the actionable set, THEN the message (the exact sequence a real
-		// jar produces for every payment — confirmed directly, measured as
-		// much as 251ms end to end under load), so a payment's own setup
-		// ALWAYS interleaves a `setWeaklySelectable` between its two prompt
-		// halves. Flushing on it — the first version of this fix did — threw
-		// the buttons half away unpaired on every single payment, live and
-		// unanswered, the exact shape worse than the bug this file fixes.
+		// An ask is a different window altogether, so whatever is held was not
+		// going to pair. State and actionable-set frames do not flush: a payment
+		// always sends `setWeaklySelectable` between its bar and its prompt.
 		if (frame.kind === 'ask') this.flushPendingWindow(s);
 
 		if (isTierC(frame.method)) {
@@ -1441,168 +1414,133 @@ export class Match {
 	}
 
 	/**
-	 * hold-decide-forward, replacing the old forward-then-decide
-	 * order this comment used to describe.
+	 * Decide a window before the seat sees it.
 	 *
-	 * `showPromptMessage` and `updateButtons` are two halves of ONE Forge
-	 * window, sent back-to-back but not always in the same order:
-	 * `InputPassPriority` sends the prompt first, `InputPayMana.updateMessage`
-	 * sends its buttons first and the prompt after. Forwarding whichever half
-	 * arrived first — the ONLY option while the decision could not run until
-	 * the second half was known — is what put a window the server was about to
-	 * answer on the wire for however many milliseconds separated the two:
-	 * Bitterblossom's payment and the caster's own priority both measured at
-	 * 16ms in production, long enough for a "Pay Mana Cost" and a "Resolve?"
-	 * pop-up to flash and vanish on every auto-answered cast.
+	 * `showPromptMessage` and `updateButtons` are two halves of one Forge
+	 * window. Forwarding each as it arrived and deciding afterwards put every
+	 * auto-answered window on the wire for the milliseconds between them: a
+	 * "Pay Mana Cost" and a "Stack: 1 to Resolve" pop-up drawn and withdrawn on
+	 * every Bitterblossom cast. Now the half a decider can read is held until
+	 * its partner arrives, the deciders run once on the pair, and both halves
+	 * go out or neither does.
 	 *
-	 * Neither half is sent now until the pair is complete. Each is parked in
-	 * {@link SeatState.pendingPrompt}/{@link SeatState.pendingButtons}; the
-	 * moment both are set, {@link decidePendingWindow} runs the three deciders
-	 * ONCE and sends both frames or neither. A half with no partner yet (and,
-	 * per {@link SeatState.pendingTimer}, none arriving within
-	 * {@link PROMPT_HOLD_FLUSH_MS}, or `onFrame`'s own pre-check finding any
-	 * OTHER frame for this seat first) is {@link flushPendingWindow}'d
-	 * undecided — forwarded exactly as it would have been before this wave.
-	 *
-	 * This also retires the two band-aids the old order needed and this
-	 * comment used to carry: deciding on `updateButtons` alone could read a
-	 * STALE `showPromptMessage` left over from the previous window (Q17's
-	 * "transient-stack race", `w33.spec.ts`), so the decision ran a second time
-	 * on the NEXT `showPromptMessage` to correct it. With the decision made
-	 * once the pair is actually matched, neither frame is ever stale when it
-	 * is read, and there is nothing left to correct after the fact.
+	 * Pairing follows each input's own order (see {@link WindowShape}): a
+	 * `Priority:` prompt pairs with the bar that follows it, a payment or
+	 * confirm prompt with the bar that preceded it. A newer bar replaces a held
+	 * one, because a bar is state and only the latest is ever shown; a newer
+	 * prompt never replaces a held one, it pushes the held one out first,
+	 * because a prompt is a question. A held half nothing pairs with goes out
+	 * undecided after {@link PROMPT_HOLD_FLUSH_MS}, or when an ask arrives.
 	 */
-	private holdPromptWindow(s: SeatState, frame: Extract<ServerFrame, { kind: 'notify' }>): void {
-		// Narrowed to exactly the windows a decider could ever act on — see
-		// `promptCouldBeAnswered`/`buttonsCouldBeAnswered`'s own headers. A
-		// half with no answerable shape, and no OTHER half already parked
-		// waiting for it, is sent at once — exactly as it would have gone out
-		// before this wave, no 2s wait for a pairing that was never coming.
-		// Whatever WAS parked (an unrelated window) is flushed first, same as
-		// any other frame that is not itself part of the pair.
-		if (frame.method === 'showPromptMessage' && !promptCouldBeAnswered(frame)) {
-			// An unanswerable prompt can never be the pairing partner a parked
-			// `Auto`/confirm buttons half is waiting for either (those only
-			// ever pair with a `Pay Mana Cost: `/`confirmAbility` prompt) — so
-			// whatever IS parked is flushed, unpaired, rather than wrongly
-			// paired with this one.
+	private holdPromptWindow(s: SeatState, frame: PromptFrame | ButtonsFrame): void {
+		if (frame.method === 'showPromptMessage') {
+			const shape = promptShape(frame);
+			this.flushPendingPrompt(s);
+			if (shape === 'priority') {
+				// Any held bar belonged to the input before this one; this prompt's own bar is next.
+				s.pendingButtons = null;
+				s.pendingPrompt = frame;
+				this.armPendingTimer(s);
+				return;
+			}
+			if (shape !== null) {
+				const buttons = s.pendingButtons !== null && buttonsShape(s.pendingButtons) === shape ? s.pendingButtons : null;
+				s.pendingButtons = null;
+				this.clearPendingTimer(s);
+				this.decideWindow(s, frame, buttons, 'buttons-first');
+				return;
+			}
 			this.flushPendingWindow(s);
 			this.send(s, frame);
 			return;
 		}
-		if (frame.method === 'updateButtons' && s.pendingPrompt === null && !buttonsCouldBeAnswered(frame)) {
-			this.flushPendingWindow(s);
-			this.send(s, frame);
+		if (s.pendingPrompt !== null) {
+			if (buttonsShape(frame) === null) {
+				const prompt = s.pendingPrompt;
+				s.pendingPrompt = null;
+				this.clearPendingTimer(s);
+				this.decideWindow(s, prompt, frame, 'prompt-first');
+				return;
+			}
+			this.flushPendingPrompt(s);
+		}
+		if (buttonsShape(frame) !== null) {
+			s.pendingButtons = frame;
+			this.armPendingTimer(s);
 			return;
 		}
-		// A second half of the SAME kind arriving before the first ever paired
-		// means the first's partner was never coming — Forge moved on to a
-		// NEW window without this one ever completing (measured: Ponder's own
-		// resolution can open its "Do you want to shuffle…" confirm before
-		// the caster's own "Stack: 1 to Resolve" buttons ever arrive). Flush
-		// whatever is parked, unpaired, before it would otherwise be silently
-		// overwritten and lost — a window is held up, never dropped.
-		if ((frame.method === 'showPromptMessage' && s.pendingPrompt !== null) || (frame.method === 'updateButtons' && s.pendingButtons !== null)) {
-			this.flushPendingWindow(s);
-		}
-		if (s.pendingPrompt === null && s.pendingButtons === null) s.pendingFirst = frame.method === 'showPromptMessage' ? 'prompt' : 'buttons';
-		if (frame.method === 'showPromptMessage') s.pendingPrompt = frame;
-		else if (frame.method === 'updateButtons') s.pendingButtons = frame;
-		if (s.pendingPrompt !== null && s.pendingButtons !== null) {
-			this.decidePendingWindow(s);
-			return;
-		}
-		if (s.pendingTimer !== null) clearTimeout(s.pendingTimer);
+		s.pendingButtons = null;
+		this.clearPendingTimer(s);
+		this.send(s, frame);
+	}
+
+	private armPendingTimer(s: SeatState): void {
+		this.clearPendingTimer(s);
 		const timer = setTimeout(() => this.flushPendingWindow(s), PROMPT_HOLD_FLUSH_MS);
 		timer.unref();
 		s.pendingTimer = timer;
 	}
 
+	private clearPendingTimer(s: SeatState): void {
+		if (s.pendingTimer === null) return;
+		clearTimeout(s.pendingTimer);
+		s.pendingTimer = null;
+	}
+
 	/**
-	 * The pair is complete: run the three deciders ONCE and send both frames,
-	 * a disabled correction, or NEITHER — never one live and the other
-	 * correcting it after the fact.
+	 * Run the deciders once on a whole window and send both halves, or neither.
 	 *
-	 * A window the server answers is never shown — the question is never sent
-	 * either way. What goes out for its BUTTONS depends on what the seat's
-	 * screen already shows, read off {@link SeatState.wireButtonsLive}:
+	 * An answered window is never shown. Its bar is sent only as a disabled
+	 * correction, and only when the seat's screen still shows a live bar
+	 * ({@link SeatState.wireButtonsLive}): priority coming back to a seat that
+	 * never pressed anything leaves the previous window's OK live, and an old
+	 * click must not answer whatever Forge has open by the time it lands. When
+	 * the bar is already dead (the seat's own press disabled it), nothing is
+	 * sent, because a disabled `updateButtons` still marks the browser's input
+	 * live and would light the declare-attackers targets for an instant.
 	 *
-	 *  - **Nothing**, when the last bar actually sent to this seat was already
-	 *    disabled (every ordinary case: the seat's own last press disables its
-	 *    bar on the wire at once, `fromClient`'s own `disableStaleButtons`, so
-	 *    by the time a window IT opened is auto-answered the bar is already
-	 *    dead). Sending the disabled pair here anyway would cost the
-	 *    declare-attackers fix: the browser's `updateButtons` handler sets `inputLive` true
-	 *    unconditionally, reading `enable1`/`enable2` only for the bar, so a
-	 *    disabled `updateButtons` for a skipped declare-attackers step would
-	 *    still light `attackDefenders` up for an instant.
-	 *  - **A disabled `updateButtons`, alone** (`maybeConfirmChosenCost`'s own
-	 *    older shape, wave 52 §S B), when the bar is NOT already dead — the one
-	 *    case that matters is priority ping-ponging back to a seat that never
-	 *    acted (the opponent casts something and Forge re-opens THIS seat's own
-	 *    priority, now auto-passable, without a single click from this seat in
-	 *    between): its last-sent bar is still the live one from the window
-	 *    before, and leaving it live would let an old click answer whatever
-	 *    Forge has open by the time it lands, not the window it was pressed
-	 *    for. A window with nothing stale to correct skips `inputLive` (the
-	 *    first bullet); a window that needs correcting accepts the
-	 *    momentary `inputLive` flip — there is no live window left under it to
-	 *    mistake for a real one, which is the one thing the declare-attackers
-	 *    fix actually protects.
-	 *
-	 * A window left to the seat is forwarded exactly as Forge sent it, prompt
-	 * then buttons (or buttons then prompt — the order the two arrived in,
-	 * which is Forge's business, not a rule this file imposes).
+	 * A window left to the seat goes out in the order Forge sent it.
 	 */
-	private decidePendingWindow(s: SeatState): void {
-		if (s.pendingTimer !== null) {
-			clearTimeout(s.pendingTimer);
-			s.pendingTimer = null;
-		}
-		const prompt = s.pendingPrompt;
-		const buttons = s.pendingButtons;
-		const first = s.pendingFirst;
-		s.pendingPrompt = null;
-		s.pendingButtons = null;
-		s.pendingFirst = null;
-		if (prompt === null || buttons === null || prompt.method !== 'showPromptMessage' || buttons.method !== 'updateButtons') return;
-		const passed = this.maybeAutoPass(s);
-		const confirmed = this.maybeConfirmChosenCost(s);
-		const paid = this.maybeAutoPay(s);
-		const answered = passed || confirmed || paid;
-		const why = passed ? 'auto-pass' : confirmed ? 'auto-confirm' : paid ? 'auto-pay' : 'kept';
+	private decideWindow(s: SeatState, prompt: PromptFrame, buttons: ButtonsFrame | null, order: 'prompt-first' | 'buttons-first'): void {
+		// At most one decider answers a window: each one that acts sends Forge a press.
+		const why = this.maybeAutoPass(s) ? 'auto-pass' : this.maybeConfirmChosenCost(s) ? 'auto-confirm' : this.maybeAutoPay(s) ? 'auto-pay' : 'kept';
+		const answered = why !== 'kept';
 		const kind = readPromptFacts(this.notesOf(s)).window;
 		if (answered) {
-			if (s.wireButtonsLive) this.send(s, { ...buttons, enable1: false, enable2: false, focus1: false });
-		} else if (first === 'buttons') {
-			this.send(s, buttons);
+			const bar = buttons ?? (s.buttons?.method === 'updateButtons' ? s.buttons : null);
+			if (s.wireButtonsLive && bar !== null) this.send(s, { ...bar, enable1: false, enable2: false, focus1: false });
+		} else if (order === 'buttons-first') {
+			if (buttons !== null) this.send(s, buttons);
 			this.send(s, prompt);
 		} else {
 			this.send(s, prompt);
-			this.send(s, buttons);
+			if (buttons !== null) this.send(s, buttons);
 		}
 		this.deps.log({ evt: answered ? 'prompt-withheld' : 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why });
 		this.recordWindow(s, answered ? 'withheld' : 'forwarded', kind, why, prompt, buttons);
 	}
 
-	/**
-	 * A parked half whose partner never came within {@link PROMPT_HOLD_FLUSH_MS},
-	 * or was overtaken by some other frame for this seat first: forwarded
-	 * undecided, exactly as it would have gone out before this wave. Never
-	 * decided here — a decision needs the pair, and there is at most one half
-	 * to read.
-	 */
+	/** A held prompt pushed out by a newer frame before its bar came: forwarded undecided, never lost. */
+	private flushPendingPrompt(s: SeatState): void {
+		const prompt = s.pendingPrompt;
+		if (prompt === null) return;
+		s.pendingPrompt = null;
+		this.clearPendingTimer(s);
+		this.forwardUnpaired(s, prompt, null);
+	}
+
+	/** Whatever is held, forwarded undecided: the safety flush, an ask, or a prompt no decider reads. */
 	private flushPendingWindow(s: SeatState): void {
-		if (s.pendingTimer !== null) {
-			clearTimeout(s.pendingTimer);
-			s.pendingTimer = null;
-		}
 		const prompt = s.pendingPrompt;
 		const buttons = s.pendingButtons;
 		s.pendingPrompt = null;
 		s.pendingButtons = null;
-		s.pendingFirst = null;
+		this.clearPendingTimer(s);
 		if (prompt === null && buttons === null) return;
+		this.forwardUnpaired(s, prompt, buttons);
+	}
+
+	private forwardUnpaired(s: SeatState, prompt: PromptFrame | null, buttons: ButtonsFrame | null): void {
 		if (prompt !== null) this.send(s, prompt);
 		if (buttons !== null) this.send(s, buttons);
 		const kind = readPromptFacts(this.notesOf(s)).window;
@@ -1616,14 +1554,11 @@ export class Match {
 		decision: 'forwarded' | 'withheld',
 		kind: StopWindow,
 		why: string,
-		prompt: ServerFrame | null,
-		buttons: ServerFrame | null,
+		prompt: PromptFrame | null,
+		buttons: ButtonsFrame | null,
 	): void {
-		const message = prompt !== null && prompt.method === 'showPromptMessage' ? prompt.message : null;
-		const bar =
-			buttons !== null && buttons.method === 'updateButtons'
-				? { label1: buttons.label1, enable1: buttons.enable1, label2: buttons.label2, enable2: buttons.enable2 }
-				: null;
+		const message = prompt?.message ?? null;
+		const bar = buttons === null ? null : { label1: buttons.label1, enable1: buttons.enable1, label2: buttons.label2, enable2: buttons.enable2 };
 		this.framesRing.push({ t: this.now(), seat: s.seat, kind, decision, why, message, buttons: bar });
 		if (this.framesRing.length > FRAMES_RING_SIZE) this.framesRing.shift();
 	}

@@ -20,7 +20,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enabledOk, makeTitled, says, serverLog } from './play/board.ts';
+import { clickHandCard, enabledOk, makeTitled, says } from './play/board.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -192,23 +192,8 @@ test(titled('W18 — the real "you may pay {X}" decision is answered by the abil
     const graveyard = alice.page.locator('[data-zone="graveyard"][data-owner="you"] [data-board-card]');
     await expect(graveyard.filter({ hasText: 'Diregraf Ghoul' })).toHaveCount(1);
     await expect(graveyard.filter({ hasText: 'Dread Wanderer' })).toHaveCount(1);
-    // Priority genuinely returns — no lock. Not asserted by a drawn, enabled
-    // OK: the window that follows the decline may be one the server itself
-    // decides now (auto-passed, withheld) rather than a real stop — see
-    // `match.ts`'s `decidePendingWindow`. Either a real stop is drawn, or the
-    // server's own structured log shows alice's next window was actually
-    // decided, which is the same "not stuck" claim this line always made.
-    const sinceDecline = serverLog(stack).length;
-    await expect
-      .poll(
-        async () =>
-          (await enabledOk(alice.page).count()) > 0 ||
-          serverLog(stack)
-            .slice(sinceDecline)
-            .some((l) => l.seat === 0 && (l.evt === 'auto-passed' || l.evt === 'prompt-withheld' || l.evt === 'prompt-forwarded')),
-        { timeout: 15_000, message: 'alice either has a live OK, or the server log shows her next window was decided' },
-      )
-      .toBe(true);
+    // Priority genuinely returns — no lock.
+    await expect(enabledOk(alice.page)).toHaveCount(1);
   } finally {
     await stack.stop();
   }

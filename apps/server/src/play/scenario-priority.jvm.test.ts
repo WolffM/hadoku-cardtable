@@ -27,7 +27,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, scenarioText, startScenario, waitUntil } from './scenario.js';
+import { available, deck, finishMulligan, forgeFrames, scenarioText, startScenario, waitUntil } from './scenario.js';
 
 const title = available.ok
 	? 'priority on the stack, set up by a scenario, against real Forge'
@@ -72,25 +72,18 @@ describe.skipIf(!available.ok)(title, () => {
 				);
 				const logsBefore = s.logs.length;
 				const sentBefore = s.sent.length;
+				const linesBefore = s.lines.length;
 				s.select(0, memnite.id);
-				// The precondition: the caster really was given priority with its OWN
-				// spell on the stack (not skipped straight to "resolved"). Read from the
-				// recorded history, not the live prompt: `passOwnSpell` passes this
-				// window on the spot, so its prompt is the latest one for ~20 ms
-				// (measured) and a 25 ms poll can miss it (CI 37184116178).
+				// The precondition: Forge really gave the caster priority with its OWN
+				// spell on the stack (not skipped straight to "resolved"). Read off what
+				// Forge sent, not the seat's wire: the server answers this window before
+				// the seat sees it.
 				await waitUntil(
 					() => {
 						s.answerAsks();
-						return s.sent
-							.slice(sentBefore)
-							.some(
-								(x) =>
-									x.seat === 0 &&
-									x.envelope.frame.method === 'showPromptMessage' &&
-									/Stack: 1 to Resolve/.test((x.envelope.frame as unknown as { message: string }).message),
-							);
+						return forgeFrames(s, 0, linesBefore).some((f) => f.method === 'showPromptMessage' && /Stack: 1 to Resolve/.test(f.message ?? ''));
 					},
-					'the caster to be shown its own spell on the stack',
+					'Forge to give the caster priority with its own spell on the stack',
 					20_000,
 				);
 				// The claim: it was passed anyway (an auto-pass, not a click), and the
@@ -106,6 +99,12 @@ describe.skipIf(!available.ok)(title, () => {
 				const passed = s.logs.slice(logsBefore).filter((l) => l.evt === 'auto-passed' && l.seat === 0);
 				expect(passed.length, 'the caster held priority on its own spell').toBeGreaterThan(0);
 				expect(s.zone(0, 'Battlefield').some((c) => c.name === 'Memnite')).toBe(true);
+				// And it never reached the seat: neither half of that window is on its wire.
+				const shown = s.sent
+					.slice(sentBefore)
+					.filter((x) => x.seat === 0 && x.envelope.frame.method === 'showPromptMessage')
+					.map((x) => (x.envelope.frame as unknown as { message: string }).message);
+				expect(shown.filter((m) => /Stack: 1 to Resolve/.test(m)), 'the caster was shown its own spell on the stack').toEqual([]);
 			} finally {
 				await s.stop();
 			}

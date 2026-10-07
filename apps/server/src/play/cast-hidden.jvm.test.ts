@@ -41,7 +41,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_STOP_POLICY } from './auto.js';
-import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, forgeFrames, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 /** Evidence files land under the harness's own run directory, never a literal `/tmp`. */
 function evidencePath(name: string): string {
@@ -263,8 +263,19 @@ describe.skipIf(!available.ok)(title, () => {
 				);
 
 				// Now tap the second Swamp, completing payment, and let the cast resolve.
+				// The caster's own window over its spell is answered by the server before
+				// the seat sees it, so the spell landing is read off what Forge sent.
+				const linesBeforeTap2 = s.lines.length;
 				s.select(0, swamps[1]!.id);
-				await waitUntil(() => { s.answerAsks(); return /Stack: 1 to Resolve/.test(s.prompt(0)); }, 'the spell to resolve to the stack', 20_000, s);
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						return forgeFrames(s, 0, linesBeforeTap2).some((f) => f.method === 'showPromptMessage' && /Stack: 1 to Resolve/.test(f.message ?? ''));
+					},
+					'the spell to resolve to the stack',
+					20_000,
+					s,
+				);
 
 				const seat1Whole = s.sent.slice(markAll).filter((x) => x.seat === 1);
 				const firstNamedIdx = seat1Whole.findIndex((x) => JSON.stringify(x.envelope.frame).includes('Doom Blade'));

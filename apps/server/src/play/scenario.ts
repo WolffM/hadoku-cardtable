@@ -573,6 +573,35 @@ export async function passUntil(s: Scenario, done: () => boolean, label: string,
 	}, label, ms, s);
 }
 
+/** One frame Forge itself sent a seat, with its index in `Scenario.lines`. */
+export interface ForgeFrame {
+	at: number;
+	method: string;
+	message?: string;
+	cards?: { id: number }[];
+}
+
+/**
+ * The frames Forge sent `seat` from line `from` on, before the server decided
+ * which of them reach the seat. A window the server answers is never on the
+ * seat's wire (`Scenario.sent`), so a precondition about what Forge offered is
+ * read here and a claim about what the seat saw is read there.
+ */
+export function forgeFrames(s: Scenario, seat: number, from = 0): ForgeFrame[] {
+	const out: ForgeFrame[] = [];
+	for (let at = from; at < s.lines.length; at++) {
+		const l = s.lines[at] as { t: string; seat?: number; frame?: { method?: unknown } & Omit<ForgeFrame, 'at' | 'method'> };
+		if (l.t !== 'frame' || l.seat !== seat || typeof l.frame?.method !== 'string') continue;
+		out.push({ ...l.frame, at, method: l.frame.method });
+	}
+	return out;
+}
+
+/** The last prompt Forge showed `seat`, whether or not the server forwarded it. */
+export function forgePrompt(s: Scenario, seat: number): string {
+	return forgeFrames(s, seat).findLast((f) => f.method === 'showPromptMessage')?.message ?? '';
+}
+
 /** Click `name` in the seat's hand and wait until it is on the battlefield with the stack empty again. */
 export async function castNamed(s: Scenario, seat: number, name: string): Promise<void> {
 	await waitUntil(() => {

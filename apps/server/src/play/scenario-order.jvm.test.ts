@@ -29,7 +29,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, forgePrompt, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'Q8: the order ask, exercised against real Forge'
@@ -44,14 +44,20 @@ const DECKS: [string, string] = [deck('Any A', ['40 Mountain']), deck('Any B', [
  * every real game uses, never a synthetic phase jump. Stops the INSTANT both
  * upkeep triggers are on the stack, before anything downstream (the Dark
  * Confidant reveal's own `getChoices`) is touched, so a caller can read
- * `s.asks`/`s.sent`/`s.logs` for exactly the order decision under test.
+ * `s.asks`/`s.sent`/`s.logs` for exactly the order decision under test. That
+ * window is read off what Forge sent: the server passes it before the seat
+ * sees it.
  */
+function atUpkeepWithBothTriggers(prompt: string, owner: string): boolean {
+	return /^Phase: Upkeep step$/m.test(prompt) && /^Turn: \d+ \(([^)]*)\)$/m.exec(prompt)?.[1] === owner && /Stack: 2 to Resolve/.test(prompt);
+}
+
 async function driveToUpkeepWithBothTriggers(s: Scenario): Promise<void> {
 	const pressed = new Set<number>();
 	await waitUntil(
 		() => {
 			s.answerAsks();
-			if (s.phase(0) === 'Upkeep step' && s.turn(0)?.owner === s.names[0] && /Stack: 2 to Resolve/.test(s.prompt(0))) return true;
+			if (atUpkeepWithBothTriggers(forgePrompt(s, 0), s.names[0])) return true;
 			for (const seat of [0, 1]) {
 				const at = s.sent
 					.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1))
@@ -92,7 +98,7 @@ describe.skipIf(!available.ok)(title, () => {
 				// The precondition: two DIFFERENT upkeep triggers really did land on
 				// the stack together (not Forge quietly resolving one before the
 				// other was even queued).
-				expect(s.prompt(0)).toMatch(/Stack: 2 to Resolve/);
+				expect(forgePrompt(s, 0)).toMatch(/Stack: 2 to Resolve/);
 				// The claim: no raw `order` ask ever reached the client...
 				expect(seen.some((a) => a.method === 'order'), 'an order ask reached the client under the default policy').toBe(false);
 				// ...because the server answered it with Forge's own offered order.
@@ -157,7 +163,7 @@ describe.skipIf(!available.ok)(title, () => {
 				s.match.setFullControl(0, true);
 				await finishMulligan(s);
 				await driveToUpkeepWithBothTriggers(s);
-				expect(s.prompt(0)).toMatch(/Stack: 2 to Resolve/);
+				expect(forgePrompt(s, 0)).toMatch(/Stack: 2 to Resolve/);
 				const order = seen.find((a) => a.method === 'order');
 				expect(order, 'a real order ask reached the client under full control').toBeDefined();
 				expect(order?.showRememberCheckbox).toBe(true);

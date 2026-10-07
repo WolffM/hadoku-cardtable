@@ -1577,10 +1577,7 @@ describe('the adapter is the ONLY prose reader, and it is named', () => {
 	 * decisions: they rewrite WotC's braces for a line the seat is shown.
 	 */
 	it('every anchored pattern in the file is inside the adapter', () => {
-		// Wave 55 §S: `PRIORITY`/`PAY_MANA` are now `export`ed, for `match.ts`'s
-		// own `promptCouldBeAnswered` — the exact same two patterns, never a
-		// second copy of either, so the optional `export ` here is widening
-		// the match, not relaxing the guard.
+		// `PRIORITY`/`PAY_MANA` are exported for `match.ts`: still inside the adapter, still one copy.
 		const anchored = [...SOURCE.matchAll(/^(?:export )?const (\w+) = \/\^/gm)];
 		expect(anchored.length).toBeGreaterThan(0);
 		const outside = anchored.filter((m) => m.index! < ADAPTER_START || m.index! > ADAPTER_END).map((m) => m[1]);
@@ -2579,26 +2576,6 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		// The choice is spent: Forge asking the same confirm again is the player's.
 		confirm(h, 70, 9002);
 		expect(confirmed(h)).toBe(1);
-	});
-
-	it('(B) the buttons arriving AFTER the prompt still answer it, and nothing is sent', () => {
-		const h = harness();
-		choose(h, 9002);
-		const before = frames(h, 0).length;
-		const me = playerOf(h, 0);
-		push(h, 0, {
-			kind: 'notify',
-			method: 'showPromptMessage',
-			player: { kind: 'player', id: me },
-			message: 'Do you want to sacrifice Augur of Skulls?',
-			card: null,
-			confirmAbility: { hostCard: card(70), abilityId: 9002 },
-		});
-		expect(confirmed(h)).toBe(0);
-		expect(frames(h, 0)).toHaveLength(before);
-		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true });
-		expect(confirmed(h)).toBe(1);
-		expect(frames(h, 0)).toHaveLength(before);
 	});
 
 	it('(B) an optional trigger’s confirm still asks — it names the trigger, not the chosen ability', () => {

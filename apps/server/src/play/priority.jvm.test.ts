@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 import type { ServerFrame } from '@hadoku/forge-wire';
 
 import { onlyAnswer } from './auto.js';
-import { available, deck, inOwnMain, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, forgeFrames, inOwnMain, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'what the caster is shown after casting, against real Forge'
@@ -63,6 +63,7 @@ describe.skipIf(!available.ok)(title, () => {
 				const spare = s.zone(x, 'Hand').filter((c) => c.name === 'Lightning Bolt').length;
 				const lands = s.zone(x, 'Battlefield').filter((c) => c.land).length;
 				const mark = s.sent.length;
+				const lineMark = s.lines.length;
 				const t0 = performance.now();
 				const logsBefore = s.logs.length;
 				s.select(x, bolt.id);
@@ -85,18 +86,21 @@ describe.skipIf(!available.ok)(title, () => {
 				console.log(`[q17]\n${lines.join('\n')}`);
 
 				// The precondition, so the claim below is not vacuous: the caster's window with
-				// its OWN spell on the stack found Forge naming something else castable.
-				const own = s.sent
-					.slice(mark)
-					.map((e, i) => ({ e, i: i + mark }))
-					.filter(({ e }) => e.seat === x && e.envelope.frame.method === 'showPromptMessage' && /Stack: 1 to Resolve/.test((e.envelope.frame as unknown as { message: string }).message));
-				expect(own.length, 'the caster was never given priority with its spell on the stack').toBeGreaterThan(0);
-				const named = s.sent
-					.slice(mark, own[0]!.i)
-					.filter((e) => e.seat === x && e.envelope.frame.method === 'setWeaklySelectable')
-					.map((e) => (e.envelope.frame as unknown as { cards: unknown[] }).cards.length)
+				// its OWN spell on the stack found Forge naming something else castable. Read
+				// off what Forge sent: the server answers this window before the seat sees it.
+				const said = forgeFrames(s, x, lineMark);
+				const own = said.filter((f) => f.method === 'showPromptMessage' && /Stack: 1 to Resolve/.test(f.message ?? ''));
+				expect(own.length, 'Forge never gave the caster priority with its spell on the stack').toBeGreaterThan(0);
+				const named = said
+					.filter((f) => f.at < own[0]!.at && f.method === 'setWeaklySelectable')
+					.map((f) => f.cards?.length ?? 0)
 					.at(-1);
 				expect(named, 'Forge named nothing castable, so this is not the case Q17 is about').toBeGreaterThan(0);
+				const shown = s.sent
+					.slice(mark)
+					.filter((e) => e.seat === x && e.envelope.frame.method === 'showPromptMessage')
+					.map((e) => (e.envelope.frame as unknown as { message: string }).message);
+				expect(shown.filter((m) => /Stack: 1 to Resolve/.test(m)), 'the caster was shown its own spell on the stack').toEqual([]);
 
 				// The claim: it was passed anyway, and the spell resolved without a click.
 				const passedAtStack = s.logs.slice(logsBefore).filter((l) => l.evt === 'auto-passed' && l.seat === x);

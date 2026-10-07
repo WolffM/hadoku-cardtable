@@ -1372,9 +1372,11 @@ describe('hold-decide-forward', () => {
 		closeDanglingBar(h, SEAT1_ID);
 		const before = envelopesFor(h, SEAT1_ID).length;
 		const logsBefore = h.logs.length;
+		// `InputPayMana`'s order: a disabled Auto bar, the enabled one, then the prompt.
 		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: false, enable2: true }) },
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true, enable2: true }) },
 			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}') },
-			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true }) },
 		);
 		expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
 		const since = h.logs.slice(logsBefore);
@@ -1599,6 +1601,53 @@ describe('hold-decide-forward', () => {
 		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'showPromptMessage', 'updateButtons']);
 	});
 
+	it("a payment's leftover Auto bar never pairs with the priority window after it: that window is still decided", () => {
+		const h = openedHarness();
+		closeDanglingBar(h, SEAT1_ID);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		const logsBefore = h.logs.length;
+		h.host.push(
+			// `InputPayMana`'s refresh after a payment completes: a bar, no prompt.
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: false, enable2: true }) },
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Upkeep step\nStack: Empty') },
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'End Turn', enable1: true, enable2: true }) },
+		);
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
+		expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'prompt-withheld')).toEqual([
+			{ evt: 'prompt-withheld', matchId: h.match.id, seat: SEAT1_ID, kind: 'priority', why: 'auto-pass' },
+		]);
+	});
+
+	it("a confirm's Yes/No bar arriving while a priority prompt is held is never read as that prompt's bar", () => {
+		const h = openedHarness();
+		closeDanglingBar(h, SEAT1_ID);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		const actsBefore = h.host.commands.filter((c) => c.t === 'act').length;
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Upkeep step\nStack: Empty') },
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Yes', label2: 'No', enable1: true, enable2: true }) },
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, "Use Mirri's Guile's ability?") },
+		);
+		// No press reached Forge: an auto-pass here would have answered the confirm Yes.
+		expect(h.host.commands.filter((c) => c.t === 'act').length).toBe(actsBefore);
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons', 'showPromptMessage']);
+		expect(envelopesFor(h, SEAT1_ID).at(-2)?.frame).toMatchObject({ label1: 'Yes', enable1: true });
+	});
+
+	it('a newer Auto bar replaces a held one: a payment left to the seat goes out with its latest bar only', () => {
+		const h = openedHarness();
+		h.match.setStopPolicy(SEAT1_ID, STRICT_PAYMENT_POLICY);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: false, enable2: true }) },
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true, enable2: true }) },
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}') },
+		);
+		const sent = envelopesFor(h, SEAT1_ID).slice(before);
+		expect(sent.map((e) => e.frame.method)).toEqual(['updateButtons', 'showPromptMessage']);
+		expect(sent[0]?.frame).toMatchObject({ label1: 'Auto', enable1: true });
+	});
+
 	it("InputAttack's per-click button refreshes are sent the moment they arrive, never held", () => {
 		vi.useFakeTimers();
 		const h = openedHarness();
@@ -1631,8 +1680,8 @@ describe('telemetry (match-frames)', () => {
 		const h = harness();
 		h.host.push(...OPENING);
 		h.host.push(
-			{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: 'Pay Mana Cost: {U}', card: null } },
 			{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 1 }, label1: 'Auto', label2: 'Cancel', enable1: true, enable2: false, focus1: true } },
+			{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: 'Pay Mana Cost: {U}', card: null } },
 			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: PRIORITY_MAIN, card: null } },
 			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'Cancel', enable1: true, enable2: false, focus1: true } },
 		);
