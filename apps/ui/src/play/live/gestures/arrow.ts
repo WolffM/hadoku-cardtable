@@ -143,18 +143,26 @@ export const ADJACENT_PX = 72;
  *  - the tail INSIDE the target (the card targets itself): the arrow is an
  *    arc over the card, from its bottom to its top — the bow (`arrowShape`)
  *    swings it out to the side;
- *  - the target within `ADJACENT_PX` of the tail: the tip is the target's
- *    centre, so the shaft crosses the cards, which the overlay draws over.
+ *  - the target within `ADJACENT_PX` of the tail, on the SAME side of the
+ *    table (`neighbours`): the tip is the target's centre, so the shaft
+ *    crosses the cards, which the overlay draws over. A card across the
+ *    table is never a neighbour, however close the two front rows sit: the
+ *    arrow there crosses the gap and lands on the edge, as it always has
+ *    (`w46-attack.spec.ts` pins the attack arrow at the planeswalker's edge).
  *
  * Pure, on boxes: `arrow.test.ts` drives it with numbers.
  */
-export function aimAt(from: Point, to: { left: number; top: number; right: number; bottom: number }): { from: Point; tip: Point } {
+export function aimAt(
+  from: Point,
+  to: { left: number; top: number; right: number; bottom: number },
+  opts: { neighbours?: boolean } = {},
+): { from: Point; tip: Point } {
   const centre = { x: (to.left + to.right) / 2, y: (to.top + to.bottom) / 2 };
   const inside = from.x >= to.left && from.x <= to.right && from.y >= to.top && from.y <= to.bottom;
   if (inside) return { from: { x: centre.x, y: to.bottom - 4 }, tip: { x: centre.x, y: to.top + 4 } };
   const dx = Math.max(to.left - from.x, 0, from.x - to.right);
   const dy = Math.max(to.top - from.y, 0, from.y - to.bottom);
-  if (Math.hypot(dx, dy) < ADJACENT_PX) return { from, tip: centre };
+  if (opts.neighbours !== false && Math.hypot(dx, dy) < ADJACENT_PX) return { from, tip: centre };
   return { from, tip: edgeNearest(to, from) };
 }
 
@@ -178,9 +186,17 @@ function edgeNearest(r: { left: number; top: number; right: number; bottom: numb
   return best;
 }
 
-/** A card is aimed at by `aimAt`; a player's face, a round avatar and not a card, keeps its centre. */
+/**
+ * A card is aimed at by `aimAt`; a player's face, a round avatar and not a
+ * card, keeps its centre. Neighbours are cards of the same seat: a tail
+ * outside the target's `.seat` box (the other side of the table, or the
+ * stack band, which has no seat) is aimed at the edge whatever the distance.
+ */
 function aimOn(snap: Element, from: Point, kind: 'player' | 'card'): { from: Point; tip: Point } {
-  return kind === 'player' ? { from, tip: centreOf(snap) } : aimAt(from, snap.getBoundingClientRect());
+  if (kind === 'player') return { from, tip: centreOf(snap) };
+  const seat = snap.closest('.seat')?.getBoundingClientRect();
+  const neighbours = seat === undefined || (from.x >= seat.left && from.x <= seat.right && from.y >= seat.top && from.y <= seat.bottom);
+  return aimAt(from, snap.getBoundingClientRect(), { neighbours });
 }
 
 /** Take the arrow away. Absent is fine — this is called on every gesture end. */

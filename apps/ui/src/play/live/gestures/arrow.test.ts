@@ -96,6 +96,13 @@ describe('aimAt', () => {
     expect(aimAt({ x: 40, y: 42 }, box(76 + ADJACENT_PX, 0)).tip, 'past the threshold: the edge again').toEqual({ x: 76 + ADJACENT_PX, y: 42 });
   });
 
+  it('a card that is not a neighbour — the other side of the table — is hit at its edge however close it is', () => {
+    // The two front rows face each other 55px apart at 1280×800 (w46-attack: Memnite attacking Jace), closer than
+    // ADJACENT_PX; the attack arrow still lands on Jace's edge, as it always has.
+    expect(aimAt({ x: 40, y: 42 }, box(10, 139), { neighbours: false }).tip).toEqual({ x: 40, y: 139 });
+    expect(aimAt({ x: 40, y: 42 }, box(76, 0), { neighbours: false }).tip, 'even six pixels apart').toEqual({ x: 76, y: 42 });
+  });
+
   it('a card targeting itself is an arc over the card, bottom to top', () => {
     const { from, tip } = aimAt({ x: 40, y: 42 }, box(10, 0));
     expect(from).toEqual({ x: 40, y: 80 });
