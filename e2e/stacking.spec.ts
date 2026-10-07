@@ -235,6 +235,56 @@ test(titled('a piled land taps where it shows, and lifting a card off a pile mov
 });
 
 /**
+ * The operator, 2026-10-07: *"when an untapped card is put behind a tapped card, it displays as
+ * tapped. that's bad."* A pile's members are nested inside the base card's element, and the turning
+ * rule reached them. Tap the base alone: the base's face turns, the card behind it does not.
+ */
+test(titled('a card piled behind a tapped card is drawn upright: only its own tap turns it'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
+    const page = alice.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const [a, b] = await eightLoneLands(page);
+    const card = (id: string) => page.locator(`li.board-card[data-card-id="${id}"]`);
+    await expect(card(a!), 'Forge offers the lands').toHaveAttribute('data-selectable', /.*/, { timeout: 15_000 });
+    await pointerDrag(page, card(b!), onTopPoint(await boxOf(card(a!))));
+    await expect(card(a!), 'two Plains in one pile').toHaveAttribute('data-pile-size', '2');
+    // Tap the base alone: a click where it shows.
+    const at = await page.evaluate((cid) => {
+      const r = document.querySelector(`li.board-card[data-card-id="${cid}"]`)!.getBoundingClientRect();
+      for (let y = r.top + 2; y < r.bottom; y += 3) {
+        for (let x = r.left + 2; x < r.right; x += 3) {
+          if (document.elementFromPoint(x, y)?.closest('li.board-card')?.getAttribute('data-card-id') === cid) return { x, y };
+        }
+      }
+      return null;
+    }, a!);
+    expect(at).not.toBeNull();
+    await page.mouse.click(at!.x, at!.y);
+    await expect(card(a!), 'the base is tapped').toHaveAttribute('data-tapped', 'true', { timeout: 10_000 });
+    await expect(card(b!), 'the card behind it is not').not.toHaveAttribute('data-tapped');
+    const turned = (id: string) =>
+      page.evaluate((cid) => {
+        const face = document.querySelector(`li.board-card[data-card-id="${cid}"] > .board-card__face > .card`)!;
+        const t = getComputedStyle(face).transform;
+        // A quarter turn: the matrix's a and d are ~0, b and c are ±1. Upright: none, or the identity.
+        if (t === 'none') return false;
+        const m = /matrix\(([^)]+)\)/.exec(t)!;
+        const [ma, , , md] = m[1]!.split(',').map(Number);
+        return Math.abs(ma!) < 0.01 && Math.abs(md!) < 0.01;
+      }, id);
+    expect(await turned(a!), 'the base’s face is drawn turned').toBe(true);
+    expect(await turned(b!), 'the card behind it is drawn upright').toBe(false);
+  } finally {
+    await stack.stop();
+  }
+});
+
+/**
  * The operator, 2026-10-06: *"can we make it so i can draw boxes to tap things? drawing boxes to
  * attack seems to work, so why not lands?"* Eight Plains and nothing to cast: a box over four of
  * them taps those four, one after another as Forge takes each, and leaves the other four alone.
@@ -289,6 +339,58 @@ test(titled('a box drawn over four lands taps those four and no others, and a cl
       await expect(card(id), `the click untapped land ${id}`).not.toHaveAttribute('data-tapped', { timeout: 15_000 });
     }
     for (const id of lands.slice(0, 2)) await expect(card(id), `land ${id} is still tapped`).toHaveAttribute('data-tapped', 'true');
+  } finally {
+    await stack.stop();
+  }
+});
+
+/**
+ * Ledger Z8. The operator, 2026-10-07: *"it's still forcing a 'fill from left to right' placement. that's
+ * fine generally, but if i want to place a card in a particular slot further to the right with gaps in
+ * between i should be able to."* Eight Plains in one row: the last one, let go a column past the row's
+ * end, sits in that column with empty columns before it (the one it left, and the one between); another
+ * dropped on one of those gaps fills it. Eight Plains leave one spare column at 1280 wide, hence one.
+ */
+test(titled('a card let go further right sits in that column, with gaps before it, and a gap takes a card'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
+    const page = alice.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const lands = await eightLoneLands(page);
+    const row = page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-tier="back"]');
+    const columns = () =>
+      row.locator(':scope > li').evaluateAll((els) => els.map((e) => (e.classList.contains('zone__gap') ? null : e.getAttribute('data-card-id'))));
+    const card = (id: string) => page.locator(`li.board-card[data-card-id="${id}"]`);
+    const first = await boxOf(card(lands[0]!));
+    const second = await boxOf(card(lands[1]!));
+    const pitch = second.x - first.x;
+    expect(pitch, 'the row’s column pitch').toBeGreaterThan(first.width);
+    const last = await boxOf(card(lands[7]!));
+    const rowBox = (await row.boundingBox())!;
+    const target = { x: last.x + last.width + pitch + 4, y: last.y + last.height / 2 };
+    expect(target.x, 'a column past the last land is still inside the row').toBeLessThan(rowBox.x + rowBox.width);
+
+    await pointerDrag(page, card(lands[7]!), target);
+    await expect.poll(columns, { message: 'the land sits a column past the row’s end: the column it left and one more are gaps' }).toEqual([
+      ...lands.slice(0, 7),
+      null,
+      null,
+      lands[7],
+    ]);
+    // Drawn past the gaps: the row's grid now has ten columns and a narrower pitch, so the proof is the
+    // order of the columns above and the land sitting to the right of both gaps.
+    const moved = await boxOf(card(lands[7]!));
+    const lastGap = (await row.locator(':scope > li.zone__gap').last().boundingBox())!;
+    expect(moved.x, 'drawn to the right of the gaps').toBeGreaterThan(lastGap.x + lastGap.width - 1);
+
+    // A gap takes a card: the first Plains onto the first gap.
+    const gap = (await row.locator(':scope > li.zone__gap').first().boundingBox())!;
+    await pointerDrag(page, card(lands[0]!), { x: gap.x + gap.width / 2, y: gap.y + gap.height / 2 });
+    await expect.poll(columns, { message: 'into the gap; the column it left stays open' }).toEqual([null, ...lands.slice(1, 7), lands[0], null, lands[7]]);
   } finally {
     await stack.stop();
   }

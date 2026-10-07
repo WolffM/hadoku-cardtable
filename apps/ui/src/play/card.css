@@ -590,8 +590,14 @@
  * `:is()` so a card that is both is turned ONCE. The attack-INTENT mark
  * (`live/gestures/gestures.css`) is still a third thing and still never this:
  * "you pointed at this" is not "this is attacking".
+ *
+ * The card's OWN face only (`>`): the cards piled behind it are nested inside
+ * its `<li>` (`.board-card__pile`), and a descendant selector turned every
+ * one of them with it — the operator, 2026-10-07: *"when an untapped card is
+ * put behind a tapped card, it displays as tapped."* Each card in a pile is
+ * turned by its own `data-tapped`, nobody else's.
  */
-.board-card:is([data-tapped], [data-attacking]:not([data-vigilant])) .board-card__face {
+.board-card:is([data-tapped], [data-attacking]:not([data-vigilant])) > .board-card__face {
   aspect-ratio: 680 / 488;
 }
 
@@ -600,7 +606,7 @@
  * a quarter it is exactly the box: width w·488/680, height w, rotated → w wide
  * and w·488/680 tall.
  */
-.board-card:is([data-tapped], [data-attacking]:not([data-vigilant])) .board-card__face > .card {
+.board-card:is([data-tapped], [data-attacking]:not([data-vigilant])) > .board-card__face > .card {
   position: absolute;
   top: 50%;
   left: 50%;

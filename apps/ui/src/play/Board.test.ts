@@ -160,7 +160,8 @@ function layOut(container: HTMLElement): void {
     const top = i * 200;
     stubBox(slot, 0, top, 1000, 100);
     const list = slot.matches('.zone__cards') ? slot : slot.querySelector<HTMLElement>(':scope > .zone__cards')!;
-    [...list.querySelectorAll(':scope > li.board-card')].forEach((li, j) => stubBox(li, 10 + j * 70, top + 8, CARD_W, CARD_H));
+    // Every column, a gap (Z8) as much as a card: 70px of pitch.
+    [...list.querySelectorAll(':scope > li.board-card, :scope > li.zone__gap')].forEach((li, j) => stubBox(li, 10 + j * 70, top + 8, CARD_W, CARD_H));
   });
 }
 
@@ -173,9 +174,12 @@ type DragTo =
 function pointFor(container: HTMLElement, to: DragTo): { x: number; y: number } {
   if ('point' in to) return to.point;
   if ('slot' in to) {
+    // The row's END: just past its last card (within one column's pitch — further right is a column of its own, Z8), or the start of an empty row.
     const slot = container.querySelector<HTMLElement>(`.seat[data-viewer] [data-arrange-slot="${to.slot}"]`)!;
     const box = slot.getBoundingClientRect();
-    return { x: box.right - 20, y: (box.top + box.bottom) / 2 };
+    const last = [...slot.querySelectorAll<HTMLElement>('.zone__cards > li.board-card, :scope > li.board-card')].at(-1);
+    const x = last === undefined ? box.left + 20 : last.getBoundingClientRect().right + 12;
+    return { x, y: (box.top + box.bottom) / 2 };
   }
   const box = container.querySelector<HTMLElement>(`.seat[data-viewer] [data-card-id="${to.card}"]`)!.getBoundingClientRect();
   const mid = (box.top + box.bottom) / 2;
@@ -314,7 +318,7 @@ describe('zones', () => {
     expect(field.textContent, 'no card on the board says "tapped"').not.toContain('tapped');
     // And the turn is real: the stylesheet turns anything tapped or attacking.
     expect(
-      /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) \.board-card__face > \.card \{[^}]*rotate\(90deg\)/.test(
+      /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{[^}]*rotate\(90deg\)/.test(
         withoutComments(CARD_CSS),
       ),
       'the turn is on the tapped/attacking rule',
@@ -1405,7 +1409,7 @@ describe('no rotated text (operator, 2026-09-26)', () => {
     expect(inCards).toEqual(['rotate(']);
     const rotates = /^\s*transform: translate\(-50%, -50%\) rotate\(90deg\);$/m;
     expect(rotates.test(CARD_CSS), 'the one rotation is the tapped card’s quarter turn').toBe(true);
-    const turned = /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) \.board-card__face > \.card \{[^}]*rotate\(90deg\)/;
+    const turned = /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{[^}]*rotate\(90deg\)/;
     expect(turned.test(withoutComments(CARD_CSS)), 'and it is on the turned card’s own rule').toBe(true);
   });
 
@@ -3383,7 +3387,7 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(card(container).getAttribute('data-attacking')).toBe('true');
     expect(card(container).hasAttribute('data-tapped'), 'and Forge’s own tapped is untouched').toBe(false);
     // One rule turns either, so a card that is both is turned once.
-    const rule = /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) \.board-card__face > \.card \{([^}]*)\}/.exec(
+    const rule = /\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\) > \.board-card__face > \.card \{([^}]*)\}/.exec(
       withoutComments(CARD_CSS),
     );
     expect(rule, 'the turn is one rule for both').not.toBeNull();
@@ -4081,7 +4085,9 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
       id: 2,
     });
     expect(snapTo(slots, 135, 50)?.target, 'the right edge strip of the last: the end').toEqual({ kind: 'end' });
-    expect(snapTo(slots, 300, 50)?.target, 'past the last card: the end').toEqual({ kind: 'end' });
+    expect(snapTo(slots, 170, 50)?.target, 'past the last card, within one column: the end').toEqual({ kind: 'end' });
+    // Z8: two columns past it, a column of its own, with gaps opened up to it.
+    expect(snapTo(slots, 300, 50)?.target, 'further right: that column').toEqual({ kind: 'at', column: 4 });
     expect(snapTo(slots, 40, 14)?.target, 'dead centre, near the top: on top of it').toEqual({
       kind: 'stack',
       id: 1,
@@ -4153,6 +4159,19 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(rule![1]).toMatch(/position: absolute;/);
   });
 
+  it('a tapped base turns its own face only: a card piled behind it keeps its own data-tapped (and nobody else’s)', () => {
+    // The operator, 2026-10-07: "when an untapped card is put behind a tapped card, it displays as tapped."
+    const css = withoutComments(CARD_CSS);
+    const turning = [...css.matchAll(/\.board-card:is\(\[data-tapped\], \[data-attacking\]:not\(\[data-vigilant\]\)\)([^{]*)\{/g)].map((m) => m[1]!.trim());
+    expect(turning, 'both turning rules exist').toHaveLength(2);
+    for (const tail of turning) expect(tail, `the card’s OWN face, by child combinator: ${tail}`).toMatch(/^> \.board-card__face/);
+  });
+
+  it('the overlay clips what it draws at the board’s edge, so no overlay child can widen the page', () => {
+    // table-fit 2026-10-07: the presence cursor's name tag past the right edge grew the shell by 46px.
+    expect(declarationIn('.board__overlay', 'overflow')).toBe('clip');
+  });
+
   it('a pile’s list takes no press, and every card in it takes its own', () => {
     const css = withoutComments(CARD_CSS);
     expect(/\.board-card__pile \{([^}]*)\}/.exec(css)?.[1]).toMatch(/pointer-events: none;/);
@@ -4216,13 +4235,76 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(bar.dataset.arrangeKind).toBe('stack-top');
     move(at(6).left + 10, at(6).bottom - 10);
     expect(bar.dataset.arrangeKind).toBe('stack-bottom');
-    move(at(25).right + 200, at(25).top + 40);
+    move(at(25).right + 20, at(25).top + 40);
     expect(bar.dataset.arrangeKind).toBe('end');
+    // Z8: well past the last card, a column of its own — the indicator says so.
+    move(at(25).right + 200, at(25).top + 40);
+    expect(bar.dataset.arrangeKind).toBe('at');
     move(500, 600);
     expect(bar.hasAttribute('hidden'), 'far from every slot there is no target').toBe(true);
     fireEvent.pointerUp(window, { ...POINTER, clientX: 500, clientY: 600 });
     expect(container.querySelector('[data-arrange-ghost]')).toBeNull();
     expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li')].map((c) => (c as HTMLElement).dataset.cardId), 'released nowhere: nothing moved').toEqual(['8', '24', '6', '25']);
+  });
+
+  /*
+   * Ledger Z8 (the operator, 2026-10-07): "it's still forcing a 'fill from left
+   * to right' placement. that's fine generally, but if i want to place a card in
+   * a particular slot further to the right with gaps in between i should be
+   * able to."
+   */
+  describe('Z8 — a card can be placed in a column further right, with gaps before it', () => {
+    const tier = (container: HTMLElement, name: string) =>
+      [...container.querySelectorAll<HTMLElement>(`.seat[data-viewer] [data-tier="${name}"] > li`)].map((li) =>
+        li.classList.contains('zone__gap') ? null : Number(li.dataset.cardId),
+      );
+    const colsOf = (container: HTMLElement, name: string) =>
+      Number(container.querySelector<HTMLElement>(`.seat[data-viewer] [data-tier="${name}"]`)!.style.getPropertyValue('--cols'));
+    /** The stub layout: column `n` of a row spans x = 10 + 70n .. 70 + 70n; a point in its middle. */
+    const column = (container: HTMLElement, name: string, n: number) => {
+      layOut(container);
+      const box = container.querySelector<HTMLElement>(`.seat[data-viewer] [data-tier="${name}"]`)!.getBoundingClientRect();
+      return { x: 10 + 70 * n + 30, y: (box.top + box.bottom) / 2 };
+    };
+
+    it('dropped two columns past the row’s end, the card takes that column; the columns between, and the one it left, are gaps that count', () => {
+      const { container } = renderBoard(view, undefined, 'single');
+      expect(tier(container, 'back'), 'the fixture’s lands').toEqual([8, 24, 6, 25]);
+      dragCard(container, 25, { point: column(container, 'back', 6) });
+      expect(tier(container, 'back')).toEqual([8, 24, 6, null, null, null, 25]);
+      expect(colsOf(container, 'back'), 'the gaps are columns').toBe(7);
+      for (const g of container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li.zone__gap')) {
+        expect(g.hasAttribute('data-card-id'), 'a gap is not a card').toBe(false);
+      }
+    });
+
+    it('a card dropped on a gap fills it; an ordering drop closes the column it left, and a trailing gap is never kept', () => {
+      const { container } = renderBoard(view, undefined, 'single');
+      dragCard(container, 25, { point: column(container, 'back', 6) });
+      dragCard(container, 6, { point: column(container, 'back', 4) });
+      expect(tier(container, 'back'), 'into the gap; the column it left stays open (a placement)').toEqual([8, 24, null, null, 6, null, 25]);
+      // In front of the first card: an ordering move. Its own column closes, and the gap that is now last goes.
+      dragCard(container, 25, { card: 8, at: 'before' });
+      expect(tier(container, 'back')).toEqual([25, 8, 24, null, null, 6]);
+    });
+
+    it('a card that leaves the battlefield closes its column: only the player makes a gap', () => {
+      const { container, rerender } = renderBoard(view, undefined, 'single');
+      dragCard(container, 25, { point: column(container, 'back', 6) });
+      expect(tier(container, 'back')).toEqual([8, 24, 6, null, null, null, 25]);
+      const me = view.players.find((p) => p.isViewer)!;
+      const without: BoardView = { ...view, players: view.players.map((p) => (p === me ? { ...p, battlefield: p.battlefield.filter((c) => c.id !== 6) } : p)) };
+      rerender(createElement(Board, { view: without, boardLayout: 'single' }));
+      expect(tier(container, 'back'), 'its column closed; the player’s own gaps stay').toEqual([8, 24, null, null, null, 25]);
+    });
+
+    it('an empty row takes a card at a column past its start too', () => {
+      const { container } = renderBoard(view, undefined, 'single');
+      for (const id of [8, 24, 6, 25]) dragCard(container, id, { slot: 'front' });
+      expect(tier(container, 'back')).toEqual([]);
+      dragCard(container, 25, { point: column(container, 'back', 3) });
+      expect(tier(container, 'back')).toEqual([null, null, null, 25]);
+    });
   });
 
   it('snaps to any slot in either row, empty ones included', () => {

@@ -337,6 +337,14 @@
   inset: 0;
   z-index: var(--z-overlay, 20);
   pointer-events: none;
+  /*
+   * Nothing drawn in here may reach past the board: an absolutely positioned
+   * child that does widens the match shell's scrollable area (table-fit's
+   * "every frame fits" red on 2026-10-07: the other seat's presence cursor,
+   * its name tag 46px past the right edge). `clip`, not `hidden`: it makes no
+   * scroll container, so a child cannot scroll this box either.
+   */
+  overflow: clip;
 }
 
 .board__opponents {
@@ -1728,6 +1736,24 @@
 
 .board [data-arrange-slot][data-arrange-target] {
   outline: 1px dashed var(--accent);
+  outline-offset: -1px;
+}
+
+/*
+ * A gap (ledger Z8): a column the player left open. It holds its column in the
+ * row's grid like a card does and draws nothing — until a card is being
+ * arranged, when its outline shows where a drop would land.
+ */
+.zone__gap {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+  border-radius: var(--radius);
+}
+
+.board[data-arrange-active] .zone__gap {
+  outline: 1px dashed color-mix(in srgb, var(--ink) 35%, transparent);
   outline-offset: -1px;
 }
 

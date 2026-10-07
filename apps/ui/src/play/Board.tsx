@@ -606,6 +606,15 @@ function visualRow(card: BoardCard, layout: BoardLayout): BoardRow {
  * A pile: cards drawn as one, BOTTOM FIRST. A lone card is a pile of one, and
  * that is the overwhelming case — a battlefield with nothing stacked and nothing
  * attached draws exactly the markup it drew before piles existed.
+ *
+ * An EMPTY pile is a gap: a column the player left open on purpose (ledger Z8,
+ * the operator, 2026-10-07: *"if i want to place a card in a particular slot
+ * further to the right with gaps in between i should be able to"*). It is
+ * drawn as an empty column (`.zone__gap`), counts toward `--cols`, and is a
+ * place a card can be dropped. Only the player makes one — by dropping a card
+ * at a column past the row's end, or by moving the only card out of a column
+ * to such a place; a pile that empties because its card left the battlefield
+ * closes up, as it always did. Trailing gaps are trimmed at every write.
  */
 type Pile = readonly BoardCard[];
 
@@ -791,6 +800,11 @@ function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangem
   const placed = new Set<number>();
   for (const row of rowsForLayout(layout)) {
     for (const pile of arranged[slotKey(playerId, row)] ?? []) {
+      // A gap the player left: an empty column, kept as one.
+      if (pile.length === 0) {
+        rows[row].push([]);
+        continue;
+      }
       const members: BoardCard[] = [];
       for (const id of pile) {
         const card = byId.get(id);
@@ -857,6 +871,10 @@ function withAttachments(
   const home = new Map<number, BoardCard[]>();
   for (const row of rowsForLayout(layout)) {
     for (const pile of rows[row]) {
+      if (pile.length === 0) {
+        out[row].push([]);
+        continue;
+      }
       const kept = pile.filter((c) => rootHost(c.id) === c.id);
       if (kept.length === 0) continue;
       out[row].push(kept);
@@ -895,7 +913,12 @@ function withAttachments(
  * In a HAND a card is one target, `before` — nothing stacks in a hand, so the
  * edge strips are not read there at all.
  */
-type DropTarget = { kind: 'end' } | { kind: 'before'; id: number } | { kind: 'stack'; id: number; onTop: boolean };
+type DropTarget =
+  | { kind: 'end' }
+  | { kind: 'before'; id: number }
+  | { kind: 'stack'; id: number; onTop: boolean }
+  /** A column of the row by index, counting gaps: an existing gap, or one past the end with gaps opened up to it (Z8). */
+  | { kind: 'at'; column: number };
 
 /** A box in viewport pixels — what `getBoundingClientRect` gives, minus the methods. */
 export interface Box {
@@ -913,7 +936,14 @@ export interface Box {
 export interface SlotGeometry {
   readonly slot: ArrangeSlot;
   readonly box: Box;
-  readonly piles: readonly { readonly id: number; readonly box: Box }[];
+  /** Every column of the slot in drawing order: a pile's base card, or a gap (`id: null`). */
+  readonly piles: readonly { readonly id: number | null; readonly box: Box }[];
+  /**
+   * One column's pitch (a card's width plus the gap between cards), for
+   * placing a card in a column past the row's end. Read off any card on the
+   * same battlefield, so an empty row knows it too; null when none is drawn.
+   */
+  readonly step?: number | null;
 }
 
 /** What the pointer is snapped to: where the card will land, and the bar that says so. */
@@ -925,7 +955,7 @@ export interface Snap {
    * bottom of one. Attached to a card (`card`, the pile base it is drawn on) or,
    * for an empty slot, to the slot alone.
    */
-  readonly kind: 'before' | 'end' | 'stack-top' | 'stack-bottom';
+  readonly kind: 'before' | 'end' | 'stack-top' | 'stack-bottom' | 'at';
   readonly card: number | null;
   readonly bar: {
     readonly left: number;
@@ -980,7 +1010,14 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
   if (best === null || bestDistance > SNAP_RADIUS) return null;
   const { slot, box, piles } = best;
   const stacking = slot !== 'hand';
+  const step = best.step ?? null;
   if (piles.length === 0) {
+    // An empty row: a column past the first, when its pitch is known (Z8), else the start.
+    const column = stacking && step !== null && step > 0 ? Math.floor((x - box.left - 4) / step) : 0;
+    if (column > 0) {
+      const height = Math.min(box.bottom - box.top, 96);
+      return { slot, target: { kind: 'at', column }, kind: 'at', card: null, bar: { left: box.left + 4 + column * step!, top: (box.top + box.bottom - height) / 2, width: BAR, height } };
+    }
     const height = Math.min(box.bottom - box.top, 96);
     return {
       slot,
@@ -1006,6 +1043,24 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
   });
   const pile = piles[at]!;
   const { left, top, right, bottom } = pile.box;
+  /*
+   * Z8. Over a gap: the card goes into that column. Past the last column, by
+   * a whole column's pitch or more: a new column there, with gaps opened up to
+   * it — "a particular slot further to the right". Within one pitch past the
+   * last card it is still the row's `end`, as it always was.
+   */
+  if (stacking && pile.id === null) {
+    return { slot, target: { kind: 'at', column: at }, kind: 'at', card: null, bar: { left: left - BAR - 1, top, width: BAR, height: bottom - top } };
+  }
+  if (stacking && at === piles.length - 1 && x > right) {
+    const pitch = step ?? (piles.length >= 2 ? left - piles[at - 1]!.box.left : right - left + 6);
+    const beyond = pitch > 0 ? Math.floor((x - right) / pitch) : 0;
+    if (beyond >= 1) {
+      return { slot, target: { kind: 'at', column: piles.length + beyond }, kind: 'at', card: null, bar: { left: right + 1 + beyond * pitch, top, width: BAR, height: bottom - top } };
+    }
+  }
+  // A hand has no gaps (`withHandMove` writes piles of one), so a null id can only be a battlefield gap, handled above.
+  const pileId = pile.id ?? -1;
   const height = bottom - top;
   const width = right - left;
   const inside = nearest === 0;
@@ -1026,16 +1081,16 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
       return onTop
         ? {
             slot,
-            target: { kind: 'stack', id: pile.id, onTop: true },
+            target: { kind: 'stack', id: pileId, onTop: true },
             kind: 'stack-top',
-            card: pile.id,
+            card: pileId,
             bar: { left, top: top - BAR / 2, width, height: BAR + 1 },
           }
         : {
             slot,
-            target: { kind: 'stack', id: pile.id, onTop: false },
+            target: { kind: 'stack', id: pileId, onTop: false },
             kind: 'stack-bottom',
-            card: pile.id,
+            card: pileId,
             bar: { left, top: bottom - BAR / 2 - 1, width, height: BAR + 1 },
           };
     }
@@ -1043,18 +1098,22 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number): Sn
   if (x < (left + right) / 2) {
     return {
       slot,
-      target: { kind: 'before', id: pile.id },
+      target: { kind: 'before', id: pileId },
       kind: 'before',
-      card: pile.id,
+      card: pileId,
       bar: { left: left - BAR - 1, top, width: BAR, height },
     };
   }
-  const next = piles[at + 1];
+  const nextId = piles[at + 1]?.id;
+  // After this pile, where the next column is a gap: into that gap (Z8).
+  if (nextId === null) {
+    return { slot, target: { kind: 'at', column: at + 1 }, kind: 'at', card: null, bar: { left: right + 1, top, width: BAR, height } };
+  }
   return {
     slot,
-    target: next === undefined ? { kind: 'end' } : { kind: 'before', id: next.id },
-    kind: next === undefined ? 'end' : 'before',
-    card: next === undefined ? pile.id : next.id,
+    target: nextId === undefined ? { kind: 'end' } : { kind: 'before', id: nextId },
+    kind: nextId === undefined ? 'end' : 'before',
+    card: nextId === undefined ? pileId : nextId,
     bar: { left: right + 1, top, width: BAR, height },
   };
 }
@@ -1135,16 +1194,42 @@ export function forgetPendingPlacements(): void {
  * `notePlayedTo`/`previewPlayedTo` need: a cast's release is not an arrange
  * gesture and has no `Press` of its own to read it from.
  */
+/**
+ * A battlefield row's column pitch — a card's width plus the gap after it —
+ * read off any two neighbouring columns on the same battlefield, or one card
+ * and the row's own gap. Null with no card drawn on that battlefield at all.
+ */
+function columnPitch(slotEl: HTMLElement): number | null {
+  const field = slotEl.closest<HTMLElement>('[data-zone="battlefield"]');
+  if (field === null) return null;
+  // Two neighbouring columns measure the pitch exactly; one card and the list's own gap only estimate it.
+  let estimate: number | null = null;
+  for (const list of field.querySelectorAll<HTMLElement>('.zone__cards')) {
+    const items = list.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap');
+    if (items.length >= 2) {
+      const a = items[0]!.getBoundingClientRect();
+      const b = items[1]!.getBoundingClientRect();
+      if (b.left > a.left) return b.left - a.left;
+    }
+    if (items.length === 1 && estimate === null) {
+      const a = items[0]!.getBoundingClientRect();
+      const gap = Number.parseFloat(getComputedStyle(list).columnGap) || 0;
+      if (a.width > 0) estimate = a.width + gap;
+    }
+  }
+  return estimate;
+}
+
 function liveViewerGeometry(): SlotGeometry[] {
   const out: SlotGeometry[] = [];
   for (const el of document.querySelectorAll<HTMLElement>('.board .seat[data-viewer] [data-arrange-slot]')) {
     const named = el.getAttribute('data-arrange-slot') as ArrangeSlot;
     const list = el.matches('.zone__cards') ? el : el.querySelector<HTMLElement>(':scope > .zone__cards');
-    const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card') ?? [])].map((li) => ({
-      id: Number(li.dataset.cardId),
+    const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap') ?? [])].map((li) => ({
+      id: li.classList.contains('zone__gap') ? null : Number(li.dataset.cardId),
       box: li.getBoundingClientRect(),
     }));
-    out.push({ slot: named, box: el.getBoundingClientRect(), piles });
+    out.push({ slot: named, box: el.getBoundingClientRect(), piles, step: columnPitch(el) });
   }
   return out;
 }
@@ -1262,10 +1347,21 @@ function withMove(
   const active = rowsForLayout(layout);
   const piles: Record<BoardRow, number[][]> = emptyRows();
   for (const r of active) {
-    piles[r] = rows[r].map((p) => p.map((c) => c.id).filter((id) => id !== cardId)).filter((p) => p.length > 0);
+    // A gap the player left stays a gap. A pile the move empties closes up —
+    // unless the card is being placed at a column of its own row (Z8): then the
+    // column it left stays open, which is what "move it further right" means.
+    piles[r] = rows[r]
+      .map((p) => ({ was: p.length, ids: p.map((c) => c.id).filter((id) => id !== cardId) }))
+      .filter((p) => p.was === 0 || p.ids.length > 0 || (target.kind === 'at' && r === row))
+      .map((p) => p.ids);
   }
   const into = piles[row];
-  if (target.kind === 'end') {
+  if (target.kind === 'at') {
+    while (into.length < target.column) into.push([]);
+    if (into.length === target.column) into.push([cardId]);
+    else if (into[target.column]!.length === 0) into[target.column] = [cardId];
+    else into.splice(target.column, 0, [cardId]);
+  } else if (target.kind === 'end') {
     into.push([cardId]);
   } else {
     const index = into.findIndex((p) => p.includes(target.id));
@@ -1277,6 +1373,8 @@ function withMove(
       pile.splice(target.onTop ? at + 1 : at, 0, cardId);
     }
   }
+  // Trailing gaps hold no column anyone can see; only the ones between cards stay.
+  for (const r of active) while (piles[r].length > 0 && piles[r][piles[r].length - 1]!.length === 0) piles[r].pop();
   const next: Record<string, readonly (readonly number[])[]> = { ...arranged };
   for (const r of active) next[slotKey(playerId, r)] = piles[r];
   return next;
@@ -1325,7 +1423,7 @@ function withHandMove(
   target: DropTarget,
 ): Arrangement {
   const ids = ordered.map((c) => c.id).filter((id) => id !== cardId);
-  const at = target.kind === 'end' ? -1 : ids.indexOf(target.id);
+  const at = target.kind === 'before' ? ids.indexOf(target.id) : -1;
   if (at === -1) ids.push(cardId);
   else ids.splice(at, 0, cardId);
   return { ...arranged, [slotKey(playerId, 'hand')]: ids.map((id) => [id]) };
@@ -2076,17 +2174,21 @@ function Battlefield({
               style={{ '--cols': cols(rows, layout) } as CSSProperties}
               data-arrange-slot={arranging === undefined ? undefined : tier}
             >
-              {rows[tier].map((pile) => (
-                <CardOnBoard
-                  key={pile[0]!.id}
-                  entry={pile[0]!}
-                  interaction={interaction}
-                  arranging={arranging}
-                  slot={tier}
-                  pile={pile}
-                  pileSize={pile.length}
-                />
-              ))}
+              {rows[tier].map((pile, i) =>
+                pile.length === 0 ? (
+                  <li key={`gap-${i}`} className="zone__gap" data-gap="" aria-hidden="true" />
+                ) : (
+                  <CardOnBoard
+                    key={pile[0]!.id}
+                    entry={pile[0]!}
+                    interaction={interaction}
+                    arranging={arranging}
+                    slot={tier}
+                    pile={pile}
+                    pileSize={pile.length}
+                  />
+                ),
+              )}
             </ul>
           ))}
         </div>
@@ -2132,7 +2234,10 @@ function Battlefield({
               {ROW_LABEL[row]} <span className="zone__count">{cardsIn(rows[row])}</span>
             </h5>
             <ul className="zone__cards">
-              {rows[row].map((pile) => (
+              {rows[row].map((pile, i) =>
+                pile.length === 0 ? (
+                  <li key={`gap-${i}`} className="zone__gap" data-gap="" aria-hidden="true" />
+                ) : (
                 <CardOnBoard
                   key={pile[0]!.id}
                   entry={pile[0]!}
@@ -2142,7 +2247,8 @@ function Battlefield({
                   pile={pile}
                   pileSize={pile.length}
                 />
-              ))}
+              ),
+              )}
             </ul>
           </li>
         ))}
@@ -2751,11 +2857,11 @@ function useArrangeDrag(
       for (const el of board.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-arrange-slot]')) {
         const named = el.getAttribute('data-arrange-slot') as ArrangeSlot;
         const list = el.matches('.zone__cards') ? el : el.querySelector<HTMLElement>(':scope > .zone__cards');
-        const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card') ?? [])].map((li) => ({
-          id: Number(li.dataset.cardId),
+        const piles = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap') ?? [])].map((li) => ({
+          id: li.classList.contains('zone__gap') ? null : Number(li.dataset.cardId),
           box: li.getBoundingClientRect(),
         }));
-        out.push({ slot: named, box: el.getBoundingClientRect(), piles });
+        out.push({ slot: named, box: el.getBoundingClientRect(), piles, step: columnPitch(el) });
       }
       return out;
     };
@@ -3133,7 +3239,7 @@ export function Board({
    */
   const commit = (cardId: number, slot: ArrangeSlot, target: DropTarget): void => {
     if (viewer === undefined) return;
-    if (target.kind !== 'end' && target.id === cardId) return;
+    if ('id' in target && target.id === cardId) return;
     if (slot === 'hand') {
       const hand = viewer.hand;
       if (hand === null || !hand.some((c) => c.id === cardId)) return;
