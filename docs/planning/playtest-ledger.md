@@ -32,7 +32,7 @@ lists. Three or more is a signal that the fix keeps missing what was meant.
 **Not imported yet:** the 2026-09-28 lists (waves 25–28) live in the board's wave
 sections, not here. Say the word and they come in.
 
-*Last updated: 2026-10-07, waves 55 and 56 closed; wave 57 cut for the server's prompt path.*
+*Last updated: 2026-10-07, Playtest 13 (AC1, AC2) shipped in 5083c31.*
 
 ---
 
@@ -356,6 +356,13 @@ Server-side evidence for this match is in production's structured log (`pm2 logs
 | AB14 | a piled creature's P/T and counters drew the pile fan (6 px) below its own card (found by table-fit) | 0 (found by CI) | shipped `ff95769` (deployed `ff95769` (UI 0.32.48, 2026-10-07)) | `.board-card__pt`/`__counters` anchor to the face's bottom (`calc(2px + var(--pile-fan))`), not the pile box's; proven 3/3 on a claw | stack two creatures: the top one's P/T sits on its own card |  |
 | AB15 | e2e drivers raced Forge on slow claws: w35's Ponder spec pressed the payment twice (the second press was the priority stop), w46-stack's boltOpponent pressed OK while a dropped first cast was still parked | 0 (found by CI) | partly — w35 shipped `19eca39`; w46-stack open (two driver rewrites tried on a claw, 2/6 and 2/6 still red: the first cast is dropped by Forge, not by the driver — in w57's scope if the prompt-path change moves it) | the Ponder loop waits for the payment window to give way; boltOpponent waits out a parked cast and presses the card again only once it is home | n/a — CI |  |
 | AB16 | w56 leftovers: inspector counters for a buried exiled card; a Healing Salve gain scenario for `w56-numbers`; Fast Mode wiring into the numbers layer; `scenarios/README` `exile=`; `scripts/land.sh` cannot `pnpm install` (GitHub Packages refuses both host tokens — every land today used the linked-node_modules path) | 0 (w56 notes) | open | docs/planning/wave56-2026-10-07.md closing notes | — |  |
+
+## Playtest 13 — 2026-10-07 (late), a small test on UI 0.32.51 (`42235d2`)
+
+| ID | item | asked | status | evidence | check it by | your check |
+| --- | --- | --- | --- | --- | --- | --- |
+| AC1 | the drag is smooth from the hand to the battlefield edge, then "gets stuck" once over it (intermittent: "as i'm trying it now it appears to be working") | 1 | shipped `5083c31` (deployed `5083c31` (UI 0.32.52, 2026-10-07)) | the placement preview measured every slot and pile and moved the indicator on EVERY pointer move once the card was over the battlefield — a layout per move; it now runs once per animation frame with the latest point, and clears at once on release (`gestures/install.ts` `previewAt`; drag/played-card/stacking/arrow specs 20/20 on a claw) | drag a card across a full board: it follows the pointer all the way |  |
+| AC2 | the opponent's hand reorganises into two rows the moment they pull a card out, and their cards shrink | 1 (with AB5) | shipped `5083c31` (deployed `5083c31` (UI 0.32.52, 2026-10-07)) | `handRowsOf` counted every `<li>` of the hand, and a held card is drawn at the pointer, so its top read as a second row for exactly as long as the card was held; held cards are excluded (`presence.ts`; presence spec 3/3 on a claw) | watch Bella drag a card out: her hand stays one row |  |
 
 ## Asks outside a play-test — 2026-10-02
 
