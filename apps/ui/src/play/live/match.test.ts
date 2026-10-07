@@ -1911,6 +1911,43 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
   const me = (m: LiveMatch) => m.view!.players.find((p) => p.isViewer)!;
   const them = (m: LiveMatch) => m.view!.players.find((p) => !p.isViewer)!;
 
+  /**
+   * `InputAttack`'s own bar — button 2 reads `Alpha Strike` before anything
+   * is declared, `Call Back` once something is (`CALL_BACK_LABEL`'s own
+   * note). The one bar shape that should ever make the opponent a drop
+   * target.
+   */
+  const attackBar = (declared = false) =>
+    parseServerFrame({
+      kind: 'notify',
+      method: 'updateButtons',
+      owner: { kind: 'player', id: 0 },
+      label1: 'OK',
+      label2: declared ? 'Call Back' : 'Alpha Strike',
+      enable1: true,
+      enable2: true,
+      focus1: true,
+    });
+  /**
+   * A genuinely live, forwarded bar that is NOT about attacking — Forge's
+   * own `InputPassPriority.showYieldSuggestionPrompt` ("Accept"/"Decline",
+   * `en-US.properties`' `lblAccept`/`lblDecline`), which can land on this
+   * seat's screen DURING `COMBAT_DECLARE_ATTACKERS` while End Turn is
+   * skipping it (confirmed against a real jar: this exact shape reached the
+   * wire and lit the opponent up before this gate read the label).
+   */
+  const yieldSuggestionBar = () =>
+    parseServerFrame({
+      kind: 'notify',
+      method: 'updateButtons',
+      owner: { kind: 'player', id: 0 },
+      label1: 'Accept',
+      label2: 'Decline',
+      enable1: true,
+      enable2: true,
+      focus1: true,
+    });
+
   /** Retype one of the opponent's existing battlefield cards a planeswalker — the fixture's capture has none. */
   function retypePlaneswalker(id: number): ServerFrame {
     return stateDelta({
@@ -1939,9 +1976,41 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
     const { s, m } = await fullGame();
     const attacker = me(m).battlefield.find((c) => !c.tapped)!.id;
     const opponent = them(m).id;
-    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), actionable([attacker])]);
+    // The live window itself, bar included — real Forge opens InputAttack
+    // with a pressable bar (`w51-control-box.spec.ts`'s own "declaring:
+    // Forge's OK is the pop-up's"), not merely a phase change.
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Declare attackers'), attackBar(), actionable([attacker])]);
     expect(boardInteraction(m).selectablePlayers.has(opponent)).toBe(true);
     expect(attackAssignment(m, attacker, { kind: 'player', id: opponent })).toBe('assign');
+  });
+
+  it('the opponent is NOT offered as a player target merely because the phase changed and the seat’s own creatures were named — the bar itself has to be live', async () => {
+    const { s, m } = await fullGame();
+    const attacker = me(m).battlefield.find((c) => !c.tapped)!.id;
+    const opponent = them(m).id;
+    // The seat's own last bar is already disabled (e.g. its own End Turn
+    // click just disabled it) when the phase moves to declare-attackers and
+    // a weakly-selectable update for the seat's own creatures still arrives
+    // — the shape a window the server is about to auto-pass leaves on the
+    // wire. No live bar ever follows it, so the opponent must not light up.
+    await sendAndApply(s, m, [bar(false)]);
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), actionable([attacker])]);
+    expect(declaringAttackers(m)).toBe(true);
+    expect(boardInteraction(m).selectablePlayers.has(opponent)).toBe(false);
+  });
+
+  it('a genuinely live bar that is not InputAttack’s own does not make the opponent a target either — the yield-suggestion prompt, confirmed against a real jar', async () => {
+    const { s, m } = await fullGame();
+    const attacker = me(m).battlefield.find((c) => !c.tapped)!.id;
+    const opponent = them(m).id;
+    // Forge's own End-Turn yield can open ITS OWN, unrelated question
+    // (Accept/Decline the yield) while the phase already reads
+    // COMBAT_DECLARE_ATTACKERS — a real, live, forwarded bar, just not this
+    // one. `boardInteraction` must tell the two apart by Forge's own button
+    // label, not merely "something is pressable".
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_ATTACKERS', me(m).id), prompt('Yielding until end of turn.'), yieldSuggestionBar(), actionable([attacker])]);
+    expect(declaringAttackers(m)).toBe(true);
+    expect(boardInteraction(m).selectablePlayers.has(opponent)).toBe(false);
   });
 
   it('a defender this attacker already attacks (Forge’s own CombatView) reads ALREADY, not assign', async () => {

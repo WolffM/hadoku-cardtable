@@ -1182,11 +1182,49 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
       if (selection.players !== null && !selection.players.has(p.id)) continue;
       players.add(p.id);
     }
-  } else if (declaringAttackers(match)) {
+  } else if (declaringAttackers(match) && attackWindowLive(match)) {
     // `InputAttack.onPlayerSelected` makes an opponent the current defender.
     for (const p of view.players) if (!p.isViewer && !p.hasLost && !match.spent.players.has(p.id)) players.add(p.id);
   }
   return { selectable: offered, selectablePlayers: players, selectionOpen: selection !== null };
+}
+
+/**
+ * Forge's label on button 2 at the live declare-attackers window BEFORE
+ * anything has been declared (`InputAttack.updatePrompt` → `lblAlphaStrike`,
+ * `en-US.properties`) — {@link CALL_BACK_LABEL} is the same button once at
+ * least one attacker is. A button LABEL, not a regex over prompt prose — the
+ * same practice as {@link AUTO_PAY_LABEL} and {@link CALL_BACK_LABEL}.
+ */
+const ALPHA_STRIKE_LABEL = 'Alpha Strike';
+
+/**
+ * Whether Forge's own bar, exactly as it stands on this seat's screen right
+ * now, is specifically the LIVE declare-attackers window — not merely A live
+ * bar while the phase happens to read `COMBAT_DECLARE_ATTACKERS`.
+ *
+ * `declaringAttackers` is read off the state channel ONLY — the phase and
+ * whose turn it is — on purpose (its own note says why: never off Forge's
+ * prompt text). But the phase can read `COMBAT_DECLARE_ATTACKERS` for the
+ * active seat while nothing about attacking is open: after End Turn, Forge's
+ * own yield skips the step without ever running `InputAttack` for this seat,
+ * yet the state update and a `setWeaklySelectable` for the seat's OWN
+ * creatures still arrive — and those alone used to light every opponent.
+ *
+ * A bare "some button is enabled" is not enough either, confirmed against a
+ * real jar: Forge's own yield-suggestion prompt (`InputPassPriority
+ * .showYieldSuggestionPrompt`, `maybeDeclineYieldSuggestion`'s own window) is
+ * a genuinely live, forwarded bar that can land on this seat's screen DURING
+ * the very `COMBAT_DECLARE_ATTACKERS` phase End Turn is skipping — a real
+ * question, just not this one. `InputAttack`'s own button 2 is Forge's own
+ * sign of which input is actually running ({@link CALL_BACK_LABEL}'s own
+ * note draws the same conclusion for the viewer's own card offer), so
+ * checking it is reading Forge's fixed UI vocabulary, not its prose.
+ */
+function attackWindowLive(match: LiveMatch): boolean {
+  const bar = match.buttons;
+  if (bar === null || !(bar.enable1 || bar.enable2)) return false;
+  return bar.label2 === CALL_BACK_LABEL || bar.label2 === ALPHA_STRIKE_LABEL;
 }
 
 /**

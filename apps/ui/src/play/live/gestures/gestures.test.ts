@@ -167,6 +167,22 @@ const okBar = () =>
     enable2: true,
     focus1: true,
   });
+/**
+ * `InputAttack`'s own bar — button 2 reads `Alpha Strike` before anything is
+ * declared, `Call Back` once something is (`match.ts`'s `CALL_BACK_LABEL`).
+ * The one bar shape that makes a defender (card or player) a drop target.
+ */
+const attackBar = (declared = false) =>
+  parseServerFrame({
+    kind: 'notify',
+    method: 'updateButtons',
+    owner: { kind: 'player', id: 0 },
+    label1: 'OK',
+    label2: declared ? 'Call Back' : 'Alpha Strike',
+    enable1: true,
+    enable2: true,
+    focus1: true,
+  });
 const actionable = (ids: number[]) =>
   parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
 const selectables = (ids: number[], min: number, max: number) =>
@@ -1548,7 +1564,11 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
     const pw = theirsOf(m).battlefield[0]!.id;
     s.send(retypeDelta(pw, ['Planeswalker'], ['Jace']));
     await waitFor(() => expect(theirsOf(m).battlefield.find((c) => c.id === pw)!.card.typeLine).toContain('Planeswalker'));
-    for (const f of notify([prompt('Declare attackers'), actionable([attacker])])) s.send(f);
+    // The live window itself, bar included — a defender (card or player) is
+    // only ever offered while Forge's own bar for this exact window is live,
+    // never merely because the phase changed and the actionable set named
+    // this seat's own creatures.
+    for (const f of notify([prompt('Declare attackers'), attackBar(), actionable([attacker])])) s.send(f);
     await waitFor(() => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
     return { ...ctx, attacker, pw };
   }
