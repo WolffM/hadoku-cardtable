@@ -76,6 +76,8 @@ interface Look {
    * `playOrDraw` already does.
    */
   confirmYes: boolean;
+  /** This seat's own battlefield and hand, as the board counts them — evidence for whether a play landed. */
+  counts: { battlefield: number; hand: number };
 }
 
 async function look(f: Friend): Promise<Look | null> {
@@ -99,6 +101,10 @@ async function look(f: Friend): Promise<Look | null> {
         ask: document.querySelector('[data-testid="live-prompt"]') !== null,
         playOrDraw: document.querySelector('[data-testid="live-play-or-draw-play"]') !== null,
         confirmYes: document.querySelector('[data-testid="prompt-confirm-yes"]') !== null,
+        counts: {
+          battlefield: Number(document.querySelector('[data-zone="battlefield"][data-owner="you"]')?.getAttribute('data-count') ?? -1),
+          hand: Number(document.querySelector('[data-zone="hand"][data-owner="you"]')?.getAttribute('data-count') ?? -1),
+        },
       };
     }, [BUTTON_ONE, BUTTON_TWO] as const);
   } catch {
@@ -149,7 +155,7 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
   };
 
   const act = async (why: string, s: Look, click: () => Promise<unknown>): Promise<boolean> => {
-    log.push(`${new Date().toISOString()} seat ${seat}: ${why} [${s.says.replace(/\s+/g, ' ').slice(0, 100)}]`);
+    log.push(`${new Date().toISOString()} seat ${seat}: ${why} [${s.says.replace(/\s+/g, ' ').slice(0, 100)}] bf=${s.counts.battlefield} hand=${s.counts.hand}`);
     try {
       await click();
     } catch (err) {
@@ -195,7 +201,13 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
    * window, same as it already must for a board measurement (this file's
    * own header).
    */
-  const clickCard = (id: number, row?: 'back' | 'front') => () => clickHandCard(f.page, id, { row, timeout: 2_000 });
+  // A click that lifts nothing (or finds no row to release on) is a click that did not land: logged with the hand's state, like a timeout.
+  const clickCard = (id: number, row?: 'back' | 'front') => async (): Promise<void> => {
+    if (!(await clickHandCard(f.page, id, { row, timeout: 2_000 }))) {
+      const lift = await f.page.locator(`[data-board-card="${id}"]`).getAttribute('data-cast-lift').catch(() => null);
+      throw new Error(`hand card ${id} did not lift (data-cast-lift=${lift})`);
+    }
+  };
 
   async function decide(s: Look): Promise<void> {
     const msg = s.says;

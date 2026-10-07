@@ -293,8 +293,12 @@ test.describe(titled('the counterspell arc'), () => {
       expect(inside(shot.tail!, shot.fromBox!), `the tail sits inside Counterspell's own thumbnail`).toBe(true);
       expect(inside(shot.tip!, shot.toBox!), `the tip sits inside Memnite's thumbnail`).toBe(true);
 
+      // Ledger Z9 (`aimAt`, `gestures/arrow.ts`; its ADJACENT_PX, which this tsconfig cannot import): a target within 72px of the tail — the next thumbnail in the stack row is — takes the
+      // tip at its centre, so the shaft crosses the cards instead of vanishing in the gap; a farther one, at its nearest edge.
+      const centre = { x: shot.toBox!.left + shot.toBox!.width / 2, y: shot.toBox!.top + shot.toBox!.height / 2 };
       const nearestEdge = eight(shot.toBox!).reduce((best, p) => (away(p, shot.tail!) < away(best, shot.tail!) ? p : best));
-      expect(away(shot.tip!, nearestEdge), `the tip is the nearest of Memnite's eight edge points to the tail`).toBeLessThanOrEqual(1);
+      const aimed = away(shot.tail!, centre) < 72 ? centre : nearestEdge;
+      expect(away(shot.tip!, aimed), `the tip is Memnite's centre when adjacent to the tail, else the nearest of its eight edge points`).toBeLessThanOrEqual(1);
     } finally {
       await seated?.alice.context.close();
       await seated?.bob.context.close();

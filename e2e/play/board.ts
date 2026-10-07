@@ -185,10 +185,12 @@ export async function clickHandCard(
   page: Page,
   cardId: number,
   opts: { row?: 'back' | 'front'; to?: { x: number; y: number }; timeout?: number } = {},
-): Promise<void> {
-  if (!(await liftHandCard(page, cardId, opts.timeout))) return;
+): Promise<boolean> {
+  if (!(await liftHandCard(page, cardId, opts.timeout))) return false;
   const point = opts.to ?? centreOfBox(await ownBattlefieldBox(page, opts.row));
-  if (point !== null) await page.mouse.click(point.x, point.y);
+  if (point === null) return false;
+  await page.mouse.click(point.x, point.y);
+  return true;
 }
 
 /**

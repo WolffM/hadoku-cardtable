@@ -746,6 +746,15 @@ export function installGestures(options: GestureOptions): GestureHandle {
       else releaseParked(p, false);
       return;
     }
+    // Forge offers the parked card ITSELF in a selection — a cleanup discard,
+    // a discard cost — while it is a hand card: the play is over and the card
+    // has a new question about it, so it goes home now, not when the clock
+    // gives up (table-fit 2026-10-07: the discard's first offered card was the
+    // land the seat had just put down, hidden at its park point).
+    if (where === 'hand' && match.selectables?.cards.has(parked.source) === true) {
+      releaseParked(endPark()!, true);
+      return;
+    }
     if (match.selectables !== null || payingMana(match) || match.asks.length > 0 || stackAsk(match) !== null) return;
     if (match.view?.stack.some((item) => item.sourceCardId === parked!.source)) return;
     if (where === 'limbo' || (where === 'hand' && !parked.leftHand)) return;
@@ -836,6 +845,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
      */
     if (drag !== null && drag.lifted && !drag.held) {
       claim(event);
+      // The click that follows this press is the release's, never the card
+      // under it: a release on a pile (where free placement puts the last
+      // land, so the next one lands on it) must not also select that pile's
+      // land — a second select while Forge is mid-getAbilityToPlay for the
+      // first, and the play never happened (table-fit 2026-10-07).
+      suppressClick = true;
       const held = drag;
       drag = null;
       resolveLift(held, { x: event.clientX, y: event.clientY }, event.target);

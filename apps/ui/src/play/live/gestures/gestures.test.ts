@@ -2412,6 +2412,30 @@ describe('a played card waits where it was let go until Forge has it on the batt
   const onMyBattlefield = (c: HTMLElement, id: number) =>
     c.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="you"] [data-board-card="${id}"]`);
 
+  it('a click-armed lift resolved by a press ON a battlefield card plays the hand card only: the click that follows is the release’s, not the card’s', async () => {
+    // table-fit 2026-10-07: with free placement (Z8) the first land put down at the row's centre stays there, so the next
+    // release lands on its pile — and the click after that press selected the pile's land too, a second select while
+    // Forge was mid-getAbilityToPlay for the first. Lands stopped landing from the third one on.
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    const land = mineOf(m).battlefield[0]!.id;
+    const card = hand[0]!;
+    for (const f of notify([prompt('Priority'), actionable([card, land]), okBar()])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    // The hand card is clicked, not dragged: lifted, following the pointer, resolved by the next press.
+    fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.click(cardEl(canvas, card).querySelector('button') ?? cardEl(canvas, card));
+    expect(cardEl(canvas, card).getAttribute('data-cast-lift')).toBe('lifted');
+    // The press that resolves it is on the pile's land, and a click follows it as a click follows any press.
+    const pile = onMyBattlefield(canvas, land)!;
+    fireEvent.pointerDown(pile, { button: 0, clientX: 400, clientY: 300 });
+    fireEvent.pointerUp(pile, { button: 0, clientX: 400, clientY: 300 });
+    fireEvent.click(pile.querySelector('button') ?? pile);
+    await waitFor(() => expect(s.clientFrames().length).toBeGreaterThanOrEqual(1));
+    expect(sent(s), 'the hand card went out, the land under the release did not').toEqual([['selectCard', card]]);
+  });
+
   it('a land Forge asks a question about stays parked for the whole question, and lands when it is answered', async () => {
     const { s, m, canvas, card, arrive } = await play();
     // The shockland's "pay 2 life?": an ask, with the card still in the hand.
@@ -2566,9 +2590,10 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect(sent(s), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
   }, 20_000);
 
-  it('a play Forge took and gave back — the card left the hand and returned — is let go on the clock, even under a selection', async () => {
+  it('a play Forge took and gave back, then offered in a selection, goes home at once', async () => {
     // table-fit 2026-10-07: the hidden land sat in the hand through the cleanup discard; the 4-second
-    // give-up returned early on "it left the hand once" and never looked again.
+    // give-up returned early on "it left the hand once" and never looked again — and the discard, which
+    // offered the card itself, is Forge saying the play is over, so there is no clock to wait on at all.
     const { s, m, canvas, card, rest, battlefield } = await play();
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     // Forge moves it out of the hand (not yet on the battlefield)…
@@ -2581,8 +2606,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     // …and the card is back in the hand, offered for the discard, with the selection still open.
     s.send(zones({ Hand: [card, ...rest], Battlefield: battlefield }));
     await waitFor(() => expect(mineOf(m).hand!.some((c) => c.id === card)).toBe(true));
-    expect(standIn.getAttribute('data-cast-lift'), 'still parked under the open selection').toBe('parked');
-    await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
+    await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: 1500 });
     await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: FLOAT_BACK_MS + 1000 });
   }, 20_000);
 

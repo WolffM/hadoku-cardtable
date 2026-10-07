@@ -180,6 +180,8 @@ interface FitSamples {
   matchFrames: number;
   boardFrames: number;
   promptFrames: number;
+  /** A frame the sampler threw on: the loop keeps going, and the error is evidence (an uncaught one froze every maximum below at its last value). */
+  samplerErrors: string[];
   breaches: Record<string, number>;
   examples: Breach[];
   /** Per window size: every distinct box the bar was drawn in, as "top,left,width,height". */
@@ -203,6 +205,7 @@ function installSampler(): void {
     matchFrames: 0,
     boardFrames: 0,
     promptFrames: 0,
+    samplerErrors: [],
     breaches: {},
     examples: [],
     barBoxes: {},
@@ -233,6 +236,14 @@ function installSampler(): void {
     a.right > b.left + 0.5 && a.left < b.right - 0.5 && a.bottom > b.top + 0.5 && a.top < b.bottom - 0.5;
 
   const tick = (): void => {
+    try {
+      sample();
+    } catch (e) {
+      if (fit.samplerErrors.length < 5) fit.samplerErrors.push(String(e));
+    }
+    requestAnimationFrame(tick);
+  };
+  const sample = (): void => {
     fit.frames += 1;
     const match = document.querySelector<HTMLElement>('[data-testid="match"]');
     if (match !== null) {
@@ -450,7 +461,6 @@ function installSampler(): void {
         }
       }
     }
-    requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
 }
@@ -822,6 +832,7 @@ test(TITLE, async ({ browser }) => {
       if (Date.now() > playDeadline || (await turnOf(alice)) > MAX_TURN) {
         throw new Error(
           `the play cap was hit (${PLAY_BUDGET_MS} ms or turn ${MAX_TURN}) at ${await howFar()}; ` +
+            `sampler: ${JSON.stringify(await Promise.all(friends.map(async (f) => { const s = await samples(f); return { who: f.name, frames: s.frames, boardFrames: s.boardFrames, errors: s.samplerErrors }; })))}; ` +
             `state: ${JSON.stringify(await Promise.all(friends.map(stateOf)))}; ` +
             `hands: ${hands.map((h) => h.log.slice(-6).join(' | ')).join(' || ')}`,
         );
@@ -835,7 +846,21 @@ test(TITLE, async ({ browser }) => {
         if (!/discard/i.test(says)) continue;
         const card = f.page.locator('.seat[data-viewer] [data-zone="hand"] li[data-selectable] button').first();
         if ((await card.count()) === 0) continue;
-        await card.click();
+        try {
+          await card.click();
+        } catch (e) {
+          // What the hand and the question looked like when the first offered card could not be clicked.
+          const seen = await f.page.evaluate(() => {
+            const li = Array.from(document.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="hand"] li'));
+            const attrs = (el: HTMLElement): string => Array.from(el.attributes).map((a) => `${a.name}=${a.value}`).join(',');
+            return {
+              hand: li.map((el) => `${attrs(el)}:${getComputedStyle(el).visibility}`),
+              prompt: document.querySelector('.live__prompt')?.textContent ?? null,
+              buttons: Array.from(document.querySelectorAll<HTMLButtonElement>('.live__control button')).map((b) => `${b.textContent}:${b.disabled ? 'off' : 'on'}`),
+            };
+          });
+          throw new Error(`${f.name}: the first offered hand card could not be clicked at the discard — ${JSON.stringify(seen)}; hands: ${hands.map((h) => h.log.slice(-6).join(' | ')).join(' || ')}`, { cause: e });
+        }
         discards.push({ who: f.name, turn: await turnOf(f) });
         await expect
           .poll(async () => (await f.page.getByTestId('live-says').textContent()) !== says, {
