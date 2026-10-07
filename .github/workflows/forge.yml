@@ -12,7 +12,39 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Targeted verification inputs (wave forge-claws, phase 2): a manual
+  # dispatch can narrow what runs instead of the full derived/pinned set, so
+  # an agent session can prove a fix on the claws in ~minutes instead of
+  # running the whole suite on hokon. Every input defaults to '' (or `both`
+  # for `only`), which is EXACTLY today's behaviour — a push, a PR and the
+  # nightly schedule never carry `inputs` at all, so every `${{ inputs.* }}`
+  # expression below reads as the empty string/default on those triggers,
+  # identical to before this block existed.
   workflow_dispatch:
+    inputs:
+      specs:
+        description: >-
+          forge-e2e only: extra args appended to `playwright test`, e.g.
+          `table-fit -g "a live match fits"`. Empty = today's derived
+          Forge-gated spec list.
+        required: false
+        default: ''
+      jvm:
+        description: >-
+          forge-jvm only: space-separated *.jvm.test.ts paths to run instead
+          of the full pinned set, e.g. `apps/server/src/play/priority.jvm.test.ts`.
+          Empty = today's full set (gated by `changes`' jvm_ui/jvm_server).
+        required: false
+        default: ''
+      only:
+        description: 'Which job(s) this dispatch runs.'
+        required: false
+        type: choice
+        default: both
+        options:
+          - both
+          - e2e
+          - jvm
   # The full set, every night, whatever changed: what path selection (the
   # `changes` job) skipped is still run within a day, and a pinned test that
   # stopped failing, or vanished, is caught by the strict full-run judge.
@@ -145,7 +177,11 @@ jobs:
   forge-e2e:
     name: forge-e2e
     needs: changes
-    if: needs.changes.outputs.e2e == 'true'
+    # `inputs.only` is '' on every push/PR/schedule (no `inputs` context on
+    # those triggers), so the added clause is always true there and this job
+    # runs exactly when it did before: gated on `changes.outputs.e2e` alone.
+    # On a dispatch, `only: jvm` turns this job off.
+    if: needs.changes.outputs.e2e == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'e2e')
     runs-on: [self-hosted, hadoku-builder, jdk21]
     # Measured on run 37184116178 (the 9-spec derived list): ~15 min of test
     # time with three reds burning their own budgets (play.spec alone 312 s),
@@ -265,6 +301,8 @@ jobs:
           # Every stack's JVM run dir survives the run (see `harness.ts`), so
           # the evidence step below can send the failing one's stderr.
           CARDTABLE_E2E_WORK_DIRS_KEPT: '96'
+          # '' on every push/PR/schedule — see the `on:` block above.
+          SPECS_OVERRIDE: ${{ inputs.specs }}
         run: |
           # The host line a flaky red needs first. No `heavy.lock` any more —
           # that lock queued CI behind the operator's hokon-hosted waves, which
@@ -273,6 +311,20 @@ jobs:
           # watching for OOM).
           echo "host at start: $(uptime)"; free -m | sed -n 2p
           rm -f "$PLAYWRIGHT_JSON_OUTPUT_FILE"
+          if [ -n "$SPECS_OVERRIDE" ]; then
+          # A targeted dispatch (`-f specs='table-fit -g "a live match fits"'`):
+          # skip the derivation below entirely, so a narrow override can never
+          # trip "no Forge-gated spec found". `eval` is deliberate — the
+          # override can carry its own quoting (a `-g` pattern with spaces),
+          # and this value only ever comes from a manual `workflow_dispatch`
+          # by someone who could already dispatch this workflow, the same
+          # trust boundary `workflow_dispatch` itself sits behind. (Not
+          # further indented: the heredoc below needs its `NONE` terminator at
+          # column 0 after YAML's own dedent, so this whole script is kept
+          # flush rather than nested under `if`/`else`.)
+          echo "forge-e2e: spec override: $SPECS_OVERRIDE"
+          eval "pnpm --filter @hadoku/e2e test $SPECS_OVERRIDE"
+          else
           # Specs held OUT of the derived list, one per line as `<file>  # <why>`.
           # Empty means every Forge-gated spec runs; an entry is a known red
           # with its reason, never a quiet way to drop a spec.
@@ -288,6 +340,7 @@ jobs:
           echo "forge-gated specs (derived):"
           echo "$specs"
           pnpm --filter @hadoku/e2e test $specs
+          fi
           jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null || { echo "::error::e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1) — a skipped test is not a pass"; exit 1; }
 
       # The evidence a red needs, kept past the job. Playwright's per-test
@@ -379,7 +432,10 @@ jobs:
   forge-jvm:
     name: forge-jvm
     needs: changes
-    if: needs.changes.outputs.jvm_ui == 'true' || needs.changes.outputs.jvm_server == 'true'
+    # `inputs.only` is '' on every push/PR/schedule, so the added clause is
+    # always true there — same gate as before. On a dispatch, `only: e2e`
+    # turns this job off.
+    if: (needs.changes.outputs.jvm_ui == 'true' || needs.changes.outputs.jvm_server == 'true') && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'jvm')
     runs-on: [self-hosted, hadoku-builder, jdk21]
     # Measured serially on hokon, 2026-10-06: the 39 suites a push runs took
     # 457 s (7.6 min). They were 1483 s on run 37487474250, before the
@@ -429,6 +485,8 @@ jobs:
           JVM_UI: ${{ needs.changes.outputs.jvm_ui }}
           JVM_SERVER: ${{ needs.changes.outputs.jvm_server }}
           CARDTABLE_JVM_NIGHTLY: ${{ github.event_name != 'push' && '1' || '0' }}
+          # '' on every push/PR/schedule — see the `on:` block above.
+          JVM_OVERRIDE: ${{ inputs.jvm }}
         run: |
           # No `heavy.lock` any more — see the job comment above. The host
           # line a flaky red needs first, still worth keeping on a claw.
@@ -436,12 +494,21 @@ jobs:
           mkdir -p "$CARDTABLE_PLAY_WORK_DIR"
           report="${{ runner.temp }}/forge-jvm-report.json"
           rm -f "$report"
-          # `changes` picks the groups; both together is the full set.
-          files=""
-          [ "$JVM_UI" = true ] && files="$files $(git ls-files 'apps/ui/*.jvm.test.ts')"
-          [ "$JVM_SERVER" = true ] && files="$files $(git ls-files 'apps/server/*.jvm.test.ts')"
-          extra=$(git ls-files '*.jvm.test.ts' | grep -vE '^apps/(ui|server)/' || true)
-          [ -z "$extra" ] || { echo "::error::jvm suites outside apps/ui and apps/server, which no group runs: $extra"; exit 1; }
+          if [ -n "$JVM_OVERRIDE" ]; then
+            # A targeted dispatch (`-f jvm='apps/server/src/play/priority.jvm.test.ts'`):
+            # run exactly these paths instead of deriving the full set, and the
+            # judge step below drops to its "partial run" (`FULL=false`) mode
+            # automatically since `inputs.jvm` is non-empty there too.
+            files="$JVM_OVERRIDE"
+            echo "forge-jvm: jvm override: $files"
+          else
+            # `changes` picks the groups; both together is the full set.
+            files=""
+            [ "$JVM_UI" = true ] && files="$files $(git ls-files 'apps/ui/*.jvm.test.ts')"
+            [ "$JVM_SERVER" = true ] && files="$files $(git ls-files 'apps/server/*.jvm.test.ts')"
+            extra=$(git ls-files '*.jvm.test.ts' | grep -vE '^apps/(ui|server)/' || true)
+            [ -z "$extra" ] || { echo "::error::jvm suites outside apps/ui and apps/server, which no group runs: $extra"; exit 1; }
+          fi
           [ -n "$files" ] || { echo "::error::no *.jvm.test.ts tracked — nothing to run"; exit 1; }
           echo "jvm suites ($(printf '%s\n' "$files" | wc -l)):"
           echo "$files"
@@ -466,9 +533,12 @@ jobs:
       - name: Every jvm suite ran, and nothing failed or skipped off the pinned lists
         if: always()
         env:
-          # A partial run (one group) judges only the pinned tests it ran; the
-          # full run (both groups, every night at least) judges all of them.
-          FULL: ${{ needs.changes.outputs.jvm_ui == 'true' && needs.changes.outputs.jvm_server == 'true' }}
+          # A partial run (one group, or a `jvm` override) judges only the
+          # pinned tests it ran; the full run (both groups, every night at
+          # least, no override) judges all of them. `inputs.jvm != ''` forces
+          # the partial path on a targeted dispatch even when both groups
+          # would otherwise read `true`.
+          FULL: ${{ inputs.jvm == '' && needs.changes.outputs.jvm_ui == 'true' && needs.changes.outputs.jvm_server == 'true' }}
           # Whether the `[nightly]` tests ran: the same test as CARDTABLE_JVM_NIGHTLY above.
           NIGHTLY: ${{ github.event_name != 'push' }}
         run: |
