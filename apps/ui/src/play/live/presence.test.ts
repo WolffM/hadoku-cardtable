@@ -216,6 +216,23 @@ describe('sending', () => {
     expect((t.sent[0]!.payload as { handRows: unknown }).handRows).toBe(2);
     handle.dispose();
   });
+
+  it('a held card, drawn at the pointer, does not count as a second row', () => {
+    // The operator, 2026-10-07: "when i pull one out, they suddenly get reorganized into two rows" — the
+    // lifted card's top is wherever the pointer is, and it was measured with the row.
+    vi.useFakeTimers();
+    const { canvas } = board();
+    ownHand(canvas, 5, 1);
+    const held = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"] li')!;
+    held.setAttribute('data-cast-lift', 'lifted');
+    held.getBoundingClientRect = () => rect({ left: 400, top: 300, width: 56, height: 84 });
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 400, clientY: 300, bubbles: true }));
+    vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    expect((t.sent[0]!.payload as { handRows: unknown }).handRows).toBe(1);
+    handle.dispose();
+  });
 });
 
 describe('receiving', () => {

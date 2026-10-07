@@ -153,7 +153,10 @@ export function placeSpot(canvas: HTMLElement, spot: PresenceSpot): Point | null
  * (`PresenceSchema`), which is all `board.css` ever draws a hand in.
  */
 function handRowsOf(canvas: HTMLElement): 1 | 2 {
-  const cards = canvas.querySelectorAll<HTMLElement>('[data-zone="hand"][data-owner="you"] li');
+  // A lifted, parked or carried card is drawn at the pointer, not in its row: its top is anybody's,
+  // and counting it made the other seat see two rows for exactly as long as a card was held (the
+  // operator, 2026-10-07: "when i pull one out, they suddenly get reorganized into two rows").
+  const cards = canvas.querySelectorAll<HTMLElement>('[data-zone="hand"][data-owner="you"] li:not([data-cast-lift])');
   if (cards.length < 2) return 1;
   const first = Math.round(cards[0]!.getBoundingClientRect().top);
   for (const card of cards) {
