@@ -1846,6 +1846,55 @@ describe('combat, off the state channel: the intent mark and the block target', 
     expect(selectCard(m, 999)).toBe(false);
     await barrier(s, m, mine[0]!);
   });
+
+  /*
+   * `InputBlock.onCardSelected` undoes a block when the click lands on a
+   * creature already blocking the current attacker
+   * (`InputBlock.java:132-146`, "lblRemoveFromCombat"), but
+   * `pushBlockerCandidates` drops a creature from the offer once it IS
+   * assigned, so the second click that would undo it had nowhere to land.
+   * `declaredBlockers` (through `boardInteraction`) reads the wire's own
+   * planned map (`adapter.ts`'s `CombatBand.plannedBlockers`) to offer it
+   * back, and stops offering it the moment Forge's own next frame no longer
+   * carries the assignment — with no click of ours in between, so this is
+   * the map's own say, not `spent` catching up with one.
+   */
+  it('a creature already blocking is offered too, and stops being offered once Forge drops the assignment', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const attackers = them(m).battlefield.map((c) => c.id).slice(0, 1);
+    const combat = (pblk: number[]) =>
+      stateDelta({
+        [GAME_KEY]: {
+          _type: WireType.Game,
+          _id: 1,
+          CombatView: { t: 'combat', atk: [attackers], def: [[1, me(m).id]], blk: [[]], pblk: [pblk] },
+        },
+      });
+    await sendAndApply(s, m, [
+      phase('COMBAT_DECLARE_BLOCKERS', them(m).id),
+      prompt('Select a blocker'),
+      attacking(attackers),
+    ]);
+    expect(declaringBlockers(m)).toBe(true);
+    // Not offered before the wire says this creature is blocking anything.
+    expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(false);
+
+    await sendAndApply(s, m, [combat([mine[0]!])]);
+    expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(true);
+
+    // Forge's own next frame drops the assignment: the offer drops with it,
+    // with nothing of ours sent in between.
+    await sendAndApply(s, m, [combat([])]);
+    expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(false);
+
+    // And once offered again, the click out is an ordinary `selectCard` —
+    // Forge decides what it means, same as every other offer.
+    await sendAndApply(s, m, [combat([mine[0]!])]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await until('the undo act', () => s.clientFrames().length >= 1);
+    expect(s.clientFrames()).toEqual([cardAct(mine[0]!)]);
+  });
 });
 
 /*

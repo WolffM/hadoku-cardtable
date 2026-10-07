@@ -1,0 +1,44 @@
+# bob (ai, seat 1) is the active
+# player with TWO creatures already attacking alice (human, seat 0) directly
+# — the `|Attacking` marker, no ":ID" (`GameState.java`'s `handleCombat`
+# attacks the defending player when none is given). `activephase` lands on
+# Declare ATTACKERS Step, not Declare Blockers itself: `GameState.
+# applyGameOnThread` runs this combat block BEFORE its own unconditional
+# `checkStateEffects(true)`, so landing straight on Declare Blockers reads a
+# scripted creature's characteristics one state-effects pass too early and
+# Forge offers it as a blocker ZERO times (see the README's own evidence
+# link), the same bug `no-creatures.state`/`one-creature.state` avoid the
+# same way).
+# The test drives bob's own priority stop at Declare Attackers Step through
+# the ordinary main loop, which settles state before Declare Blockers opens.
+#
+# TWO attackers and TWO blockers, not one of each: the undo-offer and
+# lasting-arrow proof need a second attacker/blocker pair on the board so
+# blocking one, undoing it, and blocking it again never has to be the ONLY
+# assignment in play.
+#
+# Blockers are Wall of Stone (0/8, Defender — can't attack, irrelevant here),
+# never Memnite, on purpose: a 1/1 Memnite blocking a 1/1 Memnite is a
+# mutual kill, and the e2e proof of the CONFIRMED map (`CombatBand.blockers`,
+# read once Forge has moved past declare-blockers) needs both the attacker
+# and the blocker still ON THE BOARD after combat damage is dealt — measured
+# against the real jar (claws run 37584358566): with two Memnites, combat
+# resolves Declare Blockers → Combat Damage → End of Combat → Main 2 in
+# under 100ms once nobody has anything to respond with, and BOTH creatures
+# are already dead by the first priority stop in Combat Damage Step, so
+# `cardBox` finds neither one and no arrow is possible — not a product bug,
+# a scenario that killed the very thing it needed to observe. 0 power never
+# kills the 1/1 attacker; 8 toughness survives the 1 damage back.
+turn=1
+activeplayer=ai
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Wall of Stone;Wall of Stone
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Memnite|Attacking;Memnite|Attacking
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

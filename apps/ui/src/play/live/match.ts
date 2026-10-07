@@ -125,6 +125,15 @@
  * on the two facts that identify the input rather than on its prose. Its own
  * header carries the argument.
  *
+ * The SECOND click is missing the same way: `InputBlock` undoes a block when
+ * the click lands on a creature already blocking the current attacker
+ * (`InputBlock.java:132-146`, "lblRemoveFromCombat"), but
+ * `pushBlockerCandidates` offers only LEGAL blocks for the current attacker
+ * and drops a creature once it is already assigned to one — so the undo
+ * click had nowhere to land either. `declaredBlockers` offers it back, off
+ * the SAME wire fact `gestures/install.ts`'s `blockArrows` draws from: the
+ * planned map (`adapter.ts`'s `CombatBand.plannedBlockers`).
+ *
  * ### Players
  *
  * Forge publishes no per-player legality signal at all — `setSelectables`
@@ -1156,6 +1165,7 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
           match.highlighted,
           mulliganHand(match.state, view),
           blockTargets(match, view),
+          declaredBlockers(match, view),
           undoableTap(match, view),
           declaredAttackers(match, view),
           attackDefenders(match, view),
@@ -1603,6 +1613,47 @@ function blockTargets(match: LiveMatch, view: BoardView): ReadonlySet<number> | 
     for (const c of p.battlefield) if (c.attacking) attackers.add(c.id);
   }
   return attackers;
+}
+
+/**
+ * This seat's own creatures already assigned to block, offered while
+ * `InputBlock` is running — or null when it is not.
+ *
+ * ## Why this is Forge's condition and not a rule of ours
+ *
+ * `InputBlock.onCardSelected` UNDOES a block when the click lands on a
+ * creature `combat.isBlocking(card, currentAttacker)` — the current
+ * attacker, not merely "blocking something" — and calls
+ * `combat.removeBlockAssignment` (`InputBlock.java:132-146`,
+ * "lblRemoveFromCombat"). But `pushBlockerCandidates`
+ * (`PlayerControllerHuman.java:1621-1647`) names only LEGAL blocks for the
+ * current attacker and drops a creature the moment it is already assigned to
+ * one, so that click never reached `boardInteraction` and `selectCard`
+ * refused it — the same shape {@link declaredAttackers} found for the undo on
+ * an attacker.
+ *
+ * So this offers every creature the viewer's own that the wire already says
+ * is blocking SOMETHING, read off `view.combat`'s planned map
+ * (`adapter.ts`'s `CombatBand.plannedBlockers`, which rides
+ * `AttackersWithPlannedBlockers` the whole time `InputBlock` runs — see that
+ * field's own doc for why the CONFIRMED map would read empty here instead). A
+ * click Forge actually refuses (it is blocking a different attacker than the
+ * current one) costs nothing: `selectCard` only ever offers the click, Forge
+ * still decides what it means.
+ *
+ * Hidden information is untouched: the cards are on this seat's own
+ * battlefield, and `boardInteraction` still intersects with `cardIdsInView`.
+ */
+function declaredBlockers(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
+  if (!declaringBlockers(match)) return null;
+  const me = view.players.find((p) => p.isViewer);
+  if (me === undefined) return null;
+  const mine = new Set(me.battlefield.map((c) => c.id));
+  const out = new Set<number>();
+  for (const band of view.combat ?? []) {
+    for (const id of band.plannedBlockers ?? []) if (mine.has(id)) out.add(id);
+  }
+  return out;
 }
 
 /**

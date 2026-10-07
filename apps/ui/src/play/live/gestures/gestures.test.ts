@@ -50,6 +50,7 @@ import {
   attackAssignment,
   boardInteraction,
   closeMatch,
+  declaringBlockers,
   selectCard,
   selectPlayer,
   socketIoMatchTransport,
@@ -1431,6 +1432,92 @@ describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () =
     drag(cardEl(canvas, blocker), cardEl(canvas, theirs[0]!));
     await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
     expect(sent(s)).toEqual([['selectCard', blocker]]);
+  });
+});
+
+/* ── the undo offer and the lasting block arrow ───────────────────────── */
+
+describe('a block already assigned stays clickable, and draws its own arrow', () => {
+  /**
+   * Same board as `blockingBoard` above, carried one step further: the block
+   * has gone out (Forge no longer offers this card as a CANDIDATE — it is no
+   * longer unassigned — but the wire's planned map still names it).
+   */
+  async function alreadyBlocking() {
+    const ctx = await gestureBoard();
+    const { s, m } = ctx;
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    const blocker = mineOf(m).battlefield[0]!.id;
+    const combat = (pblk: number[], blk: number[] = []): ServerFrame =>
+      stateDelta({
+        [GAME_KEY]: {
+          _type: 3,
+          _id: 1,
+          CombatView: { t: 'combat', atk: [[theirs[0]!]], def: [[1, mineOf(m).id]], blk: [blk], pblk: [pblk] },
+        },
+      });
+    s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', theirsOf(m).id));
+    s.send(attackingDelta([theirs[0]!]));
+    await waitFor(() => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    // `pushBlockerCandidates` has dropped it (it is assigned, not a candidate
+    // any more); only the wire's planned map still names it.
+    for (const f of notify([prompt('Select a blocker'), actionable([])])) s.send(f);
+    s.send(combat([blocker]));
+    await waitFor(() => expect(boardInteraction(m).selectable.has(blocker)).toBe(true));
+    return { ...ctx, blocker, attacker: theirs[0]!, combat };
+  }
+
+  it('is offered off the planned map alone, and a second click sends its own selectCard — Forge’s own undo', async () => {
+    const { s, canvas, blocker } = await alreadyBlocking();
+    // No drag at all: a click on the same card it is already on, same as
+    // `InputBlock`'s own "click it again to undo" shape.
+    drag(cardEl(canvas, blocker), cardEl(canvas, blocker));
+    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    expect(sent(s)).toEqual([['selectCard', blocker]]);
+  });
+
+  it('draws a lasting arrow from the blocker to its attacker while declaring, off the PLANNED map', async () => {
+    const { canvas, blocker, attacker } = await alreadyBlocking();
+    await waitFor(() =>
+      expect(
+        overlayOf(canvas).querySelector(`[data-testid="stack-target-arrow"][data-key="block:${blocker}:${attacker}"]`),
+      ).not.toBeNull(),
+    );
+  });
+
+  it('the arrow disappears the moment Forge’s own next frame drops the assignment — no click of ours in between', async () => {
+    const { s, canvas, blocker, attacker, combat } = await alreadyBlocking();
+    await waitFor(() =>
+      expect(overlayOf(canvas).querySelector(`[data-testid="stack-target-arrow"][data-key="block:${blocker}:${attacker}"]`)).not.toBeNull(),
+    );
+    s.send(combat([]));
+    await waitFor(() =>
+      expect(overlayOf(canvas).querySelector(`[data-testid="stack-target-arrow"][data-key="block:${blocker}:${attacker}"]`)).toBeNull(),
+    );
+  });
+
+  it('once Forge moves past InputBlock the arrow draws from the CONFIRMED map instead', async () => {
+    const { s, m, canvas, blocker, attacker } = await alreadyBlocking();
+    // `GameView.updateCombat` only starts sending `blk` once `AttackingBand`'s
+    // own `blocked` flag stops being null, which is AFTER declare-blockers has
+    // resolved (`Combat.java:677-679`) — so this is the step ending, not a
+    // guess at a later frame shape.
+    s.send(phaseDelta('COMBAT_FIRST_STRIKE_DAMAGE', theirsOf(m).id));
+    s.send(
+      stateDelta({
+        [GAME_KEY]: {
+          _type: 3,
+          _id: 1,
+          CombatView: { t: 'combat', atk: [[attacker]], def: [[1, mineOf(m).id]], blk: [[blocker]], pblk: [[blocker]] },
+        },
+      }),
+    );
+    await waitFor(() => expect(declaringBlockers(m)).toBe(false));
+    await waitFor(() =>
+      expect(
+        overlayOf(canvas).querySelector(`[data-testid="stack-target-arrow"][data-key="block:${blocker}:${attacker}"]`),
+      ).not.toBeNull(),
+    );
   });
 });
 

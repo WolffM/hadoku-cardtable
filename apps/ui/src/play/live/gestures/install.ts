@@ -189,6 +189,7 @@ import {
   boardInteraction,
   choosingMulligan,
   declaringAttackers,
+  declaringBlockers,
   declaringCombat,
   landsToTap,
   payingMana,
@@ -200,7 +201,7 @@ import {
 // Where a cast lands on the battlefield — a plain function, not a component,
 // read across the lane boundary.
 import { carryCastOffStack, notePlayedTo, previewPlayedTo } from '../../Board.tsx';
-import { autoTargetArrows, combatArrows, stackTargetArrows } from './auto-targets.ts';
+import { autoTargetArrows, combatArrows, stackTargetArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
 import {
   CAST_LIFT_ATTR,
@@ -282,6 +283,39 @@ function whereIs(match: LiveMatch, id: number): 'hand' | 'drawn' | 'limbo' {
 /** Forge's state has the card on a battlefield — the one zone that draws an element per card for it to land on. */
 function onBattlefield(match: LiveMatch, id: number): boolean {
   return (match.view?.players ?? []).some((p) => p.battlefield.some((c) => c.id === id));
+}
+
+/**
+ * Lasting block arrows: blocker → attacker for every assignment in
+ * `view.combat`. While `declaringBlockers` reads the PLANNED
+ * map (`CombatBand.plannedBlockers`) — the only one Forge populates during
+ * `InputBlock`, see that field's own doc comment in `adapter.ts` for why —
+ * and once Forge has moved past it reads the CONFIRMED one
+ * (`CombatBand.blockers`), so the arrow does not vanish the instant the step
+ * ends and then only reappears once damage keeps the bands alive. One
+ * mechanism with `combatArrows` (`auto-targets.ts`): feeds the same
+ * `drawAutoTargetArrows` reconciler this module already calls once per paint,
+ * not a second drawer. A band with several attackers (banding) draws every
+ * blocker to the band's first attacker — Forge gives the whole band one
+ * shared assignment, so there is no second one to point at.
+ */
+function blockArrows(canvas: ParentNode, match: LiveMatch): AutoTargetArrow[] {
+  const declaring = declaringBlockers(match);
+  const out: AutoTargetArrow[] = [];
+  for (const band of match.view?.combat ?? []) {
+    const blockerIds = declaring ? (band.plannedBlockers ?? []) : band.blockers;
+    if (blockerIds.length === 0) continue;
+    const attackerId = band.attackers[0];
+    if (attackerId === undefined) continue;
+    const to = cardBox(canvas, attackerId);
+    if (to === null) continue;
+    for (const blockerId of blockerIds) {
+      const source = cardBox(canvas, blockerId);
+      if (source === null) continue;
+      out.push({ key: `block:${blockerId}:${attackerId}`, from: centreOf(source), to, kind: 'card' });
+    }
+  }
+  return out;
 }
 
 export function installGestures(options: GestureOptions): GestureHandle {
@@ -480,14 +514,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
     }
     // Forge's own already-decided targets. Independent of whichever gesture
     // (if any) is in progress above, so it is reconciled every paint
-    // regardless of branch — a drag or a box-draw does not hide it. Three
+    // regardless of branch — a drag or a box-draw does not hide it. Four
     // producers (a stack item's own target, X1's lasting attack arrow, X3's
-    // counterspell arc), ONE reconciler — see `auto-targets.ts`'s header.
+    // counterspell arc, the lasting block arrow), ONE reconciler — see
+    // `auto-targets.ts`'s header and `blockArrows` below.
     if (overlay !== null) {
       drawAutoTargetArrows(overlay, [
         ...autoTargetArrows(canvas, match),
         ...combatArrows(canvas, match),
         ...stackTargetArrows(canvas, match),
+        ...blockArrows(canvas, match),
       ]);
     }
     if (next === shape) return;

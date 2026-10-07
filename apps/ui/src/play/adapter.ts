@@ -489,11 +489,36 @@ export interface CombatDefender {
   id: number;
 }
 
-/** One attacking band, read off `DeltaPacket.CombatData` (`forge-wire/src/tier-c.ts`). */
+/**
+ * One attacking band, read off `DeltaPacket.CombatData` (`forge-wire/src/tier-c.ts`).
+ *
+ * `blockers` and `plannedBlockers` are two different Forge facts, not one
+ * value read twice. `GameView.updateCombat` (`GameView.java:215-229`) sends
+ * `blockers` only when `AttackingBand.isBlocked()` is non-null — and that flag
+ * starts `null` (`AttackingBand.java:14`) and is first set by
+ * `Combat.fireTriggersForUnblockedAttackers` (`Combat.java:677-679`), whose own
+ * comment is "call this method right after turn-based action of declare
+ * blockers has been performed" — so `blockers` reads empty for the whole of
+ * `InputBlock`, confirmed or not, and only becomes Forge's committed answer
+ * once that step is over. `plannedBlockers` carries the SAME live list
+ * (`combat.getBlockers(b)`) every frame regardless of that flag, which is what
+ * makes it the one that is populated WHILE blocks are still being declared.
+ */
 export interface CombatBand {
   attackers: number[];
   defender: CombatDefender;
+  /** Forge's confirmed assignment — empty until `InputBlock` has fully resolved. */
   blockers: number[];
+  /**
+   * Forge's live assignment, read the whole time `InputBlock` runs —
+   * `AttackersWithPlannedBlockers`/`BandsWithPlannedBlockers`
+   * (`TrackableProperty.java:237-238`), flattened band-wise into the wire's
+   * `pblk` by the fork's own `DeltaSyncManager.combatViewToCombatData`
+   * (`DeltaSyncManager.java:401-461`). OPTIONAL like `BoardCard`'s late
+   * fields: `toBoardView` always sets it, and a band typed out by hand in
+   * another suite need not.
+   */
+  plannedBlockers?: number[];
 }
 
 export interface AdaptOptions {
@@ -673,14 +698,23 @@ function readInt(obj: WireObject | undefined, name: string, fallback = 0): numbe
     : fallback;
 }
 
-/** `CombatView`: four parallel lists, `def` as `[marker, id]` with 0 = card, 1 = player. */
+/**
+ * `CombatView`: four parallel lists, `def` as `[marker, id]` with 0 = card,
+ * 1 = player. `blk` is Forge's confirmed blockers, `pblk` its live/planned
+ * ones — see {@link CombatBand}'s own doc for why they are not the same list.
+ */
 function readCombat(game: WireObject | undefined): CombatBand[] {
   const raw = prop(game, 'CombatView');
   if (raw === undefined || raw.t !== 'combat') return [];
   const v = raw as Extract<Tagged, { t: 'combat' }>;
   return v.atk.map((attackers, i) => {
     const [marker, id] = v.def[i]!;
-    return { attackers, defender: { kind: marker === 0 ? 'card' : 'player', id }, blockers: v.blk[i] ?? [] };
+    return {
+      attackers,
+      defender: { kind: marker === 0 ? 'card' : 'player', id },
+      blockers: v.blk[i] ?? [],
+      plannedBlockers: v.pblk[i] ?? [],
+    };
   });
 }
 

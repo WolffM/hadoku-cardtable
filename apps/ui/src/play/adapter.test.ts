@@ -728,14 +728,47 @@ describe('view.combat — Forge’s CombatView, read off the state channel (X1)'
       }),
     );
     expect(view.combat).toEqual([
-      { attackers: [10], defender: { kind: 'player', id: 99 }, blockers: [] },
-      { attackers: [20, 21], defender: { kind: 'card', id: 55 }, blockers: [30] },
+      { attackers: [10], defender: { kind: 'player', id: 99 }, blockers: [], plannedBlockers: [] },
+      { attackers: [20, 21], defender: { kind: 'card', id: 55 }, blockers: [30], plannedBlockers: [] },
     ]);
   });
 
   it('a band with no entry in `blk` reads as blocked by nobody, not a crash', () => {
     const view = adapt(withCombat({ t: 'combat', atk: [[10]], def: [[1, 99]], blk: [], pblk: [] }));
-    expect(view.combat).toEqual([{ attackers: [10], defender: { kind: 'player', id: 99 }, blockers: [] }]);
+    expect(view.combat).toEqual([
+      { attackers: [10], defender: { kind: 'player', id: 99 }, blockers: [], plannedBlockers: [] },
+    ]);
+  });
+
+  /**
+   * `blk` and `pblk` are two different Forge facts, not one value read
+   * twice (`adapter.ts`'s `CombatBand` doc comment). Forge sends `blk` only
+   * once `AttackingBand.isBlocked()` stops being null — which it does not,
+   * for the whole of `InputBlock` — while `pblk` carries the live assignment
+   * the entire time. So a band mid-declaration is exactly what this fixture
+   * is: a planned blocker with no confirmed one yet.
+   */
+  it('reads the planned map independently of the confirmed one — a block still being declared', () => {
+    const view = adapt(
+      withCombat({
+        t: 'combat',
+        atk: [[10], [20]],
+        def: [[1, 99], [1, 98]],
+        // Band 0 is still being declared: Forge has not committed `blk` yet.
+        // Band 1 is already confirmed, and `pblk` still carries the same list.
+        blk: [[], [41]],
+        pblk: [[30], [41]],
+      }),
+    );
+    expect(view.combat).toEqual([
+      { attackers: [10], defender: { kind: 'player', id: 99 }, blockers: [], plannedBlockers: [30] },
+      { attackers: [20], defender: { kind: 'player', id: 98 }, blockers: [41], plannedBlockers: [41] },
+    ]);
+  });
+
+  it('a band with no entry in `pblk` reads as planning nobody, not a crash', () => {
+    const view = adapt(withCombat({ t: 'combat', atk: [[10]], def: [[1, 99]], blk: [], pblk: [] }));
+    expect(view.combat![0]!.plannedBlockers).toEqual([]);
   });
 
   it('is absent-safe: a `CombatView` whose tag is not `combat` reads as no combat', () => {
