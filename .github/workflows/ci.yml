@@ -112,8 +112,16 @@ jobs:
     # takes effect in the one case where the fleet has deliberately said
     # otherwise.
     runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    # A dot-free temp dir. The fleet's warm claws (2026-10-06, `warm-claw-3`) run jobs under
+    # `/home/hadoku/.hadoku/warm/…` with TMPDIR beneath a dot-directory, and three suites refuse a
+    # temp root with a dot-segment by design (`apps/server/src/base-path.test.ts:39`: the base-path
+    # check is meaningless there). d37d441 and cc4561d went red on exactly that, with no code change.
+    env:
+      TMPDIR: /tmp/cardtable-ci-tmp
     timeout-minutes: 20
     steps:
+      - name: A dot-free temp dir exists
+        run: mkdir -p "$TMPDIR"
       - uses: actions/checkout@v6
 
       # The fleet's composite action, not a hand-rolled setup-node block. It
