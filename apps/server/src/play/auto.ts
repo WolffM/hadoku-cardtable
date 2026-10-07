@@ -930,13 +930,14 @@ export interface PromptFacts {
  * field of {@link StopPolicy}.
  */
 
-const PRIORITY = /^Priority: ([^\n]*)/;
+/** Exported for `match.ts`'s own `promptCouldBeAnswered` — the SAME two patterns, never a second copy. */
+export const PRIORITY = /^Priority: ([^\n]*)/;
 const TURN_OWNER = /^Turn: \d+ \(([^)]*)\)/m;
 const STACK_EMPTY = /^Stack: Empty$/m;
 const PHASE_LINE = /^Phase: (.+)$/m;
 
 /** `Pay Mana Cost: {U}` — Forge's own payment line (`en-US.properties:1797`). */
-const PAY_MANA = /^Pay Mana Cost: (.+)$/m;
+export const PAY_MANA = /^Pay Mana Cost: (.+)$/m;
 
 /**
  * Life is a second way to pay, and it is not a mana source

@@ -75,6 +75,7 @@ import {
 } from './auto.js';
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine } from './host.js';
 import { createMatchRegistry } from './match.js';
+import { finishMulligan, scenarioText, startScenario, waitUntil as waitUntilScenario } from './scenario.js';
 import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from './transport.js';
 
@@ -112,6 +113,90 @@ function str(o: WireObj | undefined, k: string): string | null {
 	return v !== undefined && v.t === 'str' && typeof v.v === 'string' ? v.v : null;
 }
 
+/** One (prompt, buttons) window, paired off the RAW bridge stream — see {@link rowsFromRaw}'s own note. */
+interface RawRow {
+	message: string;
+	card: unknown;
+	confirmAbility: unknown;
+	label1: string;
+	label2: string;
+	enable1: boolean;
+	enable2: boolean;
+	actionable: number[] | null;
+	selectables: number[] | null;
+}
+
+/**
+ * every row-building `it()` in this file used to pair a
+ * `showPromptMessage` with WHATEVER `updateButtons` happened to be last
+ * stored, read off `emit` (this seat's own wire). That already needed a
+ * `JSON.stringify` de-dup for Forge's own two input orderings (buttons before
+ * message, or after); what it did NOT anticipate is `match.ts`'s own
+ * DISABLED-buttons correction for an UNRELATED, auto-passed window
+ * ping-ponging back to this seat (a live bar left over from a window this
+ * seat never acted on, corrected before the next withheld one — see
+ * `match.ts`'s `decidePendingWindow`) landing in `live.buttons` BETWEEN two
+ * real windows and pairing with the SECOND real window's prompt instead of
+ * its own real buttons — a real, live decision recorded as dead, which the
+ * driver below then never clicks. Measured directly: before this fix, lane E
+ * took 200s+ and 267 rows for a run that finishes in 17s and 42 rows once
+ * rows are read off the raw stream instead.
+ *
+ * Paired here exactly as `match.ts` pairs them — prompt and buttons, in
+ * whichever order Forge sent them, for the CORRECT seat, never through
+ * whatever this seat's wire happened to carry around them.
+ */
+function rowsFromRaw(raw: BridgeLine[], seat: number): RawRow[] {
+	const rows: RawRow[] = [];
+	let pendingPrompt: { message: string; card: unknown; confirmAbility: unknown } | null = null;
+	let pendingButtons: { label1: string; label2: string; enable1: boolean; enable2: boolean } | null = null;
+	let actionable: number[] | null = null;
+	let selectables: number[] | null = null;
+	const flush = (): void => {
+		if (pendingPrompt === null || pendingButtons === null) return;
+		const row: RawRow = {
+			...pendingPrompt,
+			...pendingButtons,
+			actionable: actionable === null ? null : [...actionable],
+			selectables: selectables === null ? null : [...selectables],
+		};
+		const prev = rows[rows.length - 1];
+		if (prev === undefined || JSON.stringify(prev) !== JSON.stringify(row)) rows.push(row);
+		pendingPrompt = null;
+		pendingButtons = null;
+	};
+	for (const l of raw) {
+		if (l.t !== 'frame' || l.seat !== seat) continue;
+		const f = l.frame as {
+			method?: string;
+			message?: string;
+			card?: unknown;
+			confirmAbility?: unknown;
+			label1?: string;
+			label2?: string;
+			enable1?: boolean;
+			enable2?: boolean;
+			cards?: { id: number }[];
+		} | null;
+		if (f?.method === 'showPromptMessage') {
+			pendingPrompt = { message: f.message ?? '', card: f.card ?? null, confirmAbility: f.confirmAbility ?? null };
+			flush();
+		} else if (f?.method === 'updateButtons') {
+			pendingButtons = { label1: f.label1 ?? '', label2: f.label2 ?? '', enable1: f.enable1 === true, enable2: f.enable2 === true };
+			flush();
+		} else if (f?.method === 'setWeaklySelectable') {
+			actionable = (f.cards ?? []).map((c) => c.id);
+		} else if (f?.method === 'clearWeaklySelectable') {
+			actionable = null;
+		} else if (f?.method === 'setSelectables') {
+			selectables = (f.cards ?? []).map((c) => c.id);
+		} else if (f?.method === 'clearSelectables') {
+			selectables = null;
+		}
+	}
+	return rows;
+}
+
 describe.skipIf(!available.ok)(title, () => {
 	it(
 		'stops only where the seat can act, says what it paid, and never asks a one-answer question',
@@ -129,7 +214,39 @@ describe.skipIf(!available.ok)(title, () => {
 			const says: { seat: number; message: string }[] = [];
 
 			const registry = createMatchRegistry({
-				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
+				host: (id, spec, events) =>
+					jvm(id, spec, {
+						...events,
+						line: (l) => {
+							raw.push(l);
+							/*
+							 * a row opens off the RAW bridge line, not off `emit`.
+							 * `showPromptMessage` is now parked and, for a window the server
+							 * auto-passes, never reaches `sent` at all (that is the fix) — so a
+							 * row built from what Forge SAID, same as every other window, still
+							 * opens one; `idle` still reads `notes[seat].actionable`, which
+							 * `setWeaklySelectable`/`clearWeaklySelectable` keep live regardless
+							 * (those are never held).
+							 */
+							if (l.t === 'frame') {
+								const f = l.frame as { method?: unknown; message?: unknown } | null;
+								if (f?.method === 'showPromptMessage' && typeof f.message === 'string' && /^Priority: /.test(f.message)) {
+									const message = f.message;
+									stops.push({
+										seat: l.seat,
+										phase: /^Phase: (.+)$/m.exec(message)?.[1] ?? '?',
+										stackEmpty: /^Stack: Empty$/m.test(message),
+										idle: notes[l.seat]!.actionable !== null && notes[l.seat]!.actionable!.length === 0,
+										ownMain:
+											isOwnMainPhaseEntry(message) &&
+											!(DEFAULT_STOP_POLICY.attackStopIsTheDeclaration && /^Phase: Declare Attackers Step$/m.test(message)),
+										passed: false,
+									});
+								}
+							}
+							events.line(l);
+						},
+					}),
 				log: (e) => {
 					logs.push(e);
 					/*
@@ -150,35 +267,13 @@ describe.skipIf(!available.ok)(title, () => {
 					if (f.method === 'setWeaklySelectable') notes[seat]!.actionable = f.cards.map((c) => c.id);
 					else if (f.method === 'clearWeaklySelectable') notes[seat]!.actionable = null;
 					else if (f.method === 'showPromptMessage') {
+						// the row itself now opens off the raw bridge line (the
+						// `line` wrapper above), because a window the server auto-passes
+						// never reaches `emit` at all — that is the fix this suite is
+						// proving. `notes[seat].prompt` still updates here: it drives this
+						// test's OWN driver below, which only ever acts on a seat's own main
+						// phase, and that phase is never withheld (it is always a stop).
 						notes[seat]!.prompt = f.message;
-						/*
-						 * One row per priority WINDOW, opened by the prompt that names it.
-						 *
-						 * Wave 19 opened a row on `updateButtons` instead, and wave 20 broke
-						 * that: the payment input enables its bar BEFORE it says what it is
-						 * paying for (`InputPayMana.updateMessage`), so a row opened there
-						 * carried the PREVIOUS window's message and then absorbed the next
-						 * window's auto-pass. The prompt is the frame that identifies a
-						 * window, so the row starts with it — and windows with a NON-empty
-						 * stack are rows too now, because wave 20 passes those (#5).
-						 */
-						if (/^Priority: /.test(f.message)) {
-							stops.push({
-								seat,
-								phase: /^Phase: (.+)$/m.exec(f.message)?.[1] ?? '?',
-								stackEmpty: /^Stack: Empty$/m.test(f.message),
-								idle: notes[seat]!.actionable !== null && notes[seat]!.actionable!.length === 0,
-								// Wave 20 #7: a seat's own main phase is a stop whatever Forge
-								// says is actionable, so it is counted apart from the rest. Its
-								// own Declare Attackers step is in the same stop set, but under
-								// `attackStopIsTheDeclaration` the attack input was that stop and
-								// the priority window after it passes when there is nothing to do.
-								ownMain:
-									isOwnMainPhaseEntry(f.message) &&
-									!(DEFAULT_STOP_POLICY.attackStopIsTheDeclaration && /^Phase: Declare Attackers Step$/m.test(f.message)),
-								passed: false,
-							});
-						}
 					} else if (f.method === 'updateButtons') {
 						notes[seat]!.ok = f.enable1;
 					} else if (f.method === 'message') {
@@ -484,51 +579,20 @@ describe.skipIf(!available.ok)(title, () => {
 			const logs: Record<string, unknown>[] = [];
 			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
 
-			/*
-			 * One row per PROMPT seat 0 was shown, carrying the buttons and Forge's
-			 * multiset as they stood when that prompt arrived.
-			 *
-			 * Anchored on the prompt, not on the buttons, and the first run of this
-			 * test is why: `InputConfirm.showMessage` calls `updateButtons` and THEN
-			 * `showMessage` (`InputConfirm.java:107-121`), exactly as
-			 * `InputPayMana.updateMessage` does, so a row opened on the buttons
-			 * carries the PREVIOUS window's message — it recorded
-			 * `Priority: A … Main phase, postcombat` with a `Yes`/`No` bar. Wave 19
-			 * learned this on the payment input and wave 20 had to relearn it; the
-			 * prompt is the frame that identifies a window.
-			 */
-			interface Row {
-				message: string;
-				card: unknown;
-				label1: string;
-				label2: string;
-				enable1: boolean;
-				enable2: boolean;
-				actionable: number[] | null;
-				confirmAbility: unknown;
-			}
-			const rows: Row[] = [];
-			const live = { prompt: null as ServerFrame | null, buttons: null as ServerFrame | null, actionable: null as number[] | null };
+			// rows are read off `raw` (the bridge's own stream), via
+			// the shared `rowsFromRaw` — never off `emit` (this seat's wire) — see
+			// that function's own header for why: `match.ts` can now correct an
+			// UNRELATED window's stale live bar with a disabled `updateButtons`
+			// of its own, and anchoring on whatever this seat's wire carried
+			// around a prompt paired a real decision with that correction instead
+			// of its own real buttons.
+			const rows = (): RawRow[] => rowsFromRaw(raw, 0);
 			const notes = [0, 1].map(() => ({ prompt: '', ok: false }));
-
-			function record(): void {
-				const p = live.prompt;
-				const b = live.buttons;
-				if (p === null || b === null || p.method !== 'showPromptMessage' || b.method !== 'updateButtons') return;
-				const row: Row = {
-					message: p.message,
-					card: p.card,
-					label1: b.label1,
-					label2: b.label2,
-					enable1: b.enable1,
-					enable2: b.enable2,
-					actionable: live.actionable === null ? null : [...live.actionable],
-					confirmAbility: p.confirmAbility ?? null,
-				};
-				const prev = rows[rows.length - 1];
-				if (prev !== undefined && JSON.stringify(prev) === JSON.stringify(row)) return;
-				rows.push(row);
-			}
+			// `setWeaklySelectable`/`clearWeaklySelectable` are never held or
+			// corrected by `match.ts` (only the prompt/buttons pair is), so
+			// reading this off `emit` — unlike the prompt and buttons themselves —
+			// is exactly as live and exactly as safe as it always was.
+			const live = { actionable: null as number[] | null };
 
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
@@ -548,8 +612,6 @@ describe.skipIf(!available.ok)(title, () => {
 					if (seat !== 0) return;
 					if (f.method === 'setWeaklySelectable') live.actionable = f.cards.map((c) => c.id);
 					else if (f.method === 'clearWeaklySelectable') live.actionable = null;
-					else if (f.method === 'showPromptMessage') { live.prompt = f; record(); }
-					else if (f.method === 'updateButtons') live.buttons = f;
 				},
 			});
 
@@ -660,11 +722,16 @@ describe.skipIf(!available.ok)(title, () => {
 			 * So `label1` cannot classify a priority window, and the adapter does not
 			 * use it for one — only for the payment input, whose own label is `Auto`.
 			 */
-			const yesNoRows = (): Row[] => rows.filter((r) => r.label1 === 'Yes' && r.label2 === 'No');
-			const sacrificeRows = (): Row[] => yesNoRows().filter((r) => !r.message.startsWith('Priority: '));
-			const staleBarRows = (): Row[] => yesNoRows().filter((r) => r.message.startsWith('Priority: '));
-			const paymentRows = (): Row[] => rows.filter((r) => r.label1 === 'Auto' && r.enable1);
-			const twoSourceRows = (): Row[] => paymentRows().filter((r) => r.actionable !== null && new Set(r.actionable).size >= 2);
+			const yesNoRows = (): RawRow[] => rows().filter((r) => r.label1 === 'Yes' && r.label2 === 'No');
+			// a SECOND non-priority confirm is ALWAYS in this seeded
+			// run — Stoneforge Mystic's own ETB ("Use triggered ability of
+			// Stoneforge Mystic?") — distinct from #16's own claim. Real, not a
+			// regression; split out by message rather than widening #16's claim.
+			const sacrificeRows = (): RawRow[] => yesNoRows().filter((r) => r.message.startsWith('Sacrifice '));
+			const otherConfirmRows = (): RawRow[] => yesNoRows().filter((r) => !r.message.startsWith('Priority: ') && !r.message.startsWith('Sacrifice '));
+			const staleBarRows = (): RawRow[] => yesNoRows().filter((r) => r.message.startsWith('Priority: '));
+			const paymentRows = (): RawRow[] => rows().filter((r) => r.label1 === 'Auto' && r.enable1);
+			const twoSourceRows = (): RawRow[] => paymentRows().filter((r) => r.actionable !== null && new Set(r.actionable).size >= 2);
 
 			const names = ['A', 'B'];
 			const deadline = Date.now() + 200_000;
@@ -729,10 +796,10 @@ describe.skipIf(!available.ok)(title, () => {
 			const dumpDir = process.env.CARDTABLE_PLAY_DUMP;
 			if (dumpDir !== undefined) {
 				mkdirSync(dumpDir, { recursive: true });
-				writeFileSync(join(dumpDir, `w24-e-windows-${Date.now()}.json`), JSON.stringify({ rows, says: logs.filter((l) => l.evt === 'auto-passed' || l.evt === 'auto-paid') }, null, 1));
+				writeFileSync(join(dumpDir, `w24-e-windows-${Date.now()}.json`), JSON.stringify({ rows: rows(), says: logs.filter((l) => l.evt === 'auto-passed' || l.evt === 'auto-paid') }, null, 1));
 			}
 
-			const notesFrom = (row: Row): SeatNotes => ({
+			const notesFrom = (row: RawRow): SeatNotes => ({
 				playerId: match.seats[0]!.playerId,
 				prompt: {
 					kind: 'notify',
@@ -756,7 +823,7 @@ describe.skipIf(!available.ok)(title, () => {
 			});
 
 			console.log(
-				`[lane-e] ${rows.length} (prompt, buttons) rows; ${sacrificeRows().length} Yes/No confirms, ` +
+				`[lane-e] ${rows().length} (prompt, buttons) rows; ${sacrificeRows().length} Yes/No confirms, ` +
 					`${paymentRows().length} live payments, ${twoSourceRows().length} of them with two or more sources`,
 			);
 
@@ -764,7 +831,7 @@ describe.skipIf(!available.ok)(title, () => {
 			 * #16 — what the sacrifice confirm carries. Non-vacuity first: a sweep
 			 * over no confirm proves nothing.
 			 */
-			expect(sacrificeRows().length, `no Yes/No confirm happened: ${JSON.stringify(rows.map((r) => r.label1))}`).toBeGreaterThan(0);
+			expect(sacrificeRows().length, `no Yes/No confirm happened: ${JSON.stringify(rows().map((r) => r.label1))}`).toBeGreaterThan(0);
 			for (const row of sacrificeRows()) {
 				expect(row.message, row.message).toBe('Sacrifice Evolving Wilds?');
 				console.log(`[lane-e] #16 confirm: ${JSON.stringify({ message: row.message, card: row.card, label1: row.label1, label2: row.label2, enable2: row.enable2 })}`);
@@ -791,6 +858,22 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(decideStop(facts, DEFAULT_STOP_POLICY)).toBeNull();
 				expect(decidePay(facts, DEFAULT_STOP_POLICY)).toBeNull();
 				expect(decideStop(facts, FULL_CONTROL_POLICY)).toBeNull();
+			}
+
+			/*
+			 * This suite's own finding (see `otherConfirmRows`'s header): a second,
+			 * unrelated Yes/No confirm this run surfaces — still the SAME general
+			 * InputConfirm shape #16 is about (no cost, no ask, a stop under every
+			 * policy), just not Evolving Wilds', so it is checked for that shape
+			 * alone rather than folded into #16's card-specific claim above.
+			 */
+			for (const row of otherConfirmRows()) {
+				console.log(`[lane-e] a second confirm this run found: ${JSON.stringify({ message: row.message, card: row.card })}`);
+				expect(row.card).toBeNull();
+				const facts: PromptFacts = readPromptFacts(notesFrom(row));
+				expect(facts.window).toBe('other');
+				expect(facts.cost).toBeNull();
+				expect(decideStop(facts, DEFAULT_STOP_POLICY)).toBeNull();
 			}
 
 			/*
@@ -875,44 +958,14 @@ describe.skipIf(!available.ok)(title, () => {
 			const logs: Record<string, unknown>[] = [];
 			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
 
-			/** One row per prompt seat 0 was shown, with the bar and both selectable sets as they stood. */
-			interface Row {
-				message: string;
-				label1: string;
-				label2: string;
-				enable1: boolean;
-				enable2: boolean;
-				/** Forge's weighted actionable multiset (`setWeaklySelectable`), verbatim. */
-				actionable: number[] | null;
-				/** Forge's STRONG selectables (`setSelectables`), verbatim. */
-				selectables: number[] | null;
-			}
-			const rows: Row[] = [];
-			const live = {
-				prompt: null as ServerFrame | null,
-				buttons: null as ServerFrame | null,
-				actionable: null as number[] | null,
-				selectables: null as number[] | null,
-			};
+			// rows are read off `raw` via the shared `rowsFromRaw`,
+			// never off `emit` — see that function's own header. `setWeaklySelectable`/
+			// `setSelectables` (and their clears) are never held or corrected, so
+			// tracking THOSE off `emit` for the driver below is still exactly as
+			// safe as it always was.
+			const rows = (): RawRow[] => rowsFromRaw(raw, 0);
+			const live = { actionable: null as number[] | null, selectables: null as number[] | null };
 			const notes = [0, 1].map(() => ({ prompt: '', ok: false }));
-
-			function record(): void {
-				const p = live.prompt;
-				const b = live.buttons;
-				if (p === null || b === null || p.method !== 'showPromptMessage' || b.method !== 'updateButtons') return;
-				const row: Row = {
-					message: p.message,
-					label1: b.label1,
-					label2: b.label2,
-					enable1: b.enable1,
-					enable2: b.enable2,
-					actionable: live.actionable === null ? null : [...live.actionable],
-					selectables: live.selectables === null ? null : [...live.selectables],
-				};
-				const prev = rows[rows.length - 1];
-				if (prev !== undefined && JSON.stringify(prev) === JSON.stringify(row)) return;
-				rows.push(row);
-			}
 
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
@@ -931,8 +984,6 @@ describe.skipIf(!available.ok)(title, () => {
 					else if (f.method === 'clearWeaklySelectable') live.actionable = null;
 					else if (f.method === 'setSelectables') live.selectables = f.cards.map((c) => c.id);
 					else if (f.method === 'clearSelectables') live.selectables = null;
-					else if (f.method === 'showPromptMessage') { live.prompt = f; record(); }
-					else if (f.method === 'updateButtons') { live.buttons = f; record(); }
 				},
 			});
 
@@ -1033,11 +1084,11 @@ describe.skipIf(!available.ok)(title, () => {
 				ClientFrameSchema.parse({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id }, triggerEvent: null });
 
 			/** The payment rows: Forge's own `Auto` bar, live or dead. */
-			const paymentRows = (): Row[] => rows.filter((r) => r.label1 === 'Auto' && /^Pay Mana Cost: /m.test(r.message));
+			const paymentRows = (): RawRow[] => rows().filter((r) => r.label1 === 'Auto' && /^Pay Mana Cost: /m.test(r.message));
 			/** Item 6's window: `{R}`, with more than one card in Forge's actionable set. */
-			const blastRows = (): Row[] => paymentRows().filter((r) => r.enable1 && r.actionable !== null && new Set(r.actionable).size > 1);
+			const blastRows = (): RawRow[] => paymentRows().filter((r) => r.enable1 && r.actionable !== null && new Set(r.actionable).size > 1);
 			/** Item 7's window, if this run happens to produce one: a payment Forge's own Auto is DEAD for. */
-			const deadAutoRows = (): Row[] => paymentRows().filter((r) => !r.enable1);
+			const deadAutoRows = (): RawRow[] => paymentRows().filter((r) => !r.enable1);
 
 			const names = ['A', 'B'];
 			/** Set while a Galvanic Blast cast is in flight, so the targeting input is answered once. */
@@ -1117,11 +1168,11 @@ describe.skipIf(!available.ok)(title, () => {
 				mkdirSync(dumpDir, { recursive: true });
 				writeFileSync(
 					join(dumpDir, `w25-d-item6-${Date.now()}.json`),
-					JSON.stringify({ rows, paid: logs.filter((l) => l.evt === 'auto-paid' || l.evt === 'auto-passed' || l.evt === 'auto-cancelled') }, null, 1),
+					JSON.stringify({ rows: rows(), paid: logs.filter((l) => l.evt === 'auto-paid' || l.evt === 'auto-passed' || l.evt === 'auto-cancelled') }, null, 1),
 				);
 			}
 
-			const notesFrom = (row: Row): SeatNotes => ({
+			const notesFrom = (row: RawRow): SeatNotes => ({
 				playerId: match.seats[0]!.playerId,
 				prompt: {
 					kind: 'notify',
@@ -1144,7 +1195,7 @@ describe.skipIf(!available.ok)(title, () => {
 				openAsks: 0,
 			});
 
-			console.log(`[lane-d] ${rows.length} rows, ${paymentRows().length} payment rows, ${blastRows().length} of them item 6's shape`);
+			console.log(`[lane-d] ${rows().length} rows, ${paymentRows().length} payment rows, ${blastRows().length} of them item 6's shape`);
 			for (const row of paymentRows()) {
 				console.log(`[lane-d] payment row: ${JSON.stringify({ message: row.message, label1: row.label1, enable1: row.enable1, actionable: row.actionable, selectables: row.selectables })}`);
 				console.log(`[lane-d] readPromptFacts: ${JSON.stringify(readPromptFacts(notesFrom(row)))}`);
@@ -1208,5 +1259,88 @@ describe.skipIf(!available.ok)(title, () => {
 			expect(liveJvmCount()).toBe(0);
 		},
 		300_000,
+	);
+
+	/*
+	 * Bitterblossom, by name: a real-Forge cast of the exact card
+	 * from the ledger's own timeline (`scenarios/bitterblossom.state`: seat 0's
+	 * own uncontested Main Phase 1, Bitterblossom in hand, two Swamps up).
+	 * `DEFAULT_STOP_POLICY`'s `forgeAuto` auto-pays {1}{B} the instant Forge's
+	 * own Auto is live, then the caster's own next priority (the spell
+	 * resolving on the stack) is auto-passed the same way `own-spell.state`'s
+	 * own suite proves for a free spell — the claim here is that NEITHER
+	 * window, payment or priority, ever reaches the seat's wire.
+	 */
+	it(
+		'Bitterblossom: the payment and the priority that follows it never reach the seat',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, {
+				seed: 55,
+				decks: [deck('Bitterblossom A', ['40 Swamp']), deck('Bitterblossom B', ['40 Swamp'])],
+				scenario: scenarioText('bitterblossom'),
+			});
+			try {
+				await finishMulligan(s);
+				const bb = await waitUntilScenario(
+					() => {
+						s.answerAsks();
+						return s.zone(0, 'Hand').some((c) => c.name === 'Bitterblossom');
+					},
+					"seat 0's hand to reflect the scripted Bitterblossom",
+					20_000,
+					s,
+				).then(() => s.zone(0, 'Hand').find((c) => c.name === 'Bitterblossom'));
+				if (bb === undefined) throw new Error('no Bitterblossom in hand');
+				await waitUntilScenario(
+					() => {
+						s.answerAsks();
+						return s.sent.some(
+							(x) =>
+								x.seat === 0 &&
+								x.envelope.frame.method === 'setWeaklySelectable' &&
+								(x.envelope.frame as unknown as { cards: { id: number }[] }).cards.some((c) => c.id === bb.id),
+						);
+					},
+					'Bitterblossom to be offered as actionable to seat 0',
+					15_000,
+					s,
+				);
+				const logsBefore = s.logs.length;
+				const sentBefore = s.sent.length;
+				s.select(0, bb.id);
+				await waitUntilScenario(
+					() => {
+						s.answerAsks();
+						return s.zone(0, 'Battlefield').some((c) => c.name === 'Bitterblossom');
+					},
+					'Bitterblossom to resolve onto the battlefield without a click',
+					20_000,
+					s,
+				);
+				const sentSince = s.sent.slice(sentBefore).filter((x) => x.seat === 0);
+				const paid = s.logs.slice(logsBefore).filter((l) => l.evt === 'auto-paid' && l.seat === 0);
+				const passed = s.logs.slice(logsBefore).filter((l) => l.evt === 'auto-passed' && l.seat === 0);
+				const withheld = s.logs.slice(logsBefore).filter((l) => l.evt === 'prompt-withheld' && l.seat === 0);
+				console.log(`[bitterblossom] server log: ${JSON.stringify({ paid, passed, withheld })}`);
+				console.log(`[bitterblossom] seat 0's frames since the cast: ${JSON.stringify(sentSince.map((x) => x.envelope.frame.method))}`);
+				expect(paid.length, 'the {1}{B} payment was auto-paid').toBeGreaterThan(0);
+				expect(passed.length, 'the caster held priority on its own spell, and it was auto-passed').toBeGreaterThan(0);
+				// The claim: no payment window reached the seat, and the log shows
+				// the priority window right after it (the caster's own, on the
+				// stack) was withheld the same way — not that no LATER, unrelated
+				// priority window ever reaches the seat, which the normal game
+				// keeps sending as the seat's own genuine stops resume.
+				expect(sentSince.some((x) => /Pay Mana Cost/.test((x.envelope.frame as unknown as { message?: string }).message ?? ''))).toBe(false);
+				expect(withheld.map((l) => l.kind)).toEqual(['payment', 'priority']);
+				writeFileSync(
+					join('docs', 'planning', 'wave55-evidence', 'S', 'bitterblossom-run.json'),
+					JSON.stringify({ paid, passed, withheld, framesSinceCast: sentSince.map((x) => x.envelope.frame.method) }, null, 1),
+				);
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
 	);
 });

@@ -407,7 +407,7 @@ describe('two seats over the socket', () => {
 	});
 
 	it('streams live frames per seat on one contiguous cursor that continues from the snapshot', async () => {
-		const { matchId, alice, bob, host } = await twoSeats();
+		const { h, matchId, alice, bob, host } = await twoSeats();
 		const snaps = [
 			(await alice.request('forge:join', { matchId })) as { cursor: { seq: number; epoch: string } },
 			(await bob.request('forge:join', { matchId })) as { cursor: { seq: number; epoch: string } },
@@ -415,7 +415,20 @@ describe('two seats over the socket', () => {
 		// The join re-sends the prompt and buttons of the moment after the snapshot.
 		await waitUntil(() => alice.frames.length >= 2 && bob.frames.length >= 2, 'the post-snapshot re-sends');
 		host.push(PROBE_ASK, ...AFTER_PROBE);
-		const expected = [0, 1].map((seat) => TRANSCRIPT.slice(PROBE_AT).filter((l) => l.t === 'frame' && l.seat === seat).length);
+		// the transcript's own closing window (seat 1's opening
+		// Upkeep priority) is auto-passed — Upkeep is not a stop phase — so
+		// `match.ts` withholds it whole rather than forwarding it. Two fewer
+		// frames than the bridge sent, for seat 1 only; read off the log,
+		// never guessed, so a different fixture change cannot hide behind it.
+		await waitUntil(() => h.logs.some((l) => l.evt === 'prompt-withheld'), 'the withheld window to be decided');
+		const withheld = h.logs.filter((l) => l.evt === 'prompt-withheld') as { seat: number }[];
+		const expected = [0, 1].map((seat) => {
+			const bridgeCount = TRANSCRIPT.slice(PROBE_AT).filter((l) => l.t === 'frame' && l.seat === seat).length;
+			// Each withheld window is TWO bridge frames (prompt, buttons) that
+			// become ZERO emitted ones — never one, since neither half goes out.
+			const withheldForSeat = withheld.filter((w) => w.seat === seat).length * 2;
+			return bridgeCount - withheldForSeat;
+		});
 		await waitUntil(
 			() => alice.frames.length >= 2 + (expected[0] ?? 0) && bob.frames.length >= 2 + (expected[1] ?? 0),
 			'every live frame',

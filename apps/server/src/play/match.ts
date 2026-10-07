@@ -95,6 +95,9 @@
  */
 
 import { randomBytes } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { isDurableParticipantId, type ParticipantId } from '@wolffm/rooms-protocol';
 import {
 	isBlocking,
@@ -112,14 +115,17 @@ import {
 	chosenCostConfirm,
 	DEFAULT_STOP_POLICY,
 	onlyAnswer,
+	PAY_MANA,
 	paymentCost,
 	paymentLine,
+	PRIORITY,
 	triggerLine,
 	readPromptFacts,
 	repeatedAbilityToPlay,
 	type Payment,
 	type SeatNotes,
 	type StopPolicy,
+	type StopWindow,
 } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
@@ -381,6 +387,28 @@ export interface SeatState {
 	 * dismissing a display, not answering Forge, and is consumed locally.
 	 */
 	displayOnlyAsks: Set<string>;
+	/**
+	 * hold-decide-forward. A `showPromptMessage`/`updateButtons`
+	 * half, parked here until its partner arrives (or any other frame, or
+	 * {@link PROMPT_HOLD_FLUSH_MS}) so the pair is decided ONCE, before either
+	 * half reaches the wire. See {@link Match.holdPromptWindow}.
+	 */
+	pendingPrompt: ServerFrame | null;
+	pendingButtons: ServerFrame | null;
+	/** Which of the two parked FIRST — so a forwarded pair goes out in the order Forge actually sent it. */
+	pendingFirst: 'prompt' | 'buttons' | null;
+	pendingTimer: NodeJS.Timeout | null;
+	/**
+	 * Whether the LAST `updateButtons` actually sent to this seat's wire left
+	 * either button enabled — see {@link Match.send}. Read by
+	 * {@link Match.decidePendingWindow}: a withheld window whose predecessor
+	 * left a live button on the seat's screen gets a disabled correction (the
+	 * design the Settled text asked for); one that didn't gets nothing, which
+	 * is what the declare-attackers fix needs (a disabled `updateButtons`
+	 * still flips the browser's `inputLive` and lights `attackDefenders` for
+	 * an instant).
+	 */
+	wireButtonsLive: boolean;
 }
 
 export interface MatchDeps {
@@ -519,6 +547,71 @@ export function newMatchId(): string {
 const PENDING_REVEAL_FOLD_MS = 250;
 
 /**
+ * how long a parked `showPromptMessage`/`updateButtons` half
+ * waits for its partner before it is forwarded undecided (the safety flush).
+ * Forge sends the two back-to-back in the ordinary case (measured: `auto-paid`
+ * to `auto-passed` 16ms apart on the production Bitterblossom cast this wave
+ * fixes) — but `InputPayMana`'s own buttons-before-message ordering measured
+ * as much as 251ms apart against a real jar under load
+ * (`bitterblossom.jvm.test.ts` / `auto.jvm.test.ts`'s own Bitterblossom case),
+ * which a 250ms window missed outright: the buttons half flushed live,
+ * UNANSWERED, and the prompt that arrived 1ms later could never re-pair with
+ * it (its partner was already gone) — the one shape worse than this wave's
+ * own bug, a live payment bar nobody, human or server, ever presses. This is
+ * deliberately generous relative to the measured ordinary case, not a target
+ * to hit.
+ */
+const PROMPT_HOLD_FLUSH_MS = 2000;
+
+/**
+ * Wave 55 §S — does this `showPromptMessage` have a SHAPE any of the three
+ * deciders could ever act on? Narrows holding to exactly the windows that
+ * might be withheld: `maybeAutoPass` reads a `Priority: ` message,
+ * `maybeAutoPay` a `Pay Mana Cost: ` one, `maybeConfirmChosenCost` one
+ * carrying `confirmAbility`. Everything else — `InputAttack`'s own repeated
+ * "Select creatures to attack" refresh chief among them — is NEVER a shape
+ * any decider reads, so parking it serves nothing and only adds latency: a
+ * real jar measured a 2s stall on exactly this (a declared-attacker's own
+ * `updateButtons` refresh, held for the full safety window with no prompt
+ * ever coming to pair it, while the seat's own click landed on a stale
+ * card). Reuses `auto.ts`'s own `PRIORITY`/`PAY_MANA` patterns — never a
+ * second copy of either.
+ */
+function promptCouldBeAnswered(frame: Extract<ServerFrame, { method: 'showPromptMessage' }>): boolean {
+	if (frame.confirmAbility != null) return true;
+	return PRIORITY.test(frame.message) || PAY_MANA.test(frame.message);
+}
+
+/**
+ * The buttons-first twin, for the two shapes Forge is documented to send
+ * buttons ahead of their own message: `InputPayMana` (`label1: 'Auto'`) and
+ * `InputConfirm`'s own Yes/No cost confirm (wave 52 §S B's own header) — the
+ * only two a decider could ever answer without having seen the prompt yet.
+ * An ordinary priority bar's button one is always `'OK'`, never either of
+ * these, so it is never held waiting for a prompt that already came and
+ * went.
+ */
+function buttonsCouldBeAnswered(frame: Extract<ServerFrame, { method: 'updateButtons' }>): boolean {
+	return frame.label1 === 'Auto' || (frame.label1 === 'Yes' && frame.label2 === 'No');
+}
+
+/** One decided window, as {@link Match.recordWindow} keeps it — see `frames.jsonl`'s own note. */
+interface FrameLogEntry {
+	t: number;
+	seat: number;
+	kind: StopWindow;
+	decision: 'forwarded' | 'withheld';
+	why: string;
+	message: string | null;
+	buttons: { label1: string; enable1: boolean; label2: string; enable2: boolean } | null;
+}
+
+/** How many {@link FrameLogEntry} rows one match's `frames.jsonl` keeps — a ring, not a log that grows forever. */
+const FRAMES_RING_SIZE = 500;
+
+const FRAMES_LOG_FILE = 'frames.jsonl';
+
+/**
  * `InputPassPriority.showYieldSuggestionPrompt`'s own button labels
  * (`en-US.properties`: `lblAccept`, `lblDecline`) — see
  * {@link Match.maybeDeclineYieldSuggestion}'s own header (wave 35 §S item 2).
@@ -585,6 +678,16 @@ export class Match {
 	 * UNRELATED later reveal that happens to name the same cards.
 	 */
 	private justDiscarded: { ids: ReadonlySet<number>; timer: NodeJS.Timeout } | null = null;
+	/**
+	 * the last {@link FRAMES_RING_SIZE} decided prompt
+	 * windows, each way (every seat, forwarded and withheld alike), flushed to
+	 * `frames.jsonl` once by {@link writeFramesLog} on match end. The server's
+	 * structured log (`prompt-forwarded`/`prompt-withheld`, below) already
+	 * carries this per decision; the file is the SAME record kept across the
+	 * match for a repro, not a second source of truth.
+	 */
+	private readonly framesRing: FrameLogEntry[] = [];
+	private framesLogWritten = false;
 
 	constructor(
 		id: string,
@@ -647,6 +750,11 @@ export class Match {
 			pendingReveal: null,
 			mergedChoice: new Map(),
 			displayOnlyAsks: new Set(),
+			pendingPrompt: null,
+			pendingButtons: null,
+			pendingFirst: null,
+			pendingTimer: null,
+			wireButtonsLive: false,
 		}));
 		for (const [seat, owner] of (restore?.owners ?? []).entries()) {
 			const s = this.seats[seat];
@@ -1103,6 +1211,7 @@ export class Match {
 	stop(): void {
 		if (this.status !== 'starting' && this.status !== 'running' && this.status !== 'over') return;
 		this.status = 'stopped';
+		this.writeFramesLog();
 		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: 'stopped' });
 		this.closeAllAsks();
 		this.host?.stop();
@@ -1111,6 +1220,7 @@ export class Match {
 	/* ── Forge → browser ────────────────────────────────────────────── */
 
 	private send(s: SeatState, frame: ServerFrame): void {
+		if (frame.method === 'updateButtons') s.wireButtonsLive = frame.enable1 === true || frame.enable2 === true;
 		s.seq += 1;
 		const cursor: WireCursor = { epoch: this.epoch, seq: s.seq };
 		this.deps.emit(s.seat, { matchId: this.id, cursor, frame });
@@ -1148,6 +1258,7 @@ export class Match {
 				this.status = 'over';
 				this.winner = line.winner;
 				this.deps.log({ evt: 'game-over', matchId: this.id, winner: line.winner });
+				this.writeFramesLog();
 				this.overTimer = setTimeout(() => this.host?.stop(), this.deps.overGraceMs);
 				this.overTimer.unref();
 				return;
@@ -1184,6 +1295,24 @@ export class Match {
 			return;
 		}
 		const frame = parsed.value;
+
+		// "or any later frame": an ASK is a genuinely different
+		// kind of window (`getChoices`, `getAbilityToPlay`, …), never paired
+		// with a prompt/buttons half, so one arriving means whatever is parked
+		// was never going to find its partner — flushed now rather than held
+		// out the full {@link PROMPT_HOLD_FLUSH_MS}.
+		//
+		// State frames and `setWeaklySelectable`/`setSelectables` (and their
+		// clears) do NOT flush here, on purpose, however many of them arrive
+		// in between: `InputPayMana.updateMessage`'s own order is buttons,
+		// THEN the actionable set, THEN the message (the exact sequence a real
+		// jar produces for every payment — confirmed directly, measured as
+		// much as 251ms end to end under load), so a payment's own setup
+		// ALWAYS interleaves a `setWeaklySelectable` between its two prompt
+		// halves. Flushing on it — the first version of this fix did — threw
+		// the buttons half away unpaired on every single payment, live and
+		// unanswered, the exact shape worse than the bug this file fixes.
+		if (frame.kind === 'ask') this.flushPendingWindow(s);
 
 		if (isTierC(frame.method)) {
 			const state = frame as unknown as StateFrame;
@@ -1278,8 +1407,17 @@ export class Match {
 		} else if (frame.method === 'showPromptMessage') {
 			s.prompt = frame;
 			if (frame.message.startsWith('Priority:')) s.chosenAbility = null;
+			// The payment this prompt opens or closes is on record before anything
+			// decides on it (Z4: `maybeCancelUnpayable` must see the payment it is
+			// cancelling) — independent of whether this half is held or sent.
+			this.trackPayment(s, frame.message);
+			this.holdPromptWindow(s, frame);
+			return;
 		} else if (frame.method === 'updateButtons') {
 			s.buttons = frame;
+			this.maybeDeclineYieldSuggestion(s);
+			this.holdPromptWindow(s, frame);
+			return;
 		} else if (frame.method === 'setWeaklySelectable') {
 			// A set — even an empty one — is Forge's answer to "what can this seat
 			// do". `clearWeaklySelectable` is the absence of one; see `auto.ts`.
@@ -1305,93 +1443,216 @@ export class Match {
 		} else if (frame.method === 'clearWeaklySelectable') {
 			s.weakly = null;
 		}
-		/*
-		 * Wave 35 §S follow-up, item 3 (Q17's "transient-stack race",
-		 * `w33.spec.ts`, flaking 1-in-3 to 1-in-6 once R15 made the window
-		 * reachable more often): `updateButtons` used to be forwarded to the
-		 * browser UNCONDITIONALLY, with `maybeAutoPass` only deciding AFTER —
-		 * so a window this seat's own `decideStop` was always going to auto-pass
-		 * (its own spell sitting on the stack) still reached the wire with OK
-		 * live for however long the auto-pass command took to round-trip back
-		 * through the bridge. That is a real stop, however briefly, not a test
-		 * artefact — `enabledOk` on the real board really did read `true` for a
-		 * window nothing ever asked the player to look at.
-		 *
-		 * The fix is NOT to withhold this frame outright: the board's buttons
-		 * persist from whatever `updateButtons` arrived last, so dropping the
-		 * frame for a window that follows a genuine stop (own main phase,
-		 * typically — the carve-out that is ALWAYS a stop regardless of
-		 * `passWhenNothingToDo`) leaves that EARLIER stop's own enabled OK
-		 * showing through the whole auto-passed window instead — strictly
-		 * worse, confirmed directly: the first version of this fix (pure
-		 * suppression) still failed this exact e2e 1/1, for exactly that reason.
-		 * Both buttons are sent disabled instead, so the board reflects "nothing
-		 * to do here" the instant the window opens, same moment `maybeAutoPass`
-		 * decides it — then presses OK itself. `maybeAutoPass` only reads
-		 * `s.prompt`/`s.buttons`/`s.actionable`, already updated above (the REAL
-		 * frame, kept for every other decision this file makes), so deciding
-		 * here instead of after costs it nothing.
-		 */
-		// The payment this prompt opens or closes is on record before anything below decides on it (Z4: the
-		// auto-pay now runs before the send, and `maybeCancelUnpayable` must see the payment it is cancelling).
-		if (frame.method === 'showPromptMessage') this.trackPayment(s, frame.message);
-		let outgoing = frame;
-		if (frame.method === 'updateButtons') {
-			this.maybeDeclineYieldSuggestion(s);
-			// Wave 52 §S B: the confirm's buttons can also arrive after its prompt.
-			if (this.maybeAutoPass(s) || this.maybeConfirmChosenCost(s)) outgoing = { ...frame, enable1: false, enable2: false, focus1: false };
+		this.send(s, frame);
+	}
+
+	/**
+	 * hold-decide-forward, replacing the old forward-then-decide
+	 * order this comment used to describe.
+	 *
+	 * `showPromptMessage` and `updateButtons` are two halves of ONE Forge
+	 * window, sent back-to-back but not always in the same order:
+	 * `InputPassPriority` sends the prompt first, `InputPayMana.updateMessage`
+	 * sends its buttons first and the prompt after. Forwarding whichever half
+	 * arrived first — the ONLY option while the decision could not run until
+	 * the second half was known — is what put a window the server was about to
+	 * answer on the wire for however many milliseconds separated the two:
+	 * Bitterblossom's payment and the caster's own priority both measured at
+	 * 16ms in production, long enough for a "Pay Mana Cost" and a "Resolve?"
+	 * pop-up to flash and vanish on every auto-answered cast.
+	 *
+	 * Neither half is sent now until the pair is complete. Each is parked in
+	 * {@link SeatState.pendingPrompt}/{@link SeatState.pendingButtons}; the
+	 * moment both are set, {@link decidePendingWindow} runs the three deciders
+	 * ONCE and sends both frames or neither. A half with no partner yet (and,
+	 * per {@link SeatState.pendingTimer}, none arriving within
+	 * {@link PROMPT_HOLD_FLUSH_MS}, or `onFrame`'s own pre-check finding any
+	 * OTHER frame for this seat first) is {@link flushPendingWindow}'d
+	 * undecided — forwarded exactly as it would have been before this wave.
+	 *
+	 * This also retires the two band-aids the old order needed and this
+	 * comment used to carry: deciding on `updateButtons` alone could read a
+	 * STALE `showPromptMessage` left over from the previous window (Q17's
+	 * "transient-stack race", `w33.spec.ts`), so the decision ran a second time
+	 * on the NEXT `showPromptMessage` to correct it. With the decision made
+	 * once the pair is actually matched, neither frame is ever stale when it
+	 * is read, and there is nothing left to correct after the fact.
+	 */
+	private holdPromptWindow(s: SeatState, frame: Extract<ServerFrame, { kind: 'notify' }>): void {
+		// Narrowed to exactly the windows a decider could ever act on — see
+		// `promptCouldBeAnswered`/`buttonsCouldBeAnswered`'s own headers. A
+		// half with no answerable shape, and no OTHER half already parked
+		// waiting for it, is sent at once — exactly as it would have gone out
+		// before this wave, no 2s wait for a pairing that was never coming.
+		// Whatever WAS parked (an unrelated window) is flushed first, same as
+		// any other frame that is not itself part of the pair.
+		if (frame.method === 'showPromptMessage' && !promptCouldBeAnswered(frame)) {
+			// An unanswerable prompt can never be the pairing partner a parked
+			// `Auto`/confirm buttons half is waiting for either (those only
+			// ever pair with a `Pay Mana Cost: `/`confirmAbility` prompt) — so
+			// whatever IS parked is flushed, unpaired, rather than wrongly
+			// paired with this one.
+			this.flushPendingWindow(s);
+			this.send(s, frame);
+			return;
 		}
-		// Wave 52 §S B: a cost confirm answered for the seat is never shown to it.
-		// `InputConfirm` sends its Yes/No buttons BEFORE the prompt that carries
-		// `confirmAbility`, so those already went out live; they go again disabled,
-		// and the question itself is withheld — a flashed "Sacrifice Augur of
-		// Skulls?" with a live Yes is the redundant ask the operator reported.
-		//
-		// Ledger Z4, the same shape for a payment this server pays itself: the
-		// "Pay Mana Cost" line was forwarded and THEN auto-paid, so the payment
-		// pop-up flashed on the seat's screen for a cost it never had to touch
-		// (the operator, 2026-10-07: "we should not pop things like that on the
-		// screen if they are gonna get shortcutted"). The decision runs before
-		// the send: paid here, the prompt is withheld and the live Auto button
-		// goes out disabled; not paid, everything goes out as before.
-		if (frame.method === 'showPromptMessage' && (this.maybeConfirmChosenCost(s) || this.maybeAutoPay(s))) {
-			if (s.buttons !== null && s.buttons.method === 'updateButtons') {
-				this.send(s, { ...s.buttons, enable1: false, enable2: false, focus1: false });
-			}
+		if (frame.method === 'updateButtons' && s.pendingPrompt === null && !buttonsCouldBeAnswered(frame)) {
+			this.flushPendingWindow(s);
+			this.send(s, frame);
+			return;
+		}
+		// A second half of the SAME kind arriving before the first ever paired
+		// means the first's partner was never coming — Forge moved on to a
+		// NEW window without this one ever completing (measured: Ponder's own
+		// resolution can open its "Do you want to shuffle…" confirm before
+		// the caster's own "Stack: 1 to Resolve" buttons ever arrive). Flush
+		// whatever is parked, unpaired, before it would otherwise be silently
+		// overwritten and lost — a window is held up, never dropped.
+		if ((frame.method === 'showPromptMessage' && s.pendingPrompt !== null) || (frame.method === 'updateButtons' && s.pendingButtons !== null)) {
+			this.flushPendingWindow(s);
+		}
+		if (s.pendingPrompt === null && s.pendingButtons === null) s.pendingFirst = frame.method === 'showPromptMessage' ? 'prompt' : 'buttons';
+		if (frame.method === 'showPromptMessage') s.pendingPrompt = frame;
+		else if (frame.method === 'updateButtons') s.pendingButtons = frame;
+		if (s.pendingPrompt !== null && s.pendingButtons !== null) {
+			this.decidePendingWindow(s);
+			return;
+		}
+		if (s.pendingTimer !== null) clearTimeout(s.pendingTimer);
+		const timer = setTimeout(() => this.flushPendingWindow(s), PROMPT_HOLD_FLUSH_MS);
+		timer.unref();
+		s.pendingTimer = timer;
+	}
+
+	/**
+	 * The pair is complete: run the three deciders ONCE and send both frames,
+	 * a disabled correction, or NEITHER — never one live and the other
+	 * correcting it after the fact.
+	 *
+	 * A window the server answers is never shown — the question is never sent
+	 * either way. What goes out for its BUTTONS depends on what the seat's
+	 * screen already shows, read off {@link SeatState.wireButtonsLive}:
+	 *
+	 *  - **Nothing**, when the last bar actually sent to this seat was already
+	 *    disabled (every ordinary case: the seat's own last press disables its
+	 *    bar on the wire at once, `fromClient`'s own `disableStaleButtons`, so
+	 *    by the time a window IT opened is auto-answered the bar is already
+	 *    dead). Sending the disabled pair here anyway would cost the
+	 *    declare-attackers fix: the browser's `updateButtons` handler sets `inputLive` true
+	 *    unconditionally, reading `enable1`/`enable2` only for the bar, so a
+	 *    disabled `updateButtons` for a skipped declare-attackers step would
+	 *    still light `attackDefenders` up for an instant.
+	 *  - **A disabled `updateButtons`, alone** (`maybeConfirmChosenCost`'s own
+	 *    older shape, wave 52 §S B), when the bar is NOT already dead — the one
+	 *    case that matters is priority ping-ponging back to a seat that never
+	 *    acted (the opponent casts something and Forge re-opens THIS seat's own
+	 *    priority, now auto-passable, without a single click from this seat in
+	 *    between): its last-sent bar is still the live one from the window
+	 *    before, and leaving it live would let an old click answer whatever
+	 *    Forge has open by the time it lands, not the window it was pressed
+	 *    for. A window with nothing stale to correct skips `inputLive` (the
+	 *    first bullet); a window that needs correcting accepts the
+	 *    momentary `inputLive` flip — there is no live window left under it to
+	 *    mistake for a real one, which is the one thing the declare-attackers
+	 *    fix actually protects.
+	 *
+	 * A window left to the seat is forwarded exactly as Forge sent it, prompt
+	 * then buttons (or buttons then prompt — the order the two arrived in,
+	 * which is Forge's business, not a rule this file imposes).
+	 */
+	private decidePendingWindow(s: SeatState): void {
+		if (s.pendingTimer !== null) {
+			clearTimeout(s.pendingTimer);
+			s.pendingTimer = null;
+		}
+		const prompt = s.pendingPrompt;
+		const buttons = s.pendingButtons;
+		const first = s.pendingFirst;
+		s.pendingPrompt = null;
+		s.pendingButtons = null;
+		s.pendingFirst = null;
+		if (prompt === null || buttons === null || prompt.method !== 'showPromptMessage' || buttons.method !== 'updateButtons') return;
+		const passed = this.maybeAutoPass(s);
+		const confirmed = this.maybeConfirmChosenCost(s);
+		const paid = this.maybeAutoPay(s);
+		const answered = passed || confirmed || paid;
+		const why = passed ? 'auto-pass' : confirmed ? 'auto-confirm' : paid ? 'auto-pay' : 'kept';
+		const kind = readPromptFacts(this.notesOf(s)).window;
+		if (answered) {
+			if (s.wireButtonsLive) this.send(s, { ...buttons, enable1: false, enable2: false, focus1: false });
+		} else if (first === 'buttons') {
+			this.send(s, buttons);
+			this.send(s, prompt);
 		} else {
-			this.send(s, outgoing);
+			this.send(s, prompt);
+			this.send(s, buttons);
 		}
-		/*
-		 * Wave 35 §S follow-up, item 3, continued — the race above still missed
-		 * once in 10 real-jar e2e runs after the fix directly above landed.
-		 * Root cause, confirmed from the SAME wave-20 note two lines down:
-		 * `updateButtons` can arrive BEFORE the `showPromptMessage` that
-		 * describes the window it belongs to (`InputPayMana.updateMessage`'s
-		 * own order is the documented example) — so `maybeAutoPass`, triggered
-		 * only on `updateButtons`, can run against a STALE `s.prompt` that
-		 * still reads the PREVIOUS (genuinely-a-stop) window, decide correctly
-		 * for THAT stale snapshot ("this is a real stop, don't pass"), and then
-		 * never be asked again once `showPromptMessage` catches `s.prompt` up
-		 * to the true stack-non-empty window — unless this NEW prompt's
-		 * `updateButtons` happens to differ from the last one Forge sent, nothing
-		 * re-triggers it. Re-running it here, on `showPromptMessage` too (same
-		 * dual-trigger `maybeAutoPay` already uses two lines down, for the exact
-		 * same reason), catches that case: if it now decides to pass, the
-		 * `updateButtons` already on the wire for this window was sent enabled,
-		 * so a disabled one goes out to correct it.
-		 */
-		if (frame.method === 'showPromptMessage') {
-			if (this.maybeAutoPass(s) && s.buttons !== null && s.buttons.method === 'updateButtons') {
-				this.send(s, { ...s.buttons, enable1: false, enable2: false, focus1: false });
-			}
+		this.deps.log({ evt: answered ? 'prompt-withheld' : 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why });
+		this.recordWindow(s, answered ? 'withheld' : 'forwarded', kind, why, prompt, buttons);
+	}
+
+	/**
+	 * A parked half whose partner never came within {@link PROMPT_HOLD_FLUSH_MS},
+	 * or was overtaken by some other frame for this seat first: forwarded
+	 * undecided, exactly as it would have gone out before this wave. Never
+	 * decided here — a decision needs the pair, and there is at most one half
+	 * to read.
+	 */
+	private flushPendingWindow(s: SeatState): void {
+		if (s.pendingTimer !== null) {
+			clearTimeout(s.pendingTimer);
+			s.pendingTimer = null;
 		}
-		/*
-		 * The payment input enables Auto (`updateButtons`) BEFORE it says what it
-		 * is paying for (`showPromptMessage`) — `InputPayMana.updateMessage` sets
-		 * the buttons, pushes the actionable set, then shows the message — so
-		 * both frames have to look.
-		 */
-		if (frame.method === 'showPromptMessage' || frame.method === 'updateButtons') this.maybeAutoPay(s);
+		const prompt = s.pendingPrompt;
+		const buttons = s.pendingButtons;
+		s.pendingPrompt = null;
+		s.pendingButtons = null;
+		s.pendingFirst = null;
+		if (prompt === null && buttons === null) return;
+		if (prompt !== null) this.send(s, prompt);
+		if (buttons !== null) this.send(s, buttons);
+		const kind = readPromptFacts(this.notesOf(s)).window;
+		this.deps.log({ evt: 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why: 'unpaired' });
+		this.recordWindow(s, 'forwarded', kind, 'unpaired', prompt, buttons);
+	}
+
+	/** One row of `frames.jsonl` — see {@link FrameLogEntry}'s own note. */
+	private recordWindow(
+		s: SeatState,
+		decision: 'forwarded' | 'withheld',
+		kind: StopWindow,
+		why: string,
+		prompt: ServerFrame | null,
+		buttons: ServerFrame | null,
+	): void {
+		const message = prompt !== null && prompt.method === 'showPromptMessage' ? prompt.message : null;
+		const bar =
+			buttons !== null && buttons.method === 'updateButtons'
+				? { label1: buttons.label1, enable1: buttons.enable1, label2: buttons.label2, enable2: buttons.enable2 }
+				: null;
+		this.framesRing.push({ t: this.now(), seat: s.seat, kind, decision, why, message, buttons: bar });
+		if (this.framesRing.length > FRAMES_RING_SIZE) this.framesRing.shift();
+	}
+
+	/**
+	 * the telemetry ring, once, on match end. `deps.log` already
+	 * carries every decision as it happens (the operator's structured log);
+	 * this is the SAME record kept for the whole match (bounded by
+	 * {@link FRAMES_RING_SIZE}) so a repro does not depend on having been
+	 * watching the log at the right second.
+	 */
+	private writeFramesLog(): void {
+		if (this.framesLogWritten) return;
+		this.framesLogWritten = true;
+		if (this.framesRing.length === 0) return;
+		const dir = process.env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play');
+		const matchDir = join(dir, this.id);
+		try {
+			mkdirSync(matchDir, { recursive: true });
+			writeFileSync(join(matchDir, FRAMES_LOG_FILE), `${this.framesRing.map((e) => JSON.stringify(e)).join('\n')}\n`);
+		} catch (err) {
+			this.deps.log({ evt: 'frames-log-write-failed', matchId: this.id, error: err instanceof Error ? err.message : String(err) });
+		}
 	}
 
 	/* ── Wave 19 lane C ─────────────────────────────────────────────── */
@@ -2078,6 +2339,7 @@ export class Match {
 		this.status = 'failed';
 		this.failure = reason;
 		this.deps.log({ evt: 'match-failed', matchId: this.id, reason });
+		this.writeFramesLog();
 		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: reason });
 		this.closeAllAsks();
 		this.tellSeatsItEnded(reason);

@@ -13,9 +13,13 @@
  *      after a snapshot on the next cursor
  */
 
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientFrameSchema, safeParseServerFrame, type ClientFrame } from '@hadoku/forge-wire';
 
+import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
 import { MATCH_ENDED_TITLE, createMatchRegistry, type Match, type MatchSpecWithIdentity } from './match.js';
 import { MatchSnapshotSchema, ServerEnvelopeSchema, type MatchSnapshot, type ServerEnvelope } from './transport.js';
@@ -296,14 +300,31 @@ describe('per-recipient emission, over whole serialised payloads', () => {
 	});
 
 	it('never hands a frame for one seat to the other — every emit names the seat the bridge named', () => {
+		// the transcript's own closing window — seat 1's opening
+		// Upkeep priority — is auto-passed (Upkeep is not a stop phase), so BOTH
+		// halves are withheld (`decidePendingWindow`) rather than forwarded: a
+		// window the server answers sends nothing at all, not even its buttons
+		// disabled (see that method's own header on why). That is the two bridge
+		// frames this harness does NOT re-emit 1:1 — read off the log, never
+		// guessed, so a different fixture change cannot hide behind it.
+		const withheld = h.logs.filter((l) => l.evt === 'prompt-withheld');
+		expect(withheld).toEqual([{ evt: 'prompt-withheld', matchId: h.match.id, seat: 1, kind: 'priority', why: 'auto-pass' }]);
 		const expected = TRANSCRIPT.filter((l) => l.t === 'frame').map((l) => (l as { seat: number }).seat);
 		// Each bridge frame becomes exactly one emit, to the same seat, except
-		// early state frames, which are re-ordered behind openView — not re-routed.
-		expect(h.sent.map((s) => s.seat).sort()).toEqual([...expected].sort());
+		// early state frames (re-ordered behind openView, not re-routed) and the
+		// withheld pair above.
+		const expectedSeats = [...expected].sort();
+		expectedSeats.splice(expectedSeats.lastIndexOf(1), 1);
+		expectedSeats.splice(expectedSeats.lastIndexOf(1), 1);
+		expect(h.sent.map((s) => s.seat).sort()).toEqual(expectedSeats);
 		for (const seat of [0, 1]) {
 			const bridgeMethods = TRANSCRIPT.filter((l) => l.t === 'frame' && l.seat === seat)
 				.map((l) => (l as { frame: { method: string } }).frame.method)
 				.sort();
+			if (seat === 1) {
+				bridgeMethods.splice(bridgeMethods.indexOf('showPromptMessage'), 1);
+				bridgeMethods.splice(bridgeMethods.indexOf('updateButtons'), 1);
+			}
 			expect(envelopesFor(h, seat).map((e) => e.frame.method).sort()).toEqual(bridgeMethods);
 		}
 	});
@@ -1288,5 +1309,403 @@ describe("V7: the whole game's log, not just its last few lines", () => {
 		expect(messages.map((f) => f.message)).toEqual(
 			Array.from({ length: LINES }, (_, i) => (i % 2 === 0 ? 'full control on' : 'full control off')),
 		);
+	});
+});
+
+/**
+ * hold-decide-forward, on recorded frame PAIRS rather
+ * than a real jar: each case pushes `OPENING` (so both seats have a
+ * `playerId` and a clean board), then a `showPromptMessage`/`updateButtons`
+ * pair of its own, built from `@hadoku/forge-wire`'s own example shapes so a
+ * malformed frame cannot pass `safeParseServerFrame` and be silently dropped.
+ *
+ * `decidePendingWindow` and `flushPendingWindow` are exercised directly
+ * through `onFrame` (`h.host.push`), never called as units — what is asserted
+ * is the frames a seat's own socket would receive, the same oracle every other
+ * `describe` in this file uses.
+ */
+describe('hold-decide-forward', () => {
+	const SEAT1_ID = 1;
+
+	function openedHarness(): Harness {
+		const h = harness();
+		h.host.push(...OPENING);
+		return h;
+	}
+
+	/**
+	 * `OPENING` leaves seat 1's own coin-toss bar open (Play/Draw, both
+	 * enabled) — unrelated to what a case pushes next, but it would leave
+	 * `wireButtonsLive` true for a reason that has nothing to do with the
+	 * case itself. Closed the same way a real client would, before `before`
+	 * is captured, so a case that wants a CLEAN slate gets one.
+	 */
+	function closeDanglingBar(h: Harness, seat: number): void {
+		h.match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+	}
+
+	function promptFrame(playerId: number, message: string) {
+		return { kind: 'notify' as const, method: 'showPromptMessage' as const, player: { kind: 'player' as const, id: playerId }, message, card: null };
+	}
+
+	function buttonsFrame(
+		playerId: number,
+		opts: { label1?: string; label2?: string; enable1?: boolean; enable2?: boolean } = {},
+	) {
+		return {
+			kind: 'notify' as const,
+			method: 'updateButtons' as const,
+			owner: { kind: 'player' as const, id: playerId },
+			label1: opts.label1 ?? 'OK',
+			label2: opts.label2 ?? 'Cancel',
+			enable1: opts.enable1 ?? true,
+			enable2: opts.enable2 ?? false,
+			focus1: true,
+		};
+	}
+
+	function methodsSent(h: Harness, seat: number, from: number): string[] {
+		return envelopesFor(h, seat)
+			.slice(from)
+			.map((e) => e.frame.method);
+	}
+
+	it('a payment Forge auto-pays (DEFAULT_STOP_POLICY is forgeAuto): nothing sent', () => {
+		const h = openedHarness();
+		closeDanglingBar(h, SEAT1_ID);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		const logsBefore = h.logs.length;
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}') },
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true }) },
+		);
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
+		const since = h.logs.slice(logsBefore);
+		expect(since.filter((l) => l.evt === 'prompt-withheld')).toEqual([
+			{ evt: 'prompt-withheld', matchId: h.match.id, seat: SEAT1_ID, kind: 'payment', why: 'auto-pay' },
+		]);
+		expect(since.some((l) => l.evt === 'prompt-forwarded')).toBe(false);
+	});
+
+	it('a priority window outside the stop set is auto-passed: nothing sent', () => {
+		const h = openedHarness();
+		closeDanglingBar(h, SEAT1_ID);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		const logsBefore = h.logs.length;
+		const message = 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Upkeep step\nStack: Empty';
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, message) },
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+		);
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
+		expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'prompt-withheld')).toEqual([
+			{ evt: 'prompt-withheld', matchId: h.match.id, seat: SEAT1_ID, kind: 'priority', why: 'auto-pass' },
+		]);
+	});
+
+	it('a window the policy leaves to the seat (own main phase): both frames sent, in order', () => {
+		const h = openedHarness();
+		const before = envelopesFor(h, SEAT1_ID).length;
+		const logsBefore = h.logs.length;
+		const message = 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Main phase, precombat\nStack: Empty';
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, message) },
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+		);
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons']);
+		expect(envelopesFor(h, SEAT1_ID).at(-1)?.frame).toEqual(buttonsFrame(1));
+		expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'prompt-forwarded')).toEqual([
+			{ evt: 'prompt-forwarded', matchId: h.match.id, seat: SEAT1_ID, kind: 'priority', why: 'kept' },
+		]);
+	});
+
+	it('buttons arriving before their prompt (the payment order, left to the seat) are forwarded buttons-then-prompt, same as the pair arrived', () => {
+		const h = openedHarness();
+		// STRICT_PAYMENT_POLICY-shaped: left to the seat regardless of source
+		// count, so the pair is forwarded, never auto-paid — the claim under
+		// test is the ORDER, not the decision.
+		h.match.setStopPolicy(SEAT1_ID, STRICT_PAYMENT_POLICY);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		h.host.push(
+			// `InputPayMana`'s own documented order: Forge's `Auto` buttons
+			// arrive before the message that names the cost — the one
+			// buttons-first shape `buttonsCouldBeAnswered` holds for.
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true }) },
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}') },
+		);
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['updateButtons', 'showPromptMessage']);
+	});
+
+	it('the safety flush: a half with no partner is forwarded, undecided, after the hold window', () => {
+		vi.useFakeTimers();
+		const h = openedHarness();
+		const before = envelopesFor(h, SEAT1_ID).length;
+		const logsBefore = h.logs.length;
+		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Upkeep step\nStack: Empty') });
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
+		vi.advanceTimersByTime(1999);
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
+		vi.advanceTimersByTime(1);
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage']);
+		expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'prompt-forwarded' && l.why === 'unpaired')).toHaveLength(1);
+	});
+
+	it('an ask for the seat flushes a parked half at once, rather than waiting out the hold window', () => {
+		const h = openedHarness();
+		const before = envelopesFor(h, SEAT1_ID).length;
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Upkeep step\nStack: Empty') },
+			{ t: 'frame', seat: SEAT1_ID, frame: { kind: 'ask', callId: 'ask-1', method: 'showConfirmDialog', message: 'Mulligan?', title: 'Mulligan', yesButtonText: 'Yes', noButtonText: 'No', defaultYes: true } },
+		);
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'showConfirmDialog']);
+	});
+
+	/**
+	 * `InputPayMana.updateMessage`'s own order — buttons, THEN the actionable
+	 * set, THEN the message — means a real payment ALWAYS interleaves a
+	 * `setWeaklySelectable` between its two prompt halves (measured against a
+	 * real jar, as much as 251ms end to end: `auto.jvm.test.ts`'s own
+	 * Bitterblossom case). The first version of this fix flushed on ANY other
+	 * frame, which threw the buttons half away unpaired, live, on every
+	 * payment — the exact shape worse than the bug this file fixes. State
+	 * frames and the actionable-set frames must not flush a parked half.
+	 */
+	it('setWeaklySelectable and a state frame, interleaved between the two halves, do not flush them — the pair still completes', () => {
+		const h = openedHarness();
+		closeDanglingBar(h, SEAT1_ID);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true }) },
+			{ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 1 }] } },
+		);
+		// `setWeaklySelectable` is never held — it is sent at once, same as
+		// always — but it does NOT flush the parked buttons half.
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setWeaklySelectable']);
+		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}') });
+		// Still nothing MORE: the pair completed and the single-source payment was auto-paid.
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setWeaklySelectable']);
+	});
+
+	/**
+	 * The narrowing a real jar's own 2s stall demanded: a window no decider
+	 * could ever read (no `Priority: `/`Pay Mana Cost: ` text, no
+	 * `confirmAbility`) is sent at once, never parked waiting for a partner
+	 * that was never going to matter either way — `InputAttack`'s own
+	 * per-toggle `updateButtons` refresh is exactly this shape, and holding
+	 * it for the full {@link PROMPT_HOLD_FLUSH_MS} is what measured as a 2s
+	 * lag on a real jar (a click landing on a stale card).
+	 */
+	it('a lone showPromptMessage with no answerable shape is forwarded at once, no timer', () => {
+		vi.useFakeTimers();
+		const h = openedHarness();
+		const before = envelopesFor(h, SEAT1_ID).length;
+		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Select creatures to attack (125) or select another attacker to declare blockers for.') });
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage']);
+	});
+
+	it('a lone updateButtons with no answerable shape (label1 neither Auto nor Yes/No) is forwarded at once, no timer', () => {
+		vi.useFakeTimers();
+		const h = openedHarness();
+		closeDanglingBar(h, SEAT1_ID);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) }); // label1: 'OK' (the default)
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['updateButtons']);
+	});
+
+	/**
+	 * The design check a withheld window's "nothing sent" has to answer: does
+	 * it ever leave an ENABLED bar on the seat's screen that a stray click
+	 * could still act on? The one real case is priority ping-ponging back to
+	 * a seat that never itself acted — the opponent casts something and Forge
+	 * re-opens THIS seat's own priority, now auto-passable, with no click
+	 * from this seat in between (so `fromClient`'s own `disableStaleButtons`,
+	 * which covers every OTHER case in this file, never ran).
+	 */
+	it('a live bar left over from a forwarded window is corrected (disabled) before the next window is withheld, never left stale-enabled', () => {
+		const h = openedHarness();
+		closeDanglingBar(h, SEAT1_ID);
+		// A real, forwarded, UNANSWERED stop: own main phase, bar enabled. No
+		// act from this seat follows — the opponent's own move is what moves
+		// Forge on, not a click from seat 1.
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Main phase, precombat\nStack: Empty') },
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+		);
+		expect(h.match.seats[SEAT1_ID]?.wireButtonsLive).toBe(true);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		// Forge re-opens the SAME seat's priority — idle, outside the stop set —
+		// without a single click from seat 1 in between.
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Upkeep step\nStack: Empty') },
+			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+		);
+		// Not nothing: the stale live bar is corrected, once, disabled — and
+		// nothing ever reads as a question (no `showPromptMessage`).
+		const sent = envelopesFor(h, SEAT1_ID).slice(before);
+		expect(sent.map((e) => e.frame.method)).toEqual(['updateButtons']);
+		expect(sent[0]?.frame).toMatchObject({ enable1: false, enable2: false });
+		expect(h.match.seats[SEAT1_ID]?.wireButtonsLive).toBe(false);
+	});
+
+	/**
+	 * A real bug this wave's own e2e proof found: a second `showPromptMessage`
+	 * arriving before the FIRST one's `updateButtons` ever paired used to
+	 * silently overwrite `pendingPrompt` — the first window's text was never
+	 * sent, never logged, just gone. Measured against a real jar: Ponder's
+	 * own resolution can open its "Do you want to shuffle…" confirm before
+	 * the caster's own "Stack: 1 to Resolve" buttons ever arrive, under FULL
+	 * CONTROL (where nothing should ever be withheld) — the caster's own
+	 * priority stop vanished outright. A held half is now flushed, unpaired,
+	 * the moment a second half of the SAME kind would otherwise replace it —
+	 * forwarded exactly as it would have gone out before this wave, never
+	 * silently discarded.
+	 */
+	it('a second showPromptMessage arriving before the first ever paired flushes the first, unpaired, rather than discarding it', () => {
+		const h = openedHarness();
+		closeDanglingBar(h, SEAT1_ID);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Main phase, precombat\nStack: 1 to Resolve') },
+			// The SAME seat's buttons for THIS window never arrive — Forge moves
+			// straight to a second, unrelated prompt instead (full control: the
+			// first prompt's own buttons would never have been auto-answered
+			// away, so it must have genuinely not come yet). "Do you want to
+			// shuffle the library?" has no shape any decider reads (no
+			// `confirmAbility`, no `Priority: `/`Pay Mana Cost: ` text), so it
+			// is sent at once — the narrowed hold (§S's own follow-up) never
+			// touches it either.
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Do you want to shuffle the library?') },
+		);
+		const sent = envelopesFor(h, SEAT1_ID).slice(before);
+		// The FIRST prompt text is still there — not overwritten into oblivion —
+		// followed by the second, unrelated prompt, sent immediately.
+		expect(sent.map((e) => e.frame.method)).toEqual(['showPromptMessage', 'showPromptMessage']);
+		expect((sent[0]?.frame as { message?: string }).message).toContain('Stack: 1 to Resolve');
+		expect((sent[1]?.frame as { message?: string }).message).toBe('Do you want to shuffle the library?');
+	});
+
+	it('a second answerable prompt arriving before the first paired flushes the first as forwarded, then holds the second', () => {
+		const h = openedHarness();
+		closeDanglingBar(h, SEAT1_ID);
+		const before = envelopesFor(h, SEAT1_ID).length;
+		const logsBefore = h.logs.length;
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Main phase, precombat\nStack: 1 to Resolve') },
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Main phase, precombat\nStack: Empty') },
+		);
+		const sent = envelopesFor(h, SEAT1_ID).slice(before);
+		expect(sent.map((e) => e.frame.method)).toEqual(['showPromptMessage']);
+		expect((sent[0]?.frame as { message?: string }).message).toContain('Stack: 1 to Resolve');
+		expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'prompt-forwarded' && l.why === 'unpaired')).toHaveLength(1);
+		// The second is the one now waiting for its buttons; they complete it.
+		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) });
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'showPromptMessage', 'updateButtons']);
+	});
+
+	it("InputAttack's per-click button refreshes are sent the moment they arrive, never held", () => {
+		vi.useFakeTimers();
+		const h = openedHarness();
+		const before = envelopesFor(h, SEAT1_ID).length;
+		const attack = (label2: string) => buttonsFrame(1, { label1: 'OK', label2, enable1: true, enable2: true });
+		h.host.push(
+			{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Select creatures to attack Seat 1 or select another attacker to declare blockers for.') },
+			{ t: 'frame', seat: SEAT1_ID, frame: attack('Alpha Strike') },
+		);
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons']);
+		// One refresh per toggled attacker, no new prompt with any of them.
+		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: attack('Call Back') });
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons', 'updateButtons']);
+		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: attack('Alpha Strike') });
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage', 'updateButtons', 'updateButtons', 'updateButtons']);
+		expect(vi.getTimerCount()).toBe(0);
+	});
+});
+
+/**
+ * `frames.jsonl`. `prompt-forwarded`/`prompt-withheld` ride
+ * the ordinary structured log (`h.logs`, asserted throughout the describe
+ * above); this is the SEPARATE per-match ring, written once to disk on match
+ * end.
+ */
+describe('telemetry (frames.jsonl)', () => {
+	let workDir: string;
+	let prevEnv: string | undefined;
+
+	afterEach(() => {
+		if (workDir !== undefined) rmSync(workDir, { recursive: true, force: true });
+		if (prevEnv === undefined) delete process.env.CARDTABLE_PLAY_WORK_DIR;
+		else process.env.CARDTABLE_PLAY_WORK_DIR = prevEnv;
+	});
+
+	function withScratchWorkDir(): void {
+		prevEnv = process.env.CARDTABLE_PLAY_WORK_DIR;
+		workDir = mkdtempSync(join(tmpdir(), 'w55-s-frames-'));
+		process.env.CARDTABLE_PLAY_WORK_DIR = workDir;
+	}
+
+	it('writes the ring to <workDir>/<matchId>/frames.jsonl once, on match end — both decisions, each seat', () => {
+		withScratchWorkDir();
+		const h = harness();
+		h.host.push(...OPENING);
+		// One withheld pair (payment, auto-paid) and one forwarded pair (a stop),
+		// same frames the describe above already proves the send/withhold half of.
+		h.host.push(
+			{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: 'Pay Mana Cost: {U}', card: null } },
+			{ t: 'frame', seat: 1, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 1 }, label1: 'Auto', label2: 'Cancel', enable1: true, enable2: false, focus1: true } },
+			{
+				t: 'frame',
+				seat: 0,
+				frame: {
+					kind: 'notify',
+					method: 'showPromptMessage',
+					player: { kind: 'player', id: 0 },
+					message: 'Priority: Seat 1\nTurn: 1 (Seat 1)\nPhase: Main phase, precombat\nStack: Empty',
+					card: null,
+				},
+			},
+			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'Cancel', enable1: true, enable2: false, focus1: true } },
+		);
+		h.match.stop();
+		const path = join(workDir, h.match.id, 'frames.jsonl');
+		const lines = readFileSync(path, 'utf8').trimEnd().split('\n');
+		const rows = lines.map((l) => JSON.parse(l) as Record<string, unknown>);
+		expect(rows.some((r) => r.decision === 'withheld' && r.seat === 1 && r.kind === 'payment' && r.why === 'auto-pay')).toBe(true);
+		expect(rows.some((r) => r.decision === 'forwarded' && r.seat === 0 && r.kind === 'priority' && r.why === 'kept')).toBe(true);
+		// Decided windows only: OPENING's own two "Waiting for…" pairs are
+		// forwarded too, but neither decider ever reads that shape (no
+		// `Priority: `/`Pay Mana Cost: ` text, no `confirmAbility`), so the
+		// narrowed hold sends them at once and the ring never sees them.
+		expect(rows.length).toBeGreaterThanOrEqual(2);
+	});
+
+	it('writes nothing when the match never decided a window (no file, no crash)', () => {
+		withScratchWorkDir();
+		const h = harness();
+		h.match.stop();
+		const path = join(workDir, h.match.id, 'frames.jsonl');
+		expect(() => readFileSync(path, 'utf8')).toThrow();
+	});
+
+	it('writes exactly once even when a natural game-over is followed by an explicit stop()', () => {
+		withScratchWorkDir();
+		const h = harness();
+		h.host.push(...OPENING);
+		// OPENING's own trailing pairs are all unanswerable shapes (never
+		// decided, never recorded — see the ring test above); one decided
+		// window is pushed here so the ring actually has something to write.
+		h.host.push(
+			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Priority: Seat 1\nTurn: 1 (Seat 1)\nPhase: Main phase, precombat\nStack: Empty', card: null } },
+			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'Cancel', enable1: true, enable2: false, focus1: true } },
+		);
+		h.host.push({ t: 'gameover', winner: '0' });
+		const path = join(workDir, h.match.id, 'frames.jsonl');
+		const first = readFileSync(path, 'utf8');
+		rmSync(path);
+		// `stop()` still allows a match already `over` through — the SAME double-
+		// write path production can take (gameover's own grace timer eventually
+		// calls the host's stop, and anything else may call `Match.stop()` too).
+		h.match.stop();
+		expect(() => readFileSync(path, 'utf8')).toThrow();
+		expect(first.length).toBeGreaterThan(0);
 	});
 });

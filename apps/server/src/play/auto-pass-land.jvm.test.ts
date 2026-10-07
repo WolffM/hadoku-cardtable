@@ -185,8 +185,20 @@ describe.skipIf(!available.ok)(title, () => {
 				// seat 1's own window can open and auto-pass between two polls): seat 1
 				// really was shown a priority window with the spell still unresolved,
 				// and Forge's own actionable set for it (R15) was lands only, not empty.
-				const seat1StackPromptAt = s.sent.findIndex(
-					(x) => x.seat === 1 && x.envelope.frame.method === 'showPromptMessage' && /Stack: 1 to Resolve/.test((x.envelope.frame as unknown as { message: string }).message),
+				//
+				// read off `s.lines` (what Forge itself SAID), never
+				// `s.sent` (what this seat's wire carried) — the whole point of this
+				// window is that it is auto-passed, and `match.ts` now withholds an
+				// auto-passed window's `showPromptMessage` entirely rather than
+				// forwarding it and correcting the buttons after. `s.lines` is immune:
+				// it is the raw bridge stream, unaffected by what the server decides
+				// to forward.
+				const seat1StackPromptAt = s.lines.findIndex(
+					(l) =>
+						l.t === 'frame' &&
+						l.seat === 1 &&
+						(l.frame as { method?: unknown } | null)?.method === 'showPromptMessage' &&
+						/Stack: 1 to Resolve/.test((l.frame as { message?: string }).message ?? ''),
 				);
 				expect(seat1StackPromptAt, "seat 1 must have been shown a 'Stack: 1 to Resolve' window at some point").toBeGreaterThanOrEqual(0);
 				// The actionable set in effect for THAT window: the LAST
@@ -195,12 +207,19 @@ describe.skipIf(!available.ok)(title, () => {
 				// the prompt that names the window, since `updateButtons`/actionable
 				// can arrive before the `showPromptMessage` describing it (the same
 				// Forge ordering quirk `match.ts`'s own `maybeAutoPay` comment notes).
-				const seat1NextPromptAt = s.sent.findIndex(
-					(x, i) => i > seat1StackPromptAt && x.seat === 1 && x.envelope.frame.method === 'showPromptMessage',
+				// `setWeaklySelectable` is never withheld (only the prompt/buttons pair
+				// is), so it is on `s.lines` exactly where it was on `s.sent` before.
+				const seat1NextPromptAt = s.lines.findIndex(
+					(l, i) => i > seat1StackPromptAt && l.t === 'frame' && l.seat === 1 && (l.frame as { method?: unknown } | null)?.method === 'showPromptMessage',
 				);
-				const seat1WindowEnd = seat1NextPromptAt === -1 ? s.sent.length : seat1NextPromptAt;
-				const seat1Actionable = [...s.sent].slice(0, seat1WindowEnd).reverse().find((x) => x.seat === 1 && x.envelope.frame.method === 'setWeaklySelectable');
-				const seat1ActionableIds = (seat1Actionable?.envelope.frame as unknown as { cards: { id: number }[] } | undefined)?.cards.map((c) => c.id) ?? [];
+				const seat1WindowEnd = seat1NextPromptAt === -1 ? s.lines.length : seat1NextPromptAt;
+				const seat1Actionable = [...s.lines]
+					.slice(0, seat1WindowEnd)
+					.reverse()
+					.find((l) => l.t === 'frame' && l.seat === 1 && (l.frame as { method?: unknown } | null)?.method === 'setWeaklySelectable') as
+					| { frame: { cards?: { id: number }[] } }
+					| undefined;
+				const seat1ActionableIds = seat1Actionable?.frame.cards?.map((c) => c.id) ?? [];
 				const seat1Lands = s.zone(1, 'Battlefield').filter((c) => c.land).map((c) => c.id);
 				expect(seat1ActionableIds.length, 'seat 1 must actually be offered its own untapped lands as actionable here').toBeGreaterThan(0);
 				expect(
