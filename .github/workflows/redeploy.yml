@@ -56,6 +56,8 @@ name: Redeploy on hadoku_site
 # `workflow_dispatch` is the operator's override: it deploys main's head with
 # no gate.
 
+# `CI` is `check` alone since 2026-10-07 (about four minutes): typecheck, lint,
+# unit suites. The Forge jobs run in `forge.yml` and do not gate a deploy.
 on:
   workflow_run:
     workflows: [CI]
