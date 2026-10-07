@@ -215,7 +215,10 @@ describe.skipIf(!available.ok)(title, () => {
 					return p !== undefined && p.frame.message.startsWith('Priority:');
 				},
 				"the caster's own priority window",
-				60_000,
+				// A match start inside the full serial forge-jvm job on a loaded claw took more than 60 s
+				// (run 37582515279, the one unpinned red of that job; 9-11 s alone, there and here). 120 s is
+				// the budget every other suite gives `whenRunning`.
+				120_000,
 			);
 
 			const state = () =>
