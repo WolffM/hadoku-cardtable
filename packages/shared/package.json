@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@wolffm/rooms-protocol": "0.40.15",
+    "@wolffm/rooms-protocol": "0.40.16",
     "zod": "4.5.4"
   }
 }
