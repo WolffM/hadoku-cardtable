@@ -405,6 +405,14 @@ export interface SeatState {
 	 * an instant).
 	 */
 	wireButtonsLive: boolean;
+	/**
+	 * The window the server last answered for this seat, until Forge sends
+	 * anything else. Forge can show the same input twice in a row before the
+	 * answer reaches it (measured: "Sacrifice Augur of Skulls?" and its Yes/No
+	 * bar, twice, 1 ms apart); the second copy is that same window, withheld
+	 * without a second press.
+	 */
+	answeredWindow: string | null;
 }
 
 export interface MatchDeps {
@@ -735,6 +743,7 @@ export class Match {
 			pendingButtons: null,
 			pendingTimer: null,
 			wireButtonsLive: false,
+			answeredWindow: null,
 		}));
 		for (const [seat, owner] of (restore?.owners ?? []).entries()) {
 			const s = this.seats[seat];
@@ -1280,6 +1289,7 @@ export class Match {
 		// going to pair. State and actionable-set frames do not flush: a payment
 		// always sends `setWeaklySelectable` between its bar and its prompt.
 		if (frame.kind === 'ask') this.flushPendingWindow(s);
+		if (frame.method !== 'showPromptMessage' && frame.method !== 'updateButtons') s.answeredWindow = null;
 
 		if (isTierC(frame.method)) {
 			const state = frame as unknown as StateFrame;
@@ -1502,9 +1512,20 @@ export class Match {
 	 * A window left to the seat goes out in the order Forge sent it.
 	 */
 	private decideWindow(s: SeatState, prompt: PromptFrame, buttons: ButtonsFrame | null, order: 'prompt-first' | 'buttons-first'): void {
+		const identity = JSON.stringify([prompt.message, prompt.confirmAbility ?? null, buttons?.label1 ?? null, buttons?.label2 ?? null]);
 		// At most one decider answers a window: each one that acts sends Forge a press.
-		const why = this.maybeAutoPass(s) ? 'auto-pass' : this.maybeConfirmChosenCost(s) ? 'auto-confirm' : this.maybeAutoPay(s) ? 'auto-pay' : 'kept';
+		const why =
+			s.answeredWindow === identity
+				? 'repeat'
+				: this.maybeAutoPass(s)
+					? 'auto-pass'
+					: this.maybeConfirmChosenCost(s)
+						? 'auto-confirm'
+						: this.maybeAutoPay(s)
+							? 'auto-pay'
+							: 'kept';
 		const answered = why !== 'kept';
+		s.answeredWindow = answered ? identity : null;
 		const kind = readPromptFacts(this.notesOf(s)).window;
 		if (answered) {
 			const bar = buttons ?? (s.buttons?.method === 'updateButtons' ? s.buttons : null);

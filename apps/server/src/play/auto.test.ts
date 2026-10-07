@@ -2569,13 +2569,20 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		confirm(h, 70, 9002);
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } }]);
 		expect(confirmed(h)).toBe(1);
-		// nothing is sent for a window the server answers — not the
-		// question, and not its buttons disabled either (the hold-decide-forward
-		// pair is withheld whole; see `match.ts`'s `decidePendingWindow`).
+		// Nothing is sent for a window the server answers: not the question, and
+		// not its bar, which the seat's own choice already left disabled.
 		expect(frames(h, 0)).toHaveLength(before);
-		// The choice is spent: Forge asking the same confirm again is the player's.
+		// Forge showing the same input again before the Yes reaches it is that
+		// same window: withheld, and not pressed twice.
+		confirm(h, 70, 9002);
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
+		expect(frames(h, 0)).toHaveLength(before);
+		// Once Forge has moved on, the choice is spent: the same confirm again is the player's.
+		push(h, 0, { kind: 'notify', method: 'clearWeaklySelectable' });
+		const moved = frames(h, 0).length;
 		confirm(h, 70, 9002);
 		expect(confirmed(h)).toBe(1);
+		expect(frames(h, 0).slice(moved).map((f) => f.method)).toEqual(['updateButtons', 'showPromptMessage']);
 	});
 
 	it('(B) an optional trigger’s confirm still asks — it names the trigger, not the chosen ability', () => {

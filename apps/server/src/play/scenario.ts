@@ -233,9 +233,10 @@ export interface Scenario {
 	answerAsks(): ServerFrame[];
 	/**
 	 * Keep every hand: press OK once on each prompt that is not a priority window
-	 * (the keep-or-mulligan question). Call it in the scenario's loop.
+	 * (the keep-or-mulligan question), or only on prompts matching `only`. Call
+	 * it in the scenario's loop.
 	 */
-	keepHands(): void;
+	keepHands(only?: RegExp): void;
 	asks: ServerFrame[];
 	stop(): Promise<void>;
 }
@@ -421,7 +422,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 			}
 			return now;
 		},
-		keepHands() {
+		keepHands(only) {
 			for (const seat of [0, 1]) {
 				const at = sent
 					.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1))
@@ -434,6 +435,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 					handled.add(at);
 					continue;
 				}
+				if (only !== undefined && !only.test(msg)) continue;
 				// `enable1` can lag the prompt text by one wire frame (Forge's two
 				// notifies are not atomic): only mark `at` handled once the press is
 				// actually sent, or a prompt seen one tick too early is marked
@@ -494,15 +496,20 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
  * evidence file, rather than shipped unverified.
  */
 export async function finishMulligan(s: Scenario): Promise<void> {
-	const isMulliganish = (msg: string): boolean => !msg.startsWith('Priority:') && /keep your hand|play or draw/i.test(msg);
+	const opening = /keep your hand|play or draw/i;
+	const isMulliganish = (msg: string): boolean => !msg.startsWith('Priority:') && opening.test(msg);
 	await waitUntil(
 		() => {
-			s.keepHands();
+			// Only the opening questions: the first window after them can be a block
+			// or a trigger's "may", and an OK there would answer it for the seat.
+			s.keepHands(opening);
 			s.answerAsks();
 			// Both seats can read "Waiting for …" at once while the real keep question is still
 			// on its way (wave40-evidence/B-thoughtseize.md), which passed the old test. So also
 			// require one seat to be asked something real: some seat always holds the input.
-			const msgs = [0, 1].map((seat) => s.prompt(seat));
+			// Read off Forge's own prompts: the first priority window after the keep is
+			// often one the server answers, so the seat's wire can stay on the keep question.
+			const msgs = [0, 1].map((seat) => forgeFrames(s, seat).findLast((f) => f.method === 'showPromptMessage')?.message ?? '');
 			return msgs.every((msg) => msg !== '' && !isMulliganish(msg)) && msgs.some((msg) => !/^Waiting for /.test(msg));
 		},
 		'both seats to finish the coin toss and the keep-or-mulligan question',
