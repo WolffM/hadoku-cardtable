@@ -74,6 +74,7 @@ import {
 	type CoreRoomState,
 	type EmitPolicy,
 } from '@wolffm/rooms-server';
+import { PRESENCE_EVENT, PRESENCE_MAX_PER_SECOND, PresenceSchema } from '@hadoku/shared';
 import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 
 import { CONFIG } from '../config.js';
@@ -825,6 +826,36 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			const stopOnTheirTurn = wants ? [...current.stopOnTheirTurn, 'END_OF_TURN' as const] : current.stopOnTheirTurn.filter((p) => p !== 'END_OF_TURN');
 			const outcome = match.setStopPolicy(seat, { ...current, stopOnTheirTurn });
 			if (!outcome.ok) log({ evt: 'stop-preference-refused', participantId, matchId: match.id, seat, error: outcome.error });
+		});
+
+		/*
+		 * Presence (ledger Z5): the seat's pointer and what its hands are doing,
+		 * relayed to the match's other sockets as they are — Forge never sees
+		 * it and nothing is kept. The schema (`@hadoku/shared`'s `presence.ts`)
+		 * carries no card, so there is nothing to redact. Only a joined
+		 * controller's is relayed (a spectator's pointer belongs to nobody), and
+		 * a socket sending past `PRESENCE_MAX_PER_SECOND` is dropped for that
+		 * second: a client bug, not a game event, owed nothing.
+		 */
+		let presenceWindow = 0;
+		let presenceSent = 0;
+		socket.on(PRESENCE_EVENT, (raw: unknown) => {
+			const parsed = PresenceSchema.safeParse(raw);
+			if (!parsed.success) {
+				log({ evt: 'presence-malformed', participantId, errors: parsed.error.issues.slice(0, 3).map((i) => i.message) });
+				return;
+			}
+			const match = matches.get(parsed.data.matchId);
+			const seat = match === undefined ? undefined : joined.get(match.id);
+			if (match === undefined || seat === undefined || !isController(match.id, seat, socket.id)) return;
+			const now = Math.floor(Date.now() / 1000);
+			if (now !== presenceWindow) {
+				presenceWindow = now;
+				presenceSent = 0;
+			}
+			presenceSent += 1;
+			if (presenceSent > PRESENCE_MAX_PER_SECOND) return;
+			socket.to(roomFor(match).roomId).emit(PRESENCE_EVENT, { ...parsed.data, seat });
 		});
 
 		socket.on('disconnect', (reason: string) => {

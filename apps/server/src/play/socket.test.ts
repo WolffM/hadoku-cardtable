@@ -126,6 +126,7 @@ interface Peer {
 	seatsEvents: unknown[];
 	/** Every `forge:role` payload the SERVER sent this socket (wave 31 §S). */
 	roles: unknown[];
+	presences: unknown[];
 	request(event: 'forge:join' | 'forge:resync', payload: unknown): Promise<unknown>;
 	send(payload: unknown): void;
 	/** Ask for full control, or give it back — the client → server direction. */
@@ -153,6 +154,7 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 			fullControls: [],
 			seatsEvents: [],
 			roles: [],
+			presences: [],
 			request: async (event, payload) => {
 				const ack: unknown = await socket.timeout(3000).emitWithAck(event, payload);
 				peer.acks.push(ack);
@@ -166,6 +168,7 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 		socket.on('forge:s2c', (payload: unknown) => peer.frames.push(payload));
 		socket.on('forge:full-control', (payload: unknown) => peer.fullControls.push(payload));
 		socket.on('forge:seats', (payload: unknown) => peer.seatsEvents.push(payload));
+		socket.on('forge:presence', (payload: unknown) => peer.presences.push(payload));
 		socket.on('forge:role', (payload: unknown) => peer.roles.push(payload));
 		socket.on('connect', () => done(peer));
 		socket.on('connect_error', (err) => fail(err));
@@ -321,6 +324,41 @@ describe('two seats over the socket', () => {
 		expect((a.cursor as { seq: number }).seq).toBeGreaterThan(0);
 	});
 
+	/*
+	 * Presence (ledger Z5): a seat's pointer and hands, relayed as sent to the
+	 * match's OTHER sockets, stamped with the seat. Forge never hears it and
+	 * the message names no card, so there is nothing to redact.
+	 */
+	it('relays a seat’s presence to the other seat, stamped with the seat, never back to the sender, and never from a spectator', async () => {
+		const { h, matchId, alice, bob } = await twoSeats();
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		const message = {
+			matchId,
+			type: 'presence',
+			pointer: { zone: 'battlefield', owner: 'you', x: 0.25, y: 0.5 },
+			held: true,
+			from: { zone: 'hand', owner: 'you', x: 0.1, y: 0.9 },
+		};
+		alice.socket.emit('forge:presence', message);
+		await vi.waitFor(() => expect(bob.presences).toHaveLength(1));
+		expect(bob.presences[0]).toEqual({ ...message, seat: 0 });
+		await new Promise((r) => setTimeout(r, 60));
+		expect(alice.presences, 'nothing comes back to the sender').toHaveLength(0);
+
+		// Malformed: dropped and logged, not relayed. A card id would be malformed too — the schema is strict.
+		alice.socket.emit('forge:presence', { ...message, cardId: 42 });
+		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'hand', owner: 'you', x: 2, y: 0 }, held: false, from: null });
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'presence-malformed')).toHaveLength(2));
+		expect(bob.presences).toHaveLength(1);
+
+		// A spectator on alice's seat (a second browser) sends, and nobody hears it.
+		const watcher = await connect(h.port, edgeHeaders('alice'));
+		await watcher.request('forge:join', { matchId });
+		watcher.socket.emit('forge:presence', message);
+		await new Promise((r) => setTimeout(r, 80));
+		expect(bob.presences, 'a spectator’s pointer belongs to nobody').toHaveLength(1);
+	});
 	it('refuses a third person, and a join for a match that does not exist', async () => {
 		const { h, matchId, alice, bob } = await twoSeats();
 		await alice.request('forge:join', { matchId });

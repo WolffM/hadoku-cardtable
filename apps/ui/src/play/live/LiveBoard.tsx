@@ -261,6 +261,7 @@ import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPla
 import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
+import { installPresence } from './presence.ts';
 import { isPacedTransport } from './pace.ts';
 import {
   abortAsk,
@@ -1729,6 +1730,29 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     if (canvas === null || spectator) return undefined;
     // Read through a ref, so toggling Fast Mode mid-match does not tear the layer down mid-gesture.
     const handle = installGestures({ canvas, match, motion: () => !fastModeNow.current });
+    return () => handle.dispose();
+  }, [match, spectator]);
+
+  /*
+   * The other seat's presence (ledger Z5, `presence.ts`): their pointer, a
+   * card back while they hold one, their arrow while they aim — and this
+   * seat's own, sent to them. A watcher is shown it and sends nothing (its
+   * `seat` is null).
+   */
+  useEffect(() => {
+    const canvas = rootRef.current;
+    if (canvas === null) return undefined;
+    const handle = installPresence({
+      canvas,
+      host: {
+        matchId: match.matchId,
+        get seat() {
+          return spectator ? null : match.seat;
+        },
+        transport: match.transport,
+        opponentName: () => match.view?.players.find((p) => !p.isViewer)?.name ?? null,
+      },
+    });
     return () => handle.dispose();
   }, [match, spectator]);
 

@@ -129,3 +129,17 @@ export {
   type DraftErrorMessage,
   type ServerMessage,
 } from './wire.ts';
+
+export {
+  PRESENCE_EVENT,
+  PRESENCE_MAX_PER_SECOND,
+  PRESENCE_SEND_MS,
+  PresenceEchoSchema,
+  PresenceOwnerSchema,
+  PresenceSchema,
+  PresenceSpotSchema,
+  PresenceZoneSchema,
+  type PresenceEcho,
+  type PresenceMessage,
+  type PresenceSpot,
+} from './presence.ts';
