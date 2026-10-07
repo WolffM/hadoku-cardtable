@@ -4101,8 +4101,8 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
   it('a card’s bottom badges keep to its FACE, not the pile box that hangs --pile-fan below it', () => {
     // table-fit 2026-10-07: a piled creature's P/T drew 6 px (the fan) below its own card, because the badge
     // was anchored to the pile's box; the top-right badges already carried the fan on `right`.
-    expect(declarationIn('.board-card__pt', 'bottom')).toBe('calc(2px + var(--pile-fan))');
-    expect(declarationIn('.board-card__counters', 'bottom')).toBe('calc(2px + var(--pile-fan))');
+    expect(declarationInCss(CARD_CSS, '.board-card__pt', 'bottom')).toBe('calc(2px + var(--pile-fan))');
+    expect(declarationInCss(CARD_CSS, '.board-card__counters', 'bottom')).toBe('calc(2px + var(--pile-fan))');
   });
 
   it('stack: a question moves the band’s top up and gives it room for a long effect; the band is sized by state alone', () => {
