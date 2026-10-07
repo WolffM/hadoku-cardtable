@@ -173,3 +173,13 @@ describe('isZoneDividerLabel', () => {
     expect(isZoneDividerLabel(label)).toBe(false);
   });
 });
+
+describe('plainRulesText: the attack prompt', () => {
+  // The operator, 2026-10-07: "'Select creatures to attack Sorin, Grim Nemesis (47) or select player/card you wish to attack.' It's too wordy."
+  it('shortens Forge’s declare-attackers line to its first four words, whatever defender it names', () => {
+    expect(plainRulesText('Select creatures to attack Sorin, Grim Nemesis (47) or select player/card you wish to attack.')).toBe('Select creatures to attack.');
+    expect(plainRulesText('Select creatures to attack e2e-alice or select player/card you wish to attack.')).toBe('Select creatures to attack.');
+    expect(plainRulesText('Select creatures to attack e2e-alice or select player/card you wish to attack.\nStack: Empty')).toBe('Select creatures to attack.\nStack: Empty');
+    expect(plainRulesText('Select creatures to block'), 'nothing else is touched').toBe('Select creatures to block');
+  });
+});

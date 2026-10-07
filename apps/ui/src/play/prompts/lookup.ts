@@ -168,10 +168,20 @@ export function promptText(text: string): string {
 
 export function plainRulesText(text: string): string {
   return translateTargetWords(text)
+    .replace(ATTACK_PROMPT, 'Select creatures to attack.')
     .replace(/\{T\}/g, 'Tap')
     .replace(/\{Q\}/g, 'Untap')
     .replace(/\{([^}]{1,5})\}/g, '$1');
 }
+
+/**
+ * `InputAttack`'s own line: "Select creatures to attack <defender>" and
+ * `lblSelectAttackTarget`, " or select player/card you wish to attack." The
+ * operator, 2026-10-07: *"It's too wordy. maybe just 'Select creatures to
+ * attack.'"* The defender it names is the one the arrow and the attack
+ * drag already show; the sentence is shortened to its first four words.
+ */
+const ATTACK_PROMPT = /^Select creatures to attack [^\n]*? or select player\/card you wish to attack\.$/m;
 
 /*
  * ── Y18: Forge's raw target-type expressions, in words ─────────────────
