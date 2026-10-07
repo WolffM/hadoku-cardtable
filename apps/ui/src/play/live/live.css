@@ -866,6 +866,18 @@
 }
 
 /*
+ * Inside the logbook the status block does not scroll on its own: `.live__says`'s
+ * 5.2em cap is four lines at 1.3, exactly the four Forge sends at priority, and
+ * any rounding past it drew a scrollbar a few pixels tall (the operator,
+ * 2026-10-07: "why is there this tiny little scrollbar here?"). The list below
+ * it is the panel's one scroll owner.
+ */
+.live__logbook > .live__says {
+  max-height: none;
+  overflow: visible;
+}
+
+/*
  * The says, newest at the bottom. The list is SCROLLABLE (`overflow-y: auto`)
  * rather than clipping, because its content can outgrow the box and `hidden`
  * would otherwise just cut the oldest lines off with no way to read them. The

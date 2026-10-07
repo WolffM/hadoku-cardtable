@@ -30,8 +30,20 @@
  * smoothed by a short CSS transition. A seat heard nothing from for
  * `PRESENCE_STALE_MS` is drawn no more.
  *
+ * ## The handoff
+ *
+ * When their back goes and a card of theirs appears within `HANDOFF_MS` — on
+ * their battlefield (a land, a permanent) or on the stack (a spell) — a copy
+ * of that card travels from where the back last was to the card's own place,
+ * the same trip this seat's own played card makes (`gestures/cast.ts`'s
+ * `landCastGhost`), while the real one waits hidden in its slot. The operator,
+ * 2026-10-07: *"when cards actually get placed on the board it's not really
+ * coming from the card hovering by the cursor."* With motion off (Fast Mode)
+ * it simply appears, like everything else.
+ *
  * Nothing drawn here is a card the DOM can address: the back carries no
- * `data-card-id`, the cursor no name but theirs.
+ * `data-card-id`, the cursor no name but theirs, and the travelling copy is
+ * stripped of its ids.
  */
 
 import {
@@ -44,11 +56,14 @@ import {
 } from '@hadoku/shared';
 
 import { arrowShape } from './gestures/arrow.ts';
+import { landCastGhost } from './gestures/cast.ts';
 import type { MatchTransport } from './match.ts';
 import './presence.css';
 
 /** After this long without a message, the other seat's presence is taken down. */
 export const PRESENCE_STALE_MS = 6000;
+/** How long after their back goes a card of theirs appearing is taken as the card they were holding. */
+export const HANDOFF_MS = 2000;
 
 export interface PresenceHost {
   readonly matchId: string;
@@ -57,6 +72,12 @@ export interface PresenceHost {
   readonly transport: Pick<MatchTransport, 'on' | 'emit'>;
   /** The other seat's display name, for the cursor's tag. */
   readonly opponentName: () => string | null;
+  /** Wake on every change of the match (`subscribe`), for the handoff; absent, no handoff is drawn. */
+  readonly watch?: (onChange: () => void) => () => void;
+  /** The ids of the other seat's cards the board draws as cards: their battlefield, and their spells on the stack. */
+  readonly theirCards?: () => readonly number[];
+  /** Whether motion is on (Fast Mode off); the handoff travels only then. */
+  readonly motion?: () => boolean;
 }
 
 export interface PresenceHandle {
@@ -97,7 +118,15 @@ export function spotOf(canvas: HTMLElement, point: Point): PresenceSpot | null {
   return { zone: null, owner: null, x: clamp01((point.x - board.left) / board.width), y: clamp01((point.y - board.top) / board.height) };
 }
 
-/** The other board's spot, placed on THIS board, in client coordinates. Their `you` is this seat's `them`. */
+/**
+ * The other board's spot, placed on THIS board, in client coordinates. Their
+ * `you` is this seat's `them` — and a battlefield is drawn upside down for its
+ * other seat (the front row nearest the centre line, `Board.tsx`'s
+ * `data-tiers="mirrored"`), so its fraction DOWN flips too; the columns run the
+ * same way for both. The operator, 2026-10-07: *"i'm hovering the top left
+ * card on my board, but looking at the other screen it seems to be hovering
+ * the bottom left card."*
+ */
 export function placeSpot(canvas: HTMLElement, spot: PresenceSpot): Point | null {
   const board = boardBox(canvas);
   if (board === null) return null;
@@ -105,7 +134,8 @@ export function placeSpot(canvas: HTMLElement, spot: PresenceSpot): Point | null
     const owner = spot.owner === 'you' ? 'them' : spot.owner === 'them' ? 'you' : 'table';
     const el = canvas.querySelector<HTMLElement>(`[data-zone="${spot.zone}"][data-owner="${owner}"]`);
     const r = el?.getBoundingClientRect();
-    if (r !== undefined && r.width > 0 && r.height > 0) return { x: r.left + spot.x * r.width, y: r.top + spot.y * r.height };
+    const y = spot.zone === 'battlefield' && spot.owner !== 'table' ? 1 - spot.y : spot.y;
+    if (r !== undefined && r.width > 0 && r.height > 0) return { x: r.left + spot.x * r.width, y: r.top + y * r.height };
   }
   return { x: board.left + spot.x * board.width, y: board.top + spot.y * board.height };
 }
@@ -175,6 +205,11 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   let arrow: SVGSVGElement | null = null;
   let hinted: Element | null = null;
   let staleTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Where their back last was, and when it went — the handoff's start. */
+  let backWas: { at: Point; gone: number } | null = null;
+  let backAt: Point | null = null;
+  /** Their cards already on the board; a new one right after the back went is the handoff. */
+  let known = new Set<number>(host.theirCards?.() ?? []);
 
   function overlay(): HTMLElement | null {
     return canvas.querySelector<HTMLElement>('[data-board-overlay]');
@@ -230,9 +265,18 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         back.setAttribute('aria-hidden', 'true');
         root.append(back);
       }
+      // A touch smaller than a card in their hand (the operator, 2026-10-07: the back looked a fifth
+      // bigger than a hand card; "it could be 5% smaller"). Their hand's own backs are the measure;
+      // this seat's hand when theirs is empty; the stylesheet's size when neither is drawn.
+      const handCard =
+        canvas.querySelector('[data-zone="hand"][data-owner="them"] li') ?? canvas.querySelector('[data-zone="hand"][data-owner="you"] li');
+      const w = handCard?.getBoundingClientRect().width ?? 0;
+      back.style.width = w > 0 ? `${Math.round(w * 0.95)}px` : '';
       back.style.left = `${at.x - box.left}px`;
       back.style.top = `${at.y - box.top}px`;
+      backAt = at;
     } else {
+      if (back !== null && backAt !== null) backWas = { at: backAt, gone: Date.now() };
       back?.remove();
       back = null;
     }
@@ -259,6 +303,35 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     staleTimer = setTimeout(takeDown, PRESENCE_STALE_MS);
   }
 
+  /** The card they were holding has appeared: its copy travels from the back's last place to its own. */
+  function handoff(): void {
+    const cards = host.theirCards?.() ?? [];
+    const fresh = cards.filter((id) => !known.has(id));
+    known = new Set(cards);
+    if (fresh.length === 0 || backWas === null || Date.now() - backWas.gone > HANDOFF_MS) return;
+    const from = backWas.at;
+    backWas = null;
+    if (host.motion?.() !== true) return;
+    const id = fresh[0]!;
+    const arrived =
+      canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${id}"]`) ??
+      canvas.querySelector<HTMLElement>(`.stack__item:has([data-card-id="w${id}"])`);
+    const tile = arrived?.querySelector('.card');
+    if (!(arrived instanceof HTMLElement) || tile === null || tile === undefined) return;
+    const ghost = document.createElement('div');
+    ghost.className = 'presence__handoff';
+    ghost.setAttribute('aria-hidden', 'true');
+    const copy = tile.cloneNode(true) as HTMLElement;
+    copy.removeAttribute('data-card-id');
+    copy.removeAttribute('data-testid');
+    for (const el of copy.querySelectorAll('[data-card-id], [data-testid]')) {
+      el.removeAttribute('data-card-id');
+      el.removeAttribute('data-testid');
+    }
+    ghost.append(copy);
+    landCastGhost(canvas, id, ghost, from, arrived);
+  }
+
   function onEcho(payload: unknown): void {
     if (!live) return;
     const parsed = PresenceEchoSchema.safeParse(payload);
@@ -272,10 +345,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   canvas.addEventListener('pointerleave', onPointerLeave);
   document.addEventListener('visibilitychange', onVisibility);
   host.transport.on(PRESENCE_EVENT, onEcho);
+  const unwatch = host.watch?.(handoff) ?? null;
 
   return {
     dispose() {
       live = false;
+      unwatch?.();
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerleave', onPointerLeave);
       document.removeEventListener('visibilitychange', onVisibility);

@@ -3,7 +3,7 @@
  * curve with its head along the tangent at the tip.
  */
 import { describe, expect, it } from 'vitest';
-import { arrowShape } from './arrow.ts';
+import { ADJACENT_PX, aimAt, arrowShape } from './arrow.ts';
 
 function parse(d: string): { x1: number; y1: number; cx: number; cy: number; x2: number; y2: number } {
   const n = d.replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
@@ -20,6 +20,9 @@ function bowOf(c: ReturnType<typeof parse>): number {
   const my = (c.y1 + c.y2) / 2;
   return (dx * (c.cy - my) - dy * (c.cx - mx)) / len;
 }
+
+/** The least a self-target's control point stands off the card's centre line: `BOW_MIN` in `arrow.ts`. */
+const BOW_SIDE = 20;
 
 describe('arrowShape', () => {
   it('runs from the tail to the tip', () => {
@@ -69,5 +72,37 @@ describe('arrowShape', () => {
     const { d, points } = arrowShape(5, 5, 5, 5);
     expect(d).not.toMatch(/NaN/);
     expect(points).not.toMatch(/NaN/);
+  });
+});
+
+/*
+ * Ledger Z9 (the operator, 2026-10-07): "if cryptbreaker has two cards right
+ * next to them, and it's trying to target itself and the next two cards, then
+ * the arrows should be drawn on top of the card so they are actually visible."
+ */
+describe('aimAt', () => {
+  const box = (left: number, top: number, w = 60, h = 84) => ({ left, top, right: left + w, bottom: top + h });
+
+  it('a target across the table is hit at the nearest point of its edge, as before', () => {
+    const { from, tip } = aimAt({ x: 40, y: 42 }, box(400, 300));
+    expect(from).toEqual({ x: 40, y: 42 });
+    expect(tip).toEqual({ x: 400, y: 300 });
+  });
+
+  it('a target right beside the source is hit at its CENTRE, so the shaft crosses the cards', () => {
+    // Cryptbreaker at 10..70, the next card at 76..136: six pixels apart.
+    const { tip } = aimAt({ x: 40, y: 42 }, box(76, 0));
+    expect(tip).toEqual({ x: 106, y: 42 });
+    expect(aimAt({ x: 40, y: 42 }, box(76 + ADJACENT_PX, 0)).tip, 'past the threshold: the edge again').toEqual({ x: 76 + ADJACENT_PX, y: 42 });
+  });
+
+  it('a card targeting itself is an arc over the card, bottom to top', () => {
+    const { from, tip } = aimAt({ x: 40, y: 42 }, box(10, 0));
+    expect(from).toEqual({ x: 40, y: 80 });
+    expect(tip).toEqual({ x: 40, y: 4 });
+    const { d } = arrowShape(from.x, from.y, tip.x, tip.y);
+    expect(d, 'the bow swings it out to the side, not through the card’s middle').toMatch(/Q (\d+\.?\d*) /);
+    const cx = Number(/Q (-?[\d.]+) /.exec(d)![1]);
+    expect(Math.abs(cx - 40)).toBeGreaterThanOrEqual(BOW_SIDE);
   });
 });

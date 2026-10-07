@@ -39,6 +39,7 @@ import {
   type LiveStatus,
 } from './LiveBoard.tsx';
 import {
+  choosingMulligan,
   answerAsk,
   boardInteraction,
   closeMatch,
@@ -1308,6 +1309,34 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // on the panel outranks the UA's own `[hidden]`, so without it a collapsed
     // panel would draw.
     expect(declarations(liveCss(), '.live__logbook[hidden]')).toContain('display: none');
+  });
+
+  // The operator, 2026-10-07: "clicking outside of the log should close the log, also clicking ESC could close the log".
+  it('the open logbook closes on a press outside it and on Escape, and stays open for a press inside it', async () => {
+    const { getByTestId, container } = await liveBoard();
+    const toggle = getByTestId('live-log-toggle') as HTMLButtonElement;
+    const logbook = getByTestId('live-logbook');
+    fireEvent.click(toggle);
+    await waitFor(() => expect(logbook.hasAttribute('hidden')).toBe(false));
+    fireEvent.pointerDown(logbook, { button: 0 });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(logbook.hasAttribute('hidden'), 'a press inside leaves it open').toBe(false);
+    fireEvent.pointerDown(container.querySelector('.board')!, { button: 0 });
+    await waitFor(() => expect(logbook.hasAttribute('hidden')).toBe(true));
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(logbook.hasAttribute('hidden')).toBe(false));
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    document.dispatchEvent(escape);
+    await waitFor(() => expect(logbook.hasAttribute('hidden')).toBe(true));
+    expect(escape.defaultPrevented, 'Escape is not consumed: a prompt that wants it still gets it').toBe(false);
+  });
+
+  // The operator, 2026-10-07, on the log: "why is there this tiny little scrollbar here?" — the status block's own cap, inside the panel.
+  it('inside the logbook the status block does not scroll on its own: the list is the one scroll owner', () => {
+    expect(declarations(liveCss(), '.live__logbook > .live__says')).toContain('overflow: visible');
+    expect(declarations(liveCss(), '.live__logbook > .live__says')).toContain('max-height: none');
   });
 
   /*
@@ -3194,6 +3223,25 @@ describe('T2 — a calm "waiting for the other player"', () => {
     await waitFor(() => expect(m.selectables).not.toBeNull());
     expect(isWaitingForOpponent(m)).toBe(false);
     expect(queryByTestId('live-waiting')).toBeNull();
+  });
+
+  // Ledger Z2 (the operator, 2026-10-07): "when i mulligan once and then keep it just says 'Waiting for Bella…'
+  // but it should probably tell me how many cards to put at the bottom."
+  it('is gone during the London bottom pick, and Forge’s own instruction is in the decision pop-up with OK as Forge enables it', async () => {
+    const { s, m, queryByTestId, getByTestId } = await liveBoard();
+    const GAME = String(deltaKey(WireType.Game, 1));
+    s.send(parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Return 1 card(s) to the bottom of your library', card: null }));
+    s.send(updateButtons(false, 'OK', 'Cancel'));
+    s.send(parseServerFrame({ kind: 'notify', method: 'applyDelta', payload: { packet: { seq: 900, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [GAME]: { _type: WireType.Game, _id: 1, Mulligan: { t: 'bool', v: true } } }, events: [] } } }));
+    await waitFor(() => expect(choosingMulligan(m)).toBe(true));
+    expect(isWaitingForOpponent(m), 'the pick is this seat’s move').toBe(false);
+    expect(queryByTestId('live-waiting')).toBeNull();
+    expect(queryByTestId('live-pregame-wait-host'), 'no pregame waiting pop-up either').toBeNull();
+    const decision = getByTestId('live-decision');
+    expect(decision.textContent).toContain('Return 1 card(s) to the bottom of your library');
+    expect((getByTestId('live-decision-ok') as HTMLButtonElement).disabled, 'OK off until a card is set aside').toBe(true);
+    s.send(updateButtons(true, 'OK', 'Cancel'));
+    await waitFor(() => expect((getByTestId('live-decision-ok') as HTMLButtonElement).disabled).toBe(false));
   });
 
   it('is gone the instant Forge enables the viewer’s own OK — that is "my move"', async () => {

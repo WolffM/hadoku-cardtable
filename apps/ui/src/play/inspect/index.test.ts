@@ -129,6 +129,7 @@ function mountBoard(interaction?: BoardInteraction) {
     board,
     panel: () => board.querySelector<HTMLElement>('[data-inspect]'),
     theirCard: () => board.querySelector<HTMLElement>('[data-card-id="3"]')!,
+    myHandCard: () => board.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"] li[data-card-id]')!,
     yourHandCard: () => board.querySelector<HTMLElement>('[data-card-id="1"]')!,
     stackItem: () => board.querySelector<HTMLElement>('[data-stack-id="9"]')!,
     cardBack: () => board.querySelector<HTMLElement>('[data-card-back]')!,
@@ -233,6 +234,28 @@ describe('opening', () => {
       expect(panel(), 'not in the board overlay').toBeNull();
       expect(board.contains(shown!)).toBe(false);
       expect(shown!.querySelector('.card__name')!.textContent).toBe('Popup Card');
+    } finally {
+      live.remove();
+    }
+  });
+
+  it('a hand card enlarges above the hand whatever is open; the waiting pop-up is not a decision window', () => {
+    // The operator, 2026-10-07: hovering a hand card under "Waiting for Bella…" no longer placed it above the hand.
+    const { panel, board, myHandCard } = mountBoard();
+    const live = document.createElement('div');
+    live.className = 'live';
+    live.innerHTML = '<div class="live__prompt" data-testid="live-pregame-wait-host"><p data-testid="live-pregame-wait">Waiting for Bella…</p></div>';
+    document.body.appendChild(live);
+    try {
+      hover(myHandCard().querySelector('.card')!);
+      expect(panel(), 'in the board overlay, on the hand anchor').not.toBeNull();
+      expect(live.querySelector('[data-inspect]'), 'not beside the pop-up').toBeNull();
+      // A real decision window: a hand card still keeps its anchor.
+      live.innerHTML = '<div class="live__prompt" data-testid="live-decision-host"><p>Sacrifice a land</p></div>';
+      hover(board);
+      hover(myHandCard().querySelector('.card')!);
+      expect(panel(), 'a hand card, still on the hand anchor').not.toBeNull();
+      expect(live.querySelector('[data-inspect]')).toBeNull();
     } finally {
       live.remove();
     }

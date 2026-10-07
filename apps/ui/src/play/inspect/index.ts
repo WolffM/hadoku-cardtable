@@ -400,8 +400,14 @@ export function mountInspector(root: ParentNode): () => void {
     // pop-up (`--z-popover`) painted over it. Beside the pop-up, never on it.
     // The pop-up's parent is `.live` (`position: relative`), its containing
     // block. The hovered card's own pop-up when it is in one; otherwise the
-    // one that is open.
-    const modal = target.tile.closest('.live__prompt') ?? doc.querySelector('.live__prompt');
+    // one that is open and ASKS something — the "waiting for the other
+    // player" pop-up is not a decision. Never for a card in the viewer's own
+    // hand: that one enlarges above the hand whatever is on screen (the
+    // operator, 2026-10-07: "this type of hover expand should not be
+    // affected by whats on the screen").
+    const inHand = target.card.closest('[data-zone="hand"][data-owner="you"]') !== null;
+    const modal =
+      target.tile.closest('.live__prompt') ?? (inHand ? null : doc.querySelector('.live__prompt:not(:has([data-testid="live-pregame-wait"]))'));
     const modalBox = modal?.parentElement ?? null;
     const host: HTMLElement = modalBox instanceof HTMLElement ? modalBox : overlayEl;
     const hostR = rectOf(host.getBoundingClientRect());

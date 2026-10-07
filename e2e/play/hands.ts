@@ -155,6 +155,15 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
     } catch (err) {
       // The offer can be replaced under the click (a drag's can too); the next tick looks again.
       log.push(`  (click did not land: ${String(err).split('\n')[0]})`);
+      // What the hand's offered cards looked like at that moment: the attributes the gesture layer writes, and visibility.
+      const seen = await f.page
+        .evaluate(() =>
+          Array.from(document.querySelectorAll<HTMLElement>('.seat[data-viewer] [data-zone="hand"] li[data-selectable]')).map(
+            (li) => `${li.getAttribute('data-card-id')}:${Array.from(li.attributes).filter((x) => x.name.startsWith('data-cast') || x.name === 'style').map((x) => `${x.name}=${x.value}`).join(',')}:${getComputedStyle(li).visibility}/${getComputedStyle(li.querySelector('button') ?? li).visibility}`,
+          ),
+        )
+        .catch(() => []);
+      log.push(`  (offered hand: ${seen.join(' | ')})`);
       return false;
     }
     hands.acts += 1;

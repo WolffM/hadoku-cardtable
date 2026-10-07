@@ -274,6 +274,7 @@ import {
   declaringAttackers,
   nothingToDecide,
   noteAutoAnswered,
+  choosingMulligan,
   payingMana,
   pressButton,
   relayout,
@@ -388,6 +389,12 @@ export function questionTopOf(root: HTMLElement): number | null {
 function myMoveNow(match: LiveMatch): boolean {
   if (isSpectator(match)) return false;
   if (currentAsk(match) !== null) return true;
+  // The London mulligan's bottom pick (ledger Z2): Forge publishes no selection
+  // for it and its OK stays off until a card is set aside, so neither signal
+  // below holds — yet it is this seat's own move. The operator, 2026-10-07:
+  // "it just says 'Waiting for Bella…' but it should probably tell me how many
+  // cards to put at the bottom."
+  if (choosingMulligan(match)) return true;
   // An open selection (a reveal, a discard, a target to click) is the viewer's
   // move even while the bar's OK is disabled: it stays disabled until the
   // selection is satisfied. Found on Secluded Glen's reveal (T12), where the
@@ -1525,7 +1532,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const route = spectator
     ? 'none'
     : barRoute(bar, (match.view?.stack.length ?? 0) === 0, askOpen || paying || selectionPopup || pregameWait);
-  const decisionOk = route === 'decision' && bar !== null && bar.enable1;
+  // The bottom pick (Z2): Forge's own instruction ("Return N card(s) to the bottom of your library") in the
+  // decision pop-up, its OK as Forge enables it — off until a card is set aside, on after.
+  const mulliganPick = !spectator && bar !== null && choosingMulligan(match) && !isConfirmPrompt(bar);
+  const decisionOk = (route === 'decision' && bar !== null && bar.enable1) || mulliganPick;
   const decisionCancel = route === 'decision' && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match);
   const decision = decisionOk || decisionCancel;
   /*
@@ -1615,6 +1625,32 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    */
   const [logOpen, setLogOpen] = useState(false);
   const logbookId = useId();
+  /*
+   * The log closes the way a menu does (the operator, 2026-10-07: "clicking
+   * outside of the log should close the log, also clicking ESC could close
+   * the log"): a press anywhere outside the panel and its own toggle, or
+   * Escape. Capture phase, so the press still goes on to whatever it was
+   * on; and Escape is not consumed, so a prompt or a cast that also wants it
+   * still gets it (`inspect/index.ts` makes the same call).
+   */
+  useEffect(() => {
+    if (!logOpen) return undefined;
+    const outside = (event: PointerEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest(`#${CSS.escape(logbookId)}, [data-testid="live-log-toggle"]`) !== null) return;
+      setLogOpen(false);
+    };
+    const escape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setLogOpen(false);
+    };
+    document.addEventListener('pointerdown', outside, true);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside, true);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [logOpen, logbookId]);
   /*
    * The logbook is scrollable and keeps the newest line in view. `.live__log`
    * (`live.css`) is the scroll owner — a bounded flex child with
@@ -1752,6 +1788,18 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         },
         transport: match.transport,
         opponentName: () => match.view?.players.find((p) => !p.isViewer)?.name ?? null,
+        watch: (onChange) => subscribe(match, onChange),
+        theirCards: () => {
+          const view = match.view;
+          if (view === null) return [];
+          const them = view.players.filter((p) => !p.isViewer);
+          const mine = view.players.find((p) => p.isViewer)?.name ?? null;
+          return [
+            ...them.flatMap((p) => p.battlefield.map((c) => c.id)),
+            ...view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && item.controllerName !== mine).map((item) => item.sourceCardId!),
+          ];
+        },
+        motion: () => !fastModeNow.current,
       },
     });
     return () => handle.dispose();
@@ -2181,7 +2229,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           <ConfirmPrompt
             testId="live-decision"
             message={promptText(match.prompt ?? '')}
-            button1={decisionOk ? { label: bar.label1, enabled: true, testId: 'live-decision-ok', onClick: () => pressButton(match, 'ok') } : undefined}
+            button1={decisionOk ? { label: bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressButton(match, 'ok') } : undefined}
             button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressButton(match, 'cancel') } : undefined}
           />
         </div>

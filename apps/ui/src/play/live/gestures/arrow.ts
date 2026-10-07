@@ -12,7 +12,7 @@
  * too, from the same function, into the same overlay. `data-mode` says which
  * gesture drew it, and it is the only thing that is new.
  */
-import { centreOf, edgePointNearest } from './targets.ts';
+import { centreOf } from './targets.ts';
 import type { AutoTargetArrow } from './auto-targets.ts';
 import type { DropTarget, Point } from './types.ts';
 
@@ -109,7 +109,7 @@ function shape(svg: SVGSVGElement, from: Point, tip: Point, box: DOMRect): void 
  * own coordinates, so it is correct wherever lane A puts the overlay.
  */
 export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
-  const tip = spec.snap === null ? spec.to : tipOn(spec.snap, spec);
+  const aimed = spec.snap === null ? { from: spec.from, tip: spec.to } : aimOn(spec.snap, spec.from, spec.target?.kind === 'player' ? 'player' : 'card');
   let svg = overlay.querySelector<SVGSVGElement>('[data-testid="targeter"]');
   if (svg === null) {
     svg = newArrow('targeter', 'targeter');
@@ -119,15 +119,68 @@ export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
   flag(svg, 'data-target', spec.target === null ? null : `${spec.target.kind}:${spec.target.id}`);
   flag(svg, 'data-snapped', spec.snap === null ? null : 'true');
   flag(svg, 'data-mode', spec.mode);
-  shape(svg, spec.from, tip, overlay.getBoundingClientRect());
+  shape(svg, aimed.from, aimed.tip, overlay.getBoundingClientRect());
 }
 
 /**
- * A card is hit at the nearest of eight points on its edge to the tail (Q11); a
- * player's face, which is a round avatar and not a card, keeps its centre.
+ * Closer than this (the tail, a card's centre, to the target's box) and the
+ * arrow runs to the target's CENTRE, over the cards, instead of to its nearest
+ * edge — ledger Z9. A board card is 60-115px wide with a 6-8px gap, so a
+ * neighbour's edge is 36-66px from the source's centre and the next card over
+ * is 100px and more: this sits between.
  */
-function tipOn(snap: Element, spec: ArrowSpec): Point {
-  return spec.target?.kind === 'player' ? centreOf(snap) : edgePointNearest(snap, spec.from);
+export const ADJACENT_PX = 72;
+
+/**
+ * Where an arrow from `from` runs when its target is the box `to`: the tail
+ * as given and the tip at the nearest of eight points on the target's edge
+ * (Q11) — except that a target touching the source, or the source itself,
+ * gets no visible arrow that way. The operator, 2026-10-07: *"if cryptbreaker
+ * has two cards right next to them, and it's trying to target itself and the
+ * next two cards, then the arrows should be drawn on top of the card so they
+ * are actually visible."* So:
+ *
+ *  - the tail INSIDE the target (the card targets itself): the arrow is an
+ *    arc over the card, from its bottom to its top — the bow (`arrowShape`)
+ *    swings it out to the side;
+ *  - the target within `ADJACENT_PX` of the tail: the tip is the target's
+ *    centre, so the shaft crosses the cards, which the overlay draws over.
+ *
+ * Pure, on boxes: `arrow.test.ts` drives it with numbers.
+ */
+export function aimAt(from: Point, to: { left: number; top: number; right: number; bottom: number }): { from: Point; tip: Point } {
+  const centre = { x: (to.left + to.right) / 2, y: (to.top + to.bottom) / 2 };
+  const inside = from.x >= to.left && from.x <= to.right && from.y >= to.top && from.y <= to.bottom;
+  if (inside) return { from: { x: centre.x, y: to.bottom - 4 }, tip: { x: centre.x, y: to.top + 4 } };
+  const dx = Math.max(to.left - from.x, 0, from.x - to.right);
+  const dy = Math.max(to.top - from.y, 0, from.y - to.bottom);
+  if (Math.hypot(dx, dy) < ADJACENT_PX) return { from, tip: centre };
+  return { from, tip: edgeNearest(to, from) };
+}
+
+/** `edgePointNearest` on a box rather than an element. */
+function edgeNearest(r: { left: number; top: number; right: number; bottom: number }, from: Point): Point {
+  const xs = [r.left, (r.left + r.right) / 2, r.right];
+  const ys = [r.top, (r.top + r.bottom) / 2, r.bottom];
+  let best: Point = { x: r.left, y: r.top };
+  let bestD = Infinity;
+  for (let row = 0; row < 3; row += 1) {
+    for (let col = 0; col < 3; col += 1) {
+      if (row === 1 && col === 1) continue;
+      const p = { x: xs[col]!, y: ys[row]! };
+      const d = Math.hypot(p.x - from.x, p.y - from.y);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+  }
+  return best;
+}
+
+/** A card is aimed at by `aimAt`; a player's face, a round avatar and not a card, keeps its centre. */
+function aimOn(snap: Element, from: Point, kind: 'player' | 'card'): { from: Point; tip: Point } {
+  return kind === 'player' ? { from, tip: centreOf(snap) } : aimAt(from, snap.getBoundingClientRect());
 }
 
 /** Take the arrow away. Absent is fine — this is called on every gesture end. */
@@ -151,14 +204,14 @@ export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoT
   const seen = new Set<string>();
   for (const spec of specs) {
     seen.add(spec.key);
-    const tip = spec.kind === 'player' ? centreOf(spec.to) : edgePointNearest(spec.to, spec.from);
+    const aimed = aimOn(spec.to, spec.from, spec.kind === 'player' ? 'player' : 'card');
     let svg = overlay.querySelector<SVGSVGElement>(`[data-testid="${AUTO_TESTID}"][data-key="${spec.key}"]`);
     if (svg === null) {
       svg = newArrow('targeter targeter--auto', AUTO_TESTID);
       svg.setAttribute('data-key', spec.key);
       overlay.append(svg);
     }
-    shape(svg, spec.from, tip, box);
+    shape(svg, aimed.from, aimed.tip, box);
   }
   for (const el of [...overlay.querySelectorAll(`[data-testid="${AUTO_TESTID}"]`)]) {
     if (!seen.has(el.getAttribute('data-key') ?? '')) el.remove();

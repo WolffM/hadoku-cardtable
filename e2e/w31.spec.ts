@@ -115,6 +115,11 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
       await alice.page.waitForTimeout(500);
     }
     await expect(bottom).toContainText(/return \d+ card/i);
+    // Ledger Z2 (the operator, 2026-10-07): the bottom pick is alice's own move. Forge's instruction is on
+    // screen in the decision pop-up, and nothing says she is waiting for bob.
+    await expect(alice.page.getByTestId('live-decision'), 'Forge’s own instruction, in the decision pop-up').toContainText(/return \d+ card/i);
+    await expect(alice.page.getByTestId('live-waiting')).toHaveCount(0);
+    await expect(alice.page.getByTestId('live-pregame-wait-host')).toHaveCount(0);
     const before = { says: await says(alice.page), ids: await offered(alice.page), hand: await handCards(alice.page).count() };
     expect(before.ids.length, 'the bottom pick offers her hand').toBeGreaterThan(0);
 

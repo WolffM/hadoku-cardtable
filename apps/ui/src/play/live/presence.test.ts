@@ -74,6 +74,11 @@ describe('the mirror', () => {
     // Received by the other board (the same layout here): their "you" is this board's "them".
     const placed = placeSpot(canvas, spot)!;
     expect(placed).toEqual({ x: 300, y: 250 });
+    // A battlefield is drawn upside down for its other seat: a quarter DOWN their own battlefield is
+    // three quarters down it as this board draws it (their front row is nearest the middle).
+    expect(placeSpot(canvas, { zone: 'battlefield', owner: 'you', x: 0.25, y: 0.25 })).toEqual({ x: 300, y: 150 + 150 });
+    // A hand is one row either way: no flip.
+    expect(placeSpot(canvas, { zone: 'hand', owner: 'you', x: 0.5, y: 0.25 })).toEqual({ x: 500, y: 20 + 25 });
   });
 
   it('a point outside every zone is a fraction of the board, and lands at the same fraction', () => {
@@ -165,6 +170,42 @@ describe('receiving', () => {
     // Silence: taken down after PRESENCE_STALE_MS.
     vi.advanceTimersByTime(PRESENCE_STALE_MS + 1);
     expect(overlay.querySelector('.presence')).toBeNull();
+    handle.dispose();
+  });
+
+  it('the handoff: their back goes and a card of theirs appears — a copy travels from the back’s place to the card (motion on)', () => {
+    vi.useFakeTimers();
+    const { canvas, theirCard } = board();
+    const t = fakeTransport();
+    let theirs: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, motion: () => true },
+    });
+    // They hold a card over their battlefield, then let go.
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', owner: 'you', x: 0.5, y: 0.5 }, held: true, from: null });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', owner: 'you', x: 0.5, y: 0.5 }, held: false, from: null });
+    expect(canvas.querySelector('.presence__back')).toBeNull();
+    // Forge puts card 7 on their battlefield (the fixture's one card of theirs), and the match wakes its subscribers.
+    theirs = [7];
+    theirCard.innerHTML = '<button class="board-card__face"><article class="card" data-card-id="w7" data-testid="card"><span class="card__name">Their Card</span></article></button>';
+    wake!();
+    const ghost = canvas.querySelector<HTMLElement>('.presence__handoff')!;
+    expect(ghost, 'a copy of the card travels').not.toBeNull();
+    // The same trip a played card makes: `landCastGhost` paints it at the back's place, then sends it home
+    // (`returning`, the transition) to the card's own centre, which is where its style already points.
+    expect(ghost.getAttribute('data-cast-lift'), 'on the same trip a played card makes').toBe('returning');
+    expect(ghost.style.left, 'bound for the card’s centre').toBe('150px');
+    expect(ghost.style.top).toBe('242px');
+    expect(ghost.querySelector('.card__name')!.textContent).toBe('Their Card');
+    expect(ghost.querySelector('[data-card-id]'), 'the copy is not a card the DOM can address').toBeNull();
+    expect(theirCard.hasAttribute('data-cast-landing'), 'the real card waits hidden in its slot').toBe(true);
+    // A later arrival, with no back gone just before it, is not a handoff.
+    vi.advanceTimersByTime(3000);
+    theirs = [7, 8];
+    wake!();
+    expect(canvas.querySelectorAll('.presence__handoff'), 'only the one').toHaveLength(0);
     handle.dispose();
   });
 
