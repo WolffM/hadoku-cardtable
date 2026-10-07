@@ -19,11 +19,16 @@ on:
   schedule:
     - cron: '0 10 * * *'
 
-# Queue, never cancel. A cancelled `forge-e2e` leaves its e2e servers running
-# on this self-hosted runner, reparented to systemd and holding the fixed e2e
-# ports (2026-10-03: `14c021b`'s cancelled run kept 19008, and the next run's
-# port wait failed after 10 min with no test run). GitHub keeps at most one
-# PENDING run per group, so a burst of pushes still collapses to the newest.
+# Queue, never cancel. On a claw this is no longer about orphaned e2e servers
+# holding fixed ports — each job's own systemd unit reaps whatever it leaves
+# behind, and ports are chosen per run, so a cancelled job cannot block the
+# next one on a bind. What `cancel-in-progress: false` still buys: GitHub
+# keeps at most one PENDING run per group, so a burst of pushes collapses to
+# the newest rather than queuing every one of them, and a run that WAS
+# cancelled mid-flight simply gives no Forge signal for that push — the
+# `changes` job above compares against the last run that fully succeeded, not
+# the immediate parent, so the next push's `changes` run still covers whatever
+# the cancelled one would have.
 concurrency:
   group: forge-${{ github.ref }}
   cancel-in-progress: false
@@ -104,31 +109,36 @@ jobs:
   # match — the ONLY e2e that drives a real child JVM — self-skipped on every
   # run, and a skip reads as a pass. Green CI meant 3 of 4. Found in Wave 16.
   #
-  # WHY HOKON, and why NOT `vars.CI_RUNNER`. The jar production runs
-  # (`~/.local/share/cardtable/forge.jar`) and the vendored Forge `res/` live on
-  # hokon, the production PM2 host, and nowhere else. The fleet's claws — where
-  # `check` runs — have neither. So this job pins the repo-level runner by its
-  # `pm2-host` label and deliberately ignores `vars.CI_RUNNER`: the fleet
-  # variable says where a job CAN run, and this job can only run in one place.
-  # If hokon is offline this job queues rather than going green, which is the
-  # correct failure. It is not the required check; `check` is.
+  # ON THE CLAWS, since wave forge-claws (2026-10-07). The jar and the
+  # vendored Forge `res/` used to exist only on hokon, the production PM2
+  # host — this job used to pin `[self-hosted, pm2-host]` for exactly that
+  # reason. Now `scripts/forge-bundle.sh` keeps a per-pin bundle
+  # (`forge.jar` + `res/`) cached under `~/.cache/cardtable-forge/<pin>/` on
+  # whichever claw the job lands on: a cache HIT if that claw already built
+  # this pin, a cold BUILD (shallow clone of the pin + a Maven build) if not.
+  # `runs-on` below pins `hadoku-builder, jdk21` — the `jdk21` label is what a
+  # cold build needs (JDK 21 + Maven on PATH); `vars.CI_RUNNER` is not used
+  # here because this job's requirement is narrower than "any claw".
   #
-  # LOAD AND PORTS. This runs on the production host. It binds its OWN e2e
-  # loopback ports (29108/29008 draft harness, 29128/29028 play harness, set
-  # in the job's `env`), disjoint from the 19xxx defaults every local and wave
-  # `pnpm e2e` uses, so the two no longer block each other. They still share
-  # the host's CPU: a red under heavy local load is a race to diagnose, not a
-  # collision.
+  # NO FIXED PORTS, NO HOST-WIDE LOCKS. A claw runs several jobs at once, for
+  # several refs, so nothing here may assume it owns the host the way hokon's
+  # single workstation did. Ports are chosen fresh per run (see "pick this
+  # run's own ports" below) instead of a hardcoded 29xxx range, and there is
+  # no `heavy.lock` — that lock existed only to queue CI behind the operator's
+  # own hokon-hosted waves, which is not a claw concern. Each claw job instead
+  # runs inside its own memory-capped systemd unit with `KillMode=control-group`,
+  # so a server or JVM this job leaves behind dies with the job's unit; the
+  # teardown step below is belt and braces, not load-bearing.
   #
   # Production's run directories are not touched: the harness pins the match's
   # work dir to `e2e/.run/play-work` (`PLAY_WORK_DIR`, `e2e/play/harness.ts:64`,
   # passed as `CARDTABLE_PLAY_WORK_DIR` at :149), so its boot sweep never
   # reaches production's `/tmp/cardtable-play`. No env override is needed.
   #
-  # The jar variables are scoped to the two e2e steps, not the job. Job-wide
-  # they would matter only if this job ran vitest — it does not. The
-  # `*.jvm.test.ts` suites run in the separate `forge-jvm` job below, ordered
-  # strictly after this one on the same host rather than beside it.
+  # `CARDTABLE_FORGE_JAR` / `CARDTABLE_FORGE_RES` are resolved once, early in
+  # the job, by the bundle step below, and exported via `GITHUB_ENV` so every
+  # later step sees them without repeating the lookup — no step hardcodes
+  # either path any more.
   #
   # Runs beside `ci.yml`'s `check` (its own workflow since 2026-10-07; this
   # workflow's `concurrency` group queues a newer push rather than cancelling).
@@ -136,24 +146,22 @@ jobs:
     name: forge-e2e
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
-    runs-on: [self-hosted, pm2-host]
-    # Measured on run 37184116178 (the 9-spec derived list): ~15 min of test time
-    # with three reds burning their own budgets (play.spec alone 312 s), plus
-    # install and build, plus up to 10 min of port wait. At 20 the job was
-    # CANCELLED, and a cancelled job orphans its e2e servers on the fixed ports.
-    # +30 for the heavy.lock wait (2026-10-06).
-    timeout-minutes: 70
-    # CI's OWN port range, never the local default (19008/19028/19108/19128).
-    # A wave's full local e2e holds the default four for longer than the wait
-    # below (2026-10-06: w51's 20-spec run red-ed dbe879e's forge-e2e without a
-    # test run; 2026-10-05: efa5764 the same). With disjoint ranges neither can
-    # block the other; the harnesses read these (`e2e/identities.ts:46-47`,
-    # `e2e/play/harness.ts:138-139`).
-    env:
-      CARDTABLE_E2E_SERVER_PORT: '29008'
-      CARDTABLE_E2E_PLAY_SERVER_PORT: '29028'
-      CARDTABLE_E2E_EDGE_PORT: '29108'
-      CARDTABLE_E2E_PLAY_EDGE_PORT: '29128'
+    runs-on: [self-hosted, hadoku-builder, jdk21]
+    # Measured on run 37184116178 (the 9-spec derived list): ~15 min of test
+    # time with three reds burning their own budgets (play.spec alone 312 s),
+    # plus install and build. On a claw the same budget also has to cover a
+    # cold bundle BUILD on a miss. SETTLED from this wave's proof dispatches
+    # (pin e5db05107c…): a FULL cold BUILD end to end (clone, maven, jar
+    # verify, the `forge-gui/res` copy, atomic mv) is 74–100 s, bundle 504M —
+    # nowhere near the 10–20 min this file guessed before any claw had built
+    # one; a cache HIT costs ~6–11 s. The slow case is contention, not the
+    # BUILD: with 3 of 4 proof jobs landing on one claw at once (two forge-e2e
+    # + one forge-jvm sharing claw-9), THIS job ran 34.9–36.1 min against its
+    # usual ~16–18 min (one extra Playwright red each time under the load —
+    # product content, not a hang: `main`'s own two known reds plus one more).
+    # 40 is the baseline (no lock wait any more); +15 covers the measured
+    # BUILD plus that observed contention with headroom.
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v6
 
@@ -177,25 +185,16 @@ jobs:
       - name: E2E — browser
         run: pnpm --filter @hadoku/e2e exec playwright install chromium
 
-      # Per-pin jars (ledger Y26/settled): the jar is shared by CI and
-      # production, and an install mid-run invalidates whatever CI run was
-      # already in flight against the old jar (w52, 21:58:56Z, under `d28788c`).
-      # A jar keyed by the commit's own `forge` pin removes that collision —
-      # CI always runs the jar this very commit's submodule pointer names,
-      # whichever jar production happens to have symlinked at the time. The
-      # jar itself is a host file, not git: `docs/FORGE_JAR.md`'s install
-      # procedure writes `jars/<pin>.jar` (a build output, never committed).
-      # Resolved once per job and exported via `GITHUB_ENV` so every later
-      # step's `$CARDTABLE_FORGE_JAR` is this pin's jar without repeating the
-      # lookup — no step below hardcodes the path any more.
-      - name: Resolve the Forge jar for this commit's pin
-        run: |
-          pin=$(git ls-tree HEAD forge | awk '{print $3}')
-          jar="/home/hadoku/.local/share/cardtable/jars/$pin.jar"
-          test -n "$pin" || { echo "::error::git ls-tree HEAD forge returned no pin — is the submodule entry missing?"; exit 1; }
-          test -f "$jar" || { echo "::error::no installed jar for forge pin $pin: $jar — build and install it first (docs/FORGE_JAR.md)"; exit 1; }
-          echo "::notice::resolved Forge jar for pin $pin: $jar"
-          echo "CARDTABLE_FORGE_JAR=$jar" >> "$GITHUB_ENV"
+      # Per-pin bundle (ledger Y26, carried forward by wave forge-claws): the
+      # jar and res/ are shared across every claw that has built this pin, so
+      # an install mid-run on ANOTHER job no longer invalidates this one — each
+      # pin gets its own cache entry under `scripts/forge-bundle.sh`'s cache
+      # root, never production's `~/.local/share/cardtable/jars/`. Exported via
+      # `GITHUB_ENV` so every later step's `$CARDTABLE_FORGE_JAR` /
+      # `$CARDTABLE_FORGE_RES` are this pin's bundle without repeating the
+      # lookup.
+      - name: Resolve the Forge bundle for this commit's pin
+        run: bash scripts/forge-bundle.sh >> "$GITHUB_ENV"
 
       # Two guards, because either alone is a check that can pass by doing
       # nothing:
@@ -203,8 +202,9 @@ jobs:
       #   1. Forge present, or FAIL. Mirrors `forgeAvailability()` in the
       #      harness arm for arm — a missing jar or a `res/` without
       #      `cardsfolder` would make the specs skip, so here it reds instead.
-      #      (The jar half is already asserted by the resolve step above; this
-      #      repeats it so a step reordering cannot silently drop the guard.)
+      #      (The bundle step above already fails loudly on the same
+      #      conditions; this repeats the check so a step reordering cannot
+      #      silently drop the guard.)
       #   2. Nothing skipped, or FAIL. Guard 1 cannot see a skip from any
       #      OTHER cause. So Playwright also writes a JSON report, and the step
       #      asserts `stats.skipped == 0` from it — reading the tool's own
@@ -214,11 +214,35 @@ jobs:
       #      ever drops it, the report file is simply absent — and `jq` on an
       #      absent file exits non-zero, so that reds too rather than passing.
       - name: E2E — Forge is present, or fail
-        env:
-          CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
         run: |
           test -f "$CARDTABLE_FORGE_JAR" || { echo "::error::CARDTABLE_FORGE_JAR missing: $CARDTABLE_FORGE_JAR — the Forge specs would SKIP"; exit 1; }
           test -d "$CARDTABLE_FORGE_RES/cardsfolder" || { echo "::error::CARDTABLE_FORGE_RES has no cardsfolder: $CARDTABLE_FORGE_RES — the Forge specs would SKIP"; exit 1; }
+
+      # Four free loopback ports, chosen fresh per run instead of a fixed
+      # 29xxx range: several jobs can run on one claw at once, maybe for
+      # different refs, so a fixed range would collide. Binding port 0 and
+      # reading it back is the standard "ask the kernel" trick (node 24 is on
+      # PATH after setup-pnpm). The ports are released again before the
+      # harness binds them for real, which leaves a small window where
+      # something else on the same claw could grab one first. Accepted rather
+      # than closed: the window is milliseconds, a claw runs only a handful of
+      # jobs at once, and losing the race shows up as a loud bind failure in
+      # the harness below, never a silent wrong port.
+      - name: E2E — pick this run's own ports
+        run: |
+          read -r SERVER PLAY_SERVER EDGE PLAY_EDGE < <(node -e '
+            const net = require("net");
+            const servers = [];
+            const ports = [];
+            function next(i, done) {
+              if (i === 4) return done();
+              const s = net.createServer();
+              s.listen(0, "127.0.0.1", () => { ports.push(s.address().port); servers.push(s); next(i + 1, done); });
+            }
+            next(0, () => { servers.forEach((s) => s.close()); console.log(ports.join(" ")); });
+          ')
+          { echo "CARDTABLE_E2E_SERVER_PORT=$SERVER"; echo "CARDTABLE_E2E_PLAY_SERVER_PORT=$PLAY_SERVER"; echo "CARDTABLE_E2E_EDGE_PORT=$EDGE"; echo "CARDTABLE_E2E_PLAY_EDGE_PORT=$PLAY_EDGE"; } >> "$GITHUB_ENV"
+          echo "::notice::this run's ports: server=$SERVER play-server=$PLAY_SERVER edge=$EDGE play-edge=$PLAY_EDGE"
 
       # ONLY the Forge specs; the draft already ran in `check`. The file names
       # are appended by pnpm to the END of the package script, so they reach
@@ -231,63 +255,22 @@ jobs:
       # `startScenarioMatch`) is included automatically, so a new Forge-gated
       # spec file is covered the moment it is added instead of by a second
       # edit to a list that is easy to forget.
-      # This job's ports (29008/29028/29108/29128, the job `env` above) are its
-      # own: local and wave e2e runs use the default 19xxx range, so they no
-      # longer collide (2026-10-03: R13 red on CI, 10/10 green in the worktree,
-      # was two runs failing EACH OTHER). What can still hold these is an
-      # orphan of an earlier CI run, stopped below; anything else is waited
-      # for up to ten minutes and named if it stays.
-      - name: E2E — the ports are free, or wait
-        run: |
-          # A holder whose cwd is THIS runner's own workspace is an orphan of an
-          # earlier CI run (this runner runs one job at a time, and forge-jvm
-          # binds none of these ports): one held 19008 for 10 hours on
-          # 2026-10-04 and failed every run behind it. Stop it. A holder from
-          # anywhere else (a wave worktree's local e2e) is waited for, as before.
-          for pid in $(ss -ltnpH '( sport = :29008 or sport = :29028 or sport = :29108 or sport = :29128 )' 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
-            case "$(readlink /proc/$pid/cwd 2>/dev/null)" in
-              "$GITHUB_WORKSPACE"*) echo "::warning::stopping orphaned e2e server pid $pid from an earlier run"; kill -TERM "$pid" || true ;;
-            esac
-          done
-          sleep 2
-          for i in $(seq 1 60); do
-            held=$(ss -ltnH '( sport = :29008 or sport = :29028 or sport = :29108 or sport = :29128 )' 2>/dev/null)
-            [ -z "$held" ] && { [ "$i" -gt 1 ] && echo "::notice::e2e ports came free after $((i*10)) s"; exit 0; }
-            [ "$i" -eq 1 ] && echo "e2e ports held, waiting:" && echo "$held"
-            sleep 10
-          done
-          echo "::error::e2e ports still held after 10 min — another e2e run (a wave worktree?) owns them:"
-          ss -ltnp '( sport = :29008 or sport = :29028 or sport = :29108 or sport = :29128 )' || true
-          exit 1
-
+      # This run's own ports (chosen above) are exported via `GITHUB_ENV`, so
+      # the harness reads them the same way it reads the local 19xxx default —
+      # no job-wide `env:` holds a fixed range any more.
       - name: E2E — two friends play a real Forge match, and the table fits
         env:
-          CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
           PW_TEST_REPORTER: json
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/forge-e2e-report.json
           # Every stack's JVM run dir survives the run (see `harness.ts`), so
           # the evidence step below can send the failing one's stderr.
           CARDTABLE_E2E_WORK_DIRS_KEPT: '96'
         run: |
-          # One heavy run on this host at a time (2026-10-06, run 37530013218: with
-          # three sessions' gates beside it, JVM boots went from ~5 s to a 7.3 s
-          # median and 20 s max, and 4 of 6 reds were the harness's own 20 s
-          # `POST /api/play/matches` timing out). Wave gates take this same lock
-          # around their JVM/e2e phases (the waves protocol); this job runs as
-          # the same user. Bounded: a holder that keeps it 30 min is named, never
-          # waited out forever. Never `flock --` (exits 69 on this host); the
-          # fd form releases with this step's shell.
-          mkdir -p /tmp/claude-1000
-          exec 9>/tmp/claude-1000/heavy.lock
-          waited=$(date +%s)
-          if ! flock -w 1800 9; then
-            echo "::error::heavy.lock held for 30 min by: $(fuser /tmp/claude-1000/heavy.lock 2>&1 | tr -s ' ')"
-            ps -o pid=,etime=,args= -p "$(fuser /tmp/claude-1000/heavy.lock 2>/dev/null | tr -s ' ' ',' | sed 's/^,//')" 2>/dev/null | cut -c1-200 || true
-            exit 1
-          fi
-          echo "::notice::heavy.lock acquired after $(( $(date +%s) - waited )) s"
-          # What the host looked like when the run started — the first thing a
-          # flaky red needs and the one thing the log never had.
+          # The host line a flaky red needs first. No `heavy.lock` any more —
+          # that lock queued CI behind the operator's hokon-hosted waves, which
+          # a claw does not run; each claw job is its own memory-capped unit
+          # instead (see the job comment above, and item 7 of the wave note on
+          # watching for OOM).
           echo "host at start: $(uptime)"; free -m | sed -n 2p
           rm -f "$PLAYWRIGHT_JSON_OUTPUT_FILE"
           # Specs held OUT of the derived list, one per line as `<file>  # <why>`.
@@ -304,9 +287,7 @@ jobs:
           [ -n "$specs" ] || { echo "::error::no Forge-gated spec found — the grep matched nothing"; exit 1; }
           echo "forge-gated specs (derived):"
           echo "$specs"
-          # `9>&-`: the lock stays with this shell; a child (an e2e server, a
-          # JVM) that outlived the step must not keep holding it.
-          pnpm --filter @hadoku/e2e test $specs 9>&-
+          pnpm --filter @hadoku/e2e test $specs
           jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null || { echo "::error::e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1) — a skipped test is not a pass"; exit 1; }
 
       # The evidence a red needs, kept past the job. Playwright's per-test
@@ -339,14 +320,18 @@ jobs:
             ${{ runner.temp }}/forge-e2e-report.json
 
       # Whatever this job started stops with it, passed, failed or cancelled: an
-      # e2e server still listening on a fixed port, or a Forge JVM under this
-      # workspace's e2e run dir. The port step above heals an orphan anyway; this
-      # keeps one from existing.
+      # e2e server still listening on this run's ports, or a Forge JVM under this
+      # workspace's e2e run dir. This run's own ports (picked above) are read
+      # from the env this job already carries — harmless on a claw (each job's
+      # systemd unit already reaps its own tree on exit) but kept because it
+      # costs nothing and catches whatever the unit teardown does not.
       - name: E2E — stop this run's servers and JVMs
         if: always()
         run: |
-          for pid in $(ss -ltnpH '( sport = :29008 or sport = :29028 or sport = :29108 or sport = :29128 )' 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
-            case "$(readlink /proc/$pid/cwd 2>/dev/null)" in "$GITHUB_WORKSPACE"*) kill -TERM "$pid" || true ;; esac
+          for pid in $(ss -ltnpH "( sport = :$CARDTABLE_E2E_SERVER_PORT or sport = :$CARDTABLE_E2E_PLAY_SERVER_PORT or sport = :$CARDTABLE_E2E_EDGE_PORT or sport = :$CARDTABLE_E2E_PLAY_EDGE_PORT )" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
+            case "$(readlink /proc/$pid/cwd 2>/dev/null)" in
+              "$GITHUB_WORKSPACE"*) echo "::warning::stopping orphaned e2e server pid $pid from this run"; kill -TERM "$pid" || true ;;
+            esac
           done
           for p in /proc/[0-9]*; do
             case "$(readlink "$p/exe" 2>/dev/null)" in */bin/java) ;; *) continue ;; esac
@@ -358,20 +343,24 @@ jobs:
   # `*.jvm.test.ts` builds a real Forge match the same way `forge-e2e` does,
   # and self-skips without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` (the
   # same `jvmHostConfig` check `forge-e2e` guards above). `check` runs on the
-  # fleet's claws, which have no jar, so these suites always self-skipped
-  # there — and a skip reads as a pass, so none of them has ever gated
-  # anything before this job.
+  # fleet's claws without a Forge bundle resolved, so these suites always
+  # self-skipped there — and a skip reads as a pass, so none of them has ever
+  # gated anything before this job.
   #
-  # `needs: forge-e2e` plus `if: always()` orders this job strictly AFTER
-  # forge-e2e on the one host both can run on, rather than beside it: two
-  # JVM-heavy suites sharing one host's CPU produce timeouts that read as
-  # product bugs and are really resource contention. `if: always()` means a
-  # red forge-e2e still lets this job run — one red must not hide a second —
-  # not that a red here is ignored.
+  # PARALLEL WITH forge-e2e, since wave forge-claws (2026-10-07). The two jobs
+  # used to be ordered (`needs: forge-e2e`, `if: always()`) purely because they
+  # shared hokon, one host. On the claws each job is scheduled independently
+  # onto whichever `hadoku-builder, jdk21` claw has room, so nothing here
+  # serialises them any more — `needs: changes` alone, and the `if:` below
+  # keeps the same "only when a jvm suite is in scope" gate without the
+  # ordering `always()`. Two JVM-heavy jobs CAN still land on the same claw at
+  # once; that is the memory question item 7 of the wave note asks every lane
+  # to watch, not an ordering one.
   #
-  # `--fileParallelism=false` for the same reason inside the job: each file
-  # spawns its own JVM, and vitest forking several at once would recreate the
-  # exact contention the ordering above exists to avoid.
+  # `--fileParallelism=false` inside the job for a related but separate
+  # reason: each file spawns its own JVM, and vitest forking several at once
+  # within ONE job would recreate, inside that job's own CPU budget, the exact
+  # contention the old ordering existed to avoid between jobs.
   #
   # The JSON report goes to a file and is judged by its own step, so a run
   # that dies before writing it is a red, not a silent pass.
@@ -389,18 +378,22 @@ jobs:
   # push and nowhere else.
   forge-jvm:
     name: forge-jvm
-    needs: [changes, forge-e2e]
-    # always(): after forge-e2e whether it passed, failed or was skipped by
-    # `changes`, never beside it on the shared host.
-    if: always() && needs.changes.result == 'success' && (needs.changes.outputs.jvm_ui == 'true' || needs.changes.outputs.jvm_server == 'true')
-    runs-on: [self-hosted, pm2-host]
-    # Measured serially on this host under a lock, 2026-10-06: the 39 suites a
-    # push runs took 457 s (7.6 min). They were 1483 s on run 37487474250, before
-    # the nightly-only split, the harness killing its JVMs instead of waiting
-    # 4.4 s for each to stop, and the bridge being compiled once. The nightly
-    # run adds the `[nightly]` tests back, about 7 more minutes. ×1.5 of that
-    # is 22 min, plus checkout and install. +30 for the heavy.lock wait (2026-10-06).
-    timeout-minutes: 60
+    needs: changes
+    if: needs.changes.outputs.jvm_ui == 'true' || needs.changes.outputs.jvm_server == 'true'
+    runs-on: [self-hosted, hadoku-builder, jdk21]
+    # Measured serially on hokon, 2026-10-06: the 39 suites a push runs took
+    # 457 s (7.6 min). They were 1483 s on run 37487474250, before the
+    # nightly-only split, the harness killing its JVMs instead of waiting
+    # 4.4 s for each to stop, and the bridge being compiled once. SETTLED from
+    # this wave's proof dispatches, all FULL+NIGHTLY (a `workflow_dispatch`
+    # always runs the full nightly set, a ceiling a push never reaches): an
+    # uncontended run took 1579–1676 s (26–28 min) with a 68–100 s cold BUILD
+    # beside it (see the identical measurement note on `forge-e2e` above). The
+    # worst observed, with 3 of 4 proof jobs sharing one claw at once, was
+    # 2249 s (37.5 min) — still a content judge failure, not a timeout. 30 is
+    # the baseline (no lock wait any more); +20 covers that measured
+    # contention case with real headroom, not just the uncontended ceiling.
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v6
 
@@ -415,21 +408,14 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
-      # Per-pin jars (ledger Y26/settled) — see the identical step in
-      # `forge-e2e` for why. `GITHUB_ENV` carries `CARDTABLE_FORGE_JAR` to every
-      # later step in this job.
-      - name: Resolve the Forge jar for this commit's pin
-        run: |
-          pin=$(git ls-tree HEAD forge | awk '{print $3}')
-          jar="/home/hadoku/.local/share/cardtable/jars/$pin.jar"
-          test -n "$pin" || { echo "::error::git ls-tree HEAD forge returned no pin — is the submodule entry missing?"; exit 1; }
-          test -f "$jar" || { echo "::error::no installed jar for forge pin $pin: $jar — build and install it first (docs/FORGE_JAR.md)"; exit 1; }
-          echo "::notice::resolved Forge jar for pin $pin: $jar"
-          echo "CARDTABLE_FORGE_JAR=$jar" >> "$GITHUB_ENV"
+      # Per-pin bundle (ledger Y26, carried forward by wave forge-claws) — see
+      # the identical step in `forge-e2e` for why. `GITHUB_ENV` carries
+      # `CARDTABLE_FORGE_JAR` / `CARDTABLE_FORGE_RES` to every later step in
+      # this job.
+      - name: Resolve the Forge bundle for this commit's pin
+        run: bash scripts/forge-bundle.sh >> "$GITHUB_ENV"
 
       - name: Forge is present, or every suite would SKIP
-        env:
-          CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
         run: |
           test -f "$CARDTABLE_FORGE_JAR" || { echo "::error::CARDTABLE_FORGE_JAR missing: $CARDTABLE_FORGE_JAR — every jvm suite would SKIP"; exit 1; }
           test -d "$CARDTABLE_FORGE_RES/cardsfolder" || { echo "::error::CARDTABLE_FORGE_RES has no cardsfolder: $CARDTABLE_FORGE_RES — every jvm suite would SKIP"; exit 1; }
@@ -439,29 +425,13 @@ jobs:
       # `/tmp/cardtable-play`.
       - name: Run every *.jvm.test.ts, serially
         env:
-          CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
           CARDTABLE_PLAY_WORK_DIR: ${{ runner.temp }}/cardtable-jvm-play
           JVM_UI: ${{ needs.changes.outputs.jvm_ui }}
           JVM_SERVER: ${{ needs.changes.outputs.jvm_server }}
           CARDTABLE_JVM_NIGHTLY: ${{ github.event_name != 'push' && '1' || '0' }}
         run: |
-          # One heavy run on this host at a time (2026-10-06, run 37530013218: with
-          # three sessions' gates beside it, JVM boots went from ~5 s to a 7.3 s
-          # median and 20 s max, and 4 of 6 reds were the harness's own 20 s
-          # `POST /api/play/matches` timing out). Wave gates take this same lock
-          # around their JVM/e2e phases (the waves protocol); this job runs as
-          # the same user. Bounded: a holder that keeps it 30 min is named, never
-          # waited out forever. Never `flock --` (exits 69 on this host); the
-          # fd form releases with this step's shell.
-          mkdir -p /tmp/claude-1000
-          exec 9>/tmp/claude-1000/heavy.lock
-          waited=$(date +%s)
-          if ! flock -w 1800 9; then
-            echo "::error::heavy.lock held for 30 min by: $(fuser /tmp/claude-1000/heavy.lock 2>&1 | tr -s ' ')"
-            ps -o pid=,etime=,args= -p "$(fuser /tmp/claude-1000/heavy.lock 2>/dev/null | tr -s ' ' ',' | sed 's/^,//')" 2>/dev/null | cut -c1-200 || true
-            exit 1
-          fi
-          echo "::notice::heavy.lock acquired after $(( $(date +%s) - waited )) s"
+          # No `heavy.lock` any more — see the job comment above. The host
+          # line a flaky red needs first, still worth keeping on a claw.
           echo "host at start: $(uptime)"; free -m | sed -n 2p
           mkdir -p "$CARDTABLE_PLAY_WORK_DIR"
           report="${{ runner.temp }}/forge-jvm-report.json"
@@ -477,7 +447,7 @@ jobs:
           echo "$files"
           # vitest's own exit code would red the job on a pinned failure; the
           # next step judges the report by name instead, and reds a missing one.
-          pnpm exec vitest run --fileParallelism=false --reporter=default --reporter=json --outputFile="$report" $files 9>&- \
+          pnpm exec vitest run --fileParallelism=false --reporter=default --reporter=json --outputFile="$report" $files \
             || echo "::notice::vitest exited $? — the report is judged in the next step"
 
       # The report is judged by name, not by count, against two pinned lists,

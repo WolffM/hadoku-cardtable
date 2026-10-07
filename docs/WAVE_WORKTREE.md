@@ -30,9 +30,11 @@ from outside git is absent unless the scaffold puts it there:
    scripts the runs used were the same as the jar's, and no local verification
    was invalidated (the tracker re-ran w33's suites on the pinned `res`: the same
    results). What WAS different is the Java *source* in the old tree: a Forge line
-   number a lane cited from it can be stale. CI and production read the main
-   checkout's `forge/forge-gui/res` (`ci.yml` forge-e2e env; hadoku_site's
-   wrapper). The mismatch is still worth preventing, as hygiene.
+   number a lane cited from it can be stale. Production reads the main
+   checkout's `forge/forge-gui/res` (hadoku_site's wrapper); CI's `forge-e2e`
+   and `forge-jvm` (`forge.yml`, since wave forge-claws) instead read a
+   per-pin bundle cache on whichever claw the job lands on
+   (`scripts/forge-bundle.sh`). The mismatch is still worth preventing, as hygiene.
    **Check:** `git -C <path> rev-parse HEAD` must equal
    `git -C ~/repos/hadoku-cardtable submodule status forge`.
 2. **A run without the jar env looks like a pass.** The manager's first
@@ -44,8 +46,11 @@ from outside git is absent unless the scaffold puts it there:
    (cwd `/tmp/claude-1000/laneF/*`, a day old) plus one from a deleted w31
    worktree held the host at 46 GB of swap. That's plausibly behind several
    "flaky" timeouts this wave. Nobody's teardown swept them.
-5. **e2e harness ports are shared** with CI's `forge-e2e` on hokon
-   (19008/19028/19108/19128). A local run during a CI run fails on bind.
+5. **e2e harness ports were shared** with CI's `forge-e2e` on hokon
+   (19008/19028/19108/19128). A local run during a CI run failed on bind.
+   Since wave forge-claws (2026-10-07) CI's `forge-e2e` runs on the claws and
+   picks four free ports per run instead of a fixed range, so this no longer
+   collides with a local run, which still defaults to 19008/19028/19108/19128.
 
 ## The setting that works today (paste into every lane's commands)
 

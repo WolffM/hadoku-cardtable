@@ -48,16 +48,21 @@ jobs:
     # takes effect in the one case where the fleet has deliberately said
     # otherwise.
     runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
-    # A dot-free temp dir. The fleet's warm claws (2026-10-06, `warm-claw-3`) run jobs under
-    # `/home/hadoku/.hadoku/warm/…` with TMPDIR beneath a dot-directory, and three suites refuse a
-    # temp root with a dot-segment by design (`apps/server/src/base-path.test.ts:39`: the base-path
-    # check is meaningless there). d37d441 and cc4561d went red on exactly that, with no code change.
-    env:
-      TMPDIR: /tmp/cardtable-ci-tmp
+    # No TMPDIR override any more (dropped wave forge-claws, 2026-10-07). This
+    # job used to pin `/tmp/cardtable-ci-tmp` because the fleet's warm claws ran
+    # jobs under `/home/hadoku/.hadoku/warm/…`, a dot-segment path, and three
+    # suites refuse a temp root with a dot-segment by design
+    # (`apps/server/src/base-path.test.ts:39`). Fleet-manager 0.27.18 now ships
+    # every claw's own `~/.hadoku/runner.env` with a dot-free, on-disk
+    # `TMPDIR=/home/hadoku/runner-tmp` (confirmed on claw-1/2/3/4/5/6/8/9; hokon
+    # is a guest, not part of the rollout), and this repo's own proof
+    # (`forge-claws-proof-ci`, run 37569624003, warm-claw-1) ran the three
+    # dot-directory suites green against that runner-set TMPDIR with no override
+    # here. A runner that started before the rollout (e.g. an idle
+    # `warm-claw-8` listener) still falls back to its own `/tmp`, which is
+    # dot-free too, so this is safe either way.
     timeout-minutes: 20
     steps:
-      - name: A dot-free temp dir exists
-        run: mkdir -p "$TMPDIR"
       - uses: actions/checkout@v6
 
       # The fleet's composite action, not a hand-rolled setup-node block. It
