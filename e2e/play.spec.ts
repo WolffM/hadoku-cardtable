@@ -1706,7 +1706,16 @@ test(LIVE_TITLE, async ({ browser }) => {
       page.evaluate(() => {
         const board = document.querySelector('[aria-label="Game board"]');
         if (board === null) throw new Error('no board on the page');
-        return (board as HTMLElement).innerText;
+        // The other seat's presence (their pointer, with their name) is drawn inside the board but is THEIR pointer
+        // state, not board state: a reloaded page has it only once they move again. Read the board without it.
+        const presence = Array.from(board.querySelectorAll<HTMLElement>('.presence'));
+        const shown = presence.map((el) => el.style.display);
+        for (const el of presence) el.style.display = 'none';
+        try {
+          return (board as HTMLElement).innerText;
+        } finally {
+          presence.forEach((el, i) => (el.style.display = shown[i] ?? ''));
+        }
       });
     /**
      * Every zone's own card ids, PER ROW, in DOM order — never merged across

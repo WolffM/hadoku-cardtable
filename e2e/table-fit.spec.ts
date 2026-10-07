@@ -951,7 +951,11 @@ test(TITLE, async ({ browser }) => {
      * A cast now makes exactly ONE placement call, from the release point
      * alone. `play/hands.ts`'s `clickCard` aims that release at the
      * TYPE-correct row (a land at 'back', anything else at 'front'), so a
-     * card's own default placement matches where it was released.
+     * card's own default placement matches where it was released — and since
+     * free placement (ledger Z8, 2026-10-07) at the COLUMN under the release,
+     * with empty columns kept before it. The driver releases at the row's
+     * centre, so a row's first card may sit mid-row: the rows are checked for
+     * order and for staying inside their box, never for starting at the edge.
      */
     const placements: Record<string, unknown>[] = [];
     for (const f of friends) {
@@ -979,7 +983,7 @@ test(TITLE, async ({ browser }) => {
         for (const [name, row, left] of [['back', s.back, s.backLeft], ['front', s.front, s.frontLeft]] as const) {
           const lefts = row.map((c) => c.left);
           expect(lefts, `${w}: the ${name} row fills left to right`).toEqual([...lefts].sort((a, b) => a - b));
-          if (row.length > 0) expect(row[0]!.left - left, `${w}: the ${name} row starts at its left edge`).toBeLessThanOrEqual(row[0]!.width);
+          if (row.length > 0) expect(row[0]!.left, `${w}: the ${name} row's first card is inside the row`).toBeGreaterThanOrEqual(left - 1);
         }
       }
       // The opponent's tiers are the vertical mirror: their back row is above their front row; yours is below.
