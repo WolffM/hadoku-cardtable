@@ -942,12 +942,20 @@
 /*
  * *"the deck chooser dropdown is very ugly, needs a complete redesign. it should
  * have a partial art that represents the deck and the two colored symbols. we
- * cannot use a standard dropdown for this."*
+ * cannot use a standard dropdown for this."* Operator again, later: *"deck
+ * selection: every deck box the same size, whatever text is in it."*
  *
  * A grid of card-like rows, one per legal deck. `auto-fill` with a `190px`
  * minimum is the same width the table's own card tiles use (`--card-w`), so a
  * deck row and a card read as the same kind of object, and a narrow room screen
  * collapses to one column instead of scrolling sideways.
+ *
+ * `grid-auto-rows` fixes every row — including a second row once decks wrap —
+ * to the same track height, and `align-items: stretch` (the grid default, named
+ * here because the old rule overrode it to `start`) makes each option fill that
+ * track instead of sitting at its own content height inside it. Without a
+ * clamped `.deckpick__name` a two-line title would still overflow the fixed
+ * track, so the two rules below are one fix, not two.
  *
  * This is the first thing in this sheet that is not text, boxes and a status dot:
  * it draws Keyrune/Mana glyphs (D20) and one card image per row. The image is an
@@ -958,8 +966,9 @@
 .deckpick {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-auto-rows: 190px;
   gap: 10px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .deckpick__option {
@@ -967,6 +976,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  height: 100%;
   padding: 0;
   border: 1px solid var(--color-border-light);
   border-radius: var(--hdk-radius);
@@ -1035,11 +1045,24 @@
   background: var(--color-bg);
 }
 
+/*
+ * Clamped to two lines rather than left to wrap: an unclamped name is what made
+ * a long deck's box taller than the rest before `grid-auto-rows` gave every
+ * option a fixed track to fill. `line-height` is written out because the clamp
+ * math (two lines, below) needs a concrete number rather than the UA default.
+ * `title` on the element carries the name a clamp cuts off (`ConstructedScreen.tsx`).
+ */
 .deckpick__name {
   padding: 8px 10px 0;
   font-weight: 600;
   font-size: 13px;
+  line-height: 1.3;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .deckpick__option .deckcolors {

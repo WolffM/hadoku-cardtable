@@ -808,7 +808,9 @@ function DeckChooser({
           onClick={() => onChoose(option.value)}
         >
           <DeckArt artId={option.artId} />
-          <span className="deckpick__name">{option.label}</span>
+          <span className="deckpick__name" title={option.label}>
+            {option.label}
+          </span>
           <DeckColors
             colors={option.colors}
             label={`${option.label}: ${

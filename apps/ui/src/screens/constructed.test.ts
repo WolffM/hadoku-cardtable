@@ -2066,6 +2066,16 @@ function realDeck(collectionId: string, file: string): TableDeck {
 const UW_DELVER = realDeck('power-summer-2012', '1-todd-anderson-uw-delver.dck');
 const MONO_GREEN = realDeck('power-summer-2012', '1-cj-steele-infect.dck');
 
+/**
+ * A name long enough to wrap past two lines — the case the clamp exists for.
+ * Sixty Islands, like {@link DECKS}: this fixture is about the NAME, not the
+ * colours, and a basic-land maindeck is legal everywhere this suite mounts it.
+ */
+const LONG_NAME_DECK = deck(
+  'deck-with-an-unreasonably-long-name',
+  'The Collected Works of a Pilot Who Could Not Settle on a Shorter Title for This Deck',
+);
+
 describe('the deck dropdown shows its colours', () => {
 
   /** The same answer, from the frozen pool rather than from the shipped slice. */
@@ -2380,6 +2390,33 @@ describe('the deck chooser', () => {
       fireEvent.click(random);
     });
     expect([UW_DELVER.id, MONO_GREEN.id]).toContain(chosen());
+  });
+
+  it('gives every box the same size, whatever text is in it', async () => {
+    // One grid track height for every row, and the item stretched to fill it —
+    // this is what makes a short name's box and a long name's box come out the
+    // same height; `boxes.md` (real Playwright, a built page) has the proof that
+    // a browser actually lays it out this way.
+    expect(SCREENS_CSS).toMatch(/\.deckpick \{[^}]*grid-auto-rows: 190px;/);
+    expect(SCREENS_CSS).toMatch(/\.deckpick \{[^}]*align-items: stretch;/);
+    expect(SCREENS_CSS).toMatch(/\.deckpick__option \{[^}]*height: 100%;/);
+
+    // The clamp: without it a long name would still wrap past the fixed track
+    // and get cut off by `.deckpick__option`'s own `overflow: hidden` instead of
+    // ending in an ellipsis after two lines.
+    expect(SCREENS_CSS).toMatch(/\.deckpick__name \{[^}]*-webkit-line-clamp: 2;/);
+    expect(SCREENS_CSS).toMatch(/\.deckpick__name \{[^}]*text-overflow: ellipsis;/);
+
+    await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, LONG_NAME_DECK] });
+    await deckPicker();
+
+    // The clamp hides the overflow visually, but the full name is still there —
+    // on the element's `title`, so a reader (and a mouse hover) still gets it.
+    const short = deckRow(UW_DELVER.id).querySelector('.deckpick__name');
+    const long = deckRow(LONG_NAME_DECK.id).querySelector('.deckpick__name');
+    expect(short?.getAttribute('title')).toBe(UW_DELVER.name);
+    expect(long?.getAttribute('title')).toBe(LONG_NAME_DECK.name);
+    expect(long?.textContent).toBe(LONG_NAME_DECK.name);
   });
 });
 
