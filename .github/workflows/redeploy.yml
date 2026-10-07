@@ -35,8 +35,9 @@ name: Redeploy on hadoku_site
 # nothing; the next green run deploys everything that has accumulated.
 #
 # What gets deployed is main's head, not a chosen sha (mgmt-api pulls), so a
-# green run deploys only while it is still main's head. A push in the seconds
-# between that check and mgmt-api's pull is the remaining gap.
+# green run deploys only while it is still main's head, or while everything
+# after it on main is docs-only (the code pulled is then the code CI passed). A
+# push in the seconds between that check and mgmt-api's pull is the remaining gap.
 #
 # `workflow_run` instead of a poll on push: a job waiting for CI would hold a
 # runner that CI's own jobs may be queued for.
@@ -106,7 +107,16 @@ jobs:
           # gets one.
           head=$(api "commits/main" | jq -r '.sha')
           if [ "${head}" != "${GREEN_SHA}" ]; then
-            echo "main has moved on to ${head}; its own CI run decides"; echo deploy=false >> "$GITHUB_OUTPUT"; exit 0
+            # Main moved on. If everything after the green sha is docs-only, the code mgmt-api
+            # would pull IS the code CI just passed, so deploy now (2026-10-06: a stream of
+            # ledger and closing-note pushes starved every deploy for hours; each green run
+            # found main had moved on). Anything servable after it waits for its own run.
+            ahead=$(api "compare/${GREEN_SHA}...${head}")
+            after=$(jq -r '.files[].filename' <<<"${ahead}" | grep -vE '^(docs/|\.claude/)|\.md$' || true)
+            if [ "$(jq -r '.status' <<<"${ahead}")" != ahead ] || [ -n "${after}" ]; then
+              echo "main has moved on to ${head} with servable changes; its own CI run decides"; echo deploy=false >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            echo "main has moved on to ${head}, docs only after the green ${GREEN_SHA}: deploying"
           fi
           # The last sha a "dispatch redeploy" job of this workflow succeeded for.
           # Runs from before this gate (push-triggered) count: same workflow, same job name.
