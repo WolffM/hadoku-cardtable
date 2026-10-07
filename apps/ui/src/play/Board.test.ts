@@ -3608,19 +3608,58 @@ describe('§A.15 — a card’s state is drawn', () => {
     }
   });
 
-  it('the state layer is drawn on the battlefield and nowhere else', () => {
+  it('the state layer is drawn on the battlefield, and ONLY its counters also in an exile pile', () => {
     const view = withState({ summoningSick: true, token: true, counters: [{ name: '+1/+1', count: 1 }] });
     const sicken = (cards: BoardCard[]) => cards.map((c) => ({ ...c, summoningSick: true, token: true, counters: [{ name: '+1/+1', count: 1 }] }));
+    // The committed fixture's exile is empty (this file's own header above),
+    // so a card with the SAME marks-and-counters shape has to be put there to
+    // ask the question at all — reusing a graveyard card's own shape, the way
+    // every other case in this describe block builds its state onto the
+    // fixture rather than inventing one from scratch.
     const { zone } = renderBoard({
       ...view,
       players: view.players.map((p) =>
-        !p.isViewer ? p : { ...p, hand: p.hand === null ? null : sicken(p.hand), graveyard: sicken(p.graveyard) },
+        !p.isViewer
+          ? p
+          : {
+              ...p,
+              hand: p.hand === null ? null : sicken(p.hand),
+              graveyard: sicken(p.graveyard),
+              exile: p.graveyard.length > 0 ? [sicken(p.graveyard)[0]!] : p.exile,
+            },
       ),
     });
     expect(zone(0, 'battlefield').querySelectorAll('.board-card__marks').length).toBeGreaterThan(0);
-    for (const where of ['hand', 'graveyard', 'exile'] as const) {
+    expect(zone(0, 'battlefield').querySelectorAll('.board-card__counters').length).toBeGreaterThan(0);
+    for (const where of ['hand', 'graveyard'] as const) {
       expect(zone(0, where).querySelectorAll('.board-card__marks, .board-card__counters'), where).toHaveLength(0);
     }
+    // Exile is the one off-battlefield zone that draws counters (a suspended
+    // card's time counters) — marks (summoning sick, a token) still mean
+    // nothing there, so those stay undrawn.
+    expect(zone(0, 'exile').querySelectorAll('.board-card__marks'), 'exile marks').toHaveLength(0);
+    expect(zone(0, 'exile').querySelectorAll('.board-card__counters').length, 'exile counters').toBeGreaterThan(0);
+  });
+
+  it('a suspended card’s Time counter leads in an exile pile — Forge’s own order everywhere else', () => {
+    // 'charge' before 'Time' in the INPUT, deliberately: a suspended card is
+    // never only suspended (Ancestral Vision's own case has nothing else),
+    // but the rule has to hold for one that is, and the only way to tell
+    // "reordered" from "happened to already be in order" is to start in the
+    // wrong one.
+    const mixed = [{ name: 'charge', count: 2 }, { name: 'Time', count: 5 }];
+    const view = withState({ counters: mixed });
+    const { zone } = renderBoard({
+      ...view,
+      players: view.players.map((p) => (!p.isViewer ? p : { ...p, exile: p.graveyard.length > 0 ? [{ ...p.graveyard[0]!, counters: mixed }] : p.exile })),
+    });
+    const faces = (el: HTMLElement) => [...el.querySelectorAll<HTMLElement>('.board-card__counter')].map((b) => b.textContent);
+    expect(faces(zone(0, 'exile')), 'exile: Time first, moved ahead of charge').toEqual(['5 Time', '2 charge']);
+    expect(
+      zone(0, 'exile').querySelector('.board-card__counters')!.getAttribute('aria-label'),
+      'the accessible name follows the same, reordered list',
+    ).toContain('5 Time, 2 charge');
+    expect(faces(zone(0, 'battlefield')), 'the battlefield keeps Forge’s own order, unsorted').toEqual(['2 charge', '5 Time']);
   });
 });
 

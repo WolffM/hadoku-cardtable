@@ -397,6 +397,16 @@
  * the P/T badge already uses for the same two directions — a card with three
  * +1/+1 counters has a blue power and a blue badge, and they agree. The SIGN is
  * the signal that does not need the colour.
+ *
+ * An exile pile's cards draw this layer too (a suspended card's own
+ * Time counter — `Board.tsx`'s `inExile`), and no rule here has to know
+ * that: the badge is positioned against ITS OWN card box exactly as it is on
+ * the battlefield (`bottom-left`'s own corner, below), and `board.css`'s pile
+ * stacking already keeps each card's box as a real box, newest on top — the
+ * SAME reason the state layer generally "needs no fan adjustment" (this
+ * file's own note above `.board-card[data-pile-size]`) carries over to a
+ * graveyard/exile pile's different stacking shape without a pile-specific
+ * selector here.
  */
 .board-card__counters {
   position: absolute;

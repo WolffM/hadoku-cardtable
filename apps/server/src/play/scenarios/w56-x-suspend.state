@@ -1,0 +1,35 @@
+# A card visibly counted down in exile. Ancestral Vision ({U}, Suspend
+# 3—{1}{U}) sits in seat 0's exile zone with three TIME counters already on
+# it, scripted directly rather than cast: `GameState.java:427-431` supports
+# counters in Exile the same way it does on the battlefield, and Ancestral
+# Vision's own printed Suspend keyword is what makes `Card.hasSuspend()` true
+# the moment the card is in Exile with at least one TIME counter
+# (`Card.java:1703`) — nothing about suspend itself needs scripting, only the
+# zone and the counters.
+#
+# Lands DIRECTLY at seat 0's own Upkeep with `activephase` (a JUMP: "no
+# phase-begin/end effects run" — scenarios/README.md), not
+# `activephaseadvance` — so Suspend's own upkeep trigger has NOT fired yet
+# and the count is still 3 the instant a client ever sees this match, no race
+# against the server's own auto-pass possible (measured: with the OTHER
+# shape, landing one phase short and letting the ordinary loop walk into
+# Upkeep, the trigger had already fired — counter already 2 — before a
+# client-driven check ever ran). From here the ordinary game loop walks
+# forward exactly once (Draw, Main 1, combat, Main 2, End, Cleanup, the
+# opponent's whole turn, Untap) into the SECOND Upkeep, a real
+# `activephaseadvance`-shaped walk this time, where the trigger fires for
+# real and removes one counter.
+turn=1
+activeplayer=human
+activephase=UPKEEP
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=
+humanexile=Ancestral Vision|Counters:TIME=3
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

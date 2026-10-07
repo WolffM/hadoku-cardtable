@@ -1695,15 +1695,31 @@ function counterFace(counter: { name: string; count: number }): string {
 
 const counterKind = (name: string): string => (name === '+1/+1' ? 'plus' : name === '-1/-1' ? 'minus' : 'named');
 
-function Counters({ entry }: { entry: BoardCard }) {
+function Counters({
+  entry,
+  timeFirst = false,
+}: {
+  entry: BoardCard;
+  /**
+   * In exile, a suspended card's `Time` counter is the one fact that answers
+   * "how long is left" — the operator's own case (Ancestral Vision) — so it
+   * leads whatever else is on the card there. `Array.prototype.sort` is
+   * stable, so this only moves `Time` counters forward and leaves every other
+   * pair in the order Forge sent them.
+   */
+  timeFirst?: boolean;
+}) {
   const counters = entry.counters.filter((c) => c.count !== 0);
   if (counters.length === 0) return null;
+  const ordered = timeFirst
+    ? [...counters].sort((a, b) => Number(b.name === 'Time') - Number(a.name === 'Time'))
+    : counters;
   return (
     <ul
       className="board-card__counters"
-      aria-label={`${entry.card.name} counters: ${counters.map((c) => `${c.count} ${c.name}`).join(', ')}`}
+      aria-label={`${entry.card.name} counters: ${ordered.map((c) => `${c.count} ${c.name}`).join(', ')}`}
     >
-      {counters.map((c) => (
+      {ordered.map((c) => (
         <li key={c.name} className="board-card__counter" data-counter={counterKind(c.name)} data-count={c.count}>
           <span aria-hidden="true">{counterFace(c)}</span>
         </li>
@@ -1825,6 +1841,7 @@ function CardOnBoard({
   /** How many cards the WHOLE pile holds, base included. Absent for a lone card. */
   pileSize,
   depth = 0,
+  inExile = false,
 }: {
   entry: BoardCard;
   interaction: BoardInteraction | undefined;
@@ -1841,6 +1858,16 @@ function CardOnBoard({
   pileSize?: number;
   /** 0 for the bottom of a pile, 1 for the card on it, and so on. */
   depth?: number;
+  /**
+   * This card sits in an exile pile. The operator: *"ancestral visions is a
+   * card placed into exile with suspend counters. we need a way to visualize
+   * cards in exile with counters on them."* Exile is not a battlefield, so
+   * none of the other state marks (summoning sick, attacking, a token) mean
+   * anything there — only the counters do, because a suspended card's time
+   * counters are the one fact about it a player needs to see without opening
+   * the inspector.
+   */
+  inExile?: boolean;
 }) {
   const loneAbility = useContext(LoneAbilityContext);
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
@@ -1877,6 +1904,8 @@ function CardOnBoard({
    * cannot cover this and the fact is carried separately — see the field.
    */
   const onBattlefield = slot !== undefined && slot !== 'hand';
+  /** The one piece of the state layer that also reads off the battlefield — see `inExile`. */
+  const showCounters = onBattlefield || inExile;
   const itsAttackToDeclare =
     interaction?.declaringAttackers === true && onBattlefield && permanentType(entry) === 'creatures';
   /*
@@ -2020,7 +2049,7 @@ function CardOnBoard({
       )}
       {onBattlefield && <PowerToughness entry={entry} />}
       {onBattlefield && <StateMarks entry={entry} />}
-      {onBattlefield && <Counters entry={entry} />}
+      {showCounters && <Counters entry={entry} timeFirst={inExile} />}
       {onBattlefield && <ChosenTypeLabel entry={entry} />}
       {onBattlefield && <TypePill entry={entry} />}
       {above.length > 0 && (
@@ -2089,6 +2118,7 @@ function Zone({
             interaction={interaction}
             arranging={arranging}
             slot={arranging === undefined ? undefined : 'hand'}
+            inExile={zone === 'exile'}
           />
         ))}
       </ul>
