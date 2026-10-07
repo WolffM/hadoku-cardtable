@@ -17,7 +17,8 @@ import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import type { DraftCard } from '@hadoku/shared';
 
 import './prompts.css';
-import type { PromptLookup } from './lookup.ts';
+import { plainRulesText, type PromptLookup } from './lookup.ts';
+import { RulesText } from './RulesText.tsx';
 import type { PromptMethod } from './types.ts';
 
 export interface PromptShellProps {
@@ -53,11 +54,20 @@ const TITLE_SPLIT = /^(.+?) - (.+)$/s;
 
 export function PromptTitle({ title }: { title: string }) {
   const split = TITLE_SPLIT.exec(title);
-  if (split === null) return <h3 className="prompt__title">{title}</h3>;
+  if (split === null)
+    return (
+      <h3 className="prompt__title">
+        <RulesText text={title} />
+      </h3>
+    );
   return (
     <h3 className="prompt__title" data-split="">
-      <span className="prompt__title-source">{split[1]}</span>
-      <span className="prompt__title-task">{split[2]}</span>
+      <span className="prompt__title-source">
+        <RulesText text={split[1]!} />
+      </span>
+      <span className="prompt__title-task">
+        <RulesText text={split[2]!} />
+      </span>
     </h3>
   );
 }
@@ -123,7 +133,7 @@ export function PromptShell({
   const bodyRef = useRef<HTMLDivElement>(null);
   const overflowing = useBodyOverflow(bodyRef, children);
   return (
-    <section className="prompt" data-prompt={method} role="dialog" aria-label={title}>
+    <section className="prompt" data-prompt={method} role="dialog" aria-label={plainRulesText(title)}>
       <PromptTitle title={title} />
       {message !== undefined && message !== '' && <p className="prompt__message">{message}</p>}
       <div className="prompt__body" ref={bodyRef} data-overflowing={overflowing || undefined}>

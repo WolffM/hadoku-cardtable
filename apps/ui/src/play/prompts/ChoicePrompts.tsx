@@ -20,7 +20,8 @@ import { useState } from 'react';
 import { CardTile } from '../../components/CardTile.tsx';
 
 import { PromptShell, promptTileFor } from './PromptShell.tsx';
-import { isZoneDividerLabel, plainRulesText, refName, type PromptLookup } from './lookup.ts';
+import { isZoneDividerLabel, plainRulesText, promptText, refName, type PromptLookup } from './lookup.ts';
+import { RulesText } from './RulesText.tsx';
 import {
   abilityProblems,
   choiceBounds,
@@ -185,7 +186,7 @@ export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoi
     const index = key === null ? -1 : range.keys.indexOf(key);
     const value = index >= 0 ? range.min + index : null;
     return (
-      <PromptShell method="getChoices" title={plainRulesText(ask.message)} problems={problems} onSubmit={submit}>
+      <PromptShell method="getChoices" title={promptText(ask.message)} problems={problems} onSubmit={submit}>
         <NumberChoiceSlider range={range} value={value} onChange={(k) => setChosen([k])} />
       </PromptShell>
     );
@@ -194,7 +195,7 @@ export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoi
   const anyCards = ask.choices.some((c) => cardOfOption(c.ref) !== null);
 
   return (
-    <PromptShell method="getChoices" title={plainRulesText(ask.message)} problems={problems} onSubmit={submit}>
+    <PromptShell method="getChoices" title={promptText(ask.message)} problems={problems} onSubmit={submit}>
       <p className="prompt__hint">{boundsText(bounds.min, bounds.max)}</p>
       <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>
         {ask.choices.map((c) => {
@@ -212,7 +213,7 @@ export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoi
             <li key={c.key} data-card-id={cardRef !== null ? cardRef.id : undefined}>
               {bounds.max === 0 ? (
                 <span className="prompt__tile" data-testid="prompt-choice">
-                  {cardRef !== null ? <ChoiceTile cardRef={cardRef} lookup={lookup} label={name} /> : name}
+                  {cardRef !== null ? <ChoiceTile cardRef={cardRef} lookup={lookup} label={name} /> : <RulesText text={c.label} />}
                 </span>
               ) : (
                 <label>
@@ -223,7 +224,7 @@ export function GetChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoi
                     checked={chosen.includes(c.key)}
                     onChange={() => setChosen((prev) => toggle(prev, c.key, bounds.max === 1))}
                   />
-                  {cardRef !== null ? <ChoiceTile cardRef={cardRef} lookup={lookup} label={name} /> : name}
+                  {cardRef !== null ? <ChoiceTile cardRef={cardRef} lookup={lookup} label={name} /> : <RulesText text={c.label} />}
                 </label>
               )}
             </li>
@@ -250,7 +251,7 @@ export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<
   return (
     <PromptShell
       method="chooseSingleEntityForEffect"
-      title={plainRulesText(ask.title)}
+      title={promptText(ask.title)}
       problems={problems}
       onSubmit={submit}
       submitLabel={reply === null && ask.isOptional ? 'Choose none' : 'OK'}
@@ -305,7 +306,7 @@ export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'cho
   const anyCards = rows.some((r) => r.ref.kind === 'card');
 
   return (
-    <PromptShell method="chooseEntitiesForEffect" title={plainRulesText(ask.title)} problems={problems} onSubmit={submit}>
+    <PromptShell method="chooseEntitiesForEffect" title={promptText(ask.title)} problems={problems} onSubmit={submit}>
       <DelayedRevealNote reveal={ask.delayedReveal} lookup={lookup} />
       <p className="prompt__hint">{boundsText(bounds.min, bounds.max)}</p>
       <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>

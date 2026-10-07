@@ -1780,7 +1780,9 @@ describe('a mana payment pops out of the corner', () => {
     expect(host.contains(sheet)).toBe(true);
     expect(host.className).toBe('live__prompt');
     expect(declarations(liveCss(), '.live__prompt')).toContain('left: var(--live-col-x)');
-    expect(sheet.textContent).toContain('Pay Mana Cost: 3');
+    expect(sheet.textContent).toContain('Pay Mana Cost:');
+    // The cost is the Mana font's symbol, never the bare digit (operator, 2026-10-06: "show the actual mana cost icons").
+    expect(sheet.querySelector('.confirm__message i.ms.ms-3')).not.toBeNull();
     expect(sheet.textContent).toContain('Mana Leak');
     // Forge's labels, not ours.
     expect(getByTestId('live-payment-ok').textContent).toBe('Auto');
@@ -1810,7 +1812,8 @@ describe('a mana payment pops out of the corner', () => {
     expect(cluster.querySelector('[data-testid="live-says"]')).toBeNull();
     // The message is readable exactly once on the page — in the sheet. The
     // logbook's copy of Forge's line is collapsed and is the same one line.
-    expect(getByTestId('live-payment').textContent).toContain('Pay Mana Cost: 3');
+    expect(getByTestId('live-payment').textContent).toContain('Pay Mana Cost:');
+    expect(getByTestId('live-payment').querySelector('i.ms.ms-3')).not.toBeNull();
     expect(getByTestId('live-logbook').hasAttribute('hidden')).toBe(true);
   });
 
@@ -1846,7 +1849,9 @@ describe('a mana payment pops out of the corner', () => {
   it('a cost Forge cannot auto-pay still gets the window, with no default answer', async () => {
     const { getByTestId } = await payment(false);
     const sheet = await waitFor(() => getByTestId('live-payment'));
-    expect(sheet.textContent).toContain('Pay Mana Cost: 3');
+    expect(sheet.textContent).toContain('Pay Mana Cost:');
+    // The cost is the Mana font's symbol, never the bare digit (operator, 2026-10-06: "show the actual mana cost icons").
+    expect(sheet.querySelector('.confirm__message i.ms.ms-3')).not.toBeNull();
     const ok = getByTestId('live-payment-ok') as HTMLButtonElement;
     expect(ok.disabled).toBe(true);
     expect(ok.hasAttribute('data-default')).toBe(false);

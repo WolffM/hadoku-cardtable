@@ -256,7 +256,8 @@ import { roomsClient } from '../../rooms/api.ts';
 import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout } from '../Board.tsx';
-import { lookupFromState, plainRulesText, withAbilityLabels, type PromptLookup } from '../prompts/lookup.ts';
+import { lookupFromState, plainRulesText, promptText, withAbilityLabels, type PromptLookup } from '../prompts/lookup.ts';
+import { RulesText } from '../prompts/RulesText.tsx';
 import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn } from '../prompts/ConfirmPrompt.tsx';
 import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
@@ -1199,7 +1200,7 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
     <div className="live__prompt" data-testid="live-payment-host">
       <section className="confirm live__payment" data-testid="live-payment" role="dialog" aria-labelledby={messageId}>
         <p className="confirm__message" id={messageId}>
-          {plainRulesText(match.prompt ?? '')}
+          <RulesText text={match.prompt ?? ''} />
         </p>
         <div className="confirm__actions">
           <button
@@ -2140,7 +2141,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         <div className="live__prompt" data-testid="live-play-or-draw-host">
           <ConfirmPrompt
             testId="live-play-or-draw"
-            message={plainRulesText(match.prompt ?? '')}
+            message={promptText(match.prompt ?? '')}
             coin
             button1={{ label: PLAY_LABEL, enabled: bar?.enable1 ?? false, testId: 'live-play-or-draw-play', onClick: () => pressButton(match, 'ok') }}
             button2={{ label: DRAW_LABEL, enabled: bar?.enable2 ?? false, testId: 'live-play-or-draw-draw', onClick: () => pressButton(match, 'cancel') }}
@@ -2159,7 +2160,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         <div className="live__prompt" data-testid="live-confirm-host">
           <ConfirmPrompt
             testId="live-confirm"
-            message={plainRulesText(match.prompt ?? '')}
+            message={promptText(match.prompt ?? '')}
             button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => pressButton(match, 'ok') }}
             button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => pressButton(match, 'cancel') }}
           />
@@ -2179,7 +2180,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         <div className="live__prompt" data-testid="live-decision-host" data-staged={interaction.stagedCardId !== undefined || undefined}>
           <ConfirmPrompt
             testId="live-decision"
-            message={plainRulesText(match.prompt ?? '')}
+            message={promptText(match.prompt ?? '')}
             button1={decisionOk ? { label: bar.label1, enabled: true, testId: 'live-decision-ok', onClick: () => pressButton(match, 'ok') } : undefined}
             button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressButton(match, 'cancel') } : undefined}
           />
@@ -2199,7 +2200,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {selectionPopup && match.selectables !== null && (
         <div className="live__prompt" data-testid="live-selection-host">
           <SelectionPrompt
-            message={plainRulesText(match.prompt ?? '')}
+            message={promptText(match.prompt ?? '')}
             cards={[...match.selectables.cards]}
             lookup={lookupFromState(match.state)}
             picked={match.highlighted ?? EMPTY_CARD_IDS}

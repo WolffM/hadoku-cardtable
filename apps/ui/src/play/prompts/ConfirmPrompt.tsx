@@ -107,6 +107,7 @@ import { useId } from 'react';
 
 import { AUTO_PAY_LABEL, type LiveButtons } from '../live/match.ts';
 import '../live/live.css';
+import { RulesText } from './RulesText.tsx';
 
 /** Forge's own `lblOK` (`en-US.properties:598`) — see the module header's mechanical set. */
 const BAR_OK_LABEL = 'OK';
@@ -246,7 +247,7 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, c
       )}
       {coin === true && <span className="confirm__coin" aria-hidden="true" data-testid="live-play-or-draw-coin" />}
       <p className="confirm__message" id={messageId}>
-        {message}
+        <RulesText text={message} />
       </p>
       <div className="confirm__actions">
         {[button1, button2].map((b, i) => b !== undefined && (

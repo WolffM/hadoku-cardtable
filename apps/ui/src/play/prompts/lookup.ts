@@ -161,6 +161,11 @@ export function refName(lookup: PromptLookup, ref: { kind: string; id: number })
  * as words too. A string with no such expression in it passes through
  * unchanged, so doing this unconditionally is safe everywhere this already runs.
  */
+/** {@link translateTargetWords} only: Forge's `{…}` symbols kept, for `RulesText` to draw. */
+export function promptText(text: string): string {
+  return translateTargetWords(text);
+}
+
 export function plainRulesText(text: string): string {
   return translateTargetWords(text)
     .replace(/\{T\}/g, 'Tap')

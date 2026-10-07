@@ -63,7 +63,8 @@
 import { CardTile } from '../../components/CardTile.tsx';
 
 import { promptTileFor, PromptTitle } from './PromptShell.tsx';
-import { plainRulesText, type PromptLookup } from './lookup.ts';
+import { plainRulesText, promptText, type PromptLookup } from './lookup.ts';
+import { RulesText } from './RulesText.tsx';
 
 /** `LiveSelectables`'s shape, read structurally so this file does not import lane L's `../live/match.ts`. */
 export interface SelectionLike {
@@ -134,7 +135,7 @@ export interface SelectionPromptProps {
  * enabled them.
  */
 export function SelectionPrompt({ message: rawMessage, cards, lookup, picked, onPick, done, cancel }: SelectionPromptProps) {
-  const message = plainRulesText(rawMessage);
+  const message = promptText(rawMessage);
   // Forge's own selection prompts (`showPromptMessage`) separate the
   // trigger/source line from the instruction with a blank line — the same
   // two-part shape every other prompt's own `title`/`message` fields
@@ -145,9 +146,13 @@ export function SelectionPrompt({ message: rawMessage, cards, lookup, picked, on
   const [title, ...rest] = message.split('\n\n');
   const instruction = rest.join('\n\n');
   return (
-    <section className="prompt" data-prompt="selection" role="dialog" aria-label={message}>
+    <section className="prompt" data-prompt="selection" role="dialog" aria-label={plainRulesText(rawMessage)}>
       <PromptTitle title={title ?? message} />
-      {instruction !== '' && <p className="prompt__message">{instruction}</p>}
+      {instruction !== '' && (
+        <p className="prompt__message">
+          <RulesText text={instruction} />
+        </p>
+      )}
       <div className="prompt__body">
         <ul className="prompt__cards" data-testid="prompt-cards">
           {cards.map((id) => {
