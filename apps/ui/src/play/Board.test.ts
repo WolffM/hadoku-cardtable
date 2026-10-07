@@ -3435,31 +3435,32 @@ describe('§A.15 — a card’s state is drawn', () => {
   });
 
   /**
-   * R15 (wave 35), agreed shape 1: a permanent whose characteristics were
-   * changed by an effect (Magus of the Moon's "nonbasic lands are Mountains")
-   * shows its new identity — the type line is already drawn as-is, from the
-   * wire, with no adapter change needed — with a visible "changed" treatment,
-   * and carries the printed card's own name for a reader to find it by
-   * (`apps/ui/src/play/inspect/**` is lane G's; this exposes `changedFrom` for
-   * it rather than drawing an inspector here).
+   * R15 (wave 53 T), the operator, Playtest 9: *"cards like 'Magus of the
+   * moon' and 'Urborg tomb of yawgmoth' change the types of cards … put one
+   * of our overlay pills over the type bar."* Replaces wave 35's corner mark
+   * (same fact, a pill now): the pill's own visible text is the CURRENT type
+   * line, and its `title` — the same native hover surface
+   * `.board-card__chosen-type` already relies on — carries the PRINTED one.
    */
-  it('a changed permanent (R15) wears its own corner mark, naming the printed card, never the accent', () => {
-    const { container } = renderBoard(withState({ changedFrom: { name: 'Wasteland' } }));
-    const marks = [...card(container).querySelectorAll<HTMLElement>('.board-card__mark')].map((m) => m.dataset.mark);
-    expect(marks).toEqual(['changed']);
-    const mark = card(container).querySelector<HTMLElement>('.board-card__mark[data-mark="changed"]')!;
-    expect(mark.querySelector('svg.board-card__mark-art'), 'drawn, not a glyph a font might not have').not.toBeNull();
-    expect(mark.title, 'the printed card is named for a reader to find it by').toBe('changed from Wasteland');
-    expect(mark.textContent, 'and said for anything that cannot see the mark').toBe('changed from Wasteland');
-    const layer = withoutComments(CARD_CSS).slice(withoutComments(CARD_CSS).indexOf('.board-card__marks {'));
-    // `--accent-ink` is a different, legitimate token (an existing flag's own
-    // ink) — only the gestures lane's raw `--accent` itself is forbidden here.
-    expect(layer, 'the state layer never draws in the accent').not.toMatch(/\.board-card__mark[^}]*--accent(?!-)/);
+  it('a changed permanent (R15) wears a pill over the type bar: current type visible, printed type on hover', () => {
+    const state = withState({ changedFrom: { name: 'Wasteland', printed: 'Land' } });
+    const currentTypeLine = state.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === 21)!.card.typeLine;
+    const { container } = renderBoard(state);
+    const pill = card(container).querySelector<HTMLElement>('.board-card__type-pill')!;
+    expect(pill, 'the pill is drawn').not.toBeNull();
+    expect(pill.textContent, 'the visible text is the CURRENT type line').toBe(currentTypeLine);
+    expect(pill.title, 'the printed line is on the title — the native hover surface').toBe('Land');
+    // No corner mark duplicates the same fact any more (wave 35's was dropped
+    // in favour of this pill).
+    expect(
+      card(container).querySelector('.board-card__mark[data-mark="changed"]'),
+      'wave 35’s corner mark is gone, not doubled up with the pill',
+    ).toBeNull();
   });
 
-  it('an unchanged permanent (the common case) wears no "changed" mark at all', () => {
+  it('an unchanged permanent (the common case) wears no type pill at all', () => {
     const { container } = renderBoard(withState({ changedFrom: null }));
-    expect(card(container).querySelector('.board-card__mark[data-mark="changed"]')).toBeNull();
+    expect(card(container).querySelector('.board-card__type-pill')).toBeNull();
   });
 
   /**
@@ -3473,6 +3474,10 @@ describe('§A.15 — a card’s state is drawn', () => {
    * what counts as "printed" is swapped here). Scoped to the battlefield, the
    * same way `printed` (P/T) already is, and for the identical reason —
    * off the battlefield there is no continuous effect left to have changed it.
+   *
+   * Wave 53 T: `changedFrom` now also carries `printed` — the printed line
+   * itself — so the board's pill can draw its hover text without a second
+   * lookup.
    */
   it("R15: the adapter sets changedFrom when the wire's current type line disagrees with our own printed data", () => {
     const state = foldPackets(loadPackets(fixture)).state;
@@ -3486,7 +3491,10 @@ describe('§A.15 — a card’s state is drawn', () => {
 
     const disagrees = printedTypeLineIndex([{ name: 'Izzet Guildgate', typeLine: 'Land' }]);
     const changed = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedType: disagrees });
-    expect(land(changed).changedFrom, 'a mismatch sets it, naming the card').toEqual({ name: 'Izzet Guildgate' });
+    expect(land(changed).changedFrom, 'a mismatch sets it, naming the card and carrying the printed line').toEqual({
+      name: 'Izzet Guildgate',
+      printed: 'Land',
+    });
 
     // No printed data for this name at all (the default, cube-only index): no claim either way.
     const unknown = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });

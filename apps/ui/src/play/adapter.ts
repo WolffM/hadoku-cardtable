@@ -204,20 +204,34 @@ export interface BoardCard {
   blocking: boolean;
   token: boolean;
   /**
-   * R15 (wave 35), agreed shape 1. Set when an effect has changed what this
-   * permanent IS — Magus of the Moon's `AddType$ Mountain` reads a nonbasic
-   * land's current type line as `Land — Mountain`, which the wire gives us
-   * directly (`Type`, read live, no adapter change needed for that half) —
-   * but ONLY when our own card data knows the card's PRINTED type line and it
-   * disagrees with the current one (`POOL_PRINTED_TYPE_LINE`, same 534-card
-   * cube-only ceiling `printed` above already accepts, for the same reason:
-   * the wire carries no printed-type field to compare against). `name` is the
-   * card's own (unchanged) name — Magus's effect never renames the land, only
-   * retypes it — carried so a reader (the inspector, lane G's) can look the
-   * PRINTED card up by it. `null` when nothing is known to have changed, which
-   * is also the honest answer for a card our data has never heard of.
+   * R15 (wave 35, shape 1; wave 53 T adds `printed`). Set when an effect has
+   * changed what this permanent IS — Magus of the Moon's `AddType$ Mountain |
+   * RemoveLandTypes$ True` reads a nonbasic land's current type line as
+   * `Land — Mountain` (the wire gives us the CURRENT line directly, `Type`,
+   * read live — no adapter change needed for that half), and Urborg, Tomb of
+   * Yawgmoth's `AddType$ Swamp` (no `RemoveLandTypes`) turns a Plains into
+   * `Land — Plains Swamp` — but this is set ONLY when our own card data knows
+   * the card's PRINTED type line and it disagrees with the current one
+   * (`POOL_PRINTED_TYPE_LINE`, same 534-card cube-only ceiling `printed` above
+   * already accepts, for the same reason: Forge's wire has no printed-type
+   * field at all, only the live `Type` — confirmed against
+   * `TrackableProperty.java` — so "printed" can only ever come from our own
+   * static data). `name` is the card's own (unchanged) name — neither effect
+   * renames the permanent, only retypes it. `printed` is the printed line
+   * itself (`Land — Plains`, say), carried so the board can draw it directly
+   * (the pill's hover text) without a second lookup. `null` when nothing is
+   * known to have changed, which is also the honest answer for a card our
+   * data has never heard of.
+   *
+   * `ChangedTypes` (`tier-c.ts`, Forge's `Card.getChangedTextTypeWords()`) is
+   * NOT this fact — read at the source
+   * (`forge-game/.../card/Card.java:5477`): it is a word-substitution map for
+   * RULES TEXT ("whenever a Human enters" reading "whenever a Wizard enters"
+   * after a type-change-text effect), never populated by either card here,
+   * and not a comparison with a printed line at all. This field stays exactly
+   * what wave 35 built: wire `Type` vs. our own pool data.
    */
-  changedFrom?: { name: string } | null;
+  changedFrom?: { name: string; printed: string } | null;
   /**
    * Wave 36 T7, the operator: *"Cavern of Souls shows its chosen type."*
    * Forge's `ChosenType` (`TrackableProperty.java:65`, `StringType`,
@@ -580,14 +594,41 @@ export function printedTypeLineIndex(cards: readonly { name?: unknown; typeLine?
 }
 
 /**
- * Every printed type line the browser knows: the drafted cube's own pool —
- * the same 534-card ceiling `POOL_PRINTED_PT` already accepts, for the same
- * reason (the wire carries no printed-type field, and nothing here is wired
- * to the committed `decks/` lists the way art is).
+ * The five basic land type lines, in the exact shape `typeLineOf` builds off
+ * the wire (`"Basic Land — Plains"`, not `"Land — Plains"` — Forge's own
+ * `plains.txt` is `Types:Basic Land Plains`, confirmed against the cardsfolder
+ * script). Unlike every other row in this index, these are not a cube-pool
+ * fact that might be wrong for a different printing — a basic land's type
+ * line is the same on every printing that has ever existed, so this is not
+ * the same kind of guess `POOL_PRINTED_TYPE_LINE`'s other rows are.
+ *
+ * Why this exists at all: basic lands are never a cube's own drafted cards
+ * (`pool.json` carries none of them — confirmed, zero rows for any of the
+ * five names), so without this table Urborg, Tomb of Yawgmoth's own
+ * textbook case — *"turns a Plains into a Swamp too"* (the operator,
+ * Playtest 9) — could never be detected: the most common real-game target of
+ * that effect would silently read "nothing changed" forever, not because the
+ * effect did not fire but because this index had never heard of a Plains.
  */
-export const POOL_PRINTED_TYPE_LINE: PrintedTypeLineIndex = printedTypeLineIndex(
-  (poolData as { cards: { name: string; typeLine?: string }[] }).cards,
-);
+const BASIC_LAND_TYPE_LINES: readonly { name: string; typeLine: string }[] = (
+  ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'] as const
+).map((name) => ({ name, typeLine: `Basic Land — ${name}` }));
+
+/**
+ * Every printed type line the browser knows: the five basic lands (always
+ * correct, any printing — see {@link BASIC_LAND_TYPE_LINES}), then the
+ * drafted cube's own pool — the same 534-card ceiling `POOL_PRINTED_PT`
+ * already accepts, for the same reason (the wire carries no printed-type
+ * field, and nothing here is wired to the committed `decks/` lists the way
+ * art is). The pool is given LAST: `printedTypeLineIndex` keeps the first row
+ * for a name, and a cube reprinting a basic by its plain name (it never does
+ * today, but nothing stops a future cube from trying) must not shadow the one
+ * fact about it that is never cube-specific.
+ */
+export const POOL_PRINTED_TYPE_LINE: PrintedTypeLineIndex = printedTypeLineIndex([
+  ...BASIC_LAND_TYPE_LINES,
+  ...(poolData as { cards: { name: string; typeLine?: string }[] }).cards,
+]);
 
 // ── which Scryfall id a card is ──────────────────────────────────────────
 
@@ -876,7 +917,7 @@ function toBoardCard(
   // a continuous type-changing effect (Magus of the Moon's `AddType$
   // Mountain`) only applies there, and a card elsewhere just reads printed.
   const printedLine = onBattlefield ? printedType.get(name.trim().toLowerCase()) : undefined;
-  const changedFrom = printedLine !== undefined && printedLine !== card.typeLine ? { name } : null;
+  const changedFrom = printedLine !== undefined && printedLine !== card.typeLine ? { name, printed: printedLine } : null;
   // T7: a blank string is the same "nothing chosen" absence is, never a drawn label.
   const chosenTypeRaw = readStr(view, 'ChosenType');
   const chosenType = chosenTypeRaw !== null && chosenTypeRaw.trim() !== '' ? chosenTypeRaw.trim() : null;

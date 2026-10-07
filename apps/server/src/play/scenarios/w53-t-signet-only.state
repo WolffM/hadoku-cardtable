@@ -1,0 +1,24 @@
+# Wave 53 §T item 3 — End Turn's highlight, w52's own Signet. Same battlefield
+# w52-s-signet.state gives its OFFERING seat (Azorius Signet + two Islands),
+# here on the VIEWER's own side at an ordinary postcombat main, empty hand —
+# `nothing-left.state`'s own shape (R5, e2e/w35.spec.ts), swapped to a mana
+# ROCK instead of a creature with no activated ability, so the fact under
+# test is `nothingToDecide` folding `weaklySelectableManaOnly` in alongside
+# the viewer's own lands, not just the land case w35 already proved. Unlike
+# `w52-s-signet.state` (built to prove the SERVER auto-passes the OPPONENT'S
+# priority — a different, intentionally transient window), this is the
+# viewer's OWN turn: Forge does not auto-pass a seat's own priority just
+# because nothing is castable, so the highlight is stable for an e2e read.
+turn=1
+activeplayer=human
+activephase=MAIN2
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Azorius Signet;Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

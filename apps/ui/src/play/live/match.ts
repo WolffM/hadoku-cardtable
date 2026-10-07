@@ -510,6 +510,18 @@ export interface LiveMatch {
    */
   weaklySelectable: ReadonlySet<number> | null;
   /**
+   * Wave 53 T: w52 §S's `manaOnly`, carried on the SAME `setWeaklySelectable`
+   * frame (`packages/forge-wire/src/tier-b.ts`) — the offered cards whose
+   * every playable ability is a mana ability (a land, or a mana rock like a
+   * Signet), read by the bridge off Forge's abilities, never card text.
+   * `null` the same way `weaklySelectable: null` is: Forge has not said (the
+   * field was absent on the frame, or the set was last cleared) — never an
+   * empty set standing in for "nothing here is mana-only". Read by
+   * `nothingToDecide`, below, folded in alongside the viewer's own
+   * battlefield lands.
+   */
+  weaklySelectableManaOnly: ReadonlySet<number> | null;
+  /**
    * The CARDS Forge's current input has marked, from `setHighlighted` — folded,
    * because that frame is incremental: `on: true` adds, `on: false` removes
    * (`AbstractGuiGame.java:322-337`). Null: Forge has never marked anything
@@ -787,6 +799,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     buttons: null,
     selectables: null,
     weaklySelectable: null,
+    weaklySelectableManaOnly: null,
     highlighted: null,
     highlightedPlayers: null,
     says: [],
@@ -1503,6 +1516,17 @@ export function attackersLeft(view: BoardView): boolean {
  *    false "nothing to decide" costs nothing it could not already cost
  *    before Forge offered any actionable set at all.
  *
+ *    **Wave 53 T**: a card that is NOT one of the viewer's own battlefield
+ *    lands clears the same way when `weaklySelectableManaOnly` names it — w52
+ *    §S's own fact, "every playable ability here is a mana ability", which
+ *    covers a mana ROCK (a Signet) the same way the land check covers a
+ *    land. Without this, a seat whose only offer was a Signet never got the
+ *    End Turn highlight at all (the operator, Playtest 9, after w52 shipped
+ *    the Signet click itself). `manaOnly` only ever excuses a card that is
+ *    ALSO in `weaklySelectable` — it is never read on its own, and it is
+ *    `null` (not an empty set) exactly when Forge's bridge could not tell,
+ *    the same non-claim `weaklySelectable: null` already makes.
+ *
  * `view !== null` guards the moment before any state has folded at all, when
  * every field above still reads its unset default and would otherwise agree
  * for the wrong reason.
@@ -1513,7 +1537,11 @@ export function nothingToDecide(match: LiveMatch): boolean {
   if (match.asks.length > 0) return false;
   if (match.selectables !== null) return false;
   if (match.weaklySelectable === null) return false;
-  for (const id of match.weaklySelectable) if (!isOwnBattlefieldLand(view, id)) return false;
+  for (const id of match.weaklySelectable) {
+    if (isOwnBattlefieldLand(view, id)) continue;
+    if (match.weaklySelectableManaOnly?.has(id) === true) continue;
+    return false;
+  }
   return !attackersLeft(view);
 }
 
@@ -1976,6 +2004,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   // those, so it is dropped here rather than trusted.
   match.selectables = null;
   match.weaklySelectable = null;
+  match.weaklySelectableManaOnly = null;
   match.highlighted = null;
   match.highlightedPlayers = null;
   // The log, like the asks: the server re-sends its kept says after the
@@ -2277,6 +2306,10 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // Forge's list is WEIGHTED (a card twice when the auto-tap preview names
     // it too); membership is the whole of what a board needs.
     match.weaklySelectable = new Set(frame.cards.map((c) => c.id));
+    // Wave 53 T: the SAME frame's `manaOnly` (w52 §S), read alongside it.
+    // `undefined` (the bridge could not classify) stays `null`, never an
+    // empty set — see the field's own note on `LiveMatch`.
+    match.weaklySelectableManaOnly = frame.manaOnly === undefined ? null : new Set(frame.manaOnly.map((c) => c.id));
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.title === MATCH_ENDED_TITLE) {
     // The server's own ending notice (`Match.endNotice`): the match cannot
@@ -2295,6 +2328,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // of payment, with the prompt and bar for the next input still standing.
     // With nothing named, nothing is offered either way.
     match.weaklySelectable = null;
+    match.weaklySelectableManaOnly = null;
   }
   foldFrames(match, [frame]);
 }
@@ -2326,6 +2360,7 @@ function discardLocal(match: LiveMatch): void {
   match.buttons = null;
   match.selectables = null;
   match.weaklySelectable = null;
+  match.weaklySelectableManaOnly = null;
   match.highlighted = null;
   match.highlightedPlayers = null;
   match.says = [];

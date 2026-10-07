@@ -1509,7 +1509,7 @@ function PowerToughness({ entry }: { entry: BoardCard }) {
  */
 
 /** A state that draws as a corner mark. The rest of them draw as themselves. */
-type StateMark = 'sick' | 'blocking' | 'token' | 'changed';
+type StateMark = 'sick' | 'blocking' | 'token';
 
 /**
  * The marks, as geometry we drew rather than a typeface that might not have the
@@ -1523,21 +1523,12 @@ const MARK_ART: Readonly<Record<StateMark, string>> = {
   blocking: 'M8 1.6l5.4 2v4.3c0 3.2-2.3 5.6-5.4 6.5-3.1-.9-5.4-3.3-5.4-6.5V3.6Z',
   /* A four-point spark: the game made this one. */
   token: 'M8 1.2l1.7 5.1 5.1 1.7-5.1 1.7L8 14.8l-1.7-5.1L1.2 8l5.1-1.7Z',
-  /*
-   * R15 (wave 35): two arrows chasing each other in a circle — "this is not
-   * what it was printed as", the same idea a "morph" or "shapeshift" glyph
-   * carries, and neither an outline nor the accent (those are the gestures
-   * lane's, for "offered" and "pointed at").
-   */
-  changed:
-    'M8 2a6 6 0 0 1 5.6 3.9l1.3-.6-.4 3-2.7-1.6 1.3-.6A4.6 4.6 0 0 0 8 3.4Zm0 11a6 6 0 0 1-5.6-3.9l-1.3.6.4-3 2.7 1.6-1.3.6A4.6 4.6 0 0 0 8 12.6Z',
 };
 
 const MARK_WORD: Readonly<Record<StateMark, string>> = {
   sick: 'summoning sick',
   blocking: 'blocking',
   token: 'token',
-  changed: 'changed',
 };
 
 /**
@@ -1546,34 +1537,27 @@ const MARK_WORD: Readonly<Record<StateMark, string>> = {
  * the player and the word is for anything that cannot see it, which is the same
  * split the P/T badge makes between its marker glyph and its accessible name.
  *
- * R15: `changed` carries one more thing than the others — `changedFrom.name`,
- * the printed card's own name, in a visible `title` (a pointer) and folded
- * into the mark's own accessible word (everything else) — the inspector
- * reaching the printed card itself is lane G's (`play/inspect/**`), not
- * drawn here, but the name it would need is exposed right on this mark.
+ * R15 USED to add a fourth mark here (`changed`, wave 35) — a corner icon
+ * reading "changed from X" in its title and accessible word. Wave 53 T drops
+ * it: the operator asked again in Playtest 9 for the SAME fact, explicitly as
+ * "a pill over the type bar" rather than a corner glyph, so `TypePill` below
+ * replaces it rather than running alongside it — one signal for one fact, not
+ * two for the same one.
  */
 function StateMarks({ entry }: { entry: BoardCard }) {
   const marks: StateMark[] = [];
   if (entry.summoningSick) marks.push('sick');
   if (entry.blocking) marks.push('blocking');
   if (entry.token) marks.push('token');
-  if (entry.changedFrom != null) marks.push('changed');
   if (marks.length === 0) return null;
   return (
     <ul className="board-card__marks" aria-label={`${entry.card.name} status`}>
       {marks.map((mark) => (
-        <li
-          key={mark}
-          className="board-card__mark"
-          data-mark={mark}
-          title={mark === 'changed' ? `changed from ${entry.changedFrom!.name}` : undefined}
-        >
+        <li key={mark} className="board-card__mark" data-mark={mark}>
           <svg className="board-card__mark-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
             <path d={MARK_ART[mark]} />
           </svg>
-          <span className="board-card__mark-word">
-            {mark === 'changed' ? `changed from ${entry.changedFrom!.name}` : MARK_WORD[mark]}
-          </span>
+          <span className="board-card__mark-word">{MARK_WORD[mark]}</span>
         </li>
       ))}
     </ul>
@@ -1634,6 +1618,38 @@ function ChosenTypeLabel({ entry }: { entry: BoardCard }) {
   return (
     <span className="board-card__chosen-type" title={chosenType}>
       {chosenType}
+    </span>
+  );
+}
+
+/**
+ * R15 (wave 53 T), the operator, Playtest 9: *"cards like 'Magus of the moon'
+ * and 'Urborg tomb of yawgmoth' change the types of cards. i need this to be
+ * visually indicated by a tag of some kind … put one of our overlay pills
+ * over the type bar."*
+ *
+ * `entry.changedFrom` is `adapter.ts`'s own comparison — the wire's CURRENT
+ * `Type` against our own pool data's PRINTED type line — set only when they
+ * disagree (wave 35 built the comparison; this pill is wave 53's visible
+ * treatment of it, replacing the corner mark `StateMarks` used to draw for
+ * the same fact). The pill's own visible text is the CURRENT type line —
+ * Forge's words, read live, exactly as `CardTile`'s own (art-covered)
+ * `.card__type` would draw it — so a glance says what the permanent IS now;
+ * hovering it (the `title`, the same mechanism `ChosenTypeLabel` and the
+ * counters already use — there is no second, custom hover surface here, only
+ * the one native one) says what it was PRINTED as.
+ *
+ * Positioned over the type bar — roughly where `CardTile`'s own `.card__type`
+ * sits, just under the name row — rather than in a free corner: the marks
+ * (top-left), the chosen-type label (top-right), the counters (bottom-left)
+ * and the P/T badge (bottom-right) all stay exactly where they were.
+ */
+function TypePill({ entry }: { entry: BoardCard }) {
+  const changed = entry.changedFrom;
+  if (changed == null) return null;
+  return (
+    <span className="board-card__type-pill" title={changed.printed}>
+      {entry.card.typeLine}
     </span>
   );
 }
@@ -1875,6 +1891,7 @@ function CardOnBoard({
       {onBattlefield && <StateMarks entry={entry} />}
       {onBattlefield && <Counters entry={entry} />}
       {onBattlefield && <ChosenTypeLabel entry={entry} />}
+      {onBattlefield && <TypePill entry={entry} />}
       {above.length > 0 && (
         <ul className="board-card__pile" aria-label={`Stacked on ${entry.card.name}`}>
           {above.map((c, i) => (

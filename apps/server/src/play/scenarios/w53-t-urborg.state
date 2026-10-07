@@ -1,0 +1,23 @@
+# Wave 53 §T — the operator, Playtest 9: *"cards like 'Magus of the moon' and
+# 'Urborg tomb of yawgmoth' change the types of cards … put one of our overlay
+# pills over the type bar."* Seat 0 (human) controls Urborg, Tomb of
+# Yawgmoth and a Plains, an uncontested turn-1 Main Phase 1 — nothing to cast,
+# nothing to decide, just the board as it stands after Urborg resolves.
+# Urborg's own text (`AddType$ Swamp`, no `RemoveLandTypes`) ADDS Swamp
+# alongside Plains's own type: the wire's current type line for the Plains
+# becomes "Basic Land — Plains Swamp", against its printed "Basic Land —
+# Plains" (`adapter.ts`'s `BASIC_LAND_TYPE_LINES` — a basic's printed type
+# line is not cube data, so it is not in `pool.json`).
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Urborg, Tomb of Yawgmoth;Plains
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

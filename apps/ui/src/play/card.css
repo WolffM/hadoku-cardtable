@@ -374,17 +374,6 @@
 }
 
 /*
- * R15 (wave 35): a permanent whose current characteristics disagree with its
- * printed ones (Magus of the Moon's nonbasic-lands-are-Mountains) wears this
- * mark — `--accent-ink`, an existing token already used for an informational
- * flag (`.seat__flag`), not the gestures lane's own `--accent` (an offer) or
- * `--warn` (a danger), so it cannot be misread as either of those.
- */
-.board-card__mark[data-mark='changed'] {
-  color: var(--accent-ink);
-}
-
-/*
  * A token (item 14): *"wolf-token has no art."*
  *
  * It has no art because it has no row in `art-ids.json`, which is not this lane's
@@ -472,6 +461,49 @@
   color: var(--ink-dim);
   font-size: 10px;
   line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
+ * R15 (wave 53 T), the operator, Playtest 9: *"put one of our overlay pills
+ * over the type bar."* Over the type bar means a new BAND, not a corner — the
+ * four existing corners (marks top-left, chosen-type top-right, counters
+ * bottom-left, the P/T badge bottom-right) stay exactly where they were, and
+ * this sits between the marks and the chosen-type label, roughly where
+ * `CardTile`'s own `.card__type` sits under the name row (that text is
+ * covered by art at board scale — see `styles.css`'s `.card__art`'s own
+ * `z-index: 1` — so this is a deliberate proportion of the card's own box,
+ * not a live measurement of an element nobody can see).
+ *
+ * `--accent-ink` is the same token wave 35's corner mark used for the same
+ * fact — an existing informational flag's own ink (`.seat__flag`), never the
+ * gestures lane's raw `--accent` (an offer) or `--warn` (a danger), so it
+ * cannot be misread as either.
+ *
+ * Centered and clipped exactly like the chosen-type pill: `pointer-events:
+ * none` (it may never eat a click Forge offered, nor move the card's own
+ * box — `e2e/table-fit.spec.ts`), and `title` carries the printed line for
+ * the SAME native hover surface the chosen-type pill already relies on (no
+ * second, custom hover mechanism).
+ */
+.board-card__type-pill {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  top: 22%;
+  left: 4px;
+  right: calc(4px + var(--pile-fan));
+  padding: 0 4px;
+  background: var(--bg-raised);
+  border: 1px solid color-mix(in srgb, var(--accent-ink) 55%, var(--line));
+  border-radius: 999px;
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

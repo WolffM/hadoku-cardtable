@@ -1,0 +1,22 @@
+# Wave 53 §T — the operator, Playtest 9, the Magus half of the same ask: a
+# changed card's new identity needs a pill over the type bar. Seat 0 (human)
+# controls Magus of the Moon and Seachrome Coast (a NONBASIC land with no
+# printed subtype at all — `Types:Land`, confirmed against its cardsfolder
+# script, and the same bare "Land" `pool.json` already carries for it), an
+# uncontested turn-1 Main Phase 1. Magus's own text (`AddType$ Mountain |
+# RemoveLandTypes$ True`) REPLACES whatever land types a nonbasic land had:
+# Seachrome Coast's current type line becomes "Land — Mountain" against its
+# printed "Land".
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Magus of the Moon;Seachrome Coast
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

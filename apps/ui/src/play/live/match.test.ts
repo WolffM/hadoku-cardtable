@@ -495,9 +495,19 @@ const bar = (enable1: boolean) =>
 const selectables = (ids: number[], min: number, max: number) =>
   parseServerFrame({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max });
 const clear = () => parseServerFrame({ kind: 'notify', method: 'clearSelectables' });
-/** Forge's priority-time offer. `pushActionableCards` sends this, weighted. */
-const actionable = (ids: number[]) =>
-  parseServerFrame({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
+/**
+ * Forge's priority-time offer. `pushActionableCards` sends this, weighted.
+ * `manaOnlyIds`, wave 53 T: w52 §S's own fact on the SAME frame — every
+ * playable ability on these ids is a mana ability. Omitted (not an empty
+ * array) when a case wants the "bridge could not tell" state.
+ */
+const actionable = (ids: number[], manaOnlyIds?: number[]) =>
+  parseServerFrame({
+    kind: 'notify',
+    method: 'setWeaklySelectable',
+    cards: ids.map((id) => ({ kind: 'card', id })),
+    manaOnly: manaOnlyIds === undefined ? undefined : manaOnlyIds.map((id) => ({ kind: 'card', id })),
+  });
 const clearActionable = () => parseServerFrame({ kind: 'notify', method: 'clearWeaklySelectable' });
 /** Forge's mark. Incremental and signed — `on: false` is the un-mark. */
 const highlight = (entities: Array<{ kind: 'card' | 'player'; id: number }>, on: boolean) =>
@@ -876,6 +886,29 @@ describe('nothingToDecide: the one state End Turn gets highlighted from (R5)', (
     await sendAndApply(s, m, [pastAttackers(m), prompt('Priority'), actionable([land])]);
     expect(nothingToDecide(m)).toBe(true);
     await barrier(s, m, land);
+  });
+
+  /*
+   * Wave 53 T, w52 follow-up: End Turn was not highlighted for a seat whose
+   * only offer was a Signet, because `weaklySelectable`'s only exemption was
+   * the viewer's own lands. `manaOnly` (w52 §S, the SAME `setWeaklySelectable`
+   * frame) is the fix: a NON-land offered id still clears the loop when it is
+   * also named there.
+   */
+  it('true when the actionable set names ONLY a manaOnly source (a Signet, not a land)', async () => {
+    const { s, m } = await fullGame();
+    const rock = myNonLand(m); // stands in for a mana rock on the viewer's own battlefield
+    await sendAndApply(s, m, [pastAttackers(m), prompt('Priority'), actionable([rock], [rock])]);
+    expect(nothingToDecide(m)).toBe(true);
+    await barrier(s, m, rock);
+  });
+
+  it('false for the SAME non-land card when manaOnly is absent — not every non-land is excused, only one the bridge named', async () => {
+    const { s, m } = await fullGame();
+    const rock = myNonLand(m);
+    await sendAndApply(s, m, [pastAttackers(m), prompt('Priority'), actionable([rock])]);
+    expect(nothingToDecide(m)).toBe(false);
+    await barrier(s, m, rock);
   });
 
   it('false for a land on the OPPONENT’s battlefield — only the viewer’s OWN battlefield lands are ignored', async () => {
