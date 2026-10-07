@@ -370,6 +370,9 @@ const YIELDING = /^Yielding until /;
 /** Forge's priority status block with something on the stack: "Priority: … / Turn: … / Phase: … / Stack: N to Resolve." */
 const PRIORITY_OVER_STACK = /^Priority: [^\n]*\nTurn: [^\n]*\nPhase: [^\n]*\nStack: \d+ to Resolve\.?$/;
 
+/** Forge's own sentence opening the London mulligan's bottom pick: "Return N card(s) to the bottom of your library." */
+const MULLIGAN_BOTTOM_PICK = /^Return \d+ card\(s\) to the bottom of your library\.?$/;
+
 /**
  * What the decision pop-up says. Forge's priority status block is what the
  * log's status line is for; in the pop-up, with its OK meaning "let the stack
@@ -1552,12 +1555,35 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   // The bottom pick (Z2): Forge's own instruction ("Return N card(s) to the bottom of your library") in the
   // decision pop-up, its OK as Forge enables it — off until a card is set aside, on after.
   const mulliganPick = !spectator && bar !== null && choosingMulligan(match) && !isConfirmPrompt(bar);
+  /** The one sentence held for the whole bottom pick — see the note below. */
+  const mulliganPickText = useRef<string | null>(null);
+  /*
+   * Forge sends a fresh "Return N card(s)…" sentence after every card set
+   * aside or taken back, counting down as the pick narrows ("Return 1…" then "Return 0…"); drawing
+   * each one as it arrived read as the pop-up asking a new question each time. The FIRST sentence
+   * already says the count to return, so it is held for the whole pick and let go the moment the
+   * pick ends (`mulliganPick` turns false).
+   *
+   * Latched against the sentence itself, not merely against `mulliganPick` turning true: Forge's
+   * own `Mulligan` flag can land one frame ahead of this pick's own `showPromptMessage` (the delta
+   * and the prompt are two separate frames), so the render in between still carries the PREVIOUS
+   * question's text (the Keep/Mulligan confirm) while `mulliganPick` is already true. Holding that
+   * one would lock the pop-up onto the wrong sentence for the whole pick.
+   */
+  if (mulliganPick) {
+    const text = decisionMessage(match.prompt ?? '');
+    if (mulliganPickText.current === null && MULLIGAN_BOTTOM_PICK.test(text)) mulliganPickText.current = text;
+  } else {
+    mulliganPickText.current = null;
+  }
   // After End Turn, Forge yields the rest of the turn and offers to cancel the yield ("Yielding until
   // end of turn. You may cancel this…", `lblYieldingUntil*`). The operator, 2026-10-07: "i dont need a way to
   // cancel my 'end turn' decision. if i click end turn i'm locked in" — no pop-up for it.
   const yielding = YIELDING.test(match.prompt ?? '');
   const decisionOk = !yielding && ((route === 'decision' && bar !== null && bar.enable1) || mulliganPick);
-  const decisionCancel = !yielding && route === 'decision' && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match);
+  // No second button during the bottom pick (the operator: "remove the 'auto' button") — Forge's own `Auto`
+  // would otherwise draw beside OK the same way it does for every other decision-area bar.
+  const decisionCancel = !yielding && route === 'decision' && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match) && !mulliganPick;
   const decision = decisionOk || decisionCancel;
   /*
    * What the log can put a face to, and whose lines are whose. Both come off the
@@ -2256,18 +2282,20 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {/*
        * Wave 51: every other enabled bar button, in the decision area — priority
        * with spells on the stack, attackers or blockers done, a target's
-       * `Cancel`, `OK` + `Undo (N)`, the London mulligan's `OK` + `Auto`. Forge's
-       * own words on Forge's own buttons, each drawn only where Forge enabled it;
-       * `End Turn` is the control box's and is never drawn here, and the attack
-       * step's second button is refused as it was on the bar
-       * (`offersSecondButton`). While a played card is staged for its target
-       * the pop-up draws under it (`data-staged`, `live.css`).
+       * `Cancel`, `OK` + `Undo (N)`. Forge's own words on Forge's own buttons,
+       * each drawn only where Forge enabled it; `End Turn` is the control box's
+       * and is never drawn here, and the attack step's second button is
+       * refused as it was on the bar (`offersSecondButton`). The London
+       * mulligan's bottom pick is `OK` alone: its message is the one
+       * sentence held in `mulliganPickText`, not Forge's current count-down.
+       * While a played card is staged for its target the pop-up draws under
+       * it (`data-staged`, `live.css`).
        */}
       {decision && bar !== null && (
         <div className="live__prompt" data-testid="live-decision-host" data-staged={interaction.stagedCardId !== undefined || undefined}>
           <ConfirmPrompt
             testId="live-decision"
-            message={decisionMessage(match.prompt ?? '')}
+            message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(match.prompt ?? '')}
             button1={decisionOk ? { label: bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressButton(match, 'ok') } : undefined}
             button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressButton(match, 'cancel') } : undefined}
           />

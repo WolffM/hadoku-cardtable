@@ -3244,6 +3244,51 @@ describe('T2 — a calm "waiting for the other player"', () => {
     await waitFor(() => expect((getByTestId('live-decision-ok') as HTMLButtonElement).disabled).toBe(false));
   });
 
+  // The operator, 2026-10-07: "'Return 1 card(s)…' → 'Return 0 card(s)…' is
+  // awkward. remove the 'auto' button, grey out OK until the criteria has been met." Forge sends a
+  // fresh count-down sentence after every card set aside; the pop-up must keep the FIRST one for the
+  // whole pick and never draw Forge's second button ("Auto") for it.
+  it('the FIRST "Return N card(s)…" sentence holds for the whole bottom pick, with one button, and lets go once the pick ends', async () => {
+    const { s, m, queryByTestId, getByTestId } = await liveBoard();
+    const GAME = String(deltaKey(WireType.Game, 1));
+    const prompt = (message: string) => s.send(parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null }));
+    const setMulligan = (v: boolean) =>
+      s.send(
+        parseServerFrame({
+          kind: 'notify',
+          method: 'applyDelta',
+          payload: { packet: { seq: 900, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [GAME]: { _type: WireType.Game, _id: 1, Mulligan: { t: 'bool', v } } }, events: [] } },
+        }),
+      );
+
+    // Return 1 card(s)… — OK off, no second button.
+    prompt('Return 1 card(s) to the bottom of your library');
+    s.send(updateButtons(false, 'OK', 'Cancel'));
+    setMulligan(true);
+    await waitFor(() => expect(choosingMulligan(m)).toBe(true));
+    expect(getByTestId('live-decision').textContent).toContain('Return 1 card(s) to the bottom of your library');
+    expect((getByTestId('live-decision-ok') as HTMLButtonElement).disabled, 'OK off until a card is set aside').toBe(true);
+    expect(queryByTestId('live-decision-cancel'), 'no second button during the pick').toBeNull();
+
+    // the pick narrows — Forge's own count-down sentence arrives and enables OK — but the pop-up
+    // keeps the FIRST sentence, not the new one, and still draws no second button.
+    prompt('Return 0 card(s) to the bottom of your library');
+    s.send(updateButtons(true, 'OK', 'Cancel'));
+    await waitFor(() => expect((getByTestId('live-decision-ok') as HTMLButtonElement).disabled).toBe(false));
+    expect(getByTestId('live-decision').textContent, 'the first sentence the whole pick, not the count-down').toContain('Return 1 card(s) to the bottom of your library');
+    expect(getByTestId('live-decision').textContent).not.toContain('Return 0 card(s)');
+    expect(queryByTestId('live-decision-cancel'), 'still no second button once OK is enabled').toBeNull();
+
+    // the pick ends; the next one gets its own fresh FIRST sentence — proof the hold let go.
+    setMulligan(false);
+    await waitFor(() => expect(choosingMulligan(m)).toBe(false));
+    prompt('Return 2 card(s) to the bottom of your library');
+    s.send(updateButtons(false, 'OK', 'Cancel'));
+    setMulligan(true);
+    await waitFor(() => expect(choosingMulligan(m)).toBe(true));
+    expect(getByTestId('live-decision').textContent).toContain('Return 2 card(s) to the bottom of your library');
+  });
+
   // The operator, 2026-10-07: "i don't really like the 'yielding until next turn' text. i dont need a way to
   // cancel my 'end turn' decision. if i click end turn i'm locked in" — "no popup is needed for the end turn decision".
   it('Forge’s yield window after End Turn draws no decision pop-up and no cancel', async () => {

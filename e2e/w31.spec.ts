@@ -149,6 +149,10 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
     await expect(alice.page.getByTestId('live-decision'), 'Forge’s own instruction, in the decision pop-up').toContainText(/return \d+ card/i);
     await expect(alice.page.getByTestId('live-waiting')).toHaveCount(0);
     await expect(alice.page.getByTestId('live-pregame-wait-host')).toHaveCount(0);
+    // The FIRST "Return N card(s)…" sentence Forge sent for this pick, and no second
+    // button (the old "Auto") beside its OK.
+    const firstPickText = await alice.page.getByTestId('live-decision').textContent();
+    await expect(alice.page.getByTestId('live-decision-cancel'), 'no second button during the pick').toHaveCount(0);
     const before = { says: await says(alice.page), ids: await offered(alice.page), hand: await handCards(alice.page).count() };
     expect(before.ids.length, 'the bottom pick offers her hand').toBeGreaterThan(0);
 
@@ -189,7 +193,12 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
       await expect(offeredOnly, 'and not drawn picked').not.toHaveAttribute('data-picked', 'true');
       await logMarks(offeredOnly, 'offered-not-picked-card');
     }
+    // Forge's own count-down sentence has since moved on past the FIRST one ("Return N" is
+    // now the count still to pick, counting down as each card is set aside), but the pop-up keeps
+    // showing the sentence it opened with — one text for the whole pick — and still no second button.
     await expect(enabledOk(alice.page)).toHaveCount(1, { timeout: 15_000 });
+    expect(await alice.page.getByTestId('live-decision').textContent(), 'the same sentence the pick opened with').toBe(firstPickText);
+    await expect(alice.page.getByTestId('live-decision-cancel'), 'still no second button once OK is enabled').toHaveCount(0);
     await enabledOk(alice.page).click();
     await expect(bottom, 'Forge took the answer and moved on').not.toContainText(/return \d+ card/i, { timeout: 30_000 });
     await expect(handCards(alice.page)).toHaveCount(before.hand - 1, { timeout: 30_000 });
