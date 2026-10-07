@@ -35,6 +35,7 @@
  */
 
 import { isTierC, safeParseClientFrame, type ClientFrame, type ServerFrame } from '@hadoku/forge-wire';
+import { PRESENCE_EVENT } from '@hadoku/shared';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type MatchSpec } from '../../../../server/src/play/host.ts';
 import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
@@ -235,6 +236,13 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
           });
           return;
         }
+        /*
+         * The other seat's pointer and hands (`presence.ts`), never a game frame and not routed
+         * through `fromClient` — Forge never hears it and no scenario here reads it back, so a
+         * real drag's `pointerup`/`pointercancel` (sent at once, outside the throttle) emitting
+         * this mid-scenario is not "unexpected emit forge:presence".
+         */
+        if (event === PRESENCE_EVENT) return;
         if (event !== MATCH_EVENTS.clientToServer) throw new Error(`unexpected emit ${event}`);
         later(() => fromClient(seat, payload));
       },
