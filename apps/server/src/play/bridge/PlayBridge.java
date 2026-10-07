@@ -755,9 +755,13 @@ public final class PlayBridge {
          * is exactly "off while the yield runs, back on after".
          *
          * <p>The preference lives in the SERVER's {@code YieldController} (each match is its
-         * own JVM, and each seat has its own controller), and reaches it as a
-         * {@code SetYieldPref} envelope on the same channel as the click, so Forge applies it
-         * before it reads the click.
+         * own JVM, and each seat has its own controller). It used to reach there as a
+         * {@code SetYieldPref} envelope sent over this seat's network channel, on the
+         * belief that one channel meant Forge would apply it before reading the click
+         * (ledger Y26 — wrong, see {@link #setPhaseDelayOff}: both are void protocol
+         * methods, and the server races them). {@link #setPhaseDelayOff} now writes the
+         * override directly into the live {@code YieldController} the game thread itself
+         * reads, synchronously on this call, before the click is even sent.
          */
         private volatile boolean phaseDelayOff;
         /** Button 2 as Forge last labelled it, to know that a cancel click IS an End Turn. */
@@ -1696,8 +1700,10 @@ public final class PlayBridge {
             switch (method) {
                 case "selectButtonOk" -> c.selectButtonOk();
                 case "selectButtonCancel" -> {
-                    // End Turn is Forge's own button 2 at a priority window. The exemption
-                    // is sent BEFORE the click so Forge applies it first (one channel, in order).
+                    // End Turn is Forge's own button 2 at a priority window. The exemption is
+                    // set BEFORE the click is sent, and setPhaseDelayOff now writes it directly
+                    // into the live YieldController (see its own comment) instead of racing the
+                    // click over the network, so this ordering is real rather than assumed.
                     if (lastEnable2 && END_TURN_LABEL.equals(lastLabel2)) { setPhaseDelayOff(true); }
                     c.selectButtonCancel();
                 }
@@ -1726,12 +1732,56 @@ public final class PlayBridge {
         /**
          * Switch Forge's phase-pacing sleep for this seat's controller, and say so on the
          * protocol (a {@code pace} line) so a suite and a log can see when it flipped.
+         *
+         * <p><b>Ledger Y26 — why this does not go over the network.</b> Every human seat is
+         * a real {@link forge.gamemodes.net.client.FGameClient}; {@link #getGameController()}
+         * returns that seat's {@code NetGameController}, and calling an {@code IGameController}
+         * method on it sends a Netty message to the server rather than mutating anything here.
+         * {@code NetGameController.setYieldPref} (forge's {@code net/client/NetGameController.java:191})
+         * wraps the call as {@code ProtocolMethod.sendYieldUpdate} with a
+         * {@code YieldUpdate.SetYieldPref} envelope and sends it; {@code selectButtonCancel}
+         * sends its own message right after, on the SAME channel. Both are {@code void}
+         * protocol methods, so neither gets a reply the bridge could wait on (confirmed:
+         * {@code IGameController.setYieldPref}/{@code .selectButtonCancel} both return
+         * {@code void}, and {@code GameProtocolHandler.channelRead} only replies for a
+         * non-void return type). And "same channel" only orders the DECODE: the server's
+         * {@code GameServerHandler} is built with {@code runInEdt = false}
+         * ({@code net/server/GameServerHandler.java:17}), so {@code GameProtocolHandler
+         * .channelRead} dispatches every decoded message via
+         * {@code FThreads.invokeInBackgroundThread} ({@code gui/FThreads.java:55-61}), which
+         * is a bare {@code new Thread(proc, …).start()} — a fresh, unsynchronized thread per
+         * message, not a queue. Two messages decoded in order can still have their handler
+         * threads run in either order once dispatched, and worse under CPU load (observed:
+         * {@code known_flaky} 2 of 4 CI runs) — this is X1's finding, now with its exact
+         * mechanism. {@code PlayerControllerHuman.setYieldPref} is also a dead end for this
+         * pref on its own terms: its body is {@code if (pref != YIELD_AUTO_PASS_NO_ACTIONS ||
+         * !parseBoolean(value)) return;} ({@code player/PlayerControllerHuman.java:3904-3910}),
+         * so even a same-thread server call would do nothing for
+         * {@code YIELD_SKIP_PHASE_DELAY} — the pref only ever takes effect through
+         * {@code YieldController.setPref}, reached from {@code applyYieldUpdate}
+         * ({@code gamemodes/match/YieldController.java:387-388}), which this bridge's own
+         * class comment says is deliberately not forwarded.
+         *
+         * <p>So instead of sending anything, this writes straight into the SAME live
+         * {@code YieldController} the game thread reads ({@code PlayerControllerHuman
+         * .java:1690}, via {@code getBoolPref} → {@code getStringPref},
+         * {@code YieldController.java:90-96}, both {@code synchronized} on the controller
+         * so the write is visible with no extra signal needed) — found the server's real
+         * {@code PlayerControllerHuman} the same way {@link #confirmAbility()} does, via
+         * {@link #liveSelf}. That write happens-before this method returns, which happens
+         * before {@code act()} even sends the click, so there is only one network message
+         * left on the wire to race: itself.
          */
         void setPhaseDelayOff(final boolean off) {
             final IGameController c = getGameController();
             if (c == null || phaseDelayOff == off) { return; }
             phaseDelayOff = off;
-            c.setYieldPref(FPref.YIELD_SKIP_PHASE_DELAY, String.valueOf(off));
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine != null && mine.getController() instanceof PlayerControllerHuman human) {
+                human.getYieldController().setPref(FPref.YIELD_SKIP_PHASE_DELAY, String.valueOf(off));
+            } else {
+                System.err.println("[bridge] setPhaseDelayOff: no live PlayerControllerHuman for seat " + seat + "; pacing exemption NOT applied");
+            }
             final JsonObject o = line("pace");
             o.addProperty("seat", seat);
             o.addProperty("skipPhaseDelay", off);

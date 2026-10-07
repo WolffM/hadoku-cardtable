@@ -72,7 +72,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, idsOf, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, idsOf, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 import { TYPE, type WireObj } from './visibility.js';
 
 const title = available.ok
@@ -111,12 +111,16 @@ describe.skipIf(!available.ok)(title, () => {
 				s.select(0, goblin.id);
 				// Pay the single {R}: Forge's own `InputPayMana` plays a single mana
 				// ability without asking (`InputPayMana.java:102-106`), but the bridge
-				// still needs the untapped Mountain clicked once to fire it. The manager
-				// caught this re-clicking the SAME land every 25 ms tick before Forge's
-				// reply tapped it (the identical bug `scenario-ability-repeat.jvm.test.ts`
-				// had) — tracked here with a Set so a land already clicked is never
-				// clicked again while waiting for Forge to catch up.
-				const clicked = new Set<number>();
+				// still needs the untapped Mountain clicked once to fire it.
+				// `landPayer` (ledger Y26's neighbour, wave 53 §E) is the fix the other
+				// jvm suites already use for the race this used to hand-roll with its
+				// own `clicked` Set: a click on the NEXT 25 ms tick, before Forge's
+				// reply tapped the land it was already playing, is refused
+				// ("Should wait till previous call to playAbility finishes",
+				// `InputPayMana.java:210-213`) and never retried by a Set keyed on the
+				// land's id alone — only once the "Pay Mana Cost" prompt text has itself
+				// changed does `landPayer` send the next land.
+				const payLand = landPayer(s, 0);
 				await waitUntil(
 					() => {
 						s.answerAsks();
@@ -143,13 +147,7 @@ describe.skipIf(!available.ok)(title, () => {
 						if (s.zone(0, 'Hand').some((c) => c.id === goblin.id) && !/Pay Mana Cost/.test(s.prompt(0))) {
 							s.select(0, goblin.id);
 						}
-						if (/Pay Mana Cost/.test(s.prompt(0))) {
-							const untapped = s.zone(0, 'Battlefield').find((c) => c.land && !c.tapped && !clicked.has(c.id));
-							if (untapped !== undefined) {
-								clicked.add(untapped.id);
-								s.select(0, untapped.id);
-							}
-						}
+						payLand();
 						// Wait on the STACK ZONE, not the prompt text: `passOwnSpell` passes
 						// the caster's own window immediately, so the "Stack: 1 to Resolve"
 						// PROMPT can come and go between two 25 ms polls — a race the manager

@@ -319,12 +319,34 @@ jobs:
       - name: E2E — browser
         run: pnpm --filter @hadoku/e2e exec playwright install chromium
 
+      # Per-pin jars (ledger Y26/settled): the jar is shared by CI and
+      # production, and an install mid-run invalidates whatever CI run was
+      # already in flight against the old jar (w52, 21:58:56Z, under `d28788c`).
+      # A jar keyed by the commit's own `forge` pin removes that collision —
+      # CI always runs the jar this very commit's submodule pointer names,
+      # whichever jar production happens to have symlinked at the time. The
+      # jar itself is a host file, not git: `docs/FORGE_JAR.md`'s install
+      # procedure writes `jars/<pin>.jar` (a build output, never committed).
+      # Resolved once per job and exported via `GITHUB_ENV` so every later
+      # step's `$CARDTABLE_FORGE_JAR` is this pin's jar without repeating the
+      # lookup — no step below hardcodes the path any more.
+      - name: Resolve the Forge jar for this commit's pin
+        run: |
+          pin=$(git ls-tree HEAD forge | awk '{print $3}')
+          jar="/home/hadoku/.local/share/cardtable/jars/$pin.jar"
+          test -n "$pin" || { echo "::error::git ls-tree HEAD forge returned no pin — is the submodule entry missing?"; exit 1; }
+          test -f "$jar" || { echo "::error::no installed jar for forge pin $pin: $jar — build and install it first (docs/FORGE_JAR.md)"; exit 1; }
+          echo "::notice::resolved Forge jar for pin $pin: $jar"
+          echo "CARDTABLE_FORGE_JAR=$jar" >> "$GITHUB_ENV"
+
       # Two guards, because either alone is a check that can pass by doing
       # nothing:
       #
       #   1. Forge present, or FAIL. Mirrors `forgeAvailability()` in the
       #      harness arm for arm — a missing jar or a `res/` without
       #      `cardsfolder` would make the specs skip, so here it reds instead.
+      #      (The jar half is already asserted by the resolve step above; this
+      #      repeats it so a step reordering cannot silently drop the guard.)
       #   2. Nothing skipped, or FAIL. Guard 1 cannot see a skip from any
       #      OTHER cause. So Playwright also writes a JSON report, and the step
       #      asserts `stats.skipped == 0` from it — reading the tool's own
@@ -335,7 +357,6 @@ jobs:
       #      absent file exits non-zero, so that reds too rather than passing.
       - name: E2E — Forge is present, or fail
         env:
-          CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
           CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
         run: |
           test -f "$CARDTABLE_FORGE_JAR" || { echo "::error::CARDTABLE_FORGE_JAR missing: $CARDTABLE_FORGE_JAR — the Forge specs would SKIP"; exit 1; }
@@ -383,7 +404,6 @@ jobs:
 
       - name: E2E — two friends play a real Forge match, and the table fits
         env:
-          CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
           CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
           PW_TEST_REPORTER: json
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/forge-e2e-report.json
@@ -537,9 +557,20 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
+      # Per-pin jars (ledger Y26/settled) — see the identical step in
+      # `forge-e2e` for why. `GITHUB_ENV` carries `CARDTABLE_FORGE_JAR` to every
+      # later step in this job.
+      - name: Resolve the Forge jar for this commit's pin
+        run: |
+          pin=$(git ls-tree HEAD forge | awk '{print $3}')
+          jar="/home/hadoku/.local/share/cardtable/jars/$pin.jar"
+          test -n "$pin" || { echo "::error::git ls-tree HEAD forge returned no pin — is the submodule entry missing?"; exit 1; }
+          test -f "$jar" || { echo "::error::no installed jar for forge pin $pin: $jar — build and install it first (docs/FORGE_JAR.md)"; exit 1; }
+          echo "::notice::resolved Forge jar for pin $pin: $jar"
+          echo "CARDTABLE_FORGE_JAR=$jar" >> "$GITHUB_ENV"
+
       - name: Forge is present, or every suite would SKIP
         env:
-          CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
           CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
         run: |
           test -f "$CARDTABLE_FORGE_JAR" || { echo "::error::CARDTABLE_FORGE_JAR missing: $CARDTABLE_FORGE_JAR — every jvm suite would SKIP"; exit 1; }
@@ -550,7 +581,6 @@ jobs:
       # `/tmp/cardtable-play`.
       - name: Run every *.jvm.test.ts, serially
         env:
-          CARDTABLE_FORGE_JAR: /home/hadoku/.local/share/cardtable/forge.jar
           CARDTABLE_FORGE_RES: /home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res
           CARDTABLE_PLAY_WORK_DIR: ${{ runner.temp }}/cardtable-jvm-play
           JVM_UI: ${{ needs.changes.outputs.jvm_ui }}
@@ -628,8 +658,6 @@ jobs:
           LIST
           )
           known_flaky=$(pinned <<'LIST'
-          # End Turn's skip-delay pref and its click are two Forge messages, each run on its own server thread (X1's finding), so under load the click can apply first and the first skipped phases still sleep. 2 of 4 CI runs on 2026-10-06 (red 37521595277, 37532893898; green 37524669423, 37530013218). Ledger Y26; owner: the next engine/bridge wave (PlayBridge.act's End Turn ordering).
-          End Turn passes phases without the pacing sleep, against real Forge an End Turn click passes its phases under 50 ms apart, and the pacing is back afterwards
           # :663 fixed in w49; the declined-click bound (2) is then exceeded 3 of ~11 runs under `taskset -c 0`, 0 of 10 unpinned. docs/planning/wave49-evidence/B/README.md §1
           playing by clicking the board, against a real Forge match a player plays a land and casts spells — one targeted — by clicking their own board
           # Seat 1's card lookup races the reveal's decode: 'card #47' instead of 'Forest (47)', red and green on main. docs/planning/wave38-evidence/U-prompts-jvm-red.md

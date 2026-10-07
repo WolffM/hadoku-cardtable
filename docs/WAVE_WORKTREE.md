@@ -51,7 +51,7 @@ from outside git is absent unless the scaffold puts it there:
 
 ```sh
 export PATH="/home/hadoku/.local/share/fnm/node-versions/v24.18.0/installation/bin:$PATH"
-export CARDTABLE_FORGE_JAR="$HOME/.local/share/cardtable/forge.jar"
+export CARDTABLE_FORGE_JAR="$HOME/.local/share/cardtable/jars/$(git ls-tree HEAD forge | awk '{print $3}').jar"   # per-pin, from THIS worktree's own pin (docs/FORGE_JAR.md); `test -f` it before trusting it — a pin nobody has built yet leaves this pointing at nothing
 export CARDTABLE_FORGE_RES="/home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res"   # read-only use of the deploy tree
 export CARDTABLE_PLAY_WORK_DIR="$HOME/.cache/cardtable-play-work/w<N>-<lane>"   # on DISK, never under /tmp: see below
 # Forge SOURCE to read: /home/hadoku/repos/hadoku-cardtable/forge/ (same pin). Never build or write there.

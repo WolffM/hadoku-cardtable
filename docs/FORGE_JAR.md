@@ -22,6 +22,40 @@ telling them, because their wrapper hardcodes it.
 The jar is **not** in git and never will be: 38 MB, and it is a build output of
 the pinned submodule.
 
+## Per-pin jars (wave 53, ledger Y26)
+
+**The jar is shared by CI and production, and that used to be a problem.**
+w52's install at 21:58:56Z put a new engine under `d28788c`'s in-flight CI run,
+which made its reds meaningless (memory `jar-install-invalidates-older-ci`): a
+run can be mid-flight against one `forge` build and have the file underneath it
+swapped out before it finishes.
+
+So every installed jar now keeps its own file, named for the **full 40-char**
+`forge` submodule sha it was built from, under `~/.local/share/cardtable/jars/`:
+
+```
+~/.local/share/cardtable/jars/<forge-pin>.jar
+```
+
+(Not the short form — a short sha is ambiguous across enough history, and the
+rename cost is one `install -m 0644` either way.)
+
+**CI resolves its own jar from the commit it is testing**, not from whatever is
+currently installed: `git ls-tree HEAD forge | awk '{print $3}'` gives that
+commit's pin, and `ci.yml`'s "Resolve the Forge jar for this commit's pin" step
+(in both `forge-e2e` and `forge-jvm`) builds
+`~/.local/share/cardtable/jars/<that pin>.jar`, prints the resolved path as a
+`::notice::` (that line is what proves a run used the right jar), and fails the
+job loudly with `::error::` if that file is missing — a new pin that nobody
+has built yet reds instead of silently running an old engine.
+
+**Production's `~/.local/share/cardtable/forge.jar` becomes a symlink** to
+whichever pin's jar is current, because hadoku_site's wrapper hardcodes that
+one path (`jvmHostConfig` above) and does not know about pins. Switching that
+symlink and restarting production is a **deploy** — see "Switching production
+to a new pin" below; it is the operator's step, not part of a routine jar
+rebuild.
+
 ## Rebuilding (every time the `forge` pin moves)
 
 This is manual by agreement — option 1 in
@@ -50,11 +84,33 @@ JAR=~/.cache/w7b-forge/forge-gui-desktop/target/forge-gui-desktop-*-jar-with-dep
 unzip -p $JAR forge/view/Main.class | strings | grep -qx server        # `forge server` exists
 unzip -p $JAR forge/view/Main.class | strings | grep -qi sentry && echo 'STOP: Sentry still in'
 
-# 4. Install and smoke it.
-install -m 0644 $JAR ~/.local/share/cardtable/forge.jar
-java -jar ~/.local/share/cardtable/forge.jar server --help   # prints the usage, exits
+# 4. Install it under its OWN pin — never overwrite forge.jar directly.
+mkdir -p ~/.local/share/cardtable/jars
+install -m 0644 $JAR ~/.local/share/cardtable/jars/$PIN.jar
+java -jar ~/.local/share/cardtable/jars/$PIN.jar server --help   # prints the usage, exits
+sha256sum ~/.local/share/cardtable/jars/$PIN.jar                 # keep this line with the install record
+```
 
-# 5. Restart through mgmt-api, NEVER raw pm2 (services/mgmt-api/CLAUDE.md).
+Installing under `jars/$PIN.jar` is enough for CI (it resolves the pin itself —
+see "Per-pin jars" above) and leaves production untouched. Switching what
+production actually runs is a separate, deliberate step — next.
+
+## Switching production to a new pin
+
+This is a deploy, not a build step: it changes what the live server runs while
+players may be mid-match. **The operator does this, not a lane or a wave
+manager.**
+
+```sh
+# 1. A match in progress must not be cut off.
+curl -s localhost:9008/health/busy   # must say {"busy":false}
+
+# 2. Atomic symlink switch — never `rm` then `ln`, which has a gap with no
+#    forge.jar on disk at all.
+ln -sfn ~/.local/share/cardtable/jars/$PIN.jar ~/.local/share/cardtable/forge.jar
+ls -la ~/.local/share/cardtable/forge.jar   # confirm it now points at $PIN.jar
+
+# 3. Restart through mgmt-api, NEVER raw pm2 (services/mgmt-api/CLAUDE.md).
 curl -s -X POST http://127.0.0.1:4000/api/cardtable/restart
 ```
 
