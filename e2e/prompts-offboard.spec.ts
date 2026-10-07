@@ -20,7 +20,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enabledOk, makeTitled, says } from './play/board.ts';
+import { clickHandCard, enabledOk, makeTitled, says, stackCount } from './play/board.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -84,11 +84,15 @@ async function castAndReachTheSelection(page: Page, cardId: number, atLeast: num
  * `GetAbilityToPlayPrompt`'s own existing "None" button (`prompt-cancel`),
  * exactly the real "you may pay {X}" decision (`OptionalDecider$ You` on
  * Relentless Dead's own second trigger — see `offboard.jvm.test.ts`'s
- * header). Also auto-pays any live mana window. Returns once Forge's own
- * says line reads `Stack: Empty` again (the whole chain settled).
+ * header). Also auto-pays any live mana window. Returns once the trigger
+ * was declined and the stack is empty again (the whole chain settled). Read
+ * off the board, not the says line: the windows the server answers for the
+ * seat during the chain never reach it, so the line can read `Stack: Empty`
+ * from before the cast.
  */
 async function castAndDeclineTrigger(page: Page, cardId: number, declineTextMatch: RegExp): Promise<void> {
   await clickHandCard(page, cardId);
+  let declined = false;
   await expect
     .poll(
       async () => {
@@ -97,23 +101,22 @@ async function castAndDeclineTrigger(page: Page, cardId: number, declineTextMatc
           const choice = sheet.getByTestId('prompt-choice');
           if ((await choice.count()) > 0) {
             const text = (await choice.first().innerText()) ?? '';
-            if (declineTextMatch.test(text)) await sheet.getByTestId('prompt-cancel').click();
-            else await choice.first().click();
+            if (declineTextMatch.test(text)) {
+              await sheet.getByTestId('prompt-cancel').click();
+              declined = true;
+            } else await choice.first().click();
           } else {
             await sheet.getByTestId('prompt-cancel').click();
           }
         } else {
           await answerPrompt(page);
         }
-        const text = await says(page);
-        if (/Pay Mana Cost/i.test(text)) {
-          await pressOkIfEnabled(page);
-        }
-        return text;
+        if (/Pay Mana Cost/i.test(await says(page))) await pressOkIfEnabled(page);
+        return declined && (await stackCount(page)) === 0;
       },
       { timeout: 30_000, intervals: [150] },
     )
-    .toMatch(/Stack: Empty/);
+    .toBe(true);
 }
 
 test.describe.configure({ mode: 'serial' });
