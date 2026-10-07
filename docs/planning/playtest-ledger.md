@@ -32,29 +32,30 @@ lists. Three or more is a signal that the fix keeps missing what was meant.
 **Not imported yet:** the 2026-09-28 lists (waves 25–28) live in the board's wave
 sections, not here. Say the word and they come in.
 
-*Last updated: 2026-09-30, after wave 31 landed and wave 32 was planned.*
+*Last updated: 2026-10-07, after the tracker's batch landed and wave 54 was dispatched.*
 
 ---
 
 ## Check these in your next game
 
-**Only what a person can judge**, and nothing a known bug will spoil. Updated 2026-10-03 after w36 + the tracker's direct fixes.
-**You can play this one alone now:** make a room, stay alone, press **Play vs Forge AI**.
+**Only what a person can judge**, and nothing a known bug will spoil. Updated 2026-10-07 after the tracker's batch
+`b79e398` (UI 0.32.40, server 0.32.16) landed; wave 54 (Z1, Z6, Z7, W2) is running and its items join this list when
+it lands.
 
-**Fixed since playtest 5, please re-check:** Secluded Glen's reveal enters it untapped (T12); declaring attackers takes **one** OK (T3); "Waiting for ___" no longer sits over your own reveal choice.
+**From Playtest 10 and 11, please re-check:**
 
-**New since the last game:**
+1. **Placement (Z8):** drop a land three columns right of your others — the gap stays; drop into a gap — it fills.
+2. **Arrows (Z9, AA13):** Cryptbreaker targeting itself and two neighbours — three visible arrows, drawn over the cards.
+3. **Mulligan (Z2, AA1):** mulligan to six — your own pop-up names the count, no "Waiting for…".
+4. **Auto-pay (Z4, AA6):** cast a spell your lands pay for — no Pay Mana Cost pop-up at all.
+5. **The other seat (Z5, AA3–AA5):** Bella's pointer at the mirrored spot; her held card back at hand-card size; a
+   placed card flies from the back to its slot.
+6. **Words (AA7–AA9):** End Turn with no yield pop-up; "Select creatures to attack."; "Resolve?" over a stack.
+7. **The log (Z11, AA11):** no scrollbar beside the status block; a click outside or Escape closes it.
+8. **Piles (AA12):** an untapped land behind a tapped one stays upright.
+9. **The stack band (AA10):** cast with Fast Mode off — the row never flashes at the top.
 
-1. **The bot (B1):** does Forge's AI play a sensible game with the deck it drew?
-2. **The deck library (DL1–DL4):** nine summer eras; are the decks fun, varied, and different from each other? Note 2009 has 4 decks and 2010 has 8.
-3. **Full Control:** turn it on and respond to the AI's spell with an instant; it should work now. If your first OK after casting seems to do nothing, press again and tell me (a known intermittent, see below).
-4. **Ponder:** its look-at-three and shuffle questions should reach you.
-
-**Look and feel, still unchecked:** drag (Q4), the left column (Q9), card size on small boards, the phase rail (Q3), the active-player ring (Q1), the header gear (Q15), the picker's OK (L3), poison counters (L4), the Choose X slider (L13).
-
-**Do not spend a game on:** two spells on the stack with an arrow picking one (Q7's second half, not built yet).
-
-**From w31, still unchecked:** mulligan order, Gitaxian Probe at 0 mana, reload mid-decision, second browser spectates, gone-match page, stale rooms.
+**Do not spend a game on:** attacker marks, blocker undo, deck box sizes, picked-card highlight — wave 54, not deployed yet.
 
 ---
 
@@ -286,7 +287,7 @@ evidence. W10, V6 and R15 above were asked again and are bumped there, not repea
 | Y24 | the room chat names you "Frieren" (and Bella the default); prefs look lost | 1 | filed on watchparty (#149) | prefs rows intact (the board reads them); `RoomChrome` gets no `sessionId` from embedding hosts since watchparty-ui 0.40.9, so its read misses | open a room: the chat shows your name |  |
 | Y25 | cards on the board are a bit blurry | 1 | answered — no work unless asked | the board loads Scryfall's 488 px image for ~60-115 px tiles; a 146 px source for board-size cards was offered | — |  |
 | Y26 | End Turn sometimes still sleeps through the first skipped phases | 0 (found by CI) | shipped w53 E (deployed `68bb3d4` (UI 0.32.38, server 0.32.14, 2026-10-07)) | `PlayBridge.act` sends `setYieldPref(SKIP_PHASE_DELAY)` then `selectButtonCancel` as two Forge messages, each run on its own server thread (X1), so under load the click applies first. CI `w32.spec.ts:109` (172/171/216/3 ms) and `endturn.jvm` (61 ms) Ordered in the bridge (the skip written into the live YieldController before the click); the known_flaky pin is removed. | press End Turn mid-turn: no pause between the skipped phases |  |
-| Y27 | a land Forge did not take stayed hidden in your hand for the rest of the game, so a later discard could not pick it | 0 (found by CI) | shipped `e91c052` (deployed `e91c052` (UI 0.32.31, server 0.32.11, 2026-10-06)) | park-on-release's unanswered check returned early on "a selection is open" without re-arming; now it waits only when Forge asks about that card. CI `table-fit.spec.ts:717` red since `d28788c`, green after | play a land Forge refuses, then discard at end of turn |  |
+| Y27 | a land Forge did not take stayed hidden in your hand for the rest of the game, so a later discard could not pick it | 0 (found by CI) | shipped `e91c052` + shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | second half: a card Forge offers in a selection while it sits parked goes home at once (the cleanup discard's first offered card was the land just put down, hidden at its park point); the park's clock keeps running whatever the card did meanwhile | play a land Forge refuses, then discard at end of turn: the land is pickable |  |
 | Y28 | End Turn is not highlighted for a seat whose only offer is a mana rock (Signet) | 0 (w52 follow-up) | shipped w53 T (deployed `68bb3d4` (UI 0.32.38, server 0.32.14, 2026-10-07)) | `nothingToDecide` counts lands only; w52's `manaOnly` fact is not folded into it | hold only a Signet and lands with nothing to cast |  |
 
 ## Playtest 10 — 2026-10-06 (night), on UI 0.32.31 (`e91c052`), two humans
@@ -297,16 +298,38 @@ are bumped above, not repeated here.
 | ID | item | asked | status | evidence | check it by | your check |
 | --- | --- | --- | --- | --- | --- | --- |
 | Z1 | deck selection: every deck box the same size, whatever text is in it | 1 | planned w54 | the picker's rows size to their content | open the deck picker |  |
-| Z2 | during your own London bottom-pick the status line says "Waiting for Bella…"; it should say Forge's own "Select # cards to put on the bottom" | 1 | planned w54 | T2's open question: `isWaitingForOpponent` does not see `InputLondonMulligan` as your move | mulligan to six |  |
+| Z2 | during your own London bottom-pick the status line says "Waiting for Bella…"; it should say Forge's own "Select # cards to put on the bottom" | 2 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `choosingMulligan` (Forge's `Mulligan` game bool) is your move in `myMoveNow`; the London pick is the decision pop-up with Forge's own 'Select N card(s) to put on the bottom' and its OK gated on the count | mulligan to six: no 'Waiting for…', the pop-up names the count |  |
 | Z3 | during the mulligan bottom-pick you can drag an arrow from a hand card | 1 (with W2) | shipped `9649c97` (deployed `68bb3d4` (UI 0.32.38, server 0.32.14, 2026-10-07)) | the gesture layer aims from a hand card while a mulligan selection is open | mulligan to six and try to drag a hand card: it only selects |  |
-| Z4 | the Pay Mana Cost pop-up flashes up even when the server is about to auto-pay it | 1 | planned w54 (server) | the prompt reaches the seat before `auto.ts`'s auto-pay click lands. Operator: "we should not pop things like that on the screen if they are gonna get shortcutted" | cast a spell your lands auto-pay |  |
-| Z5 | show the opponent moving and aiming cards (and maybe the cursor), but never reveal a card until it is committed to the stack | 1 | shipped `43312fe` (deployed `68bb3d4` (UI 0.32.38, server 0.32.14, 2026-10-07)) | a gesture/cursor broadcast between seats through the room server, never Forge; V3 (no reveal before the stack) stays Pointer always shown, a card back while holding, the arrow while aiming; never the card. Overlay overflow regression: the other session's fix pending. | open a match in two browsers: move and drag in one, and watch the other |  |
+| Z4 | the Pay Mana Cost pop-up flashes up even when the server is about to auto-pay it | 2 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `maybeAutoPay` runs BEFORE the Pay Mana Cost prompt is forwarded and withholds it when it pressed Auto (the seat gets the buttons disabled, never the pop-up); `trackPayment` reads the prompt before the send so the paid line is unchanged | cast a spell your lands auto-pay: no pop-up at all |  |
+| Z5 | show the opponent moving and aiming cards (and maybe the cursor), but never reveal a card until it is committed to the stack | 1 | shipped `43312fe` + shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | follow-ups from Playtest 11: the card back is 0.95× a hand card (AA3); the pointer is mirrored for the battlefield (AA5); the placed card travels from the back's last position to its slot (`landCastGhost`, AA4) | watch Bella play a land: back follows the cursor at hand-card size, then flies to the slot |  |
 | Z6 | after declaring attackers there is no visible change (Lightning Angel has vigilance, so nothing turns); mark committed attackers, e.g. a red border | 1 | planned w54 | a committed-attacker mark off `data-attacking`, vigilance or not | attack with Lightning Angel: it is marked |  |
 | Z7 | blockers cannot be undone; they should work like attackers: an arrow to what they block, and a second click undoes it | 1 (with L15, W14) | planned w54 (engine signal) | Forge's `InputBlock` removes a blocker on a second click; `boardInteraction` must offer declared blockers the way `declaredAttackers` does, plus a lasting blocker → attacker arrow | block, then click the blocker again |  |
-| Z8 | free card placement: put a card in a specific slot with gaps, not filled left to right | 1 | queued — the other session (after its pile-tap fix) | rows are compacted lists (`Board.tsx` arrangement, wave 24/32 Q4b) | drop a land three slots right of your others |  |
-| Z9 | arrows to an adjacent card, or to the source itself, are too short to see (Cryptbreaker targeting itself and two neighbours) | 1 | queued — the other session (gestures/arrow.ts, after Z8) | the edge-nearest tip makes a few-pixel arrow; draw centre-to-centre over the cards | target an adjacent creature |  |
+| Z8 | free card placement: put a card in a specific slot with gaps, not filled left to right | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | a release at an empty column keeps the empty columns before it (`DropTarget` `at`, gap `<li>`s in `Arrangement`); trailing gaps trimmed; a card leaving a column leaves it open | drop a land three slots right of your others: the gap stays |  |
+| Z9 | arrows to an adjacent card, or to the source itself, are too short to see (Cryptbreaker targeting itself and two neighbours) | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `aimAt`: a target within 72 px of the tail takes the tip at its centre, drawn over the cards; a target containing the tail arcs bottom→top | target an adjacent creature, and Cryptbreaker itself |  |
 | Z10 | decision boxes show costs as letters ("B"); show the mana symbols | 1 | shipped `68bb3d4` (deployed `68bb3d4` (UI 0.32.38, server 0.32.14, 2026-10-07)) | `RulesText` draws `{…}` with `ManaPip` in titles, confirm/payment lines, selection instructions and choice labels; aria-labels keep words. Mutation (no glyphs) → 5 fail | pay a cost by hand: the line shows symbols |  |
-| Z11 | a tiny scrollbar beside the log's status block | 1 | queued — the other session | the status block is its own scroll region a few px shorter than its content | open the log |  |
+| Z11 | a tiny scrollbar beside the log's status block | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `.live__logbook > .live__says` no longer its own scroll region (max-height none, overflow visible) | open the log: no scrollbar beside the status block |  |
+
+## Playtest 11 — 2026-10-07, on UI 0.32.38 (`68bb3d4`), two humans, reported to the tracker session directly
+
+| ID | item | asked | status | evidence | check it by | your check |
+| --- | --- | --- | --- | --- | --- | --- |
+| AA1 | the mulligan is still awful: 'Waiting for Bella…' after one mulligan, then 'Return 0 card(s) to the bottom' | 2 (= Z2) | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | see Z2 | mulligan to six |  |
+| AA2 | regression: while 'Waiting for Bella…' is up, hovering a hand card no longer raises it above the hand; a hover must not depend on what is on screen | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | the inspector's modal anchor skips a hand card (`inspect/index.ts` `inHand`) and the pregame wait is not a modal for it | hover your hand during any pop-up |  |
+| AA3 | the phantom card (the opponent's card back) is too large; make it 5% smaller than a hand card | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `presence.ts` sizes the back from `[data-zone="hand"][data-owner="them"] li` × 0.95 | watch Bella hold a card |  |
+| AA4 | the card back follows the mouse but a placed card does not come from it; it is just put down | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `handoff()` in `presence.ts`: a new id in their battlefield or stack within 2 s of the back going flies from the back's last spot to its slot (`landCastGhost`), motion only | watch Bella play a land |  |
+| AA5 | the opponent's cursor does not match what they hover; it must be mirrored like the board | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `placeSpot` flips y for battlefield spots | watch Bella hover her own lands |  |
+| AA6 | the cost pop-up still shows up despite the shortcut handling it | 2 (= Z4) | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | see Z4 | cast a spell your lands auto-pay |  |
+| AA7 | no 'Yielding until next turn' text and no cancel: End Turn is locked in, no pop-up | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `YIELDING` gates the decision pop-up off for Forge's yield window (`lblYieldingUntil*`) | press End Turn: nothing to cancel |  |
+| AA8 | 'Select creatures to attack Sorin… or select player/card you wish to attack.' is too wordy: 'Select creatures to attack.' | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `lookup.ts` `ATTACK_PROMPT` | declare attackers with a planeswalker out |  |
+| AA9 | the priority block ('Priority / Turn / Phase / Stack: 1 to Resolve.') in the pop-up: just 'Resolve?' | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `decisionMessage`: Forge's priority block over a stack reads 'Resolve?'; the log keeps Forge's block | hold priority with a spell on the stack |  |
+| AA10 | the A │ B │ C stack layout still flashes briefly when a card joins the stack | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | the band had no measured decision edge for the frame between a spell reaching the stack and its pop-up; a spell on the stack now hangs the band from the last measured edge, with a 44% fallback before any | cast with Fast Mode off: no jump |  |
+| AA11 | clicking outside the log, or Escape, closes it | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `LiveBoard` pointerdown-capture outside the logbook/toggle, and Escape | open the log, click the board |  |
+| AA12 | an untapped card put behind a tapped card displays as tapped | 1 | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | each card in a pile turns on its own `data-tapped` (`card.css` `> .board-card__face`) | stack an untapped land behind a tapped one |  |
+| AA13 | arrows to a neighbour or to the source are hidden under the card; draw them on top | 1 (with Z9) | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | see Z9 | Cryptbreaker targeting itself |  |
+| AA14 | a release ON a pile selected the pile's land too, so from the third land on nothing landed (found by table-fit) | 0 (found by CI) | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | the press that resolves a lift swallows the click that follows it (`gestures/install.ts`); reproduced in `gestures.test.ts` (two selects before, one after) | play lands onto a full row |  |
+| AA15 | main's forge-e2e red on every host: `play.spec.ts:659` (the presence label in the board text after a refresh) and `table-fit.spec.ts:721` (the presence name widened the shell) | 0 (found by CI) | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `.board__overlay { overflow: clip }`; play.spec reads the board without `.presence`; table-fit's placement pin follows Z8 | n/a — CI |  |
+| AA16 | `scripts/link-worktree-node-modules.sh` with a relative path built dangling @hadoku links (forge-claws) | 0 (fleet) | shipped `b79e398` (deployed `b79e398` (UI 0.32.40, server 0.32.16, 2026-10-07)) | `realpath` on the argument | n/a |  |
+| AA17 | `docs/planning/wave35-evidence/s3-thoughtseize.md:201` points at a deleted /tmp evidence path (forge-claws) | 0 (fleet) | open | docs only | n/a |  |
 
 ## Asks outside a play-test — 2026-10-02
 
