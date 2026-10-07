@@ -538,6 +538,41 @@
   outline-offset: 3px;
 }
 
+/* ── picked: this one of the offer is already chosen ───────────────────── */
+
+/*
+ * The operator, Playtest 10: *"hard to tell when i have a card selected
+ * because the background for all cards is green."* Every offered card —
+ * picked or not — keeps the ring above; Forge still answers a second click
+ * on a picked card the same way it answers the first, so `data-selectable`
+ * stays true for both. What a picked card gets ON TOP is a FILLED accent
+ * badge, in a corner rather than a wash across the whole face: a flat check
+ * glyph the player's own choices leave behind, in the SAME hue as the ring
+ * so it reads as "this offer, taken" rather than a fourth, disagreeing
+ * colour. `--on-accent` is the exact token this repo already keeps around for
+ * writing ON an accent fill (verified 4.5:1 in every theme,
+ * `prompts/PromptShell.test.ts`), not a new one invented here.
+ */
+.board-card__picked {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  top: 2px;
+  right: calc(2px + var(--pile-fan));
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.board-card__picked-art {
+  width: 10px;
+  height: 10px;
+  fill: var(--on-accent);
+}
+
 /* ── can-act: Forge says this card could do something (item 16) ──────── */
 
 /*
@@ -570,6 +605,28 @@
   box-shadow:
     0 0 0 2px var(--accent),
     0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
+}
+
+/* ── attacking: a committed attacker is marked, whether or not it taps ── */
+
+/*
+ * The operator, Playtest 10: *"after declaring attackers there is no visible
+ * change (Lightning Angel has vigilance, so nothing turns); mark committed
+ * attackers, e.g. a red border."* The turn rule below draws nothing for a
+ * vigilant attacker on purpose — Forge never taps it — so that alone leaves
+ * exactly the card the operator named with no mark at all. This is a second,
+ * independent rule, keyed on `[data-attacking]` with no `:not([data-vigilant])`,
+ * so EVERY committed attacker gets it: an `outline` (the operator's own "e.g. a
+ * red border"), in the theme's danger token rather than a hardcoded colour, and
+ * never the accent — the accent ring already means "Forge is offering this"
+ * and a third meaning in the same hue is how a player stops being able to read
+ * either. `outline` rather than `box-shadow` so it never collides with the
+ * selectable ring or the item-16 glow, which are both `box-shadow` on the SAME
+ * element and would otherwise replace each other outright.
+ */
+.board-card[data-attacking] > .board-card__face {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
 }
 
 /* ── turned: a quarter turn, inside a landscape box of the same width ─── */

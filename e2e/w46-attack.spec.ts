@@ -44,7 +44,7 @@
  * `apps/ui/dist` — rebuild before running.
  */
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { clickOnce, enabledOk, makeTitled, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -52,6 +52,35 @@ import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
+
+/**
+ * Wave 54 §C evidence: the computed marks on one card's `<li>`, as ONE
+ * structured line in the job log. `forge.yml` only uploads the evidence
+ * artifact on a FAILURE, so a line the list reporter prints on stdout is
+ * what survives a green run — read as REAL computed styles, never the
+ * stylesheet text.
+ */
+async function logMarks(card: Locator, label: string): Promise<void> {
+  const data = await card.evaluate((li: Element) => {
+    const face = li.querySelector('.board-card__face');
+    const art = li.querySelector('.card');
+    const badge = li.querySelector('.board-card__picked');
+    const faceCs = face === null ? null : getComputedStyle(face);
+    const artCs = art === null ? null : getComputedStyle(art);
+    const badgeCs = badge === null ? null : getComputedStyle(badge);
+    return {
+      outlineStyle: faceCs?.outlineStyle ?? null,
+      outlineWidth: faceCs?.outlineWidth ?? null,
+      outlineColor: faceCs?.outlineColor ?? null,
+      outlineOffset: faceCs?.outlineOffset ?? null,
+      boxShadow: faceCs?.boxShadow ?? null,
+      transform: artCs?.transform ?? null,
+      badgePresent: badge !== null,
+      badgeBackground: badgeCs?.backgroundColor ?? null,
+    };
+  });
+  console.log(`W54-C-EVIDENCE ${JSON.stringify({ case: label, ...data })}`);
+}
 
 interface Box {
   left: number;
@@ -204,6 +233,27 @@ test(
       });
 
       /*
+       * The operator, Playtest 10: *"after declaring attackers there is no
+       * visible change … mark committed attackers, e.g. a red border."*
+       * `card.css` draws that mark on `[data-attacking]` with no
+       * `:not([data-vigilant])` exclusion, so the same rule this scenario's
+       * (non-vigilant) Memnite exercises here is the one that also reaches a
+       * vigilant attacker, which never turns and so has no other visible
+       * change at all. Read as a REAL computed style, not the stylesheet
+       * text — this is the proof the operator's own complaint is answered on
+       * a real page, not merely declared in a rule nobody renders.
+       */
+      const outline = await alice.page
+        .locator(`[data-board-card="${memnite}"] > .board-card__face`)
+        .evaluate((el) => {
+          const cs = getComputedStyle(el);
+          return { style: cs.outlineStyle, width: cs.outlineWidth, color: cs.outlineColor };
+        });
+      expect(outline.style, 'the committed-attacker mark is a real outline').toBe('solid');
+      expect(outline.width, 'with real width').not.toBe('0px');
+      await logMarks(alice.page.locator(`[data-board-card="${memnite}"]`), 'non-vigilant-attacker (Memnite)');
+
+      /*
        * The lasting arrow: `combat:<memnite>`, drawn to Jace's own box. Read
        * right after the declaration, and again once bob has had a priority
        * window (declare-blockers) with nothing to block with — it must still
@@ -240,6 +290,70 @@ test(
         0,
         { timeout: 10_000 },
       );
+    } finally {
+      await seated?.alice.context.close();
+      await seated?.bob.context.close();
+      await stack.stop();
+    }
+  },
+);
+
+/*
+ * The operator, Playtest 10: *"after declaring attackers there is no visible
+ * change (Lightning Angel has vigilance, so nothing turns); mark committed
+ * attackers, e.g. a red border."* `w46-b-planeswalker`'s own Memnite (above)
+ * proves the mark on a NON-vigilant attacker, which also turns — so the mark
+ * alone is not yet proof the operator's actual complaint is answered, since a
+ * vigilant attacker has no turn to hide behind. `w54-c-vigilant` is Serra
+ * Angel (Flying, Vigilance — `forge-gui/res/cardsfolder/s/serra_angel.txt`)
+ * alone on seat 0's battlefield, nothing on seat 1's: the same
+ * `attackers-declared.state` shape `w33.spec.ts` already drives (a plain
+ * click on the creature's own button, no drag — there is no planeswalker
+ * here, so the click attacks the defending player directly), landing Forge's
+ * real, live `InputAttack` rather than a `GameState`-declared one.
+ */
+test(
+  titled('a vigilant attacker (Serra Angel) is marked whether or not it turns'),
+  async ({ browser }) => {
+    test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+    if (!forge.ok) return;
+    test.setTimeout(2 * 60_000);
+
+    const stack = await startPlayStack(forge);
+    let seated: Awaited<ReturnType<typeof startScenarioMatch>> | null = null;
+    try {
+      seated = await startScenarioMatch(browser, stack, 'w54-c-vigilant');
+      const { alice, bob } = seated;
+      void bob;
+
+      const angel = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card');
+      await expect(angel, 'exactly the one scripted Serra Angel is on seat 0’s board').toHaveCount(1);
+      const angelId = Number(await angel.first().getAttribute('data-board-card'));
+      expect(Number.isInteger(angelId), 'Serra Angel is on alice’s own battlefield').toBe(true);
+
+      await passToDeclareAttackers(alice.page);
+      const attacker = alice.page.locator(`[data-board-card="${angelId}"]`);
+      await expect(attacker, 'Serra Angel is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
+      await expect(attacker, 'not yet declared').not.toHaveAttribute('data-attacking');
+
+      // A plain click: no drop target other than the defending player exists here.
+      await attacker.locator('button').first().click();
+      await expect(attacker, 'Forge declared it — its own `Attacking`').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
+      await expect(attacker, 'and its own `Vigilance`').toHaveAttribute('data-vigilant', 'true');
+
+      const read = await attacker.locator('> .board-card__face').evaluate((face) => {
+        const art = face.querySelector('.card');
+        return {
+          outline: { style: getComputedStyle(face).outlineStyle, width: getComputedStyle(face).outlineWidth },
+          // `transform` on the ART, not the face: the turn rule rotates `.board-card__face > .card` (§C's own
+          // header), so a vigilant attacker's own proof that it did NOT turn is this element carrying none.
+          transform: art === null ? null : getComputedStyle(art).transform,
+        };
+      });
+      expect(read.outline.style, 'the committed-attacker mark is a real outline, same as the non-vigilant case').toBe('solid');
+      expect(read.outline.width, 'with real width').not.toBe('0px');
+      expect(read.transform, 'a vigilant attacker is NOT turned — Forge never taps it for attacking').toBe('none');
+      await logMarks(attacker, 'vigilant-attacker (Serra Angel)');
     } finally {
       await seated?.alice.context.close();
       await seated?.bob.context.close();

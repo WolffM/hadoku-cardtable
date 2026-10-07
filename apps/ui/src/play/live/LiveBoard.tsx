@@ -1615,6 +1615,17 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      */
     actionable: offered.selectionOpen ? EMPTY_CARD_IDS : offered.selectable,
     /*
+     * The operator, Playtest 10: *"hard to tell when i have a card selected
+     * because the background for all cards is green."* Forge's own
+     * `setHighlighted` arrives as `match.highlighted` (`./match.ts`) and
+     * already rides inside `offered.selectable` (`boardInteraction`'s own
+     * fold) — handed over SEPARATELY here too so `Board` can draw a picked
+     * card as picked rather than merely offered, the same way
+     * `declaringAttackers` is handed over beside `offered` above rather than
+     * inferred from it.
+     */
+    highlighted: match.highlighted ?? EMPTY_CARD_IDS,
+    /*
      * Item 17.2's staging area: the hand card this seat clicked to cast,
      * while Forge is asking for its target and nothing else is on top of the
      * board (`stagedCardId`'s own note on why an ask or a payment wins the

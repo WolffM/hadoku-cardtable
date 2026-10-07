@@ -29,7 +29,7 @@
  * prebuilt `apps/ui/dist`: rebuild before running.
  */
 
-import { expect, test, type ElementHandle, type Page } from '@playwright/test';
+import { expect, test, type ElementHandle, type Locator, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
@@ -60,6 +60,35 @@ const titled = makeTitled(forge);
  */
 const playOrDrawPlay = (page: Page) => page.getByTestId('live-play-or-draw-play');
 const handCards = (page: Page) => page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]');
+
+/**
+ * Wave 54 §C evidence: the computed marks on one card's `<li>`, as ONE
+ * structured line in the job log. `forge.yml` only uploads the evidence
+ * artifact on a FAILURE, so a line the list reporter prints on stdout is
+ * what survives a green run — read as REAL computed styles, never the
+ * stylesheet text.
+ */
+async function logMarks(card: Locator, label: string): Promise<void> {
+  const data = await card.evaluate((li: Element) => {
+    const face = li.querySelector('.board-card__face');
+    const art = li.querySelector('.card');
+    const badge = li.querySelector('.board-card__picked');
+    const faceCs = face === null ? null : getComputedStyle(face);
+    const artCs = art === null ? null : getComputedStyle(art);
+    const badgeCs = badge === null ? null : getComputedStyle(badge);
+    return {
+      outlineStyle: faceCs?.outlineStyle ?? null,
+      outlineWidth: faceCs?.outlineWidth ?? null,
+      outlineColor: faceCs?.outlineColor ?? null,
+      outlineOffset: faceCs?.outlineOffset ?? null,
+      boxShadow: faceCs?.boxShadow ?? null,
+      transform: artCs?.transform ?? null,
+      badgePresent: badge !== null,
+      badgeBackground: badgeCs?.backgroundColor ?? null,
+    };
+  });
+  console.log(`W54-C-EVIDENCE ${JSON.stringify({ case: label, ...data })}`);
+}
 
 async function boardUp(page: Page): Promise<void> {
   await expect(page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
@@ -145,7 +174,21 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
     expect(await offered(alice.page), 'the same cards are still offered').toEqual(before.ids);
 
     // And it is answerable: pick a card, OK, and Forge moves on with one fewer in hand.
-    await alice.page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${before.ids[0]}"] button`).click();
+    const pickedCard = alice.page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${before.ids[0]}"]`);
+    await pickedCard.locator('button').click();
+    // The operator: "hard to tell when i have a card selected because the
+    // background for all cards is green." Forge's own `setHighlighted` marks
+    // this id, and the board draws it distinctly from a merely offered card.
+    await expect(pickedCard, 'the chosen card is drawn PICKED, not merely offered').toHaveAttribute('data-picked', 'true');
+    await logMarks(pickedCard, 'picked-card');
+    if (before.ids.length > 1) {
+      // A second hand card, still offered (she could still change her pick)
+      // but never clicked: the control case the operator's own complaint is about.
+      const offeredOnly = alice.page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${before.ids[1]}"]`);
+      await expect(offeredOnly, 'still offered, not picked').toHaveAttribute('data-selectable', 'true');
+      await expect(offeredOnly, 'and not drawn picked').not.toHaveAttribute('data-picked', 'true');
+      await logMarks(offeredOnly, 'offered-not-picked-card');
+    }
     await expect(enabledOk(alice.page)).toHaveCount(1, { timeout: 15_000 });
     await enabledOk(alice.page).click();
     await expect(bottom, 'Forge took the answer and moved on').not.toContainText(/return \d+ card/i, { timeout: 30_000 });

@@ -513,6 +513,22 @@ export interface BoardInteraction {
    * fixture renders in.
    */
   stagedCardId?: number;
+  /**
+   * The operator, on the mulligan bottom-pick: *"hard to tell when i have a
+   * card selected because the background for all cards is green."* Forge's
+   * own `setHighlighted` — the ids THIS seat has already chosen inside an
+   * open, multi-pick selection (a mulligan's bottom seven, a discard, a
+   * sacrifice) — kept apart from `selectable` so a card already picked can be
+   * drawn as PICKED rather than merely offered. `selectable` still includes
+   * every id in here too (`live/match.ts`'s own fold), because Forge's input
+   * answers a second click on a picked card the same way it answers the
+   * first one; this field only adds the drawing `selectable` alone cannot
+   * carry.
+   *
+   * **Absent means nothing is picked** — the safe default, and the state
+   * every fixture and `live/parity.test.ts` render in.
+   */
+  highlighted?: ReadonlySet<number>;
   /** A card was clicked. Only ever called for an id in `selectable`. */
   onSelectCard(cardId: number): void;
   onSelectPlayer(playerId: number): void;
@@ -1828,6 +1844,8 @@ function CardOnBoard({
 }) {
   const loneAbility = useContext(LoneAbilityContext);
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
+  /** This card is one Forge already marked picked, not merely offered — see `BoardInteraction.highlighted`. */
+  const picked = interaction !== undefined && (interaction.highlighted?.has(entry.id) ?? false);
   /*
    * A card Forge is ASKING ABOUT belongs to Forge, and that — not "actionable" —
    * is what the arrangement stands down on.
@@ -1927,6 +1945,8 @@ function CardOnBoard({
       data-stack-source={loneAbility?.cardId === entry.id || undefined}
       data-stack-id={loneAbility?.cardId === entry.id ? loneAbility.stackId : undefined}
       data-selectable={selectable || undefined}
+      /* A picked card keeps `data-selectable` too — see `BoardInteraction.highlighted`'s own note. */
+      data-picked={picked || undefined}
       /* Item 16 — see `BoardInteraction.actionable`'s own note. */
       data-can-act={(interaction?.actionable?.has(entry.id) ?? false) || undefined}
       /* Forge says this card is attached to something: not the player's doing. */
@@ -1980,11 +2000,24 @@ function CardOnBoard({
         type="button"
         className="board-card__face"
         tabIndex={selectable ? undefined : -1}
-        aria-label={selectable ? `Select ${entry.card.name}${entry.tapped ? ', tapped' : ''}` : undefined}
+        aria-label={
+          selectable
+            ? `${picked ? 'Picked, ' : 'Select '}${entry.card.name}${entry.tapped ? ', tapped' : ''}`
+            : undefined
+        }
+        /* The same fact the drawing says, for anything that cannot see the mark. */
+        aria-pressed={selectable ? picked : undefined}
         onClick={selectable ? () => interaction.onSelectCard(entry.id) : undefined}
       >
         <CardTile card={entry.card} />
       </button>
+      {picked && (
+        <span className="board-card__picked" aria-hidden="true">
+          <svg className="board-card__picked-art" viewBox="0 0 16 16" focusable="false">
+            <path d="M6 10.8 3.2 8 2.3 8.9 6 12.7 14 4.7 13.1 3.7Z" />
+          </svg>
+        </span>
+      )}
       {onBattlefield && <PowerToughness entry={entry} />}
       {onBattlefield && <StateMarks entry={entry} />}
       {onBattlefield && <Counters entry={entry} />}

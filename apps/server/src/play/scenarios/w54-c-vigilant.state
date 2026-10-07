@@ -1,0 +1,22 @@
+# Wave 54 §C — a VIGILANT attacker, live. `attackers-declared.state`'s own
+# shape (seat 0's own uncontested Main Phase 1, the creature untapped,
+# non-sick, with NO `|Attacking` marker), with Serra Angel in place of
+# Memnite: Flying, Vigilance (`forge-gui/res/cardsfolder/s/serra_angel.txt`)
+# — Forge never taps a vigilant creature for attacking, so this is the one
+# scenario in this directory where the operator's own claim ("Lightning
+# Angel has vigilance, so nothing turns") can be driven against a real,
+# live declare-attackers window rather than asserted against a built view.
+# Seat 1 has no creature: nothing here is about blocking.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Serra Angel
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

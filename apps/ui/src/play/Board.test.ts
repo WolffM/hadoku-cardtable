@@ -625,6 +625,8 @@ function spyInteraction(
   selectionOpen = false,
   actionable: number[] = [],
   stagedCardId?: number,
+  /** `BoardInteraction.highlighted` — ids this seat has already picked, a subset of `selectable`. */
+  highlighted: number[] = [],
 ) {
   const onSelectCard = vi.fn<(id: number) => void>();
   const onSelectPlayer = vi.fn<(id: number) => void>();
@@ -634,6 +636,7 @@ function spyInteraction(
     selectionOpen,
     actionable: new Set(actionable),
     stagedCardId,
+    highlighted: new Set(highlighted),
     onSelectCard,
     onSelectPlayer,
   };
@@ -671,6 +674,37 @@ describe('BoardInteraction', () => {
     }
     expect(onSelectCard.mock.calls.map(([id]) => id)).toEqual(picks);
     expect(onSelectPlayer).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The operator: *"hard to tell when i have a card selected because the
+   * background for all cards is green."* `highlighted` is a SUBSET of
+   * `selectable` (Forge's own fold, `live/match.ts`) — a card may be picked
+   * only once it is also offered — so a picked card must carry both
+   * attributes and an offered-only card must carry `data-selectable` alone.
+   */
+  it('a picked card carries data-picked and data-selectable; an offered-only card carries data-selectable alone', () => {
+    const [pickedId, ...restOffered] = picks;
+    const { interaction } = spyInteraction(picks, [], false, [], undefined, [pickedId!]);
+    const { container } = renderBoard(view, interaction);
+
+    const pickedCard = container.querySelector<HTMLElement>(`[data-board-card="${pickedId}"]`)!;
+    expect(pickedCard.hasAttribute('data-selectable')).toBe(true);
+    expect(pickedCard.hasAttribute('data-picked')).toBe(true);
+    // The same fact the drawing says, for anything that cannot see the mark.
+    expect(pickedCard.querySelector('.board-card__face')!.getAttribute('aria-pressed')).toBe('true');
+
+    for (const id of restOffered) {
+      const offeredOnly = container.querySelector<HTMLElement>(`[data-board-card="${id}"]`)!;
+      expect(offeredOnly.hasAttribute('data-selectable'), 'still offered').toBe(true);
+      expect(offeredOnly.hasAttribute('data-picked'), 'but not picked').toBe(false);
+      expect(offeredOnly.querySelector('.board-card__face')!.getAttribute('aria-pressed')).toBe('false');
+    }
+  });
+
+  it('a picked card draws a filled badge in the offer’s own hue, not a new colour', () => {
+    expect(declarationInCss(CARD_CSS, '.board-card__picked', 'background')).toBe('var(--accent)');
+    expect(declarationInCss(CARD_CSS, '.board-card__picked-art', 'fill')).toBe('var(--on-accent)');
   });
 
   /**
@@ -3403,6 +3437,27 @@ describe('§A.15 — a card’s state is drawn', () => {
     const turning = [...withoutComments(CARD_CSS).matchAll(/([^{}]*)\{[^{}]*(?:rotate\(90deg\)|aspect-ratio: 680 \/ 488)[^{}]*\}/g)].map((m) => m[1]!.trim());
     expect(turning.length).toBeGreaterThan(0);
     for (const selector of turning) expect(selector).toContain(':is([data-tapped], [data-attacking]:not([data-vigilant]))');
+  });
+
+  /**
+   * The operator: *"after declaring attackers there is no visible change
+   * (Lightning Angel has vigilance, so nothing turns); mark committed
+   * attackers, e.g. a red border."* The turn rule above leaves a vigilant
+   * attacker exactly as it was on purpose — this is the SECOND, independent
+   * mark the vigilant case still needs: an outline in the danger token, on
+   * `[data-attacking]` alone, with no `:not([data-vigilant])` anywhere on it.
+   */
+  it('a committed attacker gets a danger-token outline whether or not it is vigilant', () => {
+    const vigilant = renderBoard(withState({ attacking: true, tapped: false, keywords: ['Vigilance'] })).container;
+    const ordinary = renderBoard(withState({ attacking: true, tapped: false })).container;
+    expect(card(vigilant).getAttribute('data-attacking')).toBe('true');
+    expect(card(ordinary).getAttribute('data-attacking')).toBe('true');
+
+    const mark = declarationInCss(CARD_CSS, '.board-card[data-attacking] > .board-card__face', 'outline');
+    expect(mark, 'the attacker mark').toBeDefined();
+    expect(mark).toContain('var(--danger)');
+    // Never the accent — that ring already means "Forge is offering this".
+    expect(mark).not.toContain('var(--accent)');
   });
 
   it('a card in a graveyard or exile pile is not raised under the pointer: the cards below it stay readable', () => {
