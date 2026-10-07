@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import express from 'express';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { TIER_ORDER } from '../edge-auth.ts';
 
 vi.mock('node:fs/promises', async () => {
 	const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
@@ -216,12 +217,18 @@ describe('GET /api/sounds/assignments', () => {
 
 	it('canEdit is true only for admin', async () => {
 		const h = await openApp(await tempDir());
-		for (const tier of ['friend', 'service', 'wife']) {
+		// The whole ladder, from edge-auth: a tier added there is checked here without anyone
+		// remembering to list it (hadoku_site's tier audit, 2026-10-07).
+		for (const tier of TIER_ORDER) {
 			const res = await call(h, 'GET', '/api/sounds/assignments', { tier });
-			expect((res.json() as { canEdit: boolean }).canEdit, tier).toBe(false);
+			if (tier === 'public') {
+				// Below the friend gate: refused outright, never a read with canEdit false.
+				expect(res.status, tier).toBe(404);
+				continue;
+			}
+			expect(res.status, tier).toBe(200);
+			expect((res.json() as { canEdit: boolean }).canEdit, tier).toBe(tier === 'admin');
 		}
-		const admin = await call(h, 'GET', '/api/sounds/assignments', { tier: 'admin' });
-		expect((admin.json() as { canEdit: boolean }).canEdit).toBe(true);
 	});
 
 	it('a dropped invalid cell is logged with a count, not left silent', async () => {
