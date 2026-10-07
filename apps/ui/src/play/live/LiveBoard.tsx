@@ -364,6 +364,9 @@ export function questionTopOf(root: HTMLElement): number | null {
   return tops.length === 0 ? null : Math.min(...tops) - frame.getBoundingClientRect().top;
 }
 
+/** Forge's own yield window after End Turn (`lblYieldingUntilEndOfTurn`, `lblYieldingUntilPhaseFmt`, `lblYieldingUntilStackClears`). */
+const YIELDING = /^Yielding until /;
+
 /* ── T2: a calm "waiting for the other player" (wave 36 §L) ───────────── */
 
 /**
@@ -1535,8 +1538,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   // The bottom pick (Z2): Forge's own instruction ("Return N card(s) to the bottom of your library") in the
   // decision pop-up, its OK as Forge enables it — off until a card is set aside, on after.
   const mulliganPick = !spectator && bar !== null && choosingMulligan(match) && !isConfirmPrompt(bar);
-  const decisionOk = (route === 'decision' && bar !== null && bar.enable1) || mulliganPick;
-  const decisionCancel = route === 'decision' && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match);
+  // After End Turn, Forge yields the rest of the turn and offers to cancel the yield ("Yielding until
+  // end of turn. You may cancel this…", `lblYieldingUntil*`). The operator, 2026-10-07: "i dont need a way to
+  // cancel my 'end turn' decision. if i click end turn i'm locked in" — no pop-up for it.
+  const yielding = YIELDING.test(match.prompt ?? '');
+  const decisionOk = !yielding && ((route === 'decision' && bar !== null && bar.enable1) || mulliganPick);
+  const decisionCancel = !yielding && route === 'decision' && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match);
   const decision = decisionOk || decisionCancel;
   /*
    * What the log can put a face to, and whose lines are whose. Both come off the

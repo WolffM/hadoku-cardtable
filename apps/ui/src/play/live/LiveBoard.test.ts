@@ -3244,6 +3244,18 @@ describe('T2 — a calm "waiting for the other player"', () => {
     await waitFor(() => expect((getByTestId('live-decision-ok') as HTMLButtonElement).disabled).toBe(false));
   });
 
+  // The operator, 2026-10-07: "i don't really like the 'yielding until next turn' text. i dont need a way to
+  // cancel my 'end turn' decision. if i click end turn i'm locked in" — "no popup is needed for the end turn decision".
+  it('Forge’s yield window after End Turn draws no decision pop-up and no cancel', async () => {
+    const { s, m, queryByTestId } = await liveBoard();
+    s.send(parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Yielding until end of turn.\nYou may cancel this yield at any time.', card: null }));
+    s.send(updateButtons(false, 'OK', 'Cancel'));
+    await waitFor(() => expect(m.prompt).toMatch(/^Yielding until/));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(queryByTestId('live-decision-host'), 'no pop-up').toBeNull();
+    expect(queryByTestId('live-decision-cancel'), 'and nothing to cancel with').toBeNull();
+  });
+
   it('is gone the instant Forge enables the viewer’s own OK — that is "my move"', async () => {
     const { s, m, queryByTestId } = await liveBoard();
     s.send(updateButtons(true));
