@@ -354,8 +354,10 @@ describe.skipIf(!available.ok)(title, () => {
           /* ── declare attackers, by drag ── */
           // `showPromptMessage` is per seat: a seat only sees "select creatures
           // to attack" when it is the one declaring, so the message is the whole
-          // test — no need to work out whose turn it is.
-          if (/to attack/.test(msg)) {
+          // test — no need to work out whose turn it is. With the bar live: the
+          // input's last refresh stays the latest prompt through the combat steps
+          // the server passes for the seat, with its bar dead.
+          if (/to attack/.test(msg) && s.notes.buttons?.enable1 === true) {
             const attacker = offeredOnMyBattlefield(s, me, (c) => c.summoningSick || c.tapped || c.attacking);
             const face = root.querySelector<HTMLElement>(`[data-player-face][data-player-id="${opp.id}"]`);
             const theirField = zoneEl(root, false, 'battlefield');
@@ -398,7 +400,7 @@ describe.skipIf(!available.ok)(title, () => {
           }
 
           /* ── declare blockers, by drag ── */
-          if (/to block/.test(msg)) {
+          if (/to block/.test(msg) && s.notes.buttons?.enable1 === true) {
             const attacker = opp.battlefield.find((c) => c.attacking);
             const blocker = offeredOnMyBattlefield(s, me, (c) => c.tapped || c.blocking);
             const blockerElement = blocker === null ? null : cardEl(root, blocker.id);
