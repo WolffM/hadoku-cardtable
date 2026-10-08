@@ -3384,6 +3384,53 @@ describe('T2 — a calm "waiting for the other player"', () => {
     expect(isWaitingForOpponent(m)).toBe(true);
   });
 
+  // AE17: "both players should see the coinflip" — the loser draws the coin landed on the winner,
+  // never the sentence; the winner draws the coin beside their own Play/Draw question.
+  it('the coin toss: the LOSER draws the coin landed on the winner’s face and name, and no "Waiting for…" sentence', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: m.playerId, coinToss: { winner: 1, at: Date.now() } },
+      { seat: 1, claimed: true, playerId: them.id, name: them.name, avatarId: 'herald', coinToss: { winner: 1, at: Date.now() } },
+    ]);
+    await waitFor(() => expect(m.coinToss?.winner).toBe(1));
+    const coin = await waitFor(() => getByTestId('coin-toss'));
+    expect(coin.getAttribute('data-winner')).toBe('1');
+    expect(coin.querySelector('.coin-toss__name')?.textContent).toBe(them.name);
+    expect(coin.querySelector('.coin-toss__avatar'), 'the winner’s own face on the coin').not.toBeNull();
+    expect(queryByTestId('live-waiting-pop'), 'no sentence while the coin is up').toBeNull();
+    expect(coin.textContent).not.toContain('Waiting');
+    // Withdrawn: the sentence is back for whatever the other seat decides next.
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: m.playerId },
+      { seat: 1, claimed: true, playerId: them.id, name: them.name, avatarId: 'herald' },
+    ]);
+    await waitFor(() => expect(m.coinToss).toBeNull());
+    expect(queryByTestId('coin-toss')).toBeNull();
+  });
+
+  it('the coin toss: the WINNER draws the coin beside their own Play/Draw question', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'showPromptMessage',
+        player: { kind: 'player', id: 0 },
+        message: 'Seat 1, you have won the coin toss.\n\nPlay or draw?',
+        card: null,
+      }),
+    );
+    s.send(updateButtons(true, 'Play', 'Draw'));
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: m.playerId, coinToss: { winner: 0, at: Date.now() } },
+      { seat: 1, claimed: true, playerId: null, coinToss: { winner: 0, at: Date.now() } },
+    ]);
+    await waitFor(() => expect(m.coinToss?.winner).toBe(0));
+    const host = await waitFor(() => getByTestId('live-play-or-draw-host'));
+    expect(host.querySelector('[data-testid="coin-toss"]')?.getAttribute('data-winner')).toBe('0');
+    expect(getByTestId('live-play-or-draw-play').textContent).toBe('Play');
+  });
+
   it('`priority` — the other seat merely holds priority — draws NO pop-out: it is for an effect being resolved, never a wait', async () => {
     // The operator, 2026-10-08: "'Waiting for Hadoku…' this shouldn't be showing at all times, that
     // was not the intent. i wanted this to show when player is resolving an effect not simply when

@@ -721,6 +721,14 @@ export interface LiveMatch {
    */
   waitingOn: ReadonlyMap<number, { method: string; hostCard: string | null }> | null;
   /**
+   * The coin toss while the winner's Play/Draw question is open —
+   * `forge:seats`' `coinToss`, the same on every seat's entry. `winner` is a
+   * SEAT; `playerId` is that seat's Forge player when the roster already names
+   * it (the face and the name are looked up by it). `null` before the toss
+   * and after the winner answers.
+   */
+  coinToss: { winner: number; playerId: number | null; at: number } | null;
+  /**
    * This connection is a SPECTATOR of its seat: another connection for the
    * same account controls it, and the server refuses this one's inputs
    * (`forge:role`, wave 31 §S). The server enforces; this only lets the UI say
@@ -853,6 +861,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     avatarByPlayerId: null,
     nameByPlayerId: null,
     waitingOn: null,
+    coinToss: null,
     spectator: false,
     over: false,
     finished: false,
@@ -1148,6 +1157,15 @@ function adoptSeats(match: LiveMatch, payload: unknown): void {
     if (seat.waitingOn !== undefined) waitingOn.set(seat.seat, seat.waitingOn);
   }
   match.waitingOn = waitingOn;
+  const tossed = parsed.value.seats.find((seat) => seat.coinToss !== undefined)?.coinToss;
+  match.coinToss =
+    tossed === undefined
+      ? null
+      : {
+          winner: tossed.winner,
+          playerId: parsed.value.seats.find((seat) => seat.seat === tossed.winner)?.playerId ?? null,
+          at: typeof tossed.at === 'number' ? tossed.at : Date.now(),
+        };
   redraw(match);
   notify(match);
 }
@@ -2536,6 +2554,7 @@ function discardLocal(match: LiveMatch): void {
   match.avatarByPlayerId = null;
   match.nameByPlayerId = null;
   match.waitingOn = null;
+  match.coinToss = null;
   match.over = false;
   match.finished = false;
   unspend(match);

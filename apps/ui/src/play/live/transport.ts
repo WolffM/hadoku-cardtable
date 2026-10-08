@@ -336,6 +336,12 @@ export const SeatIdentitySchema = borrowed.emptyObject
       .extend({ method: borrowed.nonEmptyString, hostCard: borrowed.nonEmptyString.nullable() })
       .strict()
       .optional(),
+    /**
+     * The coin toss — `apps/server/src/play/match.ts`'s `SeatIdentity.coinToss`:
+     * the same row on every seat's entry while the winner's Play/Draw bar is
+     * live, so BOTH screens draw the flip landing on the winner (`CoinToss.tsx`).
+     */
+    coinToss: borrowed.emptyObject.extend({ winner: borrowed.forgeId.min(0), at: borrowed.unknown }).strict().optional(),
   })
   .strict();
 

@@ -188,6 +188,18 @@ export interface SeatIdentity {
 	 * never the one used.
 	 */
 	waitingOn?: { method: string; hostCard: string | null };
+	/**
+	 * The coin toss, told to BOTH seats the moment Forge asks the winner
+	 * "play or draw" — the same row on every seat's entry, so either screen
+	 * can draw the flip landing on the winner's face while the loser would
+	 * otherwise see only "Waiting for {name}…" (the operator, three times: R2,
+	 * W1, 2026-10-08 "both players should see the coinflip"). Forge sends the
+	 * losing seat nothing for this moment (`LiveBoard.tsx`'s note on
+	 * `isWaitingForPregameDecision`), so the server is the only place both
+	 * can be told. Present from the Play/Draw bar going live until that seat's
+	 * bar changes (the answer); absent otherwise.
+	 */
+	coinToss?: { winner: number; at: number };
 }
 import {
 	createProjector,
@@ -760,6 +772,8 @@ export class Match {
 	 * is told at once — see {@link Match.checkWaitingOn}. The pending tell, if any.
 	 */
 	private waitingOnTimer: ReturnType<typeof setTimeout> | null = null;
+	/** See {@link SeatIdentity.coinToss}: set and cleared in {@link Match.send}. */
+	private coinToss: { winner: number; at: number } | null = null;
 	/**
 	 * `Match.waitingOnFor`'s own cache: `foldFrames` is linear in a seat's
 	 * WHOLE history (`trackPayment`'s `sayToTable` callback and `noteTriggers`
@@ -1022,6 +1036,7 @@ export class Match {
 				const waitingOn = this.waitingOnFor(s);
 				return waitingOn === null ? {} : { waitingOn };
 			})(),
+			...(this.coinToss === null ? {} : { coinToss: this.coinToss }),
 		}));
 	}
 
@@ -1452,10 +1467,36 @@ export class Match {
 	/* ── Forge → browser ────────────────────────────────────────────── */
 
 	private send(s: SeatState, frame: ServerFrame): void {
-		if (frame.method === 'updateButtons') s.wireButtonsLive = frame.enable1 === true || frame.enable2 === true;
+		if (frame.method === 'updateButtons') {
+			s.wireButtonsLive = frame.enable1 === true || frame.enable2 === true;
+			this.noteCoinToss(s, frame);
+		}
 		s.seq += 1;
 		const cursor: WireCursor = { epoch: this.epoch, seq: s.seq };
 		this.deps.emit(s.seat, { matchId: this.id, cursor, frame });
+	}
+
+	/**
+	 * {@link SeatIdentity.coinToss}'s one writer: the Play/Draw bar going live
+	 * for a seat is Forge's own "you have won the coin toss" (the labels are
+	 * Forge's `lblPlay`/`lblDraw`, the same pair `ConfirmPrompt.tsx`'s
+	 * `isPlayOrDrawPrompt` reads); that seat's next different bar is the
+	 * answer. Both seats are told at once, on `forge:seats`, outside
+	 * `checkWaitingOn`'s grace — a coin toss is never a flash.
+	 */
+	private noteCoinToss(s: SeatState, frame: ServerFrame): void {
+		if (frame.method !== 'updateButtons') return;
+		const playOrDraw = frame.label1 === 'Play' && frame.label2 === 'Draw' && frame.enable1 === true && frame.enable2 === true;
+		if (playOrDraw) {
+			if (this.coinToss !== null) return;
+			this.coinToss = { winner: s.seat, at: Date.now() };
+			this.deps.log({ evt: 'coin-toss', matchId: this.id, winner: s.seat });
+			this.deps.seatsChanged?.(this.seatIdentities());
+			return;
+		}
+		if (this.coinToss === null || this.coinToss.winner !== s.seat) return;
+		this.coinToss = null;
+		this.deps.seatsChanged?.(this.seatIdentities());
 	}
 
 	private sendState(s: SeatState, raw: StateFrame): void {

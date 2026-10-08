@@ -302,6 +302,7 @@ import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs
 import { SettingsPanel } from './SettingsPanel.tsx';
 import { HeaderSettingsPortal } from '../../chrome/HeaderSettings.tsx';
 import './live.css';
+import { CoinToss } from './CoinToss.tsx';
 
 /* ── Where the match is: six states, one line ─────────────────────────── */
 
@@ -1630,6 +1631,21 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    */
   const playOrDraw = !spectator && !askOpen && isPlayOrDrawPrompt(bar);
   /*
+   * The coin toss on both screens (AE17 — `CoinToss.tsx`): the server's fact,
+   * resolved to the winner's face and name by the roster the same `forge:seats`
+   * message carried. Drawn beside the winner's own Play/Draw question, and on
+   * the loser's screen INSTEAD of "Waiting for {name}…" for this one moment.
+   */
+  const coinToss = ((): { winner: number; name: string; avatarId: string | undefined; at: number } | null => {
+    const toss = match.coinToss;
+    if (toss === null) return null;
+    const pid = toss.playerId;
+    const player = pid === null ? undefined : match.view?.players.find((p) => p.id === pid);
+    const name = (pid === null ? undefined : match.nameByPlayerId?.get(pid)) ?? player?.name ?? `Seat ${toss.winner + 1}`;
+    const avatarId = (pid === null ? undefined : match.avatarByPlayerId?.get(pid)) ?? player?.avatarId;
+    return { winner: toss.winner, name, avatarId, at: toss.at };
+  })();
+  /*
    * T4 (shape 1, lane G): every Forge yes/no that is an ANSWER rather than a
    * priority pass — the shockland's "pay 2 life?", the mulligan's
    * Keep/Mulligan, a scry's Top/Bottom, any other `InputConfirm` text — moves
@@ -2427,10 +2443,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        */}
       {playOrDraw && (
         <div className="live__prompt" data-testid="live-play-or-draw-host">
+          {coinToss !== null && <CoinToss {...coinToss} />}
           <ConfirmPrompt
             testId="live-play-or-draw"
             message={promptText(match.prompt ?? '')}
-            coin
             button1={{ label: PLAY_LABEL, enabled: bar?.enable1 ?? false, testId: 'live-play-or-draw-play', onClick: () => pressButton(match, 'ok') }}
             button2={{ label: DRAW_LABEL, enabled: bar?.enable2 ?? false, testId: 'live-play-or-draw-draw', onClick: () => pressButton(match, 'cancel') }}
           />
@@ -2513,7 +2529,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * note — never drawn over this seat's OWN live decision, stale
        * fact or not.
        */}
-      {waitingForOpponent && !myOwnDecisionOpen && (
+      {/* The coin is its own fact, told before the lagged `waitingOn` — never gated on it. */}
+      {coinToss !== null && !playOrDraw && !myOwnDecisionOpen && !(match.view?.gameOver ?? false) && (
+        <div className="live__prompt" data-testid="live-coin-toss-host">
+          <CoinToss {...coinToss} />
+        </div>
+      )}
+      {waitingForOpponent && !myOwnDecisionOpen && coinToss === null && (
         <WaitingPop
           sentence={pregameWait || theirAsk === null ? `Waiting for ${theirName ?? 'the other player'}…` : waitingSentence(theirName ?? 'the other player', theirAsk)}
         />

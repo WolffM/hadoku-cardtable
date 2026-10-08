@@ -523,6 +523,29 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'confirm', hostCard: null } });
 		});
 
+		// AE17 — the operator, three times: "both players should see the coinflip". Forge tells only the
+		// winner; the server tells both, at once (no grace), and withdraws it when the winner answers.
+		it('the coin toss is told to BOTH seats the instant the winner’s Play/Draw bar goes live, and withdrawn when that bar changes', () => {
+			const h = waitingHarness();
+			for (const identity of h.match.seatIdentities()) expect(identity).not.toHaveProperty('coinToss');
+			const before = h.told.length;
+			h.host.push(barFrame(1, 'Play', 'Draw', true, true));
+			const ids = h.match.seatIdentities();
+			expect(ids[0]).toMatchObject({ coinToss: { winner: 1 } });
+			expect(ids[1]).toMatchObject({ coinToss: { winner: 1 } });
+			expect(typeof (ids[0] as { coinToss?: { at: number } }).coinToss?.at).toBe('number');
+			expect(h.told.length, 'told at once — a coin toss is never a flash').toBe(before + 1);
+			expect(h.told.at(-1)![0]).toMatchObject({ coinToss: { winner: 1 } });
+			// The loser's own bar changing is not the answer.
+			h.host.push(barFrame(0, 'OK', 'End Turn', false, false));
+			expect(h.match.seatIdentities()[0]).toMatchObject({ coinToss: { winner: 1 } });
+			// The winner's bar moving on IS the answer: withdrawn, both told.
+			const toldBefore = h.told.length;
+			h.host.push(barFrame(1, 'Keep', 'Mulligan', true, true));
+			for (const identity of h.match.seatIdentities()) expect(identity).not.toHaveProperty('coinToss');
+			expect(h.told.length).toBe(toldBefore + 1);
+		});
+
 		it('the opening hand’s own Keep/Mulligan bar', () => {
 			const h = waitingHarness();
 			h.host.push(barFrame(0, 'Keep', 'Mulligan', true, true));
