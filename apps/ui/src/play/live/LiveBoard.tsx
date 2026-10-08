@@ -460,6 +460,38 @@ function waitingSentence(name: string, fact: { method: string; hostCard: string 
 }
 
 /**
+ * AE3, wave 62 §D. The operator: *"the 'Waiting for Hadoku to decide for
+ * Serum Visions...' text at the top is a bit easy to miss. can we instead
+ * move text like that to the 'decision popout' area? similar to how it shows
+ * 'Waiting for {opponent}...' during the mulligan phase? i think that would
+ * be cleaner."*
+ *
+ * One component, one testid, for BOTH uses the old code drew separately: the
+ * ordinary mid-game wait (the deleted `live__waiting` top line, out of flow
+ * over the board) and the pregame wait (the coin toss, either seat's opening
+ * mulligan — W1's own `live-pregame-wait`). Both now draw the exact same
+ * `section.confirm[role=status]` shape, in the SAME `.live__prompt` slot every
+ * other decision pop-up uses, carrying whatever sentence the caller already
+ * computed (`waitingSentence`'s verb table for the mid-game case, or the
+ * plain "Waiting for {name}…" pregame has no Forge text to extend). No
+ * buttons: there is nothing on this seat's wire to answer with either way.
+ *
+ * **Made dead, deleted**: the top-line `live__waiting` element and its CSS
+ * (`live.css`'s breathing dot); the two testids `live-pregame-wait` and
+ * `live-pregame-wait-host` (collapsed into this component's one,
+ * `live-waiting-pop`).
+ */
+function WaitingPop({ sentence }: { sentence: string }) {
+  return (
+    <div className="live__prompt">
+      <section className="confirm" data-testid="live-waiting-pop" role="status" aria-live="polite">
+        <p className="confirm__message">{sentence}</p>
+      </section>
+    </div>
+  );
+}
+
+/**
  * T2. Operator: a clear, calm indicator whenever the opponent holds priority
  * or is answering a question, gone the instant it is the viewer's move.
  *
@@ -1632,6 +1664,22 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   // would otherwise draw beside OK the same way it does for every other decision-area bar.
   const decisionCancel = !yielding && route === 'decision' && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match) && !mulliganPick;
   const decision = decisionOk || decisionCancel;
+  /**
+   * AE9, wave 62 §D. Measured (`e2e/w62-condescend.spec.ts`, two real
+   * browsers): the server sequences bob's own payment window and alice's
+   * scry ask strictly — Forge never computes the second until the first is
+   * resolved (`w62-condescend.jvm.test.ts`'s own proof) — but a STALE
+   * `theirWaitingOn` fact can still outlive the frame that clears it on
+   * THIS seat's own wire, long enough for a render to show both: the
+   * caster's own new ask drawn, the pop-out STILL naming the seat whose
+   * business that ask is now the resolution of. It is never coherent to
+   * tell the viewer to wait for the other seat while this seat has its own
+   * live decision open — whichever one the wire's timing drew first, this
+   * seat's own is never the stale one. `pregameWait` is not in this list on
+   * purpose: it is a DEGENERATE CASE of `waitingForOpponent` itself (every
+   * pregame wait implies it), not a competing decision of the viewer's own.
+   */
+  const myOwnDecisionOpen = askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || decision;
   /*
    * What the log can put a face to, and whose lines are whose. Both come off the
    * board view the viewer is already looking at — see `cardsNamedInView` for why
@@ -2112,28 +2160,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           {alert}
         </p>
       )}
-      {/*
-       * T2: a calm "waiting for the other player" — the ORDINARY mid-game
-       * case only (holding priority, mid their own ask or payment). Out of
-       * flow and pointer-transparent, same perch and treatment as the
-       * spectator banner above — the two never show together
-       * (`isWaitingForOpponent` is false for a spectator), so sharing the
-       * slot costs nothing. Not a `data-live-line`: that marker is for the
-       * five-state status line and the in-match error, and this is
-       * neither — it is gone the instant it is the viewer's own move, which
-       * a live match's one-line rule (§B.5) was never about.
-       *
-       * W1: the PREGAME case (the coin toss, either seat's opening
-       * mulligan) does NOT use this small line — `pregameWait` below draws
-       * the decision-area pop-up instead, so the two are an if/else and
-       * never both show.
-       */}
-      {waitingForOpponent && !pregameWait && (
-        <p className="live__waiting" role="status" data-testid="live-waiting">
-          <span className="live__waiting-dot" aria-hidden="true" />
-          {theirAsk === null ? `Waiting for ${theirName ?? 'the other player'}…` : waitingSentence(theirName ?? 'the other player', theirAsk)}
-        </p>
-      )}
       {match.view !== null && <Board view={match.view} interaction={interaction} boardLayout={boardLayout} />}
       {/* Out of flow, over the board's right edge: it moves no canvas box. */}
       {match.view !== null && <PhaseRail view={match.view} />}
@@ -2404,26 +2430,22 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         </div>
       )}
       {/*
-       * W1. Operator: *"i think the coinflip prompt should be shown to both
-       * players at once. and for the one who lost they get the waiting
-       * prompt. same for mulligan…"* While the OTHER seat is mid the coin
-       * toss's own Play/Draw or either seat's opening Keep/Mulligan
-       * (`isWaitingForPregameDecision`), this seat gets a pop-up in the SAME
-       * decision-area slot and the SAME `.confirm` card chrome the winner's
-       * own `ConfirmPrompt`-based pop-ups use — never the small corner
-       * line, which is for the ordinary mid-game wait only (above). No
-       * buttons: there is nothing on this seat's wire to answer with, and
-       * Forge sends it no text for this moment either (see
-       * `isWaitingForPregameDecision`'s own note), so the message stays the
-       * minimum the operator asked for — who is deciding — the exact same
-       * words the small line already used, just in the bigger card.
+       * T2 + W1 (AE3), merged into one pop-out — see `WaitingPop`'s own note.
+       * Operator, on the coin toss / mulligan case: *"i think the coinflip
+       * prompt should be shown to both players at once. and for the one who
+       * lost they get the waiting prompt. same for mulligan…"* Pregame
+       * (`pregameWait`) has no Forge text for this moment at all (see
+       * `isWaitingForPregameDecision`'s own note), so it gets the plain
+       * "Waiting for {name}…" the small line always used; the ordinary
+       * mid-game wait gets the server's own fact (`waitingSentence`'s verb
+       * table) when there is one. `!myOwnDecisionOpen`: see that flag's own
+       * note (AE9) — never drawn over this seat's OWN live decision, stale
+       * fact or not.
        */}
-      {pregameWait && (
-        <div className="live__prompt" data-testid="live-pregame-wait-host">
-          <section className="confirm" data-testid="live-pregame-wait" role="status" aria-live="polite">
-            <p className="confirm__message">Waiting for {theirName ?? 'the other player'}…</p>
-          </section>
-        </div>
+      {waitingForOpponent && !myOwnDecisionOpen && (
+        <WaitingPop
+          sentence={pregameWait || theirAsk === null ? `Waiting for ${theirName ?? 'the other player'}…` : waitingSentence(theirName ?? 'the other player', theirAsk)}
+        />
       )}
       {conceding && !spectator && !over && (
         <ConcedeAsk

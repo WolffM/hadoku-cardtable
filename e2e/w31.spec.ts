@@ -147,8 +147,7 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
     // Ledger Z2 (the operator, 2026-10-07): the bottom pick is alice's own move. Forge's instruction is on
     // screen in the decision pop-up, and nothing says she is waiting for bob.
     await expect(alice.page.getByTestId('live-decision'), 'Forge’s own instruction, in the decision pop-up').toContainText(/return \d+ card/i);
-    await expect(alice.page.getByTestId('live-waiting')).toHaveCount(0);
-    await expect(alice.page.getByTestId('live-pregame-wait-host')).toHaveCount(0);
+    await expect(alice.page.getByTestId('live-waiting-pop')).toHaveCount(0);
     // The FIRST "Return N card(s)…" sentence Forge sent for this pick, and no second
     // button (the old "Auto") beside its OK.
     const firstPickText = await alice.page.getByTestId('live-decision').textContent();

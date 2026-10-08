@@ -18,12 +18,13 @@
  * "The coinflip prompt should be shown to both players at once" is read
  * here as: the instant one seat is asked Play/Draw, the OTHER seat already
  * has a pop-up on screen, in the SAME decision-area slot and the SAME
- * `.confirm` card shape the winner's own pop-up uses (`live-pregame-wait`),
- * not the small corner line — and the same holds while either seat answers
- * its own opening mulligan. Once the game is actually under way (turn 1),
- * the ordinary small `live-waiting` line is what shows instead — this spec
- * proves both halves, in the same poll windows the pop-up and its sibling's
- * question are both open.
+ * `.confirm` card shape — and the same holds while either seat answers its
+ * own opening mulligan. Once the game is actually under way (turn 1), the
+ * same pop-up keeps showing, now carrying the server's own verb instead of
+ * the plain pregame sentence — wave 62 §D (AE3) unified the pregame pop-up
+ * and the old mid-game top line into this one component, one testid
+ * (`live-waiting-pop`): there is no longer a second, mutually-exclusive
+ * shape to tell apart, only the SENTENCE differs by when it fires.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`);
  * without one the test SKIPS and its title says why. Serves the prebuilt
@@ -55,8 +56,7 @@ test(
       await enterMatch(alice, bob, stack.origin);
 
       const playOrDraw = (f: Friend) => f.page.getByTestId('live-play-or-draw-play');
-      const pregameWait = (f: Friend) => f.page.getByTestId('live-pregame-wait');
-      const smallWait = (f: Friend) => f.page.getByTestId('live-waiting');
+      const waitingPop = (f: Friend) => f.page.getByTestId('live-waiting-pop');
 
       /* ── the coin toss: exactly one seat is asked, the other gets the pop-up, named, at once ── */
 
@@ -71,17 +71,14 @@ test(
 
       // "the coinflip prompt should be shown to both players at once" — in
       // the SAME poll window the winner's own Play/Draw question is open,
-      // the loser already has the decision-area pop-up, not the small line.
+      // the loser already has the decision-area pop-up.
       await expect(playOrDraw(winner), `${winner.name}: the Play/Draw question itself is up`).toBeVisible();
-      await expect(pregameWait(loser), `${loser.name}: the decision-area pop-up is up, same instant`).toBeVisible();
-      const loserPopupText = (await pregameWait(loser).textContent()) ?? '';
+      await expect(waitingPop(loser), `${loser.name}: the decision-area pop-up is up, same instant`).toBeVisible();
+      const loserPopupText = (await waitingPop(loser).textContent()) ?? '';
       // "for the one who lost they get the waiting prompt" — named, not a placeholder.
       expect(loserPopupText, `${loser.name}'s pop-up names ${winner.name}, not a generic placeholder`).toContain(winner.name);
-      // The small corner line is NOT also up for the loser — the pop-up replaces it pregame.
-      await expect(smallWait(loser), `${loser.name}: the small line is not also drawn pregame`).toHaveCount(0);
-      // The winner's own screen shows neither the pop-up nor the small line — it is their own move.
-      await expect(pregameWait(winner), `${winner.name}: it is their own move — no pop-up`).toHaveCount(0);
-      await expect(smallWait(winner), `${winner.name}: it is their own move — no small line either`).toHaveCount(0);
+      // The winner's own screen shows no pop-up at all — it is their own move.
+      await expect(waitingPop(winner), `${winner.name}: it is their own move — no pop-up`).toHaveCount(0);
 
       await playOrDraw(winner).click();
 
@@ -100,35 +97,34 @@ test(
       const secondToDecide = firstMulligan === winner ? loser : winner;
 
       await expect(confirmNo(firstMulligan.page), 'Mulligan is button 2, beside Keep').toBeVisible();
-      await expect(pregameWait(secondToDecide), `${secondToDecide.name}: the pop-up is up while ${firstMulligan.name} decides their own mulligan`).toBeVisible();
-      const firstPopupText = (await pregameWait(secondToDecide).textContent()) ?? '';
+      await expect(waitingPop(secondToDecide), `${secondToDecide.name}: the pop-up is up while ${firstMulligan.name} decides their own mulligan`).toBeVisible();
+      const firstPopupText = (await waitingPop(secondToDecide).textContent()) ?? '';
       expect(firstPopupText, `${secondToDecide.name}'s pop-up names ${firstMulligan.name}`).toContain(firstMulligan.name);
-      await expect(pregameWait(firstMulligan), `${firstMulligan.name}: deciding their own hand is not "waiting"`).toHaveCount(0);
-      await expect(smallWait(secondToDecide), `${secondToDecide.name}: the small line is not also drawn pregame`).toHaveCount(0);
+      await expect(waitingPop(firstMulligan), `${firstMulligan.name}: deciding their own hand is not "waiting"`).toHaveCount(0);
 
       await answerConfirm(firstMulligan.page, 'yes');
 
       // Roles flip: the other seat now answers their own opening hand, and
       // the first-to-decide seat (done, nothing left to do yet) gets the pop-up.
       await expect(confirmYes(secondToDecide.page), `${secondToDecide.name}: their own keep/mulligan question opens`).toBeVisible({ timeout: 30_000 });
-      await expect(pregameWait(secondToDecide), `${secondToDecide.name}: deciding their own hand is not "waiting"`).toHaveCount(0);
-      await expect(pregameWait(firstMulligan), `${firstMulligan.name}: now gets the pop-up for the other seat's own mulligan`).toBeVisible();
-      const secondPopupText = (await pregameWait(firstMulligan).textContent()) ?? '';
+      await expect(waitingPop(secondToDecide), `${secondToDecide.name}: deciding their own hand is not "waiting"`).toHaveCount(0);
+      await expect(waitingPop(firstMulligan), `${firstMulligan.name}: now gets the pop-up for the other seat's own mulligan`).toBeVisible();
+      const secondPopupText = (await waitingPop(firstMulligan).textContent()) ?? '';
       expect(secondPopupText, `${firstMulligan.name}'s pop-up names ${secondToDecide.name}`).toContain(secondToDecide.name);
 
       await answerConfirm(secondToDecide.page, 'yes');
 
       // Both have kept. Whoever chose Play holds priority at turn 1 — the
-      // game is properly under way now, so the OTHER seat gets the
-      // ORDINARY small line, never the pregame pop-up.
+      // game is properly under way now, so the OTHER seat still gets the
+      // same pop-up, now carrying the server's own verb-based sentence
+      // rather than the plain pregame one (AE3's whole point — one shape,
+      // both uses).
       await expect
         .poll(
-          async () => (await smallWait(alice).count()) + (await smallWait(bob).count()),
-          { timeout: 30_000, message: 'exactly one seat now has the ordinary small line, waiting on the one holding priority at turn 1' },
+          async () => (await waitingPop(alice).count()) + (await waitingPop(bob).count()),
+          { timeout: 30_000, message: 'exactly one seat now has the pop-up, waiting on the one holding priority at turn 1' },
         )
         .toBe(1);
-      await expect(pregameWait(alice), 'turn 1: no pregame pop-up for either seat').toHaveCount(0);
-      await expect(pregameWait(bob), 'turn 1: no pregame pop-up for either seat').toHaveCount(0);
     } finally {
       await stack.stop();
     }

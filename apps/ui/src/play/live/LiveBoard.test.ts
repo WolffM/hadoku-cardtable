@@ -1150,17 +1150,18 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
     // The cluster still holds five children — item 7 put `Settings` in the
     // slot item 5's deletion of `Leave` vacated — and is still a sibling of
     // the board, drawn after it: the chrome is around the canvas, not in it.
-    // `live__waiting` leads (wave 36 T2): the opponent's own `waitingOn` fact,
-    // sent above, is what makes the calm indicator draw — see
-    // `isWaitingForOpponent`'s own test.
+    // The waiting pop-out trails (wave 62 §D, AE3: moved off the top line
+    // into the decision-area `.live__prompt` slot every other pop-up uses):
+    // the opponent's own `waitingOn` fact, sent above, is what makes it draw
+    // — see `isWaitingForOpponent`'s own test.
     const live = container.querySelector('.live')!;
     expect([...live.children].map((el) => el.className)).toEqual([
-      'live__waiting',
       'board',
       'live__phases',
       'live__logbook',
       'live__log-button',
       'live__buttons',
+      'live__prompt',
     ]);
     expect(bar.querySelectorAll('button')).toHaveLength(4);
   });
@@ -3285,7 +3286,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     const { s, m, getByTestId } = await liveBoard();
     const theirName = m.view!.players.find((p) => !p.isViewer)!.name;
     await sendTheirWaitingOn(s, m, { method: 'getChoices', hostCard: 'Thirst for Knowledge' });
-    const waiting = await waitFor(() => getByTestId('live-waiting'));
+    const waiting = await waitFor(() => getByTestId('live-waiting-pop'));
     expect(waiting.textContent).toBe(`Waiting for ${theirName} to choose cards for Thirst for Knowledge…`);
     expect(isWaitingForOpponent(m)).toBe(true);
   });
@@ -3303,7 +3304,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     const { s, m, getByTestId } = await liveBoard();
     const theirName = m.view!.players.find((p) => !p.isViewer)!.name;
     await sendTheirWaitingOn(s, m, { method, hostCard });
-    const waiting = await waitFor(() => getByTestId('live-waiting'));
+    const waiting = await waitFor(() => getByTestId('live-waiting-pop'));
     expect(waiting.textContent).toBe(`Waiting for ${theirName} to ${tail}…`);
   });
 
@@ -3311,7 +3312,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     const { m, queryByTestId } = await liveBoard();
     // No `forge:seats` has landed yet: nothing to wait FOR.
     expect(isWaitingForOpponent(m)).toBe(false);
-    expect(queryByTestId('live-waiting')).toBeNull();
+    expect(queryByTestId('live-waiting-pop')).toBeNull();
   });
 
   it('is gone while a SELECTION is open for the viewer, even with the bar’s OK disabled — a reveal or a discard is their move (T12)', async () => {
@@ -3321,7 +3322,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     s.send(parseServerFrame({ kind: 'notify', method: 'setSelectables', cards: [{ kind: 'card', id: hand[0]! }], min: 1, max: 1 }));
     await waitFor(() => expect(m.selectables).not.toBeNull());
     expect(isWaitingForOpponent(m)).toBe(false);
-    expect(queryByTestId('live-waiting')).toBeNull();
+    expect(queryByTestId('live-waiting-pop')).toBeNull();
   });
 
   // Ledger Z2 (the operator, 2026-10-07): "when i mulligan once and then keep it just says 'Waiting for Bella…'
@@ -3334,8 +3335,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     s.send(parseServerFrame({ kind: 'notify', method: 'applyDelta', payload: { packet: { seq: 900, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [GAME]: { _type: WireType.Game, _id: 1, Mulligan: { t: 'bool', v: true } } }, events: [] } } }));
     await waitFor(() => expect(choosingMulligan(m)).toBe(true));
     expect(isWaitingForOpponent(m), 'the pick is this seat’s move').toBe(false);
-    expect(queryByTestId('live-waiting')).toBeNull();
-    expect(queryByTestId('live-pregame-wait-host'), 'no pregame waiting pop-up either').toBeNull();
+    expect(queryByTestId('live-waiting-pop'), 'no waiting pop-out either').toBeNull();
     const decision = getByTestId('live-decision');
     expect(decision.textContent).toContain('Return 1 card(s) to the bottom of your library');
     expect((getByTestId('live-decision-ok') as HTMLButtonElement).disabled, 'OK off until a card is set aside').toBe(true);
@@ -3405,17 +3405,17 @@ describe('T2 — a calm "waiting for the other player"', () => {
     s.send(updateButtons(true));
     await waitFor(() => expect(m.buttons?.enable1).toBe(true));
     expect(isWaitingForOpponent(m)).toBe(false);
-    expect(queryByTestId('live-waiting')).toBeNull();
+    expect(queryByTestId('live-waiting-pop')).toBeNull();
   });
 
   it('appears the instant the server reports the other seat’s own ask, and clears the instant it reports none', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
-    expect(queryByTestId('live-waiting')).toBeNull();
+    expect(queryByTestId('live-waiting-pop')).toBeNull();
     await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
-    expect(getByTestId('live-waiting')).not.toBeNull();
+    expect(getByTestId('live-waiting-pop')).not.toBeNull();
     expect(isWaitingForOpponent(m)).toBe(true);
     await sendTheirWaitingOn(s, m, null);
-    expect(queryByTestId('live-waiting')).toBeNull();
+    expect(queryByTestId('live-waiting-pop')).toBeNull();
     expect(isWaitingForOpponent(m)).toBe(false);
   });
 
@@ -3431,6 +3431,25 @@ describe('T2 — a calm "waiting for the other player"', () => {
     expect(isWaitingForOpponent(m)).toBe(true);
     await sendTheirWaitingOn(s, m, null);
     expect(isWaitingForOpponent(m)).toBe(false);
+  });
+
+  // AE9 (wave 62 §D), measured against a real Forge jar with two browsers
+  // (`e2e/w62-condescend.spec.ts`): the server sequences the two seats'
+  // decisions strictly, but a stale `waitingOn` fact can still outlive the
+  // frame that clears it long enough for a render to draw this seat's own
+  // NEW ask beside the pop-out still naming the OTHER seat — `isWaitingForOpponent`
+  // (the fact, above) stays true, but the POP-OUT must not draw over this
+  // seat's own live decision, stale fact or not.
+  it('never draws over the viewer’s OWN open ask, even with a stale theirWaitingOn fact (AE9)', async () => {
+    const { s, m, queryByTestId } = await liveBoard();
+    await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
+    await waitFor(() => expect(isWaitingForOpponent(m)).toBe(true));
+    s.send(updateButtons(true));
+    s.send(confirmAsk('c-wait'));
+    await waitFor(() => expect(currentAsk(m)).not.toBeNull());
+    expect(isWaitingForOpponent(m), 'the fact itself is unchanged — this is a render rule, not a fact change').toBe(true);
+    expect(queryByTestId('live-waiting-pop'), 'the pop-out does not draw over the viewer’s own open ask').toBeNull();
+    expect(queryByTestId('live-prompt'), 'the viewer’s own ask is what draws instead').not.toBeNull();
   });
 
   it('is gone during a mana payment — the one state neither an open ask nor bar.enable1 alone would catch', async () => {
@@ -3462,7 +3481,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     Object.assign(m, { spectator: true });
     rerender(createElement(LiveBoard, { match: m }));
     expect(isWaitingForOpponent(m)).toBe(false);
-    expect(queryByTestId('live-waiting')).toBeNull();
+    expect(queryByTestId('live-waiting-pop')).toBeNull();
   });
 
   it('never shows once the game has ended — the result screen says so instead', async () => {
@@ -3470,7 +3489,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     m.view = { ...m.view!, gameOver: true };
     rerender(createElement(LiveBoard, { match: m }));
     expect(isWaitingForOpponent(m)).toBe(false);
-    expect(queryByTestId('live-waiting')).toBeNull();
+    expect(queryByTestId('live-waiting-pop')).toBeNull();
   });
 
   it('never shows before the match has a view at all', async () => {
@@ -3483,7 +3502,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     await waitFor(() => expect(m.stats.snapshots).toBe(1));
     expect(m.view).toBeNull();
     expect(isWaitingForOpponent(m)).toBe(false);
-    expect(queryByTestId('live-waiting')).toBeNull();
+    expect(queryByTestId('live-waiting-pop')).toBeNull();
   });
 });
 
@@ -3523,7 +3542,7 @@ describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’
     'shows the decision-area pop-up, named, while turn is still 0 and it is not the viewer’s move — the same ' +
       'signal covers the coin toss and either seat’s opening mulligan, since Forge tells this client nothing else',
     async () => {
-      const { s, m, getByTestId, queryByTestId } = await liveBoard();
+      const { s, m, getByTestId } = await liveBoard();
       const theirName = m.view!.players.find((p) => !p.isViewer)!.name;
       // The server's own fact, same as T2's first case above;
       // turn 0 is the only extra fact pregame carries.
@@ -3532,21 +3551,23 @@ describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’
       s.send(setTurn(m, 0));
       await waitFor(() => expect(m.view!.turn).toBe(0));
 
-      await waitFor(() => getByTestId('live-pregame-wait-host'));
-      expect(getByTestId('live-pregame-wait').textContent).toBe(`Waiting for ${theirName}…`);
-      // The two never show together — the ordinary small line is gone.
-      expect(queryByTestId('live-waiting')).toBeNull();
+      const waiting = await waitFor(() => getByTestId('live-waiting-pop'));
+      // Pregame has no Forge text for this moment at all (see
+      // `isWaitingForPregameDecision`'s own note) — the plain sentence, not
+      // the verb table `sendTheirWaitingOn`'s fact would otherwise pick.
+      expect(waiting.textContent).toBe(`Waiting for ${theirName}…`);
       expect(isWaitingForPregameDecision(m)).toBe(true);
     },
   );
 
-  it('is the ordinary small line, not the pop-up, once turn is 1 or more — mid-game priority keeps its own shape', async () => {
-    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+  it('carries the server’s own verb-based sentence once turn is 1 or more — mid-game priority keeps its own shape, not the pregame’s plain one', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const theirName = m.view!.players.find((p) => !p.isViewer)!.name;
     // The default fixture is already turn 14 — mid-game.
     expect(m.view!.turn).toBeGreaterThan(0);
     await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
-    await waitFor(() => getByTestId('live-waiting'));
-    expect(queryByTestId('live-pregame-wait-host')).toBeNull();
+    const waiting = await waitFor(() => getByTestId('live-waiting-pop'));
+    expect(waiting.textContent).toBe(`Waiting for ${theirName} to decide…`);
     expect(isWaitingForPregameDecision(m)).toBe(false);
   });
 
@@ -3567,14 +3588,14 @@ describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’
     );
     await waitFor(() => expect(m.buttons?.enable1).toBe(true));
     expect(isWaitingForPregameDecision(m)).toBe(false);
-    expect(queryByTestId('live-pregame-wait-host')).toBeNull();
+    expect(queryByTestId('live-waiting-pop')).toBeNull();
   });
 
   it('the stack band stands aside for the pregame pop-up too, the same as any other question', async () => {
     const { s, m, getByTestId, container } = await liveBoard();
     await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
     s.send(setTurn(m, 0));
-    await waitFor(() => getByTestId('live-pregame-wait-host'));
+    await waitFor(() => getByTestId('live-waiting-pop'));
     expect(container.querySelector('[data-testid="board-mid"]')?.hasAttribute('data-question')).toBe(true);
   });
 });

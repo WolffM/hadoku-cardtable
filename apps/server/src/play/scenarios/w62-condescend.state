@@ -1,0 +1,20 @@
+# wave 62 §D, AE9 — does Forge open Condescend's two asks (bob's own
+# "pay {X} or be countered" confirm, and alice's unconditional Scry 2) AT
+# ONCE, or in sequence? Bob (`ai…` keys) casts Grizzly Bears in his own Main
+# Phase 1; alice (`human…` keys) responds with Condescend, X=1, targeting
+# it. Bob keeps one Forest spare after paying Grizzly Bears' {1}{G} (three
+# Forests total) so Forge's own "pay or decline" choice is a REAL one, not
+# skipped for lack of mana.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Condescend
+humanbattlefield=Island;Island;Island;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Grizzly Bears
+aibattlefield=Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

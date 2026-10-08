@@ -50,19 +50,19 @@ test(titled('the T2 banner names the verb and the host card — "Waiting for Ali
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w60-thirst');
 
     // Alice's own page: nothing to wait for before she acts.
-    await expect(alice.page.getByTestId('live-waiting')).toHaveCount(0);
+    await expect(alice.page.getByTestId('live-waiting-pop')).toHaveCount(0);
 
     const thirst = await handCardNamed(alice.page, 'Thirst for Knowledge');
     await castCard(alice.page, thirst);
 
-    // Bob's banner: the verb table (Settled) — `setSelectables` with min !== 1
-    // reuses `getChoices`'s own slot, "choose cards".
-    const waiting = bob.page.getByTestId('live-waiting');
+    // Bob's pop-up: the verb table (Settled) — `setSelectables` with min !== 1
+    // reuses `getChoices`'s own slot, "choose cards". One component, one
+    // testid, for both the pregame and the mid-game wait (wave 62 §D, AE3) —
+    // there is no separate pregame shape left to compete with this fact.
+    const waiting = bob.page.getByTestId('live-waiting-pop');
     await expect(waiting, `bob's own line: "${await says(bob.page)}"`).toHaveText('Waiting for Alice to choose cards for Thirst for Knowledge…', {
       timeout: 30_000,
     });
-    // No pregame pop-up competing for the same fact.
-    await expect(bob.page.getByTestId('live-pregame-wait-host')).toHaveCount(0);
 
     // Isolation (`e2e/play.spec.ts`'s own check, the shape this spec exists to
     // hold up against): the stack's own card is public, but nothing of
