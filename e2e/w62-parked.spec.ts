@@ -91,17 +91,27 @@ test(titled('a card parked on a question stands still on the opponent’s screen
     const stood = await back(bob.page).evaluate((el) => [(el as HTMLElement).style.left, (el as HTMLElement).style.top]);
     const stoodAt = await record(bob.page).then((r) => r.length);
 
-    // Her pointer crosses the table toward the pop-up in five steps, well apart (the presence throttle is 60 ms).
+    // Her pointer crosses the table — up through the opponent's half, then over to the pop-up —
+    // in steps well apart (the presence throttle is 60 ms). The path is long by construction.
     const yes = (await confirmYes(alice.page).boundingBox())!;
-    const stops = 5;
-    for (let i = 1; i <= stops; i += 1) {
-      const x = to.x + ((yes.x + yes.width / 2 - to.x) * i) / stops;
-      const y = to.y + ((yes.y - 24 - to.y) * i) / stops;
-      await alice.page.mouse.move(x, y, { steps: 4 });
+    const theirField = (await alice.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"]').boundingBox())!;
+    const path = [
+      { x: to.x + 120, y: to.y - 60 },
+      { x: theirField.x + theirField.width * 0.8, y: theirField.y + theirField.height * 0.5 },
+      { x: theirField.x + theirField.width * 0.2, y: theirField.y + theirField.height * 0.4 },
+      { x: to.x - 160, y: to.y + 40 },
+      { x: yes.x + yes.width / 2, y: yes.y - 24 },
+    ];
+    let travelled = 0;
+    let last = to;
+    for (const stop of path) {
+      await alice.page.mouse.move(stop.x, stop.y, { steps: 4 });
+      travelled += Math.hypot(stop.x - last.x, stop.y - last.y);
+      last = stop;
       await alice.page.waitForTimeout(150);
     }
-    expect(Math.abs(to.x - (yes.x + yes.width / 2)) + Math.abs(to.y - yes.y), 'the pointer travelled a real distance').toBeGreaterThan(300);
     const whileMoving = (await record(bob.page)).slice(stoodAt);
+    expect(travelled, `the pointer travelled a real distance (${Math.round(travelled)} px)`).toBeGreaterThan(400);
     const moved = whileMoving.filter((s) => s.left !== '' && (Math.abs(px(s.left) - px(stood[0]!)) > 4 || Math.abs(px(s.top) - px(stood[1]!)) > 4));
     console.log(`[w62-parked] stood at ${stood.join(',')}; while she moved bob saw: ${whileMoving.map((s) => `${s.t}ms ${s.left},${s.top}${s.waiting ? ' waiting' : ''}`).join(' → ') || 'nothing change'}`);
     expect(moved, `the back never followed her pointer — positions seen while she moved: ${JSON.stringify(moved)}`).toEqual([]);
