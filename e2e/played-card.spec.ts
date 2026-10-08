@@ -93,7 +93,15 @@ async function record(page: Page, cardId: number): Promise<void> {
       const ghost = document.querySelector(`[data-cast-ghost="${id}"]`);
       // §S: once Forge actually has the spell on the stack, `live/placed.ts` draws it — the ghost's
       // own handoff target, found by the SAME card id, through the CardTile it mounts (`w<id>`).
-      const placed = document.querySelector(`[data-placed-spell]:has([data-card-id="w${id}"])`);
+      // The WRAPPER's own existence is the continuity signal — its position
+      // is set in the same synchronous pass that creates it; `CardTile`'s own
+      // React root may commit a task later in a real browser (unlike jsdom's
+      // synchronous first-render guarantee `placed.test.ts` relies on), so
+      // requiring its `data-card-id` here as well read as a gap that never
+      // existed in the DOM. Matching by id is still exact — only one spell of
+      // this test's own card is ever on the stack at a time.
+      const placedAll = Array.from(document.querySelectorAll<HTMLElement>('[data-placed-spell][data-mine]'));
+      const placed = placedAll.find((e) => e.querySelector(`[data-card-id="w${id}"]`) !== null) ?? (placedAll.length === 1 ? placedAll[0] : null);
       const zone = el?.closest('[data-zone]') ?? null;
       const battlefield = document.querySelector('[data-zone="battlefield"][data-owner="you"]');
       frames.push({

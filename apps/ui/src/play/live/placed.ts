@@ -103,6 +103,19 @@ interface Placement {
 /** One record per spell, module-level so `gestures/install.ts` and lane W's `presence.ts` can reach it without a React tree. */
 const placements = new Map<number, Placement>();
 const moveListeners = new Set<(id: number, at: Point) => void>();
+/**
+ * Fired SYNCHRONOUSLY, inside `render()`, the instant a NEW element is
+ * created for a stack item — never on a later paint. `gestures/install.ts`'s
+ * own ghost-to-placed-card handoff (§S) is the one reader: `render()` runs
+ * from `Board`'s own `useEffect`, a DIFFERENT subscriber of the same match
+ * than `install.ts`'s, with no ordering guarantee between the two — removing
+ * the ghost on the match's own say (before this module has drawn anything)
+ * left a GAP frame; removing it on a timer guessed at how long React takes
+ * and sometimes guessed short, leaving BOTH drawn for a frame. This listener
+ * is the one point where "the replacement now exists" is a plain fact, not
+ * a guess — the ghost comes off in the SAME synchronous call, atomically.
+ */
+const drawnListeners = new Set<(id: number) => void>();
 /** `installPlaced`'s own repaint hooks — every placement change asks every live instance to redraw. */
 const repaintHooks = new Set<() => void>();
 
@@ -143,6 +156,12 @@ export function commitSpell(id: number): void {
 export function onSpellMoved(listener: (id: number, at: Point) => void): () => void {
   moveListeners.add(listener);
   return () => moveListeners.delete(listener);
+}
+
+/** Every time THIS module draws a stack item's element for the first time — see `drawnListeners`'s own note. Returns the unsubscribe. */
+export function onSpellDrawn(listener: (id: number) => void): () => void {
+  drawnListeners.add(listener);
+  return () => drawnListeners.delete(listener);
 }
 
 /** Test-only: drop every placement, so one test's ids never leak into the next. */
@@ -369,6 +388,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       d = { el, root: null, committed: !wantBack, isAbility: item.isAbility, sourceCardId: item.sourceCardId, leaving: false };
       d.root = mount(el, item, wantBack);
       drawn.set(item.id, d);
+      // Synchronous, now that the element (and, for a face, its CardTile — a
+      // fresh root's first render commits without a scheduling hop) is
+      // actually in the DOM. See `drawnListeners`'s own note.
+      for (const listener of drawnListeners) listener(item.id);
     } else if (d.committed === wantBack) {
       // `d.committed` says "showing a face" and `wantBack` says "should show a back" — equal only on
       // a flip (lane W's `commitSpell` turned it over, or — defensively — the other direction).

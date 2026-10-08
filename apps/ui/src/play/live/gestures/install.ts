@@ -203,8 +203,9 @@ import {
 import { carryCastOffStack, notePlayedTo, placementAt, previewPlayedTo } from '../../Board.tsx';
 // §S's seam: the park registers the point every stack item draws at
 // (`placeSpell`); a drag of the viewer's own placed spell moves it
-// (`moveSpell`), which is also what tells lane W to relay it.
-import { moveSpell, placeSpell } from '../placed.ts';
+// (`moveSpell`), which is also what tells lane W to relay it; `onSpellDrawn`
+// is the ghost's own handoff signal — see `syncParkedGhost`'s own note.
+import { moveSpell, onSpellDrawn, placeSpell } from '../placed.ts';
 import { spotOf } from '../presence.ts';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
@@ -272,6 +273,8 @@ interface Parked {
   readonly played: boolean;
   /** The stack has taken this card's spell back (`syncStackStandIn`). Never returns to false. */
   onStack: boolean;
+  /** §S: `live/placed.ts` has drawn the real stack item in the ghost's place — see `syncParkedGhost`'s own note. Never returns to false. */
+  ghostHandedOff: boolean;
 }
 
 /** Where Forge's state holds the card now: the viewer's hand, another zone the board draws, or nowhere it draws (mid-cast). */
@@ -672,7 +675,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // A played card is drawn by its stand-in from here on; a cast being aimed
     // is drawn by its own element for as long as the board has one.
     drawCastLift(canvas, source, point, !spell && ghost !== null ? 'carried' : 'parked');
-    parked = { source, at: point, home: state.from, ghost, leftHand: false, played: !spell, onStack: false };
+    parked = { source, at: point, home: state.from, ghost, leftHand: false, played: !spell, onStack: false, ghostHandedOff: false };
     syncParkedGhost();
     // A played card's stand-in glides from the release point into the gap the row reserved for
     // it (`notePlayedTo` above) and waits THERE — the same motion the other screen draws for its
@@ -782,13 +785,24 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * changed for the stack redesign — everything else about the ghost
    * (the pre-stack gap, the float-back, the battlefield landing) is
    * untouched, `gestures/cast.ts`'s own.
+   *
+   * The handoff itself is `onGhostHandoffDrawn` below, not this function: a
+   * stack item's `sourceCardId` is already true on `match` the INSTANT
+   * Forge's frame arrives, synchronously, from THIS subscriber's own `match`
+   * callback — before `Board`'s own `useEffect` (a different subscriber of
+   * the same match) has re-rendered and called `live/placed.ts`'s `notify`
+   * to actually draw it. Removing the ghost here, on the match's say alone,
+   * left a GAP frame with nothing drawn at all (measured:
+   * `e2e/played-card.spec.ts`'s own recording). `live/placed.ts`'s
+   * `onSpellDrawn` fires synchronously from INSIDE that draw instead, so
+   * removing the ghost there is an atomic swap — never a guess at how long
+   * React takes, which a timer tried and sometimes guessed short, drawing
+   * both at once for a frame (measured the same way).
    */
   function syncParkedGhost(): void {
-    if (parked === null || parked.ghost === null) return;
+    if (parked === null || parked.ghost === null || parked.ghostHandedOff) return;
     const { ghost } = parked;
-    // Never an ABILITY entry sharing this id — see `clickOrigin`'s own note (W17).
-    const onStack = (match.view?.stack ?? []).some((item) => !item.isAbility && item.sourceCardId === parked!.source);
-    if (onStack || (!parked.played && cardBox(canvas, parked.source) !== null)) {
+    if (!parked.played && cardBox(canvas, parked.source) !== null) {
       ghost.remove();
       return;
     }
@@ -890,6 +904,17 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // Hidden from this very frame, or the row's card and its stand-in are both drawn until the flight starts.
       arrived.setAttribute(CAST_LANDING_ATTR, '');
       const ghost = p.ghost;
+      // §S: if the stack handoff already retired this ghost (`ghostHandedOff`),
+      // it is detached right now — re-attach it, AT ITS LAST KNOWN POINT, on
+      // this same synchronous frame, so hiding the real card below never opens
+      // a gap with nothing drawn. The flight itself still waits the one frame
+      // `landCastGhost` always has (the comment above this block explains why).
+      if (!ghost.isConnected) {
+        ghost.setAttribute(CAST_LIFT_ATTR, 'parked');
+        ghost.style.left = `${p.at.x}px`;
+        ghost.style.top = `${p.at.y}px`;
+        (canvas.querySelector('.board') ?? canvas).appendChild(ghost);
+      }
       landingFrame = requestAnimationFrame(() => {
         landingFrame = 0;
         const settled = cardBox(canvas, p.source);
@@ -1352,6 +1377,21 @@ export function installGestures(options: GestureOptions): GestureHandle {
     syncParkedGhost();
     paint();
   });
+  /**
+   * The ghost's own handoff (§S) — see `syncParkedGhost`'s header for why
+   * this is a separate subscription rather than a check inside it: `id` is
+   * only ever reported once `live/placed.ts` has ALREADY drawn that item,
+   * synchronously, in the same call — so removing the ghost here can never
+   * race ahead of or behind the draw it is standing in for.
+   */
+  const unsubscribePlacedDrawn = onSpellDrawn((id) => {
+    if (parked === null || parked.ghost === null) return;
+    const item = (match.view?.stack ?? []).find((i) => i.id === id);
+    // Never an ABILITY entry sharing this id — see `clickOrigin`'s own note (W17).
+    if (item === undefined || item.isAbility || item.sourceCardId !== parked.source) return;
+    parked.ghostHandedOff = true;
+    parked.ghost.remove();
+  });
   const observer = new MutationObserver((records) => {
     if (!live) return;
     // Our own arrow and marquee live in the overlay; reacting to those would be
@@ -1379,6 +1419,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       window.removeEventListener('keydown', onKeyDown);
       observer.disconnect();
       unsubscribe();
+      unsubscribePlacedDrawn();
       const overlay = overlayOf();
       clearArrow(overlay);
       clearAutoTargetArrows(overlay);

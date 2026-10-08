@@ -18,19 +18,27 @@
   z-index: var(--z-overlay, 20);
   translate: -50% -50%;
   width: 6.5rem;
-  pointer-events: none;
+  /*
+   * Unlike an arrow or a floating number — guidance, never a claim — a
+   * placed card is a real card: item 3's own rule is that hovering it opens
+   * the one inspector exactly as hovering a board card does, for either
+   * seat's spell, draggable or not. `auto` here, not only on `[data-mine]`/
+   * `[data-selectable]`, is what that needs — measured directly: at
+   * `none`, a hover over the opponent's placed card fell through to
+   * whatever battlefield sat underneath it instead
+   * (`e2e/w33.spec.ts`/`e2e/w36.spec.ts`'s own hover cases).
+   */
+  pointer-events: auto;
   transition: opacity 250ms ease;
 }
 
 /* The viewer's own placed spell may be picked up (item 5, `gestures/install.ts`'s new drag). */
 .placed[data-mine] {
-  pointer-events: auto;
   cursor: grab;
 }
 
 /* Q18: Forge offers this spell's own card for selection while it sits on the stack — `placed.ts`'s own click handler, same outline `.stack__item[data-selectable]` used to draw. */
 .placed[data-selectable] {
-  pointer-events: auto;
   cursor: pointer;
   outline: 1px solid var(--ink);
   outline-offset: 1px;
