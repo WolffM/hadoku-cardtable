@@ -73,6 +73,7 @@ import { PLACED_EVENT, PlacedEchoSchema,
   PresenceEchoSchema,
   type PresenceEcho,
   type PresenceMessage,
+  type PresenceOver,
   type PresenceSpot,
 } from '@hadoku/shared';
 
@@ -122,6 +123,15 @@ export interface PresenceHost {
   readonly theirCards?: () => readonly number[];
   /** Whether motion is on (Fast Mode off); the handoff travels only then. */
   readonly motion?: () => boolean;
+  /**
+   * Whether THIS seat is actively aiming — a selection is open, or a stack
+   * ask is (`match.selectables !== null || stackAsk(match) !== null`, the
+   * same condition `paint()` uses for its own arrow). `from` is sent only
+   * then (AE6, AE10): a parked card with no target reports no arrow tail.
+   * Absent: treated as never aiming, the safe default (no spurious arrow)
+   * until the host wires this in.
+   */
+  readonly aiming?: () => boolean;
 }
 
 export interface PresenceHandle {
@@ -162,6 +172,61 @@ export function spotOf(canvas: HTMLElement, point: Point): PresenceSpot | null {
     break;
   }
   return { zone, x: clamp01((point.x - board.left) / board.width), y: clamp01((point.y - board.top) / board.height) };
+}
+
+/**
+ * What a client point is OVER, when that is a sharper anchor than the board
+ * fraction (AE1): a public card (`[data-board-card]` — battlefield,
+ * graveyard, exile — or `[data-placed-spell]`, the stack's own layer), or a
+ * slot of the VIEWER's OWN hand (never a card id there — the receiver draws
+ * that hand as backs, so only the slot's INDEX may cross). Hovering the
+ * OTHER seat's hand (already drawn as backs, nothing to anchor to) or
+ * nothing at all answers `null`, and the caller falls back to the board
+ * fraction exactly as before. Exported for the tests, which prove it against
+ * real rectangles the way `spotOf` does.
+ */
+export function overOf(canvas: HTMLElement, point: Point): PresenceOver | null {
+  // jsdom (every test not stubbing this itself) has no `elementFromPoint` at all — the same
+  // guard `hint`'s own caller would need, if it had one; this one does not, so it is here.
+  if (typeof document.elementFromPoint !== 'function') return null;
+  const el = document.elementFromPoint(point.x, point.y);
+  if (el === null) return null;
+  const ownHandLi = el.closest<HTMLElement>('[data-zone="hand"][data-owner="you"] li');
+  if (ownHandLi !== null) {
+    const hand = ownHandLi.closest<HTMLElement>('[data-zone="hand"]');
+    const siblings = hand === null ? [] : [...hand.querySelectorAll<HTMLElement>('li')];
+    const idx = siblings.indexOf(ownHandLi);
+    const r = ownHandLi.getBoundingClientRect();
+    if (idx < 0 || r.width === 0 || r.height === 0) return null;
+    return { hand: idx, x: clamp01((point.x - r.left) / r.width), y: clamp01((point.y - r.top) / r.height) };
+  }
+  const card = el.closest<HTMLElement>('[data-board-card], [data-placed-spell]');
+  // Never a card id out of the viewer's own hand — the branch above already answered that case;
+  // anything else under the hand's section (there is none today) stays unanchored, not leaked.
+  if (card === null || card.closest('[data-zone="hand"][data-owner="you"]') !== null) return null;
+  const id = card.getAttribute('data-board-card') ?? card.getAttribute('data-placed-spell');
+  const r = card.getBoundingClientRect();
+  if (id === null || r.width === 0 || r.height === 0) return null;
+  return { card: id, x: clamp01((point.x - r.left) / r.width), y: clamp01((point.y - r.top) / r.height) };
+}
+
+/**
+ * The spot `over` names, resolved on THIS board: a public card by the SAME
+ * id it carries on either screen, or the i-th back of the sender's hand AS
+ * DRAWN HERE (`[data-zone="hand"][data-owner="them"]` — the sender is this
+ * board's "them"). Null when the element is not drawn here (yet), so the
+ * caller falls back to the board-fraction placement.
+ */
+function placeOver(canvas: HTMLElement, over: PresenceOver): Point | null {
+  if (over === null) return null;
+  const el =
+    'card' in over
+      ? (canvas.querySelector<HTMLElement>(`[data-board-card="${over.card}"]`) ?? canvas.querySelector<HTMLElement>(`[data-placed-spell="${over.card}"]`))
+      : (canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]')?.querySelectorAll<HTMLElement>('li')[over.hand] ?? null);
+  if (el === null || el === undefined) return null;
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return null;
+  return { x: r.left + over.x * r.width, y: r.top + over.y * r.height };
 }
 
 /**
@@ -215,9 +280,13 @@ function arrangingOf(canvas: HTMLElement): { card: number; at: Point } | null {
   return g.width > 0 ? { card: id, at: { x: g.left + g.width / 2, y: g.top + g.height / 2 } } : null;
 }
 
-function handsOf(canvas: HTMLElement): { held: boolean; from: Point | null } {
+function handsOf(canvas: HTMLElement, aiming: boolean): { held: boolean; from: Point | null } {
   const lift = canvas.querySelector<HTMLElement>('[data-cast-lift]');
   const held = lift !== null && lift.getAttribute('data-cast-lift') !== 'returning';
+  // `from` (the arrow's tail) is reported only while THIS seat is actually aiming (AE6, AE10:
+  // the operator saw an arrow — and once, briefly, while picking Condescend's X — on a card with
+  // no target at all). A parked card with nothing to aim at reports no tail, held or not.
+  if (!aiming) return { held, from: null };
   // A parked card (waiting on an X question, a target, Forge) has stopped: its centre is `from`,
   // whether or not an arrow is being aimed from it yet — the other screen's back stops there too
   // (the operator, 2026-10-08: "the phantom card should stop moving as soon as it does on both screens").
@@ -265,7 +334,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   function send(pointer: Point | null): void {
     if (!live || host.seat === null) return;
     const spot = pointer === null ? null : spotOf(canvas, pointer);
-    const hands = handsOf(canvas);
+    const over = pointer === null ? null : overOf(canvas, pointer);
+    const hands = handsOf(canvas, host.aiming?.() ?? false);
     const from = hands.from === null ? null : spotOf(canvas, hands.from);
     const lifted = arrangingOf(canvas);
     const arranging = lifted === null ? null : { card: lifted.card, at: spotOf(canvas, lifted.at) };
@@ -273,6 +343,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       matchId: host.matchId,
       type: 'presence',
       pointer: spot,
+      over,
       held: hands.held,
       from,
       handRows: handRowsOf(canvas),
@@ -302,12 +373,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       sendTimer = null;
     }
     const spot = lastPointer === null ? null : spotOf(canvas, lastPointer);
-    const hands = handsOf(canvas);
+    const over = lastPointer === null ? null : overOf(canvas, lastPointer);
+    const hands = handsOf(canvas, host.aiming?.() ?? false);
     const handFrom = hands.from === null ? null : spotOf(canvas, hands.from);
     const message: PresenceMessage = {
       matchId: host.matchId,
       type: 'presence',
       pointer: spot,
+      over,
       held: hands.held,
       from: handFrom,
       handRows: handRowsOf(canvas),
@@ -348,6 +421,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   function sendRelease(point: Point): void {
     if (!live || host.seat === null) return;
     const spot = spotOf(canvas, point);
+    const over = overOf(canvas, point);
     if (sendTimer !== null) {
       clearTimeout(sendTimer);
       sendTimer = null;
@@ -356,6 +430,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       matchId: host.matchId,
       type: 'presence',
       pointer: spot,
+      over,
       held: false,
       from: spot,
       handRows: handRowsOf(canvas),
@@ -369,6 +444,23 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     host.transport.emit(PRESENCE_EVENT, message);
   }
 
+  /**
+   * The release point `sendRelease` carries, AE6's fix: the lifted card's OWN
+   * box centre right now, not the raw pointerup coordinates — a frame can go
+   * by with no intervening `pointermove` before the up event, which left the
+   * card's last-drawn spot and the wire's release spot a few pixels apart
+   * (the operator, 2026-10-08: "a bit of desync between where the phantom
+   * card was and where the cursor actually released the card"). Falls back
+   * to the raw point when nothing is lifted (a release this module did not
+   * cause) or has no box yet (a test fixture with no stubbed rect).
+   */
+  function liftedCentre(fallback: Point): Point {
+    const lift = canvas.querySelector<HTMLElement>('[data-cast-lift]');
+    if (lift === null) return fallback;
+    const r = lift.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : fallback;
+  }
+
   function onPointerMove(event: PointerEvent): void {
     sendSoon({ x: event.clientX, y: event.clientY });
   }
@@ -378,7 +470,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   function onPointerRelease(event: PointerEvent): void {
     // Read before the gesture layer's own `pointerup`/`pointercancel` handler runs: this
     // listener is on `canvas`, which the event bubbles through before reaching `window`.
-    if (handsOf(canvas).held) sendRelease({ x: event.clientX, y: event.clientY });
+    if (handsOf(canvas, host.aiming?.() ?? false).held) sendRelease(liftedCentre({ x: event.clientX, y: event.clientY }));
   }
   function onVisibility(): void {
     if (document.visibilityState === 'hidden') sendSoon(null);
@@ -540,7 +632,11 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const box = root.getBoundingClientRect();
     drawArranging(root, box, echo.arranging);
     glideHandMove(root, box, echo.handMove);
-    const at = echo.pointer === null ? null : placeSpot(canvas, echo.pointer);
+    // AE1: card-anchored when `over` resolves to something drawn here (the SAME card, on either
+    // screen, or the i-th back of their hand) — the board-fraction mapping of `pointer` drifts off
+    // a card the moment the two screens size a row differently. Falls back to the board fraction
+    // when `over` is null, or names an element this board has not drawn (yet).
+    const at = echo.pointer === null ? null : placeOver(canvas, echo.over) ?? placeSpot(canvas, echo.pointer);
     if (at === null) {
       takeDown();
       return;

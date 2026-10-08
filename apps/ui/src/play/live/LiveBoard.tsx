@@ -262,6 +262,7 @@ import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPla
 import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
+import { stackAsk } from './gestures/stack.ts';
 import { installPresence } from './presence.ts';
 import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
@@ -1973,6 +1974,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         transport: match.transport,
         opponentName: () => match.view?.players.find((p) => !p.isViewer)?.name ?? null,
         theirPlayerId: () => match.view?.players.find((p) => !p.isViewer)?.id ?? null,
+        // AE10: `from` (the arrow's tail) is sent only while this seat is actually aiming — the
+        // same condition `paint()` (`gestures/install.ts`) already uses for its own arrow.
+        aiming: () => match.selectables !== null || stackAsk(match) !== null,
         watch: (onChange) => subscribe(match, onChange),
         theirCards: () => {
           const view = match.view;

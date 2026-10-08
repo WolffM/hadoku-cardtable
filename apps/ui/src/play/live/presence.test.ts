@@ -35,7 +35,7 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
 });
 vi.mock('./placed.ts', () => placedMod);
 
-import { forgetPendingPlaced, HAND_MOVE_MS, installPresence, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost } from './presence.ts';
+import { forgetPendingPlaced, HAND_MOVE_MS, installPresence, overOf, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost } from './presence.ts';
 
 type Box = { left: number; top: number; width: number; height: number };
 const rect = (b: Box): DOMRect =>
@@ -111,11 +111,21 @@ function fakeTransport() {
   };
 }
 
+/**
+ * `aiming` defaults to `true` here (never in production, where the host must
+ * wire its own reader — see `presence.ts`'s own doc comment): every existing
+ * fixture in this file that lifts a card or aims an arrow is exactly the
+ * "actively aiming" case item 3 means, and defaulting it on lets those keep
+ * testing `from` without each threading the flag through by hand. The one
+ * test for item 3 itself (AE6, AE10 — a parked card reports no `from` when
+ * NOT aiming) overrides it explicitly.
+ */
 const host = (t: ReturnType<typeof fakeTransport>, seat: number | null = 0): PresenceHost => ({
   matchId: 'm-1',
   seat,
   transport: t.transport,
   opponentName: () => 'Bella',
+  aiming: () => true,
 });
 
 afterEach(() => {
@@ -167,6 +177,36 @@ describe('the mirror', () => {
   });
 });
 
+describe('overOf (AE1)', () => {
+  it('over a public card: the id and the pointer’s fractions of THAT card’s own box, never the board’s', () => {
+    const { canvas, theirCard } = board();
+    document.elementFromPoint = (x, y) => (x >= 120 && x <= 180 && y >= 200 && y <= 284 ? theirCard.firstElementChild : null);
+    // theirCard's box is (120,200)-(180,284); (138,242) is 0.3 across, 0.5 down it.
+    expect(overOf(canvas, { x: 138, y: 242 })).toEqual({ card: '7', x: 0.3, y: 0.5 });
+    // Off every card: null, the caller falls back to the board fraction.
+    document.elementFromPoint = () => null;
+    expect(overOf(canvas, { x: 500, y: 500 })).toBeNull();
+  });
+
+  it('over the viewer’s OWN hand: the slot INDEX, never the card’s id — a card never leaves that hand', () => {
+    const { canvas } = board();
+    ownHand(canvas, 3, 1);
+    const second = canvas.querySelectorAll('[data-zone="hand"][data-owner="you"] li')[1]!;
+    document.elementFromPoint = (x, y) => (x >= 160 && x <= 216 && y >= 650 && y <= 734 ? second : null);
+    // second's box is (160,650)-(216,734) per `ownHand`; (188,692) is centre.
+    const over = overOf(canvas, { x: 188, y: 692 });
+    expect(over).toEqual({ hand: 1, x: 0.5, y: 0.5 });
+    expect(JSON.stringify(over), 'no card id, this is the viewer’s own hidden information too once it crosses the wire').not.toMatch(/card/);
+  });
+
+  it('over the OTHER seat’s hand (already backs, nothing to anchor to): null, not a guess', () => {
+    const { canvas } = board();
+    const [back] = theirHandBacks(canvas, 1);
+    document.elementFromPoint = () => back!;
+    expect(overOf(canvas, { x: 130, y: 62 })).toBeNull();
+  });
+});
+
 describe('sending', () => {
   it('a pointer move sends the spot, throttled; leaving sends null; a held card and the arrow’s tail travel with it, never a card id', () => {
     vi.useFakeTimers();
@@ -179,7 +219,7 @@ describe('sending', () => {
     expect(t.sent, 'two moves inside one window: one message, the latest').toHaveLength(1);
     expect(t.sent[0]).toEqual({
       event: PRESENCE_EVENT,
-      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1, arranging: null, placing: null, handMove: null },
+      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, over: null, held: false, from: null, handRows: 1, arranging: null, placing: null, handMove: null },
     });
 
     // The gesture layer lifts a card and aims an arrow from it: read off its own marks.
@@ -206,6 +246,31 @@ describe('sending', () => {
     handle.dispose();
   });
 
+  /**
+   * AE6, AE10: the operator saw an arrow draw on the other screen for a
+   * parked card with no target at all, and again while picking Condescend's
+   * X (a selection, not an arrow-worthy aim). `from` must be null whenever
+   * THIS seat is not actually aiming, held or not — this is item 3's own
+   * mutation point (6b): keeping `from` for a parked card with no selection
+   * open is exactly the bug.
+   */
+  it('a parked card reports no `from` unless this seat is actually aiming', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: { ...host(t), aiming: () => false } });
+    const lifted = document.createElement('li');
+    lifted.setAttribute('data-cast-lift', 'parked');
+    lifted.getBoundingClientRect = () => rect({ left: 270, top: 370, width: 60, height: 84 });
+    canvas.querySelector('.board')!.append(lifted);
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, clientY: 500, bubbles: true }));
+    vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    const payload = t.sent[0]!.payload as { held: boolean; from: unknown };
+    expect(payload.held, 'still reported as held — only the arrow tail is gated').toBe(true);
+    expect(payload.from, 'not aiming: no tail to send').toBeNull();
+    handle.dispose();
+  });
+
   it('letting go of a held card sends at once, outside the throttle: held false, the release spot as `from`, the back gone on the other screen', () => {
     vi.useFakeTimers();
     const { canvas } = board();
@@ -228,6 +293,7 @@ describe('sending', () => {
         matchId: 'm-1',
         type: 'presence',
         pointer: { zone: 'battlefield', x: 0.3, y: 0.625 },
+        over: null,
         held: false,
         from: { zone: 'battlefield', x: 0.3, y: 0.625 },
         handRows: 1,
@@ -242,6 +308,26 @@ describe('sending', () => {
     canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 310, clientY: 500, bubbles: true }));
     expect(t.sent, 'nothing was held: no extra message').toHaveLength(2);
 
+    handle.dispose();
+  });
+
+  it('the release reads the lifted card’s OWN box centre, not the raw pointerup coordinates (AE6)', () => {
+    // No `pointermove` fires between the card's last drawn spot and the up event — exactly the
+    // gap the operator saw as "a bit of desync between where the phantom card was and where the
+    // cursor actually released the card." The lifted element's own rect is what `drawCastLift`
+    // last positioned it at; the up event's own (different) coordinates must lose.
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const lifted = document.createElement('li');
+    lifted.setAttribute('data-cast-lift', 'parked');
+    lifted.getBoundingClientRect = () => rect({ left: 270, top: 370, width: 60, height: 84 }); // centre (300, 412)
+    canvas.querySelector('.board')!.append(lifted);
+    canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 320, clientY: 440, bubbles: true }));
+    expect(t.sent).toHaveLength(1);
+    const payload = t.sent[0]!.payload as { pointer: { x: number; y: number } };
+    // (300,412) on a 1000x800 board is x=0.3, y=0.515 — the card's centre, not the event's (320,440).
+    expect(payload.pointer).toEqual({ zone: 'battlefield', x: 0.3, y: 0.515 });
     handle.dispose();
   });
 
@@ -335,6 +421,82 @@ describe('sending', () => {
     handle.dispose();
     queueHandMove(0, 1);
     expect(t.sent).toHaveLength(0);
+  });
+});
+
+describe('receiving: card- and hand-anchored `over` (AE1)', () => {
+  it('`over.card` lands the cursor INSIDE that card’s own box on THIS board, whatever shape this board is — not the sender’s board fraction', () => {
+    // A receiver board where the card sits somewhere a board-fraction mapping of the sender's
+    // pointer would NOT land — the exact drift AE1 is about once the two screens size a row
+    // differently. `over` sidesteps the board fraction entirely: it is resolved on this card's
+    // own box, so it is correct regardless of what the sender's board looked like.
+    const { canvas, theirCard } = board({ '[data-board-card="7"]': { left: 600, top: 40, width: 120, height: 168 } });
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    t.receive({
+      matchId: 'm-1',
+      type: 'presence',
+      seat: 1,
+      pointer: { zone: 'battlefield', x: 0.01, y: 0.01 }, // a board fraction that would land nowhere near the card
+      over: { card: '7', x: 0.3, y: 0.6 },
+      held: false,
+      from: null,
+      handRows: 1,
+      arranging: null,
+    });
+    const cursor = canvas.querySelector<HTMLElement>('.presence')!;
+    // theirCard's box is (600,40)-(720,208); 0.3 across, 0.6 down it is (636, 140.8).
+    expect(cursor.style.left).toBe('636px');
+    expect(cursor.style.top).toBe('140.8px');
+    expect(theirCard.hasAttribute('data-presence-hint'), 'still hinted, at the resolved spot').toBe(false); // elementFromPoint stubbed null above
+    handle.dispose();
+  });
+
+  it('`over.hand` lands the cursor on the i-th back of the sender’s hand, as drawn HERE', () => {
+    const { canvas } = board();
+    const backs = theirHandBacks(canvas, 4);
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    t.receive({
+      matchId: 'm-1',
+      type: 'presence',
+      seat: 1,
+      pointer: { zone: 'hand', x: 0.5, y: 0.5 },
+      over: { hand: 2, x: 0.5, y: 0.5 },
+      held: false,
+      from: null,
+      handRows: 1,
+      arranging: null,
+    });
+    const cursor = canvas.querySelector<HTMLElement>('.presence')!;
+    const box = backs[2]!.getBoundingClientRect();
+    expect(cursor.style.left).toBe(`${box.left + box.width / 2}px`);
+    expect(cursor.style.top).toBe(`${box.top + box.height / 2}px`);
+    handle.dispose();
+  });
+
+  it('an `over` naming an element this board has not drawn falls back to the board fraction', () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    t.receive({
+      matchId: 'm-1',
+      type: 'presence',
+      seat: 1,
+      pointer: { zone: null, x: 0.9, y: 0.1 },
+      over: { card: '999', x: 0.5, y: 0.5 },
+      held: false,
+      from: null,
+      handRows: 1,
+      arranging: null,
+    });
+    const cursor = canvas.querySelector<HTMLElement>('.presence')!;
+    expect(cursor.style.left).toBe('900px');
+    expect(cursor.style.top).toBe(`${(1 - 0.1) * 800}px`);
+    handle.dispose();
   });
 });
 

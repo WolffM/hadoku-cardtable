@@ -91,7 +91,93 @@ test(titled('bob sees alice’s pointer, a card back while she holds a card, her
     /* ── her pointer leaves the board: the cursor is taken down ── */
     await alice.page.mouse.move(2, 2);
     await expect(cursor(bob.page), 'her cursor goes when she leaves the board').toHaveCount(0, { timeout: 10_000 });
-    void arrow;
+  } finally {
+    await stack.stop();
+  }
+});
+
+/**
+ * AE1, the operator: *"the cards themselves don't actually get smaller in
+ * size until the screen is much, much smaller. it's important that the
+ * cursor is correctly showing what card is being hovered even if the screen
+ * size is vastly different."* Two very differently shaped screens — the
+ * exact case a board-fraction mapping drifts on at a row seam — prove the
+ * card-anchored fix instead: her cursor must land INSIDE the exact card she
+ * is hovering on bob's board, not merely somewhere near it.
+ */
+test(titled('AE1: her cursor lands on the exact card she hovers, even when the two screens are very differently shaped'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'land-into-middle');
+    await alice.page.setViewportSize({ width: 800, height: 900 });
+    await bob.page.setViewportSize({ width: 1600, height: 600 });
+    await expect.poll(() => fieldOrder(alice.page, 'you'), { timeout: 20_000, message: 'alice has her two starting lands' }).toHaveLength(2);
+    const [, second] = await fieldOrder(alice.page, 'you');
+
+    const landBox = (await alice.page.locator(`.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id="${second}"]`).boundingBox())!;
+    await alice.page.mouse.move(landBox.x + landBox.width * 0.3, landBox.y + landBox.height * 0.6, { steps: 6 });
+    await expect(cursor(bob.page), 'bob sees her cursor').toHaveCount(1, { timeout: 10_000 });
+    const landOnBob = (await bob.page.locator(`.seat:not([data-viewer]) [data-zone="battlefield"] li.board-card[data-card-id="${second}"]`).boundingBox())!;
+    await expect
+      .poll(
+        async () => {
+          const c = await cursor(bob.page).boundingBox();
+          if (c === null) return null;
+          const cx = c.x + c.width / 2;
+          const cy = c.y + c.height / 2;
+          console.log(`[presence over] cursor=(${cx},${cy}) land box on bob=(${landOnBob.x},${landOnBob.y},${landOnBob.width},${landOnBob.height})`);
+          return cx >= landOnBob.x && cx <= landOnBob.x + landOnBob.width && cy >= landOnBob.y && cy <= landOnBob.y + landOnBob.height;
+        },
+        { timeout: 5_000, message: 'her cursor lands INSIDE the land’s own box on bob’s board, at any aspect ratio' },
+      )
+      .toBe(true);
+  } finally {
+    await stack.stop();
+  }
+});
+
+/**
+ * AE6, AE10, the operator: *"I even saw a targeter arrow briefly? thats very
+ * weird. this card has no targeter."* and *"the targeter arrow should only
+ * be drawn if i'm actually selecting a target."* The MutationObserver is
+ * installed BEFORE the release, so a frame-wide flash cannot be missed by a
+ * poll that only starts afterward.
+ */
+test(titled('AE6/AE10: no arrow is ever drawn on the other screen while a no-target card is cast'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
+    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Memnite' }).not.toEqual([]);
+    const memnite = (await offered(alice.page))[0]!;
+    const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
+
+    await bob.page.evaluate(() => {
+      const w = window as unknown as { __sawArrow: () => boolean };
+      let saw = false;
+      w.__sawArrow = () => saw;
+      new MutationObserver(() => {
+        if (document.querySelector('[data-board-overlay] .presence__arrow') !== null) saw = true;
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+
+    const cardBox = (await alice.page.locator(`[data-board-card="${memnite}"]`).boundingBox())!;
+    await alice.page.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + cardBox.height / 2);
+    await alice.page.mouse.down();
+    await expect(alice.page.locator(`[data-board-card="${memnite}"]`), 'the press lifted it').toHaveAttribute('data-cast-lift', 'lifted');
+    await alice.page.mouse.move(herField.x + herField.width * 0.5, herField.y + herField.height * 0.5, { steps: 10 });
+    await alice.page.mouse.up();
+    await expect.poll(() => fieldOrder(alice.page, 'you'), { timeout: 10_000, message: 'Memnite landed — no target was ever asked' }).toContain(memnite);
+
+    const sawArrow = await bob.page.evaluate(() => (window as unknown as { __sawArrow: () => boolean }).__sawArrow());
+    console.log(`[presence over] bob ever saw an arrow while Memnite (no target) was cast: ${sawArrow}`);
+    expect(sawArrow, 'no arrow at any point between release and the frame — Memnite has no target to aim at').toBe(false);
   } finally {
     await stack.stop();
   }
@@ -190,9 +276,22 @@ test(titled('a cast spell is a back at the release point on bob’s screen, then
 
     // She parks it over her own battlefield — released outside the hand, a targeted spell is sent
     // to Forge right there (no target chosen yet), and a real targeting ask opens.
+    //
+    // Done by hand rather than `dragHandCard` (AE6): the ghost's own box — the SAME element,
+    // `drawCastLift`'s CSS centres it on wherever it was last positioned — has to be read right
+    // before `mouse.up()`, which no further pointer move follows; `dragHandCard` releases with no
+    // hook in between.
     const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
     const releaseAt = { x: herField.x + herField.width * 0.5, y: herField.y + herField.height * 0.5 };
-    expect(await dragHandCard(alice.page, bolt, releaseAt), 'the press lifted it').toBe(true);
+    const boltBox = (await alice.page.locator(`[data-board-card="${bolt}"]`).boundingBox())!;
+    await alice.page.mouse.move(boltBox.x + boltBox.width / 2, boltBox.y + boltBox.height / 2);
+    await alice.page.mouse.down();
+    await expect(alice.page.locator(`[data-board-card="${bolt}"]`), 'the press lifted it').toHaveAttribute('data-cast-lift', 'lifted');
+    await alice.page.mouse.move(releaseAt.x, releaseAt.y, { steps: 8 });
+    const ghostBeforeRelease = (await alice.page.locator(`[data-board-card="${bolt}"]`).boundingBox())!;
+    const ghostCentre = { x: ghostBeforeRelease.x + ghostBeforeRelease.width / 2, y: ghostBeforeRelease.y + ghostBeforeRelease.height / 2 };
+    console.log(`[presence over] bolt release: pointer=(${releaseAt.x},${releaseAt.y}) ghostCentre=(${ghostCentre.x},${ghostCentre.y}) dx=${ghostCentre.x - releaseAt.x} dy=${ghostCentre.y - releaseAt.y}`);
+    await alice.page.mouse.up();
     await expect.poll(() => says(alice.page), { timeout: 10_000, message: 'the bolt reached Forge: it opened a targeting ask' }).toMatch(/Lightning Bolt.*target/is);
 
     // Bob's screen: a back waits at her release point, inside HER side of HIS board. Its own CSS
@@ -204,9 +303,29 @@ test(titled('a cast spell is a back at the release point on bob’s screen, then
     const backBox = (await settled(waitingBack))!;
     expect(backBox.x + backBox.width / 2, 'inside her side of his board').toBeGreaterThanOrEqual(theirFieldOnBob.x);
     expect(backBox.x + backBox.width / 2).toBeLessThanOrEqual(theirFieldOnBob.x + theirFieldOnBob.width);
+    // AE6: his back centres on where her GHOST was at release — not merely somewhere on her side
+    // of the board. The two screens are different sizes (1280x800 / 1600x1000), so the ghost's
+    // centre is converted to a board FRACTION on her board, mirrored top-to-bottom the same way
+    // the wire itself does (`placeSpot`'s own rule), then compared to bob's board in HIS pixels.
+    const aliceBoard = (await alice.page.locator('[data-board-overlay]').boundingBox())!;
+    const bobBoard = (await bob.page.locator('[data-board-overlay]').boundingBox())!;
+    const ghostFraction = { x: (ghostCentre.x - aliceBoard.x) / aliceBoard.width, y: (ghostCentre.y - aliceBoard.y) / aliceBoard.height };
+    const expectedOnBob = { x: bobBoard.x + ghostFraction.x * bobBoard.width, y: bobBoard.y + (1 - ghostFraction.y) * bobBoard.height };
+    const backCentre = { x: backBox.x + backBox.width / 2, y: backBox.y + backBox.height / 2 };
+    console.log(`[presence over] bob's back centre=(${backCentre.x},${backCentre.y}) vs alice's ghost centre mapped to bob's board=(${expectedOnBob.x},${expectedOnBob.y})`);
+    expect(Math.abs(backCentre.x - expectedOnBob.x), 'his back’s x centres on her ghost’s, not merely somewhere on her side').toBeLessThan(4);
+    expect(Math.abs(backCentre.y - expectedOnBob.y), 'his back’s y centres on her ghost’s').toBeLessThan(4);
+
+    // AE10: now that she IS actually aiming (the targeting ask is open, `match.selectables`
+    // non-null), moving toward a legal target must draw the arrow on bob's screen — the
+    // legitimate case the `aiming` gate must not also suppress, proven beside the no-target case
+    // above (AE6/AE10) which proves the gate DOES suppress the illegitimate one.
+    const bobFace = alice.page.locator('[data-player-face]:not([data-viewer])');
+    const bobFaceBox = (await bobFace.boundingBox())!;
+    await alice.page.mouse.move(bobFaceBox.x + bobFaceBox.width / 2, bobFaceBox.y + bobFaceBox.height / 2, { steps: 6 });
+    await expect(arrow(bob.page), 'bob sees her arrow while she is actually aiming at his face').toHaveCount(1, { timeout: 10_000 });
 
     // She targets bob's own face and pays the Mountain's mana — the cast completes.
-    const bobFace = alice.page.locator('[data-player-face]:not([data-viewer])');
     await bobFace.click();
     await expect
       .poll(

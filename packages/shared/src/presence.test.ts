@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { PresenceEchoSchema, PresenceSchema, PresenceSpotSchema } from './presence.ts';
+import { PresenceEchoSchema, PresenceOverSchema, PresenceSchema, PresenceSpotSchema } from './presence.ts';
 
 const spot = (zone: 'hand' | 'battlefield' | 'stack' | null = null) => ({ zone, x: 0.4, y: 0.6 });
 
@@ -34,8 +34,35 @@ describe('PresenceSpotSchema', () => {
   });
 });
 
+describe('PresenceOverSchema', () => {
+  it('accepts a card id or a hand slot index, each with its own-box fractions', () => {
+    expect(PresenceOverSchema.safeParse({ card: '42', x: 0.3, y: 0.6 }).success).toBe(true);
+    expect(PresenceOverSchema.safeParse({ hand: 2, x: 0.3, y: 0.6 }).success).toBe(true);
+    expect(PresenceOverSchema.safeParse(null).success).toBe(true);
+  });
+
+  it('rejects an empty card id, a negative hand index, a fraction outside [0, 1], and a shape carrying both', () => {
+    expect(PresenceOverSchema.safeParse({ card: '', x: 0.3, y: 0.6 }).success).toBe(false);
+    expect(PresenceOverSchema.safeParse({ hand: -1, x: 0.3, y: 0.6 }).success).toBe(false);
+    expect(PresenceOverSchema.safeParse({ card: '42', x: 1.1, y: 0.6 }).success).toBe(false);
+    expect(PresenceOverSchema.safeParse({ card: '42', hand: 2, x: 0.3, y: 0.6 }).success).toBe(false);
+  });
+});
+
 describe('PresenceSchema', () => {
-  const base = { matchId: 'm-1', type: 'presence' as const, pointer: spot('hand'), held: false, from: null, handRows: 1 as const };
+  const base = { matchId: 'm-1', type: 'presence' as const, pointer: spot('hand'), over: null, held: false, from: null, handRows: 1 as const };
+
+  it('a pre-deploy sender (no `over` at all) still parses, defaulted to null', () => {
+    const { over: _omit, ...oldShape } = base;
+    const parsed = PresenceSchema.safeParse(oldShape);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.over).toBeNull();
+  });
+
+  it('a card-anchored or hand-anchored `over` rides beside `pointer`', () => {
+    expect(PresenceSchema.safeParse({ ...base, over: { card: '42', x: 0.3, y: 0.6 } }).success).toBe(true);
+    expect(PresenceSchema.safeParse({ ...base, over: { hand: 2, x: 0.3, y: 0.6 } }).success).toBe(true);
+  });
 
   it('accepts a message with handRows 1 or 2', () => {
     expect(PresenceSchema.safeParse(base).success).toBe(true);

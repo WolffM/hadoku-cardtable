@@ -19,17 +19,19 @@
  * shown to the opponent until it is actually on the stack") cannot be broken
  * by this channel, by construction: there is nothing in it to leak.
  *
- * ## Positions are BOARD-relative, with the zone as a hint only
+ * ## Positions are CARD-anchored when the pointer is over a public card,
+ * board-relative otherwise
  *
  * Each seat draws itself at the bottom and the other seat at the top, so a
- * screen position means different things on the two boards — but a `Spot`
- * is a fraction of the WHOLE board, never of the zone under it: scaling by a
- * zone's own box drifts at every board/board and board/hand seam the moment
- * the two screens size that zone differently, because the scale factor jumps
- * where one zone's box ends and the next (or the gap between them) begins.
- * `zone` still rides along, naming whichever zone the point fell in (or
- * `null`, between zones), for a receiver that wants to know without
- * re-deriving it — nothing here uses it to place the point.
+ * screen position means different things on the two boards — but the
+ * pointer's `Spot` is a fraction of the WHOLE board, never of the zone under
+ * it: scaling by a zone's own box drifts at every board/board and
+ * board/hand seam the moment the two screens size that zone differently,
+ * because the scale factor jumps where one zone's box ends and the next (or
+ * the gap between them) begins. `zone` still rides along, naming whichever
+ * zone the point fell in (or `null`, between zones), for a receiver that
+ * wants to know without re-deriving it — nothing here uses it to place the
+ * point.
  *
  * The receiver mirrors the WHOLE board top-to-bottom (the sender's own side,
  * at their board's bottom, is the receiver's opponent, drawn at the
@@ -39,6 +41,27 @@
  * `x`/`y` are fractions in [0, 1], not pixels: a pixel of one screen is
  * meaningless on another, and a bounded number is also what makes the schema
  * strict without caring about viewport sizes.
+ *
+ * **`over` is the exception, and the fix for AE1** (2026-10-08, the operator:
+ * *"the cards themselves don't actually get smaller in size until the screen
+ * is much, much smaller. it's important that the cursor is correctly showing
+ * what card is being hovered even if the screen size is vastly different."*).
+ * A board-fraction pointer drifts off a card the instant the two screens size
+ * a card's row differently — which they always do once the aspect ratios
+ * differ enough. So when the pointer sits over a PUBLIC card (battlefield,
+ * stack, graveyard, exile — any card either seat may see by its own id) or,
+ * for the sender's own hand (which the receiver draws as backs, never by
+ * id), a slot of it, `over` names that element — a card by its id, a hand
+ * slot by its INDEX — and the pointer's fractions WITHIN that element's own
+ * box, never the whole board's. The receiver resolves `over` on its own
+ * board (the same card id, or the i-th back of the sender's hand as the
+ * receiver draws it) and places the cursor there, ignoring `pointer`'s board
+ * fraction entirely. `over` is `null` whenever neither applies (off every
+ * card, over the OTHER seat's hand as drawn to the sender, or the pointer
+ * itself is `null`) — then `pointer`'s board fraction is all there is, as
+ * before. A card never carries a hand id: hovering one's OWN hand sends the
+ * slot INDEX, never the card there, which is why that branch exists at all —
+ * see `live/presence.ts`'s `overOf`.
  *
  * ## A deploy is not a reload
  *
@@ -82,12 +105,33 @@ export const PresenceSpotSchema = z
 
 export type PresenceSpot = z.output<typeof PresenceSpotSchema>;
 
+/**
+ * What the pointer is over, when that is a more precise anchor than the
+ * board fraction (AE1): a public card by id, or a slot of the SENDER's own
+ * hand by index (never a card id there — the receiver draws that hand as
+ * backs). `x`/`y` are fractions of THAT element's own box, never the board's.
+ */
+export const PresenceOverSchema = z
+  .union([
+    z.object({ card: z.string().min(1), x: fraction, y: fraction }).strict(),
+    z.object({ hand: z.number().int().nonnegative(), x: fraction, y: fraction }).strict(),
+  ])
+  .nullable();
+
+export type PresenceOver = z.output<typeof PresenceOverSchema>;
+
 /** Client → server. `pointer` null: the pointer left the board (or the tab was hidden). */
 export const PresenceSchema = z
   .object({
     matchId: z.string().min(1),
     type: z.literal('presence'),
     pointer: PresenceSpotSchema.nullable(),
+    /**
+     * What `pointer` is over, when that is sharper than the board fraction
+     * (AE1) — null defaults a pre-deploy sender's message, which never had
+     * this field, to the old board-fraction-only placement.
+     */
+    over: PresenceOverSchema.default(null),
     /** A card is lifted, parked or carried — drawn for the other seat as a card BACK. Never which card. */
     held: z.boolean(),
     /**

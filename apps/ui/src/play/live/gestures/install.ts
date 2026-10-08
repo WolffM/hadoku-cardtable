@@ -711,8 +711,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const ghost = parkedGhost(canvas, source);
     // The column and the release point go WITH the act: the server tells every screen at once,
     // before any Forge frame about the card, and both screens draw the same glide into the gap.
+    // `placement.at` is the lifted card's OWN box centre right now, not the raw release point:
+    // the two can be a frame apart when no `pointermove` fires between the last drag update and
+    // the release (AE6, the operator: "a bit of desync between where the phantom card was and
+    // where the cursor actually released the card"). `cardBox` finds the exact element
+    // `drawCastLift` has been positioning all along; hit-testing below still uses the real point.
     const column = spell ? null : placementAt(point);
-    const spot = column === null ? null : spotOf(canvas, point);
+    const liftedNow = cardBox(canvas, source);
+    const liftedRect = liftedNow instanceof HTMLElement ? liftedNow.getBoundingClientRect() : null;
+    const ghostAt = liftedRect !== null && liftedRect.width > 0 ? { x: liftedRect.left + liftedRect.width / 2, y: liftedRect.top + liftedRect.height / 2 } : point;
+    const spot = column === null ? null : spotOf(canvas, ghostAt);
     const placement = column === null || spot === null ? undefined : { slot: column.slot, target: column.target, at: spot };
     if (!selectCard(match, source, placement)) {
       // Forge's offer moved on between the lift and the release: nothing went out.
