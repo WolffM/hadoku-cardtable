@@ -302,6 +302,15 @@ function stubServer(table: Table) {
       choice.rules.kind === 'standard' ? choice.rules.format : '',
     );
 
+  /** A room read parked on the wire: it answers with the record AS IT WAS when read, once released. */
+  let heldRead: Promise<void> | null = null;
+  let releaseHeld: (() => void) | null = null;
+  const holdNextRoomRead = (): (() => void) => {
+    heldRead = new Promise<void>((r) => {
+      releaseHeld = r;
+    });
+    return () => releaseHeld?.();
+  };
   const fetchImpl: Fetch = async (url, init) => {
     const body: unknown = init?.body === undefined ? undefined : JSON.parse(String(init.body));
     calls.push({ url, method: init?.method ?? 'GET', body });
@@ -322,6 +331,13 @@ function stubServer(table: Table) {
           p.you ? { ...p, ready: false, legal: false, verdict: null, choice: null } : { ...p, ready: false },
         );
         return json(200, roomRecord());
+      }
+      if (heldRead !== null) {
+        const stale = roomRecord();
+        const gate = heldRead;
+        heldRead = null;
+        await gate;
+        return json(200, stale);
       }
       return table.roomUnreadable === true ? json(503, { error: 'rooms are restarting' }) : json(200, roomRecord());
     }
@@ -455,20 +471,21 @@ function stubServer(table: Table) {
   return {
     calls,
     table,
+    holdNextRoomRead,
     draftedText: () => draftedText,
     client: tablesClient(fetchImpl, '/cardtable/api/'),
     rooms: roomsClient(fetchImpl, '/cardtable/api/'),
   };
 }
 
-async function mountRoom(table: Table, rand?: () => number) {
+async function mountRoom(table: Table, rand?: () => number, pollMs = 10) {
   const server = stubServer(table);
   render(
     createElement(ConstructedScreen, {
       client: server.client,
       rooms: server.rooms,
       roomId: ROOM,
-      pollMs: 10,
+      pollMs,
       ...(rand === undefined ? {} : { rand }),
     }),
   );
@@ -1631,6 +1648,29 @@ describe('a builtin room is what it has always been', () => {
  * identifiable through `data-set`, `title` and the block's `aria-label`, which is
  * what a reader gets instead.
  */
+describe('a room read that overlapped the leader’s own write', () => {
+  it('cannot put the older room back: the era the leader just chose stays chosen', async () => {
+    // CI 2026-10-08 (w48's spec): the poll answered before a format PATCH landed after it and the
+    // picker showed nothing chosen for a beat. A read issued before a write resolved is dropped.
+    // A slow beat, so the stale answer is not papered over by the next read before this test looks.
+    const server = await mountRoom({ players: [opponent()], matchId: null }, undefined, 400);
+    const select = screen.getByTestId('format') as HTMLSelectElement;
+    expect(select.value).toBe(FORMATS[0].id);
+    const reads = () => server.calls.filter((c) => c.method === 'GET' && c.url.endsWith(`/api/rooms/${ROOM}`)).length;
+    const before = reads();
+    const release = server.holdNextRoomRead();
+    // The poll's next beat parks a read holding the OLD record.
+    await waitFor(() => expect(reads()).toBeGreaterThan(before), { timeout: 2_000 });
+    fireEvent.change(select, { target: { value: '2011-07-15' } });
+    await waitFor(() => expect(select.value).toBe('2011-07-15'));
+    release();
+    // The stale answer lands now — and changes nothing.
+    await new Promise((r) => setTimeout(r, 30));
+    expect(select.value, 'the stale read did not revert the pick').toBe('2011-07-15');
+    expect(server.table.format).toBe('2011-07-15');
+  });
+});
+
 describe('the era’s set symbols', () => {
   it('an eternal format draws no set strip at all — forty sets is not a row anyone reads', async () => {
     // The operator, 2026-10-07: "we shouldn't display the set symbols in modern like that".

@@ -917,6 +917,8 @@ function RoomTableScreen({
    * not a second round trip after it.
    */
   const [view, setView] = useState<RoomView | null>(null);
+  /** Bumped when a write of this screen's own resolves; a poll that overlapped one is dropped. */
+  const writes = useRef(0);
   const [resolved, setResolved] = useState(false);
   /** Latched on the first read. A room does not change mode under its players. */
   const modeRef = useRef<ClientMode | null>(null);
@@ -1126,11 +1128,16 @@ function RoomTableScreen({
   useEffect(() => {
     let live = true;
     const read = (): void => {
+      // A poll answered before one of this screen's own writes (a format change, a ready) resolved
+      // can land after it and put the older room back — the deck picker then showed nothing chosen
+      // for a beat (w48's spec, CI 2026-10-08). A read that overlapped a write is dropped; the next
+      // beat reads the room as the write left it.
+      const issuedAfterWrite = writes.current;
       rooms.get(roomId).then(
         (room) => {
           if (!live) return;
           setResolved(true);
-          if (room === null) return;
+          if (room === null || issuedAfterWrite !== writes.current) return;
           modeRef.current ??= room.clientMode;
           setView(room);
         },
@@ -1445,6 +1452,7 @@ function RoomTableScreen({
       .start(roomId)
       .then((outcome) => {
         if (outcome.ok) {
+          writes.current += 1;
           setView(outcome.room);
           setDraftError(null);
         } else {
@@ -1546,7 +1554,8 @@ function RoomTableScreen({
           setActionError(outcome.message);
           return;
         }
-        setView(outcome.room);
+        writes.current += 1;
+          setView(outcome.room);
       })
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
@@ -1609,7 +1618,8 @@ function RoomTableScreen({
           setDraftError(outcome.message);
           return;
         }
-        setView(outcome.room);
+        writes.current += 1;
+          setView(outcome.room);
       })
       .catch((err: unknown) => setDraftError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
