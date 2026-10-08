@@ -45,6 +45,15 @@ on:
           - both
           - e2e
           - jvm
+      video:
+        description: >-
+          forge-e2e only: record BOTH browsers of every two-browser spec
+          (`CARDTABLE_E2E_VIDEO=1`) and keep the videos as an artifact even on
+          success — the operator's gate (2026-10-08): "a recorded video of the
+          thing working must be shown to me before it passes".
+        required: false
+        type: boolean
+        default: false
       runs_on:
         description: >-
           A JSON array of runner labels for this dispatch's jobs, e.g.
@@ -323,6 +332,9 @@ jobs:
           CARDTABLE_E2E_WORK_DIRS_KEPT: '96'
           # '' on every push/PR/schedule — see the `on:` block above.
           SPECS_OVERRIDE: ${{ inputs.specs }}
+          # '1' only on a dispatch with `video: true`; the harness records
+          # every two-browser context under `e2e/.run/videos/<spec>/<name>.webm`.
+          CARDTABLE_E2E_VIDEO: ${{ inputs.video == true && '1' || '' }}
         run: |
           # The host line a flaky red needs first. No `heavy.lock` any more —
           # that lock queued CI behind the operator's hokon-hosted waves, which
@@ -391,6 +403,18 @@ jobs:
             e2e/.run/play-work/*/*/jvm.json
             e2e/.run/play-work/*/*/config.json
             ${{ runner.temp }}/forge-e2e-report.json
+
+      # The operator's evidence: both screens of every recorded spec, kept on
+      # SUCCESS too — a green run is the one whose video gets watched.
+      - name: E2E videos (when asked)
+        if: always() && inputs.video == true
+        uses: actions/upload-artifact@v6
+        with:
+          name: forge-e2e-videos-${{ github.run_attempt }}-${{ matrix.shard }}
+          retention-days: 14
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: e2e/.run/videos/**
 
       # Whatever this job started stops with it, passed, failed or cancelled: an
       # e2e server still listening on this run's ports, or a Forge JVM under this
