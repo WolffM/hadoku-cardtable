@@ -1,0 +1,18 @@
+# The cleanup discard, with a click of this seat's own on record before it.
+# Seat 0 holds nine lands in hand: one land drop in MAIN1 (the click), then
+# End Turn runs into cleanup with eight in hand — "Select 1 card(s) to discard
+# to bring your hand down to the maximum of 7 cards." Nothing castable, so the
+# discard is the only question the turn asks. Seat 1 has nothing to respond with.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+humanbattlefield=Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

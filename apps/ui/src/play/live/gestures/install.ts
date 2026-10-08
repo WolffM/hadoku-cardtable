@@ -562,6 +562,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
     return null;
   }
 
+  /** Forge's selectables are all cards of the viewer's own hand, and no player: a pick, not a target. */
+  function choosingOwnHand(): boolean {
+    const sel = match.selectables;
+    if (sel === null || sel.cards.size === 0) return false;
+    if (sel.players !== null && sel.players.size > 0) return false;
+    const hand = match.view?.players.find((p) => p.isViewer)?.hand;
+    if (hand === undefined || hand === null) return false;
+    const inHand = new Set(hand.map((c) => c.id));
+    for (const id of sel.cards) if (!inHand.has(id)) return false;
+    return true;
+  }
+
   /**
    * What is under `node` that the pointer may aim at. While a question is up
    * that Forge asked about the STACK (a counterspell's "select target
@@ -608,7 +620,13 @@ export function installGestures(options: GestureOptions): GestureHandle {
       next = 'marquee';
     } else {
       // This is also how a parked cast draws its arrow, see `clickOrigin`.
-      const origin = hover !== null && (match.selectables !== null || stackAsk(match) !== null) ? clickOrigin() : null;
+      // A choice among this seat's OWN HAND cards is not aiming — the cleanup
+      // discard ("Select 1 card(s) to discard…"), a reveal, the London
+      // mulligan's bottom pick: nothing is being pointed at anything, so no
+      // arrow, whatever `clickOrigin` could have supplied as a tail (found in
+      // a live game, the operator 2026-10-08: the discard drew an arrow from
+      // the card clicked last). Targets are never in the chooser's own hand.
+      const origin = hover !== null && !choosingOwnHand() && (match.selectables !== null || stackAsk(match) !== null) ? clickOrigin() : null;
       if (origin === null || hover === null) {
         clearArrow(overlay);
         clearMarquee(overlay);

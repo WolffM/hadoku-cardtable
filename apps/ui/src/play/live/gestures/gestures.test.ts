@@ -1900,6 +1900,31 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     expect(arrow.querySelector('path')!.getAttribute('d'), 'from the spell on the stack, not from the card clicked turns ago').toMatch(/^M 560 30 Q /);
   });
 
+  it('the cleanup discard — a choice with no source — draws no arrow, not even from the card clicked last', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    const clicked = hand[0]!;
+    // Her own click, earlier: a land drop or a cast. On record until Forge asks about something else.
+    for (const f of notify([prompt('Priority'), actionable([clicked])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    selectCard(m, clicked);
+    expect(m.lastSelectedCard).toBe(clicked);
+    for (const id of hand) boxAt(cardEl(canvas, id), 100 + 50 * hand.indexOf(id), 400);
+    // Forge's cleanup discard: `InputSelectCardsFromList` with no spell ability, so its prompt names no card.
+    for (const f of notify([prompt('Cleanup Phase\nSelect 1 card(s) to discard to bring your hand down to the maximum of 7 cards.'), selectables(hand, 1, 1)])) s.send(f);
+    await waitFor(() => expect(m.selectables).not.toBeNull());
+    expect(m.promptCard).toBeNull();
+    // Both tails `clickOrigin` could reach are on record — the last click and the fixture's stack
+    // source — and neither is drawn: a pick among her own hand is not aiming.
+    expect(m.lastSelectedCard).toBe(clicked);
+    expect(stackOrigin(m, canvas)).not.toBeNull();
+
+    fireEvent.pointerMove(cardEl(canvas, hand[1]!), { clientX: 170, clientY: 420 });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(overlayOf(canvas).querySelector('[data-testid="targeter"]'), 'nothing is being aimed: no arrow').toBeNull();
+    expect(s.clientFrames()).toHaveLength(1); // the one click, nothing from the hover
+  });
+
   it('with nothing to draw from, the pointer draws no arrow', async () => {
     const { s, m, canvas } = await gestureBoard();
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
