@@ -135,6 +135,14 @@ export const PresenceSchema = z
      * it arrives, the same way it always has. Null otherwise — nothing was
      * released, or a pre-deploy sender never had the field.
      */
+     * A HAND reorder just committed: `from` moved to `to`, both INDICES
+     * in the sender's own hand order — never a card id, never a name, so the
+     * receiver's hidden hand stays hidden; it only ever glides one of its own
+     * anonymous backs. Rides with the one presence message sent right after
+     * the commit and is read once; every other message carries `null`.
+     * Defaults so a pre-deploy sender still parses.
+     */
+    handMove: z.object({ from: z.number().int().nonnegative(), to: z.number().int().nonnegative() }).strict().nullable().default(null),
   })
   .strict();
 

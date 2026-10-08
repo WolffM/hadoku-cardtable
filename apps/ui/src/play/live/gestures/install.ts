@@ -226,6 +226,15 @@ import { CAST_LANDING_ATTR, expectedGapBox,
   updateDropCues,
 } from './cast.ts';
 import { commitDrag, commitMarquee, landsInBox, rectOf, type Rect } from './commit.ts';
+import {
+  clearHandIndicator,
+  clearHandLiftSize,
+  commitHandReorder,
+  handCardPress,
+  handOrderIds,
+  sizeHandLift,
+  updateHandIndicator,
+} from './hand.ts';
 import { applyIntents, clearIntents } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
@@ -393,6 +402,15 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   let placedDrag: { id: number; press: Point; moved: boolean } | null = null;
 
+   * The hand-reorder gesture's one piece of state this module keeps for it
+   * (`./hand.ts`'s own is all pure functions over the DOM): the card's
+   * position in the hand at the press that started the current lift, read
+   * once via `handOrderIds` before anything moves. `resolveLift` passes it to
+   * `commitHandReorder` as `fromIndex`; null once there is no lift to resolve
+   * it for.
+   */
+  let handPressIndex: number | null = null;
+
   const overlayOf = (): HTMLElement | null => canvas.querySelector<HTMLElement>('[data-board-overlay]');
 
   const inside = (node: EventTarget | null): boolean =>
@@ -402,16 +420,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * The press began on something the BROWSER will drag natively.
    *
    * Lane A's arrange gesture makes the cards of the viewer's own battlefield
-   * — and their own hand — `draggable="true"` and hangs HTML5
-   * `dragstart`/`drop` on them (`Board.tsx`'s `CardOnBoard`). A hand card
-   * Forge OFFERED is deliberately left out of that, because dragging a card
-   * out of hand is how it is played and this guard would take that press.
-   * That press and this layer's overlap, and the expensive half is a card
-   * Forge did NOT offer while a selection is open: it is draggable, so the
-   * native drag runs, and the source-less pointing gesture below would run
-   * too — one press that rearranges the battlefield AND sends `selectCard`
-   * for whatever it was released over. So a press that started on a
-   * natively-draggable element starts no gesture of ours.
+   * `draggable="true"` and hangs HTML5 `dragstart`/`drop` on them (`Board.tsx`'s
+   * `CardOnBoard`) — never a hand card, which `handCardPress` (this module's
+   * own branch, above) claims before this guard is even reached, and which
+   * `CardOnBoard` never makes `draggable` in the first place. The expensive
+   * half this guard still earns its keep for is a BATTLEFIELD permanent while
+   * a selection is open: it is draggable, so the native drag runs, and the
+   * source-less pointing gesture below would run too — one press that
+   * rearranges the battlefield AND sends `selectCard` for whatever it was
+   * released over. So a press that started on a natively-draggable element
+   * starts no gesture of ours.
    *
    * ## It stands down during combat declaration, and `onDragStart` says why
    *
@@ -631,12 +649,24 @@ export function installGestures(options: GestureOptions): GestureHandle {
     clearDropCues(canvas);
     if (state.source === null) return;
     const source = state.source;
-    const spell = needsTarget(handCardTypeLine(match, source));
     if (overOwnHand(node)) {
+      // Released back inside the hand — a reorder, never Forge. The ONE
+      // line that changed here: this used to float the card back home
+      // unconditionally; now a release inside the hand always means "commit
+      // wherever it landed", a same-spot release included (a no-op commit,
+      // `queueHandMove` skipped since nothing changed).
       previewAt(null);
-      floatCastLiftHome(canvas, source, state.from, () => {});
+      clearHandIndicator();
+      const fromIndex = handPressIndex ?? handOrderIds(canvas).indexOf(source);
+      handPressIndex = null;
+      commitHandReorder(canvas, source, fromIndex, point);
+      clearHandLiftSize(canvas, source);
       return;
     }
+    // Left the hand before release: `onPointerMove`'s own transition already cleared the
+    // indicator and `--card-w` override the moment the pointer crossed out of it.
+    handPressIndex = null;
+    const spell = needsTarget(handCardTypeLine(match, source));
     previewAt(null);
     if (!spell && !overOwnBattlefield(node)) {
       floatCastLiftHome(canvas, source, state.from, () => {});
@@ -851,9 +881,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (drag !== null && drag.lifted) {
       const d = drag;
       drag = null;
+      handPressIndex = null;
+      clearHandIndicator();
       clearDropCues(canvas);
       previewAt(null);
-      if (d.source !== null) floatCastLiftHome(canvas, d.source, d.from, () => {});
+      if (d.source !== null) floatCastLiftHome(canvas, d.source, d.from, () => clearHandLiftSize(canvas, d.source!));
       paint();
     }
   }
@@ -1053,6 +1085,50 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // Reset at the top of every FRESH press — see the flag's own doc comment.
     suppressClick = false;
     /*
+     * A press on the viewer's own hand card, Forge-offered or not, is a
+     * REORDER unless it leaves the hand — ahead of every other branch below.
+     * `CardOnBoard` never makes a hand card `draggable` at all now, so this
+     * is not racing `Board.tsx`'s own arrange gesture for the press; it is
+     * simply the branch that answers it.
+     *
+     * Presses are left alone, exactly as before, when Forge is
+     * asking something ELSE: an open ASK (a dialog) outranks the actionable
+     * set the same way it already does for the old cast-from-hand branch
+     * below — `match.asks.length === 0`; the London mulligan's bottom pick
+     * (`choosingMulligan`, its own carve-out below is unreached once this
+     * returns first, so it is repeated here); a selection that NAMES this
+     * exact card as a choice (a discard, a reveal) — the `under.kind ===
+     * 'card'` branch below still answers a click on it the way it always
+     * has; and a stack-ask or an attacker/tap box-draw in progress, which
+     * already claim a press anywhere on the table.
+     */
+    if (event.button === 0 && stackAsk(match) === null && !declaringAttackers(match) && landsToTap(match).length === 0) {
+      const press = handCardPress(event.target);
+      if (
+        press !== null &&
+        match.asks.length === 0 &&
+        !choosingMulligan(match) &&
+        !(match.selectables?.cards.has(press.id) ?? false)
+      ) {
+        claim(event);
+        // The native click this press leaves behind must not also reach the
+        // card's own `onClick` — same reason the old cast-from-hand branch
+        // set this, see `suppressClick`'s own doc comment.
+        suppressClick = true;
+        const pressAt = { x: event.clientX, y: event.clientY };
+        const box = cardBox(canvas, press.id);
+        const from = box === null ? pressAt : centreOf(box);
+        handPressIndex = handOrderIds(canvas).indexOf(press.id);
+        drag = { source: press.id, press: pressAt, from, at: pressAt, target: null, moved: false, lifted: true, held: true };
+        drawCastLift(canvas, press.id, pressAt, 'lifted');
+        sizeHandLift(canvas, press.id);
+        updateHandIndicator(canvas, press.id, pressAt);
+        hover = null;
+        paint();
+        return;
+      }
+    }
+    /*
      * Item 5: a press on the viewer's own placed spell picks it up — UNLESS
      * Forge is asking the stack-target question that element ALSO answers
      * (`stackAsk`), which keeps the press below. Checked before the native-
@@ -1195,13 +1271,26 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const next: DragState = { ...drag, at, moved, target: targetAt(event.target) };
       drag = next;
       if (next.lifted && next.source !== null) {
-        const spell = needsTarget(handCardTypeLine(match, next.source));
         const overHand = overOwnHand(event.target);
-        const overBf = overOwnBattlefield(event.target);
         drawCastLift(canvas, next.source, at, 'lifted');
-        updateDropCues(canvas, spell, overHand, overBf);
-        // Only a no-target card ever lands in a row.
-        previewAt(!spell && overBf ? at : null);
+        if (overHand) {
+          // Still inside the hand — the reorder preview, not the cast's drop cues.
+          sizeHandLift(canvas, next.source);
+          clearDropCues(canvas);
+          previewAt(null);
+          updateHandIndicator(canvas, next.source, at);
+        } else {
+          // The press has left the hand: the mode change to the cast gesture, same press.
+          // `--card-w` goes back to whatever this card's own ambient value is — the
+          // board-sized-lift rule (`./cast.ts`/`./gestures.css`) takes sizing from here, not this module.
+          clearHandIndicator();
+          clearHandLiftSize(canvas, next.source);
+          const spell = needsTarget(handCardTypeLine(match, next.source));
+          const overBf = overOwnBattlefield(event.target);
+          updateDropCues(canvas, spell, overHand, overBf);
+          // Only a no-target card ever lands in a row.
+          previewAt(!spell && overBf ? at : null);
+        }
       }
     } else if (marquee !== null) {
       marquee = { press: marquee.press, at, moved: marquee.moved || past(marquee.press, at) };
@@ -1290,9 +1379,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     if (drag !== null && drag.lifted) {
+      handPressIndex = null;
+      clearHandIndicator();
       clearDropCues(canvas);
       previewAt(null);
-      if (drag.source !== null) floatCastLiftHome(canvas, drag.source, drag.from, () => {});
+      const liftedSource = drag.source;
+      if (liftedSource !== null) floatCastLiftHome(canvas, liftedSource, drag.from, () => clearHandLiftSize(canvas, liftedSource));
     }
     drag = null;
     marquee = null;
@@ -1427,6 +1519,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clearIntents(canvas);
       clearAllCastLifts(canvas);
       clearDropCues(canvas);
+      handPressIndex = null;
+      clearHandIndicator();
+      if (drag !== null && drag.lifted && drag.source !== null) clearHandLiftSize(canvas, drag.source);
       // A gesture disposed mid-flight (a remount, a resync) leaves no
       // placement preview behind either.
       if ((drag !== null && drag.lifted) || parked !== null) previewAt(null);

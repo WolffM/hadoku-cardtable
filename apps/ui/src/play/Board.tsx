@@ -96,39 +96,29 @@
  * end of its own row. Only the viewer's own side is draggable: the arrangement
  * is theirs, and the opponent arranges their own side on their own screen.
  *
- * ## The hand is arranged the same way, and stands down on a card Forge offered
+ * ## The hand is arranged too, but not by this component's own gesture
  *
- * The operator, 2026-09-27: they could not reorder their own hand at all. The
- * hand is now the same gesture, the same store and the same slot machinery as a
+ * The operator: they could not reorder their own hand at all, and then
+ * (once a first drag-based fix made it reachable only on a card Forge was
+ * not offering) that it needed a smoother animation and to be visible to the
+ * opponent. The hand uses the SAME store and the SAME slot machinery as a
  * battlefield row — one slot key, `<playerId>:hand`, holding the order the
- * player put their cards in. A drop on a card puts the dragged card in front of
- * it; a drop on the hand's own list puts it at the end. There is no STACKING in
- * a hand: a hand is a row of cards you hold, so the thirds of a card's box that
- * mean "stack above / below" on a battlefield mean nothing here and the drop is
- * always a reorder.
+ * player put their cards in, `handOrder`/`withHandMove` below — but the
+ * GESTURE that writes it is `live/gestures/install.ts`'s, not this
+ * component's own `useArrangeDrag`: a press on a hand card, Forge-offered or
+ * not, belongs to the interaction lane, because that lane is the one that
+ * already decides whether the press stays in the hand (a reorder) or leaves
+ * it (how a land or a spell is played). `commitHandMove`, below, is that
+ * lane's own write into this store, the same cross-lane shape
+ * `notePlayedTo` already uses. There is no STACKING in a hand: a hand is a
+ * row of cards you hold, so the thirds of a card's box that mean "stack
+ * above / below" on a battlefield mean nothing here and a drop is always a
+ * reorder.
  *
- * **The condition for a hand card is stricter than the battlefield's, and that
- * is the seam, not taste.** A press on a natively-draggable element starts no
- * gesture of the interaction lane at all (`live/gestures/install.ts`'s
- * `nativelyDraggable`), so making a card arrangeable GIVES UP that lane's press
- * on it. On a battlefield the trade is the documented one: a permanent is played
- * by clicking it, and drag-to-play on it is what arranging costs. In a hand it
- * cannot be paid, because **dragging a card out of your hand onto the
- * battlefield is how a land and a spell are played** — the gesture
- * `e2e/play.spec.ts` drives for both, and the operator's own report
- * (*"cards are not dragable"*) was that regression in production. So a hand card
- * is arrangeable only when no other gesture can want the press: Forge has not
- * offered it, no selection is open, and nothing is being declared.
- *
- * Which is exactly the set of presses that do nothing today — at plain priority
- * with no selection open, `install.ts` starts no gesture over a card Forge did
- * not offer. So the hand gained a gesture and nothing lost one.
- *
- * What the player sees: on anyone else's turn the whole hand rearranges; in
- * their own main phase the cards they can actually play are pinned (they are
- * the ones a drag plays) and every other card still moves; while Forge is asking
- * or combat is being declared the hand holds still. No rule is implemented
- * anywhere in that — every set is Forge's own, read off `interaction`.
+ * `CardOnBoard` never makes a hand card `draggable`, whatever Forge is
+ * doing, so `useArrangeDrag` (below) never starts from one — the press
+ * always reaches the interaction lane first. A battlefield permanent keeps
+ * its own drag-to-arrange exactly as before.
  *
  * ## Stacking: deliberate as well as free
  *
@@ -982,7 +972,13 @@ function withAttachments(
  * In a HAND a card is one target, `before` — nothing stacks in a hand, so the
  * edge strips are not read there at all.
  */
-type DropTarget =
+/**
+ * Exported for `live/gestures/hand.ts`: the hand's own reorder gesture builds
+ * one of these (always `before`/`end` — a hand never stacks, see below) to
+ * hand to `withHandMove` across the lane boundary, the same seam
+ * `notePlayedTo`/`commitHandMove` already cross it by.
+ */
+export type DropTarget =
   | { kind: 'end' }
   | { kind: 'before'; id: number }
   | { kind: 'stack'; id: number; onTop: boolean }
@@ -1227,10 +1223,10 @@ function subscribeCarriedCast(listener: () => void): () => void {
 /**
  * A cast's intended battlefield slot, remembered by the card's own (stable)
  * id until Forge actually plays it — the seam with the gestures lane's cast
- * gesture, which otherwise has nowhere to record "where you dropped it" (a
- * card Forge has offered is never arrangeable, `CardOnBoard`'s
- * `handStandsDown`, because dragging it out of hand is how it is PLAYED).
- * Module-level like `ARRANGED`: a resync may remount `Board` and a cast in
+ * gesture, which otherwise has nowhere to record "where you dropped it" (no
+ * hand card is ever arrangeable by `CardOnBoard`'s own `draggable`, because
+ * dragging it out of hand is how it is PLAYED). Module-level like
+ * `ARRANGED`: a resync may remount `Board` and a cast in
  * flight must outlive that exactly the same way a rearrange does.
  *
  * Written from OUTSIDE React (the gestures lane calls `notePlayedTo` once, at
@@ -1261,6 +1257,8 @@ interface PendingPlacement {
 const PENDING_PLACEMENTS = new Map<number, PendingPlacement>();
 /** The viewer of the live board, so `notePlayedTo` can key its placement by player. */
 let LIVE_VIEWER_ID: number | null = null;
+/** This render's own `matchKey(view)`, beside `LIVE_VIEWER_ID` for the same reason: `commitHandMove`'s seam into `ARRANGED` has no render of its own to read it from. */
+let LIVE_MATCH_KEY: string | null = null;
 /** How long a pending placement waits for its card. A cast that never resolves (countered, cancelled) just ages out — nothing else cleans it up. */
 const PENDING_PLACEMENT_TTL_MS = 15_000;
 
@@ -1402,10 +1400,11 @@ function withExpectedGap(rows: Grouped, row: BoardRow, target: DropTarget): { ro
  * `card.css`'s existing rules — no new stylesheet here), driven for a cast in
  * flight instead: call on every pointer move while a castable card is lifted
  * over the battlefield; `null` clears it (release, Escape, leaving the
- * battlefield). Cannot collide with a real arrange-drag's own indicator — the
- * two gestures are mutually exclusive on any one card (`handStandsDown`,
- * above), and this one only ever targets the viewer's own board, same as that
- * one. The element is created once and reused (hidden between calls, the same
+ * battlefield). Cannot collide with a real arrange-drag's own indicator — a
+ * card being cast from hand is never `useArrangeDrag`'s own to begin with
+ * (`CardOnBoard`'s `draggable`, above, excludes every hand card), and this one
+ * only ever targets the viewer's own board, same as that one. The element is
+ * created once and reused (hidden between calls, the same
  * economy `useArrangeDrag`'s indicator uses), and re-parented if `Board`
  * itself remounted since the last call.
  */
@@ -1526,7 +1525,7 @@ function withMove(
  * battlefield row has, and for the same reason: the store holds ids, so a
  * resync that rebuilds every object redraws the same hand.
  */
-function handOrder(cards: readonly BoardCard[], playerId: number, arranged: Arrangement): readonly BoardCard[] {
+export function handOrder(cards: readonly BoardCard[], playerId: number, arranged: Arrangement): readonly BoardCard[] {
   const named = arranged[slotKey(playerId, 'hand')];
   if (named === undefined) return cards;
   const byId = new Map(cards.map((c) => [c.id, c]));
@@ -1551,15 +1550,19 @@ function handOrder(cards: readonly BoardCard[], playerId: number, arranged: Arra
  * is looking at becomes what is stored, so the next card drawn joins the end
  * rather than the middle of an order they chose. Each card is its own pile of
  * one: a hand does not stack.
+ *
+ * Takes the current order as bare ids, not `BoardCard[]` — `live/gestures/hand.ts`
+ * reads its own order straight off the DOM (`data-card-id`) and has no card
+ * objects to hand back; `handOrder`'s own callers still pass `.map((c) => c.id)`.
  */
-function withHandMove(
-  ordered: readonly BoardCard[],
+export function withHandMove(
+  orderedIds: readonly number[],
   playerId: number,
   arranged: Arrangement,
   cardId: number,
   target: DropTarget,
 ): Arrangement {
-  const ids = ordered.map((c) => c.id).filter((id) => id !== cardId);
+  const ids = orderedIds.filter((id) => id !== cardId);
   const at = target.kind === 'before' ? ids.indexOf(target.id) : -1;
   if (at === -1) ids.push(cardId);
   else ids.splice(at, 0, cardId);
@@ -1567,14 +1570,34 @@ function withHandMove(
 }
 
 /**
+ * A hand reorder committed from OUTSIDE React — `live/gestures/hand.ts`'s own
+ * seam into the arrangement store, the same shape `notePlayedTo` already uses
+ * for a cast's landing spot: a dumb write into the module-level store, keyed
+ * by the match and seat this render last saw (`LIVE_MATCH_KEY`/`LIVE_VIEWER_ID`,
+ * refreshed every render beside each other), then every mounted board is woken.
+ * A spectator, or a render that has not happened yet, has nothing to key by and
+ * the call is a no-op.
+ */
+export function commitHandMove(orderedIds: readonly number[], cardId: number, target: DropTarget): void {
+  if (LIVE_VIEWER_ID === null || LIVE_MATCH_KEY === null) return;
+  const key = LIVE_MATCH_KEY;
+  const viewerId = LIVE_VIEWER_ID;
+  setArranged(key, viewerId, withHandMove(orderedIds, viewerId, arrangementFor(key, viewerId), cardId, target));
+  for (const wake of MOUNTED_BOARDS) wake();
+}
+
+/**
  * The drag, as the markup sees it: a marker, present only on the viewer's own
- * battlefield and their own hand. Every other zone gets `undefined` and renders
- * no drag affordance and no slot box.
+ * side. Every other zone gets `undefined` and renders no drag affordance and
+ * no slot box.
  *
  * It carries nothing because nothing in the markup runs the drag any more: the
  * pointer events are `Board`'s own, on `window` (`useArrangeDrag`), and the markup
- * only says WHICH cards are pick-up-able (`data-arrange-card`) and which boxes are
- * slots (`data-arrange-slot`).
+ * only says WHICH cards are pick-up-able (`data-arrange-card`, never a hand
+ * card — see `CardOnBoard`'s `draggable`) and which boxes are slots
+ * (`data-arrange-slot`, the hand's own included: a cast's placement preview,
+ * `liveViewerGeometry`, still needs it to know a point is OVER the hand, not a
+ * legal drop).
  */
 interface Arranging {
   readonly enabled: true;
@@ -2016,36 +2039,19 @@ function CardOnBoard({
   const showCounters = onBattlefield || inExile;
   const itsAttackToDeclare =
     interaction?.declaringAttackers === true && onBattlefield && permanentType(entry) === 'creatures';
-  /*
-   * In a HAND the arrangement stands down on more than the battlefield's rule
-   * covers, and each of the three is a press another gesture already owns — the
-   * header's "The hand is arranged the same way" has the argument in full:
-   *
-   *   - **a card Forge OFFERED**, its actionable set included, because DRAGGING A
-   *     CARD OUT OF YOUR HAND IS HOW IT IS PLAYED (`e2e/play.spec.ts` drives a
-   *     land and a spell that way, and the operator's *"cards are not dragable"*
-   *     was that gesture broken in production). On a battlefield drag-to-play is
-   *     what arranging costs; here it may not be;
-   *   - **an OPEN SELECTION anywhere**, because the source-less targeter drag
-   *     begins anywhere on the table;
-   *   - **a declaration**, because the box-draw sweeps from anywhere.
-   *
-   * With those out, the only press this attribute newly claims is one on an
-   * un-offered hand card at plain priority — which starts no gesture of the
-   * interaction lane today either (`install.ts` returns when `match.selectables`
-   * is null). So nothing that worked stops working: the hand is tidied in the
-   * gaps, which is every moment the game is not asking this seat something.
-   */
-  const handStandsDown =
-    slot === 'hand' && (selectable || interaction?.selectionOpen === true || interaction?.declaringAttackers === true);
   /**
    * Whether this card may be PICKED UP. Whether a card may be DROPPED ON is a
    * different question and needs no markup: the snap reads every pile's box in the
    * slot, pinned cards included, so a card the player cannot pick up is still a
    * place they can put one.
+   *
+   * Never a hand card: dragging one out of hand onto the battlefield is how a
+   * land or a spell is played, and a press on it — Forge-offered or not — is
+   * `live/gestures/install.ts`'s own gesture now, never this component's. A
+   * hand card still arranges (the header's "The hand is arranged too" has the
+   * argument), just not through this attribute.
    */
-  const draggable =
-    arranging !== undefined && slot !== undefined && !inOpenSelection && !itsAttackToDeclare && !handStandsDown;
+  const draggable = arranging !== undefined && slot !== undefined && slot !== 'hand' && !inOpenSelection && !itsAttackToDeclare;
   const above = pile === undefined ? [] : pile.slice(1);
   /*
    * The fan every card in the pile is narrowed by, computed ONCE from the
@@ -2089,14 +2095,15 @@ function CardOnBoard({
       data-pile-size={above.length > 0 ? pile!.length : undefined}
       data-pile-depth={depth > 0 ? depth : undefined}
       /*
-       * `draggable="true"` is kept as the SEAM, not as the mechanism: the gestures
-       * layer stands down on a natively-draggable element
-       * (`live/gestures/install.ts: nativelyDraggable`), and that is exactly the
-       * set of presses this card owns. The BROWSER's own drag never runs — the
-       * press is cancelled by `useArrangeDrag` and `dragstart` is cancelled here as
-       * a backstop — because the drag is ours (wave 32 Q4b), with our own ghost.
-       * `data-arrange-card` names the slot the card is in and is what the pointer
-       * handler looks for.
+       * `draggable="true"` is kept as the SEAM, not as the mechanism, and
+       * `draggable` (above) never sets it for a hand card any more: the
+       * gestures layer stands down on a natively-draggable element
+       * (`live/gestures/install.ts: nativelyDraggable`), and that is exactly
+       * the set of BATTLEFIELD presses this card owns. The BROWSER's own
+       * drag never runs — the press is cancelled by `useArrangeDrag` and
+       * `dragstart` is cancelled here as a backstop — because the drag is
+       * ours, with our own ghost. `data-arrange-card` names the slot the
+       * card is in and is what the pointer handler looks for.
        */
       draggable={draggable || undefined}
       data-arrange-card={draggable ? slot : undefined}
@@ -2960,11 +2967,12 @@ function useArrangeDrag(
       }
       const found = snapTo(geometry(), x, y);
       /*
-       * A card only ever lands in the zone it came from: over the battlefield a
-       * hand card is nowhere, and so is a permanent over the hand. (Playing a card
-       * out of a hand is Forge's — a card it offered is not arrangeable at all.)
+       * `p.slot` is never `'hand'` (no hand card is ever draggable, so this
+       * drag never starts from one) — a permanent dropped over the hand is
+       * nowhere, same as it always was: playing a card out of a hand is
+       * Forge's, never ours.
        */
-      const snap = found !== null && (found.slot === 'hand') === (p.slot === 'hand') ? found : null;
+      const snap = found !== null && found.slot !== 'hand' ? found : null;
       p.snap = snap;
       clearMarks(p);
       if (snap === null) {
@@ -3298,40 +3306,40 @@ export function Board({
   // case reads the in-memory store alone, exactly as it always did.
   const arranged = viewer === undefined ? (ARRANGED.get(key) ?? NO_ARRANGEMENT) : arrangementFor(key, viewer.id);
   /**
-   * One drop, applied. Everything a drop does is here: it writes the store and asks
-   * for a frame. It sends NOTHING — there is no sender in this scope, no ask, no
-   * reply; a rearrange is invisible to Forge by construction.
+   * One drop, applied — a BATTLEFIELD rearrange only: `useArrangeDrag`,
+   * below, never starts from a hand card (`CardOnBoard`'s `draggable`
+   * excludes every one of them), so `slot` here is never `'hand'`. The
+   * hand's own reorder is `commitHandMove`'s seam instead, written from
+   * `live/gestures/install.ts`.
    *
-   * A card only ever lands in the zone it was picked up from: the commit checks
-   * that the carried card is in that zone of the viewer's own view, so a hand
-   * card snapped to a battlefield row and a permanent snapped into the hand both
-   * do nothing at all (the snap itself only offers the card's own zone, so this
-   * is the second lock, not the first). Moving a card between zones is Forge's,
-   * never ours.
+   * Everything a drop does is here: it writes the store and asks for a
+   * frame. It sends NOTHING — there is no sender in this scope, no ask, no
+   * reply; a rearrange is invisible to Forge by construction. The commit
+   * also checks that the carried card is actually on the viewer's own
+   * battlefield (the snap itself only offers a card's own zone, so this is
+   * the second lock, not the first) — moving a card between zones is
+   * Forge's, never ours.
    */
   const commit = (cardId: number, slot: ArrangeSlot, target: DropTarget): void => {
     if (viewer === undefined) return;
     if ('id' in target && target.id === cardId) return;
-    if (slot === 'hand') {
-      const hand = viewer.hand;
-      if (hand === null || !hand.some((c) => c.id === cardId)) return;
-      setArranged(key, viewer.id, withHandMove(handOrder(hand, viewer.id, arranged), viewer.id, arranged, cardId, target));
-    } else {
-      if (!viewer.battlefield.some((c) => c.id === cardId)) return;
-      setArranged(
-        key,
+    // Never reached — `slot` narrows `withMove`'s own `BoardRow` for the type checker, the
+    // runtime fact being that `useArrangeDrag` never starts a drag from a hand card at all.
+    if (slot === 'hand') return;
+    if (!viewer.battlefield.some((c) => c.id === cardId)) return;
+    setArranged(
+      key,
+      viewer.id,
+      withMove(
+        group(viewer.battlefield, viewer.id, arranged, boardLayout),
         viewer.id,
-        withMove(
-          group(viewer.battlefield, viewer.id, arranged, boardLayout),
-          viewer.id,
-          arranged,
-          cardId,
-          slot,
-          target,
-          boardLayout,
-        ),
-      );
-    }
+        arranged,
+        cardId,
+        slot,
+        target,
+        boardLayout,
+      ),
+    );
     redraw();
   };
   useArrangeDrag(root, viewer !== undefined, commit);
@@ -3349,6 +3357,7 @@ export function Board({
    * for an arrival (appended to the end of its type row).
    */
   LIVE_VIEWER_ID = viewer?.id ?? null;
+  LIVE_MATCH_KEY = key;
   const seenOnBattlefield = useRef(new Map<number, ReadonlySet<number>>());
   useLayoutEffect(() => {
     const now = Date.now();

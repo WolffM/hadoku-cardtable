@@ -30,13 +30,17 @@ import {
 } from './adapter.ts';
 import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArrangement, type OwnArrangementListener,
   Board,
+  commitHandMove,
   forgetArrangements,
   forgetPendingPlacements,
+  handOrder,
   notePlayedTo,
   previewPlayedTo,
   snapTo,
+  withHandMove,
   type BoardInteraction,
   type BoardLayout,
+  type DropTarget,
 } from './Board.tsx';
 import { boardFromFixture, loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
@@ -2027,13 +2031,13 @@ describe('drag to arrange (#10)', () => {
     expect(view.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id)).toEqual([8, 24, 21, 6, 25]);
   });
 
-  it('is the viewer’s own battlefield and hand only, and there is no reset control', () => {
+  it('is the viewer’s own battlefield only, and there is no reset control', () => {
     const { container, seat } = renderBoard();
-    // Five permanents and the five cards of their own hand (§E.1). With no
-    // `interaction` at all nothing is offered, so the whole hand arranges.
+    // Five permanents. The hand is never this component's own drag, whatever
+    // `interaction` says — see `describe('a hand card is never this component’s own drag')`.
     expect(seat(0).querySelectorAll('[data-zone="battlefield"] .board-card[draggable="true"]')).toHaveLength(5);
-    expect(seat(0).querySelectorAll('[data-zone="hand"] .board-card[draggable="true"]')).toHaveLength(5);
-    expect(seat(0).querySelectorAll('.board-card[draggable="true"]')).toHaveLength(10);
+    expect(seat(0).querySelectorAll('[data-zone="hand"] .board-card[draggable]')).toHaveLength(0);
+    expect(seat(0).querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
     // A pile is Forge's own order, never the player's.
     expect(seat(0).querySelectorAll('[data-zone="graveyard"] .board-card[draggable]')).toHaveLength(0);
     expect(seat(0).querySelectorAll('[data-zone="exile"] .board-card[draggable]')).toHaveLength(0);
@@ -2459,9 +2463,6 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
       zone(0, 'battlefield').querySelectorAll('.board-card[draggable="true"]'),
       'all five stay arrangeable: actionable is not a question',
     ).toHaveLength(5);
-    // The hand was not offered anything, so it arranges too — and none of its
-    // cards is both offered and draggable, which the loop below checks board-wide.
-    expect(zone(0, 'hand').querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
     // And the drag really works, which is what the e2e was asserting.
     const { rowIds } = renderBoard(view, interaction);
     expect(rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
@@ -2509,14 +2510,13 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
     expect('selectionOpen' in interaction, 'the field really is absent').toBe(false);
     const { zone } = renderBoard(view, interaction);
     expect(zone(0, 'battlefield').querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
-    expect(zone(0, 'hand').querySelectorAll('.board-card[draggable="true"]'), 'and the hand with it').toHaveLength(5);
   });
 
-  it('with nothing offered at all, every card of your own battlefield and hand is draggable', () => {
+  it('with nothing offered at all, every card of your own battlefield is draggable — the hand never is', () => {
     const { interaction } = spyInteraction([]);
     const { container, seat, zone } = renderBoard(view, interaction);
     expect(zone(0, 'battlefield').querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
-    expect(zone(0, 'hand').querySelectorAll('.board-card[draggable="true"]')).toHaveLength(5);
+    expect(zone(0, 'hand').querySelectorAll('.board-card[draggable]'), 'no hand card is ever this component’s own drag').toHaveLength(0);
     expect(seat(1).querySelectorAll('.board-card[draggable]'), 'still never theirs').toHaveLength(0);
     expect(container.querySelectorAll('[data-selectable]')).toHaveLength(0);
   });
@@ -2610,173 +2610,65 @@ describe('an OPEN SELECTION stands the arrangement down; merely actionable does 
   });
 });
 
-/* ── the hand is the player's to arrange ──────────────────────────────── */
+/* ── the hand is the player's to arrange, but not by this component's own drag ── */
 
 /**
- * §E.1. The operator, 2026-09-27: they could not reorder their own hand at all —
- * wave 24's free placement reached the battlefield and stopped there.
- *
- * It is the same store, the same gesture and the same reset as a battlefield
- * row (`Board.tsx`), so what is left to prove is the part that is the hand's
- * own: that the cards are draggable at all, that a drop moves them, that the
- * order outlives a re-render, that NOTHING goes to Forge, and the stand-down —
- * a hand card Forge offered stays undraggable, because dragging a card out of
- * hand is how it is PLAYED (`e2e/play.spec.ts`), not how it is tidied.
+ * The operator: they could not reorder their own hand at all, and then
+ * (once the hand reached the same free-placement gesture a battlefield row
+ * has) that the reorder needed a smoother animation and to be visible to
+ * the opponent. Answering that moved the hand's own press to the
+ * interaction lane (`live/gestures/hand.ts`, `install.ts`) entirely — a
+ * press on a hand card, Forge-offered or not, is never this component's own
+ * `useArrangeDrag`, because dragging a card out of hand onto the
+ * battlefield is how it is PLAYED (`e2e/play.spec.ts`), not how it is
+ * tidied, and that lane already decides which one a press is. The reorder
+ * itself (the store, the order surviving a re-render, nothing ever reaching
+ * Forge) is pinned above, in `describe('commitHandMove hands a hand reorder
+ * to Board')`, through the seam that lane writes with. What is left here is
+ * the boundary: no hand card is ever this component's own drag, in any
+ * state, and a battlefield permanent dropped on the hand still lands
+ * nowhere.
  */
-describe('drag to arrange your own hand (#2)', () => {
+describe('a hand card is never this component’s own drag', () => {
   const view = boardFromFixture(fixture);
   const me = view.players.find((p) => p.isViewer)!;
   const hand = me.hand!.map((c) => c.id);
 
   const handOf = (container: HTMLElement) => container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="hand"]')!;
-  /** The ids the hand draws, in the order it draws them. */
   const handIds = (container: HTMLElement): number[] =>
     [...handOf(container).querySelectorAll<HTMLElement>('.board-card')].map((c) => Number(c.dataset.cardId));
   const draggableInHand = (container: HTMLElement) => handOf(container).querySelectorAll('.board-card[draggable="true"]');
 
-  /** Drag a card in front of another card, or onto the hand's own list. */
-  function drag(container: HTMLElement, cardId: number, onto: { card: number } | 'the hand'): void {
-    dragCard(container, cardId, onto === 'the hand' ? { slot: 'hand' } : { card: onto.card, at: 'before' });
-  }
-
-  it('makes every card of the viewer’s own hand draggable, and a drop reorders it', () => {
-    const { container } = renderBoard(view);
-    expect(hand.length, 'the fixture dealt a hand worth arranging').toBeGreaterThan(2);
-    expect(handIds(container), 'the view’s own order, to begin with').toEqual(hand);
-    expect(draggableInHand(container), 'every card of it').toHaveLength(hand.length);
-    // The last card to the front of the hand.
-    const last = hand.at(-1)!;
-    drag(container, last, { card: hand[0]! });
-    expect(handIds(container)).toEqual([last, ...hand.slice(0, -1)]);
-    // And the count on the zone is still the truth.
-    expect(handOf(container).dataset.count).toBe(String(hand.length));
-  });
-
-  it('puts a card dropped on the hand’s own list at the end of it', () => {
-    const { container } = renderBoard(view);
-    drag(container, hand[0]!, 'the hand');
-    expect(handIds(container)).toEqual([...hand.slice(1), hand[0]!]);
-  });
-
-  it('survives a re-render, a resync and a remount, and a card drawn joins the end', () => {
-    const first = renderBoard(view);
-    drag(first.container, hand.at(-1)!, { card: hand[0]! });
-    const arranged = [hand.at(-1)!, ...hand.slice(0, -1)];
-    expect(handIds(first.container)).toEqual(arranged);
-
-    // A re-render with the same view: the order is in the module store, not in
-    // React's state, so a redraw cannot lose it.
-    first.rerender(createElement(Board, { view }));
-    expect(handIds(first.container), 'after a re-render').toEqual(arranged);
-
-    // A resync replaces the whole view and may remount the board.
-    cleanup();
-    const resynced: BoardView = { ...boardFromFixture(fixture), seq: 4242 };
-    const after = renderBoard(resynced);
-    expect(handIds(after.container), 'after a resync and a remount').toEqual(arranged);
-
-    // A card DRAWN while the arrangement stands joins the end of the hand
-    // rather than the middle of an order the player chose.
-    cleanup();
-    const seed = me.hand![0]!;
-    const drew: BoardView = {
-      ...resynced,
-      players: resynced.players.map((p) =>
-        !p.isViewer ? p : { ...p, hand: [{ ...seed, id: 909, card: { ...seed.card, cardId: 'w909' } }, ...(p.hand ?? [])] },
-      ),
-    };
-    expect(handIds(renderBoard(drew).container)).toEqual([...arranged, 909]);
-  });
-
-  it('is per match: another match starts from the view’s order', () => {
-    const { container, rowIds } = renderBoard(view);
-    drag(container, hand.at(-1)!, { card: hand[0]! });
-    dragCard(container, 8, { slot: 'other' });
-    expect(handIds(container)).not.toEqual(hand);
-    expect(rowIds(0, 'other')).toEqual([8]);
-
-    // Another match starts from the view's order, as the battlefield does.
-    cleanup();
-    const there = renderBoard(view);
-    drag(there.container, hand.at(-1)!, { card: hand[0]! });
-    cleanup();
-    const elsewhere = renderBoard({ ...boardFromFixture(fixture), title: 'another match entirely' });
-    expect(handIds(elsewhere.container)).toEqual(hand);
-  });
-
-  it('stacks nothing: a drop in the top third of a hand card is still a reorder', () => {
-    const { container } = renderBoard(view);
-    // A pointer in a card's top third — which on a BATTLEFIELD means "stack on top
-    // of this card" (`snapTo`). A hand does not stack.
-    dragCard(container, hand.at(-1)!, { card: hand[0]!, at: 'top' });
-    expect(handIds(container)).toEqual([hand.at(-1)!, ...hand.slice(0, -1)]);
-    expect(handOf(container).querySelectorAll('[data-pile-size], [data-pile-depth]'), 'no pile in a hand').toHaveLength(0);
-  });
-
-  it('a hand card Forge OFFERED is not draggable — that press plays the card', () => {
-    /*
-     * The whole reason the hand's condition is stricter than the battlefield's.
-     * A `draggable="true"` element takes the press away from the interaction
-     * lane (`live/gestures/install.ts`'s `nativelyDraggable`), and
-     * `e2e/play.spec.ts` plays a land AND a spell by dragging them out of hand —
-     * the gesture the operator reported broken in production. So Forge's own
-     * offer, actionable set included, pins the card.
-     */
+  it('is never draggable, Forge-offered or not — nor does it carry data-arrange-card', () => {
     const { interaction } = spyInteraction([hand[0]!, hand[1]!]);
     const { container } = renderBoard(view, interaction);
-    for (const id of [hand[0]!, hand[1]!]) {
+    for (const id of hand) {
       const el = container.querySelector<HTMLElement>(`.seat[data-viewer] [data-card-id="${id}"]`)!;
-      expect(el.dataset.selectable, `Forge offered ${id}`).toBe('true');
-      expect(el.hasAttribute('draggable'), `so ${id} is the pointer lane's, not the arrangement's`).toBe(false);
+      expect(el.hasAttribute('draggable'), `hand card ${id}`).toBe(false);
+      expect(el.hasAttribute('data-arrange-card'), `hand card ${id}`).toBe(false);
     }
-    expect(draggableInHand(container), 'the rest of the hand still arranges').toHaveLength(hand.length - 2);
-    // A drop that names an offered card still moves nothing of Forge's: the
-    // carried card is the one that moves, and it is one of ours.
-    drag(container, hand.at(-1)!, { card: hand[0]! });
-    expect(handIds(container)).toEqual([hand.at(-1)!, ...hand.slice(0, -1)]);
+    expect(draggableInHand(container)).toHaveLength(0);
   });
 
-  it('holds the whole hand still while Forge is ASKING, and while combat is declared', () => {
-    // A selection open anywhere: the source-less targeter drag may begin
-    // anywhere on the table, including over a hand card.
+  it('stays undraggable while Forge is ASKING and while combat is declared — the same as every other state', () => {
     const asking = spyInteraction(me.battlefield.map((c) => c.id), [], true).interaction;
     expect(draggableInHand(renderBoard(view, asking).container), 'while Forge asks').toHaveLength(0);
     cleanup();
-    // And a declaration: the box-draw sweeps from anywhere.
     const declaring: BoardInteraction = { ...spyInteraction([]).interaction, declaringAttackers: true };
     expect(draggableInHand(renderBoard(view, declaring).container), 'while attackers are declared').toHaveLength(0);
   });
 
-  it('never moves a card between zones, and never touches the opponent’s hand', () => {
+  it('never takes a permanent dropped on it, and never touches the opponent’s hand', () => {
     const { container, rowIds, seat } = renderBoard(view);
-    // A hand card dropped on a battlefield lane: neither zone moves.
-    dragCard(container, hand[0]!, { slot: 'lands' });
-    expect(rowIds(0, 'lands'), 'the battlefield did not take a card out of hand').toEqual([8, 24, 6, 25]);
-    expect(handIds(container), 'and the hand still holds it').toEqual(hand);
-    // A permanent dropped in the hand: the same, from the other side.
-    drag(container, 8, 'the hand');
+    // A permanent dragged onto the hand's own list: the hand's own slot still
+    // exists (a cast's placement preview needs it), but the snap only ever
+    // offers a card's own zone, so this lands nowhere.
+    dragCard(container, 8, { slot: 'hand' });
     expect(handIds(container), 'the hand did not take a permanent').toEqual(hand);
     expect(rowIds(0, 'lands')).toEqual([8, 24, 6, 25]);
-    // The opponent's hand is backs, and none of them is draggable.
+    // The opponent's hand is backs, and none of them is draggable either.
     expect(seat(1).querySelectorAll('[data-zone="hand"] .board-card')).toHaveLength(0);
     expect(seat(1).querySelectorAll('[draggable="true"]'), 'nothing of theirs is ours to drag').toHaveLength(0);
-  });
-
-  it('sends nothing to the engine: the senders are armed on the very cards dragged', () => {
-    /*
-     * Armed on both players and on the two hand cards the gesture below uses —
-     * one of which Forge offered, so it is the one card of the two that is NOT
-     * draggable. A stray call would land on an id under the drag.
-     */
-    const { interaction, onSelectCard, onSelectPlayer } = spyInteraction([hand[0]!], view.players.map((p) => p.id));
-    const { container } = renderBoard(view, interaction);
-    drag(container, hand.at(-1)!, { card: hand[0]! });
-    drag(container, hand[1]!, 'the hand');
-    expect(handIds(container), 'the hand really did move').not.toEqual(hand);
-    expect(onSelectCard).not.toHaveBeenCalled();
-    expect(onSelectPlayer).not.toHaveBeenCalled();
-    // And the view the board was handed is untouched: the order is ours.
-    expect(view.players.find((p) => p.isViewer)!.hand!.map((c) => c.id)).toEqual(hand);
   });
 });
 
@@ -4599,20 +4491,12 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(source).not.toMatch(/dataTransfer|onDrop\b|onDragOver\b|onDragEnd\b|dropEffect|effectAllowed|DragEvent/);
   });
 
-  it('a hand drag snaps within the hand only: over the battlefield a hand card is nowhere', () => {
-    const { container } = renderBoard(view, undefined, 'single');
-    const hand = view.players.find((p) => p.isViewer)!.hand!.map((c) => c.id);
-    dragCard(container, hand[0]!, { slot: 'front' });
-    expect([...container.querySelectorAll('.seat[data-viewer] [data-zone="hand"] .board-card')].map((c) => Number((c as HTMLElement).dataset.cardId))).toEqual(hand);
-    dragCard(container, hand[0]!, { slot: 'hand' });
-    expect([...container.querySelectorAll('.seat[data-viewer] [data-zone="hand"] .board-card')].map((c) => Number((c as HTMLElement).dataset.cardId))).toEqual([...hand.slice(1), hand[0]!]);
-  });
 });
 
 /*
  * ── a cast's drop point, handed to Board by the gestures lane ──
  *
- * A card Forge has OFFERED is never arrangeable (`handStandsDown`), so a
+ * No hand card is ever arrangeable (`CardOnBoard`'s `draggable`), so a
  * cast's drop point has nowhere to land on its own — left alone, the
  * permanent that eventually arrives always joins the end of its type row.
  * `notePlayedTo`/`previewPlayedTo` are the seam with the gestures lane's cast
@@ -4715,6 +4599,92 @@ describe('notePlayedTo hands a cast’s drop point to Board', () => {
     expect(container.querySelector('[data-card-id="24"]')!.hasAttribute('data-arrange-target'), 'and the mark is cleared').toBe(false);
     // Unlike notePlayedTo, this never wrote a pending placement.
     expect(backIds(container)).toEqual(['8', '24', '6', '25']);
+  });
+});
+
+/**
+ * `live/gestures/hand.ts`'s seam into the arrangement store, the same shape
+ * `notePlayedTo` already has — a module-level write, keyed by whatever the
+ * last render saw (`LIVE_VIEWER_ID`/`LIVE_MATCH_KEY`), then every mounted
+ * board is woken. `handOrder`/`withHandMove` are the pure functions
+ * underneath it, pinned directly here as well as through the DOM.
+ */
+describe('commitHandMove hands a hand reorder to Board', () => {
+  const base = boardFromFixture(fixture);
+  const me = base.players.find((p) => p.isViewer)!;
+  const hand = me.hand!.map((c) => c.id);
+
+  const handOf = (container: HTMLElement) => container.querySelector<HTMLElement>('.seat[data-viewer] [data-zone="hand"]')!;
+  const handIds = (container: HTMLElement): number[] =>
+    [...handOf(container).querySelectorAll<HTMLElement>('.board-card')].map((c) => Number(c.dataset.cardId));
+
+  it('handOrder is the identity until the store names a hand, then the store wins, with an unnamed card at the end', () => {
+    const cards = [{ id: 1 }, { id: 2 }, { id: 3 }] as unknown as readonly BoardCard[];
+    expect(handOrder(cards, 0, {})).toBe(cards);
+    expect(handOrder(cards, 0, { '0:hand': [[2], [1]] }).map((c) => c.id)).toEqual([2, 1, 3]);
+  });
+
+  it('withHandMove takes bare ids (not BoardCard objects) and writes one pile per card, the dragged one moved', () => {
+    const before: Record<string, readonly (readonly number[])[]> = {};
+    const beforeTarget: DropTarget = { kind: 'before', id: 1 };
+    expect(withHandMove([1, 2, 3], 0, before, 3, beforeTarget)).toEqual({ '0:hand': [[3], [1], [2]] });
+    expect(withHandMove([1, 2, 3], 0, before, 1, { kind: 'end' })).toEqual({ '0:hand': [[2], [3], [1]] });
+  });
+
+  it('commitHandMove writes the new order into the store and wakes the mounted board — no rerender call needed', () => {
+    const { container } = render(createElement(Board, { view: base }));
+    expect(handIds(container), 'the view’s own order, to begin with').toEqual(hand);
+
+    act(() => {
+      commitHandMove(hand, hand.at(-1)!, { kind: 'before', id: hand[0]! });
+    });
+    expect(handIds(container), 'the mounted board redrew on its own').toEqual([hand.at(-1)!, ...hand.slice(0, -1)]);
+  });
+
+  it('survives a re-render, a resync and a remount, and a card drawn joins the end', () => {
+    const first = render(createElement(Board, { view: base }));
+    act(() => {
+      commitHandMove(hand, hand.at(-1)!, { kind: 'before', id: hand[0]! });
+    });
+    const arranged = [hand.at(-1)!, ...hand.slice(0, -1)];
+    expect(handIds(first.container)).toEqual(arranged);
+
+    // A re-render with the same view: the order is in the module store, not in
+    // React's state, so a redraw cannot lose it.
+    first.rerender(createElement(Board, { view: base }));
+    expect(handIds(first.container), 'after a re-render').toEqual(arranged);
+
+    // A resync replaces the whole view and may remount the board.
+    cleanup();
+    const resynced: BoardView = { ...boardFromFixture(fixture), seq: 4242 };
+    expect(handIds(render(createElement(Board, { view: resynced })).container), 'after a resync and a remount').toEqual(arranged);
+
+    // A card DRAWN while the arrangement stands joins the end of the hand
+    // rather than the middle of an order the player chose.
+    cleanup();
+    const seed = me.hand![0]!;
+    const drew: BoardView = {
+      ...resynced,
+      players: resynced.players.map((p) =>
+        !p.isViewer ? p : { ...p, hand: [{ ...seed, id: 909, card: { ...seed.card, cardId: 'w909' } }, ...(p.hand ?? [])] },
+      ),
+    };
+    expect(handIds(render(createElement(Board, { view: drew })).container)).toEqual([...arranged, 909]);
+  });
+
+  it('is per match: another match starts from the view’s order, and sends nothing to Forge', () => {
+    const { container } = render(createElement(Board, { view: base }));
+    act(() => {
+      commitHandMove(hand, hand.at(-1)!, { kind: 'before', id: hand[0]! });
+    });
+    expect(handIds(container)).not.toEqual(hand);
+
+    // Another match starts from the view's order, as the battlefield does.
+    cleanup();
+    const elsewhere = render(createElement(Board, { view: { ...boardFromFixture(fixture), title: 'another match entirely' } }));
+    expect(handIds(elsewhere.container)).toEqual(hand);
+    // And the view `Board` was handed is untouched — the order is ours, never Forge's.
+    expect(base.players.find((p) => p.isViewer)!.hand!.map((c) => c.id)).toEqual(hand);
   });
 });
 

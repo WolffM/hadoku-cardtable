@@ -420,24 +420,30 @@ describe('two seats over the socket', () => {
 		};
 		alice.socket.emit('forge:presence', message);
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(1));
-		expect(bob.presences[0]).toEqual({ ...message, arranging: null, placing: null, seat: 0 });
+		expect(bob.presences[0]).toEqual({ ...message, arranging: null, handMove: null, placing: null, seat: 0 });
 		await new Promise((r) => setTimeout(r, 60));
 		expect(alice.presences, 'nothing comes back to the sender').toHaveLength(0);
+
+		// A hand reorder's two indices relay the same way — never a card id or name.
+		alice.socket.emit('forge:presence', { ...message, handMove: { from: 0, to: 2 } });
+		await vi.waitFor(() => expect(bob.presences).toHaveLength(2));
+		expect(bob.presences[1]).toEqual({ ...message, arranging: null, handMove: { from: 0, to: 2 }, seat: 0 });
 
 		// Malformed: dropped and logged, not relayed. A card id would be malformed too — the schema
 		// is strict, and so is a hand row count that is neither 1 nor 2.
 		alice.socket.emit('forge:presence', { ...message, cardId: 42 });
 		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'hand', x: 2, y: 0 }, held: false, from: null, handRows: 1 });
 		alice.socket.emit('forge:presence', { ...message, handRows: 3 });
-		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'presence-malformed')).toHaveLength(3));
-		expect(bob.presences).toHaveLength(1);
+		alice.socket.emit('forge:presence', { ...message, handMove: { from: 0, to: -1 } });
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'presence-malformed')).toHaveLength(4));
+		expect(bob.presences).toHaveLength(2);
 
 		// A match spans a deploy: a tab still on the OLD bundle sends a spot's old `owner` field and
 		// no `handRows` at all. That shape still relays — never dropped, never logged as malformed —
 		// with `handRows` defaulted to 1 and `owner` gone, not merely ignored by the receiver.
 		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'battlefield', owner: 'you', x: 0.25, y: 0.5 }, held: false, from: null });
-		await vi.waitFor(() => expect(bob.presences).toHaveLength(2));
-		expect(bob.presences[1]).toEqual({
+		await vi.waitFor(() => expect(bob.presences).toHaveLength(3));
+		expect(bob.presences[2]).toEqual({
 			matchId,
 			type: 'presence',
 			pointer: { zone: 'battlefield', x: 0.25, y: 0.5 },
@@ -445,17 +451,18 @@ describe('two seats over the socket', () => {
 			from: null,
 			handRows: 1,
 			arranging: null,
+			handMove: null,
 			placing: null,
 			seat: 0,
 		});
-		expect(h.logs.filter((l) => l.evt === 'presence-malformed'), 'still 3: the old shape was never malformed').toHaveLength(3);
+		expect(h.logs.filter((l) => l.evt === 'presence-malformed'), 'still 4: the old shape was never malformed').toHaveLength(4);
 
 		// A spectator on alice's seat (a second browser) sends, and nobody hears it.
 		const watcher = await connect(h.port, edgeHeaders('alice'));
 		await watcher.request('forge:join', { matchId });
 		watcher.socket.emit('forge:presence', message);
 		await new Promise((r) => setTimeout(r, 80));
-		expect(bob.presences, 'a spectator’s pointer belongs to nobody').toHaveLength(2);
+		expect(bob.presences, 'a spectator’s pointer belongs to nobody').toHaveLength(3);
 	});
 	it('refuses a third person, and a join for a match that does not exist', async () => {
 		const { h, matchId, alice, bob } = await twoSeats();

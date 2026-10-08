@@ -89,6 +89,23 @@ export const PRESENCE_STALE_MS = 6000;
 export const HANDOFF_MS = 2000;
 /** How long a back waits in its reserved gap for the card; a cast that never resolves just ages out (`Board`'s own TTL). */
 export const WAITING_MS = 15_000;
+/** How long a hand-move's glide runs — the same number `./gestures/hand.ts`'s own FLIP uses, so the two screens move in step. */
+export const HAND_MOVE_MS = 300;
+
+/**
+ * `live/gestures/hand.ts`'s own seam into this module: a hand reorder
+ * just committed, told to every live `installPresence` instance so it can
+ * send at once, outside the throttle — `sendRelease`'s own reason, a release
+ * with no further movement should not wait on a move that may never come.
+ * Module-level, the same shape `Board.tsx`'s `carryCastOffStack` listeners
+ * use: there is only ever one live board, but the gesture layer and this
+ * module are separate lanes with no import of each other's internals.
+ */
+const handMoveListeners = new Set<(from: number, to: number) => void>();
+
+export function queueHandMove(from: number, to: number): void {
+  for (const listener of handMoveListeners) listener(from, to);
+}
 
 export interface PresenceHost {
   readonly matchId: string;
@@ -262,10 +279,42 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       arranging: arranging === null || arranging.at === null ? null : { card: arranging.card, at: arranging.at },
       // `placing` only ever rides on the release message (`sendRelease`), never a plain move.
       placing: null,
+      handMove: null,
     };
     const key = JSON.stringify(message);
     if (key === lastMessage) return;
     lastMessage = key;
+    lastSent = Date.now();
+    host.transport.emit(PRESENCE_EVENT, message);
+  }
+
+  /**
+   * `./gestures/hand.ts` just committed a reorder: sent at once, outside the
+   * throttle, the same reason `sendRelease` is — a release with no further
+   * pointer movement should not wait on one that may never come. Everything
+   * else in the message is read fresh off the DOM exactly as `send` reads it,
+   * so the other seat's cursor and held-card state stay correct alongside it.
+   */
+  function sendHandMove(from: number, to: number): void {
+    if (!live || host.seat === null) return;
+    if (sendTimer !== null) {
+      clearTimeout(sendTimer);
+      sendTimer = null;
+    }
+    const spot = lastPointer === null ? null : spotOf(canvas, lastPointer);
+    const hands = handsOf(canvas);
+    const handFrom = hands.from === null ? null : spotOf(canvas, hands.from);
+    const message: PresenceMessage = {
+      matchId: host.matchId,
+      type: 'presence',
+      pointer: spot,
+      held: hands.held,
+      from: handFrom,
+      handRows: handRowsOf(canvas),
+      arranging: null,
+      handMove: { from, to },
+    };
+    lastMessage = JSON.stringify(message);
     lastSent = Date.now();
     host.transport.emit(PRESENCE_EVENT, message);
   }
@@ -311,6 +360,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       handRows: handRowsOf(canvas),
       arranging: null,
       placing: spot === null || spot.zone === 'hand' ? null : { at: spot },
+      handMove: null,
     };
     lastMessage = JSON.stringify(message);
     lastPointer = { x: point.x, y: point.y };
@@ -451,11 +501,44 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     liftedCard.tile.style.top = `${at.y - box.top}px`;
   }
 
+  /**
+   * The other half of the hand reorder: a back of THEIR hidden hand glides from `from` to
+   * `to` (both indices, `./gestures/hand.ts`'s own doc comment has the
+   * reason none of this ever carries an id). A plain `div.presence__back`,
+   * the SAME element their held card already uses — `[data-waiting]` is
+   * borrowed only for its 300ms house-curve transition, never for the
+   * "waiting on a placement" meaning it carries elsewhere in this file — so
+   * no new stylesheet rule exists for this. Every back is identical, so
+   * there is nothing to settle into: the glide alone is the whole signal.
+   */
+  function glideHandMove(root: HTMLElement, box: DOMRect, move: PresenceEcho['handMove']): void {
+    if (move === null) return;
+    const hand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]');
+    const backs = hand === null ? [] : [...hand.querySelectorAll<HTMLElement>('li.card-back')];
+    const from = backs[move.from]?.getBoundingClientRect();
+    const to = backs[move.to]?.getBoundingClientRect();
+    if (from === undefined || to === undefined || from.width === 0 || to.width === 0) return;
+    const ghost = document.createElement('div');
+    ghost.className = 'presence__back';
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.setAttribute('data-waiting', '');
+    ghost.style.width = `${from.width}px`;
+    ghost.style.left = `${from.left + from.width / 2 - box.left}px`;
+    ghost.style.top = `${from.top + from.height / 2 - box.top}px`;
+    root.append(ghost);
+    requestAnimationFrame(() => {
+      ghost.style.left = `${to.left + to.width / 2 - box.left}px`;
+      ghost.style.top = `${to.top + to.height / 2 - box.top}px`;
+    });
+    setTimeout(() => ghost.remove(), HAND_MOVE_MS);
+  }
+
   function draw(echo: PresenceEcho): void {
     const root = overlay();
     if (root === null) return;
     const box = root.getBoundingClientRect();
     drawArranging(root, box, echo.arranging);
+    glideHandMove(root, box, echo.handMove);
     const at = echo.pointer === null ? null : placeSpot(canvas, echo.pointer);
     if (at === null) {
       takeDown();
@@ -769,6 +852,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   // painted) — this mount gets its own fresh attempt, since the server only ever sends it once.
   if (pendingPlaced !== null) onPlaced(pendingPlaced);
   const unwatch = host.watch?.(handoff) ?? null;
+  handMoveListeners.add(sendHandMove);
 
   return {
     dispose() {
@@ -776,6 +860,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       live = false;
       unwatch?.();
       unwatchSpellMoved();
+      handMoveListeners.delete(sendHandMove);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerleave', onPointerLeave);
       canvas.removeEventListener('pointerup', onPointerRelease);

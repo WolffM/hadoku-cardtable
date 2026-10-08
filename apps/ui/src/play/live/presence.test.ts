@@ -35,7 +35,7 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
 });
 vi.mock('./placed.ts', () => placedMod);
 
-import { forgetPendingPlaced, installPresence, placeSpot, PRESENCE_STALE_MS, spotOf, type PresenceHost } from './presence.ts';
+import { forgetPendingPlaced, HAND_MOVE_MS, installPresence, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost } from './presence.ts';
 
 type Box = { left: number; top: number; width: number; height: number };
 const rect = (b: Box): DOMRect =>
@@ -66,6 +66,21 @@ function board(overrides: Partial<Record<string, Box>> = {}, overlay: Box = { le
     canvas.querySelector<HTMLElement>(selector)!.getBoundingClientRect = () => rect(box);
   }
   return { canvas, theirCard: canvas.querySelector<HTMLElement>('[data-board-card="7"]')! };
+}
+
+/** `n` anonymous card backs in the OTHER seat's hidden hand (`HiddenHand`'s own markup), 70px apart. */
+function theirHandBacks(canvas: HTMLElement, n: number): HTMLElement[] {
+  const zone = canvas.querySelector('[data-zone="hand"][data-owner="them"] ul.card-backs')!;
+  const backs: HTMLElement[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const li = document.createElement('li');
+    li.className = 'card-back';
+    li.setAttribute('data-card-back', '');
+    li.getBoundingClientRect = () => rect({ left: 100 + i * 70, top: 20, width: 60, height: 84 });
+    zone.append(li);
+    backs.push(li);
+  }
+  return backs;
 }
 
 /** `n` hand cards in the viewer's own hand, laid out in one row or two (stubbed tops). */
@@ -164,7 +179,7 @@ describe('sending', () => {
     expect(t.sent, 'two moves inside one window: one message, the latest').toHaveLength(1);
     expect(t.sent[0]).toEqual({
       event: PRESENCE_EVENT,
-      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1, arranging: null, placing: null },
+      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, held: false, from: null, handRows: 1, arranging: null, placing: null, handMove: null },
     });
 
     // The gesture layer lifts a card and aims an arrow from it: read off its own marks.
@@ -218,6 +233,7 @@ describe('sending', () => {
         handRows: 1,
         arranging: null,
         placing: { at: { zone: 'battlefield', x: 0.3, y: 0.625 } },
+        handMove: null,
       },
     });
 
@@ -283,6 +299,42 @@ describe('sending', () => {
     vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
     expect((t.sent[0]!.payload as { handRows: unknown }).handRows).toBe(1);
     handle.dispose();
+  });
+
+  /**
+   * `./gestures/hand.ts` calls `queueHandMove` once, at the commit —
+   * never a card id, never a name, the two hand INDICES only, sent at once,
+   * outside the throttle (the same reason `sendRelease` is).
+   */
+  it('queueHandMove sends at once, outside the throttle, with the two indices and nothing else new', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    queueHandMove(1, 3);
+    expect(t.sent, 'sent immediately, no timer advance').toHaveLength(1);
+    expect(t.sent[0]!.payload).toMatchObject({ matchId: 'm-1', type: 'presence', handMove: { from: 1, to: 3 }, arranging: null });
+    handle.dispose();
+  });
+
+  it('a spectator’s queueHandMove sends nothing — there is no seat to speak for', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t, null) });
+    queueHandMove(0, 1);
+    expect(t.sent).toHaveLength(0);
+    handle.dispose();
+  });
+
+  it('a disposed instance never hears queueHandMove again', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    handle.dispose();
+    queueHandMove(0, 1);
+    expect(t.sent).toHaveLength(0);
   });
 });
 
@@ -544,6 +596,45 @@ describe('receiving', () => {
     expect(theirHand.getAttribute('data-presence-rows'), 'their hand draws two rows').toBe('2');
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, handRows: 1, arranging: null });
     expect(theirHand.hasAttribute('data-presence-rows'), 'back to one row: no attribute').toBe(false);
+    handle.dispose();
+  });
+
+  /**
+   * The other half: a `handMove` echo glides a back of THEIR hidden
+   * hand from one position to another — never the card's id or name
+   * (`queueHandMove`'s own doc comment has the reason), and every back is
+   * interchangeable, so there is nothing for the RESTING state to prove;
+   * only the motion is the signal.
+   *
+   * Mutation: drop `glideHandMove`'s own call in `draw` and this is the one
+   * case that fails — nothing else here reads `echo.handMove` at all.
+   */
+  it('bob sees a back in alice’s hand move from position 0 to 2', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    theirHandBacks(canvas, 4);
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1, arranging: null, handMove: { from: 0, to: 2 } });
+    const ghost = canvas.querySelector<HTMLElement>('[data-board-overlay] .presence__back[data-waiting]')!;
+    expect(ghost, 'a back glides, even with no pointer in the message at all').not.toBeNull();
+    expect(ghost.style.left, 'starts at position 0’s centre').toBe('130px'); // 100 + 0*70 + 30 (half of 60) − overlay left 0
+    vi.advanceTimersByTime(16); // the glide's own requestAnimationFrame
+    expect(ghost.style.left, 'ends at position 2’s centre').toBe('270px'); // 100 + 2*70 + 30
+    vi.advanceTimersByTime(HAND_MOVE_MS);
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'removed once the glide finishes').toBeNull();
+    handle.dispose();
+  });
+
+  it('an out-of-range handMove (the hand resized mid-flight) draws nothing and throws nothing', () => {
+    const { canvas } = board();
+    theirHandBacks(canvas, 2);
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    expect(() =>
+      t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, handRows: 1, arranging: null, handMove: { from: 0, to: 9 } }),
+    ).not.toThrow();
+    expect(canvas.querySelector('.presence__back[data-waiting]')).toBeNull();
     handle.dispose();
   });
 

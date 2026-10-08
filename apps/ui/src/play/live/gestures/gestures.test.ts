@@ -376,13 +376,10 @@ describe('dragging a card, and the targeter arrow', () => {
    * Wave 20's zone drop, and it is asserted from the HAND.
    *
    * *"Dragging a land onto the table is #6's whole point"* — and #6 is a card in
-   * hand. Wave 25 gave the hand an arrangement of its own, and it stands down on
-   * exactly this card: a hand card FORGE OFFERED is never natively draggable,
-   * because dragging it out of hand is how it is played
-   * (`Board.tsx`'s `handStandsDown`). So an offered hand card is this layer's
-   * whichever way the two halves land, which the `draggable` assertion below
-   * pins from this side. The battlefield side of the partition has its own case
-   * further down.
+   * hand. No hand card is ever `Board.tsx`'s own native drag, because dragging
+   * one out of hand is how it is played — so every hand card is this layer's,
+   * which the `draggable` assertion below pins from this side. The battlefield
+   * side of the partition has its own case further down.
    */
   it('outside a selection, a hand card dropped on the table is the one frame a click sends — and it is not sent twice', async () => {
     const { s, m, canvas } = await gestureBoard();
@@ -434,19 +431,24 @@ describe('dragging a card, and the targeter arrow', () => {
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const hand = mineOf(m).hand!.map((c) => c.id);
     /*
-     * At plain priority, with nothing offered in hand: the ARRANGEMENT owns a
-     * press on a hand card, and this layer leaves it entirely alone — cancelling
-     * that press would cancel the native drag with it.
+     * A hand card, Forge-offered or not, is this layer's OWN press now — the
+     * hand reorder — never the arrangement's: `CardOnBoard` no longer makes
+     * ANY hand card `draggable`, so there is no native drag left to collide
+     * with here, only this layer's own claim. Right-click lets the lift go
+     * with nothing sent, so the dangling press does not reach the next
+     * assertion.
      */
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
     await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
     const arrangeable = cardEl(canvas, hand.at(-1)!);
-    expect(arrangeable.getAttribute('draggable'), 'the arrangement really owns it').toBe('true');
+    expect(arrangeable.hasAttribute('draggable'), 'never the arrangement’s to begin with').toBe(false);
     expect(
       fireEvent.pointerDown(arrangeable, { button: 0, clientX: 10, clientY: 10 }),
-      'the arrangement’s own press is left alone',
-    ).toBe(true);
+      'the hand reorder claims the press',
+    ).toBe(false);
     fireEvent.pointerUp(arrangeable, { clientX: 10, clientY: 10 });
+    fireEvent.pointerDown(arrangeable, { button: 2, clientX: 10, clientY: 10 });
+    expect(s.clientFrames(), 'the cancelled lift sent nothing').toHaveLength(0);
 
     // And Forge ASKING about a permanent: this layer claims that press, so the
     // browser's default — a text selection — is refused at the press itself.
@@ -2117,7 +2119,14 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
   });
 
-  it('any card released over the hand floats back, and nothing is sent, whatever the card is', async () => {
+  it('any card released over the hand reorders it, and nothing is sent, whatever the card is', async () => {
+    // Replaces the old "floats back" contract: a release back inside the
+    // hand is now a REORDER commit, never a cancel — see `install.ts`'s
+    // `resolveLift`. The cancel cue (`data-cancel-hint`) was the old cast
+    // gesture's own cue for "let go here and nothing happens"; this layer no
+    // longer draws it while still inside the hand, because something DOES
+    // happen now (the reorder preview, `data-arrange-target`, is
+    // `hand.test.ts`'s own to prove). Forge still hears nothing either way.
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!, hand[2]!])])) s.send(f);
@@ -2127,10 +2136,9 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     for (const id of [hand[0]!, hand[2]!]) {
       fireEvent.pointerDown(cardEl(canvas, id), { button: 0, clientX: 10, clientY: 10 });
       fireEvent.pointerMove(myHand, { clientX: 30, clientY: 20 });
-      expect(myHand.hasAttribute('data-cancel-hint'), `card ${id} over its own hand`).toBe(true);
+      expect(myHand.hasAttribute('data-cancel-hint'), `card ${id} draws no cast cue over its own hand`).toBe(false);
       expect(cardEl(canvas, id).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
       fireEvent.pointerUp(myHand, { clientX: 30, clientY: 20 });
-      expect(myHand.hasAttribute('data-cancel-hint'), 'cleared with the release').toBe(false);
     }
     await new Promise((r) => setTimeout(r, 350));
     expect(s.clientFrames()).toHaveLength(0);
@@ -2233,7 +2241,12 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
    * (`'any card released over the hand floats back'`, above); this pins the
    * CLICK-ARMED path, which had no test of its own.
    */
-  it('W5 — a click-armed card brought back over the hand and left-clicked there floats back, nothing sent', async () => {
+  it('W5 — a click-armed card brought back over the hand and left-clicked there reorders, nothing sent', async () => {
+    // See the previous test's own note — a release back inside the hand is
+    // a reorder commit now, so this card ends up back in the hand (its own
+    // reorder is a no-op: nothing else is between it and where it started)
+    // rather than floating "back home" by the old cancel path. Still
+    // nothing Forge ever hears.
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
@@ -2250,15 +2263,14 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(s.clientFrames()).toHaveLength(0);
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     fireEvent.pointerMove(myHand, { clientX: 20, clientY: 20 });
-    expect(myHand.hasAttribute('data-cancel-hint'), 'the cancel cue shows over the hand').toBe(true);
+    expect(myHand.hasAttribute('data-cancel-hint'), 'no cast cue over the hand any more').toBe(false);
     expect(s.clientFrames()).toHaveLength(0);
 
     // The next press is the "left click" that ends the gesture, over the hand.
     fireEvent.pointerDown(myHand, { button: 0, clientX: 20, clientY: 20 });
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'floating back, not played').toBe('returning');
     await new Promise((r) => setTimeout(r, 350));
     expect(s.clientFrames(), 'nothing reached Forge').toHaveLength(0);
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'settled, not mid-cast').toBeNull();
     expect(myHand.hasAttribute('data-cancel-hint'), 'the cue clears with the release').toBe(false);
   });
 

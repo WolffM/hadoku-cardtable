@@ -1,0 +1,17 @@
+/*
+ * The hand reorder's own stylesheet. Imported from `./hand.ts`, the same way
+ * `./install.ts` imports `./gestures.css`.
+ *
+ * Deliberately almost empty: the lift itself is `[data-cast-lift]`
+ * (`./gestures.css`, M's) and the drop preview is `[data-arrange-indicator]`/
+ * `[data-arrange-target]` (`Board.tsx`'s own `board.css`, already drawn for
+ * the battlefield's rearrange) — this file reuses both rather than drawing
+ * either again. The one thing that is new here is the FLIP `./hand.ts` runs
+ * on commit: a bare inline `transform`/`transition` pair needs no stylesheet
+ * rule to animate, but a card mid-flight should not be picked up again before
+ * it lands, and that is this file's one job.
+ */
+
+[data-zone='hand'][data-owner='you'] li.board-card[data-hand-flip] {
+  pointer-events: none;
+}

@@ -335,3 +335,62 @@ test(titled('where alice puts a card on her battlefield is where bob sees it: he
     await stack.stop();
   }
 });
+
+/** The viewer's own hand, in DOM order. */
+async function handIds(page: Page): Promise<number[]> {
+  return page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
+}
+
+/**
+ * Bob sees a back in alice's hand move from position 0 to 2. Installed
+ * BEFORE her drag, because the glide is a transient 300ms ghost
+ * (`presence.ts`'s `glideHandMove`) that a poll started afterward could
+ * easily miss entirely.
+ */
+test(titled('a hand reorder is mirrored: bob sees a back in alice’s hand glide from one position to another, never the card'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    // `w60-thirst` is borrowed read-only for its three-card hand — no scenario
+    // here deals one big enough to reorder for its own sake.
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w60-thirst');
+    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+
+    const before = await handIds(alice.page);
+    expect(before.length, 'w60-thirst’s own three-card hand').toBeGreaterThan(2);
+    const moved = before.at(-1)!;
+    const target = before[0]!;
+
+    await bob.page.evaluate(() => {
+      const overlay = document.querySelector('[data-board-overlay]')!;
+      const w = window as unknown as { __sawHandBack: () => boolean };
+      let saw = false;
+      w.__sawHandBack = () => saw;
+      new MutationObserver((records) => {
+        for (const r of records) {
+          if (r.target instanceof Element && r.target.matches('.presence__back[data-waiting]')) saw = true;
+          if (r.addedNodes.length > 0 && overlay.querySelector('.presence__back[data-waiting]') !== null) saw = true;
+        }
+      }).observe(overlay, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-waiting'] });
+    });
+
+    const targetBox = (await alice.page.locator(`[data-board-card="${target}"]`).boundingBox())!;
+    const armed = await dragHandCard(alice.page, moved, { x: targetBox.x + 2, y: targetBox.y + targetBox.height / 2 });
+    expect(armed, 'the press armed the Arena gesture').toBe(true);
+    await expect.poll(() => handIds(alice.page), { timeout: 10_000, message: 'alice’s own hand settled in its new order' }).toEqual([moved, ...before.slice(0, -1)]);
+
+    await expect
+      .poll(() => bob.page.evaluate(() => (window as unknown as { __sawHandBack: () => boolean }).__sawHandBack()), {
+        timeout: 5_000,
+        message: 'bob saw a card back glide — never which card',
+      })
+      .toBe(true);
+    // Never the card itself: nothing drawn for bob at any point named alice's cards.
+    const bobHtml = await bob.page.locator('[data-board-overlay]').innerHTML();
+    expect(bobHtml, 'the hand reorder reached the wire as indices only').not.toContain('data-card-id');
+  } finally {
+    await stack.stop();
+  }
+});

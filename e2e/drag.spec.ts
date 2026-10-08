@@ -69,6 +69,11 @@ async function offeredNamed(page: Page, name: string): Promise<number | undefine
   return cards.find((c) => c.name === name)?.id;
 }
 
+/** The viewer's own hand, in DOM order — read without caring what any card is named. */
+async function handIds(page: Page): Promise<number[]> {
+  return page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
+}
+
 /* ── 1. a land released outside the battlefield is still in hand ────────── */
 
 test(titled('a land released outside the battlefield is still in hand, and nothing was sent'), async ({ browser }) => {
@@ -302,3 +307,48 @@ test(
     }
   },
 );
+
+/* ── 7. a hand card dragged within the hand reorders it, nothing sent ───── */
+
+/**
+ * The operator: *"cannot reorder items in hand… when cards are picked up and
+ * reordered it should be visible to the opponent as well."* This proves the
+ * first half against a real match — the second (presence's `handMove`) is
+ * `e2e/presence.spec.ts`'s own case, since it needs two seats watching each
+ * other. `w60-thirst` is borrowed read-only for its three-card hand — no
+ * scenario here deals a hand big enough to reorder for its own sake, the
+ * same substitution this file's own header already explains for cases 3 and
+ * 5's cards.
+ *
+ * `dragHandCard` arms on ANY hand card now, not only one Forge offers —
+ * proven here on Thirst for Knowledge itself, which four untapped Islands
+ * make Forge-offered from the first frame.
+ */
+test(titled('a hand card dragged within the hand and released ends up between its neighbours, nothing sent to Forge'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w60-thirst');
+    void bob;
+
+    const before = await handIds(alice.page);
+    expect(before.length, 'w60-thirst’s own three-card hand').toBeGreaterThan(2);
+    const moved = before.at(-1)!;
+    const target = before[0]!;
+    const acts = actsSent(alice);
+
+    // Released just inside the first sibling's left edge: "before" it.
+    const targetBox = (await alice.page.locator(`[data-board-card="${target}"]`).boundingBox())!;
+    const armed = await dragHandCard(alice.page, moved, { x: targetBox.x + 2, y: targetBox.y + targetBox.height / 2 });
+    expect(armed, 'the press armed the Arena gesture now, offered or not — the precondition this wave adds').toBe(true);
+
+    await expect
+      .poll(() => handIds(alice.page), { timeout: 10_000, message: 'the moved card settles in front of its new neighbour' })
+      .toEqual([moved, ...before.slice(0, -1)]);
+    expect(actsSent(alice), 'a reorder is invisible to Forge by construction').toBe(acts);
+  } finally {
+    await stack.stop();
+  }
+});
