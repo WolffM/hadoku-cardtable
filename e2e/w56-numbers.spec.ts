@@ -24,7 +24,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, clickOnce, enabledOk, makeTitled, says, stackCount } from './play/board.ts';
+import { clickHandCard, clickOnce, enabledOk, makeTitled, says, serverLog, stackCount } from './play/board.ts';
 import { assignBlock, attackingCards, ownBattlefieldCards, passDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -108,7 +108,19 @@ test(
         else if ((await alice.page.getByTestId('live-payment-ok').count()) > 0) await clickOnce(alice.page, await says(alice.page), 'ok');
         await alice.page.waitForTimeout(40);
       }
-      expect(await stackCount(alice.page), 'the bolt is on the stack, aimed at bob').toBe(1);
+      // Name what happened before failing — this line reddened twice in one day on busy claws
+      // (runs 37762992480, 37787167091) and twice green alone, with nothing to read but "0".
+      const asks = serverLog(stack)
+        .filter((r) => r.evt === 'prompt-forwarded' || r.evt === 'ask-answered' || r.evt === 'ask-auto-answered' || r.evt === 'prompt-withheld')
+        .slice(-8)
+        .map((r) => `${String(r.evt)} s${String(r.seat)} ${String(r.method ?? r.ask ?? '')}`);
+      const open = await alice.page
+        .getByTestId('live-prompt')
+        .evaluateAll((els) => els.map((e) => `${e.getAttribute('data-method') ?? ''}#${e.getAttribute('data-call-id') ?? ''}`));
+      expect(
+        await stackCount(alice.page),
+        `the bolt is on the stack, aimed at bob — says: "${await says(alice.page)}"; open prompts: [${open.join(', ')}]; face selectable: ${String(await opponentFace.getAttribute('data-selectable'))}; server's last asks: [${asks.join(' | ')}]`,
+      ).toBe(1);
 
       // Watch BOTH screens for the number BEFORE resolving, so neither poll starts late and
       // misses the one window (`RISE_MS` is 700ms, short next to a network round trip).
