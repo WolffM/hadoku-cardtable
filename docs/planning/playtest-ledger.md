@@ -396,6 +396,12 @@ Server-side evidence for this match is in production's structured log (`pm2 logs
 | --- | --- | --- | --- | --- | --- | --- |
 | B1 | add a bot so I do not have to play against myself | 1 | shipped `0.29.1` (live in `0.30.0`) | `f62ee46`: **Play vs Forge AI** when you are alone in a room; the bot plays a random library deck legal in the room's era. Server and UI guards each fail when reverted; a real-Forge AI seat with a library deck runs; a real browser reached the AI's own turn once | make a room, stay alone, pick a deck, press Play vs Forge AI | |
 
+## Incidents
+
+| when | what | effect | rule |
+| --- | --- | --- | --- |
+| 2026-10-08 08:33:44Z | w59 lane S ran `pkill -f "[c]ardtable-wrapper"` hunting a stale local e2e server; it SIGTERMed PRODUCTION cardtable | `shutdown-begin`/`shutdown-done` in the play log; pm2 restarted it at 08:33:49Z; no match was live | a lane never signals a process it did not start by PID; production runs on this host (the subagent preamble now says so) |
+
 ## Regressions
 
 None recorded yet, because nothing has had a `✅` from you to regress from. When an
