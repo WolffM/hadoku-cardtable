@@ -138,7 +138,10 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
     const withClick = [clicked - 0, ...own.filter((e) => e.whose === 'yours').map((e) => e.t)];
     console.log(`[w32 q5] End Turn: ${own.filter((e) => e.whose === 'yours').map((e) => e.phase).join(' > ')}; gaps ${endTurnGaps.join(', ')} ms; click to first ${Math.round(withClick[1]! - withClick[0]!)} ms`);
     expect(endTurnGaps.length, 'an End Turn passes through several phases to measure').toBeGreaterThanOrEqual(3);
-    expect(median(endTurnGaps), `End Turn: the median gap between auto-passed phases (${endTurnGaps.join(', ')} ms)`).toBeLessThan(60);
+    // "At once" is measured against Forge's own pause (FORGE_PACE_MS): a median under half of it is a
+    // pass that never waited the pause out. A flat 60 ms reddened on busy claws (66, 47, 61, 35 ms on
+    // run 37762992480) while saying nothing different about the product.
+    expect(median(endTurnGaps), `End Turn: the median gap between auto-passed phases (${endTurnGaps.join(', ')} ms)`).toBeLessThan(FORGE_PACE_MS / 2);
     expect(Math.max(...endTurnGaps), 'End Turn: no phase waits out Forge\'s own pause').toBeLessThan(FORGE_PACE_MS - 60);
 
     // ── A pass that is NOT an End Turn: the other seat, on its own turn, presses OK at
