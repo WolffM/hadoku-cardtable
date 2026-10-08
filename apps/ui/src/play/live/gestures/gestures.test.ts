@@ -2520,6 +2520,28 @@ describe('a played card waits where it was let go until Forge has it on the batt
   const onMyBattlefield = (c: HTMLElement, id: number) =>
     c.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="you"] [data-board-card="${id}"]`);
 
+  it('the landing waits a frame and flies to the element the card KEEPS, even when Board re-keyed it after the frame arrived', async () => {
+    // The operator, 2026-10-08 (Fast Mode off, a card let go at a column past the end): "it immediately
+    // appears on the board". Board moves a placed card into its column in a layout effect after the
+    // gesture's notify, and a card that becomes its own pile is a new element: the old one was hidden
+    // and flown to, the new one painted at once.
+    const { s, m, canvas, card, arrive } = await play(() => true);
+    arrive();
+    await waitFor(() => expect(onMyBattlefield(canvas, card)).not.toBeNull());
+    const old = onMyBattlefield(canvas, card)!;
+    expect(old.hasAttribute('data-cast-landing'), 'nothing drawn on the first element inside the frame').toBe(false);
+    // Board's commit: the card is now a different element, somewhere else.
+    const fresh = old.cloneNode(true) as HTMLElement;
+    fresh.getBoundingClientRect = () => ({ left: 600, top: 500, right: 640, bottom: 556, width: 40, height: 56, x: 600, y: 500, toJSON: () => ({}) }) as DOMRect;
+    old.replaceWith(fresh);
+    await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+    expect(fresh.hasAttribute('data-cast-landing'), 'the element the card keeps is the one hidden for the flight').toBe(true);
+    const ghost = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    expect(ghost.getAttribute('data-cast-lift')).toBe('returning');
+    expect([ghost.style.left, ghost.style.top], 'and the flight ends at ITS centre').toEqual(['620px', '528px']);
+    void s; void m;
+  });
+
   it('a click-armed lift resolved by a press ON a battlefield card plays the hand card only: the click that follows is the release’s, not the card’s', async () => {
     // table-fit 2026-10-07: with free placement (Z8) the first land put down at the row's centre stays there, so the next
     // release lands on its pile — and the click after that press selected the pile's land too, a second select while

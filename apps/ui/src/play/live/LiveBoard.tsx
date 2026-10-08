@@ -248,7 +248,7 @@
 
 import { Component, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
-import type { DraftCard } from '@hadoku/shared';
+import { CLIENT_EVENT, type ClientEvent, type DraftCard } from '@hadoku/shared';
 import { usePrefs } from '@wolffm/prefs-client/react';
 
 import { navigate, routeHash } from '../../screens/route.ts';
@@ -287,6 +287,7 @@ import {
   type LiveAsk,
   type LiveClickables,
   type LiveMatch,
+  type MatchTransport,
 } from './match.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs.ts';
 import { SettingsPanel } from './SettingsPanel.tsx';
@@ -362,6 +363,24 @@ export function questionTopOf(root: HTMLElement): number | null {
     .filter((box) => box.height > 0)
     .map((box) => box.top);
   return tops.length === 0 ? null : Math.min(...tops) - frame.getBoundingClientRect().top;
+}
+
+/**
+ * Whether the board animates (a played card's flight to its slot, the other
+ * seat's hand-off). Fast Mode is pacing — no delays before the server's own
+ * answers — and a 300 ms flight is not a delay, so it never turns motion off
+ * (the operator, 2026-10-08, Fast Mode unchecked and no flight: the gate was
+ * wrong either way). Only the person's own reduced-motion setting does.
+ */
+const motionWanted = (): boolean => !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+/**
+ * Client telemetry (`@hadoku/shared`'s `telemetry.ts`): the server writes it
+ * into the match's log beside its own events. Settings on join and on each
+ * change; a played card's landing from the gesture layer. A watcher sends none.
+ */
+function reportClient(transport: Pick<MatchTransport, 'emit'>, matchId: string, kind: ClientEvent['kind'], data: ClientEvent['data']): void {
+  transport.emit(CLIENT_EVENT, { matchId, kind, data } satisfies ClientEvent);
 }
 
 /** Forge's own yield window after End Turn (`lblYieldingUntilEndOfTurn`, `lblYieldingUntilPhaseFmt`, `lblYieldingUntilStackClears`). */
@@ -1800,6 +1819,19 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     setFastModeState(next);
     if (isPacedTransport(match.transport)) match.transport.setFast(next);
   }
+  // The seat's settings, in the match's log: once they have been read, and on every change.
+  const settingsReported = useRef(false);
+  useEffect(() => {
+    if (spectator || prefs === null) return;
+    // The first report is of the persisted values, so it waits for the effects above to have put them
+    // into state (the same commit they arrive in still holds the defaults). After it, every change.
+    if (!settingsReported.current) {
+      const persistedLayout = prefs.boardLayout === 'type-separated' ? 'type-separated' : PLAY_PREFS_DEFAULTS.boardLayout;
+      if (boardLayout !== persistedLayout || fastMode !== (prefs.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode)) return;
+      settingsReported.current = true;
+    }
+    reportClient(match.transport, match.matchId, 'info', { fastMode, boardLayout, reducedMotion: !motionWanted() });
+  }, [match, spectator, prefs, fastMode, boardLayout]);
   useEffect(() => {
     // `snapshots === 0` is "no join has completed yet" — sending before that
     // would fire on mount, before the socket has so much as connected, and
@@ -1825,7 +1857,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     // A watcher's pointer belongs to nobody: no drag, no box, no arrow.
     if (canvas === null || spectator) return undefined;
     // Read through a ref, so toggling Fast Mode mid-match does not tear the layer down mid-gesture.
-    const handle = installGestures({ canvas, match, motion: () => !fastModeNow.current });
+    const handle = installGestures({ canvas, match, motion: motionWanted, report: (kind, data) => reportClient(match.transport, match.matchId, kind, data) });
     return () => handle.dispose();
   }, [match, spectator]);
 
@@ -1858,7 +1890,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             ...view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && item.controllerName !== mine).map((item) => item.sourceCardId!),
           ];
         },
-        motion: () => !fastModeNow.current,
+        motion: motionWanted,
       },
     });
     return () => handle.dispose();

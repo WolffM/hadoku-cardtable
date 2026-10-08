@@ -1990,7 +1990,9 @@ describe('Concede asks first', () => {
 describe('the frame installs the gesture layer and owns none of it', () => {
   it('one effect, and nothing about a drag in the component', () => {
     const src = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'LiveBoard.tsx'), 'utf8');
-    expect(src).toContain('installGestures({ canvas, match, motion: () => !fastModeNow.current })');
+    expect(src).toContain('installGestures({ canvas, match, motion: motionWanted, report: (kind, data) => reportClient(match.transport, match.matchId, kind, data) })');
+    // Motion is the person's reduced-motion setting, never Fast Mode (2026-10-08).
+    expect(src).not.toMatch(/motion: \(\) => !fastMode/);
     expect(src).toContain('handle.dispose()');
     for (const gone of ['commitDrag', 'DRAG_SLOP_PX', 'onPointerDown', 'pointermove', 'pointerup', 'createPortal']) {
       expect(src, `${gone} is ./gestures/'s now`).not.toContain(gone);
@@ -2412,6 +2414,23 @@ describe('the match settings live in the header menu (items 4-7, Q15)', () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: true });
     // No popout host was rendered in this test at all.
+  });
+
+  it('the seat’s settings go to the match log as client telemetry once read, and again on every change', async () => {
+    // The operator, 2026-10-08: "you should always confirm everything with telemetry" — a report about
+    // what a seat saw is read from the log's `client` events, never deduced from the code's defaults.
+    prefsState.prefs = { boardLayout: 'type-separated', stopAtEndStep: true, fastMode: false };
+    const { s, getByTestId } = await liveBoard(0, true);
+    await waitFor(() => expect(s.received.filter((r) => r.event === 'forge:client')).toHaveLength(1));
+    expect(s.received.filter((r) => r.event === 'forge:client')[0]!.payload).toEqual({
+      matchId: s.matchId,
+      kind: 'info',
+      data: { fastMode: false, boardLayout: 'type-separated', reducedMotion: false },
+    });
+    // Toggling Fast Mode sends the new settings, nothing else of the panel's.
+    fireEvent.click(getByTestId('live-settings-fast-mode'));
+    await waitFor(() => expect(s.received.filter((r) => r.event === 'forge:client')).toHaveLength(2));
+    expect(s.received.filter((r) => r.event === 'forge:client')[1]!.payload).toMatchObject({ kind: 'info', data: { fastMode: true } });
   });
 
   it('a persisted OFF preference is still sent on join — force, because off already matches the client default', async () => {

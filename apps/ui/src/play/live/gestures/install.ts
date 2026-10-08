@@ -342,6 +342,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   let previewFrame = 0;
   let previewPoint: Point | null = null;
+  /** A landing waiting for Board's placement commit — see `settleParkedIfResolved`. */
+  let landingFrame = 0;
   function previewAt(point: Point | null): void {
     previewPoint = point;
     if (point === null) {
@@ -803,8 +805,37 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const arrived = cardBox(canvas, parked.source);
       if (!(arrived instanceof HTMLElement) || arrived.closest('[data-zone="battlefield"]') === null) return;
       const p = endPark()!;
-      if (p.ghost !== null && options.motion?.() === true) landCastGhost(canvas, p.source, p.ghost, p.at, arrived);
-      else releaseParked(p, false);
+      if (p.ghost === null || options.motion?.() !== true) {
+        options.report?.('landing', { card: p.source, how: p.ghost === null ? 'no-ghost' : 'motion-off' });
+        releaseParked(p, false);
+        return;
+      }
+      // Not this element, and not now: `Board` moves a placed card into the
+      // column it was let go at in a layout effect AFTER this frame, and a card
+      // that becomes its own pile is a NEW element — the landing drawn here hid
+      // the old one and flew to its box while the new one painted at once (the
+      // operator, 2026-10-08: "it immediately appears on the board"). The next
+      // animation frame is after that commit: the element found then is the one
+      // the card keeps, and its box is where it will stay.
+      const ghost = p.ghost;
+      landingFrame = requestAnimationFrame(() => {
+        landingFrame = 0;
+        const settled = cardBox(canvas, p.source);
+        if (settled instanceof HTMLElement && settled.closest('[data-zone="battlefield"]') !== null) {
+          const box = settled.getBoundingClientRect();
+          options.report?.('landing', {
+            card: p.source,
+            how: 'flight',
+            rekeyed: settled !== arrived,
+            dx: Math.round(box.left + box.width / 2 - p.at.x),
+            dy: Math.round(box.top + box.height / 2 - p.at.y),
+          });
+          landCastGhost(canvas, p.source, ghost, p.at, settled);
+        } else {
+          options.report?.('landing', { card: p.source, how: 'gone-before-frame' });
+          releaseParked(p, false);
+        }
+      });
       return;
     }
     // Forge offers the parked card ITSELF in a selection — a cleanup discard,
@@ -1243,6 +1274,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // A gesture disposed mid-flight (a remount, a resync) leaves no
       // placement preview behind either.
       if ((drag !== null && drag.lifted) || parked !== null) previewAt(null);
+      if (landingFrame !== 0) cancelAnimationFrame(landingFrame);
+      landingFrame = 0;
       endPark();
       endTapSweep();
       canvas.removeAttribute(CANVAS_ATTR);

@@ -13,11 +13,16 @@ export interface GestureOptions {
   onChange?: () => void;
   /**
    * Whether an arrival is shown as motion: a played card travels from where it
-   * was let go to its place in the row. False (Fast Mode on) and it is simply
-   * there. Read at each arrival, so a mid-match toggle needs no reinstall.
-   * Absent: no motion.
+   * was let go to its place in the row. False (the person's reduced-motion
+   * setting) and it is simply there. Read at each arrival. Absent: no motion.
    */
   motion?: () => boolean;
+  /**
+   * Telemetry: how a played card arrived (`landing`), written to the match's
+   * log by the server so the report "it just appeared" is read, not guessed.
+   * Absent: nothing is recorded.
+   */
+  report?: (kind: 'landing', data: Record<string, string | number | boolean>) => void;
 }
 
 export interface GestureHandle {

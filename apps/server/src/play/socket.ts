@@ -74,7 +74,7 @@ import {
 	type CoreRoomState,
 	type EmitPolicy,
 } from '@wolffm/rooms-server';
-import { PRESENCE_EVENT, PRESENCE_MAX_PER_SECOND, PresenceSchema } from '@hadoku/shared';
+import { CLIENT_EVENT, CLIENT_EVENT_MAX_PER_SECOND, ClientEventSchema, PRESENCE_EVENT, PRESENCE_MAX_PER_SECOND, PresenceSchema } from '@hadoku/shared';
 import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 
 import { CONFIG } from '../config.js';
@@ -856,6 +856,34 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			presenceSent += 1;
 			if (presenceSent > PRESENCE_MAX_PER_SECOND) return;
 			socket.to(roomFor(match).roomId).emit(PRESENCE_EVENT, { ...parsed.data, seat });
+		});
+
+		/*
+		 * Client telemetry (`@hadoku/shared`'s `telemetry.ts`): what the seat's
+		 * browser knows — its settings, what its gesture layer drew — written
+		 * into this log as `client` events beside the server's own, keyed by
+		 * match and seat, so a report is read from the log rather than deduced.
+		 * Only a joined controller's is kept; nothing is relayed to anyone.
+		 */
+		let clientWindow = 0;
+		let clientSent = 0;
+		socket.on(CLIENT_EVENT, (raw: unknown) => {
+			const parsed = ClientEventSchema.safeParse(raw);
+			if (!parsed.success) {
+				log({ evt: 'client-malformed', participantId, errors: parsed.error.issues.slice(0, 3).map((i) => i.message) });
+				return;
+			}
+			const match = matches.get(parsed.data.matchId);
+			const seat = match === undefined ? undefined : joined.get(match.id);
+			if (match === undefined || seat === undefined || !isController(match.id, seat, socket.id)) return;
+			const now = Math.floor(Date.now() / 1000);
+			if (now !== clientWindow) {
+				clientWindow = now;
+				clientSent = 0;
+			}
+			clientSent += 1;
+			if (clientSent > CLIENT_EVENT_MAX_PER_SECOND) return;
+			log({ evt: 'client', matchId: match.id, seat, participantId, kind: parsed.data.kind, ...parsed.data.data });
 		});
 
 		socket.on('disconnect', (reason: string) => {

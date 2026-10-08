@@ -241,7 +241,7 @@ for (const fast of [true, false]) {
     expect(asked.length, 'the question was up for many frames').toBeGreaterThan(10);
     for (const f of asked) expect(near(seenAt(f)!, to), `while the question is up the land is over the board (t=${f.t})`).toBe(true);
     expect(flight.some((f) => f.stack > 0 || f.carried > 0), 'a land never shows on the stack, nor is ever on Forge’s').toBe(false);
-    expect(flight.some((f) => f.ghostLift === 'returning'), fast ? 'Fast Mode: it is simply there, no travel' : 'Fast Mode off: it travels from the hover to its place').toBe(!fast);
+    expect(flight.some((f) => f.ghostLift === 'returning'), 'it travels from the hover to its place, Fast Mode or not').toBe(true);
   } finally {
     await stack.stop();
   }
@@ -287,7 +287,8 @@ for (const fast of [true, false]) {
       // Not vacuous: Forge did have the spell on the stack, and the stack left it to the card.
       expect(flight.some((f) => f.carried === 1), `the spell was on Forge's stack while the card stood in for it\n${timeline(flight)}`).toBe(true);
       const travelled = flight.some((f) => f.ghostLift === 'returning');
-      expect(travelled, fast ? 'Fast Mode: it is simply there, no travel' : 'Fast Mode off: it travels from the hover to its place').toBe(!fast);
+      // Fast Mode is pacing, not motion: the card travels either way (2026-10-08).
+      expect(travelled, 'it travels from the hover to its place, Fast Mode or not').toBe(true);
     } finally {
       await stack.stop();
     }

@@ -329,6 +329,25 @@ describe('two seats over the socket', () => {
 	 * match's OTHER sockets, stamped with the seat. Forge never hears it and
 	 * the message names no card, so there is nothing to redact.
 	 */
+	it('writes a seat’s client telemetry into the log, stamped with the seat, and relays none of it', async () => {
+		const { h, matchId, alice, bob } = await twoSeats();
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		alice.socket.emit('forge:client', { matchId, kind: 'info', data: { fastMode: false, boardLayout: 'single', reducedMotion: false } });
+		alice.socket.emit('forge:client', { matchId, kind: 'landing', data: { card: 42, how: 'flight', dx: 180, dy: -220 } });
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'client')).toHaveLength(2));
+		const [info, landing] = h.logs.filter((l) => l.evt === 'client');
+		expect(info).toMatchObject({ matchId, seat: 0, kind: 'info', fastMode: false, boardLayout: 'single', reducedMotion: false });
+		expect(landing).toMatchObject({ matchId, seat: 0, kind: 'landing', card: 42, how: 'flight', dx: 180, dy: -220 });
+		// Malformed (a nested value, an unknown kind): logged as such, never written as an event.
+		alice.socket.emit('forge:client', { matchId, kind: 'info', data: { nested: { a: 1 } } });
+		alice.socket.emit('forge:client', { matchId, kind: 'guess', data: {} });
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'client-malformed')).toHaveLength(2));
+		expect(h.logs.filter((l) => l.evt === 'client')).toHaveLength(2);
+		await new Promise((r) => setTimeout(r, 60));
+		expect(bob.presences, 'nothing reaches the other seat').toHaveLength(0);
+	});
+
 	it('relays a seat’s presence to the other seat, stamped with the seat, never back to the sender, and never from a spectator', async () => {
 		const { h, matchId, alice, bob } = await twoSeats();
 		await alice.request('forge:join', { matchId });

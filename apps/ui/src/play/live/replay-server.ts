@@ -31,6 +31,7 @@
  * and typed here by the few members these tests touch.
  */
 
+import { CLIENT_EVENT } from '@hadoku/shared';
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createRequire } from 'node:module';
@@ -264,6 +265,10 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     // what the CLIENT sent.
     socket.on(MATCH_EVENTS.stopPreference, (payload) => {
       server.received.push({ event: MATCH_EVENTS.stopPreference, payload });
+    });
+    // Client telemetry: the real handler writes it to the log; this double records what was sent.
+    socket.on(CLIENT_EVENT, (payload) => {
+      server.received.push({ event: CLIENT_EVENT, payload });
     });
   });
 
