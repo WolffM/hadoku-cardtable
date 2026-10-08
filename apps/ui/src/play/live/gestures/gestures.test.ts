@@ -2074,6 +2074,32 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(s.clientFrames(), 'nothing sent yet — the lift alone').toHaveLength(0);
   });
 
+  it('stays the battlefield’s size once the press leaves the hand — it does not shrink back on the way out', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
+    myBattlefield.style.setProperty('--card-w', '64px');
+    cardEl(canvas, hand[0]!).style.setProperty('--card-w', '112px');
+
+    fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
+    expect(cardEl(canvas, hand[0]!).style.getPropertyValue('--card-w'), 'board-sized from the press').toBe('64px');
+
+    // Still over the hand: the reorder preview, board-sized throughout (not re-measured per move).
+    fireEvent.pointerMove(myHand, { clientX: 20, clientY: 20 });
+    expect(cardEl(canvas, hand[0]!).style.getPropertyValue('--card-w'), 'still board-sized inside the hand').toBe('64px');
+
+    // Crosses out to the battlefield: the mode change to the cast gesture — and the size must not
+    // revert to the card's own (bigger) hand value on the way.
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    expect(
+      cardEl(canvas, hand[0]!).style.getPropertyValue('--card-w'),
+      'still the battlefield’s size once it has left the hand — never the hand’s again',
+    ).toBe('64px');
+  });
+
   it('a no-target card released over the viewer’s own battlefield is played, once, at the release point', async () => {
     const { s, m, canvas } = await gestureBoard();
     const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');

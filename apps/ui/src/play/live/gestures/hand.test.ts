@@ -13,12 +13,10 @@ import * as BoardModule from '../../Board.tsx';
 import * as presenceModule from '../presence.ts';
 import {
   clearHandIndicator,
-  clearHandLiftSize,
   commitHandReorder,
   HAND_FLIP_ATTR,
   handCardPress,
   handOrderIds,
-  sizeHandLift,
   updateHandIndicator,
 } from './hand.ts';
 
@@ -40,7 +38,6 @@ function board(n = 4): { canvas: HTMLElement; cards: HTMLElement[] } {
       <div data-zone="hand" data-owner="you"><ul class="zone__cards"></ul></div>
     </div>`;
   document.body.append(canvas);
-  canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!.style.setProperty('--card-w', '80px');
   const list = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"] ul.zone__cards')!;
   const cards: HTMLElement[] = [];
   for (let i = 0; i < n; i += 1) {
@@ -80,25 +77,6 @@ describe('handOrderIds', () => {
 
   it('is empty off a board with no hand drawn at all', () => {
     expect(handOrderIds(document.createElement('div'))).toEqual([]);
-  });
-});
-
-describe('sizeHandLift / clearHandLiftSize — the board-sized lift (AD2, read independently of M’s own rule)', () => {
-  it('overrides the card’s own (hand-sized) --card-w with the battlefield’s, then lets it go cleanly', () => {
-    const { canvas, cards } = board();
-    cards[0]!.style.setProperty('--card-w', '56px'); // the hand row's own, smaller, value
-    sizeHandLift(canvas, 100);
-    expect(cards[0]!.style.getPropertyValue('--card-w'), 'the battlefield’s size, not the hand’s').toBe('80px');
-    clearHandLiftSize(canvas, 100);
-    expect(cards[0]!.style.getPropertyValue('--card-w'), 'gone — the ambient value shows through again').toBe('');
-  });
-
-  it('does nothing off a board with no battlefield zone drawn', () => {
-    const { cards } = board();
-    const bare = document.createElement('div');
-    bare.append(cards[0]!);
-    sizeHandLift(bare, 100);
-    expect(cards[0]!.style.getPropertyValue('--card-w')).toBe('');
   });
 });
 

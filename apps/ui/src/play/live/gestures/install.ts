@@ -228,11 +228,9 @@ import { CAST_LANDING_ATTR, expectedGapBox,
 import { commitDrag, commitMarquee, landsInBox, rectOf, type Rect } from './commit.ts';
 import {
   clearHandIndicator,
-  clearHandLiftSize,
   commitHandReorder,
   handCardPress,
   handOrderIds,
-  sizeHandLift,
   updateHandIndicator,
 } from './hand.ts';
 import { applyIntents, clearIntents } from './intent.ts';
@@ -373,6 +371,32 @@ export function installGestures(options: GestureOptions): GestureHandle {
     previewFrame = requestAnimationFrame(() => {
       previewFrame = 0;
       previewPlayedTo(previewPoint);
+    });
+  }
+  /**
+   * The hand's own reorder preview, once per frame — the same reason, and
+   * the same shape, as `previewAt` just above: `updateHandIndicator` forces
+   * a layout per call (it measures the hand's own siblings and the board),
+   * so calling it on every pointermove (and at the press itself, before the
+   * lift has even painted) cost the same stall `previewAt` already exists to
+   * avoid. `null` clears the indicator at once and drops any pending frame;
+   * a point schedules the next frame if one is not already pending, the
+   * latest point winning.
+   */
+  let handIndicatorFrame = 0;
+  let handIndicatorArgs: { cardId: number; point: Point } | null = null;
+  function scheduleHandIndicator(args: { cardId: number; point: Point } | null): void {
+    handIndicatorArgs = args;
+    if (args === null) {
+      if (handIndicatorFrame !== 0) cancelAnimationFrame(handIndicatorFrame);
+      handIndicatorFrame = 0;
+      clearHandIndicator();
+      return;
+    }
+    if (handIndicatorFrame !== 0) return;
+    handIndicatorFrame = requestAnimationFrame(() => {
+      handIndicatorFrame = 0;
+      if (handIndicatorArgs !== null) updateHandIndicator(canvas, handIndicatorArgs.cardId, handIndicatorArgs.point);
     });
   }
   /** The lands a box touched that are still to be tapped, in order — see "A box taps lands". */
@@ -656,11 +680,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // wherever it landed", a same-spot release included (a no-op commit,
       // `queueHandMove` skipped since nothing changed).
       previewAt(null);
-      clearHandIndicator();
+      scheduleHandIndicator(null);
       const fromIndex = handPressIndex ?? handOrderIds(canvas).indexOf(source);
       handPressIndex = null;
       commitHandReorder(canvas, source, fromIndex, point);
-      clearHandLiftSize(canvas, source);
       return;
     }
     // Left the hand before release: `onPointerMove`'s own transition already cleared the
@@ -882,10 +905,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const d = drag;
       drag = null;
       handPressIndex = null;
-      clearHandIndicator();
+      scheduleHandIndicator(null);
       clearDropCues(canvas);
       previewAt(null);
-      if (d.source !== null) floatCastLiftHome(canvas, d.source, d.from, () => clearHandLiftSize(canvas, d.source!));
+      if (d.source !== null) floatCastLiftHome(canvas, d.source, d.from, () => {});
       paint();
     }
   }
@@ -1120,9 +1143,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const from = box === null ? pressAt : centreOf(box);
         handPressIndex = handOrderIds(canvas).indexOf(press.id);
         drag = { source: press.id, press: pressAt, from, at: pressAt, target: null, moved: false, lifted: true, held: true };
+        // Board-sized from this call itself (`drawCastLift`'s own `'lifted'` rule) — nothing
+        // of this module's reads or writes that property.
         drawCastLift(canvas, press.id, pressAt, 'lifted');
-        sizeHandLift(canvas, press.id);
-        updateHandIndicator(canvas, press.id, pressAt);
+        // Deferred to the first frame, same as every later move — a layout forced here
+        // would run before the browser has even painted the lift at the press point.
+        scheduleHandIndicator({ cardId: press.id, point: pressAt });
         hover = null;
         paint();
         return;
@@ -1272,19 +1298,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
       drag = next;
       if (next.lifted && next.source !== null) {
         const overHand = overOwnHand(event.target);
+        // Board-sized on every call, not only the first — `drawCastLift`'s own `'lifted'`
+        // rule re-reads the battlefield's current `--card-w` each time; this module never
+        // overrides or clears that property, inside the hand or out of it.
         drawCastLift(canvas, next.source, at, 'lifted');
         if (overHand) {
           // Still inside the hand — the reorder preview, not the cast's drop cues.
-          sizeHandLift(canvas, next.source);
           clearDropCues(canvas);
           previewAt(null);
-          updateHandIndicator(canvas, next.source, at);
+          scheduleHandIndicator({ cardId: next.source, point: at });
         } else {
           // The press has left the hand: the mode change to the cast gesture, same press.
-          // `--card-w` goes back to whatever this card's own ambient value is — the
-          // board-sized-lift rule (`./cast.ts`/`./gestures.css`) takes sizing from here, not this module.
-          clearHandIndicator();
-          clearHandLiftSize(canvas, next.source);
+          scheduleHandIndicator(null);
           const spell = needsTarget(handCardTypeLine(match, next.source));
           const overBf = overOwnBattlefield(event.target);
           updateDropCues(canvas, spell, overHand, overBf);
@@ -1380,11 +1405,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
     }
     if (drag !== null && drag.lifted) {
       handPressIndex = null;
-      clearHandIndicator();
+      scheduleHandIndicator(null);
       clearDropCues(canvas);
       previewAt(null);
       const liftedSource = drag.source;
-      if (liftedSource !== null) floatCastLiftHome(canvas, liftedSource, drag.from, () => clearHandLiftSize(canvas, liftedSource));
+      if (liftedSource !== null) floatCastLiftHome(canvas, liftedSource, drag.from, () => {});
     }
     drag = null;
     marquee = null;
@@ -1520,8 +1545,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clearAllCastLifts(canvas);
       clearDropCues(canvas);
       handPressIndex = null;
-      clearHandIndicator();
-      if (drag !== null && drag.lifted && drag.source !== null) clearHandLiftSize(canvas, drag.source);
+      scheduleHandIndicator(null);
       // A gesture disposed mid-flight (a remount, a resync) leaves no
       // placement preview behind either.
       if ((drag !== null && drag.lifted) || parked !== null) previewAt(null);

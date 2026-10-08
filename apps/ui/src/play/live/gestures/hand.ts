@@ -29,12 +29,11 @@
  *
  * While the pointer stays over the viewer's own hand, `install.ts`'s move
  * handler calls into this module instead of `./cast.ts`'s drop cues
- * (`updateHandIndicator`): the lifted card keeps following the pointer
- * (`./cast.ts`'s `drawCastLift`, unchanged), board-sized from the first frame
- * (`sizeHandLift`, reading `--card-w` off the viewer's own battlefield — a
- * separate reading from the board-sized-lift rule in `./cast.ts`/
- * `./gestures.css`, which this module does not touch), and the row's own
- * `data-arrange-indicator`/`data-arrange-target` marks (`Board.tsx`'s
+ * (`updateHandIndicator`): the lifted card keeps following the pointer,
+ * already board-sized from the press (`./cast.ts`'s `drawCastLift` itself
+ * pins `--card-w` to the viewer's own battlefield the moment a card lifts —
+ * this module does not read or write that property at all), and the row's
+ * own `data-arrange-indicator`/`data-arrange-target` marks (`Board.tsx`'s
  * `board.css`, already drawn for the battlefield's own rearrange) preview
  * where it would land. The moment the pointer leaves the hand, `install.ts`
  * falls back to the cast gesture's own cues — the handoff is that mode
@@ -61,7 +60,6 @@ import type { DropTarget } from '../../Board.tsx';
 import { commitHandMove } from '../../Board.tsx';
 import { queueHandMove } from '../presence.ts';
 import { clearCastLift } from './cast.ts';
-import { cardBox } from './targets.ts';
 import './hand.css';
 
 /** How long the FLIP's own transition runs, and the house curve — the same number and curve `./gestures.css`'s `[data-cast-lift='parked'|'returning']` already use. */
@@ -102,34 +100,6 @@ export function handOrderIds(canvas: ParentNode): number[] {
     if (Number.isFinite(id)) out.push(id);
   }
   return out;
-}
-
-/**
- * The battlefield's own card width, read live off `--card-w` the moment a
- * hand card lifts, so it is board-sized from the first frame — read
- * independently of the board-sized-lift rule in `./cast.ts`/`./gestures.css`
- * (this module does not edit either). Null off a board with no battlefield
- * zone drawn yet (a static render, a test with no DOM for it).
- */
-function battlefieldCardWidth(canvas: ParentNode): string | null {
-  const bf = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]');
-  if (bf === null) return null;
-  const w = getComputedStyle(bf).getPropertyValue('--card-w').trim();
-  return w === '' ? null : w;
-}
-
-/** Board-size the lifted card from the first frame: an inline `--card-w` override beats every stylesheet rule, the hand row's included. */
-export function sizeHandLift(canvas: ParentNode, cardId: number): void {
-  const el = cardBox(canvas, cardId);
-  if (!(el instanceof HTMLElement)) return;
-  const w = battlefieldCardWidth(canvas);
-  if (w !== null) el.style.setProperty('--card-w', w);
-}
-
-/** Let the override go — a cancel back to the hand, or the pointer leaving it for the cast gesture, whose own rule (M's) takes over from here. */
-export function clearHandLiftSize(canvas: ParentNode, cardId: number): void {
-  const el = cardBox(canvas, cardId);
-  if (el instanceof HTMLElement) el.style.removeProperty('--card-w');
 }
 
 /**
