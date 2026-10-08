@@ -74,7 +74,17 @@ import {
 	type CoreRoomState,
 	type EmitPolicy,
 } from '@wolffm/rooms-server';
-import { CLIENT_EVENT, CLIENT_EVENT_MAX_PER_SECOND, ClientEventSchema, PRESENCE_EVENT, PRESENCE_MAX_PER_SECOND, PresenceSchema } from '@hadoku/shared';
+import {
+	ARRANGEMENT_EVENT,
+	ARRANGEMENT_MAX_PER_SECOND,
+	ArrangementSchema,
+	CLIENT_EVENT,
+	CLIENT_EVENT_MAX_PER_SECOND,
+	ClientEventSchema,
+	PRESENCE_EVENT,
+	PRESENCE_MAX_PER_SECOND,
+	PresenceSchema,
+} from '@hadoku/shared';
 import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 
 import { CONFIG } from '../config.js';
@@ -631,6 +641,14 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	 * old one's `disconnect` lands, spectates for that moment, and is promoted.
 	 */
 	const connected = new Map<string, string[]>();
+	/**
+	 * The last arrangement each seat sent (`@hadoku/shared`'s `arrangement.ts`),
+	 * by seat key, replayed to a socket as it joins so a reload or a late seat
+	 * draws the other side as it stands. Bounded: the oldest entry goes once
+	 * `ARRANGEMENTS_KEPT` are held.
+	 */
+	const arrangements = new Map<string, Record<string, unknown>>();
+	const ARRANGEMENTS_KEPT = 512;
 	const seatKey = (matchId: string, seat: number): string => `${matchId}#${seat}`;
 	const isController = (matchId: string, seat: number, socketId: string): boolean =>
 		connected.get(seatKey(matchId, seat))?.[0] === socketId;
@@ -681,6 +699,9 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				sockets.push(socket.id);
 				connected.set(key, sockets);
 				log({ evt: 'joined', matchId: match.id, seat, participantId, fresh: claim.fresh, role: sockets[0] === socket.id ? 'player' : 'spectator' });
+				for (const [k, held] of arrangements) {
+					if (k.startsWith(`${match.id}#`) && k !== key) socket.emit(ARRANGEMENT_EVENT, held);
+				}
 				// A refresh: the old socket's close armed an abort of this seat's asks.
 				match.seatConnected(seat);
 			}
@@ -856,6 +877,38 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			presenceSent += 1;
 			if (presenceSent > PRESENCE_MAX_PER_SECOND) return;
 			socket.to(roomFor(match).roomId).emit(PRESENCE_EVENT, { ...parsed.data, seat });
+		});
+
+		/*
+		 * Arrangement (`@hadoku/shared`'s `arrangement.ts`): where a seat put its
+		 * battlefield cards, relayed to the match's other sockets stamped with the
+		 * seat, and kept (last one per seat) for whoever joins next. The schema
+		 * refuses a hand row, so nothing hidden can be in it.
+		 */
+		let arrangementWindow = 0;
+		let arrangementSent = 0;
+		socket.on(ARRANGEMENT_EVENT, (raw: unknown) => {
+			const parsed = ArrangementSchema.safeParse(raw);
+			if (!parsed.success) {
+				log({ evt: 'arrangement-malformed', participantId, errors: parsed.error.issues.slice(0, 3).map((i) => i.message) });
+				return;
+			}
+			const match = matches.get(parsed.data.matchId);
+			const seat = match === undefined ? undefined : joined.get(match.id);
+			if (match === undefined || seat === undefined || !isController(match.id, seat, socket.id)) return;
+			const now = Math.floor(Date.now() / 1000);
+			if (now !== arrangementWindow) {
+				arrangementWindow = now;
+				arrangementSent = 0;
+			}
+			arrangementSent += 1;
+			if (arrangementSent > ARRANGEMENT_MAX_PER_SECOND) return;
+			const echo = { ...parsed.data, seat };
+			const key = seatKey(match.id, seat);
+			arrangements.delete(key);
+			arrangements.set(key, echo);
+			if (arrangements.size > ARRANGEMENTS_KEPT) arrangements.delete(arrangements.keys().next().value as string);
+			socket.to(roomFor(match).roomId).emit(ARRANGEMENT_EVENT, echo);
 		});
 
 		/*

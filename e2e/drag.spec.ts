@@ -46,7 +46,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages } from './play/browser.ts';
-import { cancelCast, clickHandCard, dragHandCard, enabledOk, livePrompt, offered, says, stackCount } from './play/board.ts';
+import { cancelCast, clickHandCard, dragHandCard, enabledOk, handCardNamed, livePrompt, offered, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -55,14 +55,6 @@ import type { Friend } from './play/browser.ts';
 
 const forge = forgeAvailability();
 const titled = (t: string): string => (forge.ok ? t : `${t} — SKIPPED: ${forge.reason}`);
-
-/** The hand card named `name`, Forge-offered or not — by its own `.card__name` text. */
-async function handCardNamed(page: Page, name: string): Promise<number | undefined> {
-  const cards = await page
-    .locator('[data-zone="hand"][data-owner="you"] [data-board-card]')
-    .evaluateAll((els) => els.map((e) => ({ id: Number(e.getAttribute('data-board-card')), name: e.querySelector('.card__name')?.textContent?.trim() ?? '' })));
-  return cards.find((c) => c.name === name)?.id;
-}
 
 /** Every `forge:c2s` (client-acted) frame this friend has sent so far. */
 function actsSent(f: Friend): number {

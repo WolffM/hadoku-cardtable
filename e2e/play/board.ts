@@ -314,3 +314,11 @@ export async function createRoom(
   await f.page.getByTestId('room-create-submit').click();
   return roomIdFromHash(f.page);
 }
+
+/** The hand card named `name`, Forge-offered or not — by its own `.card__name` text. */
+export async function handCardNamed(page: Page, name: string): Promise<number | undefined> {
+  const cards = await page
+    .locator('[data-zone="hand"][data-owner="you"] [data-board-card]')
+    .evaluateAll((els) => els.map((e) => ({ id: Number(e.getAttribute('data-board-card')), name: e.querySelector('.card__name')?.textContent?.trim() ?? '' })));
+  return cards.find((c) => c.name === name)?.id;
+}

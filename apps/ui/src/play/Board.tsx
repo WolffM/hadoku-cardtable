@@ -780,10 +780,56 @@ function writeArrangedSession(key: string, viewerId: number, arrangement: Arrang
   }
 }
 
+/** The seat's battlefield rows alone — never its hand, whose order names hidden cards. */
+function battlefieldRows(arrangement: Arrangement, playerId: number): Record<string, readonly (readonly number[])[]> {
+  const out: Record<string, readonly (readonly number[])[]> = {};
+  for (const [k, v] of Object.entries(seatSlice(arrangement, playerId))) {
+    const slot = k.slice(`${playerId}:`.length);
+    if (slot !== 'hand') out[slot] = v;
+  }
+  return out;
+}
+
+export type OwnArrangementListener = (change: { readonly matchKey: string; readonly playerId: number; readonly rows: Record<string, readonly (readonly number[])[]> }) => void;
+const OWN_ARRANGEMENT_LISTENERS = new Set<OwnArrangementListener>();
+/** Mounted boards, woken when the other seat's arrangement arrives (`applyTheirArrangement`). */
+const MOUNTED_BOARDS = new Set<() => void>();
+
+/**
+ * Told of every arrangement this seat makes of its own battlefield (its
+ * rows, never its hand) — what `live/arrangement-sync.ts` sends to the other
+ * seat, so their screen draws this side as it was placed.
+ */
+export function onOwnArrangement(listener: OwnArrangementListener): () => void {
+  OWN_ARRANGEMENT_LISTENERS.add(listener);
+  return () => {
+    OWN_ARRANGEMENT_LISTENERS.delete(listener);
+  };
+}
+
+/**
+ * The OTHER seat's arrangement of their battlefield, into this tab's store
+ * under their player id — `group()` reads it for any player, so their side
+ * draws in their piles from the next frame. Replaces their rows wholesale (a
+ * row they no longer name goes back to the view's order); never touches a
+ * hand or any other player's rows. Every mounted board is woken.
+ */
+export function applyTheirArrangement(view: BoardView, playerId: number, rows: Record<string, readonly (readonly number[])[]>): void {
+  const key = matchKey(view);
+  const prefix = `${playerId}:`;
+  const next: Record<string, readonly (readonly number[])[]> = {};
+  for (const [k, v] of Object.entries(ARRANGED.get(key) ?? NO_ARRANGEMENT)) if (!k.startsWith(prefix) || k === `${prefix}hand`) next[k] = v;
+  for (const [slot, piles] of Object.entries(rows)) if (slot !== 'hand') next[`${prefix}${slot}`] = piles;
+  ARRANGED.set(key, next);
+  for (const wake of MOUNTED_BOARDS) wake();
+}
+
 /** Every write to `ARRANGED` goes through here, so persistence cannot be forgotten at one call site. */
 function setArranged(key: string, viewerId: number, next: Arrangement): void {
   ARRANGED.set(key, next);
   writeArrangedSession(key, viewerId, next);
+  const rows = battlefieldRows(next, viewerId);
+  for (const listener of OWN_ARRANGEMENT_LISTENERS) listener({ matchKey: key, playerId: viewerId, rows });
 }
 
 /**
@@ -3305,6 +3351,12 @@ export function Board({
    */
   const key = matchKey(view);
   const [, redraw] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    MOUNTED_BOARDS.add(redraw);
+    return () => {
+      MOUNTED_BOARDS.delete(redraw);
+    };
+  }, []);
   // T10: hydrated from `sessionStorage` the first time this tab sees this
   // match-and-seat (a real reload, not merely a resync-remount). There is no
   // viewer to key a seat's own storage by when none is identified, so that

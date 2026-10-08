@@ -203,7 +203,7 @@ import {
 import { carryCastOffStack, notePlayedTo, previewPlayedTo } from '../../Board.tsx';
 import { autoTargetArrows, combatArrows, stackTargetArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
-import {
+import { CAST_LANDING_ATTR,
   CAST_LIFT_ATTR,
   clearAllCastLifts,
   clearCastLift,
@@ -817,10 +817,13 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // operator, 2026-10-08: "it immediately appears on the board"). The next
       // animation frame is after that commit: the element found then is the one
       // the card keeps, and its box is where it will stay.
+      // Hidden from this very frame, or the row's card and its stand-in are both drawn until the flight starts.
+      arrived.setAttribute(CAST_LANDING_ATTR, '');
       const ghost = p.ghost;
       landingFrame = requestAnimationFrame(() => {
         landingFrame = 0;
         const settled = cardBox(canvas, p.source);
+        if (settled !== arrived) arrived.removeAttribute(CAST_LANDING_ATTR);
         if (settled instanceof HTMLElement && settled.closest('[data-zone="battlefield"]') !== null) {
           const box = settled.getBoundingClientRect();
           options.report?.('landing', {

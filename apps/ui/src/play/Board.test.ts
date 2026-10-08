@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
 
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { createProjector, type StateFrame } from '../../../server/src/play/visibility.ts';
@@ -28,7 +28,7 @@ import {
   type BoardView,
   type StackEntry,
 } from './adapter.ts';
-import {
+import { applyTheirArrangement, onOwnArrangement, type OwnArrangementListener,
   Board,
   forgetArrangements,
   forgetPendingPlacements,
@@ -1883,6 +1883,37 @@ describe('drag to arrange (#10)', () => {
     const ids = [...container.querySelectorAll<HTMLElement>('.board-card')].map((c) => c.dataset.cardId);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toHaveLength(24);
+  });
+
+  it('tells `onOwnArrangement` of each drop — the viewer’s rows, never the hand — and `applyTheirArrangement` draws the OTHER side in its owner’s piles', () => {
+    // The operator, 2026-10-08: the opponent's board must show a card where they actually put it.
+    const { container } = renderBoard();
+    const told: Parameters<OwnArrangementListener>[0][] = [];
+    const stop = onOwnArrangement((change) => told.push(change));
+    drag(container, 8, { row: 'other' });
+    stop();
+    expect(told).toHaveLength(1);
+    expect(told[0]!.playerId).toBe(0);
+    expect(told[0]!.rows.other).toEqual([[8]]);
+    expect(Object.keys(told[0]!.rows)).not.toContain('hand');
+    expect(told[0]!.rows.lands?.flat()).toEqual([24, 6, 25]);
+
+    // Their side, in their order: the view's lands reversed, as they placed them.
+  });
+
+  it('`applyTheirArrangement` draws the OTHER side in its owner’s piles, under their player id, touching nothing of the viewer’s', () => {
+    const { view, zone } = renderBoard(undefined, undefined, 'single');
+    const them = view.players.find((p) => !p.isViewer)!.id;
+    const tierIds = (id: number, tier: string) => [...zone(id, 'battlefield').querySelectorAll<HTMLElement>(`[data-tier="${tier}"] li.board-card`)].map((c) => Number(c.dataset.cardId));
+    const theirs = tierIds(them, 'back');
+    const theirFront = tierIds(them, 'front');
+    const mine = tierIds(0, 'back');
+    expect(theirs.length).toBeGreaterThan(1);
+    const reversed = [...theirs].reverse();
+    act(() => applyTheirArrangement(view, them, { back: reversed.map((id) => [id]) }));
+    expect(tierIds(them, 'back'), 'their back tier is in THEIR order now').toEqual(reversed);
+    expect(tierIds(them, 'front'), 'a tier they did not name keeps the view’s order').toEqual(theirFront);
+    expect(tierIds(0, 'back'), 'the viewer’s own side is untouched').toEqual(mine);
   });
 
   it('drops in front of the card it was dropped on, in another row', () => {

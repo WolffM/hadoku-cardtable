@@ -127,6 +127,7 @@ interface Peer {
 	/** Every `forge:role` payload the SERVER sent this socket (wave 31 §S). */
 	roles: unknown[];
 	presences: unknown[];
+	arrangements: unknown[];
 	request(event: 'forge:join' | 'forge:resync', payload: unknown): Promise<unknown>;
 	send(payload: unknown): void;
 	/** Ask for full control, or give it back — the client → server direction. */
@@ -155,6 +156,7 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 			seatsEvents: [],
 			roles: [],
 			presences: [],
+			arrangements: [],
 			request: async (event, payload) => {
 				const ack: unknown = await socket.timeout(3000).emitWithAck(event, payload);
 				peer.acks.push(ack);
@@ -169,6 +171,7 @@ function connect(port: number, headers: Record<string, string>, auth?: Record<st
 		socket.on('forge:full-control', (payload: unknown) => peer.fullControls.push(payload));
 		socket.on('forge:seats', (payload: unknown) => peer.seatsEvents.push(payload));
 		socket.on('forge:presence', (payload: unknown) => peer.presences.push(payload));
+		socket.on('forge:arrangement', (payload: unknown) => peer.arrangements.push(payload));
 		socket.on('forge:role', (payload: unknown) => peer.roles.push(payload));
 		socket.on('connect', () => done(peer));
 		socket.on('connect_error', (err) => fail(err));
@@ -329,6 +332,28 @@ describe('two seats over the socket', () => {
 	 * match's OTHER sockets, stamped with the seat. Forge never hears it and
 	 * the message names no card, so there is nothing to redact.
 	 */
+	it('relays a seat’s battlefield arrangement to the other seat, stamped with the seat, refuses a hand row, and replays the last one to whoever joins next', async () => {
+		const { h, matchId, alice, bob } = await twoSeats();
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		const message = { matchId, type: 'arrangement', layout: 'single', rows: { all: [[3, 4], [7]] } };
+		alice.socket.emit('forge:arrangement', message);
+		// Over the harness's polling transport a broadcast can wait for the next poll: longer than `waitFor`'s default.
+		await vi.waitFor(() => expect(bob.arrangements).toHaveLength(1), { timeout: 5_000 });
+		expect(bob.arrangements[0]).toEqual({ ...message, seat: 0 });
+		await new Promise((r) => setTimeout(r, 60));
+		expect(alice.arrangements, 'nothing comes back to the sender').toHaveLength(0);
+		// A hand row names hidden cards: refused by the schema, logged, never relayed.
+		alice.socket.emit('forge:arrangement', { ...message, rows: { hand: [[9]] } });
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'arrangement-malformed')).toHaveLength(1));
+		expect(bob.arrangements).toHaveLength(1);
+		// A later socket on bob's seat (a reload) is sent alice's last arrangement as it joins.
+		const again = await connect(h.port, edgeHeaders('bob'));
+		await again.request('forge:join', { matchId });
+		await vi.waitFor(() => expect(again.arrangements).toHaveLength(1), { timeout: 5_000 });
+		expect(again.arrangements[0]).toEqual({ ...message, seat: 0 });
+	});
+
 	it('writes a seat’s client telemetry into the log, stamped with the seat, and relays none of it', async () => {
 		const { h, matchId, alice, bob } = await twoSeats();
 		await alice.request('forge:join', { matchId });

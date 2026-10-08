@@ -144,3 +144,11 @@ export {
 } from './presence.ts';
 
 export { CLIENT_EVENT, CLIENT_EVENT_MAX_PER_SECOND, ClientEventSchema, type ClientEvent } from './telemetry.ts';
+export {
+  ARRANGEMENT_EVENT,
+  ARRANGEMENT_MAX_PER_SECOND,
+  ArrangementEchoSchema,
+  ArrangementSchema,
+  type ArrangementEcho,
+  type ArrangementMessage,
+} from './arrangement.ts';

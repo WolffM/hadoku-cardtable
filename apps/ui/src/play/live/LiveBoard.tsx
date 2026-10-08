@@ -263,6 +263,7 @@ import { autoAnswer, type AutoAnswer } from '../prompts/rules.ts';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
 import { installPresence } from './presence.ts';
+import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
 import {
   abortAsk,
@@ -1867,6 +1868,23 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * seat's own, sent to them. A watcher is shown it and sends nothing (its
    * `seat` is null).
    */
+  // Where each seat put its battlefield cards, both ways (`arrangement-sync.ts`).
+  const boardLayoutNow = useRef(boardLayout);
+  boardLayoutNow.current = boardLayout;
+  useEffect(() => {
+    const handle = installArrangementSync({
+      matchId: match.matchId,
+      get seat() {
+        return spectator ? null : match.seat;
+      },
+      transport: match.transport,
+      view: () => match.view,
+      layout: () => boardLayoutNow.current,
+      watch: (onChange) => subscribe(match, onChange),
+    });
+    return () => handle.dispose();
+  }, [match, spectator]);
+
   useEffect(() => {
     const canvas = rootRef.current;
     if (canvas === null) return undefined;

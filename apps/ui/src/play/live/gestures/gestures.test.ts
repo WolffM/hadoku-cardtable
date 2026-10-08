@@ -2529,13 +2529,14 @@ describe('a played card waits where it was let go until Forge has it on the batt
     arrive();
     await waitFor(() => expect(onMyBattlefield(canvas, card)).not.toBeNull());
     const old = onMyBattlefield(canvas, card)!;
-    expect(old.hasAttribute('data-cast-landing'), 'nothing drawn on the first element inside the frame').toBe(false);
+    expect(old.hasAttribute('data-cast-landing'), 'the first element is hidden from this very frame: never the card and its stand-in both').toBe(true);
     // Board's commit: the card is now a different element, somewhere else.
     const fresh = old.cloneNode(true) as HTMLElement;
     fresh.getBoundingClientRect = () => ({ left: 600, top: 500, right: 640, bottom: 556, width: 40, height: 56, x: 600, y: 500, toJSON: () => ({}) }) as DOMRect;
     old.replaceWith(fresh);
     await new Promise((r) => requestAnimationFrame(() => r(undefined)));
     expect(fresh.hasAttribute('data-cast-landing'), 'the element the card keeps is the one hidden for the flight').toBe(true);
+    expect(old.hasAttribute('data-cast-landing'), 'and the one React dropped is let go').toBe(false);
     const ghost = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     expect(ghost.getAttribute('data-cast-lift')).toBe('returning');
     expect([ghost.style.left, ghost.style.top], 'and the flight ends at ITS centre').toEqual(['620px', '528px']);
@@ -2596,6 +2597,8 @@ describe('a played card waits where it was let go until Forge has it on the batt
       expect(el?.hasAttribute('data-cast-landing')).toBe(true);
       return el!;
     });
+    // The flight starts one frame after the arrival, past Board's placement commit.
+    await new Promise((r) => requestAnimationFrame(() => r(undefined)));
     const ghost = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     expect(ghost, 'the stand-in is what moves').not.toBeNull();
     expect(ghost.getAttribute('data-cast-lift')).toBe('returning');

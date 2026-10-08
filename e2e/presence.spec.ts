@@ -13,7 +13,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, offered } from './play/board.ts';
+import { dragHandCard, handCardNamed, makeTitled, offered } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -129,6 +129,44 @@ test(titled('a hand that draws in two rows on one screen draws the same two rows
     const aliceSeesBobRows = () =>
       alice.page.locator('.seat:not([data-viewer]) [data-zone="hand"] .card-backs > li').evaluateAll((els) => new Set(els.map((el) => el.getBoundingClientRect().top)).size);
     await expect.poll(aliceSeesBobRows, { timeout: 10_000, message: 'alice sees bob’s hidden hand in two rows too' }).toBe(2);
+  } finally {
+    await stack.stop();
+  }
+});
+
+/** The ids of one side's battlefield, in the order the screen draws them. */
+async function fieldOrder(page: Page, side: 'you' | 'them'): Promise<number[]> {
+  const seat = side === 'you' ? '.seat[data-viewer]' : '.seat:not([data-viewer])';
+  return page.locator(`${seat} [data-zone="battlefield"] li.board-card[data-card-id]`).evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-card-id'))));
+}
+
+test(titled('where alice puts a card on her battlefield is where bob sees it: her placement crosses to his screen, and survives his reload'), async ({ browser }) => {
+  // The operator, 2026-10-08: "the location for where a card is placed on the opponent's board should
+  // match where they actually put it. at the moment the two seem to be completely desynced."
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'land-into-middle');
+    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    await expect.poll(() => handCardNamed(alice.page, 'Island'), { timeout: 20_000, message: 'alice holds the Island' }).not.toBeUndefined();
+    const island = (await handCardNamed(alice.page, 'Island'))!;
+    await expect.poll(() => fieldOrder(alice.page, 'you'), { timeout: 20_000 }).toHaveLength(2);
+    const [first, second] = await fieldOrder(alice.page, 'you');
+    await expect.poll(() => fieldOrder(bob.page, 'them'), { timeout: 20_000, message: 'bob draws her two lands' }).toHaveLength(2);
+
+    // She lets the Island go between her two lands: on the first land's right-hand edge.
+    const firstBox = (await alice.page.locator(`.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id="${first}"]`).boundingBox())!;
+    expect(await dragHandCard(alice.page, island, { x: firstBox.x + firstBox.width - 4, y: firstBox.y + firstBox.height / 2 }), 'the press lifted the Island').toBe(true);
+    await expect.poll(() => fieldOrder(alice.page, 'you'), { timeout: 20_000, message: 'the Island is on her battlefield, between the two' }).toEqual([first, island, second]);
+
+    // Bob's screen draws her side in HER order — not the view's (the Island last).
+    await expect.poll(() => fieldOrder(bob.page, 'them'), { timeout: 10_000, message: 'bob sees it where she put it' }).toEqual([first, island, second]);
+
+    // A reload of bob's tab is sent her last arrangement as it joins.
+    await bob.page.reload();
+    await expect.poll(() => fieldOrder(bob.page, 'them'), { timeout: 30_000, message: 'and still after his reload' }).toEqual([first, island, second]);
   } finally {
     await stack.stop();
   }
