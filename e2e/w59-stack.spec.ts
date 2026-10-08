@@ -43,9 +43,30 @@
 
 import { expect, test, type Page, type Locator } from '@playwright/test';
 
-import { clickHandCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says, stackCount } from './play/board.ts';
+import { clickHandCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { closeHeaderSettings, openHeaderSettings } from './play/w32.ts';
+
+/**
+ * Fast Mode is ON by default inside the e2e harness (`prefs.ts`'s override); the chain is the
+ * pacer's, so it goes off first — and the spec PROVES it went off: the checkbox read on, the
+ * click took, and the server logged this seat's `info` row with `fastMode: false` (the client
+ * telemetry every settings change writes).
+ */
+async function turnFastModeOff(page: Page, stack: { serverLogFile: string }, seat: number): Promise<void> {
+  const toggle = (await openHeaderSettings(page)).locator('[data-testid="live-settings-fast-mode"]');
+  await expect(toggle, `seat ${seat}: the Fast Mode box reads ON before the click (the harness default)`).toBeChecked();
+  await toggle.click();
+  await expect(toggle, `seat ${seat}: the click took`).not.toBeChecked();
+  await closeHeaderSettings(page);
+  await expect
+    .poll(() => serverLog(stack).some((r) => r.evt === 'client' && r.kind === 'info' && r.seat === seat && r.fastMode === false), {
+      timeout: 10_000,
+      message: `seat ${seat}: the server logged Fast Mode off`,
+    })
+    .toBe(true);
+}
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -110,7 +131,7 @@ async function answerTargetChoice(page: Page, name: string): Promise<boolean> {
  * auto-answer the way Hinder's own cast reaches it) until the stack count on
  * `page` changes.
  */
-async function castByDrag(page: Page, cardId: number, to: Point, targetName?: string): Promise<void> {
+async function castByDrag(page: Page, stack: { serverLogFile: string }, cardId: number, to: Point, targetName?: string): Promise<void> {
   const before = await stackCount(page);
   // Not before Forge offers it: a drag released before the offer is a no-op, and the first act after
   // a scenario start can be dropped outright (ledger AB15, `PlayBridge.java`'s `refreshActionable`) —
@@ -142,7 +163,13 @@ async function castByDrag(page: Page, cardId: number, to: Point, targetName?: st
     if (arrived) return;
     if ((await inHand()) === 0) break;
   }
-  expect(await stackCount(page), `card ${cardId} reached the stack`).not.toBe(before);
+  // Name what happened before failing: what the server saw played, and what this page draws.
+  const placements = serverLog(stack).filter((r) => r.evt === 'placement').map((r) => `seat ${String(r.seat)} card ${String(r.card)}`);
+  const hand = await page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').evaluateAll((els) => els.map((e) => `${e.getAttribute('data-board-card')}:${e.querySelector('.card__name')?.textContent?.trim() ?? ''}`));
+  expect(
+    await stackCount(page),
+    `card ${cardId} reached the stack — placements on the server: [${placements.join(', ')}]; this hand now: [${hand.join(', ')}]; says: "${await says(page)}"`,
+  ).not.toBe(before);
 }
 
 /** A press-drag-release of an ALREADY-PLACED spell (S's rule 5) — no cast, no target, just a move. */
@@ -180,7 +207,7 @@ test(
       /* ── alice casts Keiga, the Tide Star (no target — a death trigger, not an ETB) ── */
       const keigaCardId = await handCardNamed(alice.page, 'Keiga, the Tide Star');
       expect(keigaCardId, 'Keiga is in alice’s hand, as the scenario scripts').not.toBeUndefined();
-      await castByDrag(alice.page, keigaCardId!, keigaPoint);
+      await castByDrag(alice.page, stack, keigaCardId!, keigaPoint);
       await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Keiga reached the stack' }).toBe(1);
 
       /* ── bob is offered Hinder once priority auto-passes to him (alice has nothing further forced on her own cast) ── */
@@ -189,7 +216,7 @@ test(
       await expect.poll(() => offered(bob.page), { timeout: 15_000, message: 'bob is offered Hinder' }).toContain(hinderCardId);
 
       /* ── bob casts Hinder on Keiga — the only spell up, so the target ask auto-answers ── */
-      await castByDrag(bob.page, hinderCardId!, hinderPoint);
+      await castByDrag(bob.page, stack, hinderCardId!, hinderPoint);
       await expect.poll(() => stackCount(bob.page), { timeout: 10_000, message: 'Hinder reached the stack, targeting Keiga' }).toBe(2);
 
       /* ── alice is offered Remand once priority auto-passes back to her ── */
@@ -202,7 +229,7 @@ test(
       await expect(alice.page.getByTestId('live-full-control'), 'full control is on for alice').toHaveAttribute('aria-pressed', 'true');
 
       /* ── alice casts Remand on Hinder — TWO legal spell targets now (Hinder, Keiga), so this is a real choice, not an auto-answer ── */
-      await castByDrag(alice.page, remandCardId!, remandPoint, 'Hinder');
+      await castByDrag(alice.page, stack, remandCardId!, remandPoint, 'Hinder');
       await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Remand reached the stack, targeting Hinder' }).toBe(3);
       await expect.poll(() => stackCount(bob.page), { timeout: 10_000, message: 'bob’s own screen also reads three' }).toBe(3);
 
@@ -324,6 +351,8 @@ test(
       const { alice, bob } = seated;
 
       /** Cast the one Opt in `page`'s own hand, then drain whatever Forge asks next (mana, Opt's own Scry choice) until the stack changes — the same generic "press whatever bar is up" `keepHands` uses at the JVM layer, translated to the browser. */
+      await turnFastModeOff(alice.page, stack, 0);
+      await turnFastModeOff(bob.page, stack, 1);
       const castQuicken = async (page: Page): Promise<void> => {
         const before = await stackCount(page);
         const optId = await handCardNamed(page, 'Quicken');
