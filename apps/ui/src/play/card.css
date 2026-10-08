@@ -527,6 +527,47 @@
 }
 
 /*
+ * The operator: *"i played 'Cry of Contrition' which has haunt. i expect to
+ * see the 'haunt' keyword on my creature."* `Relations.tsx` draws one pill
+ * per relation Forge's wire names generically (haunt, encode, imprint, a
+ * chosen-cards effect, a must-block list — `adapter.ts`'s own table).
+ *
+ * The four corners are already claimed (marks top-left, chosen-type
+ * top-right, counters bottom-left, the P/T badge bottom-right — this file's
+ * own map, above) and the type-pill band sits at `top: 22%`, so this one
+ * centres along the BOTTOM edge instead, between the two bottom corners — a
+ * relation is rare (most cards carry none, ever) and a card wearing one
+ * rarely also wears a full counters row AND the P/T badge's longest form at
+ * once, so a shared strip there is free in practice without taking either
+ * corner's own space away. Same capsule language as the rest of the state
+ * layer: each `<li>` is `card.css`'s own `.board-card__counter` pill
+ * (reused as-is, not redefined — the brief's own instruction), the wrapper
+ * is out of flow, clipped to the card, and `pointer-events: none` so it may
+ * never eat a click Forge offered nor move the card's own box
+ * (`e2e/table-fit.spec.ts`).
+ */
+.board-card__relations {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  bottom: calc(2px + var(--pile-fan));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(56% - var(--pile-fan));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.board-card__relations > .board-card__counter {
+  max-width: 100%;
+}
+
+/*
  * ── selectable: Forge said this card may be chosen ────────────────────
  *
  * R10 (wave 35): `.board-card__face` is always a `<button>` now (it used to

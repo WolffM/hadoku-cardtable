@@ -404,6 +404,7 @@ import {
 } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
 import { installNumbers } from './live/numbers.ts';
+import { Relations } from './Relations.tsx';
 import './board.css';
 import './card.css';
 
@@ -2158,7 +2159,14 @@ function CardOnBoard({
         aria-pressed={selectable ? picked : undefined}
         onClick={selectable ? () => interaction.onSelectCard(entry.id) : undefined}
       >
-        <CardTile card={entry.card} />
+        {/*
+         * `liveText`: Forge's live `AbilityText` (`adapter.ts`), shown in
+         * place of the printed oracle text when it says something the
+         * printed text does not (a Haunt-granted keyword). The inspector
+         * clones this exact tile, so this is also the inspector's own text
+         * source — nothing else to change there.
+         */}
+        <CardTile card={entry.card} liveText={entry.abilityText} />
       </button>
       {picked && (
         <span className="board-card__picked" aria-hidden="true">
@@ -2172,6 +2180,13 @@ function CardOnBoard({
       {showCounters && <Counters entry={entry} timeFirst={inExile} />}
       {onBattlefield && <ChosenTypeLabel entry={entry} />}
       {onBattlefield && <TypePill entry={entry} />}
+      {/*
+       * NOT gated on `onBattlefield`: the haunting card's own pill reads on
+       * the card itself while it sits in EXILE (Haunt's own zone after it
+       * resolves), not on the creature it haunts. `Relations` draws nothing
+       * for the common case (no relation at all).
+       */}
+      <Relations entry={entry} />
       {above.length > 0 && (
         <ul className="board-card__pile" aria-label={`Stacked on ${entry.card.name}`}>
           {above.map((c, i) => (

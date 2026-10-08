@@ -4,7 +4,41 @@
  *
  * ## The baseline
  *
- * Re-recorded for the stack redesign (2026-10-06, approved by the operator:
+ * Re-recorded for `CardTile` drawing Forge's LIVE `AbilityText` in place of
+ * the printed `OracleText` when the two differ; see `../adapter.ts`'s
+ * `BoardCard.abilityText` and `../../components/CardTile.tsx`'s `liveText`.
+ * Not owned by the change that moved it, but the pin is a mechanical
+ * consequence of a sanctioned behaviour change, not a bug, and every entry
+ * below that has moved this pin has re-recorded it rather than touch the
+ * assertion — see the next entry down. 42983 -> 42876, -107, measured the
+ * strong way: the fixture rendered with `liveText={null}` (the prior
+ * behaviour) and with `liveText={entry.abilityText}` (the new one),
+ * `diff --word-diff` on the two, every changed region accounted for. Four
+ * of the committed fixture's cards carry a live `AbilityText` that reads
+ * differently from their printed `OracleText` — not a haunt relation (the
+ * fixture has none; see `adapter.test.ts`'s own note), just Forge's ability-
+ * text generator phrasing or ordering a multi-clause card differently from
+ * its oracle-text generator:
+ *
+ *    0  Oxidda Golem (76): Affinity-then-Haste becomes Haste-then-Affinity —
+ *       the same two facts, reordered; no characters gained or lost.
+ *    0  Pyrite Spellbomb (108): its two activated abilities swap order the
+ *       same way — 0 net.
+ *  -97  Ral's Staticaster (2): printed `Trample (This creature can deal
+ *       excess combat damage to the player or planeswalker it's attacking.)`
+ *       loses its parenthetical reminder text, reading bare `Trample` —
+ *       `AbilityText` does not reproduce a keyword's reminder text the way
+ *       `OracleText` does.
+ *  -10  Ral's Dispersal (17, the stack's own source card): Forge's ability
+ *       text paraphrases the printed sentence slightly differently
+ *       ("reveal it, and put it into your hand" / "shuffle." versus "and put
+ *       it in your hand" / "shuffle it.") — the same card, the same effect,
+ *       a different sentence from the SAME engine's two different text
+ *       generators.
+ *  ────
+ * -107  42983 -> 42876.
+ *
+ * Before that, re-recorded for the stack redesign (2026-10-06, approved by the operator:
  * https://claude.ai/artifact/BUeXnHbHkeqtxFccyHQSfd — *"i honestly really
  * just want one of these [expanded views]"*). 44350 -> 42983, -1367, measured
  * the strong way: the fixture rendered with the previous `Board.tsx` and with
@@ -502,11 +536,12 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-// Re-recorded at the w46+w47+w48 integration (2026-10-05): +570 characters, all of it art. w48's library
-// regeneration gave three fixture cards (Electrostatic Bolt, Great Furnace, Pyrite Spellbomb) their first
-// `art-ids.json` rows; with w46's art-ids.json put back this test passes at the old pin (43780, c668dd6f…).
-const BASELINE_SHA256 = '0b71d9ffb090084dd52dfb34193b8b6ff2f136865acc55086a19b67faeff711d';
-const BASELINE_LENGTH = 42983;
+// Re-recorded for `CardTile`'s `liveText`: -107 characters, none of it art —
+// see the file header's own accounting. With `liveText={null}` (the
+// one-line toggle used to measure it) this test passes at the old pin
+// (42983, 0b71d9ff…).
+const BASELINE_SHA256 = '059e0aaf8d342c0de131ffe648e2ae04c542aedddc35cd223a233d20ec31843b';
+const BASELINE_LENGTH = 42876;
 
 const fixtureMarkup = (): string =>
   renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));

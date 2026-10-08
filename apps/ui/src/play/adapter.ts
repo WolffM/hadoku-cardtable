@@ -247,7 +247,42 @@ export interface BoardCard {
    * no such ability at all) — never a drawn empty label.
    */
   chosenType?: string | null;
+  /**
+   * The operator: *"i played 'Cry of Contrition' which has haunt. i expect
+   * to see the 'haunt' keyword on my creature … is there an easier way to
+   * always get that effect name to popup rather than having to hardcode all
+   * of them?"* Every relation Forge's wire names generically (`readRelations`'s
+   * own table), read off `view` like `AttachedCards` — a live fact about the
+   * permanent, not its printed face. Absent/empty for a card with none,
+   * which is every card most of the time.
+   */
+  relations?: BoardCardRelation[];
+  /**
+   * Forge's live `AbilityText` (`CardStateView.getAbilityText`, the same face
+   * `oracleText` reads off) — the ability text AS FORGE HAS IT NOW, haunt's
+   * own granted keyword included, where `card.oracleText` is only ever the
+   * PRINTED text. `null` when Forge sent nothing (never a drawn blank); see
+   * `readAbilityText`'s own note for why this is never raw HTML.
+   */
+  abilityText?: string | null;
 }
+
+/**
+ * A relation Forge's own wire says this card has to another — haunt, encode,
+ * imprint, a chosen-cards effect, a must-block list, and whatever the wire
+ * adds next. `ids` is the other side's forge id(s), in Forge's own order;
+ * `names` is each one resolved to a name, `null` for an id this seat's state
+ * has nothing under (`nameOfCard`'s own note) — never a placeholder, so a
+ * reader can tell "unknown" apart from "named 'card 7'".
+ */
+export interface BoardCardRelation {
+  kind: RelationKind;
+  ids: number[];
+  names: (string | null)[];
+}
+
+/** Every relation kind the board draws a pill for. See `RELATION_PROPS`. */
+export type RelationKind = 'hauntedBy' | 'haunting' | 'encoded' | 'imprinted' | 'chosen' | 'mustBlock';
 
 /** How one of a card's two numbers stands against its printed base. */
 export type PTState = 'buffed' | 'hurt' | 'plain';
@@ -895,6 +930,83 @@ function countersOf(obj: WireObject | undefined): { name: string; count: number 
   return (v.v as [string, number][]).map(([name, count]) => ({ name, count }));
 }
 
+// ── relations ────────────────────────────────────────────────────────────
+
+/**
+ * The relation properties `tier-c.ts` already types (`CardViewCollectionType`
+ * except `Haunting`, which is `CardViewType` — a single id, Forge's own `-1`
+ * meaning "none"). One row per kind: a card new to this table is one more
+ * row, never a new per-card rule in `Relations.tsx`.
+ */
+const RELATION_PROPS: readonly { key: string; kind: RelationKind; single?: true }[] = [
+  { key: 'HauntedBy', kind: 'hauntedBy' },
+  { key: 'Haunting', kind: 'haunting', single: true },
+  { key: 'EncodedCards', kind: 'encoded' },
+  { key: 'ImprintedCards', kind: 'imprinted' },
+  { key: 'ChosenCards', kind: 'chosen' },
+  { key: 'MustBlockCards', kind: 'mustBlock' },
+];
+
+/**
+ * A card's own current name, off the same two wire objects `toBoardCard`
+ * reads ITS name from (the face first, the view second) — but never through
+ * `toBoardCard` itself. Haunt is symmetric (a creature's `HauntedBy` names
+ * the sorcery that haunts it, and that sorcery's own `Haunting` names the
+ * creature right back), so resolving one card's relation name by building the
+ * OTHER card's full `BoardCard` — which computes its own relations in turn —
+ * would recurse forever. This reads only a name, nothing else.
+ *
+ * `null` for an id this seat's state has nothing under: an opponent's hidden
+ * hand (the one real case — every relation kind here only ever names a
+ * card in a zone both seats see), or simply an id that names nothing. Never a
+ * placeholder string, so a caller can tell "unknown" apart from a real name.
+ */
+function nameOfCard(state: WireState, id: number): string | null {
+  const view = state.get(deltaKey(WireType.Card, id));
+  if (view === undefined) return null;
+  const face = state.get(cardStateKey(id, readInt(view, 'CurrentState', 0)));
+  return readStr(face, 'Name') ?? readStr(view, 'Name');
+}
+
+/**
+ * Every relation this card's `view` carries, generically — `RELATION_PROPS`
+ * is the whole rule. Empty for a kind with nothing (never a drawn
+ * placeholder), and the whole array is empty for a card with no relation at
+ * all, which is every card most of the time.
+ */
+function readRelations(state: WireState, view: WireObject | undefined): BoardCardRelation[] {
+  const out: BoardCardRelation[] = [];
+  for (const { key, kind, single } of RELATION_PROPS) {
+    const relIds = single === true ? ((): number[] => {
+      const one = readEntityId(view, key);
+      return one === null ? [] : [one];
+    })() : readIds(view, key);
+    if (relIds.length === 0) continue;
+    out.push({ kind, ids: relIds, names: relIds.map((relId) => nameOfCard(state, relId)) });
+  }
+  return out;
+}
+
+/**
+ * Forge's live `AbilityText` (`CardStateView.getAbilityText`, the same face
+ * `OracleText` reads off), with the gray reminder-text markup
+ * `Card.getAbilityText` writes stripped back to plain text. That markup is
+ * real on this bridge: `HostedMatch.startGame` sets
+ * `GameRules.useGrayText()` from `ForgePreferences.UI_GRAY_INACTIVE_TEXT`,
+ * whose own default is `"true"` (`forge-gui/src/main/java/forge/gamemodes/
+ * match/HostedMatch.java:83`, `.../localinstance/properties/
+ * ForgePreferences.java:111`), so the wire value really can read
+ * `<span style="color:gray;">…</span>` — this is the one place that reads it
+ * as text, never as markup `CardTile`/`RulesText` would have to parse.
+ * `null` for a blank value, same as `oracleText`'s own CRLF normalisation.
+ */
+function readAbilityText(face: WireObject | undefined): string | null {
+  const raw = readStr(face, 'AbilityText');
+  if (raw === null) return null;
+  const text = raw.replace(/<[^>]*>/g, '').replace(/\r\n?/g, '\n').trim();
+  return text === '' ? null : text;
+}
+
 function toBoardCard(
   state: WireState,
   id: number,
@@ -955,6 +1067,8 @@ function toBoardCard(
   // T7: a blank string is the same "nothing chosen" absence is, never a drawn label.
   const chosenTypeRaw = readStr(view, 'ChosenType');
   const chosenType = chosenTypeRaw !== null && chosenTypeRaw.trim() !== '' ? chosenTypeRaw.trim() : null;
+  const relations = readRelations(state, view);
+  const abilityText = readAbilityText(face);
 
   return {
     id,
@@ -976,6 +1090,8 @@ function toBoardCard(
     token: readBool(view, 'Token'),
     changedFrom,
     chosenType,
+    relations,
+    abilityText,
   };
 }
 

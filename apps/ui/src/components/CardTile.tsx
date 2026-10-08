@@ -85,18 +85,35 @@ export interface CardTileProps {
   /** Present on a pack card, absent in the pool. */
   onPick?: (cardId: string) => void;
   disabled?: boolean;
+  /**
+   * The board's live `AbilityText` (`play/adapter.ts`'s
+   * `BoardCard.abilityText`), drawn in place of `card.oracleText` when it
+   * says something the printed text does not: a Haunt-granted keyword, a
+   * live keyword list, whatever Forge's own ability text currently reads.
+   * This is the inspector's own text source too — `play/inspect/index.ts`
+   * clones this tile's DOM wholesale, so there is no second place that
+   * draws rules text for a board card to keep in sync.
+   *
+   * Absent for every DRAFT use of this component (a pack or pool tile has no
+   * "live" to differ from — `card.oracleText` alone is right there), and for
+   * a board card whose live text reads the same as its printed one: the
+   * printed text is what a player expects to read, and this only overrides
+   * it when Forge is actually saying something more.
+   */
+  liveText?: string | null;
 }
 
-function CardTileImpl({ card, onPick, disabled = false }: CardTileProps) {
+function CardTileImpl({ card, onPick, disabled = false, liveText }: CardTileProps) {
   const identity = card.colors.length === 0 ? 'colorless' : card.colors.join('').toLowerCase();
-  // Splitting oracle text runs a regex per line. It is small per card and
+  const shownText = liveText != null && liveText.trim() !== card.oracleText.trim() ? liveText : card.oracleText;
+  // Splitting rules text runs a regex per line. It is small per card and
   // ruinous in aggregate: a late-draft screen holds 15 pack tiles plus a pool
   // of up to 45, and without this every one of them re-parsed its rules on
-  // every pick. Keyed on the text, so it is computed once per card for the
-  // lifetime of the tile.
+  // every pick. Keyed on the text actually shown, so it is computed once per
+  // card for the lifetime of the tile.
   const rulesLines = useMemo(
-    () => card.oracleText.split('\n').filter((l) => l !== ''),
-    [card.oracleText],
+    () => shownText.split('\n').filter((l) => l !== ''),
+    [shownText],
   );
   const stat =
     card.loyalty !== undefined

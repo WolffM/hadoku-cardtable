@@ -389,6 +389,90 @@ describe('§A.2 #11 — the attachment properties the adapter used to ignore', (
   });
 });
 
+describe('relations, generically', () => {
+  /*
+   * The committed capture has no haunt, encode, imprint, chosen-cards or
+   * must-block relation in it — same proof `AttachedCards` needed above,
+   * read the same way: none of the six relation properties appear in any
+   * packet, so the pairing below is written into the real state by hand.
+   */
+  it('the capture carries none of the six relation properties, which is why they had to be written in', () => {
+    for (const packet of loadPackets(fixture)) {
+      const json = JSON.stringify([packet.newObjects, packet.objectDeltas]);
+      for (const key of ['HauntedBy', 'Haunting', 'EncodedCards', 'ImprintedCards', 'ChosenCards', 'MustBlockCards']) {
+        expect(json, key).not.toContain(key);
+      }
+    }
+    const view = adapt(baseState());
+    for (const card of allCards(view)) {
+      expect(card.relations, `card ${card.id}`).toEqual([]);
+    }
+  });
+
+  it('HauntedBy on one card and Haunting on the other, each naming the other by its own resolved name', () => {
+    const state = baseState();
+    // Fire Urchin (21) haunted by Ral's Staticaster (2) — the exact pairing
+    // Cry of Contrition's own Haunt ability leaves on the real wire.
+    setCard(state, 21, 'HauntedBy', { t: 'list', v: [{ t: 'int', v: 2 }] });
+    setCard(state, 2, 'Haunting', { t: 'int', v: 21 });
+
+    const by = cardsById(adapt(state));
+    expect(by.get(21)!.relations).toEqual([{ kind: 'hauntedBy', ids: [2], names: ["Ral's Staticaster"] }]);
+    expect(by.get(2)!.relations).toEqual([{ kind: 'haunting', ids: [21], names: ['Fire Urchin'] }]);
+    // Neither is invented for a card with no relation property set.
+    expect(by.get(8)!.relations).toEqual([]);
+  });
+
+  it('every other relation kind, read off its own property', () => {
+    const state = baseState();
+    setCard(state, 21, 'EncodedCards', { t: 'list', v: [{ t: 'int', v: 2 }] });
+    setCard(state, 20, 'ImprintedCards', { t: 'list', v: [{ t: 'int', v: 2 }] });
+    setCard(state, 24, 'ChosenCards', { t: 'list', v: [{ t: 'int', v: 2 }] });
+    setCard(state, 25, 'MustBlockCards', { t: 'list', v: [{ t: 'int', v: 2 }] });
+
+    const by = cardsById(adapt(state));
+    expect(by.get(21)!.relations).toEqual([{ kind: 'encoded', ids: [2], names: ["Ral's Staticaster"] }]);
+    expect(by.get(20)!.relations).toEqual([{ kind: 'imprinted', ids: [2], names: ["Ral's Staticaster"] }]);
+    expect(by.get(24)!.relations).toEqual([{ kind: 'chosen', ids: [2], names: ["Ral's Staticaster"] }]);
+    expect(by.get(25)!.relations).toEqual([{ kind: 'mustBlock', ids: [2], names: ["Ral's Staticaster"] }]);
+  });
+
+  it('an id this seat was never sent a CardView for resolves to a null name — the hidden-id case', () => {
+    const state = baseState();
+    setCard(state, 21, 'HauntedBy', { t: 'list', v: [{ t: 'int', v: 404 }] });
+    const card = cardsById(adapt(state)).get(21)!;
+    expect(card.relations).toEqual([{ kind: 'hauntedBy', ids: [404], names: [null] }]);
+  });
+
+  it('drops Forge’s -1 off Haunting, same as every other single entity reference', () => {
+    const state = baseState();
+    setCard(state, 21, 'Haunting', { t: 'int', v: -1 });
+    const card = cardsById(adapt(state)).get(21)!;
+    expect(card.relations).toEqual([]);
+  });
+
+  /*
+   * `AbilityText` is Forge's LIVE text (`CardStateView.getAbilityText`), and
+   * unlike the six relation properties above the capture really does carry
+   * it — including the one case that matters here: Ral's Staticaster (2)
+   * has a conditional pump that Forge marks as reminder text with its own
+   * `useGrayText` markup, on the real wire, with no edit needed to prove it.
+   */
+  it('reads AbilityText off the same face OracleText reads, CRLF-normalised and gray-tag markup stripped', () => {
+    const card = cardsById(adapt(baseState())).get(2)!;
+    expect(card.card.oracleText.includes('<span')).toBe(false); // the printed text never had the markup to begin with
+    expect(card.abilityText).toBe(
+      "Trample\n\nWhenever Ral's Staticaster attacks, if you control a Ral planeswalker, Ral's Staticaster gets +1/+0 for each card in your hand until end of turn.",
+    );
+  });
+
+  it('is null, never a blank string, for a card with no AbilityText on the wire (Island — a basic land)', () => {
+    const card = cardsById(adapt(baseState())).get(24)!;
+    expect(card.card.name).toBe('Island');
+    expect(card.abilityText).toBeNull();
+  });
+});
+
 describe('§A.3 #12/#18 — printed versus current power and toughness', () => {
   /*
    * The answer, established before anything was drawn: **the wire carries the

@@ -1,0 +1,30 @@
+# The operator: *"i played 'Cry of Contrition' which has haunt. i expect to
+# see the 'haunt' keyword on my creature."* Seat 0 (human)
+# holds Cry of Contrition (`{B}`) and one untapped Swamp — enough to cast it —
+# plus her own Memnite on the battlefield, the only creature on the table.
+# An uncontested turn-1 Main Phase 1.
+#
+# Cry of Contrition's own ability (`K:Haunt:TrigDiscard`, `res/cardsfolder/c/
+# cry_of_contrition.txt`) targets a PLAYER ("Target player discards a card.");
+# alice targets herself, so nothing about this scenario needs bob to act at
+# all. Once it resolves and goes to the graveyard, Haunt's own trigger
+# (`CardFactoryUtil.java:1254-1262`, `DB$ Haunt | ValidTgts$ Creature |
+# TgtPrompt$ Choose target creature to haunt`) fires and asks for a target
+# creature — Memnite is the only legal one, so the haunt pairing this test
+# needs is reached by ordinary play, never scripted directly: `GameState`
+# (`apps/server/src/play/scenarios/README.md`) has no key for a haunt
+# relation, because Forge's own state has none either until the ability
+# actually resolves.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Cry of Contrition;Mountain
+humanbattlefield=Swamp;Memnite
+humanlibrary=Swamp;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Swamp;Swamp;Swamp;Swamp
+aigraveyard=
