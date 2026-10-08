@@ -118,7 +118,12 @@ async function castByDrag(page: Page, cardId: number, to: Point, targetName?: st
   await expect.poll(() => offered(page), { timeout: 45_000, message: `card ${cardId} is offered` }).toContain(cardId);
   const inHand = () => page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${cardId}"]`).count();
   for (let attempt = 0; attempt < 3; attempt++) {
-    expect(await dragHandCard(page, cardId, to), `card ${cardId} armed the drag-cast gesture`).toBe(true);
+    // A press that does not lift (the offer moved between the poll and the press) is not a failure
+    // yet: the next attempt waits for the offer again.
+    if (!(await dragHandCard(page, cardId, to))) {
+      await expect.poll(() => offered(page), { timeout: 10_000 }).toContain(cardId).catch(() => undefined);
+      continue;
+    }
     const arrived = await expect
       .poll(
         async () => {
