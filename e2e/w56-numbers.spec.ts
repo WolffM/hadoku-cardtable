@@ -24,7 +24,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, clickOnce, enabledOk, makeTitled, says, serverLog, stackCount } from './play/board.ts';
+import { clickHandCard, enabledOk, makeTitled, pressPaymentAuto, says, serverLog, stackCount } from './play/board.ts';
 import { assignBlock, attackingCards, ownBattlefieldCards, passDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -105,7 +105,7 @@ test(
       while ((await stackCount(alice.page)) === 0 && Date.now() < castBy) {
         await answerPrompt(alice.page);
         if ((await opponentFace.getAttribute('data-selectable')) === 'true') await opponentFace.click();
-        else if ((await alice.page.getByTestId('live-payment-ok').count()) > 0) await clickOnce(alice.page, await says(alice.page), 'ok');
+        else await pressPaymentAuto(alice.page);
         await alice.page.waitForTimeout(40);
       }
       // Name what happened before failing — this line reddened twice in one day on busy claws

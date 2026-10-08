@@ -29,7 +29,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickHandCard, clickOnce, enabledOk, makeTitled, says, stackCount } from './play/board.ts';
+import { clickHandCard, clickOnce, enabledOk, makeTitled, pressPaymentAuto, says, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -132,10 +132,14 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
     while ((await stackCount(page)) === 0 && Date.now() < castBy) {
       await answerPrompt(page);
       if ((await opponentFace(page).getAttribute('data-selectable')) === 'true') await opponentFace(page).click();
-      else if ((await page.getByTestId('live-payment-ok').count()) > 0) await clickOnce(page, await says(page), 'ok');
+      else await pressPaymentAuto(page);
       await page.waitForTimeout(40);
     }
-    expect(await stackCount(page), 'the bolt is on the stack').toBe(1);
+    const asks = serverLog(stack)
+      .filter((r) => r.evt === 'prompt-forwarded' || r.evt === 'ask-answered' || r.evt === 'ask-auto-answered')
+      .slice(-8)
+      .map((r) => `${String(r.evt)} s${String(r.seat)} ${String(r.method ?? r.kind ?? '')}`);
+    expect(await stackCount(page), `the bolt is on the stack — says: "${await says(page)}"; server's last asks: [${asks.join(' | ')}]`).toBe(1);
     await expect(page.getByTestId('live-decision-ok'), 'a spell on the stack: Forge’s OK is in the pop-up').toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('live-decision-ok')).toHaveText('OK');
     await expect(page.getByTestId('live-decision-cancel'), 'End Turn is the box’s, never drawn twice').toHaveCount(0);

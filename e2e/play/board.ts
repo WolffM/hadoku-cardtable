@@ -113,6 +113,27 @@ export async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'
   return true;
 }
 
+/**
+ * Press the payment window's OWN Auto — `live-payment-ok` — and nothing else, for a cast loop that
+ * ticks until the spell is on the stack. Never `clickOnce(page, says, 'ok')` there: that resolves
+ * `BUTTON_ONE` at click time, and on a loaded claw the window closes between the loop's count check
+ * and the click — the press then lands on the decision pop-up's OK (the spell is on the stack by now,
+ * so OK is "pass priority"), the opponent auto-passes, and the spell resolves before the loop reads
+ * the stack: "the bolt is on the stack: expected 1, received 0" (w51/w56, three claw reds on
+ * 2026-10-08 — the server rows: payment forwarded, 227 ms later priority with an empty stack, then
+ * silence). A window that closed under the press is simply gone: `false`, the next tick reads the stack.
+ */
+export async function pressPaymentAuto(page: Page): Promise<boolean> {
+  const auto = page.locator('[data-testid="live-payment-ok"]:enabled');
+  if ((await auto.count()) === 0) return false;
+  try {
+    await auto.click({ timeout: 1_000 });
+  } catch {
+    return false;
+  }
+  return true;
+}
+
 /* ── casting: the ONE gesture every spec's cast step goes through ───────
  *
  * Nothing reaches Forge until the gesture is RELEASED — crossing into the
