@@ -43,7 +43,8 @@
 
 import { expect, test, type Page, type Locator } from '@playwright/test';
 
-import { clickHandCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says, serverLog, stackCount } from './play/board.ts';
+import { clickHandCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says, serverLog, stackCount } from './play/board.ts'
+import { answerLoneAbility } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { closeHeaderSettings, openHeaderSettings } from './play/w32.ts';
@@ -102,36 +103,16 @@ async function placedSpellId(page: Page, name: string): Promise<string> {
   return id;
 }
 
-/**
- * Answer a "Select target spell" `getChoices` ask by the label naming `name`
- * — the ordinary ask flow (`GetChoicesPrompt`, `e2e/play/prompts.ts`'s own
- * `answerPrompt` ticks the FIRST option, which is wrong here once two spells
- * are both legal targets). `false` with nothing touched when no such ask is
- * showing, or it names no option with this text, so a caller can poll it on
- * every tick alongside a plain mana-cost click.
- */
-async function answerTargetChoice(page: Page, name: string): Promise<boolean> {
-  const sheet = page.getByTestId('live-prompt');
-  if ((await sheet.count()) === 0 || (await sheet.getAttribute('data-method')) !== 'getChoices') return false;
-  const item = sheet.locator('li', { hasText: name }).first();
-  if ((await item.count()) === 0) return false;
-  const checkbox = item.locator('input[data-testid="prompt-choice"]');
-  if ((await checkbox.count()) === 0) return false;
-  if (!(await checkbox.isChecked().catch(() => false))) await checkbox.click({ force: true }).catch(() => undefined);
-  const submit = sheet.getByTestId('prompt-submit');
-  if ((await submit.count()) > 0 && (await submit.isEnabled().catch(() => false))) await submit.click().catch(() => undefined);
-  return true;
-}
 
 /**
  * The ONE cast step every spell in this spec goes through: a held drag from
  * the hand to `to` (AD4 rule 2/3 — "placed by a drag", never a plain click),
- * then whatever Forge asks next (a plain mana payment; the stack-target ask,
- * answered by `targetName` when given, else left to the single-legal-choice
- * auto-answer the way Hinder's own cast reaches it) until the stack count on
- * `page` changes.
+ * then whatever Forge asks next (a plain mana payment; the lone-ability
+ * sheet full control leaves to the player; a single-legal-target ask is
+ * auto-answered the way Hinder's own cast reaches it) until the stack count
+ * on `page` changes. A cast with a real target choice is the caller's.
  */
-async function castByDrag(page: Page, stack: { serverLogFile: string }, cardId: number, to: Point, targetName?: string): Promise<void> {
+async function castByDrag(page: Page, stack: { serverLogFile: string }, cardId: number, to: Point): Promise<void> {
   const before = await stackCount(page);
   // Not before Forge offers it: a drag released before the offer is a no-op, and the first act after
   // a scenario start can be dropped outright (ledger AB15, `PlayBridge.java`'s `refreshActionable`) —
@@ -150,7 +131,7 @@ async function castByDrag(page: Page, stack: { serverLogFile: string }, cardId: 
         async () => {
           const text = await says(page);
           if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
-          if (targetName !== undefined) await answerTargetChoice(page, targetName);
+          await answerLoneAbility(page);
           return stackCount(page);
         },
         { timeout: 8_000 },
@@ -189,11 +170,6 @@ test(
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
-    // Where this stands (the tracker, 2026-10-08, runs 37763694613 → 37765728857): Keiga's drag-cast
-    // is placed (server `placement` card 160), bob's Hinder reaches the stack, and Remand's drag-cast
-    // — a TARGETED spell, parked by the drag, its target Hinder's placed card clicked — never reaches
-    // the stack (`says` stays "Priority: Alice"). The next wave's first item; the day it passes is its land.
-    test.fail(true, 'Remand’s targeted drag-cast never reaches the stack after its placed target is clicked (ledger AD4)');
     test.setTimeout(3 * 60_000);
 
     const stack = await startPlayStack(forge);
@@ -248,21 +224,27 @@ test(
       await expect(alice.page.getByTestId('live-full-control'), 'full control is on for alice').toHaveAttribute('aria-pressed', 'true');
 
       /* ── alice casts Remand on Hinder — TWO legal spell targets now (Hinder, Keiga), so this is a real choice, not an auto-answer ── */
-      // A targeted spell let go over the table parks and waits for its target to be CLICKED (the arrow
-      // follows the pointer to it): Hinder's placed card is that target now — never a list.
+      // Under full control, the release opens Forge's lone-ability `getAbilityToPlay` sheet first —
+      // "Choose ability to play / Remand / Counter target spell…" — which `rules.ts`'s `autoAnswer`
+      // leaves to the player on purpose (measured on a claw, run 37787781493: the cast went out as
+      // `act selectCard`, the card parked, the sheet sat unanswered — the earlier reds, 37763694613
+      // → 37765728857, were this driver gap, never the product). Then the stack-target ask, with TWO
+      // legal targets, is answered the way a player answers it: a click on Hinder's placed card
+      // (`live/placed.ts` carries `data-stack-id` on it for exactly this; `gestures/stack.ts`).
       await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'Remand is offered' }).toContain(remandCardId);
       expect(await dragHandCard(alice.page, remandCardId!, remandPoint), 'Remand armed the drag-cast gesture').toBe(true);
-      await expect(placedSpell(alice.page, 'Hinder'), 'Hinder, the target, is a placed card to click').toHaveCount(1, { timeout: 10_000 });
-      await placedSpell(alice.page, 'Hinder').click();
       await expect
         .poll(
           async () => {
             const text = await says(alice.page);
             if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
-            await answerTargetChoice(alice.page, 'Hinder');
+            if (await answerLoneAbility(alice.page)) return stackCount(alice.page);
+            if ((await alice.page.locator('section[data-prompt="getChoices"]').count()) > 0) {
+              await placedSpell(alice.page, 'Hinder').click({ timeout: 2_000 });
+            }
             return stackCount(alice.page);
           },
-          { timeout: 20_000, message: 'Remand reached the stack after its target was clicked' },
+          { timeout: 20_000, message: 'Remand reached the stack: the lone-ability sheet answered, then Hinder’s placed card clicked as the target' },
         )
         .toBe(3);
       await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Remand reached the stack, targeting Hinder' }).toBe(3);
@@ -305,7 +287,10 @@ test(
       ).toBe(true);
       expect(near((await centerOf(placedSpell(alice.page, 'Remand')))!, remandPoint), 'Remand sits where alice released it, on her own screen').toBe(true);
 
-      await expect(bob.page.getByTestId('live-says'), 'nothing has left: the status line still names three to resolve').toContainText('Stack: 3 to Resolve');
+      // The status line of the seat HOLDING priority names the stack; the other seat's reads the
+      // T2 banner ("Waiting for Alice…", `LiveBoard.tsx`) — bob's "nothing has left" is his three
+      // placed spells and `stackCount` above (claw run 37788459694 read bob's line for this).
+      await expect(alice.page.getByTestId('live-says'), 'nothing has left: the status line still names three to resolve').toContainText('Stack: 3 to Resolve');
 
       /* ── alice drags Keiga and Hinder's arrow follows, on both screens ── */
       const dragTo: Point = { x: Math.round(herField.x + herField.width * 0.4), y: Math.round(herField.y + herField.height * 0.25) };

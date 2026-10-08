@@ -34,6 +34,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { castCard, clickOnce, makeTitled, offered, says, stackCount } from './play/board.ts';
+import { answerLoneAbility } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -143,29 +144,6 @@ async function liftAndParkOutsideHand(page: Page, cardId: number): Promise<void>
   expect(await castLift(), `card ${cardId} is parked — the cast actually went out`).toBe('parked');
 }
 
-/**
- * Answer a lone `getAbilityToPlay` offer (`ChoicePrompts.tsx`'s
- * `GetAbilityToPlayPrompt`, one `[data-testid="prompt-choice"]` button) by
- * clicking it — the one ask `rules.ts`'s `autoAnswer` would otherwise settle
- * on its own, EXCEPT while full control is on (`LiveBoard.tsx`: `const auto
- * = pending === null || match.fullControl || spectator ? null :
- * autoAnswer(pending)` — full control suppresses every auto-answer, not only
- * the stack-target one). Counterspell casts through exactly this ask
- * (one ability, "Counter target spell.") before Forge ever opens the
- * stack-target choice; a full-control seat has to click through it by hand.
- */
-async function answerLoneAbility(page: Page): Promise<boolean> {
-  // Scoped to `GetAbilityToPlayPrompt`'s own `data-prompt` (`PromptShell`'s
-  // `method` prop): `[data-testid="prompt-choice"]` is shared with OTHER
-  // prompt types (a checkbox-based `getChoices` list among them), whose
-  // choices need a SEPARATE submit click, not one click to answer — measured
-  // directly: an unscoped click here landed on a `getChoices` checkbox by the
-  // time Playwright's actionability wait resolved, which only toggles a box.
-  const choice = page.locator('section[data-prompt="getAbilityToPlay"] [data-testid="prompt-choice"]');
-  if ((await choice.count()) !== 1) return false;
-  await choice.click().catch(() => undefined);
-  return true;
-}
 
 /**
  * Answer the stack-target ask for `name` (`ChoicePrompts.tsx`'s
