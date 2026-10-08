@@ -26,7 +26,7 @@
   width: 18px;
   height: 18px;
   overflow: visible;
-  fill: var(--warn);
+  fill: var(--accent);
   stroke: var(--bg);
   stroke-width: 1;
 }
@@ -41,8 +41,8 @@
   font-weight: 600;
   line-height: 1.4;
   white-space: nowrap;
-  color: var(--bg);
-  background: var(--warn);
+  color: var(--on-accent);
+  background: var(--accent);
 }
 
 /* A card back, not a card: no face, no id. `presence.ts` sizes it from a hand card; this is the fallback. */
@@ -52,10 +52,10 @@
   width: calc(var(--card-w) * 0.8);
   aspect-ratio: calc(1 / var(--card-tall));
   border-radius: var(--radius);
-  background: var(--neutral, #778);
+  background: var(--neutral);
   box-shadow:
     0 0 0 2px var(--warn),
-    0 4px 10px rgb(0 0 0 / 0.35);
+    0 4px 10px var(--shadow);
   pointer-events: none;
   transform: translate(-50%, -50%) rotate(-3deg);
   transition:
@@ -77,7 +77,7 @@
 }
 .presence__back[data-face] {
   background: none;
-  box-shadow: 0 4px 10px rgb(0 0 0 / 0.35);
+  box-shadow: 0 4px 10px var(--shadow);
 }
 .presence__back[data-face]::after {
   content: none;
@@ -121,7 +121,7 @@
 }
 
 .presence__arrow polygon {
-  fill: var(--warn);
+  fill: var(--accent);
 }
 
 /* The card they let go, travelling from where its back was to its place (`[data-cast-lift]` positions it; `gestures.css`). */
@@ -129,7 +129,7 @@
   z-index: 3;
   width: calc(var(--card-w) * 0.8);
   aspect-ratio: calc(1 / var(--card-tall));
-  box-shadow: 0 4px 10px rgb(0 0 0 / 0.35);
+  box-shadow: 0 4px 10px var(--shadow);
 }
 
 .presence__handoff > .card {

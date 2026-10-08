@@ -633,7 +633,7 @@
   margin: 0;
   overflow-y: auto;
   border-color: var(--accent);
-  box-shadow: 0 6px 24px rgb(0 0 0 / 45%);
+  box-shadow: 0 6px 24px var(--shadow);
 }
 
 /*
@@ -1095,7 +1095,7 @@
   /* The warning colour, not the accent: `.confirm`'s own border is the accent,
      which in this file means "the affordance you want". This is not that. */
   border-color: var(--warn);
-  box-shadow: 0 6px 24px rgb(0 0 0 / 45%);
+  box-shadow: 0 6px 24px var(--shadow);
 }
 
 .live__ask .live__danger {
@@ -1124,7 +1124,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgb(0 0 0 / 55%);
+  background: var(--scrim);
 }
 
 .live__result {

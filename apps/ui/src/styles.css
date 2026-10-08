@@ -68,6 +68,16 @@
   --on-accent: var(--color-on-primary, #10131a);
   --warn: var(--color-warning, #ffb057);
   /*
+   * The three the play surfaces used to write as literals (the operator,
+   * 2026-10-08: "hardcoded colors look bad"): a neutral fill (a card back), a
+   * scrim over the board, and the one shadow colour every lifted thing casts —
+   * from the theme's overlay colour, so a light theme's shadow is still a
+   * shadow and never a tint of its text.
+   */
+  --neutral: var(--color-neutral, #778);
+  --scrim: var(--color-bg-overlay, rgb(0 0 0 / 55%));
+  --shadow: color-mix(in srgb, var(--color-bg-overlay, #000) 60%, transparent);
+  /*
    * The theme's danger and success, for what the board used to borrow the
    * colour-pie's red, green and blue for: damage, a life gain, a buffed or hurt
    * number. Those `--c-*` hues mean "a red card", never "something went wrong",
