@@ -1,0 +1,43 @@
+# wave 59 §P — the operator's own Keiga / Hinder / Remand situation (AD4's
+# design boards), real Forge, both screens. Seat 0 (human, alice) has an
+# uncontested Main Phase 1, Keiga, the Tide Star (ManaCost 5 U) and Remand
+# (ManaCost 1 U) in hand, and 8 untapped Islands — 6 for Keiga, 2 held back
+# for Remand so she can cast it a second time while Keiga is still on the
+# stack from her first cast. Seat 1 (ai, bob) holds Hinder (ManaCost 1 U U)
+# and exactly 3 untapped Islands — enough to pay it once, with nothing left
+# over, so Forge's own actionable set reads empty for him once he has cast it
+# (no partial mana sitting around to make a later priority stop ambiguous).
+# Neither Keiga nor Hinder nor Remand needs a BATTLEFIELD target — Keiga's
+# own ability is a death trigger, not an ETB, so casting it opens no target
+# ask at all; Hinder and Remand each target a SPELL on the stack, chosen
+# through Forge's own `getChoices` (single legal choice auto-answers; two
+# legal choices, once Hinder and Keiga are both up, do not — the spec picks
+# Hinder by name).
+#
+# Each hand also carries two copies of Opt (ManaCost U, Instant, no target —
+# an INSTANT on purpose: a creature is sorcery-speed only and Forge refuses
+# to offer one while anything is on the stack, which a 0-cost-creature
+# version of this file learned the hard way, see lane P's closing note) —
+# the chain-reaction measurement's own four-item stack (§P item 2): alice,
+# bob, alice, bob each cast one Opt in turn (nobody is ever left holding
+# priority for a reason other than Forge's own "the caster does not stop on
+# its own spell" rule — `scenarios/README.md`'s own note on `two-spells.state`
+# is why these are FOUR INDEPENDENT casts, never one seat casting two in a
+# row). Paid for out of the SAME Islands the Keiga/Hinder/Remand exchange
+# uses (a separate test, a separate match, never both at once) — the chain
+# test passes priority itself, by an explicit click, rather than leaning on
+# Forge's own auto-pass-when-nothing-left-to-do, so it does not matter that
+# Keiga/Remand/Hinder are still technically affordable afterward.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Keiga, the Tide Star;Remand;Opt;Opt
+humanbattlefield=Island;Island;Island;Island;Island;Island;Island;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Hinder;Opt;Opt
+aibattlefield=Island;Island;Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
