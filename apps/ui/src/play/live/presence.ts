@@ -218,6 +218,22 @@ function handsOf(canvas: HTMLElement): { held: boolean; from: Point | null } {
   return { held, from: { x: board.left + Number(m[1]), y: board.top + Number(m[2]) } };
 }
 
+/**
+ * A `forge:placed` replay whose `placeSpot` had no board to place it on yet
+ * — module-level, not per-instance: `installPresence` itself remounts
+ * several times while a page connects (spectator, then promoted to its
+ * seat), and a retry tied to one of those instances' own `live` flag dies
+ * with it long before the board ever paints. The NEXT mount picks this up
+ * at its own start, so the one-time replay a joiner gets is never lost to
+ * a mount it happened to race.
+ */
+let pendingPlaced: unknown | null = null;
+
+/** Test-only: drop a carried-over replay, so one test's leftover never reaches the next. */
+export function forgetPendingPlaced(): void {
+  pendingPlaced = null;
+}
+
 export function installPresence(options: { canvas: HTMLElement; host: PresenceHost }): PresenceHandle {
   const { canvas, host } = options;
   let live = true;
@@ -706,15 +722,21 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * generously bounded), rather than dropped: a joiner has no later message
    * to fall back on.
    */
-  function onPlaced(payload: unknown, deadline = Date.now() + 3000): void {
+  function onPlaced(payload: unknown, retryDeadline = Date.now() + 1000): void {
     if (!live) return;
     const parsed = PlacedEchoSchema.safeParse(payload);
     if (!parsed.success || parsed.data.matchId !== host.matchId || parsed.data.seat === host.seat) return;
     const at = placeSpot(canvas, parsed.data.at);
     if (at === null) {
-      if (Date.now() < deadline) setTimeout(() => onPlaced(payload, deadline), 50);
+      // The board has not painted yet (this can be a joiner's one-time replay, on `forge:join`'s
+      // own ack). Retried within this mount for up to a second; `pendingPlaced` carries it past
+      // THIS instance's own dispose, for the next mount to pick up — this one remounts several
+      // times while a page connects (spectator, then promoted), well inside a second.
+      pendingPlaced = payload;
+      if (Date.now() < retryDeadline) setTimeout(() => onPlaced(payload, retryDeadline), 50);
       return;
     }
+    if (pendingPlaced === payload) pendingPlaced = null;
     placeSpell(parsed.data.spell, at, 'them');
     commitSpell(parsed.data.spell);
   }
@@ -743,6 +765,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   host.transport.on(PRESENCE_EVENT, onEcho);
   host.transport.on(PLACEMENT_EVENT, onPlacement);
   host.transport.on(PLACED_EVENT, onPlaced);
+  // A replay an EARLIER mount of this module received and could not yet place (the board had not
+  // painted) — this mount gets its own fresh attempt, since the server only ever sends it once.
+  if (pendingPlaced !== null) onPlaced(pendingPlaced);
   const unwatch = host.watch?.(handoff) ?? null;
 
   return {

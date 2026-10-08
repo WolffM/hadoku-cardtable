@@ -35,7 +35,7 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
 });
 vi.mock('./placed.ts', () => placedMod);
 
-import { installPresence, placeSpot, PRESENCE_STALE_MS, spotOf, type PresenceHost } from './presence.ts';
+import { forgetPendingPlaced, installPresence, placeSpot, PRESENCE_STALE_MS, spotOf, type PresenceHost } from './presence.ts';
 
 type Box = { left: number; top: number; width: number; height: number };
 const rect = (b: Box): DOMRect =>
@@ -111,6 +111,7 @@ afterEach(() => {
   placedMod.commitSpell.mockClear();
   placedMod.onSpellMoved.mockClear();
   spellMovedBox.current = null;
+  forgetPendingPlaced();
 });
 
 describe('the mirror', () => {
@@ -452,6 +453,26 @@ describe('receiving', () => {
     expect(placedMod.placeSpell, 'retried once the board painted').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
     expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
     handle.dispose();
+  });
+
+  it('a `forge:placed` replay a disposed mount could not place survives to the NEXT mount — `installPresence` itself remounts several times while a page connects', () => {
+    const { canvas } = board();
+    const overlay = canvas.querySelector('[data-board-overlay]')!;
+    overlay.remove();
+    const t = fakeTransport();
+    // The first mount (a spectator, briefly, before promotion to its own seat) receives the
+    // one-time replay with no board to place it on, and is torn down before one ever paints.
+    const first = installPresence({ canvas, host: host(t, null) });
+    t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 } });
+    expect(placedMod.placeSpell).not.toHaveBeenCalled();
+    first.dispose();
+    // The board paints, THEN the next mount (promoted to seat 0) starts — no second replay ever
+    // comes; it has to find this one for itself.
+    canvas.querySelector('.board')!.append(overlay);
+    const second = installPresence({ canvas, host: host(t, 0) });
+    expect(placedMod.placeSpell, 'the next mount retried it at its own start').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
+    expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
+    second.dispose();
   });
 
   it('this seat dragging its own placed spell (`onSpellMoved`) sends `forge:placed`; the wire’s own echo for THEIR spell never bounces back out', () => {
