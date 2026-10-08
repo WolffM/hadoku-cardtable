@@ -45,6 +45,13 @@ on:
           - both
           - e2e
           - jvm
+      runs_on:
+        description: >-
+          A JSON array of runner labels for this dispatch's jobs, e.g.
+          `["self-hosted","claw-4"]` — the fleet's jdk21 canary has to land on
+          the node it is testing. Empty = the usual jdk21 pool.
+        required: false
+        default: ''
   # The full set, every night, whatever changed: what path selection (the
   # `changes` job) skipped is still run within a day, and a pinned test that
   # stopped failing, or vanished, is caught by the strict full-run judge.
@@ -61,8 +68,11 @@ on:
 # `changes` job above compares against the last run that fully succeeded, not
 # the immediate parent, so the next push's `changes` run still covers whatever
 # the cancelled one would have.
+# A manual dispatch is somebody's proof run (a verify branch, the fleet's
+# canary): it never queues behind a push's full run, nor the push behind it —
+# each dispatch is its own group.
 concurrency:
-  group: forge-${{ github.ref }}
+  group: ${{ github.event_name == 'workflow_dispatch' && format('forge-dispatch-{0}', github.run_id) || format('forge-{0}', github.ref) }}
   cancel-in-progress: false
 
 permissions:
@@ -182,7 +192,17 @@ jobs:
     # runs exactly when it did before: gated on `changes.outputs.e2e` alone.
     # On a dispatch, `only: jvm` turns this job off.
     if: needs.changes.outputs.e2e == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'e2e')
-    runs-on: [self-hosted, hadoku-builder, jdk21]
+    runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21"]') }}
+    # The suite is serial by design (`e2e/playwright.config.ts`: one worker, one
+    # stack at a time), so a full run is ~30 min on one claw however idle the
+    # claw is (measured 2026-10-08 by the fleet tracker: load 6 of 12 cores).
+    # Three shards are three jobs on three claws — each its own ports, its
+    # own JVMs — and Playwright's `--shard` splits the file list. A targeted
+    # dispatch (`specs` given) is one shard: its list is already short.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(inputs.specs != '' && '[1]' || '[1, 2, 3]') }}
     # Measured on run 37184116178 (the 9-spec derived list): ~15 min of test
     # time with three reds burning their own budgets (play.spec alone 312 s),
     # plus install and build. On a claw the same budget also has to cover a
@@ -337,9 +357,9 @@ jobs:
             specs=$(printf '%s\n' "$specs" | grep -vxF "$x" || true)
           done
           [ -n "$specs" ] || { echo "::error::no Forge-gated spec found — the grep matched nothing"; exit 1; }
-          echo "forge-gated specs (derived):"
+          echo "forge-gated specs (derived), shard ${{ matrix.shard }}/${{ strategy.job-total }}:"
           echo "$specs"
-          pnpm --filter @hadoku/e2e test $specs
+          pnpm --filter @hadoku/e2e test --shard=${{ matrix.shard }}/${{ strategy.job-total }} $specs
           fi
           jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null || { echo "::error::e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1) — a skipped test is not a pass"; exit 1; }
 
@@ -355,7 +375,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v6
         with:
-          name: forge-e2e-evidence-${{ github.run_attempt }}
+          name: forge-e2e-evidence-${{ github.run_attempt }}-${{ matrix.shard }}
           retention-days: 14
           if-no-files-found: warn
           # `e2e/.run/` is a dot-directory and the action skips those by
@@ -436,8 +456,8 @@ jobs:
     # always true there — same gate as before. On a dispatch, `only: e2e`
     # turns this job off.
     if: (needs.changes.outputs.jvm_ui == 'true' || needs.changes.outputs.jvm_server == 'true') && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'jvm')
-    runs-on: [self-hosted, hadoku-builder, jdk21]
-    # Measured serially on hokon, 2026-10-06: the 39 suites a push runs took
+    runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21"]') }}
+    # Since 2026-10-06: the 39 suites a push runs took
     # 457 s (7.6 min). They were 1483 s on run 37487474250, before the
     # nightly-only split, the harness killing its JVMs instead of waiting
     # 4.4 s for each to stop, and the bridge being compiled once. SETTLED from
